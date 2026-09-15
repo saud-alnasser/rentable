@@ -46,7 +46,9 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-use crate::{error::Error, http::build_client, persisted::Persisted, sync::RemoteSyncStore};
+use crate::{
+    diagnostics, error::Error, http::build_client, persisted::Persisted, sync::RemoteSyncStore,
+};
 
 /// Where the MCP server lives, and the same value the consent names as its resource indicator.
 /// The authority this spends was issued *for* this resource, which is why one string is both.
@@ -67,6 +69,12 @@ const MCP_LIST_DATABASES: &str = "list_databases";
 const MCP_CREATE_DATABASE: &str = "create_database";
 
 const MCP_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// How many times the listing is asked for a database just created, and how long between: a
+/// create that answered is a database that exists, and a listing that lags it for a moment is
+/// not a database in the wrong place.
+const CREATED_LISTING_ATTEMPTS: u32 = 3;
+const CREATED_LISTING_RETRY: Duration = Duration::from_secs(1);
 
 /// Every database hostname ends here, and the region sits between the slug and this.
 const TURSO_HOSTNAME_SUFFIX: &str = ".turso.io";
@@ -226,11 +234,13 @@ pub struct FirstDatabase {
 /// 2026-09-11), so nothing is read out of it; the listing is asked again and the record carrying
 /// the name just created is what answers, in the one shape this module already reads.
 ///
-/// **The group is deliberately not passed.** The tool's own description says it defaults to the
-/// organization's default group, and a group-scoped token has one group to default to. Were that
-/// ever not so, the database would land where the listing cannot see it, the record would be
-/// missing, and this fails loudly rather than returning a slug for a database in the wrong place.
-/// Delete protection is the Platform API's to turn on afterwards, once the slug is known.
+/// **The group is not passed, and since 2026-09-15 Turso refuses that** (`HTTP 403:
+/// group-scoped tokens must specify a group in the request`, where until then the tool defaulted
+/// to the token's own group). The refusal is said in Turso's words; naming the group is ticket
+/// 17's, which asks the person for it on the walk, since on an empty group nothing here can
+/// learn it: the listing is empty, the token's claims carry the group's uuid and not its name,
+/// and the tool set has no group tool. Delete protection is the Platform API's to turn on
+/// afterwards, once the slug is known.
 pub async fn create_first_database(
     platform_token: &str,
     endpoint: &McpEndpoint,
@@ -239,7 +249,7 @@ pub async fn create_first_database(
     let client = build_client(MCP_REQUEST_TIMEOUT)?;
     let session = handshake(&client, endpoint, platform_token).await?;
 
-    call(
+    let (created, _) = call(
         &client,
         endpoint,
         platform_token,
@@ -248,25 +258,123 @@ pub async fn create_first_database(
             "jsonrpc": "2.0",
             "id": 2,
             "method": "tools/call",
-            "params": { "name": MCP_CREATE_DATABASE, "arguments": { "name": name } }
+            "params": {
+                "name": MCP_CREATE_DATABASE,
+                "arguments": { "name": name }
+            }
         }),
     )
     .await?;
 
-    let databases = list_databases(&client, endpoint, platform_token, session.as_deref()).await?;
-    let record = databases
-        .iter()
-        .find(|record| record.name == name)
-        .ok_or_else(|| Error::Integrity {
-            message: "turso created the organization's database somewhere this application \
-                      cannot see. Setting up an organization needs the account's support."
-                .to_string(),
-        })?;
+    // a tool that could not do what it was asked answers a result carrying `isError`, not a
+    // json-rpc error, and its text is turso's own reason: a plan's limit, a name it will not
+    // take, a group it could not find. Said as it was said, rather than as a listing that
+    // happens not to carry the name afterwards.
+    if let Some(reason) = tool_refusal(&created) {
+        return Err(Error::PreconditionFailed {
+            message: format!("turso could not create the organization's database: {reason}"),
+        });
+    }
 
-    Ok(FirstDatabase {
-        organization: organization_of(record)?,
-        hostname: record.hostname.clone(),
+    // the reply's shape is undocumented, so a record read out of it is a convenience and the
+    // listing is what is trusted; where the reply does carry the database just made, under its
+    // own name, that is one round trip and one moment of listing lag fewer.
+    if let Some(record) = record_from(&created, name) {
+        return Ok(FirstDatabase {
+            organization: organization_of(&record)?,
+            hostname: record.hostname,
+        });
+    }
+
+    for attempt in 1..=CREATED_LISTING_ATTEMPTS {
+        if attempt > 1 {
+            tokio::time::sleep(CREATED_LISTING_RETRY).await;
+        }
+
+        let databases =
+            list_databases(&client, endpoint, platform_token, session.as_deref()).await?;
+
+        if let Some(record) = databases.into_iter().find(|record| record.name == name) {
+            return Ok(FirstDatabase {
+                organization: organization_of(&record)?,
+                hostname: record.hostname,
+            });
+        }
+
+        diagnostics::warn("organization.create.databaseUnlisted")
+            .with("attempt", attempt.to_string().as_str())
+            .write();
+    }
+
+    Err(Error::Integrity {
+        message: "turso created the organization's database somewhere this application \
+                  cannot see. Setting up an organization needs the account's support."
+            .to_string(),
     })
+}
+
+/// The reason a tool gave for refusing, where the reply is a result flagged `isError`.
+fn tool_refusal(message: &Value) -> Option<String> {
+    let result = message.get("result")?;
+
+    if !result
+        .get("isError")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
+        return None;
+    }
+
+    let text = result
+        .get("content")
+        .and_then(Value::as_array)
+        .map(|content| {
+            content
+                .iter()
+                .filter_map(|part| part.get("text").and_then(Value::as_str))
+                .collect::<Vec<_>>()
+                .join(" ")
+        })
+        .unwrap_or_default();
+
+    Some(if text.trim().is_empty() {
+        "no reason was given".to_string()
+    } else {
+        text.trim().to_string()
+    })
+}
+
+/// The database record a create reply carries, where it carries one under the name asked for:
+/// as `structuredContent`, as `structuredContent.database`, or as the same two shapes inside
+/// the text content. Anything else is `None`, and the listing decides.
+fn record_from(message: &Value, name: &str) -> Option<DatabaseRecord> {
+    let result = message.get("result")?;
+    let mut candidates = Vec::new();
+
+    if let Some(structured) = result.get("structuredContent") {
+        candidates.push(structured.clone());
+    }
+
+    if let Some(content) = result.get("content").and_then(Value::as_array) {
+        for text in content
+            .iter()
+            .filter_map(|part| part.get("text").and_then(Value::as_str))
+        {
+            if let Ok(value) = serde_json::from_str::<Value>(text) {
+                candidates.push(value);
+            }
+        }
+    }
+
+    candidates
+        .into_iter()
+        .flat_map(|candidate| {
+            let nested = candidate.get("database").cloned();
+            [Some(candidate), nested]
+        })
+        .flatten()
+        .filter_map(|candidate| serde_json::from_value::<DatabaseRecord>(candidate).ok())
+        .find(|record| record.name == name && !record.hostname.is_empty())
 }
 
 /// `initialize`, and the session it opened where the server opened one.
@@ -623,10 +731,6 @@ mod tests {
             payload["params"]["arguments"],
             json!({ "name": "org-7f3a" })
         );
-        assert!(
-            payload["params"]["arguments"].get("group").is_none(),
-            "a group was passed, and the consented token is what decides the group"
-        );
         assert_eq!(
             server.request_count(),
             3,
@@ -638,17 +742,22 @@ mod tests {
     /// reported as a failure rather than as a slug read off some other record.
     #[tokio::test]
     async fn a_created_database_the_listing_does_not_carry_is_a_failure_not_a_guess() {
+        let elsewhere = || {
+            listing(json!([{
+                "Name": "somebody-elses",
+                "hostname": "somebody-elses-acme-co.aws-eu-west-1.turso.io",
+                "group": "other"
+            }]))
+        };
         let server = ScriptedServer::start(vec![
             handshake(),
             ScriptedResponse::new(
                 200,
                 json!({ "jsonrpc": "2.0", "id": 2, "result": { "content": [] } }).to_string(),
             ),
-            listing(json!([{
-                "Name": "somebody-elses",
-                "hostname": "somebody-elses-acme-co.aws-eu-west-1.turso.io",
-                "group": "other"
-            }])),
+            elsewhere(),
+            elsewhere(),
+            elsewhere(),
         ])
         .await;
 
@@ -663,6 +772,93 @@ mod tests {
         assert!(
             error.to_string().contains("Setting up an organization"),
             "{error}"
+        );
+        assert_eq!(
+            server.request_count(),
+            5,
+            "the listing was not asked again before the create was called a failure"
+        );
+    }
+
+    /// A tool that could not create the database says why in a result flagged `isError`, and
+    /// that reason is what the person reads, not a listing that lacks the name afterwards.
+    #[tokio::test]
+    async fn a_create_the_tool_refused_is_said_in_tursos_own_words_and_nothing_is_listed() {
+        let server = ScriptedServer::start(vec![
+            handshake(),
+            ScriptedResponse::new(
+                200,
+                json!({
+                    "jsonrpc": "2.0",
+                    "id": 2,
+                    "result": {
+                        "isError": true,
+                        "content": [{ "type": "text", "text": "database limit reached for plan" }]
+                    }
+                })
+                .to_string(),
+            ),
+        ])
+        .await;
+
+        let error = create_first_database(TOKEN, &McpEndpoint::at(&server.url("")), "org-7f3a")
+            .await
+            .expect_err("a refused create was read as a database");
+
+        assert!(
+            matches!(error, crate::error::Error::PreconditionFailed { .. }),
+            "{error:?}"
+        );
+        assert!(
+            error
+                .to_string()
+                .contains("database limit reached for plan"),
+            "turso's reason is not in the sentence: {error}"
+        );
+        assert_eq!(
+            server.request_count(),
+            2,
+            "a refused create was followed by a listing"
+        );
+    }
+
+    /// Where the reply carries the record it made, under the name asked for, that is the
+    /// answer and no listing is asked.
+    #[tokio::test]
+    async fn a_create_reply_that_carries_the_record_is_read_without_a_listing() {
+        let server = ScriptedServer::start(vec![
+            handshake(),
+            ScriptedResponse::new(
+                200,
+                json!({
+                    "jsonrpc": "2.0",
+                    "id": 2,
+                    "result": {
+                        "content": [{ "type": "text", "text": "created" }],
+                        "structuredContent": {
+                            "database": {
+                                "Name": "org-7f3a",
+                                "hostname": "org-7f3a-acme-co.aws-eu-west-1.turso.io",
+                                "group": "rentable-empty"
+                            }
+                        }
+                    }
+                })
+                .to_string(),
+            ),
+        ])
+        .await;
+
+        let first = create_first_database(TOKEN, &McpEndpoint::at(&server.url("")), "org-7f3a")
+            .await
+            .expect("the create failed");
+
+        assert_eq!(first.organization.slug, "acme-co");
+        assert_eq!(first.organization.group, "rentable-empty");
+        assert_eq!(
+            server.request_count(),
+            2,
+            "the reply carried the record and a listing was asked anyway"
         );
     }
 
