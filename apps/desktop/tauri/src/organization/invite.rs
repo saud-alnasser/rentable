@@ -837,7 +837,10 @@ pub fn generate_code() -> Result<String, Error> {
 }
 
 /// Draw the secret a link carries: thirty-two bytes, base64url, so the link stays one line.
-fn generate_link_secret() -> Result<String, Error> {
+///
+/// Reached from `machine.rs` as well, which mints the same shape of link for a member's own next
+/// machine (effort 828, requirement 3).
+pub(super) fn generate_link_secret() -> Result<String, Error> {
     use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD as BASE64URL};
 
     let mut bytes = [0_u8; LINK_SECRET_BYTES];
@@ -879,7 +882,7 @@ fn split_issuer_copy(opened: &str) -> Result<(String, String, String), Error> {
 /// **Only what the issuer already holds.** Minting is the owner's machine's and nothing here
 /// mints, so an administrator's invitation and a member's own link both carry the grant their
 /// vault already unsealed, which is minted for four weeks and renewed on the owner's machine.
-fn held_credential(session: &MemberSession) -> Result<String, Error> {
+pub(super) fn held_credential(session: &MemberSession) -> Result<String, Error> {
     session
         .organization_credential
         .lock()
@@ -897,7 +900,7 @@ fn held_credential(session: &MemberSession) -> Result<String, Error> {
 /// A credential carrying no expiry at all is the organization's own never-expiring one, which
 /// nothing here seals into a link; where one arrives anyway the week stands on its own, which is
 /// the shorter of the two either way.
-fn link_expiry(credential: &str, now: i64) -> i64 {
+pub(super) fn link_expiry(credential: &str, now: i64) -> i64 {
     let week = now + INVITATION_LIFETIME_MS;
 
     credential_expiry(credential)
@@ -1234,7 +1237,7 @@ fn opened(session: &MemberSession, column: &str, sealed: &[u8]) -> Result<String
     })
 }
 
-fn random_id() -> Result<String, Error> {
+pub(super) fn random_id() -> Result<String, Error> {
     let mut bytes = [0_u8; 16];
 
     getrandom::fill(&mut bytes).map_err(|error| Error::Internal {

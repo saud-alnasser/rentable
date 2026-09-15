@@ -40,9 +40,9 @@ use super::{
     vault::{KDF_SALT_BYTES, KdfParams, PUBLIC_KEY_BYTES, Vault},
 };
 
-/// The seven tables, in the order the schema creates them. A test pins this list against what
+/// The eight tables, in the order the schema creates them. A test pins this list against what
 /// the database reports, so a table added anywhere is added here or fails there.
-pub const TABLES: [&str; 7] = [
+pub const TABLES: [&str; 8] = [
     "organization",
     "member",
     "administrator_certificate",
@@ -50,6 +50,7 @@ pub const TABLES: [&str; 7] = [
     "grant",
     "invitation",
     "migration_lease",
+    "machine_link",
 ];
 
 /// The schema, as the plan's data model gives it.
@@ -61,7 +62,7 @@ pub const TABLES: [&str; 7] = [
 ///
 /// `grant` is quoted everywhere because it is a keyword in most dialects, and a statement that
 /// works in SQLite and fails elsewhere is a statement worth spelling defensively once.
-const SCHEMA: [&str; 7] = [
+const SCHEMA: [&str; 8] = [
     "CREATE TABLE IF NOT EXISTS \"organization\" (\
         \"id\" TEXT PRIMARY KEY NOT NULL, \
         \"name_sealed\" BLOB NOT NULL, \
@@ -126,6 +127,12 @@ const SCHEMA: [&str; 7] = [
         \"workspace_id\" TEXT PRIMARY KEY NOT NULL, \
         \"holder_member_id\" TEXT NOT NULL, \
         \"expires_at\" INTEGER NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS \"machine_link\" (\
+        \"id\" TEXT PRIMARY KEY NOT NULL, \
+        \"member_id\" TEXT NOT NULL, \
+        \"expires_at\" INTEGER NOT NULL, \
+        \"consumed_at\" INTEGER, \
+        \"created_at\" INTEGER NOT NULL)",
 ];
 
 /// The one `organization` row.
@@ -250,6 +257,36 @@ pub struct InvitationRecord {
     pub created_at: i64,
 }
 
+/// A `machine_link` row: a link a member made for their own next machine, and whether it has been
+/// spent.
+///
+/// **It carries no signature, and that is the accepted limit rather than an oversight** (effort
+/// 828, requirement 3). A plain member holds no administrator key and no certificate, so nothing
+/// they write on their own account can be signed (effort 826, requirement 6), and this is the one
+/// row a plain member writes for themselves. It is written under their own organization credential
+/// the way `member.session_epoch` is ([`OrganizationStore::set_session_epoch`]), which is the
+/// precedent: a column outside the chain that gates availability and never authority.
+///
+/// **What a rewritten row buys is one more machine at the wall.** Somebody who clears
+/// `consumed_at`, or moves `expires_at` out, reopens a spent link on a second machine, and what
+/// that machine reaches is the sign-in wall, where the member's username and password are still
+/// the whole of what admits. The credential inside the link is the member's own four-week grant,
+/// which their vault already yields, so nothing is reachable that the password did not already
+/// reach. A test rewrites the row and lands the machine at the wall, so the limit is recorded
+/// rather than discovered.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MachineLinkRecord {
+    pub id: String,
+    /// the member whose machine this link is for, and the only person who can make one.
+    pub member_id: String,
+    /// when the link and this row lapse: a week out or the moment the member's own grant on the
+    /// organization database dies, whichever is sooner.
+    pub expires_at: i64,
+    /// when a machine spent it. One machine, once.
+    pub consumed_at: Option<i64>,
+    pub created_at: i64,
+}
+
 /// Who is writing: an administrator's key and the certificate that makes it an authority.
 ///
 /// Taken together so that `authority::sign` can refuse a key the certificate does not name, once,
@@ -313,7 +350,7 @@ impl OrganizationStore {
         })
     }
 
-    /// Create the seven tables where they do not exist.
+    /// Create the eight tables where they do not exist.
     ///
     /// Issued through the sync connection, so on the machine that creates the organization the
     /// schema is captured as change data and reaches the remote with the first push; every other
@@ -1121,6 +1158,96 @@ impl OrganizationStore {
         Ok(())
     }
 
+    // machine links
+
+    /// Write the row behind a link a member made for their own next machine.
+    ///
+    /// **Unsigned**, for the reason [`MachineLinkRecord`] gives. `INSERT OR REPLACE`, so a member
+    /// who makes a second link for the same id overwrites the first rather than growing a second
+    /// row for it.
+    pub async fn write_machine_link(&self, machine_link: &MachineLinkRecord) -> Result<(), Error> {
+        self.connection
+            .execute(
+                "INSERT OR REPLACE INTO \"machine_link\" \
+                 (\"id\", \"member_id\", \"expires_at\", \"consumed_at\", \"created_at\") \
+                 VALUES (?, ?, ?, ?, ?)",
+                vec![
+                    turso::Value::Text(machine_link.id.clone()),
+                    turso::Value::Text(machine_link.member_id.clone()),
+                    turso::Value::Integer(machine_link.expires_at),
+                    machine_link
+                        .consumed_at
+                        .map_or(turso::Value::Null, turso::Value::Integer),
+                    turso::Value::Integer(machine_link.created_at),
+                ],
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// The row a machine link names, or `None` where nobody made one or it was replaced.
+    ///
+    /// **No verifying key, because there is nothing to verify.** Every other read here checks a
+    /// signature and refuses the row that fails it; this row carries none, so what the caller gets
+    /// is what the replica holds, and what it is worth is [`MachineLinkRecord`]'s docstring.
+    pub async fn machine_link(&self, id: &str) -> Result<Option<MachineLinkRecord>, Error> {
+        let mut rows = self
+            .connection
+            .query(
+                "SELECT \"id\", \"member_id\", \"expires_at\", \"consumed_at\", \"created_at\" \
+                 FROM \"machine_link\" WHERE \"id\" = ?",
+                vec![turso::Value::Text(id.to_string())],
+            )
+            .await?;
+
+        match rows.next().await? {
+            Some(row) => Ok(Some(MachineLinkRecord {
+                id: text(&row, 0)?,
+                member_id: text(&row, 1)?,
+                expires_at: integer(&row, 2)?,
+                consumed_at: match row.get_value(3)? {
+                    turso::Value::Integer(value) => Some(value),
+                    _ => None,
+                },
+                created_at: integer(&row, 4)?,
+            })),
+            None => Ok(None),
+        }
+    }
+
+    /// Mark a machine link spent: the machine that opened it holds the organization from here on,
+    /// and the link admits nobody else.
+    pub async fn consume_machine_link(&self, id: &str, now: i64) -> Result<(), Error> {
+        self.connection
+            .execute(
+                "UPDATE \"machine_link\" SET \"consumed_at\" = ? WHERE \"id\" = ?",
+                vec![
+                    turso::Value::Integer(now),
+                    turso::Value::Text(id.to_string()),
+                ],
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// Drop every unspent link this member holds, which is what makes one stand at a time.
+    ///
+    /// A member who lost the pair presses again, and the link they could not use stops being a way
+    /// in the moment the new one exists. A spent row is left where it is: it is what refuses the
+    /// link that already connected a machine.
+    pub async fn delete_open_machine_links_of(&self, member_id: &str) -> Result<(), Error> {
+        self.connection
+            .execute(
+                "DELETE FROM \"machine_link\" WHERE \"member_id\" = ? AND \"consumed_at\" IS NULL",
+                vec![turso::Value::Text(member_id.to_string())],
+            )
+            .await?;
+
+        Ok(())
+    }
+
     /// Rename a workspace. Unsigned, as the plan keeps the name: the database identity is what
     /// the chain signs, and the name is content, sealed under the content key by the caller.
     pub async fn rename_workspace(
@@ -1619,7 +1746,7 @@ mod tests {
     // criterion 1: the schema, and two workspaces of one organization
 
     #[tokio::test]
-    async fn the_seven_tables_exist_and_an_organization_holds_two_workspaces_at_once() {
+    async fn the_eight_tables_exist_and_an_organization_holds_two_workspaces_at_once() {
         let directory = scratch("schema");
         let store = open(&directory).await;
         let chain = Chain::new();
@@ -2403,7 +2530,7 @@ mod tests {
 
         assert_eq!(members.len(), 2);
         assert_eq!(super::integer(&row, 0).expect("a count"), 1);
-        assert_eq!(store.tables().await.expect("the tables").len(), 7);
+        assert_eq!(store.tables().await.expect("the tables").len(), TABLES.len());
     }
 
     /// Live, at the human's request: **machine A writes, machine B reads it back**, against a

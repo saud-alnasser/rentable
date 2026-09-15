@@ -390,6 +390,21 @@ export type InvitationLink = {
 };
 
 /**
+ * the link and the code a member makes for their own next machine (effort 828, requirement 3).
+ *
+ * Nobody but the member makes one: it carries the grant their own vault unsealed, so nothing is
+ * minted and nobody else's row is reached. The link is carried to the other machine and the code
+ * is read off this one; neither is stored, and a person who lost the pair makes another.
+ */
+export type MachineLink = {
+	link: string;
+	/** six characters from the alphabet with the letters that read alike taken out. */
+	code: string;
+	/** the earlier of a week out and the moment the member's own grant on the database dies. */
+	expiresAt: number;
+};
+
+/**
  * what an invitation makes, shown to the administrator: the two things they hand over, the
  * invitation link and the code that opens it, beside the username and the ids the members list
  * reads. The link carries the credential and the vault password sealed under the code and the
@@ -701,6 +716,21 @@ export type Host = {
 			 */
 			link: (invitationId: string) => Promise<InvitationLink>;
 		};
+		/**
+		 * make a link and a code for the signed-in member's own next machine. Any member, on
+		 * their own account: nothing is minted and nobody else's row is reached. Rejects as
+		 * `preconditionFailed` where nobody is signed in.
+		 */
+		machineLinkMake: () => Promise<MachineLink>;
+		/**
+		 * connect this machine with a link its member made for it, and land at the wall. The code
+		 * and the link's secret together unseal the member's own grant, the organization is
+		 * recorded with no member, and the link is spent. Rejects a wrong or missing code as
+		 * `forbidden` and `invalidInput`, a lapsed link and a replaced or already spent one by
+		 * name as `forbidden`, and a machine that already holds an organization as
+		 * `preconditionFailed`.
+		 */
+		machineConnect: (link: string, code: string) => Promise<OrganizationState>;
 		/**
 		 * change the signed-in member's own password. The current one has to open the vault and
 		 * the new one has to reach the floor; nothing else on the database moves, and what comes

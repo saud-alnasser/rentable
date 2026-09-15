@@ -2,6 +2,7 @@ import type {
 	InvitationLink,
 	Invited,
 	LockOutCost,
+	MachineLink,
 	MemberRemoved,
 	OrganizationConsentResult,
 	OrganizationConsentStart,
@@ -323,6 +324,36 @@ export const organization = router({
 			)
 			.mutation(async ({ input, ctx }): Promise<OrganizationState> => {
 				return ctx.host.organization.invitation.accept(input.link, input.code, input.password);
+			})
+	},
+	/**
+	 * A member's own next machine: the pair they make for it, and the connect that spends it
+	 * (effort 828, requirement 3).
+	 *
+	 * **`member` for making one and `public` for opening it**, which is the same split `invitation`
+	 * has and for the same reasons. Making one acts on the caller's own account and needs nothing
+	 * but a session, so there is no act to hold it to: an administrator cannot make one for
+	 * somebody else, and a member needs nobody's permission to set their own laptop up. Opening one
+	 * happens on a machine where nobody has signed in yet, so requiring an identity would be
+	 * requiring the thing the call exists to make possible.
+	 *
+	 * The code is six characters here as it is on an invitation, refused before a round trip for a
+	 * caller that is not the screen; whether the link has lapsed, where the row behind it stands,
+	 * and whether the code and the link's own secret together open anything, are Rust's alone.
+	 */
+	machine: {
+		link: procedure.member.mutation(async ({ ctx }): Promise<MachineLink> => {
+			return ctx.host.organization.machineLinkMake();
+		}),
+		connect: procedure.public
+			.input(
+				z.object({
+					link: z.string().trim().min(1),
+					code: z.string().trim().length(CODE_LENGTH)
+				})
+			)
+			.mutation(async ({ input, ctx }): Promise<OrganizationState> => {
+				return ctx.host.organization.machineConnect(input.link, input.code);
 			})
 	},
 	/**

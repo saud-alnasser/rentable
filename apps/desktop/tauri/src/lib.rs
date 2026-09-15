@@ -263,6 +263,8 @@ pub fn run() {
             organization::invitation_revoke,
             organization::invitation_link,
             organization::invitation_accept,
+            organization::machine_link_make,
+            organization::machine_connect,
             organization::organization_members,
             organization::organization_link_take,
             organization::organization_link_read,

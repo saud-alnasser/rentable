@@ -252,6 +252,8 @@ test('nothing here asks the host to list organizations', () => {
 		'invitation.accept',
 		'invitation.link',
 		'invitation.revoke',
+		'machine.connect',
+		'machine.link',
 		'member.changeRole',
 		'member.endSessions',
 		'member.invite',
@@ -362,6 +364,65 @@ test('copying an invitation answers the link and the code, held to inviteMember'
 
 	await assert.rejects(resetting.app.organization.invitation.link({ invitationId: 'inv-1' }));
 	assert.deepEqual(asked, ['link:inv-1']);
+});
+
+// effort 828, requirement 3 from this side: making the pair for your own next machine needs a
+// session and nothing else, because it acts on the caller's own account and mints nothing; opening
+// one happens on a machine where nobody has signed in yet, so it is public. The code is six
+// characters here as it is on an invitation, and everything else about the link is Rust's.
+test('making a machine link needs a session, and connecting with one reaches the host signed out', async () => {
+	const asked: string[] = [];
+	const host = fakeHost({
+		organization: {
+			...fakeHost().organization,
+			machineLinkMake: async () => {
+				asked.push('machineLinkMake');
+
+				return { link: 'rentable://join/abc', code: '7K4M9Q', expiresAt: 1_757_604_800_000 };
+			},
+			machineConnect: async (link, code) => {
+				asked.push(`machineConnect:${link}:${code}`);
+
+				return fakeOrganizationState({
+					organization: fakeHeldOrganization({ memberId: null, role: null }),
+					session: null
+				});
+			}
+		}
+	});
+	const signedOut = await signedOutApi(host);
+
+	await assert.rejects(
+		signedOut.app.organization.machine.link(),
+		'a machine link was made for nobody'
+	);
+	assert.deepEqual(asked, []);
+
+	// any member, with no act of their own: it is their account and nobody else's row.
+	const member = await permittedApi(host);
+	const made = await member.app.organization.machine.link();
+
+	assert.equal(made.code, '7K4M9Q');
+	assert.equal(made.link, 'rentable://join/abc');
+	assert.deepEqual(asked, ['machineLinkMake']);
+
+	const connected = await signedOut.app.organization.machine.connect({
+		link: ' rentable://join/abc ',
+		code: '7K4M9Q'
+	});
+
+	assert.equal(connected.organization?.memberId, null, 'a connect recorded a member');
+	assert.equal(connected.session, null, 'a connect opened a vault');
+	assert.deepEqual(asked, ['machineLinkMake', 'machineConnect:rentable://join/abc:7K4M9Q']);
+
+	for (const code of ['', '7K4M9', '7K4M9QQ']) {
+		await assert.rejects(
+			signedOut.app.organization.machine.connect({ link: 'rentable://join/abc', code })
+		);
+	}
+
+	await assert.rejects(signedOut.app.organization.machine.connect({ link: '  ', code: '7K4M9Q' }));
+	assert.deepEqual(asked, ['machineLinkMake', 'machineConnect:rentable://join/abc:7K4M9Q']);
 });
 
 /**

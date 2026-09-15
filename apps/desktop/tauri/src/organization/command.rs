@@ -10,6 +10,7 @@ use super::{
     invite::{self, Invitation, InvitationLink, Invited, MemberFacts, WorkspaceGrant},
     join,
     link::{self, JoinLink, LinkShape},
+    machine::{self, MachineLink},
     migrate::Pipeline,
     migration::{self, MigrationPhase, PipelineLease},
     password,
@@ -1021,6 +1022,64 @@ pub async fn invitation_accept(
 
     *app_state.organization.write().await = Some(store);
     *app_state.member.write().await = Some(member);
+
+    state_of(&app_state).await
+}
+
+/// Make a link and a code for the signed-in member's own next machine (effort 828, requirement 3).
+///
+/// **Any member, and nobody else's machine.** It acts on the caller's own account and asks for no
+/// authority: the link carries the grant their vault already unsealed and nothing is minted, which
+/// is what lets a plain member do this without calling anybody. An administrator who has to get
+/// somebody back in issues a reset, which is a different act and already exists.
+///
+/// **Both halves cross, and neither is a credential** ([[rules/credentials]], *Client boundary*).
+/// The link's text carries the credential sealed and the code is what the person reads off the
+/// screen and types on the other machine; nothing is written under the data directory, and a
+/// person who lost the pair presses again.
+#[tauri::command]
+pub async fn machine_link_make(
+    app_state: tauri::State<'_, AppState>,
+) -> Result<MachineLink, Error> {
+    let mut member = app_state.member.write().await;
+    let store = app_state.organization.read().await;
+    let (member, store) = signed_in(&mut member, &store)?;
+
+    machine::make(store, member, setup::SHIPPING_KDF, timestamp::now()).await
+}
+
+/// Connect this machine with a link its member made for it, and leave it at the wall.
+///
+/// **`public`, because it happens before there is anybody to act as**, exactly as a connect and an
+/// invitation accept do. The code and the link's secret together unseal the member's own grant,
+/// the replica is opened under it, the organization is recorded with no member, and the row behind
+/// the link is spent. A machine that already holds an organization is refused, and the way to
+/// another is a disconnect.
+///
+/// **The credential is let go of with the replica.** Nobody is signed in here, so the store is
+/// dropped the way `organization_connect` drops it, and the sign-in at the wall opens it again
+/// with what the member's vault unseals.
+#[tauri::command]
+pub async fn machine_connect(
+    app_state: tauri::State<'_, AppState>,
+    link: String,
+    code: String,
+) -> Result<OrganizationState, Error> {
+    let link = JoinLink::decode(&link)?;
+
+    {
+        let mut remote_sync = app_state.remote_sync.write().await;
+
+        machine::connect(
+            |credential| reached(&app_state, &link, credential),
+            remote_sync.store_mut(),
+            &link,
+            &code,
+            setup::SHIPPING_KDF,
+            timestamp::now(),
+        )
+        .await?;
+    }
 
     state_of(&app_state).await
 }

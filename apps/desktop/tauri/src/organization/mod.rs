@@ -14,7 +14,8 @@
 
 //! What follows the three is the work over them: the link a machine finds an
 //! organization by, the first run that creates one, the connect that records one on a machine
-//! without opening a vault, and the forget that leaves nothing of it here.
+//! without opening a vault, the link a member makes for their own next machine, and the forget
+//! that leaves nothing of it here.
 
 use serde::{Deserialize, Serialize};
 
@@ -25,6 +26,7 @@ pub mod forget;
 pub mod invite;
 pub mod join;
 pub mod link;
+pub mod machine;
 pub mod migrate;
 pub mod migration;
 pub mod password;

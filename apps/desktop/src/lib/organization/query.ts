@@ -682,6 +682,27 @@ export function useInvitationLink(
 	}));
 }
 
+/**
+ * make the link and the code for the reader's own next machine (effort 828, requirement 3).
+ *
+ * **A mutation rather than a query**, for the reason {@link useInvitationLink} gives: it is asked
+ * for when somebody presses a control and its answer is shown once, and cached under a key it
+ * would be a secret kept in memory for as long as the section is open. Nothing is invalidated,
+ * because nothing on screen reads the row it wrote; a person who lost the pair presses again,
+ * which makes a new one and drops the one they lost.
+ */
+export function useMakeMachineLink(
+	opts: MutationOptions = {
+		toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() }
+	}
+) {
+	return createMutation(() => ({
+		mutationFn: () => api.app.organization.machine.link(),
+		onSuccess: () => onMutationSuccess(opts),
+		onError: (e) => onMutationError(opts, e)
+	}));
+}
+
 /** reset a member's password: a fresh link, from what the resetting administrator holds. */
 export function useReissueInvitation(
 	opts: MutationOptions = {

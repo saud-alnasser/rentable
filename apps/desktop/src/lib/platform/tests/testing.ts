@@ -157,6 +157,8 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 				accept: refuse('organization.invitation.accept'),
 				link: refuse('organization.invitation.link')
 			},
+			machineLinkMake: refuse('organization.machineLinkMake'),
+			machineConnect: refuse('organization.machineConnect'),
 			changePassword: refuse('organization.changePassword'),
 			accountRefusalDetail: refuse('organization.accountRefusalDetail')
 		},

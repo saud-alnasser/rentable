@@ -17,6 +17,7 @@ import type {
 	Invited,
 	LinkShape,
 	LockOutCost,
+	MachineLink,
 	MemberRemoved,
 	MigrationNotice,
 	OrganizationConsentResult,
@@ -57,6 +58,7 @@ export type {
 	LinkKind,
 	LinkShape,
 	LockOutCost,
+	MachineLink,
 	MemberRemoved,
 	MigrationNotice,
 	OrganizationConsentResult,
@@ -269,6 +271,9 @@ export const tauri = {
 				invoke<OrganizationState>('invitation_accept', { link, code, password }),
 			link: (invitationId: string) => invoke<InvitationLink>('invitation_link', { invitationId })
 		},
+		machineLinkMake: () => invoke<MachineLink>('machine_link_make'),
+		machineConnect: (link: string, code: string) =>
+			invoke<OrganizationState>('machine_connect', { link, code }),
 		changePassword: (current: string, next: string) =>
 			invoke<OrganizationState>('organization_change_password', { current, new: next }),
 		accountRefusalDetail: () => invoke<string | null>('organization_account_refusal_detail')
