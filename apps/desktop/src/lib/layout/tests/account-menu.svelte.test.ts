@@ -5,6 +5,7 @@ import en from '$lib/i18n/en';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import AccountMenu from '$lib/layout/component/account-menu.svelte';
+import AccountSignedOut from '$lib/layout/component/account-signed-out.svelte';
 import { fakeOrganizationSession } from '$lib/platform/tests/testing.ts';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 
@@ -25,6 +26,11 @@ import RailProviders from './rail-providers.svelte';
  * is reached from the settings rail, the palette and the address without it.
  *
  * The control is props and a session, no query and no client, so nothing here provides one.
+ *
+ * Both halves of the control are read here, because the casing of their rows is one claim
+ * (requirement 10): signed in the menu is this component, signed out it is
+ * `account-signed-out.svelte`, and the row the two are measured against is the settings row each
+ * of them already draws capitalized.
  */
 
 /**
@@ -72,6 +78,28 @@ const open = async () => {
 
 const row = (mark: string) => document.querySelector<HTMLElement>(`[data-account-menu-${mark}]`);
 
+/** the same control with nobody signed in: props only, and the way in is somebody else's. */
+const signedOutMenu = () => {
+	loadLocale('en');
+	setLocale('en');
+	inAWideWindow();
+
+	return render(
+		AccountSignedOut,
+		{ onWayIn: () => {} },
+		{ wrapper: RailProviders, wrapperProps: { strings, direction: 'ltr' } }
+	);
+};
+
+/**
+ * the span a row draws its label in, found by the label, since only the settings row carries a
+ * mark of its own and the casing is a claim about all of them.
+ */
+const label = (text: string) =>
+	[...document.querySelectorAll<HTMLElement>('[role="menuitem"] span')].find(
+		(span) => span.textContent?.trim() === text
+	);
+
 test('the avatar shows the first two characters of the username, upper-cased', () => {
 	menu('olivia.owner');
 
@@ -115,4 +143,24 @@ test('settings opens the settings area at its front', async () => {
 	// the two pages the menu used to reach are gone with requirement 14's one area.
 	expect(document.querySelector('a[href="/organization"]')).toBeNull();
 	expect(document.querySelector('a[href="/account"]')).toBeNull();
+});
+
+test('the way out is cased like the settings row beside it', async () => {
+	menu('ada.lovelace');
+	await open();
+
+	const settings = label(en.common.nav.settings);
+
+	expect(settings?.className).toContain('capitalize');
+	expect(label(en.common.actions.signOut)?.className).toBe(settings?.className);
+});
+
+test('signed out, the way in is cased like the settings row beside it', async () => {
+	signedOutMenu();
+	await open();
+
+	const settings = label(en.common.nav.settings);
+
+	expect(settings?.className).toContain('capitalize');
+	expect(label(en.common.actions.signIn)?.className).toBe(settings?.className);
 });

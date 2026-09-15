@@ -116,7 +116,7 @@
 
 				<DropdownMenu.Item onSelect={signOut}>
 					<LogOutIcon class="size-4 shrink-0" />
-					<span>
+					<span class="capitalize">
 						{$LL.common.actions.signOut()}
 					</span>
 				</DropdownMenu.Item>
