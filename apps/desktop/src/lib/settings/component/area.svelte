@@ -1,16 +1,20 @@
 <script lang="ts">
 	import type api from '$lib/api/caller';
 	import type {
+		MachineLink,
 		OrganizationMember,
 		OrganizationSession,
 		RemoteSyncState
 	} from '$lib/platform/host';
 	import type { Locales } from '$lib/i18n/i18n-types';
 	import PageFrame from '@rentable/design/block/page-frame.svelte';
+	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import { Separator } from '@rentable/design/primitive/separator/index.js';
+	import { toErrorText } from '$lib/error/message';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
-	import OrganizationChangePasswordForm from '$lib/organization/component/change-password-form.svelte';
+	import OrganizationAnotherMachine from '$lib/organization/component/another-machine.svelte';
+	import OrganizationChangePasswordDialog from '$lib/organization/component/change-password-dialog.svelte';
 	import OrganizationDisconnect from '$lib/organization/component/disconnect.svelte';
 	import OrganizationEndOtherSessions from '$lib/organization/component/end-other-sessions.svelte';
 	import OrganizationForgetAccount from '$lib/organization/component/forget-account.svelte';
@@ -27,6 +31,7 @@
 	import { sectionsFor, shownSection, type SettingsSection } from '$lib/settings/section';
 	import WorkspaceSync from '$lib/workspace/component/sync.svelte';
 	import { permits } from '@rentable/workspace-permission';
+	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
 
 	type AppSettings = Awaited<ReturnType<typeof api.app.settings.get>>;
 
@@ -66,11 +71,13 @@
 		copying,
 		endingSessions,
 		isChangingPassword,
+		isMakingMachineLink,
 		isChangingRole,
 		isChangingAccess,
 		onChangeLocale,
 		onRevealDiagnostics,
 		onChangePassword,
+		onMakeMachineLink,
 		onEndOtherSessions,
 		onEndSessions,
 		onReissue,
@@ -105,12 +112,19 @@
 		/** the member whose sessions are being ended, while they are. */
 		endingSessions: string | null;
 		isChangingPassword: boolean;
+		/** a link for another machine is being made, which is a moment a person is waiting on. */
+		isMakingMachineLink: boolean;
 		isChangingRole: boolean;
 		isChangingAccess: boolean;
 		onChangeLocale: (next: Locales) => void;
 		onRevealDiagnostics: () => void;
 		/** change the reader's own password; rejects with what the shared handler has said. */
 		onChangePassword: (current: string, next: string) => Promise<void>;
+		/**
+		 * make a link and a code for another machine of the reader's own; rejects with what the
+		 * shared handler has said. Nothing is kept: the pair is shown once and made again.
+		 */
+		onMakeMachineLink: () => Promise<MachineLink>;
 		/**
 		 * sign the reader out of their other machines; rejects so the confirm stays open on it.
 		 */
@@ -159,19 +173,27 @@
 	const canInvite = $derived(permits(session?.permissions ?? 0, 'inviteMember'));
 	const canRemove = $derived(permits(session?.permissions ?? 0, 'removeMember'));
 
-	let changePasswordForm = $state<{ reset: () => void } | null>(null);
+	let changingPassword = $state(false);
+	/** what the shell refused the last change with, marked on the dialog's current-password field. */
+	let passwordRefusal = $state<string | null>(null);
 
 	/**
-	 * the reader's own password, changed from the `you` section. A change that went through
-	 * empties the form, because the two values in it are the ones that must not be left on
-	 * screen; a refusal is said by the shared handler and the form keeps what was typed.
+	 * the reader's own password, changed from the `you` section.
+	 *
+	 * A change that went through closes the surface, which empties it: the two values on it are
+	 * the ones that must not be left on screen. A refusal keeps it open with what was typed, and
+	 * the sentence the shared handler already said in a toast is put back on the field it belongs
+	 * to, because the current password is what the shell refuses this with
+	 * ([[rules/interface]], *Validation errors*).
 	 */
 	const changePassword = async (current: string, next: string) => {
+		passwordRefusal = null;
+
 		try {
 			await onChangePassword(current, next);
-			changePasswordForm?.reset();
-		} catch {
-			// said by the shared handler.
+			changingPassword = false;
+		} catch (error) {
+			passwordRefusal = toErrorText(error, $LL);
 		}
 	};
 </script>
@@ -202,14 +224,30 @@
 
 			<Field.Set>
 				<Field.Legend>{$LL.settings.you.password.title()}</Field.Legend>
-				<Field.Description>{$LL.settings.you.password.description()}</Field.Description>
-				<OrganizationChangePasswordForm
-					bind:this={changePasswordForm}
-					currentLabel={$LL.settings.you.password.currentLabel()}
-					isChanging={isChangingPassword}
-					errorMessage={null}
-					onChange={(current, next) => void changePassword(current, next)}
-				/>
+				<!-- the fact, and the control that opens the write: nothing about the password is
+				     drawn until the person asks to change it (requirement 8). -->
+				<Field.Field orientation="vertical" data-password>
+					<Field.Content>
+						<Field.Description>{$LL.settings.you.password.description()}</Field.Description>
+					</Field.Content>
+
+					<div>
+						<!-- the verb's glyph before its label; outline rather than solid, since the act is
+						     offered and never invited. -->
+						<Button
+							type="button"
+							variant="outline"
+							data-change-password-open
+							onclick={() => {
+								passwordRefusal = null;
+								changingPassword = true;
+							}}
+						>
+							<KeyRoundIcon class="size-4" />
+							{$LL.settings.you.password.change()}
+						</Button>
+					</div>
+				</Field.Field>
 			</Field.Set>
 
 			<Separator />
@@ -221,7 +259,31 @@
 					{onEndOtherSessions}
 				/>
 			</Field.Set>
+
+			<Separator />
+
+			<Field.Set>
+				<Field.Legend>{$LL.settings.you.anotherMachine.title()}</Field.Legend>
+				<OrganizationAnotherMachine
+					organizationName={session.organizationName}
+					isMaking={isMakingMachineLink}
+					onMake={onMakeMachineLink}
+				/>
+			</Field.Set>
 		</Field.Group>
+
+		<OrganizationChangePasswordDialog
+			open={changingPassword}
+			onOpenChange={(open) => {
+				changingPassword = open;
+
+				if (!open) passwordRefusal = null;
+			}}
+			currentLabel={$LL.settings.you.password.currentLabel()}
+			isChanging={isChangingPassword}
+			errorMessage={passwordRefusal}
+			onChange={(current, next) => void changePassword(current, next)}
+		/>
 	{:else if shown === 'members' && session}
 		<Field.Group>
 			<!-- the list owns its own legend, the sentence beside it and the invite that leads the

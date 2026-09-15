@@ -5,16 +5,14 @@
 	import FieldError from '@rentable/design/block/field-error.svelte';
 	import FormSurface, { insetControl } from '@rentable/design/block/form-surface.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
-	import { Callout } from '@rentable/design/primitive/callout/index.js';
 	import { Checkbox } from '@rentable/design/primitive/checkbox/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import * as Form from '@rentable/design/primitive/form/index.js';
 	import * as InputGroup from '@rentable/design/primitive/input-group/index.js';
 	import * as Select from '@rentable/design/primitive/select/index.js';
 	import { cn } from '@rentable/design/tailwind.js';
-	import { formatRecordDate } from '$lib/design/date';
-	import { LL, locale } from '$lib/i18n/i18n-svelte';
-	import CopyIcon from '@lucide/svelte/icons/copy';
+	import { LL } from '$lib/i18n/i18n-svelte';
+	import LinkHandover from '$lib/organization/component/link-handover.svelte';
 	import UserIcon from '@lucide/svelte/icons/user';
 	import UserPlusIcon from '@lucide/svelte/icons/user-plus';
 	import { defaults, superForm } from 'sveltekit-superforms';
@@ -51,13 +49,11 @@
 	 * control is what a person needs to do that (effort 826, requirement 8). No password is shown.
 	 * *Three things with three copy controls until effort 826.*
 	 *
-	 * **The code is shown under the link and has no copy control** (effort 828, requirement 1). The
-	 * link carries the credential and the vault password sealed under the code and the link's own
-	 * secret together, so a code pasted beside the link is a link that opens on its own: the one
-	 * affordance it gets is being large enough to read out. Under it is the date the pair lapses,
-	 * because the code now lives exactly as long as the link and there is nothing to hurry.
-	 * *Effort 826 drew a ninety-second countdown and a fresh-code control beside it; a fresh code
-	 * would be a fresh link text to re-send, so there is one pair per invitation.*
+	 * **The result panel is `link-handover.svelte`**, shared with the second-machine act in the you
+	 * section (effort 828, requirement 3): both end with one link that is sent and one code that is
+	 * read out, lapsing together, so the block draws it once and this hands it the words that
+	 * differ. The clipboard stays here, which is what keeps the block renderable under a runner
+	 * that has none.
 	 *
 	 * **The same panel answers three acts**: an invitation, a new link on somebody's row, and a
 	 * pending row's copy link. Each ends with one link in one person's hands, so the panel is
@@ -188,17 +184,6 @@
 		access = {};
 		onDismiss();
 	};
-
-	/**
-	 * the date the link and its code lapse, in the reader's own locale.
-	 *
-	 * **A date rather than a countdown** (effort 828, requirement 1). A code lives as long as the
-	 * link it came with, which is a week or less, so what the person handing it over needs is the
-	 * day it stops working; the seconds effort 826 counted down were a ninety-second code's, and
-	 * there is no longer one. What actually refuses a lapsed link is the other machine's read of
-	 * the link's own moment, so this is a fact and never the barrier.
-	 */
-	const lapsesOn = $derived(invited ? formatRecordDate($locale, invited.expiresAt) : '');
 </script>
 
 <FormSurface
@@ -210,74 +195,19 @@
 	description={invited ? undefined : $LL.organization.dashboard.inviteDescription()}
 >
 	{#if invited}
-		<div class="space-y-4" data-invited>
-			<!-- the organization the link admits into leads the panel: the link is opaque, and the
-			     one fact a person hands over with it is which organization it opens. -->
-			<p class="text-sm font-medium" data-invited-organization>{organizationName}</p>
-
-			<!-- the one notice this surface carries, because it is the one thing a person has to act
-			     on: nothing was sent, and the link below is theirs to send. -->
-			<Callout tone="warning">{$LL.organization.dashboard.cannotSend()}</Callout>
-
-			<div class="space-y-2">
-				<div class="flex flex-wrap items-baseline gap-2">
-					<p class="text-sm font-medium">{$LL.organization.dashboard.invitationLinkTitle()}</p>
-					<p class="truncate text-sm text-muted-foreground" data-invited-username>
-						{invited.username}
-					</p>
-				</div>
-				<!-- machine strings, read left to right in both locales ([[rules/frontend]], *i18n*). -->
-				<code
-					dir="ltr"
-					class="block overflow-x-auto rounded-md bg-muted px-3 py-2 text-xs break-all select-all"
-					data-invited-link>{invited.joinLink}</code
-				>
-				<Button
-					type="button"
-					variant="outline"
-					size="sm"
-					onclick={() => invited && onCopy('link', invited.joinLink)}
-				>
-					<CopyIcon class="size-4" />
-					{copied === 'link'
-						? $LL.organization.setup.linkCopied()
-						: $LL.organization.setup.copyLink()}
-				</Button>
-			</div>
-
-			<!-- the code under the link and drawn at the size a person reads out loud from, with the
-			     date the pair lapses beside it (effort 828, requirement 1). It is the one value on
-			     this panel with no copy control, because copying it is how it ends up pasted beside
-			     the link, which is the one thing it must never be. -->
-			<div class="space-y-2" data-invited-code-block>
-				<div class="flex flex-wrap items-baseline gap-2">
-					<p class="text-sm font-medium">{$LL.organization.dashboard.codeTitle()}</p>
-					<span class="text-xs text-muted-foreground" data-invited-expiry>
-						{$LL.organization.dashboard.invitationExpires({ date: lapsesOn })}
-					</span>
-				</div>
-				<!-- a machine string, read left to right in both locales ([[rules/frontend]], *i18n*). -->
-				<p
-					dir="ltr"
-					class="font-mono text-3xl font-semibold tracking-[0.3em] select-all"
-					data-invited-code
-				>
-					{invited.code}
-				</p>
-				<p class="text-sm text-muted-foreground">
-					{$LL.organization.dashboard.codeDescription()}
-				</p>
-			</div>
-
-			{#if invited.unreachableWorkspaces.length > 0}
-				<!-- requirement 9's limit, said at the moment it bites: what the reset could not
-				     restore, because the resetting administrator does not reach it themselves. -->
-				<Callout tone="warning" data-invited-unreachable>
-					{$LL.organization.dashboard.unreachableWorkspaces({
-						workspaces: invited.unreachableWorkspaces.map((workspace) => workspace.name).join(', ')
-					})}
-				</Callout>
-			{/if}
+		<div data-invited>
+			<LinkHandover
+				{organizationName}
+				notice={$LL.organization.dashboard.cannotSend()}
+				linkLabel={$LL.organization.dashboard.invitationLinkTitle()}
+				subject={invited.username}
+				link={invited.joinLink}
+				code={invited.code}
+				expiresAt={invited.expiresAt}
+				unreachableWorkspaces={invited.unreachableWorkspaces}
+				copied={copied === 'link'}
+				onCopy={() => invited && onCopy('link', invited.joinLink)}
+			/>
 		</div>
 	{:else}
 		<div class="flex flex-col gap-4" data-invite-form>

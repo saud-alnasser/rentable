@@ -8,17 +8,25 @@
 	import { toast } from 'svelte-sonner';
 
 	/**
-	 * The organization's own link, for the owner to share or keep.
+	 * The organization's own link: the owner's recovery copy, and nothing else now.
 	 *
-	 * **The link is half of the way in.** It connects a machine to the organization and admits
-	 * nobody by itself; a username and a password, made inside the application, are the other
-	 * half (requirements 18 and 25 of effort 824), and the sentence under the section says so.
-	 * The invite dialog hands the same link over beside the username and the generated password.
+	 * **It is handed to nobody** (effort 828, requirement 4). Every other link this application
+	 * makes seals what it carries under a code somebody reads out, and lapses with the credential
+	 * inside it; this one does neither, because when every machine is gone there is nobody left to
+	 * read a code out and nothing left to renew a grant. So it stays here, for the owner alone,
+	 * named as the copy that recovers the organization rather than as the way a second machine is
+	 * connected. *Effort 826 handed this link to every member for exactly that, which put a
+	 * never-expiring read of the directory in every chat the organization has; a member makes
+	 * their own link for their own next machine now, and the sentence points them there.*
+	 *
+	 * **What it is still worth to whoever finds it is said beside it**, since nothing about the
+	 * link changed and the risk is recorded rather than removed: it carries a read only view of
+	 * the directory and it does not expire.
 	 *
 	 * **The owner reads it any time, not only at setup.** A link shown once and never again is a
-	 * way to lose the organization once the first machine is gone. It is drawn only where the
-	 * dashboard already knows the reader is the owner, and the command behind it refuses anyone
-	 * else; the credential it carries is the owner's own.
+	 * way to lose the organization once the first machine is gone. It is drawn only where the area
+	 * already knows the reader is the owner, and the command behind it refuses anyone else; the
+	 * credential it carries is the owner's own.
 	 */
 	let { isOwner }: { isOwner: boolean } = $props();
 

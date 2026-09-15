@@ -497,6 +497,15 @@ const en = {
 				change: 'change password',
 				changed: 'your password was changed.'
 			},
+			anotherMachine: {
+				title: 'another machine',
+				description:
+					'connect another machine of your own. you get a link and a code; open the link on that machine, type the code, and sign in there with the same username and password. nothing about this machine changes.',
+				action: 'connect another machine',
+				linkTitle: 'link for the other machine',
+				notice:
+					'rentable sends nothing, and this pair is shown once. open the link on the machine you are connecting and type the code there; it admits one machine once, and if you lose it you make another here.'
+			},
 			sessions: {
 				title: 'other machines',
 				description:
@@ -851,7 +860,7 @@ const en = {
 			renamed: 'the member was renamed.',
 			linkTitle: 'organization link',
 			linkDescription:
-				'the link connects another machine to this organization; with a username and a password, it is the way in. it carries a read only view of the directory, so share it the way you would a password.',
+				'keep this somewhere private: it is the copy that recovers the organization when every machine is gone. opening it on a new machine connects that machine, and a username and a password sign you in. it never expires and it carries a read only view of the directory, so it is not the link to hand around. to connect another machine of your own, make a link for it in the you section of your settings.',
 			authorityTitle: 'turso account',
 			authorityDescription:
 				"this machine holds no authority over the organization's turso account, so it cannot create a workspace, lock anybody out or renew credentials. the authority is nowhere to restore it from; grant the consent again here, as you did on the first run.",

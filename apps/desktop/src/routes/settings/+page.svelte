@@ -25,6 +25,7 @@
 		useFetchOrganizationState,
 		useInvitationLink,
 		useLockOutCost,
+		useMakeMachineLink,
 		useReissueInvitation,
 		useRemoveMember,
 		useRenameMember,
@@ -64,6 +65,7 @@
 	const remoteSyncQuery = useFetchRemoteSyncState(() => session !== null);
 
 	const changePassword = useChangePassword();
+	const makeMachineLink = useMakeMachineLink();
 	const reissueInvitation = useReissueInvitation();
 	const revokeInvitation = useRevokeInvitation();
 	const invitationLink = useInvitationLink();
@@ -332,6 +334,7 @@
 		{copying}
 		{endingSessions}
 		isChangingPassword={changePassword.isPending}
+		isMakingMachineLink={makeMachineLink.isPending}
 		isChangingRole={changeRole.isPending}
 		isChangingAccess={changeAccess.isPending}
 		onChangeLocale={(next) => void changeLocale(next)}
@@ -339,6 +342,7 @@
 		onChangePassword={async (current, next) => {
 			await changePassword.mutateAsync({ current, next });
 		}}
+		onMakeMachineLink={() => makeMachineLink.mutateAsync()}
 		onEndOtherSessions={async () => {
 			await endOtherSessions.mutateAsync();
 		}}

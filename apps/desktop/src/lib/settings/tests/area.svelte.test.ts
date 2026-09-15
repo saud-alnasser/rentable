@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/svelte';
 import { expect, test, vi } from 'vitest';
 
+import { formatRecordDate } from '$lib/design/date';
 import en from '$lib/i18n/en';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
@@ -43,6 +44,13 @@ vi.mock('$app/state', () => ({
 const noop = () => {};
 const resolved = async () => {};
 
+/** what the second-machine act answers with, stood in for: the route owns the mutation. */
+const MACHINE_LINK = {
+	link: 'rentable://join/machine-abc',
+	code: '7K4M9Q',
+	expiresAt: Date.UTC(2026, 8, 22)
+};
+
 /** the reader is standing at this section of the area. */
 const at = (search = '') => {
 	address.url = new URL(`http://localhost/settings${search}`);
@@ -66,11 +74,13 @@ const area = (overrides: Partial<Parameters<typeof render<typeof SettingsArea>>[
 			copying: null,
 			endingSessions: null,
 			isChangingPassword: false,
+			isMakingMachineLink: false,
 			isChangingRole: false,
 			isChangingAccess: false,
 			onChangeLocale: noop,
 			onRevealDiagnostics: noop,
 			onChangePassword: resolved,
+			onMakeMachineLink: async () => MACHINE_LINK,
 			onEndOtherSessions: resolved,
 			onEndSessions: noop,
 			onReissue: noop,
@@ -273,4 +283,96 @@ test('the workspaces section draws a row per workspace the session holds', () =>
 	expect(document.querySelector('[data-workspace-name]')?.textContent?.trim()).toBe(
 		'North Properties'
 	);
+});
+
+// effort 828, requirement 8: nothing about the password is on screen until the person asks to
+// change it. The form was three empty fields drawn under a heading on every visit until then, and
+// a write drawn inline is off the one rule every other write here follows.
+test('the you section states the password and draws no field until the change control is pressed', async () => {
+	at('?section=you');
+	area({ section: 'you' });
+
+	expect(screen.getByText(en.settings.you.password.title)).toBeDefined();
+	expect(screen.getByText(en.settings.you.password.description)).toBeDefined();
+	expect(document.querySelector('[data-change-password-open]')).not.toBeNull();
+	expect(document.querySelectorAll('input[type=password]')).toHaveLength(0);
+	expect(document.querySelector('[data-slot=form-surface]')).toBeNull();
+	expect(screen.queryByText(en.organization.setup.passwordFloor)).toBeNull();
+
+	await fireEvent.click(document.querySelector('[data-change-password-open]')!);
+
+	const surface = await screen.findByText(en.organization.setup.passwordFloor);
+
+	expect(surface).toBeDefined();
+	expect(document.querySelector('[data-slot=form-surface]')).not.toBeNull();
+	expect(document.querySelectorAll('input[type=password]')).toHaveLength(3);
+});
+
+// requirement 3: a member connects their own next machine, and what comes back is shown the way an
+// invitation's link and code are. The mutation is the route's, so what is read here is the control
+// and what the surface draws once the act has answered.
+test('the you section offers another machine, and shows the pair the way an invitation is shown', async () => {
+	at('?section=you');
+	area({ section: 'you' });
+
+	const control = document.querySelector('[data-another-machine-open]');
+
+	expect(control).not.toBeNull();
+	expect(screen.getByText(en.settings.you.anotherMachine.title)).toBeDefined();
+	expect(screen.getByText(en.settings.you.anotherMachine.description)).toBeDefined();
+	// nothing is stored for later, so nothing is drawn before the act runs.
+	expect(document.querySelector('[data-link-handover]')).toBeNull();
+
+	await fireEvent.click(control!);
+	await screen.findByText(en.settings.you.anotherMachine.notice);
+
+	const handover = document.querySelector('[data-link-handover]')!;
+
+	expect(document.querySelector('[data-invited-link]')?.textContent).toBe(MACHINE_LINK.link);
+	expect(document.querySelector('[data-invited-code]')?.textContent?.trim()).toBe(
+		MACHINE_LINK.code
+	);
+	// one copy control on the panel, and it is the link's: a code copied is a code pasted beside
+	// the link, which is the one thing it must never be.
+	expect(
+		Array.from(handover.querySelectorAll('button')).map((button) => button.textContent?.trim())
+	).toEqual([en.organization.setup.copyLink]);
+	expect(document.querySelector('[data-invited-code-block]')?.querySelector('button')).toBeNull();
+	// a date rather than a countdown, since the code lives as long as the link.
+	expect(document.querySelector('[data-invited-expiry]')?.textContent?.trim()).toBe(
+		en.organization.dashboard.invitationExpires.replace(
+			'{date:string}',
+			formatRecordDate('en', MACHINE_LINK.expiresAt)
+		)
+	);
+});
+
+// requirement 4: the organization's own link is the owner's recovery copy and is handed to nobody,
+// and the sentence beside it points a member at the section that makes their own.
+test('the sync section names the organization link as the recovery copy and points elsewhere', () => {
+	at('?section=sync');
+	area({ section: 'sync' });
+
+	const sentence = document.querySelector('[data-link-description]')?.textContent?.trim();
+
+	expect(sentence).toBe(en.organization.dashboard.linkDescription);
+	expect(sentence).toMatch(/recovers the organization/);
+	expect(sentence).toMatch(/every machine is gone/);
+	expect(sentence).toMatch(/you section/);
+});
+
+test('and an administrator meets no link block at all', () => {
+	at('?section=sync');
+	area({
+		section: 'sync',
+		session: fakeOrganizationSession({
+			role: 'administrator',
+			permissions: maskOf(...EVERY_ADMINISTRATION)
+		}),
+		holdsTursoAuthority: false
+	});
+
+	expect(screen.queryByText(en.organization.dashboard.linkTitle)).toBeNull();
+	expect(document.querySelector('[data-link-description]')).toBeNull();
+	expect(document.querySelector('[data-organization-link]')).toBeNull();
 });

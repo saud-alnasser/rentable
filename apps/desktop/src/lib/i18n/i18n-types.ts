@@ -1558,6 +1558,28 @@ type RootTranslation = {
 				 */
 				changed: string
 			}
+			anotherMachine: {
+				/**
+				 * a​n​o​t​h​e​r​ ​m​a​c​h​i​n​e
+				 */
+				title: string
+				/**
+				 * c​o​n​n​e​c​t​ ​a​n​o​t​h​e​r​ ​m​a​c​h​i​n​e​ ​o​f​ ​y​o​u​r​ ​o​w​n​.​ ​y​o​u​ ​g​e​t​ ​a​ ​l​i​n​k​ ​a​n​d​ ​a​ ​c​o​d​e​;​ ​o​p​e​n​ ​t​h​e​ ​l​i​n​k​ ​o​n​ ​t​h​a​t​ ​m​a​c​h​i​n​e​,​ ​t​y​p​e​ ​t​h​e​ ​c​o​d​e​,​ ​a​n​d​ ​s​i​g​n​ ​i​n​ ​t​h​e​r​e​ ​w​i​t​h​ ​t​h​e​ ​s​a​m​e​ ​u​s​e​r​n​a​m​e​ ​a​n​d​ ​p​a​s​s​w​o​r​d​.​ ​n​o​t​h​i​n​g​ ​a​b​o​u​t​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​c​h​a​n​g​e​s​.
+				 */
+				description: string
+				/**
+				 * c​o​n​n​e​c​t​ ​a​n​o​t​h​e​r​ ​m​a​c​h​i​n​e
+				 */
+				action: string
+				/**
+				 * l​i​n​k​ ​f​o​r​ ​t​h​e​ ​o​t​h​e​r​ ​m​a​c​h​i​n​e
+				 */
+				linkTitle: string
+				/**
+				 * r​e​n​t​a​b​l​e​ ​s​e​n​d​s​ ​n​o​t​h​i​n​g​,​ ​a​n​d​ ​t​h​i​s​ ​p​a​i​r​ ​i​s​ ​s​h​o​w​n​ ​o​n​c​e​.​ ​o​p​e​n​ ​t​h​e​ ​l​i​n​k​ ​o​n​ ​t​h​e​ ​m​a​c​h​i​n​e​ ​y​o​u​ ​a​r​e​ ​c​o​n​n​e​c​t​i​n​g​ ​a​n​d​ ​t​y​p​e​ ​t​h​e​ ​c​o​d​e​ ​t​h​e​r​e​;​ ​i​t​ ​a​d​m​i​t​s​ ​o​n​e​ ​m​a​c​h​i​n​e​ ​o​n​c​e​,​ ​a​n​d​ ​i​f​ ​y​o​u​ ​l​o​s​e​ ​i​t​ ​y​o​u​ ​m​a​k​e​ ​a​n​o​t​h​e​r​ ​h​e​r​e​.
+				 */
+				notice: string
+			}
 			sessions: {
 				/**
 				 * o​t​h​e​r​ ​m​a​c​h​i​n​e​s
@@ -2593,7 +2615,7 @@ type RootTranslation = {
 			 */
 			linkTitle: string
 			/**
-			 * t​h​e​ ​l​i​n​k​ ​c​o​n​n​e​c​t​s​ ​a​n​o​t​h​e​r​ ​m​a​c​h​i​n​e​ ​t​o​ ​t​h​i​s​ ​o​r​g​a​n​i​z​a​t​i​o​n​;​ ​w​i​t​h​ ​a​ ​u​s​e​r​n​a​m​e​ ​a​n​d​ ​a​ ​p​a​s​s​w​o​r​d​,​ ​i​t​ ​i​s​ ​t​h​e​ ​w​a​y​ ​i​n​.​ ​i​t​ ​c​a​r​r​i​e​s​ ​a​ ​r​e​a​d​ ​o​n​l​y​ ​v​i​e​w​ ​o​f​ ​t​h​e​ ​d​i​r​e​c​t​o​r​y​,​ ​s​o​ ​s​h​a​r​e​ ​i​t​ ​t​h​e​ ​w​a​y​ ​y​o​u​ ​w​o​u​l​d​ ​a​ ​p​a​s​s​w​o​r​d​.
+			 * k​e​e​p​ ​t​h​i​s​ ​s​o​m​e​w​h​e​r​e​ ​p​r​i​v​a​t​e​:​ ​i​t​ ​i​s​ ​t​h​e​ ​c​o​p​y​ ​t​h​a​t​ ​r​e​c​o​v​e​r​s​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​w​h​e​n​ ​e​v​e​r​y​ ​m​a​c​h​i​n​e​ ​i​s​ ​g​o​n​e​.​ ​o​p​e​n​i​n​g​ ​i​t​ ​o​n​ ​a​ ​n​e​w​ ​m​a​c​h​i​n​e​ ​c​o​n​n​e​c​t​s​ ​t​h​a​t​ ​m​a​c​h​i​n​e​,​ ​a​n​d​ ​a​ ​u​s​e​r​n​a​m​e​ ​a​n​d​ ​a​ ​p​a​s​s​w​o​r​d​ ​s​i​g​n​ ​y​o​u​ ​i​n​.​ ​i​t​ ​n​e​v​e​r​ ​e​x​p​i​r​e​s​ ​a​n​d​ ​i​t​ ​c​a​r​r​i​e​s​ ​a​ ​r​e​a​d​ ​o​n​l​y​ ​v​i​e​w​ ​o​f​ ​t​h​e​ ​d​i​r​e​c​t​o​r​y​,​ ​s​o​ ​i​t​ ​i​s​ ​n​o​t​ ​t​h​e​ ​l​i​n​k​ ​t​o​ ​h​a​n​d​ ​a​r​o​u​n​d​.​ ​t​o​ ​c​o​n​n​e​c​t​ ​a​n​o​t​h​e​r​ ​m​a​c​h​i​n​e​ ​o​f​ ​y​o​u​r​ ​o​w​n​,​ ​m​a​k​e​ ​a​ ​l​i​n​k​ ​f​o​r​ ​i​t​ ​i​n​ ​t​h​e​ ​y​o​u​ ​s​e​c​t​i​o​n​ ​o​f​ ​y​o​u​r​ ​s​e​t​t​i​n​g​s​.
 			 */
 			linkDescription: string
 			/**
@@ -4347,6 +4369,28 @@ export type TranslationFunctions = {
 				 */
 				changed: () => LocalizedString
 			}
+			anotherMachine: {
+				/**
+				 * another machine
+				 */
+				title: () => LocalizedString
+				/**
+				 * connect another machine of your own. you get a link and a code; open the link on that machine, type the code, and sign in there with the same username and password. nothing about this machine changes.
+				 */
+				description: () => LocalizedString
+				/**
+				 * connect another machine
+				 */
+				action: () => LocalizedString
+				/**
+				 * link for the other machine
+				 */
+				linkTitle: () => LocalizedString
+				/**
+				 * rentable sends nothing, and this pair is shown once. open the link on the machine you are connecting and type the code there; it admits one machine once, and if you lose it you make another here.
+				 */
+				notice: () => LocalizedString
+			}
 			sessions: {
 				/**
 				 * other machines
@@ -5338,7 +5382,7 @@ export type TranslationFunctions = {
 			 */
 			linkTitle: () => LocalizedString
 			/**
-			 * the link connects another machine to this organization; with a username and a password, it is the way in. it carries a read only view of the directory, so share it the way you would a password.
+			 * keep this somewhere private: it is the copy that recovers the organization when every machine is gone. opening it on a new machine connects that machine, and a username and a password sign you in. it never expires and it carries a read only view of the directory, so it is not the link to hand around. to connect another machine of your own, make a link for it in the you section of your settings.
 			 */
 			linkDescription: () => LocalizedString
 			/**
