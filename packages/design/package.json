@@ -27,7 +27,7 @@
 	"dependencies": {
 		"@internationalized/date": "^3.12.3",
 		"@lucide/svelte": "^1.33.0",
-		"@tanstack/table-core": "^8.21.3",
+		"@tanstack/table-core": "^9.0.0",
 		"@trpc/server": "^11.18.0",
 		"bits-ui": "^2.19.0",
 		"clsx": "^2.1.1",
