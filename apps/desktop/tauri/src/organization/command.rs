@@ -150,6 +150,11 @@ pub async fn organization_create(
     let credential: CredentialSlot = Arc::new(Mutex::new(None));
     let member = session::sign_in(&store, &joined, &password, &credential).await?;
 
+    // the owner's machine enters the registry (effort 828, requirement 15). A first run draws the
+    // machine id with the record (`setup.rs`) and registers here, after the sign-in, because the
+    // push goes out under the credential the vault unsealed.
+    session::machine_seen(&store, &joined, Some(&member.member_id), timestamp::now()).await;
+
     *app_state.organization.write().await = Some(store);
     *app_state.member.write().await = Some(member);
 
@@ -183,12 +188,18 @@ pub async fn organization_state_get(
 /// rather than two because both are things that happen once, before anything else opens the
 /// replica, and the order between them matters: a machine holding the old shape has just had its
 /// replica deleted and its record emptied, and there is nothing left for a resume to open.
+///
+/// **And registers the machine** (effort 828, requirement 15), which is the third thing that
+/// happens once a launch and is last for the same reason: the resume is what opens the replica
+/// the row is written through, so a machine that came back signed in refreshes its row here
+/// without anybody typing a password.
 pub(crate) async fn state_of(app_state: &AppState) -> Result<OrganizationState, Error> {
     app_state
         .old_shape_check
         .get_or_try_init(|| async {
             forget::forget_old_shape(app_state).await?;
             resume_remembered(app_state).await;
+            machine_registered(app_state).await?;
 
             Ok::<(), Error>(())
         })
@@ -336,6 +347,7 @@ pub async fn organization_sign_in(
             &username,
             &password,
             &credential,
+            timestamp::now(),
         )
         .await?
     };
@@ -387,6 +399,22 @@ pub(crate) async fn sign_out(app_state: &AppState) {
             held.and_then(|held| held.member_id.as_ref().map(|member| (&held.id, member)))
         {
             session::forget_remembered(organization_id, member_id);
+        }
+    }
+
+    // the machine stays in the registry and stops naming anybody (effort 828, requirement 15):
+    // it still holds the organization, and what ended is the session. Before the replica is let
+    // go of below, since that is what carries the write.
+    {
+        let held = {
+            let mut remote_sync = app_state.remote_sync.write().await;
+
+            remote_sync.store_mut().organization.clone()
+        };
+        let organization = app_state.organization.read().await;
+
+        if let (Some(held), Some(store)) = (held, organization.as_ref()) {
+            session::machine_seen(store, &held, None, timestamp::now()).await;
         }
     }
 
@@ -455,6 +483,95 @@ async fn resume_remembered(app_state: &AppState) {
     diagnostics::info("organization.session.resumed")
         .with("organization", held.id.as_str())
         .write();
+}
+
+/// Say this machine is still here, and give a record written before this build the machine id it
+/// has no field for: the launch's own write to the registry (effort 828, requirement 15).
+///
+/// **The id is drawn here for an old record and nowhere else.** A record from before the field
+/// existed deserialises with an empty one rather than being refused, so the machine keeps what it
+/// holds; this is the first launch that can give it one, and the row it writes below is that
+/// machine's first. An id once drawn is never redrawn, so a machine keeps one row across every
+/// launch after this.
+///
+/// **Only a launch that opened the replica writes a row**, which is a machine that came back
+/// signed in. Reaching the organization database at all takes a credential a vault holds, so a
+/// launch that stops at the wall has nothing to write through and nothing to write it under; the
+/// sign-in that follows is what writes the row, and the id drawn here is the one it writes.
+async fn machine_registered(app_state: &AppState) -> Result<(), Error> {
+    let held = {
+        let mut remote_sync = app_state.remote_sync.write().await;
+        let Some(held) = remote_sync.store_mut().organization.clone() else {
+            return Ok(());
+        };
+
+        if !held.machine_id.is_empty() {
+            held
+        } else {
+            let identified = HeldOrganization {
+                machine_id: invite::random_id()?,
+                ..held
+            };
+
+            let record = remote_sync.store_mut();
+
+            record.organization = Some(identified.clone());
+            record.commit()?;
+
+            diagnostics::info("organization.machine.identified")
+                .with("organization", identified.id.as_str())
+                .write();
+
+            identified
+        }
+    };
+    let organization = app_state.organization.read().await;
+
+    if let Some(store) = organization.as_ref() {
+        session::machine_seen(store, &held, held.member_id.as_deref(), timestamp::now()).await;
+    }
+
+    Ok(())
+}
+
+/// Take this machine out of the registry, through the replica that carries the delete: what a
+/// disconnect does before it forgets the organization locally (effort 828, requirement 15).
+///
+/// **The replica is taken rather than borrowed**, so the sign-out `forget` performs next finds
+/// none and writes nothing back: a machine that deleted its row and then said it was still here
+/// would stand in the owner's way for a week over a disconnect it performed itself.
+///
+/// A disconnect from the wall has no replica open and leaves the row where it is, which is what
+/// the seven-day window is for. Nothing here is a refusal: the person asked to forget the
+/// organization and that is what happens either way.
+pub(crate) async fn leave_registry(app_state: &AppState) {
+    let held = {
+        let mut remote_sync = app_state.remote_sync.write().await;
+
+        remote_sync.store_mut().organization.clone()
+    };
+    let Some(held) = held.filter(|held| !held.machine_id.is_empty()) else {
+        return;
+    };
+    let Some(store) = app_state.organization.write().await.take() else {
+        diagnostics::info("organization.machine.notUnregistered")
+            .with("organization", held.id.as_str())
+            .with("reason", "no replica is open on this machine")
+            .write();
+
+        return;
+    };
+
+    if let Err(refusal) = store.unregister_machine(&held.machine_id).await {
+        diagnostics::warn("organization.machine.notUnregistered")
+            .with("organization", held.id.as_str())
+            .with("reason", refusal.to_string())
+            .write();
+    } else if !store.push().await {
+        diagnostics::warn("organization.machine.unregisteredNotYetSent")
+            .with("organization", held.id.as_str())
+            .write();
+    }
 }
 
 /// Whether the member signed in on this machine has been signed out from every machine since,
@@ -1919,6 +2036,7 @@ mod tests {
                 USERNAME,
                 PASSWORD,
                 &credential,
+                crate::timestamp::now(),
             )
             .await
             .expect("the sign-in failed")

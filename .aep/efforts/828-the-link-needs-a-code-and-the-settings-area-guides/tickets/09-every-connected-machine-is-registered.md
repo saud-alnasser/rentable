@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # feat(organization): every connected machine is registered
@@ -18,14 +18,22 @@ Traces requirement 15 of
 [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]], and its criteria 15
 and 12.
 
-- [ ] `store.rs`: `machine (id TEXT PRIMARY KEY NOT NULL, member_id TEXT, seen_at INTEGER NOT
+- [x] `store.rs`: `machine (id TEXT PRIMARY KEY NOT NULL, member_id TEXT, seen_at INTEGER NOT
       NULL, created_at INTEGER NOT NULL)` is the ninth entry of `TABLES` and `SCHEMA`, with a
       docstring saying it is unsigned and why; `register_machine(id, member_id, now)` (insert or
       replace), `machine_seen(id, member_id, now)`, `unregister_machine(id)` and
       `connected_machines(now) -> Vec<(MachineRecord, Option<MemberRecord>)>`, the last answering
       rows with `seen_at` inside `MACHINE_PRESENCE_WINDOW` (seven days) joined to the member row
       where `member_id` names one; none takes a signer; the eight-tables test becomes nine.
-- [ ] `HeldOrganization` gains `machine_id: String`; `connect::connect` draws it and registers
+      *Verified 2026-09-16 on the effort branch: `TABLES: [&str; 9]`,
+      `MACHINE_PRESENCE_WINDOW = 7 * 24 * 60 * 60 * 1000`, `register_machine`,
+      `machine_seen`, `unregister_machine` and `connected_machines` in `store.rs` with no
+      signer; `cargo test -- --test-threads=1`:
+      `the_nine_tables_exist_and_an_organization_holds_two_workspaces_at_once` and
+      `a_machine_counts_as_connected_for_seven_days_and_carries_the_member_signed_in_on_it`
+      ok. `connected_machines` also takes the verifying key, since a `MemberRecord` is
+      produced only through the chain check.*
+- [x] `HeldOrganization` gains `machine_id: String`; `connect::connect` draws it and registers
       the machine with no member; the sign-in names the member and the sign-out clears it; the
       launch read (`organization_state_get`) refreshes `seen_at`, and a record with no
       `machine_id` (written before this) is given one and registered there; `disconnect` deletes
@@ -33,8 +41,20 @@ and 12.
       `session.rs` read the registry after connect, sign-in, sign-out and disconnect and find a
       row with no member, the member, no member, no row; and `connected_machines` counts a row
       seen six days ago and not one seen eight days ago.
-- [ ] `pnpm check`, `pnpm lint`, `pnpm test` and `cargo test` pass; the changeset of ticket 03
+      *Verified: `HeldOrganization.machine_id` in `mod.rs` under the struct's
+      `#[serde(default)]`;
+      `connect::tests::the_registry_follows_the_machine_through_the_connect_the_two_sessions_and_the_leave`
+      and `a_record_written_before_the_machine_id_opens_and_carries_an_empty_one` ok; the
+      writers are `connect::connect`, `session::machine_seen` from `join::admit` and
+      `join::accept`, `command::sign_out`, `command::machine_registered` in the launch cell,
+      and `command::leave_registry` before the forget. `connected_machines` has no caller
+      outside its own test.*
+- [x] `pnpm check`, `pnpm lint`, `pnpm test` and `cargo test` pass; the changeset of ticket 03
       is extended with one line saying that the organization knows which machines hold it.
+      *Verified in the run's worktree: `pnpm check` exit 0 (desktop `9305 FILES 0 ERRORS 0
+      WARNINGS`), `pnpm lint` exit 0, `pnpm test` exit 0 (desktop `184 passed`); `cargo test
+      -- --test-threads=1`: `373 passed; 0 failed; 10 ignored`; the changeset carries the
+      register's line.*
 
 ## Relevant areas
 
@@ -52,3 +72,11 @@ the record's shape is mirrored, and the tests beside each.
 - **A record written before this field** is migrated on launch and never refused.
 
 ## Notes
+
+- *2026-09-16, at integration.* `connected_machines(verifying_key, now)` takes the key beside
+  `now`, as the ticket's signature did not say, because the store has no member read that skips
+  the chain check; ticket 10 passes the session's. `join::accept` also names the member, since an
+  accepted invitation is a sign-in. The launch read refreshes the row only where a replica is
+  open, which is a machine that came back signed in; a machine at the wall has no credential, so
+  its row is refreshed by the sign-in that follows. The organization context's table count moved
+  from eight to nine in the same commit.

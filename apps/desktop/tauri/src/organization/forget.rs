@@ -134,6 +134,12 @@ const SESSION_EPOCH_COLUMN: &str = "session_epoch";
 /// clears the Turso authority from the keyring (`TursoConsent::disconnect`), and commits. A file
 /// that could not be removed is reported after all of that has run, by name.
 pub async fn forget(app_state: &AppState) -> Result<(), Error> {
+    // the row this machine wrote to the registry goes first, through the replica that carries the
+    // delete (effort 828, requirement 15): after the sign-out below there is no replica left to
+    // say anything through, and a machine that disconnected should stop standing in the owner's
+    // way at once rather than in a week.
+    super::leave_registry(app_state).await;
+
     // the sign-out, the one `organization_sign_out` performs: the keys go and the organization
     // replica is dropped, which is what lets its file be deleted below.
     super::sign_out(app_state).await;

@@ -642,6 +642,11 @@ async fn finish<P: TursoPlatform>(
         name: name.to_string(),
         verifying_key: BASE64URL.encode(verifying_key),
         remote_url: remote_url.clone(),
+        // this machine's id in the registry of connected machines (effort 828, requirement 15),
+        // drawn where a connect draws it: the moment the machine starts holding the organization.
+        // The row itself is written by the sign-in that follows, which is where the credential
+        // the push goes out under comes from.
+        machine_id: random_id()?,
         member_id: Some(member_id.clone()),
         role: Some(OWNER_ROLE.to_string()),
         joined_at: now,

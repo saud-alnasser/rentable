@@ -28,7 +28,7 @@
 
 use crate::{diagnostics, error::Error, persisted::Persisted, sync::RemoteSyncStore};
 
-use super::{HeldOrganization, link::JoinLink, store::OrganizationStore};
+use super::{HeldOrganization, invite::random_id, link::JoinLink, store::OrganizationStore};
 
 /// The one sentence a link whose credential is still sealed is refused with here (effort 828,
 /// requirement 1): a code is what opens it, and nothing on this path asked for one.
@@ -46,6 +46,11 @@ pub const CODE_NEEDED: &str =
 /// **The credential has to be in hand** (effort 828, requirement 4). A link whose credential is
 /// still sealed is refused naming the code, because reaching a replica at all took a credential
 /// and a caller that got one without a code got it from the organization's own link.
+///
+/// **The machine draws its id here and registers with no member** (effort 828, requirement 15).
+/// This is the moment it starts holding the organization, so it is where the id it will keep is
+/// drawn, and the row goes in before the record that names it: a record naming a machine the
+/// organization does not know is what a failed write would leave behind.
 pub async fn connect(
     store: &OrganizationStore,
     machine: &mut Persisted<RemoteSyncStore>,
@@ -84,11 +89,24 @@ pub async fn connect(
         });
     }
 
+    // the machine's own id in the registry, drawn here because this is the moment it starts
+    // holding the organization and kept in the record for as long as it does (requirement 15).
+    let machine_id = random_id()?;
+
+    store.register_machine(&machine_id, None, now).await?;
+
+    if !store.push().await {
+        diagnostics::warn("organization.machine.registeredNotYetSent")
+            .with("organization", link.organization_id.as_str())
+            .write();
+    }
+
     let held = HeldOrganization {
         id: link.organization_id.clone(),
         name: link.organization_name.clone(),
         verifying_key: link.verifying_key.clone(),
         remote_url: link.remote_url.clone(),
+        machine_id,
         member_id: None,
         role: None,
         joined_at: now,
@@ -134,7 +152,7 @@ pub fn refuse_while_held(machine: &RemoteSyncStore) -> Result<(), Error> {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use std::sync::{Arc, Mutex};
 
     use serde_json::json;
 
@@ -142,7 +160,11 @@ mod tests {
     use crate::{
         error::Error,
         organization::{
+            HeldOrganization,
+            join::admit,
             link::{Half, HalfKind, JoinLink},
+            permission,
+            session::{CredentialSlot, machine_seen},
             setup::{CreateOrganization, Remote, create_organization},
             store::OrganizationStore,
             vault::KdfParams,
@@ -357,6 +379,135 @@ mod tests {
             "a sealed link passed the guard the command reads"
         );
         assert!(refuse_sealed(&link).is_ok());
+    }
+
+    /// Effort 828, requirement 15: **a record written before the machine id existed still opens.**
+    ///
+    /// The field defaults to an empty string rather than refusing the record, which is what makes
+    /// the migration a launch rather than a disconnect: `command::state_of` draws an id for a
+    /// record carrying an empty one and registers the machine there. Nothing writes to the
+    /// registry under an empty id in the meantime.
+    #[test]
+    fn a_record_written_before_the_machine_id_opens_and_carries_an_empty_one() {
+        let written = json!({
+            "id": "acme",
+            "name": "Acme",
+            "verifyingKey": "a-verifying-key",
+            "remoteUrl": "libsql://org-acme-acme.aws-eu-west-1.turso.io",
+            "memberId": "member-owner",
+            "role": "owner",
+            "joinedAt": ISSUED_AT
+        })
+        .to_string();
+
+        let held: HeldOrganization =
+            serde_json::from_str(&written).expect("a record from before this build was refused");
+
+        assert_eq!(held.machine_id, "", "the field did not default");
+        assert_eq!(held.id, "acme");
+        assert_eq!(held.member_id.as_deref(), Some("member-owner"));
+        assert_eq!(held.joined_at, ISSUED_AT);
+    }
+
+    /// Effort 828, criterion 15: **the registry follows the machine through the four acts.**
+    ///
+    /// A connect puts the machine in with no member; the sign-in at the wall names the member;
+    /// the sign-out drops the member and leaves the machine; the disconnect takes the row out. The
+    /// sign-out and the disconnect are read here through the two calls those acts make, since the
+    /// acts themselves take the application state and this is the replica they reach it through.
+    /// No signer is anywhere in it: a plain member signs nothing, and these are rows a plain
+    /// member writes.
+    #[tokio::test]
+    async fn the_registry_follows_the_machine_through_the_connect_the_two_sessions_and_the_leave() {
+        let directory = scratch("registry");
+        let (store, _, link) = created(&directory).await;
+        let mut machine = fresh_machine(&directory);
+        let verifying_key = link.verifying_key_bytes().expect("the key the link pins");
+        let connected = |at: i64| {
+            let store = &store;
+
+            async move {
+                store
+                    .connected_machines(&verifying_key, at)
+                    .await
+                    .expect("the connected machines")
+            }
+        };
+
+        assert!(
+            connected(ISSUED_AT).await.is_empty(),
+            "a machine was registered before anything connected"
+        );
+
+        // the connect: one machine, drawn an id of its own, and no member on it.
+        let held = connect(&store, &mut machine, &link, ISSUED_AT + 1)
+            .await
+            .expect("the connect failed");
+
+        assert!(!held.machine_id.is_empty(), "the connect drew no machine id");
+
+        let after_connect = connected(ISSUED_AT + 1).await;
+
+        assert_eq!(after_connect.len(), 1);
+        assert_eq!(after_connect[0].0.id, held.machine_id);
+        assert_eq!(after_connect[0].0.member_id, None, "a connect named a member");
+        assert!(after_connect[0].1.is_none());
+
+        // the sign-in at the wall: the same machine, now naming the member on it.
+        let credential: CredentialSlot = Arc::new(Mutex::new(None));
+        let session = admit(
+            &store,
+            &mut machine,
+            &held,
+            "olivia",
+            PASSWORD,
+            &credential,
+            ISSUED_AT + 2,
+        )
+        .await
+        .expect("the owner did not sign in at the wall");
+        let signed_in = machine.organization.clone().expect("the record");
+        let after_sign_in = connected(ISSUED_AT + 2).await;
+
+        assert_eq!(after_sign_in.len(), 1, "the sign-in registered a second machine");
+        assert_eq!(after_sign_in[0].0.id, held.machine_id);
+        assert_eq!(
+            after_sign_in[0].0.member_id.as_deref(),
+            Some(session.member_id.as_str())
+        );
+        assert_eq!(
+            after_sign_in[0].1.as_ref().map(|member| member.role.as_str()),
+            Some(permission::OWNER),
+            "the member row beside the machine is not the one who signed in"
+        );
+
+        // the sign-out: the machine stays and stops naming anybody.
+        machine_seen(&store, &signed_in, None, ISSUED_AT + 3).await;
+
+        let after_sign_out = connected(ISSUED_AT + 3).await;
+
+        assert_eq!(after_sign_out.len(), 1);
+        assert_eq!(after_sign_out[0].0.id, held.machine_id);
+        assert_eq!(
+            after_sign_out[0].0.member_id, None,
+            "the sign-out left the member on the machine"
+        );
+        assert_eq!(
+            after_sign_out[0].0.created_at,
+            ISSUED_AT + 1,
+            "the machine looks newer than the connect that registered it"
+        );
+
+        // the disconnect: the row goes before the record that names it.
+        store
+            .unregister_machine(&signed_in.machine_id)
+            .await
+            .expect("the machine did not leave the registry");
+
+        assert!(
+            connected(ISSUED_AT + 4).await.is_empty(),
+            "a disconnected machine is still in the registry"
+        );
     }
 
     /// The verifying key is pinned from the link and checked against the row it finds: a link

@@ -60,6 +60,15 @@ pub struct HeldOrganization {
     pub name: String,
     pub verifying_key: String,
     pub remote_url: String,
+    /// this machine's own id in the organization's registry of connected machines (effort 828,
+    /// requirement 15), drawn once when it connected and kept for as long as it holds the
+    /// organization.
+    ///
+    /// **Empty means a record written before this field existed**, which the first launch after
+    /// the upgrade gives an id and registers: the field defaults rather than refusing, so an old
+    /// record deserialises and the machine keeps what it holds. Nothing else reads the emptiness,
+    /// and no write to the registry goes out under an empty id.
+    pub machine_id: String,
     /// this person's member row in the organization, once a sign-in has found it. `None` on a
     /// machine that connected by link and has not signed in yet; a sign-out keeps it.
     pub member_id: Option<String>,

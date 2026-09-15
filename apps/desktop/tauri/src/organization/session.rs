@@ -318,6 +318,50 @@ pub async fn sign_in(
     .await
 }
 
+/// Write this machine into the organization's registry, naming whoever is signed in on it
+/// (effort 828, requirement 15).
+///
+/// The one write three of the four acts share: a sign-in passes the member, from `join::admit`
+/// at the wall and from the first run's own sign-in; a sign-out passes `None`; and the first
+/// state read of a launch passes whoever the record names, which is what registers a machine
+/// that came back signed in without anybody typing a password. A connect is the fourth and
+/// registers through `connect::connect`, because that is where the id is drawn.
+///
+/// **Nothing here is a refusal, and nothing comes back.** A machine whose row could not be
+/// written or could not be sent still holds the organization and its person is still signed in;
+/// what is lost is that the registry is a day out of date, and the next launch writes it again.
+/// There is nothing for a caller to act on, so this answers with nothing and writes what happened
+/// to the diagnostics log, the way [`remember`] does.
+///
+/// **A record with no `machine_id` writes nothing**, which is a record from before this build on
+/// the way to its first launch under it: `command::state_of` is what gives it one, and until it
+/// has one there is no row to write.
+pub async fn machine_seen(
+    store: &OrganizationStore,
+    held: &HeldOrganization,
+    member_id: Option<&str>,
+    now: i64,
+) {
+    if held.machine_id.is_empty() {
+        return;
+    }
+
+    if let Err(refusal) = store.machine_seen(&held.machine_id, member_id, now).await {
+        diagnostics::warn("organization.machine.notSeen")
+            .with("organization", held.id.as_str())
+            .with("reason", refusal.to_string())
+            .write();
+
+        return;
+    }
+
+    if !store.push().await {
+        diagnostics::warn("organization.machine.seenNotYetSent")
+            .with("organization", held.id.as_str())
+            .write();
+    }
+}
+
 /// Find the member `username` and `password` name in `held`'s replica, and open their vault:
 /// the sign-in at the wall (effort 824, requirement 19).
 ///
@@ -1410,6 +1454,7 @@ mod tests {
                 organization_key.verifying_key(),
             ),
             remote_url: "libsql://org-b-other.aws-eu-west-1.turso.io".to_string(),
+            machine_id: "machine-one".to_string(),
             member_id: Some("me-there".to_string()),
             role: Some("member".to_string()),
             joined_at: 1_757_000_000_001,

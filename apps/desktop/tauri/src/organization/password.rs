@@ -196,6 +196,7 @@ mod tests {
                 owner.verifying_key,
             ),
             remote_url: String::new(),
+            machine_id: "machine-one".to_string(),
             member_id: Some(member_id.to_string()),
             role: Some(role.to_string()),
             joined_at: 0,

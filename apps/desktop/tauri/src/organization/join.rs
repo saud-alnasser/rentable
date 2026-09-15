@@ -67,8 +67,8 @@ use super::{
     link::{HalfKind, JoinLink, open_payload},
     permission,
     session::{
-        CredentialSlot, MemberSession, content_key_of, open_session, refused_by_name, remember,
-        sign_in_by_username,
+        CredentialSlot, MemberSession, content_key_of, machine_seen, open_session,
+        refused_by_name, remember, sign_in_by_username,
     },
     setup::MINIMUM_PASSWORD_LENGTH,
     store::{InvitationRecord, MemberRecord, OrganizationStore},
@@ -281,6 +281,10 @@ where
             .write();
     }
 
+    // an accepted invitation is a sign-in, so the registry learns who is on this machine (effort
+    // 828, requirement 15): the row `connect::connect` wrote above names nobody yet.
+    machine_seen(store, &held, Some(&session.member_id), now).await;
+
     session.must_change_password = false;
 
     machine.organization = Some(HeldOrganization {
@@ -315,6 +319,7 @@ pub async fn admit(
     username: &str,
     password: &str,
     credential: &CredentialSlot,
+    now: i64,
 ) -> Result<MemberSession, Error> {
     // a row still carrying `must_change_password` is one whose invitation link has not been
     // opened, and the wall refuses it inside the sign-in itself; every session that reaches here
@@ -326,6 +331,10 @@ pub async fn admit(
         role: Some(session.role.clone()),
         ..held.clone()
     };
+
+    // the registry learns who is on this machine (effort 828, requirement 15). After the sign-in,
+    // because the push it makes goes out under the credential the vault just unsealed.
+    machine_seen(store, &filled, Some(&session.member_id), now).await;
 
     machine.organization = Some(filled);
     machine.commit()?;
@@ -713,7 +722,15 @@ mod tests {
         let owners = scratch("admit-owner");
         let (mut machine, held) = connected_machine(&owners, &store, &link).await;
         let credential = slot();
-        let session = admit(&store, &mut machine, &held, "Olivia", PASSWORD, &credential)
+        let session = admit(
+            &store,
+            &mut machine,
+            &held,
+            "Olivia",
+            PASSWORD,
+            &credential,
+            ISSUED_AT,
+        )
             .await
             .expect("the owner did not sign in");
 
@@ -835,6 +852,7 @@ mod tests {
             " Sami.Staff ",
             CHOSEN,
             &slot(),
+            ISSUED_AT,
         )
         .await
         .expect("the chosen password does not admit the member");
@@ -848,6 +866,7 @@ mod tests {
                 "sami.staff",
                 &secret,
                 &slot(),
+                ISSUED_AT,
             )
             .await
             .is_err(),
@@ -930,7 +949,15 @@ mod tests {
             ("", PASSWORD),
             ("", "not the password"),
         ] {
-            let refused = admit(&store, &mut machine, &held, username, password, &slot())
+            let refused = admit(
+                &store,
+                &mut machine,
+                &held,
+                username,
+                password,
+                &slot(),
+                ISSUED_AT,
+            )
                 .await
                 .expect_err(&format!("{username:?} signed in with {password:?}"));
 
@@ -1263,7 +1290,15 @@ mod tests {
         let fresh = JoinLink::decode(&reset.join_link).expect("the reset link");
 
         assert!(
-            admit(&store, &mut machine, &held, "sami.staff", CHOSEN, &slot())
+            admit(
+                &store,
+                &mut machine,
+                &held,
+                "sami.staff",
+                CHOSEN,
+                &slot(),
+                ISSUED_AT,
+            )
                 .await
                 .is_err(),
             "the forgotten password still opens the reset vault"
@@ -1291,6 +1326,7 @@ mod tests {
                 "sami.staff",
                 "a new password sami chose",
                 &slot(),
+                ISSUED_AT,
             )
             .await
             .is_ok(),
@@ -1308,7 +1344,15 @@ mod tests {
         let (store, owner, link, _, _, _) = invited(&directory).await;
         let theirs = scratch("sign-out-machine");
         let (mut machine, held) = connected_machine(&theirs, &store, &link).await;
-        let session = admit(&store, &mut machine, &held, "olivia", PASSWORD, &slot())
+        let session = admit(
+            &store,
+            &mut machine,
+            &held,
+            "olivia",
+            PASSWORD,
+            &slot(),
+            ISSUED_AT,
+        )
             .await
             .expect("the owner did not sign in");
         let signed_in = machine.organization.clone().expect("the record");
@@ -1899,6 +1943,7 @@ mod tests {
             "olivia",
             PASSWORD,
             &credential_b,
+            ISSUED_AT,
         )
         .await
         .expect("the owner did not sign in on B");

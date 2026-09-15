@@ -40,9 +40,9 @@ use super::{
     vault::{KDF_SALT_BYTES, KdfParams, PUBLIC_KEY_BYTES, Vault},
 };
 
-/// The eight tables, in the order the schema creates them. A test pins this list against what
+/// The nine tables, in the order the schema creates them. A test pins this list against what
 /// the database reports, so a table added anywhere is added here or fails there.
-pub const TABLES: [&str; 8] = [
+pub const TABLES: [&str; 9] = [
     "organization",
     "member",
     "administrator_certificate",
@@ -51,7 +51,17 @@ pub const TABLES: [&str; 8] = [
     "invitation",
     "migration_lease",
     "machine_link",
+    "machine",
 ];
+
+/// How long a machine counts as connected after it was last seen: seven days (effort 828,
+/// requirement 15).
+///
+/// A machine that died without disconnecting leaves its row behind, so the window is what stops
+/// it standing in the owner's way for ever. Every machine that is running refreshes its row at
+/// every launch, so a week is far longer than an ordinary gap and short enough that an owner who
+/// lost every machine waits a week rather than for ever.
+pub const MACHINE_PRESENCE_WINDOW: i64 = 7 * 24 * 60 * 60 * 1000;
 
 /// The schema, as the plan's data model gives it.
 ///
@@ -62,7 +72,7 @@ pub const TABLES: [&str; 8] = [
 ///
 /// `grant` is quoted everywhere because it is a keyword in most dialects, and a statement that
 /// works in SQLite and fails elsewhere is a statement worth spelling defensively once.
-const SCHEMA: [&str; 8] = [
+const SCHEMA: [&str; 9] = [
     "CREATE TABLE IF NOT EXISTS \"organization\" (\
         \"id\" TEXT PRIMARY KEY NOT NULL, \
         \"name_sealed\" BLOB NOT NULL, \
@@ -132,6 +142,11 @@ const SCHEMA: [&str; 8] = [
         \"member_id\" TEXT NOT NULL, \
         \"expires_at\" INTEGER NOT NULL, \
         \"consumed_at\" INTEGER, \
+        \"created_at\" INTEGER NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS \"machine\" (\
+        \"id\" TEXT PRIMARY KEY NOT NULL, \
+        \"member_id\" TEXT, \
+        \"seen_at\" INTEGER NOT NULL, \
         \"created_at\" INTEGER NOT NULL)",
 ];
 
@@ -287,6 +302,34 @@ pub struct MachineLinkRecord {
     pub created_at: i64,
 }
 
+/// A `machine` row: one machine that holds this organization, whoever is signed in on it, and
+/// when it last said so (effort 828, requirement 15).
+///
+/// **Unsigned, like [`MachineLinkRecord`] and for the same reason.** Every machine writes its own
+/// row, a plain member holds no administrator key and no certificate, so nothing they write on
+/// their own account can be signed (effort 826, requirement 6). It is written under the member's
+/// own organization credential the way `member.session_epoch` is
+/// ([`OrganizationStore::set_session_epoch`]).
+///
+/// **What the registry gates is one question and never authority.** The question is whether an
+/// owner's or an administrator's machine is connected, which is what decides whether the owner's
+/// account may connect to the organization their group already holds (requirement 14): a person
+/// who rewrites a row holds the way in shut for a week, or opens it while a machine is connected,
+/// and either way the owner's password and their consent still stand between anybody and the
+/// organization. Nothing here says what a member may do, and nothing reads it to find out.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MachineRecord {
+    /// the machine's own id, drawn once when it connected and kept in its local record
+    /// (`HeldOrganization::machine_id`).
+    pub id: String,
+    /// who is signed in on it, where somebody is. `None` on a machine that connected and has not
+    /// signed in yet, and on one somebody signed out of.
+    pub member_id: Option<String>,
+    /// when it last said it was here: a connect, a sign-in, a sign-out, or a launch.
+    pub seen_at: i64,
+    pub created_at: i64,
+}
+
 /// Who is writing: an administrator's key and the certificate that makes it an authority.
 ///
 /// Taken together so that `authority::sign` can refuse a key the certificate does not name, once,
@@ -350,7 +393,7 @@ impl OrganizationStore {
         })
     }
 
-    /// Create the eight tables where they do not exist.
+    /// Create the nine tables where they do not exist.
     ///
     /// Issued through the sync connection, so on the machine that creates the organization the
     /// schema is captured as change data and reaches the remote with the first push; every other
@@ -1248,6 +1291,152 @@ impl OrganizationStore {
         Ok(())
     }
 
+    // machines
+
+    /// Put this machine in the registry: it holds the organization from now on.
+    ///
+    /// **Unsigned**, for the reason [`MachineRecord`] gives, and so is every other write here.
+    /// `INSERT OR REPLACE`, so a machine that connects again under an id it already used starts
+    /// its row over rather than growing a second one; the id is drawn at the connect, so that is
+    /// a machine which disconnected and came back.
+    pub async fn register_machine(
+        &self,
+        id: &str,
+        member_id: Option<&str>,
+        now: i64,
+    ) -> Result<(), Error> {
+        self.write_machine(id, member_id, now, now).await
+    }
+
+    /// Say this machine is still here, and who is signed in on it: `Some` at a sign-in, `None` at
+    /// a sign-out, and whoever the record names at a launch.
+    ///
+    /// **It writes the row where there is none**, which is what a record written before this
+    /// build meets at its next launch, and what a machine whose row somebody deleted meets at
+    /// its next. `created_at` is read first and kept, so refreshing a row does not make an old
+    /// machine look new.
+    pub async fn machine_seen(
+        &self,
+        id: &str,
+        member_id: Option<&str>,
+        now: i64,
+    ) -> Result<(), Error> {
+        let created_at = self.machine_created_at(id).await?.unwrap_or(now);
+
+        self.write_machine(id, member_id, now, created_at).await
+    }
+
+    /// Take this machine out of the registry: what a disconnect writes before it forgets the
+    /// organization locally, so the machine stops standing in anybody's way at once rather than
+    /// in a week.
+    pub async fn unregister_machine(&self, id: &str) -> Result<(), Error> {
+        self.connection
+            .execute(
+                "DELETE FROM \"machine\" WHERE \"id\" = ?",
+                vec![turso::Value::Text(id.to_string())],
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// Every machine seen inside [`MACHINE_PRESENCE_WINDOW`] of `now`, each with the member row
+    /// signed in on it where one is named: the registry's one reader (effort 828, requirement
+    /// 15).
+    ///
+    /// **The member half is the ordinary verified read**, so what a caller gets back is a role it
+    /// can act on: the machine row carries no signature and nothing about it is trusted, and the
+    /// member row beside it is verified against the chain exactly as [`OrganizationStore::members`]
+    /// verifies it. That is why this read takes the organization's verifying key while every
+    /// write above takes nothing: there is no signer anywhere in the registry, and the key is
+    /// what judges the member rows the registry points at, never the rows it holds.
+    ///
+    /// A machine naming a member who is no longer in the organization comes back with `None`
+    /// beside it rather than being dropped: it is still a machine holding the organization, and
+    /// what the caller is counting is machines.
+    pub async fn connected_machines(
+        &self,
+        organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
+        now: i64,
+    ) -> Result<Vec<(MachineRecord, Option<MemberRecord>)>, Error> {
+        let members = self.members(organization_verifying_key).await?;
+        let mut rows = self
+            .connection
+            .query(
+                "SELECT \"id\", \"member_id\", \"seen_at\", \"created_at\" FROM \"machine\" \
+                 WHERE \"seen_at\" > ? ORDER BY \"created_at\", \"id\"",
+                vec![turso::Value::Integer(now - MACHINE_PRESENCE_WINDOW)],
+            )
+            .await?;
+        let mut machines = Vec::new();
+
+        while let Some(row) = rows.next().await? {
+            let machine = MachineRecord {
+                id: text(&row, 0)?,
+                member_id: match row.get_value(1)? {
+                    turso::Value::Text(value) => Some(value),
+                    _ => None,
+                },
+                seen_at: integer(&row, 2)?,
+                created_at: integer(&row, 3)?,
+            };
+            let member = machine.member_id.as_ref().and_then(|member_id| {
+                members
+                    .iter()
+                    .find(|member| &member.id == member_id)
+                    .cloned()
+            });
+
+            machines.push((machine, member));
+        }
+
+        Ok(machines)
+    }
+
+    /// The write behind [`OrganizationStore::register_machine`] and
+    /// [`OrganizationStore::machine_seen`], which differ only in what they do with `created_at`.
+    async fn write_machine(
+        &self,
+        id: &str,
+        member_id: Option<&str>,
+        seen_at: i64,
+        created_at: i64,
+    ) -> Result<(), Error> {
+        self.connection
+            .execute(
+                "INSERT OR REPLACE INTO \"machine\" \
+                 (\"id\", \"member_id\", \"seen_at\", \"created_at\") \
+                 VALUES (?, ?, ?, ?)",
+                vec![
+                    turso::Value::Text(id.to_string()),
+                    member_id.map_or(turso::Value::Null, |member_id| {
+                        turso::Value::Text(member_id.to_string())
+                    }),
+                    turso::Value::Integer(seen_at),
+                    turso::Value::Integer(created_at),
+                ],
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// When this machine first registered, where it has a row: what a refresh keeps.
+    async fn machine_created_at(&self, id: &str) -> Result<Option<i64>, Error> {
+        let mut rows = self
+            .connection
+            .query(
+                "SELECT \"created_at\" FROM \"machine\" WHERE \"id\" = ?",
+                vec![turso::Value::Text(id.to_string())],
+            )
+            .await?;
+
+        match rows.next().await? {
+            Some(row) => Ok(Some(integer(&row, 0)?)),
+            None => Ok(None),
+        }
+    }
+
     /// Rename a workspace. Unsigned, as the plan keeps the name: the database identity is what
     /// the chain signs, and the name is content, sealed under the content key by the caller.
     pub async fn rename_workspace(
@@ -1746,7 +1935,7 @@ mod tests {
     // criterion 1: the schema, and two workspaces of one organization
 
     #[tokio::test]
-    async fn the_eight_tables_exist_and_an_organization_holds_two_workspaces_at_once() {
+    async fn the_nine_tables_exist_and_an_organization_holds_two_workspaces_at_once() {
         let directory = scratch("schema");
         let store = open(&directory).await;
         let chain = Chain::new();
@@ -2478,6 +2667,124 @@ mod tests {
             Some("org-acme.db")
         );
         assert_ne!(path, crate::database::Database::replica_path(base, "acme"));
+    }
+
+    // effort 828, criterion 15: the registry of connected machines
+
+    /// **A machine counts as connected for seven days after it was last seen, and the member
+    /// beside it is the verified row** (effort 828, requirement 15).
+    ///
+    /// The window is what stops a machine that died without disconnecting standing in the owner's
+    /// way for ever: a machine seen six days ago is still connected and one seen eight days ago
+    /// is not, and neither row was written or read through a signer. The member half is the
+    /// ordinary verified read, which is why the reader takes the organization's key and none of
+    /// the writes takes anything.
+    #[tokio::test]
+    async fn a_machine_counts_as_connected_for_seven_days_and_carries_the_member_signed_in_on_it() {
+        let directory = scratch("registry");
+        let store = open(&directory).await;
+        let chain = Chain::new();
+
+        populated(&store, &chain).await;
+
+        let now = 1_757_000_000_000_i64;
+        let day = 24 * 60 * 60 * 1000;
+
+        // registered with no member, as a connect registers one.
+        store
+            .register_machine("machine-fresh", None, now)
+            .await
+            .expect("the machine did not register");
+        // seen six days ago with the owner on it, and eight days ago with the member: one is
+        // inside the window and the other is not.
+        store
+            .machine_seen("machine-recent", Some("member-owner"), now - 6 * day)
+            .await
+            .expect("the recent machine");
+        store
+            .machine_seen("machine-lapsed", Some("member-staff"), now - 8 * day)
+            .await
+            .expect("the lapsed machine");
+
+        let connected = store
+            .connected_machines(&chain.verifying_key(), now)
+            .await
+            .expect("the connected machines");
+        let ids: Vec<&str> = connected
+            .iter()
+            .map(|(machine, _)| machine.id.as_str())
+            .collect();
+
+        // oldest first, which is the order `created_at` gives.
+        assert_eq!(
+            ids,
+            vec!["machine-recent", "machine-fresh"],
+            "the seven-day window counted the wrong machines"
+        );
+
+        let (recent, its_member) = &connected[0];
+        let (fresh, nobody) = &connected[1];
+
+        assert_eq!(recent.seen_at, now - 6 * day);
+        assert_eq!(
+            its_member.as_ref().map(|member| member.role.as_str()),
+            Some("owner"),
+            "the member row beside a machine is not the one it names"
+        );
+        assert_eq!(fresh.member_id, None);
+        assert!(nobody.is_none(), "a machine with no member carried one");
+
+        // a refresh keeps `created_at`, so a machine that says it is here does not look new.
+        store
+            .machine_seen("machine-recent", None, now)
+            .await
+            .expect("the refresh");
+
+        let connected = store
+            .connected_machines(&chain.verifying_key(), now)
+            .await
+            .expect("the connected machines");
+        let recent = connected
+            .iter()
+            .find(|(machine, _)| machine.id == "machine-recent")
+            .expect("the refreshed machine");
+
+        assert_eq!(recent.0.created_at, now - 6 * day);
+        assert_eq!(recent.0.seen_at, now);
+        assert_eq!(recent.0.member_id, None, "a sign-out kept the member");
+        assert!(recent.1.is_none());
+
+        // and a machine that left is gone at once rather than in a week.
+        store
+            .unregister_machine("machine-fresh")
+            .await
+            .expect("the machine did not leave");
+
+        let connected = store
+            .connected_machines(&chain.verifying_key(), now)
+            .await
+            .expect("the connected machines");
+
+        assert_eq!(connected.len(), 1);
+        assert_eq!(connected[0].0.id, "machine-recent");
+
+        // no signature is written over any of it: the row is four plain columns.
+        let mut columns = store
+            .connection()
+            .query("PRAGMA table_info(\"machine\")", ())
+            .await
+            .expect("the machine columns");
+        let mut names = Vec::new();
+
+        while let Some(row) = columns.next().await.expect("a column row") {
+            names.push(super::text(&row, 1).expect("a column name"));
+        }
+
+        assert_eq!(
+            names,
+            vec!["id", "member_id", "seen_at", "created_at"],
+            "the machine row carries a column the registry does not need"
+        );
     }
 
     // the plan's untested capability: two synced databases open at once
