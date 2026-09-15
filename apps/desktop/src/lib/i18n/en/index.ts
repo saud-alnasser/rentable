@@ -758,7 +758,7 @@ const en = {
 			consentFailed: 'turso refused the consent.',
 			nameTitle: 'name your organization',
 			nameDescription:
-				'choose a name for the organization, your username, and a password. the password unlocks your place in it.',
+				'choose a name for the organization, your username, and a password, and say which turso group you chose. the password unlocks your place in it.',
 			nameLabel: 'organization name',
 			usernameLabel: 'your username',
 			nameRequired: 'give the organization a name.',
@@ -767,6 +767,10 @@ const en = {
 			passwordFloor:
 				'use at least 12 characters. this password is all that stands between the records and anyone who holds a copy.',
 			passwordTooShort: 'use at least 12 characters.',
+			groupLabel: 'turso group',
+			groupDescription:
+				"the group you chose on turso's consent screen. the organization's database goes in it.",
+			groupRequired: "name the group you chose on turso's consent screen.",
 			create: 'create organization',
 			creating: 'creating the organization on your turso account...',
 			workspaceTitle: 'create your first workspace',

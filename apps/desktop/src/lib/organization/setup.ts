@@ -4,20 +4,21 @@
  * What a first run asks of a person and what it tells them, step by step, as plain data a
  * `node:test` can read. The screen in `component/setup-walk.svelte` draws from this rather than
  * restating it, so the test that asserts **the only text typed is the organization's name, the
- * owner's username, a password and the first workspace's name** is asserting over the fields the
- * screen actually presents rather than over a list somebody remembered to keep beside it.
+ * owner's username, a password, the Turso group and the first workspace's name** is asserting
+ * over the fields the screen actually presents rather than over a list somebody remembered to
+ * keep beside it.
  *
  * Criterion 3 of the effort is the reason this exists: a field added later that asks for a slug,
- * a group name, a token or a URL fails a test rather than passing review.
+ * a token or a URL fails a test rather than passing review.
  */
 
 import { toErrorDetail } from '$lib/error/message';
 
 /**
  * the three steps, in the order a person meets them: the consent, the organization's name with
- * the owner's username and password, and the first workspace's name. The walk ends inside that
- * workspace rather than on a screen showing the join link, which lives on the organization page
- * and is read there.
+ * the owner's username, password and Turso group, and the first workspace's name. The walk ends
+ * inside that workspace rather than on a screen showing the join link, which lives on the
+ * organization page and is read there.
  */
 export type SetupStep = 'connect' | 'name' | 'workspace';
 
@@ -25,12 +26,19 @@ export const SETUP_STEPS: readonly SetupStep[] = ['connect', 'name', 'workspace'
 
 /**
  * what a step asks the person to type. A field is named by what it collects, and the names are
- * the whole vocabulary: there is no `slug`, `group`, `token` or `url`, and the test says so. A
+ * the whole vocabulary: there is no `slug`, `token` or `url`, and the test says so. A
  * workspace's name is a person's own word for their records, the same as the organization's
  * name is, and never a detail Turso wants; a username is the owner's own name for themselves,
  * the one they sign in with (requirement 21 of effort 824).
+ *
+ * **`group` is the one Turso word here, and it is asked rather than instructed.** Turso began
+ * refusing a create that names no group on 2026-09-15, and on the empty group this walk asks for
+ * nothing on this machine can learn the name: the listing is empty, the consent's token carries
+ * the group's uuid and not its name, and the tool set has no group tool. The person picked it on
+ * Turso's own consent screen a moment earlier, so they are asked to say which. Nothing tells
+ * them to make one, which is the guard `tests/setup.test.ts` keeps.
  */
-export type SetupField = 'name' | 'username' | 'password' | 'workspace';
+export type SetupField = 'name' | 'username' | 'password' | 'group' | 'workspace';
 
 /**
  * what a step tells the person before it asks anything of them.
@@ -70,7 +78,7 @@ export const SETUP_WALK: readonly SetupStepDescription[] = [
 	},
 	{
 		step: 'name',
-		fields: ['name', 'username', 'password'],
+		fields: ['name', 'username', 'password', 'group'],
 		statements: []
 	},
 	{

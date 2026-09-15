@@ -66,6 +66,9 @@ const MCP_LIST_DATABASES: &str = "list_databases";
 /// The one tool here that creates anything, and only on a first run into an empty group, where
 /// nothing else can. Its schema, read off `tools/list` on 2026-09-11: `name` required, `group`
 /// optional and defaulting to the organization's default, `size_limit` and `use_tursodb` optional.
+/// **`group` is optional in the schema and required in practice since 2026-09-15**, when a
+/// request that named none answered `HTTP 403: group-scoped tokens must specify a group in the
+/// request`; [`create_first_database`] says where the name comes from.
 const MCP_CREATE_DATABASE: &str = "create_database";
 
 const MCP_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
@@ -234,17 +237,18 @@ pub struct FirstDatabase {
 /// 2026-09-11), so nothing is read out of it; the listing is asked again and the record carrying
 /// the name just created is what answers, in the one shape this module already reads.
 ///
-/// **The group is not passed, and since 2026-09-15 Turso refuses that** (`HTTP 403:
-/// group-scoped tokens must specify a group in the request`, where until then the tool defaulted
-/// to the token's own group). The refusal is said in Turso's words; naming the group is ticket
-/// 17's, which asks the person for it on the walk, since on an empty group nothing here can
-/// learn it: the listing is empty, the token's claims carry the group's uuid and not its name,
-/// and the tool set has no group tool. Delete protection is the Platform API's to turn on
-/// afterwards, once the slug is known.
+/// **The group is passed, because since 2026-09-15 Turso refuses a create that names none**
+/// (`HTTP 403: group-scoped tokens must specify a group in the request`, where until then the
+/// tool defaulted to the token's own group). The name is the person's, typed on the walk's name
+/// step, since on an empty group nothing here can learn it: the listing is empty, the token's
+/// claims carry the group's uuid and not its name, and the tool set has no group tool. A name
+/// that is not the consent's group is refused by Turso, and the refusal is said in Turso's own
+/// words. Delete protection is the Platform API's to turn on afterwards, once the slug is known.
 pub async fn create_first_database(
     platform_token: &str,
     endpoint: &McpEndpoint,
     name: &str,
+    group: &str,
 ) -> Result<FirstDatabase, Error> {
     let client = build_client(MCP_REQUEST_TIMEOUT)?;
     let session = handshake(&client, endpoint, platform_token).await?;
@@ -260,7 +264,7 @@ pub async fn create_first_database(
             "method": "tools/call",
             "params": {
                 "name": MCP_CREATE_DATABASE,
-                "arguments": { "name": name }
+                "arguments": { "name": name, "group": group }
             }
         }),
     )
@@ -688,10 +692,11 @@ mod tests {
     }
 
     /// The first run into the empty group requirement 3 asks for: `create_database` by name and
-    /// nothing else, then the listing read again, and the slug and the group taken off the
-    /// record that carries the name just created rather than off the create's own reply.
+    /// by the group the person typed, and nothing else, then the listing read again, and the slug
+    /// and the group taken off the record that carries the name just created rather than off the
+    /// create's own reply.
     #[tokio::test]
-    async fn the_first_database_is_created_by_name_and_read_back_out_of_the_listing() {
+    async fn the_first_database_is_created_by_name_and_group_and_read_back_out_of_the_listing() {
         let server = ScriptedServer::start(vec![
             handshake(),
             ScriptedResponse::new(
@@ -707,9 +712,14 @@ mod tests {
         ])
         .await;
 
-        let first = create_first_database(TOKEN, &McpEndpoint::at(&server.url("")), "org-7f3a")
-            .await
-            .expect("the first create failed");
+        let first = create_first_database(
+            TOKEN,
+            &McpEndpoint::at(&server.url("")),
+            "org-7f3a",
+            "rentable-empty",
+        )
+        .await
+        .expect("the first create failed");
 
         assert_eq!(
             first,
@@ -729,7 +739,8 @@ mod tests {
         assert_eq!(payload["params"]["name"], "create_database");
         assert_eq!(
             payload["params"]["arguments"],
-            json!({ "name": "org-7f3a" })
+            json!({ "name": "org-7f3a", "group": "rentable-empty" }),
+            "the create names the group the person typed, and carries nothing else"
         );
         assert_eq!(
             server.request_count(),
@@ -761,9 +772,14 @@ mod tests {
         ])
         .await;
 
-        let error = create_first_database(TOKEN, &McpEndpoint::at(&server.url("")), "org-7f3a")
-            .await
-            .expect_err("a slug was read off a record that is not the created database");
+        let error = create_first_database(
+            TOKEN,
+            &McpEndpoint::at(&server.url("")),
+            "org-7f3a",
+            "rentable-empty",
+        )
+        .await
+        .expect_err("a slug was read off a record that is not the created database");
 
         assert!(
             matches!(error, crate::error::Error::Integrity { .. }),
@@ -801,9 +817,14 @@ mod tests {
         ])
         .await;
 
-        let error = create_first_database(TOKEN, &McpEndpoint::at(&server.url("")), "org-7f3a")
-            .await
-            .expect_err("a refused create was read as a database");
+        let error = create_first_database(
+            TOKEN,
+            &McpEndpoint::at(&server.url("")),
+            "org-7f3a",
+            "rentable-empty",
+        )
+        .await
+        .expect_err("a refused create was read as a database");
 
         assert!(
             matches!(error, crate::error::Error::PreconditionFailed { .. }),
@@ -849,9 +870,14 @@ mod tests {
         ])
         .await;
 
-        let first = create_first_database(TOKEN, &McpEndpoint::at(&server.url("")), "org-7f3a")
-            .await
-            .expect("the create failed");
+        let first = create_first_database(
+            TOKEN,
+            &McpEndpoint::at(&server.url("")),
+            "org-7f3a",
+            "rentable-empty",
+        )
+        .await
+        .expect("the create failed");
 
         assert_eq!(first.organization.slug, "acme-co");
         assert_eq!(first.organization.group, "rentable-empty");

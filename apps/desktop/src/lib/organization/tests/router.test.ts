@@ -71,8 +71,8 @@ function hostRecording(asked: string[]): Host {
 
 				return fakeOrganizationState({ organization: null, session: null });
 			},
-			create: async (name, username, password) => {
-				asked.push(`create:${name}:${username}:${password.length}`);
+			create: async (name, username, password, group) => {
+				asked.push(`create:${name}:${username}:${password.length}:${group}`);
 
 				return { organizationId: 'org-1', joinLink: 'rentable://join/abc', synced: true };
 			}
@@ -108,39 +108,51 @@ test('connecting by link and disconnecting reach the host signed out, and answer
 	assert.equal(forgotten.organization, null);
 });
 
-test('creating hands the trimmed name, the trimmed username and the password to the host as given', async () => {
+// effort 826's correction to requirement 13: the Turso group rides with the other three, trimmed
+// the way the name and the username are, because a name pasted out of Turso's own screen arrives
+// with whatever whitespace came with it.
+test('creating hands the trimmed name, the trimmed username, the password and the trimmed group to the host as given', async () => {
 	const asked: string[] = [];
 	const api = await signedOutApi(hostRecording(asked));
 
 	const created = await api.app.organization.create({
 		name: '  Acme Rentals ',
 		username: ' Olivia.Owner ',
-		password: 'a long enough password'
+		password: 'a long enough password',
+		group: ' rentable-empty '
 	});
 
 	assert.equal(created.joinLink, 'rentable://join/abc');
-	assert.deepEqual(asked, ['create:Acme Rentals:Olivia.Owner:22']);
+	assert.deepEqual(asked, ['create:Acme Rentals:Olivia.Owner:22:rentable-empty']);
 });
 
-// the three bounds the walk states, refused here before a round trip. The username's are
-// requirement 21's: three to thirty-two characters of letters, digits, `.`, `_` and `-`.
-test('an empty name, a username outside the rules or a password under the floor is refused before the host is reached', async () => {
+// the four bounds the walk states, refused here before a round trip. The username's are
+// requirement 21's: three to thirty-two characters of letters, digits, `.`, `_` and `-`. The
+// group's is that it was given at all, since what a group may be called is Turso's to say.
+test('an empty name, a username outside the rules, a password under the floor or an empty group is refused before the host is reached', async () => {
 	const asked: string[] = [];
 	const api = await signedOutApi(hostRecording(asked));
 	const password = 'a long enough password';
+	const group = 'rentable-empty';
 
-	await assert.rejects(api.app.organization.create({ name: '   ', username: 'olivia', password }));
+	await assert.rejects(
+		api.app.organization.create({ name: '   ', username: 'olivia', password, group })
+	);
 	await assert.rejects(
 		api.app.organization.create({
 			name: 'Acme',
 			username: 'olivia',
-			password: 'x'.repeat(PASSWORD_FLOOR - 1)
+			password: 'x'.repeat(PASSWORD_FLOOR - 1),
+			group
 		})
+	);
+	await assert.rejects(
+		api.app.organization.create({ name: 'Acme', username: 'olivia', password, group: '   ' })
 	);
 
 	for (const username of ['ol', 'o'.repeat(33), 'olivia owner', 'olivia@acme.example', '']) {
 		await assert.rejects(
-			api.app.organization.create({ name: 'Acme', username, password }),
+			api.app.organization.create({ name: 'Acme', username, password, group }),
 			username
 		);
 	}

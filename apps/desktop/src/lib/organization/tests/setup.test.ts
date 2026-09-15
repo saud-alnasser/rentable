@@ -27,24 +27,18 @@ import { WORKSPACE_NAME_LIMIT } from '$lib/workspace/workspace.ts';
  * owner's username, which is their own name for themselves (requirement 21); neither is a Turso
  * detail. The screen draws its fields from `SETUP_WALK`, so this is an assertion over what the
  * screen presents and not over a list kept beside it, and a field added later that asks for a
- * slug, a group name, a token or a URL fails here before it reaches review.
+ * slug, a token or a URL fails here before it reaches review.
  * `setup-walk.svelte.test.ts` asserts the same thing over the rendered DOM.
+ *
+ * **One Turso word is admitted, and it arrived on 2026-09-15 with requirement 13's correction.**
+ * Turso began refusing a create that names no group, and on the empty group this walk asks for
+ * there is nothing on the machine that can learn the name. So the person is asked which group
+ * they picked, and what the guard below refuses is no longer the word but the *instruction*: a
+ * field that names a group passes, and a sentence telling somebody to make or pick one does not.
  */
 
-test('the only fields the walk presents are the name, a username, a password and the workspace', () => {
-	assert.deepEqual(fieldsPresented(), ['name', 'username', 'password', 'workspace']);
-});
-
-// a workspace's name is the person's word, like the organization's, so it passes here the way
-// the name does; what this refuses is a word Turso would want.
-test('nothing in the walk asks for a slug, a group, a token or a URL', () => {
-	const forbidden = /slug|group|token|url|host|secret/i;
-
-	for (const step of SETUP_WALK) {
-		for (const field of step.fields) {
-			assert.doesNotMatch(field, forbidden, `the ${step.step} step asks for ${field}`);
-		}
-	}
+test('the only fields the walk presents are the name, a username, a password, the group and the workspace', () => {
+	assert.deepEqual(fieldsPresented(), ['name', 'username', 'password', 'group', 'workspace']);
 });
 
 // requirement 13: what the consent covers is explained, and no group is asked for. requirement 22
@@ -78,15 +72,21 @@ test('the walk is three steps, and the workspace is the last', () => {
 });
 
 // effort 824, requirement 21: the owner sets their own username on the step that creates the
-// organization, beside its name and their password, and nowhere else.
-test('the name step asks for the name, the username and the password, in that order', () => {
+// organization, beside its name and their password, and nowhere else. Effort 826's correction to
+// requirement 13 puts the Turso group last, after the three things that are the person's own.
+test('the name step asks for the name, the username, the password and the group, in that order', () => {
 	const naming = SETUP_WALK.find((step) => step.step === 'name');
 
-	assert.deepEqual(naming?.fields, ['name', 'username', 'password']);
+	assert.deepEqual(naming?.fields, ['name', 'username', 'password', 'group']);
 	assert.equal(
 		SETUP_WALK.filter((step) => step.fields.includes('username')).length,
 		1,
 		'the username is asked for once'
+	);
+	assert.equal(
+		SETUP_WALK.filter((step) => step.fields.includes('group')).length,
+		1,
+		'the group is asked for once'
 	);
 });
 
@@ -243,6 +243,37 @@ test('the refusal a group already holding an organization gives is the sentence 
 	);
 });
 
+/**
+ * Effort 826's correction to requirement 13: the group the person typed is what the first create
+ * names, so a group that is not the one the consent is over is refused before anything is
+ * created. **The refusal names both**, because the person is being asked to correct one word and
+ * cannot do that without seeing what the other one is. The sentence is Rust's and is shown
+ * unchanged, so it is read back out of `setup.rs` here the way the group-already-held one is.
+ */
+test('the refusal a group that is not the consented one gives names both groups, and rust formats it', async () => {
+	const rust = await readFile(
+		fileURLToPath(new URL('../../../../tauri/src/organization/setup.rs', import.meta.url)),
+		'utf8'
+	);
+	const unwrapped = rust.replace(/\\\n\s*/g, '');
+
+	assert.ok(
+		unwrapped.includes('the group this consent is over is called `{}`, not `{typed_group}`'),
+		'rust no longer names both the consented group and the typed one'
+	);
+});
+
+// and a create refused over the group is an ordinary failed create as far as the walk is
+// concerned: the authority is untouched, so the person stays on the name step and retypes it.
+test('a create refused over the group leaves the walk on the step the group was typed on', () => {
+	const refused = {
+		code: 'preconditionFailed',
+		message: 'the group this consent is over is called `rentable`, not `rentabel`'
+	};
+
+	assert.equal(refusalAfterFailedCreate(refused, true), null);
+});
+
 test('a create refused after the consent was given back sends the walk to the connect step', () => {
 	const refused = { code: 'preconditionFailed', message: GROUP_ALREADY_HOLDS_ONE };
 
@@ -267,26 +298,97 @@ test('an ordinary failed create leaves the walk where it is', () => {
 });
 
 /**
- * The vocabulary guard. Nothing available to this application can make a group, and on a Free or
- * Developer account the person cannot make a second one either, so an instruction to make one is
- * an instruction that fails for most of the people who would read it. The walk carried one until
- * this effort; this is what keeps it from coming back.
+ * THE VOCABULARY GUARD
+ *
+ * Two properties, and the first has not changed: **no word Turso wants is ever asked for or
+ * said**. A slug, a token, a URL, a host and a secret are the application's business and never a
+ * reader's, so none of them appears in a field name or in a sentence the walk shows.
+ *
+ * The second is what the group field made narrower. Nothing available to this application can
+ * make a group, and on a Free or Developer account the person cannot make a second one either,
+ * so an instruction to make one is an instruction that fails for most of the people who would
+ * read it. The walk carried one until this effort. Since 2026-09-15 it does name a group,
+ * because Turso's create refuses a request that names none and an empty group is a thing only
+ * the person knows the name of, **so what is refused is the instruction rather than the word**.
+ *
+ * **An instruction puts its verb first, and that is the whole of the distinction.** "pick an
+ * empty group" tells somebody to do something; "the group you chose" tells them which one is
+ * meant. The connect statements keep the older, narrower reading of the same rule, because
+ * requirement 13 has them say in so many words that an empty group is the one to pick on a paid
+ * account: they may point at a group somebody already has to choose between, and they still may
+ * not tell anybody to make one. The field is held to the wider reading, since it has no business
+ * instructing anybody at all.
  *
  * A match is kept inside one sentence, which is what stops a statement that names a group in one
- * sentence and an account in the next from reading as an instruction to make a group.
+ * sentence and an account in the next from reading as an instruction about a group.
  */
-test('neither locale tells the owner to create a group', () => {
-	const english = /\b(create|creating|make|making|add|adding|set up)\b[^.]{0,24}\bgroups?\b/i;
-	const arabic = /(أنشئ|انشئ|إنشاء|انشاء|اصنع|كوّن)[^.]{0,24}مجموعة/;
 
+/** every sentence the walk shows about the group, beside the field that asks for it. */
+const GROUP_FIELD_KEYS = ['groupLabel', 'groupDescription', 'groupRequired'] as const;
+
+/** what Turso wants and a reader never types: refused in a field name and in every sentence. */
+const TURSO_VOCABULARY = /slug|token|url|host|secret/i;
+
+/** telling somebody to make a group, in either language: the verb, then the group. */
+const MAKE_A_GROUP = {
+	en: /\b(create|creating|make|making|add|adding|set up)\b[^.]{0,24}\bgroups?\b/i,
+	ar: /(أنشئ|انشئ|إنشاء|انشاء|اصنع|كوّن)[^.]{0,24}مجموعة/
+};
+
+/** the wider reading the field is held to: making one, choosing one, or calling one empty. */
+const ANY_GROUP_INSTRUCTION = {
+	en: /\b(create|creating|make|making|add|adding|set up|pick|picking|choose|choosing|select|selecting)\b[^.]{0,24}\bgroups?\b|\bempty\b[^.]{0,12}\bgroups?\b/i,
+	ar: /(أنشئ|انشئ|إنشاء|انشاء|اصنع|كوّن|اختر|اختيار|حدّد|حدد)[^.]{0,24}مجموعة|مجموعة[^.]{0,12}فارغة/
+};
+
+test('no field and no sentence in the walk carries a slug, a token, a URL, a host or a secret', () => {
+	for (const step of SETUP_WALK) {
+		for (const field of step.fields) {
+			assert.doesNotMatch(field, TURSO_VOCABULARY, `the ${step.step} step asks for ${field}`);
+		}
+	}
+
+	for (const locale of ['en', 'ar'] as const) {
+		const setup = { en, ar }[locale].organization.setup;
+
+		for (const key of [...STATEMENT_KEYS, ...GROUP_FIELD_KEYS]) {
+			assert.doesNotMatch(setup[key], TURSO_VOCABULARY, `${locale}: ${key}`);
+		}
+	}
+});
+
+test('neither locale tells the owner to create a group', () => {
 	for (const key of STATEMENT_KEYS) {
-		assert.doesNotMatch(en.organization.setup[key], english, `en: ${key}`);
-		assert.doesNotMatch(ar.organization.setup[key], arabic, `ar: ${key}`);
+		assert.doesNotMatch(en.organization.setup[key], MAKE_A_GROUP.en, `en: ${key}`);
+		assert.doesNotMatch(ar.organization.setup[key], MAKE_A_GROUP.ar, `ar: ${key}`);
 	}
 
 	// and the guard catches what the walk used to say, in both languages.
-	assert.match(PARAGRAPHS_REPLACED[0]!, english);
-	assert.match(AR_WAS, arabic);
+	assert.match(PARAGRAPHS_REPLACED[0]!, MAKE_A_GROUP.en);
+	assert.match(AR_WAS, MAKE_A_GROUP.ar);
+});
+
+// requirement 13's correction: the field names a group and instructs nobody about one, so the
+// walk gained a Turso word without gaining back the sentence this effort removed.
+test('the group field names a group without instructing anybody about one', () => {
+	for (const locale of ['en', 'ar'] as const) {
+		const setup = { en, ar }[locale].organization.setup;
+
+		for (const key of GROUP_FIELD_KEYS) {
+			assert.ok(setup[key].length > 0, `${locale}: ${key}`);
+			assert.doesNotMatch(setup[key], ANY_GROUP_INSTRUCTION[locale], `${locale}: ${key}`);
+		}
+
+		// written in each language rather than copied from the other.
+		assert.notEqual(
+			ar.organization.setup[GROUP_FIELD_KEYS[0]],
+			en.organization.setup[GROUP_FIELD_KEYS[0]]
+		);
+	}
+
+	// and the wider reading still catches the instruction the walk retired, in both languages.
+	assert.match(PARAGRAPHS_REPLACED[0]!, ANY_GROUP_INSTRUCTION.en);
+	assert.match(AR_WAS, ANY_GROUP_INSTRUCTION.ar);
 });
 
 /**

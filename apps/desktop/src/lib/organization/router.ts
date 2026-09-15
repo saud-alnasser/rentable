@@ -74,23 +74,28 @@ export const organization = router({
 		return ctx.host.organization.disconnect();
 	}),
 	/**
-	 * Create the organization from the three things the setup walk collects.
+	 * Create the organization from the four things the setup walk collects.
 	 *
 	 * **The bounds are the walk's own, stated here so a caller is refused before a round trip.**
 	 * The form refuses the same on the field the reader typed in, and Rust refuses them again
 	 * before it asks anything of Turso; this is the middle one, and it exists because a caller
 	 * that is not the form should still be turned away before the host is reached.
+	 *
+	 * The group has one bound and it is that it was given: what a group may be called is Turso's
+	 * to say, and refusing a shape here would be this layer inventing a rule about somebody
+	 * else's names.
 	 */
 	create: procedure.public
 		.input(
 			z.object({
 				name: z.string().trim().min(1).max(ORGANIZATION_NAME_LIMIT),
 				username: USERNAME,
-				password: z.string().min(PASSWORD_FLOOR)
+				password: z.string().min(PASSWORD_FLOOR),
+				group: z.string().trim().min(1)
 			})
 		)
 		.mutation(async ({ input, ctx }): Promise<OrganizationCreated> => {
-			return ctx.host.organization.create(input.name, input.username, input.password);
+			return ctx.host.organization.create(input.name, input.username, input.password, input.group);
 		}),
 	/**
 	 * A workspace: created by the owner, opened by whoever holds a grant, granted and removed by

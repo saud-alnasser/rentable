@@ -211,9 +211,11 @@ export function useDisconnectOrganization(
 }
 
 /**
- * create the organization. The refusals a person can act on arrive as `BAD_REQUEST` and are
+ * create the organization, from the name, the username, the password and the Turso group the
+ * walk's name step collects. The refusals a person can act on arrive as `BAD_REQUEST` and are
  * shown verbatim; everything else reads as an unexpected failure, which is the shared handler's
- * rule.
+ * rule. A group that is not the one the consent is over is one of the first kind, and it names
+ * both, so the person can correct the field they typed it in.
  */
 export function useCreateOrganization(
 	opts: MutationOptions = {
@@ -224,12 +226,14 @@ export function useCreateOrganization(
 		mutationFn: ({
 			name,
 			username,
-			password
+			password,
+			group
 		}: {
 			name: string;
 			username: string;
 			password: string;
-		}) => api.app.organization.create({ name, username, password }),
+			group: string;
+		}) => api.app.organization.create({ name, username, password, group }),
 		// creating the organization signs its owner in, and the held context was built while
 		// nobody was: the walk's next call, the first workspace, needs an actor, so the context
 		// is forgotten here the way the wall and a sign-out forget it (`api/caller`).

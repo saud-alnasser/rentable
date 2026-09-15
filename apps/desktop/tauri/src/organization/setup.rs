@@ -1,13 +1,14 @@
 //! the first run: an owner names an organization, chooses a username and sets a password, and
 //! the organization exists on their own Turso account with them in it.
 //!
-//! **Three things are typed and nothing else.** The name, the username and the password. *Two
-//! until effort 824's requirement 21 made an account a username; the owner's row carried an empty
-//! address and an empty display name before it.* The slug is discovered
-//! (`sync/turso/discovery.rs`), the group is whichever the consent was granted over, the database
-//! is created here, and every key is generated or derived here. The consent itself happened before
-//! this is reached, in a browser, and this module spends what it filed and asks nothing of the
-//! person.
+//! **Four things are typed and nothing else.** The name, the username, the password and the
+//! Turso group the consent was granted over. *Two until effort 824's requirement 21 made an
+//! account a username; the owner's row carried an empty address and an empty display name before
+//! it. Three until 2026-09-15, when Turso began refusing a create that names no group and an
+//! empty group turned out to be a thing nothing on this machine can name.* The slug is discovered
+//! (`sync/turso/discovery.rs`), the database is created here, and every key is generated or
+//! derived here. The consent itself happened before this is reached, in a browser, and this
+//! module spends what it filed and asks nothing else of the person.
 //!
 //! **Either the run completes or it leaves nothing.** A database is created on the customer's
 //! account early and everything after it can fail, so every failure past that point deletes the
@@ -104,13 +105,18 @@ pub const SHIPPING_KDF: KdfParams = KdfParams {
 pub const ORGANIZATION_KEY_PURPOSE: &str = "organization-key";
 pub const ADMINISTRATOR_KEY_PURPOSE: &str = "administrator-key";
 
-/// The three things a first run is given.
+/// The four things a first run is given.
 #[derive(Clone, Debug)]
 pub struct CreateOrganization<'a> {
     pub name: &'a str,
     /// the owner's own username, under `invite::validate_username`'s rules like every other.
     pub username: &'a str,
     pub password: &'a str,
+    /// the Turso group the person picked on the consent screen. It is a name rather than a
+    /// credential ([[rules/credentials]], *Client boundary*), and it is asked for because the
+    /// first create into an empty group has no other way of learning it;
+    /// `sync/turso/discovery.rs` says why nothing here can work it out.
+    pub group: &'a str,
 }
 
 /// What the web layer is told: the organization's id and the link the owner can hand out. No key,
@@ -163,6 +169,12 @@ impl Remote {
 /// `platform_for` builds the Platform API client once the organization slug is known, which on a
 /// first run into an empty group is only after the MCP server has created the first database;
 /// `discovery.rs` says why that database cannot be created any other way.
+///
+/// **The group the person typed is checked against the one the consent is over, where that is
+/// known, and is otherwise what the first create names.** An empty group tells this machine
+/// nothing about itself, so on that path the typed name is taken as given and Turso refuses it
+/// if it is wrong; a populated one has already been listed, so a name that is not it is refused
+/// here, by name, before anything is created.
 #[allow(clippy::too_many_arguments)]
 pub async fn create_organization<P, F>(
     store: &mut Persisted<RemoteSyncStore>,
@@ -181,6 +193,7 @@ where
 {
     let name = request.name.trim();
     let username = request.username.trim();
+    let typed_group = request.group.trim();
 
     if name.is_empty() {
         return Err(Error::InvalidInput {
@@ -201,18 +214,40 @@ where
         });
     }
 
+    // the one Turso word the walk asks for, and the create into an empty group cannot be made
+    // without it: the listing is empty, the token's claims carry the group's uuid and not its
+    // name, and the tool set has no group tool (`sync/turso/discovery.rs`).
+    if typed_group.is_empty() {
+        return Err(Error::InvalidInput {
+            message: "the first run needs the Turso group the consent was granted over".to_string(),
+        });
+    }
+
     let organization_id = random_id()?;
     let database_name = format!("{ORGANIZATION_DATABASE_PREFIX}{organization_id}");
 
     // the database, and the slug it is created under or read from.
     let (organization, hostname) = match discovery::organization(store, platform_token, mcp).await?
     {
-        Some(group) => {
+        Some(consented) => {
+            // **the typed group is checked first, and it keeps the consent.** What the consent
+            // is over is already known here, from the listing or from this machine's own store,
+            // so a name that is not it is a typing mistake rather than a wrong account, and
+            // giving the consent back over one would cost the person the browser round trip.
+            if consented.organization.group != typed_group {
+                return Err(Error::PreconditionFailed {
+                    message: format!(
+                        "the group this consent is over is called `{}`, not `{typed_group}`",
+                        consented.organization.group
+                    ),
+                });
+            }
+
             // **before the create, so a refusal leaves the account exactly as it was.** Where
             // the group was answered out of this machine's own store there is no listing to
             // read, and none is needed: the only way a slug got there is a run that reached
             // this check and passed it.
-            if let Some(databases) = group.databases.as_deref() {
+            if let Some(databases) = consented.databases.as_deref() {
                 if let Err(refusal) = one_organization_to_a_group(databases) {
                     abandon_the_consent(store);
 
@@ -220,7 +255,7 @@ where
                 }
             }
 
-            let organization = group.organization;
+            let organization = consented.organization;
             let database = platform_for(organization.clone())
                 .create_database(&database_name)
                 .await?;
@@ -229,7 +264,8 @@ where
         }
         None => {
             let first =
-                discovery::create_first_database(platform_token, mcp, &database_name).await?;
+                discovery::create_first_database(platform_token, mcp, &database_name, typed_group)
+                    .await?;
 
             store.turso_organization = Some(first.organization.clone());
             store.commit()?;
@@ -740,6 +776,7 @@ mod tests {
                 name: "Acme Rentals",
                 username: "olivia.owner",
                 password: PASSWORD,
+                group: "rentable",
             },
             test_cost(),
             1_757_000_000_000,
@@ -774,6 +811,59 @@ mod tests {
             "the refused consent left its authority on this machine"
         );
         assert_eq!(store.turso_organization, None);
+    }
+
+    /// **Ticket 17.** The group the person typed is the one the first create names, so a name
+    /// that is not the consent's group is refused before anything is created, by both names, and
+    /// the consent stays where it is: what went wrong is a word on the form.
+    #[tokio::test]
+    async fn a_typed_group_that_is_not_the_consented_one_is_refused_by_name_and_keeps_the_consent()
+    {
+        let _turn = take_the_credential_store().await;
+
+        store_platform_token(TOKEN).expect("the test credential store would not take the token");
+
+        let directory = scratch("another-group");
+        let mut store = store(&directory);
+        let mcp = ScriptedServer::start(populated_group()).await;
+        let platform = Arc::new(InMemoryPlatform::new("an-org"));
+
+        let refusal = create_organization(
+            &mut store,
+            TOKEN,
+            &McpEndpoint::at(&mcp.url("")),
+            |_| Arc::clone(&platform),
+            Remote::none(),
+            &directory.join("app.db"),
+            CreateOrganization {
+                name: "Acme Rentals",
+                username: "olivia.owner",
+                password: PASSWORD,
+                group: "rentabel",
+            },
+            test_cost(),
+            1_757_000_000_000,
+        )
+        .await
+        .expect_err("a group the consent is not over was built into");
+
+        assert!(
+            matches!(refusal, Error::PreconditionFailed { .. }),
+            "{refusal:?}"
+        );
+        assert_eq!(
+            refusal.to_string(),
+            "the group this consent is over is called `rentable`, not `rentabel`"
+        );
+
+        // nothing was created, and the authority is still this machine's: the person retypes the
+        // group on the step they are on rather than granting a second consent.
+        assert!(
+            platform.databases().is_empty(),
+            "a database was created on a refused run"
+        );
+        assert!(store.organization.is_none());
+        assert!(platform_token().is_ok());
     }
 
     /// The other half of the same rule: a group holding databases of the person's own is the
@@ -821,6 +911,7 @@ mod tests {
                 name: "Acme Rentals",
                 username: "olivia.owner",
                 password: PASSWORD,
+                group: "rentable",
             },
             test_cost(),
             1_757_000_000_000,
@@ -863,6 +954,7 @@ mod tests {
                 name: "  Acme Rentals ",
                 username: " Olivia.Owner ",
                 password: PASSWORD,
+                group: " rentable ",
             },
             test_cost(),
             1_757_000_000_000,
@@ -1045,6 +1137,7 @@ mod tests {
                 name: "Acme",
                 username: "olivia",
                 password: PASSWORD,
+                group: "rentable-empty",
             },
             test_cost(),
             1_757_000_000_000,
@@ -1120,6 +1213,7 @@ mod tests {
                 name: "Acme",
                 username: "olivia",
                 password: PASSWORD,
+                group: "rentable",
             },
             test_cost(),
             1_757_000_000_000,
@@ -1148,10 +1242,11 @@ mod tests {
         );
     }
 
-    /// The three things typed are checked before anything is asked of Turso, and a username
+    /// The four things typed are checked before anything is asked of Turso, and a username
     /// outside requirement 21's rules is refused with the sentence an invitation refuses with.
     #[tokio::test]
-    async fn an_empty_name_a_bad_username_or_a_short_password_is_refused_before_any_request() {
+    async fn an_empty_name_a_bad_username_a_short_password_or_no_group_is_refused_before_any_request()
+     {
         let directory = scratch("refused");
         let mut store = store(&directory);
         let mcp = ScriptedServer::start(populated_group()).await;
@@ -1160,13 +1255,14 @@ mod tests {
         let too_short = "a".repeat(MINIMUM_PASSWORD_LENGTH - 1);
         let too_long = "o".repeat(33);
 
-        for (name, username, password) in [
-            ("   ", "olivia", PASSWORD),
-            ("Acme", "olivia", too_short.as_str()),
-            ("Acme", "ol", PASSWORD),
-            ("Acme", too_long.as_str(), PASSWORD),
-            ("Acme", "olivia owner", PASSWORD),
-            ("Acme", "olivia@acme.example", PASSWORD),
+        for (name, username, password, group) in [
+            ("   ", "olivia", PASSWORD, "rentable"),
+            ("Acme", "olivia", too_short.as_str(), "rentable"),
+            ("Acme", "ol", PASSWORD, "rentable"),
+            ("Acme", too_long.as_str(), PASSWORD, "rentable"),
+            ("Acme", "olivia owner", PASSWORD, "rentable"),
+            ("Acme", "olivia@acme.example", PASSWORD, "rentable"),
+            ("Acme", "olivia", PASSWORD, "   "),
         ] {
             let error = create_organization(
                 &mut store,
@@ -1179,6 +1275,7 @@ mod tests {
                     name,
                     username,
                     password,
+                    group,
                 },
                 test_cost(),
                 1_757_000_000_000,
@@ -1193,6 +1290,15 @@ mod tests {
 
             if username != "olivia" {
                 assert_eq!(error.to_string(), USERNAME_RULES, "{username:?}");
+            }
+
+            // the group's refusal names the field, so the person knows which of the four is
+            // missing without reading the form again.
+            if group.trim().is_empty() {
+                assert_eq!(
+                    error.to_string(),
+                    "the first run needs the Turso group the consent was granted over"
+                );
             }
         }
 

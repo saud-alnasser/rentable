@@ -12,6 +12,7 @@
 	import BuildingIcon from '@lucide/svelte/icons/building';
 	import DatabaseIcon from '@lucide/svelte/icons/database';
 	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
+	import LayersIcon from '@lucide/svelte/icons/layers';
 	import PlugIcon from '@lucide/svelte/icons/plug';
 	import UnplugIcon from '@lucide/svelte/icons/unplug';
 	import PlusIcon from '@lucide/svelte/icons/plus';
@@ -38,9 +39,10 @@
 	/**
 	 * The first run, on the shared application surface.
 	 *
-	 * **Three steps and four fields.** Connecting the Turso account, which is a consent in the
-	 * browser and nothing typed here; naming the organization, the owner's own username and their
-	 * password; and naming the first workspace, which is where the walk ends: creating it signs the owner in to it and
+	 * **Three steps and five fields.** Connecting the Turso account, which is a consent in the
+	 * browser and nothing typed here; naming the organization, the owner's own username, their
+	 * password and the Turso group they picked on the consent screen; and naming the first
+	 * workspace, which is where the walk ends: creating it signs the owner in to it and
 	 * the application opens on it. There is no step showing the join link, because the link lives
 	 * on the organization page and a screen asking a person to continue past it was one screen too
 	 * many. `../setup.ts` describes the walk as data and this component draws each step from that
@@ -118,7 +120,7 @@
 		/** the corner control, on the steps before the organization exists; the route decides where
 		 * each goes back to. */
 		onBack: () => void;
-		onCreate: (name: string, username: string, password: string) => Promise<void>;
+		onCreate: (name: string, username: string, password: string, group: string) => Promise<void>;
 		onCreateWorkspace: (name: string) => Promise<void>;
 	} = $props();
 
@@ -228,13 +230,28 @@
 			.min(1, { message: $LL.organization.setup.nameRequired() })
 			.max(ORGANIZATION_NAME_LIMIT, { message: $LL.organization.setup.nameTooLong() }),
 		username: usernameSchema($LL),
-		password: z.string().min(PASSWORD_FLOOR, { message: $LL.organization.setup.passwordTooShort() })
+		password: z
+			.string()
+			.min(PASSWORD_FLOOR, { message: $LL.organization.setup.passwordTooShort() }),
+		// the only bound is that it was given: what a group may be called is Turso's to say, and a
+		// shape refused here would be this form inventing a rule about somebody else's names. A
+		// group that is not the consent's is refused by Rust, by both names.
+		group: z.string().trim().min(1, { message: $LL.organization.setup.groupRequired() })
 	});
 
 	type SetupForm = z.infer<typeof SetupSchema>;
 
 	let { form, constraints, errors, enhance, ...rest } = superForm<SetupForm>(
-		defaults(zod4(z.object({ name: z.string(), username: z.string(), password: z.string() }))),
+		defaults(
+			zod4(
+				z.object({
+					name: z.string(),
+					username: z.string(),
+					password: z.string(),
+					group: z.string()
+				})
+			)
+		),
 		{
 			id: 'setup-organization',
 			SPA: true,
@@ -242,7 +259,12 @@
 			onUpdate: async ({ form }) => {
 				if (!form.valid) return;
 
-				await onCreate(form.data.name.trim(), form.data.username.trim(), form.data.password);
+				await onCreate(
+					form.data.name.trim(),
+					form.data.username.trim(),
+					form.data.password,
+					form.data.group.trim()
+				);
 			}
 		}
 	);
@@ -437,6 +459,34 @@
 							</InputGroup.Root>
 						</Form.Control>
 						<Form.Description>{$LL.organization.setup.passwordFloor()}</Form.Description>
+						<FieldError />
+					</Form.Field>
+				{/if}
+
+				{#if fields.includes('group')}
+					<!-- the one Turso word on the walk, and it is asked rather than instructed: the
+					     person picked the group on Turso's own consent screen a moment ago, and
+					     nothing on this machine can learn the name of an empty one. The description
+					     says where they saw it, not what to do about it. -->
+					<Form.Field form={superform} name="group" class="group relative">
+						<Form.Control>
+							<Form.Label>{$LL.organization.setup.groupLabel()}</Form.Label>
+							<InputGroup.Root data-disabled={isCreating || undefined}>
+								<InputGroup.Addon>
+									<LayersIcon />
+								</InputGroup.Addon>
+								<InputGroup.Input
+									name="group"
+									bind:value={$form.group}
+									placeholder={$LL.organization.setup.groupLabel()}
+									autocomplete="off"
+									disabled={isCreating}
+									aria-invalid={$errors.group ? 'true' : undefined}
+									{...$constraints.group}
+								/>
+							</InputGroup.Root>
+						</Form.Control>
+						<Form.Description>{$LL.organization.setup.groupDescription()}</Form.Description>
 						<FieldError />
 					</Form.Field>
 				{/if}

@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: ['07', '13']
 ---
 
@@ -19,7 +19,7 @@ admitting the field.
 Traces requirement 13 of [[efforts/826-the-organization-and-the-way-in-are-rethought/spec]] as
 corrected on 2026-09-15, and its criterion 13.
 
-- [ ] `CreateOrganization` carries `group: &str` and `setup::create_organization` refuses an
+- [x] `CreateOrganization` carries `group: &str` and `setup::create_organization` refuses an
       empty one as `InvalidInput` naming the field; `discovery::create_first_database` takes
       the group and passes it as the tool's `group` argument, asserted in `discovery.rs` over
       the scripted server (the argument is `{ name, group }` and nothing else); where the
@@ -27,10 +27,10 @@ corrected on 2026-09-15, and its criterion 13.
       `PreconditionFailed` with "the group this consent is over is called `<listed>`, not
       `<typed>`", and one that matches proceeds through the Platform API path as today,
       asserted in `setup.rs`.
-- [ ] `organization_create(name, username, password, group)` in `command.rs`, mirrored in
+- [x] `organization_create(name, username, password, group)` in `command.rs`, mirrored in
       `host.ts`, `platform/tauri.ts`, `platform/tests/testing.ts` and `organization/router.ts`
       (the input schema requiring a non-empty trimmed `group`); `router.test.ts` pins it.
-- [ ] `organization/setup.ts`'s name step lists `group` among its fields, and
+- [x] `organization/setup.ts`'s name step lists `group` among its fields, and
       `setup-walk.svelte` draws it after the password with a label and a description saying it
       is the group picked on Turso's consent screen, in both locales, written not copied;
       `setup.test.ts` holds `fieldsPresented` to `['name', 'username', 'password', 'group',
@@ -39,9 +39,9 @@ corrected on 2026-09-15, and its criterion 13.
       while admitting the field's label and description; `setup-walk.svelte.test.ts` drives
       the field and asserts the create receives it and that an empty one is refused on the
       step.
-- [ ] The refusal a mismatched group earns reaches the walk the way a failed create does today
+- [x] The refusal a mismatched group earns reaches the walk the way a failed create does today
       and names both groups; asserted in `setup-walk.svelte.test.ts`.
-- [ ] `pnpm check`, `pnpm lint`, `pnpm test`, `cargo test -- --test-threads=1` and
+- [x] `pnpm check`, `pnpm lint`, `pnpm test`, `cargo test -- --test-threads=1` and
       `cargo fmt --check` pass; a changeset (`@rentable/desktop`, patch) rides with the change.
 
 ## Relevant areas
@@ -70,4 +70,17 @@ corrected on 2026-09-15, and its criterion 13.
 
 ## Notes
 
-Nothing yet.
+Built by an implementer and landed on 2026-09-15, the human waiting to retry the first run.
+Departures: the instruction guard (create, empty, pick) is applied to the field's label and
+description, not to the connect statements, which keep the narrower make-a-group guard since
+the pinned literal "on a paid account, pick an empty group" is one of them; the mismatched
+group's sentence is pinned in `setup.test.ts` against `setup.rs` rather than in the component
+test, since the refusal keeps the consent and goes to the shared toast, and the component test
+asserts that the step stays filled in so the group is correctable; `setup-walk.svelte.test.ts`
+mocks `$app/forms`' `applyAction` so a real submit runs; `nameDescription` was corrected in
+both locales to the four fields.
+
+Raised, not taken: `join.rs`'s live test now fails at the create rather than later where
+`TURSO_GROUP` is merely plausible; an invalid superforms SPA submit sets no `$errors` under
+vitest, so the empty-group refusal is asserted on blur; `refusalAfterFailedCreate` carries two
+consent-keeping refusals with no way to put the cursor back in the field at fault.

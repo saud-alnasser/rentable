@@ -2318,7 +2318,7 @@ type RootTranslation = {
 			 */
 			nameTitle: string
 			/**
-			 * c​h​o​o​s​e​ ​a​ ​n​a​m​e​ ​f​o​r​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​,​ ​y​o​u​r​ ​u​s​e​r​n​a​m​e​,​ ​a​n​d​ ​a​ ​p​a​s​s​w​o​r​d​.​ ​t​h​e​ ​p​a​s​s​w​o​r​d​ ​u​n​l​o​c​k​s​ ​y​o​u​r​ ​p​l​a​c​e​ ​i​n​ ​i​t​.
+			 * c​h​o​o​s​e​ ​a​ ​n​a​m​e​ ​f​o​r​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​,​ ​y​o​u​r​ ​u​s​e​r​n​a​m​e​,​ ​a​n​d​ ​a​ ​p​a​s​s​w​o​r​d​,​ ​a​n​d​ ​s​a​y​ ​w​h​i​c​h​ ​t​u​r​s​o​ ​g​r​o​u​p​ ​y​o​u​ ​c​h​o​s​e​.​ ​t​h​e​ ​p​a​s​s​w​o​r​d​ ​u​n​l​o​c​k​s​ ​y​o​u​r​ ​p​l​a​c​e​ ​i​n​ ​i​t​.
 			 */
 			nameDescription: string
 			/**
@@ -2349,6 +2349,18 @@ type RootTranslation = {
 			 * u​s​e​ ​a​t​ ​l​e​a​s​t​ ​1​2​ ​c​h​a​r​a​c​t​e​r​s​.
 			 */
 			passwordTooShort: string
+			/**
+			 * t​u​r​s​o​ ​g​r​o​u​p
+			 */
+			groupLabel: string
+			/**
+			 * t​h​e​ ​g​r​o​u​p​ ​y​o​u​ ​c​h​o​s​e​ ​o​n​ ​t​u​r​s​o​'​s​ ​c​o​n​s​e​n​t​ ​s​c​r​e​e​n​.​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​d​a​t​a​b​a​s​e​ ​g​o​e​s​ ​i​n​ ​i​t​.
+			 */
+			groupDescription: string
+			/**
+			 * n​a​m​e​ ​t​h​e​ ​g​r​o​u​p​ ​y​o​u​ ​c​h​o​s​e​ ​o​n​ ​t​u​r​s​o​'​s​ ​c​o​n​s​e​n​t​ ​s​c​r​e​e​n​.
+			 */
+			groupRequired: string
 			/**
 			 * c​r​e​a​t​e​ ​o​r​g​a​n​i​z​a​t​i​o​n
 			 */
@@ -5070,7 +5082,7 @@ export type TranslationFunctions = {
 			 */
 			nameTitle: () => LocalizedString
 			/**
-			 * choose a name for the organization, your username, and a password. the password unlocks your place in it.
+			 * choose a name for the organization, your username, and a password, and say which turso group you chose. the password unlocks your place in it.
 			 */
 			nameDescription: () => LocalizedString
 			/**
@@ -5101,6 +5113,18 @@ export type TranslationFunctions = {
 			 * use at least 12 characters.
 			 */
 			passwordTooShort: () => LocalizedString
+			/**
+			 * turso group
+			 */
+			groupLabel: () => LocalizedString
+			/**
+			 * the group you chose on turso's consent screen. the organization's database goes in it.
+			 */
+			groupDescription: () => LocalizedString
+			/**
+			 * name the group you chose on turso's consent screen.
+			 */
+			groupRequired: () => LocalizedString
 			/**
 			 * create organization
 			 */

@@ -103,9 +103,9 @@
 		}
 	};
 
-	const create = async (name: string, username: string, password: string) => {
+	const create = async (name: string, username: string, password: string, group: string) => {
 		try {
-			await createOrganization.mutateAsync({ name, username, password });
+			await createOrganization.mutateAsync({ name, username, password, group });
 			step = 'workspace';
 		} catch (error) {
 			// the refusal a person can act on has been shown verbatim; the form keeps what they

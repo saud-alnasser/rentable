@@ -502,11 +502,21 @@ export type Host = {
 		/** forget the Turso authority this machine holds, and nothing else. Nothing is revoked at Turso. */
 		consentDisconnect: () => Promise<void>;
 		/**
-		 * create an organization on the consented account from the two things a first run
+		 * create an organization on the consented account from the four things a first run
 		 * collects. Refuses, creating nothing, where no consent has been granted, and signs the
 		 * owner in where it succeeds.
+		 *
+		 * `group` is the Turso group the person picked on the consent screen, which the first
+		 * create into an empty group has to name and nothing on this side can work out. It is a
+		 * name rather than a credential; a group that is not the consent's is refused before
+		 * anything is created.
 		 */
-		create: (name: string, username: string, password: string) => Promise<OrganizationCreated>;
+		create: (
+			name: string,
+			username: string,
+			password: string,
+			group: string
+		) => Promise<OrganizationCreated>;
 		/** the organization this machine holds, and who is signed in. */
 		getState: () => Promise<OrganizationState>;
 		/**

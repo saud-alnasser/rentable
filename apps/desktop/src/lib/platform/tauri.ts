@@ -217,8 +217,8 @@ export const tauri = {
 		consentResult: (sessionId: string) =>
 			invoke<OrganizationConsentResult>('organization_consent_result', { sessionId }),
 		consentDisconnect: () => invoke<void>('organization_consent_disconnect'),
-		create: (name: string, username: string, password: string) =>
-			invoke<OrganizationCreated>('organization_create', { name, username, password }),
+		create: (name: string, username: string, password: string, group: string) =>
+			invoke<OrganizationCreated>('organization_create', { name, username, password, group }),
 		getState: () => invoke<OrganizationState>('organization_state_get'),
 		connect: (link: string) => invoke<OrganizationState>('organization_connect', { link }),
 		disconnect: () => invoke<OrganizationState>('organization_disconnect'),

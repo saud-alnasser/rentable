@@ -74,9 +74,15 @@ pub struct OrganizationState {
 }
 
 /// Create an organization on the consented Turso account, with this machine's person as its
-/// owner, from the three things the setup walk collects, and sign them in to it.
+/// owner, from the four things the setup walk collects, and sign them in to it.
 ///
-/// **None of the three crosses back, and nothing else crosses at all.** The password is turned
+/// **The fourth is the Turso group, and it is a name rather than a credential**
+/// ([[rules/credentials]], *Client boundary*): the first create into an empty group has to name
+/// the group and nothing on this side of the boundary can learn which one that is, so the walk
+/// asks the person who picked it a moment earlier. `setup.rs` and `sync/turso/discovery.rs` say
+/// why.
+///
+/// **None of the four crosses back, and nothing else crosses at all.** The password is turned
 /// into a vault here and dropped; the organization key and the owner's signing key are derived
 /// and never stored; the Platform API token is read from the keyring where the consent filed it.
 /// What the web layer is told is the organization's id, the join link, and whether the rows have
@@ -91,6 +97,7 @@ pub async fn organization_create(
     name: String,
     username: String,
     password: String,
+    group: String,
 ) -> Result<OrganizationCreated, Error> {
     let platform_token = setup::authority()?;
     let database_path = {
@@ -121,6 +128,7 @@ pub async fn organization_create(
             name: &name,
             username: &username,
             password: &password,
+            group: &group,
         },
         setup::SHIPPING_KDF,
         timestamp::now(),
@@ -1607,6 +1615,7 @@ mod tests {
                     name: "Acme",
                     username: USERNAME,
                     password: PASSWORD,
+                    group: "rentable",
                 },
                 test_cost(),
                 CREATED_AT,

@@ -639,6 +639,7 @@ mod tests {
                 name: "Acme",
                 username: "olivia",
                 password: OWNER_PASSWORD,
+                group: "rentable",
             },
             test_cost(),
             AT,
