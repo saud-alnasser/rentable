@@ -15,6 +15,7 @@
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import OrganizationAnotherMachine from '$lib/organization/component/another-machine.svelte';
 	import OrganizationChangePasswordDialog from '$lib/organization/component/change-password-dialog.svelte';
+	import OrganizationDeleteOrganization from '$lib/organization/component/delete-organization.svelte';
 	import OrganizationDisconnect from '$lib/organization/component/disconnect.svelte';
 	import OrganizationEndOtherSessions from '$lib/organization/component/end-other-sessions.svelte';
 	import OrganizationForgetAccount from '$lib/organization/component/forget-account.svelte';
@@ -73,6 +74,7 @@
 		isMakingMachineLink,
 		isChangingRole,
 		isChangingAccess,
+		isDeletingOrganization,
 		onChangeLocale,
 		onRevealDiagnostics,
 		onChangePassword,
@@ -90,6 +92,7 @@
 		onChangeWorkspaceAccess,
 		onDeleteWorkspace,
 		onAuthorityReconnected,
+		onDeleteOrganization,
 		onDisconnect
 	}: {
 		/** the section the address named. One this reader is not offered draws the default. */
@@ -115,6 +118,8 @@
 		isMakingMachineLink: boolean;
 		isChangingRole: boolean;
 		isChangingAccess: boolean;
+		/** the organization is being deleted, which is several requests and a sweep of the disk. */
+		isDeletingOrganization: boolean;
 		onChangeLocale: (next: Locales) => void;
 		onRevealDiagnostics: () => void;
 		/** change the reader's own password; rejects with what the shared handler has said. */
@@ -158,6 +163,12 @@
 		/** delete a workspace and its database; rejects so the confirm stays open on the refusal. */
 		onDeleteWorkspace: (workspaceId: string) => Promise<void>;
 		onAuthorityReconnected: () => void;
+		/**
+		 * delete the organization with the owner's password: every workspace database and the
+		 * organization's own go from the Turso account and this machine forgets what it held.
+		 * Rejects with what the shared handler has said, which this puts on the password.
+		 */
+		onDeleteOrganization: (password: string) => Promise<void>;
 		/** forget the organization on this machine; rejects so the confirm stays open. */
 		onDisconnect: () => Promise<void>;
 	} = $props();
@@ -193,6 +204,30 @@
 			changingPassword = false;
 		} catch (error) {
 			passwordRefusal = toErrorText(error, $LL);
+		}
+	};
+
+	let deletingOrganization = $state(false);
+	/** what the shell refused the last delete with, marked on the surface's password field. */
+	let deleteRefusal = $state<string | null>(null);
+
+	/**
+	 * the organization, deleted from the sync section.
+	 *
+	 * The same shape the password change has, and for the same reason: a delete that went through
+	 * closes the surface, which empties the one value on it, and a refusal keeps it open with what
+	 * was typed and puts the sentence on the password, because the password is what the shell
+	 * refuses this with ([[rules/interface]], *Validation errors*). Nothing is drawn afterwards
+	 * either way, since the machine that deleted the organization is a machine holding nothing.
+	 */
+	const deleteOrganization = async (password: string) => {
+		deleteRefusal = null;
+
+		try {
+			await onDeleteOrganization(password);
+			deletingOrganization = false;
+		} catch (error) {
+			deleteRefusal = toErrorText(error, $LL);
 		}
 	};
 </script>
@@ -360,6 +395,24 @@
 						<OrganizationReconnectAuthority onReconnected={onAuthorityReconnected} />
 					{:else}
 						<OrganizationForgetAccount />
+
+						<Field.Separator />
+
+						<!-- and the act that ends the organization itself, which is the owner's and needs
+						     the authority this block is about: every workspace database and the
+						     directory go from the account, so it belongs beside the account rather than
+						     beside the disconnect, which touches nothing on Turso. -->
+						<OrganizationDeleteOrganization
+							open={deletingOrganization}
+							onOpenChange={(value) => {
+								deletingOrganization = value;
+
+								if (!value) deleteRefusal = null;
+							}}
+							isDeleting={isDeletingOrganization}
+							errorMessage={deleteRefusal}
+							onDelete={(password) => void deleteOrganization(password)}
+						/>
 					{/if}
 				</Field.Set>
 

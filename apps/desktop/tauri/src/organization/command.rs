@@ -276,6 +276,16 @@ pub(crate) async fn state_of(app_state: &AppState) -> Result<OrganizationState, 
         .get_or_try_init(|| async {
             forget::forget_old_shape(app_state).await?;
             resume_remembered(app_state).await;
+
+            // and the one sign that is the remote's rather than the replica's: the owner deleted
+            // the organization from another machine, so there is no database to sync against any
+            // more (effort 828, requirement 18). It is after the resume because the pull it reads
+            // spends the credential the resumed vault unsealed, and before the registration
+            // because a machine that has just forgotten has no row to write.
+            if forget::forget_deleted_organization(app_state).await? {
+                return Ok(());
+            }
+
             machine_registered(app_state).await?;
 
             Ok::<(), Error>(())
@@ -320,6 +330,34 @@ pub async fn organization_disconnect(
     app_state: tauri::State<'_, AppState>,
 ) -> Result<OrganizationState, Error> {
     forget::forget(&app_state).await?;
+
+    state_of(&app_state).await
+}
+
+/// Delete the organization: every workspace database and the organization's own directory go from
+/// the owner's Turso account, and this machine forgets what it held (effort 828, requirement 18).
+///
+/// **The owner's alone**, twice over: the authority is on their machine and nobody else's, which
+/// is what this refuses on first, and `removal::delete_organization` refuses again on the role the
+/// wall opened. The password is the second thing it asks for and it never crosses back.
+///
+/// What comes back is where the machine stands, which is a machine holding nothing: the shell
+/// reads it and raises the first screen, exactly as a disconnect leaves it.
+#[tauri::command]
+pub async fn organization_delete(
+    app_state: tauri::State<'_, AppState>,
+    password: String,
+) -> Result<OrganizationState, Error> {
+    let platform = owner_platform(&app_state)
+        .await
+        .ok_or_else(|| Error::Forbidden {
+            message:
+                "only an owner can delete the organization, from the machine that connected the \
+                  turso account. ask the owner"
+                    .to_string(),
+        })?;
+
+    removal::delete_organization(&app_state, &platform, &password).await?;
 
     state_of(&app_state).await
 }

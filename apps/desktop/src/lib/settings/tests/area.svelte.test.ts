@@ -77,6 +77,7 @@ const area = (overrides: Partial<Parameters<typeof render<typeof SettingsArea>>[
 			isMakingMachineLink: false,
 			isChangingRole: false,
 			isChangingAccess: false,
+			isDeletingOrganization: false,
 			onChangeLocale: noop,
 			onRevealDiagnostics: noop,
 			onChangePassword: resolved,
@@ -94,6 +95,7 @@ const area = (overrides: Partial<Parameters<typeof render<typeof SettingsArea>>[
 			onChangeWorkspaceAccess: resolved,
 			onDeleteWorkspace: resolved,
 			onAuthorityReconnected: noop,
+			onDeleteOrganization: resolved,
 			onDisconnect: resolved,
 			...overrides
 		},
@@ -250,6 +252,46 @@ test('the sync section gives the owner the turso account and the disconnect, and
 	expect(screen.getByText(en.workspace.syncDescription)).toBeDefined();
 	expect(document.querySelector('[data-organization-link]')).toBeNull();
 	expect(document.querySelector('[data-link-description]')).toBeNull();
+});
+
+// effort 828, requirement 18: the owner can end the organization from the same block the account
+// is in, because it is the account the databases are on. Nobody else sees the control, and nothing
+// about it is drawn until they ask: the question that follows is the shared form surface at its
+// heavy weight, naming what goes and taking the password.
+test('the owner is offered the delete, on a surface that says what goes and takes the password', async () => {
+	at('?section=sync');
+	area({ section: 'sync' });
+
+	const control = document.querySelector('[data-delete-organization-open]');
+
+	expect(control).not.toBeNull();
+	expect(screen.getByText(en.organization.dashboard.deleteOrganizationDescription)).toBeDefined();
+	expect(document.querySelectorAll('input[type=password]')).toHaveLength(0);
+	expect(document.querySelector('[data-slot=form-surface]')).toBeNull();
+
+	await fireEvent.click(control!);
+	await screen.findByText(en.organization.dashboard.deleteOrganizationGoes);
+
+	expect(document.querySelector('[data-slot=form-surface]')).not.toBeNull();
+	expect(document.querySelectorAll('input[type=password]')).toHaveLength(1);
+	expect(screen.getByText(en.organization.dashboard.deleteOrganizationPassword)).toBeDefined();
+});
+
+test('an administrator is offered no delete, because the block it sits in is the owners', () => {
+	at('?section=sync');
+	area({
+		section: 'sync',
+		session: fakeOrganizationSession({
+			role: 'administrator',
+			permissions: maskOf(...EVERY_ADMINISTRATION)
+		})
+	});
+
+	expect(document.querySelector('[data-delete-organization]')).toBeNull();
+	expect(document.querySelector('[data-delete-organization-open]')).toBeNull();
+	expect(screen.queryByText(en.organization.dashboard.authorityTitle)).toBeNull();
+	// and the section is still theirs to read: the status and the disconnect are everybody's.
+	expect(document.querySelector('[data-disconnect]')).not.toBeNull();
 });
 
 // requirement 5: the authority is restored from nowhere, so an owner on a machine that holds

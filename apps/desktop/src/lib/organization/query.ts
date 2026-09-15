@@ -211,6 +211,32 @@ export function useDisconnectOrganization(
 }
 
 /**
+ * delete the organization: the shell removes every workspace database and the organization's own
+ * directory from the owner's Turso account, then forgets all of it here (effort 828, requirement
+ * 18). Nothing puts either back.
+ *
+ * **No invalidation here**, for the same reason the disconnect has none: what follows is the first
+ * screen, and the caller hands the outcome to the startup unit, which reads where the machine
+ * stands and clears the whole cache on the way. The one question before it runs is the surface's,
+ * and it is where the password is typed.
+ */
+export function useDeleteOrganization(
+	opts: MutationOptions = {
+		toast: {
+			success: () => get(LL).organization.dashboard.organizationDeleted(),
+			error: true,
+			unexpected: () => get(LL).common.messages.unexpectedError()
+		}
+	}
+) {
+	return createMutation(() => ({
+		mutationFn: (input: { password: string }) => api.app.organization.delete(input),
+		onSuccess: () => onMutationSuccess(opts),
+		onError: (e) => onMutationError(opts, e)
+	}));
+}
+
+/**
  * create the organization, from the name, the username and the password the walk's name step
  * collects, and the Turso group where the step was asked to collect one. The refusals a person
  * can act on arrive as `BAD_REQUEST` and are shown verbatim; everything else reads as an

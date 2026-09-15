@@ -17,6 +17,7 @@
 		useChangeAccess,
 		useChangePassword,
 		useChangeRole,
+		useDeleteOrganization,
 		useDeleteWorkspace,
 		useDisconnectOrganization,
 		useEndMemberSessions,
@@ -74,6 +75,7 @@
 	const changeRole = useChangeRole();
 	const changeAccess = useChangeAccess();
 	const deleteWorkspace = useDeleteWorkspace();
+	const deleteOrganization = useDeleteOrganization();
 	const disconnectOrganization = useDisconnectOrganization();
 	const endOtherSessions = useEndOtherSessions();
 	const endMemberSessions = useEndMemberSessions();
@@ -298,6 +300,18 @@
 		await disconnectOrganization.mutateAsync();
 		void startup.standingChanged();
 	};
+
+	/**
+	 * the organization, deleted once the surface has taken the owner's password: the shell removes
+	 * every workspace database and the directory from the Turso account and forgets all of it
+	 * here, and the startup unit raises the first screen, exactly as a disconnect leaves it. A
+	 * refusal is said by the shared handler and rethrown, so the surface stays open and marks the
+	 * password.
+	 */
+	const removeOrganization = async (password: string) => {
+		await deleteOrganization.mutateAsync({ password });
+		void startup.standingChanged();
+	};
 </script>
 
 {#if isLoading}
@@ -337,6 +351,7 @@
 		isMakingMachineLink={makeMachineLink.isPending}
 		isChangingRole={changeRole.isPending}
 		isChangingAccess={changeAccess.isPending}
+		isDeletingOrganization={deleteOrganization.isPending}
 		onChangeLocale={(next) => void changeLocale(next)}
 		onRevealDiagnostics={() => void revealDiagnostics()}
 		onChangePassword={async (current, next) => {
@@ -367,6 +382,7 @@
 		onChangeWorkspaceAccess={changeWorkspaceAccess}
 		onDeleteWorkspace={removeWorkspace}
 		onAuthorityReconnected={() => void stateQuery.refetch()}
+		onDeleteOrganization={removeOrganization}
 		onDisconnect={disconnect}
 	/>
 

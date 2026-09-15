@@ -2838,6 +2838,26 @@ type RootTranslation = {
 			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​n​o​ ​l​o​n​g​e​r​ ​h​o​l​d​s​ ​a​ ​t​o​k​e​n​ ​f​o​r​ ​y​o​u​r​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​.
 			 */
 			accountForgotten: string
+			/**
+			 * d​e​l​e​t​e​ ​o​r​g​a​n​i​z​a​t​i​o​n
+			 */
+			deleteOrganization: string
+			/**
+			 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​a​n​d​ ​e​v​e​r​y​ ​w​o​r​k​s​p​a​c​e​ ​i​n​ ​i​t​ ​a​r​e​ ​d​e​l​e​t​e​d​ ​f​r​o​m​ ​y​o​u​r​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​.​ ​n​o​t​h​i​n​g​ ​p​u​t​s​ ​t​h​e​m​ ​b​a​c​k​.
+			 */
+			deleteOrganizationDescription: string
+			/**
+			 * e​v​e​r​y​ ​w​o​r​k​s​p​a​c​e​ ​g​o​e​s​,​ ​a​n​d​ ​e​v​e​r​y​t​h​i​n​g​ ​i​n​ ​i​t​:​ ​t​e​n​a​n​t​s​,​ ​c​o​m​p​l​e​x​e​s​,​ ​u​n​i​t​s​,​ ​c​o​n​t​r​a​c​t​s​ ​a​n​d​ ​p​a​y​m​e​n​t​s​.​ ​s​o​ ​d​o​e​s​ ​e​v​e​r​y​ ​w​a​y​ ​i​n​,​ ​f​o​r​ ​e​v​e​r​y​ ​m​e​m​b​e​r​.​ ​t​h​e​ ​o​t​h​e​r​ ​m​a​c​h​i​n​e​s​ ​f​i​n​d​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​g​o​n​e​ ​t​h​e​ ​n​e​x​t​ ​t​i​m​e​ ​t​h​e​y​ ​o​p​e​n​ ​a​n​d​ ​l​a​n​d​ ​o​n​ ​t​h​e​ ​f​i​r​s​t​ ​s​c​r​e​e​n​.​ ​n​o​t​h​i​n​g​ ​p​u​t​s​ ​t​h​i​s​ ​b​a​c​k​.
+			 */
+			deleteOrganizationGoes: string
+			/**
+			 * y​o​u​r​ ​p​a​s​s​w​o​r​d
+			 */
+			deleteOrganizationPassword: string
+			/**
+			 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​w​a​s​ ​d​e​l​e​t​e​d​.
+			 */
+			organizationDeleted: string
 		}
 	}
 	workspace: {
@@ -5617,6 +5637,26 @@ export type TranslationFunctions = {
 			 * this machine no longer holds a token for your turso account.
 			 */
 			accountForgotten: () => LocalizedString
+			/**
+			 * delete organization
+			 */
+			deleteOrganization: () => LocalizedString
+			/**
+			 * the organization and every workspace in it are deleted from your turso account. nothing puts them back.
+			 */
+			deleteOrganizationDescription: () => LocalizedString
+			/**
+			 * every workspace goes, and everything in it: tenants, complexes, units, contracts and payments. so does every way in, for every member. the other machines find the organization gone the next time they open and land on the first screen. nothing puts this back.
+			 */
+			deleteOrganizationGoes: () => LocalizedString
+			/**
+			 * your password
+			 */
+			deleteOrganizationPassword: () => LocalizedString
+			/**
+			 * the organization was deleted.
+			 */
+			organizationDeleted: () => LocalizedString
 		}
 	}
 	workspace: {

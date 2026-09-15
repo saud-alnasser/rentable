@@ -240,6 +240,7 @@ pub fn run() {
             organization::organization_group_inspect,
             organization::organization_connect_existing,
             organization::organization_disconnect,
+            organization::organization_delete,
             organization::organization_state_get,
             organization::organization_sign_in,
             organization::organization_sign_out,

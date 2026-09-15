@@ -125,6 +125,7 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 			connectExisting: refuse('organization.connectExisting'),
 			getState: refuse('organization.getState'),
 			disconnect: refuse('organization.disconnect'),
+			delete: refuse('organization.delete'),
 			signIn: refuse('organization.signIn'),
 			signOut: refuse('organization.signOut'),
 			sessionEndElsewhere: refuse('organization.sessionEndElsewhere'),

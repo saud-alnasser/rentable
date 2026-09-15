@@ -251,6 +251,7 @@ test('nothing here asks the host to list organizations', () => {
 		'consent.disconnect',
 		'consent.result',
 		'create',
+		'delete',
 		'disconnect',
 		'groupInspect',
 		'invitation.accept',
@@ -493,6 +494,38 @@ test('ending sessions reaches the host behind reset password, and ending your ow
 	await assert.rejects(signedOut.app.organization.session.endElsewhere());
 	await assert.rejects(signedOut.app.organization.member.endSessions({ memberId: 'member-2' }));
 	assert.deepEqual(asked, ['endSessions:member-2', 'endElsewhere', 'endElsewhere']);
+});
+
+// effort 828, requirement 18: deleting the organization needs somebody signed in and a password,
+// and it hands both on as given. It is `member` here rather than an act, because there is no act a
+// role could be given for it: it needs the platform authority only the owner's machine holds, and
+// the owner check is Rust's, on the role the password opened. A caller with nobody signed in is
+// refused before the host is reached, and so is an empty password.
+test('deleting the organization needs a session and a password, and reaches the host with it', async () => {
+	const asked: string[] = [];
+	const host = fakeHost({
+		organization: {
+			...fakeHost().organization,
+			delete: async (password) => {
+				asked.push(`delete:${password}`);
+
+				return fakeOrganizationState({ organization: null, session: null });
+			}
+		}
+	});
+
+	const member = await permittedApi(host);
+	const deleted = await member.app.organization.delete({ password: 'the owners password' });
+
+	assert.equal(deleted.organization, null);
+	assert.deepEqual(asked, ['delete:the owners password']);
+
+	await assert.rejects(member.app.organization.delete({ password: '' }));
+
+	const signedOut = await signedOutApi(host);
+
+	await assert.rejects(signedOut.app.organization.delete({ password: 'the owners password' }));
+	assert.deepEqual(asked, ['delete:the owners password']);
 });
 
 // requirement 23: a rename is held to requirement 21's rules before the host is reached, and what

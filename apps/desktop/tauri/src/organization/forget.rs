@@ -43,13 +43,20 @@
 //! the six-act table stores a number whose bits 4 and 5 now name other acts, and no read can tell
 //! the two apart. Forgetting the replica is what stops one being read as the other, so the sign
 //! and the renumbering land together (requirement 19 of effort 826).
+//!
+//! **One sign is not a shape at all**, and it is [`forget_deleted_organization`]: the owner
+//! deleted the organization on their Turso account, so the database this machine's replica syncs
+//! against is not there any more (effort 828, requirement 18). Every other sign is read off the
+//! replica on disk; this one is the remote's answer to a pull, so it is read after the launch has
+//! resumed a session and has a credential to pull with, and it is keyed on the remote saying the
+//! database is absent rather than on any refusal it could make.
 
 use std::{
     fmt,
     path::{Path, PathBuf},
 };
 
-use crate::{diagnostics, error::Error, state::AppState};
+use crate::{diagnostics, error::Error, state::AppState, sync::turso::platform::database_is_gone};
 
 use super::store::OrganizationStore;
 
@@ -206,6 +213,57 @@ pub async fn forget_old_shape(app_state: &AppState) -> Result<Option<OldShape>, 
     Ok(Some(shape))
 }
 
+/// Forget the organization where the remote says its database is not there any more: the other
+/// machines' half of the owner deleting the organization (effort 828, requirement 18).
+///
+/// **It reads a pull rather than the replica**, which is why it is not one of [`OldShape`]'s
+/// signs: what is being asked is a fact about the account, and the only thing that can answer it
+/// is the remote. The pull is the launch's own, made through the replica a resume has already
+/// opened, so it spends the credential that vault unsealed and costs one round trip on a launch
+/// that made one anyway.
+///
+/// **A machine that stopped at the wall pulls nothing and learns nothing**, because reaching the
+/// organization database at all takes a credential a vault holds. It signs in on the rows it has,
+/// and the launch after that one, which resumes, is where it finds out.
+///
+/// Answers whether the organization was forgotten. Anything but the remote saying the database is
+/// absent leaves the machine exactly as it was: a credential that lapsed, a refusal for the
+/// account and a remote nothing could reach are all the offline case, and the replica goes on
+/// serving what it holds (819's requirement 18).
+pub async fn forget_deleted_organization(app_state: &AppState) -> Result<bool, Error> {
+    let gone = {
+        let organization = app_state.organization.read().await;
+        let Some(store) = organization.as_ref() else {
+            return Ok(false);
+        };
+
+        match store.pulled().await {
+            Ok(_) => false,
+            Err(refusal) => {
+                let gone = database_is_gone(&refusal);
+
+                if !gone {
+                    diagnostics::info("organization.launch.notPulled")
+                        .with("reason", refusal.to_string())
+                        .write();
+                }
+
+                gone
+            }
+        }
+    };
+
+    if !gone {
+        return Ok(false);
+    }
+
+    diagnostics::warn("organization.forgotten.deletedOnThePlatform").write();
+
+    forget(app_state).await?;
+
+    Ok(true)
+}
+
 /// The sign that what this machine holds was built before this build, where there is one.
 async fn old_shape(app_state: &AppState) -> Result<Option<OldShape>, Error> {
     let (listed, held) = {
@@ -348,7 +406,7 @@ mod tests {
     use serde_json::json;
     use tokio::sync::RwLock;
 
-    use super::{OldShape, forget, forget_old_shape, is_replica_file};
+    use super::{OldShape, forget, forget_deleted_organization, forget_old_shape, is_replica_file};
     use crate::{
         database::Database,
         organization::{
@@ -970,6 +1028,135 @@ mod tests {
             replica_files(&directory)
                 .iter()
                 .any(|name| name == &format!("org-{}.db", held.id))
+        );
+    }
+
+    /// The replica the launch holds open, against `remote`: the file the first run wrote, reopened
+    /// with a remote to pull from and a credential to pull with, which is what a resumed session
+    /// leaves in `app_state.organization`.
+    async fn replica_against(
+        directory: &std::path::Path,
+        held: &HeldOrganization,
+        remote: &str,
+    ) -> OrganizationStore {
+        OrganizationStore::open(
+            &OrganizationStore::replica_path(&directory.join(Database::FILENAME), &held.id),
+            Some(remote.to_string()),
+            || async { Ok::<String, turso::Error>("a-credential".to_string()) },
+        )
+        .await
+        .expect("the replica")
+    }
+
+    /// Criterion 18, the other machines' half: **a launch whose pull is answered by a remote that
+    /// has no such database forgets the organization**, and lands where a machine holding nothing
+    /// lands. The owner deleted it from their own machine and this one finds out no other way.
+    ///
+    /// **And what a machine meets instead is pinned beside it.** A `401`, which is a credential
+    /// that lapsed or was rotated, and a remote that answers nothing at all, each leave the machine
+    /// exactly as it was: the replica goes on serving what it holds, which is 819's requirement 18,
+    /// and a sign keyed any wider than *not there* would wipe a machine whose credential could
+    /// simply be renewed.
+    ///
+    /// This is also where what the client answers is established, without deleting anything on any
+    /// account: `turso::Error` carries no variant for a remote's answer, so what a refusal says is
+    /// read out of its message, and the scripted server is what pins that the status really is in
+    /// there for a pull.
+    #[tokio::test]
+    async fn a_launch_whose_pull_says_the_database_is_gone_forgets_the_organization() {
+        let _turn = crate::keyring::take_the_credential_store().await;
+        let directory = scratch("deleted");
+        let (organization, held) = created(&directory).await;
+
+        drop(organization);
+
+        // the remote says there is no such database. Every request of the pull is answered the
+        // same way, since the engine makes more than one and any of them is where it stops.
+        let absent = ScriptedServer::start(
+            (0..8)
+                .map(|_| ScriptedResponse::new(404, r#"{"error":"database not found"}"#))
+                .collect(),
+        )
+        .await;
+        let app_state = state_over(&directory).await;
+
+        *app_state.organization.write().await =
+            Some(replica_against(&directory, &held, &absent.url("")).await);
+
+        assert!(
+            forget_deleted_organization(&app_state)
+                .await
+                .expect("the check failed"),
+            "a pull answered by a remote holding no such database left the organization here"
+        );
+        assert_eq!(replica_files(&directory), Vec::<String>::new());
+        assert!(
+            app_state
+                .remote_sync
+                .write()
+                .await
+                .store_mut()
+                .organization
+                .is_none()
+        );
+        assert!(app_state.organization.read().await.is_none());
+
+        // a credential the remote will not accept is not a deleted organization: the machine keeps
+        // what it holds and the shell renews or reconnects.
+        let directory = scratch("refused");
+        let (organization, held) = created(&directory).await;
+
+        drop(organization);
+
+        let refusing = ScriptedServer::start(
+            (0..8)
+                .map(|_| ScriptedResponse::new(401, r#"{"error":"Unauthorized: invalid JWT"}"#))
+                .collect(),
+        )
+        .await;
+        let app_state = state_over(&directory).await;
+
+        *app_state.organization.write().await =
+            Some(replica_against(&directory, &held, &refusing.url("")).await);
+
+        assert!(
+            !forget_deleted_organization(&app_state)
+                .await
+                .expect("the check failed"),
+            "a refused credential was read as a deleted organization"
+        );
+        assert!(
+            replica_files(&directory)
+                .iter()
+                .any(|name| name == &format!("org-{}.db", held.id)),
+            "a refused credential swept the replicas"
+        );
+
+        // and a machine that reaches nothing at all is the offline case, which says nothing about
+        // whether the organization is still there.
+        let directory = scratch("unreachable");
+        let (organization, held) = created(&directory).await;
+
+        drop(organization);
+
+        let unreachable =
+            ScriptedServer::start((0..8).map(|_| ScriptedResponse::hangup()).collect()).await;
+        let app_state = state_over(&directory).await;
+
+        *app_state.organization.write().await =
+            Some(replica_against(&directory, &held, &unreachable.url("")).await);
+
+        assert!(
+            !forget_deleted_organization(&app_state)
+                .await
+                .expect("the check failed"),
+            "a remote that answered nothing was read as a deleted organization"
+        );
+        assert!(
+            replica_files(&directory)
+                .iter()
+                .any(|name| name == &format!("org-{}.db", held.id)),
+            "an unreachable remote swept the replicas"
         );
     }
 }

@@ -578,6 +578,16 @@ export type Host = {
 		 */
 		disconnect: () => Promise<OrganizationState>;
 		/**
+		 * delete the organization, with the owner's password: every workspace database and the
+		 * organization's own directory are removed from the owner's Turso account, and this machine
+		 * then forgets what it held exactly as a disconnect leaves it. Nothing puts either back.
+		 * Rejects as `forbidden` for anybody but the owner and for a machine holding no Turso
+		 * authority, and with the vault's one sentence for a password that does not open the
+		 * owner's vault; nothing is deleted on either. Every other machine finds the organization
+		 * gone at its next launch and forgets it too.
+		 */
+		delete: (password: string) => Promise<OrganizationState>;
+		/**
 		 * sign in to the organization this machine holds, by username and password, with or
 		 * without a network. The wrong password, a username nobody holds, and a username held by
 		 * somebody whose password this is not each reject with the same one sentence; nothing

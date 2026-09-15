@@ -21,10 +21,11 @@
 //! [`TursoPlatform::delete_database`] does on its way to deleting.
 //!
 //! Deletion is behind [`DeletionIntent`]. Requirement 4 permits deleting a database only while a
-//! human is deleting that workspace in the interface, and a port offering deletion as freely as
-//! creation would leave that unenforceable from outside. The intent is a value the caller has to
-//! construct and name, so the reason is on the record at every call site and a reviewer can read
-//! them all.
+//! human is deleting that workspace in the interface, and effort 828's requirement 18 adds the one
+//! other act a person performs deliberately, the owner deleting the whole organization; a port
+//! offering deletion as freely as creation would leave that unenforceable from outside. The intent
+//! is a value the caller has to construct and name, so the reason is on the record at every call
+//! site and a reviewer can read them all.
 //!
 //! **The failure vocabulary is `turso.ts`'s, with two additions.** A request that never arrived
 //! or a 5xx is a moment that will pass; a 4xx is Turso refusing on purpose, and asking again will
@@ -121,14 +122,19 @@ pub struct WorkspaceDatabase {
 
 /// Why a database is being deleted, stated by whoever asks.
 ///
-/// **Both variants are the two callers [[references/turso]] permits under *Never run***, and
-/// nothing else is one: a database is somebody's ledger, and the only reasons to remove one are
-/// that its owner is removing the workspace, now, in the interface, or that this process made it a
-/// moment ago and could not finish making it a workspace, so nothing refers to it.
+/// **The three variants are the three callers [[references/turso]] permits under *Never run***,
+/// and nothing else is one: a database is somebody's ledger, and the only reasons to remove one
+/// are that its owner is removing the workspace, now, in the interface, that its owner is deleting
+/// the whole organization, now, in the interface, or that this process made it a moment ago and
+/// could not finish making it a workspace, so nothing refers to it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DeletionIntent {
     /// the human is deleting this workspace in the interface, at this moment. Requirement 4.
     WorkspaceDeletedByHuman,
+    /// the owner is deleting the organization in the interface, at this moment: every workspace
+    /// database and then the organization's own directory go together, because a workspace left
+    /// behind is a ledger nothing names any more. Effort 828, requirement 18.
+    OrganizationDeletedByHuman,
     /// this process created the database and what it was created for did not complete, so the
     /// database is unreferenced and would otherwise be left behind on the customer's account.
     CreatedAndUnreferenced,
@@ -802,6 +808,25 @@ pub fn read_sync_refusal(error: &turso::Error) -> SyncRefusal {
     SyncRefusal::None
 }
 
+/// Whether a refused replication says the database is not on the platform any more.
+///
+/// **The one status, and deliberately not a range.** A deleted database is gone rather than
+/// refused, so the remote answers the request for something that is not there; a `401` or a `403`
+/// is a credential that lapsed or was rotated and the replica goes on serving what it holds, and a
+/// machine that reached nothing at all carries no status. Reading a wider range here would let a
+/// credential this machine could simply renew wipe the replica instead, which is the one mistake
+/// this cannot make.
+///
+/// **It is read out of the message because the engine offers nothing else.** `turso::Error` has no
+/// variant for a remote's answer: every refusal and every transport fault arrive as
+/// `Error::Error(String)`, and the status the remote sent is inside it as `status=NNN`, which is
+/// the same reading [`read_sync_refusal`] already makes of the same text. A release that reworded
+/// it stops this matching, and a machine that stops matching keeps what it holds, which is the
+/// direction a mistake here should fail in.
+pub fn database_is_gone(error: &turso::Error) -> bool {
+    matches!(status_and_body(&error.to_string()), Some((404, _)))
+}
+
 /// `status=NNN, body=...` as the sync engine spells a refused request, and nothing where the
 /// message is not that shape.
 fn status_and_body(text: &str) -> Option<(u16, &str)> {
@@ -1085,7 +1110,7 @@ mod tests {
     use super::{
         AccessLevel, DeletionIntent, InMemoryPlatform, PlatformApi, PlatformEndpoint,
         PlatformError, SyncRefusal, TursoPlatform, WorkspaceDatabase, belongs_to_the_account,
-        read_sync_refusal,
+        database_is_gone, read_sync_refusal,
     };
 
     const TOKEN: &str = "a-platform-token";
@@ -1721,6 +1746,42 @@ mod tests {
             )),
             SyncRefusal::None
         );
+    }
+
+    /// Effort 828, requirement 18: **the one refusal that says the database is not there any
+    /// more**, which is what tells a machine the owner deleted the organization. The three
+    /// messages below are the engine's own, recorded from a pull against a scripted server in
+    /// `organization/forget.rs`; what a deleted Turso database itself answers has not been run
+    /// against a live account, and until it has, a status this does not recognise leaves the
+    /// machine holding what it holds.
+    #[test]
+    fn a_database_that_is_not_there_is_told_from_a_credential_and_from_a_remote_that_answered_nothing()
+     {
+        let answered = |status: u16, body: &str| {
+            turso::Error::Error(format!(
+                "sync engine operation failed: database sync engine error: remote server returned \
+                 an error: status={status}, body={body}"
+            ))
+        };
+
+        assert!(database_is_gone(&answered(
+            404,
+            r#"{"error":"database not found"}"#
+        )));
+        assert!(!database_is_gone(&answered(
+            401,
+            r#"{"error":"Unauthorized: invalid JWT"}"#
+        )));
+        assert!(!database_is_gone(&answered(
+            403,
+            r#"{"error":"BLOCKED: SQL write operations are forbidden"}"#
+        )));
+        assert!(!database_is_gone(&answered(500, r#"{"error":"internal"}"#)));
+        assert!(!database_is_gone(&turso::Error::Error(
+            "sync engine operation failed: database sync engine error: http request failed: \
+             client error (SendRequest)"
+                .to_string()
+        )));
     }
 
     #[tokio::test]

@@ -412,7 +412,18 @@ impl OrganizationStore {
 
     /// Bring what the remote has, and say whether anything arrived.
     pub async fn pull(&self) -> bool {
-        matches!(self.database.pull().await, Ok(true))
+        matches!(self.pulled().await, Ok(true))
+    }
+
+    /// The same pull with the refusal kept, for the one caller that has to read it.
+    ///
+    /// **Every other caller wants the bool**, because a pull that did not go is the offline case
+    /// and the replica goes on serving what it holds (819's requirement 18). `forget` is the
+    /// exception: a remote answering that the database is not there any more is a fact about the
+    /// organization rather than about this machine's connection, and it is the only way a machine
+    /// learns the owner deleted it (effort 828, requirement 18).
+    pub async fn pulled(&self) -> Result<bool, turso::Error> {
+        self.database.pull().await
     }
 
     /// The tables this database holds, read from the database rather than from [`TABLES`], which

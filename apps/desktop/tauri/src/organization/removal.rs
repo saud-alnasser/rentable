@@ -21,16 +21,31 @@
 //! is theirs to read for as long as the disk exists; removal ends synchronisation and reaches
 //! into nothing. A test pins that as behaviour, which is requirement 14's own instruction, so it
 //! is not discovered later as a bug.
+//!
+//! **Removing the organization is here too, and it is the one act that deletes** (effort 828,
+//! requirement 18). Every workspace database and then the organization's own directory go from
+//! the owner's Turso account, under the third intent [[references/turso]]'s *Never run* admits,
+//! and this machine forgets what it held. It is the owner's alone and it asks for their password
+//! first, because a machine left unlocked must not be able to delete what it is signed in to; the
+//! password is tried against the row's own vault, so a wrong one refuses before a single request
+//! is made. The other machines find out at their next launch, which is `forget`'s own sign for a
+//! database that is not on the platform any more.
 
 use serde::{Deserialize, Serialize};
 
-use crate::{diagnostics, error::Error, sync::turso::platform::TursoPlatform};
+use crate::{
+    diagnostics,
+    error::Error,
+    state::AppState,
+    sync::turso::platform::{DeletionIntent, TursoPlatform},
+};
 
 use super::{
+    forget,
     permission::{self, Administration},
     session::{MemberSession, permissions_on_row},
     store::{MemberRecord, OrganizationStore, Signer},
-    vault::open_content,
+    vault::{open_content, open_vault},
     workspace::{renew_credentials, signer_of},
 };
 
@@ -247,6 +262,120 @@ pub async fn remove_member<P: TursoPlatform>(
     Ok(removed)
 }
 
+/// What the owner is told when somebody else asks for the organization to be deleted.
+pub const ONLY_THE_OWNER_DELETES: &str = "only the owner can delete the organization. it is \
+     theirs, and the databases are on their turso account";
+
+/// Delete the organization: every workspace database and then the organization's own directory,
+/// on the owner's Turso account, and this machine's copy of all of it (effort 828, requirement
+/// 18).
+///
+/// **The owner's alone, and their password is asked for first.** The role is read off the session
+/// the wall opened, and the password is tried against the member row's own vault the way
+/// `password::change_password` tries it, so a wrong one refuses before a single request is made
+/// and a machine somebody walked away from is not a way to delete what it is signed in to. Both
+/// refusals come before anything is touched.
+///
+/// **The workspaces go first and the directory last.** The names are read off the replica, which
+/// is the only record of which databases belong to this organization; delete the directory first
+/// and a request that then fails leaves ledgers on the account with nothing naming them. Each name
+/// is checked to be a workspace's before it is sent, because the only databases this may reach are
+/// this organization's own `org-` and `ws-` ones and the account may hold others that are the
+/// human's.
+///
+/// **Then the machine forgets, exactly as a disconnect does**, through the one routine: signed
+/// out, every replica swept, the record emptied and the Turso authority cleared. The consent goes
+/// with it because the group holds no organization for it to be over any more. Every other machine
+/// finds out at its next launch (`forget::forget_deleted_organization`).
+///
+/// The registry delete that routine makes first has nothing left to reach, since the database
+/// holding the registry is one of the ones just deleted; it writes to the replica, fails to push
+/// and says so in the diagnostics log, which is the same answer a disconnect with no connection
+/// gets. Nothing turns on it: the rows went with the database.
+///
+/// **It is not recoverable and nothing here pretends otherwise.** The confirmation on the screen
+/// says what goes, and this is the act that does it.
+pub async fn delete_organization<P: TursoPlatform>(
+    app_state: &AppState,
+    platform: &P,
+    password: &str,
+) -> Result<(), Error> {
+    let (organization_database, workspace_databases) = {
+        let member = app_state.member.read().await;
+        let organization = app_state.organization.read().await;
+        let (Some(session), Some(store)) = (member.as_ref(), organization.as_ref()) else {
+            return Err(Error::PreconditionFailed {
+                message: "nobody is signed in to an organization on this machine".to_string(),
+            });
+        };
+
+        session.settled()?;
+
+        if session.role != permission::OWNER {
+            return Err(Error::Forbidden {
+                message: ONLY_THE_OWNER_DELETES.to_string(),
+            });
+        }
+
+        let members = store.members(&session.verifying_key).await?;
+        let row = members
+            .iter()
+            .find(|row| row.id == session.member_id)
+            .ok_or_else(|| Error::NotFound {
+                message: "this member's row is not in the organization any more".to_string(),
+            })?;
+
+        // the password, tried against the row rather than trusted from the session: a wrong one
+        // says only that the value did not open, and nothing has been asked of turso yet.
+        let opened = open_vault(password, &row.vault)?;
+
+        if opened.public_key() != session.secret.public_key() {
+            return Err(Error::Integrity {
+                message: "the vault the password opened is not the one this session holds"
+                    .to_string(),
+            });
+        }
+
+        let mut databases = Vec::new();
+
+        for workspace in store.workspaces(&session.verifying_key).await? {
+            if !workspace.database_name.starts_with("ws-") {
+                return Err(Error::Integrity {
+                    message: format!(
+                        "a workspace of this organization names {}, which is not a workspace \
+                         database. nothing was deleted",
+                        workspace.database_name
+                    ),
+                });
+            }
+
+            databases.push(workspace.database_name);
+        }
+
+        (format!("org-{}", session.organization_id), databases)
+    };
+
+    for database in &workspace_databases {
+        platform
+            .delete_database(database, DeletionIntent::OrganizationDeletedByHuman)
+            .await?;
+    }
+
+    platform
+        .delete_database(
+            &organization_database,
+            DeletionIntent::OrganizationDeletedByHuman,
+        )
+        .await?;
+
+    diagnostics::info("organization.deleted")
+        .with("database", organization_database.as_str())
+        .with("workspaces", workspace_databases.len().to_string())
+        .write();
+
+    forget::forget(app_state).await
+}
+
 /// The ordinary removal's writes, with nothing minted and nothing pushed: `member`'s grants go,
 /// their row is signed as removed by `session`, and a certificate they held is revoked once the
 /// rows it signed are re-signed under the remover. What [`remove_member`] does after its refusals,
@@ -316,8 +445,9 @@ mod tests {
 
     use serde_json::json;
 
-    use super::{lock_out_cost, remove_member};
+    use super::{delete_organization, lock_out_cost, remove_member};
     use crate::{
+        database::Database,
         error::Error,
         organization::{
             HeldOrganization,
@@ -331,14 +461,18 @@ mod tests {
             workspace::create_workspace,
         },
         persisted::Persisted,
+        settings::Settings,
+        state::AppState,
         sync::{
-            RemoteSyncStore,
+            RemoteSync, RemoteSyncStore,
             test::server::{ScriptedResponse, ScriptedServer},
             turso::{
+                consent::{TursoConsent, platform_token, store_platform_token},
                 discovery::McpEndpoint,
-                platform::{AccessLevel, InMemoryPlatform},
+                platform::{AccessLevel, DeletionIntent, InMemoryPlatform},
             },
         },
+        update::Update,
     };
 
     const OWNER_PASSWORD: &str = "the owners password";
@@ -1242,6 +1376,234 @@ mod tests {
 
         assert!(refusal.to_string().contains("revoked"), "{refusal}");
         assert!(refusal.to_string().contains(&admin_id), "{refusal}");
+    }
+
+    /// The whole of the application state over one data directory, as `lib.rs` builds it, with the
+    /// replica and the session handed in: what a machine standing on the organization page looks
+    /// like from inside. `remote-sync.json` is loaded from the directory, so the organization the
+    /// fixture created is already recorded there.
+    async fn machine_holding(
+        directory: &std::path::Path,
+        store: OrganizationStore,
+        session: MemberSession,
+    ) -> AppState {
+        let mut settings =
+            Persisted::<Settings>::load(directory.join(Settings::FILENAME)).expect("the settings");
+        settings.database_path = directory.join(Database::FILENAME);
+        settings.recovery_path = directory.join(Update::FILENAME);
+        settings.commit().expect("the settings");
+
+        let settings = Arc::new(tokio::sync::RwLock::new(settings));
+        let remote_sync = RemoteSync::new(settings.clone(), directory.join(RemoteSync::FILENAME))
+            .await
+            .expect("the sync record");
+        let update = Update::new(settings.clone()).await.expect("the update");
+
+        AppState {
+            db: Arc::new(tokio::sync::RwLock::new(Database::new(settings.clone()))),
+            settings,
+            remote_sync: Arc::new(tokio::sync::RwLock::new(remote_sync)),
+            update: Arc::new(tokio::sync::RwLock::new(update)),
+            consent: Arc::new(TursoConsent::new()),
+            organization: Arc::new(tokio::sync::RwLock::new(Some(store))),
+            member: Arc::new(tokio::sync::RwLock::new(Some(session))),
+            arriving_link: Arc::new(Mutex::new(None)),
+            signed_out_elsewhere: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            old_shape_check: tokio::sync::OnceCell::new(),
+        }
+    }
+
+    /// Every replica file under the directory, sorted: what a machine still holds.
+    fn replica_files(directory: &std::path::Path) -> Vec<String> {
+        let mut names: Vec<String> = std::fs::read_dir(directory)
+            .expect("the directory")
+            .flatten()
+            .map(|entry| entry.file_name().to_string_lossy().into_owned())
+            .filter(|name| {
+                (name.starts_with("org-") || name.starts_with("ws-")) && name.contains(".db")
+            })
+            .collect();
+
+        names.sort();
+
+        names
+    }
+
+    /// Criterion 18, the owner's half: **the two workspace databases go, then the organization's
+    /// own directory, each under the intent that names the act**, and the machine is left holding
+    /// nothing at all.
+    ///
+    /// The order is asserted rather than the set, because it is the order that matters: the
+    /// directory is the only record of which databases are this organization's, so a run that
+    /// removed it first and then failed would leave ledgers on the account with nothing naming
+    /// them.
+    #[tokio::test]
+    async fn the_owner_deletes_every_workspace_then_the_organization_and_keeps_nothing() {
+        let _turn = crate::keyring::take_the_credential_store().await;
+        let directory = scratch("delete");
+        let org = organization(&directory).await;
+        let platform = Arc::clone(&org.platform);
+        let database = org.database.clone();
+        let north = org.north.clone();
+        let south = org.south.clone();
+
+        store_platform_token("a-platform-token").expect("the authority");
+
+        let held_before: Vec<String> = platform
+            .databases()
+            .into_iter()
+            .map(|database| database.name)
+            .collect();
+
+        assert!(held_before.contains(&database), "{held_before:?}");
+
+        let app_state = machine_holding(&directory, org.store, org.owner).await;
+
+        assert!(
+            replica_files(&directory)
+                .iter()
+                .any(|name| name.starts_with("org-")),
+            "no replica to forget"
+        );
+
+        delete_organization(&app_state, platform.as_ref(), OWNER_PASSWORD)
+            .await
+            .expect("the delete failed");
+
+        let deleted = platform.deleted();
+
+        assert!(
+            deleted
+                .iter()
+                .all(|(_, intent)| *intent == DeletionIntent::OrganizationDeletedByHuman),
+            "{deleted:?}"
+        );
+
+        // the two workspaces first, in whatever order the replica lists them, and the directory
+        // last: it is the only record of which databases are this organization's.
+        let mut workspaces: Vec<&str> =
+            deleted[..2].iter().map(|(name, _)| name.as_str()).collect();
+        let mut expected = vec![format!("ws-{north}"), format!("ws-{south}")];
+
+        workspaces.sort_unstable();
+        expected.sort_unstable();
+
+        assert_eq!(workspaces, expected, "{deleted:?}");
+        assert_eq!(deleted.len(), 3, "{deleted:?}");
+        assert_eq!(deleted[2].0, database, "{deleted:?}");
+        assert_eq!(
+            platform.databases(),
+            Vec::new(),
+            "a database of this organization is still on the account"
+        );
+
+        // and the machine holds nothing: no replica, no record, nobody signed in, no authority.
+        assert_eq!(replica_files(&directory), Vec::<String>::new());
+        assert!(app_state.member.read().await.is_none());
+        assert!(app_state.organization.read().await.is_none());
+        assert_eq!(
+            app_state.remote_sync.write().await.store_mut().organization,
+            None
+        );
+        assert_eq!(
+            app_state
+                .remote_sync
+                .write()
+                .await
+                .store_mut()
+                .turso_organization,
+            None
+        );
+        assert!(
+            platform_token().is_err(),
+            "the consent survived the delete, with no organization left for it to be over"
+        );
+    }
+
+    /// Criterion 18, the two refusals: **an administrator is refused, and so is a wrong password**,
+    /// and neither reaches Turso. The administrator carries every grantable act, so what turns them
+    /// away is the owner check rather than a bit they happened not to hold.
+    #[tokio::test]
+    async fn an_administrator_and_a_wrong_password_are_each_refused_before_anything_is_deleted() {
+        let _turn = crate::keyring::take_the_credential_store().await;
+        let directory = scratch("delete-refused");
+        let org = organization(&directory).await;
+        let platform = Arc::clone(&org.platform);
+        let owner = org.owner;
+        let mut administrator = sign_in(
+            &org.store,
+            &joined_as(&owner, &org.administrator.0, permission::ADMINISTRATOR),
+            &org.administrator.1,
+            &slot(),
+        )
+        .await
+        .expect("the administrator did not sign in");
+
+        // as though they had settled on a password of their own, so what turns them away below is
+        // the owner check rather than the one every fresh account meets first.
+        administrator.must_change_password = false;
+
+        assert_eq!(
+            administrator.permissions, 0b111_1111,
+            "the administrator does not carry all seven acts"
+        );
+
+        let administrators_password = org.administrator.1.clone();
+        let held_before = platform.databases();
+        let app_state = machine_holding(&directory, org.store, administrator).await;
+
+        let refused = delete_organization(&app_state, platform.as_ref(), &administrators_password)
+            .await
+            .expect_err("an administrator deleted the organization");
+
+        assert!(
+            matches!(refused, Error::Forbidden { ref message } if message.contains("only the owner")),
+            "{refused:?}"
+        );
+
+        // the owner, with a password that is not theirs: refused on the vault, and still nothing
+        // has been asked of turso.
+        *app_state.member.write().await = None;
+
+        let owner_again = sign_in(
+            app_state
+                .organization
+                .read()
+                .await
+                .as_ref()
+                .expect("the replica"),
+            &joined_as(&owner, &owner.member_id, permission::OWNER),
+            OWNER_PASSWORD,
+            &slot(),
+        )
+        .await
+        .expect("the owner did not sign in");
+
+        *app_state.member.write().await = Some(owner_again);
+
+        let wrong = delete_organization(&app_state, platform.as_ref(), "not the owners password")
+            .await
+            .expect_err("a wrong password deleted the organization");
+
+        // the vault's one sentence, which says nothing about which of the ways it could fail this
+        // was: a wrong password is not told apart from anything else here.
+        assert!(
+            matches!(wrong, Error::Integrity { ref message } if message.contains("did not open")),
+            "{wrong:?}"
+        );
+
+        assert_eq!(platform.deleted(), Vec::new(), "something was deleted");
+        assert_eq!(platform.databases(), held_before);
+        assert!(
+            app_state.organization.read().await.is_some(),
+            "a refused delete let go of the replica"
+        );
+        assert!(
+            replica_files(&directory)
+                .iter()
+                .any(|name| name.starts_with("org-")),
+            "a refused delete swept the replicas"
+        );
     }
 
     /// Live, at the human's request, and admitted in [[rules/testing]] under *Tests that reach a

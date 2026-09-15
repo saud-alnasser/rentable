@@ -75,6 +75,29 @@ export const organization = router({
 		return ctx.host.organization.disconnect();
 	}),
 	/**
+	 * Delete the organization: every workspace database and the organization's own directory go
+	 * from the owner's Turso account, and this machine forgets what it held (effort 828,
+	 * requirement 18).
+	 *
+	 * **`member`, and the owner check is Rust's**, which is the shape `workspace.create` and
+	 * `workspace.remove` already have and for the same reason: there is no act in
+	 * `packages/workspace-permission` a role could be given for this, because it needs the
+	 * platform authority only the owner's machine holds. What this side can say is that somebody
+	 * is signed in and that a password was typed; whether it opens the owner's vault is Rust's
+	 * alone, and the password crosses in and nothing about it crosses back ([[rules/credentials]],
+	 * *Client boundary*).
+	 *
+	 * The floor is not applied here. The password is being checked against a vault rather than
+	 * chosen, and an organization sealed before the floor moved would be undeletable by its own
+	 * owner if this refused it, which is the same reading `password.change` takes of the current
+	 * password.
+	 */
+	delete: procedure.member
+		.input(z.object({ password: z.string().min(1) }))
+		.mutation(async ({ input, ctx }): Promise<OrganizationState> => {
+			return ctx.host.organization.delete(input.password);
+		}),
+	/**
 	 * Create the organization from the three things the setup walk collects, and the group where
 	 * Turso left one to be asked for.
 	 *

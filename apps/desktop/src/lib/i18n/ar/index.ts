@@ -889,7 +889,14 @@ const ar = {
 			forgetAccountRevokes:
 				'نسيان الرمز لا يلغيه. يبقى ما منحته قائماً حتى تنهيه بنفسك من لوحة تحكم Turso على app.turso.tech.',
 			forgetAccountRevokesAt: 'app.turso.tech',
-			accountForgotten: 'لم يعد هذا الجهاز يحتفظ برمز وصول إلى حساب Turso.'
+			accountForgotten: 'لم يعد هذا الجهاز يحتفظ برمز وصول إلى حساب Turso.',
+			deleteOrganization: 'احذف المؤسسة',
+			deleteOrganizationDescription:
+				'تُحذف المؤسسة وكل مساحة عمل فيها من حساب Turso. لا شيء يعيدها.',
+			deleteOrganizationGoes:
+				'تذهب كل مساحة عمل وكل ما فيها: المستأجرون والمجمعات والوحدات والعقود والدفعات. ويذهب معها سبيل الدخول لكل عضو. وتجد الأجهزة الأخرى المؤسسة غائبة في أول فتح لها فتصل إلى الشاشة الأولى. لا شيء يعيد هذا.',
+			deleteOrganizationPassword: 'كلمة مرورك',
+			organizationDeleted: 'حُذفت المؤسسة.'
 		}
 	},
 

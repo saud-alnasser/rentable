@@ -924,7 +924,14 @@ const en = {
 			forgetAccountRevokes:
 				"forgetting the token does not revoke it. what you granted stays granted until you end it yourself, on turso's own dashboard at app.turso.tech.",
 			forgetAccountRevokesAt: 'app.turso.tech',
-			accountForgotten: 'this machine no longer holds a token for your turso account.'
+			accountForgotten: 'this machine no longer holds a token for your turso account.',
+			deleteOrganization: 'delete organization',
+			deleteOrganizationDescription:
+				'the organization and every workspace in it are deleted from your turso account. nothing puts them back.',
+			deleteOrganizationGoes:
+				'every workspace goes, and everything in it: tenants, complexes, units, contracts and payments. so does every way in, for every member. the other machines find the organization gone the next time they open and land on the first screen. nothing puts this back.',
+			deleteOrganizationPassword: 'your password',
+			organizationDeleted: 'the organization was deleted.'
 		}
 	},
 
