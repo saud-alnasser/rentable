@@ -1252,7 +1252,7 @@ type RootTranslation = {
 			 */
 			noOrganizationTitle: string
 			/**
-			 * a​n​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​i​s​ ​c​r​e​a​t​e​d​ ​o​n​ ​y​o​u​r​ ​o​w​n​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​,​ ​o​r​ ​j​o​i​n​e​d​ ​w​i​t​h​ ​a​ ​l​i​n​k​ ​y​o​u​ ​w​e​r​e​ ​g​i​v​e​n​.
+			 * n​o​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​y​e​t​.
 			 */
 			noOrganizationSubtitle: string
 			/**
@@ -1288,13 +1288,21 @@ type RootTranslation = {
 			 */
 			roleMember: string
 			/**
-			 * c​r​e​a​t​e​ ​o​r​g​a​n​i​z​a​t​i​o​n
+			 * u​s​e​ ​y​o​u​r​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t
 			 */
 			setUp: string
 			/**
-			 * c​o​n​n​e​c​t​ ​w​i​t​h​ ​l​i​n​k
+			 * y​o​u​ ​o​w​n​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.
+			 */
+			setUpDescription: string
+			/**
+			 * u​s​e​ ​a​ ​l​i​n​k​ ​a​n​d​ ​c​o​d​e
 			 */
 			connectByLink: string
+			/**
+			 * y​o​u​ ​w​e​r​e​ ​g​i​v​e​n​ ​a​ ​l​i​n​k​ ​a​n​d​ ​a​ ​c​o​d​e​.
+			 */
+			connectByLinkDescription: string
 			/**
 			 * y​o​u​ ​w​e​r​e​ ​s​i​g​n​e​d​ ​o​u​t​ ​o​f​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​f​r​o​m​ ​a​n​o​t​h​e​r​ ​o​n​e​.​ ​s​i​g​n​ ​i​n​ ​a​g​a​i​n​ ​t​o​ ​c​a​r​r​y​ ​o​n​.
 			 */
@@ -2414,15 +2422,15 @@ type RootTranslation = {
 		}
 		join: {
 			/**
-			 * c​o​n​n​e​c​t​ ​t​o​ ​a​n​ ​o​r​g​a​n​i​z​a​t​i​o​n
+			 * c​o​n​n​e​c​t​ ​w​i​t​h​ ​a​ ​l​i​n​k
 			 */
 			title: string
 			/**
-			 * p​a​s​t​e​ ​t​h​e​ ​l​i​n​k​ ​y​o​u​ ​w​e​r​e​ ​g​i​v​e​n​,​ ​a​n​d​ ​h​a​v​e​ ​t​h​e​ ​c​o​d​e​ ​t​h​a​t​ ​c​a​m​e​ ​w​i​t​h​ ​i​t​ ​r​e​a​d​y​.​ ​a​n​ ​i​n​v​i​t​a​t​i​o​n​ ​l​i​n​k​ ​a​s​k​s​ ​f​o​r​ ​t​h​e​ ​c​o​d​e​ ​a​n​d​ ​a​ ​p​a​s​s​w​o​r​d​ ​y​o​u​ ​c​h​o​o​s​e​;​ ​a​ ​l​i​n​k​ ​y​o​u​ ​m​a​d​e​ ​f​o​r​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​a​s​k​s​ ​f​o​r​ ​t​h​e​ ​c​o​d​e​ ​a​l​o​n​e​;​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​l​i​n​k​ ​t​a​k​e​s​ ​y​o​u​ ​s​t​r​a​i​g​h​t​ ​t​o​ ​t​h​e​ ​s​i​g​n​-​i​n​.
+			 * p​a​s​t​e​ ​t​h​e​ ​l​i​n​k​ ​a​n​d​ ​t​y​p​e​ ​t​h​e​ ​c​o​d​e​ ​t​h​a​t​ ​c​a​m​e​ ​w​i​t​h​ ​i​t​.
 			 */
 			description: string
 			/**
-			 * t​h​e​ ​l​i​n​k​ ​y​o​u​ ​w​e​r​e​ ​g​i​v​e​n
+			 * l​i​n​k
 			 */
 			linkLabel: string
 			/**
@@ -2474,11 +2482,11 @@ type RootTranslation = {
 			 */
 			organizationLabel: string
 			/**
-			 * c​o​n​f​i​r​m​a​t​i​o​n​ ​c​o​d​e
+			 * c​o​d​e
 			 */
 			codeLabel: string
 			/**
-			 * t​h​e​ ​s​i​x​ ​c​h​a​r​a​c​t​e​r​s​ ​w​h​o​e​v​e​r​ ​i​n​v​i​t​e​d​ ​y​o​u​ ​r​e​a​d​ ​o​u​t​.​ ​i​t​ ​i​s​ ​t​h​e​ ​o​t​h​e​r​ ​h​a​l​f​ ​o​f​ ​w​h​a​t​ ​t​h​e​ ​l​i​n​k​ ​n​e​e​d​s​,​ ​a​n​d​ ​i​t​ ​l​a​s​t​s​ ​a​s​ ​l​o​n​g​ ​a​s​ ​t​h​e​ ​l​i​n​k​ ​d​o​e​s​.
+			 * t​h​e​ ​s​i​x​ ​c​h​a​r​a​c​t​e​r​s​ ​r​e​a​d​ ​o​u​t​ ​t​o​ ​y​o​u​ ​w​i​t​h​ ​t​h​e​ ​l​i​n​k​.
 			 */
 			codeDescription: string
 			/**
@@ -2489,14 +2497,6 @@ type RootTranslation = {
 			 * t​y​p​e​ ​t​h​e​ ​s​i​x​ ​c​h​a​r​a​c​t​e​r​s​ ​t​h​a​t​ ​c​a​m​e​ ​w​i​t​h​ ​t​h​e​ ​l​i​n​k​.
 			 */
 			codeMissing: string
-			/**
-			 * c​o​n​n​e​c​t​ ​t​h​i​s​ ​m​a​c​h​i​n​e
-			 */
-			machineTitle: string
-			/**
-			 * t​h​i​s​ ​l​i​n​k​ ​i​s​ ​o​n​e​ ​y​o​u​ ​m​a​d​e​ ​f​o​r​ ​t​h​i​s​ ​m​a​c​h​i​n​e​.​ ​t​y​p​e​ ​t​h​e​ ​c​o​d​e​ ​i​t​ ​c​a​m​e​ ​w​i​t​h​,​ ​a​n​d​ ​s​i​g​n​ ​i​n​ ​a​f​t​e​r​w​a​r​d​s​ ​w​i​t​h​ ​t​h​e​ ​u​s​e​r​n​a​m​e​ ​a​n​d​ ​p​a​s​s​w​o​r​d​ ​y​o​u​ ​a​l​r​e​a​d​y​ ​u​s​e​.
-			 */
-			machineDescription: string
 			/**
 			 * y​o​u​r​ ​p​a​s​s​w​o​r​d​,​ ​a​g​a​i​n
 			 */
@@ -4080,7 +4080,7 @@ export type TranslationFunctions = {
 			 */
 			noOrganizationTitle: () => LocalizedString
 			/**
-			 * an organization is created on your own turso account, or joined with a link you were given.
+			 * no organization on this machine yet.
 			 */
 			noOrganizationSubtitle: () => LocalizedString
 			/**
@@ -4116,13 +4116,21 @@ export type TranslationFunctions = {
 			 */
 			roleMember: () => LocalizedString
 			/**
-			 * create organization
+			 * use your turso account
 			 */
 			setUp: () => LocalizedString
 			/**
-			 * connect with link
+			 * you own the organization.
+			 */
+			setUpDescription: () => LocalizedString
+			/**
+			 * use a link and code
 			 */
 			connectByLink: () => LocalizedString
+			/**
+			 * you were given a link and a code.
+			 */
+			connectByLinkDescription: () => LocalizedString
 			/**
 			 * you were signed out of this machine from another one. sign in again to carry on.
 			 */
@@ -5196,15 +5204,15 @@ export type TranslationFunctions = {
 		}
 		join: {
 			/**
-			 * connect to an organization
+			 * connect with a link
 			 */
 			title: () => LocalizedString
 			/**
-			 * paste the link you were given, and have the code that came with it ready. an invitation link asks for the code and a password you choose; a link you made for this machine asks for the code alone; the organization link takes you straight to the sign-in.
+			 * paste the link and type the code that came with it.
 			 */
 			description: () => LocalizedString
 			/**
-			 * the link you were given
+			 * link
 			 */
 			linkLabel: () => LocalizedString
 			/**
@@ -5256,11 +5264,11 @@ export type TranslationFunctions = {
 			 */
 			organizationLabel: () => LocalizedString
 			/**
-			 * confirmation code
+			 * code
 			 */
 			codeLabel: () => LocalizedString
 			/**
-			 * the six characters whoever invited you read out. it is the other half of what the link needs, and it lasts as long as the link does.
+			 * the six characters read out to you with the link.
 			 */
 			codeDescription: () => LocalizedString
 			/**
@@ -5271,14 +5279,6 @@ export type TranslationFunctions = {
 			 * type the six characters that came with the link.
 			 */
 			codeMissing: () => LocalizedString
-			/**
-			 * connect this machine
-			 */
-			machineTitle: () => LocalizedString
-			/**
-			 * this link is one you made for this machine. type the code it came with, and sign in afterwards with the username and password you already use.
-			 */
-			machineDescription: () => LocalizedString
 			/**
 			 * your password, again
 			 */

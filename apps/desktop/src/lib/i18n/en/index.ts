@@ -378,8 +378,7 @@ const en = {
 
 		signIn: {
 			noOrganizationTitle: 'welcome',
-			noOrganizationSubtitle:
-				'an organization is created on your own turso account, or joined with a link you were given.',
+			noOrganizationSubtitle: 'no organization on this machine yet.',
 			subtitle: 'sign in to continue',
 			help: 'trouble signing in?',
 			username: 'username',
@@ -388,8 +387,10 @@ const en = {
 			roleOwner: 'owner',
 			roleAdministrator: 'administrator',
 			roleMember: 'member',
-			setUp: 'create organization',
-			connectByLink: 'connect with link',
+			setUp: 'use your turso account',
+			setUpDescription: 'you own the organization.',
+			connectByLink: 'use a link and code',
+			connectByLinkDescription: 'you were given a link and a code.',
 			signedOutElsewhere:
 				'you were signed out of this machine from another one. sign in again to carry on.',
 			useALink: 'use a link',
@@ -791,10 +792,9 @@ const en = {
 			back: 'back'
 		},
 		join: {
-			title: 'connect to an organization',
-			description:
-				'paste the link you were given, and have the code that came with it ready. an invitation link asks for the code and a password you choose; a link you made for this machine asks for the code alone; the organization link takes you straight to the sign-in.',
-			linkLabel: 'the link you were given',
+			title: 'connect with a link',
+			description: 'paste the link and type the code that came with it.',
+			linkLabel: 'link',
 			reading: 'reading the link...',
 			unreadable:
 				'this is not a rentable link. paste the whole link, exactly as it was handed to you.',
@@ -813,14 +813,10 @@ const en = {
 			passwordDescription:
 				'your password signs you in, on this machine and on any other. nobody can recover it for you; a new link is the only way back.',
 			organizationLabel: 'organization',
-			codeLabel: 'confirmation code',
-			codeDescription:
-				'the six characters whoever invited you read out. it is the other half of what the link needs, and it lasts as long as the link does.',
+			codeLabel: 'code',
+			codeDescription: 'the six characters read out to you with the link.',
 			codeWrong: 'the code is wrong. ask whoever sent you the link to read it out again.',
 			codeMissing: 'type the six characters that came with the link.',
-			machineTitle: 'connect this machine',
-			machineDescription:
-				'this link is one you made for this machine. type the code it came with, and sign in afterwards with the username and password you already use.',
 			confirmLabel: 'your password, again',
 			mismatch: 'the two do not match.',
 			tryAgain: 'try again',

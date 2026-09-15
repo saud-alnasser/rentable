@@ -165,26 +165,53 @@ test('submitting hands the username and the password to the sign-in', async () =
 	expect(asked).toEqual([['olivia', 'a long enough password']]);
 });
 
-test('a machine that has joined nothing asks for nothing and offers the first run', () => {
-	loadLocale('en');
+// effort 828, requirement 13 and criterion 13: the two ways in are worded as what the person
+// holds, and each says what it needs under its own control. A group, a database and a consent are
+// the walk's own machinery and say nothing to somebody deciding which of the two is theirs.
+test('a machine that has joined nothing asks for nothing and offers two ways in, each saying what it needs', () => {
+	for (const [locale, strings, machinery] of [
+		['en', en, ['group', 'database', 'consent']],
+		['ar', ar, ['مجموع', 'قاعدة بيانات', 'موافق']]
+	] as const) {
+		loadLocale(locale);
+		setLocale(locale);
+
+		const rendered = card('noOrganization', { organization: null });
+
+		expect(inputsOnScreen(), locale).toEqual([]);
+		expect(screen.getByRole('heading').textContent?.trim(), locale).toBe(
+			strings.layout.signIn.noOrganizationTitle
+		);
+		expect(screen.getByText(strings.layout.signIn.noOrganizationSubtitle), locale).toBeDefined();
+
+		// two ways in, each carrying its verb's glyph, and one sentence under each: the account for
+		// whoever owns the organization, the link and its code for what somebody handed over.
+		const setUp = screen.getByRole('button', { name: strings.layout.signIn.setUp });
+		const connect = screen.getByRole('button', { name: strings.layout.signIn.connectByLink });
+
+		expect(setUp.querySelector('svg'), locale).not.toBeNull();
+		expect(connect.querySelector('svg'), locale).not.toBeNull();
+		expect(screen.getAllByRole('button'), locale).toHaveLength(2);
+		expect(screen.getByText(strings.layout.signIn.setUpDescription), locale).toBeDefined();
+		expect(screen.getByText(strings.layout.signIn.connectByLinkDescription), locale).toBeDefined();
+
+		const said = (document.body.textContent ?? '').toLowerCase();
+
+		for (const word of machinery) {
+			expect(said, `${locale}: ${word}`).not.toContain(word);
+		}
+
+		// nothing to disconnect from, and so nothing for a disclosure to hold.
+		expect(help(), locale).toBeNull();
+		expect(
+			screen.queryByRole('button', { name: strings.layout.signIn.disconnect }),
+			locale
+		).toBeNull();
+
+		rendered.unmount();
+	}
+
 	setLocale('en');
-	card('noOrganization', { organization: null });
-
-	expect(inputsOnScreen()).toEqual([]);
-	expect(screen.getByRole('heading').textContent?.trim()).toBe(
-		en.layout.signIn.noOrganizationTitle
-	);
-	expect(screen.getByText(en.layout.signIn.noOrganizationSubtitle)).toBeDefined();
-	// two ways in, each carrying its verb's glyph, and nothing else to read.
-	const setUp = screen.getByRole('button', { name: en.layout.signIn.setUp });
-	const connect = screen.getByRole('button', { name: en.layout.signIn.connectByLink });
-
-	expect(setUp.querySelector('svg')).not.toBeNull();
-	expect(connect.querySelector('svg')).not.toBeNull();
-	expect(screen.getAllByRole('button')).toHaveLength(2);
-	// nothing to disconnect from, and so nothing for a disclosure to hold.
-	expect(help()).toBeNull();
-	expect(screen.queryByRole('button', { name: en.layout.signIn.disconnect })).toBeNull();
 });
 
 // effort 826, requirement 11 as corrected on 2026-09-15: the two ways out of a jam sit behind one
