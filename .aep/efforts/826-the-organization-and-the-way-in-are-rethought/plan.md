@@ -215,6 +215,21 @@ resealing the vault under the same password with a fresh salt, which signs the m
 everywhere including here, and gives the owner no way in since only the member's password
 opens their vault. Not a new act: whoever may end a member's password may end their sessions.*
 
+### The first create names its group (requirement 13, corrected 2026-09-15)
+
+On the human's first run of the finished build, Turso's MCP `create_database` answered
+`HTTP 403: group-scoped tokens must specify a group in the request`, where on 2026-09-11 the
+tool defaulted to the token's group. On an empty group nothing in the application can learn
+the group's name, so the walk's name step asks for it, beside the organization's name, the
+username and the password: `CreateOrganization.group`, passed to `create_first_database` as
+the tool's `group`, and checked against the listing's group where the listing names one.
+The connect step's four statements do not change. Ticket 17 carries it, after tickets 07 and
+13.
+
+*Rejected: guessing `default`, which a real account refused the same day; reading the group's
+uuid out of the token, which the tool does not take; and asking the person to seed the group
+with a database so the listing names it, which leaves a stray database in the group.*
+
 ### The invitation link is confirmed by a code that is a key half (requirement 23)
 
 **The vault's password is sealed under the link's secret and the code together, and the link

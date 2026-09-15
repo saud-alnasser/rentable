@@ -169,7 +169,12 @@ rail's two menus open. Every concept has one name.
     exactly one group, so a Turso account used for rentable alone is the clean choice, and
     that on a paid account an empty group is the one to pick. The succession sentence stays,
     shorter. Nothing is typed but the organization's name, the owner's username, a password
-    and the first workspace's name.
+    and the first workspace's name. *Corrected 2026-09-15, on the human's first run: the
+    name step also asks for the Turso group picked on the consent screen. Turso's create
+    began refusing a request that names no group, and on an empty group the application
+    cannot learn the name (the listing is empty, the token carries the group's uuid and not
+    its name, and the MCP tool set has no group tool); the person who picked it a moment
+    earlier can say it. The connect step still carries no instruction to create a group.*
 
 *The settings area* (*round three, 2026-09-13*)
 
@@ -305,9 +310,10 @@ third wave. Each is a decision, made in one picker round the same day; the plan 
     `locked`; nothing under the data directory or the machine record holds a password or a
     private key in the clear, asserted by a Rust test that reads what was written. Verified
     once by hand across a relaunch.
-13. `setup.test.ts` holds `fieldsPresented` to name, username, password, workspace, and the
-    vocabulary guard finds no group instruction; the connect step's three statements are
-    pinned as literals in both locales and name the one-group fact.
+13. `setup.test.ts` holds `fieldsPresented` to name, username, password, group, workspace
+    (group added 2026-09-15 with requirement 13's correction), and the vocabulary guard finds
+    no group instruction while admitting the group field; the connect step's three statements
+    are pinned as literals in both locales and name the one-group fact.
 14. `routes/organization`, `routes/workspace` and `routes/account` do not exist;
     `routes/settings` renders the seven sections in order for the owner, and for a plain
     member renders `general`, `you`, `workspaces` limited to what they hold, `sync` without
