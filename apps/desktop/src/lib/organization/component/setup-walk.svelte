@@ -39,15 +39,21 @@
 	/**
 	 * The first run, on the shared application surface.
 	 *
-	 * **Three steps and five fields.** Connecting the Turso account, which is a consent in the
-	 * browser and nothing typed here; naming the organization, the owner's own username, their
-	 * password and the Turso group they picked on the consent screen; and naming the first
-	 * workspace, which is where the walk ends: creating it signs the owner in to it and
-	 * the application opens on it. There is no step showing the join link, because the link lives
-	 * on the organization page and a screen asking a person to continue past it was one screen too
-	 * many. `../setup.ts` describes the walk as data and this component draws each step from that
-	 * description, which is what lets a `node:test` assert over the fields without a window and a
-	 * component test assert over the same fields with one.
+	 * **Three steps and four fields.** Connecting the Turso account, which is a consent in the
+	 * browser and nothing typed here; naming the organization, the owner's own username and their
+	 * password; and naming the first workspace, which is where the walk ends: creating it signs
+	 * the owner in to it and the application opens on it. There is no step showing the join link,
+	 * because the link lives on the organization page and a screen asking a person to continue
+	 * past it was one screen too many. `../setup.ts` describes the walk as data and this component
+	 * draws each step from that description, which is what lets a `node:test` assert over the
+	 * fields without a window and a component test assert over the same fields with one.
+	 *
+	 * **A fifth field exists and is drawn almost never.** Turso will sometimes take no group this
+	 * application can work out, and then the only name left is the one the person picked on the
+	 * consent screen. The route reads that refusal and hands `askGroup`, and the name step grows
+	 * a group field with a sentence above it saying why it is suddenly there. It is deliberately
+	 * not in `SETUP_WALK`: a field the walk presents is one everybody types into, and this is one
+	 * almost nobody ever sees.
 	 *
 	 * **Every step says where it is, and the two before the organization exists can be left from
 	 * the card's corner.** The position is a quiet line under the title, no bar and no dots; the
@@ -83,6 +89,7 @@
 		step,
 		consent,
 		refusal,
+		askGroup = false,
 		holdsTursoAuthority,
 		isConnecting,
 		isCreating,
@@ -107,6 +114,12 @@
 		 * button that starts the next consent.
 		 */
 		refusal: string | null;
+		/**
+		 * whether the name step has to ask for the Turso group. Turso refused every name this
+		 * application could work out, so the person who picked the group is the last thing left
+		 * to ask; the sentence above the field says so. `false` on every ordinary run.
+		 */
+		askGroup?: boolean;
 		/** whether the machine already holds the authority a consent would grant. */
 		holdsTursoAuthority: boolean;
 		/** the consent is being opened. */
@@ -120,7 +133,13 @@
 		/** the corner control, on the steps before the organization exists; the route decides where
 		 * each goes back to. */
 		onBack: () => void;
-		onCreate: (name: string, username: string, password: string, group: string) => Promise<void>;
+		/** the group is `null` on every run the walk was not asked to collect one on. */
+		onCreate: (
+			name: string,
+			username: string,
+			password: string,
+			group: string | null
+		) => Promise<void>;
 		onCreateWorkspace: (name: string) => Promise<void>;
 	} = $props();
 
@@ -233,10 +252,16 @@
 		password: z
 			.string()
 			.min(PASSWORD_FLOOR, { message: $LL.organization.setup.passwordTooShort() }),
-		// the only bound is that it was given: what a group may be called is Turso's to say, and a
-		// shape refused here would be this form inventing a rule about somebody else's names. A
-		// group that is not the consent's is refused by Rust, by both names.
-		group: z.string().trim().min(1, { message: $LL.organization.setup.groupRequired() })
+		// the only bound is that it was given, and only where it was asked for: what a group may
+		// be called is Turso's to say, and a shape refused here would be this form inventing a
+		// rule about somebody else's names. A group that is not the consent's is refused by Rust,
+		// by both names.
+		group: z
+			.string()
+			.trim()
+			.refine((group) => !askGroup || group.length > 0, {
+				message: $LL.organization.setup.groupRequired()
+			})
 	});
 
 	type SetupForm = z.infer<typeof SetupSchema>;
@@ -263,7 +288,9 @@
 					form.data.name.trim(),
 					form.data.username.trim(),
 					form.data.password,
-					form.data.group.trim()
+					// a group left in the form from an earlier refusal is not sent once the field
+					// has gone: what is sent is what is on screen.
+					askGroup ? form.data.group.trim() : null
 				);
 			}
 		}
@@ -388,10 +415,11 @@
 			</div>
 		{:else if step === 'name'}
 			<!-- the three fields, and they are the three the walk description names. A fourth would
-			     render here only if it were added to `SETUP_WALK`, which is what the test reads.
-			     Each carries its subject's glyph ahead of the input, muted so it does not outweigh
-			     the label (*Balance weight and contrast*, p.56); the error still marks the label
-			     line, which is the field's own treatment. -->
+			     render here only if it were added to `SETUP_WALK`, which is what the test reads,
+			     or where Turso has left the group to be asked for, which is the block at the foot
+			     of the form. Each carries its subject's glyph ahead of the input, muted so it does
+			     not outweigh the label (*Balance weight and contrast*, p.56); the error still
+			     marks the label line, which is the field's own treatment. -->
 			<form method="POST" use:enhance class="space-y-4" data-setup-fields={fields.join(',')}>
 				{#if fields.includes('name')}
 					<Form.Field form={superform} name="name" class="group relative">
@@ -463,32 +491,37 @@
 					</Form.Field>
 				{/if}
 
-				{#if fields.includes('group')}
-					<!-- the one Turso word on the walk, and it is asked rather than instructed: the
-					     person picked the group on Turso's own consent screen a moment ago, and
-					     nothing on this machine can learn the name of an empty one. The description
-					     says where they saw it, not what to do about it. -->
-					<Form.Field form={superform} name="group" class="group relative">
-						<Form.Control>
-							<Form.Label>{$LL.organization.setup.groupLabel()}</Form.Label>
-							<InputGroup.Root data-disabled={isCreating || undefined}>
-								<InputGroup.Addon>
-									<LayersIcon />
-								</InputGroup.Addon>
-								<InputGroup.Input
-									name="group"
-									bind:value={$form.group}
-									placeholder={$LL.organization.setup.groupLabel()}
-									autocomplete="off"
-									disabled={isCreating}
-									aria-invalid={$errors.group ? 'true' : undefined}
-									{...$constraints.group}
-								/>
-							</InputGroup.Root>
-						</Form.Control>
-						<Form.Description>{$LL.organization.setup.groupDescription()}</Form.Description>
-						<FieldError />
-					</Form.Field>
+				{#if askGroup}
+					<!-- the last resort, and the only Turso word the walk ever asks for. Turso would
+					     take none of the names this application can work out, so the person who
+					     picked the group on Turso's own consent screen is asked which it was. The
+					     sentence above the field is why it appeared; the one under it says where
+					     they saw the name. Neither tells anybody to do anything about a group. -->
+					<div class="space-y-4" data-setup-group>
+						<Callout tone="warning">{$LL.organization.setup.groupNeeded()}</Callout>
+
+						<Form.Field form={superform} name="group" class="group relative">
+							<Form.Control>
+								<Form.Label>{$LL.organization.setup.groupLabel()}</Form.Label>
+								<InputGroup.Root data-disabled={isCreating || undefined}>
+									<InputGroup.Addon>
+										<LayersIcon />
+									</InputGroup.Addon>
+									<InputGroup.Input
+										name="group"
+										bind:value={$form.group}
+										placeholder={$LL.organization.setup.groupLabel()}
+										autocomplete="off"
+										disabled={isCreating}
+										aria-invalid={$errors.group ? 'true' : undefined}
+										{...$constraints.group}
+									/>
+								</InputGroup.Root>
+							</Form.Control>
+							<Form.Description>{$LL.organization.setup.groupDescription()}</Form.Description>
+							<FieldError />
+						</Form.Field>
+					</div>
 				{/if}
 
 				<Button type="submit" class="w-full justify-center" disabled={isCreating}>

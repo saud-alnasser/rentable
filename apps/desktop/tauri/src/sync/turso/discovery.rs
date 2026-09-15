@@ -43,6 +43,7 @@
 
 use std::time::Duration;
 
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD as BASE64URL};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
@@ -66,10 +67,21 @@ const MCP_LIST_DATABASES: &str = "list_databases";
 /// The one tool here that creates anything, and only on a first run into an empty group, where
 /// nothing else can. Its schema, read off `tools/list` on 2026-09-11: `name` required, `group`
 /// optional and defaulting to the organization's default, `size_limit` and `use_tursodb` optional.
-/// **`group` is optional in the schema and required in practice since 2026-09-15**, when a
+/// **`group` is optional in the schema and was refused without one on 2026-09-15**, when a
 /// request that named none answered `HTTP 403: group-scoped tokens must specify a group in the
-/// request`; [`create_first_database`] says where the name comes from.
+/// request`. Whether that holds on every account is Turso's to say rather than this module's to
+/// assume, so the caller decides what to name and this sends what it was handed;
+/// `organization/setup.rs` holds the order the names are tried in.
 const MCP_CREATE_DATABASE: &str = "create_database";
+
+/// What Turso's consent token calls the group it was granted over, in its own payload. The name
+/// is not in there, which is why [`group_uuid_of`] answers an identity rather than a word a
+/// screen could show anybody.
+const GROUP_UUID_CLAIM: &str = "group_uuid";
+
+/// What a refused create says before Turso's own reason. A caller reading that reason back out
+/// takes the prefix from here rather than keeping a second copy of the sentence.
+pub const CREATE_REFUSED: &str = "turso could not create the organization's database: ";
 
 const MCP_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -237,21 +249,30 @@ pub struct FirstDatabase {
 /// 2026-09-11), so nothing is read out of it; the listing is asked again and the record carrying
 /// the name just created is what answers, in the one shape this module already reads.
 ///
-/// **The group is passed, because since 2026-09-15 Turso refuses a create that names none**
-/// (`HTTP 403: group-scoped tokens must specify a group in the request`, where until then the
-/// tool defaulted to the token's own group). The name is the person's, typed on the walk's name
-/// step, since on an empty group nothing here can learn it: the listing is empty, the token's
-/// claims carry the group's uuid and not its name, and the tool set has no group tool. A name
-/// that is not the consent's group is refused by Turso, and the refusal is said in Turso's own
-/// words. Delete protection is the Platform API's to turn on afterwards, once the slug is known.
+/// **The group is sent only where one was given.** Turso refused a create that named none on
+/// 2026-09-15 (`HTTP 403: group-scoped tokens must specify a group in the request`, where until
+/// then the tool defaulted to the token's own group), and an account it does not refuse that way
+/// is one nobody has to be asked anything. So which name to send is the caller's:
+/// `organization/setup.rs` tries no group, then Turso's own default, then [`group_uuid_of`], and
+/// asks the person only where every one of those was refused over the group. A name that is not
+/// the consent's group is refused by Turso, and the refusal is said in Turso's own words. Delete
+/// protection is the Platform API's to turn on afterwards, once the slug is known.
 pub async fn create_first_database(
     platform_token: &str,
     endpoint: &McpEndpoint,
     name: &str,
-    group: &str,
+    group: Option<&str>,
 ) -> Result<FirstDatabase, Error> {
     let client = build_client(MCP_REQUEST_TIMEOUT)?;
     let session = handshake(&client, endpoint, platform_token).await?;
+
+    // the tool's `group` is optional, so an attempt that has no name for one carries the name of
+    // the database and nothing beside it.
+    let mut arguments = json!({ "name": name });
+
+    if let Some(group) = group {
+        arguments["group"] = json!(group);
+    }
 
     let (created, _) = call(
         &client,
@@ -264,7 +285,7 @@ pub async fn create_first_database(
             "method": "tools/call",
             "params": {
                 "name": MCP_CREATE_DATABASE,
-                "arguments": { "name": name, "group": group }
+                "arguments": arguments
             }
         }),
     )
@@ -276,7 +297,7 @@ pub async fn create_first_database(
     // happens not to carry the name afterwards.
     if let Some(reason) = tool_refusal(&created) {
         return Err(Error::PreconditionFailed {
-            message: format!("turso could not create the organization's database: {reason}"),
+            message: format!("{CREATE_REFUSED}{reason}"),
         });
     }
 
@@ -315,6 +336,43 @@ pub async fn create_first_database(
                   cannot see. Setting up an organization needs the account's support."
             .to_string(),
     })
+}
+
+/// The group the consent was granted over, by the identity its own token carries.
+///
+/// **The token is read here and no part of it leaves Rust** ([[rules/credentials]], *Client
+/// boundary*). What is read is one claim, and what is done with it is naming a group in a
+/// request to the server that issued the token: it is an identity rather than a name, so there
+/// is nothing here a screen could show anybody and nothing that would help them if it did.
+///
+/// **Nothing is verified, deliberately.** A signature this application checked would be checked
+/// against a key it does not hold, and the claim is not being trusted for anything: Turso
+/// decides whether the group named is one this consent may create in, exactly as it does for a
+/// name a person typed.
+///
+/// A token that is not three dot-separated segments, whose payload is not base64url, whose
+/// payload is not JSON, or which carries no `group_uuid` string answers `None`, and the caller
+/// has one name fewer to try.
+pub fn group_uuid_of(platform_token: &str) -> Option<String> {
+    let mut segments = platform_token.split('.');
+    let (_header, payload) = (segments.next()?, segments.next()?);
+
+    // three and no more: a JWT is header, payload and signature, and anything else is a string
+    // this has no reason to read a claim out of.
+    segments.next()?;
+
+    if segments.next().is_some() {
+        return None;
+    }
+
+    let decoded = BASE64URL.decode(payload).ok()?;
+    let claims = serde_json::from_slice::<Value>(&decoded).ok()?;
+
+    claims
+        .get(GROUP_UUID_CLAIM)
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .filter(|uuid| !uuid.is_empty())
 }
 
 /// The reason a tool gave for refusing, where the reply is a result flagged `isError`.
@@ -627,6 +685,7 @@ fn unreadable_listing() -> Error {
 
 #[cfg(test)]
 mod tests {
+    use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD as BASE64URL};
     use serde_json::json;
 
     use crate::sync::test::server::{ScriptedResponse, ScriptedServer};
@@ -635,7 +694,8 @@ mod tests {
 
     use super::{
         ConsentedGroup, FirstDatabase, McpEndpoint, OrganizationLookup, TursoOrganization,
-        create_first_database, look_up_organization, organization, slug_from_hostname,
+        create_first_database, group_uuid_of, look_up_organization, organization,
+        slug_from_hostname,
     };
 
     const TOKEN: &str = "the-platform-api-token";
@@ -692,11 +752,10 @@ mod tests {
     }
 
     /// The first run into the empty group requirement 3 asks for: `create_database` by name and
-    /// by the group the person typed, and nothing else, then the listing read again, and the slug
-    /// and the group taken off the record that carries the name just created rather than off the
-    /// create's own reply.
+    /// nothing else, then the listing read again, and the slug and the group taken off the record
+    /// that carries the name just created rather than off the create's own reply.
     #[tokio::test]
-    async fn the_first_database_is_created_by_name_and_group_and_read_back_out_of_the_listing() {
+    async fn the_first_database_is_created_by_name_and_read_back_out_of_the_listing() {
         let server = ScriptedServer::start(vec![
             handshake(),
             ScriptedResponse::new(
@@ -712,14 +771,10 @@ mod tests {
         ])
         .await;
 
-        let first = create_first_database(
-            TOKEN,
-            &McpEndpoint::at(&server.url("")),
-            "org-7f3a",
-            "rentable-empty",
-        )
-        .await
-        .expect("the first create failed");
+        let first =
+            create_first_database(TOKEN, &McpEndpoint::at(&server.url("")), "org-7f3a", None)
+                .await
+                .expect("the first create failed");
 
         assert_eq!(
             first,
@@ -739,13 +794,126 @@ mod tests {
         assert_eq!(payload["params"]["name"], "create_database");
         assert_eq!(
             payload["params"]["arguments"],
-            json!({ "name": "org-7f3a", "group": "rentable-empty" }),
-            "the create names the group the person typed, and carries nothing else"
+            json!({ "name": "org-7f3a" }),
+            "an attempt with no group for it named one anyway"
         );
         assert_eq!(
             server.request_count(),
             3,
             "handshake, create, listing, and nothing else"
+        );
+    }
+
+    /// The same create, with a group to name. **The argument appears only here**: an account that
+    /// takes a create naming no group is one nobody has to be asked anything, so the name rides
+    /// along only where the caller had one to send.
+    #[tokio::test]
+    async fn the_create_names_the_group_only_where_one_was_given() {
+        let server = ScriptedServer::start(vec![
+            handshake(),
+            ScriptedResponse::new(
+                200,
+                json!({ "jsonrpc": "2.0", "id": 2, "result": { "content": [{ "type": "text", "text": "created" }] } })
+                    .to_string(),
+            ),
+            listing(json!([{
+                "Name": "org-7f3a",
+                "hostname": "org-7f3a-acme-co.aws-eu-west-1.turso.io",
+                "group": "rentable-empty"
+            }])),
+        ])
+        .await;
+
+        create_first_database(
+            TOKEN,
+            &McpEndpoint::at(&server.url("")),
+            "org-7f3a",
+            Some("rentable-empty"),
+        )
+        .await
+        .expect("the create failed");
+
+        let payload: serde_json::Value =
+            serde_json::from_str(&server.request(1).body).expect("json");
+
+        assert_eq!(
+            payload["params"]["arguments"],
+            json!({ "name": "org-7f3a", "group": "rentable-empty" }),
+            "the create names the group it was given, and carries nothing else"
+        );
+    }
+
+    /// The third name the first create tries, and the one nobody types: the consent's own token
+    /// carries the group's identity in its payload, so a run that has been refused twice has one
+    /// more thing to try before it asks anybody anything.
+    #[tokio::test]
+    async fn the_group_uuid_is_read_out_of_the_consent_tokens_payload() {
+        let payload = BASE64URL.encode(
+            json!({ "org_id": 26543, "group_uuid": "6f5b6f60-1d4a-4b4a-9c2e-0b0a1d2c3e4f" })
+                .to_string(),
+        );
+        let token = format!("{}.{payload}.{}", BASE64URL.encode("{}"), "a-signature");
+
+        assert_eq!(
+            group_uuid_of(&token).as_deref(),
+            Some("6f5b6f60-1d4a-4b4a-9c2e-0b0a1d2c3e4f")
+        );
+    }
+
+    /// And every shape that is not that answers nothing, because the caller's next step is to ask
+    /// the person rather than to send a name it made up.
+    #[tokio::test]
+    async fn a_token_that_carries_no_group_uuid_answers_nothing() {
+        let with = |claims: serde_json::Value| {
+            format!(
+                "{}.{}.{}",
+                BASE64URL.encode("{}"),
+                BASE64URL.encode(claims.to_string()),
+                "a-signature"
+            )
+        };
+
+        // the plain string the tests here spend, which is what a token looked like before this.
+        assert_eq!(group_uuid_of(TOKEN), None, "a token of one segment");
+        assert_eq!(group_uuid_of("header.payload"), None, "two segments");
+        assert_eq!(
+            group_uuid_of(&format!("{}.x.y", with(json!({})))),
+            None,
+            "five segments"
+        );
+        assert_eq!(
+            group_uuid_of(&format!(
+                "{}.not-base64url!.{}",
+                BASE64URL.encode("{}"),
+                "s"
+            )),
+            None,
+            "a payload that is not base64url"
+        );
+        assert_eq!(
+            group_uuid_of(&format!(
+                "{}.{}.{}",
+                BASE64URL.encode("{}"),
+                BASE64URL.encode("not json"),
+                "s"
+            )),
+            None,
+            "a payload that is not json"
+        );
+        assert_eq!(
+            group_uuid_of(&with(json!({ "org_id": 26543 }))),
+            None,
+            "a payload with no claim"
+        );
+        assert_eq!(
+            group_uuid_of(&with(json!({ "group_uuid": "" }))),
+            None,
+            "a claim with nothing in it"
+        );
+        assert_eq!(
+            group_uuid_of(&with(json!({ "group_uuid": 7 }))),
+            None,
+            "a claim that is not a string"
         );
     }
 
@@ -772,14 +940,10 @@ mod tests {
         ])
         .await;
 
-        let error = create_first_database(
-            TOKEN,
-            &McpEndpoint::at(&server.url("")),
-            "org-7f3a",
-            "rentable-empty",
-        )
-        .await
-        .expect_err("a slug was read off a record that is not the created database");
+        let error =
+            create_first_database(TOKEN, &McpEndpoint::at(&server.url("")), "org-7f3a", None)
+                .await
+                .expect_err("a slug was read off a record that is not the created database");
 
         assert!(
             matches!(error, crate::error::Error::Integrity { .. }),
@@ -817,14 +981,10 @@ mod tests {
         ])
         .await;
 
-        let error = create_first_database(
-            TOKEN,
-            &McpEndpoint::at(&server.url("")),
-            "org-7f3a",
-            "rentable-empty",
-        )
-        .await
-        .expect_err("a refused create was read as a database");
+        let error =
+            create_first_database(TOKEN, &McpEndpoint::at(&server.url("")), "org-7f3a", None)
+                .await
+                .expect_err("a refused create was read as a database");
 
         assert!(
             matches!(error, crate::error::Error::PreconditionFailed { .. }),
@@ -870,14 +1030,10 @@ mod tests {
         ])
         .await;
 
-        let first = create_first_database(
-            TOKEN,
-            &McpEndpoint::at(&server.url("")),
-            "org-7f3a",
-            "rentable-empty",
-        )
-        .await
-        .expect("the create failed");
+        let first =
+            create_first_database(TOKEN, &McpEndpoint::at(&server.url("")), "org-7f3a", None)
+                .await
+                .expect("the create failed");
 
         assert_eq!(first.organization.slug, "acme-co");
         assert_eq!(first.organization.group, "rentable-empty");

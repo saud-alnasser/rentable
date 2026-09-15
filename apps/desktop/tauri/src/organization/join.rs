@@ -583,7 +583,7 @@ mod tests {
                 name: "Acme",
                 username: "olivia",
                 password: PASSWORD,
-                group: "rentable",
+                group: None,
             },
             test_cost(),
             ISSUED_AT,
@@ -1871,7 +1871,10 @@ mod tests {
                 name: "t819-18 restore",
                 username: "olivia",
                 password: PASSWORD,
-                group: &organization.group,
+                // named rather than left to the cascade: this run is against a real account and
+                // the group it is over is already in hand, so the live test spends one request
+                // rather than three on its way to what it actually measures.
+                group: Some(organization.group.as_str()),
             },
             test_cost(),
             now(),

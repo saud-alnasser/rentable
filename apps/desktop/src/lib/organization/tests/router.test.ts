@@ -108,42 +108,50 @@ test('connecting by link and disconnecting reach the host signed out, and answer
 	assert.equal(forgotten.organization, null);
 });
 
-// effort 826's correction to requirement 13: the Turso group rides with the other three, trimmed
-// the way the name and the username are, because a name pasted out of Turso's own screen arrives
-// with whatever whitespace came with it.
-test('creating hands the trimmed name, the trimmed username, the password and the trimmed group to the host as given', async () => {
+// effort 826's second correction to requirement 13: the group is optional, and **both shapes are
+// pinned** because the ordinary run is the one without it. Where it is given it is trimmed the
+// way the name and the username are, since a name pasted out of Turso's own screen arrives with
+// whatever whitespace came with it; where it is not, the host is handed `null`.
+test('creating hands the trimmed name, the trimmed username and the password to the host as given, with the group where there is one', async () => {
 	const asked: string[] = [];
 	const api = await signedOutApi(hostRecording(asked));
 
 	const created = await api.app.organization.create({
 		name: '  Acme Rentals ',
 		username: ' Olivia.Owner ',
+		password: 'a long enough password'
+	});
+
+	assert.equal(created.joinLink, 'rentable://join/abc');
+
+	await api.app.organization.create({
+		name: '  Acme Rentals ',
+		username: ' Olivia.Owner ',
 		password: 'a long enough password',
 		group: ' rentable-empty '
 	});
 
-	assert.equal(created.joinLink, 'rentable://join/abc');
-	assert.deepEqual(asked, ['create:Acme Rentals:Olivia.Owner:22:rentable-empty']);
+	assert.deepEqual(asked, [
+		'create:Acme Rentals:Olivia.Owner:22:null',
+		'create:Acme Rentals:Olivia.Owner:22:rentable-empty'
+	]);
 });
 
-// the four bounds the walk states, refused here before a round trip. The username's are
+// the three bounds the walk states, refused here before a round trip. The username's are
 // requirement 21's: three to thirty-two characters of letters, digits, `.`, `_` and `-`. The
-// group's is that it was given at all, since what a group may be called is Turso's to say.
-test('an empty name, a username outside the rules, a password under the floor or an empty group is refused before the host is reached', async () => {
+// group has none while it is absent, and while it is present its only bound is that it says
+// something, since what a group may be called is Turso's to say.
+test('an empty name, a username outside the rules, a password under the floor or a group given as blank is refused before the host is reached', async () => {
 	const asked: string[] = [];
 	const api = await signedOutApi(hostRecording(asked));
 	const password = 'a long enough password';
-	const group = 'rentable-empty';
 
-	await assert.rejects(
-		api.app.organization.create({ name: '   ', username: 'olivia', password, group })
-	);
+	await assert.rejects(api.app.organization.create({ name: '   ', username: 'olivia', password }));
 	await assert.rejects(
 		api.app.organization.create({
 			name: 'Acme',
 			username: 'olivia',
-			password: 'x'.repeat(PASSWORD_FLOOR - 1),
-			group
+			password: 'x'.repeat(PASSWORD_FLOOR - 1)
 		})
 	);
 	await assert.rejects(
@@ -152,7 +160,7 @@ test('an empty name, a username outside the rules, a password under the floor or
 
 	for (const username of ['ol', 'o'.repeat(33), 'olivia owner', 'olivia@acme.example', '']) {
 		await assert.rejects(
-			api.app.organization.create({ name: 'Acme', username, password, group }),
+			api.app.organization.create({ name: 'Acme', username, password }),
 			username
 		);
 	}

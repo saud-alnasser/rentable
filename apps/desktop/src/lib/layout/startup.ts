@@ -560,12 +560,25 @@ export class Startup {
 	 * past the wall, for the two things that happen beside the wall rather than at it: the
 	 * no-workspace surface created a workspace for the member who is in, and the first run
 	 * created an organization and signed its owner in on a route the wall had let through.
+	 *
+	 * **The loading surface goes up before the standing is read**, rather than after, because
+	 * reading it reaches the shell: the screen that called this stayed on its own form for the
+	 * whole of that round trip, and what a person saw was the surface they had just finished
+	 * with sitting there doing nothing. Everything after the read draws the loading surface
+	 * anyway, so this only moves it in front of the one call that was under it.
 	 */
 	async standingChanged() {
+		// where the screen goes back to if the read fails: the caller is standing on a surface
+		// that can say so, and a failure here is not a reason to leave them under a loading
+		// surface that has nothing left to load.
+		const before = this.#snapshot.state;
+
+		this.#set({ state: 'loading', error: null });
+
 		try {
 			this.#set({ organization: await this.#ports.organization.getState() });
 		} catch (error) {
-			this.#set({ error: this.#ports.describeError(error) });
+			this.#set({ state: before, error: this.#ports.describeError(error) });
 
 			return;
 		}

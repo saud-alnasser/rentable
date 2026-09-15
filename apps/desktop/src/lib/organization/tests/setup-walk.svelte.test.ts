@@ -31,9 +31,10 @@ import Providers from './providers.svelte';
  * the corner control draws a tooltip, and the surface's spinner reads the string contract.
  *
  * **A submit is fired only where what it carries is the point**, which since effort 826's
- * correction to requirement 13 is the name step: the group the person types is what the first
- * create names, so a screen that collected it and did not hand it on would pass every other
- * assertion here. A superforms SPA submit reaches SvelteKit's `applyAction` through
+ * correction to requirement 13 is the name step: where Turso has left the group to be asked for,
+ * the name the person types is what the next create names, so a screen that collected it and did
+ * not hand it on would pass every other assertion here. A superforms SPA submit reaches
+ * SvelteKit's `applyAction` through
  * `use:enhance`, and `applyAction` reaches for a router root that a component test has none of,
  * so it is mocked away below: what it does is bring `$page` in line after a form action, and
  * there is no page and no action here. Everything else is asserted on its fields and on the
@@ -92,7 +93,7 @@ const addonBefore = (name: string) => {
 	return addon as HTMLElement;
 };
 
-test('the naming step presents exactly four fields: the name, a username, a password and the turso group', () => {
+test('the naming step presents exactly three fields: the name, a username and a password', () => {
 	loadLocale('en');
 	setLocale('en');
 	walk('name');
@@ -103,31 +104,36 @@ test('the naming step presents exactly four fields: the name, a username, a pass
 	expect(inputs.map((input) => input.getAttribute('name'))).toEqual([
 		'name',
 		'username',
-		'password',
-		'group'
+		'password'
 	]);
 	expect(inputs.find((input) => input.name === 'password')?.type).toBe('password');
 	expect(screen.getByText(en.organization.setup.nameLabel)).toBeDefined();
 	expect(screen.getByText(en.organization.setup.usernameLabel)).toBeDefined();
 	expect(screen.getByText(en.organization.setup.passwordLabel)).toBeDefined();
 	expect(screen.getByText(en.organization.setup.passwordFloor)).toBeDefined();
-	// the group says where the person saw it, under the field, the way the password says its floor.
-	expect(screen.getByText(en.organization.setup.groupLabel)).toBeDefined();
-	expect(screen.getByText(en.organization.setup.groupDescription)).toBeDefined();
 	expect(screen.getByRole('button', { name: en.organization.setup.create })).toBeDefined();
 	expect(document.querySelector('[data-setup-fields]')?.getAttribute('data-setup-fields')).toBe(
-		'name,username,password,group'
+		'name,username,password'
 	);
+
+	// and nothing on the step says a word about the Turso group, which is the whole of this
+	// ticket: the create is tried three ways before anybody is asked for one.
+	expect(document.querySelector('[data-setup-group]')).toBeNull();
+	expect(screen.queryByText(en.organization.setup.groupLabel)).toBeNull();
+	expect(screen.queryByText(en.organization.setup.groupNeeded)).toBeNull();
 });
 
 /** fill the name step in, as a person does, and press create. */
-const fillAndCreate = async (group: string) => {
-	for (const [name, value] of [
+const fillAndCreate = async (group?: string) => {
+	const typed: [string, string][] = [
 		['name', 'Acme Rentals'],
 		['username', 'olivia.owner'],
-		['password', 'a long enough password'],
-		['group', group]
-	] as const) {
+		['password', 'a long enough password']
+	];
+
+	if (group !== undefined) typed.push(['group', group]);
+
+	for (const [name, value] of typed) {
 		await fireEvent.input(document.querySelector(`input[name="${name}"]`)!, {
 			target: { value }
 		});
@@ -136,16 +142,61 @@ const fillAndCreate = async (group: string) => {
 	await fireEvent.submit(document.querySelector('form')!);
 };
 
-// effort 826's correction to requirement 13: the group the person types is what the first create
-// names, so this asserts the whole way through the form rather than over the schema alone. It
-// arrives trimmed, because a name pasted out of Turso's own screen brings whatever came with it.
-test('the group typed on the name step reaches the create, trimmed, beside the other three', async () => {
+// the ordinary run: nothing is collected about the group, so nothing is handed on about it, and
+// Rust is left to try the names it can work out.
+test('the ordinary create carries no group at all', async () => {
 	loadLocale('en');
 	setLocale('en');
 
 	const onCreate = vi.fn(async () => {});
 
 	walk('name', { onCreate });
+	await fillAndCreate();
+
+	await waitFor(() => {
+		expect(onCreate).toHaveBeenCalledWith(
+			'Acme Rentals',
+			'olivia.owner',
+			'a long enough password',
+			null
+		);
+	});
+});
+
+/**
+ * Requirement 13's second correction: Turso would take none of the names the application could
+ * work out, so the route hands `askGroup` and the step grows the one field left to ask for, with
+ * the sentence above it saying why it is suddenly there. The name typed into it is what the next
+ * create carries, trimmed, because a name pasted out of Turso's own screen brings whatever came
+ * with it.
+ */
+test('a walk asked for the group draws the field with the sentence above it, and sends what was typed', async () => {
+	loadLocale('en');
+	setLocale('en');
+
+	const onCreate = vi.fn(async () => {});
+
+	walk('name', { askGroup: true, onCreate });
+
+	expect(screen.getByText(en.organization.setup.groupNeeded)).toBeDefined();
+	expect(screen.getByText(en.organization.setup.groupLabel)).toBeDefined();
+	expect(screen.getByText(en.organization.setup.groupDescription)).toBeDefined();
+	expect(inputsOnScreen().map((input) => input.getAttribute('name'))).toEqual([
+		'name',
+		'username',
+		'password',
+		'group'
+	]);
+
+	// the sentence is above the field rather than under it: it says why the field appeared, and
+	// a reader meets it before the thing it explains.
+	const block = document.querySelector('[data-setup-group]')!;
+	const sentence = screen.getByText(en.organization.setup.groupNeeded);
+	const field = document.querySelector('input[name="group"]')!;
+
+	expect(block.contains(field)).toBe(true);
+	expect(sentence.compareDocumentPosition(field) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
 	await fillAndCreate('  rentable-empty  ');
 
 	await waitFor(() => {
@@ -158,16 +209,16 @@ test('the group typed on the name step reaches the create, trimmed, beside the o
 	});
 });
 
-// the create cannot be made without it, so the step refuses on the field before the round trip,
-// in the person's own language, and nothing is created. Reached by leaving the field, which is
-// how a person first meets it.
-test('an empty group is refused on the name step and nothing is created', async () => {
+// the create it was asked for cannot be made without it, so the step refuses on the field before
+// the round trip, in the person's own language, and nothing is created. Reached by leaving the
+// field, which is how a person first meets it.
+test('an empty group is refused on a step that asked for one, and nothing is created', async () => {
 	loadLocale('en');
 	setLocale('en');
 
 	const onCreate = vi.fn(async () => {});
 
-	walk('name', { onCreate });
+	walk('name', { askGroup: true, onCreate });
 
 	const input = document.querySelector<HTMLInputElement>('input[name="group"]')!;
 
@@ -195,10 +246,10 @@ test('a create refused over the group leaves the name step filled in, so the gro
 	setLocale('en');
 
 	// what the route hands in after a refused create: it caught the refusal, the shared handler
-	// said it, and the walk was left on the step it was on.
+	// said it, and the walk was left on the step it was on with the field still asked for.
 	const onCreate = vi.fn(async () => {});
 
-	walk('name', { onCreate });
+	walk('name', { askGroup: true, onCreate });
 	await fillAndCreate('rentabel');
 
 	await waitFor(() => {
@@ -472,7 +523,7 @@ test('the name, username, password, group and workspace fields carry a muted lea
 	loadLocale('en');
 	setLocale('en');
 
-	const naming = walk('name');
+	const naming = walk('name', { askGroup: true });
 
 	for (const name of ['name', 'username', 'password', 'group']) {
 		const addon = addonBefore(name);
@@ -513,7 +564,7 @@ test('the walk renders in arabic with the same fields on each step', () => {
 	loadLocale('ar');
 	setLocale('ar');
 
-	const naming = walk('name', {}, 'rtl');
+	const naming = walk('name', { askGroup: true }, 'rtl');
 
 	expect(inputsOnScreen().map((input) => input.getAttribute('name'))).toEqual([
 		'name',
@@ -524,6 +575,8 @@ test('the walk renders in arabic with the same fields on each step', () => {
 	expect(screen.getByText(ar.organization.setup.nameLabel)).toBeDefined();
 	expect(screen.getByText(ar.organization.setup.usernameLabel)).toBeDefined();
 	expect(ar.organization.setup.usernameLabel).not.toBe(en.organization.setup.usernameLabel);
+	expect(screen.getByText(ar.organization.setup.groupNeeded)).toBeDefined();
+	expect(ar.organization.setup.groupNeeded).not.toBe(en.organization.setup.groupNeeded);
 	expect(screen.getByText(ar.organization.setup.groupLabel)).toBeDefined();
 	expect(screen.getByText(ar.organization.setup.groupDescription)).toBeDefined();
 	expect(ar.organization.setup.groupDescription).not.toBe(en.organization.setup.groupDescription);

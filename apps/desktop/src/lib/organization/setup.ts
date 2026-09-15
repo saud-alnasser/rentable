@@ -4,21 +4,26 @@
  * What a first run asks of a person and what it tells them, step by step, as plain data a
  * `node:test` can read. The screen in `component/setup-walk.svelte` draws from this rather than
  * restating it, so the test that asserts **the only text typed is the organization's name, the
- * owner's username, a password, the Turso group and the first workspace's name** is asserting
- * over the fields the screen actually presents rather than over a list somebody remembered to
- * keep beside it.
+ * owner's username, a password and the first workspace's name** is asserting over the fields the
+ * screen actually presents rather than over a list somebody remembered to keep beside it.
  *
  * Criterion 3 of the effort is the reason this exists: a field added later that asks for a slug,
- * a token or a URL fails a test rather than passing review.
+ * a group, a token or a URL fails a test rather than passing review.
+ *
+ * **And the decisions the walk makes are here rather than in the route**, for the same reason:
+ * where a refused create leaves it, whether the group has to be asked for at all, and what a
+ * session already holding an organization means. Each is a function a `node:test` can call, and
+ * the route is what wires them to the shell.
  */
 
+import type { OrganizationSession } from '$lib/platform/host';
 import { toErrorDetail } from '$lib/error/message';
 
 /**
  * the three steps, in the order a person meets them: the consent, the organization's name with
- * the owner's username, password and Turso group, and the first workspace's name. The walk ends
- * inside that workspace rather than on a screen showing the join link, which lives on the
- * organization page and is read there.
+ * the owner's username and password, and the first workspace's name. The walk ends inside that
+ * workspace rather than on a screen showing the join link, which lives on the organization page
+ * and is read there.
  */
 export type SetupStep = 'connect' | 'name' | 'workspace';
 
@@ -31,14 +36,15 @@ export const SETUP_STEPS: readonly SetupStep[] = ['connect', 'name', 'workspace'
  * name is, and never a detail Turso wants; a username is the owner's own name for themselves,
  * the one they sign in with (requirement 21 of effort 824).
  *
- * **`group` is the one Turso word here, and it is asked rather than instructed.** Turso began
- * refusing a create that names no group on 2026-09-15, and on the empty group this walk asks for
- * nothing on this machine can learn the name: the listing is empty, the consent's token carries
- * the group's uuid and not its name, and the tool set has no group tool. The person picked it on
- * Turso's own consent screen a moment earlier, so they are asked to say which. Nothing tells
- * them to make one, which is the guard `tests/setup.test.ts` keeps.
+ * **`group` is not among them, and that is the whole of what this ticket changed.** Turso began
+ * refusing a create that names no group on 2026-09-15, and for a day the walk asked for it as a
+ * fourth field. It asks for nothing now: Rust tries the create with no group, then with Turso's
+ * own default, then with the group uuid the consent token carries, and a group that already
+ * holds anything named itself in the listing. The field exists for the one case where all of
+ * that was refused, and it is drawn outside this description because it is not a step's field.
+ * It is the last resort, and [`refusalAfterFailedCreate`] is what puts it on screen.
  */
-export type SetupField = 'name' | 'username' | 'password' | 'group' | 'workspace';
+export type SetupField = 'name' | 'username' | 'password' | 'workspace';
 
 /**
  * what a step tells the person before it asks anything of them.
@@ -78,7 +84,7 @@ export const SETUP_WALK: readonly SetupStepDescription[] = [
 	},
 	{
 		step: 'name',
-		fields: ['name', 'username', 'password', 'group'],
+		fields: ['name', 'username', 'password'],
 		statements: []
 	},
 	{
@@ -109,30 +115,79 @@ export type SetupRefusal = {
 	step: SetupStep;
 	/** the refusal's own sentence, and `null` where what was thrown carried no readable one. */
 	message: string | null;
+	/**
+	 * whether the name step has to show the group field this time. `false` on every refusal but
+	 * the one Turso gives when it will take no group this application can work out.
+	 */
+	askGroup: boolean;
 };
+
+/**
+ * The fixed phrase Rust's refusal begins with when Turso would take none of the groups it tried.
+ *
+ * **A phrase rather than an error code**, because what it marks is one sentence rather than a
+ * kind of failure: `organization/setup.rs` formats it and the rest of that message is Turso's
+ * own words, which are free to change. `tests/setup.test.ts` reads the constant back out of
+ * `setup.rs`, so the two cannot drift apart without a test saying so.
+ */
+export const THE_GROUP_IS_NEEDED = "the turso group's name is needed";
 
 /**
  * Where a failed create leaves the walk.
  *
- * **The walk asks the machine where it stands rather than reading the refusal for a keyword.**
- * A create that fails ordinarily leaves the consent alone, and the person tries again on the
- * step they are on with what they typed still in the fields. The one refusal that does not is
- * requirement 21's: a group that already holds an organization is no use for this one, so Rust
- * refuses before creating anything and gives the consent back, and a machine that no longer
- * holds the authority cannot create an organization from the name step however many times it is
- * pressed. So the signal is the authority, which is a fact the walk already reads, and the
- * sentence shown is the refusal's own, unchanged, because it names the database in the way.
+ * **Two refusals are told apart from every other, and each by the one signal it leaves.**
  *
- * `null` where the machine still holds the authority: the shared handler has already said what
- * went wrong and the walk stays where it is.
+ * The first is requirement 21's: a group that already holds an organization is no use for this
+ * one, so Rust refuses before creating anything and gives the consent back. A machine that no
+ * longer holds the authority cannot create an organization from the name step however many
+ * times it is pressed, so the signal is the authority, which is a fact the walk already reads,
+ * and the walk returns to the consent carrying the refusal's own sentence unchanged.
+ *
+ * The second is this ticket's: Turso would take no group the application could work out, so the
+ * one name left is the one the person picked on the consent screen. The signal there is the
+ * fixed phrase above, because nothing else about that run is different: the consent is intact,
+ * the machine still holds the authority, and the walk stays on the step it is on with the group
+ * field drawn on it.
+ *
+ * `null` where neither holds: the shared handler has already said what went wrong and the walk
+ * stays where it is with what was typed still in the fields.
  */
 export function refusalAfterFailedCreate(
 	error: unknown,
 	holdsTursoAuthority: boolean
 ): SetupRefusal | null {
+	const message = toErrorDetail(error);
+
+	// read before the authority, because this refusal leaves the authority exactly where it was:
+	// asking the machine where it stands would answer *nothing happened* and lose the one
+	// refusal that needs a field drawn for it.
+	if (message?.startsWith(THE_GROUP_IS_NEEDED)) {
+		return { step: 'name', message, askGroup: true };
+	}
+
 	if (holdsTursoAuthority) return null;
 
-	return { step: 'connect', message: toErrorDetail(error) };
+	return { step: 'connect', message, askGroup: false };
+}
+
+/**
+ * What the walk does for a machine that is already somebody, which is what it finds after a
+ * reload, an address typed in, or the create that has just signed the owner in.
+ *
+ * - `'workspace'`: an owner is in and their organization holds nothing yet, so the third step is
+ *   where they are, whatever step this route was opened at. The first two would create the
+ *   organization a second time.
+ * - `'leave'`: they are in and there is a workspace to open, so the walk has nothing left to ask
+ *   and the way in is where they belong. This is the reload during a first run that used to put
+ *   a finished owner back on a step, and it is what makes the dev server's own reload harmless.
+ * - `null`: nobody is in, so the walk draws whichever step it was on.
+ */
+export function stepFor(
+	session: Pick<OrganizationSession, 'workspaces'> | null | undefined
+): 'workspace' | 'leave' | null {
+	if (!session) return null;
+
+	return session.workspaces.length === 0 ? 'workspace' : 'leave';
 }
 
 /**

@@ -2314,7 +2314,7 @@ type RootTranslation = {
 			 */
 			nameTitle: string
 			/**
-			 * c​h​o​o​s​e​ ​a​ ​n​a​m​e​ ​f​o​r​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​,​ ​y​o​u​r​ ​u​s​e​r​n​a​m​e​,​ ​a​n​d​ ​a​ ​p​a​s​s​w​o​r​d​,​ ​a​n​d​ ​s​a​y​ ​w​h​i​c​h​ ​t​u​r​s​o​ ​g​r​o​u​p​ ​y​o​u​ ​c​h​o​s​e​.​ ​t​h​e​ ​p​a​s​s​w​o​r​d​ ​u​n​l​o​c​k​s​ ​y​o​u​r​ ​p​l​a​c​e​ ​i​n​ ​i​t​.
+			 * c​h​o​o​s​e​ ​a​ ​n​a​m​e​ ​f​o​r​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​,​ ​y​o​u​r​ ​u​s​e​r​n​a​m​e​,​ ​a​n​d​ ​a​ ​p​a​s​s​w​o​r​d​.​ ​t​h​e​ ​p​a​s​s​w​o​r​d​ ​u​n​l​o​c​k​s​ ​y​o​u​r​ ​p​l​a​c​e​ ​i​n​ ​i​t​.
 			 */
 			nameDescription: string
 			/**
@@ -2345,6 +2345,10 @@ type RootTranslation = {
 			 * u​s​e​ ​a​t​ ​l​e​a​s​t​ ​1​2​ ​c​h​a​r​a​c​t​e​r​s​.
 			 */
 			passwordTooShort: string
+			/**
+			 * t​u​r​s​o​ ​t​u​r​n​e​d​ ​d​o​w​n​ ​e​v​e​r​y​ ​g​r​o​u​p​ ​n​a​m​e​ ​r​e​n​t​a​b​l​e​ ​c​o​u​l​d​ ​w​o​r​k​ ​o​u​t​ ​o​n​ ​i​t​s​ ​o​w​n​,​ ​s​o​ ​i​t​ ​n​e​e​d​s​ ​t​h​e​ ​o​n​e​ ​y​o​u​ ​s​a​w​ ​o​n​ ​t​h​e​ ​c​o​n​s​e​n​t​ ​s​c​r​e​e​n​.
+			 */
+			groupNeeded: string
 			/**
 			 * t​u​r​s​o​ ​g​r​o​u​p
 			 */
@@ -5074,7 +5078,7 @@ export type TranslationFunctions = {
 			 */
 			nameTitle: () => LocalizedString
 			/**
-			 * choose a name for the organization, your username, and a password, and say which turso group you chose. the password unlocks your place in it.
+			 * choose a name for the organization, your username, and a password. the password unlocks your place in it.
 			 */
 			nameDescription: () => LocalizedString
 			/**
@@ -5105,6 +5109,10 @@ export type TranslationFunctions = {
 			 * use at least 12 characters.
 			 */
 			passwordTooShort: () => LocalizedString
+			/**
+			 * turso turned down every group name rentable could work out on its own, so it needs the one you saw on the consent screen.
+			 */
+			groupNeeded: () => LocalizedString
 			/**
 			 * turso group
 			 */

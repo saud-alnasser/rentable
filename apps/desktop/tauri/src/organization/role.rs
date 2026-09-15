@@ -342,7 +342,7 @@ mod tests {
                 name: "Acme",
                 username: "olivia",
                 password: PASSWORD,
-                group: "rentable",
+                group: None,
             },
             test_cost(),
             NOW,

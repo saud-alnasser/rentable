@@ -217,7 +217,10 @@ export const tauri = {
 		consentResult: (sessionId: string) =>
 			invoke<OrganizationConsentResult>('organization_consent_result', { sessionId }),
 		consentDisconnect: () => invoke<void>('organization_consent_disconnect'),
-		create: (name: string, username: string, password: string, group: string) =>
+		// `group` crosses as an explicit `null` where none was asked for, rather than being left
+		// out: the command's argument is an `Option<String>` and a key that is present and null
+		// is the shape that reaches it as `None` whatever the argument order.
+		create: (name: string, username: string, password: string, group: string | null) =>
 			invoke<OrganizationCreated>('organization_create', { name, username, password, group }),
 		getState: () => invoke<OrganizationState>('organization_state_get'),
 		connect: (link: string) => invoke<OrganizationState>('organization_connect', { link }),

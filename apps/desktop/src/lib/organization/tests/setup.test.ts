@@ -10,10 +10,13 @@ import { loadLocale } from '$lib/i18n/i18n-util.sync.ts';
 import {
 	PASSWORD_FLOOR,
 	SETUP_WALK,
+	THE_GROUP_IS_NEEDED,
 	fieldsPresented,
 	refusalAfterFailedCreate,
-	statementsBeforeCreation
+	statementsBeforeCreation,
+	stepFor
 } from '$lib/organization/setup.ts';
+import { fakeOrganizationSession, fakeOrganizationWorkspace } from '$lib/platform/tests/testing.ts';
 import { USERNAME_MAX, USERNAME_MIN, usernameSchema } from '$lib/organization/username-form.ts';
 import { workspaceFormSchema } from '$lib/organization/workspace-form.ts';
 import { WORKSPACE_NAME_LIMIT } from '$lib/workspace/workspace.ts';
@@ -27,18 +30,20 @@ import { WORKSPACE_NAME_LIMIT } from '$lib/workspace/workspace.ts';
  * owner's username, which is their own name for themselves (requirement 21); neither is a Turso
  * detail. The screen draws its fields from `SETUP_WALK`, so this is an assertion over what the
  * screen presents and not over a list kept beside it, and a field added later that asks for a
- * slug, a token or a URL fails here before it reaches review.
+ * slug, a group, a token or a URL fails here before it reaches review.
  * `setup-walk.svelte.test.ts` asserts the same thing over the rendered DOM.
  *
- * **One Turso word is admitted, and it arrived on 2026-09-15 with requirement 13's correction.**
- * Turso began refusing a create that names no group, and on the empty group this walk asks for
- * there is nothing on the machine that can learn the name. So the person is asked which group
- * they picked, and what the guard below refuses is no longer the word but the *instruction*: a
- * field that names a group passes, and a sentence telling somebody to make or pick one does not.
+ * **The group was a field here for one day and is not one now.** Turso began refusing a create
+ * that names no group on 2026-09-15 and requirement 13's first correction added a fourth field;
+ * its second correction took it back out. Rust tries the create with no group, then with Turso's
+ * own default, then with the group uuid the consent token carries, and a group that already
+ * holds anything named itself in the listing. What is left is a field the walk draws only when
+ * Turso has refused all of that, which is not something the walk presents and is asserted in
+ * `setup-walk.svelte.test.ts` where a person can be shown it.
  */
 
-test('the only fields the walk presents are the name, a username, a password, the group and the workspace', () => {
-	assert.deepEqual(fieldsPresented(), ['name', 'username', 'password', 'group', 'workspace']);
+test('the only fields the walk presents are the name, a username, a password and the workspace', () => {
+	assert.deepEqual(fieldsPresented(), ['name', 'username', 'password', 'workspace']);
 });
 
 // requirement 13: what the consent covers is explained, and no group is asked for. requirement 22
@@ -72,21 +77,16 @@ test('the walk is three steps, and the workspace is the last', () => {
 });
 
 // effort 824, requirement 21: the owner sets their own username on the step that creates the
-// organization, beside its name and their password, and nowhere else. Effort 826's correction to
-// requirement 13 puts the Turso group last, after the three things that are the person's own.
-test('the name step asks for the name, the username, the password and the group, in that order', () => {
+// organization, beside its name and their password, and nowhere else. All three are the person's
+// own words, and nothing Turso wants is beside them.
+test('the name step asks for the name, the username and the password, in that order', () => {
 	const naming = SETUP_WALK.find((step) => step.step === 'name');
 
-	assert.deepEqual(naming?.fields, ['name', 'username', 'password', 'group']);
+	assert.deepEqual(naming?.fields, ['name', 'username', 'password']);
 	assert.equal(
 		SETUP_WALK.filter((step) => step.fields.includes('username')).length,
 		1,
 		'the username is asked for once'
-	);
-	assert.equal(
-		SETUP_WALK.filter((step) => step.fields.includes('group')).length,
-		1,
-		'the group is asked for once'
 	);
 });
 
@@ -281,7 +281,8 @@ test('a create refused after the consent was given back sends the walk to the co
 	// why it is there.
 	assert.deepEqual(refusalAfterFailedCreate(refused, false), {
 		step: 'connect',
-		message: GROUP_ALREADY_HOLDS_ONE
+		message: GROUP_ALREADY_HOLDS_ONE,
+		askGroup: false
 	});
 
 	// and the step it lands on is the one that offers the consent, which is where the person
@@ -290,11 +291,81 @@ test('a create refused after the consent was given back sends the walk to the co
 	assert.deepEqual(SETUP_WALK[0]?.fields, []);
 });
 
+/**
+ * Requirement 13's second correction: Turso would take no group this application could work out,
+ * so the one name left is the one the person picked. **The signal is the fixed phrase**, because
+ * nothing else about that run is different: the consent is intact and the machine still holds
+ * the authority, which is what every other refusal is told apart by. The phrase is Rust's, and
+ * it is read back out of `setup.rs` so the constant here cannot drift away from what is thrown.
+ */
+test('the fixed phrase the walk reads is the one rust formats', async () => {
+	const rust = await readFile(
+		fileURLToPath(new URL('../../../../tauri/src/organization/setup.rs', import.meta.url)),
+		'utf8'
+	);
+
+	assert.ok(
+		rust.includes(`pub const THE_GROUP_IS_NEEDED: &str = "${THE_GROUP_IS_NEEDED}";`),
+		'rust no longer declares the phrase this file matches on'
+	);
+});
+
+test('a create refused because turso will take no group asks for one on the name step', () => {
+	const refused = {
+		code: 'preconditionFailed',
+		message: `${THE_GROUP_IS_NEEDED}. turso refused every group this application could name on its own, and said: group \`default\` does not exist in this organization`
+	};
+
+	// the consent is untouched, so the machine still holds the authority and the walk stays
+	// where it is: what changes is that the step now has a field on it.
+	assert.deepEqual(refusalAfterFailedCreate(refused, true), {
+		step: 'name',
+		message: refused.message,
+		askGroup: true
+	});
+
+	// and it is the phrase rather than the authority that decides, so a machine that somehow
+	// lost the authority as well is still asked for the group rather than sent to the consent.
+	assert.equal(refusalAfterFailedCreate(refused, false)?.askGroup, true);
+});
+
 test('an ordinary failed create leaves the walk where it is', () => {
 	// the machine still holds the authority, so nothing was given back and the shared handler
 	// has already said what went wrong; the name step keeps what was typed.
 	assert.equal(refusalAfterFailedCreate(new Error('turso could not be reached'), true), null);
 	assert.equal(refusalAfterFailedCreate({ code: 'network', message: 'no route' }, true), null);
+});
+
+/**
+ * Requirement 13's second correction, the other half: **the walk hands an admitted machine over
+ * rather than drawing it a step.** A reload during a first run, an address typed in, and the
+ * moment after the first workspace is created all reach the route with a session on the state
+ * query, and until this the walk read only whether that session held no workspace. One that held
+ * a workspace fell through and the person was shown the consent step again, on a machine that
+ * had finished the walk.
+ */
+test('where the walk goes for a machine that is already somebody', () => {
+	// nobody is in: the walk draws whatever step it was on.
+	assert.equal(stepFor(null), null);
+	assert.equal(stepFor(undefined), null);
+
+	// an owner is in and their organization holds nothing yet: the third step, whatever step the
+	// route was opened at, since the first two would create the organization again.
+	assert.equal(stepFor(fakeOrganizationSession({ workspaces: [] })), 'workspace');
+
+	// and one who holds a workspace has finished: there is nothing left to ask, so they go home.
+	assert.equal(stepFor(fakeOrganizationSession()), 'leave');
+	assert.equal(
+		stepFor(
+			fakeOrganizationSession({
+				workspaces: [
+					fakeOrganizationWorkspace({ id: 'north' }),
+					fakeOrganizationWorkspace({ id: 'south' })
+				]
+			})
+		),
+		'leave'
+	);
 });
 
 /**
@@ -323,10 +394,26 @@ test('an ordinary failed create leaves the walk where it is', () => {
  * sentence and an account in the next from reading as an instruction about a group.
  */
 
-/** every sentence the walk shows about the group, beside the field that asks for it. */
-const GROUP_FIELD_KEYS = ['groupLabel', 'groupDescription', 'groupRequired'] as const;
+/** every sentence the last-resort field shows, including the one that says why it is there. */
+const GROUP_FIELD_KEYS = [
+	'groupNeeded',
+	'groupLabel',
+	'groupDescription',
+	'groupRequired'
+] as const;
 
-/** what Turso wants and a reader never types: refused in a field name and in every sentence. */
+/**
+ * What Turso wants and a reader never types.
+ *
+ * **`group` is back in this list and applies to the fields alone**, which is where it was until
+ * requirement 13's first correction and where it is again: no step of the walk presents a group,
+ * and the one field that ever asks for one is not a step's. The sentences are held to the wider
+ * list below instead, because requirement 13 has the connect step say in so many words what a
+ * group covers, and a guard that refused the word there would refuse the requirement.
+ */
+const TURSO_FIELD_VOCABULARY = /slug|group|token|url|host|secret/i;
+
+/** the same list for a sentence, less the group, for the reason above. */
 const TURSO_VOCABULARY = /slug|token|url|host|secret/i;
 
 /** telling somebody to make a group, in either language: the verb, then the group. */
@@ -341,10 +428,10 @@ const ANY_GROUP_INSTRUCTION = {
 	ar: /(أنشئ|انشئ|إنشاء|انشاء|اصنع|كوّن|اختر|اختيار|حدّد|حدد)[^.]{0,24}مجموعة|مجموعة[^.]{0,12}فارغة/
 };
 
-test('no field and no sentence in the walk carries a slug, a token, a URL, a host or a secret', () => {
+test('nothing the walk presents asks for a slug, a group, a token, a URL, a host or a secret', () => {
 	for (const step of SETUP_WALK) {
 		for (const field of step.fields) {
-			assert.doesNotMatch(field, TURSO_VOCABULARY, `the ${step.step} step asks for ${field}`);
+			assert.doesNotMatch(field, TURSO_FIELD_VOCABULARY, `the ${step.step} step asks for ${field}`);
 		}
 	}
 
@@ -368,8 +455,9 @@ test('neither locale tells the owner to create a group', () => {
 	assert.match(AR_WAS, MAKE_A_GROUP.ar);
 });
 
-// requirement 13's correction: the field names a group and instructs nobody about one, so the
-// walk gained a Turso word without gaining back the sentence this effort removed.
+// requirement 13's second correction: the last-resort field names a group and instructs nobody
+// about one, so the one place the walk can say the word gains back none of the sentence this
+// effort removed.
 test('the group field names a group without instructing anybody about one', () => {
 	for (const locale of ['en', 'ar'] as const) {
 		const setup = { en, ar }[locale].organization.setup;

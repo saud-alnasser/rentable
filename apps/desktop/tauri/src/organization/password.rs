@@ -282,7 +282,7 @@ mod tests {
                 name: "Acme",
                 username: "olivia",
                 password: OWNER_PASSWORD,
-                group: "rentable",
+                group: None,
             },
             test_cost(),
             AT,

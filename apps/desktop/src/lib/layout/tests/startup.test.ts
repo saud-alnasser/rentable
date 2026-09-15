@@ -74,8 +74,15 @@ test('and the first run, once it has created the organization and a workspace, g
 	const seenBefore = seen.length;
 	await startup.standingChanged();
 
-	// the loading surface went up, the one workspace was opened, and the stages ran to ready.
-	assert.ok(seen.slice(seenBefore).some((snapshot) => snapshot.state === 'loading'));
+	// **the loading surface goes up first, before the standing is read.** The screen that called
+	// this is still drawing its own form until something says otherwise, and reading the standing
+	// reaches the shell: with the surface raised after that read, the walk sat there finished and
+	// doing nothing for the whole round trip. The first thing anybody sees is `loading`, and
+	// `ready` is where it ends.
+	const after = seen.slice(seenBefore).map((snapshot) => snapshot.state);
+
+	assert.equal(after[0], 'loading', 'the standing was read before the surface changed');
+	assert.ok(after.indexOf('loading') < after.lastIndexOf('ready'));
 	assert.equal(startup.snapshot.state, 'ready');
 	assert.equal(startup.snapshot.error, null);
 	assert.equal(startup.snapshot.railIsUp, true);

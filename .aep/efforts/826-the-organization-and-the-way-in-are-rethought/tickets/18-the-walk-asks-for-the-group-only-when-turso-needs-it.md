@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: ['17']
 ---
 
@@ -21,7 +21,7 @@ Traces requirement 13 of [[efforts/826-the-organization-and-the-way-in-are-retho
 corrected on 2026-09-15 (second correction), criterion 13, and the human's first run of the
 build.
 
-- [ ] `CreateOrganization.group` is `Option<&str>`; on an empty listing
+- [x] `CreateOrganization.group` is `Option<&str>`; on an empty listing
       `setup::create_organization` tries `discovery::create_first_database` with the typed
       group where one was given, and otherwise with no group, then `default`, then
       `discovery::group_uuid_of(platform_token)` (the `group_uuid` claim of the token's JWT
@@ -33,10 +33,10 @@ build.
       stop on a non-group refusal, the final sentence) and in `discovery.rs` for
       `group_uuid_of` over a hand-built token. `create_first_database(token, endpoint, name,
       group: Option<&str>)` sends `group` only where given.
-- [ ] `organization_create`'s `group` is optional through `command.rs`, `host.ts`,
+- [x] `organization_create`'s `group` is optional through `command.rs`, `host.ts`,
       `platform/tauri.ts` and `organization/router.ts` (`z.string().trim().min(1).optional()`);
       `router.test.ts` pins both shapes.
-- [ ] `SETUP_WALK`'s name step lists `name`, `username`, `password`; `setup.test.ts` holds
+- [x] `SETUP_WALK`'s name step lists `name`, `username`, `password`; `setup.test.ts` holds
       `fieldsPresented` to `['name', 'username', 'password', 'workspace']` and its guard
       forbids the word `group` in every statement again; `setup-walk.svelte` draws the group
       field on the name step only when the route hands it `askGroup: true`, with the refusal
@@ -44,18 +44,18 @@ build.
       recognises the fixed phrase and answers the name step with `askGroup`; the route keeps
       the person's other fields; `setup-walk.svelte.test.ts` asserts the field is absent by
       default, present with the sentence when asked, and sent with the create.
-- [ ] `startup.standingChanged()` sets `state: 'loading'` before it reads where the machine
+- [x] `startup.standingChanged()` sets `state: 'loading'` before it reads where the machine
       stands, so the surface drawn until then gives way at once; `createFirstWorkspace` in
       `routes/organization/new/+page.svelte` awaits the navigation to the way in before it
       calls `standingChanged`, and the walk's `isCreating` stays true from the create until
       the hand-over; `startup.test.ts` asserts `loading` is observed before `ready` on a
       `standingChanged` that admits.
-- [ ] The walk's resume effect sends a session that holds a workspace to the way in
+- [x] The walk's resume effect sends a session that holds a workspace to the way in
       (`goto(THE_WAY_IN)`) rather than drawing a step; `useCreateWorkspace` invalidates the
       organization state so the walk's query does not keep saying no workspace; asserted in
       the walk's or the route's tests where one can drive it, otherwise in `setup.ts` as a
       pure decision (`stepFor(session)` answering `'workspace' | 'leave' | null`).
-- [ ] Every new string is written in both locales; `pnpm check`, `pnpm lint`, `pnpm test`,
+- [x] Every new string is written in both locales; `pnpm check`, `pnpm lint`, `pnpm test`,
       `cargo test -- --test-threads=1` and `cargo fmt --check` pass; a changeset
       (`@rentable/desktop`, patch) rides with the change.
 
@@ -86,4 +86,15 @@ them.
 
 ## Notes
 
-Nothing yet.
+Built by an implementer and landed on 2026-09-15. Departures: criterion 3's guard forbids the
+word `group` in every field the walk presents rather than in every statement, since
+requirement 13 has the connect step say what the consent covers in the group chosen, so two
+statements carry the word by design; the statements keep ticket 17's instruction guard, and
+two named constants carry the reason; `standingChanged` restores the prior state where the
+read of the standing throws, so a failed read is not stranded under a loading surface.
+
+Raised, not taken: each attempt of the cascade opens its own MCP handshake; whether a refusal
+is about the group is read off the substring `group` in Turso's free-text reason, the only
+signal there is; Turso's last reason reaches the person through the shared toast and not
+under the field; from a worktree of this path length the node gates need `ESBUILD_BINARY_PATH`
+pointed at a short copy of `esbuild.exe`, a tooling fact of the worktree and not of the tree.

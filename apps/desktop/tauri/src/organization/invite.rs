@@ -1535,7 +1535,7 @@ mod tests {
                 name: "Acme",
                 username: "olivia",
                 password: PASSWORD,
-                group: "rentable",
+                group: None,
             },
             test_cost(),
             1_757_000_000_000,
