@@ -355,13 +355,10 @@ const en = {
 
 		workspaceMenu: {
 			create: 'new workspace',
-			invite: 'invite',
 			locked: 'not available',
 			members: '{count|number} member(s)',
 			switchTo: 'switch to',
 			open: 'open',
-			inviteRefused: 'the owner or an administrator invites. ask one of them.',
-			workspaceRefusedOwner: 'the owner creates a workspace. ask the owner.',
 			workspaceRefusedAuthority:
 				'creating a workspace needs the turso account, and this machine is not connected to it. reconnect it in the sync section of settings.'
 		},

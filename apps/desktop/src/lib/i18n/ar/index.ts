@@ -347,13 +347,10 @@ const ar = {
 
 		workspaceMenu: {
 			create: 'مساحة عمل جديدة',
-			invite: 'دعوة',
 			locked: 'غير متاح',
 			members: '{count|number} عضو',
 			switchTo: 'التبديل إلى',
 			open: 'مفتوحة',
-			inviteRefused: 'المالك أو أحد المديرين هو من يدعو. اسأل أحدهم.',
-			workspaceRefusedOwner: 'المالك هو من ينشئ مساحة العمل. اسأل المالك.',
 			workspaceRefusedAuthority:
 				'إنشاء مساحة عمل يحتاج إلى حساب Turso، وهذا الجهاز غير متصل به. أعد ربطه من قسم المزامنة في الإعدادات.'
 		},

@@ -14,7 +14,6 @@
 	import { useStartup } from '$lib/layout/startup-context';
 	import { useFetchRemoteSyncState } from '$lib/settings/query';
 	import { useFetchMembers, useFetchOrganizationState } from '$lib/organization/query';
-	import { permits } from '@rentable/workspace-permission';
 	import type { ComponentProps } from 'svelte';
 
 	/**
@@ -66,29 +65,6 @@
 	// the workspaces the member holds a grant on, which is what the workspace menu lists; the one
 	// that is open is named by the same sync record the header takes its name from.
 	const workspaces = $derived(session?.workspaces ?? []);
-
-	/**
-	 * what the menu's two actions may do, and what each says when it may not.
-	 *
-	 * **Who may do what is the session's** ([[rules/credentials]]): inviting is whoever carries
-	 * `inviteMember`, and a new workspace is the owner's, from the machine that holds the Turso
-	 * authority. Rust refuses both again at the command regardless. The sentences are composed here,
-	 * from the locale, so the menu draws and never decides: a non-owner is told whose act it is,
-	 * and an owner restored on a machine without the authority is told what to do first.
-	 */
-	const isOwner = $derived(session?.role === 'owner');
-	const canInvite = $derived(permits(session?.permissions ?? 0, 'inviteMember'));
-	const canCreateWorkspace = $derived(
-		isOwner && organizationQuery.data?.holdsTursoAuthority === true
-	);
-	const refusal = $derived({
-		invite: canInvite ? null : $LL.layout.workspaceMenu.inviteRefused(),
-		workspace: canCreateWorkspace
-			? null
-			: isOwner
-				? $LL.layout.workspaceMenu.workspaceRefusedAuthority()
-				: $LL.layout.workspaceMenu.workspaceRefusedOwner()
-	});
 
 	/**
 	 * the startup unit, for switching workspaces. A switch is the sign-in path run again past
@@ -174,9 +150,6 @@
 				{workspaces}
 				openId={workspace.remoteId}
 				{memberCount}
-				{canInvite}
-				{canCreateWorkspace}
-				{refusal}
 				onSwitch={(id) => void startup.switchWorkspace(id)}
 			/>
 		{/if}

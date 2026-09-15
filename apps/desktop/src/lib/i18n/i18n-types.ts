@@ -1191,10 +1191,6 @@ type RootTranslation = {
 			 */
 			create: string
 			/**
-			 * i​n​v​i​t​e
-			 */
-			invite: string
-			/**
 			 * n​o​t​ ​a​v​a​i​l​a​b​l​e
 			 */
 			locked: string
@@ -1211,14 +1207,6 @@ type RootTranslation = {
 			 * o​p​e​n
 			 */
 			open: string
-			/**
-			 * t​h​e​ ​o​w​n​e​r​ ​o​r​ ​a​n​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​ ​i​n​v​i​t​e​s​.​ ​a​s​k​ ​o​n​e​ ​o​f​ ​t​h​e​m​.
-			 */
-			inviteRefused: string
-			/**
-			 * t​h​e​ ​o​w​n​e​r​ ​c​r​e​a​t​e​s​ ​a​ ​w​o​r​k​s​p​a​c​e​.​ ​a​s​k​ ​t​h​e​ ​o​w​n​e​r​.
-			 */
-			workspaceRefusedOwner: string
 			/**
 			 * c​r​e​a​t​i​n​g​ ​a​ ​w​o​r​k​s​p​a​c​e​ ​n​e​e​d​s​ ​t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​,​ ​a​n​d​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​i​s​ ​n​o​t​ ​c​o​n​n​e​c​t​e​d​ ​t​o​ ​i​t​.​ ​r​e​c​o​n​n​e​c​t​ ​i​t​ ​i​n​ ​t​h​e​ ​s​y​n​c​ ​s​e​c​t​i​o​n​ ​o​f​ ​s​e​t​t​i​n​g​s​.
 			 */
@@ -4006,10 +3994,6 @@ export type TranslationFunctions = {
 			 */
 			create: () => LocalizedString
 			/**
-			 * invite
-			 */
-			invite: () => LocalizedString
-			/**
 			 * not available
 			 */
 			locked: () => LocalizedString
@@ -4025,14 +4009,6 @@ export type TranslationFunctions = {
 			 * open
 			 */
 			open: () => LocalizedString
-			/**
-			 * the owner or an administrator invites. ask one of them.
-			 */
-			inviteRefused: () => LocalizedString
-			/**
-			 * the owner creates a workspace. ask the owner.
-			 */
-			workspaceRefusedOwner: () => LocalizedString
 			/**
 			 * creating a workspace needs the turso account, and this machine is not connected to it. reconnect it in the sync section of settings.
 			 */
