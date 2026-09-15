@@ -188,7 +188,12 @@ rail's two menus open. Every concept has one name.
     run, where Turso refused all three: the application first learns the name on its own,
     from a group-listing tool where the MCP server offers one and otherwise from the
     Platform API's user endpoint and the groups under the personal organization it names,
-    picking the group by the token's uuid; the field stays the last resort.*
+    picking the group by the token's uuid; the field stays the last resort. On the fourth
+    run both answered nothing: a group-scoped token is refused every organization-level read,
+    the user endpoint included, and on an empty group there is no database to read the
+    organization's slug from, so no listing and no chooser is possible there. The one case
+    left, an empty group not named `default`, asks the name once as a step said beforehand
+    on the connect step, not as a refusal.*
 
 *The settings area* (*round three, 2026-09-13*)
 
