@@ -2296,7 +2296,7 @@ type RootTranslation = {
 			 */
 			groupCoverage: string
 			/**
-			 * a​ ​g​r​o​u​p​ ​h​o​l​d​s​ ​o​n​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​a​ ​g​r​o​u​p​ ​t​h​a​t​ ​a​l​r​e​a​d​y​ ​h​o​l​d​s​ ​o​n​e​ ​i​s​ ​r​e​f​u​s​e​d​ ​h​e​r​e​,​ ​b​e​f​o​r​e​ ​a​n​y​t​h​i​n​g​ ​i​s​ ​c​r​e​a​t​e​d​.
+			 * a​ ​g​r​o​u​p​ ​h​o​l​d​s​ ​o​n​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​a​ ​g​r​o​u​p​ ​t​h​a​t​ ​a​l​r​e​a​d​y​ ​h​o​l​d​s​ ​o​n​e​ ​i​s​ ​c​o​n​n​e​c​t​e​d​ ​t​o​,​ ​n​o​t​ ​r​e​f​u​s​e​d​.
 			 */
 			oneOrganization: string
 			/**
@@ -2335,6 +2335,22 @@ type RootTranslation = {
 			 * t​u​r​s​o​ ​r​e​f​u​s​e​d​ ​t​h​e​ ​c​o​n​s​e​n​t​.
 			 */
 			consentFailed: string
+			/**
+			 * s​i​g​n​ ​i​n​ ​t​o​ ​y​o​u​r​ ​o​r​g​a​n​i​z​a​t​i​o​n
+			 */
+			existingTitle: string
+			/**
+			 * t​h​i​s​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​a​l​r​e​a​d​y​ ​h​a​s​ ​a​n​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​i​t​s​ ​o​w​n​e​r​ ​s​i​g​n​s​ ​i​n​ ​t​o​ ​c​o​n​n​e​c​t​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​t​o​ ​i​t​.
+			 */
+			existingDescription: string
+			/**
+			 * c​o​n​n​e​c​t​ ​t​h​i​s​ ​m​a​c​h​i​n​e
+			 */
+			existingConnect: string
+			/**
+			 * c​o​n​n​e​c​t​i​n​g​ ​t​h​i​s​ ​m​a​c​h​i​n​e​.​.​.
+			 */
+			existingConnecting: string
 			/**
 			 * n​a​m​e​ ​y​o​u​r​ ​o​r​g​a​n​i​z​a​t​i​o​n
 			 */
@@ -5078,7 +5094,7 @@ export type TranslationFunctions = {
 			 */
 			groupCoverage: () => LocalizedString
 			/**
-			 * a group holds one organization. a group that already holds one is refused here, before anything is created.
+			 * a group holds one organization. a group that already holds one is connected to, not refused.
 			 */
 			oneOrganization: () => LocalizedString
 			/**
@@ -5117,6 +5133,22 @@ export type TranslationFunctions = {
 			 * turso refused the consent.
 			 */
 			consentFailed: () => LocalizedString
+			/**
+			 * sign in to your organization
+			 */
+			existingTitle: () => LocalizedString
+			/**
+			 * this turso account already has an organization. its owner signs in to connect this machine to it.
+			 */
+			existingDescription: () => LocalizedString
+			/**
+			 * connect this machine
+			 */
+			existingConnect: () => LocalizedString
+			/**
+			 * connecting this machine...
+			 */
+			existingConnecting: () => LocalizedString
 			/**
 			 * name your organization
 			 */

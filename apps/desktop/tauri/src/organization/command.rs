@@ -17,7 +17,7 @@ use super::{
     removal::{self, LockOutCost, Removed},
     role,
     session::{self, CredentialSlot, Resumption, SessionFacts, SessionsEnded, WorkspaceFacts},
-    setup::{self, CreateOrganization, OrganizationCreated, Remote},
+    setup::{self, CreateOrganization, GroupState, OrganizationCreated, Remote},
     store::OrganizationStore,
     workspace,
 };
@@ -159,6 +159,83 @@ pub async fn organization_create(
     *app_state.member.write().await = Some(member);
 
     Ok(created)
+}
+
+/// What the consented group already holds, read after the consent and before anything is created
+/// (effort 828, requirement 14).
+///
+/// **`public`, because it happens before there is anybody to act as**, exactly as the consent and
+/// the create do. A group holding nothing of ours answers `empty` and the walk asks for a name; a
+/// group already holding an organization answers `held` and the walk asks for the owner's username
+/// and password instead of refusing the run.
+///
+/// It reads and nothing else: nothing is minted, nothing is created, no replica is opened and
+/// this machine's record is untouched, so a person who stops here has changed nothing on their
+/// account.
+#[tauri::command]
+pub async fn organization_group_inspect(
+    _app_state: tauri::State<'_, AppState>,
+) -> Result<GroupState, Error> {
+    let platform_token = setup::authority()?;
+
+    setup::group_inspect(&platform_token, &McpEndpoint::production()).await
+}
+
+/// Connect this machine to the organization the consented group already holds, and sign the owner
+/// in to it (effort 828, requirement 14).
+///
+/// **`public` for the same reason the create is**: it runs on a machine that holds nothing, where
+/// there is nobody to act as yet, and what it answers with is a machine that holds an organization
+/// and somebody signed in to it.
+///
+/// **Only the owner's password does it.** The password goes in and facts come out
+/// ([[rules/credentials]], *Client boundary*): what it opens, what it derives and what that key
+/// proves all stay in Rust, and `setup.rs` says in what order. A wrong username or password is
+/// refused with the wall's one sentence, which tells the two apart by nothing; anybody who is not
+/// the owner is refused by name and the machine is left holding nothing.
+///
+/// **A machine that can hand out a link shuts this way in** (requirement 15). The refusal lets the
+/// consent go, exactly as a group already holding an organization does on a create, so the walk
+/// reads that the authority is gone and returns to the consent carrying the sentence.
+#[tauri::command]
+pub async fn organization_connect_existing(
+    app_state: tauri::State<'_, AppState>,
+    username: String,
+    password: String,
+) -> Result<OrganizationState, Error> {
+    let platform_token = setup::authority()?;
+    let database_path = {
+        let settings = app_state.settings.read().await;
+
+        settings.database_path.clone()
+    };
+
+    // held across the connect, network round trips included, the way a first run holds it: the
+    // record of what this machine holds and which Turso account its consent is over are both
+    // inside `RemoteSync`, and this writes both. Dropped before the state is read back, because
+    // that read takes the same lock.
+    let (store, session) = {
+        let mut remote_sync = app_state.remote_sync.write().await;
+        let (_, store, session) = setup::connect_existing(
+            remote_sync.store_mut(),
+            &platform_token,
+            &McpEndpoint::production(),
+            |organization| PlatformApi::new(PlatformEndpoint::production(), organization),
+            Remote::libsql(),
+            &database_path,
+            &username,
+            &password,
+            timestamp::now(),
+        )
+        .await?;
+
+        (store, session)
+    };
+
+    *app_state.organization.write().await = Some(store);
+    *app_state.member.write().await = Some(session);
+
+    state_of(&app_state).await
 }
 
 /// Where this machine stands: the organization it holds and who is signed in.

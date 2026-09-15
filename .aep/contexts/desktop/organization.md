@@ -153,10 +153,18 @@ repeats the consent for it, because no row holds it.
   and force them to the wall, which is availability rather than authority, and the same
   credential already lets them delete the row; the chain was never what stood between a member
   and that. An epoch of its own, signed and merged by maximum, is the shape that would close it.*
-- **One Turso group holds one organization.** *Added 2026-09-14 (requirement 21).* A first run
-  whose consent lands on a group already holding an `org-` database is refused before anything
-  is created, the consent abandoned; a second machine reconnecting to the organization that
-  group holds is not a first run and succeeds.
+- **One Turso group holds one organization, and a group that holds one is connected to.** *Added
+  2026-09-14 (requirement 21); corrected 2026-09-16 (effort 828, requirement 14).* The walk asks
+  the group what it holds before it asks for a name: a group holding an `org-` database sends it to
+  a step where the owner types the username and password they already have, and this machine joins
+  the organization that is there, signed in, with every grant renewed. **Only the owner can**,
+  because only their password re-derives the organization key, and that derived key is what the
+  rows are judged against; the key the organization row carries is compared with it and never
+  trusted. The way is open only while no owner's or administrator's machine has been seen in the
+  last seven days, since such a machine can hand out a link, and the refusal says so and abandons
+  the consent. *Nothing creates in a held group:* the refusal requirement 21 added stands for a
+  create arriving by any other route. A second machine reconnecting by link is neither of these
+  and succeeds as before.
 - **Credentials renew on the owner's machine before they lapse, and only there.** A grant is
   minted for four weeks, and the owner's machine, the only one holding the Turso authority, renews
   every grant within a week of its expiry, best effort, after it signs in. It never blocks a

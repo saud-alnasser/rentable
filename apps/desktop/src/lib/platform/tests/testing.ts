@@ -121,6 +121,8 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 			consentResult: refuse('organization.consentResult'),
 			consentDisconnect: refuse('organization.consentDisconnect'),
 			create: refuse('organization.create'),
+			groupInspect: refuse('organization.groupInspect'),
+			connectExisting: refuse('organization.connectExisting'),
 			getState: refuse('organization.getState'),
 			connect: refuse('organization.connect'),
 			disconnect: refuse('organization.disconnect'),

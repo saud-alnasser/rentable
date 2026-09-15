@@ -1,4 +1,5 @@
 import type {
+	GroupState,
 	InvitationLink,
 	Invited,
 	LockOutCost,
@@ -104,6 +105,31 @@ export const organization = router({
 				input.password,
 				input.group ?? null
 			);
+		}),
+	/**
+	 * What the consented Turso account already holds, and the connect that follows where it holds
+	 * an organization (effort 828, requirement 14).
+	 *
+	 * **`public`, both, for the reason the consent and the create are**: they happen on a machine
+	 * that holds nothing, before there is anybody to act as. The inspect reads and changes
+	 * nothing; the connect takes the owner's username and password, and what comes back is where
+	 * the machine stands. The password crosses in and nothing about it crosses back
+	 * ([[rules/credentials]], *Client boundary*), which is the shape the sign-in already has.
+	 *
+	 * The floor is the walk's own, refused here before a round trip, as the create's is.
+	 */
+	groupInspect: procedure.public.mutation(async ({ ctx }): Promise<GroupState> => {
+		return ctx.host.organization.groupInspect();
+	}),
+	connectExisting: procedure.public
+		.input(
+			z.object({
+				username: USERNAME,
+				password: z.string().min(PASSWORD_FLOOR)
+			})
+		)
+		.mutation(async ({ input, ctx }): Promise<OrganizationState> => {
+			return ctx.host.organization.connectExisting(input.username, input.password);
 		}),
 	/**
 	 * A workspace: created by the owner, opened by whoever holds a grant, granted and removed by

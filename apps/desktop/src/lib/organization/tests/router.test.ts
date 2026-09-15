@@ -75,6 +75,18 @@ function hostRecording(asked: string[]): Host {
 				asked.push(`create:${name}:${username}:${password.length}:${group}`);
 
 				return { organizationId: 'org-1', joinLink: 'rentable://join/abc', synced: true };
+			},
+			groupInspect: async () => {
+				asked.push('groupInspect');
+
+				return { kind: 'held', organizationId: '7f3a' };
+			},
+			connectExisting: async (username, password) => {
+				asked.push(`connectExisting:${username}:${password.length}`);
+
+				return fakeOrganizationState({
+					organization: fakeHeldOrganization({ memberId: 'member-owner', role: 'owner' })
+				});
 			}
 		}
 	});
@@ -244,11 +256,13 @@ test('nothing here asks the host to list organizations', () => {
 
 	assert.deepEqual(procedures, [
 		'connect',
+		'connectExisting',
 		'consent.begin',
 		'consent.disconnect',
 		'consent.result',
 		'create',
 		'disconnect',
+		'groupInspect',
 		'invitation.accept',
 		'invitation.link',
 		'invitation.revoke',
@@ -540,4 +554,49 @@ test('a rename hands the trimmed username on, refuses one outside the rules firs
 		without.app.organization.member.rename({ memberId: 'member-2', username: 'sami' })
 	);
 	assert.deepEqual(asked, ['rename:member-2:Sami.Staff']);
+});
+
+// effort 828, requirement 14: both halves of the way in that connects to an organization the
+// account already holds happen on a machine that holds nothing, so both are public and both reach
+// the host and nothing else. The username is trimmed the way the create trims it; the password
+// crosses in untouched and nothing about it crosses back.
+test('inspecting the group and connecting to what it holds reach the host signed out', async () => {
+	const asked: string[] = [];
+	const api = await signedOutApi(hostRecording(asked));
+
+	const group = await api.app.organization.groupInspect();
+	const connected = await api.app.organization.connectExisting({
+		username: ' Olivia.Owner ',
+		password: 'the owners password'
+	});
+
+	assert.deepEqual(group, { kind: 'held', organizationId: '7f3a' });
+	assert.equal(connected.organization?.role, 'owner');
+	assert.deepEqual(asked, ['groupInspect', 'connectExisting:Olivia.Owner:19']);
+});
+
+// and the same two bounds the create states, refused before the host is reached: a username
+// outside the rules and a password under the floor.
+test('a username outside the rules or a password under the floor never reaches the connect', async () => {
+	const asked: string[] = [];
+	const api = await signedOutApi(hostRecording(asked));
+
+	await assert.rejects(
+		api.app.organization.connectExisting({
+			username: 'olivia',
+			password: 'x'.repeat(PASSWORD_FLOOR - 1)
+		})
+	);
+
+	for (const username of ['ol', 'o'.repeat(33), 'olivia owner', '']) {
+		await assert.rejects(
+			api.app.organization.connectExisting({
+				username,
+				password: 'a long enough password'
+			}),
+			username
+		);
+	}
+
+	assert.deepEqual(asked, []);
 });

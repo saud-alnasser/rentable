@@ -11,6 +11,7 @@ import type {
 	AvailableUpdate,
 	DiagnosticRecord,
 	ExportSheet,
+	GroupState,
 	Host,
 	ImportTable,
 	InvitationLink,
@@ -51,6 +52,7 @@ export type {
 	DiagnosticRecord,
 	ExportCell,
 	ExportSheet,
+	GroupState,
 	ImportTable,
 	InvitationLink,
 	Invited,
@@ -224,6 +226,9 @@ export const tauri = {
 		// is the shape that reaches it as `None` whatever the argument order.
 		create: (name: string, username: string, password: string, group: string | null) =>
 			invoke<OrganizationCreated>('organization_create', { name, username, password, group }),
+		groupInspect: () => invoke<GroupState>('organization_group_inspect'),
+		connectExisting: (username: string, password: string) =>
+			invoke<OrganizationState>('organization_connect_existing', { username, password }),
 		getState: () => invoke<OrganizationState>('organization_state_get'),
 		connect: (link: string) => invoke<OrganizationState>('organization_connect', { link }),
 		disconnect: () => invoke<OrganizationState>('organization_disconnect'),

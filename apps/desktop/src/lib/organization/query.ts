@@ -256,6 +256,51 @@ export function useCreateOrganization(
 }
 
 /**
+ * what the consented Turso account already holds, asked once after the consent (effort 828,
+ * requirement 14). It reads and changes nothing, and the walk goes to the name step or to the
+ * sign-in step on what it answers. A refusal is the shared handler's: the person is on the
+ * consent step and the button is still there.
+ */
+export function useInspectGroup(
+	opts: MutationOptions = {
+		toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() }
+	}
+) {
+	return createMutation(() => ({
+		mutationFn: () => api.app.organization.groupInspect(),
+		onSuccess: () => onMutationSuccess(opts),
+		onError: (e) => onMutationError(opts, e)
+	}));
+}
+
+/**
+ * connect this machine to the organization the account already holds, with the owner's username
+ * and password. Every refusal is said on the step rather than in a toast, the way the create's
+ * group refusal is: the sentence belongs beside the fields that were typed into, and the walk is
+ * what decides whether to keep the step or go back to the consent.
+ */
+export function useConnectExisting(
+	opts: MutationOptions = {
+		toast: { error: () => null, unexpected: () => get(LL).common.messages.unexpectedError() }
+	}
+) {
+	const client = useQueryClient();
+
+	return createMutation(() => ({
+		mutationFn: ({ username, password }: { username: string; password: string }) =>
+			api.app.organization.connectExisting({ username, password }),
+		// the connect signs the owner in, and the held context was built while nobody was: it is
+		// forgotten here the way a create forgets it, so the next call has an actor.
+		onSuccess: async () => {
+			forgetContext();
+			await client.invalidateQueries({ queryKey: keys.state });
+			onMutationSuccess(opts);
+		},
+		onError: (e) => onMutationError(opts, e)
+	}));
+}
+
+/**
  * create the first workspace, or another. The refusal a person can act on, an owner elsewhere,
  * arrives as `BAD_REQUEST` or a forbidden and is shown; everything else reads as unexpected.
  *

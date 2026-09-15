@@ -324,6 +324,14 @@ export type LinkShape = {
 };
 
 /**
+ * what the turso account a consent was just granted over already holds (effort 828, requirement
+ * 14). `empty` is the ordinary first run and the walk goes on to name the organization and create
+ * it; `held` is an owner coming back to one that is already there, and the walk asks for their
+ * username and password instead.
+ */
+export type GroupState = { kind: 'empty' } | { kind: 'held'; organizationId: string };
+
+/**
  * where this machine stands: the one organization it holds, or none, and who is signed in.
  * What the sign-in wall admits on.
  */
@@ -539,6 +547,24 @@ export type Host = {
 			password: string,
 			group: string | null
 		) => Promise<OrganizationCreated>;
+		/**
+		 * what the consented turso account already holds, read after the consent and before
+		 * anything is created (effort 828, requirement 14). A read: nothing is minted, nothing is
+		 * created and this machine's record is untouched. Rejects as `notConfigured` where no
+		 * consent has been granted.
+		 */
+		groupInspect: () => Promise<GroupState>;
+		/**
+		 * connect this machine to the organization the consented account already holds, and sign
+		 * its owner in to it. Only the owner's password does it, because only their password
+		 * re-derives the key the rows are judged against: anybody else rejects as `forbidden` and
+		 * the machine is left holding nothing. A wrong username and a wrong password reject with
+		 * the wall's one sentence, which tells them apart by nothing. While a machine an owner or
+		 * an administrator is on has been seen in the last seven days it rejects as
+		 * `preconditionFailed`, saying that machine can hand out a link, and the consent is let go
+		 * of, exactly as a create into a held group lets it go.
+		 */
+		connectExisting: (username: string, password: string) => Promise<OrganizationState>;
 		/** the organization this machine holds, and who is signed in. */
 		getState: () => Promise<OrganizationState>;
 		/**

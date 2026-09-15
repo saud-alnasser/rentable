@@ -237,6 +237,8 @@ pub fn run() {
             sync::organization_consent_result,
             sync::organization_consent_disconnect,
             organization::organization_create,
+            organization::organization_group_inspect,
+            organization::organization_connect_existing,
             organization::organization_connect,
             organization::organization_disconnect,
             organization::organization_state_get,

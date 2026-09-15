@@ -47,10 +47,9 @@ pub const CODE_NEEDED: &str =
 /// still sealed is refused naming the code, because reaching a replica at all took a credential
 /// and a caller that got one without a code got it from the organization's own link.
 ///
-/// **The machine draws its id here and registers with no member** (effort 828, requirement 15).
-/// This is the moment it starts holding the organization, so it is where the id it will keep is
-/// drawn, and the row goes in before the record that names it: a record naming a machine the
-/// organization does not know is what a failed write would leave behind.
+/// **What the machine records, and the registry row beside it, are [`record`]'s**, which is the
+/// one writer both ways of starting to hold an organization go through. A link connect records no
+/// member, because nobody has signed in yet and the wall is what follows.
 pub async fn connect(
     store: &OrganizationStore,
     machine: &mut Persisted<RemoteSyncStore>,
@@ -89,26 +88,80 @@ pub async fn connect(
         });
     }
 
-    // the machine's own id in the registry, drawn here because this is the moment it starts
-    // holding the organization and kept in the record for as long as it does (requirement 15).
+    record(
+        store,
+        machine,
+        OrganizationFacts {
+            id: link.organization_id.clone(),
+            name: link.organization_name.clone(),
+            verifying_key: link.verifying_key.clone(),
+            remote_url: link.remote_url.clone(),
+        },
+        None,
+        now,
+    )
+    .await
+}
+
+/// The four facts a machine keeps about the organization it holds, whichever way it learned them.
+///
+/// A link spells all four (`connect`); a machine connecting on the owner's Turso account reads the
+/// first and the last off the listing, the key off the password the owner typed, and the name out
+/// of `name_sealed` once a vault has opened (`setup::connect_existing`). What is done with them
+/// afterwards is the same either way, which is why they are gathered rather than passed as four
+/// arguments to two callers.
+#[derive(Clone, Debug)]
+pub struct OrganizationFacts {
+    pub id: String,
+    pub name: String,
+    /// base64url, as a link spells it and as [`HeldOrganization`] keeps it.
+    pub verifying_key: String,
+    pub remote_url: String,
+}
+
+/// Start holding an organization: put this machine in the organization's registry and write the
+/// record that says it holds one.
+///
+/// **The one place `HeldOrganization` is written outside the first run.** Two ways reach it, a
+/// link and the owner's own Turso account, and what a machine records has to be the same either
+/// way: nothing on the record says how it arrived, and a reader that could tell would be reading
+/// a difference nobody meant to create.
+///
+/// **The machine draws its id here** (effort 828, requirement 15). This is the moment it starts
+/// holding the organization, so it is where the id it will keep is drawn, and the registry row
+/// goes in before the record that names it: a record naming a machine the organization does not
+/// know is what a failed write would leave behind.
+///
+/// `member` is the member and role signed in on this machine already, which is `None` for a
+/// connect by link, since nobody has signed in yet, and the owner for a connect on the account,
+/// where the session is what proved the machine could connect at all.
+pub async fn record(
+    store: &OrganizationStore,
+    machine: &mut Persisted<RemoteSyncStore>,
+    facts: OrganizationFacts,
+    member: Option<(&str, &str)>,
+    now: i64,
+) -> Result<HeldOrganization, Error> {
     let machine_id = random_id()?;
 
-    store.register_machine(&machine_id, None, now).await?;
+    store
+        .register_machine(&machine_id, member.map(|(id, _)| id), now)
+        .await?;
 
     if !store.push().await {
         diagnostics::warn("organization.machine.registeredNotYetSent")
-            .with("organization", link.organization_id.as_str())
+            .with("organization", facts.id.as_str())
             .write();
     }
 
     let held = HeldOrganization {
-        id: link.organization_id.clone(),
-        name: link.organization_name.clone(),
-        verifying_key: link.verifying_key.clone(),
-        remote_url: link.remote_url.clone(),
+        id: facts.id,
+        name: facts.name,
+        verifying_key: facts.verifying_key,
+        remote_url: facts.remote_url,
         machine_id,
-        member_id: None,
-        role: None,
+        member_id: member.map(|(id, _)| id.to_string()),
+        role: member.map(|(_, role)| role.to_string()),
         joined_at: now,
     };
 

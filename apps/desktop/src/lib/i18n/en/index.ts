@@ -751,7 +751,7 @@ const en = {
 			groupCoverage:
 				'the consent covers every database in the group you choose, and nothing outside it.',
 			oneOrganization:
-				'a group holds one organization. a group that already holds one is refused here, before anything is created.',
+				'a group holds one organization. a group that already holds one is connected to, not refused.',
 			accountCreation:
 				'a free or developer turso account has exactly one group, so an account kept for rentable alone is the clean choice, and the consent screen is where you make one. on a paid account, pick an empty group.',
 			succession:
@@ -764,6 +764,11 @@ const en = {
 			connected: 'turso account connected.',
 			consentAbandoned: 'the consent was not granted. nothing was created.',
 			consentFailed: 'turso refused the consent.',
+			existingTitle: 'sign in to your organization',
+			existingDescription:
+				'this turso account already has an organization. its owner signs in to connect this machine to it.',
+			existingConnect: 'connect this machine',
+			existingConnecting: 'connecting this machine...',
 			nameTitle: 'name your organization',
 			nameDescription:
 				'choose a name for the organization, your username, and a password. the password unlocks your place in it.',

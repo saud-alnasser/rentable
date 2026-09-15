@@ -206,6 +206,20 @@ struct DatabaseRecord {
     group: String,
 }
 
+/// One database the consented group holds: the name a refusal can say out loud, and the address
+/// a replica of it opens at.
+///
+/// **The hostname is here and not in [`OrganizationLookup`]** for the reason that one keeps only
+/// names: a refusal says a name to a person, and a hostname is a customer's own address with a
+/// database name inside it. What needs the address is a machine connecting to an organization the
+/// group already holds (effort 828, requirement 14), which reaches for the record rather than the
+/// list of names.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GroupDatabase {
+    pub name: String,
+    pub hostname: String,
+}
+
 /// Ask Turso which databases the consented group holds, and read the slug out of the first one.
 ///
 /// The handshake is not ceremony: a streamable HTTP server may answer `initialize` with a session
@@ -215,12 +229,40 @@ pub async fn look_up_organization(
     platform_token: &str,
     endpoint: &McpEndpoint,
 ) -> Result<OrganizationLookup, Error> {
+    match group_databases(platform_token, endpoint).await? {
+        Some((organization, databases)) => Ok(OrganizationLookup::Found {
+            organization,
+            databases: databases
+                .into_iter()
+                .map(|database| database.name)
+                .collect(),
+        }),
+        None => Ok(OrganizationLookup::NoDatabaseYet),
+    }
+}
+
+/// The consented group as it stands: which Turso organization and group the consent turned out to
+/// be over, and every database in it with its address. `None` where the group holds none.
+///
+/// **The listing behind [`look_up_organization`], with the addresses kept.** That one drops them
+/// because what reads it is a refusal naming a database to a person; this one is read by
+/// `organization/setup.rs` when a machine is connecting to an organization the group already
+/// holds, which needs the address to open a replica at.
+///
+/// **Asked every time, and never answered from this machine's store.** [`organization`] remembers
+/// the account because the account is a fact that does not change; what the group is *holding* is
+/// the thing a caller here is deciding on, and answering that from a record written on an earlier
+/// launch would decide it on what was true then.
+pub async fn group_databases(
+    platform_token: &str,
+    endpoint: &McpEndpoint,
+) -> Result<Option<(TursoOrganization, Vec<GroupDatabase>)>, Error> {
     let client = build_client(MCP_REQUEST_TIMEOUT)?;
     let session = handshake(&client, endpoint, platform_token).await?;
     let databases = list_databases(&client, endpoint, platform_token, session.as_deref()).await?;
 
     let Some(record) = databases.first() else {
-        return Ok(OrganizationLookup::NoDatabaseYet);
+        return Ok(None);
     };
     let organization = organization_of(record)?;
 
@@ -228,16 +270,16 @@ pub async fn look_up_organization(
     // lists one group, and the first record is the only thing here that names which one; a
     // listing that carried a second group would otherwise put a stranger's database in front of
     // a refusal that names the group the person picked.
-    let names = databases
+    let held = databases
         .iter()
         .filter(|candidate| candidate.group == record.group)
-        .map(|candidate| candidate.name.clone())
+        .map(|candidate| GroupDatabase {
+            name: candidate.name.clone(),
+            hostname: candidate.hostname.clone(),
+        })
         .collect();
 
-    Ok(OrganizationLookup::Found {
-        organization,
-        databases: names,
-    })
+    Ok(Some((organization, held)))
 }
 
 /// What creating the first database in an empty group yields: the organization and the group the

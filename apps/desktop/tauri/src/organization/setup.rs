@@ -35,7 +35,10 @@
 //! a member, and the directory is one of the databases a member holds a credential to. Renewing
 //! it is the ticket that renews every grant.
 
-use std::path::Path;
+use std::{
+    path::Path,
+    sync::{Arc, Mutex},
+};
 
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD as BASE64URL};
 use serde::{Deserialize, Serialize};
@@ -55,15 +58,18 @@ use crate::{
 
 use super::{
     HeldOrganization,
-    authority::{AdministratorKey, OrganizationKey, issue_certificate},
+    authority::{AdministratorKey, OrganizationKey, VERIFYING_KEY_BYTES, issue_certificate},
+    connect::{self, OrganizationFacts},
     invite::validate_username,
     link::JoinLink,
-    session::remember,
+    permission,
+    session::{self, CredentialSlot, MemberSession, content_key_of, remember, sign_in_by_username},
     store::{GrantRecord, MemberRecord, OrganizationRecord, OrganizationStore, Signer},
     vault::{
-        KdfParams, create_vault_with_secret_and_key, generate_content_key, seal_content,
-        seal_to_public_key,
+        ContentKey, KdfParams, create_vault_with_secret_and_key, generate_content_key,
+        open_content, open_vault, seal_content, seal_to_public_key,
     },
+    workspace,
 };
 
 /// What a member's grant to the organization database is minted for. Renewal is the grant
@@ -681,6 +687,381 @@ async fn finish<P: TursoPlatform>(
     ))
 }
 
+/// The organization id inside a listed database's name, where the name is one of ours.
+///
+/// **The whole of what marks a database as this application's**, and the one place the mark is
+/// read: [`one_organization_to_a_group`] refuses a create on it and [`group_inspect`] offers a
+/// connect on it, and a second reading of the same prefix is two answers to one question waiting
+/// to disagree.
+///
+/// *The mark is loose on purpose and errs toward recognising* (effort 826, ticket 13): an
+/// `org-chart` in the owner's own group reads as one of ours, which refuses a create that would
+/// have been fine and offers a connect that then finds no rows and refuses. Both are the safe
+/// side of the mistake.
+pub fn held_organization_id(database_name: &str) -> Option<&str> {
+    database_name
+        .strip_prefix(ORGANIZATION_DATABASE_PREFIX)
+        .filter(|id| !id.is_empty())
+}
+
+/// What the consented group turned out to be holding, which is what the walk branches on after
+/// the consent (effort 828, requirement 14).
+///
+/// **Two answers and no third.** A group holding no organization of ours is the ordinary first
+/// run and creates; a group holding one is the owner coming back to an organization that is
+/// already there, and the walk asks for their username and password instead of refusing them.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum GroupState {
+    /// nothing of ours is in it. The walk asks for a name and creates.
+    Empty,
+    /// an organization of ours is in it, and this is its id.
+    #[serde(rename_all = "camelCase")]
+    Held { organization_id: String },
+}
+
+/// Read the consented group and say whether an organization of ours is already in it.
+///
+/// **A read and nothing else.** It mints nothing, creates nothing, opens no replica and writes
+/// nothing to this machine's store, so a person who goes no further has changed nothing. The
+/// account the consent is over is learned again by whichever path they take next, which is what
+/// keeps [`create_organization`]'s own listing, and the refusal it makes on it, exactly as they
+/// were.
+///
+/// **The listing is asked for rather than remembered** ([`discovery::group_databases`] says why):
+/// what the group holds is the thing being decided, and a group can have gained an organization
+/// since this machine last looked.
+pub async fn group_inspect(platform_token: &str, mcp: &McpEndpoint) -> Result<GroupState, Error> {
+    let Some((_, databases)) = discovery::group_databases(platform_token, mcp).await? else {
+        return Ok(GroupState::Empty);
+    };
+    let held = databases
+        .iter()
+        .find_map(|database| held_organization_id(&database.name));
+
+    Ok(match held {
+        Some(organization_id) => GroupState::Held {
+            organization_id: organization_id.to_string(),
+        },
+        None => GroupState::Empty,
+    })
+}
+
+/// What a machine is told when the account it consented over holds no organization to connect to.
+const NOTHING_TO_CONNECT_TO: &str =
+    "this turso account holds no organization to connect to. go back and make one";
+
+/// What it is told while somebody who can hand out a link is still connected (requirement 14).
+///
+/// **The way in is open only while no owner's or administrator's machine is** (requirement 15
+/// says what connected means): while one is, that machine can make a link, and a link is the
+/// ordinary way onto a second machine. This way exists for the case where there is no such
+/// machine left.
+pub const A_CONNECTED_MACHINE_CAN_HAND_OUT_A_LINK: &str = "a machine that holds this \
+     organization is still in use. make a link on that machine and open it here";
+
+/// What anybody but the owner is told, whichever of the two comparisons caught them.
+pub const ONLY_THE_OWNER_CONNECTS: &str = "only the owner can connect a machine with the \
+     turso account. ask them for a link, or for a new one if yours has lapsed";
+
+/// The organization, as the sign-in refusal names it before any vault has opened.
+///
+/// **The name is sealed until somebody is in.** `organization.name_sealed` opens with the content
+/// key and the content key opens with a password, so a machine refusing a wrong password has no
+/// name to put in the sentence. It says the sentence the wall says, through the wall's own
+/// [`session::refused_by_name`], with the only name this machine has for the organization at that
+/// moment.
+const ORGANIZATION_THIS_ACCOUNT_HOLDS: &str = "the organization this turso account holds";
+
+/// Connect this machine to the organization the consented group already holds, and sign the owner
+/// in to it (effort 828, requirement 14).
+///
+/// **The order is what this function is**, and each step of it has to have passed before the next
+/// one is possible at all.
+///
+/// The listing says which database the organization is, where it is, and which Turso account the
+/// consent is over; the account is recorded at once, because it is a fact about the consent and
+/// stays true whatever this run goes on to do. A full-access credential of the ordinary four-week
+/// lifetime is minted for that database on the consent, which is the same rule every mint follows:
+/// only the owner's machine mints, and this mints on the owner's own consent. The replica opens
+/// under it and pulls.
+///
+/// **The registry is the gate, and it is read before anything is asked of the person**
+/// (requirement 15). Where a machine seen inside the presence window belongs to a member whose row
+/// carries the owner's or an administrator's role, that machine can hand out a link and this way
+/// in is shut: the consent is let go of exactly as requirement 21's refusal lets it go, so the
+/// walk finds the authority gone and returns to the consent carrying the sentence.
+///
+/// *The key that read is made with is the organization row's own*, which is the only key this
+/// machine holds before a password has opened anything. That is sound here and nowhere else: the
+/// registry gates convenience and never authority (the spec, under *Risks*), and in every run that
+/// goes on to connect, the row's key is proved a moment later to be the key the owner's password
+/// re-derives. A run that is not that run is refused below.
+///
+/// **The trust anchor is the owner's password, and the database is never asked to vouch for
+/// itself.** The member rows are read unverified, which is what
+/// [`OrganizationStore::members_unverified`] exists for and its only use; the password is tried
+/// against each vault until one opens carrying the username that was typed; and the secret that
+/// vault yields re-derives the organization key, exactly as [`finish`] derived it when the
+/// organization was created. Its public half has to be the organization row's `verifying_key`, and
+/// every member row has to verify against it. An administrator's password opens an administrator's
+/// vault and derives something else, so it fails both, which is what makes this the owner's alone
+/// by construction rather than by a role a row claims.
+///
+/// **Nothing the unverified read yielded reaches the session.** Past the comparison, the sign-in
+/// is the wall's own [`sign_in_by_username`] over the verified rows, so the member, the vault and
+/// the grants a session is built from all came through the chain. It is a second derivation of the
+/// same password, and what it buys is that a session is opened on the one path every other
+/// sign-in takes.
+///
+/// **Then the grants are renewed, before anything is written down.** An organization whose every
+/// machine has been gone for over four weeks has nothing but lapsed grants, and a session's own
+/// credential comes from a grant, so an owner signed in without this would hold a dead credential
+/// until something else renewed it. It runs on the authority this machine now holds, and a failure
+/// leaves the machine holding nothing rather than holding a connection that reaches nothing.
+///
+/// The record and the registry row are [`connect::record`]'s, as they are for a link, and they go
+/// in last for that reason: everything that can refuse has refused by then.
+#[allow(clippy::too_many_arguments)]
+pub async fn connect_existing<P, F>(
+    store: &mut Persisted<RemoteSyncStore>,
+    platform_token: &str,
+    mcp: &McpEndpoint,
+    platform_for: F,
+    remote: Remote,
+    database_path: &Path,
+    username: &str,
+    password: &str,
+    now: i64,
+) -> Result<(HeldOrganization, OrganizationStore, MemberSession), Error>
+where
+    P: TursoPlatform,
+    F: Fn(TursoOrganization) -> P,
+{
+    // a machine holds one organization, so this is refused before the account is even asked what
+    // it holds. The way to another is a disconnect.
+    connect::refuse_while_held(store)?;
+
+    let nothing_to_connect_to = || Error::PreconditionFailed {
+        message: NOTHING_TO_CONNECT_TO.to_string(),
+    };
+    let (organization, databases) = discovery::group_databases(platform_token, mcp)
+        .await?
+        .ok_or_else(nothing_to_connect_to)?;
+    let database = databases
+        .iter()
+        .find(|database| held_organization_id(&database.name).is_some())
+        .ok_or_else(nothing_to_connect_to)?;
+    let organization_id = held_organization_id(&database.name)
+        .ok_or_else(nothing_to_connect_to)?
+        .to_string();
+
+    // which account the consent is over, recorded now: it is what every Platform API path this
+    // machine builds afterwards is made of, and it stays true whether or not this run connects.
+    store.turso_organization = Some(organization.clone());
+    store.commit()?;
+
+    let platform = platform_for(organization);
+    let credential: CredentialSlot = Arc::new(Mutex::new(Some(
+        platform
+            .mint_token(
+                &database.name,
+                ORGANIZATION_CREDENTIAL_LIFETIME,
+                AccessLevel::FullAccess,
+            )
+            .await?,
+    )));
+    let remote_url = format!("libsql://{}", database.hostname);
+    let slot = Arc::clone(&credential);
+    let replica = OrganizationStore::open(
+        &OrganizationStore::replica_path(database_path, &organization_id),
+        remote.url_for(&database.hostname),
+        move || {
+            let slot = Arc::clone(&slot);
+
+            async move {
+                slot.lock()
+                    .ok()
+                    .and_then(|slot| slot.clone())
+                    .ok_or_else(|| turso::Error::Misuse("no credential is held".into()))
+            }
+        },
+    )
+    .await?;
+
+    if !replica.pull().await && replica.organization().await?.is_none() {
+        return Err(Error::Network {
+            message: "the organization could not be reached. the account is right; try again once \
+                      the connection is back"
+                .to_string(),
+        });
+    }
+
+    let row = replica
+        .organization()
+        .await?
+        .filter(|row| row.id == organization_id)
+        .ok_or_else(|| Error::Integrity {
+            message: "the database this turso account holds carries no organization of ours"
+                .to_string(),
+        })?;
+
+    if in_use_by_somebody_who_can_invite(&replica, &row.verifying_key, now).await? {
+        abandon_the_consent(store);
+        drop(replica);
+
+        return Err(Error::PreconditionFailed {
+            message: A_CONNECTED_MACHINE_CAN_HAND_OUT_A_LINK.to_string(),
+        });
+    }
+
+    let (verifying_key, content_key) = the_owners_key(&replica, &row, username, password).await?;
+    let name = opened_text(&content_key, "organization.name_sealed", &row.name_sealed)?;
+    let verifying_key = BASE64URL.encode(verifying_key);
+    let signing_in = HeldOrganization {
+        id: organization_id.clone(),
+        name: name.clone(),
+        verifying_key: verifying_key.clone(),
+        remote_url: remote_url.clone(),
+        machine_id: String::new(),
+        member_id: None,
+        role: None,
+        joined_at: now,
+    };
+    let mut session =
+        sign_in_by_username(&replica, &signing_in, username, password, &credential).await?;
+
+    // every grant fresh, the owner's included, so the credential the session holds is one that
+    // lives: nothing renewed while every machine was gone.
+    workspace::renew_credentials(&replica, &mut session, &platform, &database.name).await?;
+
+    let held = connect::record(
+        &replica,
+        store,
+        OrganizationFacts {
+            id: organization_id,
+            name,
+            verifying_key,
+            remote_url,
+        },
+        Some((&session.member_id, &session.role)),
+        now,
+    )
+    .await?;
+
+    if !replica.push().await {
+        diagnostics::warn("organization.connectedToExisting.notYetSent")
+            .with("organization", held.id.as_str())
+            .write();
+    }
+
+    diagnostics::info("organization.connectedToExisting")
+        .with("organization", held.id.as_str())
+        .write();
+
+    Ok((held, replica, session))
+}
+
+/// Whether a machine the organization counts as connected belongs to somebody who can hand out a
+/// link: the owner, or an administrator.
+///
+/// A row naming a member who is no longer in the organization comes back with no member beside it
+/// and stands in nobody's way, which is what a machine a removed person left behind is.
+async fn in_use_by_somebody_who_can_invite(
+    replica: &OrganizationStore,
+    verifying_key: &[u8; VERIFYING_KEY_BYTES],
+    now: i64,
+) -> Result<bool, Error> {
+    Ok(replica
+        .connected_machines(verifying_key, now)
+        .await?
+        .iter()
+        .any(|(_, member)| {
+            member.as_ref().is_some_and(|member| {
+                member.role == OWNER_ROLE || member.role == permission::ADMINISTRATOR
+            })
+        }))
+}
+
+/// Find the vault `password` opens under `username`, and answer the organization key its secret
+/// re-derives with the content key that vault holds.
+///
+/// **The comparison is the whole of what makes this the owner's.** The derived key's public half
+/// is compared with the organization row's, and every member row is read again and verified
+/// against the derived key; anybody whose vault derives something else fails both. The row's key
+/// is the thing being judged and never the judge, which is the rule `authority.rs` states and the
+/// one thing a way in built on a consent alone could have quietly broken.
+async fn the_owners_key(
+    replica: &OrganizationStore,
+    row: &OrganizationRecord,
+    username: &str,
+    password: &str,
+) -> Result<([u8; VERIFYING_KEY_BYTES], ContentKey), Error> {
+    let refused = || session::refused_by_name(ORGANIZATION_THIS_ACCOUNT_HOLDS);
+    let only_the_owner = || Error::Forbidden {
+        message: ONLY_THE_OWNER_CONNECTS.to_string(),
+    };
+    let wanted = username.trim().to_lowercase();
+    let members = replica.members_unverified().await?;
+    let mut opened = None;
+
+    for member in members
+        .iter()
+        .filter(|member| member.role != permission::REMOVED)
+    {
+        if let Ok(secret) = open_vault(password, &member.vault) {
+            opened = Some((member, secret));
+            break;
+        }
+    }
+
+    let Some((member, secret)) = opened else {
+        return Err(refused());
+    };
+    let content_key = content_key_of(member, &secret)?;
+
+    let carried = opened_text(
+        &content_key,
+        "member.username_sealed",
+        &member.username_sealed,
+    )?;
+
+    if carried.trim().to_lowercase() != wanted {
+        return Err(refused());
+    }
+
+    // a vault still sealed under the secret an invitation link carries opens for whoever decoded
+    // that link and for nobody typing at a wall, which is the wall's own rule and is said here in
+    // the wall's own sentence.
+    if member.must_change_password {
+        return Err(refused());
+    }
+
+    let verifying_key =
+        OrganizationKey::from_bytes(&secret.derive_seed(ORGANIZATION_KEY_PURPOSE)?).verifying_key();
+
+    if verifying_key != row.verifying_key {
+        return Err(only_the_owner());
+    }
+
+    // and every row read again, through the chain, against the key that was just proved. A row
+    // that does not check means the key is not the one these rows were written under, whatever
+    // the organization row says.
+    replica
+        .members(&verifying_key)
+        .await
+        .map_err(|_| only_the_owner())?;
+
+    Ok((verifying_key, content_key))
+}
+
+/// A sealed column, opened as text.
+fn opened_text(key: &ContentKey, column: &str, sealed: &[u8]) -> Result<String, Error> {
+    String::from_utf8(open_content(key, column, sealed)?).map_err(|_| Error::Integrity {
+        message: format!("{column} did not open as text"),
+    })
+}
+
 /// Refuse a group that already holds an organization, naming the database that is in the way.
 ///
 /// **A group holds one organization** (requirement 21 of effort 826). The consent is granted
@@ -688,15 +1069,21 @@ async fn finish<P: TursoPlatform>(
 /// would put two sets of records behind one grant, and the owner ruled that out. The person
 /// picks another group, or another Turso account, and the sentence says so.
 ///
+/// *Effort 828's requirement 14 keeps this refusal and gives it a way on.* The walk asks the
+/// group what it holds before it asks for a name ([`group_inspect`]), so a person whose group
+/// already holds an organization is offered [`connect_existing`] and never reaches a create. This
+/// is what refuses a create arriving by any other route, and a create is still the one thing a
+/// held group may not have.
+///
 /// **Only a name this application would have written counts.** A Free or Developer account has
 /// exactly one group and it holds whatever else the person keeps on that account, so refusing
 /// on any database at all would refuse the accounts most first runs arrive on. The mark is the
-/// name [`create_organization`] gives an organization's database and nothing else.
+/// name [`create_organization`] gives an organization's database and nothing else,
+/// [`held_organization_id`].
 fn one_organization_to_a_group(databases: &[String]) -> Result<(), Error> {
-    let held = databases.iter().find(|name| {
-        name.strip_prefix(ORGANIZATION_DATABASE_PREFIX)
-            .is_some_and(|id| !id.is_empty())
-    });
+    let held = databases
+        .iter()
+        .find(|name| held_organization_id(name).is_some());
 
     match held {
         // the name is the customer's own and is said back to them, because it is what they look
@@ -827,27 +1214,34 @@ pub fn authority() -> Result<String, Error> {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use std::sync::{Arc, Mutex};
 
     use base64::Engine as _;
     use serde_json::json;
 
     use super::{
-        BASE64URL, CreateOrganization, MINIMUM_PASSWORD_LENGTH, ORGANIZATION_DATABASE_PREFIX,
-        OWNER_PERMISSIONS, OWNER_ROLE, Remote, SHIPPING_KDF, THE_GROUP_IS_NEEDED,
-        create_organization, credential_expiry,
+        A_CONNECTED_MACHINE_CAN_HAND_OUT_A_LINK, BASE64URL, CreateOrganization, GroupState,
+        MINIMUM_PASSWORD_LENGTH, ONLY_THE_OWNER_CONNECTS, ORGANIZATION_CREDENTIAL_LIFETIME,
+        ORGANIZATION_DATABASE_PREFIX, ORGANIZATION_KEY_PURPOSE, ORGANIZATION_THIS_ACCOUNT_HOLDS,
+        OWNER_PERMISSIONS, OWNER_ROLE, Remote, SHIPPING_KDF, THE_GROUP_IS_NEEDED, connect_existing,
+        create_organization, credential_expiry, draw_these_ids_next, group_inspect,
     };
     use crate::{
         error::Error,
         keyring::take_the_credential_store,
         organization::{
             authority::{AdministratorKey, OrganizationKey},
-            invite::USERNAME_RULES,
+            invite::{Invitation, USERNAME_RULES, invite_member, organization_link},
+            join,
             link::JoinLink,
+            permission,
+            session::{self, CredentialSlot, sign_in},
+            store::OrganizationStore,
             vault::{
                 CONTENT_KEY_BYTES, ContentKey, KdfParams, open_content, open_vault,
                 unseal_with_secret_key,
             },
+            workspace::WORKSPACE_CREDENTIAL_LIFETIME,
         },
         persisted::Persisted,
         sync::{
@@ -1922,5 +2316,461 @@ mod tests {
         assert_eq!(SHIPPING_KDF.memory_kib, 256 * 1024);
         assert_eq!(SHIPPING_KDF.iterations, 3);
         assert_eq!(SHIPPING_KDF.lanes, 1);
+    }
+
+    // -------------------------------------------------------------------------------------
+    // Effort 828, requirement 14: the account connects to the organization the group holds.
+    // -------------------------------------------------------------------------------------
+
+    /// The id every fixture below creates its organization under, so a listing can name
+    /// `org-<id>` as a literal and a replica can be found at a known path.
+    const HELD_ID: &str = "7f3a";
+    const HELD_DATABASE: &str = "org-7f3a";
+    const HELD_HOSTNAME: &str = "org-7f3a-an-org.aws-eu-west-1.turso.io";
+    const FOUR_WEEKS_MS: i64 = 28 * 24 * 60 * 60 * 1000;
+    const SIX_DAYS_MS: i64 = 6 * 24 * 60 * 60 * 1000;
+    const ISSUED_AT: i64 = 1_757_000_000_000;
+    const ADMINISTRATORS_PASSWORD: &str = "a password adam chose";
+
+    fn slot() -> CredentialSlot {
+        Arc::new(Mutex::new(None))
+    }
+
+    /// No platform authority in hand, which is what an invitation is issued with here.
+    fn no_platform() -> Option<&'static InMemoryPlatform> {
+        None
+    }
+
+    /// The listing a group holding the organization answers: the database that was there before,
+    /// and ours beside it with the address a replica of it opens at.
+    fn holding_the_organization() -> Vec<ScriptedResponse> {
+        vec![
+            handshake(),
+            listing(json!([
+                {
+                    "Name": "ledger",
+                    "hostname": "ledger-an-org.aws-eu-west-1.turso.io",
+                    "group": "rentable"
+                },
+                {
+                    "Name": HELD_DATABASE,
+                    "hostname": HELD_HOSTNAME,
+                    "group": "rentable"
+                }
+            ])),
+        ]
+    }
+
+    /// An organization on the account, created the ordinary way: the platform it lives on, its
+    /// replica as the owner's machine left it, and that machine's own record.
+    ///
+    /// **A second machine opens the same replica file**, which is what `Remote::none()` makes
+    /// possible: there is no remote to pull from here, so what a consent reaches is what this
+    /// left on disk. It is the same read either way, which is the reason `join.rs` and
+    /// `machine.rs` hand their own replicas in.
+    async fn an_organization(
+        directory: &std::path::Path,
+    ) -> (
+        Arc<InMemoryPlatform>,
+        OrganizationStore,
+        Persisted<RemoteSyncStore>,
+    ) {
+        let mut owners_machine = store(directory);
+        let mcp = ScriptedServer::start(populated_group()).await;
+        let platform = Arc::new(InMemoryPlatform::new("an-org"));
+
+        draw_these_ids_next(&[HELD_ID]);
+
+        let (_, replica) = create_organization(
+            &mut owners_machine,
+            TOKEN,
+            &McpEndpoint::at(&mcp.url("")),
+            |_| Arc::clone(&platform),
+            Remote::none(),
+            &directory.join("app.db"),
+            CreateOrganization {
+                name: "Acme Rentals",
+                username: "olivia.owner",
+                password: PASSWORD,
+                group: None,
+            },
+            test_cost(),
+            ISSUED_AT,
+        )
+        .await
+        .expect("the first run failed");
+
+        (platform, replica, owners_machine)
+    }
+
+    /// A machine that holds nothing, which is what a way in built on the consent starts from.
+    fn fresh_machine(directory: &std::path::Path, name: &str) -> Persisted<RemoteSyncStore> {
+        let machine = Persisted::<RemoteSyncStore>::load(directory.join(format!("{name}.json")))
+            .expect("the store");
+
+        assert!(
+            machine.organization.is_none(),
+            "the machine has prior state"
+        );
+
+        machine
+    }
+
+    /// Every mint the platform was asked for after the first `already` of them.
+    fn minted_since(
+        platform: &InMemoryPlatform,
+        already: usize,
+    ) -> Vec<(String, String, AccessLevel)> {
+        let mut minted = platform.minted();
+
+        minted.split_off(already)
+    }
+
+    /// The owner's grant on the organization database, sealed, as it stands on the replica.
+    async fn owners_grant(replica: &OrganizationStore, verifying_key: &[u8; 32]) -> Vec<u8> {
+        replica
+            .grants(verifying_key)
+            .await
+            .expect("the grants")
+            .into_iter()
+            .find(|grant| grant.workspace_id == HELD_ID)
+            .expect("the owner holds a grant on the organization database")
+            .sealed_credential
+    }
+
+    /// **Criterion 14, the first of its four cases.** The consent meets a group that already
+    /// holds an organization, the owner types their username and password, and this machine ends
+    /// up holding the organization with the owner signed in and every grant renewed.
+    ///
+    /// The name is the one sealed at creation, which nothing on this machine could have known
+    /// before a vault opened; the key it pinned is the one the password re-derived rather than
+    /// the one the row offered, and the two agree here because this is the owner.
+    #[tokio::test]
+    async fn the_owners_password_connects_this_machine_to_the_organization_the_group_holds() {
+        let _turn = take_the_credential_store().await;
+
+        store_platform_token(TOKEN).expect("the test credential store would not take the token");
+
+        let directory = scratch("connect-existing");
+        let (platform, replica, owners_machine) = an_organization(&directory).await;
+        let held_before = owners_machine.organization.clone().expect("the record");
+        let owner = sign_in(&replica, &held_before, PASSWORD, &slot())
+            .await
+            .expect("the owner did not sign in");
+        let grant_before = owners_grant(&replica, &owner.verifying_key).await;
+        let mints_before = platform.minted().len();
+
+        drop(replica);
+
+        let mcp = ScriptedServer::start(holding_the_organization()).await;
+        let mut machine = fresh_machine(&directory, "second-machine");
+        let (held, replica, session) = connect_existing(
+            &mut machine,
+            TOKEN,
+            &McpEndpoint::at(&mcp.url("")),
+            |_| Arc::clone(&platform),
+            Remote::none(),
+            &directory.join("app.db"),
+            "olivia.owner",
+            PASSWORD,
+            ISSUED_AT + 1,
+        )
+        .await
+        .expect("the owner could not connect to their own organization");
+
+        // the machine holds it, under the name only an open vault could have read, at the address
+        // the listing gave, and the record on disk says the same.
+        assert_eq!(held.id, HELD_ID);
+        assert_eq!(held.name, "Acme Rentals");
+        assert_eq!(held.remote_url, format!("libsql://{HELD_HOSTNAME}"));
+        assert_eq!(held.member_id.as_deref(), Some(session.member_id.as_str()));
+        assert_eq!(held.role.as_deref(), Some(OWNER_ROLE));
+        assert!(!held.machine_id.is_empty(), "the machine drew no id");
+        assert_eq!(machine.organization.as_ref(), Some(&held));
+
+        // the owner is signed in, and what the machine pinned is what their password derived.
+        assert_eq!(session.role, OWNER_ROLE);
+        assert_eq!(
+            held.verifying_key,
+            BASE64URL.encode(
+                OrganizationKey::from_bytes(
+                    &session
+                        .secret
+                        .derive_seed(ORGANIZATION_KEY_PURPOSE)
+                        .expect("the seed")
+                )
+                .verifying_key()
+            )
+        );
+
+        // the machine is in the registry, named against the member who is on it.
+        let registered = replica
+            .connected_machines(&session.verifying_key, ISSUED_AT + 1)
+            .await
+            .expect("the registry");
+
+        assert_eq!(registered.len(), 1);
+        assert_eq!(registered[0].0.id, held.machine_id);
+        assert_eq!(
+            registered[0].1.as_ref().map(|member| member.role.as_str()),
+            Some(OWNER_ROLE)
+        );
+
+        // **every grant is fresh.** Two mints since the consent: the full-access four-week
+        // credential this connect minted for itself, and the renewal's, which re-sealed the
+        // owner's grant to them. The in-memory platform's tokens carry no claims, so the lifetime
+        // a grant is good for is what Turso was asked for, and both asked for four weeks.
+        assert_eq!(
+            minted_since(&platform, mints_before),
+            vec![
+                (
+                    HELD_DATABASE.to_string(),
+                    ORGANIZATION_CREDENTIAL_LIFETIME.to_string(),
+                    AccessLevel::FullAccess
+                ),
+                (
+                    HELD_DATABASE.to_string(),
+                    WORKSPACE_CREDENTIAL_LIFETIME.to_string(),
+                    AccessLevel::FullAccess
+                ),
+            ],
+            "the connect minted its own credential and the renewal did not run"
+        );
+        assert_eq!(ORGANIZATION_CREDENTIAL_LIFETIME, "4w");
+        assert_eq!(WORKSPACE_CREDENTIAL_LIFETIME, "4w");
+        assert_ne!(
+            owners_grant(&replica, &session.verifying_key).await,
+            grant_before,
+            "the owner's grant was not re-sealed"
+        );
+    }
+
+    /// **The second case.** An administrator's password opens an administrator's vault, and the
+    /// key that vault derives is not the organization's, so the connect is refused by name and
+    /// the machine is left holding nothing.
+    ///
+    /// This is the whole of what makes the way in the owner's: nothing here reads a role off a
+    /// row and believes it.
+    #[tokio::test]
+    async fn an_administrators_password_is_refused_and_the_machine_holds_nothing() {
+        let _turn = take_the_credential_store().await;
+
+        store_platform_token(TOKEN).expect("the test credential store would not take the token");
+
+        let directory = scratch("connect-existing-administrator");
+        let (platform, replica, owners_machine) = an_organization(&directory).await;
+        let owner = sign_in(
+            &replica,
+            &owners_machine.organization.clone().expect("the record"),
+            PASSWORD,
+            &slot(),
+        )
+        .await
+        .expect("the owner did not sign in");
+        let locator = organization_link(&replica, &owner)
+            .await
+            .expect("the organization's link");
+        let invited = invite_member(
+            &replica,
+            &owner,
+            no_platform(),
+            &locator,
+            Invitation {
+                username: "adam.admin",
+                role: permission::ADMINISTRATOR,
+                workspaces: &[],
+            },
+            test_cost(),
+            ISSUED_AT,
+        )
+        .await
+        .expect("the invitation failed");
+        let theirs = directory.join("adam");
+
+        std::fs::create_dir_all(&theirs).expect("the administrator's directory");
+
+        let mut their_machine = fresh_machine(&theirs, "remote-sync");
+
+        join::accept(
+            |_| async { Ok::<_, Error>(&replica) },
+            &mut their_machine,
+            &JoinLink::decode(&invited.join_link).expect("the invitation link"),
+            &invited.code,
+            ADMINISTRATORS_PASSWORD,
+            test_cost(),
+            ISSUED_AT + 1,
+        )
+        .await
+        .expect("the administrator could not open their link");
+
+        drop(replica);
+
+        // long enough after that the administrator's own machine has dropped out of the presence
+        // window, so what refuses below is the key and not the gate in front of it.
+        let now = ISSUED_AT + 2 * FOUR_WEEKS_MS;
+        let mcp = ScriptedServer::start(holding_the_organization()).await;
+        let mut machine = fresh_machine(&directory, "second-machine");
+        let refused = connect_existing(
+            &mut machine,
+            TOKEN,
+            &McpEndpoint::at(&mcp.url("")),
+            |_| Arc::clone(&platform),
+            Remote::none(),
+            &directory.join("app.db"),
+            "adam.admin",
+            ADMINISTRATORS_PASSWORD,
+            now,
+        )
+        .await
+        .expect_err("an administrator connected on the owner's account");
+
+        assert!(
+            matches!(refused, Error::Forbidden { ref message } if message == ONLY_THE_OWNER_CONNECTS),
+            "{refused:?}"
+        );
+        assert!(
+            machine.organization.is_none(),
+            "a refused connect left an organization on the machine"
+        );
+    }
+
+    /// **The third case.** While a machine an owner or an administrator is on was seen inside the
+    /// presence window, that machine can hand out a link, so this way in is shut: the refusal says
+    /// so and the consent is let go of, which is the signal the walk reads to return to the
+    /// consent, exactly as effort 826's requirement 21 leaves it.
+    #[tokio::test]
+    async fn a_machine_seen_six_days_ago_shuts_the_way_in_and_the_consent_is_let_go_of() {
+        let _turn = take_the_credential_store().await;
+
+        store_platform_token(TOKEN).expect("the test credential store would not take the token");
+
+        let directory = scratch("connect-existing-in-use");
+        let (platform, replica, owners_machine) = an_organization(&directory).await;
+        let held = owners_machine.organization.clone().expect("the record");
+        let owner = sign_in(&replica, &held, PASSWORD, &slot())
+            .await
+            .expect("the owner did not sign in");
+        let now = ISSUED_AT + 2 * FOUR_WEEKS_MS;
+
+        // the owner's own machine, last heard from six days ago: inside the window, so it counts.
+        session::machine_seen(&replica, &held, Some(&owner.member_id), now - SIX_DAYS_MS).await;
+
+        drop(replica);
+
+        let mcp = ScriptedServer::start(holding_the_organization()).await;
+        let mut machine = fresh_machine(&directory, "second-machine");
+        let refused = connect_existing(
+            &mut machine,
+            TOKEN,
+            &McpEndpoint::at(&mcp.url("")),
+            |_| Arc::clone(&platform),
+            Remote::none(),
+            &directory.join("app.db"),
+            "olivia.owner",
+            PASSWORD,
+            now,
+        )
+        .await
+        .expect_err("the way in was open while a machine was in use");
+
+        assert!(
+            matches!(refused, Error::PreconditionFailed { ref message }
+                if message == A_CONNECTED_MACHINE_CAN_HAND_OUT_A_LINK),
+            "{refused:?}"
+        );
+        assert!(machine.organization.is_none());
+
+        // and the authority is gone, which is what the walk reads to go back to the consent.
+        assert!(
+            platform_token().is_err(),
+            "the refusal kept the consent's token"
+        );
+        assert!(
+            machine.turso_organization.is_none(),
+            "the refusal kept the account the consent was over"
+        );
+    }
+
+    /// **The fourth case.** A wrong password and a username nobody holds are one refusal, and it
+    /// is the wall's own sentence: nothing here says which of the two it was, or whether the
+    /// username is in the organization at all.
+    #[tokio::test]
+    async fn a_wrong_username_or_password_meets_the_walls_one_sentence() {
+        let _turn = take_the_credential_store().await;
+
+        store_platform_token(TOKEN).expect("the test credential store would not take the token");
+
+        let directory = scratch("connect-existing-refused");
+        let (platform, replica, _) = an_organization(&directory).await;
+
+        drop(replica);
+
+        for (machine_name, username, password) in [
+            ("wrong-password", "olivia.owner", "not the owners password"),
+            ("wrong-username", "nobody.here", PASSWORD),
+        ] {
+            let mcp = ScriptedServer::start(holding_the_organization()).await;
+            let mut machine = fresh_machine(&directory, machine_name);
+            let refused = connect_existing(
+                &mut machine,
+                TOKEN,
+                &McpEndpoint::at(&mcp.url("")),
+                |_| Arc::clone(&platform),
+                Remote::none(),
+                &directory.join("app.db"),
+                username,
+                password,
+                ISSUED_AT + 1,
+            )
+            .await
+            .expect_err("a pair that opens nothing connected");
+
+            assert_eq!(
+                refused.to_string(),
+                session::refused_by_name(ORGANIZATION_THIS_ACCOUNT_HOLDS).to_string(),
+                "{machine_name}"
+            );
+            assert!(machine.organization.is_none(), "{machine_name}");
+        }
+
+        // and the consent is untouched by either, so the person retypes where they are.
+        assert!(platform_token().is_ok());
+    }
+
+    /// The inspect is what the walk branches on: a group holding an organization of ours is said
+    /// to hold one, by its id, and a group holding anything else is empty as far as this is
+    /// concerned and creates as it always did.
+    #[tokio::test]
+    async fn the_inspect_says_whether_the_group_already_holds_an_organization() {
+        let held = ScriptedServer::start(holding_the_organization()).await;
+
+        assert_eq!(
+            group_inspect(TOKEN, &McpEndpoint::at(&held.url("")))
+                .await
+                .expect("the inspect failed"),
+            GroupState::Held {
+                organization_id: HELD_ID.to_string()
+            }
+        );
+
+        // somebody else's databases in the same group are not ours, and the walk creates.
+        let other = ScriptedServer::start(populated_group()).await;
+
+        assert_eq!(
+            group_inspect(TOKEN, &McpEndpoint::at(&other.url("")))
+                .await
+                .expect("the inspect failed"),
+            GroupState::Empty
+        );
+
+        // and a group holding nothing at all is the ordinary first run.
+        let empty = ScriptedServer::start(vec![handshake(), listing(json!([]))]).await;
+
+        assert_eq!(
+            group_inspect(TOKEN, &McpEndpoint::at(&empty.url("")))
+                .await
+                .expect("the inspect failed"),
+            GroupState::Empty
+        );
     }
 }

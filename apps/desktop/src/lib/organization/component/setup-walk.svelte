@@ -26,8 +26,8 @@
 	import {
 		ORGANIZATION_NAME_LIMIT,
 		PASSWORD_FLOOR,
-		SETUP_STEPS,
 		SETUP_WALK,
+		stepsOf,
 		type SetupField,
 		type SetupStatement,
 		type SetupStep
@@ -43,7 +43,14 @@
 	 * **Three steps and four fields.** Connecting the Turso account, which is a consent in the
 	 * browser and nothing typed here; naming the organization, the owner's own username and their
 	 * password; and naming the first workspace, which is where the walk ends: creating it signs
-	 * the owner in to it and the application opens on it. There is no step showing the join link,
+	 * the owner in to it and the application opens on it.
+	 *
+	 * **And a second way out of the first step, which is two steps long.** An account that already
+	 * holds an organization is connected to rather than refused (effort 828, requirement 14), so
+	 * the consent leads either to naming one or to the `existing` step, where its owner signs in
+	 * and this machine joins what is there. The step says one sentence, asks for the username and
+	 * the password, and marks the password when the pair opens nothing; the position line counts
+	 * over whichever of the two ways the step belongs to, which is what `stepsOf` answers. There is no step showing the join link,
 	 * because the link lives on the organization page and a screen asking a person to continue
 	 * past it was one screen too many. `../setup.ts` describes the walk as data and this component
 	 * draws each step from that description, which is what lets a `node:test` assert over the
@@ -98,6 +105,7 @@
 		refusal,
 		askGroup = false,
 		groupDetail = null,
+		existingRefusal = null,
 		holdsTursoAuthority,
 		isConnecting,
 		isCreating,
@@ -107,6 +115,7 @@
 		onContinue,
 		onBack,
 		onCreate,
+		onConnectExisting,
 		onCreateWorkspace
 	}: {
 		step: SetupStep;
@@ -135,6 +144,13 @@
 		 * else. `null` on every run nothing was refused on.
 		 */
 		groupDetail?: string | null;
+		/**
+		 * why the last attempt to connect to the organization the account holds was refused, shown
+		 * on the `existing` step against the password field. `null` before anything was tried and
+		 * after a refusal the walk answered by going back to the consent, which carries its
+		 * sentence as `refusal` instead.
+		 */
+		existingRefusal?: string | null;
 		/** whether the machine already holds the authority a consent would grant. */
 		holdsTursoAuthority: boolean;
 		/** the consent is being opened. */
@@ -155,6 +171,8 @@
 			password: string,
 			group: string | null
 		) => Promise<void>;
+		/** the owner signing in to the organization the account already holds. */
+		onConnectExisting: (username: string, password: string) => Promise<void>;
 		onCreateWorkspace: (name: string) => Promise<void>;
 	} = $props();
 
@@ -165,6 +183,7 @@
 	const title = $derived(
 		{
 			connect: $LL.organization.setup.connectTitle(),
+			existing: $LL.organization.setup.existingTitle(),
 			name: $LL.organization.setup.nameTitle(),
 			workspace: $LL.organization.setup.workspaceTitle()
 		}[step]
@@ -173,18 +192,25 @@
 	const subtitle = $derived(
 		{
 			connect: $LL.organization.setup.connectDescription(),
+			existing: $LL.organization.setup.existingDescription(),
 			name: $LL.organization.setup.nameDescription(),
 			workspace: $LL.organization.setup.workspaceDescription()
 		}[step]
 	);
 
-	/** where the person is, counted from one, over how many steps there are. */
-	const position = $derived(
-		$LL.organization.setup.position({
-			step: SETUP_STEPS.indexOf(step) + 1,
-			total: SETUP_STEPS.length
-		})
-	);
+	/**
+	 * where the person is, counted from one, over how many steps the way they are on has. The
+	 * consent cannot know which way that is until it has answered, so it counts over the walk that
+	 * creates; the step after it counts over its own.
+	 */
+	const position = $derived.by(() => {
+		const steps = stepsOf(step);
+
+		return $LL.organization.setup.position({
+			step: steps.indexOf(step) + 1,
+			total: steps.length
+		});
+	});
 
 	/**
 	 * Each fact with its own glyph, in the order the person needs them: how far the consent
@@ -317,6 +343,42 @@
 
 	const superform = { form, constraints, errors, enhance, ...rest };
 
+	// the owner's own pair, on the step that connects to what the account already holds. A form of
+	// its own rather than the create's two fields reused: nothing here is refused on a floor, since
+	// the password being asked for already exists and a rule this screen invented would refuse a
+	// password the organization accepts.
+	const ExistingSchema = z.object({
+		username: z.string().trim().min(1),
+		password: z.string().min(1)
+	});
+
+	type ExistingForm = z.infer<typeof ExistingSchema>;
+
+	let {
+		form: existingForm,
+		constraints: existingConstraints,
+		errors: existingErrors,
+		enhance: existingEnhance,
+		...existingRest
+	} = superForm<ExistingForm>(defaults(zod4(ExistingSchema)), {
+		id: 'setup-existing',
+		SPA: true,
+		validators: zod4(ExistingSchema),
+		onUpdate: async ({ form }) => {
+			if (!form.valid) return;
+
+			await onConnectExisting(form.data.username.trim(), form.data.password);
+		}
+	});
+
+	const existingSuperform = {
+		form: existingForm,
+		constraints: existingConstraints,
+		errors: existingErrors,
+		enhance: existingEnhance,
+		...existingRest
+	};
+
 	// the third step's form is the shared workspace definition: the schema every surface that
 	// names a workspace reads, and the fields drawn from it, so a name refused here is refused on
 	// the no-workspace surface and in the new-workspace dialog with the same sentence. This
@@ -357,7 +419,9 @@
 		isCreating
 			? step === 'workspace'
 				? $LL.layout.noWorkspace.creating()
-				: $LL.organization.setup.creating()
+				: step === 'existing'
+					? $LL.organization.setup.existingConnecting()
+					: $LL.organization.setup.creating()
 			: consent.status === 'pending'
 				? $LL.organization.setup.connecting()
 				: null
@@ -415,9 +479,12 @@
 
 			<div class="space-y-2">
 				{#if granted}
-					<Button class="w-full justify-center" onclick={onContinue}>
+					<!-- the way on asks the account what it already holds before it decides which step
+					     follows, which is a round trip: disabled while it is in flight, and saying so,
+					     because a second press would ask again. -->
+					<Button class="w-full justify-center" onclick={onContinue} disabled={isBusy}>
 						<ArrowRightIcon class="size-4 rtl:rotate-180" />
-						{$LL.organization.setup.continue()}
+						{isConnecting ? $LL.common.actions.working() : $LL.organization.setup.continue()}
 					</Button>
 					<!-- the way to give the authority back: outline beside the primary, its verb's glyph
 					     before one word, and the callout above already says what is connected. -->
@@ -432,6 +499,68 @@
 					</Button>
 				{/if}
 			</div>
+		{:else if step === 'existing'}
+			<!-- the owner's own pair, and nothing else. The sentence above the card already said
+			     whose account this is and who signs in here, so the fields carry their subject's
+			     glyph and no description: this is a sign-in, and the person typing already knows
+			     what they are typing. A pair that opens nothing marks the password and says so
+			     under it, which is where a reader looks after pressing. -->
+			<form
+				method="POST"
+				use:existingEnhance
+				class="space-y-4"
+				data-setup-fields="username,password"
+			>
+				<Form.Field form={existingSuperform} name="username" class="group relative">
+					<Form.Control>
+						<Form.Label>{$LL.organization.setup.usernameLabel()}</Form.Label>
+						<InputGroup.Root data-disabled={isCreating || undefined}>
+							<InputGroup.Addon>
+								<UserIcon />
+							</InputGroup.Addon>
+							<InputGroup.Input
+								name="username"
+								bind:value={$existingForm.username}
+								placeholder={$LL.organization.setup.usernameLabel()}
+								autocomplete="username"
+								disabled={isCreating}
+								aria-invalid={$existingErrors.username ? 'true' : undefined}
+								{...$existingConstraints.username}
+							/>
+						</InputGroup.Root>
+					</Form.Control>
+					<FieldError />
+				</Form.Field>
+
+				<Form.Field form={existingSuperform} name="password" class="group relative">
+					<Form.Control>
+						<Form.Label>{$LL.organization.setup.passwordLabel()}</Form.Label>
+						<InputGroup.Root data-disabled={isCreating || undefined}>
+							<InputGroup.Addon>
+								<KeyRoundIcon />
+							</InputGroup.Addon>
+							<InputGroup.Input
+								name="password"
+								type="password"
+								bind:value={$existingForm.password}
+								autocomplete="current-password"
+								disabled={isCreating}
+								aria-invalid={$existingErrors.password || existingRefusal ? 'true' : undefined}
+								{...$existingConstraints.password}
+							/>
+						</InputGroup.Root>
+					</Form.Control>
+					<FieldError />
+					{#if existingRefusal}
+						<p class="text-sm text-destructive" data-setup-existing-refusal>{existingRefusal}</p>
+					{/if}
+				</Form.Field>
+
+				<Button type="submit" class="w-full justify-center" disabled={isCreating}>
+					<PlugIcon class="size-4" />
+					{isCreating ? $LL.common.actions.working() : $LL.organization.setup.existingConnect()}
+				</Button>
+			</form>
 		{:else if step === 'name'}
 			<!-- the three fields, and they are the three the walk description names. A fourth would
 			     render here only if it were added to `SETUP_WALK`, which is what the test reads,

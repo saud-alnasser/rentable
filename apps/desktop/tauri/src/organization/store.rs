@@ -742,8 +742,33 @@ impl OrganizationStore {
         &self,
         organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
     ) -> Result<Vec<(String, MemberRecord)>, Error> {
-        self.signed_members_where(organization_verifying_key, None)
+        self.signed_members_where(Some(organization_verifying_key), None)
             .await
+    }
+
+    /// Every member, with no signature checked: the one read in this module that trusts nothing
+    /// and verifies nothing.
+    ///
+    /// **It exists for one caller and has one**: `setup::connect_existing`, where a machine
+    /// connecting to an organization the owner's Turso group already holds meets the rows before
+    /// it holds any key to judge them by. The key that judges them is the one the owner's password
+    /// re-derives, and the password cannot be tried against a vault that has not been read, so
+    /// that one path has to read first and verify afterwards. Everything it does with what comes
+    /// back is finding a vault the password opens; the key that vault yields is compared with the
+    /// organization row's and every member row is then read again through
+    /// [`OrganizationStore::members`], so nothing from here reaches a session.
+    ///
+    /// **A second caller is a defect**, and a test in this module reads the source tree and fails
+    /// where one appears. Anything else asking the database who its members are and believing the
+    /// answer is asking the database to vouch for itself, which is the one thing `authority.rs`
+    /// refuses.
+    pub async fn members_unverified(&self) -> Result<Vec<MemberRecord>, Error> {
+        Ok(self
+            .signed_members_where(None, None)
+            .await?
+            .into_iter()
+            .map(|(_, member)| member)
+            .collect())
     }
 
     /// One member's row, verified on its own, or `None` where no row carries that id.
@@ -757,21 +782,32 @@ impl OrganizationStore {
         member_id: &str,
     ) -> Result<Option<MemberRecord>, Error> {
         Ok(self
-            .signed_members_where(organization_verifying_key, Some(member_id))
+            .signed_members_where(Some(organization_verifying_key), Some(member_id))
             .await?
             .into_iter()
             .map(|(_, member)| member)
             .next())
     }
 
-    /// The member read behind [`OrganizationStore::signed_members`] and
-    /// [`OrganizationStore::member`]: every row, or the one row named, each verified.
+    /// The member read behind [`OrganizationStore::signed_members`],
+    /// [`OrganizationStore::member`] and [`OrganizationStore::members_unverified`]: every row, or
+    /// the one row named.
+    ///
+    /// **`organization_verifying_key` is `None` for the unverified read and for nothing else.**
+    /// Where it is `Some`, every row is checked against the chain before it is returned and a row
+    /// that does not check refuses the whole read by name; where it is `None`, the certificates
+    /// are not even fetched, because a caller that is not going to judge the rows has no use for
+    /// the authorities behind them. [`OrganizationStore::members_unverified`] says which caller
+    /// that is and why it is alone.
     async fn signed_members_where(
         &self,
-        organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
+        organization_verifying_key: Option<&[u8; VERIFYING_KEY_BYTES]>,
         member_id: Option<&str>,
     ) -> Result<Vec<(String, MemberRecord)>, Error> {
-        let certificates = self.certificates().await?;
+        let certificates = match organization_verifying_key {
+            Some(_) => self.certificates().await?,
+            None => Vec::new(),
+        };
         let (filter, params) = match member_id {
             Some(id) => (
                 " WHERE \"id\" = ?",
@@ -803,20 +839,22 @@ impl OrganizationStore {
             let certificate_id = text(&row, 11)?;
             let signature = blob(&row, 12)?;
 
-            verified(
-                organization_verifying_key,
-                &certificates,
-                "member",
-                &id,
-                &certificate_id,
-                Authority::Member(MemberAuthority {
-                    public_key: &public_key,
-                    signing_public_key: &signing_public_key,
-                    role: &role,
-                    permissions,
-                }),
-                &signature,
-            )?;
+            if let Some(organization_verifying_key) = organization_verifying_key {
+                verified(
+                    organization_verifying_key,
+                    &certificates,
+                    "member",
+                    &id,
+                    &certificate_id,
+                    Authority::Member(MemberAuthority {
+                        public_key: &public_key,
+                        signing_public_key: &signing_public_key,
+                        role: &role,
+                        permissions,
+                    }),
+                    &signature,
+                )?;
+            }
 
             members.push((
                 certificate_id,
@@ -2983,5 +3021,60 @@ mod tests {
             .expect("the live delete failed, and the database is left behind");
 
         eprintln!("removed {name}");
+    }
+
+    /// **The unverified member read has one caller, and this is what says so.**
+    ///
+    /// [`OrganizationStore::members_unverified`] exists for `setup::connect_existing`, where a
+    /// machine meets the rows before it holds a key to judge them by, and its docstring says why
+    /// that one path has to read first and verify afterwards. Every other reader of the member
+    /// table asks the chain. A second caller would be somebody asking the database to vouch for
+    /// itself, which is not something a reviewer can see by reading one file, so the source tree
+    /// is read here instead.
+    #[test]
+    fn the_unverified_member_read_has_one_caller() {
+        fn rust_files(directory: &std::path::Path, into: &mut Vec<PathBuf>) {
+            for entry in std::fs::read_dir(directory).expect("the source directory") {
+                let path = entry.expect("a source entry").path();
+
+                if path.is_dir() {
+                    rust_files(&path, into);
+                } else if path.extension().is_some_and(|extension| extension == "rs") {
+                    into.push(path);
+                }
+            }
+        }
+
+        let source = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut files = Vec::new();
+
+        rust_files(&source, &mut files);
+        files.sort();
+
+        let mut callers = Vec::new();
+
+        for file in &files {
+            // the module that defines it names it in its own docstrings and in this test.
+            if file.ends_with("organization/store.rs") || file.ends_with("organization\\store.rs") {
+                continue;
+            }
+
+            let text = std::fs::read_to_string(file).expect("a source file");
+
+            for _ in 0..text.matches("members_unverified(").count() {
+                callers.push(
+                    file.strip_prefix(&source)
+                        .expect("a path under src")
+                        .to_string_lossy()
+                        .replace('\\', "/"),
+                );
+            }
+        }
+
+        assert_eq!(
+            callers,
+            vec!["organization/setup.rs".to_string()],
+            "the unverified member read is meant to have exactly one caller"
+        );
     }
 }
