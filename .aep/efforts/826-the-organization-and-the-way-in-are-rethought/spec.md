@@ -153,7 +153,12 @@ rail's two menus open. Every concept has one name.
     password, unlock, and at the foot disconnect and a way to the connect screen for a
     person holding a link, since a reset link is opened by somebody whose machine already
     holds the organization. Otherwise unchanged from 824's requirement 7. It is reached after
-    a sign-out or on a machine connected by the organization link.
+    a sign-out or on a machine connected by the organization link. *Corrected 2026-09-15, on
+    the human's first run: the organization's name is the card's title with "sign in to
+    continue" beneath it, the fields are username and password and the primary is sign in;
+    the link and the disconnect sit behind one quiet "trouble signing in?" disclosure at the
+    foot, so neither competes with the form and both stay reachable for a person who cannot
+    sign in; and signing out lands on the wall from any address, `/settings` included.*
 12. **A signed-in machine stays signed in.** After a sign-in the machine keeps what it needs
     to open the member's vault, and the next launch opens straight into the last workspace
     under the loading surface. Signing out forgets it and shows the wall. The password is
@@ -311,7 +316,10 @@ third wave. Each is a decision, made in one picker round the same day; the plan 
 10. The connect screen accepts an organization link and lands on the wall, and accepts an
     invitation link and lands on the choose-password step, from one field. Asserted in its
     test with both link kinds.
-11. `startup-sign-in.svelte.test.ts` from 824 passes unchanged for the locked wall.
+11. `startup-sign-in.svelte.test.ts` from 824 passes unchanged for the locked wall. *Corrected
+    2026-09-15 with requirement 11: the test asserts the redesigned card (the title, the
+    subtitle, the disclosure closed by default and its two rows) in both locales, and
+    `shell-surface.test.ts` asserts where a sign-out lands.*
 12. With a remembered session, `startup.start()` reaches `ready` with the last workspace open
     and never shows `sign-in`; after `signOut()` the next `start()` shows `sign-in` as
     `locked`; nothing under the data directory or the machine record holds a password or a
