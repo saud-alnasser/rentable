@@ -126,7 +126,7 @@ Start at [[protocol]].
 | 812-the-desktop-declares-what-it-uses | implemented | [[efforts/812-the-desktop-declares-what-it-uses/spec]] | 0 | 0 | 1 |
 | 819-an-organization-hosts-its-own-workspaces | implemented | [[efforts/819-an-organization-hosts-its-own-workspaces/spec]] | 1 | 1 | 28 |
 | 824-the-way-in-and-the-workspace-control-are-redesigned | implemented | [[efforts/824-the-way-in-and-the-workspace-control-are-redesigned/spec]] | 0 | 0 | 17 |
-| 826-the-organization-and-the-way-in-are-rethought | accepted | [[efforts/826-the-organization-and-the-way-in-are-rethought/spec]] | 2 | 1 | 22 |
+| 826-the-organization-and-the-way-in-are-rethought | implemented | [[efforts/826-the-organization-and-the-way-in-are-rethought/spec]] | 2 | 1 | 22 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -224,7 +224,7 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/826-the-organization-and-the-way-in-are-rethought/tickets/02-the-credential-store-is-one-module]] refactor(sync): the credential store is one module | 826-the-organization-and-the-way-in-are-rethought | resolved | — |
 | [[efforts/826-the-organization-and-the-way-in-are-rethought/tickets/03-an-invitation-is-one-link]] feat(organization): an invitation is one link | 826-the-organization-and-the-way-in-are-rethought | resolved | 01 |
 | [[efforts/826-the-organization-and-the-way-in-are-rethought/tickets/04-a-members-role-and-workspaces-change-from-their-row]] feat(organization): a member's role, permissions and workspaces change from their row | 826-the-organization-and-the-way-in-are-rethought | resolved | 01, 03 |
-| [[efforts/826-the-organization-and-the-way-in-are-rethought/tickets/05-a-signed-in-machine-stays-signed-in]] feat(organization): a signed-in machine stays signed in | 826-the-organization-and-the-way-in-are-rethought | open | 02, 03 |
+| [[efforts/826-the-organization-and-the-way-in-are-rethought/tickets/05-a-signed-in-machine-stays-signed-in]] feat(organization): a signed-in machine stays signed in | 826-the-organization-and-the-way-in-are-rethought | resolved | 02, 03 |
 | [[efforts/826-the-organization-and-the-way-in-are-rethought/tickets/06-the-connect-screen-takes-either-link]] feat(organization): the connect screen takes either link, and the wall points at it | 826-the-organization-and-the-way-in-are-rethought | resolved | 03, 05 |
 | [[efforts/826-the-organization-and-the-way-in-are-rethought/tickets/07-the-walk-says-what-the-consent-covers]] feat(organization): the walk says what the consent covers | 826-the-organization-and-the-way-in-are-rethought | resolved | — |
 | [[efforts/826-the-organization-and-the-way-in-are-rethought/tickets/08-the-settings-area-is-seen-on-screen-before-it-is-built]] spike(design): the settings area is seen on screen before it is built | 826-the-organization-and-the-way-in-are-rethought | resolved | — |

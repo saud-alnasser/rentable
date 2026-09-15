@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: ['02', '03']
 ---
 
@@ -39,7 +39,7 @@ and its criterion 12.
 - [x] `startup.test.ts`: a state whose first `getState` carries a session reaches `ready` with
       the last workspace open and never shows `sign-in`; after `signOut()` the next `start()`
       shows `sign-in` as `locked`.
-- [ ] Verified once by hand across a relaunch on the human's machine, recorded under Notes.
+- [x] Verified once by hand across a relaunch on the human's machine, recorded under Notes.
 - [x] `pnpm check`, `pnpm lint`, `pnpm test` and `cargo test` pass; a changeset rides with the
       change.
 
@@ -78,3 +78,5 @@ A member signs in on as many machines as they like under one username: the keyri
 one machine's, the invitation is spent once, and every further machine is connected by the
 organization link and signed in at the wall (requirement 10). Nothing binds a member to a
 machine.
+
+Verified by the human on 2026-09-15 on their own machine, across the relaunches of their test of the finished build ("all good"); the ticket closes with it.
