@@ -16,27 +16,31 @@
 	import PlugIcon from '@lucide/svelte/icons/plug';
 
 	/**
-	 * The connect screen: either link, read and recorded, and what each of the two leads to.
+	 * The connect screen: any of the three links, read from its own text, and what each leads to.
 	 *
 	 * **One screen for both ways a link arrives.** The operating system hands a `rentable://` link
 	 * to the running application and the screen opens with it already being read; a person whose
 	 * platform did not hand it over pastes it into the field. The field is one field and it takes
-	 * both kinds of link (effort 826, requirement 10): which kind it is, is read from the link
+	 * every kind of link (effort 826, requirement 10): which kind it is, is read from the link
 	 * rather than asked.
 	 *
-	 * **An organization link ends this screen and an invitation link finishes on it.** The first
-	 * names the organization and admits nobody, so the machine records it and the person stands at
-	 * the wall, which is the shell's and not drawn here. The second carries the half that opens one
-	 * member's vault, so the screen names the organization and the person, takes the password they
-	 * are choosing, and the accept signs them in. *A link carried no invitation half between effort
-	 * 824 and this one, and this screen asked for no password.*
+	 * **Each kind ends somewhere else.** An organization link names the organization and admits
+	 * nobody, so the machine records it and the person stands at the wall, which is the shell's and
+	 * not drawn here. An invitation link carries the half that opens one member's vault, so the
+	 * screen names the organization, takes the code and the password they are choosing, and the
+	 * accept signs them in. A second machine's link carries no password, because its member already
+	 * has one, so the screen asks for the code alone and the wall follows (effort 828, requirement
+	 * 3). *A link carried no invitation half between effort 824 and effort 826, and this screen
+	 * asked for no password.*
 	 *
-	 * **A link that admits nobody is refused by name, on a machine that is already connected.** A
-	 * lapsed or a revoked invitation says to ask whoever invited for a new link, which is Rust's
-	 * own sentence; a link for another organization says to disconnect first. A link already opened
-	 * is the ordinary way a person sets up a second machine, since a member signs in on as many
-	 * machines as they like and the invitation is spent on the first: it says so and offers the
-	 * wall, where the password they chose is what admits them.
+	 * **The code comes before anything is reached, so a refusal arrives after it.** Nothing looks at
+	 * the row behind a link until the code has unsealed what reaches the organization, which is why
+	 * a lapsed, consumed, revoked or replaced link is named here rather than on the read. Each says
+	 * its own sentence: a lapsed or a revoked invitation says to ask whoever invited for a new link;
+	 * a replaced machine link says to make another from the you section; a link for another
+	 * organization says to disconnect first. A link already opened is the ordinary way a person sets
+	 * up a second machine, since a member signs in on as many machines as they like and the link is
+	 * spent on the first: it says so and offers the wall, where the password they chose admits them.
 	 *
 	 * **Every step can be left from the card's corner, and only from there.** The surface's
 	 * `corner` slot is where a reader looks for the way past a screen, and the one control in it
@@ -63,12 +67,14 @@
 		onBack
 	}: {
 		step: JoinStep;
-		/** a link to read and record; the route runs the inspect and the connect on it. */
+		/** a link to read; the route runs the read, and the connect where the link is the one it fits. */
 		onConnect: (link: string) => void;
 		/**
-		 * the code the issuer read out and the password chosen on an invitation that stands; the
-		 * route runs the accept, which opens the vault with the link's secret and the code
-		 * together (effort 826, requirement 23).
+		 * the code the person was given, and the password they are choosing where the link asks for
+		 * one. The route runs whichever act the link's kind named, and each opens what the link
+		 * seals with the link's secret and the code together (effort 826, requirement 23; effort
+		 * 828, requirement 1). A second machine's link chooses no password and hands over an empty
+		 * one, because its member already has one and the wall is where they use it.
 		 */
 		onJoin: (link: string, code: string, password: string) => void;
 		/** the wall, offered on a link that was already opened: the machine is connected. */
@@ -82,16 +88,17 @@
 	let password = $state('');
 	let confirmation = $state('');
 
-	const isJoining = $derived(step.kind === 'password' && step.isJoining);
-	const busy = $derived(step.kind === 'inspecting' || isJoining);
+	// the two steps that take a code are held the same way while their act is out: the invitation
+	// chooses a password beside the code and the machine link does not, and neither moves until an
+	// answer lands.
+	const isJoining = $derived((step.kind === 'password' || step.kind === 'code') && step.isJoining);
+	const busy = $derived(step.kind === 'reading' || isJoining);
 	const canConnect = $derived(pasted.trim().length > 0 && !busy);
 	const tooShort = $derived(password.length > 0 && password.length < PASSWORD_FLOOR);
 	const mismatch = $derived(confirmation.length > 0 && confirmation !== password);
+	const hasCode = $derived(code.length === CODE_LENGTH && !isJoining);
 	const canJoin = $derived(
-		code.length === CODE_LENGTH &&
-			password.length >= PASSWORD_FLOOR &&
-			confirmation === password &&
-			!isJoining
+		hasCode && password.length >= PASSWORD_FLOOR && confirmation === password
 	);
 
 	// the code as the person types it: upper-cased, and the spaces and hyphens somebody reading
@@ -104,10 +111,10 @@
 	// the way a refused link keeps its detail, because the rare other thing a `forbidden` means
 	// here is a standing that changed while the person was typing.
 	const codeRefusal = $derived.by(() => {
-		if (step.kind !== 'password' || !step.codeRefusal) return null;
+		if ((step.kind !== 'password' && step.kind !== 'code') || !step.codeRefusal) return null;
 
-		return step.codeRefusal === 'lapsed'
-			? $LL.organization.join.codeLapsed()
+		return step.codeRefusal === 'missing'
+			? $LL.organization.join.codeMissing()
 			: $LL.organization.join.codeWrong();
 	});
 
@@ -124,21 +131,82 @@
 				return $LL.organization.join.consumed();
 			case 'revoked':
 				return $LL.organization.join.revoked();
+			case 'replaced':
+				return $LL.organization.join.replaced();
 			default:
 				return $LL.organization.join.anotherOrganization();
 		}
 	});
 
-	const title = $derived(
-		step.kind === 'password' ? $LL.organization.join.passwordTitle() : $LL.organization.join.title()
-	);
+	const title = $derived.by(() => {
+		if (step.kind === 'password') return $LL.organization.join.passwordTitle();
+		if (step.kind === 'code') return $LL.organization.join.machineTitle();
 
-	const description = $derived(
-		step.kind === 'password'
-			? $LL.organization.join.passwordDescription()
-			: $LL.organization.join.description()
-	);
+		return $LL.organization.join.title();
+	});
+
+	const description = $derived.by(() => {
+		if (step.kind === 'password') return $LL.organization.join.passwordDescription();
+		if (step.kind === 'code') return $LL.organization.join.machineDescription();
+
+		return $LL.organization.join.description();
+	});
 </script>
+
+<!-- the three pieces both steps that take a code draw, written once: the invitation adds the two
+     password fields under them and the machine link adds nothing. -->
+{#snippet refusalCallouts(errorMessage: string | null)}
+	{#if codeRefusal}
+		<Callout tone="error">{codeRefusal}</Callout>
+		{#if errorMessage}
+			<p class="text-sm text-muted-foreground" data-join-detail>{errorMessage}</p>
+		{/if}
+	{:else if errorMessage}
+		<Callout tone="error">{errorMessage}</Callout>
+	{/if}
+{/snippet}
+
+<!-- which organization the link names: read from the link and not typed, so it is a line of text
+     rather than a control. Nobody is named beside it, because nothing opens the invited vault
+     before the code is typed (effort 826, requirement 23). -->
+{#snippet organizationLine(organizationName: string)}
+	<Field.Field>
+		<Field.Label for="join-organization">{$LL.organization.join.organizationLabel()}</Field.Label>
+		<p id="join-organization" class="text-sm font-medium" data-join-organization>
+			{organizationName}
+		</p>
+	</Field.Field>
+{/snippet}
+
+<!-- the code before anything else, because it is the half the person was given and whatever
+     follows is the half they are choosing: what they hold comes first. Six characters, upper-cased
+     as typed, and a machine string in both locales. -->
+{#snippet codeField()}
+	<Field.Field>
+		<Field.Label for="join-code">{$LL.organization.join.codeLabel()}</Field.Label>
+		<InputGroup.Root data-disabled={isJoining ? 'true' : undefined}>
+			<InputGroup.Addon>
+				<HashIcon />
+			</InputGroup.Addon>
+			<InputGroup.Input
+				id="join-code"
+				name="code"
+				dir="ltr"
+				autocomplete="one-time-code"
+				autocapitalize="characters"
+				spellcheck={false}
+				inputmode="text"
+				maxlength={CODE_LENGTH}
+				class="font-mono tracking-[0.3em] uppercase"
+				value={code}
+				oninput={(event) => typeCode(event.currentTarget.value)}
+				disabled={isJoining}
+				aria-invalid={codeRefusal !== null}
+			/>
+		</InputGroup.Root>
+		<Field.Description>{$LL.organization.join.codeDescription()}</Field.Description>
+	</Field.Field>
+{/snippet}
 
 <StandaloneSurface tone="neutral" {title} {description} {busy}>
 	{#snippet corner()}
@@ -186,7 +254,7 @@
 					{$LL.common.actions.connect()}
 				</Button>
 			</form>
-		{:else if step.kind === 'inspecting'}
+		{:else if step.kind === 'reading'}
 			<p class="text-center text-sm text-muted-foreground">{$LL.organization.join.reading()}</p>
 		{:else if step.kind === 'unreachable'}
 			<Callout tone="error">{$LL.organization.join.unreachable()}</Callout>
@@ -208,6 +276,28 @@
 					{$LL.organization.join.toSignIn()}
 				</Button>
 			{/if}
+		{:else if step.kind === 'code'}
+			<!-- a link the member made for this machine: the code and nothing else. The password
+			     they already have is the wall's to ask for, once this connects. -->
+			<form
+				class="space-y-4"
+				onsubmit={(event) => {
+					event.preventDefault();
+
+					if (hasCode) onJoin(step.link, code, '');
+				}}
+			>
+				{@render refusalCallouts(step.errorMessage)}
+				{@render organizationLine(step.organizationName)}
+				{@render codeField()}
+
+				<!-- the same glyph the field's connect carries: one vocabulary for joining a machine
+				     to something. -->
+				<Button type="submit" class="w-full justify-center" disabled={!hasCode}>
+					<PlugIcon class="size-4" />
+					{isJoining ? $LL.common.actions.working() : $LL.common.actions.connect()}
+				</Button>
+			</form>
 		{:else if step.kind === 'password'}
 			<form
 				class="space-y-4"
@@ -217,65 +307,9 @@
 					if (canJoin) onJoin(step.link, code, password);
 				}}
 			>
-				{#if codeRefusal}
-					<Callout tone="error">{codeRefusal}</Callout>
-					{#if step.errorMessage}
-						<p class="text-sm text-muted-foreground" data-join-detail>{step.errorMessage}</p>
-					{/if}
-				{:else if step.errorMessage}
-					<Callout tone="error">{step.errorMessage}</Callout>
-				{/if}
-
-				<!-- whom this link invites, and where: read from the link and not typed, so both are
-				     lines of text rather than controls. -->
-				<Field.Field>
-					<Field.Label for="join-organization">
-						{$LL.organization.join.organizationLabel()}
-					</Field.Label>
-					<p id="join-organization" class="text-sm font-medium" data-join-organization>
-						{step.organizationName}
-					</p>
-				</Field.Field>
-
-				<!-- drawn only where the read could name them. Since requirement 23 the link's secret
-				     opens nothing on its own, so nobody is named before the code is typed, and an
-				     empty line under a label says less than no line at all. -->
-				{#if step.username}
-					<Field.Field>
-						<Field.Label for="join-username">{$LL.organization.join.usernameLabel()}</Field.Label>
-						<p id="join-username" class="text-sm font-medium" data-join-username>
-							{step.username}
-						</p>
-					</Field.Field>
-				{/if}
-
-				<!-- the code before the password, because it is the half the person was given and
-				     the password is the half they are choosing: what they hold comes first. Six
-				     characters, upper-cased as typed, and a machine string in both locales. -->
-				<Field.Field>
-					<Field.Label for="join-code">{$LL.organization.join.codeLabel()}</Field.Label>
-					<InputGroup.Root data-disabled={isJoining ? 'true' : undefined}>
-						<InputGroup.Addon>
-							<HashIcon />
-						</InputGroup.Addon>
-						<InputGroup.Input
-							id="join-code"
-							name="code"
-							dir="ltr"
-							autocomplete="one-time-code"
-							autocapitalize="characters"
-							spellcheck={false}
-							inputmode="text"
-							maxlength={CODE_LENGTH}
-							class="font-mono tracking-[0.3em] uppercase"
-							value={code}
-							oninput={(event) => typeCode(event.currentTarget.value)}
-							disabled={isJoining}
-							aria-invalid={codeRefusal !== null}
-						/>
-					</InputGroup.Root>
-					<Field.Description>{$LL.organization.join.codeDescription()}</Field.Description>
-				</Field.Field>
+				{@render refusalCallouts(step.errorMessage)}
+				{@render organizationLine(step.organizationName)}
+				{@render codeField()}
 
 				<Field.Field>
 					<Field.Label for="join-password">

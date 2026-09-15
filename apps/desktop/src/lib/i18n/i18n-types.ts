@@ -297,6 +297,10 @@ type RootTranslation = {
 			 */
 			preconditionFailed: string
 			/**
+			 * t​h​i​s​ ​l​i​n​k​ ​n​o​ ​l​o​n​g​e​r​ ​o​p​e​n​s​.
+			 */
+			refused: string
+			/**
 			 * t​h​e​ ​o​p​e​r​a​t​i​o​n​ ​t​o​o​k​ ​t​o​o​ ​l​o​n​g​ ​a​n​d​ ​s​t​o​p​p​e​d​.
 			 */
 			timedOut: string
@@ -2414,15 +2418,15 @@ type RootTranslation = {
 			 */
 			title: string
 			/**
-			 * p​a​s​t​e​ ​t​h​e​ ​l​i​n​k​ ​y​o​u​ ​w​e​r​e​ ​g​i​v​e​n​.​ ​a​n​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​l​i​n​k​ ​r​e​c​o​r​d​s​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​a​n​d​ ​t​a​k​e​s​ ​y​o​u​ ​t​o​ ​t​h​e​ ​s​i​g​n​-​i​n​;​ ​a​n​ ​i​n​v​i​t​a​t​i​o​n​ ​l​i​n​k​ ​r​e​c​o​r​d​s​ ​i​t​ ​a​n​d​ ​a​s​k​s​ ​y​o​u​ ​t​o​ ​c​h​o​o​s​e​ ​a​ ​p​a​s​s​w​o​r​d​.
+			 * p​a​s​t​e​ ​t​h​e​ ​l​i​n​k​ ​y​o​u​ ​w​e​r​e​ ​g​i​v​e​n​,​ ​a​n​d​ ​h​a​v​e​ ​t​h​e​ ​c​o​d​e​ ​t​h​a​t​ ​c​a​m​e​ ​w​i​t​h​ ​i​t​ ​r​e​a​d​y​.​ ​a​n​ ​i​n​v​i​t​a​t​i​o​n​ ​l​i​n​k​ ​a​s​k​s​ ​f​o​r​ ​t​h​e​ ​c​o​d​e​ ​a​n​d​ ​a​ ​p​a​s​s​w​o​r​d​ ​y​o​u​ ​c​h​o​o​s​e​;​ ​a​ ​l​i​n​k​ ​y​o​u​ ​m​a​d​e​ ​f​o​r​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​a​s​k​s​ ​f​o​r​ ​t​h​e​ ​c​o​d​e​ ​a​l​o​n​e​;​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​l​i​n​k​ ​t​a​k​e​s​ ​y​o​u​ ​s​t​r​a​i​g​h​t​ ​t​o​ ​t​h​e​ ​s​i​g​n​-​i​n​.
 			 */
 			description: string
 			/**
-			 * o​r​g​a​n​i​z​a​t​i​o​n​ ​l​i​n​k​ ​o​r​ ​i​n​v​i​t​a​t​i​o​n​ ​l​i​n​k
+			 * t​h​e​ ​l​i​n​k​ ​y​o​u​ ​w​e​r​e​ ​g​i​v​e​n
 			 */
 			linkLabel: string
 			/**
-			 * c​o​n​n​e​c​t​i​n​g​ ​t​o​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​.​.
+			 * r​e​a​d​i​n​g​ ​t​h​e​ ​l​i​n​k​.​.​.
 			 */
 			reading: string
 			/**
@@ -2446,6 +2450,10 @@ type RootTranslation = {
 			 */
 			revoked: string
 			/**
+			 * a​ ​n​e​w​e​r​ ​l​i​n​k​ ​t​o​o​k​ ​t​h​e​ ​p​l​a​c​e​ ​o​f​ ​t​h​i​s​ ​o​n​e​.​ ​m​a​k​e​ ​a​n​o​t​h​e​r​ ​f​r​o​m​ ​t​h​e​ ​y​o​u​ ​s​e​c​t​i​o​n​,​ ​o​n​ ​a​ ​m​a​c​h​i​n​e​ ​y​o​u​ ​a​r​e​ ​a​l​r​e​a​d​y​ ​s​i​g​n​e​d​ ​i​n​ ​o​n​.
+			 */
+			replaced: string
+			/**
 			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​a​l​r​e​a​d​y​ ​h​o​l​d​s​ ​a​n​o​t​h​e​r​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​d​i​s​c​o​n​n​e​c​t​ ​i​t​ ​f​i​r​s​t​,​ ​t​h​e​n​ ​o​p​e​n​ ​t​h​i​s​ ​l​i​n​k​.
 			 */
 			anotherOrganization: string
@@ -2466,10 +2474,6 @@ type RootTranslation = {
 			 */
 			organizationLabel: string
 			/**
-			 * u​s​e​r​n​a​m​e
-			 */
-			usernameLabel: string
-			/**
 			 * c​o​n​f​i​r​m​a​t​i​o​n​ ​c​o​d​e
 			 */
 			codeLabel: string
@@ -2478,13 +2482,21 @@ type RootTranslation = {
 			 */
 			codeDescription: string
 			/**
-			 * t​h​e​ ​c​o​d​e​ ​i​s​ ​w​r​o​n​g​ ​o​r​ ​h​a​s​ ​l​a​p​s​e​d​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​i​n​v​i​t​e​d​ ​y​o​u​ ​f​o​r​ ​a​ ​f​r​e​s​h​ ​o​n​e​.
+			 * t​h​e​ ​c​o​d​e​ ​i​s​ ​w​r​o​n​g​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​s​e​n​t​ ​y​o​u​ ​t​h​e​ ​l​i​n​k​ ​t​o​ ​r​e​a​d​ ​i​t​ ​o​u​t​ ​a​g​a​i​n​.
 			 */
 			codeWrong: string
 			/**
-			 * t​h​a​t​ ​c​o​d​e​ ​h​a​s​ ​l​a​p​s​e​d​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​i​n​v​i​t​e​d​ ​y​o​u​ ​f​o​r​ ​a​ ​f​r​e​s​h​ ​o​n​e​.
+			 * t​y​p​e​ ​t​h​e​ ​s​i​x​ ​c​h​a​r​a​c​t​e​r​s​ ​t​h​a​t​ ​c​a​m​e​ ​w​i​t​h​ ​t​h​e​ ​l​i​n​k​.
 			 */
-			codeLapsed: string
+			codeMissing: string
+			/**
+			 * c​o​n​n​e​c​t​ ​t​h​i​s​ ​m​a​c​h​i​n​e
+			 */
+			machineTitle: string
+			/**
+			 * t​h​i​s​ ​l​i​n​k​ ​i​s​ ​o​n​e​ ​y​o​u​ ​m​a​d​e​ ​f​o​r​ ​t​h​i​s​ ​m​a​c​h​i​n​e​.​ ​t​y​p​e​ ​t​h​e​ ​c​o​d​e​ ​i​t​ ​c​a​m​e​ ​w​i​t​h​,​ ​a​n​d​ ​s​i​g​n​ ​i​n​ ​a​f​t​e​r​w​a​r​d​s​ ​w​i​t​h​ ​t​h​e​ ​u​s​e​r​n​a​m​e​ ​a​n​d​ ​p​a​s​s​w​o​r​d​ ​y​o​u​ ​a​l​r​e​a​d​y​ ​u​s​e​.
+			 */
+			machineDescription: string
 			/**
 			 * y​o​u​r​ ​p​a​s​s​w​o​r​d​,​ ​a​g​a​i​n
 			 */
@@ -3169,6 +3181,10 @@ export type TranslationFunctions = {
 			 * something has to be ready before this can run.
 			 */
 			preconditionFailed: () => LocalizedString
+			/**
+			 * this link no longer opens.
+			 */
+			refused: () => LocalizedString
 			/**
 			 * the operation took too long and stopped.
 			 */
@@ -5184,15 +5200,15 @@ export type TranslationFunctions = {
 			 */
 			title: () => LocalizedString
 			/**
-			 * paste the link you were given. an organization link records the organization on this machine and takes you to the sign-in; an invitation link records it and asks you to choose a password.
+			 * paste the link you were given, and have the code that came with it ready. an invitation link asks for the code and a password you choose; a link you made for this machine asks for the code alone; the organization link takes you straight to the sign-in.
 			 */
 			description: () => LocalizedString
 			/**
-			 * organization link or invitation link
+			 * the link you were given
 			 */
 			linkLabel: () => LocalizedString
 			/**
-			 * connecting to the organization...
+			 * reading the link...
 			 */
 			reading: () => LocalizedString
 			/**
@@ -5216,6 +5232,10 @@ export type TranslationFunctions = {
 			 */
 			revoked: () => LocalizedString
 			/**
+			 * a newer link took the place of this one. make another from the you section, on a machine you are already signed in on.
+			 */
+			replaced: () => LocalizedString
+			/**
 			 * this machine already holds another organization. disconnect it first, then open this link.
 			 */
 			anotherOrganization: () => LocalizedString
@@ -5236,10 +5256,6 @@ export type TranslationFunctions = {
 			 */
 			organizationLabel: () => LocalizedString
 			/**
-			 * username
-			 */
-			usernameLabel: () => LocalizedString
-			/**
 			 * confirmation code
 			 */
 			codeLabel: () => LocalizedString
@@ -5248,13 +5264,21 @@ export type TranslationFunctions = {
 			 */
 			codeDescription: () => LocalizedString
 			/**
-			 * the code is wrong or has lapsed. ask whoever invited you for a fresh one.
+			 * the code is wrong. ask whoever sent you the link to read it out again.
 			 */
 			codeWrong: () => LocalizedString
 			/**
-			 * that code has lapsed. ask whoever invited you for a fresh one.
+			 * type the six characters that came with the link.
 			 */
-			codeLapsed: () => LocalizedString
+			codeMissing: () => LocalizedString
+			/**
+			 * connect this machine
+			 */
+			machineTitle: () => LocalizedString
+			/**
+			 * this link is one you made for this machine. type the code it came with, and sign in afterwards with the username and password you already use.
+			 */
+			machineDescription: () => LocalizedString
 			/**
 			 * your password, again
 			 */

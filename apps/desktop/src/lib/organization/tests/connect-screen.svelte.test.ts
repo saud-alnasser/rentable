@@ -4,7 +4,7 @@ import { expect, test, vi } from 'vitest';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import ConnectScreen from '$lib/organization/component/connect-screen.svelte';
-import { afterConnect, THE_WALL, type JoinStep } from '$lib/organization/connect';
+import { afterRead, THE_WALL, type JoinStep } from '$lib/organization/connect';
 import { PASSWORD_FLOOR } from '$lib/organization/setup';
 import type { LinkShape } from '$lib/platform/host';
 import en from '$lib/i18n/en';
@@ -16,11 +16,11 @@ import Providers from './providers.svelte';
  * THE CONNECT SCREEN, RENDERED
  *
  * `join.test.ts` drives the steps; this asserts over what each step puts in the document. What
- * is worth pinning: the one field takes both kinds of link and each lands where it should, a
- * link that admits nobody is refused by name, the password step asks for the two fields and
- * nothing else, and the sentences are said in both locales.
+ * is worth pinning: the one field takes all three kinds of link and each lands where it should, a
+ * link that admits nobody is refused by name, each step asks for the fields it needs and nothing
+ * else, and the sentences are said in both locales.
  *
- * **The landing of each kind of link is taken from `afterConnect`** rather than written out, so
+ * **The landing of each kind of link is taken from `afterRead`** rather than written out, so
  * the field, the read and the step a reader ends on are one chain here rather than three
  * assertions that could each be right about a different screen. An organization link is
  * `THE_WALL`, which this screen does not draw: the route navigates and the wall is the shell's.
@@ -85,7 +85,7 @@ const shape = (overrides: Partial<LinkShape> = {}): LinkShape => ({
 });
 
 /** where the link the field took lands, once its text has been decoded. */
-const landingOf = (overrides: Partial<LinkShape> = {}) => afterConnect(LINK, shape(overrides));
+const landingOf = (overrides: Partial<LinkShape> = {}) => afterRead(LINK, shape(overrides));
 
 /** the landing that stays on this screen, for the tests that render one. */
 const stepOf = (overrides: Partial<LinkShape>) => landingOf(overrides) as JoinStep;
@@ -96,11 +96,18 @@ const A_CHOSEN_PASSWORD = 'x'.repeat(PASSWORD_FLOOR);
 const everyStep: JoinStep[] = [
 	{ kind: 'paste' },
 	{ kind: 'unreadable', link: 'nope' },
-	{ kind: 'inspecting', link: LINK },
+	{ kind: 'reading', link: LINK },
 	{ kind: 'unreachable', link: LINK, message: 'offline' },
 	{ kind: 'refused', link: LINK, refusal: 'lapsed', message: null },
-	stepOf({ kind: 'invitation', expiresAt: 1 })
+	stepOf({ kind: 'invitation', expiresAt: 1 }),
+	stepOf({ kind: 'machine', expiresAt: 1 })
 ];
+
+/** the password step written out, for the assertions that set a refusal on it. */
+const passwordStep = (overrides: Partial<Extract<JoinStep, { kind: 'password' }>> = {}) => ({
+	...(stepOf({ kind: 'invitation', expiresAt: 1 }) as Extract<JoinStep, { kind: 'password' }>),
+	...overrides
+});
 
 test('with no link there is one field, for the link, typed left to right', () => {
 	loadLocale('en');
@@ -174,6 +181,72 @@ test('an invitation link pasted into the field lands on the password step, namin
 	expect(screen.getByText(en.organization.join.passwordTitle)).toBeDefined();
 });
 
+// effort 828, criterion 1: the code field is on every link that carries a sealed credential, and on
+// no other. The organization's own link carries a legible one and asks for nothing, which on this
+// screen means it never draws a step at all.
+test('the code field is on an invitation and a machine link, and on no organization link', () => {
+	loadLocale('en');
+	setLocale('en');
+
+	for (const kind of ['invitation', 'machine'] as const) {
+		const rendered = joinScreen(stepOf({ kind, expiresAt: 1 }));
+
+		expect(document.querySelector('input[name=code]'), kind).not.toBeNull();
+		expect(screen.getByText(en.organization.join.codeLabel), kind).toBeDefined();
+		rendered.unmount();
+	}
+
+	// the organization link leaves this screen before a step is drawn, so there is no code field to
+	// find and no step to look on.
+	expect(landingOf()).toBe(THE_WALL);
+
+	for (const step of everyStep) {
+		if (step.kind === 'password' || step.kind === 'code') continue;
+
+		const rendered = joinScreen(step);
+
+		expect(document.querySelector('input[name=code]'), step.kind).toBeNull();
+		rendered.unmount();
+	}
+});
+
+// effort 828, requirement 3: the member already has a password, so this step is the code, the
+// organization's name above it, and a connect. Submitting hands the route an empty password,
+// because there is none to choose.
+test('a machine link asks for the code alone and connects with it', async () => {
+	loadLocale('en');
+	setLocale('en');
+
+	const onJoin = vi.fn();
+
+	joinScreen(stepOf({ kind: 'machine', expiresAt: 1 }), { onJoin });
+
+	expect(document.querySelector('[data-join-step]')?.getAttribute('data-join-step')).toBe('code');
+	expect(screen.getByText(en.organization.join.machineTitle)).toBeDefined();
+	expect(screen.getByText(en.organization.join.machineDescription)).toBeDefined();
+	expect(screen.getByText('Acme Rentals')).toBeDefined();
+	expect(inputsOnScreen().map((input) => input.getAttribute('name'))).toEqual(['code']);
+
+	const connect = screen.getByRole('button', { name: en.common.actions.connect });
+
+	expect(connect.querySelector('svg')).not.toBeNull();
+
+	// five characters is not a code: the primary stays shut.
+	const code = document.querySelector<HTMLInputElement>('input[name=code]')!;
+
+	await fireEvent.input(code, { target: { value: '7k4m9' } });
+	expect(connect.hasAttribute('disabled')).toBe(true);
+
+	await fireEvent.input(code, { target: { value: '7k4 m9-q' } });
+
+	expect(code.value).toBe('7K4M9Q');
+	expect(connect.hasAttribute('disabled')).toBe(false);
+
+	await fireEvent.submit(connect.closest('form')!);
+
+	expect(onJoin).toHaveBeenCalledWith(LINK, '7K4M9Q', '');
+});
+
 // effort 826, requirement 23: the code field sits above the password, is six characters, and is
 // upper-cased as it is typed, with the spaces and hyphens somebody reading one out puts in taken
 // off. Nothing joins without all six.
@@ -221,39 +294,28 @@ test('the code field is above the password, six characters, upper-cased as typed
 // requirement 23's two refusals, each said by name in the reader's own language, with what the
 // shell said kept under it: a wrong code comes back `forbidden` and a lapsed one
 // `preconditionFailed`, and `join.ts` is what turns each into one of these.
-test('a wrong code and a lapsed one are each refused by name, over the fields', () => {
+test('a wrong code and a missing one are each refused by name, over the fields', () => {
 	loadLocale('en');
 	setLocale('en');
 
-	const wrong = joinScreen({
-		kind: 'password',
-		link: LINK,
-		organizationName: 'Acme Rentals',
-		username: 'olivia',
-		isJoining: false,
-		codeRefusal: 'wrong',
-		errorMessage: 'the code is wrong or has lapsed; ask whoever invited you for a fresh one'
-	});
+	const wrong = joinScreen(
+		passwordStep({
+			codeRefusal: 'wrong',
+			errorMessage: 'the code is wrong; ask whoever sent you the link to read it out again'
+		})
+	);
 
 	expect(screen.getByText(en.organization.join.codeWrong)).toBeDefined();
 	expect(document.querySelector('[data-join-detail]')?.textContent).toBe(
-		'the code is wrong or has lapsed; ask whoever invited you for a fresh one'
+		'the code is wrong; ask whoever sent you the link to read it out again'
 	);
 	expect(document.querySelector('input[name=code]')?.getAttribute('aria-invalid')).toBe('true');
 	wrong.unmount();
 
-	joinScreen({
-		kind: 'password',
-		link: LINK,
-		organizationName: 'Acme Rentals',
-		username: 'olivia',
-		isJoining: false,
-		codeRefusal: 'lapsed',
-		errorMessage: 'the code has lapsed; ask whoever invited you for a fresh one'
-	});
+	joinScreen(passwordStep({ codeRefusal: 'missing', errorMessage: null }));
 
-	expect(screen.getByText(en.organization.join.codeLapsed)).toBeDefined();
-	expect(en.organization.join.codeLapsed).not.toBe(en.organization.join.codeWrong);
+	expect(screen.getByText(en.organization.join.codeMissing)).toBeDefined();
+	expect(en.organization.join.codeMissing).not.toBe(en.organization.join.codeWrong);
 });
 
 test('the password step holds the floor and the confirmation, and only a matching pair joins', async () => {
@@ -323,15 +385,7 @@ test('the join carries a glyph and both password fields a muted leading one', ()
 test('while the accept is out the fields are held and the wait is said on the primary', () => {
 	loadLocale('en');
 	setLocale('en');
-	joinScreen({
-		kind: 'password',
-		link: LINK,
-		organizationName: 'Acme Rentals',
-		username: 'olivia',
-		isJoining: true,
-		codeRefusal: null,
-		errorMessage: null
-	});
+	joinScreen(passwordStep({ isJoining: true }));
 
 	for (const input of inputsOnScreen()) {
 		expect(input.hasAttribute('disabled')).toBe(true);
@@ -343,15 +397,7 @@ test('while the accept is out the fields are held and the wait is said on the pr
 test('an accept that was refused says what the shell said, over the fields', () => {
 	loadLocale('en');
 	setLocale('en');
-	joinScreen({
-		kind: 'password',
-		link: LINK,
-		organizationName: 'Acme Rentals',
-		username: 'olivia',
-		isJoining: false,
-		codeRefusal: null,
-		errorMessage: 'the invitation to Acme Rentals was already opened'
-	});
+	joinScreen(passwordStep({ errorMessage: 'the invitation to Acme Rentals was already opened' }));
 
 	expect(screen.getByText('the invitation to Acme Rentals was already opened')).toBeDefined();
 	expect(inputsOnScreen()).toHaveLength(3);
@@ -369,7 +415,7 @@ test('text that was not a link keeps the field and says so', () => {
 test('while the link is read the field is gone and the wait is said', () => {
 	loadLocale('en');
 	setLocale('en');
-	joinScreen({ kind: 'inspecting', link: LINK });
+	joinScreen({ kind: 'reading', link: LINK });
 
 	expect(inputsOnScreen()).toEqual([]);
 	expect(screen.getByText(en.organization.join.reading)).toBeDefined();
@@ -395,9 +441,10 @@ test('an organization that could not be reached says so, shows what the shell sa
 	expect(onConnect).toHaveBeenCalledWith(LINK);
 });
 
-// effort 826, requirement 10: a link that admits nobody is refused by name, and the four are
-// named from the link rather than from prose the reader has to interpret.
-test('each of the four refusals says its own sentence and asks for nothing', () => {
+// effort 826, requirement 10; effort 828, requirement 1: a link that admits nobody is refused by
+// name, and the five are named from the code Rust rejected with rather than from prose the reader
+// has to interpret.
+test('each of the five refusals says its own sentence and asks for nothing', () => {
 	loadLocale('en');
 	setLocale('en');
 
@@ -405,6 +452,7 @@ test('each of the four refusals says its own sentence and asks for nothing', () 
 		['lapsed', en.organization.join.lapsed],
 		['consumed', en.organization.join.consumed],
 		['revoked', en.organization.join.revoked],
+		['replaced', en.organization.join.replaced],
 		['anotherOrganization', en.organization.join.anotherOrganization]
 	] as const;
 
@@ -524,6 +572,10 @@ test('only the password step takes a password, and only the field step takes a l
 			expect(names, step.kind).toEqual(['link']);
 		} else if (step.kind === 'password') {
 			expect(names, step.kind).toEqual(['code', 'password', 'confirmation']);
+		} else if (step.kind === 'code') {
+			// a second machine's link asks for the code and nothing else: the password its member
+			// already has is the wall's to ask for (effort 828, requirement 3).
+			expect(names, step.kind).toEqual(['code']);
 		} else {
 			expect(names, step.kind).toEqual([]);
 		}
@@ -559,7 +611,7 @@ test('the link field carries a muted leading glyph through the input group', () 
 	}
 });
 
-test('the screen renders in arabic with the same one field, the same refusals and the same password step', () => {
+test('the screen renders in arabic with the same one field, the same refusals and both code steps', () => {
 	loadLocale('ar');
 	setLocale('ar');
 
@@ -586,7 +638,13 @@ test('the screen renders in arabic with the same one field, the same refusals an
 	expect(screen.getAllByRole('button', { name: ar.organization.join.back })).toHaveLength(1);
 	unreachable.unmount();
 
-	for (const refusal of ['lapsed', 'consumed', 'revoked', 'anotherOrganization'] as const) {
+	for (const refusal of [
+		'lapsed',
+		'consumed',
+		'revoked',
+		'replaced',
+		'anotherOrganization'
+	] as const) {
 		const rendered = joinScreen(
 			{ kind: 'refused', link: LINK, refusal, message: null },
 			{ direction: 'rtl' }
@@ -614,6 +672,13 @@ test('the screen renders in arabic with the same one field, the same refusals an
 	expect(document.querySelector('input[name=code]')?.getAttribute('dir')).toBe('ltr');
 	password.unmount();
 
+	const machine = joinScreen(stepOf({ kind: 'machine', expiresAt: 1 }), { direction: 'rtl' });
+
+	expect(screen.getByText(ar.organization.join.machineTitle)).toBeDefined();
+	expect(inputsOnScreen().map((input) => input.getAttribute('name'))).toEqual(['code']);
+	expect(screen.getByRole('button', { name: ar.common.actions.connect })).toBeDefined();
+	machine.unmount();
+
 	setLocale('en');
 });
 
@@ -623,15 +688,20 @@ test('every sentence this screen added is written in both locales', () => {
 	const written = [
 		'description',
 		'linkLabel',
+		'reading',
 		'lapsed',
 		'consumed',
 		'revoked',
+		'replaced',
 		'anotherOrganization',
 		'toSignIn',
 		'passwordTitle',
 		'passwordDescription',
+		'machineTitle',
+		'machineDescription',
 		'organizationLabel',
-		'usernameLabel',
+		'codeMissing',
+		'codeWrong',
 		'confirmLabel',
 		'mismatch'
 	] as const;

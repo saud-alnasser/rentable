@@ -54,7 +54,12 @@
 
 use std::sync::{Arc, Mutex};
 
-use crate::{diagnostics, error::Error, persisted::Persisted, sync::RemoteSyncStore};
+use crate::{
+    diagnostics,
+    error::{Error, RefusalReason},
+    persisted::Persisted,
+    sync::RemoteSyncStore,
+};
 
 use super::{
     HeldOrganization, connect,
@@ -88,14 +93,19 @@ enum Refusal {
 /// The one sentence an invitation that no longer opens is refused with: which of the three it is,
 /// and the organization it was for, since the link names the organization and the invitation is
 /// what is refused.
+///
+/// **It crosses as `Error::Refused` with the reason beside the message**, never as `Forbidden`,
+/// which a wrong code keeps. The screen draws its own sentence per standing and offers the wall
+/// on a spent link, so what it needs is the word and not the prose.
 fn invitation_refused(organization_name: &str, refusal: Refusal) -> Error {
-    let why = match refusal {
-        Refusal::Lapsed => "has lapsed",
-        Refusal::Consumed => "was already opened",
-        Refusal::Revoked => "was revoked",
+    let (reason, why) = match refusal {
+        Refusal::Lapsed => (RefusalReason::Lapsed, "has lapsed"),
+        Refusal::Consumed => (RefusalReason::Consumed, "was already opened"),
+        Refusal::Revoked => (RefusalReason::Revoked, "was revoked"),
     };
 
-    Error::Forbidden {
+    Error::Refused {
+        reason,
         message: format!(
             "the invitation to {organization_name} {why}; ask whoever invited you for a new link"
         ),
@@ -338,7 +348,7 @@ mod tests {
     use super::{accept, admit};
     use crate::{
         database::Database,
-        error::Error,
+        error::{Error, RefusalReason},
         keyring::{self, take_the_credential_store},
         organization::{
             HeldOrganization, connect,
@@ -856,7 +866,8 @@ mod tests {
         .await;
 
         assert!(
-            matches!(refused, Err(Error::Forbidden { ref message }) if message.contains("Acme") && message.contains("already opened")),
+            matches!(refused, Err(Error::Refused { reason: RefusalReason::Consumed, ref message })
+                if message.contains("Acme")),
             "{refused:?}"
         );
         assert_eq!(
@@ -874,7 +885,7 @@ mod tests {
             opened(&third, &store, &invitation, &code, CHOSEN, ISSUED_AT + 5).await;
 
         assert!(
-            matches!(spent, Err(Error::Forbidden { ref message }) if message.contains("already opened")),
+            matches!(spent, Err(Error::Refused { reason: RefusalReason::Consumed, .. })),
             "{spent:?}"
         );
 
@@ -1090,7 +1101,8 @@ mod tests {
         .await;
 
         assert!(
-            matches!(refused, Err(Error::Forbidden { ref message }) if message.contains("Acme") && message.contains("revoked")),
+            matches!(refused, Err(Error::Refused { reason: RefusalReason::Revoked, ref message })
+                if message.contains("Acme")),
             "{refused:?}"
         );
         // the code was right, so the machine reached the organization and recorded it before the
@@ -1164,7 +1176,8 @@ mod tests {
             opened(&theirs, &store, &their_link, &late.code, CHOSEN, after).await;
 
         assert!(
-            matches!(refused, Err(Error::Forbidden { ref message }) if message.contains("Acme") && message.contains("lapsed")),
+            matches!(refused, Err(Error::Refused { reason: RefusalReason::Lapsed, ref message })
+                if message.contains("Acme")),
             "{refused:?}"
         );
         // refused on the link's own moment, before any key was derived, so nothing was reached and
@@ -1201,7 +1214,7 @@ mod tests {
         .await;
 
         assert!(
-            matches!(refused, Err(Error::Forbidden { ref message }) if message.contains("lapsed")),
+            matches!(refused, Err(Error::Refused { reason: RefusalReason::Lapsed, .. })),
             "the lapsed link still opens: {refused:?}"
         );
 
@@ -1500,8 +1513,8 @@ mod tests {
         .await;
 
         assert!(
-            matches!(refused, Err(Error::Forbidden { ref message })
-                if message.contains("Acme") && message.contains("lapsed")),
+            matches!(refused, Err(Error::Refused { reason: RefusalReason::Lapsed, ref message })
+                if message.contains("Acme")),
             "{refused:?}"
         );
 

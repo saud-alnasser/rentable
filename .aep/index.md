@@ -127,7 +127,7 @@ Start at [[protocol]].
 | 819-an-organization-hosts-its-own-workspaces | implemented | [[efforts/819-an-organization-hosts-its-own-workspaces/spec]] | 1 | 1 | 28 |
 | 824-the-way-in-and-the-workspace-control-are-redesigned | implemented | [[efforts/824-the-way-in-and-the-workspace-control-are-redesigned/spec]] | 0 | 0 | 17 |
 | 826-the-organization-and-the-way-in-are-rethought | implemented | [[efforts/826-the-organization-and-the-way-in-are-rethought/spec]] | 2 | 1 | 22 |
-| 828-the-link-needs-a-code-and-the-settings-area-guides | accepted | [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]] | 1 | 0 | 8 |
+| 828-the-link-needs-a-code-and-the-settings-area-guides | accepted | [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]] | 2 | 0 | 8 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -247,7 +247,7 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/tickets/02-the-workspace-menu-is-the-workspace-and-the-switch]] feat(layout): the workspace menu is the workspace and the switch | 828-the-link-needs-a-code-and-the-settings-area-guides | resolved | — |
 | [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/tickets/03-a-link-carries-one-sealed-payload]] feat(organization): a link carries one sealed payload | 828-the-link-needs-a-code-and-the-settings-area-guides | resolved | — |
 | [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/tickets/04-a-member-connects-their-own-next-machine]] feat(organization): a member connects their own next machine | 828-the-link-needs-a-code-and-the-settings-area-guides | resolved | 03 |
-| [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/tickets/05-the-connect-screen-judges-after-the-code]] feat(organization): the connect screen judges after the code | 828-the-link-needs-a-code-and-the-settings-area-guides | open | 04 |
+| [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/tickets/05-the-connect-screen-judges-after-the-code]] feat(organization): the connect screen judges after the code | 828-the-link-needs-a-code-and-the-settings-area-guides | resolved | 04 |
 | [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/tickets/06-the-you-section-states-facts-and-writes-on-the-form-surface]] feat(settings): the you section states facts and writes on the form surface | 828-the-link-needs-a-code-and-the-settings-area-guides | resolved | 03, 04 |
 | [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/tickets/07-the-members-section-says-what-it-is-for-and-every-act-is-visible]] feat(settings): the members section says what it is for and every act is visible | 828-the-link-needs-a-code-and-the-settings-area-guides | open | 03 |
 | [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/tickets/08-the-workspaces-section-says-what-it-is-for-and-every-act-is-visible]] feat(settings): the workspaces section says what it is for and every act is visible | 828-the-link-needs-a-code-and-the-settings-area-guides | open | 07 |

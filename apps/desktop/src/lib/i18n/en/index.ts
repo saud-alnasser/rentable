@@ -78,6 +78,7 @@ const en = {
 			notConfigured: 'this feature is not set up yet.',
 			notFound: 'the item could not be found.',
 			preconditionFailed: 'something has to be ready before this can run.',
+			refused: 'this link no longer opens.',
 			timedOut: 'the operation took too long and stopped.'
 		},
 
@@ -792,9 +793,9 @@ const en = {
 		join: {
 			title: 'connect to an organization',
 			description:
-				'paste the link you were given. an organization link records the organization on this machine and takes you to the sign-in; an invitation link records it and asks you to choose a password.',
-			linkLabel: 'organization link or invitation link',
-			reading: 'connecting to the organization...',
+				'paste the link you were given, and have the code that came with it ready. an invitation link asks for the code and a password you choose; a link you made for this machine asks for the code alone; the organization link takes you straight to the sign-in.',
+			linkLabel: 'the link you were given',
+			reading: 'reading the link...',
 			unreadable:
 				'this is not a rentable link. paste the whole link, exactly as it was handed to you.',
 			unreachable:
@@ -803,6 +804,8 @@ const en = {
 			consumed:
 				'this invitation link has already been opened. this machine is connected, so sign in with your username and the password you chose.',
 			revoked: 'this invitation was withdrawn. ask whoever invited you for a new link.',
+			replaced:
+				'a newer link took the place of this one. make another from the you section, on a machine you are already signed in on.',
 			anotherOrganization:
 				'this machine already holds another organization. disconnect it first, then open this link.',
 			toSignIn: 'go to the sign-in',
@@ -810,12 +813,14 @@ const en = {
 			passwordDescription:
 				'your password signs you in, on this machine and on any other. nobody can recover it for you; a new link is the only way back.',
 			organizationLabel: 'organization',
-			usernameLabel: 'username',
 			codeLabel: 'confirmation code',
 			codeDescription:
 				'the six characters whoever invited you read out. it is the other half of what the link needs, and it lasts as long as the link does.',
-			codeWrong: 'the code is wrong or has lapsed. ask whoever invited you for a fresh one.',
-			codeLapsed: 'that code has lapsed. ask whoever invited you for a fresh one.',
+			codeWrong: 'the code is wrong. ask whoever sent you the link to read it out again.',
+			codeMissing: 'type the six characters that came with the link.',
+			machineTitle: 'connect this machine',
+			machineDescription:
+				'this link is one you made for this machine. type the code it came with, and sign in afterwards with the username and password you already use.',
 			confirmLabel: 'your password, again',
 			mismatch: 'the two do not match.',
 			tryAgain: 'try again',

@@ -8,7 +8,7 @@
 	import { useStartup } from '$lib/layout/startup-context';
 	import OrganizationConnectScreen from '$lib/organization/component/connect-screen.svelte';
 	import {
-		afterConnect,
+		afterRead,
 		beginWith,
 		inspectionFailed,
 		joinBegun,
@@ -29,19 +29,21 @@
 	 * an invitation that was accepted. It opens with nobody signed in, which
 	 * `layout/shell-surface.ts` decides.
 	 *
-	 * **Read, then act on what the read said** (effort 828, requirement 1). The read is a decode:
-	 * which organization the link names, which kind of link it is, and when it lapses, with no
-	 * network behind it. The organization's own link carries a legible credential, so the connect
-	 * runs on it and the wall follows. Every other link carries a payload nothing opens without
-	 * the code, so nothing is reached here at all: the accept unseals, reaches, records the
-	 * organization where this machine holds none, and judges the row. A connect whose link names
-	 * the organization this machine already holds answers where the machine stands instead of
-	 * refusing.
+	 * **Read, then act on what the read said** (effort 828, requirements 1 and 3). The read is a
+	 * decode: which organization the link names, which kind of link it is, and when it lapses, with
+	 * no network behind it. The organization's own link carries a legible credential, so the connect
+	 * runs on it and the wall follows. The other two carry a payload nothing opens without the code,
+	 * so nothing is reached here at all, and which act takes the code is which kind of link it was:
+	 * the accept for an invitation, which unseals, reaches, records the organization where this
+	 * machine holds none, judges the row and opens the vault; the machine connect for a second
+	 * machine's link, which does the same and leaves the person at the wall, because the password
+	 * they already have is what admits them. A connect whose link names the organization this
+	 * machine already holds answers where the machine stands instead of refusing.
 	 *
 	 * **These are the host's commands and not the router's procedures**, as the inspection the
-	 * connect replaced was. The screen branches on the Rust code of a refusal, `invalidInput`
-	 * against `network` against `preconditionFailed`, and the router's caller wraps a rejection in
-	 * its own error and keeps the code only on the cause; the host hands it over as it crossed.
+	 * connect replaced was. The screen branches on the Rust code of a refusal, and on the `reason`
+	 * a `refused` carries beside it, and the router's caller wraps a rejection in its own error and
+	 * keeps the code only on the cause; the host hands it over as it crossed.
 	 * `organization/router.ts` carries `invitation.accept` for every other caller.
 	 *
 	 * **The link the operating system handed over is taken here, once.** The shell put it where
@@ -66,7 +68,7 @@
 	const connect = async (link: string) => {
 		const mine = ++attempt;
 
-		step = { kind: 'inspecting', link };
+		step = { kind: 'reading', link };
 
 		try {
 			const shape = await tauri.organization.linkRead(link);
@@ -80,7 +82,7 @@
 			// the organization is recorded on this machine whether or not the person waited for it,
 			// so an organization link moves the shell whatever step is on screen: the address goes
 			// to the way in first, and the startup unit raises the wall naming the organization.
-			const landing = afterConnect(link, shape);
+			const landing = afterRead(link, shape);
 
 			if (landing === THE_WALL) {
 				standingChanged();
@@ -96,7 +98,7 @@
 			// back is live while it does. A person who left for the field in the meantime is not
 			// moved when a refusal lands: it is written only over the wait it was asked for, and
 			// only by the latest attempt begun.
-			if (mine === attempt && step.kind === 'inspecting' && step.link === link) {
+			if (mine === attempt && step.kind === 'reading' && step.link === link) {
 				step = inspectionFailed(link, error, (failure) =>
 					toErrorText(failure, $LL, $LL.common.messages.unexpectedError())
 				);
@@ -104,13 +106,29 @@
 		}
 	};
 
+	/**
+	 * the code, and the password where the link asks for one: whichever act the link's kind named,
+	 * run over the step that is on screen.
+	 *
+	 * An invitation's accept signs this person in, so where the machine stands afterwards carries a
+	 * session and the startup unit opens the application on their first workspace. A machine link
+	 * connects the machine and admits nobody, so what follows is the wall, where the password they
+	 * already have is what signs them in (effort 828, requirement 3). Both leave the same way,
+	 * because both changed where this machine stands and the startup unit is what reads that.
+	 */
 	const join = async (link: string, code: string, password: string) => {
-		if (step.kind !== 'password') return;
+		const taking = step;
 
-		step = joinBegun(step);
+		if (taking.kind !== 'password' && taking.kind !== 'code') return;
+
+		step = joinBegun(taking);
 
 		try {
-			await tauri.organization.invitation.accept(link, code, password);
+			if (taking.kind === 'code') {
+				await tauri.organization.machineConnect(link, code);
+			} else {
+				await tauri.organization.invitation.accept(link, code, password);
+			}
 		} catch (error) {
 			step = joinFailed(step, error, (failure) =>
 				toErrorText(failure, $LL, $LL.common.messages.unexpectedError())
@@ -119,15 +137,13 @@
 			return;
 		}
 
-		// the accept signed this person in, so where the machine stands now carries a session and
-		// the startup unit opens the application on their first workspace rather than the wall.
 		standingChanged();
 	};
 
 	const open = (link: string) => {
 		const begun = beginWith(link);
 
-		if (begun.kind === 'inspecting') {
+		if (begun.kind === 'reading') {
 			void connect(begun.link);
 		} else {
 			step = begun;

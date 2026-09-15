@@ -1,4 +1,4 @@
-import { toTauriErrorCode } from '$lib/error/tauri';
+import { toTauriErrorCode, toTauriRefusalReason } from '$lib/error/tauri';
 import type { LinkShape } from '$lib/platform/host';
 
 /**
@@ -15,22 +15,27 @@ import type { LinkShape } from '$lib/platform/host';
  * platform.
  *
  * **One field, and the kind is read off the link's own text** (effort 826, requirement 10; effort
- * 828, requirement 1). An organization link carries a legible credential and admits nobody by
- * itself, so a machine that records it stands at the wall. Every other link carries a payload
- * nothing opens without the code that came with it, so the screen names the organization, asks for
- * the code and the password, and the accept unseals, reaches, records and judges. Which kind it
- * is, is `linkKind` below, off the shape Rust decoded. *It was read off a standing Rust answered
- * by reaching the organization with the link's clear credential; there is no clear credential to
- * do that with, so reading a link is a decode.*
+ * 828, requirements 1 and 3). There are three kinds and each has its own way on. An organization
+ * link carries a legible credential and admits nobody by itself, so a machine that records it
+ * stands at the wall. An invitation link carries a payload nothing opens without the code that
+ * came with it, so the screen names the organization, asks for the code and the password, and the
+ * accept unseals, reaches, records and judges. A second machine's link carries the same kind of
+ * payload and no password, because the member already has one, so the screen asks for the code
+ * alone and the machine connect judges. Which kind it is, is `linkKind` below, off the shape Rust
+ * decoded. *It was read off a standing Rust answered by reaching the organization with the link's
+ * clear credential; there is no clear credential to do that with, so reading a link is a decode.*
  *
  * **The connect runs on the organization's own link alone.** Every other link is recorded by the
  * act that takes the code, because the credential that reaches the organization is inside the
  * payload; a spent link still connects the machine that way, which is how a person setting up a
  * second machine gets to the wall rather than to a dead end.
  *
- * **The steps past the decode are ticket 05's.** This ticket moved the read and left the rest;
- * where a transition here still describes the standings Rust used to answer, its test is marked
- * for that ticket.
+ * **Nothing is judged before the code, so every standing arrives as a refusal.** A lapsed,
+ * consumed, revoked or replaced link comes back from the accept or the machine connect rather than
+ * from the read, and Rust names which on the rejection's own `reason` (`refused`, in
+ * `error/tauri.ts`). `joinFailed` is where that word becomes the step a person lands on, and the
+ * sentence they read is this side's, said in their language. *The screen read the standing off the
+ * link before anybody typed anything until effort 828 sealed the credential.*
  *
  * **What the screen holds is the link text.** The credential the link carries is parsed on the
  * other side of the boundary and never read here ([[rules/credentials]], *Client boundary*); the
@@ -58,54 +63,82 @@ export function normalizeCode(typed: string): string {
 }
 
 /**
- * which of the two the code was refused as. A code the row says has lapsed is `preconditionFailed`
- * and one that failed the seal is `forbidden`; both end with the same instruction, which is to ask
- * whoever invited for a fresh one, and each is said in the reader's own language here.
+ * which of the two the code was refused as. A code that failed the seal is `forbidden`, and a field
+ * nobody filled in is `invalidInput`; both are about what the person typed rather than about the
+ * link, both end with the same instruction, and each is said in the reader's own language here.
+ *
+ * *`lapsed` was the second of these while a code had a life of its own. A code now lives exactly
+ * as long as its link (effort 828, requirement 1), so a link past its moment is a refused link and
+ * not a stale code.*
  */
-export type CodeRefusal = 'wrong' | 'lapsed';
+export type CodeRefusal = 'wrong' | 'missing';
 
 /**
- * why a link admits nobody: the three standings an invitation can be in and no longer open on,
- * and a link for an organization other than the one this machine holds.
+ * why a link admits nobody: the standings a link can be in and no longer open on, and a link for
+ * an organization other than the one this machine holds.
+ *
+ * The first four are Rust's `RefusalReason`, spelled the same, and arrive on a rejection the
+ * accept or the machine connect answered with; `replaced` is a second machine's alone, and means
+ * the member made a newer link. The fifth is the connect's, and is the only one a link can meet
+ * before any code is typed.
  */
-export type JoinRefusal = 'lapsed' | 'consumed' | 'revoked' | 'anotherOrganization';
+export type JoinRefusal = 'lapsed' | 'consumed' | 'revoked' | 'replaced' | 'anotherOrganization';
 
 export type JoinStep =
 	/** no link yet: the field. */
 	| { kind: 'paste' }
-	/** the link is being read, and the organization it names recorded on this machine. */
-	| { kind: 'inspecting'; link: string }
+	/**
+	 * the link's text is being read. A decode and nothing behind it, except on the organization's
+	 * own link, where the connect that records the organization runs in the same wait.
+	 */
+	| { kind: 'reading'; link: string }
 	/** the text is not a rentable link. */
 	| { kind: 'unreadable'; link: string }
 	/** the organization could not be reached from a machine that has never seen it. */
 	| { kind: 'unreachable'; link: string; message: string }
 	/**
-	 * the link was read and this machine is connected, and it admits nobody: which of the four it
-	 * is, and the shell's own sentence where a refusal came back from Rust rather than from the
-	 * standing the inspection answered with.
+	 * the link admits nobody: which of the five it is, and the shell's own sentence under it,
+	 * since a standing that changed while the person was typing is worth reading in Rust's words.
+	 *
+	 * **This machine may or may not be connected here.** A code that was right unsealed the
+	 * credential and reached the organization before the row was judged, so a spent link lands the
+	 * machine connected and the wall is its way on; a lapsed link is refused before any key is
+	 * derived and reaches nothing.
 	 */
 	| { kind: 'refused'; link: string; refusal: JoinRefusal; message: string | null }
 	/**
-	 * an invitation that stands: whom it invites, where, and the password they are choosing. The
-	 * link is held to hand back to the accept, which is what opens the vault.
+	 * an invitation that was read: which organization, the code the issuer read out, and the
+	 * password this person is choosing. The link is held to hand back to the accept, which is what
+	 * opens the vault.
+	 *
+	 * **Nobody is named on it.** Naming the invited person meant opening their vault with the
+	 * link's secret, and the secret is one half of what opens it now (effort 826, requirement 23),
+	 * so there is nothing to name before the accept has run. The organization is what the person
+	 * recognises.
 	 */
 	| {
 			kind: 'password';
 			link: string;
 			organizationName: string;
-			/**
-			 * whom the link invites, where the read could name them. Empty since effort 826's
-			 * requirement 23: naming them meant opening their vault with the link's secret, and
-			 * the secret is one half of what opens it now, so nobody is named until the code is
-			 * typed and the accept has run. The screen draws the line only where there is one.
-			 */
-			username: string;
 			/** the accept is running, which is three key derivations the person is waiting on. */
 			isJoining: boolean;
 			/**
 			 * the code was refused, and which of the two it was: shown by name over the fields,
 			 * with what the shell said under it.
 			 */
+			codeRefusal: CodeRefusal | null;
+			errorMessage: string | null;
+	  }
+	/**
+	 * a link the member made for this machine (effort 828, requirement 3): the code alone, because
+	 * the password they already have is what the wall asks for once the machine is connected.
+	 */
+	| {
+			kind: 'code';
+			link: string;
+			organizationName: string;
+			/** the machine connect is running, which is the key derivation and the first pull. */
+			isJoining: boolean;
 			codeRefusal: CodeRefusal | null;
 			errorMessage: string | null;
 	  };
@@ -133,40 +166,37 @@ export function normalizeLink(text: string): string {
 export function beginWith(link: string | null): JoinStep {
 	const normalized = normalizeLink(link ?? '');
 
-	return normalized ? { kind: 'inspecting', link: normalized } : { kind: 'paste' };
+	return normalized ? { kind: 'reading', link: normalized } : { kind: 'paste' };
 }
 
 /**
- * which kind of link this is, read from the link's own text. The decode says so directly now, so
- * this is a field read rather than a judgement; it is kept as a function because the screen and
- * the route both ask, and ticket 05 is where the third kind gets a step of its own.
+ * which kind of link this is, read from the link's own text. The decode says so directly, so this
+ * is a field read rather than a judgement; it is kept as a function because the screen and the
+ * route both ask, and because where the answer comes from is worth naming once.
  */
 export function linkKind(shape: LinkShape): LinkShape['kind'] {
 	return shape.kind;
 }
 
 /**
- * where the link leaves the screen, once it has been read: the wall for an organization link,
- * whose connect has already run, and the password for anything else, whose accept is what
- * reaches the organization at all.
+ * where the link leaves the read, which is one of three places: the wall for an organization link,
+ * whose connect has already run and which admits nobody by itself; the password for an invitation,
+ * whose accept is what reaches the organization at all; and the code alone for a second machine's
+ * link, whose member already has a password and meets it at the wall afterwards.
  *
- * **Where a lapsed, consumed or revoked invitation lands is ticket 05's.** Nothing reads the row
- * before the code is typed, so those three arrive as refusals from the accept rather than from
- * the read, and `joinFailed` is where they will be keyed.
+ * Each carries the organization's name off the shape, because that is the one thing the person on
+ * the new machine can recognise, and nothing else the link said is worth drawing before a code is
+ * typed.
  */
-export function afterConnect(link: string, shape: LinkShape): JoinStep | typeof THE_WALL {
+export function afterRead(link: string, shape: LinkShape): JoinStep | typeof THE_WALL {
 	if (shape.kind === 'organization') {
 		return THE_WALL;
 	}
 
 	return {
-		kind: 'password',
+		kind: shape.kind === 'machine' ? 'code' : 'password',
 		link,
 		organizationName: shape.organizationName,
-		// nobody is named from a link alone (effort 826, requirement 23), and the step stands
-		// without a name: the organization is what the person recognises, and the code and the
-		// password are what they have to give.
-		username: '',
 		isJoining: false,
 		codeRefusal: null,
 		errorMessage: null
@@ -174,11 +204,16 @@ export function afterConnect(link: string, shape: LinkShape): JoinStep | typeof 
 }
 
 /**
- * the link could not be read, or this machine could not be connected by it. Which of the three it
- * was is the Rust code on the rejection: text that is not a link is `invalidInput`, an
- * organization that could not be reached is `network`, and a machine already holding another
- * organization is `preconditionFailed`, whose sentence names both and says to disconnect first.
- * Anything else is shown as what it said.
+ * the link could not be read, or the organization's own link could not connect this machine. Which
+ * of the three it was is the Rust code on the rejection: text that is not a link is `invalidInput`,
+ * which a link in the shape before effort 828 is; an organization that could not be reached is
+ * `network`; and a machine already holding another organization is `preconditionFailed`, whose
+ * sentence names both and says to disconnect first. Anything else is shown as what it said.
+ *
+ * **It answers nothing about where a link stands**, which is what narrowed it to the decode. The
+ * read is a decode and the connect is the organization's own link alone, so no row has been looked
+ * at by the time anything here runs; a lapsed, consumed, revoked or replaced link is `joinFailed`'s
+ * to land, after a code.
  */
 export function inspectionFailed(
 	link: string,
@@ -198,37 +233,63 @@ export function inspectionFailed(
 	return { kind: 'unreachable', link, message: describe(error) };
 }
 
-/** the accept is out: the fields stay on screen, disabled, and nothing else moves. */
+/**
+ * the act that takes the code is out: the fields stay on screen, disabled, and nothing else moves.
+ * Both steps that take a code are held the same way.
+ */
 export function joinBegun(step: JoinStep): JoinStep {
-	return step.kind === 'password'
+	return step.kind === 'password' || step.kind === 'code'
 		? { ...step, isJoining: true, codeRefusal: null, errorMessage: null }
 		: step;
 }
 
 /**
- * the accept was refused. The standings were judged before this step was reached, so what lands
- * here is a wrong or lapsed code, a link somebody altered, a password the floor refused, or a
- * standing that changed under the person.
+ * the accept or the machine connect was refused, and this is the one place a standing becomes a
+ * step. Nothing reads a row before the code is out, so everything a link can be wrong about lands
+ * here rather than on the read.
  *
- * **The two code refusals are named in the reader's own language, and Rust's sentence is kept
- * under them.** A code that failed the seal is `forbidden` and one the row says has lapsed is
- * `preconditionFailed`, which are the two codes an accept reaching this step comes back with;
- * the rare third thing they can mean, a standing that changed while the person was typing, still
- * says so in Rust's own words on the line below, the way the refusal step shows a shell sentence
- * under its own. Everything else is shown as it was said.
+ * **Where each goes, and what says so.** A link the row refuses carries Rust's `reason`, which is
+ * `lapsed`, `consumed`, `revoked` or `replaced`, and lands by that name on the refused step with
+ * Rust's sentence kept under this side's. A link for an organization this machine does not hold is
+ * `preconditionFailed` and is the fifth refusal. A code that failed the seal is `forbidden` and a
+ * code nobody typed is `invalidInput`, and both stay on the step so the person can try the field
+ * again. A connection that went is `network` and is the unreachable step, which offers the same
+ * link again. Anything else stays on the step and is shown as it was said.
+ *
+ * *Every one of those but the network came back as one `forbidden` until effort 828, and the
+ * screen could not tell a mistyped code from a dead link. The refusal now crosses the boundary as
+ * a named code, which is what this reads; nothing here reads a sentence.*
  */
 export function joinFailed(
 	step: JoinStep,
 	error: unknown,
 	describe: (error: unknown) => string
 ): JoinStep {
-	if (step.kind !== 'password') return step;
+	if (step.kind !== 'password' && step.kind !== 'code') return step;
 
 	const code = toTauriErrorCode(error);
-	const codeRefusal: CodeRefusal | null =
-		code === 'forbidden' ? 'wrong' : code === 'preconditionFailed' ? 'lapsed' : null;
+	const message = describe(error);
+	const reason = toTauriRefusalReason(error);
 
-	return { ...step, isJoining: false, codeRefusal, errorMessage: describe(error) };
+	if (reason) {
+		return { kind: 'refused', link: step.link, refusal: reason, message };
+	}
+
+	if (code === 'preconditionFailed') {
+		return { kind: 'refused', link: step.link, refusal: 'anotherOrganization', message };
+	}
+
+	if (code === 'network') {
+		return { kind: 'unreachable', link: step.link, message };
+	}
+
+	// what the person typed, which is the one refusal they can answer without a new link. A rarer
+	// `invalidInput`, a password under the floor or a link carrying no invitation, keeps Rust's own
+	// sentence on the line below, which is where the exact reason is read.
+	const codeRefusal: CodeRefusal | null =
+		code === 'forbidden' ? 'wrong' : code === 'invalidInput' ? 'missing' : null;
+
+	return { ...step, isJoining: false, codeRefusal, errorMessage: message };
 }
 
 /**

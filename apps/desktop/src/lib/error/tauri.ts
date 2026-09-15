@@ -13,6 +13,7 @@ export const TAURI_ERROR_CODES = [
 	'invalidInput',
 	'notFound',
 	'forbidden',
+	'refused',
 	'preconditionFailed',
 	'busy',
 	'timedOut',
@@ -27,9 +28,20 @@ export const TAURI_ERROR_CODES = [
 
 export type TauriErrorCode = (typeof TAURI_ERROR_CODES)[number];
 
+/**
+ * why a link admits nobody, on a `refused`: the standing behind it, after the code that opened it
+ * was right. Rust's `RefusalReason`, spelled the same, and the one thing besides the code a caller
+ * is allowed to branch on.
+ */
+export const TAURI_REFUSAL_REASONS = ['lapsed', 'consumed', 'revoked', 'replaced'] as const;
+
+export type TauriRefusalReason = (typeof TAURI_REFUSAL_REASONS)[number];
+
 export type TauriError = {
 	code: TauriErrorCode;
 	message: string;
+	/** present on `refused` and on nothing else. */
+	reason?: string;
 };
 
 /**
@@ -44,6 +56,22 @@ export function isTauriError(value: unknown): value is TauriError {
 	const { code, message } = value as { code?: unknown; message?: unknown };
 
 	return typeof message === 'string' && TAURI_ERROR_CODES.includes(code as TauriErrorCode);
+}
+
+/**
+ * why a `refused` refused, or `null` where the rejection was not one or carries a word this
+ * side does not know.
+ *
+ * A caller that has to tell a dead link from a mistyped code reads this, never the sentence:
+ * the sentence is written for a person and is Rust's to reword, and the four standings all
+ * crossed as one code until effort 828 gave them this one.
+ */
+export function toTauriRefusalReason(error: unknown): TauriRefusalReason | null {
+	if (!isTauriError(error) || error.code !== 'refused') return null;
+
+	return TAURI_REFUSAL_REASONS.includes(error.reason as TauriRefusalReason)
+		? (error.reason as TauriRefusalReason)
+		: null;
 }
 
 /**

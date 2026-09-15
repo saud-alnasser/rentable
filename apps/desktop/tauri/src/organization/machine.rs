@@ -33,7 +33,12 @@ use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{diagnostics, error::Error, persisted::Persisted, sync::RemoteSyncStore};
+use crate::{
+    diagnostics,
+    error::{Error, RefusalReason},
+    persisted::Persisted,
+    sync::RemoteSyncStore,
+};
 
 use super::{
     HeldOrganization, connect,
@@ -79,14 +84,18 @@ enum Refusal {
 ///
 /// **It points at the you section rather than at anybody else.** Nobody but the member makes one
 /// of these, so a refusal has exactly one remedy and the sentence says where it is.
+///
+/// **It crosses as `Error::Refused` with the reason beside the message**, the way an invitation's
+/// refusal does, so the connect screen names the standing rather than reading this sentence.
 fn machine_link_refused(organization_name: &str, refusal: Refusal) -> Error {
-    let why = match refusal {
-        Refusal::Lapsed => "has lapsed",
-        Refusal::Consumed => "already connected a machine",
-        Refusal::Replaced => "was replaced by a newer one",
+    let (reason, why) = match refusal {
+        Refusal::Lapsed => (RefusalReason::Lapsed, "has lapsed"),
+        Refusal::Consumed => (RefusalReason::Consumed, "already connected a machine"),
+        Refusal::Replaced => (RefusalReason::Replaced, "was replaced by a newer one"),
     };
 
-    Error::Forbidden {
+    Error::Refused {
+        reason,
         message: format!(
             "this link to {organization_name} {why}; make another from the you section on a \
              machine you are already signed in on"
@@ -271,7 +280,7 @@ mod tests {
 
     use super::{MachineLink, connect, make};
     use crate::{
-        error::Error,
+        error::{Error, RefusalReason},
         organization::{
             HeldOrganization,
             invite::{INVITATION_LIFETIME_MS, Invitation, invite_member, organization_link},
@@ -583,7 +592,7 @@ mod tests {
         .expect_err("a lapsed link connected a machine");
 
         assert!(
-            matches!(&refusal, Error::Forbidden { message } if message.contains("has lapsed")),
+            matches!(&refusal, Error::Refused { reason: RefusalReason::Lapsed, .. }),
             "{refusal:?}"
         );
         assert!(late_machine.organization.is_none());
@@ -624,7 +633,7 @@ mod tests {
         assert!(
             matches!(
                 &refusal,
-                Error::Forbidden { message } if message.contains("already connected a machine")
+                Error::Refused { reason: RefusalReason::Consumed, .. }
             ),
             "{refusal:?}"
         );

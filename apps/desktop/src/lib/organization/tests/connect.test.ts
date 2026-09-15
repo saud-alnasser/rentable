@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
-	afterConnect,
+	afterRead,
 	beginWith,
 	inspectionFailed,
 	joinBegun,
@@ -20,12 +20,17 @@ import type { LinkShape } from '$lib/platform/host.ts';
 /**
  * THE CONNECT SCREEN, DRIVEN
  *
- * Every step the screen can be in, reached without a window. What is worth pinning is the two
- * ways a link arrives ending in the same place, the two kinds of link ending in their own place,
- * the four refusals, and that the screen never holds more than the text and what the link said.
+ * Every step the screen can be in, reached without a window. What is worth pinning is the two ways
+ * a link arrives ending in the same place, the three kinds of link ending each in its own place,
+ * the five refusals and the two the code gets, and that the screen never holds more than the text
+ * and what the link said.
  *
  * An organization link ends at the wall, which is the startup unit's and is driven in
  * `layout/tests/startup.test.ts`; here it is `THE_WALL`, which is what the route acts on.
+ *
+ * **A standing is a code on the rejection and never a sentence** (effort 828, requirement 1). Rust
+ * answers `refused` with a `reason` beside the message, and the assertions below build rejections
+ * in exactly that shape, so a test that passes is a test the boundary can actually produce.
  */
 
 const shape = (overrides: Partial<LinkShape> = {}): LinkShape => ({
@@ -40,16 +45,25 @@ const LINK = 'rentable://join/abc';
 
 /** the landing of a link that stays on this screen, narrowed for the assertions that read it. */
 const stepOf = (overrides: Partial<LinkShape>): JoinStep => {
-	const landing = afterConnect(LINK, shape(overrides));
+	const landing = afterRead(LINK, shape(overrides));
 
 	assert.notEqual(landing, THE_WALL, 'expected a step rather than the wall');
 
 	return landing as JoinStep;
 };
 
+/** a rejection as a tauri command makes one: the code, the message, and a reason on a refused. */
+const rejection = (code: string, message: string, reason?: string) => ({
+	code,
+	message,
+	...(reason ? { reason } : {})
+});
+
+const said = (error: unknown) => (error as { message: string }).message;
+
 test('a link handed over by the operating system and a pasted one start the same way', () => {
 	assert.deepEqual(beginWith(LINK), {
-		kind: 'inspecting',
+		kind: 'reading',
 		link: LINK
 	});
 	assert.deepEqual(beginWith(null), { kind: 'paste' });
@@ -74,33 +88,95 @@ test('the shape says which kind of link this is', () => {
 });
 
 test('an organization link ends this screen at the wall', () => {
-	assert.equal(afterConnect(LINK, shape()), THE_WALL);
+	assert.equal(afterRead(LINK, shape()), THE_WALL);
 });
 
 // nobody is named from a link alone (effort 826, requirement 23): the organization is what the
 // person recognises, and the code and the password are what they have to give.
 test('an invitation link names the organization and asks for a code and a password, naming nobody', () => {
-	assert.deepEqual(afterConnect(LINK, shape({ kind: 'invitation', expiresAt: 1 })), {
+	assert.deepEqual(afterRead(LINK, shape({ kind: 'invitation', expiresAt: 1 })), {
 		kind: 'password',
 		link: LINK,
 		organizationName: 'Acme Rentals',
-		username: '',
 		isJoining: false,
 		codeRefusal: null,
 		errorMessage: null
 	});
 });
 
-// TICKET 05 of effort 828 replaces this flow. The three standings were answered by the read, which
-// reached the organization with the link's clear credential; there is no clear credential to do
-// that with, so they arrive as refusals from the accept and `joinFailed` is where ticket 05 keys
-// them onto the refused step. Kept here, skipped, so that ticket has the shape to land on.
-test.skip('a lapsed, consumed or revoked invitation is refused by name (ticket 05)', () => {
-	assert.fail('ticket 05 keys these three off the accept rather than off the read');
+// effort 828, requirement 3: the member already has a password, so the link they made for their
+// own next machine asks for the code alone and the wall is where the password is used.
+test('a machine link asks for the code alone, under the same organization name', () => {
+	assert.deepEqual(afterRead(LINK, shape({ kind: 'machine', expiresAt: 1 })), {
+		kind: 'code',
+		link: LINK,
+		organizationName: 'Acme Rentals',
+		isJoining: false,
+		codeRefusal: null,
+		errorMessage: null
+	});
+});
+
+// effort 828, requirement 1: nothing reads the row behind a link before the code is out, so every
+// standing arrives as a refusal from the act that took the code. Which standing it was crosses as
+// the `reason` on a `refused`, never as prose, and this is where that word becomes a step.
+//
+// *This test was the read's until effort 828 sealed the credential: the standing was answered
+// before anybody had typed anything, and the screen showed it without asking for a code.*
+test('a lapsed, consumed, revoked or replaced link is refused by name, off the code and not the sentence', () => {
+	for (const step of [
+		stepOf({ kind: 'invitation', expiresAt: 1 }),
+		stepOf({ kind: 'machine', expiresAt: 1 })
+	]) {
+		const joining = joinBegun(step);
+
+		for (const reason of ['lapsed', 'consumed', 'revoked', 'replaced'] as const) {
+			assert.deepEqual(
+				joinFailed(joining, rejection('refused', `the link to Acme ${reason}`, reason), said),
+				{
+					kind: 'refused',
+					link: LINK,
+					refusal: reason,
+					message: `the link to Acme ${reason}`
+				},
+				`${step.kind}: ${reason}`
+			);
+		}
+
+		// a machine that holds another organization already, met by the act that takes the code
+		// rather than by the read, since the read reaches nothing.
+		assert.deepEqual(
+			joinFailed(joining, rejection('preconditionFailed', 'this machine holds Beta'), said),
+			{
+				kind: 'refused',
+				link: LINK,
+				refusal: 'anotherOrganization',
+				message: 'this machine holds Beta'
+			},
+			step.kind
+		);
+
+		// the accept and the machine connect both reach the organization, so both can fail to.
+		assert.deepEqual(
+			joinFailed(joining, rejection('network', 'Acme could not be reached'), said),
+			{ kind: 'unreachable', link: LINK, message: 'Acme could not be reached' },
+			step.kind
+		);
+	}
+});
+
+// a word this side does not know is no reason at all: it keeps the person on the step with the
+// shell's own sentence, rather than being drawn as a refusal the screen has no name for.
+test('a refusal naming a standing this side does not know keeps the step and says what was said', () => {
+	const joining = joinBegun(stepOf({ kind: 'invitation', expiresAt: 1 }));
+	const step = joinFailed(joining, rejection('refused', 'the link was eaten', 'eaten'), said);
+
+	assert.equal(step.kind, 'password');
+	assert.equal(step.kind === 'password' && step.errorMessage, 'the link was eaten');
 });
 
 test('text that is not a link is unreadable, and an organization that cannot be reached says so', () => {
-	const describe = (error: unknown) => (error as { message: string }).message;
+	const describe = said;
 
 	assert.deepEqual(
 		inspectionFailed('nope', { code: 'invalidInput', message: 'not a link' }, describe),
@@ -123,8 +199,8 @@ test('text that is not a link is unreadable, and an organization that cannot be 
 
 // effort 826, requirement 3 of effort 824 still: a machine holds one organization, so a link for
 // another is refused where the connect meets it, with the shell's sentence naming both.
-test('a link for another organization is the fourth refusal, carrying what the shell said', () => {
-	const describe = (error: unknown) => (error as { message: string }).message;
+test('an organization link met on a machine holding another is refused on the read, carrying what the shell said', () => {
+	const describe = said;
 
 	assert.deepEqual(
 		inspectionFailed(
@@ -144,62 +220,52 @@ test('a link for another organization is the fourth refusal, carrying what the s
 	);
 });
 
-test('the accept holds the fields while it runs, and says what refused it', () => {
-	const joining = joinBegun(stepOf({ kind: 'invitation', expiresAt: 1 }));
+test('the act that takes the code holds the fields while it runs, and says what refused it', () => {
+	for (const kind of ['invitation', 'machine'] as const) {
+		const step = stepOf({ kind, expiresAt: 1 });
+		const joining = joinBegun(step);
 
-	assert.deepEqual(joining, {
-		kind: 'password',
-		link: LINK,
-		organizationName: 'Acme Rentals',
-		username: '',
-		isJoining: true,
-		codeRefusal: null,
-		errorMessage: null
-	});
+		assert.deepEqual(joining, { ...step, isJoining: true }, kind);
 
-	assert.deepEqual(
-		joinFailed(
-			joining,
-			new Error('the invitation was already opened'),
-			(error) => (error as Error).message
-		),
-		{
-			kind: 'password',
-			link: LINK,
-			organizationName: 'Acme Rentals',
-			username: '',
-			isJoining: false,
-			codeRefusal: null,
-			errorMessage: 'the invitation was already opened'
-		}
-	);
+		// a failure raised on this side never crossed the boundary, so it names no refusal and is
+		// shown as what it said.
+		assert.deepEqual(
+			joinFailed(joining, new Error('the disk is full'), said),
+			{ ...step, isJoining: false, codeRefusal: null, errorMessage: 'the disk is full' },
+			kind
+		);
+	}
 });
 
-// effort 826, requirement 23: the two refusals a code gets are told apart by the code the shell
-// rejected with, so the screen can name each in the reader's own language. A wrong code failed the
-// seal and is `forbidden`; one the row says has lapsed is `preconditionFailed`. Everything else,
-// including anything raised on this side, keeps the shell's own sentence and names nothing.
-test('a wrong code and a lapsed one are told apart, and nothing else is read as either', () => {
-	const joining = joinBegun(stepOf({ kind: 'invitation', expiresAt: 1 }));
-	const refusalOf = (error: unknown) => {
-		const step = joinFailed(joining, error, () => 'said');
+// effort 826, requirement 23; effort 828, requirement 1: the two refusals a code gets are the two
+// the person can answer without a new link, and both keep them on the step. A code that failed the
+// seal is `forbidden` and a field nobody filled in is `invalidInput`. A code has no life of its own
+// any more, so there is no third; a link past its moment is a refused link, which is the test above.
+test('a wrong code and a missing one are told apart, on both steps that take one', () => {
+	for (const kind of ['invitation', 'machine'] as const) {
+		const joining = joinBegun(stepOf({ kind, expiresAt: 1 }));
+		const refusalOf = (error: unknown) => {
+			const step = joinFailed(joining, error, () => 'said');
 
-		return step.kind === 'password' ? step.codeRefusal : 'not the password step';
-	};
+			return step.kind === 'password' || step.kind === 'code'
+				? step.codeRefusal
+				: `left for the ${step.kind} step`;
+		};
 
-	assert.equal(
-		refusalOf({ code: 'forbidden', message: 'the code is wrong or has lapsed' }),
-		'wrong'
-	);
-	assert.equal(refusalOf({ code: 'preconditionFailed', message: 'the code has lapsed' }), 'lapsed');
-	assert.equal(refusalOf({ code: 'invalidInput', message: 'type the six-character code' }), null);
-	assert.equal(refusalOf(new Error('the connection went')), null);
+		assert.equal(refusalOf(rejection('forbidden', 'the code is wrong')), 'wrong', kind);
+		assert.equal(
+			refusalOf(rejection('invalidInput', 'type the six-character code')),
+			'missing',
+			kind
+		);
+		assert.equal(refusalOf(new Error('the connection went')), null, kind);
 
-	// the shell's own sentence is kept whichever it was: the screen shows it under the named
-	// refusal, because a `forbidden` can still be a standing that changed while they typed.
-	const wrong = joinFailed(joining, { code: 'forbidden', message: 'wrong' }, () => 'said');
+		// the shell's own sentence is kept either way: the screen shows it under the named refusal,
+		// because a rarer `invalidInput` is a password under the floor rather than an empty code.
+		const wrong = joinFailed(joining, rejection('forbidden', 'wrong'), () => 'said');
 
-	assert.equal(wrong.kind === 'password' && wrong.errorMessage, 'said');
+		assert.equal((wrong as { errorMessage?: string }).errorMessage, 'said', kind);
+	}
 });
 
 // the code as the field holds it: upper-cased, six at most, and the spaces and hyphens somebody
