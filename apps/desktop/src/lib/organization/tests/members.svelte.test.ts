@@ -55,7 +55,7 @@ import Providers from './providers.svelte';
  */
 
 const { address, navigations } = vi.hoisted(() => ({
-	address: { url: new URL('http://localhost/settings?section=members') },
+	address: { url: new URL('http://localhost/settings?section=organization') },
 	navigations: [] as string[]
 }));
 
@@ -80,8 +80,8 @@ vi.mock('$app/navigation', async (importOriginal) => ({
 const noop = () => {};
 const resolved = async () => {};
 
-/** the reader is standing at the members section, with or without an account named on it. */
-const at = (search = '?section=members') => {
+/** the reader is standing at the organization section, with or without an account named on it. */
+const at = (search = '?section=organization') => {
 	address.url = new URL(`http://localhost/settings${search}`);
 };
 
@@ -367,7 +367,9 @@ test('the section says who is listed and what it is for, in the tray', () => {
 	expect(tray.querySelector('[data-directory-description]')?.textContent?.trim()).toBe(
 		en.organization.dashboard.membersDescription
 	);
-	expect(tray.querySelector('legend')?.textContent?.trim()).toBe(en.settings.section.members);
+	expect(tray.querySelector('legend')?.textContent?.trim()).toBe(
+		en.organization.dashboard.membersTitle
+	);
 	// above the cards, not around them.
 	const first = document.querySelector('[data-member]')!;
 
@@ -383,7 +385,7 @@ test('a card opens its own record, and nothing on the card itself does anything 
 	const ada = card('ada')!;
 	const opens = ada.querySelector('a')!;
 
-	expect(opens.getAttribute('href')).toBe('/settings?section=members&member=ada');
+	expect(opens.getAttribute('href')).toBe('/settings?section=organization&member=ada');
 	expect(opens.getAttribute('aria-label')).toBe('ada');
 	// the acts are behind the card's one control, and nothing else on it is pressable.
 	expect(ada.querySelectorAll('button')).toHaveLength(1);
@@ -405,7 +407,7 @@ test('a card opens its own record, and nothing on the card itself does anything 
 // the other half of the same rule: the section reads the account off the address and opens that
 // account's edit, then clears it, so pressing the same card twice opens the same surface twice.
 test('the address naming an account opens that account and is cleared', async () => {
-	at('?section=members&member=ada');
+	at('?section=organization&member=ada');
 	list();
 
 	await waitFor(() => {
@@ -416,7 +418,7 @@ test('the address naming an account opens that account and is cleared', async ()
 			en.organization.dashboard.memberSheetDescription.replace('{username:string}', 'ada')
 		)
 	).toBeDefined();
-	expect(navigations).toEqual(['/settings?section=members']);
+	expect(navigations).toEqual(['/settings?section=organization']);
 });
 
 test('an address naming nobody opens nothing and navigates nowhere', () => {

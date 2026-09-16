@@ -129,9 +129,13 @@ test('no row names the section about the person', async () => {
 	await open();
 
 	expect(row('you')).toBeNull();
+	expect(row('account')).toBeNull();
+	// the section it named is called account since requirement 24 of effort 828, and neither word
+	// is a row here.
 	expect(document.querySelector('a[href="/settings?section=you"]')).toBeNull();
+	expect(document.querySelector('a[href="/settings?section=account"]')).toBeNull();
 	expect(screen.getAllByRole('menuitem').map((item) => item.textContent?.trim())).not.toContain(
-		en.settings.section.you
+		en.settings.section.account
 	);
 });
 

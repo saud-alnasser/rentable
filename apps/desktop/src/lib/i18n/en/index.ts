@@ -448,6 +448,7 @@ const en = {
 		diagnosticsDescription:
 			'rentable keeps a record of what it does on this machine, so a failure can be looked into afterwards. the files never leave this machine, they are limited in size, and passwords and account tokens are removed before anything is written.',
 		diagnosticsReveal: 'open log folder',
+		diagnosticsTitle: 'diagnostics',
 
 		downloadingUpdate: 'downloading update',
 
@@ -469,16 +470,13 @@ const en = {
 		localeDescription: 'the interface changes as soon as you pick one.',
 		localeTitle: 'language',
 
-		// the seven sections of the settings area, in the order the rail draws them rather than
-		// in alphabetical order: the order is requirement 14's and is read here as a list.
+		// the four sections of the settings area, each named for what it holds and in the order the
+		// rail draws them rather than in alphabetical order: the order is read here as a list.
 		section: {
 			general: 'general',
-			you: 'you',
-			members: 'members',
-			workspaces: 'workspaces',
-			sync: 'sync',
-			updates: 'updates',
-			diagnostics: 'diagnostics'
+			account: 'account',
+			organization: 'organization',
+			workspaces: 'workspaces'
 		},
 
 		title: 'settings',
@@ -486,6 +484,7 @@ const en = {
 		updatesChecking: 'checking for updates...',
 		updatesDescription:
 			'check whether a newer version of rentable is available, and install it. if the app will not start afterwards, it offers to put back the version you were on.',
+		updatesTitle: 'updates',
 
 		you: {
 			signedInAs: 'signed in as',
@@ -830,6 +829,7 @@ const en = {
 		dashboard: {
 			// the sentence the members section opens with: who is listed, and what this section is
 			// for. Short, because the cards under it say the rest.
+			membersTitle: 'members',
 			membersDescription: 'everybody in the organization. members are made and changed here.',
 			// the same sentence for the workspaces section, and the same shape: who is listed,
 			// then what this section is for.
@@ -953,6 +953,10 @@ const en = {
 			signingIsTheOwners:
 				"only the owner can give somebody an act that writes another member's row. taking one back is yours.",
 			roleChanged: 'the role and the permissions were saved.',
+			// the foot of the organization section: the two acts that end something, under one quiet
+			// word so that a reader scanning the section knows what the last block is before they
+			// read either description.
+			leavingTitle: 'leaving',
 			disconnectForgets:
 				'disconnecting forgets the organization on this machine: you are signed out, every copy of it and of its workspaces kept here is deleted, and the turso authority is cleared. nothing on turso is touched, and the link connects this machine again. to reach another organization, disconnect and connect to it.',
 			disconnect: 'disconnect',

@@ -238,9 +238,9 @@
 		...(canGrantWorkspace
 			? [
 					{
-						// the section's own word, read from the one key that holds it: who is in a
+						// the directory's own word, read from the one key that holds it: who is in a
 						// workspace is what this opens, and the dialog's own title says the rest.
-						label: $LL.settings.section.members(),
+						label: $LL.organization.dashboard.membersTitle(),
 						icon: UsersIcon,
 						attributes: { 'data-workspace-grant': workspace.id },
 						onSelect: () => {

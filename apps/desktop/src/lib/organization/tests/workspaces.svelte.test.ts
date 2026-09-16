@@ -531,7 +531,7 @@ test('the acts read as one plain word each, in the words the rest of the applica
 	await fireEvent.click(control('ws-1')!);
 
 	expect(on('rename', 'ws-1')?.textContent?.trim()).toBe(en.workspace.rename);
-	expect(on('grant', 'ws-1')?.textContent?.trim()).toBe(en.settings.section.members);
+	expect(on('grant', 'ws-1')?.textContent?.trim()).toBe(en.organization.dashboard.membersTitle);
 	expect(on('delete', 'ws-1')?.textContent?.trim()).toBe(en.common.actions.delete);
 	expect(on('delete', 'ws-1')?.getAttribute('data-variant')).toBe('destructive');
 	expect(on('rename', 'ws-1')?.getAttribute('data-variant')).toBe('default');
@@ -561,7 +561,7 @@ test('and in arabic every card reads in its own words, right to left', async () 
 
 	await fireEvent.click(control('ws-1')!);
 
-	expect(on('grant', 'ws-1')?.textContent?.trim()).toBe(ar.settings.section.members);
+	expect(on('grant', 'ws-1')?.textContent?.trim()).toBe(ar.organization.dashboard.membersTitle);
 
 	setLocale('en');
 });

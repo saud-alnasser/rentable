@@ -1446,6 +1446,10 @@ type RootTranslation = {
 		 */
 		diagnosticsReveal: string
 		/**
+		 * d​i​a​g​n​o​s​t​i​c​s
+		 */
+		diagnosticsTitle: string
+		/**
 		 * d​o​w​n​l​o​a​d​i​n​g​ ​u​p​d​a​t​e
 		 */
 		downloadingUpdate: string
@@ -1495,29 +1499,17 @@ type RootTranslation = {
 			 */
 			general: string
 			/**
-			 * y​o​u
+			 * a​c​c​o​u​n​t
 			 */
-			you: string
+			account: string
 			/**
-			 * m​e​m​b​e​r​s
+			 * o​r​g​a​n​i​z​a​t​i​o​n
 			 */
-			members: string
+			organization: string
 			/**
 			 * w​o​r​k​s​p​a​c​e​s
 			 */
 			workspaces: string
-			/**
-			 * s​y​n​c
-			 */
-			sync: string
-			/**
-			 * u​p​d​a​t​e​s
-			 */
-			updates: string
-			/**
-			 * d​i​a​g​n​o​s​t​i​c​s
-			 */
-			diagnostics: string
 		}
 		/**
 		 * s​e​t​t​i​n​g​s
@@ -1531,6 +1523,10 @@ type RootTranslation = {
 		 * c​h​e​c​k​ ​w​h​e​t​h​e​r​ ​a​ ​n​e​w​e​r​ ​v​e​r​s​i​o​n​ ​o​f​ ​r​e​n​t​a​b​l​e​ ​i​s​ ​a​v​a​i​l​a​b​l​e​,​ ​a​n​d​ ​i​n​s​t​a​l​l​ ​i​t​.​ ​i​f​ ​t​h​e​ ​a​p​p​ ​w​i​l​l​ ​n​o​t​ ​s​t​a​r​t​ ​a​f​t​e​r​w​a​r​d​s​,​ ​i​t​ ​o​f​f​e​r​s​ ​t​o​ ​p​u​t​ ​b​a​c​k​ ​t​h​e​ ​v​e​r​s​i​o​n​ ​y​o​u​ ​w​e​r​e​ ​o​n​.
 		 */
 		updatesDescription: string
+		/**
+		 * u​p​d​a​t​e​s
+		 */
+		updatesTitle: string
 		you: {
 			/**
 			 * s​i​g​n​e​d​ ​i​n​ ​a​s
@@ -2525,6 +2521,10 @@ type RootTranslation = {
 		}
 		dashboard: {
 			/**
+			 * m​e​m​b​e​r​s
+			 */
+			membersTitle: string
+			/**
 			 * e​v​e​r​y​b​o​d​y​ ​i​n​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​m​e​m​b​e​r​s​ ​a​r​e​ ​m​a​d​e​ ​a​n​d​ ​c​h​a​n​g​e​d​ ​h​e​r​e​.
 			 */
 			membersDescription: string
@@ -2883,6 +2883,10 @@ type RootTranslation = {
 			 * t​h​e​ ​r​o​l​e​ ​a​n​d​ ​t​h​e​ ​p​e​r​m​i​s​s​i​o​n​s​ ​w​e​r​e​ ​s​a​v​e​d​.
 			 */
 			roleChanged: string
+			/**
+			 * l​e​a​v​i​n​g
+			 */
+			leavingTitle: string
 			/**
 			 * d​i​s​c​o​n​n​e​c​t​i​n​g​ ​f​o​r​g​e​t​s​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​:​ ​y​o​u​ ​a​r​e​ ​s​i​g​n​e​d​ ​o​u​t​,​ ​e​v​e​r​y​ ​c​o​p​y​ ​o​f​ ​i​t​ ​a​n​d​ ​o​f​ ​i​t​s​ ​w​o​r​k​s​p​a​c​e​s​ ​k​e​p​t​ ​h​e​r​e​ ​i​s​ ​d​e​l​e​t​e​d​,​ ​a​n​d​ ​t​h​e​ ​t​u​r​s​o​ ​a​u​t​h​o​r​i​t​y​ ​i​s​ ​c​l​e​a​r​e​d​.​ ​n​o​t​h​i​n​g​ ​o​n​ ​t​u​r​s​o​ ​i​s​ ​t​o​u​c​h​e​d​,​ ​a​n​d​ ​t​h​e​ ​l​i​n​k​ ​c​o​n​n​e​c​t​s​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​a​g​a​i​n​.​ ​t​o​ ​r​e​a​c​h​ ​a​n​o​t​h​e​r​ ​o​r​g​a​n​i​z​a​t​i​o​n​,​ ​d​i​s​c​o​n​n​e​c​t​ ​a​n​d​ ​c​o​n​n​e​c​t​ ​t​o​ ​i​t​.
 			 */
@@ -4504,6 +4508,10 @@ export type TranslationFunctions = {
 		 */
 		diagnosticsReveal: () => LocalizedString
 		/**
+		 * diagnostics
+		 */
+		diagnosticsTitle: () => LocalizedString
+		/**
 		 * downloading update
 		 */
 		downloadingUpdate: () => LocalizedString
@@ -4553,29 +4561,17 @@ export type TranslationFunctions = {
 			 */
 			general: () => LocalizedString
 			/**
-			 * you
+			 * account
 			 */
-			you: () => LocalizedString
+			account: () => LocalizedString
 			/**
-			 * members
+			 * organization
 			 */
-			members: () => LocalizedString
+			organization: () => LocalizedString
 			/**
 			 * workspaces
 			 */
 			workspaces: () => LocalizedString
-			/**
-			 * sync
-			 */
-			sync: () => LocalizedString
-			/**
-			 * updates
-			 */
-			updates: () => LocalizedString
-			/**
-			 * diagnostics
-			 */
-			diagnostics: () => LocalizedString
 		}
 		/**
 		 * settings
@@ -4589,6 +4585,10 @@ export type TranslationFunctions = {
 		 * check whether a newer version of rentable is available, and install it. if the app will not start afterwards, it offers to put back the version you were on.
 		 */
 		updatesDescription: () => LocalizedString
+		/**
+		 * updates
+		 */
+		updatesTitle: () => LocalizedString
 		you: {
 			/**
 			 * signed in as
@@ -5541,6 +5541,10 @@ export type TranslationFunctions = {
 		}
 		dashboard: {
 			/**
+			 * members
+			 */
+			membersTitle: () => LocalizedString
+			/**
 			 * everybody in the organization. members are made and changed here.
 			 */
 			membersDescription: () => LocalizedString
@@ -5888,6 +5892,10 @@ export type TranslationFunctions = {
 			 * the role and the permissions were saved.
 			 */
 			roleChanged: () => LocalizedString
+			/**
+			 * leaving
+			 */
+			leavingTitle: () => LocalizedString
 			/**
 			 * disconnecting forgets the organization on this machine: you are signed out, every copy of it and of its workspaces kept here is deleted, and the turso authority is cleared. nothing on turso is touched, and the link connects this machine again. to reach another organization, disconnect and connect to it.
 			 */

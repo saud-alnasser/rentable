@@ -246,7 +246,15 @@ const RETIRED = [
 	'settings.usingCustomDatabasePath',
 	'settings.usingDefaultDatabasePath',
 	'settingsHooks.profileSwitched',
-	'settingsHooks.startupRecoveryCleared'
+	'settingsHooks.startupRecoveryCleared',
+	// the three sections that were folded into the four, and the two words two of them went by
+	// (requirement 24 of effort 828). The names are gone from the rail; the addresses still open
+	// the section that holds what they held, which `section.test.ts` reads.
+	'settings.section.you',
+	'settings.section.members',
+	'settings.section.sync',
+	'settings.section.updates',
+	'settings.section.diagnostics'
 ] as const;
 
 test('both locales have let go of every string the retired pages read', () => {
@@ -268,10 +276,30 @@ const TERMS = [
 	['link and code', 'organization.dashboard.linkTitle'],
 	['full access', 'organization.dashboard.accessFull'],
 	['read only', 'organization.dashboard.accessReadOnly'],
-	['you', 'settings.section.you'],
-	['members', 'settings.section.members'],
+	['members', 'organization.dashboard.membersTitle'],
 	['workspaces', 'settings.section.workspaces']
 ] as const;
+
+// requirement 24 of effort 828: the area's four sections, each named for what it holds, in both
+// locales. The names themselves are read here; which blocks sit under each is `area.svelte.test.ts`.
+const SECTIONS = ['general', 'account', 'organization', 'workspaces'] as const;
+
+test('both locales name the four sections of the settings area', () => {
+	for (const [name, translation] of locales) {
+		const section = at(translation, 'settings.section');
+
+		assert.deepEqual(Object.keys(section as object), [...SECTIONS], `${name} names other sections`);
+
+		for (const key of SECTIONS) {
+			assert.ok((section as Record<string, unknown>)[key], `${name} has no name for ${key}`);
+		}
+	}
+
+	// and the arabic is written rather than left in english.
+	for (const key of SECTIONS) {
+		assert.notEqual(at(ar, `settings.section.${key}`), at(en, `settings.section.${key}`));
+	}
+});
 
 const RETIRED_WORDS = ['pending account', 'unlock your place', 'control plane', 'log in', 'login'];
 

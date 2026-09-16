@@ -21,8 +21,9 @@
 	 * and the column with no ground went with it.
 	 *
 	 * **The current section is read from the address, never from `isActiveRoute`.** Every section
-	 * shares one pathname, so the route helper marks all seven or none; what tells them apart is
-	 * `?section=`, which is what `sectionOf` reads.
+	 * shares one pathname, so the route helper marks all four or none; what tells them apart is
+	 * `?section=`, which is what `sectionOf` reads. `sectionOf` also answers the section holding a
+	 * name that is gone, so an old address underlines the tab its blocks are on.
 	 */
 	let {
 		sections

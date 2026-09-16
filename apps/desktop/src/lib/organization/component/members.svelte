@@ -217,10 +217,10 @@
 		onWithdrawOffer: () => void;
 	} = $props();
 
-	// this section's own address, resolved once. A card's is it with the member named on it, which
-	// is the whole of what a card's `href` is ([[rules/frontend]]: the path is the caller's to
-	// resolve, and the packaged card takes one already resolved).
-	const sectionAddress = resolve(withSection('members'));
+	// the address of the section this directory sits in, resolved once. A card's is it with the
+	// member named on it, which is the whole of what a card's `href` is ([[rules/frontend]]: the
+	// path is the caller's to resolve, and the packaged card takes one already resolved).
+	const sectionAddress = resolve(withSection('organization'));
 
 	const addressOf = (memberId: string) =>
 		`${sectionAddress}&${RECORD_PARAM}=${encodeURIComponent(memberId)}`;
@@ -616,7 +616,7 @@
 <Field.Set class="gap-3" aria-labelledby="members-legend">
 	<DirectoryTray
 		legendId="members-legend"
-		legend={$LL.settings.section.members()}
+		legend={$LL.organization.dashboard.membersTitle()}
 		description={$LL.organization.dashboard.membersDescription()}
 		action={trayActions}
 	/>
