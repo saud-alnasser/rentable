@@ -335,6 +335,22 @@ and named"; one picker round*)
     them. *Chosen over seven sections, which put related things apart and named two of them
     for a mechanism rather than for what a person is looking for.*
 
+*The sync block* (*decided 2026-09-16 with the human, on their look at the four sections:
+"the sync section feels odd synced (sync) redesign this section"; one picker round*)
+
+25. **The sync block states a fact about the organization and this machine, in a sentence.**
+    At the top of the organization section, one block says where this machine stands with the
+    organization on Turso: up to date, with when it last reached Turso ("up to date, checked
+    two minutes ago"); or reached Turso once and not since, with that moment; or one of the
+    standings that need something, said as what needs doing (the Turso account needs attention,
+    this machine's access needs attention, this machine needs reconnecting), each with the
+    sentence and the control that already exist for it. One quiet control, "check now", asks
+    Turso at once; no badge, no status word standing alone, and the word "sync" nowhere a
+    person reads. The moment of the last replication that went through is recorded on this
+    machine so the block can say it. The block speaks of the organization, not of a workspace.
+    *Chosen over moving it under general as a fact about this machine, and over leaving it for
+    the next effort.*
+
 # Acceptance Criteria
 
 1. A Rust test decodes each kind of link and finds no field that a Turso client accepts as a
@@ -452,6 +468,11 @@ and named"; one picker round*)
     address naming a retired section opens the section that holds it; a member session finds
     the organization section with no members directory and no account block; the rail's
     workspaces row leads to the workspaces section; both locales carry the four names.
+25. The organization section's test finds the sync block stating one sentence for each
+    standing (up to date with a relative moment, reached once with its moment, and the three
+    that need something, each with its control), one "check now" control, no badge and no
+    element carrying the word "sync"; a Rust test finds the moment of the last replication that
+    went through recorded on the machine and answered in the state, and absent before any went.
 
 # Constraints
 
