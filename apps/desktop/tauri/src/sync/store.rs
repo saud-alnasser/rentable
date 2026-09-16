@@ -191,6 +191,17 @@ pub struct RemoteSyncStore {
     /// empty, so a record of the new shape never carries the key.
     #[serde(rename = "organizations", skip_serializing_if = "Vec::is_empty")]
     pub organizations_of_the_old_shape: Vec<serde_json::Value>,
+    /// the moment of the last replication of the workspace replica that went through: the remote
+    /// took the push, or answered the pull, whether or not it had anything to bring (effort 828,
+    /// requirement 25).
+    ///
+    /// **On the record rather than in memory, unlike the two refusals**, because it is what the
+    /// standing block reads on the next launch before anything has been tried: a machine opened
+    /// offline can still say when it last reached Turso. `None` on a record written before this
+    /// existed and on a machine that has never reached Turso, and the block says nothing of a
+    /// moment in either case. A refusal is not a reach, so a refused replication leaves it where
+    /// it was.
+    pub last_reached_at: Option<i64>,
 }
 
 /// one workspace replica on this machine, and the member whose grant keeps it.
@@ -221,6 +232,10 @@ pub struct RemoteSyncState {
     /// standing until one goes through. Distinct from the account's refusal, which is the owner's
     /// to see to, and from a fault: this is a credential that stopped being accepted.
     pub credential_refusal: Option<CredentialRefusalFacts>,
+    /// the moment of the last replication that went through, or `None` before any has. What the
+    /// standing block says beside "up to date". A fact about a request and not a credential, so
+    /// it crosses ([[rules/credentials]], under *Client boundary*).
+    pub last_reached_at: Option<i64>,
 }
 
 impl Default for RemoteSyncStore {
@@ -233,6 +248,7 @@ impl Default for RemoteSyncStore {
             turso_organization: None,
             organization: None,
             organizations_of_the_old_shape: Vec::new(),
+            last_reached_at: None,
         }
     }
 }
@@ -254,6 +270,9 @@ impl Persistable for RemoteSyncStore {
         if self.workspace.updated_at <= 0 {
             self.workspace.updated_at = self.workspace.created_at;
         }
+
+        // a moment at or before the epoch is no moment.
+        self.last_reached_at = self.last_reached_at.filter(|moment| *moment > 0);
 
         self.device_id = sanitize_string(&self.device_id);
 
@@ -390,6 +409,8 @@ impl RemoteSync {
         self.store.replicas.clear();
         self.store.turso_organization = None;
         self.store.workspace = Self::default_workspace(database_path, timestamp::now());
+        // the moment was about a workspace this machine no longer holds.
+        self.store.last_reached_at = None;
 
         self.store.commit()
     }
@@ -600,7 +621,17 @@ impl RemoteSync {
             credential_refusal: self
                 .credential_refusal
                 .map(|since| CredentialRefusalFacts { since }),
+            last_reached_at: self.store.last_reached_at,
         }
+    }
+
+    /// A replication of the workspace replica went through at `now`: the remote took the push,
+    /// or answered the pull. Written on the record at once, since it is what the block reads on
+    /// the next launch before anything has been tried.
+    pub(crate) fn note_reached(&mut self, now: i64) -> Result<(), Error> {
+        self.store.last_reached_at = Some(now);
+
+        self.store.commit()
     }
 
     /// Turso refused a replication for the account. The first refusal's moment stands until one
@@ -747,6 +778,58 @@ mod tests {
         );
     }
 
+    /// **The moment of the last replication that went through is on the record, and absent
+    /// before any went** (effort 828, criterion 25). Absent on a fresh record; written where a
+    /// replication completes; read back off the file by the next launch, which is what puts it
+    /// on the record rather than in memory beside the two refusals.
+    #[test]
+    fn the_moment_of_the_last_replication_that_went_through_is_recorded_and_absent_before() {
+        let path = unique_dir("last-reached").join("store.json");
+        let mut remote_sync = a_remote_sync_at(path.clone());
+
+        assert_eq!(
+            remote_sync.snapshot_state().last_reached_at,
+            None,
+            "a machine that has reached nothing carries a moment"
+        );
+
+        remote_sync.note_reached(1_000).expect("noting the reach");
+
+        assert_eq!(
+            remote_sync.snapshot_state().last_reached_at,
+            Some(1_000),
+            "a completed replication left no moment"
+        );
+
+        let reloaded = a_remote_sync_at(path);
+
+        assert_eq!(
+            reloaded.snapshot_state().last_reached_at,
+            Some(1_000),
+            "the moment did not survive a relaunch"
+        );
+    }
+
+    /// And a record from before the moment existed reads with none, rather than with a zero the
+    /// block would render as 1970.
+    #[test]
+    fn a_record_written_before_the_moment_existed_reads_with_none() {
+        let mut store: RemoteSyncStore = serde_json::from_str(
+            r#"{"workspace":{"id":"workspace-1","name":"Riyadh"},"lastReachedAt":0}"#,
+        )
+        .expect("the record");
+
+        store.sanitize();
+
+        assert_eq!(store.last_reached_at, None);
+
+        let older: RemoteSyncStore =
+            serde_json::from_str(r#"{"workspace":{"id":"workspace-1","name":"Riyadh"}}"#)
+                .expect("the record");
+
+        assert_eq!(older.last_reached_at, None);
+    }
+
     /// Forgetting one nothing tracks is a no-op rather than an error: a replica deleted by hand is
     /// still one this machine has stopped holding.
     #[test]
@@ -761,15 +844,18 @@ mod tests {
     }
 
     fn a_remote_sync(name: &str) -> RemoteSync {
+        a_remote_sync_at(unique_dir(name).join("store.json"))
+    }
+
+    /// the same, over a record at a path the test names, so it can be opened twice.
+    fn a_remote_sync_at(path: PathBuf) -> RemoteSync {
+        let settings = unique_dir("settings").join("settings.json");
+
         RemoteSync {
             settings: Arc::new(RwLock::new(
-                Persisted::<Settings>::load(
-                    unique_dir(&format!("{name}-settings")).join("settings.json"),
-                )
-                .expect("settings"),
+                Persisted::<Settings>::load(settings).expect("settings"),
             )),
-            store: Persisted::<RemoteSyncStore>::load(unique_dir(name).join("store.json"))
-                .expect("store"),
+            store: Persisted::<RemoteSyncStore>::load(path).expect("store"),
             workspace_token: None,
             account_refusal: None,
             credential_refusal: None,

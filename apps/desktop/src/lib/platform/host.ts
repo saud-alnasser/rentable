@@ -127,6 +127,13 @@ export type RemoteSyncState = {
 	 * re-sealed one yet; the member is told their access needs attention rather than shown nothing.
 	 */
 	credentialRefusal: { since: number } | null;
+	/**
+	 * the moment of the last replication that went through, as epoch milliseconds, or `null`
+	 * before any has: the remote took the push or answered the pull, whether or not it had
+	 * anything to bring. What the standing block says beside "up to date" (effort 828,
+	 * requirement 25). Recorded on this machine, so it reads on a launch made offline.
+	 */
+	lastReachedAt: number | null;
 };
 
 /** why a replication did not go, where Turso said: the account's, the credential's, or neither. */

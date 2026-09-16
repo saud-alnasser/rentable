@@ -28,6 +28,24 @@ pub struct Replicated {
     pub pushed: bool,
     pub received: bool,
     pub refusal: SyncRefusal,
+    /// whether either half went through: the remote took the push, or answered the pull, whether
+    /// or not it had anything to bring.
+    ///
+    /// **Distinct from `pushed || received`, which is whether anything moved.** A pull that
+    /// reached the remote and found nothing new answers `received: false` and is still a
+    /// replication that went through, and it is the ordinary heartbeat on a quiet day; the moment
+    /// the standing block says beside "up to date" is that moment, not the last one rows crossed
+    /// (effort 828, requirement 25). A refusal is not a reach.
+    pub completed: bool,
+}
+
+/// what one pull did: whether the remote answered, and whether it had anything to bring.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Pulled {
+    /// the remote answered, with rows or with nothing new. `false` is the offline case.
+    pub completed: bool,
+    /// rows arrived, so derived state has to be reconciled.
+    pub brought: bool,
 }
 
 /// [`Database::replicate`] over the engine alone, so a test can hold a replica against a
@@ -41,20 +59,21 @@ pub(crate) async fn replicate_engine(database: &turso::sync::Database) -> Replic
             false
         }
     };
-    let received = match database.pull().await {
-        Ok(brought) => brought,
+    let pulled = match database.pull().await {
+        Ok(brought) => Some(brought),
         Err(error) => {
             if refusal == SyncRefusal::None {
                 refusal = read_sync_refusal(&error);
             }
-            false
+            None
         }
     };
 
     Replicated {
         pushed,
-        received,
+        received: pulled.unwrap_or(false),
         refusal,
+        completed: pushed || pulled.is_some(),
     }
 }
 
@@ -285,20 +304,35 @@ impl Database {
         }
     }
 
-    /// Ask the replica for what the remote has, and say whether anything arrived.
+    /// Ask the replica for what the remote has, and say whether the remote answered and whether
+    /// anything arrived.
     ///
     /// **A failure is an answer rather than an error to raise.** Being unable to reach the remote
-    /// is the offline case, and the replica goes on serving what it holds — so the caller is told
-    /// `false` and decides, which for a replica that has never pulled is a different decision from
-    /// one for a replica that has.
-    pub async fn pull_replica(&self) -> bool {
+    /// is the offline case, and the replica goes on serving what it holds, so the caller is told
+    /// and decides, which for a replica that has never pulled is a different decision from one
+    /// for a replica that has.
+    pub async fn pull_replica(&self) -> Pulled {
         match self.engine.as_ref() {
             // **`pull` answers `Ok(false)` when there was nothing to bring**, and that bool is the
             // answer rather than the call succeeding. Reading it as `is_ok()` made every online
             // dispatch report rows and put a whole-table reconcile and a root cache invalidation
-            // behind every mutation, forever, with nothing having arrived.
-            Some(Engine::Workspace(database)) => matches!(database.pull().await, Ok(true)),
-            Some(Engine::Local(_)) | None => false,
+            // behind every mutation, forever, with nothing having arrived. The call succeeding is
+            // still an answer of its own: the remote was reached, which is the moment the
+            // standing block records.
+            Some(Engine::Workspace(database)) => match database.pull().await {
+                Ok(brought) => Pulled {
+                    completed: true,
+                    brought,
+                },
+                Err(_) => Pulled {
+                    completed: false,
+                    brought: false,
+                },
+            },
+            Some(Engine::Local(_)) | None => Pulled {
+                completed: false,
+                brought: false,
+            },
         }
     }
 
@@ -317,6 +351,7 @@ impl Database {
                 pushed: false,
                 received: false,
                 refusal: SyncRefusal::None,
+                completed: false,
             },
         }
     }
@@ -661,9 +696,19 @@ mod tests {
         .await
         .expect("replica engine");
 
-        assert_eq!(
-            super::replicate_engine(&offline).await.refusal,
-            SyncRefusal::None
+        let unreached = super::replicate_engine(&offline).await;
+
+        assert_eq!(unreached.refusal, SyncRefusal::None);
+
+        // and neither a refusal nor being offline is a replication that went through, so neither
+        // moves the moment the standing block says (effort 828, requirement 25).
+        assert!(
+            !replicated.completed,
+            "a refused replication reads as one that went through"
+        );
+        assert!(
+            !unreached.completed,
+            "a replication that reached nothing reads as one that went through"
         );
 
         drop(rows);

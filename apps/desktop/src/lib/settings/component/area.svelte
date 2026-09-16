@@ -22,6 +22,7 @@
 	import OrganizationIdentity from '$lib/organization/component/identity.svelte';
 	import OrganizationMembers from '$lib/organization/component/members.svelte';
 	import OrganizationReconnectAuthority from '$lib/organization/component/reconnect-authority.svelte';
+	import OrganizationStanding from '$lib/organization/component/standing.svelte';
 	import OrganizationWorkspaces from '$lib/organization/component/workspaces.svelte';
 	import SettingsDiagnostics from '$lib/settings/component/diagnostics.svelte';
 	import SettingsEndingSoon from '$lib/settings/component/ending-soon.svelte';
@@ -35,7 +36,6 @@
 		shownSection,
 		type AddressableSection
 	} from '$lib/settings/section';
-	import WorkspaceSync from '$lib/workspace/component/sync.svelte';
 	import { permits } from '@rentable/workspace-permission';
 	import CrownIcon from '@lucide/svelte/icons/crown';
 	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
@@ -54,9 +54,10 @@
 	 * **Four sections, each named for what it holds** (requirement 24 of effort 828). There were
 	 * seven, and a person looking for one thing had to guess which of them it was under. General
 	 * carries the general blocks, then updates and diagnostics under their own legends; account
-	 * carries what a person reads about themselves; organization carries the sync status, the Turso
-	 * account, the members directory and the two acts that end something; workspaces carries the
-	 * directory and the transfer beneath it. Nothing moved between sections beyond that list.
+	 * carries what a person reads about themselves; organization carries where this machine stands
+	 * with it on Turso, the Turso account, the members directory and the two acts that end
+	 * something; workspaces carries the directory and the transfer beneath it. Nothing moved
+	 * between sections beyond that list.
 	 *
 	 * **Inside a section: what it is about, then what it holds, then what ends something, at the
 	 * foot.** *Settled by the human on the real organization, on the four sections above.* Account
@@ -74,10 +75,10 @@
 	 * each block. Rust refuses every one of them again.
 	 *
 	 * **Each block is one component, and this composes rather than draws.** The members list, the
-	 * workspaces list and the sync blocks each own their rows, their dialogs and their gates; what
-	 * is here is which of them a reader is offered and what they are handed. *The workspaces and
-	 * sync blocks were the retired pages' components stood side by side until ticket 11 rebuilt
-	 * them.*
+	 * workspaces list and the standing block each own their rows, their dialogs and their gates;
+	 * what is here is which of them a reader is offered and what they are handed. *The workspaces
+	 * and sync blocks were the retired pages' components stood side by side until ticket 11 rebuilt
+	 * them; the sync block became the standing block with ticket 26 of effort 828.*
 	 */
 	let {
 		section,
@@ -467,8 +468,8 @@
 			     that end something. *The directory stood first until the human read the four
 			     sections and asked for the elements in each to be ordered.* -->
 			{#if syncState}
-				<Field.Set data-sync-status>
-					<WorkspaceSync {syncState} {session} />
+				<Field.Set data-standing-block>
+					<OrganizationStanding {syncState} {session} {needsAuthority} />
 				</Field.Set>
 
 				<Separator />

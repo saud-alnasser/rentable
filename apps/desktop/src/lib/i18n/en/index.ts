@@ -54,7 +54,6 @@ const en = {
 			signIn: 'sign in',
 			signOut: 'sign out',
 			sortBy: 'sort by',
-			syncNow: 'sync',
 			terminate: 'terminate',
 			transferData: 'import and export',
 			terminating: 'terminating...',
@@ -361,7 +360,7 @@ const en = {
 			switchTo: 'switch to',
 			open: 'open',
 			workspaceRefusedAuthority:
-				'creating a workspace needs the turso account, and this machine is not connected to it. reconnect it in the sync section of settings.'
+				'creating a workspace needs the turso account, and this machine is not connected to it. reconnect it in the organization section of settings.'
 		},
 
 		noWorkspace: {
@@ -736,7 +735,7 @@ const en = {
 
 	settingsHooks: {
 		endingSoonUpdated: 'ending soon notice window updated successfully!',
-		workspaceUpToDate: 'this workspace is up to date!'
+		workspaceUpToDate: 'everything is up to date.'
 	},
 
 	organization: {
@@ -826,6 +825,28 @@ const en = {
 			tryAgain: 'try again',
 			back: 'back'
 		},
+		// the block at the top of the organization section: where this machine stands with the
+		// organization on turso, in one sentence (effort 828, requirement 25). A standing that
+		// needs something says what needs doing; synced says when this machine last reached
+		// turso. No status word stands alone here, and none of these says "sync".
+		standing: {
+			// the legend and the sentence of purpose, the same whatever the standing: what the block
+			// is about, before the line that changes.
+			title: 'this machine and turso',
+			purpose:
+				'the organization is kept on turso and reaches this machine on its own. what you write here goes out as soon as turso can be reached.',
+			upToDate: 'up to date',
+			upToDateChecked: 'up to date, checked {moment:string}',
+			lastReached: 'last reached turso on {moment:string}',
+			accountNeedsAttention: 'the turso account needs attention',
+			accessNeedsAttention: "this machine's access needs attention",
+			needsReconnecting: 'this machine needs reconnecting',
+			// an owner whose machine holds no authority: the reconnect is the block below, and the
+			// standing block points at it rather than drawing a second consent.
+			reconnectBelow: 'the turso account is reconnected in the block below.',
+			checkNow: 'sync',
+			checking: 'syncing...'
+		},
 		dashboard: {
 			// the sentence the members section opens with: who is listed, and what this section is
 			// for. Short, because the cards under it say the rest.
@@ -867,7 +888,7 @@ const en = {
 				'the person you choose is offered the organization. nothing changes until they accept it, on a machine they are already signed in on, with their own password. when they do, they become the owner and you become an administrator.',
 			transferOwnershipMember: 'who is offered the organization',
 			transferOwnershipAuthority:
-				'your turso account does not move. the databases stay on it, and the new owner connects their own account from the sync section before they can create a workspace, lock anybody out or renew credentials.',
+				'your turso account does not move. the databases stay on it, and the new owner connects their own account from the organization section before they can create a workspace, lock anybody out or renew credentials.',
 			transferOwnershipConfirm: 'offer it',
 			ownershipOffered: 'the organization was offered. they accept it on a machine of their own.',
 			withdrawOffer: 'withdraw the offer',
@@ -876,7 +897,7 @@ const en = {
 			acceptOwnershipGoes:
 				'you become the owner of {organization:string} and {owner:string} becomes an administrator. your password becomes what the organization is signed with, so from now on it is your password that gets you back in on a new machine.',
 			acceptOwnershipAuthority:
-				'the turso account stays with whoever connected it. until you connect your own from the sync section, creating a workspace, locking somebody out and renewing credentials run on their machine or not at all.',
+				'the turso account stays with whoever connected it. until you connect your own from the organization section, creating a workspace, locking somebody out and renewing credentials run on their machine or not at all.',
 			acceptOwnershipPassword: 'your password',
 			acceptOwnershipConfirm: 'accept it',
 			ownershipAccepted: 'the organization is yours. you are the owner now.',
@@ -1050,12 +1071,6 @@ const en = {
 		rename: 'rename',
 		renameDescription: 'what this workspace is called, on every machine signed in to it.',
 		renamed: 'the workspace was renamed.',
-		syncDescription:
-			'this workspace is kept for you and reaches this machine on its own. checking in now keeps it working offline for the next three days.',
-		syncStatusNeedsReconnect: 'needs reconnect',
-		syncStatusSynced: 'synced',
-		syncStatusAccountRefused: 'turso account needs attention',
-		syncStatusCredentialRefused: 'access needs attention',
 		credentialRefused:
 			"your access to this workspace was refreshed, and this machine is collecting the new credential. if it does not clear on its own, ask the organization's owner. everything here keeps working meanwhile.",
 		accountRefusedMember:

@@ -32,6 +32,33 @@ export function formatLocaleDate(
 	return new Intl.DateTimeFormat(getIntlLocale(locale), options).format(date);
 }
 
+const SECOND = 1_000;
+const MINUTE = 60 * SECOND;
+const HOUR = 60 * MINUTE;
+export const DAY = 24 * HOUR;
+
+/**
+ * A past moment, said relative to `now` in the reader's own words: "2 minutes ago", "قبل ساعتين".
+ *
+ * **The words are the locale's rather than this application's**, which is why it is `Intl` and
+ * not a table of strings: Arabic counts one, two, few and many differently, and a table would
+ * carry that grammar twice. A moment under a minute old reads as "now" rather than as a count
+ * of seconds, since a figure of seconds is precision nobody asked for and it goes stale as it
+ * is read. The unit is the largest one the gap fills, up to a day; a moment further back than
+ * that is a date, and the caller says it with `formatLocaleDate`.
+ */
+export function formatLocaleRelativeTime(locale: Locales, value: number | Date, now: number) {
+	const moment = value instanceof Date ? value.getTime() : value;
+	const elapsed = Math.max(0, now - moment);
+	const formatter = new Intl.RelativeTimeFormat(getIntlLocale(locale), { numeric: 'auto' });
+
+	if (elapsed < MINUTE) return formatter.format(0, 'second');
+	if (elapsed < HOUR) return formatter.format(-Math.floor(elapsed / MINUTE), 'minute');
+	if (elapsed < DAY) return formatter.format(-Math.floor(elapsed / HOUR), 'hour');
+
+	return formatter.format(-Math.floor(elapsed / DAY), 'day');
+}
+
 /**
  * The currency this application deals in, as the symbol rather than as a word.
  *

@@ -344,9 +344,10 @@ and named"; one picker round*)
     two minutes ago"); or reached Turso once and not since, with that moment; or one of the
     standings that need something, said as what needs doing (the Turso account needs attention,
     this machine's access needs attention, this machine needs reconnecting), each with the
-    sentence and the control that already exist for it. One quiet control, "check now", asks
-    Turso at once; no badge, no status word standing alone, and the word "sync" nowhere a
-    person reads. The moment of the last replication that went through is recorded on this
+    sentence and the control that already exist for it. One quiet control asks Turso at once;
+    no badge and no status word standing alone. *Corrected 2026-09-17 on the human's look: the
+    control is named "sync", so the word lives on the control and nowhere else on the block;
+    this said "check now" and the word nowhere.* The moment of the last replication that went through is recorded on this
     machine so the block can say it. The block speaks of the organization, not of a workspace.
     *Chosen over moving it under general as a fact about this machine, and over leaving it for
     the next effort.*
@@ -470,8 +471,8 @@ and named"; one picker round*)
     workspaces row leads to the workspaces section; both locales carry the four names.
 25. The organization section's test finds the sync block stating one sentence for each
     standing (up to date with a relative moment, reached once with its moment, and the three
-    that need something, each with its control), one "check now" control, no badge and no
-    element carrying the word "sync"; a Rust test finds the moment of the last replication that
+    that need something, each with its control), one control named "sync", no badge and the
+    word "sync" on no element but the control; a Rust test finds the moment of the last replication that
     went through recorded on the machine and answered in the state, and absent before any went.
 
 # Constraints

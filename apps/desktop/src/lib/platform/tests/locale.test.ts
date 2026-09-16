@@ -5,7 +5,8 @@ import {
 	RIYAL,
 	formatLocaleMoney,
 	formatLocaleMoneyRange,
-	formatLocaleRangeWithUnit
+	formatLocaleRangeWithUnit,
+	formatLocaleRelativeTime
 } from '../locale.ts';
 
 const LTR_ISOLATE = '⁦';
@@ -58,4 +59,25 @@ test('an amount that is already text is taken as written', () => {
 test('a word unit still follows the reading direction, unlike the symbol', () => {
 	assert.equal(formatLocaleRangeWithUnit('en', 80, 80, 'units'), '80 / 80 units');
 	assert.equal(formatLocaleRangeWithUnit('ar', 80, 80, 'وحدات'), 'وحدات ٨٠ / ٨٠');
+});
+
+// a past moment in the reader's own words: the count and the grammar are the locale's, so a
+// minute, two minutes and eleven minutes each read as Arabic counts them, and under a minute is
+// "now" rather than a figure of seconds that goes stale as it is read.
+test('a past moment reads relative to now, in the words of each locale', () => {
+	const now = Date.UTC(2026, 8, 15, 14, 0, 0);
+
+	assert.equal(formatLocaleRelativeTime('en', now - 20_000, now), 'now');
+	assert.equal(formatLocaleRelativeTime('en', now - 2 * 60_000, now), '2 minutes ago');
+	assert.equal(formatLocaleRelativeTime('en', now - 3 * 3_600_000, now), '3 hours ago');
+	assert.equal(formatLocaleRelativeTime('ar', now - 20_000, now), 'الآن');
+	assert.equal(formatLocaleRelativeTime('ar', now - 2 * 60_000, now), 'قبل دقيقتين');
+	assert.equal(formatLocaleRelativeTime('ar', now - 11 * 60_000, now), 'قبل ١١ دقيقة');
+});
+
+// a moment ahead of now is a clock that moved, and it reads as now rather than as "in 3 minutes".
+test('a moment ahead of the clock reads as now', () => {
+	const now = Date.UTC(2026, 8, 15, 14, 0, 0);
+
+	assert.equal(formatLocaleRelativeTime('en', now + 3 * 60_000, now), 'now');
 });

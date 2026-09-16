@@ -270,7 +270,7 @@ test('the organization section is ordered: standing, account, people, leaving', 
 
 	expect(
 		orderOf(
-			'data-sync-status',
+			'data-standing-block',
 			'data-forget-account',
 			'data-members',
 			'data-leaving',
@@ -278,7 +278,7 @@ test('the organization section is ordered: standing, account, people, leaving', 
 			'data-delete-organization'
 		)
 	).toEqual([
-		'data-sync-status',
+		'data-standing-block',
 		'data-forget-account',
 		'data-members',
 		'data-leaving',
@@ -297,6 +297,45 @@ test('the organization section is ordered: standing, account, people, leaving', 
 	expect(leaving.querySelector('[data-delete-organization]')).not.toBeNull();
 });
 
+// criterion 25 of effort 828, from the area's side: the block at the top of the organization
+// section states one sentence built from the standing and the moment, offers one "check now"
+// control, draws no badge and carries the word "sync" on the control alone. Each standing's
+// sentence is read in `organization/tests/standing.svelte.test.ts`; what is read here is that
+// the section draws that block, first, with the moment the machine holds.
+test('the organization section opens with one sentence on where this machine stands, and one check', () => {
+	at('?section=organization');
+	area({
+		section: 'organization',
+		syncState: fakeSyncState({ lastReachedAt: Date.now() - 2 * 60_000 })
+	});
+
+	const block = document.querySelector<HTMLElement>('[data-standing-block]')!;
+
+	expect(block).not.toBeNull();
+	// the legend and the sentence of purpose first, the shape every block here has.
+	expect(block.querySelector('legend')?.textContent?.trim()).toBe(en.organization.standing.title);
+	expect(block.querySelector('[data-standing-purpose]')?.textContent?.trim()).toBe(
+		en.organization.standing.purpose
+	);
+	expect(block.querySelector('[data-standing-sentence]')?.textContent?.trim()).toBe(
+		en.organization.standing.upToDateChecked.replace('{moment:string}', '2 minutes ago')
+	);
+	expect(block.querySelectorAll('[data-standing-sentence]')).toHaveLength(1);
+	expect(block.querySelector('[data-check-now]')?.textContent?.trim()).toBe(
+		en.organization.standing.checkNow
+	);
+	expect(block.querySelector('[data-slot="badge"]')).toBeNull();
+	expect(
+		(block.textContent ?? '')
+			.replace(block.querySelector('[data-check-now]')?.textContent ?? '', '')
+			.toLowerCase()
+	).not.toContain('sync');
+	// and it is the first block of the section.
+	expect(
+		orderOf('data-standing-block', 'data-forget-account', 'data-members', 'data-leaving')[0]
+	).toBe('data-standing-block');
+});
+
 // an owner whose machine holds no authority meets the reconnect where the account block is, and
 // no delete: the act needs the authority that block is about, which is the gate it had while it
 // sat inside it.
@@ -305,8 +344,8 @@ test('an owner holding no authority meets the reconnect, and the foot is the dis
 	area({ section: 'organization', holdsTursoAuthority: false });
 
 	expect(
-		orderOf('data-sync-status', 'data-reconnect-authority', 'data-members', 'data-disconnect')
-	).toEqual(['data-sync-status', 'data-reconnect-authority', 'data-members', 'data-disconnect']);
+		orderOf('data-standing-block', 'data-reconnect-authority', 'data-members', 'data-disconnect')
+	).toEqual(['data-standing-block', 'data-reconnect-authority', 'data-members', 'data-disconnect']);
 	expect(document.querySelector('[data-delete-organization]')).toBeNull();
 	expect(document.querySelector('[data-delete-organization-open]')).toBeNull();
 });
@@ -385,7 +424,7 @@ test('the owner is given the turso account and the disconnect, and no link', () 
 	expect(document.querySelector('[data-forget-account]')).not.toBeNull();
 	expect(document.querySelector('[data-reconnect-authority]')).toBeNull();
 	expect(document.querySelector('[data-disconnect]')).not.toBeNull();
-	expect(screen.getByText(en.workspace.syncDescription)).toBeDefined();
+	expect(screen.getByText(en.organization.standing.upToDate)).toBeDefined();
 	expect(document.querySelector('[data-organization-link]')).toBeNull();
 	expect(document.querySelector('[data-link-description]')).toBeNull();
 });
@@ -469,7 +508,7 @@ test('the sentence is absent for an owner who holds the authority', () => {
 
 // requirement 24: a member's organization section draws what the sync section drew for them, and
 // no directory. The gates did not change; the blocks they gate moved into one section.
-test('a plain member reads the sync status and the disconnect, and no directory or account', () => {
+test('a plain member reads the standing and the disconnect, and no directory or account', () => {
 	at('?section=organization');
 	area({
 		section: 'organization',
@@ -477,7 +516,7 @@ test('a plain member reads the sync status and the disconnect, and no directory 
 		holdsTursoAuthority: false
 	});
 
-	expect(screen.getByText(en.workspace.syncDescription)).toBeDefined();
+	expect(screen.getByText(en.organization.standing.upToDate)).toBeDefined();
 	expect(document.querySelector('[data-disconnect]')).not.toBeNull();
 	expect(document.querySelector('[data-members]')).toBeNull();
 	expect(screen.queryByText(en.organization.dashboard.membersTitle)).toBeNull();
@@ -487,11 +526,9 @@ test('a plain member reads the sync status and the disconnect, and no directory 
 	expect(document.querySelector('[data-organization-link]')).toBeNull();
 
 	// what is left is the standing and the way out, in that order.
-	expect(orderOf('data-sync-status', 'data-members', 'data-leaving', 'data-disconnect')).toEqual([
-		'data-sync-status',
-		'data-leaving',
-		'data-disconnect'
-	]);
+	expect(orderOf('data-standing-block', 'data-members', 'data-leaving', 'data-disconnect')).toEqual(
+		['data-standing-block', 'data-leaving', 'data-disconnect']
+	);
 	expect(document.querySelector('[data-delete-organization]')).toBeNull();
 });
 

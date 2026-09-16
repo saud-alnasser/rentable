@@ -227,7 +227,13 @@ pub(crate) async fn open_database(app_state: &AppState) -> Option<Error> {
     // pulled before is usable whether or not this one succeeded, which is requirement 7; one that
     // never has is not usable at all, and requirement 3 already says a first run needs a network.
     // `is_ready` was written for this and had no caller until now.
-    db.pull_replica().await;
+    //
+    // **A pull that the remote answered is a replication that went through**, and it is the
+    // first one of a session, so the standing block reads its moment before the heartbeat has
+    // run (effort 828, requirement 25).
+    if db.pull_replica().await.completed {
+        crate::sync::note_reached(app_state).await;
+    }
 
     if !db.is_ready().await {
         return Some(Error::Network {

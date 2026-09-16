@@ -211,10 +211,6 @@ type RootTranslation = {
 			 */
 			sortBy: string
 			/**
-			 * s​y​n​c
-			 */
-			syncNow: string
-			/**
 			 * t​e​r​m​i​n​a​t​e
 			 */
 			terminate: string
@@ -1212,7 +1208,7 @@ type RootTranslation = {
 			 */
 			open: string
 			/**
-			 * c​r​e​a​t​i​n​g​ ​a​ ​w​o​r​k​s​p​a​c​e​ ​n​e​e​d​s​ ​t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​,​ ​a​n​d​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​i​s​ ​n​o​t​ ​c​o​n​n​e​c​t​e​d​ ​t​o​ ​i​t​.​ ​r​e​c​o​n​n​e​c​t​ ​i​t​ ​i​n​ ​t​h​e​ ​s​y​n​c​ ​s​e​c​t​i​o​n​ ​o​f​ ​s​e​t​t​i​n​g​s​.
+			 * c​r​e​a​t​i​n​g​ ​a​ ​w​o​r​k​s​p​a​c​e​ ​n​e​e​d​s​ ​t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​,​ ​a​n​d​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​i​s​ ​n​o​t​ ​c​o​n​n​e​c​t​e​d​ ​t​o​ ​i​t​.​ ​r​e​c​o​n​n​e​c​t​ ​i​t​ ​i​n​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​s​e​c​t​i​o​n​ ​o​f​ ​s​e​t​t​i​n​g​s​.
 			 */
 			workspaceRefusedAuthority: string
 		}
@@ -2256,7 +2252,7 @@ type RootTranslation = {
 		 */
 		endingSoonUpdated: string
 		/**
-		 * t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​i​s​ ​u​p​ ​t​o​ ​d​a​t​e​!
+		 * e​v​e​r​y​t​h​i​n​g​ ​i​s​ ​u​p​ ​t​o​ ​d​a​t​e​.
 		 */
 		workspaceUpToDate: string
 	}
@@ -2519,6 +2515,54 @@ type RootTranslation = {
 			 */
 			back: string
 		}
+		standing: {
+			/**
+			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​a​n​d​ ​t​u​r​s​o
+			 */
+			title: string
+			/**
+			 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​i​s​ ​k​e​p​t​ ​o​n​ ​t​u​r​s​o​ ​a​n​d​ ​r​e​a​c​h​e​s​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​o​n​ ​i​t​s​ ​o​w​n​.​ ​w​h​a​t​ ​y​o​u​ ​w​r​i​t​e​ ​h​e​r​e​ ​g​o​e​s​ ​o​u​t​ ​a​s​ ​s​o​o​n​ ​a​s​ ​t​u​r​s​o​ ​c​a​n​ ​b​e​ ​r​e​a​c​h​e​d​.
+			 */
+			purpose: string
+			/**
+			 * u​p​ ​t​o​ ​d​a​t​e
+			 */
+			upToDate: string
+			/**
+			 * u​p​ ​t​o​ ​d​a​t​e​,​ ​c​h​e​c​k​e​d​ ​{​m​o​m​e​n​t​}
+			 * @param {string} moment
+			 */
+			upToDateChecked: RequiredParams<'moment'>
+			/**
+			 * l​a​s​t​ ​r​e​a​c​h​e​d​ ​t​u​r​s​o​ ​o​n​ ​{​m​o​m​e​n​t​}
+			 * @param {string} moment
+			 */
+			lastReached: RequiredParams<'moment'>
+			/**
+			 * t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​n​e​e​d​s​ ​a​t​t​e​n​t​i​o​n
+			 */
+			accountNeedsAttention: string
+			/**
+			 * t​h​i​s​ ​m​a​c​h​i​n​e​'​s​ ​a​c​c​e​s​s​ ​n​e​e​d​s​ ​a​t​t​e​n​t​i​o​n
+			 */
+			accessNeedsAttention: string
+			/**
+			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​n​e​e​d​s​ ​r​e​c​o​n​n​e​c​t​i​n​g
+			 */
+			needsReconnecting: string
+			/**
+			 * t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​i​s​ ​r​e​c​o​n​n​e​c​t​e​d​ ​i​n​ ​t​h​e​ ​b​l​o​c​k​ ​b​e​l​o​w​.
+			 */
+			reconnectBelow: string
+			/**
+			 * s​y​n​c
+			 */
+			checkNow: string
+			/**
+			 * s​y​n​c​i​n​g​.​.​.
+			 */
+			checking: string
+		}
 		dashboard: {
 			/**
 			 * m​e​m​b​e​r​s
@@ -2610,7 +2654,7 @@ type RootTranslation = {
 			 */
 			transferOwnershipMember: string
 			/**
-			 * y​o​u​r​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​d​o​e​s​ ​n​o​t​ ​m​o​v​e​.​ ​t​h​e​ ​d​a​t​a​b​a​s​e​s​ ​s​t​a​y​ ​o​n​ ​i​t​,​ ​a​n​d​ ​t​h​e​ ​n​e​w​ ​o​w​n​e​r​ ​c​o​n​n​e​c​t​s​ ​t​h​e​i​r​ ​o​w​n​ ​a​c​c​o​u​n​t​ ​f​r​o​m​ ​t​h​e​ ​s​y​n​c​ ​s​e​c​t​i​o​n​ ​b​e​f​o​r​e​ ​t​h​e​y​ ​c​a​n​ ​c​r​e​a​t​e​ ​a​ ​w​o​r​k​s​p​a​c​e​,​ ​l​o​c​k​ ​a​n​y​b​o​d​y​ ​o​u​t​ ​o​r​ ​r​e​n​e​w​ ​c​r​e​d​e​n​t​i​a​l​s​.
+			 * y​o​u​r​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​d​o​e​s​ ​n​o​t​ ​m​o​v​e​.​ ​t​h​e​ ​d​a​t​a​b​a​s​e​s​ ​s​t​a​y​ ​o​n​ ​i​t​,​ ​a​n​d​ ​t​h​e​ ​n​e​w​ ​o​w​n​e​r​ ​c​o​n​n​e​c​t​s​ ​t​h​e​i​r​ ​o​w​n​ ​a​c​c​o​u​n​t​ ​f​r​o​m​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​s​e​c​t​i​o​n​ ​b​e​f​o​r​e​ ​t​h​e​y​ ​c​a​n​ ​c​r​e​a​t​e​ ​a​ ​w​o​r​k​s​p​a​c​e​,​ ​l​o​c​k​ ​a​n​y​b​o​d​y​ ​o​u​t​ ​o​r​ ​r​e​n​e​w​ ​c​r​e​d​e​n​t​i​a​l​s​.
 			 */
 			transferOwnershipAuthority: string
 			/**
@@ -2640,7 +2684,7 @@ type RootTranslation = {
 			 */
 			acceptOwnershipGoes: RequiredParams<'organization' | 'owner'>
 			/**
-			 * t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​s​t​a​y​s​ ​w​i​t​h​ ​w​h​o​e​v​e​r​ ​c​o​n​n​e​c​t​e​d​ ​i​t​.​ ​u​n​t​i​l​ ​y​o​u​ ​c​o​n​n​e​c​t​ ​y​o​u​r​ ​o​w​n​ ​f​r​o​m​ ​t​h​e​ ​s​y​n​c​ ​s​e​c​t​i​o​n​,​ ​c​r​e​a​t​i​n​g​ ​a​ ​w​o​r​k​s​p​a​c​e​,​ ​l​o​c​k​i​n​g​ ​s​o​m​e​b​o​d​y​ ​o​u​t​ ​a​n​d​ ​r​e​n​e​w​i​n​g​ ​c​r​e​d​e​n​t​i​a​l​s​ ​r​u​n​ ​o​n​ ​t​h​e​i​r​ ​m​a​c​h​i​n​e​ ​o​r​ ​n​o​t​ ​a​t​ ​a​l​l​.
+			 * t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​s​t​a​y​s​ ​w​i​t​h​ ​w​h​o​e​v​e​r​ ​c​o​n​n​e​c​t​e​d​ ​i​t​.​ ​u​n​t​i​l​ ​y​o​u​ ​c​o​n​n​e​c​t​ ​y​o​u​r​ ​o​w​n​ ​f​r​o​m​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​s​e​c​t​i​o​n​,​ ​c​r​e​a​t​i​n​g​ ​a​ ​w​o​r​k​s​p​a​c​e​,​ ​l​o​c​k​i​n​g​ ​s​o​m​e​b​o​d​y​ ​o​u​t​ ​a​n​d​ ​r​e​n​e​w​i​n​g​ ​c​r​e​d​e​n​t​i​a​l​s​ ​r​u​n​ ​o​n​ ​t​h​e​i​r​ ​m​a​c​h​i​n​e​ ​o​r​ ​n​o​t​ ​a​t​ ​a​l​l​.
 			 */
 			acceptOwnershipAuthority: string
 			/**
@@ -3093,26 +3137,6 @@ type RootTranslation = {
 		 */
 		renamed: string
 		/**
-		 * t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​i​s​ ​k​e​p​t​ ​f​o​r​ ​y​o​u​ ​a​n​d​ ​r​e​a​c​h​e​s​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​o​n​ ​i​t​s​ ​o​w​n​.​ ​c​h​e​c​k​i​n​g​ ​i​n​ ​n​o​w​ ​k​e​e​p​s​ ​i​t​ ​w​o​r​k​i​n​g​ ​o​f​f​l​i​n​e​ ​f​o​r​ ​t​h​e​ ​n​e​x​t​ ​t​h​r​e​e​ ​d​a​y​s​.
-		 */
-		syncDescription: string
-		/**
-		 * n​e​e​d​s​ ​r​e​c​o​n​n​e​c​t
-		 */
-		syncStatusNeedsReconnect: string
-		/**
-		 * s​y​n​c​e​d
-		 */
-		syncStatusSynced: string
-		/**
-		 * t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​n​e​e​d​s​ ​a​t​t​e​n​t​i​o​n
-		 */
-		syncStatusAccountRefused: string
-		/**
-		 * a​c​c​e​s​s​ ​n​e​e​d​s​ ​a​t​t​e​n​t​i​o​n
-		 */
-		syncStatusCredentialRefused: string
-		/**
 		 * y​o​u​r​ ​a​c​c​e​s​s​ ​t​o​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​w​a​s​ ​r​e​f​r​e​s​h​e​d​,​ ​a​n​d​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​i​s​ ​c​o​l​l​e​c​t​i​n​g​ ​t​h​e​ ​n​e​w​ ​c​r​e​d​e​n​t​i​a​l​.​ ​i​f​ ​i​t​ ​d​o​e​s​ ​n​o​t​ ​c​l​e​a​r​ ​o​n​ ​i​t​s​ ​o​w​n​,​ ​a​s​k​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​o​w​n​e​r​.​ ​e​v​e​r​y​t​h​i​n​g​ ​h​e​r​e​ ​k​e​e​p​s​ ​w​o​r​k​i​n​g​ ​m​e​a​n​w​h​i​l​e​.
 		 */
 		credentialRefused: string
@@ -3334,10 +3358,6 @@ export type TranslationFunctions = {
 			 * sort by
 			 */
 			sortBy: () => LocalizedString
-			/**
-			 * sync
-			 */
-			syncNow: () => LocalizedString
 			/**
 			 * terminate
 			 */
@@ -4279,7 +4299,7 @@ export type TranslationFunctions = {
 			 */
 			open: () => LocalizedString
 			/**
-			 * creating a workspace needs the turso account, and this machine is not connected to it. reconnect it in the sync section of settings.
+			 * creating a workspace needs the turso account, and this machine is not connected to it. reconnect it in the organization section of settings.
 			 */
 			workspaceRefusedAuthority: () => LocalizedString
 		}
@@ -5278,7 +5298,7 @@ export type TranslationFunctions = {
 		 */
 		endingSoonUpdated: () => LocalizedString
 		/**
-		 * this workspace is up to date!
+		 * everything is up to date.
 		 */
 		workspaceUpToDate: () => LocalizedString
 	}
@@ -5539,6 +5559,52 @@ export type TranslationFunctions = {
 			 */
 			back: () => LocalizedString
 		}
+		standing: {
+			/**
+			 * this machine and turso
+			 */
+			title: () => LocalizedString
+			/**
+			 * the organization is kept on turso and reaches this machine on its own. what you write here goes out as soon as turso can be reached.
+			 */
+			purpose: () => LocalizedString
+			/**
+			 * up to date
+			 */
+			upToDate: () => LocalizedString
+			/**
+			 * up to date, checked {moment}
+			 */
+			upToDateChecked: (arg: { moment: string }) => LocalizedString
+			/**
+			 * last reached turso on {moment}
+			 */
+			lastReached: (arg: { moment: string }) => LocalizedString
+			/**
+			 * the turso account needs attention
+			 */
+			accountNeedsAttention: () => LocalizedString
+			/**
+			 * this machine's access needs attention
+			 */
+			accessNeedsAttention: () => LocalizedString
+			/**
+			 * this machine needs reconnecting
+			 */
+			needsReconnecting: () => LocalizedString
+			/**
+			 * the turso account is reconnected in the block below.
+			 */
+			reconnectBelow: () => LocalizedString
+			/**
+			 * sync
+			 */
+			checkNow: () => LocalizedString
+			/**
+			 * syncing...
+			 */
+			checking: () => LocalizedString
+		}
 		dashboard: {
 			/**
 			 * members
@@ -5629,7 +5695,7 @@ export type TranslationFunctions = {
 			 */
 			transferOwnershipMember: () => LocalizedString
 			/**
-			 * your turso account does not move. the databases stay on it, and the new owner connects their own account from the sync section before they can create a workspace, lock anybody out or renew credentials.
+			 * your turso account does not move. the databases stay on it, and the new owner connects their own account from the organization section before they can create a workspace, lock anybody out or renew credentials.
 			 */
 			transferOwnershipAuthority: () => LocalizedString
 			/**
@@ -5657,7 +5723,7 @@ export type TranslationFunctions = {
 			 */
 			acceptOwnershipGoes: (arg: { organization: string, owner: string }) => LocalizedString
 			/**
-			 * the turso account stays with whoever connected it. until you connect your own from the sync section, creating a workspace, locking somebody out and renewing credentials run on their machine or not at all.
+			 * the turso account stays with whoever connected it. until you connect your own from the organization section, creating a workspace, locking somebody out and renewing credentials run on their machine or not at all.
 			 */
 			acceptOwnershipAuthority: () => LocalizedString
 			/**
@@ -6101,26 +6167,6 @@ export type TranslationFunctions = {
 		 * the workspace was renamed.
 		 */
 		renamed: () => LocalizedString
-		/**
-		 * this workspace is kept for you and reaches this machine on its own. checking in now keeps it working offline for the next three days.
-		 */
-		syncDescription: () => LocalizedString
-		/**
-		 * needs reconnect
-		 */
-		syncStatusNeedsReconnect: () => LocalizedString
-		/**
-		 * synced
-		 */
-		syncStatusSynced: () => LocalizedString
-		/**
-		 * turso account needs attention
-		 */
-		syncStatusAccountRefused: () => LocalizedString
-		/**
-		 * access needs attention
-		 */
-		syncStatusCredentialRefused: () => LocalizedString
 		/**
 		 * your access to this workspace was refreshed, and this machine is collecting the new credential. if it does not clear on its own, ask the organization's owner. everything here keeps working meanwhile.
 		 */
