@@ -451,7 +451,9 @@ mod tests {
         error::Error,
         organization::{
             HeldOrganization,
-            invite::{Invitation, Invited, WorkspaceGrant, invite_member, locator, members},
+            invite::{
+                AccountAndLink, Invitation, WorkspaceGrant, locator, make_account_and_link, members,
+            },
             migrate::Pipeline,
             permission,
             session::{CredentialSlot, MemberSession, refresh_credentials, sign_in},
@@ -520,8 +522,12 @@ mod tests {
     /// (effort 828, requirement 1). *It was the link's secret alone until effort 826 made the code
     /// the other half, and it read the row's `code_seal` until effort 828 moved the seal into the
     /// link's text.*
-    fn secret_of(invited: &Invited) -> String {
-        crate::organization::invite::vault_password_of(invited, test_cost())
+    fn secret_of(invited: &AccountAndLink) -> String {
+        crate::organization::invite::vault_password_of(
+            &invited.join_link,
+            &invited.code,
+            test_cost(),
+        )
     }
 
     fn joined_as(owner: &MemberSession, member_id: &str, role: &str) -> HeldOrganization {
@@ -666,7 +672,7 @@ mod tests {
         .await
         .expect("the second workspace");
         let link = locator(&store, &owner).await.expect("the link");
-        let administrator = invite_member(
+        let administrator = make_account_and_link(
             &store,
             &owner,
             no_platform(),
@@ -681,7 +687,7 @@ mod tests {
         )
         .await
         .expect("the administrator");
-        let member = invite_member(
+        let member = make_account_and_link(
             &store,
             &owner,
             no_platform(),
@@ -1259,7 +1265,7 @@ mod tests {
         ada.must_change_password = false;
 
         let link = locator(&org.store, &ada).await.expect("the link");
-        let bob = invite_member(
+        let bob = make_account_and_link(
             &org.store,
             &ada,
             no_platform(),

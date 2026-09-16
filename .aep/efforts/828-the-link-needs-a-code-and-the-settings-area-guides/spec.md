@@ -359,8 +359,9 @@ section of ticket 07 in the running build; two picker rounds and one elaboration
 20. A Rust test makes a link for an account whose password is not yet set, opens it with the
     code on a second store, chooses a password and lands signed in; makes one for an account
     with a password and no machine signed in, opens it and lands at the wall where the
-    password admits; is refused making one for an account with a machine signed in; resets a
-    password and finds the next link asking for a new one; and finds a link refused on a second
+    password admits; is refused making one for an account with a password and a machine signed
+    in, and offered one for an account whose password is not set even while a machine is signed
+    in; resets a password and finds the next link asking for a new one; and finds a link refused on a second
     opening and after seven days. The connect screen's test shows the choose-password fields
     for the first kind and the wall for the second. The you section's test finds no link act.
 21. The workspaces section's test finds one card per workspace with its facts, the create

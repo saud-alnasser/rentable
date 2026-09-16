@@ -1,7 +1,6 @@
 <script lang="ts">
 	import type api from '$lib/api/caller';
 	import type {
-		MachineLink,
 		OrganizationMember,
 		OrganizationSession,
 		RemoteSyncState
@@ -13,7 +12,6 @@
 	import { Separator } from '@rentable/design/primitive/separator/index.js';
 	import { toErrorText } from '$lib/error/message';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
-	import OrganizationAnotherMachine from '$lib/organization/component/another-machine.svelte';
 	import OrganizationChangePasswordDialog from '$lib/organization/component/change-password-dialog.svelte';
 	import OrganizationDeleteOrganization from '$lib/organization/component/delete-organization.svelte';
 	import OrganizationDisconnect from '$lib/organization/component/disconnect.svelte';
@@ -66,24 +64,22 @@
 		holdsTursoAuthority,
 		syncState,
 		members,
-		reissuing,
+		makingLink,
+		unsetting,
 		revoking,
-		copying,
 		endingSessions,
 		isChangingPassword,
-		isMakingMachineLink,
 		isChangingRole,
 		isChangingAccess,
 		isDeletingOrganization,
 		onChangeLocale,
 		onRevealDiagnostics,
 		onChangePassword,
-		onMakeMachineLink,
 		onEndOtherSessions,
 		onEndSessions,
-		onReissue,
+		onMakeLink,
+		onUnsetPassword,
 		onRevoke,
-		onCopyLink,
 		onRemove,
 		onLockOut,
 		onRename,
@@ -105,17 +101,15 @@
 		/** the machine's sync record; `null` until it has been read, and while signed out. */
 		syncState: RemoteSyncState | null;
 		members: OrganizationMember[];
-		/** the member whose link is being reissued, while it is. */
-		reissuing: string | null;
+		/** the account a link is being made for, while it is. */
+		makingLink: string | null;
+		/** the account whose password is being unset, while it is. */
+		unsetting: string | null;
 		/** the invitation being revoked, while it is. */
 		revoking: string | null;
-		/** the invitation whose link is being read again, while it is. */
-		copying: string | null;
 		/** the member whose sessions are being ended, while they are. */
 		endingSessions: string | null;
 		isChangingPassword: boolean;
-		/** a link for another machine is being made, which is a moment a person is waiting on. */
-		isMakingMachineLink: boolean;
 		isChangingRole: boolean;
 		isChangingAccess: boolean;
 		/** the organization is being deleted, which is several requests and a sweep of the disk. */
@@ -125,23 +119,16 @@
 		/** change the reader's own password; rejects with what the shared handler has said. */
 		onChangePassword: (current: string, next: string) => Promise<void>;
 		/**
-		 * make a link and a code for another machine of the reader's own; rejects with what the
-		 * shared handler has said. Nothing is kept: the pair is shown once and made again.
-		 */
-		onMakeMachineLink: () => Promise<MachineLink>;
-		/**
 		 * sign the reader out of their other machines; rejects so the confirm stays open on it.
 		 */
 		onEndOtherSessions: () => Promise<void>;
 		/** sign a member out of every machine, from their row. */
 		onEndSessions: (memberId: string) => void;
-		onReissue: (memberId: string) => void;
+		/** make the one link that admits a machine to an account (effort 828, requirement 20). */
+		onMakeLink: (memberId: string) => void;
+		/** unset an account's password, so the next link made for it asks for a new one. */
+		onUnsetPassword: (memberId: string) => void;
 		onRevoke: (invitationId: string) => void;
-		/**
-		 * hand a pending member's link and its code over again, for the person who issued it. The
-		 * expiry travels with them, because it is the row's and the panel prints it.
-		 */
-		onCopyLink: (invitationId: string, username: string, expiresAt: number) => void;
 		/** ask to remove a member: the route raises the confirm that names what it costs. */
 		onRemove: (memberId: string) => void;
 		onLockOut: (memberId: string) => void;
@@ -293,17 +280,6 @@
 					{onEndOtherSessions}
 				/>
 			</Field.Set>
-
-			<Separator />
-
-			<Field.Set>
-				<Field.Legend>{$LL.settings.you.anotherMachine.title()}</Field.Legend>
-				<OrganizationAnotherMachine
-					organizationName={session.organizationName}
-					isMaking={isMakingMachineLink}
-					onMake={onMakeMachineLink}
-				/>
-			</Field.Set>
 		</Field.Group>
 
 		<OrganizationChangePasswordDialog
@@ -335,16 +311,16 @@
 				canGrantWorkspace={permits(session.permissions, 'grantWorkspace')}
 				{isOwner}
 				selfId={session.memberId}
-				{reissuing}
+				{makingLink}
+				{unsetting}
 				{revoking}
-				{copying}
 				{endingSessions}
 				{isChangingRole}
 				{isChangingAccess}
 				{onEndSessions}
-				{onReissue}
+				{onMakeLink}
+				{onUnsetPassword}
 				{onRevoke}
-				{onCopyLink}
 				{onRemove}
 				{onLockOut}
 				{onRename}

@@ -12,7 +12,7 @@
 	import { LL, locale, setLocale } from '$lib/i18n/i18n-svelte';
 	import type { Locales } from '$lib/i18n/i18n-types';
 	import { useStartup } from '$lib/layout/startup-context';
-	import { showInvited } from '$lib/organization/dialogs.svelte';
+	import { showMadeLink } from '$lib/organization/dialogs.svelte';
 	import {
 		useChangeAccess,
 		useChangePassword,
@@ -24,13 +24,12 @@
 		useEndOtherSessions,
 		useFetchMembers,
 		useFetchOrganizationState,
-		useInvitationLink,
 		useLockOutCost,
-		useMakeMachineLink,
-		useReissueInvitation,
+		useMakeMemberLink,
 		useRemoveMember,
 		useRenameMember,
-		useRevokeInvitation
+		useRevokeInvitation,
+		useUnsetMemberPassword
 	} from '$lib/organization/query';
 	import SettingsArea from '$lib/settings/component/area.svelte';
 	import { useFetchRemoteSyncState, useFetchSettings } from '$lib/settings/query';
@@ -66,10 +65,9 @@
 	const remoteSyncQuery = useFetchRemoteSyncState(() => session !== null);
 
 	const changePassword = useChangePassword();
-	const makeMachineLink = useMakeMachineLink();
-	const reissueInvitation = useReissueInvitation();
+	const makeMemberLink = useMakeMemberLink();
+	const unsetMemberPassword = useUnsetMemberPassword();
 	const revokeInvitation = useRevokeInvitation();
-	const invitationLink = useInvitationLink();
 	const removeMember = useRemoveMember();
 	const renameMember = useRenameMember();
 	const changeRole = useChangeRole();
@@ -161,15 +159,15 @@
 		await stateQuery.refetch();
 	};
 
-	let reissuing = $state<string | null>(null);
+	let makingLink = $state<string | null>(null);
+	let unsetting = $state<string | null>(null);
 	let revoking = $state<string | null>(null);
-	let copying = $state<string | null>(null);
 	let endingSessions = $state<string | null>(null);
 
 	/**
 	 * sign a member out of every machine, from their row.
 	 *
-	 * It runs on the press, as the new link beside it does: the row's actions act, and the one
+	 * It runs on the press, as the reset beside it does: the row's actions act, and the one
 	 * question this effort asks before ending sessions is the reader's own, in the you section,
 	 * where what is at stake is the machines they are not standing at.
 	 */
@@ -185,54 +183,42 @@
 		}
 	};
 
-	const reissue = async (memberId: string) => {
-		reissuing = memberId;
+	/**
+	 * the one link that admits a machine to an account (effort 828, requirement 20).
+	 *
+	 * **The reader chooses nothing but the account.** Whether the link asks for a password or lands
+	 * its machine at the wall is read off the account's own standing in the shell, and a machine
+	 * already signed in on it is what the shell refuses this with. What comes back is shown once,
+	 * on the one panel that shows a link and a code.
+	 */
+	const makeLink = async (memberId: string) => {
+		makingLink = memberId;
 
 		try {
-			const invited = await reissueInvitation.mutateAsync({ memberId });
-
-			showInvited({
-				invitationId: invited.invitationId,
-				username: invited.username,
-				joinLink: invited.joinLink,
-				code: invited.code,
-				expiresAt: invited.expiresAt,
-				unreachableWorkspaces: invited.unreachableWorkspaces
-			});
+			showMadeLink(await makeMemberLink.mutateAsync({ memberId }));
 		} catch {
 			// said by the shared handler.
 		} finally {
-			reissuing = null;
+			makingLink = null;
 		}
 	};
 
 	/**
-	 * the same link and the same code again, for the person who issued it: Rust seals both to
-	 * their key and refuses anybody else, who is offered a new link instead. It opens the panel an
-	 * invitation and a reset open, because all three end with one pair in one person's hands.
+	 * the reset: the account's password unset, so the next link made for it asks for a new one.
 	 *
-	 * **One call, because a code lives as long as its link** (effort 828, requirement 1). The row
-	 * holds the password, the secret and the code sealed together, and the link is rebuilt from
-	 * the three; the expiry the panel prints is the row's own.
+	 * It hands over nothing, which is the whole of what changed: what it could not carry over is
+	 * announced by the hook, the one place a toast is raised ([[rules/frontend]], *Data access*),
+	 * and the link is a second press on the same card.
 	 */
-	const copyLink = async (invitationId: string, username: string, expiresAt: number) => {
-		copying = invitationId;
+	const unsetPassword = async (memberId: string) => {
+		unsetting = memberId;
 
 		try {
-			const copy = await invitationLink.mutateAsync({ invitationId });
-
-			showInvited({
-				invitationId,
-				username,
-				joinLink: copy.joinLink,
-				code: copy.code,
-				expiresAt,
-				unreachableWorkspaces: []
-			});
+			await unsetMemberPassword.mutateAsync({ memberId });
 		} catch {
 			// said by the shared handler.
 		} finally {
-			copying = null;
+			unsetting = null;
 		}
 	};
 
@@ -343,12 +329,11 @@
 		holdsTursoAuthority={stateQuery.data?.holdsTursoAuthority === true}
 		syncState={remoteSyncQuery.data ?? null}
 		members={membersQuery.data ?? []}
-		{reissuing}
+		{makingLink}
+		{unsetting}
 		{revoking}
-		{copying}
 		{endingSessions}
 		isChangingPassword={changePassword.isPending}
-		isMakingMachineLink={makeMachineLink.isPending}
 		isChangingRole={changeRole.isPending}
 		isChangingAccess={changeAccess.isPending}
 		isDeletingOrganization={deleteOrganization.isPending}
@@ -357,15 +342,13 @@
 		onChangePassword={async (current, next) => {
 			await changePassword.mutateAsync({ current, next });
 		}}
-		onMakeMachineLink={() => makeMachineLink.mutateAsync()}
 		onEndOtherSessions={async () => {
 			await endOtherSessions.mutateAsync();
 		}}
 		onEndSessions={(memberId) => void endSessions(memberId)}
-		onReissue={(memberId) => void reissue(memberId)}
+		onMakeLink={(memberId) => void makeLink(memberId)}
+		onUnsetPassword={(memberId) => void unsetPassword(memberId)}
 		onRevoke={(invitationId) => void revoke(invitationId)}
-		onCopyLink={(invitationId, username, expiresAt) =>
-			void copyLink(invitationId, username, expiresAt)}
 		onRemove={(memberId) => {
 			removing = { memberId, lockOut: false };
 		}}

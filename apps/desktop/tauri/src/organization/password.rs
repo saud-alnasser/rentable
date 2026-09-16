@@ -17,7 +17,7 @@
 //!
 //! **A reset is not here.** An administrator who does not know a member's password cannot
 //! re-seal their vault, because nothing they hold opens it; what they can do is reissue the
-//! member a fresh one from what they hold themselves, which is `invite::reissue_invitation`, and
+//! member a fresh one from what they hold themselves, which is `invite::reset_account`, and
 //! a test in this module tries every key an administrator holds against a vault they did not
 //! build and finds none of them opens it. That test is what keeps an escrow copy from arriving
 //! as a convenience.
@@ -113,7 +113,8 @@ mod tests {
         organization::{
             HeldOrganization,
             invite::{
-                Invitation, Invited, WorkspaceGrant, invite_member, locator, reissue_invitation,
+                AccountAndLink, Invitation, WorkspaceGrant, locator, make_account_and_link,
+                reset_account,
             },
             migrate::Pipeline,
             permission,
@@ -182,8 +183,12 @@ mod tests {
     /// (effort 828, requirement 1). *It was the link's secret alone until effort 826 made the code
     /// the other half, and it read the row's `code_seal` until effort 828 moved the seal into the
     /// link's text.*
-    fn secret_of(invited: &Invited) -> String {
-        crate::organization::invite::vault_password_of(invited, test_cost())
+    fn secret_of(invited: &AccountAndLink) -> String {
+        crate::organization::invite::vault_password_of(
+            &invited.join_link,
+            &invited.code,
+            test_cost(),
+        )
     }
 
     fn joined_as(owner: &MemberSession, member_id: &str, role: &str) -> HeldOrganization {
@@ -316,7 +321,7 @@ mod tests {
         .await
         .expect("the second workspace");
         let link = locator(&store, &owner).await.expect("the link");
-        let administrator = invite_member(
+        let administrator = make_account_and_link(
             &store,
             &owner,
             no_platform(),
@@ -331,7 +336,7 @@ mod tests {
         )
         .await
         .expect("the administrator");
-        let member = invite_member(
+        let member = make_account_and_link(
             &store,
             &owner,
             no_platform(),
@@ -607,7 +612,7 @@ mod tests {
         assert!(!administrator.workspace_credentials.contains_key(&south));
 
         let link = locator(&store, &administrator).await.expect("the link");
-        let reset = reissue_invitation(
+        let reset = reset_account(
             &store,
             &administrator,
             no_platform(),

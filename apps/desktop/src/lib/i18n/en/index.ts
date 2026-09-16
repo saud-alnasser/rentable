@@ -499,15 +499,6 @@ const en = {
 				change: 'change password',
 				changed: 'your password was changed.'
 			},
-			anotherMachine: {
-				title: 'another machine',
-				description:
-					'connect another machine of your own. you get a link and a code; open the link on that machine, type the code, and sign in there with the same username and password. nothing about this machine changes.',
-				action: 'connect another machine',
-				linkTitle: 'link for the other machine',
-				notice:
-					'rentable sends nothing, and this pair is shown once. open the link on the machine you are connecting and type the code there; it admits one machine once, and if you lose it you make another here.'
-			},
 			sessions: {
 				title: 'other machines',
 				description:
@@ -834,16 +825,17 @@ const en = {
 				'everybody in the organization, including the people invited who have not signed in yet; the owner and administrators make accounts here and change what each one may do.',
 			memberActions: 'what you can do with {username:string}',
 
-			inviteTitle: 'invite somebody',
-			inviteDescription:
-				'an invitation makes somebody a member: a username, a role and the workspaces they hold, each at full access or read only. you hand them the link yourself.',
+			accountTitle: 'a new member',
+			accountDescription:
+				'a member is a username, a role, what they may do and the workspaces they hold. they have no password until you make them a link and they open it.',
 			role: 'role',
-			administratorsAreTheOwners: 'only the owner can invite an administrator.',
+			administratorsAreTheOwners: 'only the owner can make an administrator.',
 			noWorkspaceToGrant: 'no workspace to grant yet. they can be granted one later.',
-			invite: 'invite',
+			addAccount: 'add a member',
 			cannotSend:
-				'rentable sends nothing. copy the link below and hand it to the person yourself; opening it is how they choose their password.',
-			invitationLinkTitle: 'invitation link',
+				'rentable sends nothing. copy the link below and hand it over yourself, and read the code out separately. it admits one machine, once.',
+			linkTitle: 'link and code',
+			linkLabel: 'link',
 			codeTitle: 'confirmation code',
 			codeDescription:
 				'read this out on a call or in person. it is the other half of what the link needs, so it is never sent beside it.',
@@ -851,12 +843,13 @@ const en = {
 			notYetSignedIn: 'not yet signed in',
 			invitationExpires: 'the link expires {date:string}',
 			invitationLapsed: 'the link lapsed {date:string}',
-			newLink: 'new link',
+			makeLink: 'make a link',
+			unsetPassword: 'reset the password',
+			passwordUnset: 'their password was unset. make them a link so they can choose a new one.',
 			endSessions: 'sign out everywhere',
 			sessionsEnded: 'they were signed out of every machine.',
 			sessionsEndedPending:
 				'this machine is offline; the sign-out reaches their machines once it is back online.',
-			copyLink: 'copy the link again',
 			rename: 'rename',
 			renameDescription:
 				'the username they sign in with, on every machine. nothing tells them it changed; tell them yourself.',

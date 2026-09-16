@@ -138,8 +138,8 @@ test('both locales say the link is handed over by hand, and neither mentions a p
 	assert.doesNotMatch(en.organization.dashboard.cannotSend, /the password/);
 	assert.match(ar.organization.dashboard.cannotSend, /انسخ الرابط أدناه/);
 	assert.doesNotMatch(ar.organization.dashboard.cannotSend, /كلمة المرور أدناه/);
-	assert.match(en.organization.dashboard.inviteDescription, /username/);
-	assert.match(ar.organization.dashboard.inviteDescription, /اسم المستخدم/);
+	assert.match(en.organization.dashboard.accountDescription, /username/);
+	assert.match(ar.organization.dashboard.accountDescription, /اسم المستخدم/);
 });
 
 // effort 826, requirement 21: one Turso group holds one organization, and the connect step says
@@ -249,7 +249,7 @@ const TERMS = [
 	['sign out', 'common.actions.signOut'],
 	['connect turso account', 'organization.setup.connect'],
 	['forget turso account', 'organization.dashboard.forgetAccount'],
-	['invitation link', 'organization.dashboard.invitationLinkTitle'],
+	['link and code', 'organization.dashboard.linkTitle'],
 	['full access', 'organization.dashboard.accessFull'],
 	['read only', 'organization.dashboard.accessReadOnly'],
 	['you', 'settings.section.you'],

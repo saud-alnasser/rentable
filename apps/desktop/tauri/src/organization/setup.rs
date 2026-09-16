@@ -1203,7 +1203,7 @@ mod tests {
         keyring::take_the_credential_store,
         organization::{
             authority::{AdministratorKey, OrganizationKey},
-            invite::{Invitation, USERNAME_RULES, invite_member, locator},
+            invite::{Invitation, USERNAME_RULES, locator, make_account_and_link},
             join,
             link::{JoinLink, Locator},
             permission,
@@ -2549,7 +2549,7 @@ mod tests {
         let locator = locator(&replica, &owner)
             .await
             .expect("the organization's link");
-        let invited = invite_member(
+        let invited = make_account_and_link(
             &replica,
             &owner,
             no_platform(),

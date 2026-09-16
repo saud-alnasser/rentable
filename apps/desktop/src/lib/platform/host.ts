@@ -402,50 +402,29 @@ export type InvitationLink = {
 };
 
 /**
- * the link and the code a member makes for their own next machine (effort 828, requirement 3).
+ * the link and the code one act makes for an account (effort 828, requirement 20).
  *
- * Nobody but the member makes one: it carries the grant their own vault unsealed, so nothing is
- * minted and nobody else's row is reached. The link is carried to the other machine and the code
- * is read off this one; neither is stored, and a person who lost the pair makes another.
+ * **One shape for both kinds.** An account whose password is not yet set gets an invitation-kind
+ * link and one that has a password gets a machine-kind link; what the person handing it over does
+ * with either is the same, so this says nothing about which it is. The link is carried to the
+ * other machine and the code is read out; neither is stored, and a person who lost the pair makes
+ * another, which drops the one they lost.
  */
-export type MachineLink = {
+export type MadeLink = {
 	link: string;
 	/** six characters from the alphabet with the letters that read alike taken out. */
 	code: string;
-	/** the earlier of a week out and the moment the member's own grant on the database dies. */
+	/** the earlier of a week out and the moment the maker's own grant on the database dies. */
 	expiresAt: number;
 };
 
 /**
- * what an invitation makes, shown to the administrator: the two things they hand over, the
- * invitation link and the code that opens it, beside the username and the ids the members list
- * reads. The link carries the credential and the vault password sealed under the code and the
- * link's own secret together, so the link is sent and the code is read out; no password crosses on
- * its own.
+ * a workspace a reset could not carry over, because the person resetting holds no full credential
+ * on it themselves. The member waits on somebody who does.
  */
-export type Invited = {
-	memberId: string;
-	invitationId: string;
-	/** the username the member signs in with, as the row seals it. */
-	username: string;
-	/** the invitation link: the organization's locator with this invitation's sealed payload in it. */
-	joinLink: string;
-	/**
-	 * when the link lapses: a week out, or when the issuer's own grant on the organization
-	 * database dies, whichever is sooner (effort 828, requirement 2). The code lapses with it.
-	 */
-	expiresAt: number;
-	/**
-	 * the six-character code that opens the link (effort 828, requirement 1). It is the other half
-	 * of what unseals the credential and the vault password, so it is read out on a call or in
-	 * person and never sent beside the link.
-	 */
-	code: string;
-	/**
-	 * on a reset, the workspaces the member held that the resetting administrator could not
-	 * restore, because they hold no full credential on them themselves. Empty on an invitation.
-	 */
-	unreachableWorkspaces: { id: string; name: string }[];
+export type UnreachableWorkspace = {
+	id: string;
+	name: string;
 };
 
 /**
@@ -665,22 +644,31 @@ export type Host = {
 			/** every member, with names opened by the vault this process holds. */
 			list: () => Promise<OrganizationMember[]>;
 			/**
-			 * invite a member: a row they will open, and one link. The application sends nothing;
-			 * the administrator hands the link over. A read-only grant is minted on the owner's
-			 * machine, and refused by name elsewhere.
+			 * make an account: a row somebody will open, and no link. It holds no password until
+			 * its first link is opened, which is `linkMake`. A read-only grant is minted on the
+			 * owner's machine, and refused by name elsewhere.
 			 */
-			invite: (
+			create: (
 				username: string,
 				role: 'administrator' | 'member',
+				permissions: number,
 				workspaces: WorkspaceGrant[]
-			) => Promise<Invited>;
+			) => Promise<OrganizationMember>;
 			/**
-			 * reset a member's password: a fresh vault under a fresh secret, everything the
-			 * resetting administrator reaches re-sealed to it, and a fresh link. The answer names
-			 * the workspaces it could not restore, and the member's permissions are kept. The
-			 * member's previous password is not needed and not learned.
+			 * make the one link that admits a machine to an account. The account's standing chooses
+			 * the kind: one whose password is not yet set gets a link that asks the person to
+			 * choose one, and one that has a password gets a link that lands the machine at the
+			 * wall. Rejects as `preconditionFailed` where a machine is signed in on the account.
 			 */
-			reset: (memberId: string) => Promise<Invited>;
+			linkMake: (memberId: string) => Promise<MadeLink>;
+			/**
+			 * unset a member's password: a fresh vault under a fresh secret, everything the
+			 * resetting administrator reaches re-sealed to it, and the requirement to choose a
+			 * password set, so the next link asks for one. The answer names the workspaces it
+			 * could not restore, and the member's permissions are kept. The member's previous
+			 * password is not needed and not learned.
+			 */
+			unsetPassword: (memberId: string) => Promise<UnreachableWorkspace[]>;
 			/**
 			 * remove a member. `lockOut` false is the ordinary removal: their grants go, their row
 			 * is signed as removed, and nobody else is disturbed; their credential works until it
@@ -740,13 +728,7 @@ export type Host = {
 			link: (invitationId: string) => Promise<InvitationLink>;
 		};
 		/**
-		 * make a link and a code for the signed-in member's own next machine. Any member, on
-		 * their own account: nothing is minted and nobody else's row is reached. Rejects as
-		 * `preconditionFailed` where nobody is signed in.
-		 */
-		machineLinkMake: () => Promise<MachineLink>;
-		/**
-		 * connect this machine with a link its member made for it, and land at the wall. The code
+		 * connect this machine with a machine-kind link, and land at the wall. The code
 		 * and the link's secret together unseal the member's own grant, the organization is
 		 * recorded with no member, and the link is spent. Rejects a wrong or missing code as
 		 * `forbidden` and `invalidInput`, a lapsed link and a replaced or already spent one by

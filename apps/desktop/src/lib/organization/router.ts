@@ -1,9 +1,8 @@
 import type {
 	GroupState,
 	InvitationLink,
-	Invited,
 	LockOutCost,
-	MachineLink,
+	MadeLink,
 	MemberRemoved,
 	OrganizationConsentResult,
 	OrganizationConsentStart,
@@ -11,7 +10,8 @@ import type {
 	OrganizationMember,
 	OrganizationState,
 	OrganizationWorkspace,
-	SessionsEnded
+	SessionsEnded,
+	UnreachableWorkspace
 } from '$lib/platform/tauri';
 import { procedure, router } from '$lib/api/trpc';
 import z from 'zod';
@@ -218,10 +218,10 @@ export const organization = router({
 		})
 	},
 	/**
-	 * Members and their invitations, which is the members list.
+	 * Accounts and their invitations, which is the members section.
 	 *
-	 * **Inviting is `permitted('inviteMember')` here and refused again in Rust**, on the member's
-	 * verified row; this is the earlier of the two refusals, made so a caller is turned away before
+	 * **Making an account and making a link are both `permitted('inviteMember')` here and refused
+	 * again in Rust**, on the member's verified row; this is the earlier of the two refusals, made so a caller is turned away before
 	 * a round trip, and never the deciding one. Listing is any signed-in member's: who is in the
 	 * organization is not a secret from the people in it, and since effort 826 that one list
 	 * carries the pending invitations too. Whether a read-only grant can be minted
@@ -231,12 +231,13 @@ export const organization = router({
 		list: procedure.member.query(async ({ ctx }): Promise<OrganizationMember[]> => {
 			return ctx.host.organization.member.list();
 		}),
-		invite: procedure
+		create: procedure
 			.permitted('inviteMember')
 			.input(
 				z.object({
 					username: USERNAME,
 					role: z.enum(['administrator', 'member']),
+					permissions: z.number().int().min(0),
 					workspaces: z.array(
 						z.object({
 							id: z.string().trim().min(1),
@@ -245,20 +246,39 @@ export const organization = router({
 					)
 				})
 			)
-			.mutation(async ({ input, ctx }): Promise<Invited> => {
-				return ctx.host.organization.member.invite(input.username, input.role, input.workspaces);
+			.mutation(async ({ input, ctx }): Promise<OrganizationMember> => {
+				return ctx.host.organization.member.create(
+					input.username,
+					input.role,
+					input.permissions,
+					input.workspaces
+				);
 			}),
 		/**
-		 * A reset: a fresh link for a member who already has a row. It is `resetPassword` rather
-		 * than `inviteMember` from effort 826 on, because what it hands somebody is a way back into
-		 * an account that exists rather than a new one, and requirement 4 made those two separate
-		 * things to be trusted with. *`invitation.reissue` until the same effort.*
+		 * The one link act (effort 828, requirement 20). It is `inviteMember`, because what it
+		 * hands somebody is the way a machine joins an account, which is what making an account was
+		 * always half of. Which kind of link it is, and whether a machine is already signed in on
+		 * the account, are Rust's: the first is read off the account's row and the second off the
+		 * register of connected machines. *`invitation.reissue`, then `member.reset`, then this.*
 		 */
-		reset: procedure
+		linkMake: procedure
+			.permitted('inviteMember')
+			.input(z.object({ memberId: z.string().trim().min(1) }))
+			.mutation(async ({ input, ctx }): Promise<MadeLink> => {
+				return ctx.host.organization.member.linkMake(input.memberId);
+			}),
+		/**
+		 * A reset: the account's password unset, so the next link asks for a new one. It is
+		 * `resetPassword` rather than `inviteMember` from effort 826 on, because taking somebody's
+		 * way in away is a different thing to be trusted with than making an account. What comes
+		 * back names the workspaces it could not carry over. *`member.reset` handed a link back
+		 * until effort 828 made the link its own act.*
+		 */
+		unsetPassword: procedure
 			.permitted('resetPassword')
 			.input(z.object({ memberId: z.string().trim().min(1) }))
-			.mutation(async ({ input, ctx }): Promise<Invited> => {
-				return ctx.host.organization.member.reset(input.memberId);
+			.mutation(async ({ input, ctx }): Promise<UnreachableWorkspace[]> => {
+				return ctx.host.organization.member.unsetPassword(input.memberId);
 			}),
 		/**
 		 * Removal, at one of two speeds. **`lockOut` defaults to false here as well as in Rust**,
@@ -375,24 +395,19 @@ export const organization = router({
 			})
 	},
 	/**
-	 * A member's own next machine: the pair they make for it, and the connect that spends it
-	 * (effort 828, requirement 3).
+	 * Opening a machine-kind link, which is the connect that spends it (effort 828, requirement
+	 * 20). Making one is `member.linkMake`, beside the other kind, because one act makes a link for
+	 * an account and the account's standing chooses which kind it is.
 	 *
-	 * **`member` for making one and `public` for opening it**, which is the same split `invitation`
-	 * has and for the same reasons. Making one acts on the caller's own account and needs nothing
-	 * but a session, so there is no act to hold it to: an administrator cannot make one for
-	 * somebody else, and a member needs nobody's permission to set their own laptop up. Opening one
-	 * happens on a machine where nobody has signed in yet, so requiring an identity would be
-	 * requiring the thing the call exists to make possible.
+	 * **`public`, for the reason `invitation.accept` is**: it happens on a machine where nobody has
+	 * signed in yet, so requiring an identity would be requiring the thing the call exists to make
+	 * possible.
 	 *
 	 * The code is six characters here as it is on an invitation, refused before a round trip for a
 	 * caller that is not the screen; whether the link has lapsed, where the row behind it stands,
 	 * and whether the code and the link's own secret together open anything, are Rust's alone.
 	 */
 	machine: {
-		link: procedure.member.mutation(async ({ ctx }): Promise<MachineLink> => {
-			return ctx.host.organization.machineLinkMake();
-		}),
 		connect: procedure.public
 			.input(
 				z.object({

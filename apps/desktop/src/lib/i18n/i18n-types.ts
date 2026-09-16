@@ -1570,28 +1570,6 @@ type RootTranslation = {
 				 */
 				changed: string
 			}
-			anotherMachine: {
-				/**
-				 * a​n​o​t​h​e​r​ ​m​a​c​h​i​n​e
-				 */
-				title: string
-				/**
-				 * c​o​n​n​e​c​t​ ​a​n​o​t​h​e​r​ ​m​a​c​h​i​n​e​ ​o​f​ ​y​o​u​r​ ​o​w​n​.​ ​y​o​u​ ​g​e​t​ ​a​ ​l​i​n​k​ ​a​n​d​ ​a​ ​c​o​d​e​;​ ​o​p​e​n​ ​t​h​e​ ​l​i​n​k​ ​o​n​ ​t​h​a​t​ ​m​a​c​h​i​n​e​,​ ​t​y​p​e​ ​t​h​e​ ​c​o​d​e​,​ ​a​n​d​ ​s​i​g​n​ ​i​n​ ​t​h​e​r​e​ ​w​i​t​h​ ​t​h​e​ ​s​a​m​e​ ​u​s​e​r​n​a​m​e​ ​a​n​d​ ​p​a​s​s​w​o​r​d​.​ ​n​o​t​h​i​n​g​ ​a​b​o​u​t​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​c​h​a​n​g​e​s​.
-				 */
-				description: string
-				/**
-				 * c​o​n​n​e​c​t​ ​a​n​o​t​h​e​r​ ​m​a​c​h​i​n​e
-				 */
-				action: string
-				/**
-				 * l​i​n​k​ ​f​o​r​ ​t​h​e​ ​o​t​h​e​r​ ​m​a​c​h​i​n​e
-				 */
-				linkTitle: string
-				/**
-				 * r​e​n​t​a​b​l​e​ ​s​e​n​d​s​ ​n​o​t​h​i​n​g​,​ ​a​n​d​ ​t​h​i​s​ ​p​a​i​r​ ​i​s​ ​s​h​o​w​n​ ​o​n​c​e​.​ ​o​p​e​n​ ​t​h​e​ ​l​i​n​k​ ​o​n​ ​t​h​e​ ​m​a​c​h​i​n​e​ ​y​o​u​ ​a​r​e​ ​c​o​n​n​e​c​t​i​n​g​ ​a​n​d​ ​t​y​p​e​ ​t​h​e​ ​c​o​d​e​ ​t​h​e​r​e​;​ ​i​t​ ​a​d​m​i​t​s​ ​o​n​e​ ​m​a​c​h​i​n​e​ ​o​n​c​e​,​ ​a​n​d​ ​i​f​ ​y​o​u​ ​l​o​s​e​ ​i​t​ ​y​o​u​ ​m​a​k​e​ ​a​n​o​t​h​e​r​ ​h​e​r​e​.
-				 */
-				notice: string
-			}
 			sessions: {
 				/**
 				 * o​t​h​e​r​ ​m​a​c​h​i​n​e​s
@@ -2541,19 +2519,19 @@ type RootTranslation = {
 			 */
 			memberActions: RequiredParams<'username'>
 			/**
-			 * i​n​v​i​t​e​ ​s​o​m​e​b​o​d​y
+			 * a​ ​n​e​w​ ​m​e​m​b​e​r
 			 */
-			inviteTitle: string
+			accountTitle: string
 			/**
-			 * a​n​ ​i​n​v​i​t​a​t​i​o​n​ ​m​a​k​e​s​ ​s​o​m​e​b​o​d​y​ ​a​ ​m​e​m​b​e​r​:​ ​a​ ​u​s​e​r​n​a​m​e​,​ ​a​ ​r​o​l​e​ ​a​n​d​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e​s​ ​t​h​e​y​ ​h​o​l​d​,​ ​e​a​c​h​ ​a​t​ ​f​u​l​l​ ​a​c​c​e​s​s​ ​o​r​ ​r​e​a​d​ ​o​n​l​y​.​ ​y​o​u​ ​h​a​n​d​ ​t​h​e​m​ ​t​h​e​ ​l​i​n​k​ ​y​o​u​r​s​e​l​f​.
+			 * a​ ​m​e​m​b​e​r​ ​i​s​ ​a​ ​u​s​e​r​n​a​m​e​,​ ​a​ ​r​o​l​e​,​ ​w​h​a​t​ ​t​h​e​y​ ​m​a​y​ ​d​o​ ​a​n​d​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e​s​ ​t​h​e​y​ ​h​o​l​d​.​ ​t​h​e​y​ ​h​a​v​e​ ​n​o​ ​p​a​s​s​w​o​r​d​ ​u​n​t​i​l​ ​y​o​u​ ​m​a​k​e​ ​t​h​e​m​ ​a​ ​l​i​n​k​ ​a​n​d​ ​t​h​e​y​ ​o​p​e​n​ ​i​t​.
 			 */
-			inviteDescription: string
+			accountDescription: string
 			/**
 			 * r​o​l​e
 			 */
 			role: string
 			/**
-			 * o​n​l​y​ ​t​h​e​ ​o​w​n​e​r​ ​c​a​n​ ​i​n​v​i​t​e​ ​a​n​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​.
+			 * o​n​l​y​ ​t​h​e​ ​o​w​n​e​r​ ​c​a​n​ ​m​a​k​e​ ​a​n​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​.
 			 */
 			administratorsAreTheOwners: string
 			/**
@@ -2561,17 +2539,21 @@ type RootTranslation = {
 			 */
 			noWorkspaceToGrant: string
 			/**
-			 * i​n​v​i​t​e
+			 * a​d​d​ ​a​ ​m​e​m​b​e​r
 			 */
-			invite: string
+			addAccount: string
 			/**
-			 * r​e​n​t​a​b​l​e​ ​s​e​n​d​s​ ​n​o​t​h​i​n​g​.​ ​c​o​p​y​ ​t​h​e​ ​l​i​n​k​ ​b​e​l​o​w​ ​a​n​d​ ​h​a​n​d​ ​i​t​ ​t​o​ ​t​h​e​ ​p​e​r​s​o​n​ ​y​o​u​r​s​e​l​f​;​ ​o​p​e​n​i​n​g​ ​i​t​ ​i​s​ ​h​o​w​ ​t​h​e​y​ ​c​h​o​o​s​e​ ​t​h​e​i​r​ ​p​a​s​s​w​o​r​d​.
+			 * r​e​n​t​a​b​l​e​ ​s​e​n​d​s​ ​n​o​t​h​i​n​g​.​ ​c​o​p​y​ ​t​h​e​ ​l​i​n​k​ ​b​e​l​o​w​ ​a​n​d​ ​h​a​n​d​ ​i​t​ ​o​v​e​r​ ​y​o​u​r​s​e​l​f​,​ ​a​n​d​ ​r​e​a​d​ ​t​h​e​ ​c​o​d​e​ ​o​u​t​ ​s​e​p​a​r​a​t​e​l​y​.​ ​i​t​ ​a​d​m​i​t​s​ ​o​n​e​ ​m​a​c​h​i​n​e​,​ ​o​n​c​e​.
 			 */
 			cannotSend: string
 			/**
-			 * i​n​v​i​t​a​t​i​o​n​ ​l​i​n​k
+			 * l​i​n​k​ ​a​n​d​ ​c​o​d​e
 			 */
-			invitationLinkTitle: string
+			linkTitle: string
+			/**
+			 * l​i​n​k
+			 */
+			linkLabel: string
 			/**
 			 * c​o​n​f​i​r​m​a​t​i​o​n​ ​c​o​d​e
 			 */
@@ -2599,9 +2581,17 @@ type RootTranslation = {
 			 */
 			invitationLapsed: RequiredParams<'date'>
 			/**
-			 * n​e​w​ ​l​i​n​k
+			 * m​a​k​e​ ​a​ ​l​i​n​k
 			 */
-			newLink: string
+			makeLink: string
+			/**
+			 * r​e​s​e​t​ ​t​h​e​ ​p​a​s​s​w​o​r​d
+			 */
+			unsetPassword: string
+			/**
+			 * t​h​e​i​r​ ​p​a​s​s​w​o​r​d​ ​w​a​s​ ​u​n​s​e​t​.​ ​m​a​k​e​ ​t​h​e​m​ ​a​ ​l​i​n​k​ ​s​o​ ​t​h​e​y​ ​c​a​n​ ​c​h​o​o​s​e​ ​a​ ​n​e​w​ ​o​n​e​.
+			 */
+			passwordUnset: string
 			/**
 			 * s​i​g​n​ ​o​u​t​ ​e​v​e​r​y​w​h​e​r​e
 			 */
@@ -2614,10 +2604,6 @@ type RootTranslation = {
 			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​i​s​ ​o​f​f​l​i​n​e​;​ ​t​h​e​ ​s​i​g​n​-​o​u​t​ ​r​e​a​c​h​e​s​ ​t​h​e​i​r​ ​m​a​c​h​i​n​e​s​ ​o​n​c​e​ ​i​t​ ​i​s​ ​b​a​c​k​ ​o​n​l​i​n​e​.
 			 */
 			sessionsEndedPending: string
-			/**
-			 * c​o​p​y​ ​t​h​e​ ​l​i​n​k​ ​a​g​a​i​n
-			 */
-			copyLink: string
 			/**
 			 * r​e​n​a​m​e
 			 */
@@ -4421,28 +4407,6 @@ export type TranslationFunctions = {
 				 */
 				changed: () => LocalizedString
 			}
-			anotherMachine: {
-				/**
-				 * another machine
-				 */
-				title: () => LocalizedString
-				/**
-				 * connect another machine of your own. you get a link and a code; open the link on that machine, type the code, and sign in there with the same username and password. nothing about this machine changes.
-				 */
-				description: () => LocalizedString
-				/**
-				 * connect another machine
-				 */
-				action: () => LocalizedString
-				/**
-				 * link for the other machine
-				 */
-				linkTitle: () => LocalizedString
-				/**
-				 * rentable sends nothing, and this pair is shown once. open the link on the machine you are connecting and type the code there; it admits one machine once, and if you lose it you make another here.
-				 */
-				notice: () => LocalizedString
-			}
 			sessions: {
 				/**
 				 * other machines
@@ -5350,19 +5314,19 @@ export type TranslationFunctions = {
 			 */
 			memberActions: (arg: { username: string }) => LocalizedString
 			/**
-			 * invite somebody
+			 * a new member
 			 */
-			inviteTitle: () => LocalizedString
+			accountTitle: () => LocalizedString
 			/**
-			 * an invitation makes somebody a member: a username, a role and the workspaces they hold, each at full access or read only. you hand them the link yourself.
+			 * a member is a username, a role, what they may do and the workspaces they hold. they have no password until you make them a link and they open it.
 			 */
-			inviteDescription: () => LocalizedString
+			accountDescription: () => LocalizedString
 			/**
 			 * role
 			 */
 			role: () => LocalizedString
 			/**
-			 * only the owner can invite an administrator.
+			 * only the owner can make an administrator.
 			 */
 			administratorsAreTheOwners: () => LocalizedString
 			/**
@@ -5370,17 +5334,21 @@ export type TranslationFunctions = {
 			 */
 			noWorkspaceToGrant: () => LocalizedString
 			/**
-			 * invite
+			 * add a member
 			 */
-			invite: () => LocalizedString
+			addAccount: () => LocalizedString
 			/**
-			 * rentable sends nothing. copy the link below and hand it to the person yourself; opening it is how they choose their password.
+			 * rentable sends nothing. copy the link below and hand it over yourself, and read the code out separately. it admits one machine, once.
 			 */
 			cannotSend: () => LocalizedString
 			/**
-			 * invitation link
+			 * link and code
 			 */
-			invitationLinkTitle: () => LocalizedString
+			linkTitle: () => LocalizedString
+			/**
+			 * link
+			 */
+			linkLabel: () => LocalizedString
 			/**
 			 * confirmation code
 			 */
@@ -5406,9 +5374,17 @@ export type TranslationFunctions = {
 			 */
 			invitationLapsed: (arg: { date: string }) => LocalizedString
 			/**
-			 * new link
+			 * make a link
 			 */
-			newLink: () => LocalizedString
+			makeLink: () => LocalizedString
+			/**
+			 * reset the password
+			 */
+			unsetPassword: () => LocalizedString
+			/**
+			 * their password was unset. make them a link so they can choose a new one.
+			 */
+			passwordUnset: () => LocalizedString
 			/**
 			 * sign out everywhere
 			 */
@@ -5421,10 +5397,6 @@ export type TranslationFunctions = {
 			 * this machine is offline; the sign-out reaches their machines once it is back online.
 			 */
 			sessionsEndedPending: () => LocalizedString
-			/**
-			 * copy the link again
-			 */
-			copyLink: () => LocalizedString
 			/**
 			 * rename
 			 */

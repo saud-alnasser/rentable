@@ -413,10 +413,10 @@ export function useFetchOrganizationState() {
 }
 
 /**
- * invite a member. What comes back is shown once by the surface that asked; this hook only
- * refreshes the two lists it changed.
+ * make an account. It hands over nothing: the account holds no password until a link is made for
+ * it, so this only refreshes the list it changed.
  */
-export function useInviteMember(
+export function useCreateAccount(
 	opts: MutationOptions = {
 		toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() }
 	}
@@ -427,12 +427,14 @@ export function useInviteMember(
 		mutationFn: ({
 			username,
 			role,
+			permissions,
 			workspaces
 		}: {
 			username: string;
 			role: 'administrator' | 'member';
+			permissions: number;
 			workspaces: { id: string; access: 'full-access' | 'read-only' }[];
-		}) => api.app.organization.member.invite({ username, role, workspaces }),
+		}) => api.app.organization.member.create({ username, role, permissions, workspaces }),
 		onSuccess: async () => {
 			await client.invalidateQueries({ queryKey: keys.members });
 			onMutationSuccess(opts);
@@ -741,28 +743,14 @@ export function useInvitationLink(
 }
 
 /**
- * make the link and the code for the reader's own next machine (effort 828, requirement 3).
+ * make the one link that admits a machine to an account (effort 828, requirement 20).
  *
  * **A mutation rather than a query**, for the reason {@link useInvitationLink} gives: it is asked
  * for when somebody presses a control and its answer is shown once, and cached under a key it
- * would be a secret kept in memory for as long as the section is open. Nothing is invalidated,
- * because nothing on screen reads the row it wrote; a person who lost the pair presses again,
- * which makes a new one and drops the one they lost.
+ * would be a secret kept in memory for as long as the section is open. The list is refreshed
+ * because an invitation-kind link leaves a pending mark on the account's row.
  */
-export function useMakeMachineLink(
-	opts: MutationOptions = {
-		toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() }
-	}
-) {
-	return createMutation(() => ({
-		mutationFn: () => api.app.organization.machine.link(),
-		onSuccess: () => onMutationSuccess(opts),
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
-
-/** reset a member's password: a fresh link, from what the resetting administrator holds. */
-export function useReissueInvitation(
+export function useMakeMemberLink(
 	opts: MutationOptions = {
 		toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() }
 	}
@@ -771,11 +759,47 @@ export function useReissueInvitation(
 
 	return createMutation(() => ({
 		mutationFn: ({ memberId }: { memberId: string }) =>
-			api.app.organization.member.reset({ memberId }),
+			api.app.organization.member.linkMake({ memberId }),
 		onSuccess: async () => {
 			await client.invalidateQueries({ queryKey: keys.members });
 			onMutationSuccess(opts);
 		},
 		onError: (e) => onMutationError(opts, e)
 	}));
+}
+
+/**
+ * unset a member's password, so the next link made for them asks for a new one.
+ *
+ * **What it could not carry over is said rather than swallowed.** A workspace the person resetting
+ * holds no full credential on is taken off the member's row, and the sentence naming those is the
+ * announcement this act makes; where it carried everything over, the plain one is said.
+ */
+export function useUnsetMemberPassword(
+	opts: MutationOptions = {
+		toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() }
+	}
+) {
+	const client = useQueryClient();
+
+	return createMutation(() => ({
+		mutationFn: ({ memberId }: { memberId: string }) =>
+			api.app.organization.member.unsetPassword({ memberId }),
+		onSuccess: async (unreachable) => {
+			await client.invalidateQueries({ queryKey: keys.members });
+			onMutationSuccess(announcing(opts, unsetSentence(unreachable)));
+		},
+		onError: (e) => onMutationError(opts, e)
+	}));
+}
+
+/** what a reset says: what it carried over, or what it could not and whom to ask. */
+function unsetSentence(unreachable: { id: string; name: string }[]) {
+	const ll = get(LL);
+
+	return unreachable.length === 0
+		? ll.organization.dashboard.passwordUnset()
+		: ll.organization.dashboard.unreachableWorkspaces({
+				workspaces: unreachable.map((workspace) => workspace.name).join(', ')
+			});
 }

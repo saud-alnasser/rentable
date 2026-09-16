@@ -358,8 +358,7 @@ mod tests {
         organization::{
             HeldOrganization, connect,
             invite::{
-                INVITATION_LIFETIME_MS, Invitation, WorkspaceGrant, invite_member,
-                locator,
+                INVITATION_LIFETIME_MS, Invitation, WorkspaceGrant, locator, make_account_and_link,
             },
             link::{
                 CODE_MISSING, CODE_REFUSED, Half, HalfKind, JoinLink, LinkKind, Locator, open_payload,
@@ -529,7 +528,7 @@ mod tests {
         let link = locator(&organization, &owner)
             .await
             .expect("the organization's link");
-        let invited = invite_member(
+        let invited = make_account_and_link(
             &organization,
             &owner,
             no_platform(),
@@ -1092,7 +1091,7 @@ mod tests {
     async fn a_revoked_invitation_is_refused_by_name_and_the_person_who_never_arrived_is_gone() {
         let directory = scratch("revoked");
         let (store, owner, link, _, _, _) = invited(&directory).await;
-        let gone = invite_member(
+        let gone = make_account_and_link(
             &store,
             &owner,
             no_platform(),
@@ -1181,7 +1180,7 @@ mod tests {
     async fn a_lapsed_invitation_refuses_the_link_by_name_and_a_reissue_admits() {
         let directory = scratch("lapsed");
         let (store, owner, link, _, _, _) = invited(&directory).await;
-        let late = invite_member(
+        let late = make_account_and_link(
             &store,
             &owner,
             no_platform(),
@@ -1216,7 +1215,7 @@ mod tests {
             Some((after, None))
         );
 
-        let reissued = crate::organization::invite::reissue_invitation(
+        let reissued = crate::organization::invite::reset_account(
             &store,
             &owner,
             no_platform(),
@@ -1277,7 +1276,7 @@ mod tests {
         let member = member.expect("the member");
         let held = held_by(&machine);
 
-        let reset = crate::organization::invite::reissue_invitation(
+        let reset = crate::organization::invite::reset_account(
             &store,
             &owner,
             no_platform(),
@@ -1867,7 +1866,7 @@ mod tests {
         eprintln!("created {}", workspace.database_name);
 
         let link_a = locator(&organization_a, &owner_a).await.expect("the link");
-        let invited = invite_member(
+        let invited = make_account_and_link(
             &organization_a,
             &owner_a,
             no_platform(),

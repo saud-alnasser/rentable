@@ -514,7 +514,7 @@ mod tests {
         error::Error,
         organization::{
             HeldOrganization,
-            invite::{Invitation, Invited, WorkspaceGrant, invite_member, locator},
+            invite::{AccountAndLink, Invitation, WorkspaceGrant, locator, make_account_and_link},
             migrate::{self, Pipeline},
             permission,
             session::{CredentialSlot, MemberSession, WorkspaceFacts, sign_in},
@@ -579,8 +579,12 @@ mod tests {
     /// (effort 828, requirement 1). *It was the link's secret alone until effort 826 made the code
     /// the other half, and it read the row's `code_seal` until effort 828 moved the seal into the
     /// link's text.*
-    fn secret_of(invited: &Invited) -> String {
-        crate::organization::invite::vault_password_of(invited, test_cost())
+    fn secret_of(invited: &AccountAndLink) -> String {
+        crate::organization::invite::vault_password_of(
+            &invited.join_link,
+            &invited.code,
+            test_cost(),
+        )
     }
 
     fn joined_as(owner: &MemberSession, member_id: &str, role: &str) -> HeldOrganization {
@@ -664,7 +668,7 @@ mod tests {
         .await
         .expect("the workspace");
         let link = locator(&store, &owner).await.expect("the link");
-        let invited = invite_member(
+        let invited = make_account_and_link(
             &store,
             &owner,
             no_platform(),

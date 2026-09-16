@@ -7,10 +7,10 @@ use crate::{diagnostics, error::Error, state::AppState, timestamp};
 
 use super::{
     HeldOrganization, connect, forget,
-    invite::{self, Invitation, InvitationLink, Invited, MemberFacts, WorkspaceGrant},
+    invite::{self, InvitationLink, MadeLink, MemberFacts, UnreachableWorkspace, WorkspaceGrant},
     join,
     link::{self, JoinLink, LinkShape},
-    machine::{self, MachineLink},
+    machine,
     migrate::Pipeline,
     migration::{self, MigrationPhase, PipelineLease},
     password,
@@ -1046,57 +1046,90 @@ pub async fn organization_renew_due(app_state: tauri::State<'_, AppState>) -> Re
     Ok(true)
 }
 
-/// Invite a member: a row, and one link. The application sends nothing; the administrator hands
-/// the link over themselves.
+/// Make an account: a row somebody will open, and no link (effort 828, requirements 19 and 20).
 ///
-/// **No password crosses, and no credential does either** (effort 828, requirement 1). The
-/// generated password the vault is sealed under leaves `invite::issue` inside the link's own seal
-/// and inside the issuer's sealed copy on the row, and nowhere else; so does the issuer's grant on
-/// the organization database, which is what a machine opening the link reads the rows with. What
-/// crosses is the link, whose credential nothing can read, and the six-character code, which is
-/// the other half of what opens it; [[rules/credentials]], *Client boundary*, is what sanctions
-/// the two. Everything else the invitation makes stays on
-/// this side: the member's vault, the content key sealed to them, and the grants. A read-only
-/// grant is minted with the owner's authority, which is why the platform is handed in where this
-/// machine holds it.
+/// **Nothing crosses back but the account as the directory draws it.** The generated password the
+/// vault is sealed under never leaves `invite::create_account`, and nothing stores it: the account
+/// holds no password anybody knows until its first link is opened, which is [`member_link_make`].
+/// Everything the account is made of stays on this side: the vault, the content key sealed to
+/// them, and the grants. A read-only grant is minted with the owner's authority, which is why the
+/// platform is handed in where this machine holds it.
 #[tauri::command]
-pub async fn member_invite(
+pub async fn member_create(
     app_state: tauri::State<'_, AppState>,
     username: String,
     role: String,
+    permissions: i64,
     workspaces: Vec<WorkspaceGrant>,
-) -> Result<Invited, Error> {
+) -> Result<MemberFacts, Error> {
     let platform = owner_platform(&app_state).await;
     let mut member = app_state.member.write().await;
     let store = app_state.organization.read().await;
     let (member, store) = signed_in(&mut member, &store)?;
-    let locator = invite::locator(store, member).await?;
 
-    invite::invite_member(
+    invite::create_account(
         store,
         member,
         platform.as_ref(),
-        &locator,
-        Invitation {
-            username: &username,
-            role: &role,
-            workspaces: &workspaces,
-        },
+        &username,
+        &role,
+        permissions,
+        &workspaces,
         invite::INVITED_KDF,
         timestamp::now(),
     )
     .await
 }
 
-/// Reset a member's password: a fresh vault under a fresh secret, everything the resetting
-/// administrator reaches re-sealed to it, and a fresh invitation, handed back as a new link. What
-/// a reset is, for a member whose password nobody knows; the answer names the workspaces it could
-/// not restore, and the member's permissions are kept.
+/// Make the one link that admits a machine to an account (effort 828, requirement 20).
+///
+/// **The account's standing chooses the kind and the caller chooses nothing.** An account whose
+/// password is not yet set gets an invitation-kind link, which asks the person opening it to
+/// choose a password; one that has a password gets a machine-kind link, which lands the machine at
+/// the wall. It is refused while a machine is signed in on the account.
+///
+/// **Both halves cross, and neither is a credential** ([[rules/credentials]], *Client boundary*).
+/// The link's text carries the credential sealed and the code is what the person reads off the
+/// screen and reads out on a call; nothing is written under the data directory, and a person who
+/// lost the pair makes another, which drops the one they lost.
 #[tauri::command]
-pub async fn member_reset(
+pub async fn member_link_make(
     app_state: tauri::State<'_, AppState>,
     member_id: String,
-) -> Result<Invited, Error> {
+) -> Result<MadeLink, Error> {
+    let platform = owner_platform(&app_state).await;
+    let mut member = app_state.member.write().await;
+    let store = app_state.organization.read().await;
+    let (member, store) = signed_in(&mut member, &store)?;
+    // an invitation-kind link writes the account's row back whole, and that row carries the
+    // session epoch, so it is read after a pull rather than off this machine's last sight of it
+    // (effort 826, requirement 22). The register this act is gated on is read from the same pull.
+    store.pull().await;
+    let locator = invite::locator(store, member).await?;
+
+    invite::make_link(
+        store,
+        member,
+        platform.as_ref(),
+        &locator,
+        &member_id,
+        invite::INVITED_KDF,
+        timestamp::now(),
+    )
+    .await
+}
+
+/// Unset a member's password: a fresh vault under a fresh secret, everything the resetting
+/// administrator reaches re-sealed to it, and the requirement to choose a password set, so the
+/// next link asks for one. What a reset is, for a member whose password nobody knows.
+///
+/// **It hands over nothing.** The answer names the workspaces it could not restore, and the
+/// member's permissions are kept; a link is a separate act on the same account.
+#[tauri::command]
+pub async fn member_password_unset(
+    app_state: tauri::State<'_, AppState>,
+    member_id: String,
+) -> Result<Vec<UnreachableWorkspace>, Error> {
     let platform = owner_platform(&app_state).await;
     let mut member = app_state.member.write().await;
     let store = app_state.organization.read().await;
@@ -1104,13 +1137,11 @@ pub async fn member_reset(
     // the row this act writes back whole carries the session epoch, so it is read after a pull
     // rather than off this machine's last sight of it (effort 826, requirement 22).
     store.pull().await;
-    let locator = invite::locator(store, member).await?;
 
-    invite::reissue_invitation(
+    invite::unset_password(
         store,
         member,
         platform.as_ref(),
-        &locator,
         &member_id,
         invite::INVITED_KDF,
         timestamp::now(),
@@ -1184,29 +1215,7 @@ pub async fn invitation_accept(
     state_of(&app_state).await
 }
 
-/// Make a link and a code for the signed-in member's own next machine (effort 828, requirement 3).
-///
-/// **Any member, and nobody else's machine.** It acts on the caller's own account and asks for no
-/// authority: the link carries the grant their vault already unsealed and nothing is minted, which
-/// is what lets a plain member do this without calling anybody. An administrator who has to get
-/// somebody back in issues a reset, which is a different act and already exists.
-///
-/// **Both halves cross, and neither is a credential** ([[rules/credentials]], *Client boundary*).
-/// The link's text carries the credential sealed and the code is what the person reads off the
-/// screen and types on the other machine; nothing is written under the data directory, and a
-/// person who lost the pair presses again.
-#[tauri::command]
-pub async fn machine_link_make(
-    app_state: tauri::State<'_, AppState>,
-) -> Result<MachineLink, Error> {
-    let mut member = app_state.member.write().await;
-    let store = app_state.organization.read().await;
-    let (member, store) = signed_in(&mut member, &store)?;
-
-    machine::make(store, member, setup::SHIPPING_KDF, timestamp::now()).await
-}
-
-/// Connect this machine with a link its member made for it, and leave it at the wall.
+/// Connect this machine with a machine-kind link, and leave it at the wall.
 ///
 /// **`public`, because it happens before there is anybody to act as**, exactly as a connect and an
 /// invitation accept do. The code and the link's secret together unseal the member's own grant,

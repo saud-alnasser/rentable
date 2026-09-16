@@ -1,7 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/svelte';
 import { expect, test, vi } from 'vitest';
 
-import { formatRecordDate } from '$lib/design/date';
 import en from '$lib/i18n/en';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
@@ -44,13 +43,6 @@ vi.mock('$app/state', () => ({
 const noop = () => {};
 const resolved = async () => {};
 
-/** what the second-machine act answers with, stood in for: the route owns the mutation. */
-const MACHINE_LINK = {
-	link: 'rentable://join/machine-abc',
-	code: '7K4M9Q',
-	expiresAt: Date.UTC(2026, 8, 22)
-};
-
 /** the reader is standing at this section of the area. */
 const at = (search = '') => {
 	address.url = new URL(`http://localhost/settings${search}`);
@@ -69,24 +61,22 @@ const area = (overrides: Partial<Parameters<typeof render<typeof SettingsArea>>[
 			holdsTursoAuthority: true,
 			syncState: fakeSyncState(),
 			members: [],
-			reissuing: null,
+			makingLink: null,
+			unsetting: null,
 			revoking: null,
-			copying: null,
 			endingSessions: null,
 			isChangingPassword: false,
-			isMakingMachineLink: false,
 			isChangingRole: false,
 			isChangingAccess: false,
 			isDeletingOrganization: false,
 			onChangeLocale: noop,
 			onRevealDiagnostics: noop,
 			onChangePassword: resolved,
-			onMakeMachineLink: async () => MACHINE_LINK,
 			onEndOtherSessions: resolved,
 			onEndSessions: noop,
-			onReissue: noop,
+			onMakeLink: noop,
+			onUnsetPassword: noop,
 			onRevoke: noop,
-			onCopyLink: noop,
 			onRemove: noop,
 			onLockOut: noop,
 			onRename: resolved,
@@ -356,41 +346,22 @@ test('the you section states the password and draws no field until the change co
 	expect(document.querySelectorAll('input[type=password]')).toHaveLength(3);
 });
 
-// requirement 3: a member connects their own next machine, and what comes back is shown the way an
-// invitation's link and code are. The mutation is the route's, so what is read here is the control
-// and what the surface draws once the act has answered.
-test('the you section offers another machine, and shows the pair the way an invitation is shown', async () => {
+// effort 828, requirement 20 and criterion 20: **the you section has no link act.** A link is made
+// by the owner or an administrator from the account it admits into, so the section a person reads
+// about themselves offers the identity, the password and the other machines, and nothing that
+// hands a link over. *It offered a second-machine act until requirement 20 superseded requirement
+// 3.*
+test('the you section offers no link act, and nothing on it hands a link over', () => {
 	at('?section=you');
 	area({ section: 'you' });
 
-	const control = document.querySelector('[data-another-machine-open]');
+	expect(document.querySelector('[data-identity]')).not.toBeNull();
+	expect(document.querySelector('[data-password]')).not.toBeNull();
+	expect(document.querySelector('[data-end-other-sessions]')).not.toBeNull();
 
-	expect(control).not.toBeNull();
-	expect(screen.getByText(en.settings.you.anotherMachine.title)).toBeDefined();
-	expect(screen.getByText(en.settings.you.anotherMachine.description)).toBeDefined();
-	// nothing is stored for later, so nothing is drawn before the act runs.
+	expect(document.querySelector('[data-another-machine]')).toBeNull();
+	expect(document.querySelector('[data-another-machine-open]')).toBeNull();
 	expect(document.querySelector('[data-link-handover]')).toBeNull();
-
-	await fireEvent.click(control!);
-	await screen.findByText(en.settings.you.anotherMachine.notice);
-
-	const handover = document.querySelector('[data-link-handover]')!;
-
-	expect(document.querySelector('[data-invited-link]')?.textContent).toBe(MACHINE_LINK.link);
-	expect(document.querySelector('[data-invited-code]')?.textContent?.trim()).toBe(
-		MACHINE_LINK.code
-	);
-	// one copy control on the panel, and it is the link's: a code copied is a code pasted beside
-	// the link, which is the one thing it must never be.
-	expect(
-		Array.from(handover.querySelectorAll('button')).map((button) => button.textContent?.trim())
-	).toEqual([en.organization.setup.copyLink]);
-	expect(document.querySelector('[data-invited-code-block]')?.querySelector('button')).toBeNull();
-	// a date rather than a countdown, since the code lives as long as the link.
-	expect(document.querySelector('[data-invited-expiry]')?.textContent?.trim()).toBe(
-		en.organization.dashboard.invitationExpires.replace(
-			'{date:string}',
-			formatRecordDate('en', MACHINE_LINK.expiresAt)
-		)
-	);
+	expect(document.querySelector('[data-invited-link]')).toBeNull();
+	expect(document.querySelector('[data-invited-code]')).toBeNull();
 });

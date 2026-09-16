@@ -1,23 +1,29 @@
-//! inviting a member: a row they will open, and the one link that finds the organization and
-//! opens their place in it the first time.
+//! an account: the row somebody will open, and the one link that finds the organization and
+//! admits a machine to it.
+//!
+//! **Three acts, not one** (effort 828, requirements 19 and 20). [`create_account`] makes the row
+//! and hands over nothing; [`make_link`] makes the one link, choosing its kind from the account's
+//! standing; [`unset_password`] takes the account's password away so the next link asks for a new
+//! one, which is what a reset is. *Until effort 828 an invitation made the account and the link in
+//! one act, a reset made a second invitation, and a member made their own second-machine link from
+//! the you section; three places explained one link.*
 //!
 //! **The application sends no mail.** We have registered with no mail service and the spec's
-//! constraints forbid registering one on the customer's behalf, so an invitation is one thing
-//! the administrator hands over themselves: a link (effort 826, requirement 8). The interface
-//! says so and shows it with one copy control. *Effort 824 handed over three things, the link,
-//! the username and a generated password; the password is inside the link now, and the username
-//! is read off the row the link opens.*
+//! constraints forbid registering one on the customer's behalf, so a link is one thing the
+//! administrator hands over themselves (effort 826, requirement 8). The interface says so and
+//! shows it with one copy control. *Effort 824 handed over three things, the link, the username
+//! and a generated password; the password is inside the link now, and the username is read off the
+//! row the link opens.*
 //!
-//! **What an invitation makes.** A member row with a vault sealed under a generated password
-//! and `must_change_password` set; the content key sealed to the new member's public key; a
-//! grant on the organization database, which is the inviter's own credential re-sealed, so the
-//! member can pull the directory once their vault is open; a grant on each workspace named, at
-//! the access asked for, so an administrator invites into what they can reach themselves and a
-//! read-only grant is minted on the owner's machine as every read-only grant is; and an invitation
-//! row naming the member, which is the pending account's expiry and what opening the link spends
-//! (`join.rs::accept`). An administrator who invites an administrator needs the organization key
-//! to certify them, and only the owner's vault yields it, so that is refused for anybody else and
-//! says why.
+//! **What an account is.** A member row with a vault sealed under a generated password nothing
+//! stores and `must_change_password` set; the content key sealed to the new member's public key; a
+//! grant on the organization database, which is the maker's own credential re-sealed, so the
+//! member can pull the directory once their vault is open; and a grant on each workspace named, at
+//! the access asked for, so an administrator grants what they can reach themselves and a read-only
+//! grant is minted on the owner's machine as every read-only grant is. **No invitation row and no
+//! link**: the account holds no password anybody knows until its first link is opened. Handing
+//! somebody an act that signs rows needs the organization key to certify them, and only the
+//! owner's vault yields it, so that is refused for anybody else and says why.
 //!
 //! **The row carries the verifying half of the key the member will sign with.** It is derived
 //! from the vault secret drawn here, which is the one moment anybody holds that secret, and it is
@@ -42,46 +48,58 @@
 //! it is the owner's or an administrator's, never the member's own, and it moves nothing else on
 //! the row.
 //!
-//! **The invitation row carries the secret it was made with, sealed to its issuer.** `issue`
+//! **The link's kind is read off the account rather than chosen** (effort 828, requirement 20).
+//! An account whose `must_change_password` is set has no password anybody knows, so its link is an
+//! invitation: the vault is built again under a freshly drawn password, that password rides in the
+//! link's payload, and an `invitation` row stands behind it, which the first sign-in spends
+//! (`join.rs::accept`). An account that has a password gets a machine link: no vault password, a
+//! `machine_link` row behind it, and the machine it admits lands at the wall, where the password
+//! they already have signs them in (`machine.rs::connect`). One act, two kinds, and the person
+//! making it chooses neither.
+//!
+//! **A link is refused while a machine is signed in on the account.** A second machine is not
+//! handed out beside a first: the register of connected machines (requirement 15) is asked, and a
+//! member who wants another machine signs out of the one they have and is given a link.
+//!
+//! **The invitation row carries the secret it was made with, sealed to its issuer.** [`make_link`]
 //! writes the generated password, the link's own secret and the code under
 //! [`vault::seal_to_public_key`] to the issuing session's own public key, and the issuer's member
 //! id beside it. It is what lets that one person hand the same link and the same code over a
-//! second time ([`invitation_link`]); for anybody else the row offers a fresh link, which is a
-//! reset. Neither column is under the invitation signature, whose preimage is unchanged: a
-//! tampered seal opens for nobody, and a tampered issuer misplaces a copy control.
+//! second time ([`invitation_link`]); for anybody else the row offers a fresh link. Neither column
+//! is under the invitation signature, whose preimage is unchanged: a tampered seal opens for
+//! nobody, and a tampered issuer misplaces a copy control.
 //!
-//! **What the link seals, and what the code opens** (effort 828, requirement 1). `issue` draws
-//! three things rather than one: the vault password, a thirty-two byte link secret, and a
-//! six-character code from an alphabet with the letters that read alike taken out. The link
-//! carries the secret and, in place of a legible credential, the issuer's own grant on the
-//! organization database and that vault password sealed under the code and the secret together
-//! (`link::seal_payload`). So a link that leaks, is forwarded on, or is found in a chat weeks
-//! later names an organization and reads nothing: what stands between its holder and the
+//! **What the link seals, and what the code opens** (effort 828, requirement 1). [`make_link`]
+//! draws three things rather than one: the vault password where the kind has one, a thirty-two
+//! byte link secret, and a six-character code from an alphabet with the letters that read alike
+//! taken out. The link carries the secret and, in place of a legible credential, the maker's own
+//! grant on the organization database and that vault password sealed under the code and the secret
+//! together (`link::seal_payload`). So a link that leaks, is forwarded on, or is found in a chat
+//! weeks later names an organization and reads nothing: what stands between its holder and the
 //! directory is thirty-two to the sixth guesses at Argon2id. *Effort 826 put the vault password
 //! in a `code_seal` column on the row under a ninety-second code and left the credential legible
 //! in the link; the credential had to move into the text, because nothing reads a row before the
 //! credential is out, and a code that lapsed would then be a fresh link to re-send.*
 //!
 //! **The link and the credential inside it both lapse** (effort 828, requirement 2). A link
-//! stands for a week, or until the issuer's own grant on the organization database dies,
-//! whichever is sooner, and the row's expiry is that same moment, so the link and the row lapse
-//! together. Reissuing is a fresh invitation for the same member, which rewrites their vault
-//! under a new password and re-seals what the reissuer can reach, and it is the path a reset
-//! takes.
+//! stands for a week, or until the maker's own grant on the organization database dies, whichever
+//! is sooner, and the row behind it carries that same moment, so the link and the row lapse
+//! together. Making another drops the one that did not stand, so one link admits one machine at a
+//! time.
 //!
-//! **Revoking takes back what the invitation made** (effort 826, requirement 15). A person who
+//! **Revoking takes back what a pending link made** (effort 826, requirement 15). A person who
 //! never opened their link is removed the ordinary way, grants and all, under the act that made
-//! them, so a link somebody kept opens a vault that holds nothing; a reset link on a member who
-//! has signed in before is deleted alone, and the member's vault stays the reset one until another
-//! reset. Which of the two a member is, is whether an invitation of theirs was ever consumed: a
-//! reset deletes the open invitation before it and keeps the consumed one as that record.
+//! them, so a link somebody kept opens a vault that holds nothing; a link on a member who has
+//! signed in before is deleted alone, and the member's vault stays as it is. Which of the two a
+//! member is, is whether an invitation of theirs was ever consumed: making a fresh link deletes
+//! the open invitation before it and keeps the consumed one as that record.
 //!
-//! **A reset says what it could not restore** (requirement 13). The old vault is gone with the
-//! reissue and every grant sealed to it is dead; the reissuer re-seals the ones they hold a full
-//! credential on themselves, mints again the read-only ones where they are the owner, and the
-//! rest are removed and named in the answer, so the member knows which workspaces they wait on
-//! somebody else for. There is no master key to do better with, and the spec accepted that
-//! deliberately. A reset keeps the member's permissions as they were widened (requirement 6).
+//! **A reset says what it could not restore** (826, requirement 13). The old vault is gone with
+//! [`unset_password`] and every grant sealed to it is dead; the resetter re-seals the ones they
+//! hold a full credential on themselves, mints again the read-only ones where they are the owner,
+//! and the rest are removed and named in the answer, so the member knows which workspaces they
+//! wait on somebody else for. There is no master key to do better with, and the spec accepted that
+//! deliberately. A reset keeps the member's permissions as they were widened (826, requirement 6).
 
 use serde::{Deserialize, Serialize};
 
@@ -98,7 +116,9 @@ use super::{
     removal,
     session::{MemberSession, permissions_on_row},
     setup::{ADMINISTRATOR_KEY_PURPOSE, ORGANIZATION_KEY_PURPOSE, SHIPPING_KDF, credential_expiry},
-    store::{GrantRecord, InvitationRecord, MemberRecord, OrganizationStore, Signer},
+    store::{
+        GrantRecord, InvitationRecord, MachineLinkRecord, MemberRecord, OrganizationStore, Signer,
+    },
     vault::{
         KdfParams, create_vault_with_secret, open_content, seal_content, seal_to_public_key,
         unseal_with_secret_key,
@@ -133,34 +153,29 @@ const LINK_SECRET_BYTES: usize = 32;
 /// code. None of the three is spelled with it, so two splits read back exactly what was sealed.
 const ISSUER_COPY_SEPARATOR: char = '\n';
 
-/// What an invitation makes, shown to the administrator: the two things they hand over, the
-/// invitation link and the code that confirms it, beside the username and the ids the members
-/// list reads. The link carries one half of what opens the vault and the code is the other, so
-/// the link is sent and the code is read out. Which of these may cross the boundary at all, and
-/// why, is [[rules/credentials]], *Client boundary*.
+/// What making a link hands the person who made it: the two things they hand over, and the moment
+/// both stop working.
+///
+/// **One shape for both kinds** (effort 828, requirement 20). An account whose password is not yet
+/// set gets an invitation-kind link and an account with one gets a machine-kind link; what the
+/// person handing it over does with either is the same, so the answer says nothing about which it
+/// is. The link carries one half of what opens the payload and the code is the other, so the link
+/// is sent and the code is read out. Which of these may cross the boundary at all, and why, is
+/// [[rules/credentials]], *Client boundary*.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct Invited {
-    pub member_id: String,
-    pub invitation_id: String,
-    /// the username the member signs in with, as the row seals it: what the inviter typed on an
-    /// invitation, trimmed, and the one the row already carried on a reissue.
-    pub username: String,
-    /// the invitation link: the organization's locator with this invitation's sealed payload and
-    /// half in it.
-    pub join_link: String,
-    /// when the link lapses: a week out, or when the issuer's own grant on the organization
-    /// database dies, whichever is sooner (effort 828, requirement 2). The row's own expiry is
-    /// this same moment, so the link and the row lapse together.
-    pub expires_at: i64,
+pub struct MadeLink {
+    /// the organization's locator with this link's sealed payload and half in it.
+    pub link: String,
     /// the six-character code that opens the link's payload (effort 828, requirement 1). It is
-    /// the other half of what unseals the credential and the vault password, so it is read out on
-    /// a call or in person and never sent beside the link, and it lives exactly as long as the
-    /// link does.
+    /// the other half of what unseals the credential and, where there is one, the vault password,
+    /// so it is read out on a call or in person and never sent beside the link, and it lives
+    /// exactly as long as the link does.
     pub code: String,
-    /// on a reissue, the workspaces the member held that the reissuer could not re-seal, because
-    /// the reissuer holds no full credential on them. Empty on a fresh invitation.
-    pub unreachable_workspaces: Vec<UnreachableWorkspace>,
+    /// when the link lapses: a week out, or when the maker's own grant on the organization
+    /// database dies, whichever is sooner (effort 828, requirement 2). The row behind the link
+    /// carries the same moment, so the link and the row lapse together.
+    pub expires_at: i64,
 }
 
 /// One workspace and the access held on it: what an invitation asks for, and what the members
@@ -265,45 +280,42 @@ pub async fn refuse_taken_username(
     Ok(())
 }
 
-/// What the inviter is asked for.
-#[derive(Clone, Debug)]
-pub struct Invitation<'a> {
-    pub username: &'a str,
-    /// `packages/workspace-permission`'s vocabulary: `administrator` or `member`.
-    pub role: &'a str,
-    /// the workspaces the member belongs to, each at the access asked for: full access is the
-    /// inviter's own credential re-sealed, read-only is minted on the owner's machine.
-    pub workspaces: &'a [WorkspaceGrant],
-}
-
-/// Invite a member.
+/// Make an account: the row somebody will open, and no link (effort 828, requirements 19 and 20).
 ///
-/// `locator` is the organization's own locator, which the answer hands back with the invitation's
-/// sealed payload and half on it; `platform` is the owner's machine's authority,
-/// which a read-only grant is minted with and nothing else here needs; `kdf_params` is what the
-/// member's vault is sealed at.
-pub async fn invite_member<P: TursoPlatform>(
+/// This is what inviting was, up to the link. The vault is sealed under a password nobody is ever
+/// shown and nothing stores, `must_change_password` is set, the certificate is written where the
+/// acts asked for sign rows, and the grants are sealed to the fresh vault. **No invitation row and
+/// no link**: an account holds no password until its first link is opened, and [`make_link`] is
+/// what draws the password the person opening it replaces.
+///
+/// `platform` is the owner's machine's authority, which a read-only grant is minted with and
+/// nothing else here needs; `kdf_params` is what the member's vault is sealed at. What comes back
+/// is the account as the members list draws it.
+#[allow(clippy::too_many_arguments)]
+pub async fn create_account<P: TursoPlatform>(
     store: &OrganizationStore,
     session: &MemberSession,
     platform: Option<&P>,
-    locator: &Locator,
-    invitation: Invitation<'_>,
+    username: &str,
+    role: &str,
+    permissions: i64,
+    workspaces: &[WorkspaceGrant],
     kdf_params: KdfParams,
     now: i64,
-) -> Result<Invited, Error> {
+) -> Result<MemberFacts, Error> {
     session.settled()?;
     permission::require(
         permissions_on_row(store, session).await?,
         Administration::InviteMember,
     )?;
 
-    let username = invitation.username.trim();
+    let username = username.trim();
 
     validate_username(username)?;
 
-    if invitation.role != permission::ADMINISTRATOR && invitation.role != permission::MEMBER {
+    if role != permission::ADMINISTRATOR && role != permission::MEMBER {
         return Err(Error::InvalidInput {
-            message: "a member is invited as an administrator or as a member".to_string(),
+            message: "an account is made as an administrator or as a member".to_string(),
         });
     }
 
@@ -311,38 +323,59 @@ pub async fn invite_member<P: TursoPlatform>(
 
     let member_id = random_id()?;
 
-    issue(
+    write_account(
         store,
         session,
         platform,
-        locator,
         &member_id,
         username,
-        invitation.role,
-        permission::mask_of_role(invitation.role),
-        invitation.workspaces,
+        role,
+        permissions,
+        workspaces,
         kdf_params,
         now,
     )
-    .await
+    .await?;
+
+    if !store.push().await {
+        diagnostics::warn("organization.member.notYetSent")
+            .with("member", member_id.as_str())
+            .write();
+    }
+
+    diagnostics::info("organization.member.created")
+        .with("member", member_id.as_str())
+        .with("role", role)
+        .write();
+
+    members(store, session, now)
+        .await?
+        .into_iter()
+        .find(|member| member.id == member_id)
+        .ok_or_else(|| Error::Integrity {
+            message: "the new account's row did not read back".to_string(),
+        })
 }
 
-/// Invite a member again: a fresh vault under a fresh password, the content key and every grant
-/// the reissuer can reach re-sealed to it, and a fresh invitation. The member's row keeps its id,
-/// its username and its role.
+/// Unset an account's password: a fresh vault under a fresh drawn password, everything the
+/// resetter can reach re-sealed to it, and `must_change_password` set, so the next link asks the
+/// person to choose one (effort 828, requirement 20).
 ///
-/// **This is what a reset is** (requirement 13): no escrow copy of the old vault exists, so what
-/// restores a member's access is building them a new one from what the reissuer already holds,
-/// and a workspace the reissuer cannot reach is one the member waits on somebody who can.
-pub async fn reissue_invitation<P: TursoPlatform>(
+/// **This is what a reset is** (826, requirement 13): no escrow copy of the old vault exists, so
+/// what restores a member's access is building them a new one from what the resetter already
+/// holds, and a workspace the resetter cannot reach is one the member waits on somebody who can.
+/// What comes back names those, so the member knows whom to wait on.
+///
+/// **It hands over nothing.** A link is [`make_link`]'s, made from the account's card afterwards;
+/// until one is, the account has no way in, which is exactly what a fresh account has.
+pub async fn unset_password<P: TursoPlatform>(
     store: &OrganizationStore,
     session: &MemberSession,
     platform: Option<&P>,
-    locator: &Locator,
     member_id: &str,
     kdf_params: KdfParams,
     now: i64,
-) -> Result<Invited, Error> {
+) -> Result<Vec<UnreachableWorkspace>, Error> {
     session.settled()?;
     permission::require(
         permissions_on_row(store, session).await?,
@@ -350,6 +383,193 @@ pub async fn reissue_invitation<P: TursoPlatform>(
     )?;
 
     let members = store.members(&session.verifying_key).await?;
+    let member = writable_account(
+        &members,
+        member_id,
+        "an owner's password is not unset. their vault is theirs alone",
+    )?
+    .clone();
+    // the drawn password is let go of here on purpose: nothing stores it, and the link made
+    // afterwards draws its own.
+    let (_, unreachable_workspaces) =
+        reseal_account(store, session, platform, &member, kdf_params, now).await?;
+
+    if !store.push().await {
+        diagnostics::warn("organization.member.passwordUnsetNotYetSent")
+            .with("member", member_id)
+            .write();
+    }
+
+    diagnostics::info("organization.member.passwordUnset")
+        .with("member", member_id)
+        .write();
+
+    Ok(unreachable_workspaces)
+}
+
+/// Make the one link that admits a machine to an account (effort 828, requirement 20).
+///
+/// **One act, and the account's standing chooses its kind.** An account whose password is not yet
+/// set gets an invitation-kind link: the vault is built again under a freshly drawn password, that
+/// password rides in the link's sealed payload, and an `invitation` row stands behind it, so
+/// opening it asks the person to choose a password and signs them in. An account that has a
+/// password gets a machine-kind link: no vault password, a `machine_link` row behind it, and the
+/// machine that opens it lands at the wall, where the password they already have admits them.
+///
+/// **It is refused while a machine is signed in on the account.** A second machine is not handed
+/// out beside a first: a member who wants another signs out of the one they have and is given a
+/// link. The register (requirement 15) is what answers that, and a machine unseen for a week no
+/// longer counts.
+///
+/// **Neither kind mints anything**, so a holder of `inviteMember` makes either: what the link
+/// seals is the maker's own grant on the organization database, which dies within four weeks
+/// whatever happens to the link.
+pub async fn make_link<P: TursoPlatform>(
+    store: &OrganizationStore,
+    session: &MemberSession,
+    platform: Option<&P>,
+    locator: &Locator,
+    member_id: &str,
+    kdf_params: KdfParams,
+    now: i64,
+) -> Result<MadeLink, Error> {
+    session.settled()?;
+    permission::require(
+        permissions_on_row(store, session).await?,
+        Administration::InviteMember,
+    )?;
+
+    let members = store.members(&session.verifying_key).await?;
+    let member = writable_account(
+        &members,
+        member_id,
+        "an owner is handed no link. the organization is reached with their own turso account",
+    )?
+    .clone();
+
+    // an account with a password is offered a link only while no machine is signed in on it
+    // (requirement 20): somebody who wants another machine signs out of the one they have. An
+    // account whose password is not set yet has nobody signed in that a link would double, so
+    // the register does not bar it.
+    if !member.must_change_password
+        && store
+            .connected_machines(&session.verifying_key, now)
+            .await?
+            .iter()
+            .any(|(machine, _)| machine.member_id.as_deref() == Some(member_id))
+    {
+        return Err(Error::PreconditionFailed {
+            message: "a machine is signed in on that account. they sign out of it first, and then \
+                      a link admits the next one"
+                .to_string(),
+        });
+    }
+
+    let credential = held_credential(session)?;
+    let expires_at = link_expiry(&credential, now);
+    let id = random_id()?;
+    let link_secret = generate_link_secret()?;
+    let code = generate_code()?;
+
+    let (kind, vault_password) = if member.must_change_password {
+        // no password to admit them with, so the link carries the one the vault is built under and
+        // the person opening it replaces it with theirs. The row is written before the link so a
+        // link that exists always has a row behind it.
+        let (password, _) =
+            reseal_account(store, session, platform, &member, kdf_params, now).await?;
+        let (key, certificate) = signer_of(store, session).await?;
+        let signer = Signer {
+            key: &key,
+            certificate: &certificate,
+        };
+
+        store
+            .write_invitation(
+                &signer,
+                &InvitationRecord {
+                    id: id.clone(),
+                    member_id: member_id.to_string(),
+                    expires_at,
+                    consumed_at: None,
+                    sealed_secret: seal_to_public_key(
+                        &session.secret.public_key(),
+                        issuer_copy(&password, &link_secret, &code).as_bytes(),
+                    )?,
+                    issued_by: session.member_id.clone(),
+                    created_at: now,
+                },
+            )
+            .await?;
+
+        (HalfKind::Invitation, Some(password))
+    } else {
+        // their password already admits them, so the link opens no vault: it connects the machine
+        // and leaves it at the wall. Their other unspent rows go first, so one link stands at a
+        // time and a pair somebody lost stops being a way in.
+        store.delete_open_machine_links_of(member_id).await?;
+        store
+            .write_machine_link(&MachineLinkRecord {
+                id: id.clone(),
+                member_id: member_id.to_string(),
+                expires_at,
+                consumed_at: None,
+                created_at: now,
+            })
+            .await?;
+
+        (HalfKind::Machine, None)
+    };
+
+    let half = Half {
+        kind,
+        id: id.clone(),
+        secret: link_secret,
+        expires_at,
+    };
+    let sealed = seal_payload(
+        &code,
+        &half,
+        &LinkPayload {
+            credential,
+            vault_password,
+        },
+        kdf_params,
+    )?;
+    let link = locator.sealed(&sealed, half).encode()?;
+
+    if !store.push().await {
+        diagnostics::warn("organization.link.notYetSent")
+            .with("link", id.as_str())
+            .write();
+    }
+
+    diagnostics::info("organization.link.made")
+        .with("member", member_id)
+        .with(
+            "kind",
+            if member.must_change_password {
+                "invitation"
+            } else {
+                "machine"
+            },
+        )
+        .write();
+
+    Ok(MadeLink {
+        link,
+        code,
+        expires_at,
+    })
+}
+
+/// The account an act on somebody else's row is allowed to touch: in this organization, not the
+/// owner's, and not one that was removed. `owner_refusal` is what an act on the owner's row is
+/// told, because each of them has its own reason.
+fn writable_account<'a>(
+    members: &'a [MemberRecord],
+    member_id: &str,
+    owner_refusal: &str,
+) -> Result<&'a MemberRecord, Error> {
     let member = members
         .iter()
         .find(|member| member.id == member_id)
@@ -359,26 +579,43 @@ pub async fn reissue_invitation<P: TursoPlatform>(
 
     if member.role == permission::OWNER {
         return Err(Error::Forbidden {
-            message: "an owner is not reissued an invitation. their vault is theirs alone"
-                .to_string(),
+            message: owner_refusal.to_string(),
         });
     }
 
     if member.role == permission::REMOVED {
         return Err(Error::Forbidden {
-            message: "that member was removed. invite them again if they are to come back"
+            message: "that member was removed. make them an account again if they are to come back"
                 .to_string(),
         });
     }
 
-    let username = opened(session, "member.username_sealed", &member.username_sealed)?;
-    let role = member.role.clone();
+    Ok(member)
+}
 
-    // what the member held, split by what the reissuer can seal again: a full-access grant on a
-    // workspace the reissuer holds full access to is re-sealed to the fresh vault, a read-only
-    // grant is minted again where the reissuer is the owner with the authority in hand, and the
-    // rest are removed, because a grant sealed to a vault that is gone is a sign-in that fails,
-    // and named in the answer so the member knows whom to wait on.
+/// Build the account's vault again, under a freshly drawn password: what a reset and an
+/// invitation-kind link both begin with. The row keeps its id, its username, its role and its
+/// permissions; what moves is the vault and everything sealed to it.
+///
+/// What comes back is the password it drew and the workspaces it could not carry over. The
+/// password is the caller's to seal into a link or to let go of, and it is written nowhere: a
+/// reset lets it go, so an account whose password was unset has no way in until a link is made.
+async fn reseal_account<P: TursoPlatform>(
+    store: &OrganizationStore,
+    session: &MemberSession,
+    platform: Option<&P>,
+    member: &MemberRecord,
+    kdf_params: KdfParams,
+    now: i64,
+) -> Result<(String, Vec<UnreachableWorkspace>), Error> {
+    let member_id = member.id.as_str();
+    let username = opened(session, "member.username_sealed", &member.username_sealed)?;
+
+    // what the member held, split by what the resetter can seal again: a full-access grant on a
+    // workspace they hold full access to themselves is re-sealed to the fresh vault, a read-only
+    // grant is minted again where they are the owner with the authority in hand, and the rest are
+    // removed, because a grant sealed to a vault that is gone is a sign-in that fails, and named
+    // in the answer so the member knows whom to wait on.
     let mut kept = Vec::new();
     let mut unreachable_workspaces = Vec::new();
     let workspaces = store.workspaces(&session.verifying_key).await?;
@@ -426,7 +663,7 @@ pub async fn reissue_invitation<P: TursoPlatform>(
 
     // any invitation still open for them goes: one open invitation per member. A consumed one
     // stays, as the record that this member opened a link once, which is what tells a revoke of
-    // the reset link apart from a revoke of a person who never arrived.
+    // a fresh link apart from a revoke of a person who never arrived.
     for stale in store
         .invitations(&session.verifying_key)
         .await?
@@ -436,14 +673,13 @@ pub async fn reissue_invitation<P: TursoPlatform>(
         store.delete_invitation(&stale.id).await?;
     }
 
-    let mut invited = issue(
+    let password = write_account(
         store,
         session,
         platform,
-        locator,
         member_id,
         &username,
-        &role,
+        &member.role,
         member.permissions,
         &kept,
         kdf_params,
@@ -451,9 +687,7 @@ pub async fn reissue_invitation<P: TursoPlatform>(
     )
     .await?;
 
-    invited.unreachable_workspaces = unreachable_workspaces;
-
-    Ok(invited)
+    Ok((password, unreachable_workspaces))
 }
 
 /// Revoke an invitation, and with it what it made (effort 826, requirement 15): a person who
@@ -912,30 +1146,32 @@ pub(super) fn link_expiry(credential: &str, now: i64) -> i64 {
 /// The vault password an invitation was made under, opened the way the person holding the link
 /// opens it: the code and the link's secret together.
 ///
-/// **For the tests that sign a freshly invited member in.** Every module here has one, because a
-/// test that invites somebody and then signs in as them needs the password the vault was sealed
+/// **For the tests that sign a freshly made account in.** Every module here has one, because a
+/// test that makes an account and then signs in as it needs the password the vault was sealed
 /// under, and there is nowhere else to get it: it is never shown, never answered and never
 /// written in the clear. *It read the row's `code_seal` until effort 828 moved the seal into the
 /// link's own text.*
 #[cfg(test)]
-pub(crate) fn vault_password_of(invited: &Invited, kdf_params: KdfParams) -> String {
-    let link = super::link::JoinLink::decode(&invited.join_link).expect("the invitation link");
+pub(crate) fn vault_password_of(join_link: &str, code: &str, kdf_params: KdfParams) -> String {
+    let link = super::link::JoinLink::decode(join_link).expect("the invitation link");
 
-    super::link::open_payload(&invited.code, &link.half, &link.credential, kdf_params)
+    super::link::open_payload(code, &link.half, &link.credential, kdf_params)
         .expect("the code did not open the payload")
         .vault_password
         .expect("the payload holds no vault password")
 }
 
-/// What every invitation and every reset writes. `permissions` is written as given rather than
-/// derived from the role, so a reset keeps a widened member widened (requirement 6); a fresh
-/// invitation passes the role's own mask.
+/// What making an account and resetting one both write: the vault, the row, the certificate where
+/// the acts asked for sign rows, and the grants. `permissions` is written as given rather than
+/// derived from the role, so a reset keeps a widened member widened (826, requirement 6).
+///
+/// What comes back is the password the vault was drawn under. Nothing stores it: a fresh account
+/// lets it go, and an invitation-kind link seals it into its own text.
 #[allow(clippy::too_many_arguments)]
-async fn issue<P: TursoPlatform>(
+async fn write_account<P: TursoPlatform>(
     store: &OrganizationStore,
     session: &MemberSession,
     platform: Option<&P>,
-    locator: &Locator,
     member_id: &str,
     username: &str,
     role: &str,
@@ -943,7 +1179,7 @@ async fn issue<P: TursoPlatform>(
     workspaces: &[WorkspaceGrant],
     kdf_params: KdfParams,
     now: i64,
-) -> Result<Invited, Error> {
+) -> Result<String, Error> {
     let (key, certificate) = signer_of(store, session).await?;
     let signer = Signer {
         key: &key,
@@ -974,14 +1210,11 @@ async fn issue<P: TursoPlatform>(
         }
     }
 
-    // the member's vault, under a password nobody is ever shown, and which opening the link
-    // replaces with one the member chose. The link carries a secret of its own and the code is
-    // the other half of what opens the payload holding this password (effort 828, requirement 1):
-    // the vault is built exactly as it was, and only what wraps its password changed.
+    // the member's vault, under a password nobody is ever shown and nothing stores. An account
+    // holds it and no other until its first link is opened, and that link carries this password in
+    // its sealed payload, where opening it replaces it with one the person chose (effort 828,
+    // requirements 1 and 20).
     let generated_password = generate_password()?;
-    let link_secret = generate_link_secret()?;
-    let code = generate_code()?;
-    let invitation_id = random_id()?;
     let (vault, secret) = create_vault_with_secret(&generated_password, kdf_params)?;
 
     // the key this member will sign rows with, derived from the secret just drawn. Its verifying
@@ -991,14 +1224,17 @@ async fn issue<P: TursoPlatform>(
     let administrator_key =
         AdministratorKey::from_bytes(&secret.derive_seed(ADMINISTRATOR_KEY_PURPOSE)?);
 
-    // an administrator's certificate needs the organization key, which only the owner's vault
-    // yields.
-    if role == permission::ADMINISTRATOR {
+    // a certificate is what makes a signed row of theirs verify, and issuing one needs the
+    // organization key, which only the owner's vault yields. An administrator carries every act,
+    // six of which sign, so the role and the acts are held to one line here rather than two: a row
+    // that says administrator without a certificate behind it is a promise the chain will not
+    // keep, and a member handed a signing act with no certificate is the same promise unsaid.
+    if role == permission::ADMINISTRATOR || super::role::signs_rows(permissions) {
         if session.role != permission::OWNER {
             return Err(Error::Forbidden {
                 message:
-                    "only an owner invites an administrator, because certifying one needs the \
-                          organization key. ask the owner"
+                    "only an owner can give somebody an act that signs rows, because certifying a \
+                          signer needs the organization key. ask the owner"
                         .to_string(),
             });
         }
@@ -1150,82 +1386,10 @@ async fn issue<P: TursoPlatform>(
             .await?;
     }
 
-    // the invitation: the pending account's expiry, naming the member whose first sign-in spends
-    // it, the three drawn values sealed to the issuer, and who the issuer was.
-    //
-    // **The expiry is the link's**, which is a week out or the moment the issuer's own grant dies,
-    // whichever is sooner, so the row and the link lapse together and the panel prints the true
-    // date (effort 828, requirement 2).
-    //
-    // **The sealed copy is to the issuer's own public key and to nobody else's.** It is what lets
-    // them hand the same link and the same code over twice; anybody else holding the act is
-    // offered a fresh link, which is a reset. Sealing it under the content key instead would put
-    // it within reach of every member, and a member who opened a pending colleague's vault would
-    // hold that colleague's grants, which may reach workspaces the member does not. Neither it nor
-    // `issued_by` is under the signature: a tampered seal opens for nobody and a tampered issuer
-    // misplaces a copy control, so neither is worth a preimage.
-    let expires_at = link_expiry(&organization_credential, now);
-
-    store
-        .write_invitation(
-            &signer,
-            &InvitationRecord {
-                id: invitation_id.clone(),
-                member_id: member_id.to_string(),
-                expires_at,
-                consumed_at: None,
-                sealed_secret: seal_to_public_key(
-                    &session.secret.public_key(),
-                    issuer_copy(&generated_password, &link_secret, &code).as_bytes(),
-                )?,
-                issued_by: session.member_id.clone(),
-                created_at: now,
-            },
-        )
-        .await?;
-
-    if !store.push().await {
-        diagnostics::warn("organization.invitation.notYetSent")
-            .with("invitation", invitation_id.as_str())
-            .write();
-    }
-
-    diagnostics::info("organization.invitation.issued")
-        .with("member", member_id)
-        .with("role", role)
-        .write();
-
-    // the two things handed over: the link, carrying the issuer's grant and the generated password
-    // sealed under the code and the link's secret together, and the code, which the issuer reads
-    // out rather than sending. Neither the credential nor the password is legible in the link's
-    // text; the password leaves this function inside that seal and inside the issuer's own copy,
-    // and nowhere else.
-    let half = Half {
-        kind: HalfKind::Invitation,
-        id: invitation_id.clone(),
-        secret: link_secret,
-        expires_at,
-    };
-    let sealed = seal_payload(
-        &code,
-        &half,
-        &LinkPayload {
-            credential: organization_credential,
-            vault_password: Some(generated_password),
-        },
-        kdf_params,
-    )?;
-    let join_link = locator.sealed(&sealed, half).encode()?;
-
-    Ok(Invited {
-        member_id: member_id.to_string(),
-        invitation_id,
-        username: username.to_string(),
-        join_link,
-        expires_at,
-        code,
-        unreachable_workspaces: Vec::new(),
-    })
+    // the drawn password, handed back rather than written anywhere: the caller either seals it
+    // into an invitation-kind link's payload or lets it go, and nothing on the row or in the
+    // database holds it.
+    Ok(generated_password)
 }
 
 fn opened(session: &MemberSession, column: &str, sealed: &[u8]) -> Result<String, Error> {
@@ -1280,6 +1444,135 @@ pub async fn locator(store: &OrganizationStore, session: &MemberSession) -> Resu
     ))
 }
 
+/// What a test is asked for when it wants somebody in the organization: the account and the link
+/// in one value, which is what an invitation was until effort 828 split it in two.
+///
+/// **Test scaffolding, and it is one act nowhere in the application.** Every module here has some
+/// test that needs a second member before it can measure anything else, and writing the two acts
+/// out in each of them would be forty copies of a sequence that is not what any of those tests are
+/// about. The application's acts are [`create_account`], [`make_link`] and [`unset_password`], and
+/// the tests that are about the split call them directly.
+#[cfg(test)]
+#[derive(Clone, Debug)]
+pub(crate) struct AccountAndLink {
+    pub member_id: String,
+    pub invitation_id: String,
+    pub username: String,
+    pub join_link: String,
+    pub expires_at: i64,
+    pub code: String,
+    pub unreachable_workspaces: Vec<UnreachableWorkspace>,
+}
+
+/// What the scaffolding is asked for.
+#[cfg(test)]
+pub(crate) struct Invitation<'a> {
+    pub username: &'a str,
+    /// `packages/workspace-permission`'s vocabulary: `administrator` or `member`.
+    pub role: &'a str,
+    pub workspaces: &'a [WorkspaceGrant],
+}
+
+/// Make an account and the first link for it, as a test needs both. The account carries the role's
+/// own mask, which is what every invitation wrote before the permissions became a parameter.
+#[cfg(test)]
+pub(crate) async fn make_account_and_link<P: TursoPlatform>(
+    store: &OrganizationStore,
+    session: &MemberSession,
+    platform: Option<&P>,
+    locator: &Locator,
+    invitation: Invitation<'_>,
+    kdf_params: KdfParams,
+    now: i64,
+) -> Result<AccountAndLink, Error> {
+    let account = create_account(
+        store,
+        session,
+        platform,
+        invitation.username,
+        invitation.role,
+        permission::mask_of_role(invitation.role),
+        invitation.workspaces,
+        kdf_params,
+        now,
+    )
+    .await?;
+    let made = make_link(
+        store,
+        session,
+        platform,
+        locator,
+        &account.id,
+        kdf_params,
+        now,
+    )
+    .await?;
+
+    Ok(with_link(&account.id, &account.username, made, Vec::new()))
+}
+
+/// Unset an account's password and make the link that follows it, which is what a reset was.
+///
+/// **It takes the account's machines out of the register first**, because that is what a person
+/// whose password was reset does before they are handed a link: a link is refused while a machine
+/// is signed in on the account, and a test about the reset is not a test about that gate.
+#[cfg(test)]
+pub(crate) async fn reset_account<P: TursoPlatform>(
+    store: &OrganizationStore,
+    session: &MemberSession,
+    platform: Option<&P>,
+    locator: &Locator,
+    member_id: &str,
+    kdf_params: KdfParams,
+    now: i64,
+) -> Result<AccountAndLink, Error> {
+    let unreachable = unset_password(store, session, platform, member_id, kdf_params, now).await?;
+
+    for (machine, _) in store
+        .connected_machines(&session.verifying_key, now)
+        .await?
+        .into_iter()
+        .filter(|(machine, _)| machine.member_id.as_deref() == Some(member_id))
+    {
+        store.unregister_machine(&machine.id).await?;
+    }
+
+    let made = make_link(
+        store, session, platform, locator, member_id, kdf_params, now,
+    )
+    .await?;
+    let username = members(store, session, now)
+        .await?
+        .into_iter()
+        .find(|member| member.id == member_id)
+        .map(|member| member.username)
+        .unwrap_or_default();
+
+    Ok(with_link(member_id, &username, made, unreachable))
+}
+
+#[cfg(test)]
+fn with_link(
+    member_id: &str,
+    username: &str,
+    made: MadeLink,
+    unreachable_workspaces: Vec<UnreachableWorkspace>,
+) -> AccountAndLink {
+    let invitation_id = super::link::JoinLink::decode(&made.link)
+        .map(|link| link.half.id)
+        .unwrap_or_default();
+
+    AccountAndLink {
+        member_id: member_id.to_string(),
+        invitation_id,
+        username: username.to_string(),
+        join_link: made.link,
+        expires_at: made.expires_at,
+        code: made.code,
+        unreachable_workspaces,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::{Arc, Mutex};
@@ -1287,10 +1580,10 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        CODE_LENGTH, INVITATION_LIFETIME_MS, Invitation, InvitationStanding, Invited,
-        USERNAME_RULES, USERNAME_TAKEN, WorkspaceGrant, generate_password, invitation_link,
-        invite_member, locator, reissue_invitation, rename_member, revoke_invitation,
-        validate_username,
+        AccountAndLink, CODE_LENGTH, INVITATION_LIFETIME_MS, Invitation, InvitationStanding,
+        USERNAME_RULES, USERNAME_TAKEN, WorkspaceGrant, create_account, generate_password,
+        invitation_link, locator, make_account_and_link, make_link, rename_member, reset_account,
+        revoke_invitation, unset_password, validate_username,
     };
     use crate::{
         error::Error,
@@ -1317,6 +1610,9 @@ mod tests {
     };
 
     const PASSWORD: &str = "the owners password";
+    /// The password somebody chooses when they open the first link made for their account, and
+    /// the one that admits them at the wall from then on.
+    const CHOSEN: &str = "a password sami chose";
 
     /// When the members list is read, where a test reads one. The standing of a pending
     /// invitation is the one thing on that list that turns on the clock.
@@ -1364,22 +1660,21 @@ mod tests {
     /// (effort 828, requirement 1). *It was the link's secret alone until effort 826 made the code
     /// the other half, and it read the row's `code_seal` until effort 828 moved the seal into the
     /// link's text.*
-    fn secret_of(invited: &Invited) -> String {
-        crate::organization::invite::vault_password_of(invited, test_cost())
+    fn secret_of(invited: &AccountAndLink) -> String {
+        crate::organization::invite::vault_password_of(
+            &invited.join_link,
+            &invited.code,
+            test_cost(),
+        )
     }
 
     /// Everything a link's code opens: the credential the machine reads the rows with, and the
     /// password the vault was built under.
-    fn payload_of(invited: &Invited) -> LinkPayload {
+    fn payload_of(invited: &AccountAndLink) -> LinkPayload {
         let link = JoinLink::decode(&invited.join_link).expect("the link");
 
-        open_payload(
-            &invited.code,
-            &link.half,
-            &link.credential,
-            test_cost(),
-        )
-        .expect("the code did not open the payload")
+        open_payload(&invited.code, &link.half, &link.credential, test_cost())
+            .expect("the code did not open the payload")
     }
 
     /// A credential shaped the way a minted one is, dying at `expires_at`. The in-memory platform
@@ -1491,6 +1786,357 @@ mod tests {
         (organization, owner, link, workspace.id, platform)
     }
 
+    /// A machine's record with nothing on it, which is what a new machine is.
+    fn fresh_machine(directory: &std::path::Path) -> Persisted<RemoteSyncStore> {
+        let machine = Persisted::<RemoteSyncStore>::load(directory.join("remote-sync.json"))
+            .expect("the store");
+
+        assert!(
+            machine.organization.is_none(),
+            "the machine has prior state"
+        );
+
+        machine
+    }
+
+    /// Effort 828, requirements 19 and 20, criteria 19 and 20: **an account is made without a link
+    /// and holds no password until its first link is opened.**
+    ///
+    /// The row is written and nothing is handed over: no invitation stands behind it, and the wall
+    /// refuses every password, because the one the vault was drawn under is spelled nowhere. The
+    /// first link is an invitation-kind link, since the account's password is not yet set; it
+    /// lapses a week out, admits one machine once, and the password the person chooses on it is
+    /// what signs them in from then on.
+    #[tokio::test]
+    async fn an_account_is_made_with_no_link_and_its_first_link_sets_its_password() {
+        let directory = scratch("account");
+        let (store, owner, link, _, _) = owned(&directory).await;
+        let account = create_account(
+            &store,
+            &owner,
+            no_platform(),
+            "sami.staff",
+            permission::MEMBER,
+            0,
+            &[],
+            test_cost(),
+            NOW,
+        )
+        .await
+        .expect("the account could not be made");
+
+        assert_eq!(account.username, "sami.staff");
+        assert_eq!(account.role, permission::MEMBER);
+        assert_eq!(
+            account.pending, None,
+            "a fresh account stands behind an invitation"
+        );
+        assert!(
+            store
+                .invitations(&owner.verifying_key)
+                .await
+                .expect("the invitations")
+                .is_empty(),
+            "making an account wrote an invitation row"
+        );
+
+        // the wall, with nothing to admit them: the vault was drawn under a password nobody was
+        // shown and nothing stores, so no password opens it and the account waits for a link.
+        let held = joined_as(&owner, &account.id, permission::MEMBER);
+
+        for attempt in ["sami.staff", PASSWORD, "a password sami chose"] {
+            assert!(
+                sign_in_by_username(&store, &held, "sami.staff", attempt, &slot())
+                    .await
+                    .is_err(),
+                "an account with no link admitted {attempt} at the wall"
+            );
+        }
+
+        let made = make_link(
+            &store,
+            &owner,
+            no_platform(),
+            &link,
+            &account.id,
+            test_cost(),
+            NOW,
+        )
+        .await
+        .expect("the first link could not be made");
+        let decoded = JoinLink::decode(&made.link).expect("the link");
+
+        assert_eq!(
+            decoded.half.kind,
+            HalfKind::Invitation,
+            "an account whose password is not set got a link that opens no vault"
+        );
+        assert_eq!(made.expires_at, NOW + INVITATION_LIFETIME_MS);
+        assert!(
+            open_payload(&made.code, &decoded.half, &decoded.credential, test_cost())
+                .expect("the code did not open the payload")
+                .vault_password
+                .is_some(),
+            "the invitation-kind link carries no vault password"
+        );
+
+        // a week and a moment late, on a machine holding nothing: refused before anything is
+        // recorded.
+        let late = scratch("account-late");
+        let mut late_machine = fresh_machine(&late);
+
+        assert!(
+            crate::organization::join::accept(
+                |_| async { Ok::<_, Error>(&store) },
+                &mut late_machine,
+                &decoded,
+                &made.code,
+                CHOSEN,
+                test_cost(),
+                made.expires_at + 1,
+            )
+            .await
+            .is_err(),
+            "a lapsed link opened an account"
+        );
+        assert!(late_machine.organization.is_none());
+
+        // the machine it was made for, which spends it and chooses the password.
+        let theirs = scratch("account-theirs");
+        let mut their_machine = fresh_machine(&theirs);
+        let (_, session) = crate::organization::join::accept(
+            |_| async { Ok::<_, Error>(&store) },
+            &mut their_machine,
+            &decoded,
+            &made.code,
+            CHOSEN,
+            test_cost(),
+            NOW + 1,
+        )
+        .await
+        .expect("the account could not be opened");
+
+        assert_eq!(session.member_id, account.id);
+        assert!(!session.must_change_password);
+
+        // and the wall admits them on it from now on.
+        sign_in_by_username(&store, &held, "sami.staff", CHOSEN, &slot())
+            .await
+            .expect("the chosen password did not admit them at the wall");
+
+        // a second machine with the same pair: the invitation was spent. The organization is
+        // recorded on it, because a link is judged after the replica it names has been reached,
+        // and no vault of theirs opens there.
+        let second = scratch("account-second");
+        let mut second_machine = fresh_machine(&second);
+
+        assert!(
+            crate::organization::join::accept(
+                |_| async { Ok::<_, Error>(&store) },
+                &mut second_machine,
+                &decoded,
+                &made.code,
+                "another password again",
+                test_cost(),
+                NOW + 2,
+            )
+            .await
+            .is_err(),
+            "a spent link opened a second machine"
+        );
+    }
+
+    /// Effort 828, requirement 20 and criterion 20: **the account's standing chooses the link's
+    /// kind, and a machine signed in on it is refused one.**
+    ///
+    /// While the member is signed in somewhere the act is refused by name, because a second
+    /// machine is not handed out beside a first. Once they are out of the register the account has
+    /// a password, so what is made is a machine-kind link, which opens no vault. A reset unsets the
+    /// password, and the next link is an invitation again: it asks the person to choose one, and
+    /// the one they chose before stops admitting them.
+    #[tokio::test]
+    async fn a_machine_signed_in_is_refused_a_link_and_a_reset_makes_the_next_one_ask_a_password() {
+        let directory = scratch("standing");
+        let (store, owner, link, _, _) = owned(&directory).await;
+        let account = create_account(
+            &store,
+            &owner,
+            no_platform(),
+            "sami.staff",
+            permission::MEMBER,
+            0,
+            &[],
+            test_cost(),
+            NOW,
+        )
+        .await
+        .expect("the account could not be made");
+        let first = make_link(
+            &store,
+            &owner,
+            no_platform(),
+            &link,
+            &account.id,
+            test_cost(),
+            NOW,
+        )
+        .await
+        .expect("the first link could not be made");
+        let theirs = scratch("standing-theirs");
+        let mut their_machine = fresh_machine(&theirs);
+
+        crate::organization::join::accept(
+            |_| async { Ok::<_, Error>(&store) },
+            &mut their_machine,
+            &JoinLink::decode(&first.link).expect("the link"),
+            &first.code,
+            CHOSEN,
+            test_cost(),
+            NOW + 1,
+        )
+        .await
+        .expect("the account could not be opened");
+
+        // opening a link is a sign-in, so the register now names them on that machine.
+        let refusal = make_link(
+            &store,
+            &owner,
+            no_platform(),
+            &link,
+            &account.id,
+            test_cost(),
+            NOW + 2,
+        )
+        .await
+        .expect_err("a link was made for an account with a machine signed in");
+
+        assert!(
+            matches!(&refusal, Error::PreconditionFailed { message } if message.contains("signed in")),
+            "{refusal:?}"
+        );
+
+        // they sign out of it, which is what leaves the account open to a link again.
+        store
+            .unregister_machine(
+                &their_machine
+                    .organization
+                    .as_ref()
+                    .expect("the record")
+                    .machine_id,
+            )
+            .await
+            .expect("the machine could not be taken out of the register");
+
+        let second = make_link(
+            &store,
+            &owner,
+            no_platform(),
+            &link,
+            &account.id,
+            test_cost(),
+            NOW + 3,
+        )
+        .await
+        .expect("a link could not be made for an account with a password");
+        let decoded = JoinLink::decode(&second.link).expect("the link");
+
+        assert_eq!(
+            decoded.half.kind,
+            HalfKind::Machine,
+            "an account with a password got a link that asks for one"
+        );
+        assert_eq!(
+            open_payload(
+                &second.code,
+                &decoded.half,
+                &decoded.credential,
+                test_cost()
+            )
+            .expect("the code did not open the payload")
+            .vault_password,
+            None,
+            "a machine-kind link carries a vault password"
+        );
+
+        // the reset: the password is unset, so the next link asks for a new one.
+        assert!(
+            unset_password(
+                &store,
+                &owner,
+                no_platform(),
+                &account.id,
+                test_cost(),
+                NOW + 4,
+            )
+            .await
+            .expect("the password could not be unset")
+            .is_empty(),
+            "the reset could not carry a workspace over"
+        );
+
+        // the register names their machine again, and an unset account is offered a link all the
+        // same: nobody is signed in that the link would double, and the reset is what they need
+        // the link for (requirement 20).
+        store
+            .register_machine(
+                &their_machine
+                    .organization
+                    .as_ref()
+                    .expect("the record")
+                    .machine_id,
+                Some(&account.id),
+                NOW + 4,
+            )
+            .await
+            .expect("the machine could not be put back in the register");
+
+        let third = make_link(
+            &store,
+            &owner,
+            no_platform(),
+            &link,
+            &account.id,
+            test_cost(),
+            NOW + 5,
+        )
+        .await
+        .expect("a link could not be made after the reset while a machine was signed in");
+        let decoded = JoinLink::decode(&third.link).expect("the link");
+
+        assert_eq!(
+            decoded.half.kind,
+            HalfKind::Invitation,
+            "the link after a reset did not ask for a password"
+        );
+
+        // and what they chose before is gone with the vault it opened.
+        let held = joined_as(&owner, &account.id, permission::MEMBER);
+
+        assert!(
+            sign_in_by_username(&store, &held, "sami.staff", CHOSEN, &slot())
+                .await
+                .is_err(),
+            "the reset left the old password admitting them"
+        );
+
+        let next = scratch("standing-next");
+        let mut next_machine = fresh_machine(&next);
+        let (_, session) = crate::organization::join::accept(
+            |_| async { Ok::<_, Error>(&store) },
+            &mut next_machine,
+            &decoded,
+            &third.code,
+            "the password sami chose after the reset",
+            test_cost(),
+            NOW + 6,
+        )
+        .await
+        .expect("the account could not be opened after the reset");
+
+        assert_eq!(session.member_id, account.id);
+        assert!(!session.must_change_password);
+    }
+
     /// What an invitation hands the inviter: one link, the organization's own with the invitation's
     /// half in it, whose secret is the generated password and is spelled nowhere else on the
     /// answer; the username as the row seals it; and what it writes: a member row the secret
@@ -1501,7 +2147,7 @@ mod tests {
         let (store, owner, link, workspace_id, _) = owned(&directory).await;
         let workspaces = vec![workspace_id.clone()];
 
-        let invited = invite_member(
+        let invited = make_account_and_link(
             &store,
             &owner,
             no_platform(),
@@ -1572,7 +2218,12 @@ mod tests {
         .expect("the issuer's copy is text");
         let held: Vec<&str> = issuers_copy.split('\n').collect();
 
-        assert_eq!(held.len(), 3, "the issuer's copy holds {} parts", held.len());
+        assert_eq!(
+            held.len(),
+            3,
+            "the issuer's copy holds {} parts",
+            held.len()
+        );
         assert_eq!(held[1], half.secret);
         assert_eq!(held[2], invited.code);
         assert_eq!(
@@ -1630,7 +2281,7 @@ mod tests {
             let link = &link;
 
             async move {
-                let invited = invite_member(
+                let invited = make_account_and_link(
                     store,
                     owner,
                     no_platform(),
@@ -1699,7 +2350,7 @@ mod tests {
             let workspaces = &workspaces;
 
             async move {
-                invite_member(
+                make_account_and_link(
                     store,
                     owner,
                     no_platform(),
@@ -1801,7 +2452,7 @@ mod tests {
         // fresh one over the same organization.
         let bob = invite("bob", issued_at + 6).await;
         let bobs_first_password = secret_of(&bob);
-        let reissued = reissue_invitation(
+        let reissued = reset_account(
             &store,
             &owner,
             no_platform(),
@@ -1837,14 +2488,9 @@ mod tests {
             "the old secret still opens the vault"
         );
 
-        let member = sign_in(
-            &store,
-            &joined,
-            &secret_of(&reissued),
-            &slot(),
-        )
-        .await
-        .expect("the fresh secret did not open the vault");
+        let member = sign_in(&store, &joined, &secret_of(&reissued), &slot())
+            .await
+            .expect("the fresh secret did not open the vault");
 
         assert!(member.workspace_credentials.contains_key(&workspace_id));
         assert_eq!(
@@ -1860,7 +2506,7 @@ mod tests {
     async fn a_reset_keeps_a_widened_members_permissions_and_a_fresh_invitation_writes_the_roles() {
         let directory = scratch("widened");
         let (store, owner, link, _, _) = owned(&directory).await;
-        let invited = invite_member(
+        let invited = make_account_and_link(
             &store,
             &owner,
             no_platform(),
@@ -1912,7 +2558,7 @@ mod tests {
             .await
             .expect("widened");
 
-        let reset = reissue_invitation(
+        let reset = reset_account(
             &store,
             &owner,
             no_platform(),
@@ -1949,7 +2595,7 @@ mod tests {
             access: AccessLevel::ReadOnly,
         }];
 
-        let invited = invite_member(
+        let invited = make_account_and_link(
             &store,
             &owner,
             Some(&*platform),
@@ -1983,7 +2629,7 @@ mod tests {
             "a read-only grant re-sealed the owner's full credential"
         );
 
-        let refused = invite_member(
+        let refused = make_account_and_link(
             &store,
             &owner,
             no_platform(),
@@ -2001,7 +2647,7 @@ mod tests {
 
         assert!(refused.to_string().contains("authority"), "{refused}");
 
-        let admin = invite_member(
+        let admin = make_account_and_link(
             &store,
             &owner,
             no_platform(),
@@ -2026,7 +2672,7 @@ mod tests {
         .expect("the administrator did not sign in");
         ada.must_change_password = false;
 
-        let refused = invite_member(
+        let refused = make_account_and_link(
             &store,
             &ada,
             Some(&*platform),
@@ -2076,7 +2722,7 @@ mod tests {
 
         *owner.organization_credential.lock().expect("the slot") = Some(grant.clone());
 
-        let invited = invite_member(
+        let invited = make_account_and_link(
             &store,
             &owner,
             no_platform(),
@@ -2091,7 +2737,7 @@ mod tests {
         )
         .await
         .expect("the invitation failed");
-        let reset = reissue_invitation(
+        let reset = reset_account(
             &store,
             &owner,
             no_platform(),
@@ -2143,7 +2789,7 @@ mod tests {
         *owner.organization_credential.lock().expect("the slot") =
             Some(grant_dying_at(now + four_weeks));
 
-        let later = invite_member(
+        let later = make_account_and_link(
             &store,
             &owner,
             no_platform(),
@@ -2184,7 +2830,7 @@ mod tests {
     async fn the_issuer_copies_the_link_and_the_code_again_and_nobody_else_can() {
         let directory = scratch("copy-link");
         let (store, owner, link, _, _) = owned(&directory).await;
-        let invited = invite_member(
+        let invited = make_account_and_link(
             &store,
             &owner,
             no_platform(),
@@ -2208,7 +2854,7 @@ mod tests {
         // its own nonce, and what a person does with the pair is what has to be the same.
         assert_eq!(again.code, invited.code);
         assert_eq!(
-            payload_of(&Invited {
+            payload_of(&AccountAndLink {
                 join_link: again.join_link.clone(),
                 ..invited.clone()
             }),
@@ -2222,7 +2868,7 @@ mod tests {
         assert_eq!(copied.half, first.half);
         assert_eq!(copied.organization_id, first.organization_id);
 
-        let admin = invite_member(
+        let admin = make_account_and_link(
             &store,
             &owner,
             no_platform(),
@@ -2269,7 +2915,7 @@ mod tests {
     async fn revoking_a_reset_link_deletes_the_row_alone_and_keeps_the_member() {
         let directory = scratch("revoke-reset");
         let (store, owner, link, _, _) = owned(&directory).await;
-        let invited = invite_member(
+        let invited = make_account_and_link(
             &store,
             &owner,
             no_platform(),
@@ -2304,7 +2950,7 @@ mod tests {
 
         assert!(!opened.must_change_password);
 
-        let reset = reissue_invitation(
+        let reset = reset_account(
             &store,
             &owner,
             no_platform(),
@@ -2370,7 +3016,7 @@ mod tests {
         let directory = scratch("admin-reset");
         let (store, owner, link, workspace_id, _) = owned(&directory).await;
 
-        let admin = invite_member(
+        let admin = make_account_and_link(
             &store,
             &owner,
             no_platform(),
@@ -2401,7 +3047,7 @@ mod tests {
         .expect("the administrator did not sign in");
         ada.must_change_password = false;
 
-        let bob = invite_member(
+        let bob = make_account_and_link(
             &store,
             &ada,
             no_platform(),
@@ -2419,7 +3065,7 @@ mod tests {
 
         // the owner resets the administrator: their certificate is replaced with one over a key
         // derived from a fresh vault secret.
-        let reset = reissue_invitation(
+        let reset = reset_account(
             &store,
             &owner,
             no_platform(),
@@ -2431,10 +3077,7 @@ mod tests {
         .await
         .expect("the reset failed");
 
-        assert_ne!(
-            secret_of(&reset),
-            admins_first_password
-        );
+        assert_ne!(secret_of(&reset), admins_first_password);
 
         // F1: every read stands.
         assert!(
@@ -2509,7 +3152,7 @@ mod tests {
         let directory = scratch("roles");
         let (store, owner, link, _, _) = owned(&directory).await;
 
-        let administrator = invite_member(
+        let administrator = make_account_and_link(
             &store,
             &owner,
             no_platform(),
@@ -2551,7 +3194,7 @@ mod tests {
         let mut settled = ada;
         settled.must_change_password = false;
 
-        let member = invite_member(
+        let member = make_account_and_link(
             &store,
             &settled,
             no_platform(),
@@ -2567,7 +3210,7 @@ mod tests {
         .await
         .expect("an administrator could not invite a member");
 
-        let refusal = invite_member(
+        let refusal = make_account_and_link(
             &store,
             &settled,
             no_platform(),
@@ -2595,7 +3238,7 @@ mod tests {
         .expect("the member did not sign in");
         mo.must_change_password = false;
 
-        let refusal = invite_member(
+        let refusal = make_account_and_link(
             &store,
             &mo,
             no_platform(),
@@ -2631,7 +3274,7 @@ mod tests {
         .expect("the owner");
         unsettled.must_change_password = true;
 
-        let refusal = invite_member(
+        let refusal = make_account_and_link(
             &store,
             &unsettled,
             no_platform(),
@@ -2653,7 +3296,7 @@ mod tests {
         );
 
         let elsewhere = vec!["a-workspace-nobody-here-holds".to_string()];
-        let refusal = invite_member(
+        let refusal = make_account_and_link(
             &store,
             &owner,
             no_platform(),
@@ -2722,7 +3365,7 @@ mod tests {
             let link = &link;
 
             async move {
-                invite_member(
+                make_account_and_link(
                     store,
                     owner,
                     no_platform(),
@@ -2799,7 +3442,7 @@ mod tests {
 
         // an administrator invites the member, so the member's row is signed under the
         // administrator's certificate and a rename by the owner has a signer to change.
-        let admin = invite_member(
+        let admin = make_account_and_link(
             &store,
             &owner,
             no_platform(),
@@ -2824,7 +3467,7 @@ mod tests {
         .expect("the administrator did not sign in");
         ada.must_change_password = false;
 
-        let sami = invite_member(
+        let sami = make_account_and_link(
             &store,
             &ada,
             no_platform(),
@@ -2926,7 +3569,7 @@ mod tests {
             let link = &link;
 
             async move {
-                invite_member(
+                make_account_and_link(
                     store,
                     owner,
                     no_platform(),
@@ -3018,7 +3661,7 @@ mod tests {
         let directory = scratch("reissue-epoch");
         let (store, owner, link, workspace_id, _) = owned(&directory).await;
         let workspaces = full(&[workspace_id.clone()]);
-        let invited = invite_member(
+        let invited = make_account_and_link(
             &store,
             &owner,
             no_platform(),
@@ -3044,7 +3687,7 @@ mod tests {
 
         assert_eq!(epoch_of(&store, &owner, &invited.member_id).await, 3);
 
-        reissue_invitation(
+        reset_account(
             &store,
             &owner,
             no_platform(),
@@ -3063,7 +3706,7 @@ mod tests {
         );
 
         // and a fresh invitation still starts where a fresh row starts.
-        let fresh = invite_member(
+        let fresh = make_account_and_link(
             &store,
             &owner,
             no_platform(),

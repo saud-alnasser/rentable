@@ -124,16 +124,16 @@ const list = (
 			canGrantWorkspace: true,
 			isOwner: true,
 			selfId: 'owner',
-			reissuing: null,
+			makingLink: null,
+			unsetting: null,
 			revoking: null,
-			copying: null,
 			endingSessions: null,
 			isChangingRole: false,
 			isChangingAccess: false,
 			onEndSessions: noop,
-			onReissue: noop,
+			onMakeLink: noop,
+			onUnsetPassword: noop,
 			onRevoke: noop,
-			onCopyLink: noop,
 			onRemove: noop,
 			onLockOut: noop,
 			onRename: resolved,
@@ -149,8 +149,8 @@ const KINDS = [
 	'rename',
 	'role',
 	'access',
-	'copy-link',
-	'new-link',
+	'link',
+	'unset-password',
 	'end-sessions',
 	'revoke',
 	'remove',
@@ -336,18 +336,19 @@ test('the owner sees every row action, on every row but their own', async () => 
 		'rename',
 		'role',
 		'access',
-		'new-link',
+		'link',
+		'unset-password',
 		'end-sessions',
 		'remove',
 		'lock-out'
 	]);
-	// the pending row alone offers the two that act on an invitation.
+	// the pending row alone offers the act on an invitation.
 	expect(await actsOn('sami')).toEqual([
 		'rename',
 		'role',
 		'access',
-		'copy-link',
-		'new-link',
+		'link',
+		'unset-password',
 		'end-sessions',
 		'revoke',
 		'remove',
@@ -404,18 +405,18 @@ test('each action is drawn by its own act and by no other', async () => {
 	await only({ canChangeRole: true }, 'ada', ['role']);
 	await only({ canGrantWorkspace: true }, 'ada', ['access']);
 	await only({ canRename: true }, 'ada', ['rename']);
-	// issuing a new link and closing the ways in that are already open are one act read twice.
-	await only({ canReset: true }, 'ada', ['new-link', 'end-sessions']);
+	// unsetting a password and closing the ways in that are already open are one act read twice.
+	await only({ canReset: true }, 'ada', ['unset-password', 'end-sessions']);
 	await only({ canRemove: true }, 'ada', ['remove']);
 	// the lock-out needs the Turso authority as well as the act, so it takes both.
 	await only({ canRemove: true, canLockOut: true }, 'ada', ['remove', 'lock-out']);
-	// the two that act on an invitation are on the pending row and nowhere else.
-	await only({ canInvite: true }, 'sami', ['copy-link', 'revoke']);
-	await only({ canInvite: true }, 'ada', []);
+	// the link is every account's, and the revoke is the pending row's alone.
+	await only({ canInvite: true }, 'sami', ['link', 'revoke']);
+	await only({ canInvite: true }, 'ada', ['link']);
 });
 
-// criterion 22 of effort 826: ending somebody's sessions is `resetPassword`'s, beside the new
-// link and never on the owner's row or the reader's own. The press reaches the route, which is
+// criterion 22 of effort 826: ending somebody's sessions is `resetPassword`'s, beside the reset
+// and never on the owner's row or the reader's own. The press reaches the route, which is
 // where the mutation is.
 test('signing a member out of every machine is offered behind reset password, and never on the owner', async () => {
 	const asked: string[] = [];
@@ -436,54 +437,42 @@ test('signing a member out of every machine is offered behind reset password, an
 	expect(asked).toEqual(['sami']);
 });
 
-// criterion 15, and effort 828's requirement 1 beside it: the link and the code it opens are both
-// sealed to whoever issued the invitation, so the row offers that one pair to them and a new link
-// to everybody else. *There was a fresh-code control beside the copy until a code began living as
-// long as the link it came with.*
-test('copy link is drawn for the issuer alone, and a new link for anybody with the act', async () => {
-	const issuer = list();
+// effort 828, requirement 20: one act makes a link for an account, whatever the account's standing
+// is, so there is one entry here where there were a copy link and a new link. Which kind of link
+// it is, and whether a machine is already signed in on the account, are the shell's to decide and
+// to refuse. *There was a fresh-code control beside a copy until a code began living as long as
+// the link it came with, and a copy beside a new link until one act replaced both.*
+test('one link act is drawn for every account, and the reader chooses nothing but the account', async () => {
+	list();
 
-	await fireEvent.click(control('sami')!);
+	expect(await actsOn('ada')).toContain('link');
+	expect(await actsOn('sami')).toContain('link');
 
-	expect(on('copy-link', 'sami')).not.toBeNull();
-	expect(on('new-link', 'sami')).not.toBeNull();
+	const entry = await openTo('sami', 'link');
+
+	expect(entry?.textContent?.trim()).toBe(en.organization.dashboard.makeLink);
+	expect(document.querySelector('[data-member-copy-link]')).toBeNull();
 	expect(document.querySelector('[data-member-code]')).toBeNull();
-	issuer.unmount();
-
-	list({
-		members: members.map((candidate) =>
-			candidate.pending
-				? { ...candidate, pending: { ...candidate.pending, canCopy: false } }
-				: candidate
-		)
-	});
-
-	const offered = await actsOn('sami');
-
-	expect(offered).not.toContain('copy-link');
-	expect(offered).toContain('new-link');
 });
 
-test('the pending row hands its invitation to the acts that take one', async () => {
-	const copied: string[] = [];
+test('the row hands its account to the link and the reset, and its invitation to the revoke', async () => {
+	const linked: string[] = [];
 	const revoked: string[] = [];
-	const reissued: string[] = [];
+	const unset: string[] = [];
 
 	list({
-		onCopyLink: (invitationId, username, expiresAt) =>
-			copied.push(`${invitationId}:${username}:${expiresAt}`),
+		onMakeLink: (memberId) => linked.push(memberId),
 		onRevoke: (invitationId) => revoked.push(invitationId),
-		onReissue: (memberId) => reissued.push(memberId)
+		onUnsetPassword: (memberId) => unset.push(memberId)
 	});
 
-	await press('sami', 'copy-link');
+	await press('sami', 'link');
 	await press('sami', 'revoke');
-	await press('sami', 'new-link');
+	await press('sami', 'unset-password');
 
-	// the copy carries the row's own expiry, because that is what the panel prints beside the pair.
-	expect(copied).toEqual([`invitation-1:sami:${EXPIRES_AT}`]);
+	expect(linked).toEqual(['sami']);
 	expect(revoked).toEqual(['invitation-1']);
-	expect(reissued).toEqual(['sami']);
+	expect(unset).toEqual(['sami']);
 });
 
 // [[rules/interface]], *Row activation* and *Record card actions*: an act is reached from a
@@ -506,18 +495,18 @@ test('the acts are behind one visible control, and the row itself opens nothing'
 	expect(ada.innerHTML).not.toContain('opacity-0');
 });
 
-// criterion 15: the invite button opens the dialog the shell holds.
-test('the invite button asks the shell for the invite dialog', async () => {
+// criterion 15: the add control opens the surface the shell holds.
+test('the add control asks the shell for the account form', async () => {
 	list();
 
-	const opener = screen.getByRole('button', { name: en.organization.dashboard.invite });
+	const opener = screen.getByRole('button', { name: en.organization.dashboard.addAccount });
 
 	// requirement 14 of effort 824: the verb's glyph before its label.
 	expect(opener.querySelector('svg')).not.toBeNull();
 	expect(organizationDialog.open).toBeNull();
 	await fireEvent.click(opener);
-	expect(organizationDialog.open).toBe('invite');
-	// no invite surface of its own: the one instance is mounted in the shell.
+	expect(organizationDialog.open).toBe('account');
+	// no account surface of its own: the one instance is mounted in the shell.
 	expect(surface()).toBeNull();
 });
 
@@ -614,7 +603,7 @@ test('and in arabic every row reads in its own words, right to left', async () =
 	expect(ar.organization.dashboard.membersDescription).not.toBe(
 		en.organization.dashboard.membersDescription
 	);
-	expect(screen.getByRole('button', { name: ar.organization.dashboard.invite })).toBeDefined();
+	expect(screen.getByRole('button', { name: ar.organization.dashboard.addAccount })).toBeDefined();
 	// the row's control is named in Arabic too, and so is every act the menu holds.
 	expect(control('ada')?.getAttribute('aria-label')).toBe(
 		ar.organization.dashboard.memberActions.replace('{username}', 'ada')

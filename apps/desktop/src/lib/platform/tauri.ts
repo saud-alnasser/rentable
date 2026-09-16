@@ -15,10 +15,9 @@ import type {
 	Host,
 	ImportTable,
 	InvitationLink,
-	Invited,
 	LinkShape,
 	LockOutCost,
-	MachineLink,
+	MadeLink,
 	MemberRemoved,
 	MigrationNotice,
 	OrganizationConsentResult,
@@ -34,6 +33,7 @@ import type {
 	SessionStanding,
 	Settings,
 	SettingsChangeset,
+	UnreachableWorkspace,
 	WorkspaceGrant
 } from '$lib/platform/host';
 import { withExtension } from '$lib/platform/path';
@@ -55,12 +55,11 @@ export type {
 	GroupState,
 	ImportTable,
 	InvitationLink,
-	Invited,
 	HeldOrganization,
 	LinkKind,
 	LinkShape,
 	LockOutCost,
-	MachineLink,
+	MadeLink,
 	MemberRemoved,
 	MigrationNotice,
 	OrganizationConsentResult,
@@ -79,6 +78,7 @@ export type {
 	SessionStanding,
 	Settings,
 	SettingsChangeset,
+	UnreachableWorkspace,
 	UpdaterDownloadEvent,
 	WorkspaceGrant
 } from '$lib/platform/host';
@@ -257,9 +257,15 @@ export const tauri = {
 		},
 		member: {
 			list: () => invoke<OrganizationMember[]>('organization_members'),
-			invite: (username: string, role: 'administrator' | 'member', workspaces: WorkspaceGrant[]) =>
-				invoke<Invited>('member_invite', { username, role, workspaces }),
-			reset: (memberId: string) => invoke<Invited>('member_reset', { memberId }),
+			create: (
+				username: string,
+				role: 'administrator' | 'member',
+				permissions: number,
+				workspaces: WorkspaceGrant[]
+			) => invoke<OrganizationMember>('member_create', { username, role, permissions, workspaces }),
+			linkMake: (memberId: string) => invoke<MadeLink>('member_link_make', { memberId }),
+			unsetPassword: (memberId: string) =>
+				invoke<UnreachableWorkspace[]>('member_password_unset', { memberId }),
 			remove: (memberId: string, lockOut: boolean) =>
 				invoke<MemberRemoved>('member_remove', { memberId, lockOut }),
 			lockOutCost: (memberId: string) => invoke<LockOutCost>('member_lock_out_cost', { memberId }),
@@ -275,7 +281,6 @@ export const tauri = {
 				invoke<OrganizationState>('invitation_accept', { link, code, password }),
 			link: (invitationId: string) => invoke<InvitationLink>('invitation_link', { invitationId })
 		},
-		machineLinkMake: () => invoke<MachineLink>('machine_link_make'),
 		machineConnect: (link: string, code: string) =>
 			invoke<OrganizationState>('machine_connect', { link, code }),
 		changePassword: (current: string, next: string) =>

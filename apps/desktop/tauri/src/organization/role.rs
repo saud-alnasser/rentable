@@ -45,7 +45,11 @@ use super::{
 const SIGNS_NOTHING: Administration = Administration::RenameWorkspace;
 
 /// Whether a stored permission value carries any act that writes a signed row.
-fn signs_rows(permissions: i64) -> bool {
+///
+/// Read here and by `invite::write_account`, which needs the same answer for the same reason: a
+/// row carrying one of these acts is only worth writing where the certificate behind it can be
+/// issued, and issuing one is the owner's.
+pub(super) fn signs_rows(permissions: i64) -> bool {
     Administration::ALL
         .iter()
         .filter(|act| **act != SIGNS_NOTHING)
@@ -212,7 +216,7 @@ mod tests {
         organization::{
             HeldOrganization,
             authority::AdministratorKey,
-            invite::{Invitation, Invited, WorkspaceGrant, invite_member, locator},
+            invite::{AccountAndLink, Invitation, WorkspaceGrant, locator, make_account_and_link},
             link::Locator,
             migrate::Pipeline,
             permission::{self, Administration},
@@ -280,8 +284,12 @@ mod tests {
     /// (effort 828, requirement 1). *It was the link's secret alone until effort 826 made the code
     /// the other half, and it read the row's `code_seal` until effort 828 moved the seal into the
     /// link's text.*
-    fn secret_of(invited: &Invited) -> String {
-        crate::organization::invite::vault_password_of(invited, test_cost())
+    fn secret_of(invited: &AccountAndLink) -> String {
+        crate::organization::invite::vault_password_of(
+            &invited.join_link,
+            &invited.code,
+            test_cost(),
+        )
     }
 
     /// The machine's record of a member who joined.
@@ -382,9 +390,9 @@ mod tests {
         username: &'static str,
         role: &str,
         workspace_id: &str,
-    ) -> (Invited, MemberSession) {
+    ) -> (AccountAndLink, MemberSession) {
         let workspaces = full(&[workspace_id.to_string()]);
-        let invited = invite_member(
+        let invited = make_account_and_link(
             store,
             owner,
             no_platform(),
@@ -841,7 +849,7 @@ mod tests {
         widened.must_change_password = false;
 
         let workspaces = full(&[workspace_id.clone()]);
-        let theirs = invite_member(
+        let theirs = make_account_and_link(
             &store,
             &widened,
             no_platform(),
@@ -979,7 +987,7 @@ mod tests {
         );
 
         let workspaces = full(&[workspace_id.clone()]);
-        let refusal = invite_member(
+        let refusal = make_account_and_link(
             &store,
             &theirs,
             no_platform(),

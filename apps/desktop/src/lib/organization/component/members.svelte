@@ -20,9 +20,9 @@
 	import RoleDialog from '$lib/organization/component/role-dialog.svelte';
 	import { openOrganizationDialog } from '$lib/organization/dialogs.svelte';
 	import BanIcon from '@lucide/svelte/icons/ban';
-	import CopyIcon from '@lucide/svelte/icons/copy';
 	import KeyIcon from '@lucide/svelte/icons/key-round';
 	import LaptopIcon from '@lucide/svelte/icons/laptop';
+	import LinkIcon from '@lucide/svelte/icons/link';
 	import LockIcon from '@lucide/svelte/icons/lock';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import ShieldIcon from '@lucide/svelte/icons/shield';
@@ -84,16 +84,16 @@
 		canGrantWorkspace,
 		isOwner,
 		selfId,
-		reissuing,
+		makingLink,
+		unsetting,
 		revoking,
-		copying,
 		endingSessions,
 		isChangingRole,
 		isChangingAccess,
 		onEndSessions,
-		onReissue,
+		onMakeLink,
+		onUnsetPassword,
 		onRevoke,
-		onCopyLink,
 		onRemove,
 		onLockOut,
 		onRename,
@@ -103,7 +103,7 @@
 		members: OrganizationMember[];
 		/** the workspaces the reader can grant, which is what they hold themselves. */
 		workspaces: OrganizationWorkspace[];
-		/** whether the reader's row carries `inviteMember`: the invite, a copy link and a revoke. */
+		/** whether the reader's row carries `inviteMember`: the add, the link and a revoke. */
 		canInvite: boolean;
 		/** whether the reader's row carries `removeMember`. */
 		canRemove: boolean;
@@ -111,7 +111,7 @@
 		canLockOut: boolean;
 		/** whether the reader's row carries `renameMember`. */
 		canRename: boolean;
-		/** whether the reader's row carries `resetPassword`, which is the act a new link is held to. */
+		/** whether the reader's row carries `resetPassword`, which is what a reset is held to. */
 		canReset: boolean;
 		/** whether the reader's row carries `changeRole`. */
 		canChangeRole: boolean;
@@ -121,30 +121,30 @@
 		isOwner: boolean;
 		/** the reader's own member id, whose row offers nothing that writes it. */
 		selfId: string;
-		/** the member whose link is being reissued, while it is. */
-		reissuing: string | null;
+		/** the account a link is being made for, while it is. */
+		makingLink: string | null;
+		/** the account whose password is being unset, while it is. */
+		unsetting: string | null;
 		/** the invitation being revoked, while it is. */
 		revoking: string | null;
-		/** the invitation whose link is being read again, while it is. */
-		copying: string | null;
 		/** the member whose sessions are being ended, while they are. */
 		endingSessions: string | null;
 		isChangingRole: boolean;
 		isChangingAccess: boolean;
 		/**
 		 * sign a member out of every machine. Their password is not changed by it, which is what
-		 * makes it a different act from the new link beside it.
+		 * makes it a different act from the reset beside it.
 		 */
 		onEndSessions: (memberId: string) => void;
-		/** issue a member a fresh link, which is what a reset is. */
-		onReissue: (memberId: string) => void;
-		onRevoke: (invitationId: string) => void;
 		/**
-		 * hand the same link and the same code over again, for the person who issued it. Both,
-		 * because a code lives as long as its link (effort 828, requirement 1), so there is one
-		 * pair per invitation and copying it is showing that pair again.
+		 * make the one link that admits a machine to the account (effort 828, requirement 20). The
+		 * account's standing chooses its kind and the reader chooses nothing, so there is one act
+		 * here where there were a copy link and a new link.
 		 */
-		onCopyLink: (invitationId: string, username: string, expiresAt: number) => void;
+		onMakeLink: (memberId: string) => void;
+		/** unset an account's password, so the next link made for it asks for a new one. */
+		onUnsetPassword: (memberId: string) => void;
+		onRevoke: (invitationId: string) => void;
 		/** ask to remove a member: the route raises the confirm that names what it costs. */
 		onRemove: (memberId: string) => void;
 		onLockOut: (memberId: string) => void;
@@ -298,32 +298,31 @@
 			],
 
 			[
-				// the link and its code, shown again: only the issuer's own vault opens what the
-				// row sealed them under, so for anybody else the row offers a new link, which is
-				// a reset.
-				...(invitation && canInvite && invitation.canCopy
+				// the one link act (effort 828, requirement 20): what kind of link it is is read
+				// off the account, and whether a machine is signed in on it is refused by the
+				// shell, so what is drawn here is the act and never the choice.
+				...(canInvite && writable(member)
 					? [
 							{
-								label: $LL.organization.dashboard.copyLink(),
-								icon: CopyIcon,
-								attributes: { 'data-member-copy-link': member.id },
-								disabled: copying !== null,
-								onSelect: () =>
-									onCopyLink(invitation.invitationId, member.username, invitation.expiresAt)
+								label: $LL.organization.dashboard.makeLink(),
+								icon: LinkIcon,
+								attributes: { 'data-member-link': member.id },
+								disabled: makingLink !== null,
+								onSelect: () => onMakeLink(member.id)
 							}
 						]
 					: []),
 				...(canReset && writable(member)
 					? [
 							{
-								label: $LL.organization.dashboard.newLink(),
+								label: $LL.organization.dashboard.unsetPassword(),
 								icon: RefreshCwIcon,
-								attributes: { 'data-member-new-link': member.id },
-								disabled: reissuing !== null,
-								onSelect: () => onReissue(member.id)
+								attributes: { 'data-member-unset-password': member.id },
+								disabled: unsetting !== null,
+								onSelect: () => onUnsetPassword(member.id)
 							},
-							// beside the new link and behind the same act, because the two are the
-							// same trust read twice: whoever may hand somebody a fresh way in may
+							// beside the reset and behind the same act, because the two are the
+							// same trust read twice: whoever may take somebody's way in away may
 							// close the ways in that are already open (effort 826, requirement 22).
 							{
 								label: $LL.organization.dashboard.endSessions(),
@@ -392,9 +391,9 @@
 		{#if canInvite}
 			<!-- the verb's glyph before its label, as every primary here carries one. The dialog is
 			     the shell's, opened the same way the rail's invite row opens it. -->
-			<Button type="button" data-invite-open onclick={() => openOrganizationDialog('invite')}>
+			<Button type="button" data-invite-open onclick={() => openOrganizationDialog('account')}>
 				<UserPlusIcon class="size-4" />
-				{$LL.organization.dashboard.invite()}
+				{$LL.organization.dashboard.addAccount()}
 			</Button>
 		{/if}
 	</div>

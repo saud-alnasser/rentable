@@ -258,15 +258,15 @@ test('nothing here asks the host to list organizations', () => {
 		'invitation.link',
 		'invitation.revoke',
 		'machine.connect',
-		'machine.link',
 		'member.changeRole',
+		'member.create',
 		'member.endSessions',
-		'member.invite',
+		'member.linkMake',
 		'member.list',
 		'member.lockOutCost',
 		'member.remove',
 		'member.rename',
-		'member.reset',
+		'member.unsetPassword',
 		'password.change',
 		'session.endElsewhere',
 		'workspace.create',
@@ -371,19 +371,22 @@ test('copying an invitation answers the link and the code, held to inviteMember'
 	assert.deepEqual(asked, ['link:inv-1']);
 });
 
-// effort 828, requirement 3 from this side: making the pair for your own next machine needs a
-// session and nothing else, because it acts on the caller's own account and mints nothing; opening
-// one happens on a machine where nobody has signed in yet, so it is public. The code is six
-// characters here as it is on an invitation, and everything else about the link is Rust's.
-test('making a machine link needs a session, and connecting with one reaches the host signed out', async () => {
+// effort 828, requirement 20 from this side: one act makes a link for an account, and it is held
+// to `inviteMember`, because what it hands somebody is the way a machine joins an account. Opening
+// one happens on a machine where nobody has signed in yet, so the connect is public. The code is
+// six characters here as it is on an invitation, and everything else about the link is Rust's.
+test('making a link is held to inviteMember, and connecting with one reaches the host signed out', async () => {
 	const asked: string[] = [];
 	const host = fakeHost({
 		organization: {
 			...fakeHost().organization,
-			machineLinkMake: async () => {
-				asked.push('machineLinkMake');
+			member: {
+				...fakeHost().organization.member,
+				linkMake: async (memberId) => {
+					asked.push(`linkMake:${memberId}`);
 
-				return { link: 'rentable://join/abc', code: '7K4M9Q', expiresAt: 1_757_604_800_000 };
+					return { link: 'rentable://join/abc', code: '7K4M9Q', expiresAt: 1_757_604_800_000 };
+				}
 			},
 			machineConnect: async (link, code) => {
 				asked.push(`machineConnect:${link}:${code}`);
@@ -398,18 +401,23 @@ test('making a machine link needs a session, and connecting with one reaches the
 	const signedOut = await signedOutApi(host);
 
 	await assert.rejects(
-		signedOut.app.organization.machine.link(),
-		'a machine link was made for nobody'
+		signedOut.app.organization.member.linkMake({ memberId: 'member-2' }),
+		'a link was made by nobody'
 	);
 	assert.deepEqual(asked, []);
 
-	// any member, with no act of their own: it is their account and nobody else's row.
+	// a member with no act of their own is refused before the host is reached.
 	const member = await permittedApi(host);
-	const made = await member.app.organization.machine.link();
+
+	await assert.rejects(member.app.organization.member.linkMake({ memberId: 'member-2' }));
+	assert.deepEqual(asked, []);
+
+	const inviting = await permittedApi(host, 'inviteMember');
+	const made = await inviting.app.organization.member.linkMake({ memberId: 'member-2' });
 
 	assert.equal(made.code, '7K4M9Q');
 	assert.equal(made.link, 'rentable://join/abc');
-	assert.deepEqual(asked, ['machineLinkMake']);
+	assert.deepEqual(asked, ['linkMake:member-2']);
 
 	const connected = await signedOut.app.organization.machine.connect({
 		link: ' rentable://join/abc ',
@@ -418,7 +426,7 @@ test('making a machine link needs a session, and connecting with one reaches the
 
 	assert.equal(connected.organization?.memberId, null, 'a connect recorded a member');
 	assert.equal(connected.session, null, 'a connect opened a vault');
-	assert.deepEqual(asked, ['machineLinkMake', 'machineConnect:rentable://join/abc:7K4M9Q']);
+	assert.deepEqual(asked, ['linkMake:member-2', 'machineConnect:rentable://join/abc:7K4M9Q']);
 
 	for (const code of ['', '7K4M9', '7K4M9QQ']) {
 		await assert.rejects(
@@ -427,7 +435,71 @@ test('making a machine link needs a session, and connecting with one reaches the
 	}
 
 	await assert.rejects(signedOut.app.organization.machine.connect({ link: '  ', code: '7K4M9Q' }));
-	assert.deepEqual(asked, ['machineLinkMake', 'machineConnect:rentable://join/abc:7K4M9Q']);
+	assert.deepEqual(asked, ['linkMake:member-2', 'machineConnect:rentable://join/abc:7K4M9Q']);
+});
+
+// effort 828, requirement 20: making an account and unsetting its password are two acts behind two
+// different bits, because making somebody a way in and taking one away are different things to be
+// trusted with. What each writes is Rust's; what is read here is which bit each is held to and what
+// crosses.
+test('making an account is inviteMember and unsetting a password is resetPassword', async () => {
+	const asked: string[] = [];
+	const host = fakeHost({
+		organization: {
+			...fakeHost().organization,
+			member: {
+				...fakeHost().organization.member,
+				create: async (username, role, permissions, workspaces) => {
+					asked.push(`create:${username}:${role}:${permissions}:${workspaces.length}`);
+
+					return {
+						id: 'member-9',
+						username,
+						role,
+						permissions,
+						workspaces,
+						pending: null,
+						createdAt: 1_757_000_000_000
+					};
+				},
+				unsetPassword: async (memberId) => {
+					asked.push(`unsetPassword:${memberId}`);
+
+					return [{ id: 'workspace-9', name: 'South' }];
+				}
+			}
+		}
+	});
+	const inviting = await permittedApi(host, 'inviteMember');
+	const account = await inviting.app.organization.member.create({
+		username: '  sami.staff  ',
+		role: 'member',
+		permissions: 0,
+		workspaces: [{ id: 'workspace-1', access: 'full-access' }]
+	});
+
+	assert.equal(account.username, 'sami.staff', 'the username was not trimmed before the host');
+	assert.deepEqual(asked, ['create:sami.staff:member:0:1']);
+
+	// unsetting is a different bit, so the caller who makes accounts is refused it.
+	await assert.rejects(inviting.app.organization.member.unsetPassword({ memberId: 'member-2' }));
+
+	const resetting = await permittedApi(host, 'resetPassword');
+
+	assert.deepEqual(
+		await resetting.app.organization.member.unsetPassword({ memberId: 'member-2' }),
+		[{ id: 'workspace-9', name: 'South' }]
+	);
+	// and making an account is refused to the caller who only resets.
+	await assert.rejects(
+		resetting.app.organization.member.create({
+			username: 'sami.staff',
+			role: 'member',
+			permissions: 0,
+			workspaces: []
+		})
+	);
+	assert.deepEqual(asked, ['create:sami.staff:member:0:1', 'unsetPassword:member-2']);
 });
 
 /**

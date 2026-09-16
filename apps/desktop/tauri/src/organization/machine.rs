@@ -1,16 +1,17 @@
-//! a member's own next machine: the link they make for it, and the connect that spends it.
+//! a machine link: the kind of link an account with a password is admitted by, and the connect
+//! that spends it.
 //!
-//! **Nobody but the member makes one** (effort 828, requirement 3). A person setting a laptop up
-//! should not have to call somebody, so the pair they need is made from the you section on a
-//! machine they are already signed in on. An administrator who has to get somebody back in issues
-//! a reset, which is an invitation link and already exists; there is no act here that reaches
-//! another member's row.
+//! **The making is `invite::make_link`'s** (effort 828, requirement 20). One act makes a link for
+//! an account and reads its kind off the account's standing, so the choice between this kind and
+//! an invitation is made in one place; what is here is the kind's own shape and what spending it
+//! does. *A signed-in member made their own from the you section until requirement 20 made a link
+//! the owner's or an administrator's, from the account's card.*
 //!
-//! **The link is the same shape every other sealed link is** (`link.rs`). It carries the member's
+//! **The link is the same shape every other sealed link is** (`link.rs`). It carries the maker's
 //! own grant on the organization database sealed under the six-character code and the link's own
 //! secret together, a [`HalfKind::Machine`] half naming the row behind it, and no vault password,
-//! because a second machine opens no vault: it lands at the wall, where the member's unchanged
-//! username and password admit them exactly as they do on the machine they made the link on.
+//! because this kind opens no vault: it lands at the wall, where the account's own username and
+//! password admit them, unchanged.
 //!
 //! **What the credential in it is for is the one pull.** The connect reads the organization row
 //! with it and records the four facts the link pins; nothing writes it anywhere, and the sign-in
@@ -18,20 +19,15 @@
 //! already does. So the link is worth one machine's first read and no more, and it is dead within
 //! four weeks whatever happens to it, because the grant inside it is.
 //!
-//! **One link stands at a time.** Making one drops the member's other unspent rows, so a person
-//! who lost the pair presses again and the link they could not use stops being a way in. Nothing
-//! is kept for a copy later: an invitation keeps an issuer's copy because somebody else has to be
-//! handed it twice, and here the person who made the link is the person who opens it.
+//! **One link stands at a time.** Making one drops the account's other unspent rows, so a pair
+//! somebody lost stops being a way in the moment another is made.
 //!
 //! **The row behind it carries no signature, and that is an accepted limit.** `store.rs`'s
-//! [`MachineLinkRecord`] says why: a plain member holds no certificate and signs nothing, the row
-//! gates availability and never authority, and a rewritten one reopens a spent link on one more
-//! machine that still lands at the wall. A test here rewrites it and shows exactly that, so the
-//! limit is recorded rather than found.
+//! [`MachineLinkRecord`] says why: the row gates availability and never authority, and a rewritten
+//! one reopens a spent link on one more machine that still lands at the wall. A test here rewrites
+//! it and shows exactly that, so the limit is recorded rather than found.
 
 use std::sync::{Arc, Mutex};
-
-use serde::{Deserialize, Serialize};
 
 use crate::{
     diagnostics,
@@ -42,30 +38,11 @@ use crate::{
 
 use super::{
     HeldOrganization, connect,
-    invite::{
-        generate_code, generate_link_secret, held_credential, link_expiry, locator, random_id,
-    },
-    link::{Half, HalfKind, JoinLink, LinkPayload, open_payload, seal_payload},
-    session::{CredentialSlot, MemberSession},
-    store::{MachineLinkRecord, OrganizationStore},
+    link::{HalfKind, JoinLink, open_payload},
+    session::CredentialSlot,
+    store::OrganizationStore,
     vault::KdfParams,
 };
-
-/// What making a link for another machine hands the member: the two things they carry over, and
-/// the moment both stop working.
-///
-/// The link is sent to the other machine and the code is read off the screen; neither the
-/// credential nor any key is legible in either ([[rules/credentials]], *Client boundary*). There
-/// is one pair per link and nothing stores it, so a person who lost it makes another.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct MachineLink {
-    pub link: String,
-    /// six characters from the alphabet with the letters that read alike taken out.
-    pub code: String,
-    /// the earlier of a week out and the moment the member's own grant dies.
-    pub expires_at: i64,
-}
 
 /// Why a machine link no longer opens, which is what the sentence the person reads names.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -100,80 +77,6 @@ fn machine_link_refused(organization_name: &str, refusal: Refusal) -> Error {
              machine you are already signed in on"
         ),
     }
-}
-
-/// Make the link and the code for the member's own next machine (effort 828, requirement 3).
-///
-/// `session` is whoever is signed in, and the link carries what their vault already unsealed:
-/// their own grant on the organization database, which the owner's machine renews and which dies
-/// within four weeks whatever happens here. Nothing is minted, which is what lets a plain member
-/// do this at all (826, requirement 5).
-///
-/// The row is written before the link is built, so a link that exists always has a row behind it,
-/// and the member's other unspent rows go first, so one link stands at a time. What comes back is
-/// shown once and kept nowhere.
-pub async fn make(
-    store: &OrganizationStore,
-    session: &MemberSession,
-    kdf_params: KdfParams,
-    now: i64,
-) -> Result<MachineLink, Error> {
-    session.settled()?;
-
-    // where the organization is, which every link is built from. It carries no credential of its
-    // own (effort 828, requirement 16); what this link carries is the seal below.
-    let locator = locator(store, session).await?;
-    let credential = held_credential(session)?;
-    let expires_at = link_expiry(&credential, now);
-    let id = random_id()?;
-    let secret = generate_link_secret()?;
-    let code = generate_code()?;
-
-    store
-        .delete_open_machine_links_of(&session.member_id)
-        .await?;
-    store
-        .write_machine_link(&MachineLinkRecord {
-            id: id.clone(),
-            member_id: session.member_id.clone(),
-            expires_at,
-            consumed_at: None,
-            created_at: now,
-        })
-        .await?;
-
-    let half = Half {
-        kind: HalfKind::Machine,
-        id: id.clone(),
-        secret,
-        expires_at,
-    };
-    let sealed = seal_payload(
-        &code,
-        &half,
-        &LinkPayload {
-            credential,
-            vault_password: None,
-        },
-        kdf_params,
-    )?;
-    let link = locator.sealed(&sealed, half).encode()?;
-
-    if !store.push().await {
-        diagnostics::warn("organization.machineLink.notYetSent")
-            .with("link", id.as_str())
-            .write();
-    }
-
-    diagnostics::info("organization.machineLink.made")
-        .with("member", session.member_id.as_str())
-        .write();
-
-    Ok(MachineLink {
-        link,
-        code,
-        expires_at,
-    })
 }
 
 /// Connect this machine with a link its member made for it, and leave it at the wall.
@@ -273,14 +176,14 @@ mod tests {
 
     use serde_json::json;
 
-    use super::{MachineLink, connect, make};
+    use super::connect;
     use crate::{
         error::{Error, RefusalReason},
         organization::{
             HeldOrganization,
-            invite::{INVITATION_LIFETIME_MS, Invitation, invite_member, locator},
+            invite::{INVITATION_LIFETIME_MS, MadeLink, create_account, locator, make_link},
             join,
-            link::{CODE_REFUSED, JoinLink, LinkKind, LinkPayload, open_payload},
+            link::{CODE_REFUSED, JoinLink, LinkKind, LinkPayload, Locator, open_payload},
             permission,
             session::{CredentialSlot, MemberSession, sign_in, sign_in_by_username},
             setup::{CreateOrganization, Remote, create_organization, credential_expiry},
@@ -296,8 +199,8 @@ mod tests {
     };
 
     const PASSWORD: &str = "the owners password";
-    /// The password the invited member chooses when they open their link, and the one that has to
-    /// go on admitting them on every machine they connect afterwards.
+    /// The password the member chose when they opened their first link, and the one that has to go
+    /// on admitting them on every machine a link connects afterwards.
     const CHOSEN: &str = "a password sami chose";
     const ISSUED_AT: i64 = 1_757_000_000_000;
     const FOUR_WEEKS_MS: i64 = 28 * 24 * 60 * 60 * 1000;
@@ -340,13 +243,17 @@ mod tests {
         machine
     }
 
-    /// An organization with its owner and one plain member, that member signed in on a machine of
-    /// their own: the store every test here runs over, the member's session, and their username.
+    /// One plain member's account, with a password of their own and no machine signed in on it:
+    /// the store, the owner's session, the organization's locator, and the account's id and
+    /// username.
     ///
-    /// **A plain member and not the owner**, because the row this module writes is the one a
-    /// member with no certificate writes on their own account, and a fixture signed in as the
-    /// owner would prove the act works for somebody who can sign.
-    async fn member(directory: &std::path::Path) -> (OrganizationStore, MemberSession, String) {
+    /// **The account has been opened once**, because that is what gives it a password and so what
+    /// makes the next link a machine link. The machine that opened it is then taken out of the
+    /// register, which is what signing out of it does: a link is refused while a machine is signed
+    /// in (effort 828, requirement 20), and what these tests are about is the link that follows.
+    async fn account(
+        directory: &std::path::Path,
+    ) -> (OrganizationStore, MemberSession, Locator, String, String) {
         let mut record = Persisted::<RemoteSyncStore>::load(directory.join("remote-sync.json"))
             .expect("the store");
         let mcp = ScriptedServer::start(vec![
@@ -394,23 +301,32 @@ mod tests {
             .expect("the owner did not sign in");
         let locator = locator(&store, &owner)
             .await
-            .expect("the organization's link");
-        let invited = invite_member(
+            .expect("the organization's locator");
+        let account = create_account(
             &store,
             &owner,
             no_platform(),
-            &locator,
-            Invitation {
-                username: "sami.staff",
-                role: permission::MEMBER,
-                workspaces: &[],
-            },
+            "sami.staff",
+            permission::MEMBER,
+            0,
+            &[],
             test_cost(),
             ISSUED_AT,
         )
         .await
-        .expect("the invitation failed");
-        let invitation = JoinLink::decode(&invited.join_link).expect("the invitation link");
+        .expect("the account could not be made");
+        let first = make_link(
+            &store,
+            &owner,
+            no_platform(),
+            &locator,
+            &account.id,
+            test_cost(),
+            ISSUED_AT,
+        )
+        .await
+        .expect("the first link could not be made");
+        let invitation = JoinLink::decode(&first.link).expect("the invitation link");
         let theirs = directory.join("sami");
 
         std::fs::create_dir_all(&theirs).expect("the member's directory");
@@ -420,7 +336,7 @@ mod tests {
             |_| async { Ok::<_, Error>(&store) },
             &mut their_machine,
             &invitation,
-            &invited.code,
+            &first.code,
             CHOSEN,
             test_cost(),
             ISSUED_AT + 1,
@@ -431,7 +347,20 @@ mod tests {
         assert_eq!(session.role, permission::MEMBER);
         assert!(!session.must_change_password);
 
-        (store, session, "sami.staff".to_string())
+        // they sign out of that machine, which is what leaves the account open to a link again.
+        let their_machine_id = their_machine
+            .organization
+            .as_ref()
+            .expect("the record")
+            .machine_id
+            .clone();
+
+        store
+            .unregister_machine(&their_machine_id)
+            .await
+            .expect("the machine could not be taken out of the register");
+
+        (store, owner, locator, account.id, "sami.staff".to_string())
     }
 
     /// A credential shaped the way a minted one is, dying at `expires_at`. The in-memory platform
@@ -455,7 +384,7 @@ mod tests {
     async fn connect_on(
         machine: &mut Persisted<RemoteSyncStore>,
         store: &OrganizationStore,
-        made: &MachineLink,
+        made: &MadeLink,
         code: &str,
         now: i64,
     ) -> Result<HeldOrganization, Error> {
@@ -472,21 +401,29 @@ mod tests {
         .await
     }
 
-    /// Effort 828, requirement 3 and criterion 3: **a member connects their own next machine.**
+    /// Effort 828, requirement 20 and criterion 20: **a link for an account that has a password
+    /// lands at the wall, where that password admits.**
     ///
-    /// The member makes a link and a code on the machine they are signed in on. Opening it on a
+    /// The owner makes it from the account, since nobody is signed in on it. Opening it on a
     /// machine that holds nothing connects that machine and names no member, which is the wall;
-    /// the username and the password they already had admit them there, unchanged. The link is a
-    /// machine link by its own text, and it lapses a week out because the in-memory grant carries
-    /// no death of its own.
+    /// the username and the password the member already had admit them there, unchanged. The link
+    /// is a machine link by its own text, and it lapses a week out because the in-memory grant
+    /// carries no death of its own.
     #[tokio::test]
-    async fn a_member_makes_a_link_for_their_next_machine_and_the_same_password_admits_them_there()
-    {
+    async fn a_link_for_an_account_with_a_password_lands_at_the_wall_where_that_password_admits() {
         let directory = scratch("connect");
-        let (store, member, username) = member(&directory).await;
-        let made = make(&store, &member, test_cost(), ISSUED_AT + 2)
-            .await
-            .expect("the member could not make a link");
+        let (store, owner, locator, member_id, username) = account(&directory).await;
+        let made = make_link(
+            &store,
+            &owner,
+            no_platform(),
+            &locator,
+            &member_id,
+            test_cost(),
+            ISSUED_AT + 2,
+        )
+        .await
+        .expect("the link could not be made");
 
         assert_eq!(
             made.expires_at,
@@ -501,7 +438,7 @@ mod tests {
         );
         assert!(
             !made.link.contains(
-                member
+                owner
                     .organization_credential
                     .lock()
                     .expect("the slot")
@@ -517,7 +454,7 @@ mod tests {
             .await
             .expect("the next machine did not connect");
 
-        assert_eq!(held.id, member.organization_id);
+        assert_eq!(held.id, owner.organization_id);
         assert_eq!(held.name, "Acme");
         assert_eq!(held.member_id, None, "the connect recorded a member");
         assert_eq!(held.role, None);
@@ -528,13 +465,13 @@ mod tests {
         assert_eq!(recorded.member_id, None);
 
         // the wall on the machine that just connected: the password is the one they chose when
-        // they opened their invitation, and nothing here changed it.
+        // they opened their first link, and nothing here changed it.
         let credential = slot();
         let session = sign_in_by_username(&store, &held, &username, CHOSEN, &credential)
             .await
             .expect("the member could not sign in on their next machine");
 
-        assert_eq!(session.member_id, member.member_id);
+        assert_eq!(session.member_id, member_id);
         assert_eq!(session.role, permission::MEMBER);
         assert!(!session.must_change_password);
         assert!(
@@ -543,7 +480,7 @@ mod tests {
         );
     }
 
-    /// Effort 828, requirement 3: **the link admits one machine, once, and lapses on its own.**
+    /// Effort 828, requirement 20: **the link admits one machine, once, and lapses on its own.**
     ///
     /// A second machine opening the same pair is refused as already spent, before anything is
     /// recorded on it; a machine opening it a week later is refused as lapsed, before any key is
@@ -552,10 +489,18 @@ mod tests {
     #[tokio::test]
     async fn one_machine_once_and_a_lapsed_link_or_a_wrong_code_reaches_nothing() {
         let directory = scratch("once");
-        let (store, member, _) = member(&directory).await;
-        let made = make(&store, &member, test_cost(), ISSUED_AT + 2)
-            .await
-            .expect("the member could not make a link");
+        let (store, owner, locator, member_id, _) = account(&directory).await;
+        let made = make_link(
+            &store,
+            &owner,
+            no_platform(),
+            &locator,
+            &member_id,
+            test_cost(),
+            ISSUED_AT + 2,
+        )
+        .await
+        .expect("the link could not be made");
 
         // the wrong code, on a machine holding nothing: the tag fails and nothing is recorded.
         let wrong = scratch("once-wrong");
@@ -642,15 +587,23 @@ mod tests {
     ///
     /// Clearing `consumed_at` by hand puts one more machine through, and where that machine lands
     /// is the wall, where the member's password is still the whole of what admits. That is the
-    /// limit the effort accepted rather than a hole to be patched here: a plain member holds no
-    /// certificate and can sign nothing, so the alternative was no row at all and no single use.
+    /// limit the effort accepted rather than a hole to be patched here: nothing certifies the row,
+    /// so the alternative was no row at all and no single use.
     #[tokio::test]
     async fn a_rewritten_row_reopens_a_spent_link_and_the_machine_still_lands_at_the_wall() {
         let directory = scratch("rewritten");
-        let (store, member, username) = member(&directory).await;
-        let made = make(&store, &member, test_cost(), ISSUED_AT + 2)
-            .await
-            .expect("the member could not make a link");
+        let (store, owner, locator, member_id, username) = account(&directory).await;
+        let made = make_link(
+            &store,
+            &owner,
+            no_platform(),
+            &locator,
+            &member_id,
+            test_cost(),
+            ISSUED_AT + 2,
+        )
+        .await
+        .expect("the link could not be made");
         let id = JoinLink::decode(&made.link).expect("the link").half.id;
 
         let first = scratch("rewritten-first");
@@ -660,11 +613,11 @@ mod tests {
             .await
             .expect("the next machine did not connect");
 
-        // the row as any member holding the database can write it: no signature stands in the way.
+        // the row as anybody holding the database can write it: no signature stands in the way.
         store
             .write_machine_link(&MachineLinkRecord {
                 id: id.clone(),
-                member_id: member.member_id.clone(),
+                member_id: member_id.clone(),
                 expires_at: made.expires_at,
                 consumed_at: None,
                 created_at: ISSUED_AT + 2,
@@ -694,28 +647,35 @@ mod tests {
         );
     }
 
-    /// Effort 828, requirement 2 and criterion 2: **what the link seals is the member's own grant,
+    /// Effort 828, requirement 2 and criterion 2: **what the link seals is the maker's own grant,
     /// and it dies within four weeks.**
     ///
-    /// The payload carries the credential the session holds and no vault password, because a
-    /// second machine opens no vault. Where that grant dies before the week is out, the link and
-    /// its row lapse with it, so a link never outlives what it carries and the panel prints the
-    /// true date.
+    /// The payload carries the credential the session holds and no vault password, because this
+    /// kind opens no vault. Where that grant dies before the week is out, the link and its row
+    /// lapse with it, so a link never outlives what it carries and the panel prints the true date.
     #[tokio::test]
-    async fn a_machine_link_seals_the_members_own_grant_and_lapses_no_later_than_it_does() {
+    async fn a_machine_link_seals_the_makers_own_grant_and_lapses_no_later_than_it_does() {
         let directory = scratch("grant");
-        let (store, member, _) = member(&directory).await;
+        let (store, owner, locator, member_id, _) = account(&directory).await;
         let now = ISSUED_AT + 2;
         // a round moment, since a credential spells its expiry in seconds and a link reads it
         // back in milliseconds.
         let dies_at = ISSUED_AT + 3 * 24 * 60 * 60 * 1000;
         let grant = grant_dying_at(dies_at);
 
-        *member.organization_credential.lock().expect("the slot") = Some(grant.clone());
+        *owner.organization_credential.lock().expect("the slot") = Some(grant.clone());
 
-        let made = make(&store, &member, test_cost(), now)
-            .await
-            .expect("the member could not make a link");
+        let made = make_link(
+            &store,
+            &owner,
+            no_platform(),
+            &locator,
+            &member_id,
+            test_cost(),
+            now,
+        )
+        .await
+        .expect("the link could not be made");
         let link = JoinLink::decode(&made.link).expect("the link");
         let half = &link.half;
         let payload: LinkPayload = open_payload(&made.code, half, &link.credential, test_cost())
@@ -727,7 +687,7 @@ mod tests {
         );
         assert_eq!(
             payload.vault_password, None,
-            "the link seals a vault password, and a second machine opens no vault"
+            "the link seals a vault password, and this kind opens no vault"
         );
 
         let expiry = credential_expiry(&payload.credential)
@@ -752,9 +712,17 @@ mod tests {
         );
 
         // and making another drops the one that did not stand: one link at a time.
-        let second = make(&store, &member, test_cost(), now + 1)
-            .await
-            .expect("the member could not make a second link");
+        let second = make_link(
+            &store,
+            &owner,
+            no_platform(),
+            &locator,
+            &member_id,
+            test_cost(),
+            now + 1,
+        )
+        .await
+        .expect("a second link could not be made");
 
         assert!(
             store
