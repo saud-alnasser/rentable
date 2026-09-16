@@ -546,6 +546,14 @@ read of a member row names that column, so a replica written before requirement 
 nothing at all, and the machine forgets the organization at its next launch and lands on the first
 screen.
 
+*Corrected 2026-09-16 on the human's test (ticket 24): the schema is issued once, on the machine
+that creates the organization, and every other machine receives it as pages, so a table added by
+a later build reached nobody and the human's organization answered "no such table: succession"
+at launch. The store now completes its schema after every successful pull, creating through the
+sync connection each table it names that the replica lacks and pushing it, so the organization on
+Turso gains the table for everybody; a replica holding every table writes nothing. Not on open,
+since a fresh connect opens an empty replica before its first pull.*
+
 # Testing Strategy
 
 | Criterion | Checked by |

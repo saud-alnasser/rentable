@@ -493,7 +493,42 @@ impl OrganizationStore {
     /// organization rather than about this machine's connection, and it is the only way a machine
     /// learns the owner deleted it (effort 828, requirement 18).
     pub async fn pulled(&self) -> Result<bool, turso::Error> {
-        self.database.pull().await
+        let arrived = self.database.pull().await?;
+
+        // a replica made by an earlier build lacks the tables the schema gained since, and the
+        // remote lacks them too, because the schema is issued once, on the machine that created
+        // the organization, and every other machine receives it as pages. So the first machine
+        // to pull after a build that names a new table creates it here, through the sync
+        // connection, and the push carries it to the remote for everybody else; a machine that
+        // finds every table in place writes nothing. Effort 828 found this on the human's own
+        // organization, which answered "no such table: succession" at launch.
+        if self.complete_schema().await? {
+            let _ = self.push().await;
+        }
+
+        Ok(arrived)
+    }
+
+    /// Create every table [`SCHEMA`] names that this replica lacks, and say whether any was.
+    ///
+    /// Read against the database rather than assumed, so a replica that already holds every
+    /// table costs one query and no write. The statements are `CREATE TABLE IF NOT EXISTS`, so a
+    /// second machine racing the first on the same table finds it there.
+    pub async fn complete_schema(&self) -> Result<bool, turso::Error> {
+        let present = self
+            .tables()
+            .await
+            .map_err(|error| turso::Error::Error(error.to_string()))?;
+        let mut created = false;
+
+        for (table, statement) in TABLES.iter().zip(SCHEMA.iter()) {
+            if !present.iter().any(|name| name == table) {
+                self.connection.execute(statement, ()).await?;
+                created = true;
+            }
+        }
+
+        Ok(created)
     }
 
     /// The tables this database holds, read from the database rather than from [`TABLES`], which
@@ -2204,6 +2239,55 @@ mod tests {
     }
 
     // criterion 1: the schema, and two workspaces of one organization
+
+    #[tokio::test]
+    async fn a_replica_lacking_a_table_the_schema_names_gains_it_and_says_so() {
+        // an organization made by a build that knew nine tables: every statement but the last.
+        let directory = scratch("schema-completes");
+        let store = OrganizationStore::open(&directory.join("org-x.db"), None, || async {
+            Ok::<String, turso::Error>(String::new())
+        })
+        .await
+        .expect("the store");
+
+        for statement in &super::SCHEMA[..super::SCHEMA.len() - 1] {
+            store
+                .connection
+                .execute(statement, ())
+                .await
+                .expect("the older schema");
+        }
+        assert!(
+            !store
+                .tables()
+                .await
+                .expect("the tables")
+                .iter()
+                .any(|t| t == "succession"),
+            "the fixture already held the tenth table"
+        );
+
+        assert!(
+            store.complete_schema().await.expect("the completion"),
+            "a missing table was not created"
+        );
+        assert!(
+            store
+                .tables()
+                .await
+                .expect("the tables")
+                .iter()
+                .any(|t| t == "succession"),
+            "the tenth table was not created"
+        );
+        assert!(
+            !store
+                .complete_schema()
+                .await
+                .expect("the second completion"),
+            "a complete schema was reported as completed again"
+        );
+    }
 
     #[tokio::test]
     async fn the_ten_tables_exist_and_an_organization_holds_two_workspaces_at_once() {
