@@ -842,7 +842,7 @@ const en = {
 			standingSignedIn: 'signed in on a machine',
 
 			memberTitle: 'a new member',
-			accountDescription:
+			memberDescription:
 				'a member is a username, a role, what they may do and the workspaces they hold. they have no password until you make them a link and they open it.',
 			role: 'role',
 			administratorsAreTheOwners: 'only the owner can make an administrator.',
@@ -859,14 +859,13 @@ const en = {
 			// the card menu's words, one or two apiece: a menu is read at a glance, and the
 			// sentence a dialog opens with is the dialog's rather than the entry's.
 			makeLink: 'make a link',
-			changeRole: 'change role',
 			// requirement 22: the two entries on the owner's own card, one at a time, and the
 			// acceptance the other person meets. Two plain words each, and the sentences that
 			// say what changes belong to the surfaces they open.
 			transferOwnership: 'hand over ownership',
 			transferOwnershipGoes:
 				'the person you choose is offered the organization. nothing changes until they accept it, on a machine they are already signed in on, with their own password. when they do, they become the owner and you become an administrator.',
-			transferOwnershipAccount: 'who is offered the organization',
+			transferOwnershipMember: 'who is offered the organization',
 			transferOwnershipAuthority:
 				'your turso account does not move. the databases stay on it, and the new owner connects their own account from the sync section before they can create a workspace, lock anybody out or renew credentials.',
 			transferOwnershipConfirm: 'offer it',
@@ -922,9 +921,8 @@ const en = {
 			accessFull: 'full access',
 			accessReadOnly: 'read only',
 			accessNone: 'no access',
-			accessTitle: 'workspaces and access',
-			accessDescription:
-				'which workspaces {username:string} holds, and what each one is good for. taking a workspace back mints nothing, so what they already hold works until it runs out.',
+			accessTakenBack:
+				'taking a workspace back mints nothing, so what they already hold works until it runs out.',
 			accessSaved: 'the workspaces were saved.',
 			workspaceAccessTitle: 'members and access',
 			workspaceAccessDescription:
@@ -936,9 +934,14 @@ const en = {
 			transferTitle: 'export and import {workspace:string}',
 			forgetAccount: 'forget turso account',
 			readOnlyIsTheOwners: "only the owner can grant read only access, on the owner's own machine.",
-			changeRoleTitle: 'role and permissions',
-			changeRoleDescription:
-				'the role is what the list calls {username:string}; the acts below are what they may actually do, and picking a role sets them all at once.',
+			memberSheetDescription: 'what {username:string} may do in this organization.',
+			beyondRole: 'beyond their role',
+			beyondRoleDescription: 'what this member can do that a member usually cannot.',
+			beyondRoleNone: 'nothing beyond their role.',
+			beyondRoleAdd: 'allow something else',
+			// the picker's one confirm: everything ticked is allowed at once.
+			allowActs: 'allow',
+			administratorAllowedEvery: 'an administrator may already do all of it.',
 			permissionsLegend: 'what they may do',
 			actInviteMember: 'invite members',
 			actRemoveMember: 'remove members',
@@ -966,6 +969,74 @@ const en = {
 			deleteOrganizationGoes:
 				'every workspace goes, and everything in it: tenants, complexes, units, contracts and payments. so does every way in, for every member. the other machines find the organization gone the next time they open and land on the first screen. nothing puts this back.',
 			organizationDeleted: 'the organization was deleted.'
+		},
+
+		/**
+		 * who each role is for, in one sentence apiece (effort 828, requirement 23).
+		 *
+		 * A role is described by the person it suits rather than by the acts it unlocks, which is
+		 * what every product in the research does and what makes the chooser readable without the
+		 * table beside it. The administrator's names the one thing the word does not cover.
+		 */
+		roles: {
+			owner: {
+				who: 'holds the turso account everything is kept on, and can do anything here. there is one owner, and handing it over is their own act.'
+			},
+			administrator: {
+				who: "looks after the people and the workspaces: adds a member, makes links, renames, grants a workspace. the turso account stays the owner's."
+			},
+			member: {
+				who: 'works in the workspaces they hold, and changes nothing about anybody else unless you allow it.'
+			}
+		},
+
+		/**
+		 * what each act lets a person do, said as the thing they can do.
+		 *
+		 * These lines are the one place the seven acts are explained: the sheet's list, the picker
+		 * that allows one, and the role table all read them, so an act is worded once. Short, and
+		 * each starts with *can*, because they are read as a list of what one person may do rather
+		 * than as a form's labels.
+		 */
+		acts: {
+			inviteMember: { does: 'can invite members' },
+			removeMember: { does: 'can remove members' },
+			changeRole: { does: 'can change what a member may do' },
+			renameWorkspace: { does: 'can rename a workspace' },
+			resetPassword: { does: "can reset a member's password" },
+			renameMember: { does: 'can rename members' },
+			grantWorkspace: { does: 'can give a member a workspace' }
+		},
+
+		/** what each access level is good for, beside the level's own name. */
+		levels: {
+			full: { does: 'reads and writes everything in it.' },
+			readOnly: { does: 'reads it, and writes nothing.' },
+			none: { does: 'does not reach it at all.' }
+		},
+
+		/**
+		 * the read-only table, opened from the members tray and edited nowhere.
+		 *
+		 * The comparison belongs beside the chooser rather than inside it: a person consults it
+		 * before picking a role, and picking one is a single control either way.
+		 */
+		roleTable: {
+			title: 'what each role may do',
+			description:
+				'a role is what somebody is called and what they start with. anything else is allowed on their own sheet.',
+			given: 'what you can give somebody',
+			memberNote: 'a member starts with none of these, and is allowed them on their own sheet.',
+			ownerAlone: 'the owner alone',
+			ownerAloneReason:
+				'these run on the turso account the owner connected, so nobody can be given them.',
+			allowed: 'yes',
+			notAllowed: 'no',
+			createWorkspace: 'make a new workspace.',
+			deleteWorkspace: 'delete a workspace and everything in it.',
+			lockOut: 'cut somebody off from every workspace at once.',
+			renew: 'renew the credentials that keep everybody syncing.',
+			tursoAccount: 'connect the turso account, and forget it.'
 		}
 	},
 

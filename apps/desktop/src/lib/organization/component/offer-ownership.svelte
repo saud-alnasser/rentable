@@ -104,7 +104,7 @@
 		     chooser's own list is drawn in a portal on opening, which a test cannot reach. -->
 		<Field.Field data-transfer-ownership-accounts={accounts.length}>
 			<Field.Label for="transfer-ownership-account">
-				{$LL.organization.dashboard.transferOwnershipAccount()}
+				{$LL.organization.dashboard.transferOwnershipMember()}
 			</Field.Label>
 			<Select.Root
 				type="single"

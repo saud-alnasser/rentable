@@ -91,7 +91,7 @@ test('the form opens on the shared form surface and asks for a username, a role,
 	// one form, and it is the surface's own.
 	expect(document.querySelectorAll('form')).toHaveLength(1);
 	expect(screen.getByText(en.organization.dashboard.memberTitle)).toBeDefined();
-	expect(screen.getByText(en.organization.dashboard.accountDescription)).toBeDefined();
+	expect(screen.getByText(en.organization.dashboard.memberDescription)).toBeDefined();
 
 	const names = inputsOnScreen()
 		.map((input) => input.getAttribute('name'))

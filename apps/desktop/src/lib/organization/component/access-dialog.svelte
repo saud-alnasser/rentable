@@ -19,16 +19,18 @@
 	/**
 	 * Grants, chosen one row at a time: none, full access, or read only.
 	 *
-	 * **Light: one control per row** ([[rules/interface]], *Form surface*). Opened from a member's
-	 * row in the members section, where the rows are the workspaces the reader can grant and the
-	 * subject is the member.
+	 * **Light: one control per row** ([[rules/interface]], *Form surface*). Opened from a
+	 * workspace's card in the workspaces section, where the rows are the members who hold it and
+	 * the subject is the workspace.
 	 *
-	 * **It takes rows rather than workspaces, because a grant has two ends.** The members section
-	 * asks *which workspaces does this member hold*; the workspaces section asks *who holds this
-	 * workspace, and at what access*, which is the same question read the other way round. So the
-	 * subject is named by the caller through `title` and `description`, and `rows` are whatever
-	 * the caller is granting over: workspaces for a member, members for a workspace. What comes
-	 * back is the rows that changed, by their own ids.
+	 * **It takes rows rather than members, because a grant has two ends.** The workspaces section
+	 * asks *who holds this workspace, and at what access*; the members section asks *which
+	 * workspaces does this member hold*, which is the same question read the other way round. So
+	 * the subject is named by the caller through `title` and `description`, and `rows` are
+	 * whatever the caller is granting over. What comes back is the rows that changed, by their own
+	 * ids. *The members section drew this too until `member-sheet.svelte` folded its rows into a
+	 * section of one surface (effort 828, requirement 23); the shape of the rows is the same
+	 * there.*
 	 *
 	 * **Read only is the owner's**, because minting a read-only credential needs the Turso
 	 * authority that lives on the owner's machine (requirement 5). For anybody else it is drawn

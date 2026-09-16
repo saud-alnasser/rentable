@@ -12,6 +12,8 @@ import type { MemberStanding, OrganizationMember, OrganizationWorkspace } from '
 import en from '$lib/i18n/en';
 import ar from '$lib/i18n/ar';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
+import { chooseOption, openSelect } from '$lib/design/tests/select';
+import { EVERY_ADMINISTRATION, maskOf } from '@rentable/workspace-permission';
 
 import Providers from './providers.svelte';
 
@@ -191,8 +193,7 @@ const KINDS = [
 	'withdraw-offer',
 	'transfer',
 	'rename',
-	'role',
-	'access',
+	'edit',
 	'link',
 	'unset-password',
 	'end-sessions',
@@ -408,11 +409,11 @@ test('the address naming an account opens that account and is cleared', async ()
 	list();
 
 	await waitFor(() => {
-		expect(document.querySelector('[data-role-form]')).not.toBeNull();
+		expect(document.querySelector('[data-member-sheet]')).not.toBeNull();
 	});
 	expect(
 		screen.getByText(
-			en.organization.dashboard.changeRoleDescription.replace('{username:string}', 'ada')
+			en.organization.dashboard.memberSheetDescription.replace('{username:string}', 'ada')
 		)
 	).toBeDefined();
 	expect(navigations).toEqual(['/settings?section=members']);
@@ -432,8 +433,7 @@ test('the owner sees every act on every card but their own', async () => {
 
 	expect(await actsOn('ada')).toEqual([
 		'rename',
-		'role',
-		'access',
+		'edit',
 		'link',
 		'unset-password',
 		'end-sessions',
@@ -442,8 +442,7 @@ test('the owner sees every act on every card but their own', async () => {
 	]);
 	expect(await actsOn('sami')).toEqual([
 		'rename',
-		'role',
-		'access',
+		'edit',
 		'link',
 		'unset-password',
 		'end-sessions',
@@ -605,7 +604,7 @@ test('a reader meets no edit on their own card', async () => {
 	expect(control('ada')).toBeNull();
 	expect(await actsOn('ada')).toEqual([]);
 	// and everybody else's card is still theirs to write.
-	expect(await actsOn('sami')).toContain('role');
+	expect(await actsOn('sami')).toContain('edit');
 });
 
 test('a member holding no act sees no card action at all, and no add control', () => {
@@ -651,8 +650,10 @@ test('each act is drawn by its own act and by no other', async () => {
 		rendered.unmount();
 	};
 
-	await only({ canChangeRole: true }, 'ada', ['role']);
-	await only({ canGrantWorkspace: true }, 'ada', ['access']);
+	// one entry, and either act draws it: the sheet holds whichever section that act writes.
+	await only({ canChangeRole: true }, 'ada', ['edit']);
+	await only({ canGrantWorkspace: true }, 'ada', ['edit']);
+	await only({ canChangeRole: true, canGrantWorkspace: true }, 'ada', ['edit']);
 	await only({ canRename: true }, 'ada', ['rename']);
 	// unsetting a password and closing the ways in that are already open are one act read twice.
 	await only({ canReset: true }, 'ada', ['unset-password', 'end-sessions']);
@@ -778,8 +779,7 @@ test('every act on the menu reads as one or two plain words', async () => {
 
 	expect(said).toEqual({
 		rename: en.organization.dashboard.rename,
-		role: en.organization.dashboard.changeRole,
-		access: en.settings.section.workspaces,
+		edit: en.common.actions.edit,
 		link: en.organization.dashboard.makeLink,
 		'unset-password': en.organization.dashboard.unsetPassword,
 		'end-sessions': en.organization.dashboard.endSessions,
@@ -791,9 +791,8 @@ test('every act on the menu reads as one or two plain words', async () => {
 		expect(words.split(' ').length, `${kind}: ${words}`).toBeLessThanOrEqual(3);
 	}
 
-	// the surfaces keep the headings the entries gave up: a dialog has room to say what it is.
-	expect(en.organization.dashboard.changeRoleTitle).toBe('role and permissions');
-	expect(en.organization.dashboard.accessTitle).toBe('workspaces and access');
+	// and the surface says what it is about, which the entry has no room for.
+	expect(en.organization.dashboard.memberSheetDescription).toContain('{username:string}');
 });
 
 // requirement 19: the two acts that destroy something are marked as such on the menu.
@@ -828,36 +827,168 @@ test('the add control stands in the tray before the first card and asks the shel
 	expect(surface()).toBeNull();
 });
 
-test('the role act opens the role dialog on the account it named', async () => {
+// criterion 23: one entry opens one sheet of three sections, on the member it named, and the two
+// entries that opened two dialogs are gone from the menu.
+test('the edit act opens the sheet on the member it named, with its three sections', async () => {
 	list();
 
-	await press('ada', 'role');
+	await press('sami', 'edit');
 
 	expect(surface()).not.toBeNull();
 	expect(
 		screen.getByText(
-			en.organization.dashboard.changeRoleDescription.replace('{username:string}', 'ada')
+			en.organization.dashboard.memberSheetDescription.replace('{username:string}', 'sami')
 		)
 	).toBeDefined();
-	expect(document.querySelector('[data-role-form]')).not.toBeNull();
-});
-
-test('the access act opens the access dialog on the workspaces the member holds', async () => {
-	list();
-
-	await press('ada', 'access');
-
-	expect(document.querySelector('[data-access-form]')).not.toBeNull();
+	expect(
+		Array.from(document.querySelectorAll('[data-sheet-section]')).map((block) =>
+			block.getAttribute('data-sheet-section')
+		)
+	).toEqual(['role', 'acts', 'workspaces']);
+	// the workspaces the member holds, as rows of the sheet rather than a second surface.
 	expect(
 		Array.from(document.querySelectorAll('[data-access-row]')).map((row) =>
 			row.getAttribute('data-access-row')
 		)
 	).toEqual(['ws-1', 'ws-2']);
+	expect(document.querySelector('[data-role-form]')).toBeNull();
+	expect(document.querySelector('[data-access-form]')).toBeNull();
+});
+
+// criterion 23: one save runs the acts that exist, each with what was chosen on it.
+test('one save writes the role, the widening and the grants through the acts that exist', async () => {
+	const roles: string[] = [];
+	const grants: string[] = [];
+
+	list({
+		onChangeRole: async (memberId, role, permissions) => {
+			roles.push(`${memberId}:${role}:${permissions}`);
+		},
+		onChangeAccess: async (memberId, changes) => {
+			grants.push(`${memberId}:${changes.map((change) => `${change.id}=${change.access}`).join()}`);
+		}
+	});
+
+	await press('sami', 'edit');
+
+	// sami holds ws-1 and nothing else, and is allowed nothing beyond their role. The picker ticks
+	// what is to be allowed and its one confirm puts it on the list.
+	await fireEvent.click(document.querySelector<HTMLButtonElement>('[data-act-add]')!);
+	await fireEvent.click(
+		document.querySelector<HTMLButtonElement>(
+			'[data-act-offer="renameMember"] [data-slot=checkbox]'
+		)!
+	);
+	await fireEvent.click(document.querySelector<HTMLButtonElement>('[data-act-allow]')!);
+	await openSelect(document.querySelector<HTMLElement>('#access-ws-2')!);
+	await chooseOption(
+		document
+			.querySelector('[data-level-does="full-access"]')!
+			.closest('[data-slot=select-item]') as HTMLElement
+	);
+	await fireEvent.submit(document.querySelector('form')!);
+
+	await waitFor(() => {
+		expect(roles).toEqual([`sami:member:${maskOf('renameMember')}`]);
+	});
+	expect(grants).toEqual(['sami:ws-2=full-access']);
+	// nothing was refused, so the sheet closed on what it wrote.
+	await waitFor(() => {
+		expect(surface()).toBeNull();
+	});
+});
+
+// [[rules/interface]], *Validation errors*: what an act refuses is said on the section that asked
+// for it, and the sheet stays open on what was chosen.
+test('a refused act marks its own section and leaves the sheet open', async () => {
+	list({
+		onChangeAccess: async () => {
+			throw new Error('that workspace is not yours to grant');
+		}
+	});
+
+	await press('sami', 'edit');
+
+	await openSelect(document.querySelector<HTMLElement>('#access-ws-2')!);
+	await chooseOption(
+		document
+			.querySelector('[data-level-does="full-access"]')!
+			.closest('[data-slot=select-item]') as HTMLElement
+	);
+	await fireEvent.submit(document.querySelector('form')!);
+
+	await waitFor(() => {
+		expect(
+			document
+				.querySelector('[data-sheet-section="workspaces"]')
+				?.querySelector('[data-sheet-error="workspaces"]')
+		).not.toBeNull();
+	});
+	expect(document.querySelector('[data-sheet-error="role"]')).toBeNull();
+	expect(surface()).not.toBeNull();
+});
+
+// requirement 23: what each role may do is read from the tray, beside the add, and written
+// nowhere.
+test('the tray opens the read-only role table, beside the add', async () => {
+	list();
+
+	const opener = screen.getByRole('button', { name: en.organization.roleTable.title });
+	const tray = document.querySelector('[data-directory-tray]')!;
+
+	expect(tray.contains(opener)).toBe(true);
+	// quiet and glyph-only, like the add it stands beside.
+	expect(opener.querySelector('svg')).not.toBeNull();
+	expect(opener.textContent?.trim()).toBe('');
+	expect(document.querySelector('[data-role-table]')).toBeNull();
+
+	await fireEvent.click(opener);
+
+	const table = document.querySelector('[data-role-table]')!;
+
+	expect(table).not.toBeNull();
+	// a column per role, and a row per act with its sentence.
 	expect(
-		screen.getByText(
-			en.organization.dashboard.accessDescription.replace('{username:string}', 'ada')
+		Array.from(table.querySelectorAll('[data-role-column]')).map((column) =>
+			column.getAttribute('data-role-column')
 		)
-	).toBeDefined();
+	).toEqual(['member', 'administrator', 'owner']);
+	expect(
+		Array.from(table.querySelectorAll('[data-role-act]')).map((row) =>
+			row.getAttribute('data-role-act')
+		)
+	).toEqual([
+		...EVERY_ADMINISTRATION,
+		'createWorkspace',
+		'deleteWorkspace',
+		'lockOut',
+		'renew',
+		'tursoAccount'
+	]);
+	expect(screen.getByText(en.organization.acts.inviteMember.does)).toBeDefined();
+	// the acts nobody can be given, under the owner, with the reason said once.
+	expect(screen.getByText(en.organization.roleTable.ownerAloneReason)).toBeDefined();
+	expect(screen.getByText(en.organization.roles.owner.who)).toBeDefined();
+	// and nothing on it writes.
+	expect(table.querySelectorAll('input, [data-slot=select-trigger]')).toHaveLength(0);
+});
+
+// the table is a reference, so everybody who reads the section reads it, whatever they may write.
+test('the role table is offered to a reader who may change nothing', () => {
+	list({
+		canInvite: false,
+		canRemove: false,
+		canLockOut: false,
+		canRename: false,
+		canReset: false,
+		canChangeRole: false,
+		canGrantWorkspace: false,
+		isOwner: false,
+		selfId: 'sami'
+	});
+
+	expect(document.querySelector('[data-invite-open]')).toBeNull();
+	expect(document.querySelector('[data-role-table-open]')).not.toBeNull();
 });
 
 test('the rename opens a light form surface with one username field, opened on the name the card holds', async () => {
@@ -931,8 +1062,7 @@ test('and in arabic every card reads in its own words, right to left', async () 
 
 	expect(lockOut?.textContent?.trim()).toBe(ar.organization.dashboard.lockOut);
 	expect(on('remove', 'ada')?.textContent?.trim()).toBe(ar.organization.dashboard.remove);
-	expect(on('role', 'ada')?.textContent?.trim()).toBe(ar.organization.dashboard.changeRole);
-	expect(on('access', 'ada')?.textContent?.trim()).toBe(ar.settings.section.workspaces);
+	expect(on('edit', 'ada')?.textContent?.trim()).toBe(ar.common.actions.edit);
 	expect(ar.organization.dashboard.remove).not.toBe(ar.organization.dashboard.lockOut);
 
 	setLocale('en');

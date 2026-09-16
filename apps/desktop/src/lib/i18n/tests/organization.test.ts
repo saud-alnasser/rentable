@@ -154,8 +154,8 @@ test('both locales say the link is handed over by hand, and neither mentions a p
 	assert.doesNotMatch(en.organization.dashboard.cannotSend, /the password/);
 	assert.match(ar.organization.dashboard.cannotSend, /انسخ الرابط أدناه/);
 	assert.doesNotMatch(ar.organization.dashboard.cannotSend, /كلمة المرور أدناه/);
-	assert.match(en.organization.dashboard.accountDescription, /username/);
-	assert.match(ar.organization.dashboard.accountDescription, /اسم المستخدم/);
+	assert.match(en.organization.dashboard.memberDescription, /username/);
+	assert.match(ar.organization.dashboard.memberDescription, /اسم المستخدم/);
 });
 
 // effort 826, requirement 21: one Turso group holds one organization, and the connect step says

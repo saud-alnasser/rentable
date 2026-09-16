@@ -214,7 +214,7 @@
 	{enhance}
 	weight="heavy"
 	title={$LL.organization.dashboard.memberTitle()}
-	description={$LL.organization.dashboard.accountDescription()}
+	description={$LL.organization.dashboard.memberDescription()}
 >
 	<div class="flex flex-col gap-4" data-account-form>
 		<Form.Field form={superform} name="username" class="group relative">

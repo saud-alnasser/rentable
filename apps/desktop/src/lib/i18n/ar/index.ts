@@ -801,7 +801,7 @@ const ar = {
 			standingSignedIn: 'مسجّل الدخول على جهاز',
 
 			memberTitle: 'عضو جديد',
-			accountDescription:
+			memberDescription:
 				'العضو هو اسم المستخدم والدور وما يستطيع فعله ومساحات العمل التي يحملها. لا كلمة مرور له حتى تصنع له رابطًا ويفتحه.',
 			role: 'الدور',
 			administratorsAreTheOwners: 'المالك وحده يستطيع جعل أحد مديرًا.',
@@ -816,11 +816,10 @@ const ar = {
 			done: 'تم',
 			invitationExpires: 'تنتهي صلاحية الرابط في {date}',
 			makeLink: 'اصنع رابطًا',
-			changeRole: 'غيّر الدور',
 			transferOwnership: 'سلّم الملكية',
 			transferOwnershipGoes:
 				'يُعرض على الشخص الذي تختاره أن يأخذ المؤسسة. لا يتغيّر شيء حتى يقبل العرض، من جهاز هو مسجّل دخوله عليه، بكلمة مروره هو. فإذا قبل، صار هو المالك وصرت أنت مديرًا.',
-			transferOwnershipAccount: 'من يُعرض عليه',
+			transferOwnershipMember: 'من يُعرض عليه',
 			transferOwnershipAuthority:
 				'حساب Turso لا ينتقل. تبقى قواعد البيانات عليه، ويصل المالك الجديد حسابه من قسم المزامنة قبل أن يستطيع إنشاء مساحة عمل أو حظر أحد أو تجديد الاعتمادات.',
 			transferOwnershipConfirm: 'اعرضها',
@@ -869,9 +868,7 @@ const ar = {
 			accessFull: 'وصول كامل',
 			accessReadOnly: 'قراءة فقط',
 			accessNone: 'لا وصول',
-			accessTitle: 'مساحات العمل والوصول',
-			accessDescription:
-				'مساحات العمل التي يحملها {username}، وما يصلح له كل منها. سحب مساحة عمل لا يصدر شيئًا، فما يحمله الآن يعمل حتى تنتهي صلاحيته.',
+			accessTakenBack: 'سحب مساحة عمل لا يصدر شيئًا، فما يحمله الآن يعمل حتى تنتهي صلاحيته.',
 			accessSaved: 'حُفظت مساحات العمل.',
 			workspaceAccessTitle: 'الأعضاء والوصول',
 			workspaceAccessDescription:
@@ -883,9 +880,13 @@ const ar = {
 			transferTitle: 'تصدير واستيراد {workspace}',
 			forgetAccount: 'انسَ حساب Turso',
 			readOnlyIsTheOwners: 'المالك وحده يمنح وصول القراءة فقط، من جهازه هو.',
-			changeRoleTitle: 'الدور والصلاحيات',
-			changeRoleDescription:
-				'الدور هو ما تسمي به القائمة {username}؛ والأفعال أدناه هي ما يستطيع فعله حقًا، واختيار دور يضبطها كلها دفعة واحدة.',
+			memberSheetDescription: 'ما يستطيع {username} فعله في هذه المؤسسة.',
+			beyondRole: 'خارج دوره',
+			beyondRoleDescription: 'ما يستطيع هذا العضو فعله مما لا يستطيعه العضو عادة.',
+			beyondRoleNone: 'لا شيء خارج دوره.',
+			beyondRoleAdd: 'اسمح له بشيء آخر',
+			allowActs: 'اسمح',
+			administratorAllowedEvery: 'المدير يستطيع كل ذلك أصلًا.',
 			permissionsLegend: 'ما يستطيع فعله',
 			actInviteMember: 'دعوة الأعضاء',
 			actRemoveMember: 'إزالة الأعضاء',
@@ -912,6 +913,50 @@ const ar = {
 			deleteOrganizationGoes:
 				'تذهب كل مساحة عمل وكل ما فيها: المستأجرون والمجمعات والوحدات والعقود والدفعات. ويذهب معها سبيل الدخول لكل عضو. وتجد الأجهزة الأخرى المؤسسة غائبة في أول فتح لها فتصل إلى الشاشة الأولى. لا شيء يعيد هذا.',
 			organizationDeleted: 'حُذفت المؤسسة.'
+		},
+
+		roles: {
+			owner: {
+				who: 'يملك حساب Turso الذي يُحفظ عليه كل شيء، ويستطيع فعل أي شيء هنا. المالك واحد، وتسليم الملكية فعله هو.'
+			},
+			administrator: {
+				who: 'يتولّى الأعضاء ومساحات العمل: يضيف عضوًا، ويصنع الروابط، ويغيّر الأسماء، ويمنح مساحات العمل. أما حساب Turso فيبقى للمالك.'
+			},
+			member: {
+				who: 'يعمل في مساحات العمل التي يحملها، ولا يغيّر شيئًا عن أحد غيره إلا أن تأذن له.'
+			}
+		},
+
+		acts: {
+			inviteMember: { does: 'يستطيع دعوة الأعضاء' },
+			removeMember: { does: 'يستطيع إزالة الأعضاء' },
+			changeRole: { does: 'يستطيع تغيير ما يفعله عضو آخر' },
+			renameWorkspace: { does: 'يستطيع تغيير اسم مساحة عمل' },
+			resetPassword: { does: 'يستطيع إعادة تعيين كلمة مرور عضو' },
+			renameMember: { does: 'يستطيع تغيير أسماء الأعضاء' },
+			grantWorkspace: { does: 'يستطيع منح عضو مساحة عمل' }
+		},
+
+		levels: {
+			full: { does: 'يقرأ كل ما فيها ويكتب.' },
+			readOnly: { does: 'يقرأها ولا يكتب فيها شيئًا.' },
+			none: { does: 'لا يصل إليها أصلًا.' }
+		},
+
+		roleTable: {
+			title: 'ما يستطيع كل دور فعله',
+			description: 'الدور هو ما يُسمّى به المرء وما يبدأ به. وما عدا ذلك يُسمح به في صفحته هو.',
+			given: 'ما يمكنك منحه لأحد',
+			memberNote: 'العضو لا يبدأ بشيء من هذه، ويُسمح له بها في صفحته هو.',
+			ownerAlone: 'للمالك وحده',
+			ownerAloneReason: 'هذه تجري على حساب Turso الذي وصله المالك، فلا تُمنح لأحد.',
+			allowed: 'نعم',
+			notAllowed: 'لا',
+			createWorkspace: 'ينشئ مساحة عمل جديدة.',
+			deleteWorkspace: 'يحذف مساحة عمل وكل ما فيها.',
+			lockOut: 'يقطع أحدهم عن كل مساحات العمل دفعة واحدة.',
+			renew: 'يجدّد الاعتمادات التي تبقي الجميع على المزامنة.',
+			tursoAccount: 'يصل حساب Turso، وينساه.'
 		}
 	},
 
