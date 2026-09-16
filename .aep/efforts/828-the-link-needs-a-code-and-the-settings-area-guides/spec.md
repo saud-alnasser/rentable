@@ -212,7 +212,9 @@ organization's own link retires; the owner can delete the organization*)
     leaves the registry on disconnect. **A machine counts as connected while it was seen within
     the last seven days**, so a machine that died without disconnecting stops standing in the
     owner's way after a week. The rows are unsigned, like the session epoch and the machine link,
-    and the registry gates requirement 14 alone; nothing else reads it.
+    and the registry gates requirement 14 alone; nothing else reads it. *Corrected 2026-09-16:
+    the members directory reads it too, for the standing line and the link act's gate
+    (requirements 19 and 20); nothing lists machines and nothing acts on one.*
 16. **The organization's own link retires.** With requirement 14 the copy that recovered the
     organization is the owner's account, so the organization link, the one credential that
     never lapses, is no longer minted, stored, shown or accepted. The sync section's link block
@@ -301,6 +303,9 @@ section of ticket 07 in the running build; two picker rounds and one elaboration
    test opens the link with the code on a second store, lands connected with no member, signs
    in with the unchanged password, and finds the link refused on a second opening and after
    seven days; a wrong code is refused by name.
+   *Superseded 2026-09-16 by criterion 20 with requirement 3: the link is made from the account's
+   card by the owner or an administrator, and the you section offers none; ticket 04's tests
+   still pin the machine kind's single use, lapse and wrong code.*
 4. The sync section, for the owner, still shows the organization link under a sentence that
    names it as the recovery copy and points a member to their you section; for anybody else
    the block is absent. A Rust test connects a machine with it and no code.
@@ -313,13 +318,16 @@ section of ticket 07 in the running build; two picker rounds and one elaboration
 6. The members section's test finds the sentence under the legend, the invite control before
    the first row, and every act of 826's requirement 15 reachable on a row without a hover,
    gated as before; the same test with a member session finds the section absent as before.
+   *Superseded 2026-09-16 by criterion 19 with requirement 6: cards in a directory, not rows.*
 7. The workspaces section's test finds the sentence, the create control before the first row
    for an owner holding the authority and the refusal for one who does not, every act
    reachable without a hover, and the transfer beneath under the open workspace's name.
+   *Superseded 2026-09-16 by criterion 21 with requirement 7.*
 8. The you section's test finds no password field until the change control is pressed, then
    the shared form surface with the three fields and the floor sentence; and finds the
    second-machine control, which on press shows a link with one copy control and a code with
-   none.
+   none. *The second clause superseded 2026-09-16 by criterion 20 with requirement 8: the you
+   section offers no link act; the password half stands and is met.*
 9. The workspace menu's test finds the header, the switch rows with the open one marked, and
    one row to the workspaces section, and finds no invite row, no create row and no refusal
    sentence.
@@ -358,7 +366,10 @@ section of ticket 07 in the running build; two picker rounds and one elaboration
     confirmation on the form surface naming what goes.
 19. The members section's test, with an administrator session, finds one record card per
     account with its standing, the add control in the tray above the cards, and every act of
-    826's requirement 15 present or absent on the card's menu by the same gates; the owner's
+    requirement 19 lists present or absent on the card's menu by the same gates (*corrected
+    2026-09-16 at converge: this said every act of 826's requirement 15, which names revoke and
+    copy link; requirement 19's menu leaves both out, a fresh link superseding a stale one and a
+    reset resealing the vault, and the human accepted the menu on 2026-09-16*); the owner's
     card offers an administrator nothing and the owner the transfer alone; a reader's own card
     offers nothing; a member session finds no section. A Rust test makes an account with no
     password and finds it refused at the wall until its first link is opened.
@@ -411,12 +422,15 @@ section of ticket 07 in the running build; two picker rounds and one elaboration
   every machine is gone asks the owner for a reset. *This entry replaced, 2026-09-15, the one
   that put restoring from the consent out of scope; the human brought it in when they found
   their own organization unreachable.*
-- **A registry that anything but the connect-existing gate reads**: no list of machines in the
-  settings area, no signing a machine out by name. The registry exists to answer one question.
+- **A registry that lists machines or acts on one**: no list of machines in the settings area,
+  no signing a machine out by name. *Corrected 2026-09-16: this said nothing but the
+  connect-existing gate reads it; the members directory reads it for an account's standing.*
 - **A clock-based code**, in the style of an authenticator: the joining machine would have
   to hold the secret the code is derived from, which is the thing being protected.
 - **An administrator making or viewing a second-machine code for a member.** A reset exists
   for a member who lost every machine, and a member with a machine makes their own.
+  *Withdrawn 2026-09-16 by requirement 20: the owner or an administrator makes every link from
+  the account's card, and a member makes none.*
 - **Sessions that expire on their own**, as 826 left them.
 - **New acts, new roles or new access levels.** Every act a section offers is one 826 built.
   *Corrected 2026-09-16: requirement 22 adds one act, the transfer of ownership, and
@@ -452,6 +466,11 @@ section of ticket 07 in the running build; two picker rounds and one elaboration
 - **A transferred ownership without the authority.** Until the new owner reconnects the
   authority, renewal and minting run on the founder's machine or not at all; grants lapse in
   four weeks. The sync section says so on the new owner's machine.
+- **A holder of `resetPassword` without `inviteMember` can take a password away and cannot
+  hand out the link that restores it.** *Found 2026-09-16 at converge.* Owners and
+  administrators hold both by role, so the default roles are unaffected; a plain member widened
+  with one and not the other is. Recorded, not changed: whether the link act should also follow
+  `resetPassword` is the human's call.
 - **Deleting the organization is irreversible on the platform.** The confirmation says so and
   takes the password; delete protection is lifted per database as the platform port already
   does for a workspace.

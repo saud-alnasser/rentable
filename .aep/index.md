@@ -127,7 +127,7 @@ Start at [[protocol]].
 | 819-an-organization-hosts-its-own-workspaces | implemented | [[efforts/819-an-organization-hosts-its-own-workspaces/spec]] | 1 | 1 | 28 |
 | 824-the-way-in-and-the-workspace-control-are-redesigned | implemented | [[efforts/824-the-way-in-and-the-workspace-control-are-redesigned/spec]] | 0 | 0 | 17 |
 | 826-the-organization-and-the-way-in-are-rethought | implemented | [[efforts/826-the-organization-and-the-way-in-are-rethought/spec]] | 2 | 1 | 22 |
-| 828-the-link-needs-a-code-and-the-settings-area-guides | accepted | [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]] | 2 | 0 | 17 |
+| 828-the-link-needs-a-code-and-the-settings-area-guides | accepted | [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]] | 3 | 0 | 19 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -260,3 +260,5 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/tickets/15-the-members-section-is-a-directory-of-accounts]] feat(settings): the members section is a directory of accounts | 828-the-link-needs-a-code-and-the-settings-area-guides | resolved | 14 |
 | [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/tickets/16-the-workspaces-section-is-a-directory-of-workspaces]] feat(settings): the workspaces section is a directory of workspaces | 828-the-link-needs-a-code-and-the-settings-area-guides | resolved | 15 |
 | [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/tickets/17-ownership-is-transferred-by-the-owner]] feat(organization): ownership is transferred by the owner | 828-the-link-needs-a-code-and-the-settings-area-guides | resolved | 15 |
+| [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/tickets/18-the-dead-surface-goes-and-the-arabic-sweep-exists]] chore(organization): the dead surface goes and the Arabic sweep exists | 828-the-link-needs-a-code-and-the-settings-area-guides | open | — |
+| [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/tickets/19-what-the-branch-falsified-is-corrected]] docs(organization): what the branch falsified is corrected | 828-the-link-needs-a-code-and-the-settings-area-guides | open | — |
