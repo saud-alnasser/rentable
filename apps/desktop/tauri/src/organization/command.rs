@@ -1531,27 +1531,10 @@ pub async fn organization_change_password(
     state_of(&app_state).await
 }
 
-/// Revoke an invitation. A person who never opened their link is removed with it, so the link
-/// opens nothing afterwards; a reset link on a member who has signed in before is deleted alone.
-#[tauri::command]
-pub async fn invitation_revoke(
-    app_state: tauri::State<'_, AppState>,
-    invitation_id: String,
-) -> Result<(), Error> {
-    let mut member = app_state.member.write().await;
-    let store = app_state.organization.read().await;
-    let (member, store) = signed_in(&mut member, &store)?;
-    // the row this act writes back whole carries the session epoch, so it is read after a pull
-    // rather than off this machine's last sight of it (effort 826, requirement 22).
-    store.pull().await;
-
-    invite::revoke_invitation(store, member, &invitation_id, timestamp::now()).await
-}
-
-/// Every member, for the members list: names opened with the content key the session holds, the
-/// workspaces each holds with their access, and the pending invitation where there is one. *There
-/// was a second command answering the invitations until effort 826; one row of the list needs
-/// both, so the row is answered whole here.*
+/// Every member, for the members list: names opened with the content key the session holds and the
+/// workspaces each holds with their access. *There was a second command answering the invitations
+/// until effort 826, which folded the unspent one into the row; effort 828 dropped it again, since
+/// nothing read it.*
 #[tauri::command]
 pub async fn organization_members(
     app_state: tauri::State<'_, AppState>,
@@ -1560,7 +1543,7 @@ pub async fn organization_members(
     let store = app_state.organization.read().await;
     let (member, store) = signed_in(&mut member, &store)?;
 
-    invite::members(store, member, timestamp::now()).await
+    invite::members(store, member).await
 }
 
 /// Where each account stands, for the line the directory draws under a name (effort 828,

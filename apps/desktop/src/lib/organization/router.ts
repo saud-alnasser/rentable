@@ -379,9 +379,10 @@ export const organization = router({
 			})
 	},
 	/**
-	 * Invitations: revoked by the act that makes them, copied again by their issuer, and opened at
-	 * the wall. *They were listed here too until effort 826 put the pending one on the member's
-	 * own row.*
+	 * Invitations: made by `member.linkMake` and opened at the wall. *They were listed here too
+	 * until effort 826 put the pending one on the member's own row, revoked here until effort 828
+	 * found nothing calling it, and copied again by their issuer until requirement 19 settled what
+	 * a card offers.*
 	 *
 	 * **`accept` is `public` for the same reason `connect` is.** A person opening their link has
 	 * no identity here yet; being admitted is what the call does. It reaches `ctx.host` and never
@@ -391,12 +392,6 @@ export const organization = router({
 	 * open anything, are Rust's alone.
 	 */
 	invitation: {
-		revoke: procedure
-			.permitted('inviteMember')
-			.input(z.object({ invitationId: z.string().trim().min(1) }))
-			.mutation(async ({ input, ctx }): Promise<void> => {
-				return ctx.host.organization.invitation.revoke(input.invitationId);
-			}),
 		accept: procedure.public
 			.input(
 				z.object({

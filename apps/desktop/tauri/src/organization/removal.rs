@@ -378,10 +378,9 @@ pub async fn delete_organization<P: TursoPlatform>(
 
 /// The ordinary removal's writes, with nothing minted and nothing pushed: `member`'s grants go,
 /// their row is signed as removed by `session`, and a certificate they held is revoked once the
-/// rows it signed are re-signed under the remover. What [`remove_member`] does after its refusals,
-/// and what revoking a never-accepted invitation does through it (`invite::revoke_invitation`,
-/// effort 826 requirement 15): a pending account is taken back under the act that made it, so the
-/// link somebody kept opens a vault that holds nothing.
+/// rows it signed are re-signed under the remover. What [`remove_member`] does after its
+/// refusals. *Revoking a never-accepted invitation took a pending account back through here too,
+/// under effort 826's requirement 15, until effort 828 found nothing calling the revoke.*
 pub(crate) async fn retire_member(
     store: &OrganizationStore,
     session: &MemberSession,
@@ -789,7 +788,7 @@ mod tests {
                 .any(|grant| grant.member_id == member_id)
         );
         assert!(
-            !members(&org.store, &owner, AT)
+            !members(&org.store, &owner)
                 .await
                 .expect("the dashboard's list")
                 .iter()

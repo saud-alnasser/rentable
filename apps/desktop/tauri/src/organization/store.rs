@@ -254,7 +254,7 @@ pub struct GrantRecord {
 ///
 /// **`sealed_secret` and `issued_by` sit outside the signature**, which the plan settled: a
 /// tampered `sealed_secret` opens for nobody, the issuer included, and a tampered `issued_by`
-/// only misplaces a copy control. Putting either under `InvitationAuthority` would move a
+/// names an issuer no reader asks after. Putting either under `InvitationAuthority` would move a
 /// preimage nothing needs moved.
 ///
 /// *It carried `code_seal` and `code_expires_at` between effort 826 and effort 828: the vault
@@ -270,10 +270,14 @@ pub struct InvitationRecord {
     /// issuer's own grant on the organization database dies, whichever is sooner.
     pub expires_at: i64,
     pub consumed_at: Option<i64>,
-    /// the vault password this invitation was made with, the link's own secret and the code,
-    /// sealed together to the issuer's public key. It is what lets the issuer, and nobody else,
-    /// build the same link and read out the same code again; anybody else holding the act is
-    /// offered a fresh link instead, which is a reset.
+    /// the issuer's copy: the vault password this invitation was made with, the link's own secret
+    /// and the code, sealed together to the issuer's public key.
+    ///
+    /// **It has no reader yet.** The act that opened it and handed the issuer the same link and
+    /// the same code a second time went with effort 828, which found nothing calling it; the
+    /// column is written on every invitation and read by nothing. It stays because dropping a
+    /// column is not something a replica can be asked to do, and because the copy it holds is
+    /// what any such act would need again.
     pub sealed_secret: Vec<u8>,
     /// the member id of whoever issued it, which is whose key `sealed_secret` opens for.
     pub issued_by: String,
@@ -2046,9 +2050,9 @@ mod tests {
         assert!(names.contains(&"database_name".to_string()));
         assert!(names.contains(&"schema_version".to_string()));
 
-        // the invitation's own columns, pinned: `sealed_secret` is what a copy control reads and
-        // what `forget::old_shape` calls a replica without the old shape, so a schema that stopped
-        // declaring it would wipe every machine at startup rather than fail here. *`code_seal` and
+        // the invitation's own columns, pinned: `sealed_secret` is what `forget::old_shape` calls
+        // a replica without the old shape by, so a schema that stopped declaring it would wipe
+        // every machine at startup rather than fail here. *`code_seal` and
         // `code_expires_at` sat last, added last and outside the signature, until effort 828 moved
         // the seal into the link's own text.*
         let mut columns = store

@@ -157,7 +157,6 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 				endSessions: refuse('organization.member.endSessions')
 			},
 			invitation: {
-				revoke: refuse('organization.invitation.revoke'),
 				accept: refuse('organization.invitation.accept')
 			},
 			machineConnect: refuse('organization.machineConnect'),

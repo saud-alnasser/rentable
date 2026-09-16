@@ -263,7 +263,6 @@ pub fn run() {
             organization::organization_session_end_elsewhere,
             organization::organization_change_password,
             organization::organization_account_refusal_detail,
-            organization::invitation_revoke,
             organization::invitation_accept,
             organization::machine_connect,
             organization::organization_members,

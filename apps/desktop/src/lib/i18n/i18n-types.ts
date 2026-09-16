@@ -1316,7 +1316,7 @@ type RootTranslation = {
 			 */
 			disconnect: string
 			/**
-			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​f​o​r​g​e​t​s​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​:​ ​e​v​e​r​y​ ​c​o​p​y​ ​o​f​ ​i​t​ ​a​n​d​ ​o​f​ ​i​t​s​ ​w​o​r​k​s​p​a​c​e​s​ ​k​e​p​t​ ​h​e​r​e​ ​i​s​ ​d​e​l​e​t​e​d​,​ ​a​n​d​ ​t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​i​s​ ​f​o​r​g​o​t​t​e​n​ ​w​i​t​h​ ​t​h​e​m​.​ ​n​o​t​h​i​n​g​ ​o​n​ ​t​u​r​s​o​ ​c​h​a​n​g​e​s​,​ ​a​n​d​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​l​i​n​k​ ​c​o​n​n​e​c​t​s​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​a​g​a​i​n​.
+			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​f​o​r​g​e​t​s​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​:​ ​e​v​e​r​y​ ​c​o​p​y​ ​o​f​ ​i​t​ ​a​n​d​ ​o​f​ ​i​t​s​ ​w​o​r​k​s​p​a​c​e​s​ ​k​e​p​t​ ​h​e​r​e​ ​i​s​ ​d​e​l​e​t​e​d​,​ ​a​n​d​ ​t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​i​s​ ​f​o​r​g​o​t​t​e​n​ ​w​i​t​h​ ​t​h​e​m​.​ ​n​o​t​h​i​n​g​ ​o​n​ ​t​u​r​s​o​ ​c​h​a​n​g​e​s​.​ ​t​h​e​ ​o​w​n​e​r​ ​c​o​n​n​e​c​t​s​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​a​g​a​i​n​ ​w​i​t​h​ ​t​h​e​i​r​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​;​ ​a​n​y​b​o​d​y​ ​e​l​s​e​ ​i​s​ ​g​i​v​e​n​ ​a​ ​l​i​n​k​ ​b​y​ ​w​h​o​e​v​e​r​ ​k​e​e​p​s​ ​t​h​e​ ​a​c​c​o​u​n​t​s​.
 			 */
 			disconnectDescription: string
 		}
@@ -2452,7 +2452,7 @@ type RootTranslation = {
 			 */
 			revoked: string
 			/**
-			 * a​ ​n​e​w​e​r​ ​l​i​n​k​ ​t​o​o​k​ ​t​h​e​ ​p​l​a​c​e​ ​o​f​ ​t​h​i​s​ ​o​n​e​.​ ​m​a​k​e​ ​a​n​o​t​h​e​r​ ​f​r​o​m​ ​t​h​e​ ​y​o​u​ ​s​e​c​t​i​o​n​,​ ​o​n​ ​a​ ​m​a​c​h​i​n​e​ ​y​o​u​ ​a​r​e​ ​a​l​r​e​a​d​y​ ​s​i​g​n​e​d​ ​i​n​ ​o​n​.
+			 * a​ ​n​e​w​e​r​ ​l​i​n​k​ ​t​o​o​k​ ​t​h​e​ ​p​l​a​c​e​ ​o​f​ ​t​h​i​s​ ​o​n​e​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​k​e​e​p​s​ ​t​h​e​ ​a​c​c​o​u​n​t​s​ ​f​o​r​ ​t​h​e​ ​n​e​w​ ​o​n​e​.
 			 */
 			replaced: string
 			/**
@@ -2714,10 +2714,6 @@ type RootTranslation = {
 			 * @param {unknown} workspaces
 			 */
 			unreachableWorkspaces: RequiredParams<'workspaces'>
-			/**
-			 * t​h​e​ ​i​n​v​i​t​a​t​i​o​n​ ​w​a​s​ ​r​e​v​o​k​e​d​.
-			 */
-			revoked: string
 			/**
 			 * n​o​ ​w​o​r​k​s​p​a​c​e​ ​y​e​t​.
 			 */
@@ -4197,7 +4193,7 @@ export type TranslationFunctions = {
 			 */
 			disconnect: () => LocalizedString
 			/**
-			 * this machine forgets the organization: every copy of it and of its workspaces kept here is deleted, and the turso account is forgotten with them. nothing on turso changes, and the organization's link connects this machine again.
+			 * this machine forgets the organization: every copy of it and of its workspaces kept here is deleted, and the turso account is forgotten with them. nothing on turso changes. the owner connects this machine again with their turso account; anybody else is given a link by whoever keeps the accounts.
 			 */
 			disconnectDescription: () => LocalizedString
 		}
@@ -5287,7 +5283,7 @@ export type TranslationFunctions = {
 			 */
 			revoked: () => LocalizedString
 			/**
-			 * a newer link took the place of this one. make another from the you section, on a machine you are already signed in on.
+			 * a newer link took the place of this one. ask whoever keeps the accounts for the new one.
 			 */
 			replaced: () => LocalizedString
 			/**
@@ -5544,10 +5540,6 @@ export type TranslationFunctions = {
 			 * you do not hold {workspaces}, so the reset could not restore it. an administrator who does can grant it again.
 			 */
 			unreachableWorkspaces: (arg: { workspaces: unknown }) => LocalizedString
-			/**
-			 * the invitation was revoked.
-			 */
-			revoked: () => LocalizedString
 			/**
 			 * no workspace yet.
 			 */

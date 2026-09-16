@@ -23,17 +23,20 @@
 	 * to the running application and the screen opens with it in the field; a person whose platform
 	 * did not hand it over pastes it there themselves. Either way the code is still to type, since
 	 * a link opens nothing alone (effort 828, requirement 1), and the form takes the two halves
-	 * together (requirement 17). It takes every kind of link (effort 826, requirement 10): which
-	 * kind it is, is read from the link rather than asked.
+	 * together (requirement 17). It takes either kind of link (effort 826, requirement 10): which
+	 * kind it is, is read from the link rather than asked, and a person is handed whichever kind
+	 * their account calls for by whoever keeps the accounts.
 	 *
-	 * **Each kind ends somewhere else.** An organization link names the organization and admits
-	 * nobody, so the machine records it and the person stands at the wall, which is the shell's and
-	 * not drawn here. A second machine's link is connected with the code the form already took, and
-	 * ends at the same wall, because its member already has a password (effort 828, requirement 3).
-	 * An invitation link carries the half that opens one member's vault, so the screen names the
-	 * organization, takes the password they are choosing, and the accept signs them in. *A link
-	 * carried no invitation half between effort 824 and effort 826, and this screen asked for no
-	 * password; the code was asked for on a step of its own until the form took both halves.*
+	 * **The two kinds end somewhere else.** An invitation link carries the half that opens one
+	 * member's vault, so the screen names the organization, takes the password they are choosing,
+	 * and the accept signs them in. A machine link is for an account whose password is already set:
+	 * it is connected with the code the form already took and ends at the wall, which is the
+	 * shell's and not drawn here, because the password its member already has is what signs them in
+	 * (effort 828, requirement 3). *A link carried no invitation half between effort 824 and effort
+	 * 826, and this screen asked for no password; the code was asked for on a step of its own until
+	 * the form took both halves. There was a third kind until effort 828's requirement 16: an
+	 * organization link, which named the organization, carried a legible credential and admitted a
+	 * machine with no code.*
 	 *
 	 * **Each of the two fields answers for itself.** Text that is not a link marks the link field
 	 * and a code the seal refused marks the code field, both on the form that took them, because
@@ -44,8 +47,8 @@
 	 * the row behind a link until the code has unsealed what reaches the organization, which is why
 	 * a lapsed, consumed, revoked or replaced link is named here rather than on the read. Each says
 	 * its own sentence: a lapsed or a revoked invitation says to ask whoever invited for a new link;
-	 * a replaced machine link says to make another from the you section; a link for another
-	 * organization says to disconnect first. A link already opened is the ordinary way a person sets
+	 * a replaced machine link says a newer one took its place; a link for another organization says
+	 * to disconnect first. A link already opened is the ordinary way a person sets
 	 * up a second machine, since a member signs in on as many machines as they like and the link is
 	 * spent on the first: it says so and offers the wall, where the password they chose admits them.
 	 *

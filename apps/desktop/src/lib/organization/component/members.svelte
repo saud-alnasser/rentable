@@ -94,7 +94,8 @@
 	 *
 	 * **The three light dialogs are mounted here once** and opened on whichever card named them:
 	 * the role and its acts, the workspaces and their access, and the rename. The account form is
-	 * not one of them: it is mounted in the shell, because the rail opens it too.
+	 * not one of them: it is mounted in the shell beside the link the act produces, so that one
+	 * panel shows the link wherever the account was made from.
 	 */
 	let {
 		members,

@@ -360,22 +360,10 @@ export type OrganizationState = {
 };
 
 /**
- * the invitation a member is still waiting on: the pending mark on their row, its expiry, and
- * whether the person reading can hand the same link over again. A member has at most one.
- */
-export type PendingInvitation = {
-	invitationId: string;
-	expiresAt: number;
-	/** `open` or `lapsed`; a consumed invitation is not pending and is never reported. */
-	standing: 'open' | 'lapsed' | 'consumed';
-	/** whether the caller issued it, which is whether the same link opens for them again. */
-	canCopy: boolean;
-};
-
-/**
  * one member as the members list draws them. The username opened on the other side; no key, no
- * credential. *The workspaces were ids, and the invitations were a second list read from a call of
- * their own, until effort 826: one row needs both, so the row is answered whole.*
+ * credential. *The workspaces were ids until effort 826, and the row carried the member's unspent
+ * invitation beside them until effort 828 found nothing on this side reading it: where an account
+ * stands is `MemberStanding`, read on its own.*
  */
 export type OrganizationMember = {
 	id: string;
@@ -384,8 +372,6 @@ export type OrganizationMember = {
 	permissions: number;
 	/** the workspaces this member holds, with the access on each. */
 	workspaces: WorkspaceGrant[];
-	/** their unspent invitation, or `null` for somebody who has signed in. */
-	pending: PendingInvitation | null;
 	createdAt: number;
 };
 
@@ -725,12 +711,6 @@ export type Host = {
 			rename: (memberId: string, username: string) => Promise<OrganizationMember>;
 		};
 		invitation: {
-			/**
-			 * revoke an invitation. A person who never opened their link is removed with it, so
-			 * the link opens nothing afterwards; a reset link on a member who has signed in before
-			 * is deleted alone.
-			 */
-			revoke: (invitationId: string) => Promise<void>;
 			/**
 			 * open an invitation link, with the code the issuer read out and a password of the
 			 * person's choosing: the code and the link's secret together unseal the credential and

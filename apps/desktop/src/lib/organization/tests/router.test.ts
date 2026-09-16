@@ -190,7 +190,6 @@ test('changing a role and withdrawing a grant each need their act, and hand thei
 						role,
 						permissions,
 						workspaces: [],
-						pending: null,
 						createdAt: 0
 					};
 				}
@@ -255,7 +254,6 @@ test('nothing here asks the host to list organizations', () => {
 		'disconnect',
 		'groupInspect',
 		'invitation.accept',
-		'invitation.revoke',
 		'machine.connect',
 		'member.changeRole',
 		'member.create',
@@ -467,7 +465,6 @@ test('making an account is inviteMember and unsetting a password is resetPasswor
 						role,
 						permissions,
 						workspaces,
-						pending: null,
 						createdAt: 1_757_000_000_000
 					};
 				},
@@ -630,7 +627,6 @@ test('handing the organization over needs a session, an account and a password, 
 						role: 'owner',
 						permissions: 127,
 						workspaces: [],
-						pending: null,
 						createdAt: 0
 					};
 				}
@@ -687,7 +683,6 @@ test('a rename hands the trimmed username on, refuses one outside the rules firs
 						role: 'member',
 						permissions: 0,
 						workspaces: [],
-						pending: null,
 						createdAt: 0
 					};
 				}

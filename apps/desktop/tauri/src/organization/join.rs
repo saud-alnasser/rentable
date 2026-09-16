@@ -1084,11 +1084,13 @@ mod tests {
         );
     }
 
-    /// Effort 826, requirement 15: revoking a person who never opened their link removes them.
-    /// The link then stands revoked and opens nothing, the member is not listed, and their row is
-    /// signed as removed, so a link somebody kept is a locator and no more.
+    /// A link whose invitation row is gone is refused by name, and the machine it was opened on
+    /// still lands at the wall. A reset is what takes a row away now: it deletes the account's
+    /// unspent invitation and issues another, so a link somebody kept points at nothing and is
+    /// told so. *The row was taken here by a revoke, under effort 826's requirement 15, until
+    /// effort 828 found nothing calling it; the row is deleted directly instead.*
     #[tokio::test]
-    async fn a_revoked_invitation_is_refused_by_name_and_the_person_who_never_arrived_is_gone() {
+    async fn a_link_whose_invitation_row_is_gone_is_refused_and_lands_at_the_wall() {
         let directory = scratch("revoked");
         let (store, owner, link, _, _, _) = invited(&directory).await;
         let gone = make_account_and_link(
@@ -1108,14 +1110,10 @@ mod tests {
         .expect("the invitation failed");
         let their_link = JoinLink::decode(&gone.join_link).expect("the link");
 
-        crate::organization::invite::revoke_invitation(
-            &store,
-            &owner,
-            &gone.invitation_id,
-            ISSUED_AT + 1,
-        )
-        .await
-        .expect("the revoke failed");
+        store
+            .delete_invitation(&gone.invitation_id)
+            .await
+            .expect("the invitation row could not be deleted");
 
         let (machine, refused) = opened(
             &scratch("revoked-machine"),
@@ -1141,34 +1139,6 @@ mod tests {
                 .as_ref()
                 .and_then(|held| held.member_id.as_deref()),
             None
-        );
-
-        let listed = crate::organization::invite::members(&store, &owner, 1_757_000_000_000)
-            .await
-            .expect("the members");
-
-        assert!(
-            !listed.iter().any(|member| member.id == gone.member_id),
-            "the revoked person is still listed"
-        );
-
-        let row = store
-            .members(&owner.verifying_key)
-            .await
-            .expect("the rows")
-            .into_iter()
-            .find(|row| row.id == gone.member_id)
-            .expect("the row stays, signed as removed");
-
-        assert_eq!(row.role, permission::REMOVED);
-        assert!(
-            store
-                .grants(&owner.verifying_key)
-                .await
-                .expect("the grants")
-                .iter()
-                .all(|grant| grant.member_id != gone.member_id),
-            "a grant survived the revoke"
         );
     }
 

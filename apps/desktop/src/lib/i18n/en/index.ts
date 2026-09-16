@@ -396,7 +396,7 @@ const en = {
 			useALink: 'use a link',
 			disconnect: 'disconnect this machine',
 			disconnectDescription:
-				"this machine forgets the organization: every copy of it and of its workspaces kept here is deleted, and the turso account is forgotten with them. nothing on turso changes, and the organization's link connects this machine again."
+				'this machine forgets the organization: every copy of it and of its workspaces kept here is deleted, and the turso account is forgotten with them. nothing on turso changes. the owner connects this machine again with their turso account; anybody else is given a link by whoever keeps the accounts.'
 		},
 
 		startup: {
@@ -801,7 +801,7 @@ const en = {
 				'this invitation link has already been opened. this machine is connected, so sign in with your username and the password you chose.',
 			revoked: 'this invitation was withdrawn. ask whoever invited you for a new link.',
 			replaced:
-				'a newer link took the place of this one. make another from the you section, on a machine you are already signed in on.',
+				'a newer link took the place of this one. ask whoever keeps the accounts for the new one.',
 			anotherOrganization:
 				'this machine already holds another organization. disconnect it first, then open this link.',
 			toSignIn: 'go to the sign-in',
@@ -897,7 +897,6 @@ const en = {
 				'the member was locked out. {count|number} other member(s) reconnect on their own.',
 			unreachableWorkspaces:
 				'you do not hold {workspaces}, so the reset could not restore it. an administrator who does can grant it again.',
-			revoked: 'the invitation was revoked.',
 			noWorkspaces: 'no workspace yet.',
 			// what a card says about the workspaces somebody holds: how many, and not which. Which
 			// ones, and what each is good for, is the surface the card's own menu opens.

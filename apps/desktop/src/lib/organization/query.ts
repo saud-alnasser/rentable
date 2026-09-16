@@ -522,28 +522,6 @@ export function useLockOutCost(memberId: () => string | null) {
 	}));
 }
 
-export function useRevokeInvitation(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).organization.dashboard.revoked(),
-			error: true,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
-	}
-) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: ({ invitationId }: { invitationId: string }) =>
-			api.app.organization.invitation.revoke({ invitationId }),
-		onSuccess: async () => {
-			await client.invalidateQueries({ queryKey: keys.members });
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
-
 /**
  * the signed-in member's own password, changed from the account page. The refusal a person
  * can act on, a password under the floor or a current one that did not open, is shown.

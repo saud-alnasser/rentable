@@ -245,7 +245,7 @@ pub async fn transfer_ownership(
         .with("member", member_id)
         .write();
 
-    members(store, session, now)
+    members(store, session)
         .await?
         .into_iter()
         .find(|member| member.id == member_id)
@@ -395,7 +395,7 @@ pub async fn change_role(
 
     // read back through the routine the list draws from, so what the caller is handed is what the
     // members list will show.
-    members(store, session, now)
+    members(store, session)
         .await?
         .into_iter()
         .find(|member| member.id == member_id)

@@ -69,7 +69,6 @@ export type {
 	OrganizationSession,
 	OrganizationState,
 	OrganizationWorkspace,
-	PendingInvitation,
 	Recovery,
 	RemoteSyncState,
 	RemoteSyncWorkspace,
@@ -279,7 +278,6 @@ export const tauri = {
 			endSessions: (memberId: string) => invoke<SessionsEnded>('member_end_sessions', { memberId })
 		},
 		invitation: {
-			revoke: (invitationId: string) => invoke<void>('invitation_revoke', { invitationId }),
 			accept: (link: string, code: string, password: string) =>
 				invoke<OrganizationState>('invitation_accept', { link, code, password })
 		},
