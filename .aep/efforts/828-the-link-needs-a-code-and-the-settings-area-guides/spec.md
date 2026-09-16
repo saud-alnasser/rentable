@@ -243,13 +243,16 @@ section of ticket 07 in the running build; two picker rounds and one elaboration
     account's standing: password not yet set, no machine signed in, or a machine signed in
     (requirement 15's register). The card's own menu carries the acts: edit (rename, role and
     permissions, workspaces and access), make a link (requirement 20), reset the password, sign
-    out everywhere, remove; each gated as 826's requirement 15 gates it. **The owner's account
-    is removed by nobody and edited by nobody but the owner**; the owner's card offers the
-    owner their own edits and the transfer (requirement 22) and offers an administrator
-    nothing. **An account is made from the foot of the directory**, by the owner or an
-    administrator holding `inviteMember`: username, role, permissions and workspaces, on the
-    form surface; it holds no password until its first link is opened. *Chosen by the human over
-    the row list with one control per row, which was built as ticket 07 and never looked at.*
+    out everywhere, remove; each gated as 826's requirement 15 gates it, in plain words. **The
+    owner's account is removed by nobody and edited by nobody**, and nobody edits their own
+    role, permissions or workspaces: the owner's card offers the transfer (requirement 22) and
+    nothing else, and a reader's own card offers nothing. **An account is made from a tray
+    above the cards**, the shape the contracts view has, by the owner or an administrator
+    holding `inviteMember`: username, role, permissions and workspaces, on the form surface; it
+    holds no password until its first link is opened. *Chosen by the human over the row list
+    with one control per row, which was built as ticket 07 and never looked at. Corrected
+    2026-09-16 on the human's look at the first build: the primary sat at the foot and the
+    owner's own card offered their workspaces; both wrong.*
 20. **A link is the one way a machine joins an account, and it is what an invitation is.** The
     owner or an administrator makes it from the account's card: a link and a six-character
     code, shown the way ticket 06's handover block shows them, offered while the account's
@@ -265,11 +268,14 @@ section of ticket 07 in the running build; two picker rounds and one elaboration
     zero machines logged in or the account is new, give them the link and the code, and on the
     onboarding they are presented with the set-password form the first time.*
 21. **The workspaces section is a directory of workspaces.** Record cards the same way: the
-    name, whether it is the open one, the access this reader holds and how many people hold
-    it; the card's menu carries rename, members and delete, gated as 826's requirement 16 gates
-    them; new workspace at the foot for the owner holding the authority, with the authority
-    refusal standing in its place for an owner who lost it; export and import beneath, under the
-    legend naming the open workspace.
+    name, one quiet mark on the open one, and how many people hold it; *corrected 2026-09-16 on
+    the human's look: this reader's access left the card, since the members surface behind the
+    card's menu is where who holds what is seen, and the open one is marked once rather than
+    badged;* the card's menu carries rename, members and delete, gated as 826's requirement 16 gates
+    them, in plain words; new workspace in a tray above the cards, as the contracts view has
+    it, for the owner holding the authority, with the authority refusal standing in its place
+    for an owner who lost it; export and import beneath, under the legend naming the open
+    workspace. *Corrected 2026-09-16 with requirement 19: the tray, not the foot.*
 22. **Ownership is transferred by the owner to an account.** From an account's card the owner
     names it owner, with their own password. The organization's signing key is unchanged, so
     nothing is re-signed: the key's seed is sealed into the new owner's vault the way the
@@ -351,10 +357,10 @@ section of ticket 07 in the running build; two picker rounds and one elaboration
     test finds the delete control for the owner and not for an administrator, and the
     confirmation on the form surface naming what goes.
 19. The members section's test, with an administrator session, finds one record card per
-    account with its standing, the add control at the foot, and every act of 826's
-    requirement 15 present or absent on the card's menu by the same gates; the owner's card
-    offers an administrator nothing; with the owner's session it offers the owner's edits and
-    the transfer; a member session finds no section. A Rust test makes an account with no
+    account with its standing, the add control in the tray above the cards, and every act of
+    826's requirement 15 present or absent on the card's menu by the same gates; the owner's
+    card offers an administrator nothing and the owner the transfer alone; a reader's own card
+    offers nothing; a member session finds no section. A Rust test makes an account with no
     password and finds it refused at the wall until its first link is opened.
 20. A Rust test makes a link for an account whose password is not yet set, opens it with the
     code on a second store, chooses a password and lands signed in; makes one for an account
@@ -365,7 +371,7 @@ section of ticket 07 in the running build; two picker rounds and one elaboration
     opening and after seven days. The connect screen's test shows the choose-password fields
     for the first kind and the wall for the second. The you section's test finds no link act.
 21. The workspaces section's test finds one card per workspace with its facts, the create
-    control at the foot for an owner holding the authority and the refusal for one who does
+    control in the tray for an owner holding the authority and the refusal for one who does
     not, rename, members and delete on the card's menu by their gates, and the transfer
     beneath under the open workspace's name.
 22. A Rust test transfers ownership to an administrator with the owner's password and finds the

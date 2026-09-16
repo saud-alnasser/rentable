@@ -86,6 +86,19 @@ and 12.
 
 ## Notes
 
+- *2026-09-16, the human's first look* (the dev build from the run's worktree, their own
+  organization): "the card look in members is good; but for the dropdown options text is not
+  simple plain words; and as an admin/owner you should not be able to change your own
+  permissions right?; also for owner they already can view everything and have access to
+  everything we let them change their view access this feels invalid state; the card looks
+  good but the button is not; the members view should be similar to contracts view for example
+  where there is a tray at the top and the records below also for workspaces view". Four
+  findings, fixed on the branch before the second look: the menu's words go plain; nobody
+  edits their own role, permissions or workspaces, so the owner's own card offers nothing
+  until the transfer and a reader's own card rename alone; the add control moves from the
+  foot into a tray above the cards, the contracts view's shape; requirements 19 and 21 and
+  their criteria corrected the same day.
+
 - *2026-09-16, at integration.* Five things the child raised, accepted: the parenthesis in
   "edit (rename, role and permissions, workspaces and access)" is read as the three acts 826
   gates separately, so a card's address opens the fullest edit this reader holds rather than a
