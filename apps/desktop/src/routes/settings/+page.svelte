@@ -14,10 +14,12 @@
 	import { useStartup } from '$lib/layout/startup-context';
 	import { showMadeLink } from '$lib/organization/dialogs.svelte';
 	import {
+		useAcceptOwnership,
 		useChangeAccess,
 		useChangePassword,
 		useChangeRole,
-		useTransferOwnership,
+		useOfferOwnership,
+		useWithdrawOffer,
 		useDeleteOrganization,
 		useDeleteWorkspace,
 		useDisconnectOrganization,
@@ -75,7 +77,9 @@
 	const removeMember = useRemoveMember();
 	const renameMember = useRenameMember();
 	const changeRole = useChangeRole();
-	const transferOwnership = useTransferOwnership();
+	const offerOwnership = useOfferOwnership();
+	const withdrawOffer = useWithdrawOffer();
+	const acceptOwnership = useAcceptOwnership();
 	const changeAccess = useChangeAccess();
 	const deleteWorkspace = useDeleteWorkspace();
 	const deleteOrganization = useDeleteOrganization();
@@ -280,16 +284,37 @@
 	};
 
 	/**
-	 * the organization, handed over once the surface has taken the owner's password (effort 828,
+	 * the organization, offered once the surface has taken the owner's password (effort 828,
 	 * requirement 22).
 	 *
-	 * The state is read again after it, because the reader's own role changed: they are an
-	 * administrator now, and the sections the area offers, the acts the cards carry and the rail's
-	 * menus are all drawn off that. A refusal is said by the shared handler and rethrown, so the
-	 * surface stays open and marks the password.
+	 * The state is not read again: nothing about this reader changed, because an offer moves
+	 * nothing until the other person accepts it on a machine of their own. What changed is on the
+	 * members list, which the hook refreshes. A refusal is said by the shared handler and
+	 * rethrown, so the surface stays open and marks the password.
 	 */
-	const handOver = async (memberId: string, password: string) => {
-		await transferOwnership.mutateAsync({ memberId, password });
+	const offer = async (memberId: string, password: string) => {
+		await offerOwnership.mutateAsync({ memberId, password });
+	};
+
+	/** the offer taken back, from the same card. It asks nothing and announces itself. */
+	const withdraw = async () => {
+		try {
+			await withdrawOffer.mutateAsync();
+		} catch {
+			// said by the shared handler.
+		}
+	};
+
+	/**
+	 * the organization, accepted once the surface has taken this reader's password.
+	 *
+	 * The state is read again after it, because the reader's own role changed: they are the owner
+	 * now, and the sections the area offers, the acts the cards carry and the rail's menus are all
+	 * drawn off that. A refusal is said by the shared handler and rethrown, so the surface stays
+	 * open and marks the password.
+	 */
+	const accept = async (password: string) => {
+		await acceptOwnership.mutateAsync({ password });
 		await stateQuery.refetch();
 	};
 
@@ -342,7 +367,9 @@
 		isChangingPassword={changePassword.isPending}
 		isChangingRole={changeRole.isPending}
 		isChangingAccess={changeAccess.isPending}
-		isTransferring={transferOwnership.isPending}
+		isOffering={offerOwnership.isPending}
+		isWithdrawing={withdrawOffer.isPending}
+		isAcceptingOwnership={acceptOwnership.isPending}
 		isDeletingOrganization={deleteOrganization.isPending}
 		onChangeLocale={(next) => void changeLocale(next)}
 		onRevealDiagnostics={() => void revealDiagnostics()}
@@ -368,7 +395,9 @@
 			await changeRole.mutateAsync({ memberId, role, permissions });
 		}}
 		onChangeAccess={changeMemberAccess}
-		onTransferOwnership={handOver}
+		onOfferOwnership={offer}
+		onWithdrawOffer={() => void withdraw()}
+		onAcceptOwnership={accept}
 		onChangeWorkspaceAccess={changeWorkspaceAccess}
 		onDeleteWorkspace={removeWorkspace}
 		onAuthorityReconnected={() => void stateQuery.refetch()}

@@ -268,6 +268,12 @@ export type OrganizationSession = {
 	workspaces: OrganizationWorkspace[];
 	/** the owner's username: whom a member is told to tell when the account needs attention. */
 	ownerUsername: string;
+	/**
+	 * whether this reader has been offered the organization and has not accepted yet (effort 828,
+	 * requirement 22), which is what draws the acceptance in their you section. A fact about a
+	 * standing offer and never the offer itself; who offered it is `ownerUsername`.
+	 */
+	ownershipOffered: boolean;
 };
 
 /**
@@ -373,6 +379,12 @@ export type OrganizationMember = {
 	/** the workspaces this member holds, with the access on each. */
 	workspaces: WorkspaceGrant[];
 	createdAt: number;
+	/**
+	 * whether the organization has been offered to this account and not yet accepted (effort 828,
+	 * requirement 22). One account carries it or none does, and it is what puts *withdraw the
+	 * offer* on the owner's card in place of the offer.
+	 */
+	offeredOwnership: boolean;
 };
 
 /**
@@ -686,16 +698,22 @@ export type Host = {
 				permissions: number
 			) => Promise<OrganizationMember>;
 			/**
-			 * hand the organization to another account: they become the owner and the caller
-			 * becomes an administrator. The owner's alone, and their password is what performs it;
-			 * a wrong one rejects before anything is written and nothing about it comes back.
+			 * offer the organization to another account: the first of the two acts a handover is
+			 * (effort 828, requirement 22). Nothing about the organization moves, and the owner can
+			 * take it back; the other person accepts on a machine of their own.
 			 *
-			 * The organization's signing key does not change and no row is re-signed: its seed is
-			 * sealed into the new owner's vault. The Turso account does not move with it, so
-			 * until the new owner grants the consent on their own machine the acts that mint run
-			 * on the founder's machine or not at all.
+			 * The owner's alone, and their password is what performs it; a wrong one rejects
+			 * before anything is written and nothing about it comes back. An account with no
+			 * password of its own, a removed one and the caller's own row are each rejected by
+			 * name.
 			 */
-			transferOwnership: (memberId: string, password: string) => Promise<OrganizationMember>;
+			offerOwnership: (memberId: string, password: string) => Promise<OrganizationMember>;
+			/**
+			 * take the offer back: the offer and the seal it wrote both go. The owner's, and it
+			 * asks for no password, because nothing is unsealed and what is undone is something
+			 * this person did. Rejects where no offer stands.
+			 */
+			withdrawOffer: () => Promise<void>;
 			/**
 			 * sign a member out of every machine. Their password is not changed by it. Rejects the
 			 * caller's own row, which is `sessionEndElsewhere`, and the owner's row, which is
@@ -738,6 +756,18 @@ export type Host = {
 		 * back is where the machine stands, with the requirement to change cleared.
 		 */
 		changePassword: (current: string, next: string) => Promise<OrganizationState>;
+		/**
+		 * accept the organization that was offered to this reader: the second of the two acts a
+		 * handover is (effort 828, requirement 22). Their password becomes the organization's key,
+		 * every certificate is re-issued under it, the roles swap, and this machine pins the new
+		 * key. It runs on a machine the account is signed in on and nowhere else.
+		 *
+		 * Rejects where no offer stands, where the password does not open their vault, and where
+		 * what was sealed onto their row is not the key this machine holds, which is what a seal
+		 * somebody planted is. Nothing about the password or the key comes back; what does is
+		 * where the machine stands, with this reader now the owner.
+		 */
+		ownershipAccept: (password: string) => Promise<OrganizationState>;
 		/**
 		 * Turso's own sentence about the standing account refusal, for the owner and nobody else:
 		 * `null` for everybody else, and where nothing is refused.

@@ -47,8 +47,8 @@ is the owner's. A grant is what says a member is in a workspace, and removing it
 are not.
 
 **Chain**:
-The organization key, derived from the owner's secret and stored nowhere, certifies the owner and
-each administrator; their keys sign the rows. A row is verified against the key the link pinned,
+The organization key, derived from the current owner's secret and stored nowhere, certifies the
+owner and each administrator; their keys sign the rows. A row is verified against the key the link pinned,
 never against one read out of the database it judges. **A certificate is retired two ways, and both
 re-sign its rows first.** A reset draws a fresh vault secret, so the administrator's derived signing
 key changes and their reissued certificate carries a new key; a removal writes the certificate back
@@ -58,6 +58,22 @@ holds authority over them: the resetting owner, or the removing owner or adminis
 removal and any future revocation share one routine for this (`store::re_sign_rows_of_certificate`)
 so they cannot drift, and its limit is that a revocation re-signs the revoked certificate's rows
 before it revokes. Nothing seals one member's key to another; the actor re-signs with their own.
+*Corrected 2026-09-16 ([[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]],
+requirement 22): **the key is the current owner's derivation, and it changes when the owner
+does.** A handover is two acts (see *Authority*), and the acceptance re-keys the directory under
+what the new owner's own vault derives: every certificate is re-issued under the new key with the
+same id, the same member and the same signing key, so every row an administrator signed goes on
+verifying and only the two rows whose roles swap are re-signed. **A machine follows a succession
+rather than being told the key.** The `succession` row (`store::SuccessionRecord`) carries the key
+being left and the key replacing it, and its completion is signed by the key being left, so a
+machine holding the old key checks the change against what it already pinned, pins the new key in
+its own record, and re-reads; a chain of handovers is a chain of such signatures and is walked link
+by link (`role::follow_succession`, called from `command::state_of` when a read refuses, from the
+sign-in and from the launch's resume). A machine that pinned neither end follows nothing and
+refuses the rows as it refuses any it cannot verify. Nothing is read out of the database to decide
+which key to trust: the offer's seal is opened only on a machine that already holds the old key,
+and the succession is verified under a key the reader pinned.*
+
 *Corrected 2026-09-14 ([[efforts/826-the-organization-and-the-way-in-are-rethought/spec]],
 requirements 4, 6 and 7): what a member may do is one of seven acts (`inviteMember`,
 `removeMember`, `changeRole`, `renameWorkspace`, `resetPassword`, `renameMember`,
@@ -128,13 +144,24 @@ repeats the consent for it, because no row holds it.
 requirement 22): **the authority follows the account that consented and not the ownership**, so an
 owner who was handed the organization holds none until they grant the consent on their own machine,
 and until they do the acts that mint run on the founder's machine or not at all; the sync section
-says so beside the reconnect. Their **organization key** does move with the ownership, and it is the
-founder's own: the transfer seals its seed to the new owner's public key in `member.owner_seed_sealed`,
-a nullable column folded into the signed preimage only where it is present, so the key is unchanged,
-no row is re-signed, and a row without the seal hashes exactly as it did before the column existed.
-Everything that needs the owner's key reads the seal first and derives from the vault secret only
-where there is none (`setup::owner_key_from`), which is what the *Chain* entry's "derived from the
-owner's secret and stored nowhere" now means for a founder alone.*
+says so beside the reconnect.*
+
+*Corrected again 2026-09-16, at review round one: **a handover is two acts, and the organization
+key becomes the new owner's own derivation.** The owner offers from the account's card with their
+own password (`role::offer_ownership`), which seals the outgoing key's seed to the offered member's
+public key in `member.owner_seed_sealed` and writes a `succession` row signed by the key in force;
+nothing else moves, and `role::withdraw_offer` takes both back. The offered member accepts from
+their you section on a machine they are signed in on, with their own password
+(`role::accept_ownership`): that password derives the new organization key exactly as the
+founder's derived theirs, the seal is opened and **refused unless what it yields is the key this
+machine pinned**, and the directory is re-keyed as the *Chain* entry describes. So an owner's way
+back is their password and nothing read out of the directory, founder and transferee alike
+(`setup::owner_key_from` is now one derivation and has no seal branch), and a founder who handed
+over is refused as the administrator they are. The seal is the offer's carrier and nobody's
+anchor; an offer refuses an account whose password is not set, because such an account has no
+vault of its own to derive from. The first shape sealed the founder's seed onto the new owner's
+row and left the key unchanged; a way back resting on that seal rests on the database it is meant
+to judge, and a member with a full-access grant could replace it.*
 
 ## Boundaries
 

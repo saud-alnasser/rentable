@@ -21,7 +21,7 @@
 	import DirectoryTray from '$lib/organization/component/directory-tray.svelte';
 	import RenameMemberDialog from '$lib/organization/component/rename-member-dialog.svelte';
 	import RoleDialog from '$lib/organization/component/role-dialog.svelte';
-	import TransferOwnership from '$lib/organization/component/transfer-ownership.svelte';
+	import OfferOwnership from '$lib/organization/component/offer-ownership.svelte';
 	import { openOrganizationDialog } from '$lib/organization/dialogs.svelte';
 	import { RECORD_PARAM, recordOf, withSection } from '$lib/settings/section';
 	import CrownIcon from '@lucide/svelte/icons/crown';
@@ -74,7 +74,10 @@
 	 * role, permissions or workspaces** (requirement 19). So the owner's card carries one act and
 	 * no other: handing the organization over (requirement 22), which is the owner's own and is
 	 * absent for everybody else, so an administrator meets that card with no menu and no gesture at
-	 * all. A reader's own card is the same: an account's name, role and workspaces
+	 * all. **That one act is two, and never both at once**: offering the organization while no
+	 * offer stands, and withdrawing the one that does. A handover is two acts on two machines, so
+	 * between them there is a standing offer the owner can see and undo, and the card is where
+	 * they see it. A reader's own card is the same: an account's name, role and workspaces
 	 * are given by somebody else, and Rust refuses each of the three on the row of whoever is
 	 * asking. *The owner's own card offered them their workspaces until the human's first look at
 	 * this directory: an owner reaches every workspace anyway, so it was a control over a state
@@ -115,8 +118,9 @@
 		endingSessions,
 		isChangingRole,
 		isChangingAccess,
-		isTransferring,
-		transferRefusal,
+		isOffering,
+		isWithdrawing,
+		offerRefusal,
 		onEndSessions,
 		onMakeLink,
 		onUnsetPassword,
@@ -125,7 +129,8 @@
 		onRename,
 		onChangeRole,
 		onChangeAccess,
-		onTransferOwnership
+		onOfferOwnership,
+		onWithdrawOffer
 	}: {
 		members: OrganizationMember[];
 		/** where each account stands, joined to the members on the member's id. */
@@ -158,10 +163,12 @@
 		endingSessions: string | null;
 		isChangingRole: boolean;
 		isChangingAccess: boolean;
-		/** the transfer is running, which is a moment the owner is waiting on. */
-		isTransferring: boolean;
-		/** what the shell refused the last transfer with, marked on the surface's password. */
-		transferRefusal: string | null;
+		/** the offer is being written, which is a moment the owner is waiting on. */
+		isOffering: boolean;
+		/** the offer is being taken back, which is another. */
+		isWithdrawing: boolean;
+		/** what the shell refused the last offer with, marked on the surface's password. */
+		offerRefusal: string | null;
 		/**
 		 * sign a member out of every machine. Their password is not changed by it, which is what
 		 * makes it a different act from the reset beside it.
@@ -192,11 +199,13 @@
 			changes: { id: string; access: AccessChoice }[]
 		) => Promise<void>;
 		/**
-		 * hand the organization to another account, with the owner's own password (requirement
-		 * 22). It resolves when the two rows were written and rejects with what the shared handler
-		 * has already said, which is what leaves the surface open on a wrong password.
+		 * offer the organization to another account, with the owner's own password (requirement
+		 * 22). It resolves when the offer was written and rejects with what the shared handler has
+		 * already said, which is what leaves the surface open on a wrong password.
 		 */
-		onTransferOwnership: (memberId: string, password: string) => Promise<void>;
+		onOfferOwnership: (memberId: string, password: string) => Promise<void>;
+		/** take the offer back. It asks for nothing, because nothing is being unsealed. */
+		onWithdrawOffer: () => void;
 	} = $props();
 
 	// this section's own address, resolved once. A card's is it with the account named on it, which
@@ -271,21 +280,27 @@
 	};
 
 	/**
-	 * the accounts the organization could be handed to: everybody but the owner's own row.
+	 * the accounts the organization could be offered to: everybody but the owner's own row, and
+	 * nobody whose password is not set yet.
 	 *
 	 * A removed account is not in this list either, because the members query does not answer one.
-	 * Rust refuses both again on the signed row; this is the earlier refusal, and it is what keeps
-	 * the surface from offering a choice that cannot go through.
+	 * An account with no password of its own has no vault to derive the organization's next key
+	 * from, which is what Rust refuses such an offer by name for; this is the earlier refusal, and
+	 * it is what keeps the chooser from offering a choice that cannot go through. An account whose
+	 * standing has not been answered yet is left out on the same reading `linkable` leaves one out.
 	 */
-	const transferable = $derived(
+	const offerable = $derived(
 		members
-			.filter((member) => member.role !== 'owner')
+			.filter((member) => member.role !== 'owner' && standingOf(member.id)?.passwordSet === true)
 			.map((member) => ({ id: member.id, username: member.username }))
 	);
 
+	/** the account an offer stands with, or `null`. One card carries it or none does. */
+	const offered = $derived(members.find((member) => member.offeredOwnership) ?? null);
+
 	/** the member each dialog is open on, while it is. */
 	let renaming = $state<OrganizationMember | null>(null);
-	let transferring = $state(false);
+	let offering = $state(false);
 	let changingRole = $state<OrganizationMember | null>(null);
 	let changingAccess = $state<OrganizationMember | null>(null);
 	let isRenaming = $state(false);
@@ -354,10 +369,10 @@
 		}
 	};
 
-	const transfer = async (memberId: string, password: string) => {
+	const offer = async (memberId: string, password: string) => {
 		try {
-			await onTransferOwnership(memberId, password);
-			transferring = false;
+			await onOfferOwnership(memberId, password);
+			offering = false;
 		} catch {
 			// said by the shared handler, and marked on the password by the surface, which stays
 			// open with the account still chosen. The refusal that reaches here is a password that
@@ -399,15 +414,32 @@
 	const actsOn = (member: OrganizationMember): RecordCardAction[] => [
 		// the owner's own card, and the one act on it (requirement 22). It is the owner's alone and
 		// on nobody else's card, so an administrator reading the owner's card still meets nothing.
-		...(isOwner && member.id === selfId && member.role === 'owner' && transferable.length > 0
+		// While an offer stands the act is withdrawing it, in the offer's place: there is one
+		// offer at a time, so a card carrying both would be offering something Rust refuses.
+		...(isOwner && member.id === selfId && member.role === 'owner' && offered
+			? [
+					{
+						label: $LL.organization.dashboard.withdrawOffer(),
+						icon: CrownIcon,
+						attributes: { 'data-member-withdraw-offer': member.id },
+						disabled: isWithdrawing,
+						onSelect: onWithdrawOffer
+					}
+				]
+			: []),
+		...(isOwner &&
+		member.id === selfId &&
+		member.role === 'owner' &&
+		!offered &&
+		offerable.length > 0
 			? [
 					{
 						label: $LL.organization.dashboard.transferOwnership(),
 						icon: CrownIcon,
 						attributes: { 'data-member-transfer': member.id },
-						disabled: isTransferring,
+						disabled: isOffering,
 						onSelect: () => {
-							transferring = true;
+							offering = true;
 						}
 					}
 				]
@@ -610,15 +642,15 @@
 	</div>
 </Field.Set>
 
-<TransferOwnership
-	open={transferring}
+<OfferOwnership
+	open={offering}
 	onOpenChange={(open) => {
-		if (!open && !isTransferring) transferring = false;
+		if (!open && !isOffering) offering = false;
 	}}
-	accounts={transferable}
-	{isTransferring}
-	errorMessage={transferRefusal}
-	onTransfer={(memberId, password) => void transfer(memberId, password)}
+	accounts={offerable}
+	{isOffering}
+	errorMessage={offerRefusal}
+	onOffer={(memberId, password) => void offer(memberId, password)}
 />
 
 <RenameMemberDialog

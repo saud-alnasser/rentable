@@ -153,7 +153,8 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 				lockOutCost: refuse('organization.member.lockOutCost'),
 				rename: refuse('organization.member.rename'),
 				changeRole: refuse('organization.member.changeRole'),
-				transferOwnership: refuse('organization.member.transferOwnership'),
+				offerOwnership: refuse('organization.member.offerOwnership'),
+				withdrawOffer: refuse('organization.member.withdrawOffer'),
 				endSessions: refuse('organization.member.endSessions')
 			},
 			invitation: {
@@ -161,6 +162,7 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 			},
 			machineConnect: refuse('organization.machineConnect'),
 			changePassword: refuse('organization.changePassword'),
+			ownershipAccept: refuse('organization.ownershipAccept'),
 			accountRefusalDetail: refuse('organization.accountRefusalDetail')
 		},
 		remoteSync: {
@@ -213,6 +215,7 @@ export function fakeOrganizationSession(
 		permissions: 0,
 		workspaces: [fakeOrganizationWorkspace()],
 		ownerUsername: 'olivia.owner',
+		ownershipOffered: false,
 		...overrides
 	};
 }

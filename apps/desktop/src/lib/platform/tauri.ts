@@ -273,8 +273,9 @@ export const tauri = {
 				invoke<OrganizationMember>('member_rename', { memberId, username }),
 			changeRole: (memberId: string, role: 'administrator' | 'member', permissions: number) =>
 				invoke<OrganizationMember>('member_change_role', { memberId, role, permissions }),
-			transferOwnership: (memberId: string, password: string) =>
-				invoke<OrganizationMember>('member_transfer_ownership', { memberId, password }),
+			offerOwnership: (memberId: string, password: string) =>
+				invoke<OrganizationMember>('member_offer_ownership', { memberId, password }),
+			withdrawOffer: () => invoke<void>('member_withdraw_offer'),
 			endSessions: (memberId: string) => invoke<SessionsEnded>('member_end_sessions', { memberId })
 		},
 		invitation: {
@@ -285,6 +286,8 @@ export const tauri = {
 			invoke<OrganizationState>('machine_connect', { link, code }),
 		changePassword: (current: string, next: string) =>
 			invoke<OrganizationState>('organization_change_password', { current, new: next }),
+		ownershipAccept: (password: string) =>
+			invoke<OrganizationState>('ownership_accept', { password }),
 		accountRefusalDetail: () => invoke<string | null>('organization_account_refusal_detail')
 	},
 	remoteSync: {

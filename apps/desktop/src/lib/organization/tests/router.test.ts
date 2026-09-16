@@ -190,7 +190,8 @@ test('changing a role and withdrawing a grant each need their act, and hand thei
 						role,
 						permissions,
 						workspaces: [],
-						createdAt: 0
+						createdAt: 0,
+						offeredOwnership: false
 					};
 				}
 			},
@@ -261,11 +262,13 @@ test('nothing here asks the host to list organizations', () => {
 		'member.linkMake',
 		'member.list',
 		'member.lockOutCost',
+		'member.offerOwnership',
 		'member.remove',
 		'member.rename',
 		'member.standings',
-		'member.transferOwnership',
 		'member.unsetPassword',
+		'member.withdrawOffer',
+		'ownershipAccept',
 		'password.change',
 		'session.endElsewhere',
 		'workspace.create',
@@ -487,7 +490,8 @@ test('making an account is inviteMember and unsetting a password is resetPasswor
 						role,
 						permissions,
 						workspaces,
-						createdAt: 1_757_000_000_000
+						createdAt: 1_757_000_000_000,
+						offeredOwnership: false
 					};
 				},
 				unsetPassword: async (memberId) => {
@@ -628,62 +632,88 @@ test('deleting the organization needs a session and a password, and reaches the 
 	assert.deepEqual(asked, ['delete:the owners password']);
 });
 
-// effort 828, requirement 22: handing the organization over needs a session, an account and a
-// password, and it hands both on as given. It is `member` here rather than an act, for the reason
-// deleting the organization is: being the owner is what a password opened rather than a bit on a
-// row, so the owner check and the password are Rust's. A caller with nobody signed in is refused
-// before the host is reached, and so is an empty password or an empty account.
-test('handing the organization over needs a session, an account and a password, and reaches the host with both', async () => {
+// effort 828, requirement 22: a handover is three procedures, and each of the three is `member`
+// here rather than an act, for the reason deleting the organization is: being the owner is what a
+// password opened rather than a bit on a row, so the owner check and the password are Rust's. A
+// caller with nobody signed in is refused before the host is reached, and so is an empty password
+// or an empty account.
+test('the three acts of a handover need a session, and the offer needs an account and a password', async () => {
 	const asked: string[] = [];
 	const host = fakeHost({
 		organization: {
 			...fakeHost().organization,
 			member: {
 				...fakeHost().organization.member,
-				transferOwnership: async (memberId, password) => {
-					asked.push(`transfer:${memberId}:${password}`);
+				offerOwnership: async (memberId, password) => {
+					asked.push(`offer:${memberId}:${password}`);
 
 					return {
 						id: memberId,
 						username: 'ada',
-						role: 'owner',
+						role: 'administrator',
 						permissions: 127,
 						workspaces: [],
-						createdAt: 0
+						createdAt: 0,
+						offeredOwnership: true
 					};
+				},
+				withdrawOffer: async () => {
+					asked.push('withdraw');
 				}
+			},
+			ownershipAccept: async (password) => {
+				asked.push(`accept:${password}`);
+
+				return fakeOrganizationState();
 			}
 		}
 	});
 
 	const member = await permittedApi(host);
-	const handed = await member.app.organization.member.transferOwnership({
+	const offered = await member.app.organization.member.offerOwnership({
 		memberId: 'member-2',
 		password: 'the owners password'
 	});
 
-	assert.equal(handed.role, 'owner');
-	assert.deepEqual(asked, ['transfer:member-2:the owners password']);
+	assert.equal(offered.offeredOwnership, true);
+
+	await member.app.organization.member.withdrawOffer();
+	await member.app.organization.ownershipAccept({ password: 'their own password' });
+
+	assert.deepEqual(asked, [
+		'offer:member-2:the owners password',
+		'withdraw',
+		'accept:their own password'
+	]);
 
 	await assert.rejects(
-		member.app.organization.member.transferOwnership({ memberId: 'member-2', password: '' })
+		member.app.organization.member.offerOwnership({ memberId: 'member-2', password: '' })
 	);
 	await assert.rejects(
-		member.app.organization.member.transferOwnership({
+		member.app.organization.member.offerOwnership({
 			memberId: ' ',
 			password: 'the owners password'
 		})
 	);
+	await assert.rejects(member.app.organization.ownershipAccept({ password: '' }));
 
 	const signedOut = await signedOutApi(host);
 
 	await assert.rejects(
-		signedOut.app.organization.member.transferOwnership({
+		signedOut.app.organization.member.offerOwnership({
 			memberId: 'member-2',
 			password: 'the owners password'
 		})
 	);
-	assert.deepEqual(asked, ['transfer:member-2:the owners password']);
+	await assert.rejects(signedOut.app.organization.member.withdrawOffer());
+	await assert.rejects(
+		signedOut.app.organization.ownershipAccept({ password: 'their own password' })
+	);
+	assert.deepEqual(asked, [
+		'offer:member-2:the owners password',
+		'withdraw',
+		'accept:their own password'
+	]);
 });
 
 // requirement 23: a rename is held to requirement 21's rules before the host is reached, and what
@@ -705,7 +735,8 @@ test('a rename hands the trimmed username on, refuses one outside the rules firs
 						role: 'member',
 						permissions: 0,
 						workspaces: [],
-						createdAt: 0
+						createdAt: 0,
+						offeredOwnership: false
 					};
 				}
 			}

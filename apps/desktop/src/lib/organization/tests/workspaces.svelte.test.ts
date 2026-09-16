@@ -112,6 +112,7 @@ const member = (overrides: Partial<OrganizationMember>): OrganizationMember => (
 	permissions: 0,
 	workspaces: [],
 	createdAt: 0,
+	offeredOwnership: false,
 	...overrides
 });
 

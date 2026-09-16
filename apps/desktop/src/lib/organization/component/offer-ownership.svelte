@@ -11,50 +11,54 @@
 	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
 
 	/**
-	 * Handing the organization to somebody else (effort 828, requirement 22).
+	 * Offering the organization to somebody else: the first of the two acts a handover is (effort
+	 * 828, requirement 22).
 	 *
 	 * **Heavy, on the shared form surface** ([[rules/interface]], *Form surface*). It is a write
 	 * and it takes a password, so it takes the surface every other write takes; heavy because what
 	 * a person has to read before they type is the whole of what changes, and the weight is
 	 * declared rather than measured.
 	 *
-	 * **The body says the three things that change, in plain words**: the account they choose
-	 * becomes the owner, they become an administrator, and the Turso account stays theirs. The
-	 * third is the one nobody would guess: the authority is a token the person who consented
-	 * holds, no row carries it, and the new owner reconnects it from their own sync section before
-	 * the acts that mint are theirs. Saying it here is what keeps the sentence in the sync section
-	 * from being the first anybody hears of it.
+	 * **The body says the two things a person would not guess.** The first is that this is an
+	 * offer: nothing about the organization moves until the other person accepts it on a machine
+	 * of their own, with their own password, and until they do the offer can be taken back. *It
+	 * said the transfer happened here, which was true of the shape review round one replaced.*
 	 *
-	 * **What it does not say is that the keys change, because they do not.** The organization's
-	 * signing key is unchanged and nothing is re-signed; its seed is sealed into the new owner's
-	 * vault. There is nothing in that for a person to act on, so it is in the code and not on the
-	 * screen.
+	 * **The second is that the Turso account stays.** The authority is a token the person who
+	 * consented holds, no row carries it, and the new owner reconnects it from their own sync
+	 * section before the acts that mint are theirs. Saying it here is what keeps the sentence in
+	 * the sync section from being the first anybody hears of it.
+	 *
+	 * **What it does not say is what happens to the keys**, which is that the organization's key
+	 * becomes what the new owner's vault derives and every certificate is re-issued under it.
+	 * There is nothing in that for a person to act on, so it is in the code and not on the screen.
 	 *
 	 * **A refusal marks the password** ([[rules/interface]], *Validation errors*). The shell
 	 * refuses a password that does not open the owner's vault, so that is the field it belongs to,
-	 * and the surface stays open with the account still chosen.
+	 * and the surface stays open with the account still chosen. An account with no password of its
+	 * own is refused there too, which the chooser cannot rule out on its own.
 	 *
 	 * **The mutation is the caller's.** This owns the two fields and hands the pair up through
-	 * `onTransfer`; the section closes it on a transfer that went through and hands back the
-	 * sentence on one that did not.
+	 * `onOffer`; the section closes it on an offer that went through and hands back the sentence
+	 * on one that did not.
 	 */
 	let {
 		open,
 		onOpenChange,
 		accounts,
-		isTransferring,
+		isOffering,
 		errorMessage,
-		onTransfer
+		onOffer
 	}: {
 		open: boolean;
 		onOpenChange: (value: boolean) => void;
-		/** every account that could be given the organization: everybody but the owner's own row. */
+		/** every account the organization could be offered to: everybody but the owner's own row. */
 		accounts: { id: string; username: string }[];
-		/** the transfer is running, which is a moment a person is waiting on. */
-		isTransferring: boolean;
+		/** the offer is being written, which is a moment a person is waiting on. */
+		isOffering: boolean;
 		/** what the shell refused the last attempt with, marked on the password. */
 		errorMessage: string | null;
-		onTransfer: (memberId: string, password: string) => void;
+		onOffer: (memberId: string, password: string) => void;
 	} = $props();
 
 	let chosen = $state('');
@@ -71,10 +75,10 @@
 
 	const usernameOf = (id: string) => accounts.find((account) => account.id === id)?.username ?? '';
 
-	const canSubmit = $derived(chosen !== '' && password.length > 0 && !isTransferring);
+	const canSubmit = $derived(chosen !== '' && password.length > 0 && !isOffering);
 
 	const enhance = onSubmit(() => {
-		if (canSubmit) onTransfer(chosen, password);
+		if (canSubmit) onOffer(chosen, password);
 	});
 </script>
 
@@ -108,7 +112,7 @@
 				onValueChange={(value) => {
 					chosen = value;
 				}}
-				disabled={isTransferring}
+				disabled={isOffering}
 			>
 				<Select.Trigger id="transfer-ownership-account" class={cn('w-full', insetControl)}>
 					{usernameOf(chosen)}
@@ -127,7 +131,7 @@
 			<Field.Label for="transfer-ownership-password">
 				{$LL.organization.dashboard.transferOwnershipPassword()}
 			</Field.Label>
-			<InputGroup.Root class={insetControl} data-disabled={isTransferring ? 'true' : undefined}>
+			<InputGroup.Root class={insetControl} data-disabled={isOffering ? 'true' : undefined}>
 				<InputGroup.Addon>
 					<KeyRoundIcon />
 				</InputGroup.Addon>
@@ -137,7 +141,7 @@
 					type="password"
 					autocomplete="current-password"
 					bind:value={password}
-					disabled={isTransferring}
+					disabled={isOffering}
 					aria-invalid={errorMessage ? 'true' : undefined}
 				/>
 			</InputGroup.Root>
@@ -151,14 +155,14 @@
 		<Button
 			type="button"
 			variant="outline"
-			disabled={isTransferring}
+			disabled={isOffering}
 			onclick={() => onOpenChange(false)}
 		>
 			{$LL.common.actions.cancel()}
 		</Button>
 		<Button type="submit" disabled={!canSubmit}>
 			<CrownIcon class="size-4" />
-			{isTransferring
+			{isOffering
 				? $LL.common.actions.working()
 				: $LL.organization.dashboard.transferOwnershipConfirm()}
 		</Button>

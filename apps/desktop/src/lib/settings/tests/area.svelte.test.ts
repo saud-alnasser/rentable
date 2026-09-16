@@ -68,7 +68,9 @@ const area = (overrides: Partial<Parameters<typeof render<typeof SettingsArea>>[
 			isChangingPassword: false,
 			isChangingRole: false,
 			isChangingAccess: false,
-			isTransferring: false,
+			isOffering: false,
+			isWithdrawing: false,
+			isAcceptingOwnership: false,
 			isDeletingOrganization: false,
 			onChangeLocale: noop,
 			onRevealDiagnostics: noop,
@@ -82,7 +84,9 @@ const area = (overrides: Partial<Parameters<typeof render<typeof SettingsArea>>[
 			onRename: resolved,
 			onChangeRole: resolved,
 			onChangeAccess: resolved,
-			onTransferOwnership: resolved,
+			onOfferOwnership: resolved,
+			onWithdrawOffer: noop,
+			onAcceptOwnership: resolved,
 			onChangeWorkspaceAccess: resolved,
 			onDeleteWorkspace: resolved,
 			onAuthorityReconnected: noop,
@@ -387,4 +391,59 @@ test('the you section offers no link act, and nothing on it hands a link over', 
 	expect(document.querySelector('[data-link-handover]')).toBeNull();
 	expect(document.querySelector('[data-invited-link]')).toBeNull();
 	expect(document.querySelector('[data-invited-code]')).toBeNull();
+});
+
+// effort 828, requirement 22 and criterion 22: **the acceptance is drawn for the one person an
+// offer stands with**, under its own legend, as one sentence naming who offered it and one act.
+// Everybody else meets a you section with nothing about ownership on it at all.
+test('the you section draws the offer and its acceptance for the member it stands with', async () => {
+	at('?section=you');
+	area({
+		section: 'you',
+		session: fakeOrganizationSession({
+			role: 'member',
+			permissions: 0,
+			ownershipOffered: true,
+			ownerUsername: 'olivia.owner'
+		})
+	});
+
+	const block = document.querySelector('[data-ownership-offer]');
+
+	expect(block).not.toBeNull();
+	expect(block?.textContent).toContain('olivia.owner');
+	expect(block?.textContent).toContain('accepting makes you the owner');
+
+	// nothing about a password is drawn until the act is pressed, the way the change-password row
+	// beside it works (requirement 8).
+	expect(document.querySelector('[data-accept-ownership-form]')).toBeNull();
+
+	await fireEvent.click(screen.getByText(en.organization.dashboard.acceptOwnership));
+
+	const form = document.querySelector('[data-accept-ownership-form]');
+
+	expect(form).not.toBeNull();
+	expect(form?.querySelector('input[type=password]')).not.toBeNull();
+	expect(document.querySelector('[data-accept-ownership-authority]')?.textContent?.trim()).toBe(
+		en.organization.dashboard.acceptOwnershipAuthority
+	);
+
+	// heavy, like the offer it answers: what a person has to read before they type is the whole of
+	// what changes ([[rules/interface]], *Form surface*).
+	const panel = document.querySelector('[data-slot=form-surface]');
+
+	expect(panel?.className).toContain('h-full');
+	expect(panel?.className).not.toContain('rounded-3xl');
+});
+
+// and a member nobody offered it to meets none of it, which is every member on every other day.
+test('the you section draws no ownership block where no offer stands', () => {
+	at('?section=you');
+	area({
+		section: 'you',
+		session: fakeOrganizationSession({ role: 'member', permissions: 0 })
+	});
+
+	expect(document.querySelector('[data-ownership-offer]')).toBeNull();
+	expect(document.querySelector('[data-accept-ownership-open]')).toBeNull();
 });

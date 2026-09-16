@@ -13,6 +13,7 @@
 	import { Separator } from '@rentable/design/primitive/separator/index.js';
 	import { toErrorText } from '$lib/error/message';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
+	import OrganizationAcceptOwnership from '$lib/organization/component/accept-ownership.svelte';
 	import OrganizationChangePasswordDialog from '$lib/organization/component/change-password-dialog.svelte';
 	import OrganizationDeleteOrganization from '$lib/organization/component/delete-organization.svelte';
 	import OrganizationDisconnect from '$lib/organization/component/disconnect.svelte';
@@ -30,6 +31,7 @@
 	import { sectionsFor, shownSection, type SettingsSection } from '$lib/settings/section';
 	import WorkspaceSync from '$lib/workspace/component/sync.svelte';
 	import { permits } from '@rentable/workspace-permission';
+	import CrownIcon from '@lucide/svelte/icons/crown';
 	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
 
 	type AppSettings = Awaited<ReturnType<typeof api.app.settings.get>>;
@@ -72,7 +74,9 @@
 		isChangingPassword,
 		isChangingRole,
 		isChangingAccess,
-		isTransferring,
+		isOffering,
+		isWithdrawing,
+		isAcceptingOwnership,
 		isDeletingOrganization,
 		onChangeLocale,
 		onRevealDiagnostics,
@@ -86,7 +90,9 @@
 		onRename,
 		onChangeRole,
 		onChangeAccess,
-		onTransferOwnership,
+		onOfferOwnership,
+		onWithdrawOffer,
+		onAcceptOwnership,
 		onChangeWorkspaceAccess,
 		onDeleteWorkspace,
 		onAuthorityReconnected,
@@ -114,8 +120,12 @@
 		isChangingPassword: boolean;
 		isChangingRole: boolean;
 		isChangingAccess: boolean;
-		/** the organization is being handed over, which is two signed rows and a push. */
-		isTransferring: boolean;
+		/** the offer is being written, which is a signed row, a succession row and a push. */
+		isOffering: boolean;
+		/** the offer is being taken back. */
+		isWithdrawing: boolean;
+		/** the organization is being accepted, which re-keys the whole directory and pushes it. */
+		isAcceptingOwnership: boolean;
 		/** the organization is being deleted, which is several requests and a sweep of the disk. */
 		isDeletingOrganization: boolean;
 		onChangeLocale: (next: Locales) => void;
@@ -146,11 +156,18 @@
 			changes: { id: string; access: 'none' | 'full-access' | 'read-only' }[]
 		) => Promise<void>;
 		/**
-		 * hand the organization to another account, with the owner's own password (effort 828,
+		 * offer the organization to another account, with the owner's own password (effort 828,
 		 * requirement 22). Rejects with what the shared handler has said, which the members
 		 * section puts on the password.
 		 */
-		onTransferOwnership: (memberId: string, password: string) => Promise<void>;
+		onOfferOwnership: (memberId: string, password: string) => Promise<void>;
+		/** take that offer back, which leaves the organization where it was. */
+		onWithdrawOffer: () => void;
+		/**
+		 * accept the organization offered to this reader, with their own password. Rejects with
+		 * what the shared handler has said, which the you section puts on the password.
+		 */
+		onAcceptOwnership: (password: string) => Promise<void>;
 		/** the same grants read the other way round: one workspace, and the members that changed. */
 		onChangeWorkspaceAccess: (
 			workspaceId: string,
@@ -203,27 +220,49 @@
 		}
 	};
 
-	/** what the shell refused the last transfer with, marked on the surface's password field. */
-	let transferRefusal = $state<string | null>(null);
+	/** what the shell refused the last offer with, marked on the surface's password field. */
+	let offerRefusal = $state<string | null>(null);
 
 	/**
-	 * the organization, handed to another account from the members section.
+	 * the organization, offered to another account from the members section.
 	 *
 	 * The same shape the password change and the delete have, and for the same reason: the surface
 	 * that went through closes and empties, and a refusal keeps it open and puts the sentence on
 	 * the password, because the password is what the shell refuses this with ([[rules/interface]],
-	 * *Validation errors*). What the owner sees afterwards is an administrator's settings area,
-	 * because the session's role is refreshed with the list.
+	 * *Validation errors*). Nothing about what the owner sees changes on an offer: they are still
+	 * the owner until the other person accepts, and their card carries the withdrawal instead.
 	 */
-	const transferOwnership = async (memberId: string, password: string) => {
-		transferRefusal = null;
+	const offerOwnership = async (memberId: string, password: string) => {
+		offerRefusal = null;
 
 		try {
-			await onTransferOwnership(memberId, password);
+			await onOfferOwnership(memberId, password);
 		} catch (error) {
-			transferRefusal = toErrorText(error, $LL);
+			offerRefusal = toErrorText(error, $LL);
 
 			throw error;
+		}
+	};
+
+	let acceptingOwnership = $state(false);
+	/** what the shell refused the last acceptance with, marked on its password field. */
+	let acceptRefusal = $state<string | null>(null);
+
+	/**
+	 * the organization, accepted from the you section.
+	 *
+	 * The same shape again. What this reader sees afterwards is an owner's settings area, because
+	 * the session's role is refreshed with the act, and the surface closes because the offer it
+	 * was drawn for is spent.
+	 */
+	const acceptOwnership = async (password: string) => {
+		acceptRefusal = null;
+
+		try {
+			await onAcceptOwnership(password);
+			acceptingOwnership = false;
+		} catch (error) {
+			acceptRefusal = toErrorText(error, $LL);
 		}
 	};
 
@@ -313,6 +352,40 @@
 					{onEndOtherSessions}
 				/>
 			</Field.Set>
+
+			<!-- the offer, for the one person it stands with and for nobody else (requirement 22).
+			     It is under its own legend rather than beside the identity block because it is a
+			     thing to do rather than a fact about this account, and it is last because it is
+			     the only block here that is usually absent. -->
+			{#if session.ownershipOffered}
+				<Separator />
+
+				<Field.Set>
+					<Field.Legend>{$LL.settings.you.ownership.title()}</Field.Legend>
+					<Field.Field orientation="vertical" data-ownership-offer>
+						<Field.Content>
+							<Field.Description>
+								{$LL.settings.you.ownership.offered({ owner: session.ownerUsername })}
+							</Field.Description>
+						</Field.Content>
+
+						<div>
+							<Button
+								type="button"
+								variant="outline"
+								data-accept-ownership-open
+								onclick={() => {
+									acceptRefusal = null;
+									acceptingOwnership = true;
+								}}
+							>
+								<CrownIcon class="size-4" />
+								{$LL.organization.dashboard.acceptOwnership()}
+							</Button>
+						</div>
+					</Field.Field>
+				</Field.Set>
+			{/if}
 		</Field.Group>
 
 		<OrganizationChangePasswordDialog
@@ -326,6 +399,20 @@
 			isChanging={isChangingPassword}
 			errorMessage={passwordRefusal}
 			onChange={(current, next) => void changePassword(current, next)}
+		/>
+
+		<OrganizationAcceptOwnership
+			open={acceptingOwnership}
+			onOpenChange={(open) => {
+				acceptingOwnership = open;
+
+				if (!open) acceptRefusal = null;
+			}}
+			organizationName={session.organizationName}
+			ownerUsername={session.ownerUsername}
+			isAccepting={isAcceptingOwnership}
+			errorMessage={acceptRefusal}
+			onAccept={(password) => void acceptOwnership(password)}
 		/>
 	{:else if shown === 'members' && session}
 		<Field.Group>
@@ -349,8 +436,9 @@
 				{endingSessions}
 				{isChangingRole}
 				{isChangingAccess}
-				{isTransferring}
-				{transferRefusal}
+				{isOffering}
+				{isWithdrawing}
+				{offerRefusal}
 				{onEndSessions}
 				{onMakeLink}
 				{onUnsetPassword}
@@ -359,7 +447,8 @@
 				{onRename}
 				{onChangeRole}
 				{onChangeAccess}
-				onTransferOwnership={transferOwnership}
+				{onWithdrawOffer}
+				onOfferOwnership={offerOwnership}
 			/>
 		</Field.Group>
 	{:else if shown === 'workspaces' && session}

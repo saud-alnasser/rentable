@@ -109,6 +109,7 @@ const member = (overrides: Partial<OrganizationMember>): OrganizationMember => (
 	permissions: 0,
 	workspaces: [],
 	createdAt: 0,
+	offeredOwnership: false,
 	...overrides
 });
 
@@ -167,8 +168,9 @@ const list = (
 			endingSessions: null,
 			isChangingRole: false,
 			isChangingAccess: false,
-			isTransferring: false,
-			transferRefusal: null,
+			isOffering: false,
+			isWithdrawing: false,
+			offerRefusal: null,
 			onEndSessions: noop,
 			onMakeLink: noop,
 			onUnsetPassword: noop,
@@ -177,7 +179,8 @@ const list = (
 			onRename: resolved,
 			onChangeRole: resolved,
 			onChangeAccess: resolved,
-			onTransferOwnership: resolved,
+			onOfferOwnership: resolved,
+			onWithdrawOffer: noop,
 			...overrides
 		},
 		{ wrapper: Providers, wrapperProps: { strings, direction } }
@@ -185,6 +188,7 @@ const list = (
 
 /** the acts a card can offer, in the order they are built. */
 const KINDS = [
+	'withdraw-offer',
 	'transfer',
 	'rename',
 	'role',
@@ -479,6 +483,31 @@ test('the transfer is on the owner own card and on no other', async () => {
 	expect(await actsOn('sami')).not.toContain('transfer');
 });
 
+// requirement 22: a handover is two acts on two machines, so between them there is a standing
+// offer, and the owner's card is where it is seen and taken back. The offer and the withdrawal are
+// never on the card together, because there is one offer at a time and Rust refuses a second.
+test('the owner card offers the withdrawal in the offer place while an offer stands', async () => {
+	const withdrawn: string[] = [];
+
+	list({
+		members: [
+			member({ id: 'owner', username: 'olivia', role: 'owner' }),
+			member({ id: 'ada', username: 'ada', role: 'administrator', offeredOwnership: true }),
+			member({ id: 'sami', username: 'sami' })
+		],
+		onWithdrawOffer: () => withdrawn.push('yes')
+	});
+
+	expect(await actsOn('owner')).toEqual(['withdraw-offer']);
+
+	await press('owner', 'withdraw-offer');
+
+	// it asks nothing: nothing is unsealed and what is undone is something this person did, so it
+	// runs on the press rather than opening a surface.
+	expect(withdrawn).toEqual(['yes']);
+	expect(surface()).toBeNull();
+});
+
 // and it is the owner's: an administrator reading the owner's card still meets no menu at all,
 // which is the card requirement 19 leaves empty for everybody but its holder.
 test('an administrator meets no transfer on the owner card', async () => {
@@ -489,9 +518,10 @@ test('an administrator meets no transfer on the owner card', async () => {
 });
 
 // requirement 22: what the surface says is the whole of what changes, in plain words, and the
-// Turso account staying put is the half nobody would guess. It takes the account and the password
-// and nothing else.
-test('the transfer opens a heavy form surface naming what changes and taking the password', async () => {
+// two halves nobody would guess are that this is an offer the other person accepts on a machine
+// of their own, and that the Turso account stays put. It takes the account and the password and
+// nothing else.
+test('the offer opens a heavy form surface naming what changes and taking the password', async () => {
 	list();
 
 	expect(surface()).toBeNull();
@@ -505,8 +535,8 @@ test('the transfer opens a heavy form surface naming what changes and taking the
 	// the heavy weight, read off the surface that was rendered. A heavy form is the edge panel the
 	// full height of the window and a light one is the centred card; what tells them apart in the
 	// document is what each presents as, which is why the rendered element is what is read here.
-	// *It read `transfer-ownership.svelte` off disk and regexed the attribute until ticket 20,
-	// which passes on a component nothing renders.*
+	// *It read the surface off disk and regexed the attribute until ticket 20, which passes on a
+	// component nothing renders.*
 	const panel = surface()!;
 
 	expect(panel).not.toBeNull();
@@ -525,21 +555,23 @@ test('the transfer opens a heavy form surface naming what changes and taking the
 // one of the choices: they are the owner already, and Rust refuses that by name. The chooser is
 // the same `Select` the role and access surfaces use, whose list is drawn in a portal on opening,
 // so what is read here is how many accounts were handed to it rather than the opened list.
-test('every account but the owner own row is offered on the transfer', async () => {
+test('every account whose password is set is offered on the handover', async () => {
 	list();
 
 	await press('owner', 'transfer');
 
+	// ada alone: olivia is the owner, and sami has not opened a link yet, so sami has no vault of
+	// their own for the organization's next key to come out of.
 	expect(
 		document
 			.querySelector('[data-transfer-ownership-accounts]')
 			?.getAttribute('data-transfer-ownership-accounts')
-	).toBe('2');
+	).toBe('1');
 });
 
 // and a lone owner is offered nothing to hand it to, so the act is absent rather than opening a
 // surface with an empty chooser.
-test('an owner who is the only account meets no transfer', async () => {
+test('an owner who is the only account meets no handover', async () => {
 	list({
 		members: [member({ id: 'owner', username: 'olivia', role: 'owner' })],
 		standings: [standing({ memberId: 'owner', machineSignedIn: true })]
@@ -551,8 +583,8 @@ test('an owner who is the only account meets no transfer', async () => {
 
 // [[rules/interface]], *Validation errors*: the shell refuses a password that does not open the
 // owner's vault, so that is the field the sentence belongs to and the surface stays open.
-test('a refused transfer marks the password and the surface stays open', async () => {
-	list({ transferRefusal: 'that value did not open' });
+test('a refused offer marks the password and the surface stays open', async () => {
+	list({ offerRefusal: 'that value did not open' });
 
 	await press('owner', 'transfer');
 

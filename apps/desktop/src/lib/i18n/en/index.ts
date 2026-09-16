@@ -509,6 +509,13 @@ const en = {
 				ended: 'your other machines were signed out.',
 				endedPending:
 					'this machine is offline; the sign-out reaches the others once it is back online.'
+			},
+			// requirement 22: drawn for the one person an offer stands with, and absent for
+			// everybody else. One sentence naming who offered it, and the act.
+			ownership: {
+				title: 'ownership',
+				offered:
+					'{owner:string} has offered you this organization. accepting makes you the owner and makes them an administrator.'
 			}
 		}
 	},
@@ -854,17 +861,28 @@ const en = {
 			// sentence a dialog opens with is the dialog's rather than the entry's.
 			makeLink: 'make a link',
 			changeRole: 'change role',
-			// requirement 22: the one entry on the owner's own card. Two plain words, and the
-			// sentence that says what changes belongs to the surface it opens.
+			// requirement 22: the two entries on the owner's own card, one at a time, and the
+			// acceptance the other person meets. Two plain words each, and the sentences that
+			// say what changes belong to the surfaces they open.
 			transferOwnership: 'hand over ownership',
 			transferOwnershipGoes:
-				'the member you choose becomes the owner and you become an administrator. you keep every act an administrator has, and you stop being the one who can hand the organization on.',
-			transferOwnershipAccount: 'who becomes the owner',
+				'the person you choose is offered the organization. nothing changes until they accept it, on a machine they are already signed in on, with their own password. when they do, they become the owner and you become an administrator.',
+			transferOwnershipAccount: 'who is offered the organization',
 			transferOwnershipAuthority:
 				'your turso account does not move. the databases stay on it, and the new owner connects their own account from the sync section before they can create a workspace, lock anybody out or renew credentials.',
 			transferOwnershipPassword: 'your password',
-			transferOwnershipConfirm: 'hand it over',
-			ownershipTransferred: 'the organization was handed over. you are an administrator now.',
+			transferOwnershipConfirm: 'offer it',
+			ownershipOffered: 'the organization was offered. they accept it on a machine of their own.',
+			withdrawOffer: 'withdraw the offer',
+			ownershipOfferWithdrawn: 'the offer was withdrawn. nothing changed hands.',
+			acceptOwnership: 'accept ownership',
+			acceptOwnershipGoes:
+				'you become the owner of {organization:string} and {owner:string} becomes an administrator. your password becomes what the organization is signed with, so from now on it is your password that gets you back in on a new machine.',
+			acceptOwnershipAuthority:
+				'the turso account stays with whoever connected it. until you connect your own from the sync section, creating a workspace, locking somebody out and renewing credentials run on their machine or not at all.',
+			acceptOwnershipPassword: 'your password',
+			acceptOwnershipConfirm: 'accept it',
+			ownershipAccepted: 'the organization is yours. you are the owner now.',
 			lockOut: 'lock out',
 			unsetPassword: 'reset password',
 			passwordUnset: 'their password was unset. make them a link so they can choose a new one.',

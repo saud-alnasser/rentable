@@ -1596,6 +1596,17 @@ type RootTranslation = {
 				 */
 				endedPending: string
 			}
+			ownership: {
+				/**
+				 * o​w​n​e​r​s​h​i​p
+				 */
+				title: string
+				/**
+				 * {​o​w​n​e​r​}​ ​h​a​s​ ​o​f​f​e​r​e​d​ ​y​o​u​ ​t​h​i​s​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​a​c​c​e​p​t​i​n​g​ ​m​a​k​e​s​ ​y​o​u​ ​t​h​e​ ​o​w​n​e​r​ ​a​n​d​ ​m​a​k​e​s​ ​t​h​e​m​ ​a​n​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​.
+				 * @param {string} owner
+				 */
+				offered: RequiredParams<'owner'>
+			}
 		}
 	}
 	complexes: {
@@ -2599,11 +2610,11 @@ type RootTranslation = {
 			 */
 			transferOwnership: string
 			/**
-			 * t​h​e​ ​m​e​m​b​e​r​ ​y​o​u​ ​c​h​o​o​s​e​ ​b​e​c​o​m​e​s​ ​t​h​e​ ​o​w​n​e​r​ ​a​n​d​ ​y​o​u​ ​b​e​c​o​m​e​ ​a​n​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​.​ ​y​o​u​ ​k​e​e​p​ ​e​v​e​r​y​ ​a​c​t​ ​a​n​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​ ​h​a​s​,​ ​a​n​d​ ​y​o​u​ ​s​t​o​p​ ​b​e​i​n​g​ ​t​h​e​ ​o​n​e​ ​w​h​o​ ​c​a​n​ ​h​a​n​d​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​o​n​.
+			 * t​h​e​ ​p​e​r​s​o​n​ ​y​o​u​ ​c​h​o​o​s​e​ ​i​s​ ​o​f​f​e​r​e​d​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​n​o​t​h​i​n​g​ ​c​h​a​n​g​e​s​ ​u​n​t​i​l​ ​t​h​e​y​ ​a​c​c​e​p​t​ ​i​t​,​ ​o​n​ ​a​ ​m​a​c​h​i​n​e​ ​t​h​e​y​ ​a​r​e​ ​a​l​r​e​a​d​y​ ​s​i​g​n​e​d​ ​i​n​ ​o​n​,​ ​w​i​t​h​ ​t​h​e​i​r​ ​o​w​n​ ​p​a​s​s​w​o​r​d​.​ ​w​h​e​n​ ​t​h​e​y​ ​d​o​,​ ​t​h​e​y​ ​b​e​c​o​m​e​ ​t​h​e​ ​o​w​n​e​r​ ​a​n​d​ ​y​o​u​ ​b​e​c​o​m​e​ ​a​n​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​.
 			 */
 			transferOwnershipGoes: string
 			/**
-			 * w​h​o​ ​b​e​c​o​m​e​s​ ​t​h​e​ ​o​w​n​e​r
+			 * w​h​o​ ​i​s​ ​o​f​f​e​r​e​d​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n
 			 */
 			transferOwnershipAccount: string
 			/**
@@ -2615,13 +2626,47 @@ type RootTranslation = {
 			 */
 			transferOwnershipPassword: string
 			/**
-			 * h​a​n​d​ ​i​t​ ​o​v​e​r
+			 * o​f​f​e​r​ ​i​t
 			 */
 			transferOwnershipConfirm: string
 			/**
-			 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​w​a​s​ ​h​a​n​d​e​d​ ​o​v​e​r​.​ ​y​o​u​ ​a​r​e​ ​a​n​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​ ​n​o​w​.
+			 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​w​a​s​ ​o​f​f​e​r​e​d​.​ ​t​h​e​y​ ​a​c​c​e​p​t​ ​i​t​ ​o​n​ ​a​ ​m​a​c​h​i​n​e​ ​o​f​ ​t​h​e​i​r​ ​o​w​n​.
 			 */
-			ownershipTransferred: string
+			ownershipOffered: string
+			/**
+			 * w​i​t​h​d​r​a​w​ ​t​h​e​ ​o​f​f​e​r
+			 */
+			withdrawOffer: string
+			/**
+			 * t​h​e​ ​o​f​f​e​r​ ​w​a​s​ ​w​i​t​h​d​r​a​w​n​.​ ​n​o​t​h​i​n​g​ ​c​h​a​n​g​e​d​ ​h​a​n​d​s​.
+			 */
+			ownershipOfferWithdrawn: string
+			/**
+			 * a​c​c​e​p​t​ ​o​w​n​e​r​s​h​i​p
+			 */
+			acceptOwnership: string
+			/**
+			 * y​o​u​ ​b​e​c​o​m​e​ ​t​h​e​ ​o​w​n​e​r​ ​o​f​ ​{​o​r​g​a​n​i​z​a​t​i​o​n​}​ ​a​n​d​ ​{​o​w​n​e​r​}​ ​b​e​c​o​m​e​s​ ​a​n​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​.​ ​y​o​u​r​ ​p​a​s​s​w​o​r​d​ ​b​e​c​o​m​e​s​ ​w​h​a​t​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​i​s​ ​s​i​g​n​e​d​ ​w​i​t​h​,​ ​s​o​ ​f​r​o​m​ ​n​o​w​ ​o​n​ ​i​t​ ​i​s​ ​y​o​u​r​ ​p​a​s​s​w​o​r​d​ ​t​h​a​t​ ​g​e​t​s​ ​y​o​u​ ​b​a​c​k​ ​i​n​ ​o​n​ ​a​ ​n​e​w​ ​m​a​c​h​i​n​e​.
+			 * @param {string} organization
+			 * @param {string} owner
+			 */
+			acceptOwnershipGoes: RequiredParams<'organization' | 'owner'>
+			/**
+			 * t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​s​t​a​y​s​ ​w​i​t​h​ ​w​h​o​e​v​e​r​ ​c​o​n​n​e​c​t​e​d​ ​i​t​.​ ​u​n​t​i​l​ ​y​o​u​ ​c​o​n​n​e​c​t​ ​y​o​u​r​ ​o​w​n​ ​f​r​o​m​ ​t​h​e​ ​s​y​n​c​ ​s​e​c​t​i​o​n​,​ ​c​r​e​a​t​i​n​g​ ​a​ ​w​o​r​k​s​p​a​c​e​,​ ​l​o​c​k​i​n​g​ ​s​o​m​e​b​o​d​y​ ​o​u​t​ ​a​n​d​ ​r​e​n​e​w​i​n​g​ ​c​r​e​d​e​n​t​i​a​l​s​ ​r​u​n​ ​o​n​ ​t​h​e​i​r​ ​m​a​c​h​i​n​e​ ​o​r​ ​n​o​t​ ​a​t​ ​a​l​l​.
+			 */
+			acceptOwnershipAuthority: string
+			/**
+			 * y​o​u​r​ ​p​a​s​s​w​o​r​d
+			 */
+			acceptOwnershipPassword: string
+			/**
+			 * a​c​c​e​p​t​ ​i​t
+			 */
+			acceptOwnershipConfirm: string
+			/**
+			 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​i​s​ ​y​o​u​r​s​.​ ​y​o​u​ ​a​r​e​ ​t​h​e​ ​o​w​n​e​r​ ​n​o​w​.
+			 */
+			ownershipAccepted: string
 			/**
 			 * l​o​c​k​ ​o​u​t
 			 */
@@ -4472,6 +4517,16 @@ export type TranslationFunctions = {
 				 */
 				endedPending: () => LocalizedString
 			}
+			ownership: {
+				/**
+				 * ownership
+				 */
+				title: () => LocalizedString
+				/**
+				 * {owner} has offered you this organization. accepting makes you the owner and makes them an administrator.
+				 */
+				offered: (arg: { owner: string }) => LocalizedString
+			}
 		}
 	}
 	complexes: {
@@ -5433,11 +5488,11 @@ export type TranslationFunctions = {
 			 */
 			transferOwnership: () => LocalizedString
 			/**
-			 * the member you choose becomes the owner and you become an administrator. you keep every act an administrator has, and you stop being the one who can hand the organization on.
+			 * the person you choose is offered the organization. nothing changes until they accept it, on a machine they are already signed in on, with their own password. when they do, they become the owner and you become an administrator.
 			 */
 			transferOwnershipGoes: () => LocalizedString
 			/**
-			 * who becomes the owner
+			 * who is offered the organization
 			 */
 			transferOwnershipAccount: () => LocalizedString
 			/**
@@ -5449,13 +5504,45 @@ export type TranslationFunctions = {
 			 */
 			transferOwnershipPassword: () => LocalizedString
 			/**
-			 * hand it over
+			 * offer it
 			 */
 			transferOwnershipConfirm: () => LocalizedString
 			/**
-			 * the organization was handed over. you are an administrator now.
+			 * the organization was offered. they accept it on a machine of their own.
 			 */
-			ownershipTransferred: () => LocalizedString
+			ownershipOffered: () => LocalizedString
+			/**
+			 * withdraw the offer
+			 */
+			withdrawOffer: () => LocalizedString
+			/**
+			 * the offer was withdrawn. nothing changed hands.
+			 */
+			ownershipOfferWithdrawn: () => LocalizedString
+			/**
+			 * accept ownership
+			 */
+			acceptOwnership: () => LocalizedString
+			/**
+			 * you become the owner of {organization} and {owner} becomes an administrator. your password becomes what the organization is signed with, so from now on it is your password that gets you back in on a new machine.
+			 */
+			acceptOwnershipGoes: (arg: { organization: string, owner: string }) => LocalizedString
+			/**
+			 * the turso account stays with whoever connected it. until you connect your own from the sync section, creating a workspace, locking somebody out and renewing credentials run on their machine or not at all.
+			 */
+			acceptOwnershipAuthority: () => LocalizedString
+			/**
+			 * your password
+			 */
+			acceptOwnershipPassword: () => LocalizedString
+			/**
+			 * accept it
+			 */
+			acceptOwnershipConfirm: () => LocalizedString
+			/**
+			 * the organization is yours. you are the owner now.
+			 */
+			ownershipAccepted: () => LocalizedString
 			/**
 			 * lock out
 			 */

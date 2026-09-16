@@ -301,7 +301,19 @@ pub(crate) async fn state_of(app_state: &AppState) -> Result<OrganizationState, 
             .as_ref()
             .map(HeldOrganizationFacts::from)
     };
-    let session = current_facts(app_state).await?;
+    // **and the one thing that can make this machine's key wrong** (effort 828, requirement 22).
+    // A handover somebody else accepted arrives here as rows this machine cannot verify, which is
+    // what the read below refuses with. So a refusal is the sign, and the succession is followed
+    // and the read made again; a machine whose key still reads the directory pays nothing for
+    // this, and one that pinned neither end of a chain is refused exactly as it is today.
+    let session = match current_facts(app_state).await {
+        Ok(session) => session,
+        Err(_) => {
+            succession_followed(app_state).await;
+
+            current_facts(app_state).await?
+        }
+    };
     let holds_turso_authority = owner_platform(app_state).await.is_some();
 
     // the standing is only ever about a wall that is up: somebody signed in has answered it,
@@ -394,6 +406,25 @@ pub async fn organization_sign_in(
             })?
     };
     let (store, credential) = open_replica(app_state.inner(), &held).await?;
+
+    // a handover accepted while this machine was at the wall left rows this machine's key cannot
+    // verify, and the sign-in reads rows (effort 828, requirement 22). The succession is followed
+    // before the password is tried, so the wall admits under the key the organization is on now.
+    let held = {
+        let mut remote_sync = app_state.remote_sync.write().await;
+
+        match role::follow_succession(&store, remote_sync.store_mut()).await {
+            Ok(Some(_)) => remote_sync.store_mut().organization.clone().unwrap_or(held),
+            Ok(None) => held,
+            Err(refusal) => {
+                diagnostics::warn("organization.succession.notFollowed")
+                    .with("reason", refusal.to_string())
+                    .write();
+
+                held
+            }
+        }
+    };
 
     let member = {
         let mut remote_sync = app_state.remote_sync.write().await;
@@ -505,9 +536,34 @@ async fn resume_remembered(app_state: &AppState) {
     };
 
     let resumed = match open_replica(app_state, &held).await {
-        Ok((store, credential)) => session::resume(&store, &held, &credential)
-            .await
-            .map(|resumption| (store, resumption)),
+        Ok((store, credential)) => {
+            // the launch of a machine that was closed across a handover: the succession is
+            // followed before the remembered key opens anything, so the resume reads rows under
+            // the key the organization is on now (effort 828, requirement 22).
+            let held = {
+                let mut remote_sync = app_state.remote_sync.write().await;
+
+                match role::follow_succession(&store, remote_sync.store_mut()).await {
+                    Ok(Some(_)) => remote_sync
+                        .store_mut()
+                        .organization
+                        .clone()
+                        .unwrap_or_else(|| held.clone()),
+                    Ok(None) => held.clone(),
+                    Err(refusal) => {
+                        diagnostics::warn("organization.succession.notFollowed")
+                            .with("reason", refusal.to_string())
+                            .write();
+
+                        held.clone()
+                    }
+                }
+            };
+
+            session::resume(&store, &held, &credential)
+                .await
+                .map(|resumption| (store, resumption))
+        }
         Err(refusal) => Err(refusal),
     };
 
@@ -724,6 +780,42 @@ async fn open_replica(
     .await?;
 
     Ok((store, credential))
+}
+
+/// Follow a handover this machine was not present for, and pin the key it left behind (effort
+/// 828, requirement 22).
+///
+/// **Nothing here is a refusal.** A machine whose pinned key still reads the directory is left
+/// alone, and one that cannot follow the succession is left holding what it held, which is a
+/// machine that refuses the rows exactly as it refuses any row it cannot verify. What the person
+/// meets either way is the read that brought this here.
+///
+/// **The open session is re-pinned beside the record**, because a session carries its own copy of
+/// the key and every act reads rows through it. The locks are taken in the order every other act
+/// here takes them, the member before the replica before the record, so two acts cannot wait on
+/// each other.
+async fn succession_followed(app_state: &AppState) {
+    let mut member = app_state.member.write().await;
+    let organization = app_state.organization.read().await;
+
+    let Some(store) = organization.as_ref() else {
+        return;
+    };
+    let mut remote_sync = app_state.remote_sync.write().await;
+
+    match role::follow_succession(store, remote_sync.store_mut()).await {
+        Ok(Some(key)) => {
+            if let Some(member) = member.as_mut() {
+                member.verifying_key = key;
+            }
+        }
+        Ok(None) => {}
+        Err(refusal) => {
+            diagnostics::warn("organization.succession.notFollowed")
+                .with("reason", refusal.to_string())
+                .write();
+        }
+    }
 }
 
 /// The signed-in member's facts, re-read from the replica so a row that changed under them since
@@ -1258,22 +1350,21 @@ pub async fn member_change_role(
     .await
 }
 
-/// Hand the organization to another account (effort 828, requirement 22).
+/// Offer the organization to another account: the first of the two acts a handover is (effort
+/// 828, requirement 22).
 ///
 /// **The owner's alone, and their password is what performs it.** The role is read off the session
 /// the wall opened and refused in Rust; the password is tried against the owner's own row, so a
 /// wrong one refuses before a single row is written and a machine somebody walked away from is not
 /// a way to give their organization away. Nothing about the password crosses back.
 ///
-/// **The signing key does not change and no row is re-signed.** Its seed is sealed to the new
-/// owner's public key on their row, the two roles swap, and the directory still verifies against
-/// the key it was written under. The Turso account does not move with it: until the new owner
-/// grants the consent on their own machine, the acts that mint run on the founder's machine or not
-/// at all, and the sync section there says so.
+/// **Nothing about the organization moves here.** The offer seals the key this directory is signed
+/// under to the account named, writes a succession row saying so, and stops; the roles, the key
+/// and every signature stay as they were until the other person accepts on a machine of their own.
 ///
-/// What comes back is the new owner as the members list shows them.
+/// What comes back is the offered account as the members list shows them.
 #[tauri::command]
-pub async fn member_transfer_ownership(
+pub async fn member_offer_ownership(
     app_state: tauri::State<'_, AppState>,
     member_id: String,
     password: String,
@@ -1281,11 +1372,70 @@ pub async fn member_transfer_ownership(
     let mut member = app_state.member.write().await;
     let store = app_state.organization.read().await;
     let (member, store) = signed_in(&mut member, &store)?;
-    // the two rows this act writes back whole carry the session epoch, so they are read after a
-    // pull rather than off this machine's last sight of them (effort 826, requirement 22).
+    // the row this act writes back whole carries the session epoch, so it is read after a pull
+    // rather than off this machine's last sight of it (effort 826, requirement 22).
     store.pull().await;
 
-    role::transfer_ownership(store, member, &member_id, &password, timestamp::now()).await
+    role::offer_ownership(store, member, &member_id, &password, timestamp::now()).await
+}
+
+/// Take the offer back (effort 828, requirement 22).
+///
+/// The owner's, and it asks for no password: nothing is unsealed and what is being undone is
+/// something this person did. Whether an offer stands at all is Rust's to answer, and the refusal
+/// where none does is the sentence the members section shows.
+#[tauri::command]
+pub async fn member_withdraw_offer(app_state: tauri::State<'_, AppState>) -> Result<(), Error> {
+    let mut member = app_state.member.write().await;
+    let store = app_state.organization.read().await;
+    let (member, store) = signed_in(&mut member, &store)?;
+
+    store.pull().await;
+
+    role::withdraw_offer(store, member, timestamp::now()).await
+}
+
+/// Accept the organization: the second act, on the offered account's own machine (effort 828,
+/// requirement 22).
+///
+/// **The password is what becomes the key.** Their vault derives the organization's new key, every
+/// certificate is re-issued under it, the roles swap, and this machine pins the new key in its own
+/// record and in the open session. Nothing about the password or the key crosses back
+/// ([[rules/credentials]], *Client boundary*).
+///
+/// **What comes back is the whole state**, rather than the member row the offer answers with: this
+/// reader is the owner from here on, so the sections the settings area draws, the acts its cards
+/// carry and the rail's menus all change with it, and every one of them is read off the state.
+///
+/// The Turso account does not move with the ownership: until the new owner grants the consent on
+/// their own machine the acts that mint run on the founder's machine or not at all, which is what
+/// the sync section says beside the reconnect.
+#[tauri::command]
+pub async fn ownership_accept(
+    app_state: tauri::State<'_, AppState>,
+    password: String,
+) -> Result<OrganizationState, Error> {
+    {
+        let mut member = app_state.member.write().await;
+        let store = app_state.organization.read().await;
+        let (member, store) = signed_in(&mut member, &store)?;
+        // the rows this act writes back whole carry the session epoch, so they are read after a
+        // pull rather than off this machine's last sight of them (effort 826, requirement 22).
+        store.pull().await;
+
+        let mut remote_sync = app_state.remote_sync.write().await;
+
+        role::accept_ownership(
+            store,
+            member,
+            remote_sync.store_mut(),
+            &password,
+            timestamp::now(),
+        )
+        .await?;
+    }
+
+    state_of(&app_state).await
 }
 
 /// Rename a member: their row written back with the username re-sealed and signed by whoever

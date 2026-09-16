@@ -65,9 +65,8 @@ use super::{
     session::{self, CredentialSlot, MemberSession, content_key_of, remember, sign_in_by_username},
     store::{GrantRecord, MemberRecord, OrganizationRecord, OrganizationStore, Signer},
     vault::{
-        ContentKey, KdfParams, MemberSecretKey, SECRET_KEY_BYTES, create_vault_with_secret_and_key,
+        ContentKey, KdfParams, MemberSecretKey, create_vault_with_secret_and_key,
         generate_content_key, open_content, open_vault, seal_content, seal_to_public_key,
-        unseal_with_secret_key,
     },
     workspace,
 };
@@ -121,37 +120,32 @@ pub const SHIPPING_KDF: KdfParams = KdfParams {
 pub const ORGANIZATION_KEY_PURPOSE: &str = "organization-key";
 pub const ADMINISTRATOR_KEY_PURPOSE: &str = "administrator-key";
 
-/// The organization key an owner's open vault yields: **the seal first, and the derivation only
-/// where there is no seal** (effort 828, requirement 22).
+/// The organization key an owner's open vault yields: **their own derivation, and nothing read
+/// out of the database** (effort 828, requirement 22).
 ///
-/// **There are two kinds of owner and one key.** The founder's key follows from their vault
-/// secret and is stored nowhere, which is what the first run writes the organization row's
-/// `verifying_key` from. An owner who was given the organization holds the same seed, sealed to
-/// their public key in `member.owner_seed_sealed` by the transfer, because the key does not
-/// change and nothing is re-signed; deriving from their secret would yield a key of their own
-/// that no row was ever signed under.
+/// **There is one kind of owner.** A founder and an account that was handed the organization
+/// both hold a key their own secret derives, and neither key is stored anywhere; what makes the
+/// handover work is that the acceptance re-keys the directory under the new owner's derivation
+/// and leaves a `succession` row saying so. So an owner's way back is their password, whichever
+/// kind they are, and a founder who handed over derives a key that no longer matches anything.
 ///
-/// **Every caller that needs the owner's key reads it through here**, so the two kinds cannot
-/// drift apart: `role::transfer_ownership` and the acts that certify a signer
+/// *There were two kinds and one key until 2026-09-16, and this function read
+/// `member.owner_seed_sealed` before deriving. Review round one found that a transferee's way
+/// back then rested on a value read out of the very database that value is meant to judge: a
+/// member holding a full-access grant could replace the seal and re-sign the directory, and the
+/// recovery would pin their key. The seal branch is gone with the shape that needed it; the
+/// column survives as the offer's carrier and is opened only by
+/// `role::accept_ownership`, on a machine that already holds the old key.*
+///
+/// **Every caller that needs the owner's key reads it through here**, so no second derivation can
+/// drift: `role::offer_ownership` and `role::accept_ownership`, the acts that certify a signer
 /// (`role::change_role`, `invite::write_account`) on a machine already signed in, and
 /// `setup::connect_existing` on a machine that holds nothing yet. What comes back is compared or
 /// used to sign; it is never trusted because a column offered it.
-pub fn owner_key_from(
-    secret: &MemberSecretKey,
-    owner_seed_sealed: Option<&[u8]>,
-) -> Result<OrganizationKey, Error> {
-    let seed = match owner_seed_sealed {
-        Some(sealed) => {
-            let opened = unseal_with_secret_key(secret, sealed)?;
-
-            <[u8; SECRET_KEY_BYTES]>::try_from(opened.as_slice()).map_err(|_| Error::Integrity {
-                message: "the organization seed sealed to this owner is not a seed".to_string(),
-            })?
-        }
-        None => secret.derive_seed(ORGANIZATION_KEY_PURPOSE)?,
-    };
-
-    Ok(OrganizationKey::from_bytes(&seed))
+pub fn owner_key_from(secret: &MemberSecretKey) -> Result<OrganizationKey, Error> {
+    Ok(OrganizationKey::from_bytes(
+        &secret.derive_seed(ORGANIZATION_KEY_PURPOSE)?,
+    ))
 }
 
 /// The three things a first run is given, and a fourth where it has already been refused without
@@ -564,8 +558,7 @@ async fn finish<P: TursoPlatform>(
     // the owner's keys: the vault their password opens, the key that opens it, and the two
     // signing keys that follow from its secret.
     let (vault, secret, member_key) = create_vault_with_secret_and_key(password, kdf_params)?;
-    let organization_key =
-        OrganizationKey::from_bytes(&secret.derive_seed(ORGANIZATION_KEY_PURPOSE)?);
+    let organization_key = owner_key_from(&secret)?;
     let administrator_key =
         AdministratorKey::from_bytes(&secret.derive_seed(ADMINISTRATOR_KEY_PURPOSE)?);
     let verifying_key = organization_key.verifying_key();
@@ -1074,11 +1067,13 @@ async fn the_owners_key(
         return Err(refused());
     }
 
-    // the seal first and the derivation only where there is none, so a transferee connects by the
-    // seed the transfer put on their row and the founder by the one their secret yields
-    // (requirement 22). A seal that does not open, or opens to something that is not a seed, is
-    // the same answer as a key that does not match: this is not the owner.
-    let verifying_key = owner_key_from(&secret, member.owner_seed_sealed.as_deref())
+    // the password alone, and no column read (requirement 22). A founder and an account that was
+    // handed the organization both derive the key their own secret yields, because the acceptance
+    // re-keyed the directory under the new owner's derivation; a founder who handed over derives
+    // a key that matches nothing here and is refused as the administrator they now are. **Nothing
+    // about who the owner is comes off a row**, which is what a way back read out of the database
+    // it judges would have meant.
+    let verifying_key = owner_key_from(&secret)
         .map_err(|_| only_the_owner())?
         .verifying_key();
 
@@ -1288,11 +1283,11 @@ mod tests {
         keyring::take_the_credential_store,
         organization::{
             authority::{AdministratorKey, OrganizationKey},
-            invite::{Invitation, USERNAME_RULES, locator, make_account_and_link},
+            invite::{AccountAndLink, Invitation, USERNAME_RULES, locator, make_account_and_link},
             join,
             link::{JoinLink, Locator},
             permission,
-            session::{self, CredentialSlot, sign_in},
+            session::{self, CredentialSlot, MemberSession, sign_in},
             store::OrganizationStore,
             vault::{
                 CONTENT_KEY_BYTES, ContentKey, KdfParams, open_content, open_vault,
@@ -2698,25 +2693,17 @@ mod tests {
         );
     }
 
-    /// **Criterion 22, the second half.** After a transfer, the new owner connects a fresh machine
-    /// with the Turso account and their own password, and what lets them is the seed the transfer
-    /// sealed onto their row.
+    /// An organization that has been handed over, on a scratch directory of its own.
     ///
-    /// This is the same path as the first case above and the same refusal as the second, with one
-    /// thing changed: the account that types its password is the one ownership was handed to. Its
-    /// own secret derives a key nothing was ever signed under, which is exactly what refused adam
-    /// before the transfer, so the connect landing here is the seal being read and nothing else.
-    ///
-    /// **The key the machine pins is the founder's**, unchanged, which is what makes the rows it
-    /// pulled verify at all.
-    #[tokio::test]
-    async fn the_new_owner_connects_a_fresh_machine_by_the_seed_the_transfer_sealed() {
-        let _turn = take_the_credential_store().await;
-
-        store_platform_token(TOKEN).expect("the test credential store would not take the token");
-
-        let directory = scratch("connect-existing-transferred");
-        let (platform, replica, owners_machine) = an_organization(&directory).await;
+    /// The founder makes it, an administrator opens their link on a machine of their own with a
+    /// password they choose, and the two acts of requirement 22 run: the owner offers with their
+    /// own password, and the offered account accepts on its own machine. What comes back is the
+    /// account, the founder's session as it stood before the handover, and the platform, with the
+    /// replica let go of so a connect can open one of its own.
+    async fn handed_over(
+        directory: &std::path::Path,
+    ) -> (Arc<InMemoryPlatform>, AccountAndLink, MemberSession) {
+        let (platform, replica, owners_machine) = an_organization(directory).await;
         let held_before = owners_machine.organization.clone().expect("the record");
         let owner = sign_in(&replica, &held_before, PASSWORD, &slot())
             .await
@@ -2744,8 +2731,7 @@ mod tests {
         std::fs::create_dir_all(&theirs).expect("the administrator's directory");
 
         let mut their_machine = fresh_machine(&theirs, "remote-sync");
-
-        join::accept(
+        let (_, mut their_session) = join::accept(
             |_| async { Ok::<_, Error>(&replica) },
             &mut their_machine,
             &JoinLink::decode(&invited.join_link).expect("the invitation link"),
@@ -2757,8 +2743,7 @@ mod tests {
         .await
         .expect("the administrator could not open their link");
 
-        // the owner hands the organization over, with their own password.
-        crate::organization::role::transfer_ownership(
+        crate::organization::role::offer_ownership(
             &replica,
             &owner,
             &invited.member_id,
@@ -2766,9 +2751,38 @@ mod tests {
             ISSUED_AT + 2,
         )
         .await
-        .expect("the transfer failed");
+        .expect("the offer failed");
+        crate::organization::role::accept_ownership(
+            &replica,
+            &mut their_session,
+            &mut their_machine,
+            ADMINISTRATORS_PASSWORD,
+            ISSUED_AT + 3,
+        )
+        .await
+        .expect("the acceptance failed");
 
         drop(replica);
+
+        (platform, invited, owner)
+    }
+
+    /// **Criterion 22, the second half.** After a handover, the new owner connects a fresh machine
+    /// with the Turso account and their own password alone.
+    ///
+    /// This is the same path as the first case above, with one thing changed: the account that
+    /// types its password is the one that accepted the organization. Their own secret derives the
+    /// key the directory is signed under now, because the acceptance re-keyed it under exactly
+    /// that derivation, and **no column is read to decide it**, which is the whole of what
+    /// requirement 22 was rewritten for.
+    #[tokio::test]
+    async fn the_new_owner_connects_a_fresh_machine_with_their_password_alone() {
+        let _turn = take_the_credential_store().await;
+
+        store_platform_token(TOKEN).expect("the test credential store would not take the token");
+
+        let directory = scratch("connect-existing-handed-over");
+        let (platform, invited, owner) = handed_over(&directory).await;
 
         // long enough after that every machine has dropped out of the presence window, so what
         // lets the connect through is the key and not the gate in front of it.
@@ -2795,16 +2809,10 @@ mod tests {
         assert_eq!(session.role, OWNER_ROLE);
         assert_eq!(session.member_id, invited.member_id);
 
-        // the key this machine pinned is the founder's, which is the whole of what "nothing is
-        // re-signed" buys: the rows it just pulled were written under it and verify against it.
+        // the key this machine pinned is the new owner's own derivation, and not the founder's:
+        // the acceptance re-keyed the directory under it, so the rows this machine just pulled
+        // verify against what its own password yields and against nothing else.
         assert_eq!(
-            held.verifying_key,
-            BASE64URL.encode(owner.verifying_key),
-            "the machine pinned a key the directory was not signed under"
-        );
-
-        // and not a key their own secret derives, which is what refused them before the transfer.
-        assert_ne!(
             held.verifying_key,
             BASE64URL.encode(
                 OrganizationKey::from_bytes(
@@ -2814,7 +2822,53 @@ mod tests {
                         .expect("the seed")
                 )
                 .verifying_key()
-            )
+            ),
+            "the machine pinned a key the new owner's password does not derive"
+        );
+        assert_ne!(held.verifying_key, BASE64URL.encode(owner.verifying_key));
+    }
+
+    /// **Criterion 22, the founder afterwards.** Having handed the organization over, the founder
+    /// is refused on this path as the administrator they now are.
+    ///
+    /// **By construction rather than by a check.** Nothing here reads a role: the key the
+    /// founder's password derives is simply not what the directory is signed under any more, so
+    /// they fail the comparison exactly as any administrator fails it. That is what closes review
+    /// round one's second finding, where the founder went on connecting after a transfer because
+    /// the key had not moved.
+    #[tokio::test]
+    async fn the_founder_is_refused_as_an_administrator_after_handing_the_organization_over() {
+        let _turn = take_the_credential_store().await;
+
+        store_platform_token(TOKEN).expect("the test credential store would not take the token");
+
+        let directory = scratch("connect-existing-founder-after");
+        let (platform, _, _) = handed_over(&directory).await;
+
+        let now = ISSUED_AT + 2 * FOUR_WEEKS_MS;
+        let mcp = ScriptedServer::start(holding_the_organization()).await;
+        let mut founders_machine = fresh_machine(&directory, "the-founders-next-machine");
+        let refused = connect_existing(
+            &mut founders_machine,
+            TOKEN,
+            &McpEndpoint::at(&mcp.url("")),
+            |_| Arc::clone(&platform),
+            Remote::none(),
+            &directory.join("app.db"),
+            "olivia.owner",
+            PASSWORD,
+            now,
+        )
+        .await
+        .expect_err("the founder connected after handing the organization over");
+
+        assert!(
+            matches!(refused, Error::Forbidden { ref message } if message == ONLY_THE_OWNER_CONNECTS),
+            "{refused:?}"
+        );
+        assert!(
+            founders_machine.organization.is_none(),
+            "a refused connect left an organization on the machine"
         );
     }
 

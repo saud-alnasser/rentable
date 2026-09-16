@@ -259,6 +259,14 @@ pub struct SessionFacts {
     /// the owner's username, opened with the content key: whom a member is told to tell when
     /// the organization's account needs attention (requirement 25), and nothing else about them.
     pub owner_username: String,
+    /// whether this reader has been offered the organization and has not accepted yet (effort
+    /// 828, requirement 22), which is what puts the acceptance in their you section.
+    ///
+    /// **A fact about a standing offer and never the offer itself**: what the seal on the row
+    /// carries stays in Rust ([[rules/credentials]], *Client boundary*), and the offered person
+    /// needs to know only that it is there and whose it is, which the owner's username beside it
+    /// already says.
+    pub ownership_offered: bool,
 }
 
 /// Open the member row `joined` names in `store` with `password`.
@@ -1022,6 +1030,9 @@ pub async fn facts_of(
         role: member.role.clone(),
         permissions: member.permissions,
         workspaces: workspace_facts,
+        ownership_offered: super::role::standing_offer(store, key)
+            .await?
+            .is_some_and(|offer| offer.offered_member_id == member.id),
     })
 }
 

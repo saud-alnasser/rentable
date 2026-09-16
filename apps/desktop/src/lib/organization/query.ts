@@ -650,21 +650,21 @@ export function useChangeRole(
 }
 
 /**
- * hand the organization to another account (effort 828, requirement 22).
+ * offer the organization to another account: the first of the two acts a handover is (effort 828,
+ * requirement 22).
  *
- * **The state key is refreshed beside the list**, because the reader's own role changes with the
- * act: they are an administrator the moment it goes through, and the sections the settings area
- * offers them are read off that. Without it the screen would go on drawing an owner's controls
- * until a relaunch.
+ * **Only the list is refreshed.** Nothing about the organization moves on an offer, so the
+ * reader is still the owner and the sections the settings area draws them are unchanged; what
+ * changes is that one card now carries the offer, which is on the list.
  *
  * The refusal a person can act on is a password that does not open their vault, and the surface
  * marks it on the field ([[rules/interface]], *Validation errors*), so the caller reads the
  * rejection rather than only hearing it.
  */
-export function useTransferOwnership(
+export function useOfferOwnership(
 	opts: MutationOptions = {
 		toast: {
-			success: () => get(LL).organization.dashboard.ownershipTransferred(),
+			success: () => get(LL).organization.dashboard.ownershipOffered(),
 			error: true,
 			unexpected: () => get(LL).common.messages.unexpectedError()
 		}
@@ -674,7 +674,62 @@ export function useTransferOwnership(
 
 	return createMutation(() => ({
 		mutationFn: ({ memberId, password }: { memberId: string; password: string }) =>
-			api.app.organization.member.transferOwnership({ memberId, password }),
+			api.app.organization.member.offerOwnership({ memberId, password }),
+		onSuccess: async () => {
+			await client.invalidateQueries({ queryKey: keys.members });
+			onMutationSuccess(opts);
+		},
+		onError: (e) => onMutationError(opts, e)
+	}));
+}
+
+/** take the offer back, which leaves the organization exactly where it was. */
+export function useWithdrawOffer(
+	opts: MutationOptions = {
+		toast: {
+			success: () => get(LL).organization.dashboard.ownershipOfferWithdrawn(),
+			error: true,
+			unexpected: () => get(LL).common.messages.unexpectedError()
+		}
+	}
+) {
+	const client = useQueryClient();
+
+	return createMutation(() => ({
+		mutationFn: () => api.app.organization.member.withdrawOffer(),
+		onSuccess: async () => {
+			await client.invalidateQueries({ queryKey: keys.members });
+			onMutationSuccess(opts);
+		},
+		onError: (e) => onMutationError(opts, e)
+	}));
+}
+
+/**
+ * accept the organization that was offered to this reader (effort 828, requirement 22).
+ *
+ * **The state key is refreshed beside the list**, because the reader's own role changes with the
+ * act: they are the owner the moment it goes through, and the sections the settings area offers
+ * them, the acts its cards carry and the rail's menus are all read off that. Without it the
+ * screen would go on drawing a member's controls until a relaunch.
+ *
+ * The refusal a person can act on is a password that does not open their vault, and the surface
+ * marks it on the field ([[rules/interface]], *Validation errors*).
+ */
+export function useAcceptOwnership(
+	opts: MutationOptions = {
+		toast: {
+			success: () => get(LL).organization.dashboard.ownershipAccepted(),
+			error: true,
+			unexpected: () => get(LL).common.messages.unexpectedError()
+		}
+	}
+) {
+	const client = useQueryClient();
+
+	return createMutation(() => ({
+		mutationFn: ({ password }: { password: string }) =>
+			api.app.organization.ownershipAccept({ password }),
 		onSuccess: async () => {
 			await client.invalidateQueries({ queryKey: keys.members });
 			await client.invalidateQueries({ queryKey: keys.state });

@@ -718,6 +718,10 @@ pub struct MemberFacts {
     pub permissions: i64,
     pub workspaces: Vec<WorkspaceGrant>,
     pub created_at: i64,
+    /// whether the organization has been offered to this account and not yet accepted (effort
+    /// 828, requirement 22). It is what puts *withdraw the offer* on the owner's card in place of
+    /// the offer, and what names the account the offer stands with.
+    pub offered_ownership: bool,
 }
 
 /// Every member, verified, with the username opened for the screen.
@@ -726,6 +730,11 @@ pub async fn members(
     session: &MemberSession,
 ) -> Result<Vec<MemberFacts>, Error> {
     let grants = store.grants(&session.verifying_key).await?;
+    // read once for the whole list rather than per row: an organization has one standing offer or
+    // none, and it is the same answer on every card (effort 828, requirement 22).
+    let offered = super::role::standing_offer(store, &session.verifying_key)
+        .await?
+        .map(|offer| offer.offered_member_id);
 
     store
         .members(&session.verifying_key)
@@ -751,6 +760,7 @@ pub async fn members(
                             .unwrap_or(AccessLevel::FullAccess),
                     })
                     .collect(),
+                offered_ownership: offered.as_deref() == Some(member.id.as_str()),
                 id: member.id,
                 role: member.role,
                 permissions: member.permissions,
@@ -1100,10 +1110,10 @@ async fn write_account<P: TursoPlatform>(
             });
         }
 
-        // read through `role::owner_key_of`, so an owner who was given the organization certifies
-        // with the seed sealed onto their row rather than with one their secret would derive
-        // (effort 828, requirement 22).
-        let organization_key = super::role::owner_key_of(store, session).await?;
+        // read through `setup::owner_key_from`, the one derivation of the owner's key: it is
+        // their own, founder or transferee, because an acceptance re-keys the directory under the
+        // new owner's derivation (effort 828, requirement 22).
+        let organization_key = super::setup::owner_key_from(&session.secret)?;
 
         // a reset draws a fresh vault secret, so `administrator_key` differs from the one this
         // member's old certificate names, and the certificate about to replace it carries the new

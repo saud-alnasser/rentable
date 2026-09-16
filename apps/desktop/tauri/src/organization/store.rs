@@ -40,9 +40,9 @@ use super::{
     vault::{KDF_SALT_BYTES, KdfParams, PUBLIC_KEY_BYTES, Vault},
 };
 
-/// The nine tables, in the order the schema creates them. A test pins this list against what
+/// The ten tables, in the order the schema creates them. A test pins this list against what
 /// the database reports, so a table added anywhere is added here or fails there.
-pub const TABLES: [&str; 9] = [
+pub const TABLES: [&str; 10] = [
     "organization",
     "member",
     "administrator_certificate",
@@ -52,6 +52,7 @@ pub const TABLES: [&str; 9] = [
     "migration_lease",
     "machine_link",
     "machine",
+    "succession",
 ];
 
 /// How long a machine counts as connected after it was last seen: seven days (effort 828,
@@ -72,7 +73,7 @@ pub const MACHINE_PRESENCE_WINDOW: i64 = 7 * 24 * 60 * 60 * 1000;
 ///
 /// `grant` is quoted everywhere because it is a keyword in most dialects, and a statement that
 /// works in SQLite and fails elsewhere is a statement worth spelling defensively once.
-const SCHEMA: [&str; 9] = [
+const SCHEMA: [&str; 10] = [
     "CREATE TABLE IF NOT EXISTS \"organization\" (\
         \"id\" TEXT PRIMARY KEY NOT NULL, \
         \"name_sealed\" BLOB NOT NULL, \
@@ -148,6 +149,15 @@ const SCHEMA: [&str; 9] = [
         \"member_id\" TEXT, \
         \"seen_at\" INTEGER NOT NULL, \
         \"created_at\" INTEGER NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS \"succession\" (\
+        \"id\" TEXT PRIMARY KEY NOT NULL, \
+        \"offered_member_id\" TEXT NOT NULL, \
+        \"offered_by\" TEXT NOT NULL, \
+        \"offered_at\" INTEGER NOT NULL, \
+        \"old_verifying_key\" BLOB NOT NULL, \
+        \"new_verifying_key\" BLOB, \
+        \"accepted_at\" INTEGER, \
+        \"signature\" BLOB NOT NULL)",
 ];
 
 /// The one `organization` row.
@@ -159,6 +169,11 @@ pub struct OrganizationRecord {
     /// the organization's Ed25519 verifying key, **stored here for a second machine to compare
     /// against and never to verify with.** A reader verifies against the key its join link pinned;
     /// this column is what lets it notice the two disagree.
+    ///
+    /// *Rewritten when the organization is handed over* (effort 828, requirement 22): the key is
+    /// the current owner's derivation, so it moves with the ownership. A machine that disagrees
+    /// with this column does not believe it; it reads the `succession` table and checks the change
+    /// against the key it pinned.
     pub verifying_key: [u8; VERIFYING_KEY_BYTES],
     pub remote_url: String,
     pub created_at: i64,
@@ -199,13 +214,18 @@ pub struct MemberRecord {
     /// the number it opened under and a remembered key files it beside itself, so a session or a
     /// key from before the last bump is behind the row and opens nothing.
     pub session_epoch: i64,
-    /// the organization key's seed, sealed to this member's public key, on the row of an owner
-    /// who was given the organization rather than founding it (effort 828, requirement 22).
+    /// the outgoing organization key's seed, sealed to this member's public key, on the row of an
+    /// account that has been offered the organization and has not accepted yet (effort 828,
+    /// requirement 22).
     ///
-    /// **`None` on every other row, and on the founder's**, whose key is derived from their vault
-    /// secret and stored nowhere. A transfer seals the same seed to the new owner so that the key
-    /// does not change and no row is re-signed; everything that needs the owner's key reads this
-    /// first and derives only where there is none (`setup::owner_key_from`).
+    /// **`None` everywhere else, including on both owners' rows once a handover is done.** The
+    /// offer puts it on, the acceptance and the withdrawal take it off. Every owner's key is what
+    /// their own vault derives, founder and transferee alike, and is stored nowhere: what this
+    /// carries is the key the acceptance is replacing, so that the accepting machine can prove the
+    /// offer came from the holder of the key it already pinned.
+    ///
+    /// *It was a transferee's standing anchor until 2026-09-16, when review round one found that
+    /// a way back resting on this column rests on the database it is meant to judge.*
     ///
     /// **Inside the member preimage where it is present** (`authority::MemberAuthority`), so a
     /// row without it hashes exactly as it did before the column existed and nobody can put a
@@ -342,6 +362,39 @@ pub struct MachineRecord {
     pub created_at: i64,
 }
 
+/// A `succession` row: an offer of the organization to one account, and the key change it became
+/// (effort 828, requirement 22).
+///
+/// **The tenth table, and the only one signed by the organization key rather than under a
+/// certificate** (`authority::SuccessionAuthority`). An offer carries the key in force when it
+/// was made and nothing else; the acceptance writes the key that replaced it and re-signs the
+/// row, still under the old key, because the reader this row exists for is a machine that holds
+/// the old key and nothing newer.
+///
+/// **Nothing is deleted once a succession completes.** A machine that was offline across two
+/// handovers walks the chain, which means every link of it has to still be there; the rows a
+/// long-lived organization accumulates are one per handover. A standing offer is deleted, which
+/// is what withdrawing one is.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SuccessionRecord {
+    pub id: String,
+    /// the account offered the organization, and the only one whose acceptance means anything.
+    pub offered_member_id: String,
+    /// the owner who offered it.
+    pub offered_by: String,
+    pub offered_at: i64,
+    /// the organization key in force when the offer was made, which is the key that signed this
+    /// row both times.
+    pub old_verifying_key: [u8; VERIFYING_KEY_BYTES],
+    /// what the new owner's vault derives; `None` while the offer stands.
+    pub new_verifying_key: Option<[u8; VERIFYING_KEY_BYTES]>,
+    pub accepted_at: Option<i64>,
+    /// the organization key's signature, made by whoever wrote the row. The store puts none on:
+    /// it holds no organization key and never will, which is why this is a field here and not a
+    /// `Signer` argument.
+    pub signature: Vec<u8>,
+}
+
 /// Who is writing: an administrator's key and the certificate that makes it an authority.
 ///
 /// Taken together so that `authority::sign` can refuse a key the certificate does not name, once,
@@ -405,7 +458,7 @@ impl OrganizationStore {
         })
     }
 
-    /// Create the nine tables where they do not exist.
+    /// Create the ten tables where they do not exist.
     ///
     /// Issued through the sync connection, so on the machine that creates the organization the
     /// schema is captured as change data and reaches the remote with the first push; every other
@@ -1709,6 +1762,105 @@ impl OrganizationStore {
         Ok(re_signed)
     }
 
+    // successions
+
+    /// Write a succession as offered or as accepted. The signature it carries is the organization
+    /// key's and was made by the caller, exactly as a certificate's is: this module holds no
+    /// organization key and makes no signature with one.
+    pub async fn write_succession(&self, succession: &SuccessionRecord) -> Result<(), Error> {
+        self.connection
+            .execute(
+                "INSERT OR REPLACE INTO \"succession\" \
+                 (\"id\", \"offered_member_id\", \"offered_by\", \"offered_at\", \
+                  \"old_verifying_key\", \"new_verifying_key\", \"accepted_at\", \"signature\") \
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                vec![
+                    turso::Value::Text(succession.id.clone()),
+                    turso::Value::Text(succession.offered_member_id.clone()),
+                    turso::Value::Text(succession.offered_by.clone()),
+                    turso::Value::Integer(succession.offered_at),
+                    turso::Value::Blob(succession.old_verifying_key.to_vec()),
+                    match &succession.new_verifying_key {
+                        Some(key) => turso::Value::Blob(key.to_vec()),
+                        None => turso::Value::Null,
+                    },
+                    match succession.accepted_at {
+                        Some(at) => turso::Value::Integer(at),
+                        None => turso::Value::Null,
+                    },
+                    turso::Value::Blob(succession.signature.clone()),
+                ],
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// Every succession, oldest first, with no signature checked.
+    ///
+    /// **The second read in this module that verifies nothing, and the reason is the opposite of
+    /// [`OrganizationStore::members_unverified`]'s.** That one reads before a key exists; this one
+    /// reads the rows that say which key to hold, so the key to judge them by is exactly what the
+    /// caller is working out. Verifying here would mean picking one, and the pick is the decision.
+    ///
+    /// **What a caller must do with these is check each one** through
+    /// `authority::verify_succession`, against the key it already pinned and then against each key
+    /// the chain hands it (`role::follow_succession`, which is the only walk there is). A row
+    /// whose signature does not check under the key in hand is a row somebody wrote, and every
+    /// such row is worth exactly nothing: without the check this table would be a way to tell any
+    /// machine to trust any key.
+    pub async fn successions(&self) -> Result<Vec<SuccessionRecord>, Error> {
+        let mut rows = self
+            .connection
+            .query(
+                "SELECT \"id\", \"offered_member_id\", \"offered_by\", \"offered_at\", \
+                        \"old_verifying_key\", \"new_verifying_key\", \"accepted_at\", \
+                        \"signature\" \
+                 FROM \"succession\" ORDER BY \"offered_at\", \"id\"",
+                (),
+            )
+            .await?;
+        let mut successions = Vec::new();
+
+        while let Some(row) = rows.next().await? {
+            successions.push(SuccessionRecord {
+                id: text(&row, 0)?,
+                offered_member_id: text(&row, 1)?,
+                offered_by: text(&row, 2)?,
+                offered_at: integer(&row, 3)?,
+                old_verifying_key: fixed::<VERIFYING_KEY_BYTES>(&row, 4, "old_verifying_key")?,
+                new_verifying_key: match nullable_blob(&row, 5)? {
+                    Some(bytes) => Some(
+                        <[u8; VERIFYING_KEY_BYTES]>::try_from(bytes.as_slice()).map_err(|_| {
+                            Error::Integrity {
+                                message: "a succession's new verifying key is not a key"
+                                    .to_string(),
+                            }
+                        })?,
+                    ),
+                    None => None,
+                },
+                accepted_at: nullable_integer(&row, 6)?,
+                signature: blob(&row, 7)?,
+            });
+        }
+
+        Ok(successions)
+    }
+
+    /// Take a standing offer away, which is what withdrawing one is. A completed succession is
+    /// never deleted, and nothing here distinguishes the two: the caller names the row.
+    pub async fn delete_succession(&self, id: &str) -> Result<(), Error> {
+        self.connection
+            .execute(
+                "DELETE FROM \"succession\" WHERE \"id\" = ?",
+                vec![turso::Value::Text(id.to_string())],
+            )
+            .await?;
+
+        Ok(())
+    }
+
     /// The columns one table carries, as the database reports them: what the startup check reads
     /// to tell a replica built under an earlier schema from one this build wrote
     /// (`organization/forget.rs`). A table that is not there has no columns.
@@ -1801,6 +1953,14 @@ fn integer(row: &turso::Row, index: usize) -> Result<i64, Error> {
     match row.get_value(index)? {
         turso::Value::Integer(value) => Ok(value),
         other => Err(unexpected(index, "an integer", &other)),
+    }
+}
+
+fn nullable_integer(row: &turso::Row, index: usize) -> Result<Option<i64>, Error> {
+    match row.get_value(index)? {
+        turso::Value::Integer(value) => Ok(Some(value)),
+        turso::Value::Null => Ok(None),
+        other => Err(unexpected(index, "an integer or null", &other)),
     }
 }
 
@@ -2035,7 +2195,7 @@ mod tests {
     // criterion 1: the schema, and two workspaces of one organization
 
     #[tokio::test]
-    async fn the_nine_tables_exist_and_an_organization_holds_two_workspaces_at_once() {
+    async fn the_ten_tables_exist_and_an_organization_holds_two_workspaces_at_once() {
         let directory = scratch("schema");
         let store = open(&directory).await;
         let chain = Chain::new();

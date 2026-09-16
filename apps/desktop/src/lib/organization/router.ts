@@ -75,6 +75,25 @@ export const organization = router({
 		return ctx.host.organization.disconnect();
 	}),
 	/**
+	 * Accept the organization that was offered to this reader: the second of the two acts a
+	 * handover is (effort 828, requirement 22).
+	 *
+	 * **`member`, and every judgement is Rust's.** Whether an offer stands for this reader,
+	 * whether the password opens their vault, and whether what was sealed onto their row is the
+	 * key this machine holds are all answered where the keys are. What this side can say is that
+	 * somebody is signed in and that a password was typed, which is the shape `organization.delete`
+	 * has and for the same reason.
+	 *
+	 * The floor is not applied, as it is not on a current password anywhere else here. What comes
+	 * back is the whole state, because this reader is the owner from here on and every section the
+	 * settings area offers is drawn off it.
+	 */
+	ownershipAccept: procedure.member
+		.input(z.object({ password: z.string().min(1) }))
+		.mutation(async ({ input, ctx }): Promise<OrganizationState> => {
+			return ctx.host.organization.ownershipAccept(input.password);
+		}),
+	/**
 	 * Delete the organization: every workspace database and the organization's own directory go
 	 * from the owner's Turso account, and this machine forgets what it held (effort 828,
 	 * requirement 18).
@@ -346,24 +365,34 @@ export const organization = router({
 				);
 			}),
 		/**
-		 * Hand the organization to another account (effort 828, requirement 22).
+		 * Offer the organization to another account: the first of the two acts a handover is
+		 * (effort 828, requirement 22).
 		 *
 		 * **The owner's, and this side cannot tell.** There is no owner procedure here and there
 		 * should not be one: being the owner is what a password opened rather than a bit on a row,
 		 * so this asks only that somebody is signed in and that a password and an account were
-		 * given. Whether the caller is the owner, and whether the password opens their vault, are
-		 * Rust's alone, exactly as `organization.delete` leaves them.
+		 * given. Whether the caller is the owner, whether the password opens their vault, and
+		 * whether the account named has a password of its own are Rust's alone, exactly as
+		 * `organization.delete` leaves them.
 		 *
 		 * The password crosses in and nothing about it crosses back ([[rules/credentials]],
 		 * *Client boundary*). The floor is not applied: it is being checked against a vault rather
 		 * than chosen, which is the reading `organization.delete` and `password.change` take of a
 		 * current password.
 		 */
-		transferOwnership: procedure.member
+		offerOwnership: procedure.member
 			.input(z.object({ memberId: z.string().trim().min(1), password: z.string().min(1) }))
 			.mutation(async ({ input, ctx }): Promise<OrganizationMember> => {
-				return ctx.host.organization.member.transferOwnership(input.memberId, input.password);
+				return ctx.host.organization.member.offerOwnership(input.memberId, input.password);
 			}),
+		/**
+		 * Take the offer back. The owner's on the same reading, and it takes nothing: nothing is
+		 * unsealed and there is one standing offer or none, so naming which would be naming
+		 * something this side would have to have read.
+		 */
+		withdrawOffer: procedure.member.mutation(async ({ ctx }): Promise<void> => {
+			return ctx.host.organization.member.withdrawOffer();
+		}),
 		/**
 		 * Sign a member out of every machine (effort 826, requirement 22).
 		 *

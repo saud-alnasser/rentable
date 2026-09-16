@@ -35,6 +35,20 @@
 //! as a second verifier written at a call site for convenience, not as a bug in
 //! this file.
 //!
+//! [`verify_succession`] is the one exception and it is not that second verifier
+//! (effort 828, requirement 22). A succession names no certificate, because what
+//! it tells a reader is which key issues certificates from now on; there is
+//! nothing behind it to forget, and it can answer about no row.
+//!
+//! # The key changes when the owner does
+//!
+//! An organization key is the current owner's derivation, and handing the
+//! organization over replaces it ([`SuccessionAuthority`]). Every certificate is
+//! re-issued under the new key with the same ids and the same signing keys, so
+//! every row an administrator signed still verifies and nothing is re-signed for
+//! the sake of it; a machine holding the old key follows the succession to the
+//! new one. *The key was fixed for the life of the organization until 2026-09-16.*
+//!
 //! # What a failure says
 //!
 //! Which of the three checks refused a row, which is the opposite of what the
@@ -85,6 +99,17 @@ const WORKSPACE_DOMAIN: &[u8] = b"rentable.organization.authority.workspace.v1";
 
 /// Separates a `grant` row's preimage from every other row's.
 const GRANT_DOMAIN: &[u8] = b"rentable.organization.authority.grant.v1";
+
+/// Separates a `succession` row's preimage from every other row's, and from a certificate's.
+///
+/// **The one preimage the organization key signs that is not a certificate** (effort 828,
+/// requirement 22). A succession is how a machine holding the old key learns which key replaced
+/// it, so it cannot be signed under a certificate: a certificate is a thing the reader is being
+/// asked to trust, and what the reader has to check here is the key that issues certificates.
+const SUCCESSION_DOMAIN: &[u8] = b"rentable.organization.authority.succession.v1";
+
+/// What a `succession` row's signature refuses with.
+const FORGED_SUCCESSION: &str = "the succession is not signed by the key it says it is leaving";
 
 /// The fourth row, which the invitation ticket gave a signature: the plan's data model gave the
 /// row the column, and the ticket that writes one is the ticket that signs it. `v2` since effort
@@ -208,18 +233,56 @@ pub struct MemberAuthority<'a> {
     /// What the member may administer, as the column holds it.
     pub permissions: i64,
     /// The organization key's seed, sealed to this member's public key, on the row
-    /// of an owner who was given the organization rather than founding it (effort
-    /// 828, requirement 22). `None` on every other row, which is every row a
-    /// transfer has not touched.
+    /// of an account that has been offered the organization and has not accepted
+    /// yet (effort 828, requirement 22). `None` on every other row, and `None`
+    /// again the moment the offer is accepted or withdrawn.
     ///
-    /// **Under signature, and appended rather than tagged.** It is what makes a
-    /// transferee the owner, so a writer able to put it on a row of their own
-    /// choosing would be handing themselves the key that certifies signers. The
+    /// **It is the offer's carrier and never anybody's anchor.** The acceptance
+    /// opens it only on a machine that already holds the old key by another route,
+    /// and refuses unless what it opens derives the key that machine pinned, so a
+    /// seal somebody planted opens nothing that is then believed. *It was the
+    /// transferee's way back until 2026-09-16, which meant a value read out of the
+    /// database it was meant to judge.*
+    ///
+    /// **Under signature, and appended rather than tagged.** A writer able to put
+    /// a seal on a row of their own choosing would be naming themselves the
+    /// organization's next owner. The
     /// preimage appends it only where it is present, so a row without it signs the
     /// bytes it signed before the column existed and every row written before the
     /// transfer still verifies; [`preimage`] says why that is unambiguous here
     /// where `optional_field` is used elsewhere.
     pub owner_seed_sealed: Option<&'a [u8]>,
+}
+
+/// What a `succession` row puts under signature: which account was offered the organization, who
+/// offered it, the key that is being left, and the key that replaced it once one has (effort 828,
+/// requirement 22).
+///
+/// **Signed by the organization key rather than by an administrator**, which is the whole of what
+/// makes it worth anything. A machine that pinned the old key meets rows it cannot verify and has
+/// to decide whether to pin another one; the only thing it holds that can answer is the key it
+/// already pinned, so the offer is signed by the key in force when it was made and the completion
+/// by that same key over the key replacing it. A certificate in between would be one more thing
+/// the reader has to be persuaded of by the key it is trying to replace.
+///
+/// **`new_verifying_key` and `accepted_at` are `None` until the offer is accepted**, and the
+/// completion signs them in. So the two states are two preimages and one column: an offer whose
+/// signature was lifted onto a completed row verifies as neither.
+#[derive(Clone, Copy, Debug)]
+pub struct SuccessionAuthority<'a> {
+    pub id: &'a str,
+    /// the account that was offered the organization, and the only one that can accept.
+    pub offered_member_id: &'a str,
+    /// the owner who offered it.
+    pub offered_by: &'a str,
+    pub offered_at: i64,
+    /// the organization key in force when the offer was written, which is the key whose holder
+    /// signed this row.
+    pub old_verifying_key: &'a [u8; VERIFYING_KEY_BYTES],
+    /// what the new owner's own vault derives, once they have accepted. `None` on a standing
+    /// offer.
+    pub new_verifying_key: Option<&'a [u8; VERIFYING_KEY_BYTES]>,
+    pub accepted_at: Option<i64>,
 }
 
 /// What a `workspace` row puts under signature: the identity of the database it
@@ -352,6 +415,46 @@ pub fn issue_certificate(
         .to_vec();
 
     certificate
+}
+
+/// Signs a succession under the organization key (effort 828, requirement 22).
+///
+/// **The second and last thing the organization key signs**, beside a certificate, and it is
+/// deliberately not reachable as a general "sign anything with the organization key": the
+/// preimage is built here from a named struct, so the key cannot be turned on a row by a caller
+/// who found it convenient.
+pub fn sign_succession(
+    organization_key: &OrganizationKey,
+    succession: SuccessionAuthority<'_>,
+) -> Vec<u8> {
+    organization_key
+        .0
+        .sign(&succession_preimage(succession))
+        .to_bytes()
+        .to_vec()
+}
+
+/// Verifies a succession against the key the reader already holds.
+///
+/// **Separate from [`verify`] because there is no certificate to forget.** The warning at the top
+/// of this file is about a reader that checks a row and skips the authority behind it; a
+/// succession has no authority behind it but the organization key itself, which is the input, so
+/// the failure mode that made `verify` a single function does not exist here.
+///
+/// `organization_verifying_key` is the key the caller pinned, and it is what the signature has to
+/// have been made by. A machine following a chain of successions calls this once per link, each
+/// time with the key the previous link handed it.
+pub fn verify_succession(
+    organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
+    succession: SuccessionAuthority<'_>,
+    signature: &[u8],
+) -> Result<(), Error> {
+    verify_signature(
+        organization_verifying_key,
+        &succession_preimage(succession),
+        signature,
+        FORGED_SUCCESSION,
+    )
 }
 
 /// Signs the authority fields of one row, under the certificate that authorises
@@ -516,6 +619,37 @@ fn preimage(certificate_id: &str, authority: Authority<'_>) -> Vec<u8> {
             field(&mut message, &expires_at.to_be_bytes());
         }
     }
+
+    message
+}
+
+/// What the organization key signs when it hands the organization on.
+///
+/// Named field by field rather than with `..`, for the reason the arms of [`preimage`] are: a
+/// column added to the succession row is a compile error here instead of a field nobody signed.
+fn succession_preimage(succession: SuccessionAuthority<'_>) -> Vec<u8> {
+    let SuccessionAuthority {
+        id,
+        offered_member_id,
+        offered_by,
+        offered_at,
+        old_verifying_key,
+        new_verifying_key,
+        accepted_at,
+    } = succession;
+
+    let mut message = SUCCESSION_DOMAIN.to_vec();
+
+    field(&mut message, id.as_bytes());
+    field(&mut message, offered_member_id.as_bytes());
+    field(&mut message, offered_by.as_bytes());
+    field(&mut message, &offered_at.to_be_bytes());
+    field(&mut message, old_verifying_key);
+    optional_field(&mut message, new_verifying_key.map(|key| &key[..]));
+    optional_field(
+        &mut message,
+        accepted_at.map(i64::to_be_bytes).as_ref().map(|at| &at[..]),
+    );
 
     message
 }
