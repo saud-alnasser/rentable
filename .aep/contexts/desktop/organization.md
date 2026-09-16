@@ -24,6 +24,15 @@ signed along a chain rooted at a key the join link pins. Every member's machine 
 _Avoid_: "the control plane" and "the account" for it. There is no service of ours, and the
 account is Turso's.
 
+*Corrected 2026-09-16 ([[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]],
+requirement 20): **no member makes a machine link.** There are still nine tables and `machine_link`
+is still one of them, but it is not "the machine links a member makes for their own next machine".
+The one act that makes a link of either kind is `invite::make_link`, held to `inviteMember` and
+refused on the owner's own row, so the owner or an administrator makes every link from an account's
+card and a member makes none. The member's own act this sentence described was built inside effort
+828 and retired inside it. The ninth table, `machine`, is requirement 15's register of the machines
+that hold the organization, and that half of the sentence stands.*
+
 **Vault**:
 A member's X25519 keypair, sealed under a key Argon2id derives from their password, on their own
 row. The password opens it on any machine, with or without a network; what it unseals is the
@@ -196,7 +205,12 @@ owner's secret and stored nowhere" now means for a founder alone.*
   the organization that is there, signed in, with every grant renewed. **Only the owner can**,
   because only their password re-derives the organization key, and that derived key is what the
   rows are judged against; the key the organization row carries is compared with it and never
-  trusted. The way is open only while no owner's or administrator's machine has been seen in the
+  trusted. *Corrected 2026-09-16 (effort 828, requirement 22): "re-derives" is true of the founder
+  alone. An owner who was handed the organization opens the same key from the seed the transfer
+  sealed into their vault, because `setup::owner_key_from` reads `member.owner_seed_sealed` first
+  and derives only where there is none; what their password reaches is the founder's key either
+  way, which is why only the owner can. The **Authority** entry above writes it out.* The way is
+  open only while no owner's or administrator's machine has been seen in the
   last seven days, since such a machine can hand out a link, and the refusal says so and abandons
   the consent. *Nothing creates in a held group:* the refusal requirement 21 added stands for a
   create arriving by any other route. A second machine reconnecting by link is neither of these

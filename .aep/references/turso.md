@@ -27,6 +27,16 @@ API did for it was create it once, and everything after that is the sync engine'
 plane's own records, `control-plane` and `control-plane-live-test`, are still on the human's
 account and are theirs; the application that read them retired on 2026-09-12.*
 
+**What this API does to `org-<id>` widened on 2026-09-16, with effort 828, so "all this API did
+for it was create it once" no longer holds.** Two of that effort's requirements reach the
+directory. Requirement 14 connects a machine to an organization the group already holds, and
+`setup::connect_existing` mints a token over `org-<id>` on this API for the machine that is
+joining, the way a first run mints one over the database it just created. Requirement 18 lets the
+owner delete the organization, and `removal::delete_organization` removes `org-<id>` through
+`delete_database` after every `ws-` database the directory names. So the API creates the directory,
+mints over it and deletes it; the reads and writes in between are still the sync engine's, which is
+the part of the sentence that stands. *Never run* carries the delete as the third deletion reason.
+
 ## Prerequisites
 
 In the shipping application, one thing: **a consent**. The owner grants the application authority

@@ -110,6 +110,17 @@ mints one, nothing stores one, nothing shows one and nothing accepts one, the co
 sealed is gone from the organization row, and there is no kind of link left that connects a machine
 without a code. What each link carries is what that paragraph says, on all of them.*
 
+*Corrected 2026-09-16 ([[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]],
+requirement 20): **there are two kinds of link, and a reset is not one of them.** The paragraph
+above glosses "every other link" as an invitation, a reset and the second-machine link effort 828
+adds, which is three; what the code holds is two, `HalfKind::Invitation` and `HalfKind::Machine`. A
+reset makes no link at all: `invite::unset_password`, held to `resetPassword`, takes an account's
+password away and reseals its grants, and what follows it is an ordinary link made from the
+account's card, asking the person to choose a new password because the account now has none. The
+second-machine link is not a third kind either; it is the machine kind, made by the owner or an
+administrator for an account no machine is signed in on. What each of the two carries is what that
+paragraph says, unchanged.*
+
 *And **the owner's way back is the account**, which is why the recovery copy could go. An owner
 whose every machine is gone repeats the Turso consent and signs in with their own username and
 password, and that password is what re-derives the organization's key either way (requirement 14).
