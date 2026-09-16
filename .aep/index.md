@@ -127,7 +127,7 @@ Start at [[protocol]].
 | 819-an-organization-hosts-its-own-workspaces | implemented | [[efforts/819-an-organization-hosts-its-own-workspaces/spec]] | 1 | 1 | 28 |
 | 824-the-way-in-and-the-workspace-control-are-redesigned | implemented | [[efforts/824-the-way-in-and-the-workspace-control-are-redesigned/spec]] | 0 | 0 | 17 |
 | 826-the-organization-and-the-way-in-are-rethought | implemented | [[efforts/826-the-organization-and-the-way-in-are-rethought/spec]] | 2 | 1 | 22 |
-| 828-the-link-needs-a-code-and-the-settings-area-guides | accepted | [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]] | 5 | 0 | 24 |
+| 828-the-link-needs-a-code-and-the-settings-area-guides | accepted | [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]] | 5 | 0 | 25 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -267,3 +267,4 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/tickets/22-ownership-is-handed-over-in-two-acts]] feat(organization): ownership is handed over in two acts, and the directory re-keys | 828-the-link-needs-a-code-and-the-settings-area-guides | resolved | 20 |
 | [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/tickets/23-a-members-role-permissions-and-workspaces-are-one-sheet]] feat(settings): a member's role, permissions and workspaces are one sheet | 828-the-link-needs-a-code-and-the-settings-area-guides | resolved | 21 |
 | [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/tickets/24-the-organization-schema-completes-itself-after-a-pull]] fix(organization): the organization schema completes itself after a pull | 828-the-link-needs-a-code-and-the-settings-area-guides | resolved | — |
+| [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/tickets/25-the-settings-area-has-four-sections]] feat(settings): the settings area has four sections | 828-the-link-needs-a-code-and-the-settings-area-guides | open | 23 |

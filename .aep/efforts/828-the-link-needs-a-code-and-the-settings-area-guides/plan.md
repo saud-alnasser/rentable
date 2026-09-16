@@ -435,6 +435,25 @@ one term per key is kept by drawing existing keys where the term exists.
 edit; dropping the per-act surface, which the permission package's docstring argues against
 (an administrator who cannot rename a member is a real want).*
 
+## Four sections (requirement 24)
+
+*Added 2026-09-16 at review round one, on the human's sidenote.* `settings/section.ts`'s
+`SettingsSection` becomes `'general' | 'account' | 'organization' | 'workspaces'`, with a map
+from every retired name to the section that holds it, read by `withSection` and by the area's
+address reading, so nothing that linked into the area breaks. `settings/component/area.svelte`
+draws the four: general carries the general blocks, then updates, then diagnostics under their
+own legends; account carries the you blocks; organization carries the members directory, then the
+authority block (forget the account, reconnect it, the authority sentence for an owner holding
+none) and the delete; workspaces the directory and the transfer. The gates keep their props: a
+member's organization section draws the authority block's member face and nothing else, as the
+sync section did. The four names in both locales under `settings.section`; the retired names go.
+The rail's row draws `withSection('workspaces')` as it does. Tests: the area's test asserts each
+section's blocks by their marks and the absence of the others, the retired addresses, and the
+member session; the section module's test asserts the map.
+
+*Rejected: keeping sync as its own section, which named a mechanism; a fifth section for
+updates and diagnostics, which nobody opens twice.*
+
 # Interfaces
 
 Rust commands, in `tauri/src/organization/command.rs`, registered in `lib.rs`:
@@ -528,6 +547,8 @@ it. `routes/settings/+page.svelte` loses `codeFor`, `freshCode` and `useInvitati
     **the review's standards fixes** (ticket 21) last, since the formatter run is among them.
 16. *Added 2026-09-16.* **The member's sheet** (ticket 23), after 21, judged on the human's
     organization; review round two runs over the branch with it.
+17. *Added 2026-09-16.* **Four sections** (ticket 25), after 23, judged on the human's
+    organization.
 
 # Migration
 
@@ -580,6 +601,7 @@ since a fresh connect opens an empty replica before its first pull.*
 | 21 | `workspaces.svelte.test.ts`: one card per workspace with its facts, the create control or the refusal at the foot, the three acts by their gates, the transfer beneath |
 | 22 | `role.rs` and `setup.rs`: the offer is refused for an unset account and by a non-owner; the acceptance re-keys and every row and certificate verifies under the new key; a second machine holding the old key follows the succession and verifies; the new owner connects a fresh machine with their password; the founder is refused as an administrator; a planted seal opens nothing; `members.svelte.test.ts` finds the offer and the withdrawal on the owner's card; `area.svelte.test.ts` finds the acceptance in the you section of the offered member and the authority sentence for a new owner holding none |
 | 23 | `members.svelte.test.ts` and a `member-sheet.svelte.test.ts`: the three sections, the sentence per role and per act, the chooser adding an act, the absence of also-allowed for an administrator, the save calling the three acts and a refusal marking its section, the menu without the two entries, the tray opening the role table; the locale tests over every new sentence |
+| 24 | `area.svelte.test.ts` and `section.test.ts`: the four sections by their blocks and the absence of the others, the retired addresses opening the right section, the member session, the rail's row; the locale tests over the four names |
 | 18 | `removal.rs`: every workspace database and the organization database deleted with `OrganizationDeletedByHuman`, the machine holding nothing after, an administrator refused, a wrong password refused before any delete; `forget.rs`: a machine whose pull says the database is gone forgets at launch; `area.svelte.test.ts`: the control for the owner and not for an administrator, the confirmation on the form surface |
 
 # Operational Considerations

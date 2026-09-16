@@ -317,6 +317,24 @@ picker rounds over
     the per-act surface, which the permission package's own reasoning refuses. The roles stay
     three: the human chose to describe them rather than change them.*
 
+*The settings area's sections* (*decided 2026-09-16 with the human, at review round one, as a
+sidenote: "the settings tabs structure is not that good; some needs to be merged into single tab
+and named"; one picker round*)
+
+24. **The settings area has four sections, named for what they hold.** *General*: what the
+    general section holds today, updates and diagnostics. *Account*: what the you section holds
+    today. *Organization*: the members directory, the Turso account (the authority block with
+    forgetting it and reconnecting it) and deleting the organization. *Workspaces*: the
+    workspaces directory with export and import beneath. Nothing a section held is lost and
+    nothing moves between the four beyond this list; every address that named a retired section
+    (`?section=you`, `members`, `sync`, `updates`, `diagnostics`) opens the section that
+    now holds it, and every link into the area, the rail's row to workspaces among them, names
+    the new one. The gates stay: a member meets no organization section beyond what they met
+    before (the members directory is the owner's and administrators'; the account block is the
+    owner's), so the organization section draws for a member what the sync section drew for
+    them. *Chosen over seven sections, which put related things apart and named two of them
+    for a mechanism rather than for what a person is looking for.*
+
 # Acceptance Criteria
 
 1. A Rust test decodes each kind of link and finds no field that a Turso client accepts as a
@@ -429,6 +447,11 @@ picker rounds over
     menu without change-role and workspaces entries; the tray's control opening the read-only
     role table. The owner's card and the reader's own still open no edit. Both locales carry
     every sentence, the Arabic written.
+24. The settings area's test finds four sections named general, account, organization and
+    workspaces, each holding the blocks the requirement lists and none of the others; an
+    address naming a retired section opens the section that holds it; a member session finds
+    the organization section with no members directory and no account block; the rail's
+    workspaces row leads to the workspaces section; both locales carry the four names.
 
 # Constraints
 
