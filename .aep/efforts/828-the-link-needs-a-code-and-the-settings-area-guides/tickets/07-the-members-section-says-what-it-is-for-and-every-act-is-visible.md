@@ -95,3 +95,7 @@ and 12.
   order.
 
 - *Obsolete 2026-09-16.* Superseded by requirement 19 and ticket 15: the human, seeing these rows in the running build, chose a directory of record cards instead; the rows and the row-actions block were built and never looked at.
+- *Accepted by the human, 2026-09-16, at review round one* (standards finding 9): this ticket's
+  commit stays on the branch though the ticket is obsolete and ticket 15's commit undoes it;
+  dropping it would rebase fourteen later commits, and after the squash merge nothing of it
+  reaches main.

@@ -347,24 +347,59 @@ card: removed by nobody, edited by nobody but the owner, its menu for an adminis
 so not drawn. `packages/design/src/lib/block/row-actions.svelte`, built for ticket 07's rows,
 loses its only consumer and goes with its test. The strings of 07 that name rows go too.
 
-## Ownership is transferred (requirement 22)
+## Ownership is handed over in two acts, and the directory re-keys (requirement 22)
 
-The organization's signing seed is derived from the founder's vault secret and stored nowhere.
-A transfer seals it: `role::transfer_ownership(session, store, member_id, password)` re-opens the
-owner's vault with the password, obtains the seed (derived for the founder, unsealed for a
-transferee), seals it to the new owner's public key into a nullable column of the member row,
-`owner_seed_sealed`, and swaps the roles, the new owner's row `owner` and the old owner's
-`administrator` with a certificate, both signed by the key that has not changed. **The signed
-preimage of a row whose column is null is unchanged**, so every existing row still verifies; a
-row carrying the seal folds it into its preimage. Everything that today derives the owner's key
-from the vault (`sign_in`'s owner path, `connect_existing`) reads the seal first and derives
-only where there is none. The Turso authority stays in the founder's keyring: the sync section's
-authority block on a new owner's machine says the authority follows the account that consented
-and offers the reconnect that exists for an owner restored on a new machine (826).
+*Return to plan, 2026-09-16.* The first shape of this section sealed the founder's seed into
+the new owner's row and left the key unchanged. Review round one found that a transferee's way
+back then rests on a seal read out of the very database it is meant to judge: a member holding a
+full-access grant can replace the seal and re-sign the directory, and the recovery would pin the
+attacker's key ([[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/evidence/research/converge-round-two]]
+and the review's third correctness finding). The human chose to reopen the design rather than
+record the limit. The shape below gives the new owner the same anchor the founder has, their own
+password, and tells every other machine about the change in a way it can check against what it
+already pinned.
 
-*Rejected: re-deriving a new key from the new owner's password and re-signing every row, which
-rewrites the whole directory for one act; and moving the Turso account, which the application
-cannot do.*
+**The offer.** From the account's card the owner offers ownership, with their own password,
+to an account whose password is set (an unset account has no vault of its own to derive from, and
+the first shape orphaned the organization on one; the offer refuses it by name). The owner
+re-opens their vault, obtains the seed as ticket 17 does, seals it to the new owner's public key
+into `member.owner_seed_sealed`, and writes a `succession` row: the offered account, the
+offering owner, `offered_at`, signed by the organization key. Nothing else moves: roles stay,
+the key stays, and the offer can be withdrawn by the owner from the same card.
+
+**The acceptance.** On a machine the offered account is signed in on, the you section shows the
+offer under its own legend and one act, accept, taking their password. Their vault yields their
+own secret, and `derive_seed(ORGANIZATION_KEY_PURPOSE)` over it is the **new organization key**,
+exactly the founder's derivation over the founder's secret. The acceptance unseals the old seed
+from the row, checks that the old key it derives is the key this machine pinned (so a planted seal
+opens nothing, since this machine's anchor came from its link or its first run), and then re-keys:
+every administrator certificate is re-issued under the new key with the same signing keys and
+ids, so rows administrators signed stay valid; every row the old owner signed directly is
+re-signed under the new key; the organization row's `verifying_key` becomes the new key; the
+succession row is completed with the new verifying key and `accepted_at`, signed by the old key
+over the new, which is the one signature that lets a machine that pinned the old key trust the
+new; the roles swap, the old owner becoming an administrator with a certificate under the new
+key; `owner_seed_sealed` is cleared. One push carries it.
+
+**Every other machine follows the succession.** A machine holding the old key meets rows it
+cannot verify, reads the succession row, verifies the new key under the key it pinned, and pins
+the new key in its local record; a session open on it re-reads under the new key. A machine that
+pinned neither refuses, as it refuses any unverifiable row today. `connect_existing` needs no
+seal any more: the owner's password derives the key, founder or transferee alike, and a founder
+who handed over derives a key that no longer matches and is refused as an administrator, which
+closes the review's second finding by construction.
+
+**What is signed and what is not.** The succession row's completion is signed by the old key;
+the offer by the current key; the seal itself is data under the signed member row and is only
+ever opened on a machine that already holds the old key by another route. The Turso authority
+still follows the account that consented, as the first shape said, and the sync section still
+says so.
+
+| | Advantages | Disadvantages | Risks | Maintenance |
+| --- | --- | --- | --- | --- |
+| **A. Offer, accept, re-key, succession** (chosen) | the new owner's anchor is their password, outside the database, like the founder's; other machines check the change against what they pinned; the founder is refused afterwards by construction | two acts on two machines; every owner-signed row and every certificate is rewritten once | a machine offline across two successions has to walk a chain; the succession table keeps every row | one act more than the first shape, and one table |
+| B. The first shape, the seal as anchor | one act | a transferee's way back trusts the database it judges | a planted seal pins an attacker's key | none |
+| C. The founder's password stays the anchor forever | nothing re-keys | the founder can never leave, and their way back stays open after handing over | ownership is a label | none |
 
 # Interfaces
 
@@ -389,7 +424,9 @@ Rust commands, in `tauri/src/organization/command.rs`, registered in `lib.rs`:
 | `member_link_make(member_id) -> MadeLink` | new, `inviteMember`; the one link act |
 | `member_password_unset(member_id)` | replaces `member_reset`; `resetPassword` |
 | `machine_link_make` | removed |
-| `member_transfer_ownership(member_id, password)` | new, owner |
+| `member_offer_ownership(member_id, password)`, `member_withdraw_offer()` | replace `member_transfer_ownership`; owner |
+| `ownership_accept(password) -> OrganizationState` | new, the offered member |
+| `organization_state_get` | follows a succession the machine has not pinned |
 
 `platform/host.ts` and `platform/tauri.ts` carry `LinkShape`, `InvitationLink`, `MachineLink`
 and the narrowed `Invited`; `LinkFacts` and `LinkStanding` go. `organization/router.ts` drops
@@ -415,6 +452,10 @@ it. `routes/settings/+page.svelte` loses `codeFor`, `freshCode` and `useInvitati
   that has none. `DeletionIntent` gains `OrganizationDeletedByHuman`.
 - *Added 2026-09-16.* `member` gains `owner_seed_sealed`, nullable, in the signed preimage only
   where present; a member's standing is read, never stored.
+- *Return to plan, 2026-09-16.* `succession`, the tenth table: `(id, offered_member_id,
+  offered_by, offered_at, old_verifying_key, new_verifying_key, accepted_at, signature)`, the
+  offer signed by the current key and the completion by the old key over the new; `HeldOrganization.verifying_key`
+  is rewritten on a machine that follows a succession.
 
 # Technical Approach
 
@@ -447,6 +488,9 @@ it. `routes/settings/+page.svelte` loses `codeFor`, `freshCode` and `useInvitati
     top of 12, since both touch the commands and the you section.
 14. **The members directory**, on top of 13; then **the workspaces directory** on the same
     shape; then **the transfer**, on top of the members directory, which is where its act lives.
+15. *Return to plan, 2026-09-16.* **The review's correctness fixes** (ticket 20), then **the
+    handover in two acts with the re-key and the succession** (ticket 22) on top of them, then
+    **the review's standards fixes** (ticket 21) last, since the formatter run is among them.
 
 # Migration
 
@@ -485,7 +529,7 @@ shape.
 | 19 | `members.svelte.test.ts`: one card per account with its standing, the add control at the foot, each act on the menu by its gate, the owner's card empty for an administrator; `invite.rs`: an account made with no password refused at the wall until its link is opened |
 | 20 | `link.rs` or `invite.rs`: the first kind opens with a chosen password and lands signed in, the second lands at the wall, an account with a machine signed in is refused, a reset unsets and the next link asks a password, single use and seven days; `connect-screen.svelte.test.ts`: the choose-password fields for the first kind, the wall for the second; `area.svelte.test.ts`: no link act in the you section |
 | 21 | `workspaces.svelte.test.ts`: one card per workspace with its facts, the create control or the refusal at the foot, the three acts by their gates, the transfer beneath |
-| 22 | `role.rs`: the transfer swaps the roles, every row still verifies against the unchanged key, the new owner connects a fresh machine with the account by the sealed seed, an administrator is refused; `area.svelte.test.ts`: the authority sentence for a new owner holding none |
+| 22 | `role.rs` and `setup.rs`: the offer is refused for an unset account and by a non-owner; the acceptance re-keys and every row and certificate verifies under the new key; a second machine holding the old key follows the succession and verifies; the new owner connects a fresh machine with their password; the founder is refused as an administrator; a planted seal opens nothing; `members.svelte.test.ts` finds the offer and the withdrawal on the owner's card; `area.svelte.test.ts` finds the acceptance in the you section of the offered member and the authority sentence for a new owner holding none |
 | 18 | `removal.rs`: every workspace database and the organization database deleted with `OrganizationDeletedByHuman`, the machine holding nothing after, an administrator refused, a wrong password refused before any delete; `forget.rs`: a machine whose pull says the database is gone forgets at launch; `area.svelte.test.ts`: the control for the owner and not for an administrator, the confirmation on the form surface |
 
 # Operational Considerations

@@ -96,3 +96,11 @@ and 12.
   what keeps a transferee's seal from being orphaned by a reset. The transfer surface reads
   "hand over ownership", two plain lines on what changes and what does not, a chooser, the
   password, and "hand it over".
+- *Return to plan, 2026-09-16, at review round one.* The correctness axis found that a
+  transferee's way back rested on the seal read out of the database it judges (a member with a
+  full-access grant could replace it and re-sign the directory), that a transfer to an unset
+  account orphaned the organization, and that the founder still connected afterwards. The human
+  chose to reopen the design rather than record the limit. Requirement 22 is rewritten: the
+  handover is two acts, the new owner's password becomes the key, and a succession record lets
+  every machine follow. Ticket 22 builds it on top of this ticket's offer half; the seal stays
+  as the offer's carrier and is opened only on a machine that already holds the old key.

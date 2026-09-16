@@ -278,18 +278,23 @@ section of ticket 07 in the running build; two picker rounds and one elaboration
     it, for the owner holding the authority, with the authority refusal standing in its place
     for an owner who lost it; export and import beneath, under the legend naming the open
     workspace. *Corrected 2026-09-16 with requirement 19: the tray, not the foot.*
-22. **Ownership is transferred by the owner to an account.** From an account's card the owner
-    names it owner, with their own password. The organization's signing key is unchanged, so
-    nothing is re-signed: the key's seed is sealed into the new owner's vault the way the
-    content key is sealed to every member, the new owner's row becomes owner and the old
-    owner's becomes administrator, both signed by the old owner as the last act of that key's
-    holder being the only one. The way back with the account (requirement 14) opens the key
-    from the owner's vault, derived for the founder or sealed for a transferee. **The Turso
-    authority follows the account that consented, not the ownership**: until the new owner
+22. **Ownership is handed over in two acts, and the new owner's password becomes the key.**
+    *Reopened 2026-09-16 at the review: the first shape sealed the founder's key into the new
+    owner's row and left it there as the anchor of their way back, which is a value read out of
+    the database it judges; the human chose to redesign rather than record the limit.* The owner
+    offers ownership from the account's card, with their own password, to an account whose
+    password is set; an unset account is refused by name, and the owner can withdraw the offer
+    from the same card. The offered member accepts from their you section, on a machine they are
+    signed in on, with their password: the organization key becomes the one their own vault
+    derives, the way the founder's did; every certificate is re-issued and every row the old
+    owner signed is re-signed under it; a succession record, signed by the old key over the new,
+    lets every other machine check the change against the key it already holds and pin the new
+    one; the roles swap, the old owner becoming an administrator. The way back with the account
+    (requirement 14) is then the same for a founder and for a transferee, their password and
+    nothing read from the database, and the old owner is refused as an administrator. **The
+    Turso authority follows the account that consented, not the ownership**: until the new owner
     reconnects the authority from the sync section, with a Turso account that holds the group,
     the acts that mint run on the founder's machine or not at all, and the sync section says so.
-    *Chosen by the human over a follow-on effort, told that the transfer re-keys nothing but the
-    vault and that the Turso account does not move.*
 
 # Acceptance Criteria
 
@@ -385,11 +390,16 @@ section of ticket 07 in the running build; two picker rounds and one elaboration
     control in the tray for an owner holding the authority and the refusal for one who does
     not, rename, members and delete on the card's menu by their gates, and the transfer
     beneath under the open workspace's name.
-22. A Rust test transfers ownership to an administrator with the owner's password and finds the
-    new owner's row owner, the old owner's administrator, every row still verifying against the
-    unchanged key, and the new owner connecting a fresh machine with the account (requirement
-    14) by the sealed seed; the same by an administrator is refused; the sync section's test
-    finds the authority sentence for a new owner holding no authority.
+22. A Rust test offers ownership to an administrator whose password is set and is refused for
+    one whose is not and for a non-owner; the offered member accepts on a second store with their
+    password and every row and certificate verifies under the new key, the organization row
+    carries it, and the roles are swapped; a third store holding the old key follows the
+    succession and verifies every row; the new owner connects a fresh machine with the account by
+    their password alone; the founder is refused as an administrator; a seal planted on the row
+    opens nothing on acceptance. The members section's test finds the offer and its withdrawal on
+    the owner's card; the you section's test finds the acceptance for the offered member and the
+    authority sentence for a new owner holding none. *Rewritten 2026-09-16 at the review with
+    requirement 22.*
 
 # Constraints
 
