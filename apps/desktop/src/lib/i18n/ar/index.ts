@@ -790,6 +790,7 @@ const ar = {
 		},
 		dashboard: {
 			membersDescription: 'كل من في المؤسسة. الأعضاء يُنشأون ويُغيّرون من هنا.',
+			workspacesDescription: 'كل مساحات عمل المؤسسة. مساحات العمل تُنشأ وتُغيّر من هنا.',
 			standingNoPassword: 'لا كلمة مرور بعد',
 			standingNoMachine: 'لا جهاز مسجّل الدخول',
 			standingSignedIn: 'مسجّل الدخول على جهاز',

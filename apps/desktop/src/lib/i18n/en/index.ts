@@ -822,6 +822,10 @@ const en = {
 			// the sentence the members section opens with: who is listed, and what this section is
 			// for. Short, because the cards under it say the rest.
 			membersDescription: 'everybody in the organization. members are made and changed here.',
+			// the same sentence for the workspaces section, and the same shape: who is listed,
+			// then what this section is for.
+			workspacesDescription:
+				'every workspace in the organization. workspaces are made and changed here.',
 			// the one line a card carries about where an account stands: the same two facts a link
 			// is gated on, so the line that says a link is not offered also says why.
 			standingNoPassword: 'no password yet',

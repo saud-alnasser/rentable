@@ -2514,6 +2514,10 @@ type RootTranslation = {
 			 */
 			membersDescription: string
 			/**
+			 * e​v​e​r​y​ ​w​o​r​k​s​p​a​c​e​ ​i​n​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​w​o​r​k​s​p​a​c​e​s​ ​a​r​e​ ​m​a​d​e​ ​a​n​d​ ​c​h​a​n​g​e​d​ ​h​e​r​e​.
+			 */
+			workspacesDescription: string
+			/**
 			 * n​o​ ​p​a​s​s​w​o​r​d​ ​y​e​t
 			 */
 			standingNoPassword: string
@@ -5312,6 +5316,10 @@ export type TranslationFunctions = {
 			 * everybody in the organization. members are made and changed here.
 			 */
 			membersDescription: () => LocalizedString
+			/**
+			 * every workspace in the organization. workspaces are made and changed here.
+			 */
+			workspacesDescription: () => LocalizedString
 			/**
 			 * no password yet
 			 */

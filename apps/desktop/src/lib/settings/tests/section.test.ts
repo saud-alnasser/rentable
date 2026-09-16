@@ -4,7 +4,14 @@ import test from 'node:test';
 import { fakeOrganizationSession } from '$lib/platform/tests/testing.ts';
 import { maskOf } from '@rentable/workspace-permission';
 
-import { SETTINGS_SECTIONS, recordOf, sectionOf, sectionsFor, withSection } from '../section.ts';
+import {
+	SETTINGS_SECTIONS,
+	recordOf,
+	sectionOf,
+	sectionsFor,
+	withSection,
+	WORKSPACE_PARAM
+} from '../section.ts';
 
 /**
  * WHICH SECTIONS A READER IS OFFERED, AND HOW ONE IS ADDRESSED
@@ -55,6 +62,15 @@ test('an address naming a record reads as that record, and the section it is in'
 	assert.equal(recordOf(at('?section=members')), null);
 	assert.equal(recordOf(at('?section=members&account=')), null);
 	assert.equal(recordOf(at('?section=members&account=%20')), null);
+});
+
+// requirement 21: the workspaces section is a directory of cards too, and it names its records by
+// its own word, so a reader carrying an account from the section beside it names no workspace.
+test('a workspace is named by its own word, and an account is not one', () => {
+	assert.equal(recordOf(at('?section=workspaces&workspace=ws-1'), WORKSPACE_PARAM), 'ws-1');
+	assert.equal(sectionOf(at('?section=workspaces&workspace=ws-1')), 'workspaces');
+	assert.equal(recordOf(at('?section=workspaces&account=ada'), WORKSPACE_PARAM), null);
+	assert.equal(recordOf(at('?section=workspaces&workspace='), WORKSPACE_PARAM), null);
 });
 
 // requirement 14, on the way in: the area is the one address that draws signed out, and the

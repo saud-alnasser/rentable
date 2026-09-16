@@ -32,6 +32,18 @@ export const SECTION_PARAM = 'section';
  */
 export const RECORD_PARAM = 'account';
 
+/**
+ * what names one workspace in the workspaces section, which is a directory of cards too (effort
+ * 828, requirement 21).
+ *
+ * A second name rather than one shared word: the two sections stand on the same address, so a
+ * reader who moved from an account's card to the workspaces section would otherwise arrive
+ * carrying an account id under the name a workspace is read by. The constant above keeps the
+ * name it was written under, since it is the members section's and that section is not this
+ * ticket's to touch.
+ */
+export const WORKSPACE_PARAM = 'workspace';
+
 /** the settings area's own address, carrying no section. */
 export const THE_SETTINGS_AREA = '/settings' satisfies Pathname;
 
@@ -105,12 +117,16 @@ export function sectionOf(url: URL): SettingsSection {
 /**
  * Which record `url` names inside its section, or `null` where it names none.
  *
+ * `param` is what the section names its records by, `account` where it is not said: one function
+ * rather than one per section, because what a section does with the answer is the same either
+ * way.
+ *
  * Whether that id belongs to anything is the section's to decide, because only the section holds
  * the records: an address kept after somebody was removed names nothing, and the section draws
  * itself rather than a screen about the address, exactly as `shownSection` does above.
  */
-export function recordOf(url: URL): string | null {
-	const named = url.searchParams.get(RECORD_PARAM)?.trim();
+export function recordOf(url: URL, param: string = RECORD_PARAM): string | null {
+	const named = url.searchParams.get(param)?.trim();
 
 	return named ? named : null;
 }
