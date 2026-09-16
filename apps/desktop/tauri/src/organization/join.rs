@@ -4,9 +4,11 @@
 //! **A link is parsed in `link.rs` and read there.** The web layer hands the text over and is
 //! told which organization it names, which kind of link it is and when it lapses; the credential
 //! the link carries and the verifying key it pins stay on this side ([[rules/credentials]],
-//! *Client boundary*). What a machine does with the organization's own link is connect
-//! (`connect.rs`), which records the organization and no member; what it does with any other is
-//! [`accept`], which takes the code first.
+//! *Client boundary*). There are two kinds and each takes the code first: a machine link goes to
+//! `machine::connect`, which unseals the payload and then connects (`connect.rs`), recording the
+//! organization and no member; an invitation link goes to [`accept`]. *A third kind, the
+//! organization's own, reached the connect directly with a credential anybody could read off it,
+//! and effort 828's requirement 16 retired it.*
 //!
 //! **Signing in is a username and a password against the held organization** (effort 824,
 //! requirement 19). The wall asks for both; `session::sign_in_by_username` tries the password
@@ -67,8 +69,8 @@ use super::{
     link::{HalfKind, JoinLink, open_payload},
     permission,
     session::{
-        CredentialSlot, MemberSession, content_key_of, machine_seen, open_session,
-        refused_by_name, remember, sign_in_by_username,
+        CredentialSlot, MemberSession, content_key_of, machine_seen, open_session, refused_by_name,
+        remember, sign_in_by_username,
     },
     setup::MINIMUM_PASSWORD_LENGTH,
     store::{InvitationRecord, MemberRecord, OrganizationStore},
@@ -361,7 +363,8 @@ mod tests {
                 INVITATION_LIFETIME_MS, Invitation, WorkspaceGrant, locator, make_account_and_link,
             },
             link::{
-                CODE_MISSING, CODE_REFUSED, Half, HalfKind, JoinLink, LinkKind, Locator, open_payload,
+                CODE_MISSING, CODE_REFUSED, Half, HalfKind, JoinLink, LinkKind, Locator,
+                open_payload,
             },
             migrate::Pipeline,
             permission,
@@ -722,8 +725,8 @@ mod tests {
             &credential,
             ISSUED_AT,
         )
-            .await
-            .expect("the owner did not sign in");
+        .await
+        .expect("the owner did not sign in");
 
         assert_eq!(session.role, permission::OWNER);
         assert_eq!(session.member_id, owner.member_id);
@@ -895,7 +898,13 @@ mod tests {
             opened(&third, &store, &invitation, &code, CHOSEN, ISSUED_AT + 5).await;
 
         assert!(
-            matches!(spent, Err(Error::Refused { reason: RefusalReason::Consumed, .. })),
+            matches!(
+                spent,
+                Err(Error::Refused {
+                    reason: RefusalReason::Consumed,
+                    ..
+                })
+            ),
             "{spent:?}"
         );
 
@@ -949,8 +958,8 @@ mod tests {
                 &slot(),
                 ISSUED_AT,
             )
-                .await
-                .expect_err(&format!("{username:?} signed in with {password:?}"));
+            .await
+            .expect_err(&format!("{username:?} signed in with {password:?}"));
 
             assert!(
                 matches!(refused, Error::Forbidden { .. }),
@@ -1048,7 +1057,7 @@ mod tests {
         );
 
         // a link that is not an invitation's: the same locator and payload under a machine half,
-        // which is what a member makes for their own next machine and is refused here by name.
+        // which is what an account with a password is handed and is refused here by name.
         let a_machines = link.sealed(
             &invitation.credential,
             Half {
@@ -1179,7 +1188,10 @@ mod tests {
         );
         // refused on the link's own moment, before any key was derived, so nothing was reached and
         // the machine holds nothing (effort 828, requirement 1).
-        assert_eq!(machine.organization, None, "a lapsed link reached the organization");
+        assert_eq!(
+            machine.organization, None,
+            "a lapsed link reached the organization"
+        );
         assert_eq!(
             invitation_of(&store, &owner, &late.member_id).await,
             Some((after, None))
@@ -1211,7 +1223,13 @@ mod tests {
         .await;
 
         assert!(
-            matches!(refused, Err(Error::Refused { reason: RefusalReason::Lapsed, .. })),
+            matches!(
+                refused,
+                Err(Error::Refused {
+                    reason: RefusalReason::Lapsed,
+                    ..
+                })
+            ),
             "the lapsed link still opens: {refused:?}"
         );
 
@@ -1269,8 +1287,8 @@ mod tests {
                 &slot(),
                 ISSUED_AT,
             )
-                .await
-                .is_err(),
+            .await
+            .is_err(),
             "the forgotten password still opens the reset vault"
         );
 
@@ -1323,8 +1341,8 @@ mod tests {
             &slot(),
             ISSUED_AT,
         )
-            .await
-            .expect("the owner did not sign in");
+        .await
+        .expect("the owner did not sign in");
         let signed_in = machine.organization.clone().expect("the record");
 
         drop(machine);
@@ -1431,11 +1449,9 @@ mod tests {
 
         // the link's secret is not the vault's password, and it is not the code either: neither
         // the payload nor the vault opens on it.
-        let bytes = base64::Engine::decode(
-            &base64::engine::general_purpose::URL_SAFE_NO_PAD,
-            &sealed,
-        )
-        .expect("the sealed payload is base64url");
+        let bytes =
+            base64::Engine::decode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, &sealed)
+                .expect("the sealed payload is base64url");
         let salt = code_salt(&half.secret).expect("the salt");
         let context = payload_context(&invitation.locator(), &half);
 
@@ -1504,8 +1520,15 @@ mod tests {
         );
 
         // no code at all is about what the person did, and is refused as input.
-        let refused = accept_on(&mut machine, &store, &invitation, "   ", CHOSEN, ISSUED_AT + 1)
-            .await;
+        let refused = accept_on(
+            &mut machine,
+            &store,
+            &invitation,
+            "   ",
+            CHOSEN,
+            ISSUED_AT + 1,
+        )
+        .await;
 
         assert!(
             matches!(refused, Err(Error::InvalidInput { ref message }) if message == CODE_MISSING),
@@ -1629,7 +1652,10 @@ mod tests {
             sealed_link_secret, link_secret,
             "the issuer's copy does not hold the link's own secret"
         );
-        assert_eq!(sealed_code, code, "the issuer's copy does not hold the code");
+        assert_eq!(
+            sealed_code, code,
+            "the issuer's copy does not hold the code"
+        );
 
         // the credential the link seals is what reads the directory, so it is swept for the way
         // the vault password is (effort 828, requirement 1).
@@ -1965,9 +1991,8 @@ mod tests {
         // itself (effort 828, requirement 1).
         let machine_c = scratch("live-c");
         let (organization_c, _) = reach(&machine_c).await;
-        let mut store_c =
-            Persisted::<RemoteSyncStore>::load(machine_c.join(RemoteSync::FILENAME))
-                .expect("C's record");
+        let mut store_c = Persisted::<RemoteSyncStore>::load(machine_c.join(RemoteSync::FILENAME))
+            .expect("C's record");
         let member_c = accept_on(
             &mut store_c,
             &organization_c,
@@ -2033,8 +2058,7 @@ mod tests {
         let directory = scratch("accept-remembers");
         let (store, owner, _, invitation, _, code) = invited(&directory).await;
         let theirs = scratch("accept-remembers-member");
-        let (_, member) =
-            opened(&theirs, &store, &invitation, &code, CHOSEN, ISSUED_AT + 3).await;
+        let (_, member) = opened(&theirs, &store, &invitation, &code, CHOSEN, ISSUED_AT + 3).await;
         let member = member.expect("the member could not open their link");
         let filed = keyring::read(
             MEMBER_KEY_SERVICE,

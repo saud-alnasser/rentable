@@ -70,7 +70,7 @@ test('the panel shows one link, one copy control and the statement that nothing 
 
 	expect(link?.textContent).toBe(made.link);
 	expect(link?.getAttribute('dir')).toBe('ltr');
-	expect(screen.getByText(en.organization.dashboard.linkLabel)).toBeDefined();
+	expect(screen.getByText(en.organization.join.linkLabel)).toBeDefined();
 	// effort 826, requirement 8: one link, one copy control, and no password anywhere on the
 	// panel, by element or by word.
 	expect(screen.getByRole('button', { name: en.organization.setup.copyLink })).toBeDefined();
@@ -128,7 +128,7 @@ test('the same panel in arabic says the same, and the link still reads left to r
 
 	expect(screen.getByText(ar.organization.dashboard.cannotSend)).toBeDefined();
 	expect(ar.organization.dashboard.cannotSend).not.toBe(en.organization.dashboard.cannotSend);
-	expect(screen.getByText(ar.organization.dashboard.linkLabel)).toBeDefined();
+	expect(screen.getByText(ar.organization.join.linkLabel)).toBeDefined();
 	expect(document.querySelector('[data-slot=form-surface]')?.getAttribute('dir')).toBe('rtl');
 	expect(document.querySelector('[data-invited-link]')?.getAttribute('dir')).toBe('ltr');
 	expect(screen.getByRole('button', { name: ar.organization.setup.copyLink })).toBeDefined();

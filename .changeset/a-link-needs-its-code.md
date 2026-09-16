@@ -1,5 +1,5 @@
 ---
-'@rentable/desktop': patch
+'@rentable/desktop': minor
 ---
 
 a link alone opens nothing: every link now needs the six-character code that came with it before the organization is reached, and the code lasts as long as the link rather than ninety seconds

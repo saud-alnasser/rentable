@@ -90,7 +90,7 @@ test('the form opens on the shared form surface and asks for a username, a role,
 	expect(document.querySelector('[data-slot=form-surface]')).not.toBeNull();
 	// one form, and it is the surface's own.
 	expect(document.querySelectorAll('form')).toHaveLength(1);
-	expect(screen.getByText(en.organization.dashboard.accountTitle)).toBeDefined();
+	expect(screen.getByText(en.organization.dashboard.memberTitle)).toBeDefined();
 	expect(screen.getByText(en.organization.dashboard.accountDescription)).toBeDefined();
 
 	const names = inputsOnScreen()
@@ -240,7 +240,7 @@ test('the username field leads with a muted glyph, and the primary carries its v
 	expect(addon?.className).toContain('text-muted-foreground');
 	expect(addon!.compareDocumentPosition(input!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
-	const add = screen.getByRole('button', { name: en.organization.dashboard.addAccount });
+	const add = screen.getByRole('button', { name: en.organization.dashboard.addMember });
 
 	expect(add.getAttribute('type')).toBe('submit');
 	expect(add.querySelector('svg')).not.toBeNull();
@@ -260,7 +260,7 @@ test('the fields in arabic are the same, named in their own words', () => {
 	expect(document.querySelector('[data-slot=form-surface]')?.getAttribute('dir')).toBe('rtl');
 	expect(screen.getByText(ar.organization.dashboard.username)).toBeDefined();
 	expect(screen.getByText(ar.organization.dashboard.role)).toBeDefined();
-	expect(screen.getByText(ar.organization.dashboard.accountTitle)).toBeDefined();
+	expect(screen.getByText(ar.organization.dashboard.memberTitle)).toBeDefined();
 	expect(ar.organization.dashboard.username).not.toBe(en.organization.dashboard.username);
 
 	setLocale('en');

@@ -27,20 +27,24 @@ export const SECTION_PARAM = 'section';
  *
  * The members section is a directory of cards, and a card opens its record
  * ([[rules/interface]], *Row activation*), so the card's `href` is this section's address with the
- * account named on it: `/settings?section=members&account=<id>`. A member has no page of their
- * own, so what opening one means is the section drawing that account's edit.
+ * member named on it: `/settings?section=members&member=<id>`. A member has no page of their
+ * own, so what opening one means is the section drawing that member's edit.
+ *
+ * **It says member, because a member is what it names.** `account` is this application's word for
+ * the Turso account and nothing else (effort 826, requirement 18), so a parameter naming a person
+ * by it put the one reserved word on the one thing it is reserved against. *It read `account`
+ * until ticket 21 of effort 828.*
  */
-export const RECORD_PARAM = 'account';
+export const RECORD_PARAM = 'member';
 
 /**
  * what names one workspace in the workspaces section, which is a directory of cards too (effort
  * 828, requirement 21).
  *
  * A second name rather than one shared word: the two sections stand on the same address, so a
- * reader who moved from an account's card to the workspaces section would otherwise arrive
- * carrying an account id under the name a workspace is read by. The constant above keeps the
- * name it was written under, since it is the members section's and that section is not this
- * ticket's to touch.
+ * reader who moved from a member's card to the workspaces section would otherwise arrive carrying
+ * a member id under the name a workspace is read by. The constant above names its own section's
+ * records the same way, so each section reads the word for what it holds.
  */
 export const WORKSPACE_PARAM = 'workspace';
 
@@ -117,7 +121,7 @@ export function sectionOf(url: URL): SettingsSection {
 /**
  * Which record `url` names inside its section, or `null` where it names none.
  *
- * `param` is what the section names its records by, `account` where it is not said: one function
+ * `param` is what the section names its records by, `member` where it is not said: one function
  * rather than one per section, because what a section does with the answer is the same either
  * way.
  *

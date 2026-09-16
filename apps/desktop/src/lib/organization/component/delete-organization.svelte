@@ -103,8 +103,10 @@
 		</p>
 
 		<Field.Field>
+			<!-- the key the first run wrote the term on, drawn rather than said again here: one
+			     english word per thing, and one key holding it (effort 826, requirement 18). -->
 			<Field.Label for="delete-organization-password">
-				{$LL.organization.dashboard.deleteOrganizationPassword()}
+				{$LL.organization.setup.passwordLabel()}
 			</Field.Label>
 			<InputGroup.Root class={insetControl} data-disabled={isDeleting ? 'true' : undefined}>
 				<InputGroup.Addon>

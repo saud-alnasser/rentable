@@ -352,14 +352,8 @@ mod tests {
         .await
         .expect("the member");
 
-        let administrator = (
-            administrator.member_id.clone(),
-            secret_of(&administrator),
-        );
-        let member = (
-            member.member_id.clone(),
-            secret_of(&member),
-        );
+        let administrator = (administrator.member_id.clone(), secret_of(&administrator));
+        let member = (member.member_id.clone(), secret_of(&member));
 
         (store, owner, (north.id, south.id), administrator, member)
     }

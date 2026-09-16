@@ -14,8 +14,8 @@
 
 //! What follows the three is the work over them: the link a machine finds an
 //! organization by, the first run that creates one, the connect that records one on a machine
-//! without opening a vault, the link a member makes for their own next machine, and the forget
-//! that leaves nothing of it here.
+//! without opening a vault, the machine link whoever keeps the accounts makes for a member whose
+//! password is already set, and the forget that leaves nothing of it here.
 
 use serde::{Deserialize, Serialize};
 

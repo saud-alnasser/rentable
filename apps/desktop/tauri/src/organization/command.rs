@@ -86,8 +86,10 @@ pub struct OrganizationState {
 /// **None of the four crosses back, and nothing else crosses at all.** The password is turned
 /// into a vault here and dropped; the organization key and the owner's signing key are derived
 /// and never stored; the Platform API token is read from the keyring where the consent filed it.
-/// What the web layer is told is the organization's id, the join link, and whether the rows have
-/// reached Turso yet ([[rules/credentials]], *Client boundary*).
+/// What the web layer is told is the organization's id and whether the rows have reached Turso
+/// yet ([[rules/credentials]], *Client boundary*). *It was told the organization's own join link
+/// as well until effort 828's requirement 16 retired that link; the first run mints nothing to
+/// hand out now.*
 ///
 /// A machine with no consent is refused before anything is asked of Turso, with an answer that
 /// says to connect the account first. Every failure after the database exists removes it, so a
@@ -1783,9 +1785,11 @@ pub async fn organization_reconnect_authority(
 /// as a network failure rather than as a refusal.
 ///
 /// **The credential is handed in rather than read off the link** (effort 828, requirement 1).
-/// Only the organization's own link carries one legibly; every other link carries it sealed, and
-/// what fills this slot there is what the code unsealed. The slot is the caller's, because a
-/// session opened over this replica replaces its contents with the member's own.
+/// No link carries one legibly: every link seals its payload under the code that was read out
+/// with it, so what fills this slot is what the code unsealed. The slot is the caller's, because
+/// a session opened over this replica replaces its contents with the member's own. *The
+/// organization's own link carried a legible credential until requirement 16 retired the link and
+/// the credential together.*
 async fn reached(
     app_state: &AppState,
     link: &JoinLink,

@@ -213,7 +213,7 @@
 	{onOpenChange}
 	{enhance}
 	weight="heavy"
-	title={$LL.organization.dashboard.accountTitle()}
+	title={$LL.organization.dashboard.memberTitle()}
 	description={$LL.organization.dashboard.accountDescription()}
 >
 	<div class="flex flex-col gap-4" data-account-form>
@@ -358,7 +358,7 @@
 		<!-- the verb's glyph before its label, as every primary here carries one. -->
 		<Button type="submit" disabled={isCreating}>
 			<UserPlusIcon class="size-4" />
-			{isCreating ? $LL.common.actions.working() : $LL.organization.dashboard.addAccount()}
+			{isCreating ? $LL.common.actions.working() : $LL.organization.dashboard.addMember()}
 		</Button>
 	{/snippet}
 </FormSurface>

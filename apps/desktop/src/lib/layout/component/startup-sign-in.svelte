@@ -94,8 +94,8 @@
 	 * offering the two ways in again. Setting up is offered only there, since a machine holds one
 	 * organization (requirement 17) and reaching another is disconnect, then connect. Beside it,
 	 * the way to the connect screen for a person holding a link (effort 826, requirement 11): a
-	 * reset link is opened by somebody whose machine already holds the organization, so the screen
-	 * it is opened on has to be reachable from here.
+	 * link for an account that already has a password is opened by somebody whose machine may
+	 * already hold the organization, so the screen it is opened on has to be reachable from here.
 	 */
 	let {
 		situation,
@@ -123,8 +123,8 @@
 		/** the walk, on the person's own Turso account: the way in for whoever owns the organization. */
 		onSetUpOrganization: () => void;
 		/**
-		 * the connect screen: an organization link or an invitation link, pasted or handed over by
-		 * the operating system. Offered in both situations, since a reset link is opened from here.
+		 * the connect screen: a link and its code, pasted or handed over by the operating system.
+		 * Offered in both situations, since a link for an account with a password is opened from here.
 		 */
 		onJoinByLink: () => void;
 	} = $props();

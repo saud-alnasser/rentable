@@ -59,8 +59,12 @@
 	 *
 	 * **The field's glyph is its subject and never its error, and a primary carries its verb.** The
 	 * leading addon is muted so it does not outweigh the label beside it (*Balance weight and
-	 * contrast*, Refactoring UI p.56); a refusal is still said in a callout above the form, and a
-	 * field the person can fix marks its own line, which is the interface rule's treatment.
+	 * contrast*, Refactoring UI p.56); a field the person can fix marks its own line with
+	 * `Field.Error`, which is the interface rule's treatment, and no callout stands over the form
+	 * saying the same thing. The callout is left for what no field answers for: a refusal the read
+	 * came back with, and the shell's own message where the standing changed while somebody was
+	 * typing. *The two field refusals were drawn in that callout until ticket 21, which is the
+	 * summary the rule names.*
 	 *
 	 * **The password is two fields and no meter**, the shape `change-password-form.svelte` carries
 	 * and for the reason written there: there is no server to slow a guess down, so the floor is
@@ -126,20 +130,23 @@
 	const isUnreadable = $derived(step.kind === 'paste' && step.isUnreadable);
 	const codeRefused = $derived(step.kind === 'paste' && step.codeRefusal !== null);
 
-	// which of the form's two halves was refused, in the reader's own language. What the shell said
-	// is kept under it, the way a refused link keeps its detail, because the rare other thing a
+	// which of the form's two halves was refused, in the reader's own language, and each on the
+	// field that answers for it ([[rules/interface]], *Validation errors*). What the shell said is
+	// kept under them, the way a refused link keeps its detail, because the rare other thing a
 	// `forbidden` means here is a standing that changed while the person was typing.
-	const fieldRefusal = $derived.by(() => {
-		if (step.kind !== 'paste') return null;
+	const linkRefusal = $derived(isUnreadable ? $LL.organization.join.unreadable() : null);
 
-		if (step.isUnreadable) return $LL.organization.join.unreadable();
-
-		if (!step.codeRefusal) return null;
+	const codeRefusalMessage = $derived.by(() => {
+		if (step.kind !== 'paste' || !step.codeRefusal) return null;
 
 		return step.codeRefusal === 'missing'
 			? $LL.organization.join.codeMissing()
 			: $LL.organization.join.codeWrong();
 	});
+
+	// whether a field is already carrying the sentence, which is what decides where the shell's
+	// own message goes: under the form as the detail, rather than repeated in a callout over it.
+	const fieldRefused = $derived(linkRefusal !== null || codeRefusalMessage !== null);
 
 	// the refusal's own sentence, one per kind, said in the reader's language. Where a refusal came
 	// back from the shell rather than from the standing the read answered with, what it said is
@@ -178,16 +185,16 @@
 	);
 </script>
 
-<!-- what a step says went wrong, over its fields: the refusal by name where one of the two fields
-     is the answer, and what the shell said either under it or on its own. -->
-{#snippet refusalCallouts(errorMessage: string | null)}
-	{#if fieldRefusal}
-		<Callout tone="error">{fieldRefusal}</Callout>
-		{#if errorMessage}
+<!-- what the shell said, where it said anything: the detail under a field already carrying the
+     sentence, and a callout of its own where no field is the answer. A refusal one of the two
+     fields can answer for is never drawn here ([[rules/interface]], *Validation errors*). -->
+{#snippet shellRefusal(errorMessage: string | null)}
+	{#if errorMessage}
+		{#if fieldRefused}
 			<p class="text-sm text-muted-foreground" data-join-detail>{errorMessage}</p>
+		{:else}
+			<Callout tone="error">{errorMessage}</Callout>
 		{/if}
-	{:else if errorMessage}
-		<Callout tone="error">{errorMessage}</Callout>
 	{/if}
 {/snippet}
 
@@ -229,6 +236,9 @@
 			/>
 		</InputGroup.Root>
 		<Field.Description>{$LL.organization.join.codeDescription()}</Field.Description>
+		{#if codeRefusalMessage}
+			<Field.Error>{codeRefusalMessage}</Field.Error>
+		{/if}
 	</Field.Field>
 {/snippet}
 
@@ -251,7 +261,7 @@
 					if (canConnect) onConnect(pasted, code);
 				}}
 			>
-				{@render refusalCallouts(step.errorMessage)}
+				{@render shellRefusal(step.errorMessage)}
 
 				<Field.Field>
 					<Field.Label for="join-link">{$LL.organization.join.linkLabel()}</Field.Label>
@@ -271,6 +281,9 @@
 							aria-invalid={isUnreadable}
 						/>
 					</InputGroup.Root>
+					{#if linkRefusal}
+						<Field.Error>{linkRefusal}</Field.Error>
+					{/if}
 				</Field.Field>
 
 				{@render codeField()}
@@ -316,7 +329,7 @@
 					if (canJoin) onJoin(step.link, step.code, password);
 				}}
 			>
-				{@render refusalCallouts(step.errorMessage)}
+				{@render shellRefusal(step.errorMessage)}
 				{@render organizationLine(step.organizationName)}
 
 				<Field.Field>

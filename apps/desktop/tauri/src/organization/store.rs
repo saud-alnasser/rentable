@@ -304,7 +304,7 @@ pub struct InvitationRecord {
     pub created_at: i64,
 }
 
-/// A `machine_link` row: a link a member made for their own next machine, and whether it has been
+/// A `machine_link` row: a link made for an account whose password is set, and whether it has been
 /// spent.
 ///
 /// **It carries no signature, and that is the accepted limit rather than an oversight** (effort
@@ -1323,7 +1323,7 @@ impl OrganizationStore {
 
     // machine links
 
-    /// Write the row behind a link a member made for their own next machine.
+    /// Write the row behind a link made for an account whose password is set.
     ///
     /// **Unsigned**, for the reason [`MachineLinkRecord`] gives. `INSERT OR REPLACE`, so a member
     /// who makes a second link for the same id overwrites the first rather than growing a second
@@ -1395,11 +1395,22 @@ impl OrganizationStore {
         Ok(())
     }
 
-    /// Drop every unspent link this member holds, which is what makes one stand at a time.
+    /// Drop every unspent machine link this account holds, which is what makes one stand at a
+    /// time.
     ///
-    /// A member who lost the pair presses again, and the link they could not use stops being a way
-    /// in the moment the new one exists. A spent row is left where it is: it is what refuses the
-    /// link that already connected a machine.
+    /// **Three callers clear the account's open rows, and each for its own reason.**
+    /// `invite::make_link` clears them on the branch that makes this kind, so that somebody who
+    /// lost the pair presses again and the link they could not use stops being a way in the
+    /// moment the new one exists. `invite::reseal_account`, which a reset runs and which the
+    /// invitation branch of the same act runs too, clears them because the vault the re-seal
+    /// replaces is the one the account's old password opened, and a machine link made before it
+    /// still carries a live credential over a row nothing has spent.
+    /// `removal::retire_member` clears them because a link is judged against the row behind it
+    /// and never against the member's standing, so one made before the removal would go on
+    /// connecting machines after the person had been let go.
+    ///
+    /// A spent row is left where it is in all three: it is what refuses the link that already
+    /// connected a machine.
     pub async fn delete_open_machine_links_of(&self, member_id: &str) -> Result<(), Error> {
         self.connection
             .execute(
@@ -3314,7 +3325,10 @@ mod tests {
 
         assert_eq!(members.len(), 2);
         assert_eq!(super::integer(&row, 0).expect("a count"), 1);
-        assert_eq!(store.tables().await.expect("the tables").len(), TABLES.len());
+        assert_eq!(
+            store.tables().await.expect("the tables").len(),
+            TABLES.len()
+        );
     }
 
     /// Live, at the human's request: **machine A writes, machine B reads it back**, against a

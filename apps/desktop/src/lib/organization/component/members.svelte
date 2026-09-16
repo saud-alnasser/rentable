@@ -548,7 +548,7 @@
 	discoverable without competing with the records (*Semantics are secondary*, Refactoring UI
 	p.60). The form is the shell's, opened the same way the rail's row opens it.
 -->
-{#snippet addAccount()}
+{#snippet addMember()}
 	<Tooltip.Root>
 		<Tooltip.Trigger>
 			{#snippet child({ props })}
@@ -557,7 +557,7 @@
 					variant="outline"
 					size="icon-sm"
 					data-invite-open
-					aria-label={$LL.organization.dashboard.addAccount()}
+					aria-label={$LL.organization.dashboard.addMember()}
 					onclick={() => openOrganizationDialog('account')}
 				>
 					<UserPlusIcon />
@@ -565,7 +565,7 @@
 			{/snippet}
 		</Tooltip.Trigger>
 		<Tooltip.Content side="top" sideOffset={8}>
-			{$LL.organization.dashboard.addAccount()}
+			{$LL.organization.dashboard.addMember()}
 		</Tooltip.Content>
 	</Tooltip.Root>
 {/snippet}
@@ -577,7 +577,7 @@
 		legendId="members-legend"
 		legend={$LL.settings.section.members()}
 		description={$LL.organization.dashboard.membersDescription()}
-		action={canInvite ? addAccount : undefined}
+		action={canInvite ? addMember : undefined}
 	/>
 
 	<div class="flex flex-col gap-3" data-members>

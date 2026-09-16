@@ -2547,7 +2547,7 @@ type RootTranslation = {
 			/**
 			 * a​ ​n​e​w​ ​m​e​m​b​e​r
 			 */
-			accountTitle: string
+			memberTitle: string
 			/**
 			 * a​ ​m​e​m​b​e​r​ ​i​s​ ​a​ ​u​s​e​r​n​a​m​e​,​ ​a​ ​r​o​l​e​,​ ​w​h​a​t​ ​t​h​e​y​ ​m​a​y​ ​d​o​ ​a​n​d​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e​s​ ​t​h​e​y​ ​h​o​l​d​.​ ​t​h​e​y​ ​h​a​v​e​ ​n​o​ ​p​a​s​s​w​o​r​d​ ​u​n​t​i​l​ ​y​o​u​ ​m​a​k​e​ ​t​h​e​m​ ​a​ ​l​i​n​k​ ​a​n​d​ ​t​h​e​y​ ​o​p​e​n​ ​i​t​.
 			 */
@@ -2567,7 +2567,7 @@ type RootTranslation = {
 			/**
 			 * a​d​d​ ​a​ ​m​e​m​b​e​r
 			 */
-			addAccount: string
+			addMember: string
 			/**
 			 * r​e​n​t​a​b​l​e​ ​s​e​n​d​s​ ​n​o​t​h​i​n​g​.​ ​c​o​p​y​ ​t​h​e​ ​l​i​n​k​ ​b​e​l​o​w​ ​a​n​d​ ​h​a​n​d​ ​i​t​ ​o​v​e​r​ ​y​o​u​r​s​e​l​f​,​ ​a​n​d​ ​r​e​a​d​ ​t​h​e​ ​c​o​d​e​ ​o​u​t​ ​s​e​p​a​r​a​t​e​l​y​.​ ​i​t​ ​a​d​m​i​t​s​ ​o​n​e​ ​m​a​c​h​i​n​e​,​ ​o​n​c​e​.
 			 */
@@ -2576,10 +2576,6 @@ type RootTranslation = {
 			 * l​i​n​k​ ​a​n​d​ ​c​o​d​e
 			 */
 			linkTitle: string
-			/**
-			 * l​i​n​k
-			 */
-			linkLabel: string
 			/**
 			 * c​o​n​f​i​r​m​a​t​i​o​n​ ​c​o​d​e
 			 */
@@ -2621,10 +2617,6 @@ type RootTranslation = {
 			 * y​o​u​r​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​d​o​e​s​ ​n​o​t​ ​m​o​v​e​.​ ​t​h​e​ ​d​a​t​a​b​a​s​e​s​ ​s​t​a​y​ ​o​n​ ​i​t​,​ ​a​n​d​ ​t​h​e​ ​n​e​w​ ​o​w​n​e​r​ ​c​o​n​n​e​c​t​s​ ​t​h​e​i​r​ ​o​w​n​ ​a​c​c​o​u​n​t​ ​f​r​o​m​ ​t​h​e​ ​s​y​n​c​ ​s​e​c​t​i​o​n​ ​b​e​f​o​r​e​ ​t​h​e​y​ ​c​a​n​ ​c​r​e​a​t​e​ ​a​ ​w​o​r​k​s​p​a​c​e​,​ ​l​o​c​k​ ​a​n​y​b​o​d​y​ ​o​u​t​ ​o​r​ ​r​e​n​e​w​ ​c​r​e​d​e​n​t​i​a​l​s​.
 			 */
 			transferOwnershipAuthority: string
-			/**
-			 * y​o​u​r​ ​p​a​s​s​w​o​r​d
-			 */
-			transferOwnershipPassword: string
 			/**
 			 * o​f​f​e​r​ ​i​t
 			 */
@@ -2920,10 +2912,6 @@ type RootTranslation = {
 			 * e​v​e​r​y​ ​w​o​r​k​s​p​a​c​e​ ​g​o​e​s​,​ ​a​n​d​ ​e​v​e​r​y​t​h​i​n​g​ ​i​n​ ​i​t​:​ ​t​e​n​a​n​t​s​,​ ​c​o​m​p​l​e​x​e​s​,​ ​u​n​i​t​s​,​ ​c​o​n​t​r​a​c​t​s​ ​a​n​d​ ​p​a​y​m​e​n​t​s​.​ ​s​o​ ​d​o​e​s​ ​e​v​e​r​y​ ​w​a​y​ ​i​n​,​ ​f​o​r​ ​e​v​e​r​y​ ​m​e​m​b​e​r​.​ ​t​h​e​ ​o​t​h​e​r​ ​m​a​c​h​i​n​e​s​ ​f​i​n​d​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​g​o​n​e​ ​t​h​e​ ​n​e​x​t​ ​t​i​m​e​ ​t​h​e​y​ ​o​p​e​n​ ​a​n​d​ ​l​a​n​d​ ​o​n​ ​t​h​e​ ​f​i​r​s​t​ ​s​c​r​e​e​n​.​ ​n​o​t​h​i​n​g​ ​p​u​t​s​ ​t​h​i​s​ ​b​a​c​k​.
 			 */
 			deleteOrganizationGoes: string
-			/**
-			 * y​o​u​r​ ​p​a​s​s​w​o​r​d
-			 */
-			deleteOrganizationPassword: string
 			/**
 			 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​w​a​s​ ​d​e​l​e​t​e​d​.
 			 */
@@ -5426,7 +5414,7 @@ export type TranslationFunctions = {
 			/**
 			 * a new member
 			 */
-			accountTitle: () => LocalizedString
+			memberTitle: () => LocalizedString
 			/**
 			 * a member is a username, a role, what they may do and the workspaces they hold. they have no password until you make them a link and they open it.
 			 */
@@ -5446,7 +5434,7 @@ export type TranslationFunctions = {
 			/**
 			 * add a member
 			 */
-			addAccount: () => LocalizedString
+			addMember: () => LocalizedString
 			/**
 			 * rentable sends nothing. copy the link below and hand it over yourself, and read the code out separately. it admits one machine, once.
 			 */
@@ -5455,10 +5443,6 @@ export type TranslationFunctions = {
 			 * link and code
 			 */
 			linkTitle: () => LocalizedString
-			/**
-			 * link
-			 */
-			linkLabel: () => LocalizedString
 			/**
 			 * confirmation code
 			 */
@@ -5499,10 +5483,6 @@ export type TranslationFunctions = {
 			 * your turso account does not move. the databases stay on it, and the new owner connects their own account from the sync section before they can create a workspace, lock anybody out or renew credentials.
 			 */
 			transferOwnershipAuthority: () => LocalizedString
-			/**
-			 * your password
-			 */
-			transferOwnershipPassword: () => LocalizedString
 			/**
 			 * offer it
 			 */
@@ -5787,10 +5767,6 @@ export type TranslationFunctions = {
 			 * every workspace goes, and everything in it: tenants, complexes, units, contracts and payments. so does every way in, for every member. the other machines find the organization gone the next time they open and land on the first screen. nothing puts this back.
 			 */
 			deleteOrganizationGoes: () => LocalizedString
-			/**
-			 * your password
-			 */
-			deleteOrganizationPassword: () => LocalizedString
 			/**
 			 * the organization was deleted.
 			 */

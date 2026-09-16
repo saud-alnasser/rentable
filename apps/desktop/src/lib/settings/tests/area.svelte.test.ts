@@ -269,7 +269,7 @@ test('the owner is offered the delete, on a surface that says what goes and take
 
 	expect(document.querySelector('[data-slot=form-surface]')).not.toBeNull();
 	expect(document.querySelectorAll('input[type=password]')).toHaveLength(1);
-	expect(screen.getByText(en.organization.dashboard.deleteOrganizationPassword)).toBeDefined();
+	expect(screen.getByText(en.organization.setup.passwordLabel)).toBeDefined();
 });
 
 test('an administrator is offered no delete, because the block it sits in is the owners', () => {

@@ -128,8 +128,10 @@
 		</Field.Field>
 
 		<Field.Field>
+			<!-- the key the first run wrote the term on, drawn rather than said again here: one
+			     english word per thing, and one key holding it (effort 826, requirement 18). -->
 			<Field.Label for="transfer-ownership-password">
-				{$LL.organization.dashboard.transferOwnershipPassword()}
+				{$LL.organization.setup.passwordLabel()}
 			</Field.Label>
 			<InputGroup.Root class={insetControl} data-disabled={isOffering ? 'true' : undefined}>
 				<InputGroup.Addon>

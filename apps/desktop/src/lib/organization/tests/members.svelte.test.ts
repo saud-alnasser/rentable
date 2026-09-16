@@ -382,7 +382,7 @@ test('a card opens its own record, and nothing on the card itself does anything 
 	const ada = card('ada')!;
 	const opens = ada.querySelector('a')!;
 
-	expect(opens.getAttribute('href')).toBe('/settings?section=members&account=ada');
+	expect(opens.getAttribute('href')).toBe('/settings?section=members&member=ada');
 	expect(opens.getAttribute('aria-label')).toBe('ada');
 	// the acts are behind the card's one control, and nothing else on it is pressable.
 	expect(ada.querySelectorAll('button')).toHaveLength(1);
@@ -404,7 +404,7 @@ test('a card opens its own record, and nothing on the card itself does anything 
 // the other half of the same rule: the section reads the account off the address and opens that
 // account's edit, then clears it, so pressing the same card twice opens the same surface twice.
 test('the address naming an account opens that account and is cleared', async () => {
-	at('?section=members&account=ada');
+	at('?section=members&member=ada');
 	list();
 
 	await waitFor(() => {
@@ -812,7 +812,7 @@ test('the two acts that destroy something are marked', async () => {
 test('the add control stands in the tray before the first card and asks the shell for the form', async () => {
 	list();
 
-	const opener = screen.getByRole('button', { name: en.organization.dashboard.addAccount });
+	const opener = screen.getByRole('button', { name: en.organization.dashboard.addMember });
 	const tray = document.querySelector('[data-directory-tray]')!;
 	const first = document.querySelector('[data-member]')!;
 
@@ -925,7 +925,7 @@ test('and in arabic every card reads in its own words, right to left', async () 
 	expect(ar.organization.dashboard.membersDescription).not.toBe(
 		en.organization.dashboard.membersDescription
 	);
-	expect(screen.getByRole('button', { name: ar.organization.dashboard.addAccount })).toBeDefined();
+	expect(screen.getByRole('button', { name: ar.organization.dashboard.addMember })).toBeDefined();
 
 	const lockOut = await openTo('ada', 'lock-out');
 

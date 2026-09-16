@@ -487,7 +487,10 @@ mod tests {
 
         assert_eq!(after_connect.len(), 1);
         assert_eq!(after_connect[0].0.id, held.machine_id);
-        assert_eq!(after_connect[0].0.member_id, None, "a connect named a member");
+        assert_eq!(
+            after_connect[0].0.member_id, None,
+            "a connect named a member"
+        );
         assert!(after_connect[0].1.is_none());
 
         // the sign-in at the wall: the same machine, now naming the member on it.
@@ -506,14 +509,21 @@ mod tests {
         let signed_in = machine.organization.clone().expect("the record");
         let after_sign_in = connected(ISSUED_AT + 2).await;
 
-        assert_eq!(after_sign_in.len(), 1, "the sign-in registered a second machine");
+        assert_eq!(
+            after_sign_in.len(),
+            1,
+            "the sign-in registered a second machine"
+        );
         assert_eq!(after_sign_in[0].0.id, held.machine_id);
         assert_eq!(
             after_sign_in[0].0.member_id.as_deref(),
             Some(session.member_id.as_str())
         );
         assert_eq!(
-            after_sign_in[0].1.as_ref().map(|member| member.role.as_str()),
+            after_sign_in[0]
+                .1
+                .as_ref()
+                .map(|member| member.role.as_str()),
             Some(permission::OWNER),
             "the member row beside the machine is not the one who signed in"
         );

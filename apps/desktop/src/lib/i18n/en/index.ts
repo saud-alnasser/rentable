@@ -841,17 +841,16 @@ const en = {
 			standingNoMachine: 'no machine signed in',
 			standingSignedIn: 'signed in on a machine',
 
-			accountTitle: 'a new member',
+			memberTitle: 'a new member',
 			accountDescription:
 				'a member is a username, a role, what they may do and the workspaces they hold. they have no password until you make them a link and they open it.',
 			role: 'role',
 			administratorsAreTheOwners: 'only the owner can make an administrator.',
 			noWorkspaceToGrant: 'no workspace to grant yet. they can be granted one later.',
-			addAccount: 'add a member',
+			addMember: 'add a member',
 			cannotSend:
 				'rentable sends nothing. copy the link below and hand it over yourself, and read the code out separately. it admits one machine, once.',
 			linkTitle: 'link and code',
-			linkLabel: 'link',
 			codeTitle: 'confirmation code',
 			codeDescription:
 				'read this out on a call or in person. it is the other half of what the link needs, so it is never sent beside it.',
@@ -870,7 +869,6 @@ const en = {
 			transferOwnershipAccount: 'who is offered the organization',
 			transferOwnershipAuthority:
 				'your turso account does not move. the databases stay on it, and the new owner connects their own account from the sync section before they can create a workspace, lock anybody out or renew credentials.',
-			transferOwnershipPassword: 'your password',
 			transferOwnershipConfirm: 'offer it',
 			ownershipOffered: 'the organization was offered. they accept it on a machine of their own.',
 			withdrawOffer: 'withdraw the offer',
@@ -967,7 +965,6 @@ const en = {
 				'the organization and every workspace in it are deleted from your turso account. nothing puts them back.',
 			deleteOrganizationGoes:
 				'every workspace goes, and everything in it: tenants, complexes, units, contracts and payments. so does every way in, for every member. the other machines find the organization gone the next time they open and land on the first screen. nothing puts this back.',
-			deleteOrganizationPassword: 'your password',
 			organizationDeleted: 'the organization was deleted.'
 		}
 	},

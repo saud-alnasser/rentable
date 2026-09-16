@@ -291,7 +291,10 @@ mod tests {
         let machine = Persisted::<RemoteSyncStore>::load(directory.join(RemoteSync::FILENAME))
             .expect("the store");
 
-        assert!(machine.organization.is_none(), "the machine has prior state");
+        assert!(
+            machine.organization.is_none(),
+            "the machine has prior state"
+        );
 
         machine
     }
@@ -587,7 +590,13 @@ mod tests {
         .expect_err("a lapsed link connected a machine");
 
         assert!(
-            matches!(&refusal, Error::Refused { reason: RefusalReason::Lapsed, .. }),
+            matches!(
+                &refusal,
+                Error::Refused {
+                    reason: RefusalReason::Lapsed,
+                    ..
+                }
+            ),
             "{refusal:?}"
         );
         assert!(late_machine.organization.is_none());
@@ -620,14 +629,23 @@ mod tests {
         // and a second machine with the same pair.
         let second = scratch("once-second");
         let mut second_machine = fresh_machine(&second);
-        let refusal = connect_on(&mut second_machine, &store, &made, &made.code, ISSUED_AT + 5)
-            .await
-            .expect_err("a spent link connected a second machine");
+        let refusal = connect_on(
+            &mut second_machine,
+            &store,
+            &made,
+            &made.code,
+            ISSUED_AT + 5,
+        )
+        .await
+        .expect_err("a spent link connected a second machine");
 
         assert!(
             matches!(
                 &refusal,
-                Error::Refused { reason: RefusalReason::Consumed, .. }
+                Error::Refused {
+                    reason: RefusalReason::Consumed,
+                    ..
+                }
             ),
             "{refusal:?}"
         );

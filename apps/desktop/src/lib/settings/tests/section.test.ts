@@ -53,23 +53,23 @@ test('a section address is the settings route carrying that section', () => {
 	assert.equal(withSection('sync'), '/settings?section=sync');
 });
 
-// effort 828, requirement 19: a card in the members section opens its record, and an account has
-// no page of its own, so the record is named on this section's own address. Whether the id names
-// anybody is the section's to answer, since only the section holds the accounts.
+// effort 828, requirement 19: a card in the members section opens its record, and a member has
+// no page of their own, so the record is named on this section's own address. Whether the id names
+// anybody is the section's to answer, since only the section holds the rows.
 test('an address naming a record reads as that record, and the section it is in', () => {
-	assert.equal(recordOf(at('?section=members&account=ada')), 'ada');
-	assert.equal(sectionOf(at('?section=members&account=ada')), 'members');
+	assert.equal(recordOf(at('?section=members&member=ada')), 'ada');
+	assert.equal(sectionOf(at('?section=members&member=ada')), 'members');
 	assert.equal(recordOf(at('?section=members')), null);
-	assert.equal(recordOf(at('?section=members&account=')), null);
-	assert.equal(recordOf(at('?section=members&account=%20')), null);
+	assert.equal(recordOf(at('?section=members&member=')), null);
+	assert.equal(recordOf(at('?section=members&member=%20')), null);
 });
 
 // requirement 21: the workspaces section is a directory of cards too, and it names its records by
-// its own word, so a reader carrying an account from the section beside it names no workspace.
-test('a workspace is named by its own word, and an account is not one', () => {
+// its own word, so a reader carrying a member from the section beside it names no workspace.
+test('a workspace is named by its own word, and a member is not one', () => {
 	assert.equal(recordOf(at('?section=workspaces&workspace=ws-1'), WORKSPACE_PARAM), 'ws-1');
 	assert.equal(sectionOf(at('?section=workspaces&workspace=ws-1')), 'workspaces');
-	assert.equal(recordOf(at('?section=workspaces&account=ada'), WORKSPACE_PARAM), null);
+	assert.equal(recordOf(at('?section=workspaces&member=ada'), WORKSPACE_PARAM), null);
 	assert.equal(recordOf(at('?section=workspaces&workspace='), WORKSPACE_PARAM), null);
 });
 

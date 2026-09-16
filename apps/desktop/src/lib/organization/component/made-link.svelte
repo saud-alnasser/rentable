@@ -73,10 +73,12 @@
 	title={$LL.organization.dashboard.linkTitle()}
 >
 	{#if made}
+		<!-- `linkLabel` is the connect screen's own label for a link, which is where the term is
+		     written down; this block drew a second key reading the same word until ticket 21. -->
 		<LinkHandover
 			{organizationName}
 			notice={$LL.organization.dashboard.cannotSend()}
-			linkLabel={$LL.organization.dashboard.linkLabel()}
+			linkLabel={$LL.organization.join.linkLabel()}
 			link={made.link}
 			code={made.code}
 			expiresAt={made.expiresAt}

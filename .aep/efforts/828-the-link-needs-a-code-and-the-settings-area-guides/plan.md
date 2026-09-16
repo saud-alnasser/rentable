@@ -220,6 +220,15 @@ caller. *Rejected: a signed row, which a plain member cannot write; a row per se
 per machine, which the epoch already covers; and a registry the settings area lists, which the
 spec puts out of scope.*
 
+*Corrected 2026-09-16, against the tree the effort built: requirement 14's gate is one of three
+callers, not the only one. `store::connected_machines` has three production call sites, and the
+reader itself is still the registry's only one. `invite::make_link` reads it for the gate of
+requirement 20, which refuses a link while a machine is signed in on the account;
+`invite::standings`, behind `organization_member_standings`, reads it for the standing line each
+card in the members directory carries; and `setup::in_use_by_somebody_who_can_invite`, reached
+from `setup::connect_existing`, is requirement 14's own gate. The sentence was written when the
+gate was the only reason the register existed, and requirements 19 and 20 gave it two more.*
+
 ## The account connects to the organization the group holds (requirement 14)
 
 The walk today consents and then creates in one command. It splits at the consent: after the

@@ -36,6 +36,22 @@ import Providers from './providers.svelte';
 
 const noop = () => {};
 
+/**
+ * the message the field holding `name`'s input is marked with, or `null` where it carries none.
+ *
+ * Read off the field rather than off the document, because what the interface rule asks is which
+ * control the sentence belongs to and a `getByText` is answered by a summary just as happily.
+ */
+const fieldErrorOn = (name: string) =>
+	document
+		.querySelector(`input[name=${name}]`)
+		?.closest('[data-slot=field]')
+		?.querySelector('[data-slot=field-error]')?.textContent ?? null;
+
+/** every sentence the document draws in a callout, which is where a summary would be. */
+const inCallouts = () =>
+	[...document.querySelectorAll('[data-slot=callout]')].map((node) => node.textContent);
+
 const joinScreen = (
 	step: JoinStep,
 	overrides: {
@@ -291,6 +307,10 @@ test('a wrong code and a missing one are each refused by name, and mark the code
 	});
 
 	expect(screen.getByText(en.organization.join.codeWrong)).toBeDefined();
+	// the sentence sits on the code field and in no callout over the form: a validation error marks
+	// its own field and no form places a summary ([[rules/interface]], *Validation errors*).
+	expect(fieldErrorOn('code')).toBe(en.organization.join.codeWrong);
+	expect(inCallouts()).not.toContain(en.organization.join.codeWrong);
 	expect(document.querySelector('[data-join-detail]')?.textContent).toBe(
 		'the code is wrong; ask whoever sent you the link to read it out again'
 	);
@@ -304,6 +324,8 @@ test('a wrong code and a missing one are each refused by name, and mark the code
 	joinScreen({ ...pasting(LINK, CODE), codeRefusal: 'missing' });
 
 	expect(screen.getByText(en.organization.join.codeMissing)).toBeDefined();
+	expect(fieldErrorOn('code')).toBe(en.organization.join.codeMissing);
+	expect(inCallouts()).not.toContain(en.organization.join.codeMissing);
 	expect(en.organization.join.codeMissing).not.toBe(en.organization.join.codeWrong);
 });
 
@@ -398,6 +420,10 @@ test('text that was not a link keeps the form, says so, and marks the link field
 
 	expect(inputsOnScreen().map((input) => input.getAttribute('name'))).toEqual(['link', 'code']);
 	expect(screen.getByText(en.organization.join.unreadable)).toBeDefined();
+	// on the link field, and nowhere else: the same rule as the code's refusal above.
+	expect(fieldErrorOn('link')).toBe(en.organization.join.unreadable);
+	expect(fieldErrorOn('code')).toBe(null);
+	expect(inCallouts()).not.toContain(en.organization.join.unreadable);
 	expect(document.querySelector('input[name=link]')?.getAttribute('aria-invalid')).toBe('true');
 	expect(document.querySelector('input[name=code]')?.getAttribute('aria-invalid')).toBe('false');
 	expect(document.querySelector<HTMLInputElement>('input[name=code]')?.value).toBe(CODE);

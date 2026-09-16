@@ -286,6 +286,18 @@ rail's two menus open. Every concept has one name.
     and at what access, `grantWorkspace`), and delete (owner, asking once and naming what is
     lost). New workspace is the owner's button and opens the workspace dialog. Export and
     import stay, acting on the open workspace, in this section.
+    *Corrected 2026-09-16 by
+    [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]], requirement 21:
+    **the section is a directory of cards, not a list of rows.** A card is one workspace, the
+    shape the members section takes: the name, how many people hold it, and a solid disc before
+    the name of the one open on this machine, whose word reaches the reader through a tooltip and
+    an accessible name rather than as a badge. Activating a card opens that workspace's members
+    and access surface, and rename, members and delete are in the card's own menu, each still
+    behind the gate this entry gave it, with an act the reader does not hold simply absent. The
+    control that makes a workspace is in the tray above the cards with the section's name and its
+    sentence, rather than a button beside the list, and the reason stands in its place where this
+    machine cannot reach the Turso account. Export and import stay, beneath the cards, under the
+    name of the workspace they act on.*
 17. **The rail's two menus open the sections.** The workspace menu keeps the switcher and
     offers workspaces and invite; the account menu offers you, settings and sign out. The
     two dialogs (invite, new workspace) open from the rail and from the settings area alike,
@@ -435,6 +447,16 @@ third wave. Each is a decision, made in one picker round the same day; the plan 
    new password and re-seals their grants over the issuer's reachable workspaces, naming the
    rest. Asserted in Rust. The you section's change-password form asks for the current
    password, asserted in its test.
+   *Corrected 2026-09-16 by
+   [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]], requirement 20:
+   **there is no `member_reset`, and a reset hands over nothing.** It is two commands on the same
+   account. `member_password_unset(member_id)` takes the password away: a fresh vault under a
+   fresh secret, everything the resetting administrator reaches re-sealed to it, the member's
+   permissions kept, and the answer naming the workspaces it could not restore. Then
+   `member_link_make(member_id)` answers the link and its code, and what kind of link it is
+   follows the account, so the one made after an unset asks the person to choose a new password
+   when they open it. Both are asserted in Rust. The change-password half of this criterion
+   stands.*
 10. The connect screen accepts an organization link and lands on the wall, and accepts an
     invitation link and lands on the choose-password step, from one field. Asserted in its
     test with both link kinds. *Corrected 2026-09-16 with requirement 10: there is no
@@ -472,6 +494,14 @@ third wave. Each is a decision, made in one picker round the same day; the plan 
 16. The workspaces section's test renders rows with the fields of requirement 16, finds
     rename, members and delete each behind their gate, finds new workspace only for the
     owner holding authority, and finds export and import present.
+    *Corrected 2026-09-16 by
+    [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]], requirement 21,
+    with requirement 16 above: the test renders cards, not rows, one per workspace with its name,
+    how many hold it and the disc marking the one open here. Rename, members and delete are read
+    off the card's own menu and are each still found only behind their gate, new workspace is
+    found in the tray above the cards for the owner holding the authority and is the reason
+    sentence for an owner whose machine lost it, and export and import are still found, beneath
+    the cards under the name of the workspace they act on.*
 17. The workspace menu's test finds the switcher rows, a workspaces row opening
     `/settings` at the workspaces section and an invite row opening the dialog; the account
     menu's test finds settings and sign out and no row for the you section (corrected
