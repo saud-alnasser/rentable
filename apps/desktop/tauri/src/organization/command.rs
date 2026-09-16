@@ -7,7 +7,7 @@ use crate::{diagnostics, error::Error, state::AppState, timestamp};
 
 use super::{
     HeldOrganization, connect, forget,
-    invite::{self, InvitationLink, MadeLink, MemberFacts, UnreachableWorkspace, WorkspaceGrant},
+    invite::{self, MadeLink, MemberFacts, MemberStanding, UnreachableWorkspace, WorkspaceGrant},
     join,
     link::{self, JoinLink, LinkShape},
     machine,
@@ -1149,28 +1149,6 @@ pub async fn member_password_unset(
     .await
 }
 
-/// The invitation link and its code again, for the person who issued it: the password, the secret
-/// and the code are sealed to their key on the row, so their open vault is the one thing that
-/// rebuilds the pair. Anybody else with the act is refused and offered a new link, which is a
-/// reset.
-///
-/// **Both halves, because a code now lives as long as its link** (effort 828, requirement 1).
-/// There is one pair per invitation and no way to make a second code without making a second
-/// link, so copying is showing the same pair again. The code crosses for the reason it always
-/// did: the person who reads it out on a call is on the other side of the boundary, and it is
-/// never written under the data directory.
-#[tauri::command]
-pub async fn invitation_link(
-    app_state: tauri::State<'_, AppState>,
-    invitation_id: String,
-) -> Result<InvitationLink, Error> {
-    let mut member = app_state.member.write().await;
-    let store = app_state.organization.read().await;
-    let (member, store) = signed_in(&mut member, &store)?;
-
-    invite::invitation_link(store, member, &invitation_id, invite::INVITED_KDF).await
-}
-
 /// Open an invitation link: the way in for a person who was invited or reset (effort 826,
 /// requirements 8 and 9; effort 828, requirement 1).
 ///
@@ -1553,6 +1531,25 @@ pub async fn organization_members(
     let (member, store) = signed_in(&mut member, &store)?;
 
     invite::members(store, member, timestamp::now()).await
+}
+
+/// Where each account stands, for the line the directory draws under a name (effort 828,
+/// requirement 19): whether it has a password of its own yet, and whether a machine is signed in
+/// on it inside the presence window.
+///
+/// **Beside the members rather than on them**, because the two halves come from two places: the
+/// password is on the signed member row and the machine is on the unsigned register every machine
+/// writes for itself. Asked apart, a list of people is still a list of people when the register
+/// says nothing, and the directory joins the two on the member's id.
+#[tauri::command]
+pub async fn organization_member_standings(
+    app_state: tauri::State<'_, AppState>,
+) -> Result<Vec<MemberStanding>, Error> {
+    let mut member = app_state.member.write().await;
+    let store = app_state.organization.read().await;
+    let (member, store) = signed_in(&mut member, &store)?;
+
+    invite::standings(store, member, timestamp::now()).await
 }
 
 /// The link the operating system handed this process, if one is waiting: a launch with a link

@@ -22,6 +22,16 @@ import { permits, type Administration } from '@rentable/workspace-permission';
 /** what names a section in the address. */
 export const SECTION_PARAM = 'section';
 
+/**
+ * what names one record inside a section, where the section has records.
+ *
+ * The members section is a directory of cards, and a card opens its record
+ * ([[rules/interface]], *Row activation*), so the card's `href` is this section's address with the
+ * account named on it: `/settings?section=members&account=<id>`. A member has no page of their
+ * own, so what opening one means is the section drawing that account's edit.
+ */
+export const RECORD_PARAM = 'account';
+
 /** the settings area's own address, carrying no section. */
 export const THE_SETTINGS_AREA = '/settings' satisfies Pathname;
 
@@ -90,6 +100,19 @@ export function sectionOf(url: URL): SettingsSection {
 	const named = url.searchParams.get(SECTION_PARAM);
 
 	return SETTINGS_SECTIONS.find((section) => section === named) ?? DEFAULT_SECTION;
+}
+
+/**
+ * Which record `url` names inside its section, or `null` where it names none.
+ *
+ * Whether that id belongs to anything is the section's to decide, because only the section holds
+ * the records: an address kept after somebody was removed names nothing, and the section draws
+ * itself rather than a screen about the address, exactly as `shownSection` does above.
+ */
+export function recordOf(url: URL): string | null {
+	const named = url.searchParams.get(RECORD_PARAM)?.trim();
+
+	return named ? named : null;
 }
 
 /**

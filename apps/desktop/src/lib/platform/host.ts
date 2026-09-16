@@ -390,15 +390,18 @@ export type OrganizationMember = {
 };
 
 /**
- * an invitation's link and the code that opens it, handed to the person who issued it again.
+ * where one account stands, as the directory says it in a line (effort 828, requirement 19).
  *
- * **Both, because a code lives as long as its link** (effort 828, requirement 1). There is one
- * pair per invitation, and copying it is showing that pair again rather than making a second.
+ * **Two facts, and the three standings are read off the pair**: an account with no password of its
+ * own, one nobody is signed in on, and one a machine is signed in on. They are the same two facts
+ * a link is gated on, so a card says why a link is not offered without asking a second question.
  */
-export type InvitationLink = {
-	joinLink: string;
-	/** six characters from the alphabet with the letters that read alike taken out. */
-	code: string;
+export type MemberStanding = {
+	memberId: string;
+	/** whether the account has a password of its own yet. `false` until its first link is opened. */
+	passwordSet: boolean;
+	/** whether a machine seen inside the presence window is signed in on the account. */
+	machineSignedIn: boolean;
 };
 
 /**
@@ -644,6 +647,13 @@ export type Host = {
 			/** every member, with names opened by the vault this process holds. */
 			list: () => Promise<OrganizationMember[]>;
 			/**
+			 * where each account stands: whether it has a password of its own yet, and whether a
+			 * machine is signed in on it inside the presence window. Beside the list rather than on
+			 * it, because the password is on the signed member row and the machine is on the
+			 * register every machine writes for itself.
+			 */
+			standings: () => Promise<MemberStanding[]>;
+			/**
 			 * make an account: a row somebody will open, and no link. It holds no password until
 			 * its first link is opened, which is `linkMake`. A read-only grant is minted on the
 			 * owner's machine, and refused by name elsewhere.
@@ -721,11 +731,6 @@ export type Host = {
 			 * the one held as `preconditionFailed`.
 			 */
 			accept: (link: string, code: string, password: string) => Promise<OrganizationState>;
-			/**
-			 * the invitation link and its code again, for the person who issued it; `forbidden`
-			 * for anybody else, who is offered a new link instead, which is a reset.
-			 */
-			link: (invitationId: string) => Promise<InvitationLink>;
 		};
 		/**
 		 * connect this machine with a machine-kind link, and land at the wall. The code

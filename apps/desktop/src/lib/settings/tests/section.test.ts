@@ -4,7 +4,7 @@ import test from 'node:test';
 import { fakeOrganizationSession } from '$lib/platform/tests/testing.ts';
 import { maskOf } from '@rentable/workspace-permission';
 
-import { SETTINGS_SECTIONS, sectionOf, sectionsFor, withSection } from '../section.ts';
+import { SETTINGS_SECTIONS, recordOf, sectionOf, sectionsFor, withSection } from '../section.ts';
 
 /**
  * WHICH SECTIONS A READER IS OFFERED, AND HOW ONE IS ADDRESSED
@@ -44,6 +44,17 @@ test('a section address is the settings route carrying that section', () => {
 	assert.equal(withSection('members'), '/settings?section=members');
 	assert.equal(sectionOf(at('?section=sync')), 'sync');
 	assert.equal(withSection('sync'), '/settings?section=sync');
+});
+
+// effort 828, requirement 19: a card in the members section opens its record, and an account has
+// no page of its own, so the record is named on this section's own address. Whether the id names
+// anybody is the section's to answer, since only the section holds the accounts.
+test('an address naming a record reads as that record, and the section it is in', () => {
+	assert.equal(recordOf(at('?section=members&account=ada')), 'ada');
+	assert.equal(sectionOf(at('?section=members&account=ada')), 'members');
+	assert.equal(recordOf(at('?section=members')), null);
+	assert.equal(recordOf(at('?section=members&account=')), null);
+	assert.equal(recordOf(at('?section=members&account=%20')), null);
 });
 
 // requirement 14, on the way in: the area is the one address that draws signed out, and the

@@ -2510,14 +2510,21 @@ type RootTranslation = {
 		}
 		dashboard: {
 			/**
-			 * e​v​e​r​y​b​o​d​y​ ​i​n​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​,​ ​i​n​c​l​u​d​i​n​g​ ​t​h​e​ ​p​e​o​p​l​e​ ​i​n​v​i​t​e​d​ ​w​h​o​ ​h​a​v​e​ ​n​o​t​ ​s​i​g​n​e​d​ ​i​n​ ​y​e​t​;​ ​t​h​e​ ​o​w​n​e​r​ ​a​n​d​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​s​ ​m​a​k​e​ ​a​c​c​o​u​n​t​s​ ​h​e​r​e​ ​a​n​d​ ​c​h​a​n​g​e​ ​w​h​a​t​ ​e​a​c​h​ ​o​n​e​ ​m​a​y​ ​d​o​.
+			 * e​v​e​r​y​b​o​d​y​ ​i​n​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​m​e​m​b​e​r​s​ ​a​r​e​ ​m​a​d​e​ ​a​n​d​ ​c​h​a​n​g​e​d​ ​h​e​r​e​.
 			 */
 			membersDescription: string
 			/**
-			 * w​h​a​t​ ​y​o​u​ ​c​a​n​ ​d​o​ ​w​i​t​h​ ​{​u​s​e​r​n​a​m​e​}
-			 * @param {string} username
+			 * n​o​ ​p​a​s​s​w​o​r​d​ ​y​e​t
 			 */
-			memberActions: RequiredParams<'username'>
+			standingNoPassword: string
+			/**
+			 * n​o​ ​m​a​c​h​i​n​e​ ​s​i​g​n​e​d​ ​i​n
+			 */
+			standingNoMachine: string
+			/**
+			 * s​i​g​n​e​d​ ​i​n​ ​o​n​ ​a​ ​m​a​c​h​i​n​e
+			 */
+			standingSignedIn: string
 			/**
 			 * a​ ​n​e​w​ ​m​e​m​b​e​r
 			 */
@@ -2567,25 +2574,24 @@ type RootTranslation = {
 			 */
 			done: string
 			/**
-			 * n​o​t​ ​y​e​t​ ​s​i​g​n​e​d​ ​i​n
-			 */
-			notYetSignedIn: string
-			/**
 			 * t​h​e​ ​l​i​n​k​ ​e​x​p​i​r​e​s​ ​{​d​a​t​e​}
 			 * @param {string} date
 			 */
 			invitationExpires: RequiredParams<'date'>
 			/**
-			 * t​h​e​ ​l​i​n​k​ ​l​a​p​s​e​d​ ​{​d​a​t​e​}
-			 * @param {string} date
-			 */
-			invitationLapsed: RequiredParams<'date'>
-			/**
 			 * m​a​k​e​ ​a​ ​l​i​n​k
 			 */
 			makeLink: string
 			/**
-			 * r​e​s​e​t​ ​t​h​e​ ​p​a​s​s​w​o​r​d
+			 * c​h​a​n​g​e​ ​r​o​l​e
+			 */
+			changeRole: string
+			/**
+			 * l​o​c​k​ ​o​u​t
+			 */
+			lockOut: string
+			/**
+			 * r​e​s​e​t​ ​p​a​s​s​w​o​r​d
 			 */
 			unsetPassword: string
 			/**
@@ -2673,14 +2679,6 @@ type RootTranslation = {
 			 */
 			unreachableWorkspaces: RequiredParams<'workspaces'>
 			/**
-			 * l​a​p​s​e​d
-			 */
-			standingLapsed: string
-			/**
-			 * r​e​v​o​k​e
-			 */
-			revoke: string
-			/**
 			 * t​h​e​ ​i​n​v​i​t​a​t​i​o​n​ ​w​a​s​ ​r​e​v​o​k​e​d​.
 			 */
 			revoked: string
@@ -2688,6 +2686,11 @@ type RootTranslation = {
 			 * n​o​ ​w​o​r​k​s​p​a​c​e​ ​y​e​t​.
 			 */
 			noWorkspaces: string
+			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​w​o​r​k​s​p​a​c​e​|​w​o​r​k​s​p​a​c​e​s​}​}
+			 * @param {string | number | boolean} count
+			 */
+			workspacesHeld: RequiredParams<'count|number'>
 			/**
 			 * f​u​l​l​ ​a​c​c​e​s​s
 			 */
@@ -5306,13 +5309,21 @@ export type TranslationFunctions = {
 		}
 		dashboard: {
 			/**
-			 * everybody in the organization, including the people invited who have not signed in yet; the owner and administrators make accounts here and change what each one may do.
+			 * everybody in the organization. members are made and changed here.
 			 */
 			membersDescription: () => LocalizedString
 			/**
-			 * what you can do with {username}
+			 * no password yet
 			 */
-			memberActions: (arg: { username: string }) => LocalizedString
+			standingNoPassword: () => LocalizedString
+			/**
+			 * no machine signed in
+			 */
+			standingNoMachine: () => LocalizedString
+			/**
+			 * signed in on a machine
+			 */
+			standingSignedIn: () => LocalizedString
 			/**
 			 * a new member
 			 */
@@ -5362,23 +5373,23 @@ export type TranslationFunctions = {
 			 */
 			done: () => LocalizedString
 			/**
-			 * not yet signed in
-			 */
-			notYetSignedIn: () => LocalizedString
-			/**
 			 * the link expires {date}
 			 */
 			invitationExpires: (arg: { date: string }) => LocalizedString
-			/**
-			 * the link lapsed {date}
-			 */
-			invitationLapsed: (arg: { date: string }) => LocalizedString
 			/**
 			 * make a link
 			 */
 			makeLink: () => LocalizedString
 			/**
-			 * reset the password
+			 * change role
+			 */
+			changeRole: () => LocalizedString
+			/**
+			 * lock out
+			 */
+			lockOut: () => LocalizedString
+			/**
+			 * reset password
 			 */
 			unsetPassword: () => LocalizedString
 			/**
@@ -5462,14 +5473,6 @@ export type TranslationFunctions = {
 			 */
 			unreachableWorkspaces: (arg: { workspaces: unknown }) => LocalizedString
 			/**
-			 * lapsed
-			 */
-			standingLapsed: () => LocalizedString
-			/**
-			 * revoke
-			 */
-			revoke: () => LocalizedString
-			/**
 			 * the invitation was revoked.
 			 */
 			revoked: () => LocalizedString
@@ -5477,6 +5480,10 @@ export type TranslationFunctions = {
 			 * no workspace yet.
 			 */
 			noWorkspaces: () => LocalizedString
+			/**
+			 * {count|number} {{workspace|workspaces}}
+			 */
+			workspacesHeld: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
 			 * full access
 			 */
@@ -5696,5 +5703,5 @@ export type TranslationFunctions = {
 }
 
 export type Formatters = {
-	number: (value: unknown) => unknown
+	number: (value: unknown | string | number | boolean) => unknown
 }

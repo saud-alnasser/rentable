@@ -14,11 +14,11 @@ import type {
 	GroupState,
 	Host,
 	ImportTable,
-	InvitationLink,
 	LinkShape,
 	LockOutCost,
 	MadeLink,
 	MemberRemoved,
+	MemberStanding,
 	MigrationNotice,
 	OrganizationConsentResult,
 	OrganizationConsentStart,
@@ -54,13 +54,13 @@ export type {
 	ExportSheet,
 	GroupState,
 	ImportTable,
-	InvitationLink,
 	HeldOrganization,
 	LinkKind,
 	LinkShape,
 	LockOutCost,
 	MadeLink,
 	MemberRemoved,
+	MemberStanding,
 	MigrationNotice,
 	OrganizationConsentResult,
 	OrganizationConsentStart,
@@ -257,6 +257,7 @@ export const tauri = {
 		},
 		member: {
 			list: () => invoke<OrganizationMember[]>('organization_members'),
+			standings: () => invoke<MemberStanding[]>('organization_member_standings'),
 			create: (
 				username: string,
 				role: 'administrator' | 'member',
@@ -278,8 +279,7 @@ export const tauri = {
 		invitation: {
 			revoke: (invitationId: string) => invoke<void>('invitation_revoke', { invitationId }),
 			accept: (link: string, code: string, password: string) =>
-				invoke<OrganizationState>('invitation_accept', { link, code, password }),
-			link: (invitationId: string) => invoke<InvitationLink>('invitation_link', { invitationId })
+				invoke<OrganizationState>('invitation_accept', { link, code, password })
 		},
 		machineConnect: (link: string, code: string) =>
 			invoke<OrganizationState>('machine_connect', { link, code }),

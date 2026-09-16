@@ -1,9 +1,9 @@
 import type {
 	GroupState,
-	InvitationLink,
 	LockOutCost,
 	MadeLink,
 	MemberRemoved,
+	MemberStanding,
 	OrganizationConsentResult,
 	OrganizationConsentStart,
 	OrganizationCreated,
@@ -231,6 +231,15 @@ export const organization = router({
 		list: procedure.member.query(async ({ ctx }): Promise<OrganizationMember[]> => {
 			return ctx.host.organization.member.list();
 		}),
+		/**
+		 * Where each account stands, for the line the directory draws under a name (effort 828,
+		 * requirement 19). Any signed-in member's, like the list beside it: who is in the
+		 * organization and whether they are connected is not a secret from the people in it, and
+		 * the directory that draws it is offered to a holder of an administration act anyway.
+		 */
+		standings: procedure.member.query(async ({ ctx }): Promise<MemberStanding[]> => {
+			return ctx.host.organization.member.standings();
+		}),
 		create: procedure
 			.permitted('inviteMember')
 			.input(
@@ -368,19 +377,6 @@ export const organization = router({
 			.input(z.object({ invitationId: z.string().trim().min(1) }))
 			.mutation(async ({ input, ctx }): Promise<void> => {
 				return ctx.host.organization.invitation.revoke(input.invitationId);
-			}),
-		/**
-		 * The link and the code again, under the act that makes invitations. Whether the caller is
-		 * the one who issued this invitation is Rust's, because it turns on whose key the row's
-		 * sealed secret opens for; anybody else is offered a new link instead, which is a reset.
-		 * *It answered the link alone, and a second procedure answered a fresh code, until effort
-		 * 828 made a code live as long as the link it came with.*
-		 */
-		link: procedure
-			.permitted('inviteMember')
-			.input(z.object({ invitationId: z.string().trim().min(1) }))
-			.mutation(async ({ input, ctx }): Promise<InvitationLink> => {
-				return ctx.host.organization.invitation.link(input.invitationId);
 			}),
 		accept: procedure.public
 			.input(

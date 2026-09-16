@@ -789,9 +789,10 @@ const ar = {
 			back: 'رجوع'
 		},
 		dashboard: {
-			membersDescription:
-				'كل من في المؤسسة، ومعهم من دُعي ولم يسجل دخوله بعد؛ المالك والمديرون ينشئون الحسابات هنا ويغيّرون ما يستطيع كل واحد فعله.',
-			memberActions: 'ما يمكنك فعله مع {username}',
+			membersDescription: 'كل من في المؤسسة. الأعضاء يُنشأون ويُغيّرون من هنا.',
+			standingNoPassword: 'لا كلمة مرور بعد',
+			standingNoMachine: 'لا جهاز مسجّل الدخول',
+			standingSignedIn: 'مسجّل الدخول على جهاز',
 
 			accountTitle: 'عضو جديد',
 			accountDescription:
@@ -808,10 +809,10 @@ const ar = {
 			codeDescription:
 				'أملِ هذا الرمز في مكالمة أو وجهًا لوجه. إنه النصف الآخر مما يحتاجه الرابط، فلا يُرسل أبدًا معه.',
 			done: 'تم',
-			notYetSignedIn: 'لم يسجل الدخول بعد',
 			invitationExpires: 'تنتهي صلاحية الرابط في {date}',
-			invitationLapsed: 'انتهت صلاحية الرابط في {date}',
 			makeLink: 'اصنع رابطًا',
+			changeRole: 'غيّر الدور',
+			lockOut: 'احظر',
 			unsetPassword: 'أعد تعيين كلمة المرور',
 			passwordUnset: 'أُلغيت كلمة مروره. اصنع له رابطًا ليختار كلمة مرور جديدة.',
 			endSessions: 'سجّل خروجه من كل جهاز',
@@ -839,10 +840,9 @@ const ar = {
 			lockedOut: 'حُظر العضو. يعيد {count|number} من الأعضاء الآخرين الاتصال من تلقاء أنفسهم.',
 			unreachableWorkspaces:
 				'أنت لا تملك {workspaces}، لذا لم تستطع إعادة التعيين استعادتها. يمكن لمدير يملكها منحها مجددًا.',
-			standingLapsed: 'منتهية',
-			revoke: 'ألغِ',
 			revoked: 'أُلغيت الدعوة.',
 			noWorkspaces: 'لا مساحة عمل بعد.',
+			workspacesHeld: '{count|number} {{مساحة عمل|مساحات عمل}}',
 			accessFull: 'وصول كامل',
 			accessReadOnly: 'قراءة فقط',
 			accessNone: 'لا وصول',

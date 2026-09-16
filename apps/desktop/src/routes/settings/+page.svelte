@@ -22,13 +22,13 @@
 		useDisconnectOrganization,
 		useEndMemberSessions,
 		useEndOtherSessions,
+		useFetchMemberStandings,
 		useFetchMembers,
 		useFetchOrganizationState,
 		useLockOutCost,
 		useMakeMemberLink,
 		useRemoveMember,
 		useRenameMember,
-		useRevokeInvitation,
 		useUnsetMemberPassword
 	} from '$lib/organization/query';
 	import SettingsArea from '$lib/settings/component/area.svelte';
@@ -59,6 +59,10 @@
 	const settingsQuery = useFetchSettings();
 	const stateQuery = useFetchOrganizationState();
 	const membersQuery = useFetchMembers();
+	// where each account stands, asked beside the list and joined to it on the member's id: the
+	// password is on the signed member row and the machine is on the register (effort 828,
+	// requirement 19).
+	const standingsQuery = useFetchMemberStandings();
 
 	const session = $derived(stateQuery.data?.session ?? null);
 
@@ -67,7 +71,6 @@
 	const changePassword = useChangePassword();
 	const makeMemberLink = useMakeMemberLink();
 	const unsetMemberPassword = useUnsetMemberPassword();
-	const revokeInvitation = useRevokeInvitation();
 	const removeMember = useRemoveMember();
 	const renameMember = useRenameMember();
 	const changeRole = useChangeRole();
@@ -161,7 +164,6 @@
 
 	let makingLink = $state<string | null>(null);
 	let unsetting = $state<string | null>(null);
-	let revoking = $state<string | null>(null);
 	let endingSessions = $state<string | null>(null);
 
 	/**
@@ -265,18 +267,6 @@
 		await stateQuery.refetch();
 	};
 
-	const revoke = async (invitationId: string) => {
-		revoking = invitationId;
-
-		try {
-			await revokeInvitation.mutateAsync({ invitationId });
-		} catch {
-			// said by the shared handler.
-		} finally {
-			revoking = null;
-		}
-	};
-
 	/**
 	 * the disconnect, once confirmed: the shell forgets the organization, and the startup unit
 	 * reads where the machine stands and raises the first screen. A refusal is said by the shared
@@ -329,9 +319,9 @@
 		holdsTursoAuthority={stateQuery.data?.holdsTursoAuthority === true}
 		syncState={remoteSyncQuery.data ?? null}
 		members={membersQuery.data ?? []}
+		standings={standingsQuery.data ?? []}
 		{makingLink}
 		{unsetting}
-		{revoking}
 		{endingSessions}
 		isChangingPassword={changePassword.isPending}
 		isChangingRole={changeRole.isPending}
@@ -348,7 +338,6 @@
 		onEndSessions={(memberId) => void endSessions(memberId)}
 		onMakeLink={(memberId) => void makeLink(memberId)}
 		onUnsetPassword={(memberId) => void unsetPassword(memberId)}
-		onRevoke={(invitationId) => void revoke(invitationId)}
 		onRemove={(memberId) => {
 			removing = { memberId, lockOut: false };
 		}}

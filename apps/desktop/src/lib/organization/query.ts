@@ -20,6 +20,7 @@ export const keys = {
 	all: ['organization'],
 	consent: (sessionId: string) => ['organization', 'consent', sessionId],
 	members: ['organization', 'members'],
+	memberStandings: ['organization', 'members', 'standings'],
 	state: ['organization', 'state']
 } as const;
 
@@ -404,6 +405,23 @@ export function useFetchMembers() {
 	}));
 }
 
+/**
+ * where each account stands: whether it has a password of its own yet, and whether a machine is
+ * signed in on it (effort 828, requirement 19).
+ *
+ * **A second query rather than a wider member row**, because the two halves come from two places:
+ * the password is on the signed member row and the machine is on the register every machine writes
+ * for itself. Its key sits under the members' own, so everything that invalidates the list
+ * invalidates the standings with it, which is what keeps a card's line and its acts agreeing after
+ * a link, a reset or a removal.
+ */
+export function useFetchMemberStandings() {
+	return createQuery(() => ({
+		queryKey: keys.memberStandings,
+		queryFn: () => api.app.organization.member.standings()
+	}));
+}
+
 /** where this machine stands: the organizations it joined and who is in. */
 export function useFetchOrganizationState() {
 	return createQuery(() => ({
@@ -721,33 +739,11 @@ export function useChangeAccess(
 }
 
 /**
- * the invitation link and its code again, for the person who issued it. Nobody else can read
- * either, and the row offers them a new link instead; the refusal arrives as a forbidden and is
- * shown.
- *
- * **A mutation rather than a query**, because it is asked for at the moment somebody presses a
- * control and its answer is shown once: cached under a key, it would be a secret kept in memory
- * for as long as the section is open.
- */
-export function useInvitationLink(
-	opts: MutationOptions = {
-		toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() }
-	}
-) {
-	return createMutation(() => ({
-		mutationFn: ({ invitationId }: { invitationId: string }) =>
-			api.app.organization.invitation.link({ invitationId }),
-		onSuccess: () => onMutationSuccess(opts),
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
-
-/**
  * make the one link that admits a machine to an account (effort 828, requirement 20).
  *
- * **A mutation rather than a query**, for the reason {@link useInvitationLink} gives: it is asked
- * for when somebody presses a control and its answer is shown once, and cached under a key it
- * would be a secret kept in memory for as long as the section is open. The list is refreshed
+ * **A mutation rather than a query**, because it is asked for at the moment somebody presses a
+ * control and its answer is shown once: cached under a key it would be a secret kept in memory for
+ * as long as the section is open. The list is refreshed
  * because an invitation-kind link leaves a pending mark on the account's row.
  */
 export function useMakeMemberLink(

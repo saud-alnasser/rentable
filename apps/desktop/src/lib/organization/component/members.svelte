@@ -1,25 +1,28 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
+	import { page } from '$app/state';
 	import type {
+		MemberStanding,
 		OrganizationMember,
-		OrganizationWorkspace,
-		WorkspaceGrant
+		OrganizationWorkspace
 	} from '$lib/platform/tauri';
-	import type { RecordCardAction } from '@rentable/design/block/record-card.svelte';
-	import RowActions from '@rentable/design/block/row-actions.svelte';
+	import RecordCard, { type RecordCardAction } from '@rentable/design/block/record-card.svelte';
 	import * as Avatar from '@rentable/design/primitive/avatar/index.js';
 	import { Badge } from '@rentable/design/primitive/badge/index.js';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
-	import { formatRecordDate } from '$lib/design/date';
-	import { LL, locale } from '$lib/i18n/i18n-svelte';
+	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
+	import { LL } from '$lib/i18n/i18n-svelte';
 	import { accountInitials } from '$lib/sync/account';
 	import AccessDialog, {
 		type AccessChoice
 	} from '$lib/organization/component/access-dialog.svelte';
+	import DirectoryTray from '$lib/organization/component/directory-tray.svelte';
 	import RenameMemberDialog from '$lib/organization/component/rename-member-dialog.svelte';
 	import RoleDialog from '$lib/organization/component/role-dialog.svelte';
 	import { openOrganizationDialog } from '$lib/organization/dialogs.svelte';
-	import BanIcon from '@lucide/svelte/icons/ban';
+	import { RECORD_PARAM, recordOf, withSection } from '$lib/settings/section';
 	import KeyIcon from '@lucide/svelte/icons/key-round';
 	import LaptopIcon from '@lucide/svelte/icons/laptop';
 	import LinkIcon from '@lucide/svelte/icons/link';
@@ -31,49 +34,69 @@
 	import UserPlusIcon from '@lucide/svelte/icons/user-plus';
 
 	/**
-	 * Everybody in the organization, as one list.
+	 * Everybody in the organization, as a directory of record cards.
 	 *
-	 * **One list, and a person who has not arrived yet is a row in it** (requirement 15 of effort
-	 * 826). An invitation makes the account, so somebody invited is already a member with a
-	 * username, a role and their workspaces; a second list of pending accounts said the same
-	 * facts in weaker words and left the reader to match a name in one list against a name in the
-	 * other. *There was one until this ticket, from a call of its own.*
+	 * **One card per account, the way every other record here is shown** (effort 828, requirement
+	 * 19). The shape is `complex/component/directory.svelte`'s over
+	 * `design/block/record-card.svelte`: the card is the record, its own quiet control carries the
+	 * acts, and the context gesture offers the same list ([[rules/interface]], *Record card
+	 * actions*). *It was a list of rows with a hover cluster, and then rows with one visible
+	 * control; the human saw the second in the running build and chose cards instead.*
 	 *
-	 * **The section says what it is for before it lists anybody** (requirement 6 of effort 828).
-	 * The legend and one sentence lead, the invite stands beside them as the section's one primary
-	 * (*Semantics are secondary*, Refactoring UI p.60), and the list follows. The sentence sits
-	 * against the legend and the list sits well clear of both, so the head reads as one thing
-	 * rather than as the first row of another (*Avoid ambiguous spacing*, p.96). The invite used
-	 * to trail the list, where a reader met it after scrolling past everybody already invited.
+	 * **A card says four things**: the username with the role beside it, one line of standing, and
+	 * one line saying how many workspaces they hold. *Each workspace was a chip carrying its own
+	 * access until the human's second look, which put a second list along the bottom of every
+	 * card; which workspaces somebody holds, and what each one is good for, is what the menu's
+	 * workspaces entry opens, and that surface lists every workspace with what they hold on it
+	 * before it offers a change.*
 	 *
-	 * **The row is two lines and every act is behind one visible control.** The identity leads:
-	 * the avatar, the username, the role, and on a pending row the badge with the expiry. The
-	 * workspaces follow as chips carrying their own access, with the label folded into the value
-	 * (*Labels are a last resort*, p.48). The row ends in the shared `row-actions` control, whose
-	 * menu holds the acts in four groups: what the person is called, what they may do, their way
-	 * in, and leaving. *Up to eight glyphs appeared here on hover until this ticket, which
-	 * promised nothing to a reader who never swept the row and made eight decisions out of one.*
+	 * **The standing is the pair a link is gated on, read as a sentence.** An account holds no
+	 * password until its first link is opened, and the register (requirement 15) says whether a
+	 * machine is signed in on it. So the line that says *signed in on a machine* is also why the
+	 * link act is not on that card, and no second sentence explains the absence.
+	 *
+	 * **Activating a card opens its record** ([[rules/interface]], *Row activation*). A member has
+	 * no page, so what opening one means is this section drawing that account's edit, and the card's
+	 * `href` is this section's address with the account named on it. The address is consumed on
+	 * arrival and cleared, the way `complex/component/directory.svelte` consumes its create intent,
+	 * so pressing the same card twice opens the same surface twice.
 	 *
 	 * **An act the session lacks is absent from the menu, not disabled.** Each gate is drawn from
-	 * the reader's own permissions and refused again in Rust on the signed row; the two
-	 * owner-only sentences the spec names are the exception, and they are in the dialogs that
-	 * carry them rather than here.
+	 * the reader's own permissions and refused again in Rust on the signed row.
 	 *
-	 * **Removal has two speeds, and the ordinary one is the control.** Removing stops renewing:
-	 * the member's credential runs out within its lifetime and nobody else notices. Locking out
-	 * rotates every workspace they held and stops everybody else in those workspaces until their
-	 * application reconnects; it is drawn for the owner alone, in the last group and under the
-	 * remove, because it is chosen rather than fallen into, and what it costs is said by the
-	 * dialog that asks before it runs. That dialog reads a query, so it lives on the route and
-	 * this raises it.
+	 * **Each act reads as one or two plain words**, and the sentence that explains it belongs to
+	 * the surface it opens rather than to the entry: a menu is read at a glance, and *role and
+	 * permissions* was a heading standing in for a verb.
 	 *
-	 * **The three light dialogs are mounted here once** and opened on whichever row named them:
-	 * the role and its acts, the workspaces and their access, and the rename. The invite dialog
-	 * is not one of them: it is mounted in the shell, because the rail opens it too, and this
-	 * section's button asks for it the same way the rail's row does.
+	 * **The owner's account is removed by nobody and edited by nobody, and nobody edits their own
+	 * role, permissions or workspaces** (requirement 19). So the owner's card carries no act at
+	 * all, whoever is reading it, and is drawn with no menu and no gesture, which is what a card
+	 * with an empty action list does; the transfer of ownership is what will stand there, and it is
+	 * ticket 17's to draw. A reader's own card is the same: an account's name, role and workspaces
+	 * are given by somebody else, and Rust refuses each of the three on the row of whoever is
+	 * asking. *The owner's own card offered them their workspaces until the human's first look at
+	 * this directory: an owner reaches every workspace anyway, so it was a control over a state
+	 * that cannot be false.*
+	 *
+	 * **Removal has two speeds, and the ordinary one leads.** Removing stops renewing: the
+	 * member's credential runs out within its lifetime and nobody else notices. Locking out rotates
+	 * every workspace they held and stops everybody else in those workspaces until their
+	 * application reconnects; it is the owner's, drawn under the remove, because it is chosen
+	 * rather than fallen into. Both open the confirm the route raises, which reads the cost.
+	 *
+	 * **An account is made from the tray above the cards**, on the shared form surface
+	 * ([[rules/interface]], *Form surface*). The tray is the contracts view's shape, which is what
+	 * the human asked for on seeing this section: the section's name and sentence at one end of a
+	 * bar, its one primary at the other, and the records below. *The primary sat under the last
+	 * card until that look.*
+	 *
+	 * **The three light dialogs are mounted here once** and opened on whichever card named them:
+	 * the role and its acts, the workspaces and their access, and the rename. The account form is
+	 * not one of them: it is mounted in the shell, because the rail opens it too.
 	 */
 	let {
 		members,
+		standings,
 		workspaces,
 		canInvite,
 		canRemove,
@@ -86,14 +109,12 @@
 		selfId,
 		makingLink,
 		unsetting,
-		revoking,
 		endingSessions,
 		isChangingRole,
 		isChangingAccess,
 		onEndSessions,
 		onMakeLink,
 		onUnsetPassword,
-		onRevoke,
 		onRemove,
 		onLockOut,
 		onRename,
@@ -101,9 +122,11 @@
 		onChangeAccess
 	}: {
 		members: OrganizationMember[];
+		/** where each account stands, joined to the members on the member's id. */
+		standings: MemberStanding[];
 		/** the workspaces the reader can grant, which is what they hold themselves. */
 		workspaces: OrganizationWorkspace[];
-		/** whether the reader's row carries `inviteMember`: the add, the link and a revoke. */
+		/** whether the reader's row carries `inviteMember`: the add and the link. */
 		canInvite: boolean;
 		/** whether the reader's row carries `removeMember`. */
 		canRemove: boolean;
@@ -119,14 +142,12 @@
 		canGrantWorkspace: boolean;
 		/** whether the reader is the owner: signing acts and read-only grants are theirs alone. */
 		isOwner: boolean;
-		/** the reader's own member id, whose row offers nothing that writes it. */
+		/** the reader's own member id, whose card offers nothing that writes it. */
 		selfId: string;
 		/** the account a link is being made for, while it is. */
 		makingLink: string | null;
 		/** the account whose password is being unset, while it is. */
 		unsetting: string | null;
-		/** the invitation being revoked, while it is. */
-		revoking: string | null;
 		/** the member whose sessions are being ended, while they are. */
 		endingSessions: string | null;
 		isChangingRole: boolean;
@@ -144,7 +165,6 @@
 		onMakeLink: (memberId: string) => void;
 		/** unset an account's password, so the next link made for it asks for a new one. */
 		onUnsetPassword: (memberId: string) => void;
-		onRevoke: (invitationId: string) => void;
 		/** ask to remove a member: the route raises the confirm that names what it costs. */
 		onRemove: (memberId: string) => void;
 		onLockOut: (memberId: string) => void;
@@ -163,6 +183,14 @@
 		) => Promise<void>;
 	} = $props();
 
+	// this section's own address, resolved once. A card's is it with the account named on it, which
+	// is the whole of what a card's `href` is ([[rules/frontend]]: the path is the caller's to
+	// resolve, and the packaged card takes one already resolved).
+	const sectionAddress = resolve(withSection('members'));
+
+	const addressOf = (memberId: string) =>
+		`${sectionAddress}&${RECORD_PARAM}=${encodeURIComponent(memberId)}`;
+
 	const roleLabel = (role: string) =>
 		({
 			owner: $LL.layout.signIn.roleOwner(),
@@ -170,25 +198,97 @@
 			member: $LL.layout.signIn.roleMember()
 		})[role] ?? role;
 
-	const accessLabel = (access: WorkspaceGrant['access']) =>
-		access === 'read-only'
-			? $LL.organization.dashboard.accessReadOnly()
-			: $LL.organization.dashboard.accessFull();
-
-	const workspaceName = (id: string) =>
-		workspaces.find((workspace) => workspace.id === id)?.name ?? id;
+	const standingOf = (memberId: string) =>
+		standings.find((standing) => standing.memberId === memberId) ?? null;
 
 	/**
-	 * whether a row is one this reader may write at all: never their own, and never the owner's.
-	 * The rename is the one exception and says so where it is drawn.
+	 * the one line a card carries about where an account stands, and the mark its test reads it by.
+	 *
+	 * `null` until the standings have been answered: the list of people is drawn either way, and a
+	 * line guessed from nothing would say *no machine signed in* about an account somebody is
+	 * working on.
+	 */
+	const standingLine = (memberId: string) => {
+		const standing = standingOf(memberId);
+
+		if (!standing) return null;
+
+		if (!standing.passwordSet) {
+			return { kind: 'no-password', text: $LL.organization.dashboard.standingNoPassword() };
+		}
+
+		return standing.machineSignedIn
+			? { kind: 'signed-in', text: $LL.organization.dashboard.standingSignedIn() }
+			: { kind: 'no-machine', text: $LL.organization.dashboard.standingNoMachine() };
+	};
+
+	/**
+	 * whether a card is one this reader may write at all: never their own, and never the owner's.
+	 *
+	 * **The owner's account is removed by nobody and edited by nobody, and nobody edits their own
+	 * role, permissions or workspaces** (requirement 19, corrected on the human's first look at
+	 * this directory). So the owner's card is drawn with no menu whoever is reading it, until the
+	 * transfer of ownership arrives beside it, and a reader's own card is nobody's to write either.
+	 * Rust refuses every one of those on the signed row as well; this is the earlier refusal.
+	 *
+	 * *The owner's own card offered them their workspaces until that look: an owner reaches every
+	 * workspace anyway and their own grant is never withdrawn, so what it offered was a control
+	 * over a state that cannot be false.*
 	 */
 	const writable = (member: OrganizationMember) => member.id !== selfId && member.role !== 'owner';
+
+	/**
+	 * whether a link is offered for that account, by ticket 14's own gate: an account whose
+	 * password is not set yet is offered one even while a machine is signed in, because nobody is
+	 * signed in that the link would double, and an account with a password is offered one only
+	 * while no machine is. Rust refuses the rest, and the standing line says why the act is absent.
+	 */
+	const linkable = (member: OrganizationMember) => {
+		const standing = standingOf(member.id);
+
+		return !standing || !standing.passwordSet || !standing.machineSignedIn;
+	};
 
 	/** the member each dialog is open on, while it is. */
 	let renaming = $state<OrganizationMember | null>(null);
 	let changingRole = $state<OrganizationMember | null>(null);
 	let changingAccess = $state<OrganizationMember | null>(null);
 	let isRenaming = $state(false);
+
+	/**
+	 * the account's edit, which is what activating its card opens.
+	 *
+	 * **The fullest edit this reader holds, in the order the menu offers them.** The acts are
+	 * separate because they are gated separately (effort 826, requirement 15), so what an account's
+	 * edit *is* depends on who is looking: the role and its acts for somebody who may change them,
+	 * the workspaces for somebody who may grant them, the name for somebody who may only correct a
+	 * spelling. A reader holding none opens nothing, and the card still reads.
+	 */
+	const openEdit = (member: OrganizationMember) => {
+		if (canChangeRole && writable(member)) {
+			changingRole = member;
+		} else if (canGrantWorkspace && writable(member)) {
+			changingAccess = member;
+		} else if (canRename && writable(member)) {
+			renaming = member;
+		}
+	};
+
+	// the account the address names is opened and then cleared out of the address, the way
+	// `complex/component/directory.svelte` consumes a create intent: left there, a reload would
+	// reopen a surface the person has already dismissed, and pressing the same card a second time
+	// would navigate nowhere.
+	$effect(() => {
+		const named = recordOf(page.url);
+
+		if (!named) return;
+
+		const member = members.find((candidate) => candidate.id === named);
+
+		if (member) openEdit(member);
+
+		void goto(sectionAddress, { replaceState: true, noScroll: true, keepFocus: true });
+	});
 
 	const rename = async (username: string) => {
 		if (!renaming) return;
@@ -240,232 +340,210 @@
 		}));
 
 	/**
-	 * what this reader may do to one person, in the four groups the menu separates.
+	 * what this reader may do to one account, in the order the card's menu offers it: what they are
+	 * called and what they may do, then their way in, then leaving.
 	 *
-	 * The order is requirement 6's and is read here as a list: what they are called, what they may
-	 * do, their way in, and leaving. Every gate is the one the cluster carried before it, and an
-	 * act the reader does not hold leaves no entry, so a group can empty and the block draws
-	 * neither its items nor a separator.
+	 * Every gate is the one the acts carried before the cards, and an act the reader does not hold
+	 * leaves no entry, so a card can come to offer nothing and the block then draws neither of its
+	 * two routes.
 	 *
-	 * `attributes` is what the section is read by, here and in its test: the act and the row it
-	 * acts on, which is what the cluster's controls carried and what the menu items carry now.
+	 * `attributes` is what the section is read by, here and in its test: the act and the account it
+	 * acts on.
 	 */
-	const actsOn = (member: OrganizationMember): RecordCardAction[][] => {
-		const invitation = member.pending;
-
-		return [
-			// the rename is the one act drawn on the owner's row: an account's name is given and
-			// changed by an administrator and never by its holder, and the spec names the row
-			// rather than the role.
-			canRename && member.id !== selfId
-				? [
-						{
-							label: $LL.organization.dashboard.rename(),
-							icon: UserPenIcon,
-							attributes: { 'data-member-rename': member.id },
-							onSelect: () => {
-								renaming = member;
-							}
+	const actsOn = (member: OrganizationMember): RecordCardAction[] => [
+		...(canRename && writable(member)
+			? [
+					{
+						label: $LL.organization.dashboard.rename(),
+						icon: UserPenIcon,
+						attributes: { 'data-member-rename': member.id },
+						onSelect: () => {
+							renaming = member;
 						}
-					]
-				: [],
-
-			[
-				...(canChangeRole && writable(member)
-					? [
-							{
-								label: $LL.organization.dashboard.changeRoleTitle(),
-								icon: ShieldIcon,
-								attributes: { 'data-member-role': member.id },
-								onSelect: () => {
-									changingRole = member;
-								}
-							}
-						]
-					: []),
-				...(canGrantWorkspace && writable(member)
-					? [
-							{
-								label: $LL.organization.dashboard.accessTitle(),
-								icon: KeyIcon,
-								attributes: { 'data-member-access': member.id },
-								onSelect: () => {
-									changingAccess = member;
-								}
-							}
-						]
-					: [])
-			],
-
-			[
-				// the one link act (effort 828, requirement 20): what kind of link it is is read
-				// off the account, and whether a machine is signed in on it is refused by the
-				// shell, so what is drawn here is the act and never the choice.
-				...(canInvite && writable(member)
-					? [
-							{
-								label: $LL.organization.dashboard.makeLink(),
-								icon: LinkIcon,
-								attributes: { 'data-member-link': member.id },
-								disabled: makingLink !== null,
-								onSelect: () => onMakeLink(member.id)
-							}
-						]
-					: []),
-				...(canReset && writable(member)
-					? [
-							{
-								label: $LL.organization.dashboard.unsetPassword(),
-								icon: RefreshCwIcon,
-								attributes: { 'data-member-unset-password': member.id },
-								disabled: unsetting !== null,
-								onSelect: () => onUnsetPassword(member.id)
-							},
-							// beside the reset and behind the same act, because the two are the
-							// same trust read twice: whoever may take somebody's way in away may
-							// close the ways in that are already open (effort 826, requirement 22).
-							{
-								label: $LL.organization.dashboard.endSessions(),
-								icon: LaptopIcon,
-								attributes: { 'data-member-end-sessions': member.id },
-								disabled: endingSessions !== null,
-								onSelect: () => onEndSessions(member.id)
-							}
-						]
-					: []),
-				...(invitation && canInvite
-					? [
-							{
-								label: $LL.organization.dashboard.revoke(),
-								icon: BanIcon,
-								attributes: { 'data-member-revoke': member.id },
-								disabled: revoking !== null,
-								onSelect: () => onRevoke(invitation.invitationId)
-							}
-						]
-					: [])
-			],
-
-			[
-				...(canRemove && writable(member)
-					? [
-							{
-								label: $LL.organization.dashboard.remove(),
-								icon: UserMinusIcon,
-								variant: 'destructive' as const,
-								attributes: { 'data-member-remove': member.id },
-								onSelect: () => onRemove(member.id)
-							}
-						]
-					: []),
-				...(canRemove && canLockOut && writable(member)
-					? [
-							{
-								label: $LL.organization.dashboard.removeAndLockOut(),
-								icon: LockIcon,
-								variant: 'destructive' as const,
-								attributes: { 'data-member-lock-out': member.id },
-								onSelect: () => onLockOut(member.id)
-							}
-						]
-					: [])
-			]
-		];
-	};
+					}
+				]
+			: []),
+		...(canChangeRole && writable(member)
+			? [
+					{
+						label: $LL.organization.dashboard.changeRole(),
+						icon: ShieldIcon,
+						attributes: { 'data-member-role': member.id },
+						onSelect: () => {
+							changingRole = member;
+						}
+					}
+				]
+			: []),
+		...(canGrantWorkspace && writable(member)
+			? [
+					{
+						// the section's own word, read from the one key that holds it: the same thing
+						// is called the same thing wherever a screen draws it (826, requirement 18).
+						label: $LL.settings.section.workspaces(),
+						icon: KeyIcon,
+						attributes: { 'data-member-access': member.id },
+						onSelect: () => {
+							changingAccess = member;
+						}
+					}
+				]
+			: []),
+		// the one link act (effort 828, requirement 20): what kind of link it is is read off the
+		// account, and the standing that bars one is the line the card already carries.
+		...(canInvite && writable(member) && linkable(member)
+			? [
+					{
+						label: $LL.organization.dashboard.makeLink(),
+						icon: LinkIcon,
+						attributes: { 'data-member-link': member.id },
+						disabled: makingLink !== null,
+						onSelect: () => onMakeLink(member.id)
+					}
+				]
+			: []),
+		...(canReset && writable(member)
+			? [
+					{
+						label: $LL.organization.dashboard.unsetPassword(),
+						icon: RefreshCwIcon,
+						attributes: { 'data-member-unset-password': member.id },
+						disabled: unsetting !== null,
+						onSelect: () => onUnsetPassword(member.id)
+					},
+					// beside the reset and behind the same act, because the two are the same trust
+					// read twice: whoever may take somebody's way in away may close the ways in that
+					// are already open (effort 826, requirement 22).
+					{
+						label: $LL.organization.dashboard.endSessions(),
+						icon: LaptopIcon,
+						attributes: { 'data-member-end-sessions': member.id },
+						disabled: endingSessions !== null,
+						onSelect: () => onEndSessions(member.id)
+					}
+				]
+			: []),
+		...(canRemove && writable(member)
+			? [
+					{
+						label: $LL.organization.dashboard.remove(),
+						icon: UserMinusIcon,
+						variant: 'destructive' as const,
+						attributes: { 'data-member-remove': member.id },
+						onSelect: () => onRemove(member.id)
+					}
+				]
+			: []),
+		...(canRemove && canLockOut && writable(member)
+			? [
+					{
+						label: $LL.organization.dashboard.lockOut(),
+						icon: LockIcon,
+						variant: 'destructive' as const,
+						attributes: { 'data-member-lock-out': member.id },
+						onSelect: () => onLockOut(member.id)
+					}
+				]
+			: [])
+	];
 </script>
 
-<Field.Set aria-labelledby="members-legend">
-	<!--
-		the head: what this section is, and its one primary beside it. The legend names the
-		fieldset from here rather than as its caption, because a rendered legend is taken out of
-		its fieldset's own layout and cannot stand on a line with anything.
-	-->
-	<div class="flex flex-wrap items-start justify-between gap-4">
-		<div class="min-w-0">
-			<Field.Legend id="members-legend">{$LL.settings.section.members()}</Field.Legend>
-			<Field.Description data-members-description>
-				{$LL.organization.dashboard.membersDescription()}
-			</Field.Description>
-		</div>
+<!--
+	the section's one primary, in the tray above the cards (requirement 19). Quiet and glyph-only
+	with its words in a tooltip and on the control itself, which is how the contracts view offers
+	the same thing: a directory is read before anything is added to it, so the control that adds is
+	discoverable without competing with the records (*Semantics are secondary*, Refactoring UI
+	p.60). The form is the shell's, opened the same way the rail's row opens it.
+-->
+{#snippet addAccount()}
+	<Tooltip.Root>
+		<Tooltip.Trigger>
+			{#snippet child({ props })}
+				<Button
+					{...props}
+					variant="outline"
+					size="icon-sm"
+					data-invite-open
+					aria-label={$LL.organization.dashboard.addAccount()}
+					onclick={() => openOrganizationDialog('account')}
+				>
+					<UserPlusIcon />
+				</Button>
+			{/snippet}
+		</Tooltip.Trigger>
+		<Tooltip.Content side="top" sideOffset={8}>
+			{$LL.organization.dashboard.addAccount()}
+		</Tooltip.Content>
+	</Tooltip.Root>
+{/snippet}
 
-		{#if canInvite}
-			<!-- the verb's glyph before its label, as every primary here carries one. The dialog is
-			     the shell's, opened the same way the rail's invite row opens it. -->
-			<Button type="button" data-invite-open onclick={() => openOrganizationDialog('account')}>
-				<UserPlusIcon class="size-4" />
-				{$LL.organization.dashboard.addAccount()}
-			</Button>
-		{/if}
-	</div>
+<!-- the tray and its cards are one thing, so they sit at the list's own rhythm rather than at the
+     fieldset's, which spaces one block of settings from the next. -->
+<Field.Set class="gap-3" aria-labelledby="members-legend">
+	<DirectoryTray
+		legendId="members-legend"
+		legend={$LL.settings.section.members()}
+		description={$LL.organization.dashboard.membersDescription()}
+		action={canInvite ? addAccount : undefined}
+	/>
 
-	<div class="flex flex-col gap-1" data-members>
+	<div class="flex flex-col gap-3" data-members>
 		{#each members as member (member.id)}
-			<div
-				class="group flex items-start gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-muted/40"
-				data-member={member.id}
-			>
-				<!-- the same disc the rail's account control and the identity block draw, with the same
-				     two letters (requirement 24 of effort 824). -->
-				<Avatar.Root class="size-10 shrink-0 rounded-full">
-					<Avatar.Fallback class="rounded-full text-xs">
-						{accountInitials(member.username)}
-					</Avatar.Fallback>
-				</Avatar.Root>
+			{@const standing = standingLine(member.id)}
+			<!-- the card is the record and takes no mark of its own, so the account it stands for is
+			     named on the element that holds it, which is what this section is read by. -->
+			<div data-member={member.id}>
+				<RecordCard
+					href={addressOf(member.id)}
+					label={member.username}
+					actions={actsOn(member)}
+					class="gap-4 py-3"
+				>
+					{#snippet content()}
+						<!-- the same disc the rail's account control and the identity block draw, with the
+						     same two letters (requirement 24 of effort 824). -->
+						<div class="pointer-events-none relative shrink-0">
+							<Avatar.Root class="size-10 rounded-full">
+								<Avatar.Fallback class="rounded-full text-xs">
+									{accountInitials(member.username)}
+								</Avatar.Fallback>
+							</Avatar.Root>
+						</div>
 
-				<div class="flex min-w-0 flex-1 flex-col gap-1">
-					<div class="flex min-w-0 flex-wrap items-center gap-2">
-						<p class="truncate text-sm font-medium" data-member-username>{member.username}</p>
-						<Badge variant="secondary">{roleLabel(member.role)}</Badge>
-						{#if member.pending}
-							<Badge variant="outline" data-member-pending={member.pending.standing}>
-								{member.pending.standing === 'lapsed'
-									? $LL.organization.dashboard.standingLapsed()
-									: $LL.organization.dashboard.notYetSignedIn()}
-							</Badge>
-							<span class="text-xs text-muted-foreground" data-member-expiry>
-								{member.pending.standing === 'lapsed'
-									? $LL.organization.dashboard.invitationLapsed({
-											date: formatRecordDate($locale, member.pending.expiresAt)
-										})
-									: $LL.organization.dashboard.invitationExpires({
-											date: formatRecordDate($locale, member.pending.expiresAt)
+						<div class="pointer-events-none relative flex min-w-0 flex-1 flex-col gap-1 text-start">
+							<div class="flex min-w-0 flex-wrap items-center gap-2">
+								<span class="truncate text-sm font-medium" data-member-username>
+									{member.username}
+								</span>
+								<Badge variant="secondary">{roleLabel(member.role)}</Badge>
+							</div>
+
+							{#if standing}
+								<span
+									class="truncate text-xs text-muted-foreground"
+									data-member-standing={standing.kind}
+								>
+									{standing.text}
+								</span>
+							{/if}
+
+							<!-- how many workspaces, and not which: a card is scanned, and a chip per
+						     workspace carrying its own access turned the bottom of every card into a
+						     second list. Which ones and what each is good for is one press away, on the
+						     surface the card's own menu opens. -->
+							<span
+								class="truncate text-xs text-muted-foreground"
+								data-member-workspaces={member.workspaces.length}
+							>
+								{member.workspaces.length === 0
+									? $LL.organization.dashboard.noWorkspaces()
+									: $LL.organization.dashboard.workspacesHeld({
+											count: member.workspaces.length
 										})}
 							</span>
-						{/if}
-					</div>
-
-					<!-- the workspaces as chips carrying their own access: the label is folded into the
-					     value, so a row says what somebody holds without a heading saying so. -->
-					<div class="flex min-w-0 flex-wrap items-center gap-1">
-						{#each member.workspaces as workspace (workspace.id)}
-							<Badge
-								variant="outline"
-								class="gap-1 font-normal"
-								data-member-workspace={workspace.id}
-							>
-								<span class="truncate">{workspaceName(workspace.id)}</span>
-								<span class="text-muted-foreground">{accessLabel(workspace.access)}</span>
-							</Badge>
-						{/each}
-						{#if member.workspaces.length === 0}
-							<span class="text-xs text-muted-foreground" data-member-no-workspace={member.id}>
-								{$LL.organization.dashboard.noWorkspaces()}
-							</span>
-						{/if}
-					</div>
-				</div>
-
-				<!--
-					one control, visible without a hover, opening the row's acts in four groups. A row that
-					offers this reader nothing draws none at all, which is what the block does with four
-					empty groups.
-				-->
-				<div class="shrink-0 pt-1">
-					<RowActions
-						label={$LL.organization.dashboard.memberActions({ username: member.username })}
-						groups={actsOn(member)}
-					/>
-				</div>
+						</div>
+					{/snippet}
+				</RecordCard>
 			</div>
 		{/each}
 	</div>

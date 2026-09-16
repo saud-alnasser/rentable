@@ -98,7 +98,9 @@ whatever happens to the link. Reading a link is a decode and reaches nothing; th
 by being used, never compared, and it lives exactly as long as the link it came with. *The
 invitation code crossed out of `invitation_code` until 2026-09-15; there is one code per link now,
 so it crosses out of `member_invite`, `member_reset` and `invitation_link`, and a fresh code means
-a fresh link.*
+a fresh link. Corrected 2026-09-16 (requirements 19 and 20): those three commands are gone, and a
+code crosses out of `member_link_make` alone, which is the one act that makes a link. Nothing hands
+a link over a second time, so nothing reads a code back out of a row.*
 
 *Corrected 2026-09-16 ([[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]],
 requirement 16, which supersedes requirement 4): **no link carries a legible credential, and the

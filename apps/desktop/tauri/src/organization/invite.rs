@@ -940,6 +940,58 @@ pub async fn members(
         .collect()
 }
 
+/// Where one account stands, as the directory says it in a line (effort 828, requirement 19).
+///
+/// **Two facts, and the third standing is neither of them.** An account holds no password until
+/// its first link is opened, and the register (requirement 15) says whether a machine is signed in
+/// on it inside the presence window; a card reads *password not yet set*, *a machine signed in* or
+/// *no machine signed in* from the pair. They are the same two facts [`make_link`] is gated on, so
+/// a card can say why a link is not offered without asking a second question.
+///
+/// **Read, never stored.** Nothing writes a standing: it is what the member row and the register
+/// say between them at the moment somebody looks.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MemberStanding {
+    pub member_id: String,
+    /// whether the account has a password of its own yet. `false` until its first link is opened.
+    pub password_set: bool,
+    /// whether a machine that was seen inside the window is signed in on the account.
+    pub machine_signed_in: bool,
+}
+
+/// Every member's standing, in the order [`members`] answers them.
+///
+/// **A second command rather than a wider member row**, because the two halves come from two
+/// places: the password half is on the signed member row and the machine half is on the unsigned
+/// register, which every machine writes for itself. Asked apart, a list of people is still a list
+/// of people when the register is empty.
+pub async fn standings(
+    store: &OrganizationStore,
+    session: &MemberSession,
+    now: i64,
+) -> Result<Vec<MemberStanding>, Error> {
+    let machines = store
+        .connected_machines(&session.verifying_key, now)
+        .await?;
+
+    Ok(store
+        .members(&session.verifying_key)
+        .await?
+        .into_iter()
+        // the same filter [`members`] applies: a removed member's row stays for the replicas that
+        // still hold it, and the directory lists who is in.
+        .filter(|member| member.role != permission::REMOVED)
+        .map(|member| MemberStanding {
+            password_set: !member.must_change_password,
+            machine_signed_in: machines
+                .iter()
+                .any(|(machine, _)| machine.member_id.as_deref() == Some(member.id.as_str())),
+            member_id: member.id,
+        })
+        .collect())
+}
+
 /// Rename a member: their row written back with the username re-sealed under the content key,
 /// signed by whoever renamed them, and pushed like every other write (effort 824, requirement
 /// 23). The act is [`Administration::RenameMember`], which requirement 4 of effort 826 gave a bit
@@ -1581,9 +1633,10 @@ mod tests {
 
     use super::{
         AccountAndLink, CODE_LENGTH, INVITATION_LIFETIME_MS, Invitation, InvitationStanding,
-        USERNAME_RULES, USERNAME_TAKEN, WorkspaceGrant, create_account, generate_password,
-        invitation_link, locator, make_account_and_link, make_link, rename_member, reset_account,
-        revoke_invitation, unset_password, validate_username,
+        MemberStanding, USERNAME_RULES, USERNAME_TAKEN, WorkspaceGrant, create_account,
+        generate_password, invitation_link, locator, make_account_and_link, make_link,
+        rename_member, reset_account, revoke_invitation, standings, unset_password,
+        validate_username,
     };
     use crate::{
         error::Error,
@@ -2135,6 +2188,125 @@ mod tests {
 
         assert_eq!(session.member_id, account.id);
         assert!(!session.must_change_password);
+    }
+
+    /// Effort 828, requirement 19: **the standing a card reads is the member row and the register,
+    /// asked together.**
+    ///
+    /// A fresh account has no password and nobody signed in on it; opening its link sets the first
+    /// and the second; signing that machine out leaves the password and takes the machine away.
+    /// Those are the three lines the directory draws, and they are the pair [`make_link`] is gated
+    /// on, so a card says why a link is not offered without asking a second question.
+    #[tokio::test]
+    async fn a_standing_is_the_password_and_the_register_read_together() {
+        let directory = scratch("standings");
+        let (store, owner, link, _, _) = owned(&directory).await;
+        let account = create_account(
+            &store,
+            &owner,
+            no_platform(),
+            "sami.staff",
+            permission::MEMBER,
+            0,
+            &[],
+            test_cost(),
+            NOW,
+        )
+        .await
+        .expect("the account could not be made");
+        let standing = |list: Vec<MemberStanding>, id: &str| {
+            list.into_iter()
+                .find(|standing| standing.member_id == id)
+                .expect("the account is not in the standings")
+        };
+
+        let fresh = standing(
+            standings(&store, &owner, NOW)
+                .await
+                .expect("the standings could not be read"),
+            &account.id,
+        );
+
+        assert!(!fresh.password_set, "a fresh account had a password");
+        assert!(
+            !fresh.machine_signed_in,
+            "a fresh account had a machine signed in"
+        );
+
+        let made = make_link(
+            &store,
+            &owner,
+            no_platform(),
+            &link,
+            &account.id,
+            test_cost(),
+            NOW,
+        )
+        .await
+        .expect("the link could not be made");
+        let theirs = scratch("standings-theirs");
+        let mut their_machine = fresh_machine(&theirs);
+
+        crate::organization::join::accept(
+            |_| async { Ok::<_, Error>(&store) },
+            &mut their_machine,
+            &JoinLink::decode(&made.link).expect("the link"),
+            &made.code,
+            CHOSEN,
+            test_cost(),
+            NOW + 1,
+        )
+        .await
+        .expect("the account could not be opened");
+
+        let opened = standing(
+            standings(&store, &owner, NOW + 1)
+                .await
+                .expect("the standings could not be read"),
+            &account.id,
+        );
+
+        assert!(
+            opened.password_set,
+            "an account that chose a password still read as having none"
+        );
+        assert!(
+            opened.machine_signed_in,
+            "the machine that opened the link is not in the register"
+        );
+
+        store
+            .unregister_machine(
+                &their_machine
+                    .organization
+                    .as_ref()
+                    .expect("the record")
+                    .machine_id,
+            )
+            .await
+            .expect("the machine could not be taken out of the register");
+
+        let signed_out = standing(
+            standings(&store, &owner, NOW + 2)
+                .await
+                .expect("the standings could not be read"),
+            &account.id,
+        );
+
+        assert!(signed_out.password_set);
+        assert!(
+            !signed_out.machine_signed_in,
+            "a machine that signed out is still in the register"
+        );
+        // the owner's own machine is in the register too, which is what makes the list a list
+        // rather than one row.
+        assert!(
+            standings(&store, &owner, NOW + 2)
+                .await
+                .expect("the standings could not be read")
+                .len()
+                >= 2
+        );
     }
 
     /// What an invitation hands the inviter: one link, the organization's own with the invitation's

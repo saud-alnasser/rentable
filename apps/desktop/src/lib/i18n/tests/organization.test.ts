@@ -90,25 +90,41 @@ test('neither locale tells somebody that forgetting revoked anything', () => {
 	}
 });
 
-// effort 826, requirement 15: a person who was invited and has not signed in yet is a row in the
-// one members list, marked by a badge carrying the expiry. The list of pending accounts, its
-// title and its empty sentence are gone with it; what is read here is that both locales carry
-// the mark and the two expiry sentences in their own words, since the row is rendered in
-// `organization/tests/members.svelte.test.ts` and the words are what a reader meets.
-test('both locales mark a pending member and say when their link runs out', () => {
-	assert.match(en.organization.dashboard.notYetSignedIn, /^not yet signed in$/);
+// effort 828, requirement 19: a card carries one line of standing, and the three lines are the
+// pair a link is gated on read as sentences. What is read here is that both locales carry all
+// three in their own words and tell them apart; the card itself is rendered in
+// `organization/tests/members.svelte.test.ts`. *Both locales marked a pending member and dated
+// their link until the cards replaced the rows; the standing says the same thing about the
+// account rather than about an invitation.*
+test('both locales say where an account stands, in three lines that differ', () => {
+	const lines = [
+		['english', en.organization.dashboard],
+		['arabic', ar.organization.dashboard]
+	] as const;
+
+	for (const [name, dashboard] of lines) {
+		const said = [
+			dashboard.standingNoPassword,
+			dashboard.standingNoMachine,
+			dashboard.standingSignedIn
+		];
+
+		assert.equal(new Set(said).size, 3, `${name} says two standings with one sentence`);
+
+		for (const line of said) {
+			assert.ok(line.length > 0, `${name} leaves a standing unsaid`);
+		}
+	}
+
+	assert.match(en.organization.dashboard.standingNoPassword, /^no password yet$/);
+	assert.notEqual(
+		ar.organization.dashboard.standingSignedIn,
+		en.organization.dashboard.standingSignedIn
+	);
+	// the link a handover dates is still dated, in both locales: it is the one place the sentence
+	// is read now.
 	assert.match(en.organization.dashboard.invitationExpires, /\{date:string\}/);
-	assert.match(en.organization.dashboard.invitationLapsed, /\{date:string\}/);
 	assert.match(ar.organization.dashboard.invitationExpires, /\{date\}/);
-	assert.match(ar.organization.dashboard.invitationLapsed, /\{date\}/);
-	assert.notEqual(
-		ar.organization.dashboard.notYetSignedIn,
-		en.organization.dashboard.notYetSignedIn
-	);
-	assert.notEqual(
-		ar.organization.dashboard.invitationExpires,
-		ar.organization.dashboard.invitationLapsed
-	);
 });
 
 // effort 826, requirements 5 and 6: the two refusals the spec keeps in words rather than in a

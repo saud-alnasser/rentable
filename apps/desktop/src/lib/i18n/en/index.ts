@@ -819,11 +819,14 @@ const en = {
 			back: 'back'
 		},
 		dashboard: {
-			// the sentence the members section opens with, and the name of the one control each row
-			// carries: who is listed, who keeps the list, and what pressing a row's control opens.
-			membersDescription:
-				'everybody in the organization, including the people invited who have not signed in yet; the owner and administrators make accounts here and change what each one may do.',
-			memberActions: 'what you can do with {username:string}',
+			// the sentence the members section opens with: who is listed, and what this section is
+			// for. Short, because the cards under it say the rest.
+			membersDescription: 'everybody in the organization. members are made and changed here.',
+			// the one line a card carries about where an account stands: the same two facts a link
+			// is gated on, so the line that says a link is not offered also says why.
+			standingNoPassword: 'no password yet',
+			standingNoMachine: 'no machine signed in',
+			standingSignedIn: 'signed in on a machine',
 
 			accountTitle: 'a new member',
 			accountDescription:
@@ -840,11 +843,13 @@ const en = {
 			codeDescription:
 				'read this out on a call or in person. it is the other half of what the link needs, so it is never sent beside it.',
 			done: 'done',
-			notYetSignedIn: 'not yet signed in',
 			invitationExpires: 'the link expires {date:string}',
-			invitationLapsed: 'the link lapsed {date:string}',
+			// the card menu's words, one or two apiece: a menu is read at a glance, and the
+			// sentence a dialog opens with is the dialog's rather than the entry's.
 			makeLink: 'make a link',
-			unsetPassword: 'reset the password',
+			changeRole: 'change role',
+			lockOut: 'lock out',
+			unsetPassword: 'reset password',
 			passwordUnset: 'their password was unset. make them a link so they can choose a new one.',
 			endSessions: 'sign out everywhere',
 			sessionsEnded: 'they were signed out of every machine.',
@@ -873,10 +878,11 @@ const en = {
 				'the member was locked out. {count|number} other member(s) reconnect on their own.',
 			unreachableWorkspaces:
 				'you do not hold {workspaces}, so the reset could not restore it. an administrator who does can grant it again.',
-			standingLapsed: 'lapsed',
-			revoke: 'revoke',
 			revoked: 'the invitation was revoked.',
 			noWorkspaces: 'no workspace yet.',
+			// what a card says about the workspaces somebody holds: how many, and not which. Which
+			// ones, and what each is good for, is the surface the card's own menu opens.
+			workspacesHeld: '{count|number} {{workspace|workspaces}}',
 			accessFull: 'full access',
 			accessReadOnly: 'read only',
 			accessNone: 'no access',

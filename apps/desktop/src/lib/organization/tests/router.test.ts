@@ -255,7 +255,6 @@ test('nothing here asks the host to list organizations', () => {
 		'disconnect',
 		'groupInspect',
 		'invitation.accept',
-		'invitation.link',
 		'invitation.revoke',
 		'machine.connect',
 		'member.changeRole',
@@ -266,6 +265,7 @@ test('nothing here asks the host to list organizations', () => {
 		'member.lockOutCost',
 		'member.remove',
 		'member.rename',
+		'member.standings',
 		'member.unsetPassword',
 		'password.change',
 		'session.endElsewhere',
@@ -339,36 +339,44 @@ test('opening an invitation link reaches the host signed out, and a short passwo
 	assert.deepEqual(asked, ['accept:rentable://join/abc:7K4M9Q:21']);
 });
 
-// effort 828, requirement 1 from this side: copying an invitation hands back the link and the code
-// together, under the act that makes invitations, and whether the caller is the one who issued this
-// one is Rust's, because it turns on whose key the row's sealed secret opens for. *There was a
-// second procedure for a fresh code until a code began living as long as its link.*
-test('copying an invitation answers the link and the code, held to inviteMember', async () => {
-	const asked: string[] = [];
+// effort 828, requirement 19 from this side: where each account stands is asked beside the list
+// and answered for every member at once, under any signed-in member's procedure. The directory
+// joins the two on the member's id, and a reader with no session reaches neither. *There was a
+// procedure that copied an invitation's link and code until requirement 19 settled what a card
+// offers: a link is shown once when it is made, and a person who lost the pair makes another.*
+test('where each account stands is answered for every member, to any signed-in member', async () => {
+	let asked = 0;
 	const host = fakeHost({
 		organization: {
 			...fakeHost().organization,
-			invitation: {
-				...fakeHost().organization.invitation,
-				link: async (invitationId) => {
-					asked.push(`link:${invitationId}`);
+			member: {
+				...fakeHost().organization.member,
+				standings: async () => {
+					asked += 1;
 
-					return { joinLink: 'rentable://join/abc', code: '7K4M9Q' };
+					return [
+						{ memberId: 'member-1', passwordSet: true, machineSignedIn: true },
+						{ memberId: 'member-2', passwordSet: false, machineSignedIn: false }
+					];
 				}
 			}
 		}
 	});
-	const inviting = await permittedApi(host, 'inviteMember');
-	const copy = await inviting.app.organization.invitation.link({ invitationId: ' inv-1 ' });
+	// a plain member: a session with no administration act on it, which is what `permittedApi`
+	// builds when it is named none.
+	const member = await permittedApi(host);
+	const standings = await member.app.organization.member.standings();
 
-	assert.equal(copy.code, '7K4M9Q');
-	assert.equal(copy.joinLink, 'rentable://join/abc');
-	assert.deepEqual(asked, ['link:inv-1']);
+	assert.deepEqual(standings, [
+		{ memberId: 'member-1', passwordSet: true, machineSignedIn: true },
+		{ memberId: 'member-2', passwordSet: false, machineSignedIn: false }
+	]);
+	assert.equal(asked, 1);
 
-	const resetting = await permittedApi(host, 'resetPassword');
+	const signedOut = await signedOutApi(host);
 
-	await assert.rejects(resetting.app.organization.invitation.link({ invitationId: 'inv-1' }));
-	assert.deepEqual(asked, ['link:inv-1']);
+	await assert.rejects(signedOut.app.organization.member.standings());
+	assert.equal(asked, 1);
 });
 
 // effort 828, requirement 20 from this side: one act makes a link for an account, and it is held

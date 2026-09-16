@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type api from '$lib/api/caller';
 	import type {
+		MemberStanding,
 		OrganizationMember,
 		OrganizationSession,
 		RemoteSyncState
@@ -64,9 +65,9 @@
 		holdsTursoAuthority,
 		syncState,
 		members,
+		standings,
 		makingLink,
 		unsetting,
-		revoking,
 		endingSessions,
 		isChangingPassword,
 		isChangingRole,
@@ -79,7 +80,6 @@
 		onEndSessions,
 		onMakeLink,
 		onUnsetPassword,
-		onRevoke,
 		onRemove,
 		onLockOut,
 		onRename,
@@ -101,12 +101,12 @@
 		/** the machine's sync record; `null` until it has been read, and while signed out. */
 		syncState: RemoteSyncState | null;
 		members: OrganizationMember[];
+		/** where each account stands, as the members section draws it in a line. */
+		standings: MemberStanding[];
 		/** the account a link is being made for, while it is. */
 		makingLink: string | null;
 		/** the account whose password is being unset, while it is. */
 		unsetting: string | null;
-		/** the invitation being revoked, while it is. */
-		revoking: string | null;
 		/** the member whose sessions are being ended, while they are. */
 		endingSessions: string | null;
 		isChangingPassword: boolean;
@@ -128,7 +128,6 @@
 		onMakeLink: (memberId: string) => void;
 		/** unset an account's password, so the next link made for it asks for a new one. */
 		onUnsetPassword: (memberId: string) => void;
-		onRevoke: (invitationId: string) => void;
 		/** ask to remove a member: the route raises the confirm that names what it costs. */
 		onRemove: (memberId: string) => void;
 		onLockOut: (memberId: string) => void;
@@ -296,11 +295,11 @@
 		/>
 	{:else if shown === 'members' && session}
 		<Field.Group>
-			<!-- the list owns its own legend, the sentence beside it and the invite that leads the
-			     section, the way the workspaces list already owns its legend; what is decided here
-			     is what this reader may do. -->
+			<!-- the directory owns its own legend, the sentence under it, the cards and the add at
+			     its foot; what is decided here is what this reader may do. -->
 			<OrganizationMembers
 				{members}
+				{standings}
 				workspaces={session.workspaces}
 				{canInvite}
 				{canRemove}
@@ -313,14 +312,12 @@
 				selfId={session.memberId}
 				{makingLink}
 				{unsetting}
-				{revoking}
 				{endingSessions}
 				{isChangingRole}
 				{isChangingAccess}
 				{onEndSessions}
 				{onMakeLink}
 				{onUnsetPassword}
-				{onRevoke}
 				{onRemove}
 				{onLockOut}
 				{onRename}
