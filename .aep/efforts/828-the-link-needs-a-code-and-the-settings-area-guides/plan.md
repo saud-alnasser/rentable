@@ -401,6 +401,31 @@ says so.
 | B. The first shape, the seal as anchor | one act | a transferee's way back trusts the database it judges | a planted seal pins an attacker's key | none |
 | C. The founder's password stays the anchor forever | nothing re-keys | the founder can never leave, and their way back stays open after handing over | ownership is a label | none |
 
+## A member's sheet (requirement 23)
+
+*Added 2026-09-16 at review round one, on the human's sidenote.* The role dialog and the access
+dialog become one `member-sheet.svelte`, a `FormSurface` of `light` weight the members
+directory opens from a card's address or its edit entry, with three sections drawn from the
+facts the members query and the standings already answer. *Role*: a `Select` of the three
+roles whose items carry a sentence each (`organization.roles.<role>.who`), the owner's row not
+offered and the reader's own not offered, as `change_role` refuses. *Also allowed*: drawn for a
+member alone; the acts the row is widened by, each a sentence (`organization.acts.<act>.does`)
+under two group headings, people and workspaces, each with a remove control; one `add` control
+opening a chooser of the acts not yet held, with the same sentences, an act that signs rows
+offered to the owner alone as 826's requirement 6 has it. *Workspaces*: one row per workspace,
+the access as a `Select` of the two levels with a sentence each, the shape the access dialog
+already draws. Save runs the three acts that exist (`change_role`, the widening, the grants) in
+one handler, each refusing as it refuses today, a refusal marking its section. The role table:
+`role-table.svelte`, read-only, opened from the tray by a quiet control beside the add, rows per
+act with a sentence and a column per role, the acts nobody can be given (create and delete a
+workspace, lock out, renew, the Turso account) listed under the owner with the reason. The
+acts' sentences are the one place the seven names are explained, and the locale invariant of
+one term per key is kept by drawing existing keys where the term exists.
+
+*Rejected: the role inline on the card with two menu acts, which keeps two surfaces for one
+edit; dropping the per-act surface, which the permission package's docstring argues against
+(an administrator who cannot rename a member is a real want).*
+
 # Interfaces
 
 Rust commands, in `tauri/src/organization/command.rs`, registered in `lib.rs`:
@@ -427,6 +452,7 @@ Rust commands, in `tauri/src/organization/command.rs`, registered in `lib.rs`:
 | `member_offer_ownership(member_id, password)`, `member_withdraw_offer()` | replace `member_transfer_ownership`; owner |
 | `ownership_accept(password) -> OrganizationState` | new, the offered member |
 | `organization_state_get` | follows a succession the machine has not pinned |
+| `member_change_role`, the widening, `workspace_grant` | unchanged; the sheet calls the three in one handler |
 
 `platform/host.ts` and `platform/tauri.ts` carry `LinkShape`, `InvitationLink`, `MachineLink`
 and the narrowed `Invited`; `LinkFacts` and `LinkStanding` go. `organization/router.ts` drops
@@ -491,6 +517,8 @@ it. `routes/settings/+page.svelte` loses `codeFor`, `freshCode` and `useInvitati
 15. *Return to plan, 2026-09-16.* **The review's correctness fixes** (ticket 20), then **the
     handover in two acts with the re-key and the succession** (ticket 22) on top of them, then
     **the review's standards fixes** (ticket 21) last, since the formatter run is among them.
+16. *Added 2026-09-16.* **The member's sheet** (ticket 23), after 21, judged on the human's
+    organization; review round two runs over the branch with it.
 
 # Migration
 
@@ -530,6 +558,7 @@ shape.
 | 20 | `link.rs` or `invite.rs`: the first kind opens with a chosen password and lands signed in, the second lands at the wall, an account with a machine signed in is refused, a reset unsets and the next link asks a password, single use and seven days; `connect-screen.svelte.test.ts`: the choose-password fields for the first kind, the wall for the second; `area.svelte.test.ts`: no link act in the you section |
 | 21 | `workspaces.svelte.test.ts`: one card per workspace with its facts, the create control or the refusal at the foot, the three acts by their gates, the transfer beneath |
 | 22 | `role.rs` and `setup.rs`: the offer is refused for an unset account and by a non-owner; the acceptance re-keys and every row and certificate verifies under the new key; a second machine holding the old key follows the succession and verifies; the new owner connects a fresh machine with their password; the founder is refused as an administrator; a planted seal opens nothing; `members.svelte.test.ts` finds the offer and the withdrawal on the owner's card; `area.svelte.test.ts` finds the acceptance in the you section of the offered member and the authority sentence for a new owner holding none |
+| 23 | `members.svelte.test.ts` and a `member-sheet.svelte.test.ts`: the three sections, the sentence per role and per act, the chooser adding an act, the absence of also-allowed for an administrator, the save calling the three acts and a refusal marking its section, the menu without the two entries, the tray opening the role table; the locale tests over every new sentence |
 | 18 | `removal.rs`: every workspace database and the organization database deleted with `OrganizationDeletedByHuman`, the machine holding nothing after, an administrator refused, a wrong password refused before any delete; `forget.rs`: a machine whose pull says the database is gone forgets at launch; `area.svelte.test.ts`: the control for the owner and not for an administrator, the confirmation on the form surface |
 
 # Operational Considerations

@@ -296,6 +296,27 @@ section of ticket 07 in the running build; two picker rounds and one elaboration
     reconnects the authority from the sync section, with a Turso account that holds the group,
     the acts that mint run on the founder's machine or not at all, and the sync section says so.
 
+*A member's role, permissions and workspaces* (*decided 2026-09-16 with the human, at review
+round one, as a sidenote: "we need to redesign the ui around permissions setting and roles"; two
+picker rounds over
+[[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/evidence/research/how-products-present-roles-and-permissions]]*)
+
+23. **A member's role, what they may also do, and their workspaces are one surface, and every
+    role and act is described in a sentence.** Opening a member's card, or edit on its menu,
+    opens one sheet of three sections. *Role*: a chooser of the three roles, each with one
+    sentence about who it is for, the administrator's saying the Turso account stays the
+    owner's. *Also allowed*: for a member only, since an administrator holds every act, an
+    additive list of the acts they were widened by, each a plain sentence about what the person
+    will be able to do, grouped by people and by workspaces, added one at a time from a chooser
+    and removed from the list; no toggle wall. *Workspaces*: one row per workspace with a
+    named access level and its sentence. What each role may do is a read-only table opened
+    from the members tray, never edited there. The acts, the roles, the widening rules and who
+    may change what are 826's requirement 6 unchanged; the owner's card and a reader's own card
+    still offer no edit. The menu's change-role and workspaces entries leave, edit taking their
+    place. *Chosen over the role inline on the card with two acts on the menu, and over dropping
+    the per-act surface, which the permission package's own reasoning refuses. The roles stay
+    three: the human chose to describe them rather than change them.*
+
 # Acceptance Criteria
 
 1. A Rust test decodes each kind of link and finds no field that a Turso client accepts as a
@@ -400,6 +421,14 @@ section of ticket 07 in the running build; two picker rounds and one elaboration
     the owner's card; the you section's test finds the acceptance for the offered member and the
     authority sentence for a new owner holding none. *Rewritten 2026-09-16 at the review with
     requirement 22.*
+23. The members section's test opens a member's card and finds one surface with three
+    sections: the role chooser with a sentence per role; the also-allowed list for a member
+    with a sentence per act and a chooser that adds one, absent for an administrator; the
+    workspaces rows with a named level and its sentence; a save that writes the role, the
+    widening and the grants through the acts 826 built and refuses what they refuse; the
+    menu without change-role and workspaces entries; the tray's control opening the read-only
+    role table. The owner's card and the reader's own still open no edit. Both locales carry
+    every sentence, the Arabic written.
 
 # Constraints
 

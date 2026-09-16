@@ -127,7 +127,7 @@ Start at [[protocol]].
 | 819-an-organization-hosts-its-own-workspaces | implemented | [[efforts/819-an-organization-hosts-its-own-workspaces/spec]] | 1 | 1 | 28 |
 | 824-the-way-in-and-the-workspace-control-are-redesigned | implemented | [[efforts/824-the-way-in-and-the-workspace-control-are-redesigned/spec]] | 0 | 0 | 17 |
 | 826-the-organization-and-the-way-in-are-rethought | implemented | [[efforts/826-the-organization-and-the-way-in-are-rethought/spec]] | 2 | 1 | 22 |
-| 828-the-link-needs-a-code-and-the-settings-area-guides | accepted | [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]] | 4 | 0 | 22 |
+| 828-the-link-needs-a-code-and-the-settings-area-guides | accepted | [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]] | 5 | 0 | 23 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -265,3 +265,4 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/tickets/20-the-reviews-correctness-findings-are-fixed]] fix(organization): the review's correctness findings are fixed | 828-the-link-needs-a-code-and-the-settings-area-guides | open | — |
 | [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/tickets/21-the-reviews-standards-findings-are-fixed]] chore(organization): the review's standards findings are fixed | 828-the-link-needs-a-code-and-the-settings-area-guides | open | 22 |
 | [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/tickets/22-ownership-is-handed-over-in-two-acts]] feat(organization): ownership is handed over in two acts, and the directory re-keys | 828-the-link-needs-a-code-and-the-settings-area-guides | open | 20 |
+| [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/tickets/23-a-members-role-permissions-and-workspaces-are-one-sheet]] feat(settings): a member's role, permissions and workspaces are one sheet | 828-the-link-needs-a-code-and-the-settings-area-guides | open | 21 |
