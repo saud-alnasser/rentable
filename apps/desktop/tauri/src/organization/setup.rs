@@ -832,6 +832,13 @@ const ORGANIZATION_THIS_ACCOUNT_HOLDS: &str = "the organization this turso accou
 ///
 /// The record and the registry row are [`connect::record`]'s, as they are for a link, and they go
 /// in last for that reason: everything that can refuse has refused by then.
+///
+/// **A refusal after the pull leaves nothing behind.** The replica is on disk from the open
+/// onwards, so a run that was refused would otherwise leave a machine that does not hold the
+/// organization holding a copy of every sealed row it has, and the wrong-password refusal is the
+/// one somebody would meet on purpose. Everything past the open runs as one fallible piece and
+/// every way out of it goes through [`leave_no_replica`]; what the walk is told is exactly what it
+/// was told before, since each arm returns the error it always returned.
 #[allow(clippy::too_many_arguments)]
 pub async fn connect_existing<P, F>(
     store: &mut Persisted<RemoteSyncStore>,
@@ -899,71 +906,91 @@ where
     )
     .await?;
 
-    if !replica.pull().await && replica.organization().await?.is_none() {
-        return Err(Error::Network {
-            message: "the organization could not be reached. the account is right; try again once \
-                      the connection is back"
-                .to_string(),
-        });
+    // **everything past the open is one fallible run, so one place takes the replica away again.**
+    // A refusal here leaves a pulled copy of every sealed row on a machine that did not connect,
+    // and the wrong-password refusal is the one somebody would meet on purpose. What the walk is
+    // told is unchanged: each arm below returns exactly the error it returned before.
+    let connected = async {
+        if !replica.pull().await && replica.organization().await?.is_none() {
+            return Err(Error::Network {
+                message: "the organization could not be reached. the account is right; try again                           once the connection is back"
+                    .to_string(),
+            });
+        }
+
+        let row = replica
+            .organization()
+            .await?
+            .filter(|row| row.id == organization_id)
+            .ok_or_else(|| Error::Integrity {
+                message: "the database this turso account holds carries no organization of ours"
+                    .to_string(),
+            })?;
+
+        if in_use_by_somebody_who_can_invite(&replica, &row.verifying_key, now).await? {
+            abandon_the_consent(store);
+
+            return Err(Error::PreconditionFailed {
+                message: A_CONNECTED_MACHINE_CAN_HAND_OUT_A_LINK.to_string(),
+            });
+        }
+
+        let (verifying_key, content_key) =
+            the_owners_key(&replica, &row, username, password).await?;
+        let name = opened_text(&content_key, "organization.name_sealed", &row.name_sealed)?;
+        let verifying_key = BASE64URL.encode(verifying_key);
+        let signing_in = HeldOrganization {
+            id: organization_id.clone(),
+            name: name.clone(),
+            verifying_key: verifying_key.clone(),
+            remote_url: remote_url.clone(),
+            machine_id: String::new(),
+            member_id: None,
+            role: None,
+            joined_at: now,
+        };
+        let mut session =
+            sign_in_by_username(&replica, &signing_in, username, password, &credential).await?;
+
+        // every grant fresh, the owner's included, so the credential the session holds is one that
+        // lives: nothing renewed while every machine was gone.
+        workspace::renew_credentials(&replica, &mut session, &platform, &database.name).await?;
+
+        let held = connect::record(
+            &replica,
+            store,
+            OrganizationFacts {
+                id: organization_id.clone(),
+                name,
+                verifying_key,
+                remote_url: remote_url.clone(),
+            },
+            Some((&session.member_id, &session.role)),
+            now,
+        )
+        .await?;
+
+        if !replica.push().await {
+            diagnostics::warn("organization.connectedToExisting.notYetSent")
+                .with("organization", held.id.as_str())
+                .write();
+        }
+
+        Ok((held, session))
     }
+    .await;
 
-    let row = replica
-        .organization()
-        .await?
-        .filter(|row| row.id == organization_id)
-        .ok_or_else(|| Error::Integrity {
-            message: "the database this turso account holds carries no organization of ours"
-                .to_string(),
-        })?;
+    let (held, session) = match connected {
+        Ok(connected) => connected,
+        Err(refusal) => {
+            // the replica is let go of before its files are: on Windows a file this process still
+            // has open cannot be deleted, which is the order `forget` keeps for the same reason.
+            drop(replica);
+            leave_no_replica(database_path, &organization_id);
 
-    if in_use_by_somebody_who_can_invite(&replica, &row.verifying_key, now).await? {
-        abandon_the_consent(store);
-        drop(replica);
-
-        return Err(Error::PreconditionFailed {
-            message: A_CONNECTED_MACHINE_CAN_HAND_OUT_A_LINK.to_string(),
-        });
-    }
-
-    let (verifying_key, content_key) = the_owners_key(&replica, &row, username, password).await?;
-    let name = opened_text(&content_key, "organization.name_sealed", &row.name_sealed)?;
-    let verifying_key = BASE64URL.encode(verifying_key);
-    let signing_in = HeldOrganization {
-        id: organization_id.clone(),
-        name: name.clone(),
-        verifying_key: verifying_key.clone(),
-        remote_url: remote_url.clone(),
-        machine_id: String::new(),
-        member_id: None,
-        role: None,
-        joined_at: now,
+            return Err(refusal);
+        }
     };
-    let mut session =
-        sign_in_by_username(&replica, &signing_in, username, password, &credential).await?;
-
-    // every grant fresh, the owner's included, so the credential the session holds is one that
-    // lives: nothing renewed while every machine was gone.
-    workspace::renew_credentials(&replica, &mut session, &platform, &database.name).await?;
-
-    let held = connect::record(
-        &replica,
-        store,
-        OrganizationFacts {
-            id: organization_id,
-            name,
-            verifying_key,
-            remote_url,
-        },
-        Some((&session.member_id, &session.role)),
-        now,
-    )
-    .await?;
-
-    if !replica.push().await {
-        diagnostics::warn("organization.connectedToExisting.notYetSent")
-            .with("organization", held.id.as_str())
-            .write();
-    }
 
     diagnostics::info("organization.connectedToExisting")
         .with("organization", held.id.as_str())
@@ -1158,6 +1185,21 @@ async fn leave_nothing<P: TursoPlatform>(
             .write();
     }
 
+    leave_no_replica(database_path, organization_id);
+}
+
+/// Take away the replica a run pulled and did not keep: the file and every sidecar the engine
+/// wrote beside it.
+///
+/// **Every refusal after a pull goes through here** (effort 828, requirement 14). A run that was
+/// refused left a copy of every sealed row of the organization on a machine that does not hold it,
+/// and the wrong-password refusal is the one somebody would meet on purpose. The caller lets the
+/// store go first: on Windows a file this process still has open cannot be deleted, which is the
+/// order `forget` keeps for the same reason.
+///
+/// Best effort, like the delete beside it: what could not be removed is the sweep's to report at a
+/// disconnect, and it never takes the place of the refusal the person is about to read.
+fn leave_no_replica(database_path: &Path, organization_id: &str) {
     crate::database::Database::remove_replica_files(&OrganizationStore::replica_path(
         database_path,
         organization_id,
@@ -2836,21 +2878,31 @@ mod tests {
     /// **The fourth case.** A wrong password and a username nobody holds are one refusal, and it
     /// is the wall's own sentence: nothing here says which of the two it was, or whether the
     /// username is in the organization at all.
+    ///
+    /// **And the replica the run pulled is gone afterwards** (ticket 20, the review's eleventh
+    /// finding). The refusal used to return with a full copy of every sealed row of the
+    /// organization sitting in the data directory of a machine that does not hold it, and a wrong
+    /// password is the refusal somebody would reach on purpose.
+    ///
+    /// *An organization per case, where there was one for both:* `Remote::none()` gives a consent
+    /// nothing to read but the file the owner's own machine left, so the two are the same file
+    /// here and the first case now takes it away.
     #[tokio::test]
     async fn a_wrong_username_or_password_meets_the_walls_one_sentence() {
         let _turn = take_the_credential_store().await;
-
-        store_platform_token(TOKEN).expect("the test credential store would not take the token");
-
-        let directory = scratch("connect-existing-refused");
-        let (platform, replica, _) = an_organization(&directory).await;
-
-        drop(replica);
 
         for (machine_name, username, password) in [
             ("wrong-password", "olivia.owner", "not the owners password"),
             ("wrong-username", "nobody.here", PASSWORD),
         ] {
+            store_platform_token(TOKEN)
+                .expect("the test credential store would not take the token");
+
+            let directory = scratch(&format!("connect-existing-{machine_name}"));
+            let (platform, replica, _) = an_organization(&directory).await;
+
+            drop(replica);
+
             let mcp = ScriptedServer::start(holding_the_organization()).await;
             let mut machine = fresh_machine(&directory, machine_name);
             let refused = connect_existing(
@@ -2873,10 +2925,20 @@ mod tests {
                 "{machine_name}"
             );
             assert!(machine.organization.is_none(), "{machine_name}");
-        }
+            assert!(
+                !OrganizationStore::replica_path(&directory.join("app.db"), HELD_ID).exists(),
+                "{machine_name} left the replica it pulled on disk"
+            );
 
-        // and the consent is untouched by either, so the person retypes where they are.
-        assert!(platform_token().is_ok());
+            // and the consent is untouched by either, so the person retypes where they are: this
+            // is the refusal the walk has to tell from the one that gives the consent back, and
+            // the authority is exactly where it was.
+            assert!(platform_token().is_ok(), "{machine_name}");
+            assert!(
+                machine.turso_organization.is_some(),
+                "{machine_name} let the account the consent was over go"
+            );
+        }
     }
 
     /// The inspect is what the walk branches on: a group holding an organization of ours is said

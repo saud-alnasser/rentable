@@ -17,7 +17,7 @@
 //!
 //! **The old shape, and why it is forgotten rather than migrated.** Nothing was published, so a
 //! machine holding what 819 built holds test data of its own, and the human decided on 2026-09-13
-//! to start over rather than carry it. Seven signs, any one of which is the old shape: the record
+//! to start over rather than carry it. Eight signs, any one of which is the old shape: the record
 //! still carries a non-empty `organizations` list, which is what a machine that had joined
 //! several kept; the held organization's replica file is missing, which is a record with nothing
 //! behind it; that replica's `member` table has no `username_sealed` column, which is the
@@ -26,8 +26,11 @@
 //! mean; its `member` table has no `signing_public_key` column, which is every replica
 //! written before the same effort gave an owner something to certify a widened member against;
 //! its `member` table has no `session_epoch` column, which is every replica written before the
-//! same effort gave a member a run of sessions to be signed out of (requirement 22).
-//! The last four are a local `PRAGMA table_info`, read before any pull, so an
+//! same effort gave a member a run of sessions to be signed out of (requirement 22); and its
+//! `member` table has no `owner_seed_sealed` column, which is every replica written before effort
+//! 828's requirement 22 gave the founder's key a row to be handed over in, and which every read of
+//! a member row names.
+//! The last five are a local `PRAGMA table_info`, read before any pull, so an
 //! unreachable remote does not stop the check. It runs on the first `organization_state_get` of a
 //! launch, before anything else opens the replica.
 //!
@@ -84,6 +87,11 @@ pub enum OldShape {
     /// added for requirement 22; without it no reader here can say whether a remembered key is
     /// still this member's run of sessions, and every read of the row would fail on the column.
     MemberWithoutSessionEpoch,
+    /// the held organization's `member` table carries no `owner_seed_sealed`, the column effort
+    /// 828 added for its requirement 22; every read of a member row names it, so a replica written
+    /// without it answers nothing at all, and the column is under the member signature, so a row
+    /// written before it hashes a preimage no reader here builds.
+    MemberWithoutOwnerSeed,
 }
 
 impl fmt::Display for OldShape {
@@ -110,6 +118,8 @@ impl fmt::Display for OldShape {
             Self::MemberWithoutSessionEpoch => {
                 formatter.write_str("the held organization's member table carries no session_epoch")
             }
+            Self::MemberWithoutOwnerSeed => formatter
+                .write_str("the held organization's member table carries no owner_seed_sealed"),
         }
     }
 }
@@ -133,6 +143,11 @@ const SIGNING_KEY_COLUMN: &str = "signing_public_key";
 /// The column a member has carried since effort 826 gave a member a run of sessions to be signed
 /// out of (requirement 22), whose absence marks a replica no read of a member row would survive.
 const SESSION_EPOCH_COLUMN: &str = "session_epoch";
+
+/// The column a member has carried since effort 828 gave ownership somewhere to be handed over
+/// (requirement 22), whose absence marks a replica whose member rows no read here can answer and
+/// whose signatures no reader here can rebuild.
+const OWNER_SEED_COLUMN: &str = "owner_seed_sealed";
 
 /// Forget the organization this machine holds, whole.
 ///
@@ -337,6 +352,15 @@ async fn old_shape(app_state: &AppState) -> Result<Option<OldShape>, Error> {
         .any(|column| column == SESSION_EPOCH_COLUMN)
     {
         return Ok(Some(OldShape::MemberWithoutSessionEpoch));
+    }
+
+    // last of the member signs, because a replica missing it alone is the newest of them: it was
+    // written inside effort 828, before the transfer of ownership gave the founder's key a row.
+    if !member_columns
+        .iter()
+        .any(|column| column == OWNER_SEED_COLUMN)
+    {
+        return Ok(Some(OldShape::MemberWithoutOwnerSeed));
     }
 
     Ok(None)
@@ -945,6 +969,55 @@ mod tests {
                 .is_none()
         );
 
+        // ticket 20, the human's second ask: the shape written inside effort 828 before the
+        // transfer of ownership gave the founder's key a row. Everything above is there and the
+        // `member` table has no `owner_seed_sealed`; every read of a member row names the column,
+        // so the machine is forgotten at launch and lands on the first screen rather than meeting
+        // a failure on whatever it reads first.
+        let directory = scratch("no-owner-seed");
+        let replica =
+            OrganizationStore::replica_path(&directory.join(Database::FILENAME), "noseed");
+        let store = OrganizationStore::open(&replica, None, || async {
+            Ok::<String, turso::Error>(String::new())
+        })
+        .await
+        .expect("the replica");
+
+        for statement in [
+            "CREATE TABLE IF NOT EXISTS \"member\" (\"id\" TEXT PRIMARY KEY NOT NULL, \"username_sealed\" BLOB NOT NULL, \"public_key\" BLOB NOT NULL, \"signing_public_key\" BLOB NOT NULL, \"permissions\" INTEGER NOT NULL, \"session_epoch\" INTEGER NOT NULL DEFAULT 0)",
+            "CREATE TABLE IF NOT EXISTS \"invitation\" (\"id\" TEXT PRIMARY KEY NOT NULL, \"member_id\" TEXT NOT NULL, \"expires_at\" INTEGER NOT NULL, \"consumed_at\" INTEGER, \"sealed_secret\" BLOB NOT NULL, \"issued_by\" TEXT NOT NULL, \"certificate_id\" TEXT NOT NULL, \"signature\" BLOB NOT NULL, \"created_at\" INTEGER NOT NULL)",
+            "INSERT INTO \"member\" VALUES ('member-owner', X'00', X'00', X'00', 127, 0)",
+        ] {
+            store
+                .connection()
+                .execute(statement, ())
+                .await
+                .expect("the tables before the owner seed");
+        }
+
+        drop(store);
+        std::fs::write(directory.join(RemoteSync::FILENAME), record("noseed")).expect("the record");
+
+        let app_state = state_over(&directory).await;
+
+        assert_eq!(
+            forget_old_shape(&app_state)
+                .await
+                .expect("the check failed"),
+            Some(OldShape::MemberWithoutOwnerSeed)
+        );
+        assert_eq!(replica_files(&directory), Vec::<String>::new());
+        assert!(
+            app_state
+                .remote_sync
+                .write()
+                .await
+                .store_mut()
+                .organization
+                .is_none(),
+            "the organization was not forgotten"
+        );
+
         // an invitation table with no `code_seal` is this build's own shape, and is kept. Effort
         // 826 read that absence as the old shape; effort 828 moved the seal into the link's own
         // text and dropped the column, so the sign had to go with it or every replica this build
@@ -959,9 +1032,9 @@ mod tests {
         .expect("the replica");
 
         for statement in [
-            "CREATE TABLE IF NOT EXISTS \"member\" (\"id\" TEXT PRIMARY KEY NOT NULL, \"username_sealed\" BLOB NOT NULL, \"public_key\" BLOB NOT NULL, \"signing_public_key\" BLOB NOT NULL, \"permissions\" INTEGER NOT NULL, \"session_epoch\" INTEGER NOT NULL DEFAULT 0)",
+            "CREATE TABLE IF NOT EXISTS \"member\" (\"id\" TEXT PRIMARY KEY NOT NULL, \"username_sealed\" BLOB NOT NULL, \"public_key\" BLOB NOT NULL, \"signing_public_key\" BLOB NOT NULL, \"permissions\" INTEGER NOT NULL, \"session_epoch\" INTEGER NOT NULL DEFAULT 0, \"owner_seed_sealed\" BLOB)",
             "CREATE TABLE IF NOT EXISTS \"invitation\" (\"id\" TEXT PRIMARY KEY NOT NULL, \"member_id\" TEXT NOT NULL, \"expires_at\" INTEGER NOT NULL, \"consumed_at\" INTEGER, \"sealed_secret\" BLOB NOT NULL, \"issued_by\" TEXT NOT NULL, \"certificate_id\" TEXT NOT NULL, \"signature\" BLOB NOT NULL, \"created_at\" INTEGER NOT NULL)",
-            "INSERT INTO \"member\" VALUES ('member-owner', X'00', X'00', X'00', 127, 0)",
+            "INSERT INTO \"member\" VALUES ('member-owner', X'00', X'00', X'00', 127, 0, NULL)",
         ] {
             store
                 .connection()

@@ -703,6 +703,11 @@ pub async fn end_elsewhere(
 /// is [`end_elsewhere`] and does something different; and the owner's, for anybody but the owner,
 /// which is the line `role::change_role` draws in the same words.
 ///
+/// **The register follows the act**, because the standing the members directory draws is read off
+/// it: an account nobody is signed in on is an account a link is offered for (requirement 20), and
+/// a register still naming this member on machines that are all behind the epoch would keep the
+/// one act that gets them back in absent from their card.
+///
 /// **What comes back is whether the bump reached the organization database**, for the reason
 /// [`end_elsewhere`] gives: an act whose whole value is that it takes effect on another machine
 /// cannot be reported done while it is still sitting on this one.
@@ -745,6 +750,13 @@ pub async fn end_member_sessions(
     store
         .set_session_epoch(member_id, member.session_epoch + 1, now)
         .await?;
+
+    // and the register stops naming them (effort 828, requirement 15). Every machine they were on
+    // is behind the epoch now, so a register that went on saying one is signed in on the account
+    // would hold the link act shut on a card whose whole standing has just changed, and the one
+    // remedy the directory offers after this act is the link. The rows stay: those machines still
+    // hold the organization, and what ended is who is on them.
+    store.clear_member_from_machines(member_id).await?;
 
     let sent = store.push().await;
 
@@ -1935,6 +1947,23 @@ mod tests {
         )
         .await;
 
+        // two machines in the register, one for each of them, so what the act does to the register
+        // is visible (ticket 20, the review's ninth finding).
+        let at = 1_757_000_000_100;
+
+        store
+            .machine_seen("machine-sami-laptop", Some("member-sami"), at)
+            .await
+            .expect("the member's machine did not register");
+        store
+            .machine_seen("machine-sami-desk", Some("member-sami"), at)
+            .await
+            .expect("the member's second machine did not register");
+        store
+            .machine_seen("machine-ada", Some("member-ada"), at)
+            .await
+            .expect("the administrator's machine did not register");
+
         // the act, on somebody else's row: the epoch moves and nothing else does.
         end_member_sessions(&store, &administrator, "member-sami", 1_757_000_000_200)
             .await
@@ -1942,6 +1971,33 @@ mod tests {
 
         assert_eq!(epoch_of(&store, &joined, "member-sami").await, 1);
         assert_eq!(epoch_of(&store, &joined, "member-ada").await, 0);
+
+        // **and the register stops naming them, so the link act follows the sign-out.** Every
+        // machine they were on is behind the epoch now; the rows stay, because those machines
+        // still hold the organization, and the standing the members directory draws is *no machine
+        // signed in*, which is the standing a link is offered on. *The epoch moved and the
+        // register did not, until ticket 20, so the one act that gets them back in stayed absent
+        // from their card.*
+        let named: Vec<Option<String>> = store
+            .connected_machines(
+                &super::verifying_key_of(&joined).expect("the key"),
+                1_757_000_000_300,
+            )
+            .await
+            .expect("the register")
+            .into_iter()
+            .map(|(machine, _)| machine.member_id)
+            .collect();
+
+        assert_eq!(
+            named.iter().filter(|member| member.is_none()).count(),
+            2,
+            "the register still names the member on a machine: {named:?}"
+        );
+        assert!(
+            named.contains(&Some("member-ada".to_string())),
+            "the act reached a row it was not about: {named:?}"
+        );
 
         // their own row is the other act's.
         let own = end_member_sessions(&store, &administrator, "member-ada", 1_757_000_000_300)

@@ -21,10 +21,11 @@
 //! **What is sealed, and under what.** The payload is [`LinkPayload`]: the issuer's own grant on
 //! the organization database and, where the link opens a vault, the password that vault was made
 //! under. It is sealed under a key Argon2id derives from the code, salted with the link's own
-//! secret, with the half's kind, id and expiry bound as associated data. So the code alone is
-//! thirty bits and the secret alone derives nothing: what opens the payload is the two together,
-//! and each guess costs one Argon2id pass. A rewritten expiry opens nothing, and a seal lifted
-//! onto another link opens nothing.
+//! secret, with the half's kind, id and expiry and the locator's three fields bound as associated
+//! data. So the code alone is thirty bits and the secret alone derives nothing: what opens the
+//! payload is the two together, and each guess costs one Argon2id pass. A rewritten expiry opens
+//! nothing, a seal lifted onto another link opens nothing, and a link whose address was rewritten
+//! opens nothing, so nothing pulls a replica from a host the maker never named.
 //!
 //! **The seal rides in the link's text and it has to.** Nothing reads a row before the credential
 //! is out, so a payload kept in a row would need the credential to fetch the row that holds the
@@ -363,23 +364,43 @@ pub fn code_salt(link_secret: &str) -> Result<[u8; KDF_SALT_BYTES], Error> {
     })
 }
 
-/// What a link's seal is bound to: which kind of link it is, the row it names, and the moment it
-/// lapses. A seal lifted onto another link opens nothing and a rewritten expiry opens nothing,
-/// which is what leaves the derivation as the whole of the barrier.
-pub fn payload_context(half: &Half) -> Vec<u8> {
-    format!(
-        "{}.{}.{}",
+/// What a link's seal is bound to: the half, which says which kind of link it is, the row it
+/// names and the moment it lapses, and the locator, which says where the organization is and what
+/// judges its rows.
+///
+/// **The address is bound because the seal alone does not pin it.** The four clear fields ride in
+/// the link's text beside the payload, so a seal lifted onto a link naming another host opens with
+/// the same code and the machine then pulls a replica from wherever that text said. Binding
+/// `organization_id`, `verifying_key` and `remote_url` is what makes the payload open only for the
+/// address it was made for; the organization's name is left out, because it is what a refusal is
+/// said in the name of rather than a fact anything is reached with.
+///
+/// **Each field is written with its length in front of it**, the shape `authority::field` uses and
+/// for the same reason: a separator a field can carry is a separator two different sets of fields
+/// can be made to agree on, and `remote_url` carries dots.
+pub fn payload_context(locator: &Locator, half: &Half) -> Vec<u8> {
+    let mut context = Vec::new();
+
+    for part in [
         half.kind.as_str(),
-        half.id,
-        half.expires_at
-    )
-    .into_bytes()
+        half.id.as_str(),
+        &half.expires_at.to_string(),
+        locator.organization_id.as_str(),
+        locator.verifying_key.as_str(),
+        locator.remote_url.as_str(),
+    ] {
+        context.extend_from_slice(&(part.len() as u64).to_be_bytes());
+        context.extend_from_slice(part.as_bytes());
+    }
+
+    context
 }
 
 /// Seal a payload under a code and a link's secret together, at the cost the reader will derive
 /// at. The answer is base64url, which is what the link's text carries.
 pub fn seal_payload(
     code: &str,
+    locator: &Locator,
     half: &Half,
     payload: &LinkPayload,
     kdf_params: KdfParams,
@@ -395,7 +416,7 @@ pub fn seal_payload(
 
     Ok(BASE64URL.encode(seal_under_member_key(
         &key,
-        &payload_context(half),
+        &payload_context(locator, half),
         &json,
     )?))
 }
@@ -408,6 +429,7 @@ pub fn seal_payload(
 /// because deriving a key for a link that is already dead buys the guesser a free pass.
 pub fn open_payload(
     code: &str,
+    locator: &Locator,
     half: &Half,
     sealed: &str,
     kdf_params: KdfParams,
@@ -425,8 +447,8 @@ pub fn open_payload(
     };
     let bytes = BASE64URL.decode(sealed).map_err(|_| refused())?;
     let key = derive_member_key(&code, &code_salt(&half.secret)?, kdf_params)?;
-    let opened =
-        open_under_member_key(&key, &payload_context(half), &bytes).map_err(|_| refused())?;
+    let opened = open_under_member_key(&key, &payload_context(locator, half), &bytes)
+        .map_err(|_| refused())?;
 
     serde_json::from_slice(&opened).map_err(|_| refused())
 }
@@ -702,8 +724,9 @@ mod tests {
     }
 
     /// The seal opens on the right code and on nothing else, and what it is bound to is the
-    /// half's kind, id and expiry: any of the three rewritten and the right code opens nothing.
-    /// The code is upper-cased on both sides, so a person typing lower case is not refused for it.
+    /// half's kind, id and expiry and the locator's three fields: any of the six rewritten and the
+    /// right code opens nothing. The code is upper-cased on both sides, so a person typing lower
+    /// case is not refused for it.
     #[test]
     fn the_payload_opens_on_the_code_and_the_secret_together_and_on_nothing_else() {
         let half = half(HalfKind::Invitation);
@@ -711,21 +734,24 @@ mod tests {
             credential: "the-issuers-grant".to_string(),
             vault_password: Some("the-generated-password".to_string()),
         };
-        let sealed = seal_payload("7K4M9Q", &half, &payload, test_cost()).expect("the seal");
+        let sealed =
+            seal_payload("7K4M9Q", &locator(), &half, &payload, test_cost()).expect("the seal");
 
         assert_eq!(
-            open_payload("7K4M9Q", &half, &sealed, test_cost()).expect("the right code"),
+            open_payload("7K4M9Q", &locator(), &half, &sealed, test_cost())
+                .expect("the right code"),
             payload
         );
         assert_eq!(
-            open_payload(" 7k4m9q ", &half, &sealed, test_cost()).expect("the same code, typed"),
+            open_payload(" 7k4m9q ", &locator(), &half, &sealed, test_cost())
+                .expect("the same code, typed"),
             payload
         );
 
         for wrong in ["ABCDEF", "000000", SECRET] {
             assert!(
                 matches!(
-                    open_payload(wrong, &half, &sealed, test_cost()),
+                    open_payload(wrong, &locator(), &half, &sealed, test_cost()),
                     Err(crate::error::Error::Forbidden { ref message })
                         if message == super::CODE_REFUSED
                 ),
@@ -735,15 +761,15 @@ mod tests {
 
         assert!(
             matches!(
-                open_payload("   ", &half, &sealed, test_cost()),
+                open_payload("   ", &locator(), &half, &sealed, test_cost()),
                 Err(crate::error::Error::InvalidInput { ref message })
                     if message == super::CODE_MISSING
             ),
             "an empty code was not refused as input"
         );
 
-        // the associated data: the kind, the row and the moment. Each rewritten on its own, and
-        // the right code opens nothing.
+        // the associated data's half: the kind, the row and the moment. Each rewritten on its
+        // own, and the right code opens nothing. The locator's three are the test below.
         for rewritten in [
             Half {
                 kind: HalfKind::Machine,
@@ -759,7 +785,7 @@ mod tests {
             },
         ] {
             assert!(
-                open_payload("7K4M9Q", &rewritten, &sealed, test_cost()).is_err(),
+                open_payload("7K4M9Q", &locator(), &rewritten, &sealed, test_cost()).is_err(),
                 "a rewritten half opened the payload"
             );
         }
@@ -769,10 +795,12 @@ mod tests {
             credential: "the-members-grant".to_string(),
             vault_password: None,
         };
-        let sealed = seal_payload("7K4M9Q", &half, &bare, test_cost()).expect("the seal");
+        let sealed =
+            seal_payload("7K4M9Q", &locator(), &half, &bare, test_cost()).expect("the seal");
 
         assert_eq!(
-            open_payload("7K4M9Q", &half, &sealed, test_cost()).expect("the right code"),
+            open_payload("7K4M9Q", &locator(), &half, &sealed, test_cost())
+                .expect("the right code"),
             bare
         );
         assert!(
@@ -780,5 +808,76 @@ mod tests {
                 .contains("vaultPassword"),
             "a payload with no vault password wrote the field"
         );
+    }
+
+    /// Ticket 20, the review's fourth finding: **the seal binds the address, so a link whose
+    /// `remoteUrl` was rewritten opens nothing.**
+    ///
+    /// The four clear fields ride in the link's text beside the payload and nothing signs them, so
+    /// a link found in a chat could be re-encoded pointing at a host somebody else keeps, with the
+    /// half and the sealed payload carried over untouched. Before the locator was bound, the code
+    /// still opened the payload on that text and the machine then pulled a replica from the
+    /// rewritten host with the credential inside it. Each of the three bound fields is rewritten
+    /// on its own here, and the decode is left whole, so what refuses is the seal rather than the
+    /// text being unreadable.
+    #[test]
+    fn a_link_whose_address_was_rewritten_opens_nothing_with_the_right_code() {
+        let locator = locator();
+        let half = half(HalfKind::Machine);
+        let payload = LinkPayload {
+            credential: "the-members-grant".to_string(),
+            vault_password: None,
+        };
+        let sealed = seal_payload("7K4M9Q", &locator, &half, &payload, test_cost()).expect("seal");
+        let link = locator.sealed(&sealed, half.clone());
+
+        // the link as it was made opens, so the refusals below are the rewriting and nothing else.
+        assert_eq!(
+            open_payload(
+                "7K4M9Q",
+                &link.locator(),
+                &link.half,
+                &link.credential,
+                test_cost()
+            )
+            .expect("the link as it was made"),
+            payload
+        );
+
+        for rewritten in [
+            JoinLink {
+                remote_url: "libsql://org-7f3a-acme.an-attackers-host.example".to_string(),
+                ..link.clone()
+            },
+            JoinLink {
+                verifying_key: Locator::new("7f3a", "Acme", &[9_u8; 32], "libsql://x")
+                    .verifying_key,
+                ..link.clone()
+            },
+            JoinLink {
+                organization_id: "beef".to_string(),
+                ..link.clone()
+            },
+        ] {
+            // the text still decodes: what is rewritten is a clear field, not the shape.
+            let decoded = JoinLink::decode(&rewritten.encode().expect("the rewritten text"))
+                .expect("a rewritten link is still a link");
+
+            assert!(
+                matches!(
+                    open_payload(
+                        "7K4M9Q",
+                        &decoded.locator(),
+                        &decoded.half,
+                        &decoded.credential,
+                        test_cost()
+                    ),
+                    Err(crate::error::Error::Forbidden { ref message })
+                        if message == super::CODE_REFUSED
+                ),
+                "a rewritten address opened the payload: {}",
+                decoded.remote_url
+            );
+        }
     }
 }

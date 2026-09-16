@@ -130,7 +130,13 @@ test('a lapsed, consumed, revoked or replaced link is refused by name, off the c
 					kind: 'refused',
 					link: LINK,
 					refusal: reason,
-					message: `the link to Acme ${reason}`
+					message: `the link to Acme ${reason}`,
+					// which act was refused, which is what says whether the organization was
+					// recorded before the row was judged: the password step is the invitation's
+					// accept, which reaches and records first, and the reading step is the machine
+					// connect, which judges its row before anything is recorded. The screen reads
+					// it to decide whether a spent link has a wall to offer (ticket 20).
+					wasConnecting: step.kind === 'password'
 				},
 				`${step.kind}: ${reason}`
 			);
@@ -144,7 +150,8 @@ test('a lapsed, consumed, revoked or replaced link is refused by name, off the c
 				kind: 'refused',
 				link: LINK,
 				refusal: 'anotherOrganization',
-				message: 'this machine holds Beta'
+				message: 'this machine holds Beta',
+				wasConnecting: step.kind === 'password'
 			},
 			step.kind
 		);
@@ -215,7 +222,9 @@ test('an organization link met on a machine holding another is refused on the re
 			kind: 'refused',
 			link: LINK,
 			refusal: 'anotherOrganization',
-			message: 'this machine already holds Beta; disconnect it before connecting another'
+			message: 'this machine already holds Beta; disconnect it before connecting another',
+			// nothing was reached and nothing was recorded: the read is a decode.
+			wasConnecting: false
 		}
 	);
 });

@@ -220,8 +220,9 @@ export const organization = router({
 	/**
 	 * Accounts and their invitations, which is the members section.
 	 *
-	 * **Making an account and making a link are both `permitted('inviteMember')` here and refused
-	 * again in Rust**, on the member's verified row; this is the earlier of the two refusals, made so a caller is turned away before
+	 * **Making an account is `permitted('inviteMember')` and making a link is that act or
+	 * `resetPassword`, and both are refused again in Rust**, on the member's verified row; this is
+	 * the earlier of the two refusals, made so a caller is turned away before
 	 * a round trip, and never the deciding one. Listing is any signed-in member's: who is in the
 	 * organization is not a secret from the people in it, and since effort 826 that one list
 	 * carries the pending invitations too. Whether a read-only grant can be minted
@@ -264,14 +265,18 @@ export const organization = router({
 				);
 			}),
 		/**
-		 * The one link act (effort 828, requirement 20). It is `inviteMember`, because what it
-		 * hands somebody is the way a machine joins an account, which is what making an account was
-		 * always half of. Which kind of link it is, and whether a machine is already signed in on
-		 * the account, are Rust's: the first is read off the account's row and the second off the
-		 * register of connected machines. *`invitation.reissue`, then `member.reset`, then this.*
+		 * The one link act (effort 828, requirement 20). It is `inviteMember`'s **or**
+		 * `resetPassword`'s: what it hands somebody is the way a machine joins an account, which is
+		 * what making an account was always half of, and it is also the only thing that restores an
+		 * account whose password `unsetPassword` beside it took away. Held to the first alone, a
+		 * member widened with the second and not the first could lock somebody out and not let them
+		 * back in. *The human struck that risk on 2026-09-16.* Which kind of link it is, and
+		 * whether a machine is already signed in on the account, are Rust's: the first is read off
+		 * the account's row and the second off the register of connected machines.
+		 * *`invitation.reissue`, then `member.reset`, then this.*
 		 */
 		linkMake: procedure
-			.permitted('inviteMember')
+			.permittedAny('inviteMember', 'resetPassword')
 			.input(z.object({ memberId: z.string().trim().min(1) }))
 			.mutation(async ({ input, ctx }): Promise<MadeLink> => {
 				return ctx.host.organization.member.linkMake(input.memberId);

@@ -2448,6 +2448,10 @@ type RootTranslation = {
 			 */
 			consumed: string
 			/**
+			 * t​h​i​s​ ​l​i​n​k​ ​h​a​s​ ​a​l​r​e​a​d​y​ ​b​e​e​n​ ​o​p​e​n​e​d​ ​o​n​ ​a​n​o​t​h​e​r​ ​m​a​c​h​i​n​e​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​k​e​e​p​s​ ​t​h​e​ ​a​c​c​o​u​n​t​s​ ​f​o​r​ ​a​ ​n​e​w​ ​o​n​e​.
+			 */
+			consumedElsewhere: string
+			/**
 			 * t​h​i​s​ ​i​n​v​i​t​a​t​i​o​n​ ​w​a​s​ ​w​i​t​h​d​r​a​w​n​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​i​n​v​i​t​e​d​ ​y​o​u​ ​f​o​r​ ​a​ ​n​e​w​ ​l​i​n​k​.
 			 */
 			revoked: string
@@ -5278,6 +5282,10 @@ export type TranslationFunctions = {
 			 * this invitation link has already been opened. this machine is connected, so sign in with your username and the password you chose.
 			 */
 			consumed: () => LocalizedString
+			/**
+			 * this link has already been opened on another machine. ask whoever keeps the accounts for a new one.
+			 */
+			consumedElsewhere: () => LocalizedString
 			/**
 			 * this invitation was withdrawn. ask whoever invited you for a new link.
 			 */

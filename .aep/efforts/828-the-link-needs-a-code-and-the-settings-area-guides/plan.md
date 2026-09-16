@@ -531,7 +531,11 @@ names its columns and both were nullable, and `machine_link` is created on open 
 `machine_id` is given one at its next launch; a replica still carrying
 `link_credential_sealed` opens, since every write names its columns; `forget` gains one sign,
 the organization database gone on the platform, which is a fact about the remote and not a
-shape.
+shape. *Added 2026-09-16 at the review:* `forget` gains one shape sign too, a `member` table with
+no `owner_seed_sealed`, read from `PRAGMA table_info` beside the two member signs it joins; every
+read of a member row names that column, so a replica written before requirement 22 added it answers
+nothing at all, and the machine forgets the organization at its next launch and lands on the first
+screen.
 
 # Testing Strategy
 

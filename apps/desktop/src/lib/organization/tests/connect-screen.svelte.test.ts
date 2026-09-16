@@ -101,7 +101,7 @@ const everyStep: JoinStep[] = [
 	{ ...pasting('nope', CODE), isUnreadable: true },
 	{ kind: 'reading', link: LINK, code: CODE },
 	{ kind: 'unreachable', link: LINK, code: CODE, message: 'offline' },
-	{ kind: 'refused', link: LINK, refusal: 'lapsed', message: null },
+	{ kind: 'refused', link: LINK, refusal: 'lapsed', message: null, wasConnecting: false },
 	stepOf({ kind: 'invitation', expiresAt: 1 })
 ];
 
@@ -175,9 +175,12 @@ test('submitting the form calls onConnect with the link and the code, and an emp
 	expect(onConnect).toHaveBeenCalledWith(`  ${LINK}  `, CODE);
 });
 
-// the organization's own link is the one link that still connects without a code (effort 828,
-// requirement 16 retires it, and ticket 12 with it), so an empty code is not a half-typed one.
-test('an empty code still continues, and the link alone is what the form needs', async () => {
+// effort 828, criterion 16: **there is no code-free path.** The organization's own link was the
+// one kind that connected with no code, and it retired with requirement 16; every link left
+// carries a payload nothing opens without the six characters, so a link with an empty code beside
+// it is a form to finish rather than a continue the shell can only refuse. *The form admitted an
+// empty code until ticket 20, which is a round trip whose answer was always the same.*
+test('a link with no code does not continue, and the six characters are what release it', async () => {
 	loadLocale('en');
 	setLocale('en');
 
@@ -189,9 +192,15 @@ test('an empty code still continues, and the link alone is what the form needs',
 
 	await fireEvent.input(document.querySelector('input[name=link]')!, { target: { value: LINK } });
 
+	expect(connect.hasAttribute('disabled')).toBe(true);
+	await fireEvent.submit(connect.closest('form')!);
+	expect(onConnect).not.toHaveBeenCalled();
+
+	await fireEvent.input(document.querySelector('input[name=code]')!, { target: { value: CODE } });
+
 	expect(connect.hasAttribute('disabled')).toBe(false);
 	await fireEvent.submit(connect.closest('form')!);
-	expect(onConnect).toHaveBeenCalledWith(LINK, '');
+	expect(onConnect).toHaveBeenCalledWith(LINK, CODE);
 });
 
 // effort 826, requirement 10; effort 828, requirements 16 and 17 and criteria 16 and 17: one form,
@@ -440,7 +449,13 @@ test('each of the five refusals says its own sentence and asks for nothing', () 
 	] as const;
 
 	for (const [refusal, sentence] of refusals) {
-		const rendered = joinScreen({ kind: 'refused', link: LINK, refusal, message: null });
+		const rendered = joinScreen({
+			kind: 'refused',
+			link: LINK,
+			refusal,
+			message: null,
+			wasConnecting: true
+		});
 
 		expect(screen.getByText(sentence), refusal).toBeDefined();
 		expect(inputsOnScreen(), refusal).toEqual([]);
@@ -453,7 +468,13 @@ test('a lapsed and a revoked link say the same thing about a new link, and neith
 	setLocale('en');
 
 	for (const refusal of ['lapsed', 'revoked'] as const) {
-		const rendered = joinScreen({ kind: 'refused', link: LINK, refusal, message: null });
+		const rendered = joinScreen({
+			kind: 'refused',
+			link: LINK,
+			refusal,
+			message: null,
+			wasConnecting: true
+		});
 
 		expect(screen.getByText(en.organization.join[refusal]).textContent, refusal).toContain(
 			'ask whoever invited you for a new link'
@@ -477,7 +498,10 @@ test('a link already opened offers the wall, and pressing it hands the shell bac
 
 	const onSignIn = vi.fn();
 
-	joinScreen({ kind: 'refused', link: LINK, refusal: 'consumed', message: null }, { onSignIn });
+	joinScreen(
+		{ kind: 'refused', link: LINK, refusal: 'consumed', message: null, wasConnecting: true },
+		{ onSignIn }
+	);
 
 	expect(screen.getByText(en.organization.join.consumed)).toBeDefined();
 
@@ -489,6 +513,28 @@ test('a link already opened offers the wall, and pressing it hands the shell bac
 	expect(onSignIn).toHaveBeenCalledTimes(1);
 });
 
+// ticket 20, the review's eighth finding: **the wall is offered only where the act that spent the
+// link recorded the organization first.** An invitation's accept reaches and records before it
+// looks at the row, so a spent one lands the machine connected; a machine link reads its row first
+// and refuses with nothing recorded and nothing pulled, so telling that person *this machine is
+// connected* was false and the control under it led nowhere.
+test('a spent machine link says what is true and offers no wall', () => {
+	loadLocale('en');
+	setLocale('en');
+
+	const onSignIn = vi.fn();
+
+	joinScreen(
+		{ kind: 'refused', link: LINK, refusal: 'consumed', message: null, wasConnecting: false },
+		{ onSignIn }
+	);
+
+	expect(screen.getByText(en.organization.join.consumedElsewhere)).toBeDefined();
+	expect(screen.queryByText(en.organization.join.consumed)).toBeNull();
+	expect(screen.queryByRole('button', { name: en.organization.join.toSignIn })).toBeNull();
+	expect(onSignIn).not.toHaveBeenCalled();
+});
+
 test('a link for another organization shows what the shell said under the sentence', () => {
 	loadLocale('en');
 	setLocale('en');
@@ -496,7 +542,8 @@ test('a link for another organization shows what the shell said under the senten
 		kind: 'refused',
 		link: LINK,
 		refusal: 'anotherOrganization',
-		message: 'this machine already holds Beta; disconnect it before connecting another'
+		message: 'this machine already holds Beta; disconnect it before connecting another',
+		wasConnecting: false
 	});
 
 	expect(screen.getByText(en.organization.join.anotherOrganization)).toBeDefined();
@@ -636,7 +683,7 @@ test('the screen renders in arabic with the same one form, the same refusals and
 		'anotherOrganization'
 	] as const) {
 		const rendered = joinScreen(
-			{ kind: 'refused', link: LINK, refusal, message: null },
+			{ kind: 'refused', link: LINK, refusal, message: null, wasConnecting: true },
 			{ direction: 'rtl' }
 		);
 
@@ -669,6 +716,7 @@ test('every sentence this screen added is written in both locales', () => {
 		'reading',
 		'lapsed',
 		'consumed',
+		'consumedElsewhere',
 		'revoked',
 		'replaced',
 		'anotherOrganization',

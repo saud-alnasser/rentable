@@ -105,10 +105,11 @@
 
 	const isJoining = $derived(step.kind === 'password' && step.isJoining);
 	const busy = $derived(step.kind === 'reading' || isJoining);
-	// a code is six characters or none: the organization's own link still connects without one
-	// (effort 828, requirement 16 retires it), and a half-typed code is a field to finish rather
-	// than a round trip to the shell.
-	const hasCode = $derived(code.length === 0 || code.length === CODE_LENGTH);
+	// a code is six characters, on every link there is (effort 828, requirement 16: the one kind
+	// that connected without one retired with the legible credential it carried). A field that is
+	// short, or empty, is a field to finish rather than a round trip to the shell. *It admitted a
+	// code-free path until this ticket, which is a continue that could only ever be refused.*
+	const hasCode = $derived(code.length === CODE_LENGTH);
 	const canConnect = $derived(pasted.trim().length > 0 && hasCode && !busy);
 	const tooShort = $derived(password.length > 0 && password.length < PASSWORD_FLOOR);
 	const mismatch = $derived(confirmation.length > 0 && confirmation !== password);
@@ -150,7 +151,13 @@
 			case 'lapsed':
 				return $LL.organization.join.lapsed();
 			case 'consumed':
-				return $LL.organization.join.consumed();
+				// what a spent link means depends on which act spent it: an invitation's accept had
+				// already recorded the organization here, so the wall is the way on; a machine link
+				// was read and refused with nothing recorded, so there is nowhere to go but back to
+				// whoever keeps the accounts.
+				return step.wasConnecting
+					? $LL.organization.join.consumed()
+					: $LL.organization.join.consumedElsewhere();
 			case 'revoked':
 				return $LL.organization.join.revoked();
 			case 'replaced':
@@ -288,9 +295,11 @@
 				<p class="text-sm text-muted-foreground" data-join-detail>{step.message}</p>
 			{/if}
 
-			{#if step.refusal === 'consumed'}
-				<!-- the one control a spent link leads to: the machine is connected, so the wall is the
-				     way on, and it is the wall that asks for the password this person chose. -->
+			{#if step.refusal === 'consumed' && step.wasConnecting}
+				<!-- the one control a spent link leads to, and only where the act that spent it
+				     recorded the organization first: the machine is connected, so the wall is the way
+				     on, and it is the wall that asks for the password this person chose. A machine
+				     link refuses before it records anything, so there is no wall to offer. -->
 				<Button class="w-full justify-center" onclick={onSignIn}>
 					<LogInIcon class="size-4" />
 					{$LL.organization.join.toSignIn()}

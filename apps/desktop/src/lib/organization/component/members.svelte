@@ -258,11 +258,16 @@
 	 * password is not set yet is offered one even while a machine is signed in, because nobody is
 	 * signed in that the link would double, and an account with a password is offered one only
 	 * while no machine is. Rust refuses the rest, and the standing line says why the act is absent.
+	 *
+	 * **An account with no standing yet offers no link**, which is the same reading `standingLine`
+	 * makes of the same absence: the standings are still being answered, or the query failed, and
+	 * an act drawn from nothing would be offered on a card whose own line says nothing, then
+	 * refused by Rust on the gate this is standing in for.
 	 */
 	const linkable = (member: OrganizationMember) => {
 		const standing = standingOf(member.id);
 
-		return !standing || !standing.passwordSet || !standing.machineSignedIn;
+		return standing !== null && (!standing.passwordSet || !standing.machineSignedIn);
 	};
 
 	/**

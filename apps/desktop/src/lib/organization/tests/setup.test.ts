@@ -663,10 +663,15 @@ test('the connect-existing way is two steps and is not the walk that creates', (
 });
 
 /**
- * A refused connect is read the way a refused create is, and off the same signal. A machine
- * somebody is still on shuts this way in and Rust gives the consent back, so the walk returns to
- * the consent carrying the sentence; everything else leaves the authority where it was and is
- * said on the step, against the password, with what was typed still in the fields.
+ * A refused connect is read off **what was refused**. A machine somebody is still on shuts this way
+ * in and Rust gives the consent back with a `preconditionFailed`, so the walk returns to the
+ * consent carrying the sentence; everything else leaves the consent where it was and is said on
+ * the step, against the password, with what was typed still in the fields.
+ *
+ * *It read the Turso authority instead until ticket 20, which is a fact about this machine rather
+ * than about what was refused: a connect that failed on the network at a moment when the state
+ * this machine held of itself said the authority was gone sent the person back to grant a consent
+ * they had never lost. The network case is the last assertion here.*
  */
 test('a connect refused after the consent was given back sends the walk to the connect step', () => {
 	const refused = {
@@ -675,7 +680,7 @@ test('a connect refused after the consent was given back sends the walk to the c
 			'a machine that holds this organization is still in use. make a link on that machine and open it here'
 	};
 
-	assert.deepEqual(refusalAfterFailedConnect(refused, false), {
+	assert.deepEqual(refusalAfterFailedConnect(refused), {
 		step: 'connect',
 		message: refused.message,
 		askGroup: false,
@@ -684,16 +689,27 @@ test('a connect refused after the consent was given back sends the walk to the c
 
 	// the owner typed the wrong password: the consent is intact, so the walk stays where it is.
 	assert.equal(
-		refusalAfterFailedConnect(
-			{
-				code: 'forbidden',
-				message:
-					'the username and password do not open a place in the organization this turso account holds'
-			},
-			true
-		),
+		refusalAfterFailedConnect({
+			code: 'forbidden',
+			message:
+				'the username and password do not open a place in the organization this turso account holds'
+		}),
 		null
 	);
+
+	// and the connection dropped: the consent is intact too, and this is the one the authority
+	// could not be trusted to answer for. The person tries again where they are.
+	assert.equal(
+		refusalAfterFailedConnect({
+			code: 'network',
+			message:
+				'the organization could not be reached. the account is right; try again once the connection is back'
+		}),
+		null
+	);
+
+	// a failure the boundary did not name at all leaves them where they are as well.
+	assert.equal(refusalAfterFailedConnect(new Error('something else')), null);
 });
 
 /** and the two sentences the connect refuses with are Rust's, read back out of `setup.rs`. */

@@ -378,11 +378,16 @@ test('where each account stands is answered for every member, to any signed-in m
 	assert.equal(asked, 1);
 });
 
-// effort 828, requirement 20 from this side: one act makes a link for an account, and it is held
-// to `inviteMember`, because what it hands somebody is the way a machine joins an account. Opening
-// one happens on a machine where nobody has signed in yet, so the connect is public. The code is
-// six characters here as it is on an invitation, and everything else about the link is Rust's.
-test('making a link is held to inviteMember, and connecting with one reaches the host signed out', async () => {
+// effort 828, requirement 20 from this side: one act makes a link for an account, and it is held to
+// `inviteMember` **or** `resetPassword`. What it hands somebody is the way a machine joins an
+// account, which is what making an account was always half of; it is also the only thing that
+// restores an account whose password `unsetPassword` beside it took away, and that act is
+// `resetPassword`'s. Held to the first alone, a member widened with the second and not the first
+// could take a password away and could not hand back the link that gives one; the human struck
+// that risk on 2026-09-16. Opening a link happens on a machine where nobody has signed in yet, so
+// the connect is public. The code is six characters here as it is on an invitation, and everything
+// else about the link is Rust's.
+test('making a link is held to inviteMember or resetPassword, and connecting with one reaches the host signed out', async () => {
 	const asked: string[] = [];
 	const host = fakeHost({
 		organization: {
@@ -426,6 +431,15 @@ test('making a link is held to inviteMember, and connecting with one reaches the
 	assert.equal(made.link, 'rentable://join/abc');
 	assert.deepEqual(asked, ['linkMake:member-2']);
 
+	// and a holder of the other act alone, who is whoever can take the password away.
+	const resetting = await permittedApi(host, 'resetPassword');
+
+	assert.equal(
+		(await resetting.app.organization.member.linkMake({ memberId: 'member-3' })).code,
+		'7K4M9Q'
+	);
+	assert.deepEqual(asked, ['linkMake:member-2', 'linkMake:member-3']);
+
 	const connected = await signedOut.app.organization.machine.connect({
 		link: ' rentable://join/abc ',
 		code: '7K4M9Q'
@@ -433,7 +447,11 @@ test('making a link is held to inviteMember, and connecting with one reaches the
 
 	assert.equal(connected.organization?.memberId, null, 'a connect recorded a member');
 	assert.equal(connected.session, null, 'a connect opened a vault');
-	assert.deepEqual(asked, ['linkMake:member-2', 'machineConnect:rentable://join/abc:7K4M9Q']);
+	assert.deepEqual(asked, [
+		'linkMake:member-2',
+		'linkMake:member-3',
+		'machineConnect:rentable://join/abc:7K4M9Q'
+	]);
 
 	for (const code of ['', '7K4M9', '7K4M9QQ']) {
 		await assert.rejects(
@@ -442,7 +460,11 @@ test('making a link is held to inviteMember, and connecting with one reaches the
 	}
 
 	await assert.rejects(signedOut.app.organization.machine.connect({ link: '  ', code: '7K4M9Q' }));
-	assert.deepEqual(asked, ['linkMake:member-2', 'machineConnect:rentable://join/abc:7K4M9Q']);
+	assert.deepEqual(asked, [
+		'linkMake:member-2',
+		'linkMake:member-3',
+		'machineConnect:rentable://join/abc:7K4M9Q'
+	]);
 });
 
 // effort 828, requirement 20: making an account and unsetting its password are two acts behind two

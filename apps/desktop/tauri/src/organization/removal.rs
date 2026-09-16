@@ -417,6 +417,22 @@ pub(crate) async fn retire_member(
         )
         .await?;
 
+    // every way in they still had, withdrawn with the role. A link is judged against the row
+    // behind it and never against the member's standing, so an invitation or a machine link made
+    // before the removal would go on connecting a machine and pulling a replica of the directory
+    // after the person had been let go. The open rows go; a consumed one stays, as the record that
+    // this account opened a link once.
+    for stale in store
+        .invitations(&session.verifying_key)
+        .await?
+        .into_iter()
+        .filter(|invitation| invitation.member_id == member_id && invitation.consumed_at.is_none())
+    {
+        store.delete_invitation(&stale.id).await?;
+    }
+
+    store.delete_open_machine_links_of(member_id).await?;
+
     // end a removed administrator's authority. A member has no certificate and this does nothing;
     // an administrator's certificate is written back revoked, so a row they newly sign under it is
     // refused on read (F2, the half this ticket closes). But first the rows it legitimately signed

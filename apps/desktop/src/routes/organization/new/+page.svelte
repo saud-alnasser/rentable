@@ -167,11 +167,13 @@
 		try {
 			await connectExisting.mutateAsync({ username, password });
 		} catch (error) {
-			// the same reading a refused create gets: a machine somebody is still on gave the
-			// consent back, so where the machine stands is what decides. Everything else is said
-			// against the password on the step they are on, with what they typed still in it.
-			const state = await stateQuery.refetch();
-			const back = refusalAfterFailedConnect(error, state.data?.holdsTursoAuthority ?? false);
+			// read off what was refused rather than off where this machine stands: one refusal
+			// gives the consent back, a machine somebody is still on, and it is the only
+			// `preconditionFailed` this call makes. Everything else is said against the password on
+			// the step they are on, with what they typed still in it. *This refetched the state and
+			// read the Turso authority, so a connection that dropped at the wrong moment sent the
+			// person back to grant a consent they still had.*
+			const back = refusalAfterFailedConnect(error);
 
 			if (!back) {
 				existingRefusal = toErrorDetail(error);

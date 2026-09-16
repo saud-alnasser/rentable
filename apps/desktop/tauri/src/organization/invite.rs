@@ -418,9 +418,17 @@ pub async fn unset_password<P: TursoPlatform>(
 /// link. The register (requirement 15) is what answers that, and a machine unseen for a week no
 /// longer counts.
 ///
-/// **Neither kind mints anything**, so a holder of `inviteMember` makes either: what the link
-/// seals is the maker's own grant on the organization database, which dies within four weeks
-/// whatever happens to the link.
+/// **Neither kind mints anything**, so whoever may make one makes either: what the link seals is
+/// the maker's own grant on the organization database, which dies within four weeks whatever
+/// happens to the link.
+///
+/// **It is `inviteMember`'s or `resetPassword`'s** (the human's word, 2026-09-16, striking the
+/// spec's risk on it). A link is how a machine joins an account, which is what making an account
+/// was always half of; it is also the only thing that restores an account whose password
+/// [`unset_password`] took away, and that act is `resetPassword`'s. Held to the first alone, a
+/// member widened with the second and not the first could take a password away and could not hand
+/// back the link that gives one, which is a person locked out by somebody with no way to let them
+/// in. Owners and administrators hold both by role, so no default role moves.
 pub async fn make_link<P: TursoPlatform>(
     store: &OrganizationStore,
     session: &MemberSession,
@@ -431,9 +439,9 @@ pub async fn make_link<P: TursoPlatform>(
     now: i64,
 ) -> Result<MadeLink, Error> {
     session.settled()?;
-    permission::require(
+    permission::require_any(
         permissions_on_row(store, session).await?,
-        Administration::InviteMember,
+        &[Administration::InviteMember, Administration::ResetPassword],
     )?;
 
     let members = store.members(&session.verifying_key).await?;
@@ -525,6 +533,7 @@ pub async fn make_link<P: TursoPlatform>(
     };
     let sealed = seal_payload(
         &code,
+        locator,
         &half,
         &LinkPayload {
             credential,
@@ -669,6 +678,12 @@ async fn reseal_account<P: TursoPlatform>(
     {
         store.delete_invitation(&stale.id).await?;
     }
+
+    // and every unspent machine link, for the same reason: the vault this re-seal replaces is the
+    // one the account's old password opened, and a machine link made before it still carries a
+    // live credential and a row nothing has spent. One way in stands at a time, and the link made
+    // after this is it.
+    store.delete_open_machine_links_of(member_id).await?;
 
     let password = write_account(
         store,
@@ -995,10 +1010,16 @@ pub(super) fn link_expiry(credential: &str, now: i64) -> i64 {
 pub(crate) fn vault_password_of(join_link: &str, code: &str, kdf_params: KdfParams) -> String {
     let link = super::link::JoinLink::decode(join_link).expect("the invitation link");
 
-    super::link::open_payload(code, &link.half, &link.credential, kdf_params)
-        .expect("the code did not open the payload")
-        .vault_password
-        .expect("the payload holds no vault password")
+    super::link::open_payload(
+        code,
+        &link.locator(),
+        &link.half,
+        &link.credential,
+        kdf_params,
+    )
+    .expect("the code did not open the payload")
+    .vault_password
+    .expect("the payload holds no vault password")
 }
 
 /// What making an account and resetting one both write: the vault, the row, the certificate where
@@ -1518,8 +1539,14 @@ mod tests {
     fn payload_of(invited: &AccountAndLink) -> LinkPayload {
         let link = JoinLink::decode(&invited.join_link).expect("the link");
 
-        open_payload(&invited.code, &link.half, &link.credential, test_cost())
-            .expect("the code did not open the payload")
+        open_payload(
+            &invited.code,
+            &link.locator(),
+            &link.half,
+            &link.credential,
+            test_cost(),
+        )
+        .expect("the code did not open the payload")
     }
 
     /// A credential shaped the way a minted one is, dying at `expires_at`. The in-memory platform
@@ -1714,10 +1741,16 @@ mod tests {
         );
         assert_eq!(made.expires_at, NOW + INVITATION_LIFETIME_MS);
         assert!(
-            open_payload(&made.code, &decoded.half, &decoded.credential, test_cost())
-                .expect("the code did not open the payload")
-                .vault_password
-                .is_some(),
+            open_payload(
+                &made.code,
+                &decoded.locator(),
+                &decoded.half,
+                &decoded.credential,
+                test_cost()
+            )
+            .expect("the code did not open the payload")
+            .vault_password
+            .is_some(),
             "the invitation-kind link carries no vault password"
         );
 
@@ -1785,6 +1818,136 @@ mod tests {
             .is_err(),
             "a spent link opened a second machine"
         );
+    }
+
+    /// Ticket 20, the human's first ask: **a link is made by a holder of `inviteMember` or of
+    /// `resetPassword`, and by nobody else.**
+    ///
+    /// `unset_password` beside this act takes an account's password away and is `resetPassword`'s;
+    /// a link is the only thing that gives one back. Held to `inviteMember` alone, a member widened
+    /// with the second and not the first could lock somebody out and not let them in, which is what
+    /// the spec recorded under Risks and the human struck on 2026-09-16. Owners and administrators
+    /// hold both by role, so no default role moves and what is read here is a widened plain member.
+    ///
+    /// The account the link is made for has a password and nobody signed in on it, so the link is
+    /// the machine kind and the row behind it is unsigned: what is under test is the act and not
+    /// what a plain member can sign.
+    #[tokio::test]
+    async fn a_link_is_made_by_a_holder_of_either_act_and_by_nobody_else() {
+        let directory = scratch("link-acts");
+        let (store, owner, link, _, _) = owned(&directory).await;
+        let subject = create_account(
+            &store,
+            &owner,
+            no_platform(),
+            "sami.staff",
+            permission::MEMBER,
+            0,
+            &[],
+            test_cost(),
+            NOW,
+        )
+        .await
+        .expect("the account could not be made");
+        let (sami, sami_machine) = opened_as(&store, &owner, &link, &subject.id, "sami", NOW).await;
+
+        // sami signs out, so the account's own standing never bars the links made below.
+        store
+            .unregister_machine(&sami_machine)
+            .await
+            .expect("the machine could not be taken out of the register");
+
+        // a plain member widened with `resetPassword` and nothing else.
+        let resetter = create_account(
+            &store,
+            &owner,
+            no_platform(),
+            "rita.reset",
+            permission::MEMBER,
+            permission::mask_of(&[permission::Administration::ResetPassword]),
+            &[],
+            test_cost(),
+            NOW,
+        )
+        .await
+        .expect("the widened account could not be made");
+        let (rita, _) = opened_as(&store, &owner, &link, &resetter.id, "rita", NOW + 2).await;
+
+        make_link(
+            &store,
+            &rita,
+            no_platform(),
+            &link,
+            &subject.id,
+            test_cost(),
+            NOW + 4,
+        )
+        .await
+        .expect("a holder of resetPassword was refused the link that restores an account");
+
+        // and a member holding neither act is refused, with both named: a caller told only the
+        // first would go looking for a bit they do not need.
+        let refusal = make_link(
+            &store,
+            &sami,
+            no_platform(),
+            &link,
+            &resetter.id,
+            test_cost(),
+            NOW + 5,
+        )
+        .await
+        .expect_err("a member holding neither act made a link");
+
+        assert!(
+            matches!(&refusal, Error::Forbidden { message }
+                if message.contains("inviteMember") && message.contains("resetPassword")),
+            "{refusal:?}"
+        );
+    }
+
+    /// One account opened on a machine of its own: the owner makes its link, the person opens it
+    /// and chooses a password, and what comes back is their session and their machine's id.
+    async fn opened_as(
+        store: &OrganizationStore,
+        owner: &MemberSession,
+        link: &Locator,
+        member_id: &str,
+        name: &str,
+        now: i64,
+    ) -> (MemberSession, String) {
+        let made = make_link(
+            store,
+            owner,
+            no_platform(),
+            link,
+            member_id,
+            test_cost(),
+            now,
+        )
+        .await
+        .expect("the link could not be made");
+        let directory = scratch(&format!("opened-{name}"));
+        let mut machine = fresh_machine(&directory);
+        let (_, session) = crate::organization::join::accept(
+            |_| async { Ok::<_, Error>(store) },
+            &mut machine,
+            &JoinLink::decode(&made.link).expect("the link"),
+            &made.code,
+            CHOSEN,
+            test_cost(),
+            now + 1,
+        )
+        .await
+        .expect("the account could not be opened");
+        let machine_id = machine
+            .organization
+            .as_ref()
+            .expect("the record")
+            .machine_id
+            .clone();
+
+        (session, machine_id)
     }
 
     /// Effort 828, requirement 20 and criterion 20: **the account's standing chooses the link's
@@ -1889,6 +2052,7 @@ mod tests {
         assert_eq!(
             open_payload(
                 &second.code,
+                &decoded.locator(),
                 &decoded.half,
                 &decoded.credential,
                 test_cost()

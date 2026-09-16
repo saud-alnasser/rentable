@@ -377,7 +377,7 @@ test('each act is drawn by its own gate and by no other', async () => {
 
 // [[rules/interface]], *Row activation*: activating a card opens its record, which for a workspace
 // is this section's address with the workspace named on it.
-test('a card opens its own record, and nothing on the card itself does anything else', () => {
+test('a card opens its own record, and nothing on the card itself does anything else', async () => {
 	list();
 
 	const jeddah = card('ws-2')!;
@@ -388,9 +388,18 @@ test('a card opens its own record, and nothing on the card itself does anything 
 	// the acts are behind the card's one control, and nothing else on it is pressable.
 	expect(jeddah.querySelectorAll('button')).toHaveLength(1);
 	expect(jeddah.querySelectorAll('a')).toHaveLength(1);
-	// and nothing left that a reader has to hover to find.
+	// and nothing left that a reader has to hover to find: the one control answers a press with no
+	// pointer having been over the card, which is what *reachable without hovering* means to
+	// somebody reading the section. *This read the card's markup for `opacity-0`, which passes on
+	// any other way of hiding a control and fails on any other use of the class.*
 	expect(document.querySelector('[data-workspace-actions]')).toBeNull();
-	expect(jeddah.innerHTML).not.toContain('opacity-0');
+
+	const trigger = jeddah.querySelector<HTMLButtonElement>('button')!;
+
+	expect(trigger.hidden).toBe(false);
+	expect(trigger.getAttribute('aria-hidden')).toBeNull();
+	await fireEvent.click(trigger);
+	expect(document.querySelectorAll('[data-slot=dropdown-menu-item]').length).toBeGreaterThan(0);
 });
 
 // the other half of the same rule: the section reads the workspace off the address and opens its

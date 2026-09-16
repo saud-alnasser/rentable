@@ -509,7 +509,10 @@ picker rounds over
   hand out the link that restores it.** *Found 2026-09-16 at converge.* Owners and
   administrators hold both by role, so the default roles are unaffected; a plain member widened
   with one and not the other is. Recorded, not changed: whether the link act should also follow
-  `resetPassword` is the human's call.
+  `resetPassword` is the human's call. *Struck 2026-09-16: the human's call is that it does. The
+  link act is held to `inviteMember` or `resetPassword`, in `invite::make_link` and in the router,
+  so whoever may take a password away may hand back the link that gives one. No default role
+  moves, and there is no longer a widening that locks somebody out with no way to let them in.*
 - **Deleting the organization is irreversible on the platform.** The confirmation says so and
   takes the password; delete protection is lifted per database as the platform port already
   does for a workspace.

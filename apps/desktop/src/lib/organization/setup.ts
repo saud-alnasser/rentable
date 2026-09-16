@@ -18,6 +18,7 @@
 
 import type { GroupState, OrganizationSession } from '$lib/platform/host';
 import { toErrorDetail } from '$lib/error/message';
+import { toTauriErrorCode } from '$lib/error/tauri';
 
 /**
  * the three steps of the walk that creates, in the order a person meets them: the consent, the
@@ -255,24 +256,26 @@ export function stepAfterConsent(group: GroupState): SetupStep {
 }
 
 /**
- * Where a failed connect leaves the walk, and it is the same reading `refusalAfterFailedCreate`
- * makes of the refusal beside it.
+ * Where a failed connect leaves the walk.
  *
- * **One refusal is told apart from every other, by the signal it leaves.** A machine an owner or
- * an administrator is on is still connected, so this way in is shut and Rust gives the consent
- * back: a machine that no longer holds the authority cannot connect however many times the
- * password is retyped, so the walk returns to the consent carrying the sentence, and the next
- * consent can be granted over another account.
+ * **One refusal is told apart from every other, and it is told apart by what Rust called it.** A
+ * machine an owner or an administrator is on is still connected, so this way in is shut and the
+ * connect gives the consent back; that refusal, and only that one, is `preconditionFailed`, so the
+ * walk returns to the consent carrying the sentence and the next consent can be granted over
+ * another account.
  *
- * `null` where the authority is intact, which is every refusal a person can act on where they
- * are: a wrong username or password, an account that stopped holding an organization, a
- * connection that dropped. The step keeps what was typed and marks the password.
+ * `null` for every other refusal, which is every one a person can act on where they are: a wrong
+ * username or password, an account that stopped holding an organization, a connection that
+ * dropped. The step keeps what was typed and marks the password.
+ *
+ * *It read the Turso authority instead until ticket 20, and that is a fact about this machine
+ * rather than about what was refused: a connect that failed on the network, at a moment when the
+ * state this machine had of itself said the authority was gone, sent the person back to grant a
+ * consent they had never lost. What was refused is what the refusal says, and nothing else here
+ * has to be true for it to be read.*
  */
-export function refusalAfterFailedConnect(
-	error: unknown,
-	holdsTursoAuthority: boolean
-): SetupRefusal | null {
-	if (holdsTursoAuthority) return null;
+export function refusalAfterFailedConnect(error: unknown): SetupRefusal | null {
+	if (toTauriErrorCode(error) !== 'preconditionFailed') return null;
 
 	return { step: 'connect', message: toErrorDetail(error), askGroup: false, detail: null };
 }

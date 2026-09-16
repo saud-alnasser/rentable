@@ -125,12 +125,25 @@ export type JoinStep =
 	 * the link admits nobody: which of the five it is, and the shell's own sentence under it,
 	 * since a standing that changed while the person was typing is worth reading in Rust's words.
 	 *
-	 * **This machine may or may not be connected here.** A code that was right unsealed the
-	 * credential and reached the organization before the row was judged, so a spent link lands the
-	 * machine connected and the wall is its way on; a lapsed link is refused before any key is
-	 * derived and reaches nothing.
+	 * **This machine may or may not be connected here**, and `wasConnecting` is which. The two
+	 * kinds of link judge their row at different moments: an invitation's accept unseals, reaches
+	 * the organization and records it before it looks at the invitation, so a spent one lands the
+	 * machine connected and the wall is its way on; a machine link reads its row first and refuses
+	 * a spent one with nothing recorded and nothing pulled. *The screen offered the wall on every
+	 * spent link and told the person this machine was connected, which was false on the second of
+	 * the two and left them pressing a control that led nowhere.*
 	 */
-	| { kind: 'refused'; link: string; refusal: JoinRefusal; message: string | null }
+	| {
+			kind: 'refused';
+			link: string;
+			refusal: JoinRefusal;
+			message: string | null;
+			/**
+			 * whether the act that was refused had already recorded the organization on this
+			 * machine, which is the invitation's accept and never the machine connect.
+			 */
+			wasConnecting: boolean;
+	  }
 	/**
 	 * an invitation that was read: which organization, and the password this person is choosing.
 	 * The link and the code they already gave are held to hand back to the accept, which is what
@@ -264,7 +277,15 @@ export function inspectionFailed(
 	}
 
 	if (failure === 'preconditionFailed') {
-		return { kind: 'refused', link, refusal: 'anotherOrganization', message: describe(error) };
+		// nothing was reached, so nothing was recorded: the read is a decode and refuses before any
+		// act runs.
+		return {
+			kind: 'refused',
+			link,
+			refusal: 'anotherOrganization',
+			message: describe(error),
+			wasConnecting: false
+		};
 	}
 
 	return { kind: 'unreachable', link, code, message: describe(error) };
@@ -307,12 +328,24 @@ export function joinFailed(
 	const message = describe(error);
 	const reason = toTauriRefusalReason(error);
 
+	// which act was refused, which is what says whether the organization was recorded first: the
+	// password step is the invitation's accept, which reaches and records before it judges the row,
+	// and the reading step is the machine connect, which judges its row before anything is
+	// recorded.
+	const wasConnecting = step.kind === 'password';
+
 	if (reason) {
-		return { kind: 'refused', link: step.link, refusal: reason, message };
+		return { kind: 'refused', link: step.link, refusal: reason, message, wasConnecting };
 	}
 
 	if (failure === 'preconditionFailed') {
-		return { kind: 'refused', link: step.link, refusal: 'anotherOrganization', message };
+		return {
+			kind: 'refused',
+			link: step.link,
+			refusal: 'anotherOrganization',
+			message,
+			wasConnecting
+		};
 	}
 
 	if (failure === 'network') {

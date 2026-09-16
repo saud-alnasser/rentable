@@ -799,6 +799,8 @@ const en = {
 			lapsed: 'this invitation has lapsed. ask whoever invited you for a new link.',
 			consumed:
 				'this invitation link has already been opened. this machine is connected, so sign in with your username and the password you chose.',
+			consumedElsewhere:
+				'this link has already been opened on another machine. ask whoever keeps the accounts for a new one.',
 			revoked: 'this invitation was withdrawn. ask whoever invited you for a new link.',
 			replaced:
 				'a newer link took the place of this one. ask whoever keeps the accounts for the new one.',

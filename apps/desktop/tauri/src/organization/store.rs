@@ -1407,6 +1407,25 @@ impl OrganizationStore {
         Ok(())
     }
 
+    /// Take this member's name off every machine in the registry: what ending their sessions
+    /// everywhere leaves behind (effort 828, requirements 15 and 20).
+    ///
+    /// **The rows stay and stop naming anybody**, which is the shape an ordinary sign-out writes
+    /// through [`OrganizationStore::machine_seen`]: those machines still hold the organization, so
+    /// they still stand in the way of a connect by the Turso account, and what ended is who is
+    /// signed in on them. That is also what frees the link act, which is offered exactly while no
+    /// machine is signed in on the account.
+    pub async fn clear_member_from_machines(&self, member_id: &str) -> Result<(), Error> {
+        self.connection
+            .execute(
+                "UPDATE \"machine\" SET \"member_id\" = NULL WHERE \"member_id\" = ?",
+                vec![turso::Value::Text(member_id.to_string())],
+            )
+            .await?;
+
+        Ok(())
+    }
+
     /// Every machine seen inside [`MACHINE_PRESENCE_WINDOW`] of `now`, each with the member row
     /// signed in on it where one is named: the registry's one reader (effort 828, requirement
     /// 15).
@@ -1421,6 +1440,12 @@ impl OrganizationStore {
     /// A machine naming a member who is no longer in the organization comes back with `None`
     /// beside it rather than being dropped: it is still a machine holding the organization, and
     /// what the caller is counting is machines.
+    ///
+    /// **The window is bounded at both ends.** Every machine writes its own `seen_at` and the row
+    /// carries no signature, so a row dated in the future is one anybody could write, and a window
+    /// left open above would let a single row hold the owner's way in shut for as long as that
+    /// date says rather than for the week the window is. A machine seen later than now has not
+    /// been seen.
     pub async fn connected_machines(
         &self,
         organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
@@ -1431,8 +1456,11 @@ impl OrganizationStore {
             .connection
             .query(
                 "SELECT \"id\", \"member_id\", \"seen_at\", \"created_at\" FROM \"machine\" \
-                 WHERE \"seen_at\" > ? ORDER BY \"created_at\", \"id\"",
-                vec![turso::Value::Integer(now - MACHINE_PRESENCE_WINDOW)],
+                 WHERE \"seen_at\" > ? AND \"seen_at\" <= ? \n                 ORDER BY \"created_at\", \"id\"",
+                vec![
+                    turso::Value::Integer(now - MACHINE_PRESENCE_WINDOW),
+                    turso::Value::Integer(now),
+                ],
             )
             .await?;
         let mut machines = Vec::new();
@@ -3015,6 +3043,64 @@ mod tests {
             names,
             vec!["id", "member_id", "seen_at", "created_at"],
             "the machine row carries a column the registry does not need"
+        );
+    }
+
+    /// Ticket 20, the review's sixth finding: **a row dated in the future does not count as
+    /// connected.**
+    ///
+    /// Every machine writes its own `seen_at` and nothing signs the row, so a date years out is a
+    /// row anybody with the organization credential could write; with the window open above, one
+    /// of them held the owner's way back in shut for as long as that date said rather than for the
+    /// week the window is (requirement 14's gate is this read's only caller, and the spec records
+    /// what an unsigned registry is worth). A machine seen later than now has not been seen.
+    #[tokio::test]
+    async fn a_machine_seen_in_the_future_does_not_count_as_connected() {
+        let directory = scratch("registry-future");
+        let store = open(&directory).await;
+        let chain = Chain::new();
+
+        populated(&store, &chain).await;
+
+        let now = 1_757_000_000_000_i64;
+        let year = 365 * 24 * 60 * 60 * 1000_i64;
+
+        store
+            .machine_seen("machine-here", Some("member-owner"), now - 1)
+            .await
+            .expect("the machine that is here");
+        store
+            .machine_seen("machine-ahead", Some("member-staff"), now + year)
+            .await
+            .expect("the machine dated ahead");
+
+        let ids: Vec<String> = store
+            .connected_machines(&chain.verifying_key(), now)
+            .await
+            .expect("the connected machines")
+            .into_iter()
+            .map(|(machine, _)| machine.id)
+            .collect();
+
+        assert_eq!(
+            ids,
+            vec!["machine-here".to_string()],
+            "a row dated in the future counted as a connected machine"
+        );
+
+        // and it is the date and not the row that is refused: the same machine seen now counts.
+        store
+            .machine_seen("machine-ahead", Some("member-staff"), now)
+            .await
+            .expect("the machine seen now");
+
+        assert_eq!(
+            store
+                .connected_machines(&chain.verifying_key(), now)
+                .await
+                .expect("the connected machines")
+                .len(),
+            2
         );
     }
 

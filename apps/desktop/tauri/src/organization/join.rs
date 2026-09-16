@@ -184,7 +184,7 @@ where
     // the code and the link's secret together: the code keys the seal and the secret salts it, so
     // neither on its own derives anything (effort 828, requirement 1). What comes out is the
     // issuer's own grant on the organization database and the password their vault was made under.
-    let payload = open_payload(code, half, &link.credential, kdf_params)?;
+    let payload = open_payload(code, &link.locator(), half, &link.credential, kdf_params)?;
     let vault_password = payload
         .vault_password
         .ok_or_else(|| invitation_refused(&link.organization_name, Refusal::Revoked))?;
@@ -1437,7 +1437,7 @@ mod tests {
         )
         .expect("the sealed payload is base64url");
         let salt = code_salt(&half.secret).expect("the salt");
-        let context = payload_context(&half);
+        let context = payload_context(&invitation.locator(), &half);
 
         for wrong in [half.secret.as_str(), "ABCDEF", "000000"] {
             let key = derive_member_key(wrong, &salt, test_cost()).expect("a key");
@@ -1562,7 +1562,8 @@ mod tests {
 
         // the payload the link carried is the issuer's own grant on the organization database,
         // which is the credential the machine read the rows with.
-        let payload = open_payload(&code, &half, &sealed, test_cost()).expect("the payload");
+        let payload = open_payload(&code, &invitation.locator(), &half, &sealed, test_cost())
+            .expect("the payload");
 
         assert_eq!(
             Some(payload.credential.as_str()),
@@ -1869,6 +1870,7 @@ mod tests {
         let invitation = JoinLink::decode(&invited.join_link).expect("the invitation link");
         let reached_with = open_payload(
             &invited.code,
+            &invitation.locator(),
             &invitation.half,
             &invitation.credential,
             test_cost(),

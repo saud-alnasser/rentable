@@ -233,21 +233,6 @@ const press = async (id: string, kind: string) => {
 const surface = () => document.querySelector('[data-slot=form-surface]');
 const usernameInput = () => document.querySelector<HTMLInputElement>('input[name=username]');
 
-/** the weight the transfer's surface declares, read off the component the way the rules below are
- * read off Rust: the weight is what a form says about itself and never a measurement of the window
- * ([[rules/interface]], *Form surface*), so the declaration is the thing to pin. */
-const transferSurfaceWeight = () => {
-	const source = readFileSync(
-		resolve(process.cwd(), 'src/lib/organization/component/transfer-ownership.svelte'),
-		'utf8'
-	);
-	const declared = /weight="([a-z]+)"/.exec(source);
-
-	if (!declared) throw new Error('transfer-ownership.svelte no longer declares a weight');
-
-	return declared[1];
-};
-
 /** the one sentence Rust refuses a username outside the rules with, read off the source. */
 const rustUsernameRules = () => {
 	const source = readFileSync(
@@ -387,7 +372,7 @@ test('the section says who is listed and what it is for, in the tray', () => {
 
 // [[rules/interface]], *Row activation*: activating a card opens its record, which for an account
 // is this section's address with the account named on it.
-test('a card opens its own record, and nothing on the card itself does anything else', () => {
+test('a card opens its own record, and nothing on the card itself does anything else', async () => {
 	list();
 
 	const ada = card('ada')!;
@@ -398,9 +383,18 @@ test('a card opens its own record, and nothing on the card itself does anything 
 	// the acts are behind the card's one control, and nothing else on it is pressable.
 	expect(ada.querySelectorAll('button')).toHaveLength(1);
 	expect(ada.querySelectorAll('a')).toHaveLength(1);
-	// and nothing left that a reader has to hover to find.
+	// and nothing left that a reader has to hover to find: the one control answers a press with no
+	// pointer having been over the card, which is what *reachable without hovering* means to
+	// somebody reading the section. *This read the card's markup for `opacity-0`, which passes on
+	// any other way of hiding a control and fails on any other use of the class.*
 	expect(document.querySelector('[data-member-actions]')).toBeNull();
-	expect(ada.innerHTML).not.toContain('opacity-0');
+
+	const trigger = ada.querySelector<HTMLButtonElement>('button')!;
+
+	expect(trigger.hidden).toBe(false);
+	expect(trigger.getAttribute('aria-hidden')).toBeNull();
+	await fireEvent.click(trigger);
+	expect(document.querySelectorAll('[data-slot=dropdown-menu-item]').length).toBeGreaterThan(0);
 });
 
 // the other half of the same rule: the section reads the account off the address and opens that
@@ -507,10 +501,17 @@ test('the transfer opens a heavy form surface naming what changes and taking the
 	const form = document.querySelector('[data-transfer-ownership-form]');
 
 	expect(form).not.toBeNull();
-	expect(surface()).not.toBeNull();
-	// the weight is declared rather than measured, so it is read off the declaration, the way the
-	// username rules below are read off Rust's.
-	expect(transferSurfaceWeight()).toBe('heavy');
+
+	// the heavy weight, read off the surface that was rendered. A heavy form is the edge panel the
+	// full height of the window and a light one is the centred card; what tells them apart in the
+	// document is what each presents as, which is why the rendered element is what is read here.
+	// *It read `transfer-ownership.svelte` off disk and regexed the attribute until ticket 20,
+	// which passes on a component nothing renders.*
+	const panel = surface()!;
+
+	expect(panel).not.toBeNull();
+	expect(panel.className).toContain('h-full');
+	expect(panel.className).not.toContain('rounded-3xl');
 	expect(document.querySelector('[data-transfer-ownership-goes]')?.textContent?.trim()).toBe(
 		en.organization.dashboard.transferOwnershipGoes
 	);
@@ -652,7 +653,7 @@ test('the link act follows the standing, and the card says why it is not offered
 	expect(document.querySelector('[data-member-code]')).toBeNull();
 	open.unmount();
 
-	list({
+	const signedIn = list({
 		selfId: 'owner',
 		standings: [
 			standing({ memberId: 'owner', machineSignedIn: true }),
@@ -667,6 +668,20 @@ test('the link act follows the standing, and the card says why it is not offered
 	);
 	// an account with no password is offered one even so: nobody is signed in that it would double.
 	expect(await actsOn('sami')).toContain('link');
+	signedIn.unmount();
+
+	// **and the act is absent while the standings are unknown** (ticket 20, the review's tenth
+	// finding). The standings are a second read: a card drawn before they arrive, or after they
+	// failed, carries no standing line, and an account whose standing nothing knows was being
+	// offered the one act that standing gates. What follows is a link Rust refuses, on a card whose
+	// own line says nothing about why.
+	const loading = list({ standings: [] });
+
+	expect(await actsOn('ada')).not.toContain('link');
+	expect(await actsOn('sami')).not.toContain('link');
+	// and the rest of the card is drawn as it was: it is the link alone that waits.
+	expect(await actsOn('ada')).toContain('rename');
+	loading.unmount();
 });
 
 // criterion 22 of effort 826: ending somebody's sessions is `resetPassword`'s, beside the reset and
