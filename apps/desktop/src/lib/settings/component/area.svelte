@@ -72,6 +72,7 @@
 		isChangingPassword,
 		isChangingRole,
 		isChangingAccess,
+		isTransferring,
 		isDeletingOrganization,
 		onChangeLocale,
 		onRevealDiagnostics,
@@ -85,6 +86,7 @@
 		onRename,
 		onChangeRole,
 		onChangeAccess,
+		onTransferOwnership,
 		onChangeWorkspaceAccess,
 		onDeleteWorkspace,
 		onAuthorityReconnected,
@@ -112,6 +114,8 @@
 		isChangingPassword: boolean;
 		isChangingRole: boolean;
 		isChangingAccess: boolean;
+		/** the organization is being handed over, which is two signed rows and a push. */
+		isTransferring: boolean;
 		/** the organization is being deleted, which is several requests and a sweep of the disk. */
 		isDeletingOrganization: boolean;
 		onChangeLocale: (next: Locales) => void;
@@ -141,6 +145,12 @@
 			memberId: string,
 			changes: { id: string; access: 'none' | 'full-access' | 'read-only' }[]
 		) => Promise<void>;
+		/**
+		 * hand the organization to another account, with the owner's own password (effort 828,
+		 * requirement 22). Rejects with what the shared handler has said, which the members
+		 * section puts on the password.
+		 */
+		onTransferOwnership: (memberId: string, password: string) => Promise<void>;
 		/** the same grants read the other way round: one workspace, and the members that changed. */
 		onChangeWorkspaceAccess: (
 			workspaceId: string,
@@ -190,6 +200,30 @@
 			changingPassword = false;
 		} catch (error) {
 			passwordRefusal = toErrorText(error, $LL);
+		}
+	};
+
+	/** what the shell refused the last transfer with, marked on the surface's password field. */
+	let transferRefusal = $state<string | null>(null);
+
+	/**
+	 * the organization, handed to another account from the members section.
+	 *
+	 * The same shape the password change and the delete have, and for the same reason: the surface
+	 * that went through closes and empties, and a refusal keeps it open and puts the sentence on
+	 * the password, because the password is what the shell refuses this with ([[rules/interface]],
+	 * *Validation errors*). What the owner sees afterwards is an administrator's settings area,
+	 * because the session's role is refreshed with the list.
+	 */
+	const transferOwnership = async (memberId: string, password: string) => {
+		transferRefusal = null;
+
+		try {
+			await onTransferOwnership(memberId, password);
+		} catch (error) {
+			transferRefusal = toErrorText(error, $LL);
+
+			throw error;
 		}
 	};
 
@@ -315,6 +349,8 @@
 				{endingSessions}
 				{isChangingRole}
 				{isChangingAccess}
+				{isTransferring}
+				{transferRefusal}
 				{onEndSessions}
 				{onMakeLink}
 				{onUnsetPassword}
@@ -323,6 +359,7 @@
 				{onRename}
 				{onChangeRole}
 				{onChangeAccess}
+				onTransferOwnership={transferOwnership}
 			/>
 		</Field.Group>
 	{:else if shown === 'workspaces' && session}

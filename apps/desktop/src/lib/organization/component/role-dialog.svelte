@@ -157,8 +157,10 @@
 					>
 						{roleLabel('administrator')}
 					</Select.Item>
-					<!-- the owner's row is never opened here, and ownership does not transfer: the
-					     word is the list's, not a value this writes. -->
+					<!-- the owner's row is never opened here, and owner is not a role this writes:
+					     the word is the list's. Ownership is handed over by its own act, on the
+					     owner's own card (effort 828, requirement 22), because it moves a key and
+					     two rows rather than a value on one. -->
 				</Select.Content>
 			</Select.Root>
 		</Field.Field>

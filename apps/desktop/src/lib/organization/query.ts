@@ -672,6 +672,41 @@ export function useChangeRole(
 }
 
 /**
+ * hand the organization to another account (effort 828, requirement 22).
+ *
+ * **The state key is refreshed beside the list**, because the reader's own role changes with the
+ * act: they are an administrator the moment it goes through, and the sections the settings area
+ * offers them are read off that. Without it the screen would go on drawing an owner's controls
+ * until a relaunch.
+ *
+ * The refusal a person can act on is a password that does not open their vault, and the surface
+ * marks it on the field ([[rules/interface]], *Validation errors*), so the caller reads the
+ * rejection rather than only hearing it.
+ */
+export function useTransferOwnership(
+	opts: MutationOptions = {
+		toast: {
+			success: () => get(LL).organization.dashboard.ownershipTransferred(),
+			error: true,
+			unexpected: () => get(LL).common.messages.unexpectedError()
+		}
+	}
+) {
+	const client = useQueryClient();
+
+	return createMutation(() => ({
+		mutationFn: ({ memberId, password }: { memberId: string; password: string }) =>
+			api.app.organization.member.transferOwnership({ memberId, password }),
+		onSuccess: async () => {
+			await client.invalidateQueries({ queryKey: keys.members });
+			await client.invalidateQueries({ queryKey: keys.state });
+			onMutationSuccess(opts);
+		},
+		onError: (e) => onMutationError(opts, e)
+	}));
+}
+
+/**
  * one member's access on one workspace, as a dialog hands the change back. `none` is the grant
  * coming back.
  */

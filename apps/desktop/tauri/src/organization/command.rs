@@ -1258,6 +1258,36 @@ pub async fn member_change_role(
     .await
 }
 
+/// Hand the organization to another account (effort 828, requirement 22).
+///
+/// **The owner's alone, and their password is what performs it.** The role is read off the session
+/// the wall opened and refused in Rust; the password is tried against the owner's own row, so a
+/// wrong one refuses before a single row is written and a machine somebody walked away from is not
+/// a way to give their organization away. Nothing about the password crosses back.
+///
+/// **The signing key does not change and no row is re-signed.** Its seed is sealed to the new
+/// owner's public key on their row, the two roles swap, and the directory still verifies against
+/// the key it was written under. The Turso account does not move with it: until the new owner
+/// grants the consent on their own machine, the acts that mint run on the founder's machine or not
+/// at all, and the sync section there says so.
+///
+/// What comes back is the new owner as the members list shows them.
+#[tauri::command]
+pub async fn member_transfer_ownership(
+    app_state: tauri::State<'_, AppState>,
+    member_id: String,
+    password: String,
+) -> Result<MemberFacts, Error> {
+    let mut member = app_state.member.write().await;
+    let store = app_state.organization.read().await;
+    let (member, store) = signed_in(&mut member, &store)?;
+    // the two rows this act writes back whole carry the session epoch, so they are read after a
+    // pull rather than off this machine's last sight of them (effort 826, requirement 22).
+    store.pull().await;
+
+    role::transfer_ownership(store, member, &member_id, &password, timestamp::now()).await
+}
+
 /// Rename a member: their row written back with the username re-sealed and signed by whoever
 /// renamed them. The owner's or an administrator's, on any row but their own; the username is
 /// held to the same rules and the same uniqueness as an invitation's. What comes back is the

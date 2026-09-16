@@ -274,6 +274,8 @@ export const tauri = {
 				invoke<OrganizationMember>('member_rename', { memberId, username }),
 			changeRole: (memberId: string, role: 'administrator' | 'member', permissions: number) =>
 				invoke<OrganizationMember>('member_change_role', { memberId, role, permissions }),
+			transferOwnership: (memberId: string, password: string) =>
+				invoke<OrganizationMember>('member_transfer_ownership', { memberId, password }),
 			endSessions: (memberId: string) => invoke<SessionsEnded>('member_end_sessions', { memberId })
 		},
 		invitation: {

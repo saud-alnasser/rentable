@@ -153,6 +153,7 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 				lockOutCost: refuse('organization.member.lockOutCost'),
 				rename: refuse('organization.member.rename'),
 				changeRole: refuse('organization.member.changeRole'),
+				transferOwnership: refuse('organization.member.transferOwnership'),
 				endSessions: refuse('organization.member.endSessions')
 			},
 			invitation: {

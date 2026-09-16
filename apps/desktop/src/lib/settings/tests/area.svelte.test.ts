@@ -68,6 +68,7 @@ const area = (overrides: Partial<Parameters<typeof render<typeof SettingsArea>>[
 			isChangingPassword: false,
 			isChangingRole: false,
 			isChangingAccess: false,
+			isTransferring: false,
 			isDeletingOrganization: false,
 			onChangeLocale: noop,
 			onRevealDiagnostics: noop,
@@ -81,6 +82,7 @@ const area = (overrides: Partial<Parameters<typeof render<typeof SettingsArea>>[
 			onRename: resolved,
 			onChangeRole: resolved,
 			onChangeAccess: resolved,
+			onTransferOwnership: resolved,
 			onChangeWorkspaceAccess: resolved,
 			onDeleteWorkspace: resolved,
 			onAuthorityReconnected: noop,
@@ -292,6 +294,28 @@ test('an owner whose machine holds no authority is offered the reconnect in its 
 	expect(document.querySelector('[data-reconnect-authority]')).not.toBeNull();
 	expect(document.querySelector('[data-forget-account]')).toBeNull();
 	expect(screen.getByText(en.organization.dashboard.authorityDescription)).toBeDefined();
+});
+
+// criterion 22: an owner who was handed the organization holds no authority either, and the reason
+// is not that this machine lost one. The block says where the authority does belong, in one short
+// sentence, and offers the same reconnect.
+test('an owner holding no authority is told the authority follows the account that consented', () => {
+	at('?section=sync');
+	area({ section: 'sync', holdsTursoAuthority: false });
+
+	expect(screen.getByText(en.organization.dashboard.authorityFollowsTheAccount)).toBeDefined();
+	expect(document.querySelector('[data-authority-follows-the-account]')).not.toBeNull();
+	// and the offer beside it is the one that already existed.
+	expect(document.querySelector('[data-reconnect-authority]')).not.toBeNull();
+});
+
+// and nobody else meets it: an owner whose machine holds the authority has nothing to be told, and
+// a plain member never reads this block at all.
+test('the sentence is absent for an owner who holds the authority', () => {
+	at('?section=sync');
+	area({ section: 'sync', holdsTursoAuthority: true });
+
+	expect(document.querySelector('[data-authority-follows-the-account]')).toBeNull();
 });
 
 test('a plain member reads the sync status and the disconnect, and nothing of the account', () => {

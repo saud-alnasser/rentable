@@ -21,8 +21,10 @@
 	import DirectoryTray from '$lib/organization/component/directory-tray.svelte';
 	import RenameMemberDialog from '$lib/organization/component/rename-member-dialog.svelte';
 	import RoleDialog from '$lib/organization/component/role-dialog.svelte';
+	import TransferOwnership from '$lib/organization/component/transfer-ownership.svelte';
 	import { openOrganizationDialog } from '$lib/organization/dialogs.svelte';
 	import { RECORD_PARAM, recordOf, withSection } from '$lib/settings/section';
+	import CrownIcon from '@lucide/svelte/icons/crown';
 	import KeyIcon from '@lucide/svelte/icons/key-round';
 	import LaptopIcon from '@lucide/svelte/icons/laptop';
 	import LinkIcon from '@lucide/svelte/icons/link';
@@ -69,10 +71,10 @@
 	 * permissions* was a heading standing in for a verb.
 	 *
 	 * **The owner's account is removed by nobody and edited by nobody, and nobody edits their own
-	 * role, permissions or workspaces** (requirement 19). So the owner's card carries no act at
-	 * all, whoever is reading it, and is drawn with no menu and no gesture, which is what a card
-	 * with an empty action list does; the transfer of ownership is what will stand there, and it is
-	 * ticket 17's to draw. A reader's own card is the same: an account's name, role and workspaces
+	 * role, permissions or workspaces** (requirement 19). So the owner's card carries one act and
+	 * no other: handing the organization over (requirement 22), which is the owner's own and is
+	 * absent for everybody else, so an administrator meets that card with no menu and no gesture at
+	 * all. A reader's own card is the same: an account's name, role and workspaces
 	 * are given by somebody else, and Rust refuses each of the three on the row of whoever is
 	 * asking. *The owner's own card offered them their workspaces until the human's first look at
 	 * this directory: an owner reaches every workspace anyway, so it was a control over a state
@@ -112,6 +114,8 @@
 		endingSessions,
 		isChangingRole,
 		isChangingAccess,
+		isTransferring,
+		transferRefusal,
 		onEndSessions,
 		onMakeLink,
 		onUnsetPassword,
@@ -119,7 +123,8 @@
 		onLockOut,
 		onRename,
 		onChangeRole,
-		onChangeAccess
+		onChangeAccess,
+		onTransferOwnership
 	}: {
 		members: OrganizationMember[];
 		/** where each account stands, joined to the members on the member's id. */
@@ -152,6 +157,10 @@
 		endingSessions: string | null;
 		isChangingRole: boolean;
 		isChangingAccess: boolean;
+		/** the transfer is running, which is a moment the owner is waiting on. */
+		isTransferring: boolean;
+		/** what the shell refused the last transfer with, marked on the surface's password. */
+		transferRefusal: string | null;
 		/**
 		 * sign a member out of every machine. Their password is not changed by it, which is what
 		 * makes it a different act from the reset beside it.
@@ -181,6 +190,12 @@
 			memberId: string,
 			changes: { id: string; access: AccessChoice }[]
 		) => Promise<void>;
+		/**
+		 * hand the organization to another account, with the owner's own password (requirement
+		 * 22). It resolves when the two rows were written and rejects with what the shared handler
+		 * has already said, which is what leaves the surface open on a wrong password.
+		 */
+		onTransferOwnership: (memberId: string, password: string) => Promise<void>;
 	} = $props();
 
 	// this section's own address, resolved once. A card's is it with the account named on it, which
@@ -249,8 +264,22 @@
 		return !standing || !standing.passwordSet || !standing.machineSignedIn;
 	};
 
+	/**
+	 * the accounts the organization could be handed to: everybody but the owner's own row.
+	 *
+	 * A removed account is not in this list either, because the members query does not answer one.
+	 * Rust refuses both again on the signed row; this is the earlier refusal, and it is what keeps
+	 * the surface from offering a choice that cannot go through.
+	 */
+	const transferable = $derived(
+		members
+			.filter((member) => member.role !== 'owner')
+			.map((member) => ({ id: member.id, username: member.username }))
+	);
+
 	/** the member each dialog is open on, while it is. */
 	let renaming = $state<OrganizationMember | null>(null);
+	let transferring = $state(false);
 	let changingRole = $state<OrganizationMember | null>(null);
 	let changingAccess = $state<OrganizationMember | null>(null);
 	let isRenaming = $state(false);
@@ -319,6 +348,17 @@
 		}
 	};
 
+	const transfer = async (memberId: string, password: string) => {
+		try {
+			await onTransferOwnership(memberId, password);
+			transferring = false;
+		} catch {
+			// said by the shared handler, and marked on the password by the surface, which stays
+			// open with the account still chosen. The refusal that reaches here is a password that
+			// did not open the owner's vault, which a person answers by typing it again.
+		}
+	};
+
 	const changeAccess = async (changes: { id: string; access: AccessChoice }[]) => {
 		if (!changingAccess) return;
 
@@ -351,6 +391,21 @@
 	 * acts on.
 	 */
 	const actsOn = (member: OrganizationMember): RecordCardAction[] => [
+		// the owner's own card, and the one act on it (requirement 22). It is the owner's alone and
+		// on nobody else's card, so an administrator reading the owner's card still meets nothing.
+		...(isOwner && member.id === selfId && member.role === 'owner' && transferable.length > 0
+			? [
+					{
+						label: $LL.organization.dashboard.transferOwnership(),
+						icon: CrownIcon,
+						attributes: { 'data-member-transfer': member.id },
+						disabled: isTransferring,
+						onSelect: () => {
+							transferring = true;
+						}
+					}
+				]
+			: []),
 		...(canRename && writable(member)
 			? [
 					{
@@ -548,6 +603,17 @@
 		{/each}
 	</div>
 </Field.Set>
+
+<TransferOwnership
+	open={transferring}
+	onOpenChange={(open) => {
+		if (!open && !isTransferring) transferring = false;
+	}}
+	accounts={transferable}
+	{isTransferring}
+	errorMessage={transferRefusal}
+	onTransfer={(memberId, password) => void transfer(memberId, password)}
+/>
 
 <RenameMemberDialog
 	open={renaming !== null}

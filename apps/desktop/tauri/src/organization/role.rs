@@ -34,9 +34,10 @@ use super::{
     authority::{OrganizationKey, issue_certificate},
     invite::{MemberFacts, members},
     permission::{self, Administration},
-    session::{MemberSession, permissions_on_row},
-    setup::ORGANIZATION_KEY_PURPOSE,
+    session::{MemberSession, acting_row, permissions_on_row},
+    setup::{ORGANIZATION_KEY_PURPOSE, owner_key_from},
     store::{MemberRecord, OrganizationStore, Signer},
+    vault::{SECRET_KEY_BYTES, open_vault, seal_to_public_key, unseal_with_secret_key},
     workspace::signer_of,
 };
 
@@ -54,6 +55,203 @@ pub(super) fn signs_rows(permissions: i64) -> bool {
         .iter()
         .filter(|act| **act != SIGNS_NOTHING)
         .any(|act| permission::permits(permissions, *act))
+}
+
+/// What somebody who is not the owner is told when they ask for ownership to be transferred.
+pub const ONLY_THE_OWNER_TRANSFERS: &str =
+    "only the owner can hand the organization over. it is theirs";
+
+/// The organization key the acting session yields, read the one way there is (effort 828,
+/// requirement 22).
+///
+/// **The row is read, and not the session.** A session carries the secret a password opened and
+/// nothing about where the owner's key comes from, so the seal has to be read off the acting
+/// member's own verified row every time. `setup::owner_key_from` is what decides between the seal
+/// and the derivation; this is the pair of it for a machine that is already signed in.
+///
+/// It answers a key for anybody, because the caller has already refused anybody but the owner:
+/// what a member's secret derives here is simply not the organization's, and the certificate it
+/// would issue verifies against nothing.
+pub(super) async fn owner_key_of(
+    store: &OrganizationStore,
+    session: &MemberSession,
+) -> Result<OrganizationKey, Error> {
+    let row = acting_row(store, session).await?;
+
+    owner_key_from(&session.secret, row.owner_seed_sealed.as_deref())
+}
+
+/// Hand the organization to another account: they become the owner, the owner becomes an
+/// administrator, and the key that signs every row does not change (effort 828, requirement 22).
+///
+/// **Nothing is re-signed and nothing is re-keyed.** The organization key's seed is sealed to the
+/// new owner's public key, the way the content key already reaches every member, and written into
+/// the nullable `member.owner_seed_sealed`. Their vault opens it on any machine, so the key
+/// travels with the person rather than with this machine, and every row in the directory still
+/// verifies against the key it was written under. *Rejected in the plan: deriving a fresh key from
+/// the new owner's password and re-signing every row, which rewrites the whole directory for one
+/// act.*
+///
+/// **The password is asked for and tried against the row**, the way `removal::delete_organization`
+/// and `password::change_password` try one, so a wrong one refuses before a single row is written
+/// and a machine somebody walked away from is not a way to give their organization away.
+///
+/// **The Turso account does not move** (spec, *Out of Scope*). The authority is a token in one
+/// machine's keyring, granted by the person who consented, and no row holds it: until the new
+/// owner grants the consent on their own machine, minting and renewal run on the founder's or not
+/// at all. The sync section on their machine says so and offers the reconnect that exists.
+///
+/// The two rows are written under the old owner's own signer, which is what makes this the last
+/// act of that key's holder being the only one.
+pub async fn transfer_ownership(
+    store: &OrganizationStore,
+    session: &MemberSession,
+    member_id: &str,
+    password: &str,
+    now: i64,
+) -> Result<MemberFacts, Error> {
+    session.settled()?;
+
+    if session.role != permission::OWNER {
+        return Err(Error::Forbidden {
+            message: ONLY_THE_OWNER_TRANSFERS.to_string(),
+        });
+    }
+
+    if member_id == session.member_id {
+        return Err(Error::InvalidInput {
+            message: "you are the owner already. name the account that is to have it".to_string(),
+        });
+    }
+
+    let rows = store.members(&session.verifying_key).await?;
+    let owner = rows
+        .iter()
+        .find(|member| member.id == session.member_id)
+        .ok_or_else(|| Error::NotFound {
+            message: "your member row is not in the organization any more. sign in again"
+                .to_string(),
+        })?;
+    let member = rows
+        .iter()
+        .find(|member| member.id == member_id)
+        .ok_or_else(|| Error::NotFound {
+            message: "that member is not in this organization".to_string(),
+        })?;
+
+    if member.role == permission::REMOVED {
+        return Err(Error::PreconditionFailed {
+            message: "that member was removed. invite them again if they are to come back"
+                .to_string(),
+        });
+    }
+
+    // the password, tried against the owner's own row rather than trusted from the session: a
+    // wrong one says only that the value did not open, and nothing has been written.
+    let opened = open_vault(password, &owner.vault)?;
+
+    if opened.public_key() != session.secret.public_key() {
+        return Err(Error::Integrity {
+            message: "the vault the password opened is not the one this session holds".to_string(),
+        });
+    }
+
+    // the seed itself, and not the key built from it: what is sealed has to be the thirty-two
+    // bytes the new owner's machine will build the same key out of.
+    let seed = match &owner.owner_seed_sealed {
+        Some(sealed) => {
+            let opened = unseal_with_secret_key(&opened, sealed)?;
+
+            <[u8; SECRET_KEY_BYTES]>::try_from(opened.as_slice()).map_err(|_| Error::Integrity {
+                message: "the organization seed sealed to you is not a seed".to_string(),
+            })?
+        }
+        None => opened.derive_seed(ORGANIZATION_KEY_PURPOSE)?,
+    };
+    let organization_key = OrganizationKey::from_bytes(&seed);
+
+    // and the key is checked against what the directory was written under before anything moves,
+    // so a seal that opened to the wrong bytes cannot be passed on.
+    if organization_key.verifying_key() != session.verifying_key {
+        return Err(Error::Integrity {
+            message: "the organization key your vault holds is not the one this directory was \
+                      signed under"
+                .to_string(),
+        });
+    }
+
+    let (key, certificate) = signer_of(store, session).await?;
+    let signer = Signer {
+        key: &key,
+        certificate: &certificate,
+    };
+
+    store
+        .write_member(
+            &signer,
+            &MemberRecord {
+                role: permission::OWNER.to_string(),
+                permissions: permission::mask_of_role(permission::OWNER),
+                owner_seed_sealed: Some(seal_to_public_key(&member.vault.public_key, &seed)?),
+                updated_at: now,
+                ..member.clone()
+            },
+        )
+        .await?;
+    store
+        .write_member(
+            &signer,
+            &MemberRecord {
+                role: permission::ADMINISTRATOR.to_string(),
+                permissions: permission::mask_of_role(permission::ADMINISTRATOR),
+                // the seed leaves the old owner's row where it was on it: they keep the key they
+                // already hold, and taking it off would be re-signing the directory under a key
+                // nobody holds. What stops them transferring again is the role, which is now an
+                // administrator's, and every act that certifies a signer is held to the same line.
+                updated_at: now,
+                ..owner.clone()
+            },
+        )
+        .await?;
+
+    // the new owner signs rows from here on, so they need a certificate over the key their row has
+    // carried since it was written. An administrator already holds one and it still stands, since
+    // neither their key nor the organization's changed.
+    let certified = store.certificates().await?.into_iter().any(|certificate| {
+        certificate.member_id == member_id
+            && certificate.signing_public_key == member.signing_public_key
+            && certificate.revoked_at.is_none()
+    });
+
+    if !certified {
+        store
+            .write_certificate(&issue_certificate(
+                &organization_key,
+                &format!("cert-{member_id}"),
+                member_id,
+                &member.signing_public_key,
+                &now.to_string(),
+            ))
+            .await?;
+    }
+
+    if !store.push().await {
+        diagnostics::warn("organization.member.ownershipNotYetSent")
+            .with("member", member_id)
+            .write();
+    }
+
+    diagnostics::info("organization.member.ownershipTransferred")
+        .with("member", member_id)
+        .write();
+
+    members(store, session, now)
+        .await?
+        .into_iter()
+        .find(|member| member.id == member_id)
+        .ok_or_else(|| Error::Integrity {
+            message: "the new owner's row did not read back".to_string(),
+        })
 }
 
 /// Change what a member is called and what they may do, and keep their certificate in step.
@@ -151,9 +349,11 @@ pub async fn change_role(
 
     if signs_now && !signed_before {
         // their first signing act: the owner certifies the key the row has carried since it was
-        // written, which is the key `workspace::signer_of` will derive from their own vault.
-        let organization_key =
-            OrganizationKey::from_bytes(&session.secret.derive_seed(ORGANIZATION_KEY_PURPOSE)?);
+        // written, which is the key `workspace::signer_of` will derive from their own vault. The
+        // owner's own key is read through `owner_key_from`, so an owner who was given the
+        // organization certifies with the seed sealed onto their row rather than with one their
+        // secret would derive (effort 828, requirement 22).
+        let organization_key = owner_key_of(store, session).await?;
 
         store
             .write_certificate(&issue_certificate(
@@ -210,20 +410,23 @@ mod tests {
 
     use serde_json::json;
 
-    use super::{change_role, signs_rows};
+    use super::{ONLY_THE_OWNER_TRANSFERS, change_role, signs_rows, transfer_ownership};
     use crate::{
         error::Error,
         organization::{
             HeldOrganization,
-            authority::AdministratorKey,
+            authority::{AdministratorKey, OrganizationKey},
             invite::{AccountAndLink, Invitation, WorkspaceGrant, locator, make_account_and_link},
             link::Locator,
             migrate::Pipeline,
             permission::{self, Administration},
             session::{CredentialSlot, MemberSession, sign_in},
-            setup::{ADMINISTRATOR_KEY_PURPOSE, CreateOrganization, Remote, create_organization},
+            setup::{
+                ADMINISTRATOR_KEY_PURPOSE, CreateOrganization, ORGANIZATION_KEY_PURPOSE, Remote,
+                create_organization, owner_key_from,
+            },
             store::{OrganizationStore, Signer, TABLES},
-            vault::KdfParams,
+            vault::{KdfParams, open_vault, unseal_with_secret_key},
             workspace::{create_workspace, signer_of},
         },
         persisted::Persisted,
@@ -1030,5 +1233,264 @@ mod tests {
                 .expect("their row"),
             permission::mask_of(&[Administration::RemoveMember])
         );
+    }
+    // -------------------------------------------------------------------------------------
+    // Effort 828, requirement 22: ownership is transferred by the owner.
+    // -------------------------------------------------------------------------------------
+
+    /// **Criterion 22, the first half.** The transfer swaps the two rows and the key that signs
+    /// every row in the organization does not change, so nothing is re-signed and every row still
+    /// verifies.
+    ///
+    /// The verifying key is read three ways and all three are the same key: the one the old
+    /// owner's session pinned, the one the organization row carries, and the one the new owner's
+    /// own vault now yields out of the seal the transfer wrote. That last one is the whole of the
+    /// mechanism: their password opens their vault, their vault opens the seed, and the seed is
+    /// the founder's.
+    #[tokio::test]
+    async fn a_transfer_swaps_the_roles_and_every_row_still_verifies_against_the_unchanged_key() {
+        let directory = scratch("transfer");
+        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (ada, _) = a_member(
+            &store,
+            &owner,
+            &link,
+            "ada.admin",
+            permission::ADMINISTRATOR,
+            &workspace_id,
+        )
+        .await;
+        let key_before = owner.verifying_key;
+
+        let handed = transfer_ownership(&store, &owner, &ada.member_id, PASSWORD, NOW + 1)
+            .await
+            .expect("the transfer failed");
+
+        assert_eq!(handed.id, ada.member_id);
+        assert_eq!(handed.role, permission::OWNER);
+
+        // the two rows, read through the verified reader against the key that has not moved. A row
+        // that stopped verifying refuses this read by name rather than coming back changed.
+        assert_eq!(
+            row_of(&store, &owner, &ada.member_id).await,
+            (
+                permission::OWNER.to_string(),
+                permission::mask_of_role(permission::OWNER)
+            )
+        );
+        assert_eq!(
+            row_of(&store, &owner, &owner.member_id).await,
+            (
+                permission::ADMINISTRATOR.to_string(),
+                permission::mask_of_role(permission::ADMINISTRATOR)
+            )
+        );
+
+        // every row of every signed table verifies, which is what "nothing is re-signed" has to
+        // mean.
+        let rows = store
+            .members(&key_before)
+            .await
+            .expect("every member row verifies against the unchanged key");
+
+        store
+            .workspaces(&key_before)
+            .await
+            .expect("every workspace row verifies against the unchanged key");
+        store
+            .grants(&key_before)
+            .await
+            .expect("every grant row verifies against the unchanged key");
+
+        // and the key itself: the organization row's, and the one the new owner's vault yields
+        // through the seal the transfer put on their row.
+        let organization = store
+            .organization()
+            .await
+            .expect("the organization row")
+            .expect("the organization row is there");
+
+        assert_eq!(organization.verifying_key, key_before);
+
+        let new_owner = rows
+            .iter()
+            .find(|member| member.id == ada.member_id)
+            .expect("the new owner's row");
+        let sealed = new_owner
+            .owner_seed_sealed
+            .as_deref()
+            .expect("the new owner's row carries no sealed seed");
+        let theirs = open_vault(&secret_of(&ada), &new_owner.vault).expect("the new owner's vault");
+
+        assert_eq!(
+            owner_key_from(&theirs, Some(sealed))
+                .expect("the sealed seed did not open")
+                .verifying_key(),
+            key_before
+        );
+
+        // the seal is theirs alone: the old owner's secret does not open it, and what the new
+        // owner's own secret derives is not the organization's key either.
+        assert!(
+            unseal_with_secret_key(&owner.secret, sealed).is_err(),
+            "the old owner's secret opened the seal written for the new owner"
+        );
+        assert_ne!(
+            OrganizationKey::from_bytes(
+                &theirs
+                    .derive_seed(ORGANIZATION_KEY_PURPOSE)
+                    .expect("a seed")
+            )
+            .verifying_key(),
+            key_before,
+            "the new owner's own derivation happened to be the organization's key"
+        );
+
+        // the old owner's row keeps the seal it never had, and both sign rows: the certificate an
+        // administrator already held still stands, since neither key moved.
+        assert!(
+            rows.iter()
+                .find(|member| member.id == owner.member_id)
+                .expect("the old owner's row")
+                .owner_seed_sealed
+                .is_none(),
+            "the founder's row was given a seal it never needed"
+        );
+        assert!(certified(&store, &ada.member_id).await);
+        assert!(certified(&store, &owner.member_id).await);
+    }
+
+    /// **Criterion 22, the refusals.** The old owner is an administrator and can no longer hand
+    /// the organization on; an administrator was never able to; and a wrong password is refused
+    /// before a single row is written.
+    ///
+    /// The old owner's refusal is read off a session the wall reopens, because that is what a
+    /// person meets: the role in hand is the one their row now carries.
+    #[tokio::test]
+    async fn the_old_owner_cannot_transfer_again_and_an_administrator_never_could() {
+        let directory = scratch("transfer-refusals");
+        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (ada, ada_session) = a_member(
+            &store,
+            &owner,
+            &link,
+            "ada.admin",
+            permission::ADMINISTRATOR,
+            &workspace_id,
+        )
+        .await;
+        let (sami, _) = a_member(
+            &store,
+            &owner,
+            &link,
+            "sami.staff",
+            permission::MEMBER,
+            &workspace_id,
+        )
+        .await;
+
+        // an administrator, before anything has moved.
+        let before = every_row(&store).await;
+        let refused = transfer_ownership(
+            &store,
+            &ada_session,
+            &sami.member_id,
+            &secret_of(&ada),
+            NOW + 1,
+        )
+        .await
+        .expect_err("an administrator handed the organization on");
+
+        assert!(
+            matches!(refused, Error::Forbidden { ref message } if message == ONLY_THE_OWNER_TRANSFERS),
+            "{refused:?}"
+        );
+        assert_eq!(every_row(&store).await, before, "a refusal wrote something");
+
+        // a wrong password, from the owner. Nothing is written, and the refusal says only that the
+        // value did not open ([[rules/credentials]]).
+        let wrong = transfer_ownership(
+            &store,
+            &owner,
+            &ada.member_id,
+            "not the owners password",
+            NOW + 1,
+        )
+        .await
+        .expect_err("a wrong password handed the organization on");
+
+        assert!(matches!(wrong, Error::Integrity { .. }), "{wrong:?}");
+        assert_eq!(
+            every_row(&store).await,
+            before,
+            "a wrong password wrote something"
+        );
+
+        // naming themselves is not a transfer either, and it writes nothing.
+        let own = transfer_ownership(&store, &owner, &owner.member_id, PASSWORD, NOW + 1)
+            .await
+            .expect_err("the owner handed the organization to themselves");
+
+        assert!(matches!(own, Error::InvalidInput { .. }), "{own:?}");
+        assert_eq!(every_row(&store).await, before, "a refusal wrote something");
+
+        // and now the real one, after which the founder is an administrator and is refused by the
+        // same sentence the administrator above met.
+        transfer_ownership(&store, &owner, &ada.member_id, PASSWORD, NOW + 1)
+            .await
+            .expect("the transfer failed");
+
+        let founder = sign_in(
+            &store,
+            &joined_as(&owner, &owner.member_id, permission::ADMINISTRATOR),
+            PASSWORD,
+            &slot(),
+        )
+        .await
+        .expect("the old owner did not sign in");
+
+        assert_eq!(founder.role, permission::ADMINISTRATOR);
+
+        let again = transfer_ownership(&store, &founder, &sami.member_id, PASSWORD, NOW + 2)
+            .await
+            .expect_err("the old owner handed the organization on again");
+
+        assert!(
+            matches!(again, Error::Forbidden { ref message } if message == ONLY_THE_OWNER_TRANSFERS),
+            "{again:?}"
+        );
+    }
+
+    /// A member who was never an administrator can be given the organization, and the transfer is
+    /// what certifies them: they hold no certificate before it and one after, so the acts that
+    /// sign rows are theirs.
+    #[tokio::test]
+    async fn a_member_given_the_organization_is_certified_by_the_transfer() {
+        let directory = scratch("transfer-member");
+        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (sami, _) = a_member(
+            &store,
+            &owner,
+            &link,
+            "sami.staff",
+            permission::MEMBER,
+            &workspace_id,
+        )
+        .await;
+
+        assert!(!certified(&store, &sami.member_id).await);
+
+        transfer_ownership(&store, &owner, &sami.member_id, PASSWORD, NOW + 1)
+            .await
+            .expect("the transfer failed");
+
+        assert!(certified(&store, &sami.member_id).await);
+
+        // and the certificate verifies against the key that has not changed, which is what reading
+        // every row back through it proves.
+        store
+            .members(&owner.verifying_key)
+            .await
+            .expect("every member row verifies against the unchanged key");
     }
 }

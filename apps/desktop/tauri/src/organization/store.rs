@@ -95,7 +95,8 @@ const SCHEMA: [&str; 9] = [
         \"signature\" BLOB NOT NULL, \
         \"created_at\" INTEGER NOT NULL, \
         \"updated_at\" INTEGER NOT NULL, \
-        \"session_epoch\" INTEGER NOT NULL DEFAULT 0)",
+        \"session_epoch\" INTEGER NOT NULL DEFAULT 0, \
+        \"owner_seed_sealed\" BLOB)",
     "CREATE TABLE IF NOT EXISTS \"administrator_certificate\" (\
         \"id\" TEXT PRIMARY KEY NOT NULL, \
         \"member_id\" TEXT NOT NULL, \
@@ -198,6 +199,18 @@ pub struct MemberRecord {
     /// the number it opened under and a remembered key files it beside itself, so a session or a
     /// key from before the last bump is behind the row and opens nothing.
     pub session_epoch: i64,
+    /// the organization key's seed, sealed to this member's public key, on the row of an owner
+    /// who was given the organization rather than founding it (effort 828, requirement 22).
+    ///
+    /// **`None` on every other row, and on the founder's**, whose key is derived from their vault
+    /// secret and stored nowhere. A transfer seals the same seed to the new owner so that the key
+    /// does not change and no row is re-signed; everything that needs the owner's key reads this
+    /// first and derives only where there is none (`setup::owner_key_from`).
+    ///
+    /// **Inside the member preimage where it is present** (`authority::MemberAuthority`), so a
+    /// row without it hashes exactly as it did before the column existed and nobody can put a
+    /// seal on a row without the key that signs one.
+    pub owner_seed_sealed: Option<Vec<u8>>,
 }
 
 /// A `workspace` row. Only the database identity is under signature; the name and the schema
@@ -574,6 +587,7 @@ impl OrganizationStore {
                 signing_public_key: &member.signing_public_key,
                 role: &member.role,
                 permissions: member.permissions,
+                owner_seed_sealed: member.owner_seed_sealed.as_deref(),
             }),
         )?;
 
@@ -583,8 +597,9 @@ impl OrganizationStore {
                  (\"id\", \"username_sealed\", \"public_key\", \"signing_public_key\", \
                   \"sealed_secret_key\", \"sealed_content_key\", \"kdf_salt\", \"kdf_params\", \
                   \"role\", \"permissions\", \"must_change_password\", \"certificate_id\", \
-                  \"signature\", \"created_at\", \"updated_at\", \"session_epoch\") \
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                  \"signature\", \"created_at\", \"updated_at\", \"session_epoch\", \
+                  \"owner_seed_sealed\") \
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 vec![
                     turso::Value::Text(member.id.clone()),
                     turso::Value::Blob(member.username_sealed.clone()),
@@ -602,6 +617,10 @@ impl OrganizationStore {
                     turso::Value::Integer(member.created_at),
                     turso::Value::Integer(member.updated_at),
                     turso::Value::Integer(session_epoch),
+                    match &member.owner_seed_sealed {
+                        Some(sealed) => turso::Value::Blob(sealed.clone()),
+                        None => turso::Value::Null,
+                    },
                 ],
             )
             .await?;
@@ -824,7 +843,8 @@ impl OrganizationStore {
                     "SELECT \"id\", \"username_sealed\", \"public_key\", \"signing_public_key\", \
                             \"sealed_secret_key\", \"sealed_content_key\", \"kdf_salt\", \"kdf_params\", \
                             \"role\", \"permissions\", \"must_change_password\", \"certificate_id\", \
-                            \"signature\", \"created_at\", \"updated_at\", \"session_epoch\" \
+                            \"signature\", \"created_at\", \"updated_at\", \"session_epoch\", \
+                            \"owner_seed_sealed\" \
                      FROM \"member\"{filter} ORDER BY \"created_at\", \"id\""
                 ),
                 params,
@@ -840,6 +860,7 @@ impl OrganizationStore {
             let permissions = integer(&row, 9)?;
             let certificate_id = text(&row, 11)?;
             let signature = blob(&row, 12)?;
+            let owner_seed_sealed = nullable_blob(&row, 16)?;
 
             if let Some(organization_verifying_key) = organization_verifying_key {
                 verified(
@@ -853,6 +874,7 @@ impl OrganizationStore {
                         signing_public_key: &signing_public_key,
                         role: &role,
                         permissions,
+                        owner_seed_sealed: owner_seed_sealed.as_deref(),
                     }),
                     &signature,
                 )?;
@@ -877,6 +899,7 @@ impl OrganizationStore {
                     created_at: integer(&row, 13)?,
                     updated_at: integer(&row, 14)?,
                     session_epoch: integer(&row, 15)?,
+                    owner_seed_sealed,
                 },
             ));
         }
@@ -1734,6 +1757,14 @@ fn blob(row: &turso::Row, index: usize) -> Result<Vec<u8>, Error> {
     }
 }
 
+fn nullable_blob(row: &turso::Row, index: usize) -> Result<Option<Vec<u8>>, Error> {
+    match row.get_value(index)? {
+        turso::Value::Blob(value) => Ok(Some(value)),
+        turso::Value::Null => Ok(None),
+        other => Err(unexpected(index, "a blob or null", &other)),
+    }
+}
+
 fn integer(row: &turso::Row, index: usize) -> Result<i64, Error> {
     match row.get_value(index)? {
         turso::Value::Integer(value) => Ok(value),
@@ -1885,6 +1916,7 @@ mod tests {
                 created_at: 1_757_000_000_000,
                 updated_at: 1_757_000_000_000,
                 session_epoch: 0,
+                owner_seed_sealed: None,
             }
         }
 
@@ -2049,6 +2081,10 @@ mod tests {
         // an owner certifies when they widen somebody into an act that signs (effort 826,
         // requirement 6), `session_epoch` is what ends a session opened on another machine
         // (requirement 22), and `forget::old_shape` calls a replica without either the old shape.
+        // `owner_seed_sealed` is last and nullable, which is load-bearing: it is the organization
+        // key's seed sealed to an owner who was given the organization (effort 828, requirement
+        // 22), and it is folded into the signed preimage only where it is present, so a row
+        // without it hashes exactly as it did before the column existed.
         let mut columns = store
             .connection()
             .query("PRAGMA table_info(\"member\")", ())
@@ -2078,7 +2114,8 @@ mod tests {
                 "signature",
                 "created_at",
                 "updated_at",
-                "session_epoch"
+                "session_epoch",
+                "owner_seed_sealed"
             ]
         );
 
@@ -2348,6 +2385,80 @@ mod tests {
             Some("1757600000000")
         );
         assert_eq!(organization.verifying_key, key);
+    }
+
+    /// Effort 828, requirement 22: **a row written before the column and a row written with it
+    /// both verify**, against the same unchanged key.
+    ///
+    /// The nullable column is folded into the signed preimage only where it is present
+    /// (`authority::preimage`), so a row with no seal signs exactly the bytes it signed before
+    /// the column existed; `authority.rs` pins those bytes, and this is the same claim read
+    /// through the store, where a row also has to survive a write and a read.
+    ///
+    /// **The seal is under signature and not beside it**, which is what the third read here
+    /// shows: the column moved by hand on a row signed without it refuses the whole read, so
+    /// nobody can hand themselves the key that certifies signers by writing a blob.
+    #[tokio::test]
+    async fn a_member_row_with_the_owner_seed_and_one_without_both_read_back_verified() {
+        let directory = scratch("owner-seed");
+        let store = open(&directory).await;
+        let chain = Chain::new();
+        let key = chain.verifying_key();
+        let sealed = b"a sealed organization seed".to_vec();
+
+        store
+            .write_certificate(&chain.certificate)
+            .await
+            .expect("the certificate");
+        store
+            .write_member(&chain.signer(), &chain.member("founder", "olivia", "owner"))
+            .await
+            .expect("the row written before the column");
+        store
+            .write_member(
+                &chain.signer(),
+                &MemberRecord {
+                    owner_seed_sealed: Some(sealed.clone()),
+                    ..chain.member("transferee", "ada", "owner")
+                },
+            )
+            .await
+            .expect("the row written with the column");
+
+        let members = store.members(&key).await.expect("both rows verify");
+        let founder = members
+            .iter()
+            .find(|member| member.id == "founder")
+            .expect("the founder's row");
+        let transferee = members
+            .iter()
+            .find(|member| member.id == "transferee")
+            .expect("the transferee's row");
+
+        assert_eq!(founder.owner_seed_sealed, None);
+        assert_eq!(transferee.owner_seed_sealed.as_deref(), Some(&sealed[..]));
+
+        // and the column is under signature: putting a seal on the row that was signed without
+        // one refuses the read by name rather than handing back a row that carries it.
+        store
+            .connection()
+            .execute(
+                "UPDATE \"member\" SET \"owner_seed_sealed\" = ? WHERE \"id\" = ?",
+                vec![
+                    turso::Value::Blob(sealed.clone()),
+                    turso::Value::Text("founder".to_string()),
+                ],
+            )
+            .await
+            .expect("the update");
+
+        let refused = store
+            .members(&key)
+            .await
+            .expect_err("a seal added by hand read back as though it were signed");
+
+        assert!(matches!(refused, Error::Integrity { .. }), "{refused:?}");
+        assert!(refused.to_string().contains("founder"), "{refused}");
     }
 
     /// **A whole-row write never puts a member's session epoch back**, which is the whole of

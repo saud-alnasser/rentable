@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: ['15']
 ---
 
@@ -19,7 +19,7 @@ Traces requirement 22 of
 [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]], and its criteria 22
 and 12.
 
-- [ ] `store.rs`: `member` gains `owner_seed_sealed`, nullable, folded into the signed preimage
+- [x] `store.rs`: `member` gains `owner_seed_sealed`, nullable, folded into the signed preimage
       only where present, so a row without it hashes exactly as before (a test verifies a row
       written before the column, and one written with it). `role::transfer_ownership(session,
       store, member_id, password)` is the owner's alone: re-opens the owner's vault with the
@@ -33,17 +33,40 @@ and 12.
       with the account through `connect_existing` by the sealed seed; the old owner is an
       administrator who can no longer transfer; an administrator is refused; a wrong password is
       refused with nothing written.
-- [ ] `command.rs` and `lib.rs`: `member_transfer_ownership(member_id, password)`, owner only;
+      *Verified 2026-09-16 on the effort branch: `member.owner_seed_sealed BLOB` nullable and
+      last; `authority::MemberAuthority` appends it with a length prefix only where present;
+      `setup::owner_key_from` is the one seed read, used by `connect_existing`,
+      `role::change_role` and `invite::write_account`; `role::transfer_ownership` at
+      `role.rs:106`; `cargo test -- --test-threads=1`: `393 passed; 0 failed; 10 ignored`,
+      with the preimage-before-the-column, the preimage-with-the-seal, the byte-exact vector,
+      the swap with every row verifying, the old owner and an administrator refused, the
+      certificate for the new owner, and the fresh machine connecting by the sealed seed all
+      ok.*
+- [x] `command.rs` and `lib.rs`: `member_transfer_ownership(member_id, password)`, owner only;
       `host.ts`, `tauri.ts`, `router.ts` (under the owner's procedures) and `query.ts` follow;
       `router.test.ts` pins it. The owner's own card menu gains `transfer ownership` opening a
       `FormSurface` of `heavy` weight naming what changes (they become an administrator, the
       other account the owner, and the Turso account stays theirs) and taking the password;
       `members.svelte.test.ts` finds it for the owner and not for an administrator.
-- [ ] The sync section's authority block, on a machine whose owner holds no authority, says
+      *Verified: `member_transfer_ownership` registered in `lib.rs`;
+      `member.transferOwnership` pinned in `router.test.ts` (`pass 16`);
+      `transfer-ownership.svelte` is a heavy form surface; `members.svelte.test.ts` and
+      `area.svelte.test.ts`: `50 passed`, with the owner card offering the owner the transfer
+      alone, none for an administrator, the surface naming what changes and taking the
+      password, and a refusal marking it.*
+- [x] The sync section's authority block, on a machine whose owner holds no authority, says
       the authority follows the account that consented and offers the reconnect that exists;
       `area.svelte.test.ts` finds the sentence for such an owner.
-- [ ] Every string in both locales; `pnpm check`, `pnpm lint`, `pnpm test` and `cargo test`
+      *Verified: `an owner holding no authority is told the authority follows the account that
+      consented` and its absence for an owner who holds it, in the same run; the context's
+      *Authority* entry carries the dated correction and names `setup::owner_key_from`.*
+- [x] Every string in both locales; `pnpm check`, `pnpm lint`, `pnpm test` and `cargo test`
       pass; the changeset of ticket 03 is extended with one line.
+      *Verified in the run's worktree: both locales, Arabic written, `i18n-types.ts`
+      regenerated after the merge with 16 and folded in; `validate.mjs`: `266 artifacts
+      checked, no failures`; `pnpm check` exit 0 (desktop `9307 FILES 0 ERRORS 0 WARNINGS`),
+      `pnpm lint` exit 0, `pnpm test` exit 0 (desktop `206 passed`); `cargo test`: `393
+      passed`; the changeset carries the transfer's line.*
 
 ## Relevant areas
 
@@ -64,3 +87,12 @@ and 12.
 - **The Turso account does not move** (spec, *Out of Scope*).
 
 ## Notes
+
+- *2026-09-16, at integration.* The entry sits on the owner's own card, the account named on
+  the surface (requirement 19 and criterion 19; requirement 22's "from an account's card" is
+  read with them). The context's *Authority* entry carries the correction and states, in the
+  same block, that the *Chain* entry's "derived from the owner's secret and stored nowhere" now
+  holds for a founder alone. `invite::unset_password` already refuses an owner's row, which is
+  what keeps a transferee's seal from being orphaned by a reset. The transfer surface reads
+  "hand over ownership", two plain lines on what changes and what does not, a chooser, the
+  password, and "hand it over".

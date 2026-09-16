@@ -902,6 +902,7 @@ mod tests {
                     created_at: 1_757_000_000_000,
                     updated_at: 1_757_000_000_000,
                     session_epoch: 0,
+                    owner_seed_sealed: None,
                 },
             )
             .await
@@ -960,6 +961,7 @@ mod tests {
                     created_at: 1_757_000_000_000,
                     updated_at: 1_757_000_000_000,
                     session_epoch: 0,
+                    owner_seed_sealed: None,
                 },
             )
             .await

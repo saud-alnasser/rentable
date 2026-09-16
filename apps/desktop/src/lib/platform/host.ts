@@ -700,6 +700,17 @@ export type Host = {
 				permissions: number
 			) => Promise<OrganizationMember>;
 			/**
+			 * hand the organization to another account: they become the owner and the caller
+			 * becomes an administrator. The owner's alone, and their password is what performs it;
+			 * a wrong one rejects before anything is written and nothing about it comes back.
+			 *
+			 * The organization's signing key does not change and no row is re-signed: its seed is
+			 * sealed into the new owner's vault. The Turso account does not move with it, so
+			 * until the new owner grants the consent on their own machine the acts that mint run
+			 * on the founder's machine or not at all.
+			 */
+			transferOwnership: (memberId: string, password: string) => Promise<OrganizationMember>;
+			/**
 			 * sign a member out of every machine. Their password is not changed by it. Rejects the
 			 * caller's own row, which is `sessionEndElsewhere`, and the owner's row, which is
 			 * nobody else's to end.

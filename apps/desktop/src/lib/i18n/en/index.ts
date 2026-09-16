@@ -852,6 +852,17 @@ const en = {
 			// sentence a dialog opens with is the dialog's rather than the entry's.
 			makeLink: 'make a link',
 			changeRole: 'change role',
+			// requirement 22: the one entry on the owner's own card. Two plain words, and the
+			// sentence that says what changes belongs to the surface it opens.
+			transferOwnership: 'hand over ownership',
+			transferOwnershipGoes:
+				'the member you choose becomes the owner and you become an administrator. you keep every act an administrator has, and you stop being the one who can hand the organization on.',
+			transferOwnershipAccount: 'who becomes the owner',
+			transferOwnershipAuthority:
+				'your turso account does not move. the databases stay on it, and the new owner connects their own account from the sync section before they can create a workspace, lock anybody out or renew credentials.',
+			transferOwnershipPassword: 'your password',
+			transferOwnershipConfirm: 'hand it over',
+			ownershipTransferred: 'the organization was handed over. you are an administrator now.',
 			lockOut: 'lock out',
 			unsetPassword: 'reset password',
 			passwordUnset: 'their password was unset. make them a link so they can choose a new one.',
@@ -869,6 +880,10 @@ const en = {
 			authorityTitle: 'turso account',
 			authorityDescription:
 				"this machine holds no authority over the organization's turso account, so it cannot create a workspace, lock anybody out or renew credentials. the authority is nowhere to restore it from; grant the consent again here, as you did on the first run.",
+			// requirement 22: an owner who was handed the organization holds no authority, and the
+			// reason is not that this machine lost one. One short sentence saying where it is.
+			authorityFollowsTheAccount:
+				'the authority follows the turso account that granted it, not who owns the organization.',
 			authorityReconnected: 'the turso account is connected on this machine.',
 			remove: 'remove',
 			removeDescription:

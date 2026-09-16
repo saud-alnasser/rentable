@@ -813,6 +813,15 @@ const ar = {
 			invitationExpires: 'تنتهي صلاحية الرابط في {date}',
 			makeLink: 'اصنع رابطًا',
 			changeRole: 'غيّر الدور',
+			transferOwnership: 'سلّم الملكية',
+			transferOwnershipGoes:
+				'يصير العضو الذي تختاره هو المالك، وتصير أنت مديرًا. تبقى لك كل صلاحيات المدير، ولا تبقى أنت من يسلّم المؤسسة.',
+			transferOwnershipAccount: 'من يصير المالك',
+			transferOwnershipAuthority:
+				'حساب Turso لا ينتقل. تبقى قواعد البيانات عليه، ويصل المالك الجديد حسابه من قسم المزامنة قبل أن يستطيع إنشاء مساحة عمل أو حظر أحد أو تجديد الاعتمادات.',
+			transferOwnershipPassword: 'كلمة مرورك',
+			transferOwnershipConfirm: 'سلّمها',
+			ownershipTransferred: 'سُلّمت المؤسسة. أنت مدير الآن.',
 			lockOut: 'احظر',
 			unsetPassword: 'أعد تعيين كلمة المرور',
 			passwordUnset: 'أُلغيت كلمة مروره. اصنع له رابطًا ليختار كلمة مرور جديدة.',
@@ -829,6 +838,7 @@ const ar = {
 			authorityTitle: 'حساب Turso',
 			authorityDescription:
 				'هذا الجهاز لا يحمل صلاحية على حساب Turso الخاص بالمؤسسة، لذا لا يستطيع إنشاء مساحة عمل أو حظر أحد أو تجديد الاعتمادات. الصلاحية لا مكان لاستعادتها منه؛ امنح الموافقة مجددًا هنا، كما فعلت في التشغيل الأول.',
+			authorityFollowsTheAccount: 'الصلاحية تتبع حساب Turso الذي منحها، لا من يملك المؤسسة.',
 			authorityReconnected: 'حساب Turso متصل على هذا الجهاز.',
 			remove: 'أزل',
 			removeDescription:

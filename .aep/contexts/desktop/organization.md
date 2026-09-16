@@ -115,6 +115,18 @@ The Platform API token a consent produced, in the keyring on the owner's machine
 Creating a workspace, minting, rotating and deleting need it; an owner restored on a new machine
 repeats the consent for it, because no row holds it.
 
+*Corrected 2026-09-16 ([[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]],
+requirement 22): **the authority follows the account that consented and not the ownership**, so an
+owner who was handed the organization holds none until they grant the consent on their own machine,
+and until they do the acts that mint run on the founder's machine or not at all; the sync section
+says so beside the reconnect. Their **organization key** does move with the ownership, and it is the
+founder's own: the transfer seals its seed to the new owner's public key in `member.owner_seed_sealed`,
+a nullable column folded into the signed preimage only where it is present, so the key is unchanged,
+no row is re-signed, and a row without the seal hashes exactly as it did before the column existed.
+Everything that needs the owner's key reads the seal first and derives from the vault secret only
+where there is none (`setup::owner_key_from`), which is what the *Chain* entry's "derived from the
+owner's secret and stored nowhere" now means for a founder alone.*
+
 ## Boundaries
 
 - **The password and the keys never cross the IPC boundary.** Every command takes a password in

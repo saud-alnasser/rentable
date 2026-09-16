@@ -65,8 +65,9 @@ use super::{
     session::{self, CredentialSlot, MemberSession, content_key_of, remember, sign_in_by_username},
     store::{GrantRecord, MemberRecord, OrganizationRecord, OrganizationStore, Signer},
     vault::{
-        ContentKey, KdfParams, create_vault_with_secret_and_key, generate_content_key,
-        open_content, open_vault, seal_content, seal_to_public_key,
+        ContentKey, KdfParams, MemberSecretKey, SECRET_KEY_BYTES, create_vault_with_secret_and_key,
+        generate_content_key, open_content, open_vault, seal_content, seal_to_public_key,
+        unseal_with_secret_key,
     },
     workspace,
 };
@@ -119,6 +120,39 @@ pub const SHIPPING_KDF: KdfParams = KdfParams {
 /// The two purposes the owner's secret is turned into signing keys for.
 pub const ORGANIZATION_KEY_PURPOSE: &str = "organization-key";
 pub const ADMINISTRATOR_KEY_PURPOSE: &str = "administrator-key";
+
+/// The organization key an owner's open vault yields: **the seal first, and the derivation only
+/// where there is no seal** (effort 828, requirement 22).
+///
+/// **There are two kinds of owner and one key.** The founder's key follows from their vault
+/// secret and is stored nowhere, which is what the first run writes the organization row's
+/// `verifying_key` from. An owner who was given the organization holds the same seed, sealed to
+/// their public key in `member.owner_seed_sealed` by the transfer, because the key does not
+/// change and nothing is re-signed; deriving from their secret would yield a key of their own
+/// that no row was ever signed under.
+///
+/// **Every caller that needs the owner's key reads it through here**, so the two kinds cannot
+/// drift apart: `role::transfer_ownership` and the acts that certify a signer
+/// (`role::change_role`, `invite::write_account`) on a machine already signed in, and
+/// `setup::connect_existing` on a machine that holds nothing yet. What comes back is compared or
+/// used to sign; it is never trusted because a column offered it.
+pub fn owner_key_from(
+    secret: &MemberSecretKey,
+    owner_seed_sealed: Option<&[u8]>,
+) -> Result<OrganizationKey, Error> {
+    let seed = match owner_seed_sealed {
+        Some(sealed) => {
+            let opened = unseal_with_secret_key(secret, sealed)?;
+
+            <[u8; SECRET_KEY_BYTES]>::try_from(opened.as_slice()).map_err(|_| Error::Integrity {
+                message: "the organization seed sealed to this owner is not a seed".to_string(),
+            })?
+        }
+        None => secret.derive_seed(ORGANIZATION_KEY_PURPOSE)?,
+    };
+
+    Ok(OrganizationKey::from_bytes(&seed))
+}
 
 /// The three things a first run is given, and a fourth where it has already been refused without
 /// one.
@@ -593,6 +627,10 @@ async fn finish<P: TursoPlatform>(
                 created_at: now,
                 updated_at: now,
                 session_epoch: 0,
+                // the founder's key is derived from the secret just drawn and is stored nowhere,
+                // which is what the column is `None` for here and on every row but a transferee's
+                // (effort 828, requirement 22).
+                owner_seed_sealed: None,
             },
         )
         .await?;
@@ -1009,8 +1047,13 @@ async fn the_owners_key(
         return Err(refused());
     }
 
-    let verifying_key =
-        OrganizationKey::from_bytes(&secret.derive_seed(ORGANIZATION_KEY_PURPOSE)?).verifying_key();
+    // the seal first and the derivation only where there is none, so a transferee connects by the
+    // seed the transfer put on their row and the founder by the one their secret yields
+    // (requirement 22). A seal that does not open, or opens to something that is not a seed, is
+    // the same answer as a key that does not match: this is not the owner.
+    let verifying_key = owner_key_from(&secret, member.owner_seed_sealed.as_deref())
+        .map_err(|_| only_the_owner())?
+        .verifying_key();
 
     if verifying_key != row.verifying_key {
         return Err(only_the_owner());
@@ -2610,6 +2653,126 @@ mod tests {
         assert!(
             machine.organization.is_none(),
             "a refused connect left an organization on the machine"
+        );
+    }
+
+    /// **Criterion 22, the second half.** After a transfer, the new owner connects a fresh machine
+    /// with the Turso account and their own password, and what lets them is the seed the transfer
+    /// sealed onto their row.
+    ///
+    /// This is the same path as the first case above and the same refusal as the second, with one
+    /// thing changed: the account that types its password is the one ownership was handed to. Its
+    /// own secret derives a key nothing was ever signed under, which is exactly what refused adam
+    /// before the transfer, so the connect landing here is the seal being read and nothing else.
+    ///
+    /// **The key the machine pins is the founder's**, unchanged, which is what makes the rows it
+    /// pulled verify at all.
+    #[tokio::test]
+    async fn the_new_owner_connects_a_fresh_machine_by_the_seed_the_transfer_sealed() {
+        let _turn = take_the_credential_store().await;
+
+        store_platform_token(TOKEN).expect("the test credential store would not take the token");
+
+        let directory = scratch("connect-existing-transferred");
+        let (platform, replica, owners_machine) = an_organization(&directory).await;
+        let held_before = owners_machine.organization.clone().expect("the record");
+        let owner = sign_in(&replica, &held_before, PASSWORD, &slot())
+            .await
+            .expect("the owner did not sign in");
+        let locator = locator(&replica, &owner)
+            .await
+            .expect("the organization's link");
+        let invited = make_account_and_link(
+            &replica,
+            &owner,
+            no_platform(),
+            &locator,
+            Invitation {
+                username: "adam.admin",
+                role: permission::ADMINISTRATOR,
+                workspaces: &[],
+            },
+            test_cost(),
+            ISSUED_AT,
+        )
+        .await
+        .expect("the invitation failed");
+        let theirs = directory.join("adam");
+
+        std::fs::create_dir_all(&theirs).expect("the administrator's directory");
+
+        let mut their_machine = fresh_machine(&theirs, "remote-sync");
+
+        join::accept(
+            |_| async { Ok::<_, Error>(&replica) },
+            &mut their_machine,
+            &JoinLink::decode(&invited.join_link).expect("the invitation link"),
+            &invited.code,
+            ADMINISTRATORS_PASSWORD,
+            test_cost(),
+            ISSUED_AT + 1,
+        )
+        .await
+        .expect("the administrator could not open their link");
+
+        // the owner hands the organization over, with their own password.
+        crate::organization::role::transfer_ownership(
+            &replica,
+            &owner,
+            &invited.member_id,
+            PASSWORD,
+            ISSUED_AT + 2,
+        )
+        .await
+        .expect("the transfer failed");
+
+        drop(replica);
+
+        // long enough after that every machine has dropped out of the presence window, so what
+        // lets the connect through is the key and not the gate in front of it.
+        let now = ISSUED_AT + 2 * FOUR_WEEKS_MS;
+        let mcp = ScriptedServer::start(holding_the_organization()).await;
+        let mut machine = fresh_machine(&directory, "third-machine");
+        let (held, _, session) = connect_existing(
+            &mut machine,
+            TOKEN,
+            &McpEndpoint::at(&mcp.url("")),
+            |_| Arc::clone(&platform),
+            Remote::none(),
+            &directory.join("app.db"),
+            "adam.admin",
+            ADMINISTRATORS_PASSWORD,
+            now,
+        )
+        .await
+        .expect("the new owner could not connect to the organization they were given");
+
+        assert_eq!(held.id, HELD_ID);
+        assert_eq!(held.name, "Acme Rentals");
+        assert_eq!(held.role.as_deref(), Some(OWNER_ROLE));
+        assert_eq!(session.role, OWNER_ROLE);
+        assert_eq!(session.member_id, invited.member_id);
+
+        // the key this machine pinned is the founder's, which is the whole of what "nothing is
+        // re-signed" buys: the rows it just pulled were written under it and verify against it.
+        assert_eq!(
+            held.verifying_key,
+            BASE64URL.encode(owner.verifying_key),
+            "the machine pinned a key the directory was not signed under"
+        );
+
+        // and not a key their own secret derives, which is what refused them before the transfer.
+        assert_ne!(
+            held.verifying_key,
+            BASE64URL.encode(
+                OrganizationKey::from_bytes(
+                    &session
+                        .secret
+                        .derive_seed(ORGANIZATION_KEY_PURPOSE)
+                        .expect("the seed")
+                )
+                .verifying_key()
+            )
         );
     }
 

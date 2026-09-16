@@ -2591,6 +2591,34 @@ type RootTranslation = {
 			 */
 			changeRole: string
 			/**
+			 * h​a​n​d​ ​o​v​e​r​ ​o​w​n​e​r​s​h​i​p
+			 */
+			transferOwnership: string
+			/**
+			 * t​h​e​ ​m​e​m​b​e​r​ ​y​o​u​ ​c​h​o​o​s​e​ ​b​e​c​o​m​e​s​ ​t​h​e​ ​o​w​n​e​r​ ​a​n​d​ ​y​o​u​ ​b​e​c​o​m​e​ ​a​n​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​.​ ​y​o​u​ ​k​e​e​p​ ​e​v​e​r​y​ ​a​c​t​ ​a​n​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​ ​h​a​s​,​ ​a​n​d​ ​y​o​u​ ​s​t​o​p​ ​b​e​i​n​g​ ​t​h​e​ ​o​n​e​ ​w​h​o​ ​c​a​n​ ​h​a​n​d​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​o​n​.
+			 */
+			transferOwnershipGoes: string
+			/**
+			 * w​h​o​ ​b​e​c​o​m​e​s​ ​t​h​e​ ​o​w​n​e​r
+			 */
+			transferOwnershipAccount: string
+			/**
+			 * y​o​u​r​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​d​o​e​s​ ​n​o​t​ ​m​o​v​e​.​ ​t​h​e​ ​d​a​t​a​b​a​s​e​s​ ​s​t​a​y​ ​o​n​ ​i​t​,​ ​a​n​d​ ​t​h​e​ ​n​e​w​ ​o​w​n​e​r​ ​c​o​n​n​e​c​t​s​ ​t​h​e​i​r​ ​o​w​n​ ​a​c​c​o​u​n​t​ ​f​r​o​m​ ​t​h​e​ ​s​y​n​c​ ​s​e​c​t​i​o​n​ ​b​e​f​o​r​e​ ​t​h​e​y​ ​c​a​n​ ​c​r​e​a​t​e​ ​a​ ​w​o​r​k​s​p​a​c​e​,​ ​l​o​c​k​ ​a​n​y​b​o​d​y​ ​o​u​t​ ​o​r​ ​r​e​n​e​w​ ​c​r​e​d​e​n​t​i​a​l​s​.
+			 */
+			transferOwnershipAuthority: string
+			/**
+			 * y​o​u​r​ ​p​a​s​s​w​o​r​d
+			 */
+			transferOwnershipPassword: string
+			/**
+			 * h​a​n​d​ ​i​t​ ​o​v​e​r
+			 */
+			transferOwnershipConfirm: string
+			/**
+			 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​w​a​s​ ​h​a​n​d​e​d​ ​o​v​e​r​.​ ​y​o​u​ ​a​r​e​ ​a​n​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​ ​n​o​w​.
+			 */
+			ownershipTransferred: string
+			/**
 			 * l​o​c​k​ ​o​u​t
 			 */
 			lockOut: string
@@ -2642,6 +2670,10 @@ type RootTranslation = {
 			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​h​o​l​d​s​ ​n​o​ ​a​u​t​h​o​r​i​t​y​ ​o​v​e​r​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​,​ ​s​o​ ​i​t​ ​c​a​n​n​o​t​ ​c​r​e​a​t​e​ ​a​ ​w​o​r​k​s​p​a​c​e​,​ ​l​o​c​k​ ​a​n​y​b​o​d​y​ ​o​u​t​ ​o​r​ ​r​e​n​e​w​ ​c​r​e​d​e​n​t​i​a​l​s​.​ ​t​h​e​ ​a​u​t​h​o​r​i​t​y​ ​i​s​ ​n​o​w​h​e​r​e​ ​t​o​ ​r​e​s​t​o​r​e​ ​i​t​ ​f​r​o​m​;​ ​g​r​a​n​t​ ​t​h​e​ ​c​o​n​s​e​n​t​ ​a​g​a​i​n​ ​h​e​r​e​,​ ​a​s​ ​y​o​u​ ​d​i​d​ ​o​n​ ​t​h​e​ ​f​i​r​s​t​ ​r​u​n​.
 			 */
 			authorityDescription: string
+			/**
+			 * t​h​e​ ​a​u​t​h​o​r​i​t​y​ ​f​o​l​l​o​w​s​ ​t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​t​h​a​t​ ​g​r​a​n​t​e​d​ ​i​t​,​ ​n​o​t​ ​w​h​o​ ​o​w​n​s​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.
+			 */
+			authorityFollowsTheAccount: string
 			/**
 			 * t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​i​s​ ​c​o​n​n​e​c​t​e​d​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​.
 			 */
@@ -5393,6 +5425,34 @@ export type TranslationFunctions = {
 			 */
 			changeRole: () => LocalizedString
 			/**
+			 * hand over ownership
+			 */
+			transferOwnership: () => LocalizedString
+			/**
+			 * the member you choose becomes the owner and you become an administrator. you keep every act an administrator has, and you stop being the one who can hand the organization on.
+			 */
+			transferOwnershipGoes: () => LocalizedString
+			/**
+			 * who becomes the owner
+			 */
+			transferOwnershipAccount: () => LocalizedString
+			/**
+			 * your turso account does not move. the databases stay on it, and the new owner connects their own account from the sync section before they can create a workspace, lock anybody out or renew credentials.
+			 */
+			transferOwnershipAuthority: () => LocalizedString
+			/**
+			 * your password
+			 */
+			transferOwnershipPassword: () => LocalizedString
+			/**
+			 * hand it over
+			 */
+			transferOwnershipConfirm: () => LocalizedString
+			/**
+			 * the organization was handed over. you are an administrator now.
+			 */
+			ownershipTransferred: () => LocalizedString
+			/**
 			 * lock out
 			 */
 			lockOut: () => LocalizedString
@@ -5444,6 +5504,10 @@ export type TranslationFunctions = {
 			 * this machine holds no authority over the organization's turso account, so it cannot create a workspace, lock anybody out or renew credentials. the authority is nowhere to restore it from; grant the consent again here, as you did on the first run.
 			 */
 			authorityDescription: () => LocalizedString
+			/**
+			 * the authority follows the turso account that granted it, not who owns the organization.
+			 */
+			authorityFollowsTheAccount: () => LocalizedString
 			/**
 			 * the turso account is connected on this machine.
 			 */

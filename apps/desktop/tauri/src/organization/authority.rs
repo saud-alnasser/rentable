@@ -207,6 +207,19 @@ pub struct MemberAuthority<'a> {
     pub role: &'a str,
     /// What the member may administer, as the column holds it.
     pub permissions: i64,
+    /// The organization key's seed, sealed to this member's public key, on the row
+    /// of an owner who was given the organization rather than founding it (effort
+    /// 828, requirement 22). `None` on every other row, which is every row a
+    /// transfer has not touched.
+    ///
+    /// **Under signature, and appended rather than tagged.** It is what makes a
+    /// transferee the owner, so a writer able to put it on a row of their own
+    /// choosing would be handing themselves the key that certifies signers. The
+    /// preimage appends it only where it is present, so a row without it signs the
+    /// bytes it signed before the column existed and every row written before the
+    /// transfer still verifies; [`preimage`] says why that is unambiguous here
+    /// where `optional_field` is used elsewhere.
+    pub owner_seed_sealed: Option<&'a [u8]>,
 }
 
 /// What a `workspace` row puts under signature: the identity of the database it
@@ -444,6 +457,7 @@ fn preimage(certificate_id: &str, authority: Authority<'_>) -> Vec<u8> {
             signing_public_key,
             role,
             permissions,
+            owner_seed_sealed,
         }) => {
             message.extend_from_slice(MEMBER_DOMAIN);
             field(&mut message, certificate_id.as_bytes());
@@ -451,6 +465,20 @@ fn preimage(certificate_id: &str, authority: Authority<'_>) -> Vec<u8> {
             field(&mut message, signing_public_key);
             field(&mut message, role.as_bytes());
             field(&mut message, &permissions.to_be_bytes());
+
+            // appended where it is present and nothing at all where it is not, so a
+            // row with no seal signs exactly the bytes it signed before the column
+            // existed. That is what lets a column be added to a signed row without
+            // re-signing the directory (effort 828, requirement 22), and it is why
+            // `optional_field` is wrong here: its absent tag is one byte, and that
+            // byte is the whole of what would have broken every row already written.
+            //
+            // **Unambiguous because it is last and length-prefixed.** Nothing
+            // follows it, so an absent seal cannot be read as a present empty one:
+            // the first ends the message and the second appends eight zero bytes.
+            if let Some(owner_seed_sealed) = owner_seed_sealed {
+                field(&mut message, owner_seed_sealed);
+            }
         }
         Authority::Workspace(WorkspaceAuthority {
             database_name,
@@ -640,6 +668,22 @@ mod tests {
             signing_public_key: CHECKED_IN_MEMBER_SIGNING_PUBLIC_KEY,
             role,
             permissions: ADMINISTRATOR_PERMISSIONS,
+            owner_seed_sealed: None,
+        })
+    }
+
+    /// The same row, carrying the organization seed a transfer sealed onto it.
+    fn member_authority_with_seal<'a>(
+        public_key: &'a [u8],
+        role: &'a str,
+        owner_seed_sealed: &'a [u8],
+    ) -> Authority<'a> {
+        Authority::Member(MemberAuthority {
+            public_key,
+            signing_public_key: CHECKED_IN_MEMBER_SIGNING_PUBLIC_KEY,
+            role,
+            permissions: ADMINISTRATOR_PERMISSIONS,
+            owner_seed_sealed: Some(owner_seed_sealed),
         })
     }
 
@@ -731,6 +775,98 @@ mod tests {
                 &signature
             ),
             Ok(())
+        );
+    }
+
+    /// Effort 828, requirement 22: **a member row with no owner seed signs exactly the
+    /// bytes it signed before the column existed**, so every row written before a
+    /// transfer still verifies against the unchanged organization key.
+    ///
+    /// The expectation is written out here rather than taken from the function under
+    /// test: an assertion that the preimage equals the preimage says nothing, and
+    /// what this has to pin is the layout a row already on somebody's replica was
+    /// signed under.
+    #[test]
+    fn a_member_row_without_the_owner_seed_signs_the_bytes_it_signed_before_the_column() {
+        let public_key = checked_in_member_public_key();
+        let mut before = Vec::new();
+
+        before.extend_from_slice(MEMBER_DOMAIN);
+        field(&mut before, b"cert-an-administrator");
+        field(&mut before, &public_key);
+        field(&mut before, CHECKED_IN_MEMBER_SIGNING_PUBLIC_KEY);
+        field(&mut before, b"member");
+        field(&mut before, &ADMINISTRATOR_PERMISSIONS.to_be_bytes());
+
+        assert_eq!(
+            preimage(
+                "cert-an-administrator",
+                member_authority(&public_key, "member")
+            ),
+            before
+        );
+    }
+
+    /// And the row that carries one signs the same bytes with the seal appended, so
+    /// the two are different messages and a seal cannot be added to a row or taken
+    /// off one without the signature failing.
+    #[test]
+    fn a_member_row_carrying_the_owner_seed_folds_it_into_what_it_signs() {
+        let organization = an_organization();
+        let public_key = checked_in_member_public_key();
+        let seal = b"a sealed organization seed".as_slice();
+        let without = member_authority(&public_key, "owner");
+        let with = member_authority_with_seal(&public_key, "owner", seal);
+        let mut expected = preimage("cert-an-administrator", without);
+
+        field(&mut expected, seal);
+
+        assert_eq!(preimage("cert-an-administrator", with), expected);
+
+        // and the signature over one is not a signature over the other, in both
+        // directions: a row handed a seal it was not signed with is refused, and so
+        // is a row whose seal was taken off.
+        let signed_with_seal = sign(
+            &organization.administrator_key,
+            &organization.certificate,
+            with,
+        )
+        .expect("failed to sign");
+
+        assert_eq!(
+            verify(
+                &organization.verifying_key,
+                &organization.certificate,
+                with,
+                &signed_with_seal
+            ),
+            Ok(())
+        );
+        assert_eq!(
+            verify(
+                &organization.verifying_key,
+                &organization.certificate,
+                without,
+                &signed_with_seal
+            ),
+            Err(integrity(FORGED_ROW))
+        );
+
+        let signed_without = sign(
+            &organization.administrator_key,
+            &organization.certificate,
+            without,
+        )
+        .expect("failed to sign");
+
+        assert_eq!(
+            verify(
+                &organization.verifying_key,
+                &organization.certificate,
+                with,
+                &signed_without
+            ),
+            Err(integrity(FORGED_ROW))
         );
     }
 
@@ -1067,6 +1203,26 @@ mod tests {
             "a member row covers a different set of fields"
         );
 
+        // and the same row carrying the seed a transfer sealed onto it (effort 828, requirement
+        // 22): the bytes above with one more length-prefixed field appended, so the row above is
+        // still the row this crate signed before the column existed.
+        assert_eq!(
+            to_hex(&preimage(
+                CHECKED_IN_CERTIFICATE_ID,
+                member_authority_with_seal(&public_key, "administrator", b"a sealed seed")
+            )),
+            concat!(
+                "72656e7461626c652e6f7267616e697a6174696f6e2e617574686f726974792e",
+                "6d656d6265722e7632000000000000000d63657274696669636174652d310000",
+                "0000000000200102030405060708090a0b0c0d0e0f101112131415161718191a",
+                "1b1c1d1e1f2000000000000000203d4017c3e843895a92b70aa74d1b7ebc9c98",
+                "2ccf2ec4968cc0cd55f12af4660c000000000000000d61646d696e6973747261",
+                "746f7200000000000000080000000000000007",
+                "000000000000000d61207365616c65642073656564",
+            ),
+            "a member row carrying an owner seed covers a different set of fields"
+        );
+
         assert_eq!(
             to_hex(&preimage(
                 CHECKED_IN_CERTIFICATE_ID,
@@ -1124,6 +1280,7 @@ mod tests {
                     signing_public_key: &other_public_key,
                     role: "member",
                     permissions: ADMINISTRATOR_PERMISSIONS,
+                    owner_seed_sealed: None,
                 }),
             ),
             (
@@ -1133,7 +1290,14 @@ mod tests {
                     signing_public_key: CHECKED_IN_MEMBER_SIGNING_PUBLIC_KEY,
                     role: "member",
                     permissions: ADMINISTRATOR_PERMISSIONS + 1,
+                    owner_seed_sealed: None,
                 }),
+            ),
+            // and the seed a transfer seals onto an owner's row, put on a row that was signed
+            // without one (effort 828, requirement 22).
+            (
+                signed_member,
+                member_authority_with_seal(&public_key, "member", b"a sealed organization seed"),
             ),
             // workspace: database_name, database_hostname
             (

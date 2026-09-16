@@ -168,6 +168,8 @@ const list = (
 			endingSessions: null,
 			isChangingRole: false,
 			isChangingAccess: false,
+			isTransferring: false,
+			transferRefusal: null,
 			onEndSessions: noop,
 			onMakeLink: noop,
 			onUnsetPassword: noop,
@@ -176,6 +178,7 @@ const list = (
 			onRename: resolved,
 			onChangeRole: resolved,
 			onChangeAccess: resolved,
+			onTransferOwnership: resolved,
 			...overrides
 		},
 		{ wrapper: Providers, wrapperProps: { strings, direction } }
@@ -183,6 +186,7 @@ const list = (
 
 /** the acts a card can offer, in the order they are built. */
 const KINDS = [
+	'transfer',
 	'rename',
 	'role',
 	'access',
@@ -229,6 +233,21 @@ const press = async (id: string, kind: string) => {
 };
 const surface = () => document.querySelector('[data-slot=form-surface]');
 const usernameInput = () => document.querySelector<HTMLInputElement>('input[name=username]');
+
+/** the weight the transfer's surface declares, read off the component the way the rules below are
+ * read off Rust: the weight is what a form says about itself and never a measurement of the window
+ * ([[rules/interface]], *Form surface*), so the declaration is the thing to pin. */
+const transferSurfaceWeight = () => {
+	const source = readFileSync(
+		resolve(process.cwd(), 'src/lib/organization/component/transfer-ownership.svelte'),
+		'utf8'
+	);
+	const declared = /weight="([a-z]+)"/.exec(source);
+
+	if (!declared) throw new Error('transfer-ownership.svelte no longer declares a weight');
+
+	return declared[1];
+};
 
 /** the one sentence Rust refuses a username outside the rules with, read off the source. */
 const rustUsernameRules = () => {
@@ -449,15 +468,100 @@ test('the owner card carries an administrator nothing, and is drawn with no menu
 	expect(control('ada')).toBeNull();
 });
 
-// and the same card read by the owner: nothing, because nobody edits their own role, permissions
-// or workspaces (requirement 19, corrected on the human's first look at this directory). The
-// transfer of ownership is what will stand there, and it is ticket 17's.
-test('the owner card offers the owner nothing either, so nobody meets a menu on it', async () => {
+// and the same card read by the owner: one act and no other, because nobody edits their own role,
+// permissions or workspaces (requirement 19) and handing the organization over is the owner's own
+// (requirement 22). The rest of the card is as empty as it was.
+test('the owner card offers the owner the transfer alone', async () => {
 	list();
+
+	expect(await actsOn('owner')).toEqual(['transfer']);
+	expect(on('transfer', 'owner')).toBeNull();
+});
+
+// criterion 22: the act is on the owner's own card and on nobody else's.
+test('the transfer is on the owner own card and on no other', async () => {
+	list();
+
+	expect(await actsOn('ada')).not.toContain('transfer');
+	expect(await actsOn('sami')).not.toContain('transfer');
+});
+
+// and it is the owner's: an administrator reading the owner's card still meets no menu at all,
+// which is the card requirement 19 leaves empty for everybody but its holder.
+test('an administrator meets no transfer on the owner card', async () => {
+	list({ isOwner: false, canLockOut: false, selfId: 'ada' });
 
 	expect(control('owner')).toBeNull();
 	expect(await actsOn('owner')).toEqual([]);
-	expect(card('owner')?.querySelector('.sr-only')).toBeNull();
+});
+
+// requirement 22: what the surface says is the whole of what changes, in plain words, and the
+// Turso account staying put is the half nobody would guess. It takes the account and the password
+// and nothing else.
+test('the transfer opens a heavy form surface naming what changes and taking the password', async () => {
+	list();
+
+	expect(surface()).toBeNull();
+
+	await press('owner', 'transfer');
+
+	const form = document.querySelector('[data-transfer-ownership-form]');
+
+	expect(form).not.toBeNull();
+	expect(surface()).not.toBeNull();
+	// the weight is declared rather than measured, so it is read off the declaration, the way the
+	// username rules below are read off Rust's.
+	expect(transferSurfaceWeight()).toBe('heavy');
+	expect(document.querySelector('[data-transfer-ownership-goes]')?.textContent?.trim()).toBe(
+		en.organization.dashboard.transferOwnershipGoes
+	);
+	expect(document.querySelector('[data-transfer-ownership-authority]')?.textContent?.trim()).toBe(
+		en.organization.dashboard.transferOwnershipAuthority
+	);
+	expect(form?.querySelector('input[type=password]')).not.toBeNull();
+});
+
+// the account the organization goes to is chosen on the surface, and the owner's own row is not
+// one of the choices: they are the owner already, and Rust refuses that by name. The chooser is
+// the same `Select` the role and access surfaces use, whose list is drawn in a portal on opening,
+// so what is read here is how many accounts were handed to it rather than the opened list.
+test('every account but the owner own row is offered on the transfer', async () => {
+	list();
+
+	await press('owner', 'transfer');
+
+	expect(
+		document
+			.querySelector('[data-transfer-ownership-accounts]')
+			?.getAttribute('data-transfer-ownership-accounts')
+	).toBe('2');
+});
+
+// and a lone owner is offered nothing to hand it to, so the act is absent rather than opening a
+// surface with an empty chooser.
+test('an owner who is the only account meets no transfer', async () => {
+	list({
+		members: [member({ id: 'owner', username: 'olivia', role: 'owner' })],
+		standings: [standing({ memberId: 'owner', machineSignedIn: true })]
+	});
+
+	expect(control('owner')).toBeNull();
+	expect(await actsOn('owner')).toEqual([]);
+});
+
+// [[rules/interface]], *Validation errors*: the shell refuses a password that does not open the
+// owner's vault, so that is the field the sentence belongs to and the surface stays open.
+test('a refused transfer marks the password and the surface stays open', async () => {
+	list({ transferRefusal: 'that value did not open' });
+
+	await press('owner', 'transfer');
+
+	const password = document.querySelector<HTMLInputElement>(
+		'[data-transfer-ownership-form] input[type=password]'
+	);
+
+	expect(password?.getAttribute('aria-invalid')).toBe('true');
+	expect(screen.getByText('that value did not open')).toBeDefined();
 });
 
 // the same rule on a card that is not the owner's: an administrator reading their own card is
@@ -525,7 +629,8 @@ test('each act is drawn by its own act and by no other', async () => {
 	await only({ canRemove: true, canLockOut: true }, 'ada', ['remove', 'lock-out']);
 	await only({ canInvite: true }, 'ada', ['link']);
 	// and no act reaches the owner's card or the reader's own, whichever act the reader holds.
-	await only({ canGrantWorkspace: true, isOwner: true, selfId: 'owner' }, 'owner', []);
+	// the owner's own card offers the one act that is theirs, and nothing a permission gates.
+	await only({ canGrantWorkspace: true, isOwner: true, selfId: 'owner' }, 'owner', ['transfer']);
 	await only({ canGrantWorkspace: true, selfId: 'ada' }, 'ada', []);
 	await only({ canChangeRole: true, selfId: 'ada' }, 'ada', []);
 	await only({ canRename: true, selfId: 'ada' }, 'ada', []);

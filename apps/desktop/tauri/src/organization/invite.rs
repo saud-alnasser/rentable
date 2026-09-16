@@ -110,12 +110,12 @@ use crate::{
 };
 
 use super::{
-    authority::{AdministratorKey, OrganizationKey, issue_certificate},
+    authority::{AdministratorKey, issue_certificate},
     link::{Half, HalfKind, LinkPayload, Locator, seal_payload},
     permission::{self, Administration},
     removal,
     session::{MemberSession, permissions_on_row},
-    setup::{ADMINISTRATOR_KEY_PURPOSE, ORGANIZATION_KEY_PURPOSE, SHIPPING_KDF, credential_expiry},
+    setup::{ADMINISTRATOR_KEY_PURPOSE, SHIPPING_KDF, credential_expiry},
     store::{
         GrantRecord, InvitationRecord, MachineLinkRecord, MemberRecord, OrganizationStore, Signer,
     },
@@ -1291,8 +1291,10 @@ async fn write_account<P: TursoPlatform>(
             });
         }
 
-        let organization_key =
-            OrganizationKey::from_bytes(&session.secret.derive_seed(ORGANIZATION_KEY_PURPOSE)?);
+        // read through `role::owner_key_of`, so an owner who was given the organization certifies
+        // with the seed sealed onto their row rather than with one their secret would derive
+        // (effort 828, requirement 22).
+        let organization_key = super::role::owner_key_of(store, session).await?;
 
         // a reset draws a fresh vault secret, so `administrator_key` differs from the one this
         // member's old certificate names, and the certificate about to replace it carries the new
@@ -1355,6 +1357,9 @@ async fn write_account<P: TursoPlatform>(
                 // it back to zero would hand every keyring entry filed under an earlier one its
                 // first gate again.
                 session_epoch,
+                // an account is made and reset with no organization seed on it. A transfer is the
+                // one write that puts one there (effort 828, requirement 22).
+                owner_seed_sealed: None,
             },
         )
         .await?;

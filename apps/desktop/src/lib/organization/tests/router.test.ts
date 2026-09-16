@@ -266,6 +266,7 @@ test('nothing here asks the host to list organizations', () => {
 		'member.remove',
 		'member.rename',
 		'member.standings',
+		'member.transferOwnership',
 		'member.unsetPassword',
 		'password.change',
 		'session.endElsewhere',
@@ -606,6 +607,65 @@ test('deleting the organization needs a session and a password, and reaches the 
 
 	await assert.rejects(signedOut.app.organization.delete({ password: 'the owners password' }));
 	assert.deepEqual(asked, ['delete:the owners password']);
+});
+
+// effort 828, requirement 22: handing the organization over needs a session, an account and a
+// password, and it hands both on as given. It is `member` here rather than an act, for the reason
+// deleting the organization is: being the owner is what a password opened rather than a bit on a
+// row, so the owner check and the password are Rust's. A caller with nobody signed in is refused
+// before the host is reached, and so is an empty password or an empty account.
+test('handing the organization over needs a session, an account and a password, and reaches the host with both', async () => {
+	const asked: string[] = [];
+	const host = fakeHost({
+		organization: {
+			...fakeHost().organization,
+			member: {
+				...fakeHost().organization.member,
+				transferOwnership: async (memberId, password) => {
+					asked.push(`transfer:${memberId}:${password}`);
+
+					return {
+						id: memberId,
+						username: 'ada',
+						role: 'owner',
+						permissions: 127,
+						workspaces: [],
+						pending: null,
+						createdAt: 0
+					};
+				}
+			}
+		}
+	});
+
+	const member = await permittedApi(host);
+	const handed = await member.app.organization.member.transferOwnership({
+		memberId: 'member-2',
+		password: 'the owners password'
+	});
+
+	assert.equal(handed.role, 'owner');
+	assert.deepEqual(asked, ['transfer:member-2:the owners password']);
+
+	await assert.rejects(
+		member.app.organization.member.transferOwnership({ memberId: 'member-2', password: '' })
+	);
+	await assert.rejects(
+		member.app.organization.member.transferOwnership({
+			memberId: ' ',
+			password: 'the owners password'
+		})
+	);
+
+	const signedOut = await signedOutApi(host);
+
+	await assert.rejects(
+		signedOut.app.organization.member.transferOwnership({
+			memberId: 'member-2',
+			password: 'the owners password'
+		})
+	);
+	assert.deepEqual(asked, ['transfer:member-2:the owners password']);
 });
 
 // requirement 23: a rename is held to requirement 21's rules before the host is reached, and what

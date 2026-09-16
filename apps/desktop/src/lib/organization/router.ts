@@ -341,6 +341,25 @@ export const organization = router({
 				);
 			}),
 		/**
+		 * Hand the organization to another account (effort 828, requirement 22).
+		 *
+		 * **The owner's, and this side cannot tell.** There is no owner procedure here and there
+		 * should not be one: being the owner is what a password opened rather than a bit on a row,
+		 * so this asks only that somebody is signed in and that a password and an account were
+		 * given. Whether the caller is the owner, and whether the password opens their vault, are
+		 * Rust's alone, exactly as `organization.delete` leaves them.
+		 *
+		 * The password crosses in and nothing about it crosses back ([[rules/credentials]],
+		 * *Client boundary*). The floor is not applied: it is being checked against a vault rather
+		 * than chosen, which is the reading `organization.delete` and `password.change` take of a
+		 * current password.
+		 */
+		transferOwnership: procedure.member
+			.input(z.object({ memberId: z.string().trim().min(1), password: z.string().min(1) }))
+			.mutation(async ({ input, ctx }): Promise<OrganizationMember> => {
+				return ctx.host.organization.member.transferOwnership(input.memberId, input.password);
+			}),
+		/**
 		 * Sign a member out of every machine (effort 826, requirement 22).
 		 *
 		 * **`resetPassword` and no act of its own**, on the reading requirement 22 states: whoever

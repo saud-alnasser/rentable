@@ -255,6 +255,7 @@ pub fn run() {
             organization::member_link_make,
             organization::member_password_unset,
             organization::member_change_role,
+            organization::member_transfer_ownership,
             organization::member_rename,
             organization::member_remove,
             organization::member_lock_out_cost,
