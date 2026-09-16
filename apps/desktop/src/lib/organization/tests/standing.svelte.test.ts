@@ -105,10 +105,13 @@ const shape = (locale: 'en' | 'ar' = 'en') => {
 	expect(textOutsideTheControl().toLowerCase()).not.toContain('sync');
 };
 
-test('up to date, before any replication went: the word alone, and the control', () => {
+// a machine that never reached turso is not up to date and says so: a fresh machine opened
+// offline read "up to date" until review round two of effort 828.
+test('before any replication went: the machine has not reached turso, and the control', () => {
 	block();
 
-	expect(sentence()).toBe(en.organization.standing.upToDate);
+	expect(sentence()).toBe(en.organization.standing.notYetReached);
+	expect(sentence()).not.toContain('up to date');
 	expect(checkNow().textContent?.trim()).toBe(en.organization.standing.checkNow);
 	shape();
 
@@ -146,7 +149,7 @@ test('a moment further back than a day is the last reach, with the date and the 
 	block({ syncState: fakeSyncState({ lastReachedAt: moment }) });
 
 	expect(sentence()).toBe(en.organization.standing.lastReached.replace('{moment:string}', written));
-	expect(sentence()).not.toContain(en.organization.standing.upToDate);
+	expect(sentence()).not.toContain('up to date');
 	shape();
 });
 
@@ -251,13 +254,13 @@ test('each standing reads in arabic, and none of it says sync', () => {
 		fakeSyncState({ workspace: fakeWorkspace({ lastError: 'the replica refused' }) })
 	];
 	const expected = [
-		ar.organization.standing.upToDate,
+		ar.organization.standing.notYetReached,
 		ar.organization.standing.accountNeedsAttention,
 		ar.organization.standing.accessNeedsAttention,
 		ar.organization.standing.needsReconnecting
 	];
 	const english = [
-		en.organization.standing.upToDate,
+		en.organization.standing.notYetReached,
 		en.organization.standing.accountNeedsAttention,
 		en.organization.standing.accessNeedsAttention,
 		en.organization.standing.needsReconnecting

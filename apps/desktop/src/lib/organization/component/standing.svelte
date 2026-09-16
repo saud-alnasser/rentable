@@ -25,7 +25,8 @@
 	 * **One sentence, built from the standing and the moment** (effort 828, requirement 25).
 	 * `sync-status.ts` decides the standing and the order its answers are read in; this draws
 	 * what it decided. Up to date says when this machine last reached Turso, relative within a
-	 * day and as a date beyond it; a standing that needs something says what needs doing, and
+	 * day and as a date beyond it; a machine that never reached Turso says so rather than
+	 * claiming to be up to date; a standing that needs something says what needs doing, and
 	 * beneath it only what that standing calls for: the account refusal's sentence and the
 	 * owner's dashboard control, the credential refusal's sentence, or the fault's own sentence.
 	 * Then one quiet control, "check now". No badge, no status word standing alone, and the word

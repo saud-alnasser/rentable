@@ -795,7 +795,7 @@ const ar = {
 			title: 'هذا الجهاز وTurso',
 			purpose:
 				'المؤسسة محفوظة على Turso وتصل إلى هذا الجهاز من تلقاء نفسها. ما تكتبه هنا يُرسل فور أن يمكن الوصول إلى Turso.',
-			upToDate: 'كل شيء محدّث',
+			notYetReached: 'لم يصل هذا الجهاز إلى Turso بعد',
 			upToDateChecked: 'كل شيء محدّث، آخر فحص {moment}',
 			lastReached: 'آخر وصول إلى Turso في {moment}',
 			accountNeedsAttention: 'حساب Turso يحتاج إلى عناية',

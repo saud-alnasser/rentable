@@ -424,7 +424,7 @@ test('the owner is given the turso account and the disconnect, and no link', () 
 	expect(document.querySelector('[data-forget-account]')).not.toBeNull();
 	expect(document.querySelector('[data-reconnect-authority]')).toBeNull();
 	expect(document.querySelector('[data-disconnect]')).not.toBeNull();
-	expect(screen.getByText(en.organization.standing.upToDate)).toBeDefined();
+	expect(screen.getByText(en.organization.standing.notYetReached)).toBeDefined();
 	expect(document.querySelector('[data-organization-link]')).toBeNull();
 	expect(document.querySelector('[data-link-description]')).toBeNull();
 });
@@ -516,7 +516,7 @@ test('a plain member reads the standing and the disconnect, and no directory or 
 		holdsTursoAuthority: false
 	});
 
-	expect(screen.getByText(en.organization.standing.upToDate)).toBeDefined();
+	expect(screen.getByText(en.organization.standing.notYetReached)).toBeDefined();
 	expect(document.querySelector('[data-disconnect]')).not.toBeNull();
 	expect(document.querySelector('[data-members]')).toBeNull();
 	expect(screen.queryByText(en.organization.dashboard.membersTitle)).toBeNull();

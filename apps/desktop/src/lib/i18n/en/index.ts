@@ -835,7 +835,10 @@ const en = {
 			title: 'this machine and turso',
 			purpose:
 				'the organization is kept on turso and reaches this machine on its own. what you write here goes out as soon as turso can be reached.',
-			upToDate: 'up to date',
+			// a machine that has never reached turso: a fresh machine opened offline, which is not
+			// up to date and has no moment to say. *It read "up to date" until review round two of
+			// effort 828.*
+			notYetReached: 'this machine has not reached turso yet',
 			upToDateChecked: 'up to date, checked {moment:string}',
 			lastReached: 'last reached turso on {moment:string}',
 			accountNeedsAttention: 'the turso account needs attention',

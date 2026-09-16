@@ -139,9 +139,10 @@ pub const ADMINISTRATOR_KEY_PURPOSE: &str = "administrator-key";
 ///
 /// **Every caller that needs the owner's key reads it through here**, so no second derivation can
 /// drift: `role::offer_ownership` and `role::accept_ownership`, the acts that certify a signer
-/// (`role::change_role`, `invite::write_account`) on a machine already signed in, and
-/// `setup::connect_existing` on a machine that holds nothing yet. What comes back is compared or
-/// used to sign; it is never trusted because a column offered it.
+/// (`role::change_role`, `invite::write_account`, through `role::organization_key_of`, which
+/// refuses the derivation where it is not the key the session has pinned) on a machine already
+/// signed in, and `setup::connect_existing` on a machine that holds nothing yet. What comes back
+/// is compared or used to sign; it is never trusted because a column offered it.
 pub fn owner_key_from(secret: &MemberSecretKey) -> Result<OrganizationKey, Error> {
     Ok(OrganizationKey::from_bytes(
         &secret.derive_seed(ORGANIZATION_KEY_PURPOSE)?,

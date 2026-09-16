@@ -51,7 +51,7 @@ use super::{
     },
     invite::{MemberFacts, members, random_id},
     permission::{self, Administration},
-    session::{MemberSession, permissions_on_row, verifying_key_of},
+    session::{MemberSession, acting_row, permissions_on_row, verifying_key_of},
     setup::{ADMINISTRATOR_KEY_PURPOSE, ORGANIZATION_KEY_PURPOSE, owner_key_from},
     store::{MemberRecord, OrganizationRecord, OrganizationStore, Signer, SuccessionRecord},
     vault::{SECRET_KEY_BYTES, open_vault, seal_to_public_key, unseal_with_secret_key},
@@ -92,6 +92,48 @@ pub const AN_UNSET_ACCOUNT_CANNOT_ACCEPT: &str = "that account has no password o
 /// told who withdraws an offer that is not there. One sentence for both, because from where
 /// either stands there is nothing to act on but the absence.
 pub const NOTHING_WAS_OFFERED: &str = "no offer of this organization stands";
+
+/// What the owner is told who withdraws an offer the other person has accepted (effort 828,
+/// requirement 22, the human's word at review round two).
+///
+/// The withdrawal pulls first, and what it may find is that the offer it is undoing is complete:
+/// the directory is re-keyed under the new owner and the succession row is what every other
+/// machine follows to it. Deleting that row and writing the seal off a row this session no longer
+/// signs would strand every machine that has not followed yet, so a completed succession refuses
+/// by name and nothing is written.
+pub const THE_OFFER_WAS_ACCEPTED: &str =
+    "the offer was accepted already, and the organization is theirs now. nothing was changed";
+
+/// What a session is told whose vault does not derive the key this organization is signed under,
+/// where it was about to sign with it (effort 828, requirement 22).
+///
+/// **A certificate is issued under the pinned key or not at all.** After a handover the founder's
+/// vault still derives the key the directory was signed under before, and a session open across
+/// the handover would sign a new administrator's certificate with it: a certificate every machine
+/// refuses, and with it every row its holder signs. So the two acts that certify a signer read the
+/// key through [`organization_key_of`], which refuses a derivation that is not the key the session
+/// has pinned.
+pub const NOT_THE_KEY_IN_FORCE: &str = "the key your vault derives is not the one this organization is signed under any more. the \
+     organization was handed over, and certifying a signer is its owner's";
+
+/// The organization key this session may sign a certificate with: its own derivation, checked
+/// against the key it has pinned before anything is signed with it (effort 828, requirement 22).
+///
+/// Only the owner's vault derives the key in force, founder or transferee, so the comparison is the
+/// whole of "this session's row is the owner's under the pinned key" without a read; a session that
+/// followed a succession has a new pinned key and the founder's derivation fails against it. The
+/// derivation itself is `setup::owner_key_from`, the one place it is made.
+pub(super) fn organization_key_of(session: &MemberSession) -> Result<OrganizationKey, Error> {
+    let key = owner_key_from(&session.secret)?;
+
+    if key.verifying_key() != session.verifying_key {
+        return Err(Error::Forbidden {
+            message: NOT_THE_KEY_IN_FORCE.to_string(),
+        });
+    }
+
+    Ok(key)
+}
 
 /// What the acceptance says when the seed sealed onto the row is not the key this machine holds.
 ///
@@ -315,6 +357,13 @@ pub async fn offer_ownership(
 /// the owner holds is at stake in undoing something they did. The seal is cleared first, so a run
 /// that stops half way leaves an offer with no seed behind it rather than a seed with no offer
 /// naming it, and the acceptance refuses the first by reading the row.
+///
+/// **An offer the other person has accepted is refused by name** ([`THE_OFFER_WAS_ACCEPTED`]).
+/// The command pulls before this runs, and a completed succession leaving the key this session
+/// holds, signed by that key, is what the pull may have brought: the organization is theirs, and
+/// this session has not followed yet. It is read before the standing offer, because the standing
+/// offer's reader skips a completed row and would say no offer stands, which is not what
+/// happened.
 pub async fn withdraw_offer(
     store: &OrganizationStore,
     session: &MemberSession,
@@ -325,6 +374,21 @@ pub async fn withdraw_offer(
     if session.role != permission::OWNER {
         return Err(Error::Forbidden {
             message: ONLY_THE_OWNER_TRANSFERS.to_string(),
+        });
+    }
+
+    if store.successions().await?.iter().any(|succession| {
+        succession.accepted_at.is_some()
+            && succession.old_verifying_key == session.verifying_key
+            && verify_succession(
+                &session.verifying_key,
+                authority_of(succession),
+                &succession.signature,
+            )
+            .is_ok()
+    }) {
+        return Err(Error::PreconditionFailed {
+            message: THE_OFFER_WAS_ACCEPTED.to_string(),
         });
     }
 
@@ -385,7 +449,9 @@ pub async fn withdraw_offer(
 /// machine pinned, and the seed sealed onto this row has to be that same key. The second is what
 /// makes the seal safe to leave in a database every member can write: anybody can put a seal on a
 /// row, and nobody but the owner can put one there that opens to the key this machine already
-/// holds from its link or its first run.
+/// holds from its link or its first run. Before either, the accepting row is read the way every
+/// act reads its own (`session::acting_row`): a member removed, or signed out everywhere, since
+/// the offer was made is refused by name rather than handed the organization.
 ///
 /// **What the re-key touches, and what it deliberately does not.** Every certificate is re-issued
 /// under the new key with the same id, the same member and the same signing key, so every row an
@@ -430,6 +496,14 @@ pub async fn accept_ownership(
         });
     }
 
+    // this member's own row, with the three refusals every act's gate makes in front of it and
+    // before the offer is even looked for: a row that is gone, one signed as removed, and one
+    // whose sessions were ended from another machine (effort 828, requirement 22). An offer is a
+    // fact about the row and not about the person: a removal takes the offer with the row, but a
+    // replica that has not pulled the removal still holds both, and a sign-out everywhere takes
+    // nothing off the row at all. Either way the person is refused for what happened to them,
+    // rather than told no offer stands.
+    let mine = acting_row(store, session).await?;
     let offer = standing_offer(store, &pinned)
         .await?
         .filter(|offer| offer.offered_member_id == session.member_id)
@@ -437,13 +511,6 @@ pub async fn accept_ownership(
             message: NOTHING_WAS_OFFERED.to_string(),
         })?;
     let rows = store.members(&pinned).await?;
-    let mine = rows
-        .iter()
-        .find(|member| member.id == session.member_id)
-        .ok_or_else(|| Error::NotFound {
-            message: "your member row is not in the organization any more. sign in again"
-                .to_string(),
-        })?;
     let founder = rows
         .iter()
         .find(|member| member.id == offer.offered_by)
@@ -790,6 +857,16 @@ pub async fn change_role(
     let signed_before = signs_rows(member.permissions);
     let signs_now = signs_rows(permissions);
 
+    // their first signing act needs the organization key, and it is derived before the row is
+    // written: the owner's own, founder or transferee, refused by name where it is not the key
+    // this session has pinned (effort 828, requirement 22). A row written as a signer with no
+    // certificate to follow is the promise the chain will not keep, so the refusal comes first.
+    let organization_key = if signs_now && !signed_before {
+        Some(organization_key_of(session)?)
+    } else {
+        None
+    };
+
     store
         .write_member(
             &signer,
@@ -802,14 +879,9 @@ pub async fn change_role(
         )
         .await?;
 
-    if signs_now && !signed_before {
-        // their first signing act: the owner certifies the key the row has carried since it was
-        // written, which is the key `workspace::signer_of` will derive from their own vault. The
-        // owner's own key is their own derivation, founder or transferee, and comes from
-        // `setup::owner_key_from` so that there is one derivation of it (effort 828,
-        // requirement 22).
-        let organization_key = owner_key_from(&session.secret)?;
-
+    if let Some(organization_key) = organization_key {
+        // the owner certifies the key the row has carried since it was written, which is the key
+        // `workspace::signer_of` will derive from their own vault.
         store
             .write_certificate(&issue_certificate(
                 &organization_key,
@@ -866,9 +938,10 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        AN_UNSET_ACCOUNT_CANNOT_ACCEPT, NOTHING_WAS_OFFERED, ONLY_THE_OWNER_TRANSFERS,
-        accept_ownership, change_role, follow_succession, offer_ownership, signs_rows,
-        standing_offer, withdraw_offer,
+        AN_UNSET_ACCOUNT_CANNOT_ACCEPT, NOT_THE_KEY_IN_FORCE, NOTHING_WAS_OFFERED,
+        ONLY_THE_OWNER_TRANSFERS, THE_OFFER_WAS_ACCEPTED, accept_ownership, change_role,
+        follow_succession, offer_ownership, organization_key_of, signs_rows, standing_offer,
+        withdraw_offer,
     };
     use crate::{
         error::Error,
@@ -881,7 +954,7 @@ mod tests {
             migrate::Pipeline,
             permission::{self, Administration},
             removal,
-            session::{CredentialSlot, MemberSession, sign_in},
+            session::{CredentialSlot, MemberSession, end_member_sessions, repin, sign_in},
             setup::{
                 ADMINISTRATOR_KEY_PURPOSE, CreateOrganization, Remote, create_organization,
                 owner_key_from,
@@ -2424,5 +2497,315 @@ mod tests {
             .members(&last_key)
             .await
             .expect("every member row verifies under the key at the end of the chain");
+    }
+    /// **Criterion 22 at its seams: a removed or signed-out-everywhere account cannot accept.**
+    /// An offer is a fact about the row, and what happens to the person after it was made has to
+    /// reach the acceptance. Removal takes the offer with the row, the seal off it and the
+    /// succession row out, so nothing remains that a removed account could accept with; and the
+    /// acceptance reads its own row as every act reads one, so a person removed or signed out
+    /// everywhere since is refused by name either way, and the founder stays owner.
+    #[tokio::test]
+    async fn a_removed_or_signed_out_everywhere_account_cannot_accept_the_offer() {
+        let directory = scratch("accept-refused-on-the-row");
+        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (ada, mut ada_session, mut ada_machine) = a_settled_administrator(
+            &directory,
+            &store,
+            &owner,
+            &link,
+            &workspace_id,
+            "ada.admin",
+            ADMINISTRATORS_PASSWORD,
+        )
+        .await;
+        let (bilal, mut bilal_session, mut bilal_machine) = a_settled_administrator(
+            &directory,
+            &store,
+            &owner,
+            &link,
+            &workspace_id,
+            "bilal.admin",
+            BILALS_PASSWORD,
+        )
+        .await;
+
+        // offered to ada, then ada is removed: the offer goes with her row.
+        offer_ownership(&store, &owner, &ada.member_id, PASSWORD, NOW + 1)
+            .await
+            .expect("the offer failed");
+
+        assert!(sealed_on(&store, &owner, &ada.member_id).await);
+
+        let row = store
+            .members(&owner.verifying_key)
+            .await
+            .expect("the rows")
+            .into_iter()
+            .find(|member| member.id == ada.member_id)
+            .expect("ada's row");
+
+        removal::retire_member(&store, &owner, &row, NOW + 2)
+            .await
+            .expect("the removal failed");
+
+        assert_eq!(
+            standing_offer(&store, &owner.verifying_key)
+                .await
+                .expect("the successions"),
+            None,
+            "the removal left the offer standing"
+        );
+        assert!(
+            !sealed_on(&store, &owner, &ada.member_id).await,
+            "the removal left the seal on the row"
+        );
+
+        let before = every_row(&store).await;
+        let removed = accept_ownership(
+            &store,
+            &mut ada_session,
+            &mut ada_machine,
+            ADMINISTRATORS_PASSWORD,
+            NOW + 3,
+        )
+        .await
+        .expect_err("a removed account accepted the organization");
+
+        assert!(
+            matches!(removed, Error::Forbidden { ref message } if message.contains("removed")),
+            "{removed:?}"
+        );
+        assert_eq!(
+            every_row(&store).await,
+            before,
+            "a refused acceptance wrote something"
+        );
+
+        // and offered to bilal, whose sessions are then ended from every machine: the row keeps
+        // the seal and the offer stands, since nothing about the offer moved, but the session
+        // that would accept is behind the row and is refused for that.
+        offer_ownership(&store, &owner, &bilal.member_id, PASSWORD, NOW + 4)
+            .await
+            .expect("the second offer failed");
+        end_member_sessions(&store, &owner, &bilal.member_id, NOW + 5)
+            .await
+            .expect("ending bilal's sessions failed");
+
+        let before = every_row(&store).await;
+        let signed_out = accept_ownership(
+            &store,
+            &mut bilal_session,
+            &mut bilal_machine,
+            BILALS_PASSWORD,
+            NOW + 6,
+        )
+        .await
+        .expect_err("a signed-out-everywhere account accepted the organization");
+
+        assert!(
+            matches!(signed_out, Error::Forbidden { ref message } if message.contains("ended from another machine")),
+            "{signed_out:?}"
+        );
+        assert_eq!(
+            every_row(&store).await,
+            before,
+            "a refused acceptance wrote something"
+        );
+
+        // the founder is the owner throughout, under the key they always held.
+        assert_eq!(
+            row_of(&store, &owner, &owner.member_id).await,
+            (
+                permission::OWNER.to_string(),
+                permission::mask_of_role(permission::OWNER)
+            )
+        );
+        assert_eq!(bilal_session.role, permission::ADMINISTRATOR);
+    }
+
+    /// **Criterion 22 at its seams: a withdrawal that finds the offer accepted is refused by
+    /// name** (the human's decision at review round two). The founder's session still holds the
+    /// key that was handed over and still says owner; what its pull brought is the completed
+    /// succession. Deleting that row would strand every machine that has not followed yet, so
+    /// nothing is written and the sentence says what happened.
+    #[tokio::test]
+    async fn a_withdrawal_that_finds_the_offer_accepted_is_refused_by_name() {
+        let directory = scratch("withdraw-after-acceptance");
+        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (ada, mut ada_session, mut ada_machine) = a_settled_administrator(
+            &directory,
+            &store,
+            &owner,
+            &link,
+            &workspace_id,
+            "ada.admin",
+            ADMINISTRATORS_PASSWORD,
+        )
+        .await;
+
+        offer_ownership(&store, &owner, &ada.member_id, PASSWORD, NOW + 1)
+            .await
+            .expect("the offer failed");
+        accept_ownership(
+            &store,
+            &mut ada_session,
+            &mut ada_machine,
+            ADMINISTRATORS_PASSWORD,
+            NOW + 2,
+        )
+        .await
+        .expect("the acceptance failed");
+
+        let before = every_row(&store).await;
+        let refused = withdraw_offer(&store, &owner, NOW + 3)
+            .await
+            .expect_err("an accepted offer was withdrawn");
+
+        assert!(
+            matches!(refused, Error::PreconditionFailed { ref message } if message == THE_OFFER_WAS_ACCEPTED),
+            "{refused:?}"
+        );
+        assert_eq!(
+            every_row(&store).await,
+            before,
+            "a refused withdrawal wrote something"
+        );
+
+        // the succession row is still there for every other machine to follow, and ada is the
+        // owner under the key her vault derives.
+        let new_key = ada_session.verifying_key;
+        let elsewhere = another_machine(&directory, &owner.organization_id).await;
+        let mut third = holding(&directory, "third-machine", &owner, owner.verifying_key);
+
+        assert_eq!(
+            follow_succession(&elsewhere, &mut third)
+                .await
+                .expect("the walk failed"),
+            Some(new_key)
+        );
+        assert_eq!(
+            row_of_under(&store, &new_key, &ada.member_id).await,
+            (
+                permission::OWNER.to_string(),
+                permission::mask_of_role(permission::OWNER)
+            )
+        );
+    }
+
+    /// **Criterion 22 at its seams: a certificate is issued under the pinned key or not at all.**
+    /// The founder's session, re-pinned onto the key the organization is on now, is the
+    /// administrator's its row says; and a session that somehow kept the word `owner` past the
+    /// re-pin still cannot certify anybody, because the key its vault derives is not the one it
+    /// has pinned and the derivation is refused by name before a certificate is written.
+    #[tokio::test]
+    async fn a_session_whose_vault_does_not_derive_the_pinned_key_certifies_nobody() {
+        let directory = scratch("certify-under-the-pinned-key");
+        let (store, mut owner, link, workspace_id) = owned(&directory).await;
+        let (ada, mut ada_session, mut ada_machine) = a_settled_administrator(
+            &directory,
+            &store,
+            &owner,
+            &link,
+            &workspace_id,
+            "ada.admin",
+            ADMINISTRATORS_PASSWORD,
+        )
+        .await;
+        let (sami, _) = a_member(
+            &store,
+            &owner,
+            &link,
+            "sami.staff",
+            permission::MEMBER,
+            &workspace_id,
+        )
+        .await;
+
+        // before the handover the founder's derivation is the key in force.
+        assert_eq!(
+            organization_key_of(&owner)
+                .expect("the founder's key")
+                .verifying_key(),
+            owner.verifying_key
+        );
+
+        offer_ownership(&store, &owner, &ada.member_id, PASSWORD, NOW + 1)
+            .await
+            .expect("the offer failed");
+        accept_ownership(
+            &store,
+            &mut ada_session,
+            &mut ada_machine,
+            ADMINISTRATORS_PASSWORD,
+            NOW + 2,
+        )
+        .await
+        .expect("the acceptance failed");
+
+        let new_key = ada_session.verifying_key;
+
+        // the founder's session follows the succession the way `command::followed` moves it: the
+        // key, and what its own row says under it.
+        repin(&store, &mut owner, new_key)
+            .await
+            .expect("the founder's session did not re-pin");
+
+        assert_eq!(owner.verifying_key, new_key);
+        assert_eq!(owner.role, permission::ADMINISTRATOR);
+        assert_eq!(
+            owner.permissions,
+            permission::mask_of_role(permission::ADMINISTRATOR)
+        );
+
+        // and it is refused the key by name.
+        let refused = organization_key_of(&owner).expect_err("the founder's vault certified");
+
+        assert!(
+            matches!(refused, Error::Forbidden { ref message } if message == NOT_THE_KEY_IN_FORCE),
+            "{refused:?}"
+        );
+
+        // a session that kept the word past the re-pin: the one gate the word passes leads to the
+        // derivation, and the derivation refuses. Nothing is written, and in particular no
+        // certificate under the key that was handed over.
+        owner.role = permission::OWNER.to_string();
+
+        let certificates = store.certificates().await.expect("the certificates").len();
+        let before = every_row(&store).await;
+        let widened = change_role(
+            &store,
+            &owner,
+            &sami.member_id,
+            permission::ADMINISTRATOR,
+            permission::mask_of_role(permission::ADMINISTRATOR),
+            NOW + 3,
+        )
+        .await
+        .expect_err("a certificate was issued under a key that was handed over");
+
+        assert!(
+            matches!(widened, Error::Forbidden { ref message } if message == NOT_THE_KEY_IN_FORCE),
+            "{widened:?}"
+        );
+        assert_eq!(
+            every_row(&store).await,
+            before,
+            "a refused widening wrote something"
+        );
+        assert_eq!(
+            store.certificates().await.expect("the certificates").len(),
+            certificates
+        );
+
+        // the directory still verifies under the key in force, on this machine and on another.
+        store
+            .members(&new_key)
+            .await
+            .expect("every member row verifies");
+        another_machine(&directory, &owner.organization_id)
+            .await
+            .members(&new_key)
+            .await
+            .expect("every member row verifies on the other machine");
     }
 }

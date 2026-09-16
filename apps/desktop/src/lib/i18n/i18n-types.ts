@@ -2525,9 +2525,9 @@ type RootTranslation = {
 			 */
 			purpose: string
 			/**
-			 * u​p​ ​t​o​ ​d​a​t​e
+			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​h​a​s​ ​n​o​t​ ​r​e​a​c​h​e​d​ ​t​u​r​s​o​ ​y​e​t
 			 */
-			upToDate: string
+			notYetReached: string
 			/**
 			 * u​p​ ​t​o​ ​d​a​t​e​,​ ​c​h​e​c​k​e​d​ ​{​m​o​m​e​n​t​}
 			 * @param {string} moment
@@ -5569,9 +5569,9 @@ export type TranslationFunctions = {
 			 */
 			purpose: () => LocalizedString
 			/**
-			 * up to date
+			 * this machine has not reached turso yet
 			 */
-			upToDate: () => LocalizedString
+			notYetReached: () => LocalizedString
 			/**
 			 * up to date, checked {moment}
 			 */

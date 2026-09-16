@@ -534,11 +534,15 @@ pub(crate) enum Resumption {
 /// and no derivation, because the derivation's output is what was filed. The rows are read and
 /// verified first, as [`sign_in`] reads them, so a forged row is refused before the key is spent.
 ///
-/// **The epoch the entry files is compared against the row's, twice** (requirement 22): once on
-/// the rows this machine already holds, before the key is spent, and once after the vault has
-/// opened and the credential it unsealed has paid for a pull, which is the only moment this
-/// machine can learn of a sign-out that happened while it was closed. Either way the entry goes
-/// and the wall carries the sentence.
+/// **The epoch the entry files is compared against the row's before the key is spent**
+/// (requirement 22), on the rows this machine already holds, which is every machine whose
+/// heartbeat saw the bump before it was closed. The second comparison, on what the organization
+/// says now, is the caller's: the pull it takes spends the credential the vault holds, and what
+/// arrives may be re-keyed by a handover this machine was closed across as well as bumped, so the
+/// launch runs the heartbeat's own check once the session is open (`command::ended_elsewhere`),
+/// which pulls, follows a succession where the rows ask for one, and signs out where the row has
+/// moved on. *The pull and that check were in here until effort 828's review found that a
+/// succession could only be followed before the pull, on a replica that had not received it.*
 ///
 /// **Any failure forgets the entry and leaves the wall up.** Nothing filed, a value that is not a
 /// key, a member row that is gone or removed, and a vault resealed by anybody since are one
@@ -614,23 +618,49 @@ async fn resumed(
     )
     .await?;
 
-    // and again on what the organization says now. The pull is here rather than before the vault
-    // opened because it spends the credential the vault holds; its failure is the offline case
-    // and leaves this machine signed in on the rows it has, which is requirement 18.
-    store.pull().await;
-
-    if ended_elsewhere(store, &session).await? {
-        return Ok(Resumption::SignedOutElsewhere);
-    }
-
     Ok(Resumption::Opened(Box::new(session)))
+}
+
+/// Move an open session onto the key a succession handed over, and take what its own row says
+/// under that key (effort 828, requirement 22).
+///
+/// **The role and the permissions are re-read rather than carried**, because a handover is the
+/// one act that changes them under a session that is open somewhere else: the founder who handed
+/// over is an administrator now, and a session that kept `owner` would pass every gate that
+/// reads the word and sign a certificate under a key that certifies nothing. The row is read
+/// before anything on the session moves, so a row the new key does not find leaves the session as
+/// it was and the caller says so; the other snapshot fields stay, since the epoch is compared
+/// against the row on every act and the password standing is the vault's.
+pub(crate) async fn repin(
+    store: &OrganizationStore,
+    session: &mut MemberSession,
+    key: [u8; VERIFYING_KEY_BYTES],
+) -> Result<(), Error> {
+    let member = store
+        .member(&key, &session.member_id)
+        .await?
+        .ok_or_else(|| Error::NotFound {
+            message: "this member's row is not in the organization any more".to_string(),
+        })?;
+
+    session.verifying_key = key;
+    session.role = member.role;
+    session.permissions = member.permissions;
+
+    Ok(())
 }
 
 /// Whether the row has moved past the session: somebody ended this member's sessions from another
 /// machine, and this one is behind (effort 826, requirement 22).
 ///
 /// Read off the replica as it stands, so the caller decides whether to pull first. The sync
-/// heartbeat does; a resume does it once the vault has paid for the pull.
+/// heartbeat does, and the launch runs the heartbeat's check once the resumed vault can pay for
+/// the pull (`command::ended_elsewhere`).
+///
+/// **A row that will not read under the session's key is an error and not an answer**, and the
+/// caller is what reads it as a handover this machine has not followed yet (effort 828,
+/// requirement 22): the rows a pull brought were re-keyed, and the succession is followed and the
+/// session re-pinned before the question is asked again.
 pub async fn ended_elsewhere(
     store: &OrganizationStore,
     session: &MemberSession,

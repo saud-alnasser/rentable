@@ -146,7 +146,12 @@
 		standings: MemberStanding[];
 		/** the workspaces the reader can grant, which is what they hold themselves. */
 		workspaces: OrganizationWorkspace[];
-		/** whether the reader's row carries `inviteMember`: the add and the link. */
+		/**
+		 * whether the reader's row carries `inviteMember`: the add, and the link with `canReset`.
+		 * The link act is offered to a holder of either, as `invite::make_link` and the router
+		 * admit either: a reset is a fresh way in, and whoever may hand one out may hand out the
+		 * link that carries it (effort 828, requirement 20; the human's word at review round one).
+		 */
 		canInvite: boolean;
 		/** whether the reader's row carries `removeMember`. */
 		canRemove: boolean;
@@ -287,6 +292,14 @@
 
 		return standing !== null && (!standing.passwordSet || !standing.machineSignedIn);
 	};
+
+	/**
+	 * whether this reader may make a link at all: either act, the way Rust and the router gate
+	 * it. *It was `canInvite` alone until review round two of effort 828, after the human had
+	 * widened the act to `resetPassword` at round one and the card was the one gate not
+	 * widened.*
+	 */
+	const canLink = $derived(canInvite || canReset);
 
 	/**
 	 * the members the organization could be offered to: everybody but the owner's own row, and
@@ -498,7 +511,7 @@
 			: []),
 		// the one link act (effort 828, requirement 20): what kind of link it is is read off the
 		// member, and the standing that bars one is the line the card already carries.
-		...(canInvite && writable(member) && linkable(member)
+		...(canLink && writable(member) && linkable(member)
 			? [
 					{
 						label: $LL.organization.dashboard.makeLink(),

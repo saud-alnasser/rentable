@@ -1110,10 +1110,11 @@ async fn write_account<P: TursoPlatform>(
             });
         }
 
-        // read through `setup::owner_key_from`, the one derivation of the owner's key: it is
-        // their own, founder or transferee, because an acceptance re-keys the directory under the
-        // new owner's derivation (effort 828, requirement 22).
-        let organization_key = super::setup::owner_key_from(&session.secret)?;
+        // read through `role::organization_key_of`, which derives the owner's own key, founder or
+        // transferee, and refuses it by name where it is not the key this session has pinned: a
+        // session open across a handover would otherwise certify under the key that was handed
+        // over (effort 828, requirement 22).
+        let organization_key = super::role::organization_key_of(session)?;
 
         // a reset draws a fresh vault secret, so `administrator_key` differs from the one this
         // member's old certificate names, and the certificate about to replace it carries the new

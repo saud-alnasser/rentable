@@ -20,7 +20,8 @@ import { DAY, formatLocaleDate, formatLocaleRelativeTime } from '$lib/platform/l
  * stopped drawing; `syncStandingSentence` below is what replaced them, and the badge's tone went
  * with the badge. The order above did not move.
  */
-export type SyncStatus = 'accountRefused' | 'credentialRefused' | 'needsReconnect' | 'synced';
+export type SyncStatus =
+	'accountRefused' | 'credentialRefused' | 'needsReconnect' | 'neverReached' | 'synced';
 
 export const syncStatusOf = (state: RemoteSyncState): SyncStatus => {
 	// the organization's account, refused by Turso: a fact from a replication that reached Turso
@@ -42,6 +43,15 @@ export const syncStatusOf = (state: RemoteSyncState): SyncStatus => {
 		return 'needsReconnect';
 	}
 
+	// a machine no replication has ever gone through on: a fresh machine opened offline, or one
+	// whose every attempt was turned away before anything completed. It is not up to date, and
+	// there is no moment to say; it stands after the three that need something because each of
+	// those is a definite answer about why. *It read as synced until review round two of effort
+	// 828 found a fresh machine offline saying "up to date".*
+	if (state.lastReachedAt === null) {
+		return 'neverReached';
+	}
+
 	return 'synced';
 };
 
@@ -58,7 +68,9 @@ export const syncFaultOf = (state: RemoteSyncState): string | null =>
  * a machine that reached Turso this morning is up to date by any reading; further back than a
  * day it is the date and the time, said as the last reach rather than as up to date, because a
  * machine that has not reached Turso in three days is not something this block can vouch for.
- * Before any replication went, there is no moment, and the standing's word stands alone.
+ * **Before any replication went there is no moment, and the machine has not reached Turso**,
+ * which is its own standing and its own sentence; synced with no moment is that same sentence,
+ * since a caller that pairs the two is describing the same machine.
  */
 export const syncStandingSentence = (
 	status: SyncStatus,
@@ -74,9 +86,11 @@ export const syncStandingSentence = (
 			return LL.organization.standing.accessNeedsAttention();
 		case 'needsReconnect':
 			return LL.organization.standing.needsReconnecting();
+		case 'neverReached':
+			return LL.organization.standing.notYetReached();
 		case 'synced':
 			if (moment === null) {
-				return LL.organization.standing.upToDate();
+				return LL.organization.standing.notYetReached();
 			}
 
 			if (now - moment < DAY) {

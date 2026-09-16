@@ -657,12 +657,20 @@ test('each act is drawn by its own act and by no other', async () => {
 	await only({ canGrantWorkspace: true }, 'ada', ['edit']);
 	await only({ canChangeRole: true, canGrantWorkspace: true }, 'ada', ['edit']);
 	await only({ canRename: true }, 'ada', ['rename']);
-	// unsetting a password and closing the ways in that are already open are one act read twice.
-	await only({ canReset: true }, 'ada', ['unset-password', 'end-sessions']);
+	// unsetting a password and closing the ways in that are already open are one act read twice,
+	// and the link follows `resetPassword` as well as `inviteMember`, the way Rust and the router
+	// admit it: a reset is a fresh way in, and whoever hands one out hands out the link that
+	// carries it (effort 828, requirement 20, the human's word at review round one).
+	await only({ canReset: true }, 'ada', ['link', 'unset-password', 'end-sessions']);
 	await only({ canRemove: true }, 'ada', ['remove']);
 	// the lock-out needs the Turso authority as well as the act, so it takes both.
 	await only({ canRemove: true, canLockOut: true }, 'ada', ['remove', 'lock-out']);
 	await only({ canInvite: true }, 'ada', ['link']);
+	await only({ canInvite: true, canReset: true }, 'ada', [
+		'link',
+		'unset-password',
+		'end-sessions'
+	]);
 	// and no act reaches the owner's card or the reader's own, whichever act the reader holds.
 	// the owner's own card offers the one act that is theirs, and nothing a permission gates.
 	await only({ canGrantWorkspace: true, isOwner: true, selfId: 'owner' }, 'owner', ['transfer']);

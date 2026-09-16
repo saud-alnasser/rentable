@@ -405,12 +405,26 @@ pub(crate) async fn retire_member(
         store.delete_grant(member_id, &grant.workspace_id).await?;
     }
 
+    // and an offer of the organization that stands with them goes with the row (effort 828,
+    // requirement 22): the seal comes off the row that is being written back anyway, and the
+    // succession row naming them is deleted, so nothing remains that a removed account could
+    // accept with and the owner can offer the organization to somebody else without withdrawing
+    // an offer from a person who is no longer here. `role::accept_ownership` refuses a removed row
+    // by name as well, for the replica that has not pulled this yet.
+    if let Some(offer) = super::role::standing_offer(store, &session.verifying_key)
+        .await?
+        .filter(|offer| offer.offered_member_id == member_id)
+    {
+        store.delete_succession(&offer.id).await?;
+    }
+
     store
         .write_member(
             &signer,
             &MemberRecord {
                 role: permission::REMOVED.to_string(),
                 permissions: 0,
+                owner_seed_sealed: None,
                 updated_at: now,
                 ..member.clone()
             },
