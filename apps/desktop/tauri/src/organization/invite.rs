@@ -57,9 +57,9 @@
 //! they already have signs them in (`machine.rs::connect`). One act, two kinds, and the person
 //! making it chooses neither.
 //!
-//! **A link is refused while a machine is signed in on the account.** A second machine is not
-//! handed out beside a first: the register of connected machines (requirement 15) is asked, and a
-//! member who wants another machine signs out of the one they have and is given a link.
+//! **An account is held on as many machines as it is given links for.** The act asks the register
+//! of connected machines (requirement 15) nothing: a link is made whether or not a machine is
+//! signed in on the account, and each one admits one more machine, once.
 //!
 //! **The invitation row carries the secret it was made with, sealed to its issuer.** [`make_link`]
 //! writes the generated password, the link's own secret and the code under
@@ -413,10 +413,12 @@ pub async fn unset_password<P: TursoPlatform>(
 /// password gets a machine-kind link: no vault password, a `machine_link` row behind it, and the
 /// machine that opens it lands at the wall, where the password they already have admits them.
 ///
-/// **It is refused while a machine is signed in on the account.** A second machine is not handed
-/// out beside a first: a member who wants another signs out of the one they have and is given a
-/// link. The register (requirement 15) is what answers that, and a machine unseen for a week no
-/// longer counts.
+/// **It is refused for no standing.** An account is held on as many machines as its holder is
+/// given links for (requirement 20, as the human corrected it on 2026-09-20), so a link is made
+/// whether or not a machine is signed in on the account. It used to be refused while one was, on
+/// the reading that somebody who wanted another machine signed out of the one they had; nobody
+/// does that. The register (requirement 15) is read here for nothing, and the standing line on the
+/// card is a fact about the account rather than the reason a link is missing.
 ///
 /// **Neither kind mints anything**, so whoever may make one makes either: what the link seals is
 /// the maker's own grant on the organization database, which dies within four weeks whatever
@@ -451,24 +453,6 @@ pub async fn make_link<P: TursoPlatform>(
         "an owner is handed no link. the organization is reached with their own turso account",
     )?
     .clone();
-
-    // an account with a password is offered a link only while no machine is signed in on it
-    // (requirement 20): somebody who wants another machine signs out of the one they have. An
-    // account whose password is not set yet has nobody signed in that a link would double, so
-    // the register does not bar it.
-    if !member.must_change_password
-        && store
-            .connected_machines(&session.verifying_key, now)
-            .await?
-            .iter()
-            .any(|(machine, _)| machine.member_id.as_deref() == Some(member_id))
-    {
-        return Err(Error::PreconditionFailed {
-            message: "a machine is signed in on that account. they sign out of it first, and then \
-                      a link admits the next one"
-                .to_string(),
-        });
-    }
 
     let credential = held_credential(session)?;
     let expires_at = link_expiry(&credential, now);
@@ -775,8 +759,8 @@ pub async fn members(
 /// **Two facts, and the third standing is neither of them.** An account holds no password until
 /// its first link is opened, and the register (requirement 15) says whether a machine is signed in
 /// on it inside the presence window; a card reads *password not yet set*, *a machine signed in* or
-/// *no machine signed in* from the pair. They are the same two facts [`make_link`] is gated on, so
-/// a card can say why a link is not offered without asking a second question.
+/// *no machine signed in* from the pair. The line is a fact about the account and gates nothing:
+/// [`make_link`] reads neither half, and a card offering no link says so for a reason of its own.
 ///
 /// **Read, never stored.** Nothing writes a standing: it is what the member row and the register
 /// say between them at the moment somebody looks.
@@ -1390,9 +1374,10 @@ pub(crate) async fn make_account_and_link<P: TursoPlatform>(
 
 /// Unset an account's password and make the link that follows it, which is what a reset was.
 ///
-/// **It takes the account's machines out of the register first**, because that is what a person
-/// whose password was reset does before they are handed a link: a link is refused while a machine
-/// is signed in on the account, and a test about the reset is not a test about that gate.
+/// *It took the account's machines out of the register first until 2026-09-20*, because a link
+/// was refused while a machine was signed in on the account and a test about the reset is not a
+/// test about that gate. The gate is gone: [`make_link`] reads the register for nothing, so
+/// neither does this.
 #[cfg(test)]
 pub(crate) async fn reset_account<P: TursoPlatform>(
     store: &OrganizationStore,
@@ -1404,16 +1389,6 @@ pub(crate) async fn reset_account<P: TursoPlatform>(
     now: i64,
 ) -> Result<AccountAndLink, Error> {
     let unreachable = unset_password(store, session, platform, member_id, kdf_params, now).await?;
-
-    for (machine, _) in store
-        .connected_machines(&session.verifying_key, now)
-        .await?
-        .into_iter()
-        .filter(|(machine, _)| machine.member_id.as_deref() == Some(member_id))
-    {
-        store.unregister_machine(&machine.id).await?;
-    }
-
     let made = make_link(
         store, session, platform, locator, member_id, kdf_params, now,
     )
@@ -1860,13 +1835,7 @@ mod tests {
         )
         .await
         .expect("the account could not be made");
-        let (sami, sami_machine) = opened_as(&store, &owner, &link, &subject.id, "sami", NOW).await;
-
-        // sami signs out, so the account's own standing never bars the links made below.
-        store
-            .unregister_machine(&sami_machine)
-            .await
-            .expect("the machine could not be taken out of the register");
+        let (sami, _) = opened_as(&store, &owner, &link, &subject.id, "sami", NOW).await;
 
         // a plain member widened with `resetPassword` and nothing else.
         let resetter = create_account(
@@ -1962,15 +1931,18 @@ mod tests {
     }
 
     /// Effort 828, requirement 20 and criterion 20: **the account's standing chooses the link's
-    /// kind, and a machine signed in on it is refused one.**
+    /// kind and refuses none of them.**
     ///
-    /// While the member is signed in somewhere the act is refused by name, because a second
-    /// machine is not handed out beside a first. Once they are out of the register the account has
-    /// a password, so what is made is a machine-kind link, which opens no vault. A reset unsets the
-    /// password, and the next link is an invitation again: it asks the person to choose one, and
-    /// the one they chose before stops admitting them.
+    /// An account with a password is offered a link while a machine is signed in on it, and that
+    /// link is a machine-kind one, which opens no vault and lands its machine at the wall like any
+    /// other. A reset unsets the password, and the next link is an invitation again: it asks the
+    /// person to choose one, and the one they chose before stops admitting them.
+    ///
+    /// *Turned round on 2026-09-20.* This asserted the refusal, and the sign-out that lifted it,
+    /// until the human ruled one machine per account out: an account is held on as many machines
+    /// as it is given links for, and nobody signs out of one to be handed another.
     #[tokio::test]
-    async fn a_machine_signed_in_is_refused_a_link_and_a_reset_makes_the_next_one_ask_a_password() {
+    async fn a_machine_signed_in_is_offered_a_link_and_a_reset_makes_the_next_one_ask_a_password() {
         let directory = scratch("standing");
         let (store, owner, link, _, _) = owned(&directory).await;
         let account = create_account(
@@ -2012,35 +1984,17 @@ mod tests {
         .await
         .expect("the account could not be opened");
 
-        // opening a link is a sign-in, so the register now names them on that machine.
-        let refusal = make_link(
-            &store,
-            &owner,
-            no_platform(),
-            &link,
-            &account.id,
-            test_cost(),
-            NOW + 2,
-        )
-        .await
-        .expect_err("a link was made for an account with a machine signed in");
-
-        assert!(
-            matches!(&refusal, Error::PreconditionFailed { message } if message.contains("signed in")),
-            "{refusal:?}"
-        );
-
-        // they sign out of it, which is what leaves the account open to a link again.
-        store
-            .unregister_machine(
-                &their_machine
-                    .organization
-                    .as_ref()
-                    .expect("the record")
-                    .machine_id,
-            )
+        // opening a link is a sign-in, so the register now names them on that machine. The next
+        // link is made anyway: the account is held on this machine and on whichever the link
+        // admits, and nobody signs out to be handed one.
+        let signed_in = store
+            .connected_machines(&owner.verifying_key, NOW + 2)
             .await
-            .expect("the machine could not be taken out of the register");
+            .expect("the register")
+            .iter()
+            .any(|(machine, _)| machine.member_id.as_deref() == Some(account.id.as_str()));
+
+        assert!(signed_in, "opening the link did not register their machine");
 
         let second = make_link(
             &store,
@@ -2052,7 +2006,7 @@ mod tests {
             NOW + 3,
         )
         .await
-        .expect("a link could not be made for an account with a password");
+        .expect("a link was refused for an account with a machine signed in on it");
         let decoded = JoinLink::decode(&second.link).expect("the link");
 
         assert_eq!(
@@ -2090,22 +2044,8 @@ mod tests {
             "the reset could not carry a workspace over"
         );
 
-        // the register names their machine again, and an unset account is offered a link all the
-        // same: nobody is signed in that the link would double, and the reset is what they need
-        // the link for (requirement 20).
-        store
-            .register_machine(
-                &their_machine
-                    .organization
-                    .as_ref()
-                    .expect("the record")
-                    .machine_id,
-                Some(&account.id),
-                NOW + 4,
-            )
-            .await
-            .expect("the machine could not be put back in the register");
-
+        // their machine is still in the register, naming them, and the link after the reset is
+        // made all the same: the reset is what they need a link for (requirement 20).
         let third = make_link(
             &store,
             &owner,
@@ -2158,8 +2098,8 @@ mod tests {
     ///
     /// A fresh account has no password and nobody signed in on it; opening its link sets the first
     /// and the second; signing that machine out leaves the password and takes the machine away.
-    /// Those are the three lines the directory draws, and they are the pair [`make_link`] is gated
-    /// on, so a card says why a link is not offered without asking a second question.
+    /// Those are the three lines the directory draws, and each is a fact about the account:
+    /// [`make_link`] reads neither half, so no line here is the reason a link is missing.
     #[tokio::test]
     async fn a_standing_is_the_password_and_the_register_read_together() {
         let directory = scratch("standings");

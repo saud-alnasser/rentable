@@ -52,10 +52,12 @@
 	 * sheet the card opens, which lists every workspace with what they hold on it before it offers
 	 * a change.*
 	 *
-	 * **The standing is the pair a link is gated on, read as a sentence.** A member holds no
+	 * **The standing is two facts, read as a sentence, and it gates nothing.** A member holds no
 	 * password until their first link is opened, and the register (requirement 15) says whether a
-	 * machine is signed in for them. So the line that says *signed in on a machine* is also why the
-	 * link act is not on that card, and no second sentence explains the absence.
+	 * machine is signed in for them. The line says where the account stands and nothing more: a
+	 * link is offered on every card this reader may write, whichever of the three it reads.
+	 * *The line was also why the link act was absent until the human ruled one machine per account
+	 * out on 2026-09-20.*
 	 *
 	 * **Activating a card opens its record** ([[rules/interface]], *Row activation*). A member has
 	 * no page, so what opening one means is this section drawing that member's sheet, and the card's
@@ -278,23 +280,6 @@
 	const writable = (member: OrganizationMember) => member.id !== selfId && member.role !== 'owner';
 
 	/**
-	 * whether a link is offered for that member, by ticket 14's own gate: a member whose
-	 * password is not set yet is offered one even while a machine is signed in, because nobody is
-	 * signed in that the link would double, and a member with a password is offered one only
-	 * while no machine is. Rust refuses the rest, and the standing line says why the act is absent.
-	 *
-	 * **A member with no standing yet offers no link**, which is the same reading `standingLine`
-	 * makes of the same absence: the standings are still being answered, or the query failed, and
-	 * an act drawn from nothing would be offered on a card whose own line says nothing, then
-	 * refused by Rust on the gate this is standing in for.
-	 */
-	const linkable = (member: OrganizationMember) => {
-		const standing = standingOf(member.id);
-
-		return standing !== null && (!standing.passwordSet || !standing.machineSignedIn);
-	};
-
-	/**
 	 * whether this reader may make a link at all: either act, the way Rust and the router gate
 	 * it. *It was `canInvite` alone until review round two of effort 828, after the human had
 	 * widened the act to `resetPassword` at round one and the card was the one gate not
@@ -310,7 +295,8 @@
 	 * A member with no password of their own has no vault to derive the organization's next key
 	 * from, which is what Rust refuses such an offer by name for; this is the earlier refusal, and
 	 * it is what keeps the chooser from offering a choice that cannot go through. A member whose
-	 * standing has not been answered yet is left out on the same reading `linkable` leaves one out.
+	 * standing has not been answered yet is left out too: an offer drawn from nothing would name
+	 * somebody Rust refuses.
 	 */
 	const offerable = $derived(
 		members
@@ -511,8 +497,9 @@
 				]
 			: []),
 		// the one link act (effort 828, requirement 20): what kind of link it is is read off the
-		// member, and the standing that bars one is the line the card already carries.
-		...(canLink && writable(member) && linkable(member)
+		// member, and no standing bars one. *The card offered it only where the standing allowed
+		// it until the human ruled one machine per account out on 2026-09-20.*
+		...(canLink && writable(member)
 			? [
 					{
 						label: $LL.organization.dashboard.makeLink(),

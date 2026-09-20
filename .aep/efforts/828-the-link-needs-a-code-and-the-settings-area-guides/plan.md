@@ -229,6 +229,13 @@ card in the members directory carries; and `setup::in_use_by_somebody_who_can_in
 from `setup::connect_existing`, is requirement 14's own gate. The sentence was written when the
 gate was the only reason the register existed, and requirements 19 and 20 gave it two more.*
 
+*Corrected 2026-09-20, on the human's look at the closed build: the register gates nothing, and
+`store::connected_machines` has one production call site. Both gates the correction above counted
+are gone. `setup::in_use_by_somebody_who_can_invite` is gone with the refusal it answered for, and
+`invite::make_link` reads the register for nothing; `invite::standings` is the reader that is left,
+and what the register feeds is the standing line on a card (requirement 19) and nothing else. The
+rows, the writers, the window and the reader are unchanged.*
+
 ## The account connects to the organization the group holds (requirement 14)
 
 The walk today consents and then creates in one command. It splits at the consent: after the
@@ -263,6 +270,16 @@ a live one; then it pushes. The authority stays in the keyring as after a create
 | **A. The password is the anchor; connect and sign in are one act** (chosen) | nothing read out of the database is trusted before the owner's key verifies it; the name is known before the record is written; only the owner can, by construction | the wall's order is inverted for this one path, and a second unverified read exists | an unverified read that leaks into another caller; the docstring and the test that pins its one caller guard it | one command, one step in the walk |
 | B. Trust the row's `verifying_key` | no unverified read | compares the database against itself, which `authority.rs` refuses on purpose; an administrator could connect by the account | the design's one prohibition | none |
 | C. Ask the owner to type the organization's name and pin it | a name before sign-in | the name proves nothing and the owner may not remember it | a mismatch with no way to say why | none |
+
+*Corrected 2026-09-20, on the human's look at the closed build: **the registry is not read here at
+all.** The paragraph above has `connect_existing` read `store::connected_machines` and refuse with
+`PreconditionFailed` while a machine an owner or an administrator is on was seen inside the window,
+naming that such a machine can hand out a link. The owner is handed no link, so what that refusal
+did was leave the owner outside their own organization pointing at something nobody could give
+them; the human met it on a second machine. The read, the refusal, its sentence and
+`setup::in_use_by_somebody_who_can_invite` are gone, and `abandon_the_consent` keeps its other
+caller. Everything from the unverified member read onwards is unchanged, and the trust anchor is
+still the owner's password.*
 
 ## The way in is an account or a link and a code (requirements 13, 17)
 
@@ -340,6 +357,15 @@ invite form's result panel, the handover block, is what the card's link act show
 
 *Rejected: keeping three acts, which is three places to explain one link; and offering a link
 on an account with a machine signed in, which the human ruled out.*
+
+*Corrected 2026-09-20, on the human's look at the closed build: **`invite::make_link` (the name
+the tree gave `link::make_for`) refuses no standing, and the second rejection above is what the human reversed.** The paragraph has the act
+refuse with `PreconditionFailed` where the register shows a machine signed in on the account inside
+the window; the register read and that refusal are gone. An account is held on as many machines as
+it is given links for, so a link is made for an account with a password whether or not a machine is
+signed in on it, and that link is the machine kind, which lands its machine at the wall like any
+other. Nothing else in the section moves: the account act, the two kinds, the reset and the
+self-service act's retirement all stand, and one link still admits one machine once.*
 
 ## The directories (requirements 19, 21)
 

@@ -202,9 +202,10 @@ pub async fn organization_group_inspect(
 /// refused with the wall's one sentence, which tells the two apart by nothing; anybody who is not
 /// the owner is refused by name and the machine is left holding nothing.
 ///
-/// **A machine that can hand out a link shuts this way in** (requirement 15). The refusal lets the
-/// consent go, exactly as a group already holding an organization does on a create, so the walk
-/// reads that the authority is gone and returns to the consent carrying the sentence.
+/// **The register of connected machines shuts nothing** (requirement 15, as the human corrected it
+/// on 2026-09-20). This used to refuse while a machine an owner or an administrator was on had been
+/// seen inside the week, and point at the link that machine could make; the owner is handed no
+/// link, and an account is held on as many machines as its holder signs in on.
 #[tauri::command]
 pub async fn organization_connect_existing(
     app_state: tauri::State<'_, AppState>,
@@ -680,10 +681,11 @@ async fn machine_registered(app_state: &AppState) -> Result<(), Error> {
 ///
 /// **The replica is taken rather than borrowed**, so the sign-out `forget` performs next finds
 /// none and writes nothing back: a machine that deleted its row and then said it was still here
-/// would stand in the owner's way for a week over a disconnect it performed itself.
+/// would draw a standing line on its member's card for a week over a disconnect it performed
+/// itself.
 ///
-/// A disconnect from the wall has no replica open and leaves the row where it is, which is what
-/// the seven-day window is for. Nothing here is a refusal: the person asked to forget the
+/// A disconnect from the wall has no replica open and leaves the row where it is, which the
+/// seven-day window ages out. Nothing here is a refusal: the person asked to forget the
 /// organization and that is what happens either way.
 pub(crate) async fn leave_registry(app_state: &AppState) {
     let held = {
@@ -1253,7 +1255,8 @@ pub async fn member_create(
 /// **The account's standing chooses the kind and the caller chooses nothing.** An account whose
 /// password is not yet set gets an invitation-kind link, which asks the person opening it to
 /// choose a password; one that has a password gets a machine-kind link, which lands the machine at
-/// the wall. It is refused while a machine is signed in on the account.
+/// the wall. No standing refuses it: an account is held on as many machines as it is given links
+/// for, and each link admits one of them, once.
 ///
 /// **Both halves cross, and neither is a credential** ([[rules/credentials]], *Client boundary*).
 /// The link's text carries the credential sealed and the code is what the person reads off the
@@ -1270,7 +1273,8 @@ pub async fn member_link_make(
     let (member, store) = signed_in(&mut member, &store)?;
     // an invitation-kind link writes the account's row back whole, and that row carries the
     // session epoch, so it is read after a pull rather than off this machine's last sight of it
-    // (effort 826, requirement 22). The register this act is gated on is read from the same pull.
+    // (effort 826, requirement 22). *The register this act was gated on was read from the same
+    // pull until 2026-09-20; the gate is gone (828, requirement 20 as corrected).*
     store.pull().await;
     let locator = invite::locator(store, member).await?;
 

@@ -45,9 +45,10 @@
 	 *
 	 * **A connect the organization refuses is said on its own step**, against the password, for
 	 * the reason the group refusal is said beside its field: the sentence belongs where the typing
-	 * happened. The one exception is the refusal that gives the consent back, a machine somebody
-	 * is still on, which leaves nothing on this machine to retype against; that one is read the
-	 * same way a refused create is, off the authority, and returns to the consent.
+	 * happened. The one exception is a refusal nothing typed on the step can answer, one about the
+	 * consented account itself, which is told apart by the code Rust gave it and returns to the
+	 * consent. *Until 2026-09-20 that refusal was a machine somebody was still on, and until ticket
+	 * 20 it was read off the authority rather than off the code.*
 	 *
 	 * **A create the group refuses sends the walk back to the consent.** One group holds one
 	 * organization, so a group that already holds one is refused before anything is created and
@@ -167,12 +168,12 @@
 		try {
 			await connectExisting.mutateAsync({ username, password });
 		} catch (error) {
-			// read off what was refused rather than off where this machine stands: one refusal
-			// gives the consent back, a machine somebody is still on, and it is the only
-			// `preconditionFailed` this call makes. Everything else is said against the password on
-			// the step they are on, with what they typed still in it. *This refetched the state and
-			// read the Turso authority, so a connection that dropped at the wrong moment sent the
-			// person back to grant a consent they still had.*
+			// read off what was refused rather than off where this machine stands: a refusal about
+			// the consented account itself is the `preconditionFailed`, and nothing typed on this
+			// step answers one, so they go back to the consent. Everything else is said against the
+			// password on the step they are on, with what they typed still in it. *This refetched
+			// the state and read the Turso authority, so a connection that dropped at the wrong
+			// moment sent the person back to grant a consent they still had.*
 			const back = refusalAfterFailedConnect(error);
 
 			if (!back) {

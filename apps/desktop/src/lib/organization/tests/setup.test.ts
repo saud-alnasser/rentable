@@ -663,21 +663,24 @@ test('the connect-existing way is two steps and is not the walk that creates', (
 });
 
 /**
- * A refused connect is read off **what was refused**. A machine somebody is still on shuts this way
- * in and Rust gives the consent back with a `preconditionFailed`, so the walk returns to the
- * consent carrying the sentence; everything else leaves the consent where it was and is said on
+ * A refused connect is read off **what was refused**. A refusal about the consented account itself
+ * is Rust's `preconditionFailed`, and nothing typed on the step answers one, so the walk returns to
+ * the consent carrying the sentence; everything else leaves the consent where it was and is said on
  * the step, against the password, with what was typed still in the fields.
  *
  * *It read the Turso authority instead until ticket 20, which is a fact about this machine rather
  * than about what was refused: a connect that failed on the network at a moment when the state
  * this machine held of itself said the authority was gone sent the person back to grant a consent
  * they had never lost. The network case is the last assertion here.*
+ *
+ * *And the refusal it was written for was the register's, a machine somebody was still on, until
+ * the human ruled one machine per account out on 2026-09-20. The sentence below is the one Rust
+ * still formats for a `preconditionFailed` here.*
  */
-test('a connect refused after the consent was given back sends the walk to the connect step', () => {
+test('a connect refused on the account itself sends the walk to the connect step', () => {
 	const refused = {
 		code: 'preconditionFailed',
-		message:
-			'a machine that holds this organization is still in use. make a link on that machine and open it here'
+		message: 'this turso account holds no organization to connect to. go back and make one'
 	};
 
 	assert.deepEqual(refusalAfterFailedConnect(refused), {
@@ -712,8 +715,14 @@ test('a connect refused after the consent was given back sends the walk to the c
 	assert.equal(refusalAfterFailedConnect(new Error('something else')), null);
 });
 
-/** and the two sentences the connect refuses with are Rust's, read back out of `setup.rs`. */
-test('the two refusals the existing step can meet are the ones rust formats', async () => {
+/**
+ * and the sentences the connect refuses with are Rust's, read back out of `setup.rs`.
+ *
+ * *There were two until 2026-09-20, and the one that went pointed at a link a connected machine
+ * could make. Nothing formats it now, which this asserts as well: the owner is handed no link, so
+ * that sentence sent them looking for something nobody could give them.*
+ */
+test('the refusals the existing step can meet are the ones rust formats', async () => {
 	const rust = await readFile(
 		fileURLToPath(new URL('../../../../tauri/src/organization/setup.rs', import.meta.url)),
 		'utf8'
@@ -722,15 +731,19 @@ test('the two refusals the existing step can meet are the ones rust formats', as
 
 	assert.ok(
 		unwrapped.includes(
-			'a machine that holds this organization is still in use. make a link on that machine and open it here'
+			'this turso account holds no organization to connect to. go back and make one'
 		),
-		'rust no longer says that a connected machine can hand out a link'
+		'rust no longer says that the account holds nothing to connect to'
 	);
 	assert.ok(
 		unwrapped.includes(
 			'only the owner can connect a machine with the turso account. ask them for a link, or for a new one if yours has lapsed'
 		),
 		'rust no longer refuses anybody but the owner by name'
+	);
+	assert.ok(
+		!/make a link on that machine/.test(unwrapped),
+		'rust still points at a link a connected machine can make'
 	);
 });
 

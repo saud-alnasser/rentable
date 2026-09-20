@@ -398,8 +398,8 @@ export type OrganizationMember = {
  * where one account stands, as the directory says it in a line (effort 828, requirement 19).
  *
  * **Two facts, and the three standings are read off the pair**: an account with no password of its
- * own, one nobody is signed in on, and one a machine is signed in on. They are the same two facts
- * a link is gated on, so a card says why a link is not offered without asking a second question.
+ * own, one nobody is signed in on, and one a machine is signed in on. The line is a fact about the
+ * account and gates nothing: a link is made whichever of the three it reads.
  */
 export type MemberStanding = {
 	memberId: string;
@@ -550,10 +550,9 @@ export type Host = {
 		 * its owner in to it. Only the owner's password does it, because only their password
 		 * re-derives the key the rows are judged against: anybody else rejects as `forbidden` and
 		 * the machine is left holding nothing. A wrong username and a wrong password reject with
-		 * the wall's one sentence, which tells them apart by nothing. While a machine an owner or
-		 * an administrator is on has been seen in the last seven days it rejects as
-		 * `preconditionFailed`, saying that machine can hand out a link, and the consent is let go
-		 * of, exactly as a create into a held group lets it go.
+		 * the wall's one sentence, which tells them apart by nothing. Other machines holding the
+		 * organization stand in nobody's way: the register is not read here, because an account is
+		 * held on as many machines as its holder signs in on.
 		 */
 		connectExisting: (username: string, password: string) => Promise<OrganizationState>;
 		/** the organization this machine holds, and who is signed in. */
@@ -673,7 +672,7 @@ export type Host = {
 			 * make the one link that admits a machine to an account. The account's standing chooses
 			 * the kind: one whose password is not yet set gets a link that asks the person to
 			 * choose one, and one that has a password gets a link that lands the machine at the
-			 * wall. Rejects as `preconditionFailed` where a machine is signed in on the account.
+			 * wall. No standing refuses it, and each link admits one more machine, once.
 			 */
 			linkMake: (memberId: string) => Promise<MadeLink>;
 			/**

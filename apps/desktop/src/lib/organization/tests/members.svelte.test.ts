@@ -26,8 +26,8 @@ import Providers from './providers.svelte';
  * at the foot. *It was a list of rows until the human saw them in the running build.*
  *
  * **What a card carries** is the username, the role, one line of standing and the workspaces held
- * as chips with their access. The standing is the pair a link is gated on read as a sentence, so
- * the card that offers no link is the card that says why.
+ * as chips with their access. The standing is two facts read as a sentence, and it gates nothing:
+ * a card says where the account stands and offers the link either way.
  *
  * **What a card offers** is drawn from the reader's permissions alone, and an act the session
  * lacks is absent from the menu rather than disabled in it. Every act is read by opening the
@@ -679,10 +679,12 @@ test('each act is drawn by its own act and by no other', async () => {
 	await only({ canRename: true, selfId: 'ada' }, 'ada', []);
 });
 
-// effort 828, requirement 20 and ticket 14's gate: an account with a password is offered a link
-// only while no machine is signed in on it, and an account whose password is not set is offered one
-// either way. The line the card already carries is what says why the act is absent.
-test('the link act follows the standing, and the card says why it is not offered', async () => {
+// effort 828, requirement 20 as the human corrected it on 2026-09-20: the link act is on every card
+// this reader may write, whatever the standing line says. An account is held on as many machines as
+// it is given links for, so the line is a fact about the account and never the reason a link is
+// missing. *This test asserted the opposite, and the card the line barred was the one the human met
+// in the closed build.*
+test('the link act is offered whatever the standing says, and the line stays a fact', async () => {
 	const open = list();
 
 	// sami has no password yet and ada has one with nobody signed in: both are offered a link.
@@ -705,24 +707,23 @@ test('the link act follows the standing, and the card says why it is not offered
 		]
 	});
 
-	expect(await actsOn('ada')).not.toContain('link');
+	// a card standing *signed in on a machine* says so and offers the link all the same.
 	expect(card('ada')?.querySelector('[data-member-standing]')?.textContent?.trim()).toBe(
 		en.organization.dashboard.standingSignedIn
 	);
-	// an account with no password is offered one even so: nobody is signed in that it would double.
+	expect(await actsOn('ada')).toContain('link');
 	expect(await actsOn('sami')).toContain('link');
 	signedIn.unmount();
 
-	// **and the act is absent while the standings are unknown** (ticket 20, the review's tenth
-	// finding). The standings are a second read: a card drawn before they arrive, or after they
-	// failed, carries no standing line, and an account whose standing nothing knows was being
-	// offered the one act that standing gates. What follows is a link Rust refuses, on a card whose
-	// own line says nothing about why.
+	// and a card drawn before the standings arrive offers it too: the standings are a second read,
+	// and the act no longer waits on one. The line is what waits, and its absence says nothing
+	// about the act. *It waited here until 2026-09-20, because an act drawn from nothing would
+	// have been refused by Rust on the gate this stood in for.*
 	const loading = list({ standings: [] });
 
-	expect(await actsOn('ada')).not.toContain('link');
-	expect(await actsOn('sami')).not.toContain('link');
-	// and the rest of the card is drawn as it was: it is the link alone that waits.
+	expect(card('ada')?.querySelector('[data-member-standing]')).toBeNull();
+	expect(await actsOn('ada')).toContain('link');
+	expect(await actsOn('sami')).toContain('link');
 	expect(await actsOn('ada')).toContain('rename');
 	loading.unmount();
 });

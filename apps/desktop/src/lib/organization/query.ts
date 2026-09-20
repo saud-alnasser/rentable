@@ -412,8 +412,8 @@ export function useFetchMembers() {
  * **A second query rather than a wider member row**, because the two halves come from two places:
  * the password is on the signed member row and the machine is on the register every machine writes
  * for itself. Its key sits under the members' own, so everything that invalidates the list
- * invalidates the standings with it, which is what keeps a card's line and its acts agreeing after
- * a link, a reset or a removal.
+ * invalidates the standings with it, which is what keeps a card's line true after a link, a reset
+ * or a removal.
  */
 export function useFetchMemberStandings() {
 	return createQuery(() => ({

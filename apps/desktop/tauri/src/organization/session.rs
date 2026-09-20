@@ -791,8 +791,7 @@ pub async fn end_member_sessions(
 
     // and the register stops naming them (effort 828, requirement 15). Every machine they were on
     // is behind the epoch now, so a register that went on saying one is signed in on the account
-    // would hold the link act shut on a card whose whole standing has just changed, and the one
-    // remedy the directory offers after this act is the link. The rows stay: those machines still
+    // would draw a standing line for a state that ended here. The rows stay: those machines still
     // hold the organization, and what ended is who is on them.
     store.clear_member_from_machines(member_id).await?;
 
@@ -2013,12 +2012,12 @@ mod tests {
         assert_eq!(epoch_of(&store, &joined, "member-sami").await, 1);
         assert_eq!(epoch_of(&store, &joined, "member-ada").await, 0);
 
-        // **and the register stops naming them, so the link act follows the sign-out.** Every
-        // machine they were on is behind the epoch now; the rows stay, because those machines
-        // still hold the organization, and the standing the members directory draws is *no machine
-        // signed in*, which is the standing a link is offered on. *The epoch moved and the
-        // register did not, until ticket 20, so the one act that gets them back in stayed absent
-        // from their card.*
+        // **and the register stops naming them, so the standing line follows the sign-out.**
+        // Every machine they were on is behind the epoch now; the rows stay, because those
+        // machines still hold the organization, and the standing the members directory draws is
+        // *no machine signed in*, a fact and nothing more since 2026-09-20 (requirement 20 as
+        // corrected). *The epoch moved and the register did not, until ticket 20, so the card
+        // said somebody was signed in on a machine nothing admitted any more.*
         let named: Vec<Option<String>> = store
             .connected_machines(
                 &super::verifying_key_of(&joined).expect("the key"),

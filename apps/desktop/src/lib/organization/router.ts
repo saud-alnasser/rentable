@@ -289,9 +289,9 @@ export const organization = router({
 		 * what making an account was always half of, and it is also the only thing that restores an
 		 * account whose password `unsetPassword` beside it took away. Held to the first alone, a
 		 * member widened with the second and not the first could lock somebody out and not let them
-		 * back in. *The human struck that risk on 2026-09-16.* Which kind of link it is, and
-		 * whether a machine is already signed in on the account, are Rust's: the first is read off
-		 * the account's row and the second off the register of connected machines.
+		 * back in. *The human struck that risk on 2026-09-16.* Which kind of link it is is Rust's,
+		 * read off the account's row; nothing about where the account stands refuses one, because
+		 * an account is held on as many machines as it is given links for.
 		 * *`invitation.reissue`, then `member.reset`, then this.*
 		 */
 		linkMake: procedure

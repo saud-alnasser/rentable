@@ -258,15 +258,19 @@ export function stepAfterConsent(group: GroupState): SetupStep {
 /**
  * Where a failed connect leaves the walk.
  *
- * **One refusal is told apart from every other, and it is told apart by what Rust called it.** A
- * machine an owner or an administrator is on is still connected, so this way in is shut and the
- * connect gives the consent back; that refusal, and only that one, is `preconditionFailed`, so the
- * walk returns to the consent carrying the sentence and the next consent can be granted over
- * another account.
+ * **One kind of refusal is told apart from every other, and it is told apart by what Rust called
+ * it.** A refusal nothing typed on the step can answer is `preconditionFailed`, whichever of
+ * them Rust raised: the consented account holds no organization to connect to, this machine
+ * already holds one, or Turso refused the account the mint was asked of. The walk returns to the
+ * consent carrying the sentence.
  *
  * `null` for every other refusal, which is every one a person can act on where they are: a wrong
- * username or password, an account that stopped holding an organization, a connection that
- * dropped. The step keeps what was typed and marks the password.
+ * username or password, a connection that dropped. The step keeps what was typed and marks the
+ * password.
+ *
+ * *A machine an owner or an administrator was on used to shut this way in, and that refusal was
+ * the `preconditionFailed` this read was written for. The register gates no way in from
+ * 2026-09-20; the read stands because the code still marks the same thing.*
  *
  * *It read the Turso authority instead until ticket 20, and that is a fact about this machine
  * rather than about what was refused: a connect that failed on the network, at a moment when the

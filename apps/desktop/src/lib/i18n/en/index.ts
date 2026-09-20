@@ -860,8 +860,8 @@ const en = {
 			// then what this section is for.
 			workspacesDescription:
 				'every workspace in the organization. workspaces are made and changed here.',
-			// the one line a card carries about where an account stands: the same two facts a link
-			// is gated on, so the line that says a link is not offered also says why.
+			// the one line a card carries about where an account stands. It is a fact about the
+			// account and nothing follows from it: a link is offered whichever of the three it says.
 			standingNoPassword: 'no password yet',
 			standingNoMachine: 'no machine signed in',
 			standingSignedIn: 'signed in on a machine',

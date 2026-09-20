@@ -42,6 +42,16 @@ entry says how it is signed and followed). And `invite::make_link` is held to `i
 converge was that whoever may take a password away may hand back the link that gives one, and the
 router and the card gate the act the same way. Refused on the owner's own row still.*
 
+*Corrected 2026-09-20 ([[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]],
+requirements 14, 15 and 20, on the human's look at the closed build): **the `machine` table gates
+nothing.** It is still requirement 15's register of the machines that hold the organization, and it
+is read in one place: the standing line each card in the members directory carries (requirement
+19). It shut the Turso way in while an owner's or an administrator's machine was connected, and it
+refused a link while a machine was signed in on the account; both gates are gone, because an
+account is held on as many machines as its holder signs in on. A machine still registers when it
+connects, names its member at sign-in, drops them at sign-out, refreshes on every launch and leaves
+on disconnect.*
+
 **Vault**:
 A member's X25519 keypair, sealed under a key Argon2id derives from their password, on their own
 row. The password opens it on any machine, with or without a network; what it unseals is the
@@ -259,9 +269,14 @@ to judge, and a member with a full-access grant could replace it.*
   one reason on both.* The way is
   open only while no owner's or administrator's machine has been seen in the
   last seven days, since such a machine can hand out a link, and the refusal says so and abandons
-  the consent. *Nothing creates in a held group:* the refusal requirement 21 added stands for a
-  create arriving by any other route. A second machine reconnecting by link is neither of these
-  and succeeds as before.
+  the consent. *Corrected 2026-09-20 (828, requirements 14 and 20, on the human's look at the
+  closed build): the sentence before this one is gone with the gate it describes. The way is open,
+  full stop; the register is not read here and no machine shuts it. The owner is handed no link, so
+  a refusal pointing at the link another machine could make left the owner outside their own
+  organization with nowhere to go, and an account is held on as many machines as its holder signs in
+  on. Only the owner can, still, and for the reason above.* *Nothing creates in a held group:* the
+  refusal requirement 21 added stands for a create arriving by any other route. A second machine
+  reconnecting by link is neither of these and succeeds as before.
 - **Credentials renew on the owner's machine before they lapse, and only there.** A grant is
   minted for four weeks, and the owner's machine, the only one holding the Turso authority, renews
   every grant within a week of its expiry, best effort, after it signs in. It never blocks a
@@ -271,7 +286,11 @@ to judge, and a member with a full-access grant could replace it.*
   nothing to a member whose row reads `removed`, so a grant row replayed on its own earns nothing.
   A member who also replays their own `role=member` row flips the filter and is re-credentialed;
   that this is not closed inside the ordinary path is requirement 14's documented limitation, for
-  which lock-out is the answer (F-A, ticket 28).
+  which lock-out is the answer (F-A, ticket 28). *Corrected 2026-09-20 (828, requirement 14 as
+  corrected): the owner's machines, plural. The owner connects as many machines as they sign in on,
+  each holding the Turso authority through its own consent, and each renews best effort; two
+  renewals that cross leave two credentials in force until they lapse, the later re-seal of the
+  grant rows standing, and nothing breaks.*
 - **Removal ends synchronisation and reaches into nothing.** An ordinary removal stops renewing
   and disturbs nobody; a lock-out rotates the workspaces the member held and says beforehand how
   many others stop syncing until their application collects a fresh credential, which it does

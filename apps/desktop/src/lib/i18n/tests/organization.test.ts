@@ -90,9 +90,9 @@ test('neither locale tells somebody that forgetting revoked anything', () => {
 	}
 });
 
-// effort 828, requirement 19: a card carries one line of standing, and the three lines are the
-// pair a link is gated on read as sentences. What is read here is that both locales carry all
-// three in their own words and tell them apart; the card itself is rendered in
+// effort 828, requirement 19: a card carries one line of standing, and the three lines are two
+// facts about the account read as sentences. They gate nothing. What is read here is that both
+// locales carry all three in their own words and tell them apart; the card itself is rendered in
 // `organization/tests/members.svelte.test.ts`. *Both locales marked a pending member and dated
 // their link until the cards replaced the rows; the standing says the same thing about the
 // account rather than about an invitation.*

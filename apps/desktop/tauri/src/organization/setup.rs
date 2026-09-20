@@ -755,15 +755,6 @@ pub async fn group_inspect(platform_token: &str, mcp: &McpEndpoint) -> Result<Gr
 const NOTHING_TO_CONNECT_TO: &str =
     "this turso account holds no organization to connect to. go back and make one";
 
-/// What it is told while somebody who can hand out a link is still connected (requirement 14).
-///
-/// **The way in is open only while no owner's or administrator's machine is** (requirement 15
-/// says what connected means): while one is, that machine can make a link, and a link is the
-/// ordinary way onto a second machine. This way exists for the case where there is no such
-/// machine left.
-pub const A_CONNECTED_MACHINE_CAN_HAND_OUT_A_LINK: &str = "a machine that holds this \
-     organization is still in use. make a link on that machine and open it here";
-
 /// What anybody but the owner is told, whichever of the two comparisons caught them.
 pub const ONLY_THE_OWNER_CONNECTS: &str = "only the owner can connect a machine with the \
      turso account. ask them for a link, or for a new one if yours has lapsed";
@@ -790,17 +781,12 @@ const ORGANIZATION_THIS_ACCOUNT_HOLDS: &str = "the organization this turso accou
 /// only the owner's machine mints, and this mints on the owner's own consent. The replica opens
 /// under it and pulls.
 ///
-/// **The registry is the gate, and it is read before anything is asked of the person**
-/// (requirement 15). Where a machine seen inside the presence window belongs to a member whose row
-/// carries the owner's or an administrator's role, that machine can hand out a link and this way
-/// in is shut: the consent is let go of exactly as requirement 21's refusal lets it go, so the
-/// walk finds the authority gone and returns to the consent carrying the sentence.
-///
-/// *The key that read is made with is the organization row's own*, which is the only key this
-/// machine holds before a password has opened anything. That is sound here and nowhere else: the
-/// registry gates convenience and never authority (the spec, under *Risks*), and in every run that
-/// goes on to connect, the row's key is proved a moment later to be the key the owner's password
-/// re-derives. A run that is not that run is refused below.
+/// **The registry is not read here, and it gates nothing** (requirement 15, as the human corrected
+/// it on 2026-09-20). This way in used to be shut while a machine an owner or an administrator was
+/// on had been seen inside the presence window, on the reading that such a machine could hand out a
+/// link instead. The owner is handed no link, so what the gate did was leave the owner outside
+/// their own organization with a sentence pointing at something nobody could give them. An account
+/// is held on as many machines as its holder signs in on (requirement 20), and this is one of them.
 ///
 /// **The trust anchor is the owner's password, and the database is never asked to vouch for
 /// itself.** The member rows are read unverified, which is what
@@ -921,14 +907,6 @@ where
                     .to_string(),
             })?;
 
-        if in_use_by_somebody_who_can_invite(&replica, &row.verifying_key, now).await? {
-            abandon_the_consent(store);
-
-            return Err(Error::PreconditionFailed {
-                message: A_CONNECTED_MACHINE_CAN_HAND_OUT_A_LINK.to_string(),
-            });
-        }
-
         let (verifying_key, content_key) =
             the_owners_key(&replica, &row, username, password).await?;
         let name = opened_text(&content_key, "organization.name_sealed", &row.name_sealed)?;
@@ -991,27 +969,6 @@ where
         .write();
 
     Ok((held, replica, session))
-}
-
-/// Whether a machine the organization counts as connected belongs to somebody who can hand out a
-/// link: the owner, or an administrator.
-///
-/// A row naming a member who is no longer in the organization comes back with no member beside it
-/// and stands in nobody's way, which is what a machine a removed person left behind is.
-async fn in_use_by_somebody_who_can_invite(
-    replica: &OrganizationStore,
-    verifying_key: &[u8; VERIFYING_KEY_BYTES],
-    now: i64,
-) -> Result<bool, Error> {
-    Ok(replica
-        .connected_machines(verifying_key, now)
-        .await?
-        .iter()
-        .any(|(_, member)| {
-            member.as_ref().is_some_and(|member| {
-                member.role == OWNER_ROLE || member.role == permission::ADMINISTRATOR
-            })
-        }))
 }
 
 /// Find the vault `password` opens under `username`, and answer the organization key its secret
@@ -1273,11 +1230,11 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        A_CONNECTED_MACHINE_CAN_HAND_OUT_A_LINK, BASE64URL, CreateOrganization, GroupState,
-        MINIMUM_PASSWORD_LENGTH, ONLY_THE_OWNER_CONNECTS, ORGANIZATION_CREDENTIAL_LIFETIME,
-        ORGANIZATION_DATABASE_PREFIX, ORGANIZATION_KEY_PURPOSE, ORGANIZATION_THIS_ACCOUNT_HOLDS,
-        OWNER_PERMISSIONS, OWNER_ROLE, Remote, SHIPPING_KDF, THE_GROUP_IS_NEEDED, connect_existing,
-        create_organization, credential_expiry, draw_these_ids_next, group_inspect,
+        BASE64URL, CreateOrganization, GroupState, MINIMUM_PASSWORD_LENGTH,
+        ONLY_THE_OWNER_CONNECTS, ORGANIZATION_CREDENTIAL_LIFETIME, ORGANIZATION_DATABASE_PREFIX,
+        ORGANIZATION_KEY_PURPOSE, ORGANIZATION_THIS_ACCOUNT_HOLDS, OWNER_PERMISSIONS, OWNER_ROLE,
+        Remote, SHIPPING_KDF, THE_GROUP_IS_NEEDED, connect_existing, create_organization,
+        credential_expiry, draw_these_ids_next, group_inspect,
     };
     use crate::{
         error::Error,
@@ -2665,8 +2622,8 @@ mod tests {
 
         drop(replica);
 
-        // long enough after that the administrator's own machine has dropped out of the presence
-        // window, so what refuses below is the key and not the gate in front of it.
+        // well past the window the register counts a machine as connected inside, which bears on
+        // nothing here: the register gates no way in, and what refuses below is the key.
         let now = ISSUED_AT + 2 * FOUR_WEEKS_MS;
         let mcp = ScriptedServer::start(holding_the_organization()).await;
         let mut machine = fresh_machine(&directory, "second-machine");
@@ -2785,8 +2742,8 @@ mod tests {
         let directory = scratch("connect-existing-handed-over");
         let (platform, invited, owner) = handed_over(&directory).await;
 
-        // long enough after that every machine has dropped out of the presence window, so what
-        // lets the connect through is the key and not the gate in front of it.
+        // well past the window the register counts a machine as connected inside, which bears on
+        // nothing here: the register gates no way in, and what lets the connect through is the key.
         let now = ISSUED_AT + 2 * FOUR_WEEKS_MS;
         let mcp = ScriptedServer::start(holding_the_organization()).await;
         let mut machine = fresh_machine(&directory, "third-machine");
@@ -2873,12 +2830,18 @@ mod tests {
         );
     }
 
-    /// **The third case.** While a machine an owner or an administrator is on was seen inside the
-    /// presence window, that machine can hand out a link, so this way in is shut: the refusal says
-    /// so and the consent is let go of, which is the signal the walk reads to return to the
-    /// consent, exactly as effort 826's requirement 21 leaves it.
+    /// **The third case, turned round on 2026-09-20.** A machine the owner is on, seen inside the
+    /// presence window, stands in nobody's way: the consent connects this machine too and signs the
+    /// owner in on it, and the machine that was already there keeps its session and its row.
+    ///
+    /// *This test used to assert the opposite.* The register shut this way in while an owner's or
+    /// an administrator's machine had been seen inside the window, on the reading that such a
+    /// machine could hand out a link instead. The owner is handed no link, so the owner meeting
+    /// that refusal was pointed at something nobody could give them, which is what the human met in
+    /// the closed build. An account is held on as many machines as its holder signs in on, and the
+    /// register feeds the standing line on a card and gates nothing.
     #[tokio::test]
-    async fn a_machine_seen_six_days_ago_shuts_the_way_in_and_the_consent_is_let_go_of() {
+    async fn a_machine_seen_six_days_ago_leaves_the_way_in_open_and_keeps_its_own_session() {
         let _turn = take_the_credential_store().await;
 
         store_platform_token(TOKEN).expect("the test credential store would not take the token");
@@ -2891,14 +2854,15 @@ mod tests {
             .expect("the owner did not sign in");
         let now = ISSUED_AT + 2 * FOUR_WEEKS_MS;
 
-        // the owner's own machine, last heard from six days ago: inside the window, so it counts.
+        // the owner's own machine, last heard from six days ago: inside the window, so it counts as
+        // connected and the register says the owner is on it.
         session::machine_seen(&replica, &held, Some(&owner.member_id), now - SIX_DAYS_MS).await;
 
         drop(replica);
 
         let mcp = ScriptedServer::start(holding_the_organization()).await;
         let mut machine = fresh_machine(&directory, "second-machine");
-        let refused = connect_existing(
+        let (second, replica, session) = connect_existing(
             &mut machine,
             TOKEN,
             &McpEndpoint::at(&mcp.url("")),
@@ -2910,24 +2874,52 @@ mod tests {
             now,
         )
         .await
-        .expect_err("the way in was open while a machine was in use");
+        .expect("the register shut the owner out of their own organization");
 
-        assert!(
-            matches!(refused, Error::PreconditionFailed { ref message }
-                if message == A_CONNECTED_MACHINE_CAN_HAND_OUT_A_LINK),
-            "{refused:?}"
-        );
-        assert!(machine.organization.is_none());
+        assert_eq!(second.id, HELD_ID);
+        assert_eq!(second.role.as_deref(), Some(OWNER_ROLE));
+        assert_eq!(session.member_id, owner.member_id);
+        assert_ne!(second.machine_id, held.machine_id);
 
-        // and the authority is gone, which is what the walk reads to go back to the consent.
+        // both machines are in the register, each naming the owner: the one that was already there
+        // and the one that just connected.
+        let registered = replica
+            .connected_machines(&session.verifying_key, now)
+            .await
+            .expect("the registry");
+        let mut registered: Vec<_> = registered
+            .iter()
+            .map(|(machine, member)| {
+                (
+                    machine.id.as_str(),
+                    member.as_ref().map(|member| member.id.as_str()),
+                )
+            })
+            .collect();
+
+        registered.sort_unstable();
+
+        let mut expected = vec![
+            (held.machine_id.as_str(), Some(owner.member_id.as_str())),
+            (second.machine_id.as_str(), Some(owner.member_id.as_str())),
+        ];
+
+        expected.sort_unstable();
+
+        assert_eq!(registered, expected);
+
+        // and the first machine's session stands: signing in here ended nothing there, because the
+        // epoch is what ends a session and no act moved it.
         assert!(
-            platform_token().is_err(),
-            "the refusal kept the consent's token"
+            !session::ended_elsewhere(&replica, &owner)
+                .await
+                .expect("the first machine's session could not be read"),
+            "connecting a second machine ended the session on the first"
         );
-        assert!(
-            machine.turso_organization.is_none(),
-            "the refusal kept the account the consent was over"
-        );
+
+        // the consent is kept, as it is on every connect that goes through.
+        assert!(platform_token().is_ok());
+        assert!(machine.turso_organization.is_some());
     }
 
     /// **The fourth case.** A wrong password and a username nobody holds are one refusal, and it

@@ -304,9 +304,11 @@ mod tests {
     /// username.
     ///
     /// **The account has been opened once**, because that is what gives it a password and so what
-    /// makes the next link a machine link. The machine that opened it is then taken out of the
-    /// register, which is what signing out of it does: a link is refused while a machine is signed
-    /// in (effort 828, requirement 20), and what these tests are about is the link that follows.
+    /// makes the next link a machine link. The machine that opened it stays signed in and stays in
+    /// the register, since an account is held on as many machines as it is given links for
+    /// (effort 828, requirement 20 as corrected 2026-09-20), and what these tests are about is the
+    /// link that follows. *It was signed out here until then, because a link was refused while a
+    /// machine was signed in.*
     async fn account(
         directory: &std::path::Path,
     ) -> (OrganizationStore, MemberSession, Locator, String, String) {
@@ -403,18 +405,17 @@ mod tests {
         assert_eq!(session.role, permission::MEMBER);
         assert!(!session.must_change_password);
 
-        // they sign out of that machine, which is what leaves the account open to a link again.
-        let their_machine_id = their_machine
-            .organization
-            .as_ref()
-            .expect("the record")
-            .machine_id
-            .clone();
-
-        store
-            .unregister_machine(&their_machine_id)
+        // **and they stay signed in on it**, which is the state every link below is made in: an
+        // account is held on as many machines as it is given links for (requirement 20, as the
+        // human corrected it on 2026-09-20). *They were signed out here until then, because the
+        // act refused a link while a machine was signed in on the account.*
+        let named = store
+            .connected_machines(&owner.verifying_key, ISSUED_AT + 1)
             .await
-            .expect("the machine could not be taken out of the register");
+            .expect("the register could not be read")
+            .into_iter()
+            .any(|(machine, _)| machine.member_id.as_deref() == Some(account.id.as_str()));
+        assert!(named, "opening the link did not register their machine");
 
         (store, owner, locator, account.id, "sami.staff".to_string())
     }
@@ -460,11 +461,12 @@ mod tests {
     /// Effort 828, requirement 20 and criterion 20: **a link for an account that has a password
     /// lands at the wall, where that password admits.**
     ///
-    /// The owner makes it from the account, since nobody is signed in on it. Opening it on a
-    /// machine that holds nothing connects that machine and names no member, which is the wall;
-    /// the username and the password the member already had admit them there, unchanged. The link
-    /// is a machine link by its own text, and it lapses a week out because the in-memory grant
-    /// carries no death of its own.
+    /// The owner makes it from the account **while a machine is already signed in on it**, which
+    /// is the whole of what the human's correction of 2026-09-20 changed: an account is held on as
+    /// many machines as it is given links for. Opening it on a machine that holds nothing connects
+    /// that machine and names no member, which is the wall; the username and the password the
+    /// member already had admit them there, unchanged. The link is a machine link by its own text,
+    /// and it lapses a week out because the in-memory grant carries no death of its own.
     #[tokio::test]
     async fn a_link_for_an_account_with_a_password_lands_at_the_wall_where_that_password_admits() {
         let directory = scratch("connect");

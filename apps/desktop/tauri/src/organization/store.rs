@@ -59,9 +59,11 @@ pub const TABLES: [&str; 10] = [
 /// requirement 15).
 ///
 /// A machine that died without disconnecting leaves its row behind, so the window is what stops
-/// it standing in the owner's way for ever. Every machine that is running refreshes its row at
-/// every launch, so a week is far longer than an ordinary gap and short enough that an owner who
-/// lost every machine waits a week rather than for ever.
+/// it saying for ever that somebody is signed in on it: the standing line on a member's card
+/// (requirement 19) reads this register and nothing else does. Every machine that is running
+/// refreshes its row at every launch, so a week is far longer than an ordinary gap and short
+/// enough that a dead machine's line is wrong for a week rather than for ever. *The window kept
+/// the Turso way in open until 2026-09-20; that gate is gone (requirement 14 as corrected).*
 pub const MACHINE_PRESENCE_WINDOW: i64 = 7 * 24 * 60 * 60 * 1000;
 
 /// The schema, as the plan's data model gives it.
@@ -343,12 +345,14 @@ pub struct MachineLinkRecord {
 /// own organization credential the way `member.session_epoch` is
 /// ([`OrganizationStore::set_session_epoch`]).
 ///
-/// **What the registry gates is one question and never authority.** The question is whether an
-/// owner's or an administrator's machine is connected, which is what decides whether the owner's
-/// account may connect to the organization their group already holds (requirement 14): a person
-/// who rewrites a row holds the way in shut for a week, or opens it while a machine is connected,
-/// and either way the owner's password and their consent still stand between anybody and the
-/// organization. Nothing here says what a member may do, and nothing reads it to find out.
+/// **The registry gates nothing at all**, which is what the human settled on 2026-09-20. It shut
+/// the owner's way in while an owner's or an administrator's machine was connected (requirement
+/// 14) and it refused a link while a machine was signed in on the account (requirement 20); both
+/// gates are gone, because an account is held on as many machines as its holder signs in on. What
+/// is left is one line on a member's card saying where that account stands (requirement 19), read
+/// at the moment somebody looks. So a rewritten row can only make that line wrong, which is also
+/// what an unsigned row is worth: nothing here says what a member may do, and nothing reads it to
+/// find out.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MachineRecord {
     /// the machine's own id, drawn once when it connected and kept in its local record
@@ -1510,10 +1514,10 @@ impl OrganizationStore {
     /// everywhere leaves behind (effort 828, requirements 15 and 20).
     ///
     /// **The rows stay and stop naming anybody**, which is the shape an ordinary sign-out writes
-    /// through [`OrganizationStore::machine_seen`]: those machines still hold the organization, so
-    /// they still stand in the way of a connect by the Turso account, and what ended is who is
-    /// signed in on them. That is also what frees the link act, which is offered exactly while no
-    /// machine is signed in on the account.
+    /// through [`OrganizationStore::machine_seen`]: those machines still hold the organization,
+    /// and what ended is who is signed in on them. So the standing line on that account's card
+    /// reads *no machine signed in* from the next look onwards, which is the fact this act made
+    /// true.
     pub async fn clear_member_from_machines(&self, member_id: &str) -> Result<(), Error> {
         self.connection
             .execute(
@@ -1529,6 +1533,11 @@ impl OrganizationStore {
     /// signed in on it where one is named: the registry's one reader (effort 828, requirement
     /// 15).
     ///
+    /// **What it answers gates nothing** (the human, 2026-09-20). Its one production caller is
+    /// `invite::standings`, behind the standing line a member's card carries (requirement 19).
+    /// It had two more, the Turso way in's refusal and the link act's, and both are gone: an
+    /// account is held on as many machines as its holder signs in on.
+    ///
     /// **The member half is the ordinary verified read**, so what a caller gets back is a role it
     /// can act on: the machine row carries no signature and nothing about it is trusted, and the
     /// member row beside it is verified against the chain exactly as [`OrganizationStore::members`]
@@ -1542,9 +1551,8 @@ impl OrganizationStore {
     ///
     /// **The window is bounded at both ends.** Every machine writes its own `seen_at` and the row
     /// carries no signature, so a row dated in the future is one anybody could write, and a window
-    /// left open above would let a single row hold the owner's way in shut for as long as that
-    /// date says rather than for the week the window is. A machine seen later than now has not
-    /// been seen.
+    /// left open above would let a single row stand as connected for as long as that date says
+    /// rather than for the week the window is. A machine seen later than now has not been seen.
     pub async fn connected_machines(
         &self,
         organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
@@ -3306,9 +3314,10 @@ mod tests {
     ///
     /// Every machine writes its own `seen_at` and nothing signs the row, so a date years out is a
     /// row anybody with the organization credential could write; with the window open above, one
-    /// of them held the owner's way back in shut for as long as that date said rather than for the
-    /// week the window is (requirement 14's gate is this read's only caller, and the spec records
-    /// what an unsigned registry is worth). A machine seen later than now has not been seen.
+    /// of them stood as connected for as long as that date said rather than for the week the
+    /// window is. What that was worth then was the owner's way back in, which this read gated
+    /// until 2026-09-20; what it is worth now is one line on a card, and the bound stays because a
+    /// line nobody can correct is still wrong. A machine seen later than now has not been seen.
     #[tokio::test]
     async fn a_machine_seen_in_the_future_does_not_count_as_connected() {
         let directory = scratch("registry-future");
