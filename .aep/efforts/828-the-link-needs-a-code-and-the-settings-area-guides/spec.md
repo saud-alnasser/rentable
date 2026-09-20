@@ -1,5 +1,5 @@
 ---
-status: implemented
+status: accepted
 ---
 
 # Problem
@@ -204,7 +204,11 @@ organization's own link retires; the owner can delete the organization*)
     sentence saying that machine can hand out a link, and the consent is let go as today. One
     organization to a group still holds (826, requirement 21): the walk never creates in a group
     that holds one. *Chosen over a follow-on effort, and over a password-only way in, which can
-    reach no database; the consent is what the owner holds outside any machine.*
+    reach no database; the consent is what the owner holds outside any machine.* *Corrected
+    2026-09-20 on the human's look at the closed build: the register gates nothing here. The
+    owner is admitted whether or not another machine is in use, because the owner is handed no
+    link and an account is held on as many machines as its holder signs in on (requirement 20);
+    the sentence that pointed at a link the other machine could make went with the gate.*
 15. **Every connected machine is registered in the organization, with whom it belongs to.** The
     organization database records each machine that holds it: the machine, the member signed in
     on it where one is, and when it was last seen. A machine registers when it connects, names
@@ -214,7 +218,9 @@ organization's own link retires; the owner can delete the organization*)
     owner's way after a week. The rows are unsigned, like the session epoch and the machine link,
     and the registry gates requirement 14 alone; nothing else reads it. *Corrected 2026-09-16:
     the members directory reads it too, for the standing line and the link act's gate
-    (requirements 19 and 20); nothing lists machines and nothing acts on one.*
+    (requirements 19 and 20); nothing lists machines and nothing acts on one.* *Corrected
+    2026-09-20: the register gates nothing at all. It feeds the standing line on a card
+    (requirement 19) and is read for nothing else; no way in and no link is refused on it.*
 16. **The organization's own link retires.** With requirement 14 the copy that recovered the
     organization is the owner's account, so the organization link, the one credential that
     never lapses, is no longer minted, stored, shown or accepted. The sync section's link block
@@ -268,7 +274,13 @@ section of ticket 07 in the running build; two picker rounds and one elaboration
     you section keeps its identity block, its password row and its sign-out-everywhere act and
     no link act. *In the human's words: create the account, then click invite link if they have
     zero machines logged in or the account is new, give them the link and the code, and on the
-    onboarding they are presented with the set-password form the first time.*
+    onboarding they are presented with the set-password form the first time.* *Corrected
+    2026-09-20 on the human's look at the closed build: an account is held on as many machines
+    as its holder is given links for, and the human ruled out one machine per account. A link is
+    offered for an account with a password whether or not a machine is signed in on it, and the
+    card says the standing as a fact rather than as the reason no link is offered; nobody signs
+    out of one machine to be given another. Nothing else moves: one link admits one machine
+    once.*
 21. **The workspaces section is a directory of workspaces.** Record cards the same way: the
     name, one quiet mark on the open one, and how many people hold it; *corrected 2026-09-16 on
     the human's look: this reader's access left the card, since the members surface behind the
@@ -406,7 +418,9 @@ and named"; one picker round*)
     administrator's password is refused by name and leaves the machine holding nothing; the
     same while an owner's or an administrator's machine was seen within seven days is refused by
     name; a group holding nothing still creates. The walk's test drives the consent to the
-    connect-existing step on a held group and to the name step on an empty one.
+    connect-existing step on a held group and to the name step on an empty one. *Corrected
+    2026-09-20: the same while an owner's or an administrator's machine was seen within seven
+    days connects and signs in too, and no source formats the refusal that pointed at a link.*
 15. A Rust test connects, signs in, signs out and disconnects a machine and reads the registry
     after each: a row with no member, the member, no member, no row; a row seen eight days ago
     does not count as connected and one seen six days ago does; the rows are read and written
@@ -442,6 +456,8 @@ and named"; one picker round*)
     in; resets a password and finds the next link asking for a new one; and finds a link refused on a second
     opening and after seven days. The connect screen's test shows the choose-password fields
     for the first kind and the wall for the second. The you section's test finds no link act.
+    *Corrected 2026-09-20: making one for an account with a password and a machine signed in is
+    not refused, and that link lands at the wall like any other.*
 21. The workspaces section's test finds one card per workspace with its facts, the create
     control in the tray for an owner holding the authority and the refusal for one who does
     not, rename, members and delete on the card's menu by their gates, and the transfer
