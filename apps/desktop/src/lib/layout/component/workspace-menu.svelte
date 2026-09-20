@@ -6,13 +6,10 @@
 	import { useSidebar } from '@rentable/design/primitive/sidebar/index.js';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
-	import { openOrganizationDialog } from '$lib/organization/dialogs.svelte';
 	import { withSection } from '$lib/settings/section';
 	import InnerShadowTopIcon from '@tabler/icons-svelte/icons/inner-shadow-top';
 	import BuildingIcon from '@lucide/svelte/icons/building';
 	import ChevronsUpDownIcon from '@lucide/svelte/icons/chevrons-up-down';
-	import PlusIcon from '@lucide/svelte/icons/plus';
-	import UserPlusIcon from '@lucide/svelte/icons/user-plus';
 
 	/**
 	 * The workspace this machine has open, at the top of the rail.
@@ -22,12 +19,16 @@
 	 * so the shell still says which application it is; the product's name does not, because a
 	 * desktop window carries it in its title bar and its taskbar already.
 	 *
-	 * **The menu is the workspace and what can be done to it.** The human chose the shape from
-	 * ClickUp's on 2026-08-20: the workspace at the top with its members under its name, its two
-	 * actions side by side under that, and the way to make another at the foot.
+	 * **The menu is the workspace and the switch** (requirement 9 of
+	 * [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]]): its header names the
+	 * workspace that is open, the rows under it are the workspaces the member holds with the open
+	 * one marked, and one row at the foot leads to the workspaces section of the settings area.
+	 * Nothing here invites anybody and nothing here makes a workspace, so the menu carries no
+	 * permission and refuses nobody: a reader who came to switch is offered the switch, and a reader
+	 * who came to do something to a workspace is handed the section where every act on one lives.
 	 *
-	 * **The workspaces the member holds are listed between the actions and the foot, and the open
-	 * one is marked.** An organization holds several and a member holds a grant on some of them
+	 * **The workspaces the member holds are listed under the header, and the open one is marked.**
+	 * An organization holds several and a member holds a grant on some of them
 	 * ([[efforts/824-the-way-in-and-the-workspace-control-are-redesigned/spec]], requirement 9),
 	 * so the list is `workspaces` as the session reads it, and choosing another row opens that
 	 * workspace by the path a sign-in takes past the wall. A member holding one sees the one row,
@@ -37,26 +38,22 @@
 	 * remote-sync query** the rail reads, so the marker and the name cannot disagree. The menu
 	 * draws and never decides: it is handed the rows and a callback, and reads no query itself.
 	 *
-	 * **The two actions are live for whoever their permission admits, and say whose act it is for
-	 * everybody else.** Inviting is an administrator's or the owner's; a new workspace is the owner's,
-	 * from the machine that holds the Turso authority. Each row opens its form, the one mounted in
-	 * the shell (`organization/dialogs.svelte.ts`), or is drawn refused with a sentence, never a
-	 * padlock: nothing here is locked, and a padlock said it was. **Who may do what is the session's**
-	 * ([[rules/credentials]]), and Rust refuses again regardless; the sidebar composes the sentences
-	 * from the locale, and this menu draws them.
+	 * *Until 2026-09-15 the menu also carried two acts that are not the workspace's. It took its
+	 * shape from ClickUp's on 2026-08-20, which the human chose then: the workspace at the top, its
+	 * two actions side by side under it, and the way to make another at the foot. Effort 826's
+	 * requirement 17 held that shape, so inviting and a new workspace sat inside the switcher, each
+	 * drawn refused with a sentence for the readers their permission does not admit, which was most
+	 * of them. Both were in the settings area already, in the sections they belong to, and that is
+	 * where they are now.*
 	 *
-	 * *This said an account owns exactly one workspace, from before organizations, and that a
-	 * list showing the one you are looking at is a switcher that cannot switch. It can now. Its two
-	 * actions were inert rows with a padlock until effort 824; the organization page did both.*
+	 * *This said an account owns exactly one workspace, from before organizations, and that a list
+	 * showing the one you are looking at is a switcher that cannot switch. It can now.*
 	 */
 	let {
 		workspace,
 		workspaces,
 		openId,
 		memberCount,
-		canInvite,
-		canCreateWorkspace,
-		refusal,
 		onSwitch
 	}: {
 		/** the workspace this machine has open, as the sync record names it: the header. */
@@ -66,17 +63,9 @@
 		/** which of `workspaces` is open, marked in the list; `null` where none is named yet. */
 		openId: string | null;
 		memberCount: number;
-		/** whether the session permits inviting; the row opens the invite dialog when it does. */
-		canInvite: boolean;
-		/** whether the session is the owner's, holding the Turso authority; the row opens the workspace dialog when it is. */
-		canCreateWorkspace: boolean;
-		/** the sentence each refused row carries, saying whose act it is; `null` where the row is live. */
-		refusal: { invite: string | null; workspace: string | null };
 		/** a row other than the open one was chosen: open that workspace. */
 		onSwitch: (id: string) => void;
 	} = $props();
-
-	const inviteRefusalId = 'workspace-menu-invite-refusal';
 
 	const sidebar = useSidebar();
 
@@ -149,77 +138,6 @@
 					</div>
 				</DropdownMenu.Label>
 
-				<!-- the workspace's two actions, side by side. **Menu items rather than buttons**, for
-				     a reason that is invisible until somebody uses a keyboard: this menu holds focus
-				     and closes on tab, so a plain button laid inside it looks reachable and is not.
-				     Items keep the arrow-key order, which does not care that they are drawn in a row. -->
-				<div class="px-1 pt-1 pb-2">
-					<div class="flex gap-1">
-						<!-- the workspaces section of the settings area, since 2026-09-14. It opened the
-						     workspace page, which was one workspace; the section is the list of the ones
-						     this member holds, which is what a menu about workspaces should reach. -->
-						<DropdownMenu.Item class="flex-1 justify-center border">
-							{#snippet child({ props })}
-								<a
-									href={resolve(withSection('workspaces'))}
-									data-workspace-menu-workspaces
-									{...props}
-								>
-									<BuildingIcon class="size-4 shrink-0" />
-									<span class="capitalize">{$LL.settings.section.workspaces()}</span>
-								</a>
-							{/snippet}
-						</DropdownMenu.Item>
-
-						<!-- inviting is the workspace's other action, so it sits beside its settings. Live
-						     for whoever the session admits; otherwise refused, and it keeps its place in
-						     the keyboard order: `disabled` would take it out, which is exactly where a
-						     control that has to explain itself must stay. The sentence sits under the
-						     pair, where a row this narrow has no room for it, and the row names it.
-						     **The refused row is drawn through `child`**, because the primitive writes
-						     `aria-disabled` from its own `disabled` and would overwrite the attribute
-						     set on it; the element here spreads the primitive's props and then says so. -->
-						{#if canInvite}
-							<DropdownMenu.Item
-								class="flex-1 justify-center border"
-								data-workspace-menu-invite
-								onSelect={() => openOrganizationDialog('invite')}
-							>
-								<UserPlusIcon class="size-4 shrink-0" />
-								<span class="capitalize">{$LL.layout.workspaceMenu.invite()}</span>
-							</DropdownMenu.Item>
-						{:else}
-							<DropdownMenu.Item
-								class="flex-1 justify-center border text-muted-foreground"
-								closeOnSelect={false}
-								onSelect={(event) => event.preventDefault()}
-							>
-								{#snippet child({ props })}
-									<div
-										{...props}
-										aria-disabled="true"
-										aria-describedby={inviteRefusalId}
-										data-workspace-menu-invite
-									>
-										<UserPlusIcon class="size-4 shrink-0" />
-										<span class="capitalize">{$LL.layout.workspaceMenu.invite()}</span>
-									</div>
-								{/snippet}
-							</DropdownMenu.Item>
-						{/if}
-					</div>
-
-					{#if !canInvite && refusal.invite}
-						<p
-							id={inviteRefusalId}
-							class="px-1 pt-1.5 text-xs leading-tight text-muted-foreground"
-							data-workspace-menu-invite-refusal
-						>
-							{refusal.invite}
-						</p>
-					{/if}
-				</div>
-
 				<DropdownMenu.Separator />
 
 				<!-- the workspaces the member holds, one row each, with the open one marked. Radio
@@ -251,43 +169,21 @@
 
 				<DropdownMenu.Separator />
 
-				<!-- at the foot, where the reference puts it. Live for the owner holding the authority;
-				     for everybody else the second line says whose act it is, or what the owner has to
-				     do first. -->
-				{#if canCreateWorkspace}
-					<DropdownMenu.Item
-						class="gap-2"
-						data-workspace-menu-create
-						onSelect={() => openOrganizationDialog('workspace')}
-					>
-						<PlusIcon class="size-4 shrink-0" />
-						<span class="truncate font-medium">{$LL.layout.workspaceMenu.create()}</span>
-					</DropdownMenu.Item>
-				{:else}
-					<!-- through `child`, for the reason the invite row gives. -->
-					<DropdownMenu.Item
-						class="gap-2"
-						closeOnSelect={false}
-						onSelect={(event) => event.preventDefault()}
-					>
-						{#snippet child({ props })}
-							<div {...props} aria-disabled="true" data-workspace-menu-create>
-								<PlusIcon class="size-4 shrink-0" />
-								<div class="grid min-w-0 flex-1 leading-tight">
-									<span class="truncate font-medium text-muted-foreground">
-										{$LL.layout.workspaceMenu.create()}
-									</span>
-									<span
-										class="text-xs whitespace-normal text-muted-foreground"
-										data-workspace-menu-create-refusal
-									>
-										{refusal.workspace}
-									</span>
-								</div>
-							</div>
-						{/snippet}
-					</DropdownMenu.Item>
-				{/if}
+				<!-- the workspaces section of the settings area, at the foot and across the menu's
+				     width, since it is the one thing the menu offers besides the switch. It opened the
+				     workspace page until 2026-09-14, which was one workspace; the section is the list
+				     of the ones this member holds, which is what a menu about workspaces should reach.
+				     **A menu item rather than a plain link**, for a reason that is invisible until
+				     somebody uses a keyboard: this menu holds focus and closes on tab, so an anchor
+				     laid inside it looks reachable and is not. -->
+				<DropdownMenu.Item class="gap-2">
+					{#snippet child({ props })}
+						<a href={resolve(withSection('workspaces'))} data-workspace-menu-workspaces {...props}>
+							<BuildingIcon class="size-4 shrink-0" />
+							<span class="truncate capitalize">{$LL.settings.section.workspaces()}</span>
+						</a>
+					{/snippet}
+				</DropdownMenu.Item>
 			</DropdownMenu.Content>
 		</DropdownMenu.Root>
 	</Sidebar.MenuItem>

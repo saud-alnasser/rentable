@@ -6,7 +6,7 @@
 	import LaptopIcon from '@lucide/svelte/icons/laptop';
 
 	/**
-	 * Signing yourself out of every other machine, from the you section (effort 826, requirement
+	 * Signing yourself out of every other machine, from the account section (effort 826, requirement
 	 * 22).
 	 *
 	 * **This machine stays signed in, and nothing asks for the password.** What ends is the other

@@ -902,6 +902,7 @@ mod tests {
                     created_at: 1_757_000_000_000,
                     updated_at: 1_757_000_000_000,
                     session_epoch: 0,
+                    owner_seed_sealed: None,
                 },
             )
             .await
@@ -915,6 +916,7 @@ mod tests {
                 owner.verifying_key,
             ),
             remote_url: String::new(),
+            machine_id: "machine-one".to_string(),
             member_id: Some("member-b".to_string()),
             role: Some(permission::MEMBER.to_string()),
             joined_at: 1_757_000_000_001,
@@ -959,6 +961,7 @@ mod tests {
                     created_at: 1_757_000_000_000,
                     updated_at: 1_757_000_000_000,
                     session_epoch: 0,
+                    owner_seed_sealed: None,
                 },
             )
             .await
@@ -972,6 +975,7 @@ mod tests {
                 owner.verifying_key,
             ),
             remote_url: String::new(),
+            machine_id: "machine-one".to_string(),
             member_id: Some("member-admin".to_string()),
             role: Some(permission::ADMINISTRATOR.to_string()),
             joined_at: 1_757_000_000_002,
@@ -1443,11 +1447,13 @@ mod tests {
                 .expect("the open")
                 .is_some()
         );
-        // and no credential was minted for the member: the six are the organization's two at
-        // creation and each workspace's two, its migration's and its owner's.
+        // and no credential was minted for the member: the five are the organization's one at
+        // creation and each workspace's two, its migration's and its owner's. *There were six
+        // until effort 828's requirement 16 retired the organization's own link, whose
+        // never-expiring read-only credential was the second the first run minted.*
         assert_eq!(
             platform.minted().len(),
-            6,
+            5,
             "a credential was minted for the member"
         );
     }
@@ -1551,6 +1557,7 @@ mod tests {
                 owner.verifying_key,
             ),
             remote_url: String::new(),
+            machine_id: "machine-one".to_string(),
             member_id: Some(owner.member_id.clone()),
             role: Some(permission::OWNER.to_string()),
             joined_at: 0,

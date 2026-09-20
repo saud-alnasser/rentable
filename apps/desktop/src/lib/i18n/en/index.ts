@@ -54,7 +54,6 @@ const en = {
 			signIn: 'sign in',
 			signOut: 'sign out',
 			sortBy: 'sort by',
-			syncNow: 'sync',
 			terminate: 'terminate',
 			transferData: 'import and export',
 			terminating: 'terminating...',
@@ -78,6 +77,7 @@ const en = {
 			notConfigured: 'this feature is not set up yet.',
 			notFound: 'the item could not be found.',
 			preconditionFailed: 'something has to be ready before this can run.',
+			refused: 'this link no longer opens.',
 			timedOut: 'the operation took too long and stopped.'
 		},
 
@@ -355,15 +355,12 @@ const en = {
 
 		workspaceMenu: {
 			create: 'new workspace',
-			invite: 'invite',
 			locked: 'not available',
 			members: '{count|number} member(s)',
 			switchTo: 'switch to',
 			open: 'open',
-			inviteRefused: 'the owner or an administrator invites. ask one of them.',
-			workspaceRefusedOwner: 'the owner creates a workspace. ask the owner.',
 			workspaceRefusedAuthority:
-				'creating a workspace needs the turso account, and this machine is not connected to it. reconnect it in the sync section of settings.'
+				'creating a workspace needs the turso account, and this machine is not connected to it. reconnect it in the organization section of settings.'
 		},
 
 		noWorkspace: {
@@ -380,8 +377,7 @@ const en = {
 
 		signIn: {
 			noOrganizationTitle: 'welcome',
-			noOrganizationSubtitle:
-				'an organization is created on your own turso account, or joined with a link you were given.',
+			noOrganizationSubtitle: 'no organization on this machine yet.',
 			subtitle: 'sign in to continue',
 			help: 'trouble signing in?',
 			username: 'username',
@@ -390,14 +386,16 @@ const en = {
 			roleOwner: 'owner',
 			roleAdministrator: 'administrator',
 			roleMember: 'member',
-			setUp: 'create organization',
-			connectByLink: 'connect with link',
+			setUp: 'use your turso account',
+			setUpDescription: 'you own the organization.',
+			connectByLink: 'use a link and code',
+			connectByLinkDescription: 'you were given a link and a code.',
 			signedOutElsewhere:
 				'you were signed out of this machine from another one. sign in again to carry on.',
 			useALink: 'use a link',
 			disconnect: 'disconnect this machine',
 			disconnectDescription:
-				"this machine forgets the organization: every copy of it and of its workspaces kept here is deleted, and the turso account is forgotten with them. nothing on turso changes, and the organization's link connects this machine again."
+				'this machine forgets the organization: every copy of it and of its workspaces kept here is deleted, and the turso account is forgotten with them. nothing on turso changes. the owner connects this machine again with their turso account; anybody else is given a link by whoever keeps the accounts.'
 		},
 
 		startup: {
@@ -449,6 +447,7 @@ const en = {
 		diagnosticsDescription:
 			'rentable keeps a record of what it does on this machine, so a failure can be looked into afterwards. the files never leave this machine, they are limited in size, and passwords and account tokens are removed before anything is written.',
 		diagnosticsReveal: 'open log folder',
+		diagnosticsTitle: 'diagnostics',
 
 		downloadingUpdate: 'downloading update',
 
@@ -470,16 +469,13 @@ const en = {
 		localeDescription: 'the interface changes as soon as you pick one.',
 		localeTitle: 'language',
 
-		// the seven sections of the settings area, in the order the rail draws them rather than
-		// in alphabetical order: the order is requirement 14's and is read here as a list.
+		// the four sections of the settings area, each named for what it holds and in the order the
+		// rail draws them rather than in alphabetical order: the order is read here as a list.
 		section: {
 			general: 'general',
-			you: 'you',
-			members: 'members',
-			workspaces: 'workspaces',
-			sync: 'sync',
-			updates: 'updates',
-			diagnostics: 'diagnostics'
+			account: 'account',
+			organization: 'organization',
+			workspaces: 'workspaces'
 		},
 
 		title: 'settings',
@@ -487,6 +483,7 @@ const en = {
 		updatesChecking: 'checking for updates...',
 		updatesDescription:
 			'check whether a newer version of rentable is available, and install it. if the app will not start afterwards, it offers to put back the version you were on.',
+		updatesTitle: 'updates',
 
 		you: {
 			signedInAs: 'signed in as',
@@ -510,6 +507,13 @@ const en = {
 				ended: 'your other machines were signed out.',
 				endedPending:
 					'this machine is offline; the sign-out reaches the others once it is back online.'
+			},
+			// requirement 22: drawn for the one person an offer stands with, and absent for
+			// everybody else. One sentence naming who offered it, and the act.
+			ownership: {
+				title: 'ownership',
+				offered:
+					'{owner:string} has offered you this organization. accepting makes you the owner and makes them an administrator.'
 			}
 		}
 	},
@@ -731,7 +735,7 @@ const en = {
 
 	settingsHooks: {
 		endingSoonUpdated: 'ending soon notice window updated successfully!',
-		workspaceUpToDate: 'this workspace is up to date!'
+		workspaceUpToDate: 'everything is up to date.'
 	},
 
 	organization: {
@@ -743,7 +747,7 @@ const en = {
 			groupCoverage:
 				'the consent covers every database in the group you choose, and nothing outside it.',
 			oneOrganization:
-				'a group holds one organization. a group that already holds one is refused here, before anything is created.',
+				'a group holds one organization. a group that already holds one is connected to, not refused.',
 			accountCreation:
 				'a free or developer turso account has exactly one group, so an account kept for rentable alone is the clean choice, and the consent screen is where you make one. on a paid account, pick an empty group.',
 			succession:
@@ -756,6 +760,11 @@ const en = {
 			connected: 'turso account connected.',
 			consentAbandoned: 'the consent was not granted. nothing was created.',
 			consentFailed: 'turso refused the consent.',
+			existingTitle: 'sign in to your organization',
+			existingDescription:
+				'this turso account already has an organization. its owner signs in to connect this machine to it.',
+			existingConnect: 'connect this machine',
+			existingConnecting: 'connecting this machine...',
 			nameTitle: 'name your organization',
 			nameDescription:
 				'choose a name for the organization, your username, and a password. the password unlocks your place in it.',
@@ -784,11 +793,10 @@ const en = {
 			back: 'back'
 		},
 		join: {
-			title: 'connect to an organization',
-			description:
-				'paste the link you were given. an organization link records the organization on this machine and takes you to the sign-in; an invitation link records it and asks you to choose a password.',
-			linkLabel: 'organization link or invitation link',
-			reading: 'connecting to the organization...',
+			title: 'connect with a link',
+			description: 'paste the link and type the code that came with it.',
+			linkLabel: 'link',
+			reading: 'reading the link...',
 			unreadable:
 				'this is not a rentable link. paste the whole link, exactly as it was handed to you.',
 			unreachable:
@@ -796,7 +804,11 @@ const en = {
 			lapsed: 'this invitation has lapsed. ask whoever invited you for a new link.',
 			consumed:
 				'this invitation link has already been opened. this machine is connected, so sign in with your username and the password you chose.',
+			consumedElsewhere:
+				'this link has already been opened on another machine. ask whoever keeps the accounts for a new one.',
 			revoked: 'this invitation was withdrawn. ask whoever invited you for a new link.',
+			replaced:
+				'a newer link took the place of this one. ask whoever keeps the accounts for the new one.',
 			anotherOrganization:
 				'this machine already holds another organization. disconnect it first, then open this link.',
 			toSignIn: 'go to the sign-in',
@@ -804,45 +816,101 @@ const en = {
 			passwordDescription:
 				'your password signs you in, on this machine and on any other. nobody can recover it for you; a new link is the only way back.',
 			organizationLabel: 'organization',
-			usernameLabel: 'username',
-			codeLabel: 'confirmation code',
-			codeDescription:
-				'the six characters whoever invited you read out. it lapses ninety seconds after it was made; ask them for a fresh one if it has.',
-			codeWrong: 'the code is wrong or has lapsed. ask whoever invited you for a fresh one.',
-			codeLapsed: 'that code has lapsed. ask whoever invited you for a fresh one.',
+			codeLabel: 'code',
+			codeDescription: 'the six characters read out to you with the link.',
+			codeWrong: 'the code is wrong. ask whoever sent you the link to read it out again.',
+			codeMissing: 'type the six characters that came with the link.',
 			confirmLabel: 'your password, again',
 			mismatch: 'the two do not match.',
 			tryAgain: 'try again',
 			back: 'back'
 		},
+		// the block at the top of the organization section: where this machine stands with the
+		// organization on turso, in one sentence (effort 828, requirement 25). A standing that
+		// needs something says what needs doing; synced says when this machine last reached
+		// turso. No status word stands alone here, and the only one of these that says "sync" is
+		// the control, which the human named so on 2026-09-17.
+		standing: {
+			// the legend and the sentence of purpose, the same whatever the standing: what the block
+			// is about, before the line that changes.
+			title: 'this machine and turso',
+			purpose:
+				'the organization is kept on turso and reaches this machine on its own. what you write here goes out as soon as turso can be reached.',
+			// a machine that has never reached turso: a fresh machine opened offline, which is not
+			// up to date and has no moment to say. *It read "up to date" until review round two of
+			// effort 828.*
+			notYetReached: 'this machine has not reached turso yet',
+			upToDateChecked: 'up to date, checked {moment:string}',
+			lastReached: 'last reached turso on {moment:string}',
+			accountNeedsAttention: 'the turso account needs attention',
+			accessNeedsAttention: "this machine's access needs attention",
+			needsReconnecting: 'this machine needs reconnecting',
+			// an owner whose machine holds no authority: the reconnect is the block below, and the
+			// standing block points at it rather than drawing a second consent.
+			reconnectBelow: 'the turso account is reconnected in the block below.',
+			checkNow: 'sync',
+			checking: 'syncing...'
+		},
 		dashboard: {
-			inviteTitle: 'invite somebody',
-			inviteDescription:
-				'an invitation makes somebody a member: a username, a role and the workspaces they hold, each at full access or read only. you hand them the link yourself.',
+			// the sentence the members section opens with: who is listed, and what this section is
+			// for. Short, because the cards under it say the rest.
+			membersTitle: 'members',
+			membersDescription: 'everybody in the organization. members are made and changed here.',
+			// the same sentence for the workspaces section, and the same shape: who is listed,
+			// then what this section is for.
+			workspacesDescription:
+				'every workspace in the organization. workspaces are made and changed here.',
+			// the one line a card carries about where an account stands. It is a fact about the
+			// account and nothing follows from it: a link is offered whichever of the three it says.
+			standingNoPassword: 'no password yet',
+			standingNoMachine: 'no machine signed in',
+			standingSignedIn: 'signed in on a machine',
+
+			memberTitle: 'a new member',
+			memberDescription:
+				'a member is a username, a role, what they may do and the workspaces they hold. they have no password until you make them a link and they open it.',
 			role: 'role',
-			administratorsAreTheOwners: 'only the owner can invite an administrator.',
+			administratorsAreTheOwners: 'only the owner can make an administrator.',
 			noWorkspaceToGrant: 'no workspace to grant yet. they can be granted one later.',
-			invite: 'invite',
+			addMember: 'add a member',
 			cannotSend:
-				'rentable sends nothing. copy the link below and hand it to the person yourself; opening it is how they choose their password.',
-			invitationLinkTitle: 'invitation link',
+				'rentable sends nothing. copy the link below and hand it over yourself, and read the code out separately. it admits one machine, once.',
+			linkTitle: 'link and code',
 			codeTitle: 'confirmation code',
 			codeDescription:
 				'read this out on a call or in person. it is the other half of what the link needs, so it is never sent beside it.',
-			codeExpires: 'lapses in {seconds} seconds',
-			codeLapsed: 'this code has lapsed.',
-			freshCode: 'fresh code',
-			memberCode: 'make a confirmation code',
 			done: 'done',
-			notYetSignedIn: 'not yet signed in',
 			invitationExpires: 'the link expires {date:string}',
-			invitationLapsed: 'the link lapsed {date:string}',
-			newLink: 'new link',
+			// the card menu's words, one or two apiece: a menu is read at a glance, and the
+			// sentence a dialog opens with is the dialog's rather than the entry's.
+			makeLink: 'make a link',
+			// requirement 22: the two entries on the owner's own card, one at a time, and the
+			// acceptance the other person meets. Two plain words each, and the sentences that
+			// say what changes belong to the surfaces they open.
+			transferOwnership: 'hand over ownership',
+			transferOwnershipGoes:
+				'the person you choose is offered the organization. nothing changes until they accept it, on a machine they are already signed in on, with their own password. when they do, they become the owner and you become an administrator.',
+			transferOwnershipMember: 'who is offered the organization',
+			transferOwnershipAuthority:
+				'your turso account does not move. the databases stay on it, and the new owner connects their own account from the organization section before they can create a workspace, lock anybody out or renew credentials.',
+			transferOwnershipConfirm: 'offer it',
+			ownershipOffered: 'the organization was offered. they accept it on a machine of their own.',
+			withdrawOffer: 'withdraw the offer',
+			ownershipOfferWithdrawn: 'the offer was withdrawn. nothing changed hands.',
+			acceptOwnership: 'accept ownership',
+			acceptOwnershipGoes:
+				'you become the owner of {organization:string} and {owner:string} becomes an administrator. your password becomes what the organization is signed with, so from now on it is your password that gets you back in on a new machine.',
+			acceptOwnershipAuthority:
+				'the turso account stays with whoever connected it. until you connect your own from the organization section, creating a workspace, locking somebody out and renewing credentials run on their machine or not at all.',
+			acceptOwnershipConfirm: 'accept it',
+			ownershipAccepted: 'the organization is yours. you are the owner now.',
+			lockOut: 'lock out',
+			unsetPassword: 'reset password',
+			passwordUnset: 'their password was unset. make them a link so they can choose a new one.',
 			endSessions: 'sign out everywhere',
 			sessionsEnded: 'they were signed out of every machine.',
 			sessionsEndedPending:
 				'this machine is offline; the sign-out reaches their machines once it is back online.',
-			copyLink: 'copy the link again',
 			rename: 'rename',
 			renameDescription:
 				'the username they sign in with, on every machine. nothing tells them it changed; tell them yourself.',
@@ -850,12 +918,13 @@ const en = {
 			usernameRules:
 				'a username is three to thirty-two characters of letters, digits, dots, underscores and hyphens',
 			renamed: 'the member was renamed.',
-			linkTitle: 'organization link',
-			linkDescription:
-				'the link connects another machine to this organization; with a username and a password, it is the way in. it carries a read only view of the directory, so share it the way you would a password.',
 			authorityTitle: 'turso account',
 			authorityDescription:
 				"this machine holds no authority over the organization's turso account, so it cannot create a workspace, lock anybody out or renew credentials. the authority is nowhere to restore it from; grant the consent again here, as you did on the first run.",
+			// requirement 22: an owner who was handed the organization holds no authority, and the
+			// reason is not that this machine lost one. One short sentence saying where it is.
+			authorityFollowsTheAccount:
+				'the authority follows the turso account that granted it, not who owns the organization.',
 			authorityReconnected: 'the turso account is connected on this machine.',
 			remove: 'remove',
 			removeDescription:
@@ -869,16 +938,15 @@ const en = {
 				'the member was locked out. {count|number} other member(s) reconnect on their own.',
 			unreachableWorkspaces:
 				'you do not hold {workspaces}, so the reset could not restore it. an administrator who does can grant it again.',
-			standingLapsed: 'lapsed',
-			revoke: 'revoke',
-			revoked: 'the invitation was revoked.',
 			noWorkspaces: 'no workspace yet.',
+			// what a card says about the workspaces somebody holds: how many, and not which. Which
+			// ones, and what each is good for, is the surface the card's own menu opens.
+			workspacesHeld: '{count|number} {{workspace|workspaces}}',
 			accessFull: 'full access',
 			accessReadOnly: 'read only',
 			accessNone: 'no access',
-			accessTitle: 'workspaces and access',
-			accessDescription:
-				'which workspaces {username:string} holds, and what each one is good for. taking a workspace back mints nothing, so what they already hold works until it runs out.',
+			accessTakenBack:
+				'taking a workspace back mints nothing, so what they already hold works until it runs out.',
 			accessSaved: 'the workspaces were saved.',
 			workspaceAccessTitle: 'members and access',
 			workspaceAccessDescription:
@@ -890,9 +958,14 @@ const en = {
 			transferTitle: 'export and import {workspace:string}',
 			forgetAccount: 'forget turso account',
 			readOnlyIsTheOwners: "only the owner can grant read only access, on the owner's own machine.",
-			changeRoleTitle: 'role and permissions',
-			changeRoleDescription:
-				'the role is what the list calls {username:string}; the acts below are what they may actually do, and picking a role sets them all at once.',
+			memberSheetDescription: 'what {username:string} may do in this organization.',
+			beyondRole: 'beyond their role',
+			beyondRoleDescription: 'what this member can do that a member usually cannot.',
+			beyondRoleNone: 'nothing beyond their role.',
+			beyondRoleAdd: 'allow something else',
+			// the picker's one confirm: everything ticked is allowed at once.
+			allowActs: 'allow',
+			administratorAllowedEvery: 'an administrator may already do all of it.',
 			permissionsLegend: 'what they may do',
 			actInviteMember: 'invite members',
 			actRemoveMember: 'remove members',
@@ -904,6 +977,10 @@ const en = {
 			signingIsTheOwners:
 				"only the owner can give somebody an act that writes another member's row. taking one back is yours.",
 			roleChanged: 'the role and the permissions were saved.',
+			// the foot of the organization section: the two acts that end something, under one quiet
+			// word so that a reader scanning the section knows what the last block is before they
+			// read either description.
+			leavingTitle: 'leaving',
 			disconnectForgets:
 				'disconnecting forgets the organization on this machine: you are signed out, every copy of it and of its workspaces kept here is deleted, and the turso authority is cleared. nothing on turso is touched, and the link connects this machine again. to reach another organization, disconnect and connect to it.',
 			disconnect: 'disconnect',
@@ -913,7 +990,81 @@ const en = {
 			forgetAccountRevokes:
 				"forgetting the token does not revoke it. what you granted stays granted until you end it yourself, on turso's own dashboard at app.turso.tech.",
 			forgetAccountRevokesAt: 'app.turso.tech',
-			accountForgotten: 'this machine no longer holds a token for your turso account.'
+			accountForgotten: 'this machine no longer holds a token for your turso account.',
+			deleteOrganization: 'delete organization',
+			deleteOrganizationDescription:
+				'the organization and every workspace in it are deleted from your turso account. nothing puts them back.',
+			deleteOrganizationGoes:
+				'every workspace goes, and everything in it: tenants, complexes, units, contracts and payments. so does every way in, for every member. the other machines find the organization gone the next time they open and land on the first screen. nothing puts this back.',
+			organizationDeleted: 'the organization was deleted.'
+		},
+
+		/**
+		 * who each role is for, in one sentence apiece (effort 828, requirement 23).
+		 *
+		 * A role is described by the person it suits rather than by the acts it unlocks, which is
+		 * what every product in the research does and what makes the chooser readable without the
+		 * table beside it. The administrator's names the one thing the word does not cover.
+		 */
+		roles: {
+			owner: {
+				who: 'holds the turso account everything is kept on, and can do anything here. there is one owner, and handing it over is their own act.'
+			},
+			administrator: {
+				who: "looks after the people and the workspaces: adds a member, makes links, renames, grants a workspace. the turso account stays the owner's."
+			},
+			member: {
+				who: 'works in the workspaces they hold, and changes nothing about anybody else unless you allow it.'
+			}
+		},
+
+		/**
+		 * what each act lets a person do, said as the thing they can do.
+		 *
+		 * These lines are the one place the seven acts are explained: the sheet's list, the picker
+		 * that allows one, and the role table all read them, so an act is worded once. Short, and
+		 * each starts with *can*, because they are read as a list of what one person may do rather
+		 * than as a form's labels.
+		 */
+		acts: {
+			inviteMember: { does: 'can invite members' },
+			removeMember: { does: 'can remove members' },
+			changeRole: { does: 'can change what a member may do' },
+			renameWorkspace: { does: 'can rename a workspace' },
+			resetPassword: { does: "can reset a member's password" },
+			renameMember: { does: 'can rename members' },
+			grantWorkspace: { does: 'can give a member a workspace' }
+		},
+
+		/** what each access level is good for, beside the level's own name. */
+		levels: {
+			full: { does: 'reads and writes everything in it.' },
+			readOnly: { does: 'reads it, and writes nothing.' },
+			none: { does: 'does not reach it at all.' }
+		},
+
+		/**
+		 * the read-only table, opened from the members tray and edited nowhere.
+		 *
+		 * The comparison belongs beside the chooser rather than inside it: a person consults it
+		 * before picking a role, and picking one is a single control either way.
+		 */
+		roleTable: {
+			title: 'what each role may do',
+			description:
+				'a role is what somebody is called and what they start with. anything else is allowed on their own sheet.',
+			given: 'what you can give somebody',
+			memberNote: 'a member starts with none of these, and is allowed them on their own sheet.',
+			ownerAlone: 'the owner alone',
+			ownerAloneReason:
+				'these run on the turso account the owner connected, so nobody can be given them.',
+			allowed: 'yes',
+			notAllowed: 'no',
+			createWorkspace: 'make a new workspace.',
+			deleteWorkspace: 'delete a workspace and everything in it.',
+			lockOut: 'cut somebody off from every workspace at once.',
+			renew: 'renew the credentials that keep everybody syncing.',
+			tursoAccount: 'connect the turso account, and forget it.'
 		}
 	},
 
@@ -923,12 +1074,6 @@ const en = {
 		rename: 'rename',
 		renameDescription: 'what this workspace is called, on every machine signed in to it.',
 		renamed: 'the workspace was renamed.',
-		syncDescription:
-			'this workspace is kept for you and reaches this machine on its own. checking in now keeps it working offline for the next three days.',
-		syncStatusNeedsReconnect: 'needs reconnect',
-		syncStatusSynced: 'synced',
-		syncStatusAccountRefused: 'turso account needs attention',
-		syncStatusCredentialRefused: 'access needs attention',
 		credentialRefused:
 			"your access to this workspace was refreshed, and this machine is collecting the new credential. if it does not clear on its own, ask the organization's owner. everything here keeps working meanwhile.",
 		accountRefusedMember:

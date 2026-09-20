@@ -1,7 +1,10 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
+	import { page } from '$app/state';
 	import type { OrganizationMember, OrganizationWorkspace } from '$lib/platform/host';
 	import DeleteDialog from '@rentable/design/block/delete-dialog.svelte';
-	import { Badge } from '@rentable/design/primitive/badge/index.js';
+	import RecordCard, { type RecordCardAction } from '@rentable/design/block/record-card.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import { Separator } from '@rentable/design/primitive/separator/index.js';
@@ -10,46 +13,80 @@
 	import AccessDialog, {
 		type AccessChoice
 	} from '$lib/organization/component/access-dialog.svelte';
+	import DirectoryTray from '$lib/organization/component/directory-tray.svelte';
 	import { openOrganizationDialog } from '$lib/organization/dialogs.svelte';
+	import { recordOf, withSection, WORKSPACE_PARAM } from '$lib/settings/section';
 	import WorkspaceRenameForm from '$lib/workspace/component/rename-form.svelte';
 	import WorkspaceTransfer from '$lib/workspace/component/transfer.svelte';
 	import PencilIcon from '@lucide/svelte/icons/pencil';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import UsersIcon from '@lucide/svelte/icons/users';
-	import type { Component } from 'svelte';
+	import CircleFilledIcon from '@tabler/icons-svelte/icons/circle-filled';
 
 	/**
-	 * The workspaces this member holds, as one list, and the file that moves the open one.
+	 * The workspaces of the organization, as a directory of record cards, and the file that moves
+	 * the open one.
 	 *
-	 * **A row is the name, how many people are in it, and whether it is the one open here**
-	 * (requirement 16 of effort 826). It takes the members row's two-line shape, which is what the
-	 * human chose on screen against the real organization when the settings area was prototyped:
-	 * the name and the open mark lead, the access this reader holds and the member count follow as
-	 * the second line, and the actions are an icon cluster that appears on hover and on focus.
-	 * *The row said the database's hostname until this ticket, which is a fact about Turso rather
-	 * than about a workspace, and said nothing about who was in it.*
+	 * **One card per workspace, the shape the members section takes** (effort 828, requirement
+	 * 21): `design/block/record-card.svelte`, the card is the record, its own quiet control carries
+	 * the acts, and the context gesture offers the same list ([[rules/interface]], *Record card
+	 * actions*). *It was a row with a cluster of glyphs revealed on hover until this ticket, which
+	 * is what the human met in the running build and asked to be cards instead.*
 	 *
-	 * **Every gate is a prop, and none of them is a permission read here.** Creating and deleting
-	 * a workspace are the owner's in Rust (`require_owner`), so they are drawn from who is reading
+	 * **A card says two things, and marks one**: the name, how many people hold the workspace, and
+	 * a solid disc before the name of the one open on this machine, whose word reaches the reader
+	 * on hover and through its accessible name ([[rules/interface]], *Status presentation*). The
+	 * disc is the mark this application already draws for something live, in the tone the status
+	 * treatment gives that, and the rail's switcher marks its open row the same way round: the mark
+	 * carries no visible text. *The card carried the open word as a badge and this reader's access
+	 * as a line of its own until the human's look at this directory: the shell says which workspace
+	 * is open at the top of every screen, and what each person holds is the surface the card's menu
+	 * opens rather than a fact about the card.*
+	 *
+	 * **Activating a card opens its record** ([[rules/interface]], *Row activation*). A workspace
+	 * has no page, so what opening one means is this section drawing that workspace's edit, and the
+	 * card's `href` is this section's address with the workspace named on it. The address is
+	 * consumed on arrival and cleared, the way the members directory consumes a member, so
+	 * pressing the same card twice opens the same surface twice. The rule records this as its
+	 * accepted deviation, dated 2026-09-17: in the settings directories a record's page is its sheet.
+	 *
+	 * **What a card opens is the members and access surface, and the rename only where that is all
+	 * this reader has.** The access is the edit every card carries, and the rename belongs to the
+	 * open workspace alone, so keying the card on the rename would make the same gesture mean one
+	 * thing on one card and another on the next.
+	 *
+	 * **Every gate is a prop, and none of them is a permission read here.** Creating and deleting a
+	 * workspace are the owner's in Rust (`require_owner`), so they are drawn from who is reading
 	 * and what this machine holds rather than from a bit on the row; renaming and granting are
 	 * acts, read by the area from the session and handed down. `workspace/component/permitted.svelte`
 	 * is deliberately not used: it subscribes to the open workspace's own permissions, which is a
 	 * different question from what this member may do in the organization.
 	 *
 	 * **The rename is the open workspace's alone.** `remoteSync.rename` calls this machine's
-	 * workspace something else, and there is no command that renames one from a distance, so a
-	 * control on another row would rename the wrong thing. Whoever holds `renameWorkspace` renames
-	 * the workspace they are in, from the row that says it is open.
+	 * workspace something else, and there is no command that renames one from a distance, so the
+	 * entry on another card would rename the wrong thing. Whoever holds `renameWorkspace` renames
+	 * the workspace they are in, from the card that says it is open.
 	 *
-	 * **The members action is the access dialog read the other way round**: the rows are the
-	 * people rather than the workspaces, and what comes back is a member id per row. The owner is
-	 * not among them, because the organization is theirs and Rust refuses a withdrawal of their
-	 * own grant, and neither is the reader, for the reason no row in the members list writes its
+	 * **Each act reads as one plain word**, and the sentence that explains it belongs to the
+	 * surface it opens rather than to the entry. *members* and *delete* are the words the rail and
+	 * every other list here already use, drawn from the keys that hold them, so the same thing is
+	 * called the same thing wherever a screen draws it (effort 826, requirement 18).
+	 *
+	 * **The members act is the access dialog read the other way round**: the rows are the people
+	 * rather than the workspaces, and what comes back is a member id per row. The owner is not
+	 * among them, because the organization is theirs and Rust refuses a withdrawal of their own
+	 * grant, and neither is the reader, for the reason no card in the members directory writes its
 	 * own.
 	 *
-	 * **The transfer sits beneath the list, under a legend naming the workspace it acts on.** It
-	 * reads and writes whatever is open on this machine, which is one of the rows above, and the
+	 * **A workspace is made from the tray above the cards**, on the shared form surface
+	 * ([[rules/interface]], *Form surface*), and the tray is the members section's, which is the
+	 * contracts view's shape. An owner whose machine lost the Turso authority reads why there is no
+	 * control, in its place; everybody else is offered neither, since creating was never theirs to
+	 * be refused.
+	 *
+	 * **The transfer sits beneath the cards, under a legend naming the workspace it acts on.** It
+	 * reads and writes whatever is open on this machine, which is one of the cards above, and the
 	 * legend is what stops that being a guess.
 	 */
 	let {
@@ -69,7 +106,7 @@
 	}: {
 		/** the workspaces this member holds a grant on, which is what the session carries. */
 		workspaces: OrganizationWorkspace[];
-		/** everybody in the organization, for the count on a row and the rows in the dialog. */
+		/** everybody in the organization, for the count on a card and the rows in the dialog. */
 		members: OrganizationMember[];
 		/** the workspace open on this machine, by the id the organization knows it under. */
 		openWorkspaceId: string | null;
@@ -101,11 +138,13 @@
 		onDelete: (workspaceId: string) => Promise<void>;
 	} = $props();
 
-	const accessLabel = (level: string) =>
-		({
-			'full-access': $LL.organization.dashboard.accessFull(),
-			'read-only': $LL.organization.dashboard.accessReadOnly()
-		})[level] ?? level;
+	// this section's own address, resolved once. A card's is it with the workspace named on it,
+	// which is the whole of what a card's `href` is ([[rules/frontend]]: the path is the caller's
+	// to resolve, and the packaged card takes one already resolved).
+	const sectionAddress = resolve(withSection('workspaces'));
+
+	const addressOf = (workspaceId: string) =>
+		`${sectionAddress}&${WORKSPACE_PARAM}=${encodeURIComponent(workspaceId)}`;
 
 	/** how many people hold a grant on a workspace, counted off the organization's own list. */
 	const memberCount = (workspaceId: string) =>
@@ -117,6 +156,36 @@
 	let deleting = $state<OrganizationWorkspace | null>(null);
 
 	const open = $derived(workspaces.find((workspace) => workspace.id === openWorkspaceId) ?? null);
+
+	/**
+	 * the workspace's edit, which is what activating its card opens.
+	 *
+	 * The two edits are gated separately, so what a workspace's edit *is* depends on who is
+	 * looking: who holds it for somebody who may grant it, its name for somebody who may only
+	 * rename the one they are in. A reader holding neither opens nothing, and the card still reads.
+	 */
+	const openEdit = (workspace: OrganizationWorkspace) => {
+		if (canGrantWorkspace) {
+			changingAccess = workspace;
+		} else if (canRename && workspace.id === openWorkspaceId) {
+			renaming = workspace;
+		}
+	};
+
+	// the workspace the address names is opened and then cleared out of the address, the way the
+	// members directory consumes an account: left there, a reload would reopen a surface the person
+	// has already dismissed, and pressing the same card a second time would navigate nowhere.
+	$effect(() => {
+		const named = recordOf(page.url, WORKSPACE_PARAM);
+
+		if (!named) return;
+
+		const workspace = workspaces.find((candidate) => candidate.id === named);
+
+		if (workspace) openEdit(workspace);
+
+		void goto(sectionAddress, { replaceState: true, noScroll: true, keepFocus: true });
+	});
 
 	/** the rows the access dialog draws for a workspace: everybody who could hold it. */
 	const accessRows = (workspace: OrganizationWorkspace) =>
@@ -142,147 +211,174 @@
 			// said by the shared handler; the surface keeps what was chosen.
 		}
 	};
+
+	/**
+	 * what this reader may do to one workspace, in the order the card's menu offers it: its name,
+	 * then who is in it, then losing it.
+	 *
+	 * Every gate is the one the acts carried before the cards, and an act the reader does not hold
+	 * leaves no entry, so a card can come to offer nothing and the block then draws neither of its
+	 * two routes.
+	 *
+	 * `attributes` is what the section is read by, here and in its test: the act and the workspace
+	 * it acts on.
+	 */
+	const actsOn = (workspace: OrganizationWorkspace): RecordCardAction[] => [
+		...(canRename && workspace.id === openWorkspaceId
+			? [
+					{
+						label: $LL.workspace.rename(),
+						icon: PencilIcon,
+						attributes: { 'data-workspace-rename': workspace.id },
+						onSelect: () => {
+							renaming = workspace;
+						}
+					}
+				]
+			: []),
+		...(canGrantWorkspace
+			? [
+					{
+						// the directory's own word, read from the one key that holds it: who is in a
+						// workspace is what this opens, and the dialog's own title says the rest.
+						label: $LL.organization.dashboard.membersTitle(),
+						icon: UsersIcon,
+						attributes: { 'data-workspace-grant': workspace.id },
+						onSelect: () => {
+							changingAccess = workspace;
+						}
+					}
+				]
+			: []),
+		...(canDelete
+			? [
+					{
+						label: $LL.common.actions.delete(),
+						icon: Trash2Icon,
+						variant: 'destructive' as const,
+						attributes: { 'data-workspace-delete': workspace.id },
+						onSelect: () => {
+							deleting = workspace;
+						}
+					}
+				]
+			: [])
+	];
 </script>
 
 <!--
-	one action on a row, as a glyph that says what it is on hover and to a screen reader. The
-	members list draws its cluster the same way and for the same reason: three labels on a row is
-	a row of labels.
+	the section's one primary, in the tray above the cards (requirement 21). Quiet and glyph-only
+	with its words in a tooltip and on the control itself, which is how the contracts view and the
+	members directory offer the same thing. The form that names a new workspace is the shared one
+	mounted in the shell, and this is the control that opens it.
 -->
-{#snippet action(
-	label: string,
-	Icon: Component<{ class?: string }>,
-	attribute: string,
-	id: string,
-	onclick: () => void,
-	tone: 'plain' | 'destructive' = 'plain'
-)}
+{#snippet newWorkspace()}
 	<Tooltip.Root>
 		<Tooltip.Trigger>
 			{#snippet child({ props })}
 				<Button
 					{...props}
-					variant="ghost"
+					variant="outline"
 					size="icon-sm"
-					class={tone === 'destructive' ? 'text-destructive hover:text-destructive' : undefined}
-					aria-label={label}
-					{...{ [attribute]: id }}
-					{onclick}
+					data-workspace-create
+					aria-label={$LL.layout.workspaceMenu.create()}
+					onclick={() => openOrganizationDialog('workspace')}
 				>
-					<Icon class="size-4" />
-					<span class="sr-only">{label}</span>
+					<PlusIcon />
 				</Button>
 			{/snippet}
 		</Tooltip.Trigger>
-		<Tooltip.Content>{label}</Tooltip.Content>
+		<Tooltip.Content side="top" sideOffset={8}>
+			{$LL.layout.workspaceMenu.create()}
+		</Tooltip.Content>
 	</Tooltip.Root>
 {/snippet}
 
-<Field.Set>
-	<Field.Legend>{$LL.settings.section.workspaces()}</Field.Legend>
+<!-- what stands where the control would have been, for the owner whose machine lost the authority:
+     the refusal is about the act, so it is read where the act is looked for. -->
+{#snippet authorityRefused()}
+	<p class="max-w-sm text-xs text-muted-foreground" data-workspace-refusal>{refusal}</p>
+{/snippet}
 
-	<div class="flex flex-col gap-1" data-workspaces>
+<!-- the tray and its cards are one thing, so they sit at the list's own rhythm rather than at the
+     fieldset's, which spaces one block of settings from the next. -->
+<Field.Set class="gap-3" aria-labelledby="workspaces-legend">
+	<DirectoryTray
+		legendId="workspaces-legend"
+		legend={$LL.settings.section.workspaces()}
+		description={$LL.organization.dashboard.workspacesDescription()}
+		action={canCreate ? newWorkspace : refusal ? authorityRefused : undefined}
+	/>
+
+	<div class="flex flex-col gap-3" data-workspaces>
 		{#if workspaces.length === 0}
 			<p class="text-sm text-muted-foreground">{$LL.organization.dashboard.noWorkspaces()}</p>
 		{/if}
 
 		{#each workspaces as workspace (workspace.id)}
-			<div
-				class="group flex items-start gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-muted/40"
-				data-workspace={workspace.id}
-			>
-				<div class="flex min-w-0 flex-1 flex-col gap-1">
-					<div class="flex min-w-0 flex-wrap items-center gap-2">
-						<p class="truncate text-sm font-medium" data-workspace-name>{workspace.name}</p>
-						<!-- the one open here, in the rail's own word for it, so a reader meets the same
-						     word in the switcher and in this list. -->
-						{#if workspace.id === openWorkspaceId}
-							<Badge variant="secondary" data-workspace-open={workspace.id}>
-								{$LL.layout.workspaceMenu.open()}
-							</Badge>
-						{/if}
-					</div>
-
-					<!-- what this reader holds, and how many people are in it: the label folded into the
-					     value, as the members row folds an access into its chip. -->
-					<div class="flex min-w-0 flex-wrap items-center gap-2">
-						<Badge variant="outline" class="font-normal" data-workspace-access={workspace.id}>
-							{accessLabel(workspace.accessLevel)}
-						</Badge>
-						<span class="text-xs text-muted-foreground" data-workspace-members={workspace.id}>
-							{$LL.layout.workspaceMenu.members({ count: memberCount(workspace.id) })}
-						</span>
-					</div>
-				</div>
-
-				<!-- on hover and on focus, and never gone: opacity keeps the row's geometry still, and
-				     `focus-within` is what puts every control in the keyboard's reach. -->
-				<div
-					class="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100"
-					data-workspace-actions={workspace.id}
+			<!-- the card is the record and takes no mark of its own, so the workspace it stands for is
+			     named on the element that holds it, which is what this section is read by. -->
+			<div data-workspace={workspace.id}>
+				<RecordCard
+					href={addressOf(workspace.id)}
+					label={workspace.name}
+					actions={actsOn(workspace)}
+					class="gap-4 py-3"
 				>
-					{#if canRename && workspace.id === openWorkspaceId}
-						{@render action(
-							$LL.workspace.rename(),
-							PencilIcon,
-							'data-workspace-rename',
-							workspace.id,
-							() => {
-								renaming = workspace;
-							}
-						)}
-					{/if}
+					{#snippet content()}
+						<div class="pointer-events-none relative flex min-w-0 flex-1 flex-col gap-1 text-start">
+							<div class="flex min-w-0 items-center gap-2">
+								<!-- the one open here, as a disc before its name, in the rail's own word for
+								     it: a reader meets the same word in the switcher and here. It is the
+								     mark and the tone this application gives something live, and it carries
+								     no visible text, so a directory of five workspaces reads as five names
+								     with one of them marked rather than as a column of labels
+								     ([[rules/interface]], *Status presentation*). `pointer-events-auto` for
+								     the reason the count cell carries it: the card lays its link over its
+								     content, and the tooltip has to be reachable through it. -->
+								{#if workspace.id === openWorkspaceId}
+									<Tooltip.Root>
+										<Tooltip.Trigger>
+											{#snippet child({ props })}
+												<span
+													{...props}
+													class="pointer-events-auto flex shrink-0 items-center text-primary"
+													data-workspace-open={workspace.id}
+												>
+													<CircleFilledIcon class="size-2" aria-hidden="true" />
+													<span class="sr-only">{$LL.layout.workspaceMenu.open()}</span>
+												</span>
+											{/snippet}
+										</Tooltip.Trigger>
+										<Tooltip.Content side="top" sideOffset={6}>
+											{$LL.layout.workspaceMenu.open()}
+										</Tooltip.Content>
+									</Tooltip.Root>
+								{/if}
 
-					{#if canGrantWorkspace}
-						{@render action(
-							$LL.organization.dashboard.workspaceAccessTitle(),
-							UsersIcon,
-							'data-workspace-grant',
-							workspace.id,
-							() => {
-								changingAccess = workspace;
-							}
-						)}
-					{/if}
+								<span class="truncate text-sm font-medium" data-workspace-name>
+									{workspace.name}
+								</span>
+							</div>
 
-					{#if canDelete}
-						{@render action(
-							$LL.organization.dashboard.deleteWorkspace(),
-							Trash2Icon,
-							'data-workspace-delete',
-							workspace.id,
-							() => {
-								deleting = workspace;
-							},
-							'destructive'
-						)}
-					{/if}
-				</div>
+							<!-- how many people are in it, the one line the rail's own header carries under
+							     the same name. What each of them holds is the surface the menu opens. -->
+							<span
+								class="truncate text-xs text-muted-foreground"
+								data-workspace-members={workspace.id}
+							>
+								{$LL.layout.workspaceMenu.members({ count: memberCount(workspace.id) })}
+							</span>
+						</div>
+					{/snippet}
+				</RecordCard>
 			</div>
 		{/each}
-
-		{#if canCreate}
-			<div class="pt-2">
-				<!-- the verb's glyph before its label, as every primary here carries one. The form that
-				     names a new workspace is the shared one mounted in the shell, and this is the
-				     control that opens it. -->
-				<Button
-					type="button"
-					data-workspace-create
-					onclick={() => openOrganizationDialog('workspace')}
-				>
-					<PlusIcon class="size-4" />
-					{$LL.layout.workspaceMenu.create()}
-				</Button>
-			</div>
-		{:else if refusal}
-			<p class="text-sm text-muted-foreground" data-workspace-refusal>{refusal}</p>
-		{/if}
 	</div>
 </Field.Set>
 
-<!-- beneath the list, and named for the workspace it acts on: a file is written from what is open
-     on this machine, which is one of the rows above. Drawn only where there is one, since there is
+<!-- beneath the cards, and named for the workspace it acts on: a file is written from what is open
+     on this machine, which is one of the cards above. Drawn only where there is one, since there is
      nothing to write out of a machine that has opened none. -->
 {#if open}
 	<Separator />

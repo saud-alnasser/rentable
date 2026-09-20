@@ -11,13 +11,14 @@ import type {
 	AvailableUpdate,
 	DiagnosticRecord,
 	ExportSheet,
-	FreshCode,
+	GroupState,
 	Host,
 	ImportTable,
-	Invited,
-	LinkFacts,
+	LinkShape,
 	LockOutCost,
+	MadeLink,
 	MemberRemoved,
+	MemberStanding,
 	MigrationNotice,
 	OrganizationConsentResult,
 	OrganizationConsentStart,
@@ -32,6 +33,7 @@ import type {
 	SessionStanding,
 	Settings,
 	SettingsChangeset,
+	UnreachableWorkspace,
 	WorkspaceGrant
 } from '$lib/platform/host';
 import { withExtension } from '$lib/platform/path';
@@ -50,14 +52,15 @@ export type {
 	DiagnosticRecord,
 	ExportCell,
 	ExportSheet,
-	FreshCode,
+	GroupState,
 	ImportTable,
-	Invited,
 	HeldOrganization,
-	LinkFacts,
-	LinkStanding,
+	LinkKind,
+	LinkShape,
 	LockOutCost,
+	MadeLink,
 	MemberRemoved,
+	MemberStanding,
 	MigrationNotice,
 	OrganizationConsentResult,
 	OrganizationConsentStart,
@@ -66,7 +69,6 @@ export type {
 	OrganizationSession,
 	OrganizationState,
 	OrganizationWorkspace,
-	PendingInvitation,
 	Recovery,
 	RemoteSyncState,
 	RemoteSyncWorkspace,
@@ -75,6 +77,7 @@ export type {
 	SessionStanding,
 	Settings,
 	SettingsChangeset,
+	UnreachableWorkspace,
 	UpdaterDownloadEvent,
 	WorkspaceGrant
 } from '$lib/platform/host';
@@ -222,9 +225,12 @@ export const tauri = {
 		// is the shape that reaches it as `None` whatever the argument order.
 		create: (name: string, username: string, password: string, group: string | null) =>
 			invoke<OrganizationCreated>('organization_create', { name, username, password, group }),
+		groupInspect: () => invoke<GroupState>('organization_group_inspect'),
+		connectExisting: (username: string, password: string) =>
+			invoke<OrganizationState>('organization_connect_existing', { username, password }),
 		getState: () => invoke<OrganizationState>('organization_state_get'),
-		connect: (link: string) => invoke<OrganizationState>('organization_connect', { link }),
 		disconnect: () => invoke<OrganizationState>('organization_disconnect'),
+		delete: (password: string) => invoke<OrganizationState>('organization_delete', { password }),
 		signIn: (username: string, password: string) =>
 			invoke<OrganizationState>('organization_sign_in', { username, password }),
 		signOut: () => invoke<OrganizationState>('organization_sign_out'),
@@ -234,10 +240,9 @@ export const tauri = {
 			listen<string>(LINK_ARRIVED_EVENT, (event) => listener(event.payload)),
 		onMigration: (listener: (notice: MigrationNotice) => void) =>
 			listen<MigrationNotice>(MIGRATION_EVENT, (event) => listener(event.payload)),
-		linkInspect: (link: string) => invoke<LinkFacts>('organization_link_inspect', { link }),
+		linkRead: (link: string) => invoke<LinkShape>('organization_link_read', { link }),
 		reconnectAuthority: () => invoke<OrganizationState>('organization_reconnect_authority'),
 		renewDue: () => invoke<boolean>('organization_renew_due'),
-		ownLink: () => invoke<string>('organization_own_link'),
 		workspace: {
 			create: (name: string) => invoke<OrganizationWorkspace>('workspace_create', { name }),
 			open: (workspaceId: string) =>
@@ -251,9 +256,16 @@ export const tauri = {
 		},
 		member: {
 			list: () => invoke<OrganizationMember[]>('organization_members'),
-			invite: (username: string, role: 'administrator' | 'member', workspaces: WorkspaceGrant[]) =>
-				invoke<Invited>('member_invite', { username, role, workspaces }),
-			reset: (memberId: string) => invoke<Invited>('member_reset', { memberId }),
+			standings: () => invoke<MemberStanding[]>('organization_member_standings'),
+			create: (
+				username: string,
+				role: 'administrator' | 'member',
+				permissions: number,
+				workspaces: WorkspaceGrant[]
+			) => invoke<OrganizationMember>('member_create', { username, role, permissions, workspaces }),
+			linkMake: (memberId: string) => invoke<MadeLink>('member_link_make', { memberId }),
+			unsetPassword: (memberId: string) =>
+				invoke<UnreachableWorkspace[]>('member_password_unset', { memberId }),
 			remove: (memberId: string, lockOut: boolean) =>
 				invoke<MemberRemoved>('member_remove', { memberId, lockOut }),
 			lockOutCost: (memberId: string) => invoke<LockOutCost>('member_lock_out_cost', { memberId }),
@@ -261,17 +273,21 @@ export const tauri = {
 				invoke<OrganizationMember>('member_rename', { memberId, username }),
 			changeRole: (memberId: string, role: 'administrator' | 'member', permissions: number) =>
 				invoke<OrganizationMember>('member_change_role', { memberId, role, permissions }),
+			offerOwnership: (memberId: string, password: string) =>
+				invoke<OrganizationMember>('member_offer_ownership', { memberId, password }),
+			withdrawOffer: () => invoke<void>('member_withdraw_offer'),
 			endSessions: (memberId: string) => invoke<SessionsEnded>('member_end_sessions', { memberId })
 		},
 		invitation: {
-			revoke: (invitationId: string) => invoke<void>('invitation_revoke', { invitationId }),
 			accept: (link: string, code: string, password: string) =>
-				invoke<OrganizationState>('invitation_accept', { link, code, password }),
-			link: (invitationId: string) => invoke<string>('invitation_link', { invitationId }),
-			code: (invitationId: string) => invoke<FreshCode>('invitation_code', { invitationId })
+				invoke<OrganizationState>('invitation_accept', { link, code, password })
 		},
+		machineConnect: (link: string, code: string) =>
+			invoke<OrganizationState>('machine_connect', { link, code }),
 		changePassword: (current: string, next: string) =>
 			invoke<OrganizationState>('organization_change_password', { current, new: next }),
+		ownershipAccept: (password: string) =>
+			invoke<OrganizationState>('ownership_accept', { password }),
 		accountRefusalDetail: () => invoke<string | null>('organization_account_refusal_detail')
 	},
 	remoteSync: {

@@ -53,6 +53,7 @@ export function fakeSyncState(overrides: Partial<RemoteSyncState> = {}): RemoteS
 		deviceId: 'device',
 		accountRefusal: null,
 		credentialRefusal: null,
+		lastReachedAt: null,
 		...overrides
 	};
 }
@@ -121,19 +122,20 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 			consentResult: refuse('organization.consentResult'),
 			consentDisconnect: refuse('organization.consentDisconnect'),
 			create: refuse('organization.create'),
+			groupInspect: refuse('organization.groupInspect'),
+			connectExisting: refuse('organization.connectExisting'),
 			getState: refuse('organization.getState'),
-			connect: refuse('organization.connect'),
 			disconnect: refuse('organization.disconnect'),
+			delete: refuse('organization.delete'),
 			signIn: refuse('organization.signIn'),
 			signOut: refuse('organization.signOut'),
 			sessionEndElsewhere: refuse('organization.sessionEndElsewhere'),
 			linkTake: refuse('organization.linkTake'),
 			onLink: refuse('organization.onLink'),
 			onMigration: refuse('organization.onMigration'),
-			linkInspect: refuse('organization.linkInspect'),
+			linkRead: refuse('organization.linkRead'),
 			reconnectAuthority: refuse('organization.reconnectAuthority'),
 			renewDue: refuse('organization.renewDue'),
-			ownLink: refuse('organization.ownLink'),
 			workspace: {
 				create: refuse('organization.workspace.create'),
 				open: refuse('organization.workspace.open'),
@@ -144,21 +146,24 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 			},
 			member: {
 				list: refuse('organization.member.list'),
-				invite: refuse('organization.member.invite'),
-				reset: refuse('organization.member.reset'),
+				standings: refuse('organization.member.standings'),
+				create: refuse('organization.member.create'),
+				linkMake: refuse('organization.member.linkMake'),
+				unsetPassword: refuse('organization.member.unsetPassword'),
 				remove: refuse('organization.member.remove'),
 				lockOutCost: refuse('organization.member.lockOutCost'),
 				rename: refuse('organization.member.rename'),
 				changeRole: refuse('organization.member.changeRole'),
+				offerOwnership: refuse('organization.member.offerOwnership'),
+				withdrawOffer: refuse('organization.member.withdrawOffer'),
 				endSessions: refuse('organization.member.endSessions')
 			},
 			invitation: {
-				revoke: refuse('organization.invitation.revoke'),
-				accept: refuse('organization.invitation.accept'),
-				link: refuse('organization.invitation.link'),
-				code: refuse('organization.invitation.code')
+				accept: refuse('organization.invitation.accept')
 			},
+			machineConnect: refuse('organization.machineConnect'),
 			changePassword: refuse('organization.changePassword'),
+			ownershipAccept: refuse('organization.ownershipAccept'),
 			accountRefusalDetail: refuse('organization.accountRefusalDetail')
 		},
 		remoteSync: {
@@ -211,6 +216,7 @@ export function fakeOrganizationSession(
 		permissions: 0,
 		workspaces: [fakeOrganizationWorkspace()],
 		ownerUsername: 'olivia.owner',
+		ownershipOffered: false,
 		...overrides
 	};
 }

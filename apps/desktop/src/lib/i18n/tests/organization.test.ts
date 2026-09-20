@@ -90,25 +90,41 @@ test('neither locale tells somebody that forgetting revoked anything', () => {
 	}
 });
 
-// effort 826, requirement 15: a person who was invited and has not signed in yet is a row in the
-// one members list, marked by a badge carrying the expiry. The list of pending accounts, its
-// title and its empty sentence are gone with it; what is read here is that both locales carry
-// the mark and the two expiry sentences in their own words, since the row is rendered in
-// `organization/tests/members.svelte.test.ts` and the words are what a reader meets.
-test('both locales mark a pending member and say when their link runs out', () => {
-	assert.match(en.organization.dashboard.notYetSignedIn, /^not yet signed in$/);
+// effort 828, requirement 19: a card carries one line of standing, and the three lines are two
+// facts about the account read as sentences. They gate nothing. What is read here is that both
+// locales carry all three in their own words and tell them apart; the card itself is rendered in
+// `organization/tests/members.svelte.test.ts`. *Both locales marked a pending member and dated
+// their link until the cards replaced the rows; the standing says the same thing about the
+// account rather than about an invitation.*
+test('both locales say where an account stands, in three lines that differ', () => {
+	const lines = [
+		['english', en.organization.dashboard],
+		['arabic', ar.organization.dashboard]
+	] as const;
+
+	for (const [name, dashboard] of lines) {
+		const said = [
+			dashboard.standingNoPassword,
+			dashboard.standingNoMachine,
+			dashboard.standingSignedIn
+		];
+
+		assert.equal(new Set(said).size, 3, `${name} says two standings with one sentence`);
+
+		for (const line of said) {
+			assert.ok(line.length > 0, `${name} leaves a standing unsaid`);
+		}
+	}
+
+	assert.match(en.organization.dashboard.standingNoPassword, /^no password yet$/);
+	assert.notEqual(
+		ar.organization.dashboard.standingSignedIn,
+		en.organization.dashboard.standingSignedIn
+	);
+	// the link a handover dates is still dated, in both locales: it is the one place the sentence
+	// is read now.
 	assert.match(en.organization.dashboard.invitationExpires, /\{date:string\}/);
-	assert.match(en.organization.dashboard.invitationLapsed, /\{date:string\}/);
 	assert.match(ar.organization.dashboard.invitationExpires, /\{date\}/);
-	assert.match(ar.organization.dashboard.invitationLapsed, /\{date\}/);
-	assert.notEqual(
-		ar.organization.dashboard.notYetSignedIn,
-		en.organization.dashboard.notYetSignedIn
-	);
-	assert.notEqual(
-		ar.organization.dashboard.invitationExpires,
-		ar.organization.dashboard.invitationLapsed
-	);
 });
 
 // effort 826, requirements 5 and 6: the two refusals the spec keeps in words rather than in a
@@ -138,19 +154,21 @@ test('both locales say the link is handed over by hand, and neither mentions a p
 	assert.doesNotMatch(en.organization.dashboard.cannotSend, /the password/);
 	assert.match(ar.organization.dashboard.cannotSend, /انسخ الرابط أدناه/);
 	assert.doesNotMatch(ar.organization.dashboard.cannotSend, /كلمة المرور أدناه/);
-	assert.match(en.organization.dashboard.inviteDescription, /username/);
-	assert.match(ar.organization.dashboard.inviteDescription, /اسم المستخدم/);
+	assert.match(en.organization.dashboard.memberDescription, /username/);
+	assert.match(ar.organization.dashboard.memberDescription, /اسم المستخدم/);
 });
 
 // effort 826, requirement 21: one Turso group holds one organization, and the connect step says
 // so before the consent rather than leaving it to the refusal. Written in each language rather
 // than translated word for word, and each says the rule and what happens to a group that
-// already holds one.
+// already holds one. *Effort 828, requirement 14: what happens to one that does is that this
+// machine is connected to what is there, so the sentence no longer says it is refused.*
 test('both locales say a group holds one organization, and what that means for one that does', () => {
 	assert.match(en.organization.setup.oneOrganization, /a group holds one organization/);
-	assert.match(en.organization.setup.oneOrganization, /already holds one is refused/);
+	assert.match(en.organization.setup.oneOrganization, /already holds one is connected to/);
+	assert.doesNotMatch(en.organization.setup.oneOrganization, /already holds one is refused/);
 	assert.match(ar.organization.setup.oneOrganization, /مؤسسة واحدة/);
-	assert.match(ar.organization.setup.oneOrganization, /تُرفض/);
+	assert.match(ar.organization.setup.oneOrganization, /الاتصال بها/);
 	assert.notEqual(ar.organization.setup.oneOrganization, en.organization.setup.oneOrganization);
 });
 
@@ -228,7 +246,15 @@ const RETIRED = [
 	'settings.usingCustomDatabasePath',
 	'settings.usingDefaultDatabasePath',
 	'settingsHooks.profileSwitched',
-	'settingsHooks.startupRecoveryCleared'
+	'settingsHooks.startupRecoveryCleared',
+	// the three sections that were folded into the four, and the two words two of them went by
+	// (requirement 24 of effort 828). The names are gone from the rail; the addresses still open
+	// the section that holds what they held, which `section.test.ts` reads.
+	'settings.section.you',
+	'settings.section.members',
+	'settings.section.sync',
+	'settings.section.updates',
+	'settings.section.diagnostics'
 ] as const;
 
 test('both locales have let go of every string the retired pages read', () => {
@@ -247,14 +273,33 @@ const TERMS = [
 	['sign out', 'common.actions.signOut'],
 	['connect turso account', 'organization.setup.connect'],
 	['forget turso account', 'organization.dashboard.forgetAccount'],
-	['organization link', 'organization.dashboard.linkTitle'],
-	['invitation link', 'organization.dashboard.invitationLinkTitle'],
+	['link and code', 'organization.dashboard.linkTitle'],
 	['full access', 'organization.dashboard.accessFull'],
 	['read only', 'organization.dashboard.accessReadOnly'],
-	['you', 'settings.section.you'],
-	['members', 'settings.section.members'],
+	['members', 'organization.dashboard.membersTitle'],
 	['workspaces', 'settings.section.workspaces']
 ] as const;
+
+// requirement 24 of effort 828: the area's four sections, each named for what it holds, in both
+// locales. The names themselves are read here; which blocks sit under each is `area.svelte.test.ts`.
+const SECTIONS = ['general', 'account', 'organization', 'workspaces'] as const;
+
+test('both locales name the four sections of the settings area', () => {
+	for (const [name, translation] of locales) {
+		const section = at(translation, 'settings.section');
+
+		assert.deepEqual(Object.keys(section as object), [...SECTIONS], `${name} names other sections`);
+
+		for (const key of SECTIONS) {
+			assert.ok((section as Record<string, unknown>)[key], `${name} has no name for ${key}`);
+		}
+	}
+
+	// and the arabic is written rather than left in english.
+	for (const key of SECTIONS) {
+		assert.notEqual(at(ar, `settings.section.${key}`), at(en, `settings.section.${key}`));
+	}
+});
 
 const RETIRED_WORDS = ['pending account', 'unlock your place', 'control plane', 'log in', 'login'];
 
@@ -279,7 +324,12 @@ test('each term of requirement 18 is one english key, and its arabic is written'
 	}
 });
 
-test('the turso account is the only thing the organization strings call an account', () => {
+// requirement 18 of effort 826, with the one exception requirement 24 of effort 828 made:
+// `settings.section.account` names the reader's own section of the settings area, because that is
+// what the human chose to call the place their username, their password and their machines are
+// kept. It is outside the key prefixes this test reads, and that is deliberate rather than an
+// oversight: every other thing a reader meets that is called an account is the Turso account.
+test('the turso account is the only thing the organization strings call an account, settings.section aside', () => {
 	const english = leaves(en);
 
 	for (const [key, value] of Object.entries(english)) {

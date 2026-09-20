@@ -107,6 +107,13 @@ rail's two menus open. Every concept has one name.
    interface never offers them to anybody else, and a refusal names the owner. *Chosen over
    sealing the token into a granted member's vault: a nine-scope token with no expiry held
    on several machines is a credentials-rule change with a revocation story of its own.*
+   *Corrected 2026-09-16 by
+   [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]], requirement 16:
+   **there is no organization's own link, so the list ends at the Turso account.** Nothing
+   mints, stores, shows or accepts one. What joins the list in its place is deleting the
+   organization (that spec's requirement 18): every workspace database and the directory
+   itself go from the owner's account, on the owner's password, and it is refused for
+   everybody else like the rest.*
 6. **Roles are fixed bundles, and a member's permissions can be widened or narrowed
    individually.** rentable ships three: `owner` (every act, including requirement 5's),
    `administrator` (every grantable act), `member` (none). A role is what a person is
@@ -140,15 +147,54 @@ rail's two menus open. Every concept has one name.
    else with the act. No password is handed over or shown: the secret that opens the vault
    the first time is inside the link. *Chosen over the organization link plus a username and
    a handed password.*
+   *Corrected 2026-09-16 by
+   [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]], requirements 19 and
+   20: **inviting is two acts now, and the first of them produces no link.** An account is made
+   from the members section's tray with a username, a role, its permissions and its workspaces,
+   and `member_create` answers the account and nothing to hand over; it holds no password until
+   its first link is opened. The link is the second act, on the account's card:
+   `member_link_make` answers the link and its six-character code together, and it is what an
+   invitation is. **Nothing offers a link to copy a second time.** A fresh link supersedes a
+   stale one, so the copy-again control and the pending row that carried it are gone, and a
+   link is offered while the account has no password or no machine is signed in on it. The rest
+   holds: one link, admitting whoever opens it first, once, lapsing after seven days.*
 9. **A reset is a fresh link.** A holder of `resetPassword` issues a member a new link; the
    member opens it and chooses a new password. The member's grants are re-sealed as reissue
    does today, only over the workspaces the issuer holds full access on, and the rest are
    named as unreachable. The member's own password change, from the settings area, still
    needs the current password.
+   *Corrected 2026-09-16 by
+   [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]], requirement 20:
+   **a reset is not a link.** `member_password_unset`, held to `resetPassword` as before, takes
+   the account's password away and hands nothing over; the re-sealing of grants over the
+   workspaces the issuer reaches happens there, and the rest are still named as unreachable.
+   What restores the person is the next link made for that account, a separate act on the
+   card held to `inviteMember`, and it asks them to choose a new password because the account
+   has none. The member's own password change is unchanged.*
+   *Corrected 2026-09-17 by the same spec's Risks, struck at converge: the link act is held to
+   `inviteMember` or `resetPassword`, in `invite::make_link`, in the router and on the card, so
+   whoever may take a password away may hand back the link that gives one. "Held to
+   `inviteMember`" above was the gate before the human's call.*
 10. **The organization link stays, for a second machine.** An existing member connects a new
     machine with the organization's link and signs in with their username and password, as
     824 built. The connect screen takes either kind of link in one field and reads which it
     is. The owner restored on a second machine repeats the consent from the settings area.
+    *Corrected 2026-09-15 by
+    [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]], requirements 3 and 4:
+    the organization link is not what a member is handed for a second machine any more. It carries
+    the never-expiring read-only credential in the clear, so every copy of it in every chat reads
+    the directory forever; it stays as the owner's recovery copy, for when every machine is gone,
+    and a member makes their own second-machine link and code from their you section. The connect
+    screen still takes one field and still reads which kind a link is, from the link's own text
+    rather than from a row behind it.*
+    *Corrected again 2026-09-16 by the same spec, requirement 16, which supersedes its own
+    requirement 4: **the organization link is gone.** It was the one credential this application
+    held that never lapsed, and nothing here rotated it, so every copy of it read the directory
+    forever. Nothing mints, stores, shows or accepts one now; a member connects their own next
+    machine from their you section, and an owner whose every machine is gone repeats the Turso
+    consent and signs in with their username and password (828, requirement 14). The connect screen
+    still takes one field for the link, and now a second for the code that comes with it, because
+    every link left has one.*
 11. **The wall is the login page of the held organization**: its name, a username, a
     password, unlock, and at the foot disconnect and a way to the connect screen for a
     person holding a link, since a reset link is opened by somebody whose machine already
@@ -165,6 +211,13 @@ rail's two menus open. Every concept has one name.
     asked again only to change it. *Chosen over a password on every launch, on the reading
     that a machine is nearly always one person's; the risk on a shared machine is recorded
     below.*
+    *Corrected 2026-09-16 by
+    [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]], requirements 18 and
+    22: **the password is asked again for three acts, not one.** Changing it is the first.
+    Deleting the organization (`organization_delete`) and handing it to another account
+    (`member_transfer_ownership`) each ask for it too, because each needs the owner's own vault
+    open, and each is confirmed on the form surface that takes it. Nothing else asks, and a
+    launch still does not.*
 
 *The first run*
 
@@ -205,6 +258,13 @@ rail's two menus open. Every concept has one name.
     disconnect this machine), `updates`, `diagnostics`. Each section is addressable so a
     menu can open it. What a section shows is gated by what the session permits, and a
     section with nothing to show for this member is absent, not empty.
+    *Corrected 2026-09-16 by
+    [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]], requirement 16:
+    **the sync section shows no link.** The organization's own link retired, so what that
+    section holds is the sync status and sync now, the account refusal, the Turso account with
+    reconnect and forget, and disconnect this machine, with the owner's delete of the
+    organization beside the account (that spec's requirement 18). The seven sections and their
+    order are unchanged, and so is what gates each one.*
 15. **The members section is one list.** A row is a username, an avatar, a role, the
     workspaces held with their access, and for an invited person who has not yet signed in
     a pending mark with the expiry. Row actions, each behind its act: change role and
@@ -213,17 +273,50 @@ rail's two menus open. Every concept has one name.
     copy link to its issuer, new link, and revoke, and revoking a person who never signed in
     removes them. The invite button opens the invite dialog. *Pending
     invitations as rows in the list was chosen over a section of their own.*
+    *Corrected 2026-09-16 by
+    [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]], requirement 19:
+    **the section is a directory of record cards, and three of the details above went with the
+    rows.** A card carries one standing line of three, no password yet, no machine signed in, or
+    a machine signed in, in place of the pending mark and its expiry; the standing is read from
+    requirement 15's register of that effort. Remove and lock out are two entries on the card's
+    menu, each with its own confirm, rather than one dialog offering both. **And there is no
+    pending row**, so copy link, a fresh code and revoke are gone: a fresh link supersedes a
+    stale one and unsetting the password reseals the vault, which is what those three were for.
+    What the card's menu carries is the edit, one link act, the reset, signing out everywhere
+    and leaving, each on the gate this requirement gave it, and an account is added from the
+    tray above the cards rather than from an invite button.*
 16. **The workspaces section is one list.** A row is the name, the member count and whether
     it is the open one; row actions are rename (`renameWorkspace`), members (who holds it
     and at what access, `grantWorkspace`), and delete (owner, asking once and naming what is
     lost). New workspace is the owner's button and opens the workspace dialog. Export and
     import stay, acting on the open workspace, in this section.
+    *Corrected 2026-09-16 by
+    [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]], requirement 21:
+    **the section is a directory of cards, not a list of rows.** A card is one workspace, the
+    shape the members section takes: the name, how many people hold it, and a solid disc before
+    the name of the one open on this machine, whose word reaches the reader through a tooltip and
+    an accessible name rather than as a badge. Activating a card opens that workspace's members
+    and access surface, and rename, members and delete are in the card's own menu, each still
+    behind the gate this entry gave it, with an act the reader does not hold simply absent. The
+    control that makes a workspace is in the tray above the cards with the section's name and its
+    sentence, rather than a button beside the list, and the reason stands in its place where this
+    machine cannot reach the Turso account. Export and import stay, beneath the cards, under the
+    name of the workspace they act on.*
 17. **The rail's two menus open the sections.** The workspace menu keeps the switcher and
     offers workspaces and invite; the account menu offers you, settings and sign out. The
     two dialogs (invite, new workspace) open from the rail and from the settings area alike,
     as 824's requirement 12 built. *Corrected 2026-09-15, on the human's first run: the
     account menu offers settings and sign out only (settings and sign in when nobody is
     signed in); the you section is reached from the rail, the palette and the address.*
+    *Corrected 2026-09-16 by
+    [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]], requirement 9:
+    **invite left the workspace menu, and so did new workspace.** The menu is the workspace and
+    the switch: its header, the workspaces this member holds with the open one marked, and one
+    row to the workspaces section, with no refusal sentence standing in for either act. Both
+    live in the settings sections they belong to, where an account is added from the members
+    tray and a workspace from the workspaces tray. The two forms are still mounted once in the
+    shell, as 824's requirement 12 built, but the settings area is the only place that opens
+    either, so they no longer open from the rail and the settings area alike.*
 
 *Vocabulary*
 
@@ -236,6 +329,22 @@ rail's two menus open. Every concept has one name.
     `connect Turso account` and `forget Turso account`; `sign in` and `sign out` are the
     member. `pending account`, `unlock your place` and every string the retired pages read
     go.
+    *Corrected 2026-09-16 by
+    [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]], requirements 16 and
+    20: **`organization link` names nothing, and the two links are the invitation and the
+    machine link.** The organization's own link retired with the never-expiring credential it
+    carried, so the pair this entry fixed is now an `invitation link`, which asks the person to
+    choose a password, and a `machine link`, which lands its machine at the wall; one act,
+    `member_link_make`, makes either, and which one it makes follows the account it is made for.
+    Every other word in this requirement stands: a person in the organization is still a
+    `member` on every screen, down to the control that adds one, and `Turso account` is still
+    the only thing called an account in what a reader meets.*
+    *Corrected 2026-09-17 by the same spec, requirement 24: **the reader's own section of the
+    settings area is named "account"**, the one exception. The four sections are named for what
+    they hold, and the section holding your username, your password and your other machines is
+    `settings.section.account` in both locales; the human chose the name on 2026-09-16 and the
+    locale guard test names it as the exception. The organization strings still call nothing but
+    the Turso account an account, and the guard test holds that.*
 
 *Everything in scope*
 
@@ -249,6 +358,13 @@ rail's two menus open. Every concept has one name.
     is gated on; the Rust model tests cover every permission against every role, the
     invitation link's single use and lapse, the reset link, the remembered session and its
     forgetting on sign-out; the Arabic strings are written, not copied.
+    *Corrected 2026-09-16 by
+    [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]], requirement 20:
+    **there is no reset link to cover.** A reset unsets the account's password, so what the Rust
+    tests pin in its place is that the next link made for that account asks the person to choose
+    a new one. Everything else this requirement asks for is unchanged and still covered: every
+    permission against every role, the invitation link's single use and lapse, the remembered
+    session and its forgetting on sign-out, and Arabic written rather than copied.*
 
 *Added on 2026-09-14, mid-implement, at three notes the owner gave while the run was on its
 third wave. Each is a decision, made in one picker round the same day; the plan and tickets
@@ -286,6 +402,18 @@ third wave. Each is a decision, made in one picker round the same day; the plan 
     or in person; it is never sent beside the link. *Chosen over a code the row checks and
     the client refuses, which a modified client holding the link walks past, and over sixty
     seconds, which leaves no room for the row to replicate to the person's machine.*
+    *Corrected 2026-09-15 by
+    [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]], requirements 1 and 2.
+    **The code is a key half, not a check, and that half of this requirement stands.** What it
+    guarded did not: the link beside the code carried the organization database's credential in the
+    clear, so the code bounded the invited vault and left the directory open to whoever found the
+    link. The credential is sealed in the link's own text now, under the same code and the same
+    secret, because nothing reads a row before the credential is out. **The ninety seconds and the
+    fresh-code control are superseded.** A fresh code would be a fresh link text to re-send, so
+    there is one code per link and it lives as long as the link; the clock never bounded an
+    attacker, since a credential once unsealed is held, and what does bound one is the derivation
+    and the four-week life of the grant inside. A wrong code, a lapsed link or no code still opens
+    nothing, by name.*
 
 # Acceptance Criteria
 
@@ -318,13 +446,32 @@ third wave. Each is a decision, made in one picker round the same day; the plan 
    false; a second open of the same link is refused, and an open after seven days says the
    invitation lapsed. Asserted in Rust and in the connect screen's test; the invite dialog's
    test finds one copy control.
+   *Corrected 2026-09-16 by
+   [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]], requirement 20, with
+   requirement 8 above: `member_invite` is two commands. `member_create` answers the account and
+   no link, and the account form's test finds no copy control, because the form shows nothing to
+   copy; `member_link_make` answers the link and its code, and the one copy control is on the
+   handover block that act opens. What the link then does on a store holding no organization is
+   criterion 20 of that spec.*
 9. `member_reset(member_id)` returns a link; opening it on the member's machine asks for a
    new password and re-seals their grants over the issuer's reachable workspaces, naming the
    rest. Asserted in Rust. The you section's change-password form asks for the current
    password, asserted in its test.
+   *Corrected 2026-09-16 by
+   [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]], requirement 20:
+   **there is no `member_reset`, and a reset hands over nothing.** It is two commands on the same
+   account. `member_password_unset(member_id)` takes the password away: a fresh vault under a
+   fresh secret, everything the resetting administrator reaches re-sealed to it, the member's
+   permissions kept, and the answer naming the workspaces it could not restore. Then
+   `member_link_make(member_id)` answers the link and its code, and what kind of link it is
+   follows the account, so the one made after an unset asks the person to choose a new password
+   when they open it. Both are asserted in Rust. The change-password half of this criterion
+   stands.*
 10. The connect screen accepts an organization link and lands on the wall, and accepts an
     invitation link and lands on the choose-password step, from one field. Asserted in its
-    test with both link kinds.
+    test with both link kinds. *Corrected 2026-09-16 with requirement 10: there is no
+    organization link to accept. The test asserts the two kinds that are left, an invitation and a
+    second machine's link, and that neither is read before its code is given.*
 11. `startup-sign-in.svelte.test.ts` from 824 passes unchanged for the locked wall. *Corrected
     2026-09-15 with requirement 11: the test asserts the redesigned card (the title, the
     subtitle, the disclosure closed by default and its two rows) in both locales, and
@@ -348,13 +495,32 @@ third wave. Each is a decision, made in one picker round the same day; the plan 
 15. The members section's test renders an active row and a pending row with the fields of
     requirement 15, finds each row action present only when the session permits its act,
     and finds the invite button opening the dialog.
+    *Corrected 2026-09-16 by
+    [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]], requirement 19,
+    with requirement 15 above: the test renders cards, not rows, one per account with its
+    standing line, and there is no pending row to render. Each act is read off the card's own
+    menu and is still present only where the session permits it, and what the test finds
+    opening the account form is the control in the tray above the cards.*
 16. The workspaces section's test renders rows with the fields of requirement 16, finds
     rename, members and delete each behind their gate, finds new workspace only for the
     owner holding authority, and finds export and import present.
+    *Corrected 2026-09-16 by
+    [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]], requirement 21,
+    with requirement 16 above: the test renders cards, not rows, one per workspace with its name,
+    how many hold it and the disc marking the one open here. Rename, members and delete are read
+    off the card's own menu and are each still found only behind their gate, new workspace is
+    found in the tray above the cards for the owner holding the authority and is the reason
+    sentence for an owner whose machine lost it, and export and import are still found, beneath
+    the cards under the name of the workspace they act on.*
 17. The workspace menu's test finds the switcher rows, a workspaces row opening
     `/settings` at the workspaces section and an invite row opening the dialog; the account
     menu's test finds settings and sign out and no row for the you section (corrected
     2026-09-15).
+    *Corrected 2026-09-16 by
+    [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]], requirement 9, with
+    requirement 17 above: the workspace menu's test finds no invite row, no create row and no
+    refusal sentence. What it finds is the switch rows with the open one marked and one row to
+    the workspaces section. The account menu half of this criterion stands.*
 18. `src/lib/i18n/tests/organization.test.ts` asserts the retired strings are absent from
     both locales and that each term of requirement 18 has one key; a read of both locales
     for every string the effort added is recorded in the run log.
@@ -381,6 +547,15 @@ third wave. Each is a decision, made in one picker round the same day; the plan 
     neither the code seal nor the vault. The connect screen's password step has the code
     field, and the invite result and the issuer's pending row show the code with its seconds
     left and a control for a fresh one, asserted in their tests.
+    *Corrected 2026-09-16 by
+    [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]], requirements 1 and
+    20. Requirement 23 above carries the first half of this and the criterion was not given it:
+    **one code lives as long as its link**, so no expiry is ninety seconds out and nothing
+    answers a fresh code. The three commands are one, `member_link_make`, which answers a link
+    and its code together; `member_invite`, `member_reset` and `invitation_code` are gone, and
+    so is the pending row that showed the seconds. What stands: the link's secret alone opens
+    neither the seal nor the vault, a wrong, lapsed or missing code opens nothing and is refused
+    by name, and the connect screen asks for the code, now on the same form as the link.*
 
 # Constraints
 
@@ -474,13 +649,28 @@ third wave. Each is a decision, made in one picker round the same day; the plan 
   member. The invite result says to hand it over the way you would a password; revoke is
   one press away. *Narrowed on 2026-09-14 by requirement 23: the link alone opens nothing
   without a code that was alive when it was typed, so the seven days are the row's, not the
-  secret's.*
+  secret's.* *Corrected 2026-09-16 by
+  [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]], requirement 19:
+  **revoke is not one press away, because it is not there.** The members directory's card menu
+  carries no revoke: a fresh link supersedes a stale one and unsetting the password reseals the
+  vault, so what answers a link handed to the wrong person is making another or taking the
+  password away. What the handover block says in place of this risk's sentence is that rentable
+  sends nothing, that the person who made the link hands it over themselves and reads the code
+  out separately, and that it admits one machine, once.*
 - **The code is a second thing to hand over, and it hurries the person.** Ninety seconds is
   a call, not a message. The invite result shows the code beside the seconds it has left and
   a fresh one is one press away, so a lapsed code costs a press and not a reissue; and the
   issuer's clock and the person's may disagree, so the lapse the person's machine reads is
   the row's expiry against their own clock, with the cryptographic barrier being the code's
   entropy under the vault's cost rather than the clock.
+  *Corrected 2026-09-16 by
+  [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]], requirement 1, which
+  requirement 23 above already carries: **the ninety seconds are gone and so is the fresh-code
+  control.** One code lives as long as its link, because the seal rides in the link's own text
+  and a fresh code would be a fresh link to re-send, so the hurry this risk describes went with
+  the clock and there is no lapsed code to answer with a press. The code is still a second thing
+  to hand over and is still read out rather than sent, and what bounds a found link is the
+  derivation and the four-week life of the credential sealed inside it.*
 - **The chain's complexity survives, and widening spreads it.** Certificates were the
   owner's and administrators'; a widened member needs one too. The plan owns when it is
   issued and retired, and the existing re-signing routine is what it extends.

@@ -203,7 +203,7 @@
 
 			<Command.Group heading={$LL.common.ui.commandPaletteGoTo()}>
 				<!-- keyed on the whole address rather than on its pathname: the settings area's
-				     seven sections are seven rows on `/settings`, told apart by `?section=`. -->
+				     four sections are four rows on `/settings`, told apart by `?section=`. -->
 				{#each destinations as destination (destination.url)}
 					<Command.LinkItem
 						href={resolve(destination.url)}

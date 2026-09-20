@@ -16,18 +16,34 @@
  * the route is what wires them to the shell.
  */
 
-import type { OrganizationSession } from '$lib/platform/host';
+import type { GroupState, OrganizationSession } from '$lib/platform/host';
 import { toErrorDetail } from '$lib/error/message';
+import { toTauriErrorCode } from '$lib/error/tauri';
 
 /**
- * the three steps, in the order a person meets them: the consent, the organization's name with
- * the owner's username and password, and the first workspace's name. The walk ends inside that
- * workspace rather than on a screen showing the join link, which lives on the organization page
- * and is read there.
+ * the three steps of the walk that creates, in the order a person meets them: the consent, the
+ * organization's name with the owner's username and password, and the first workspace's name. The
+ * walk ends inside that workspace rather than on a screen showing the join link, which lives on
+ * the organization page and is read there.
+ *
+ * **`existing` is a fourth step and not a fourth step of this walk** (effort 828, requirement 14).
+ * The consent decides which of two ways the person is on: an account holding nothing runs the
+ * three steps and creates; an account already holding an organization runs two, the consent and
+ * this one, where its owner signs in and the machine joins what is already there. It is in the
+ * type because it is a step the screen draws, and out of `SETUP_WALK` because a step that walk
+ * presents is one everybody meets.
  */
-export type SetupStep = 'connect' | 'name' | 'workspace';
+export type SetupStep = 'connect' | 'existing' | 'name' | 'workspace';
 
 export const SETUP_STEPS: readonly SetupStep[] = ['connect', 'name', 'workspace'];
+
+/** the two steps of the other way: the consent, and the owner signing in to what it found. */
+export const CONNECT_EXISTING_STEPS: readonly SetupStep[] = ['connect', 'existing'];
+
+/** which of the two ways a step belongs to, which is what says where a person is and of how many. */
+export function stepsOf(step: SetupStep): readonly SetupStep[] {
+	return step === 'existing' ? CONNECT_EXISTING_STEPS : SETUP_STEPS;
+}
 
 /**
  * what a step asks the person to type. A field is named by what it collects, and the names are
@@ -53,9 +69,9 @@ export type SetupField = 'name' | 'username' | 'password' | 'workspace';
  *
  * `groupCoverage` says how far the consent reaches: every database in the group the person
  * picks, and nothing outside it. `oneOrganization` says what that group may hold: one
- * organization, so a group already holding one refuses the run before anything is created, and
- * saying it here is what keeps that refusal from being the first the person hears of the rule
- * (requirement 21). `accountCreation` says why a Turso account kept for rentable
+ * organization, and that a group already holding one is connected to rather than refused, which
+ * is effort 828's requirement 14 correcting what this sentence said while the only outcome was a
+ * create (826, requirement 21). `accountCreation` says why a Turso account kept for rentable
  * alone is the clean choice, which is the one-group fact rather than a preference: a Free or
  * Developer account has exactly one group and the consent screen offers no way to make a
  * second, so on those plans the only group there is to pick is the one already holding
@@ -225,6 +241,49 @@ export function refusalAfterFailedCreate(
  *   a finished owner back on a step, and it is what makes the dev server's own reload harmless.
  * - `null`: nobody is in, so the walk draws whichever step it was on.
  */
+/**
+ * Which way the walk is on, decided by what the consented account turned out to hold (effort 828,
+ * requirement 14).
+ *
+ * **The consent is where the two ways part.** Nothing before it can know: the account is the
+ * person's own and this machine has never seen it. An account holding nothing goes on to name the
+ * organization and create it, which is the walk as it was; an account already holding one goes to
+ * the step where its owner signs in, instead of meeting the refusal that used to be the only
+ * answer there.
+ */
+export function stepAfterConsent(group: GroupState): SetupStep {
+	return group.kind === 'held' ? 'existing' : 'name';
+}
+
+/**
+ * Where a failed connect leaves the walk.
+ *
+ * **One kind of refusal is told apart from every other, and it is told apart by what Rust called
+ * it.** A refusal nothing typed on the step can answer is `preconditionFailed`, whichever of
+ * them Rust raised: the consented account holds no organization to connect to, this machine
+ * already holds one, or Turso refused the account the mint was asked of. The walk returns to the
+ * consent carrying the sentence.
+ *
+ * `null` for every other refusal, which is every one a person can act on where they are: a wrong
+ * username or password, a connection that dropped. The step keeps what was typed and marks the
+ * password.
+ *
+ * *A machine an owner or an administrator was on used to shut this way in, and that refusal was
+ * the `preconditionFailed` this read was written for. The register gates no way in from
+ * 2026-09-20; the read stands because the code still marks the same thing.*
+ *
+ * *It read the Turso authority instead until ticket 20, and that is a fact about this machine
+ * rather than about what was refused: a connect that failed on the network, at a moment when the
+ * state this machine had of itself said the authority was gone, sent the person back to grant a
+ * consent they had never lost. What was refused is what the refusal says, and nothing else here
+ * has to be true for it to be read.*
+ */
+export function refusalAfterFailedConnect(error: unknown): SetupRefusal | null {
+	if (toTauriErrorCode(error) !== 'preconditionFailed') return null;
+
+	return { step: 'connect', message: toErrorDetail(error), askGroup: false, detail: null };
+}
+
 export function stepFor(
 	session: Pick<OrganizationSession, 'workspaces'> | null | undefined
 ): 'workspace' | 'leave' | null {

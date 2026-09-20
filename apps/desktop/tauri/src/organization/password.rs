@@ -16,11 +16,13 @@
 //! owner's is.
 //!
 //! **A reset is not here.** An administrator who does not know a member's password cannot
-//! re-seal their vault, because nothing they hold opens it; what they can do is reissue the
-//! member a fresh one from what they hold themselves, which is `invite::reissue_invitation`, and
-//! a test in this module tries every key an administrator holds against a vault they did not
-//! build and finds none of them opens it. That test is what keeps an escrow copy from arriving
-//! as a convenience.
+//! re-seal their vault, because nothing they hold opens it; what they can do is take the password
+//! away and reseal the member a fresh vault from what they hold themselves, which is
+//! `invite::unset_password`, with the link that follows made from the account's card (effort 828,
+//! requirement 20), and a test in this module tries every key an administrator holds against a
+//! vault they did not build and finds none of them opens it. That test is what keeps an escrow
+//! copy from arriving as a convenience. *`invite::reset_account`, the unset and the link in one
+//! call, is a test fixture now.*
 
 use crate::{diagnostics, error::Error};
 
@@ -113,8 +115,8 @@ mod tests {
         organization::{
             HeldOrganization,
             invite::{
-                Invitation, Invited, WorkspaceGrant, invite_member, organization_link,
-                reissue_invitation,
+                AccountAndLink, Invitation, WorkspaceGrant, locator, make_account_and_link,
+                reset_account,
             },
             migrate::Pipeline,
             permission,
@@ -178,16 +180,17 @@ mod tests {
             .collect()
     }
 
-    /// The password an invitation's vault was sealed under: the link's secret and the code
-    /// together open it, which is what the person opening the link does (effort 826, requirement
-    /// 23). `reader` is any session over this organization. *It was the link's secret alone until
-    /// that requirement made the code the other half.*
-    async fn secret_of(
-        store: &OrganizationStore,
-        reader: &MemberSession,
-        invited: &Invited,
-    ) -> String {
-        crate::organization::invite::vault_password_of(store, reader, invited, test_cost()).await
+    /// The password an invitation's vault was sealed under: the link's own secret and the code
+    /// together open the payload the link carries, which is what the person opening the link does
+    /// (effort 828, requirement 1). *It was the link's secret alone until effort 826 made the code
+    /// the other half, and it read the row's `code_seal` until effort 828 moved the seal into the
+    /// link's text.*
+    fn secret_of(invited: &AccountAndLink) -> String {
+        crate::organization::invite::vault_password_of(
+            &invited.join_link,
+            &invited.code,
+            test_cost(),
+        )
     }
 
     fn joined_as(owner: &MemberSession, member_id: &str, role: &str) -> HeldOrganization {
@@ -199,6 +202,7 @@ mod tests {
                 owner.verifying_key,
             ),
             remote_url: String::new(),
+            machine_id: "machine-one".to_string(),
             member_id: Some(member_id.to_string()),
             role: Some(role.to_string()),
             joined_at: 0,
@@ -318,8 +322,8 @@ mod tests {
         )
         .await
         .expect("the second workspace");
-        let link = organization_link(&store, &owner).await.expect("the link");
-        let administrator = invite_member(
+        let link = locator(&store, &owner).await.expect("the link");
+        let administrator = make_account_and_link(
             &store,
             &owner,
             no_platform(),
@@ -334,7 +338,7 @@ mod tests {
         )
         .await
         .expect("the administrator");
-        let member = invite_member(
+        let member = make_account_and_link(
             &store,
             &owner,
             no_platform(),
@@ -350,14 +354,8 @@ mod tests {
         .await
         .expect("the member");
 
-        let administrator = (
-            administrator.member_id.clone(),
-            secret_of(&store, &owner, &administrator).await,
-        );
-        let member = (
-            member.member_id.clone(),
-            secret_of(&store, &owner, &member).await,
-        );
+        let administrator = (administrator.member_id.clone(), secret_of(&administrator));
+        let member = (member.member_id.clone(), secret_of(&member));
 
         (store, owner, (north.id, south.id), administrator, member)
     }
@@ -609,10 +607,8 @@ mod tests {
         assert!(administrator.workspace_credentials.contains_key(&north));
         assert!(!administrator.workspace_credentials.contains_key(&south));
 
-        let link = organization_link(&store, &administrator)
-            .await
-            .expect("the link");
-        let reset = reissue_invitation(
+        let link = locator(&store, &administrator).await.expect("the link");
+        let reset = reset_account(
             &store,
             &administrator,
             no_platform(),
@@ -637,7 +633,7 @@ mod tests {
         let member = sign_in(
             &store,
             &joined_as(&owner, &member_id, permission::MEMBER),
-            &secret_of(&store, &owner, &reset).await,
+            &secret_of(&reset),
             &slot(),
         )
         .await
@@ -662,7 +658,7 @@ mod tests {
         let member = sign_in(
             &store,
             &joined_as(&owner, &member_id, permission::MEMBER),
-            &secret_of(&store, &owner, &reset).await,
+            &secret_of(&reset),
             &slot(),
         )
         .await

@@ -152,6 +152,14 @@ know which surface they are on before they know what will happen.*
 
 Recorded originally as ADR 0025, *A row opens its record, and does nothing else*.
 
+*Noted 2026-09-17, an accepted deviation: **in the settings directories a record's page is its
+sheet.** A member and a workspace have no page of their own, so the card in the members directory
+and in the workspaces directory opens the record's edit sheet on the same address
+(`?section=organization&member=<id>`, `?section=workspaces&workspace=<id>`), and does nothing
+else; the acts are still explicit controls on the card. Requirement 23 of
+[[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]] is the precedent, and the
+human accepted it at that effort's review round two on 2026-09-17.*
+
 ### Record card actions
 
 **A record card offers its actions from a visible control and from the context gesture.**

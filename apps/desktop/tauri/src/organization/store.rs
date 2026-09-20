@@ -40,9 +40,9 @@ use super::{
     vault::{KDF_SALT_BYTES, KdfParams, PUBLIC_KEY_BYTES, Vault},
 };
 
-/// The seven tables, in the order the schema creates them. A test pins this list against what
+/// The ten tables, in the order the schema creates them. A test pins this list against what
 /// the database reports, so a table added anywhere is added here or fails there.
-pub const TABLES: [&str; 7] = [
+pub const TABLES: [&str; 10] = [
     "organization",
     "member",
     "administrator_certificate",
@@ -50,7 +50,21 @@ pub const TABLES: [&str; 7] = [
     "grant",
     "invitation",
     "migration_lease",
+    "machine_link",
+    "machine",
+    "succession",
 ];
+
+/// How long a machine counts as connected after it was last seen: seven days (effort 828,
+/// requirement 15).
+///
+/// A machine that died without disconnecting leaves its row behind, so the window is what stops
+/// it saying for ever that somebody is signed in on it: the standing line on a member's card
+/// (requirement 19) reads this register and nothing else does. Every machine that is running
+/// refreshes its row at every launch, so a week is far longer than an ordinary gap and short
+/// enough that a dead machine's line is wrong for a week rather than for ever. *The window kept
+/// the Turso way in open until 2026-09-20; that gate is gone (requirement 14 as corrected).*
+pub const MACHINE_PRESENCE_WINDOW: i64 = 7 * 24 * 60 * 60 * 1000;
 
 /// The schema, as the plan's data model gives it.
 ///
@@ -61,13 +75,12 @@ pub const TABLES: [&str; 7] = [
 ///
 /// `grant` is quoted everywhere because it is a keyword in most dialects, and a statement that
 /// works in SQLite and fails elsewhere is a statement worth spelling defensively once.
-const SCHEMA: [&str; 7] = [
+const SCHEMA: [&str; 10] = [
     "CREATE TABLE IF NOT EXISTS \"organization\" (\
         \"id\" TEXT PRIMARY KEY NOT NULL, \
         \"name_sealed\" BLOB NOT NULL, \
         \"verifying_key\" BLOB NOT NULL, \
         \"remote_url\" TEXT NOT NULL, \
-        \"link_credential_sealed\" BLOB NOT NULL, \
         \"created_at\" INTEGER NOT NULL)",
     "CREATE TABLE IF NOT EXISTS \"member\" (\
         \"id\" TEXT PRIMARY KEY NOT NULL, \
@@ -85,7 +98,8 @@ const SCHEMA: [&str; 7] = [
         \"signature\" BLOB NOT NULL, \
         \"created_at\" INTEGER NOT NULL, \
         \"updated_at\" INTEGER NOT NULL, \
-        \"session_epoch\" INTEGER NOT NULL DEFAULT 0)",
+        \"session_epoch\" INTEGER NOT NULL DEFAULT 0, \
+        \"owner_seed_sealed\" BLOB)",
     "CREATE TABLE IF NOT EXISTS \"administrator_certificate\" (\
         \"id\" TEXT PRIMARY KEY NOT NULL, \
         \"member_id\" TEXT NOT NULL, \
@@ -121,13 +135,31 @@ const SCHEMA: [&str; 7] = [
         \"issued_by\" TEXT NOT NULL, \
         \"certificate_id\" TEXT NOT NULL, \
         \"signature\" BLOB NOT NULL, \
-        \"created_at\" INTEGER NOT NULL, \
-        \"code_seal\" BLOB, \
-        \"code_expires_at\" INTEGER)",
+        \"created_at\" INTEGER NOT NULL)",
     "CREATE TABLE IF NOT EXISTS \"migration_lease\" (\
         \"workspace_id\" TEXT PRIMARY KEY NOT NULL, \
         \"holder_member_id\" TEXT NOT NULL, \
         \"expires_at\" INTEGER NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS \"machine_link\" (\
+        \"id\" TEXT PRIMARY KEY NOT NULL, \
+        \"member_id\" TEXT NOT NULL, \
+        \"expires_at\" INTEGER NOT NULL, \
+        \"consumed_at\" INTEGER, \
+        \"created_at\" INTEGER NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS \"machine\" (\
+        \"id\" TEXT PRIMARY KEY NOT NULL, \
+        \"member_id\" TEXT, \
+        \"seen_at\" INTEGER NOT NULL, \
+        \"created_at\" INTEGER NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS \"succession\" (\
+        \"id\" TEXT PRIMARY KEY NOT NULL, \
+        \"offered_member_id\" TEXT NOT NULL, \
+        \"offered_by\" TEXT NOT NULL, \
+        \"offered_at\" INTEGER NOT NULL, \
+        \"old_verifying_key\" BLOB NOT NULL, \
+        \"new_verifying_key\" BLOB, \
+        \"accepted_at\" INTEGER, \
+        \"signature\" BLOB NOT NULL)",
 ];
 
 /// The one `organization` row.
@@ -139,12 +171,13 @@ pub struct OrganizationRecord {
     /// the organization's Ed25519 verifying key, **stored here for a second machine to compare
     /// against and never to verify with.** A reader verifies against the key its join link pinned;
     /// this column is what lets it notice the two disagree.
+    ///
+    /// *Rewritten when the organization is handed over* (effort 828, requirement 22): the key is
+    /// the current owner's derivation, so it moves with the ownership. A machine that disagrees
+    /// with this column does not believe it; it reads the `succession` table and checks the change
+    /// against the key it pinned.
     pub verifying_key: [u8; VERIFYING_KEY_BYTES],
     pub remote_url: String,
-    /// the read-only credential every join link carries, sealed under the content key: any
-    /// member whose vault is open can make a link, and nobody holding the database alone can use
-    /// it.
-    pub link_credential_sealed: Vec<u8>,
     pub created_at: i64,
 }
 
@@ -183,6 +216,23 @@ pub struct MemberRecord {
     /// the number it opened under and a remembered key files it beside itself, so a session or a
     /// key from before the last bump is behind the row and opens nothing.
     pub session_epoch: i64,
+    /// the outgoing organization key's seed, sealed to this member's public key, on the row of an
+    /// account that has been offered the organization and has not accepted yet (effort 828,
+    /// requirement 22).
+    ///
+    /// **`None` everywhere else, including on both owners' rows once a handover is done.** The
+    /// offer puts it on, the acceptance and the withdrawal take it off. Every owner's key is what
+    /// their own vault derives, founder and transferee alike, and is stored nowhere: what this
+    /// carries is the key the acceptance is replacing, so that the accepting machine can prove the
+    /// offer came from the holder of the key it already pinned.
+    ///
+    /// *It was a transferee's standing anchor until 2026-09-16, when review round one found that
+    /// a way back resting on this column rests on the database it is meant to judge.*
+    ///
+    /// **Inside the member preimage where it is present** (`authority::MemberAuthority`), so a
+    /// row without it hashes exactly as it did before the column existed and nobody can put a
+    /// seal on a row without the key that signs one.
+    pub owner_seed_sealed: Option<Vec<u8>>,
 }
 
 /// A `workspace` row. Only the database identity is under signature; the name and the schema
@@ -224,32 +274,129 @@ pub struct GrantRecord {
 /// dropped the invitation's sealed half: the row was found through the link's secret and the
 /// generated password together, and it is found by the password alone now.*
 ///
-/// **`sealed_secret`, `issued_by`, `code_seal` and `code_expires_at` sit outside the signature**,
-/// which the plan settled: a tampered `sealed_secret` opens for nobody, the issuer included, a
-/// tampered `issued_by` only misplaces a copy control, and the code's two columns are bound to
-/// each other by the seal's own associated data, so a rewritten expiry opens nothing. Putting any
-/// of them under `InvitationAuthority` would move a preimage nothing needs moved.
+/// **`sealed_secret` and `issued_by` sit outside the signature**, which the plan settled: a
+/// tampered `sealed_secret` opens for nobody, the issuer included, and a tampered `issued_by`
+/// names an issuer no reader asks after. Putting either under `InvitationAuthority` would move a
+/// preimage nothing needs moved.
+///
+/// *It carried `code_seal` and `code_expires_at` between effort 826 and effort 828: the vault
+/// password sealed under a ninety-second code. The seal rides in the link's own text now, because
+/// the credential had to move there and nothing reads a row before the credential is out, and the
+/// code lives as long as the link. Both columns are dropped; a replica still carrying them opens,
+/// since `write_invitation` names its columns and both were nullable.*
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct InvitationRecord {
     pub id: String,
     pub member_id: String,
+    /// when this invitation, and the link that carries it, lapse: a week out or the moment the
+    /// issuer's own grant on the organization database dies, whichever is sooner.
     pub expires_at: i64,
     pub consumed_at: Option<i64>,
-    /// the vault password this invitation was made with and the link's own secret, sealed
-    /// together to the issuer's public key. It is what lets the issuer, and nobody else, build
-    /// the link again and make a fresh code; anybody else holding the act is offered a fresh
-    /// link instead, which is a reset.
+    /// the issuer's copy: the vault password this invitation was made with, the link's own secret
+    /// and the code, sealed together to the issuer's public key.
+    ///
+    /// **It has no reader yet.** The act that opened it and handed the issuer the same link and
+    /// the same code a second time went with effort 828, which found nothing calling it; the
+    /// column is written on every invitation and read by nothing. It stays because dropping a
+    /// column is not something a replica can be asked to do, and because the copy it holds is
+    /// what any such act would need again.
     pub sealed_secret: Vec<u8>,
     /// the member id of whoever issued it, which is whose key `sealed_secret` opens for.
     pub issued_by: String,
     pub created_at: i64,
-    /// the vault password sealed under the six-character code and the link's secret together
-    /// (effort 826, requirement 23), with this row's id and `code_expires_at` bound as associated
-    /// data. `None` once the invitation is consumed, which is what clears it.
-    pub code_seal: Option<Vec<u8>>,
-    /// the moment the code lapses, ninety seconds from when it was drawn. `None` on a row whose
-    /// code has been cleared.
-    pub code_expires_at: Option<i64>,
+}
+
+/// A `machine_link` row: a link made for an account whose password is set, and whether it has been
+/// spent.
+///
+/// **It carries no signature, and that is the accepted limit rather than an oversight** (effort
+/// 828, requirement 3). A plain member holds no administrator key and no certificate, so nothing
+/// they write on their own account can be signed (effort 826, requirement 6), and this is the one
+/// row a plain member writes for themselves. It is written under their own organization credential
+/// the way `member.session_epoch` is ([`OrganizationStore::set_session_epoch`]), which is the
+/// precedent: a column outside the chain that gates availability and never authority.
+///
+/// **What a rewritten row buys is one more machine at the wall.** Somebody who clears
+/// `consumed_at`, or moves `expires_at` out, reopens a spent link on a second machine, and what
+/// that machine reaches is the sign-in wall, where the member's username and password are still
+/// the whole of what admits. The credential inside the link is the member's own four-week grant,
+/// which their vault already yields, so nothing is reachable that the password did not already
+/// reach. A test rewrites the row and lands the machine at the wall, so the limit is recorded
+/// rather than discovered.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MachineLinkRecord {
+    pub id: String,
+    /// the member whose machine this link is for, and the only person who can make one.
+    pub member_id: String,
+    /// when the link and this row lapse: a week out or the moment the member's own grant on the
+    /// organization database dies, whichever is sooner.
+    pub expires_at: i64,
+    /// when a machine spent it. One machine, once.
+    pub consumed_at: Option<i64>,
+    pub created_at: i64,
+}
+
+/// A `machine` row: one machine that holds this organization, whoever is signed in on it, and
+/// when it last said so (effort 828, requirement 15).
+///
+/// **Unsigned, like [`MachineLinkRecord`] and for the same reason.** Every machine writes its own
+/// row, a plain member holds no administrator key and no certificate, so nothing they write on
+/// their own account can be signed (effort 826, requirement 6). It is written under the member's
+/// own organization credential the way `member.session_epoch` is
+/// ([`OrganizationStore::set_session_epoch`]).
+///
+/// **The registry gates nothing at all**, which is what the human settled on 2026-09-20. It shut
+/// the owner's way in while an owner's or an administrator's machine was connected (requirement
+/// 14) and it refused a link while a machine was signed in on the account (requirement 20); both
+/// gates are gone, because an account is held on as many machines as its holder signs in on. What
+/// is left is one line on a member's card saying where that account stands (requirement 19), read
+/// at the moment somebody looks. So a rewritten row can only make that line wrong, which is also
+/// what an unsigned row is worth: nothing here says what a member may do, and nothing reads it to
+/// find out.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MachineRecord {
+    /// the machine's own id, drawn once when it connected and kept in its local record
+    /// (`HeldOrganization::machine_id`).
+    pub id: String,
+    /// who is signed in on it, where somebody is. `None` on a machine that connected and has not
+    /// signed in yet, and on one somebody signed out of.
+    pub member_id: Option<String>,
+    /// when it last said it was here: a connect, a sign-in, a sign-out, or a launch.
+    pub seen_at: i64,
+    pub created_at: i64,
+}
+
+/// A `succession` row: an offer of the organization to one account, and the key change it became
+/// (effort 828, requirement 22).
+///
+/// **The tenth table, and the only one signed by the organization key rather than under a
+/// certificate** (`authority::SuccessionAuthority`). An offer carries the key in force when it
+/// was made and nothing else; the acceptance writes the key that replaced it and re-signs the
+/// row, still under the old key, because the reader this row exists for is a machine that holds
+/// the old key and nothing newer.
+///
+/// **Nothing is deleted once a succession completes.** A machine that was offline across two
+/// handovers walks the chain, which means every link of it has to still be there; the rows a
+/// long-lived organization accumulates are one per handover. A standing offer is deleted, which
+/// is what withdrawing one is.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SuccessionRecord {
+    pub id: String,
+    /// the account offered the organization, and the only one whose acceptance means anything.
+    pub offered_member_id: String,
+    /// the owner who offered it.
+    pub offered_by: String,
+    pub offered_at: i64,
+    /// the organization key in force when the offer was made, which is the key that signed this
+    /// row both times.
+    pub old_verifying_key: [u8; VERIFYING_KEY_BYTES],
+    /// what the new owner's vault derives; `None` while the offer stands.
+    pub new_verifying_key: Option<[u8; VERIFYING_KEY_BYTES]>,
+    pub accepted_at: Option<i64>,
+    /// the organization key's signature, made by whoever wrote the row. The store puts none on:
+    /// it holds no organization key and never will, which is why this is a field here and not a
+    /// `Signer` argument.
+    pub signature: Vec<u8>,
 }
 
 /// Who is writing: an administrator's key and the certificate that makes it an authority.
@@ -315,7 +462,7 @@ impl OrganizationStore {
         })
     }
 
-    /// Create the seven tables where they do not exist.
+    /// Create the ten tables where they do not exist.
     ///
     /// Issued through the sync connection, so on the machine that creates the organization the
     /// schema is captured as change data and reaches the remote with the first push; every other
@@ -339,7 +486,53 @@ impl OrganizationStore {
 
     /// Bring what the remote has, and say whether anything arrived.
     pub async fn pull(&self) -> bool {
-        matches!(self.database.pull().await, Ok(true))
+        matches!(self.pulled().await, Ok(true))
+    }
+
+    /// The same pull with the refusal kept, for the one caller that has to read it.
+    ///
+    /// **Every other caller wants the bool**, because a pull that did not go is the offline case
+    /// and the replica goes on serving what it holds (819's requirement 18). `forget` is the
+    /// exception: a remote answering that the database is not there any more is a fact about the
+    /// organization rather than about this machine's connection, and it is the only way a machine
+    /// learns the owner deleted it (effort 828, requirement 18).
+    pub async fn pulled(&self) -> Result<bool, turso::Error> {
+        let arrived = self.database.pull().await?;
+
+        // a replica made by an earlier build lacks the tables the schema gained since, and the
+        // remote lacks them too, because the schema is issued once, on the machine that created
+        // the organization, and every other machine receives it as pages. So the first machine
+        // to pull after a build that names a new table creates it here, through the sync
+        // connection, and the push carries it to the remote for everybody else; a machine that
+        // finds every table in place writes nothing. Effort 828 found this on the human's own
+        // organization, which answered "no such table: succession" at launch.
+        if self.complete_schema().await? {
+            let _ = self.push().await;
+        }
+
+        Ok(arrived)
+    }
+
+    /// Create every table [`SCHEMA`] names that this replica lacks, and say whether any was.
+    ///
+    /// Read against the database rather than assumed, so a replica that already holds every
+    /// table costs one query and no write. The statements are `CREATE TABLE IF NOT EXISTS`, so a
+    /// second machine racing the first on the same table finds it there.
+    pub async fn complete_schema(&self) -> Result<bool, turso::Error> {
+        let present = self
+            .tables()
+            .await
+            .map_err(|error| turso::Error::Error(error.to_string()))?;
+        let mut created = false;
+
+        for (table, statement) in TABLES.iter().zip(SCHEMA.iter()) {
+            if !present.iter().any(|name| name == table) {
+                self.connection.execute(statement, ()).await?;
+                created = true;
+            }
+        }
+
+        Ok(created)
     }
 
     /// The tables this database holds, read from the database rather than from [`TABLES`], which
@@ -369,15 +562,13 @@ impl OrganizationStore {
         self.connection
             .execute(
                 "INSERT OR REPLACE INTO \"organization\" \
-                 (\"id\", \"name_sealed\", \"verifying_key\", \"remote_url\", \
-                  \"link_credential_sealed\", \"created_at\") \
-                 VALUES (?, ?, ?, ?, ?, ?)",
+                 (\"id\", \"name_sealed\", \"verifying_key\", \"remote_url\", \"created_at\") \
+                 VALUES (?, ?, ?, ?, ?)",
                 vec![
                     turso::Value::Text(organization.id.clone()),
                     turso::Value::Blob(organization.name_sealed.clone()),
                     turso::Value::Blob(organization.verifying_key.to_vec()),
                     turso::Value::Text(organization.remote_url.clone()),
-                    turso::Value::Blob(organization.link_credential_sealed.clone()),
                     turso::Value::Integer(organization.created_at),
                 ],
             )
@@ -390,8 +581,7 @@ impl OrganizationStore {
         let mut rows = self
             .connection
             .query(
-                "SELECT \"id\", \"name_sealed\", \"verifying_key\", \"remote_url\", \
-                        \"link_credential_sealed\", \"created_at\" \
+                "SELECT \"id\", \"name_sealed\", \"verifying_key\", \"remote_url\", \"created_at\" \
                  FROM \"organization\" LIMIT 1",
                 (),
             )
@@ -406,8 +596,7 @@ impl OrganizationStore {
             name_sealed: blob(&row, 1)?,
             verifying_key: fixed::<VERIFYING_KEY_BYTES>(&row, 2, "verifying_key")?,
             remote_url: text(&row, 3)?,
-            link_credential_sealed: blob(&row, 4)?,
-            created_at: integer(&row, 5)?,
+            created_at: integer(&row, 4)?,
         }))
     }
 
@@ -494,6 +683,7 @@ impl OrganizationStore {
                 signing_public_key: &member.signing_public_key,
                 role: &member.role,
                 permissions: member.permissions,
+                owner_seed_sealed: member.owner_seed_sealed.as_deref(),
             }),
         )?;
 
@@ -503,8 +693,9 @@ impl OrganizationStore {
                  (\"id\", \"username_sealed\", \"public_key\", \"signing_public_key\", \
                   \"sealed_secret_key\", \"sealed_content_key\", \"kdf_salt\", \"kdf_params\", \
                   \"role\", \"permissions\", \"must_change_password\", \"certificate_id\", \
-                  \"signature\", \"created_at\", \"updated_at\", \"session_epoch\") \
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                  \"signature\", \"created_at\", \"updated_at\", \"session_epoch\", \
+                  \"owner_seed_sealed\") \
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 vec![
                     turso::Value::Text(member.id.clone()),
                     turso::Value::Blob(member.username_sealed.clone()),
@@ -522,6 +713,10 @@ impl OrganizationStore {
                     turso::Value::Integer(member.created_at),
                     turso::Value::Integer(member.updated_at),
                     turso::Value::Integer(session_epoch),
+                    match &member.owner_seed_sealed {
+                        Some(sealed) => turso::Value::Blob(sealed.clone()),
+                        None => turso::Value::Null,
+                    },
                 ],
             )
             .await?;
@@ -664,8 +859,33 @@ impl OrganizationStore {
         &self,
         organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
     ) -> Result<Vec<(String, MemberRecord)>, Error> {
-        self.signed_members_where(organization_verifying_key, None)
+        self.signed_members_where(Some(organization_verifying_key), None)
             .await
+    }
+
+    /// Every member, with no signature checked: the one read in this module that trusts nothing
+    /// and verifies nothing.
+    ///
+    /// **It exists for one caller and has one**: `setup::connect_existing`, where a machine
+    /// connecting to an organization the owner's Turso group already holds meets the rows before
+    /// it holds any key to judge them by. The key that judges them is the one the owner's password
+    /// re-derives, and the password cannot be tried against a vault that has not been read, so
+    /// that one path has to read first and verify afterwards. Everything it does with what comes
+    /// back is finding a vault the password opens; the key that vault yields is compared with the
+    /// organization row's and every member row is then read again through
+    /// [`OrganizationStore::members`], so nothing from here reaches a session.
+    ///
+    /// **A second caller is a defect**, and a test in this module reads the source tree and fails
+    /// where one appears. Anything else asking the database who its members are and believing the
+    /// answer is asking the database to vouch for itself, which is the one thing `authority.rs`
+    /// refuses.
+    pub async fn members_unverified(&self) -> Result<Vec<MemberRecord>, Error> {
+        Ok(self
+            .signed_members_where(None, None)
+            .await?
+            .into_iter()
+            .map(|(_, member)| member)
+            .collect())
     }
 
     /// One member's row, verified on its own, or `None` where no row carries that id.
@@ -679,21 +899,32 @@ impl OrganizationStore {
         member_id: &str,
     ) -> Result<Option<MemberRecord>, Error> {
         Ok(self
-            .signed_members_where(organization_verifying_key, Some(member_id))
+            .signed_members_where(Some(organization_verifying_key), Some(member_id))
             .await?
             .into_iter()
             .map(|(_, member)| member)
             .next())
     }
 
-    /// The member read behind [`OrganizationStore::signed_members`] and
-    /// [`OrganizationStore::member`]: every row, or the one row named, each verified.
+    /// The member read behind [`OrganizationStore::signed_members`],
+    /// [`OrganizationStore::member`] and [`OrganizationStore::members_unverified`]: every row, or
+    /// the one row named.
+    ///
+    /// **`organization_verifying_key` is `None` for the unverified read and for nothing else.**
+    /// Where it is `Some`, every row is checked against the chain before it is returned and a row
+    /// that does not check refuses the whole read by name; where it is `None`, the certificates
+    /// are not even fetched, because a caller that is not going to judge the rows has no use for
+    /// the authorities behind them. [`OrganizationStore::members_unverified`] says which caller
+    /// that is and why it is alone.
     async fn signed_members_where(
         &self,
-        organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
+        organization_verifying_key: Option<&[u8; VERIFYING_KEY_BYTES]>,
         member_id: Option<&str>,
     ) -> Result<Vec<(String, MemberRecord)>, Error> {
-        let certificates = self.certificates().await?;
+        let certificates = match organization_verifying_key {
+            Some(_) => self.certificates().await?,
+            None => Vec::new(),
+        };
         let (filter, params) = match member_id {
             Some(id) => (
                 " WHERE \"id\" = ?",
@@ -708,7 +939,8 @@ impl OrganizationStore {
                     "SELECT \"id\", \"username_sealed\", \"public_key\", \"signing_public_key\", \
                             \"sealed_secret_key\", \"sealed_content_key\", \"kdf_salt\", \"kdf_params\", \
                             \"role\", \"permissions\", \"must_change_password\", \"certificate_id\", \
-                            \"signature\", \"created_at\", \"updated_at\", \"session_epoch\" \
+                            \"signature\", \"created_at\", \"updated_at\", \"session_epoch\", \
+                            \"owner_seed_sealed\" \
                      FROM \"member\"{filter} ORDER BY \"created_at\", \"id\""
                 ),
                 params,
@@ -724,21 +956,25 @@ impl OrganizationStore {
             let permissions = integer(&row, 9)?;
             let certificate_id = text(&row, 11)?;
             let signature = blob(&row, 12)?;
+            let owner_seed_sealed = nullable_blob(&row, 16)?;
 
-            verified(
-                organization_verifying_key,
-                &certificates,
-                "member",
-                &id,
-                &certificate_id,
-                Authority::Member(MemberAuthority {
-                    public_key: &public_key,
-                    signing_public_key: &signing_public_key,
-                    role: &role,
-                    permissions,
-                }),
-                &signature,
-            )?;
+            if let Some(organization_verifying_key) = organization_verifying_key {
+                verified(
+                    organization_verifying_key,
+                    &certificates,
+                    "member",
+                    &id,
+                    &certificate_id,
+                    Authority::Member(MemberAuthority {
+                        public_key: &public_key,
+                        signing_public_key: &signing_public_key,
+                        role: &role,
+                        permissions,
+                        owner_seed_sealed: owner_seed_sealed.as_deref(),
+                    }),
+                    &signature,
+                )?;
+            }
 
             members.push((
                 certificate_id,
@@ -759,6 +995,7 @@ impl OrganizationStore {
                     created_at: integer(&row, 13)?,
                     updated_at: integer(&row, 14)?,
                     session_epoch: integer(&row, 15)?,
+                    owner_seed_sealed,
                 },
             ));
         }
@@ -994,9 +1231,8 @@ impl OrganizationStore {
             .execute(
                 "INSERT OR REPLACE INTO \"invitation\" \
                  (\"id\", \"member_id\", \"expires_at\", \"consumed_at\", \"sealed_secret\", \
-                  \"issued_by\", \"certificate_id\", \"signature\", \"created_at\", \
-                  \"code_seal\", \"code_expires_at\") \
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                  \"issued_by\", \"certificate_id\", \"signature\", \"created_at\") \
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 vec![
                     turso::Value::Text(invitation.id.clone()),
                     turso::Value::Text(invitation.member_id.clone()),
@@ -1009,13 +1245,6 @@ impl OrganizationStore {
                     turso::Value::Text(signer.certificate.id.clone()),
                     turso::Value::Blob(signature),
                     turso::Value::Integer(invitation.created_at),
-                    invitation
-                        .code_seal
-                        .clone()
-                        .map_or(turso::Value::Null, turso::Value::Blob),
-                    invitation
-                        .code_expires_at
-                        .map_or(turso::Value::Null, turso::Value::Integer),
                 ],
             )
             .await?;
@@ -1046,8 +1275,7 @@ impl OrganizationStore {
             .connection
             .query(
                 "SELECT \"id\", \"member_id\", \"expires_at\", \"consumed_at\", \"sealed_secret\", \
-                        \"issued_by\", \"certificate_id\", \"signature\", \"created_at\", \
-                        \"code_seal\", \"code_expires_at\" \
+                        \"issued_by\", \"certificate_id\", \"signature\", \"created_at\" \
                  FROM \"invitation\" ORDER BY \"created_at\", \"id\"",
                 (),
             )
@@ -1088,14 +1316,6 @@ impl OrganizationStore {
                     sealed_secret: blob(&row, 4)?,
                     issued_by: text(&row, 5)?,
                     created_at: integer(&row, 8)?,
-                    code_seal: match row.get_value(9)? {
-                        turso::Value::Blob(value) => Some(value),
-                        _ => None,
-                    },
-                    code_expires_at: match row.get_value(10)? {
-                        turso::Value::Integer(value) => Some(value),
-                        _ => None,
-                    },
                 },
             ));
         }
@@ -1103,48 +1323,23 @@ impl OrganizationStore {
         Ok(invitations)
     }
 
-    /// Mark an invitation consumed, and clear the code seal with it (effort 826, requirement 23):
-    /// the vault it opened is resealed under a password of the member's own by the time this
-    /// runs, so what the seal holds opens nothing and there is no reason to keep it.
+    /// Mark an invitation consumed: the member whose vault it made has a password of their own by
+    /// the time this runs, so the link that named it opens a vault the generated password no
+    /// longer fits.
     ///
     /// Unsigned on purpose: the machine that consumes it holds no administrator key, and a
     /// consumed invitation is spent whether or not the mark is trusted, because the member row it
     /// pointed at now has a password of the member's own.
+    ///
+    /// *It cleared `code_seal` and `code_expires_at` too, until effort 828 moved the seal into the
+    /// link's own text, where a consume cannot reach it. What retires a spent link is the mark
+    /// this writes, which the accept refuses on.*
     pub async fn consume_invitation(&self, id: &str, now: i64) -> Result<(), Error> {
         self.connection
             .execute(
-                "UPDATE \"invitation\" SET \"consumed_at\" = ?, \"code_seal\" = NULL, \
-                 \"code_expires_at\" = NULL WHERE \"id\" = ?",
+                "UPDATE \"invitation\" SET \"consumed_at\" = ? WHERE \"id\" = ?",
                 vec![
                     turso::Value::Integer(now),
-                    turso::Value::Text(id.to_string()),
-                ],
-            )
-            .await?;
-
-        Ok(())
-    }
-
-    /// Write an invitation a fresh code seal and the moment it lapses.
-    ///
-    /// Unsigned, like the consume above and for the same reason the two columns sit outside the
-    /// signature: what binds them is the seal's own associated data, which names this row and
-    /// this expiry, so a rewritten expiry opens nothing and a seal lifted onto another row opens
-    /// nothing. Nothing under the invitation's preimage moves, so the signature the issuer wrote
-    /// still stands over what it was made for.
-    pub async fn write_invitation_code(
-        &self,
-        id: &str,
-        code_seal: &[u8],
-        code_expires_at: i64,
-    ) -> Result<(), Error> {
-        self.connection
-            .execute(
-                "UPDATE \"invitation\" SET \"code_seal\" = ?, \"code_expires_at\" = ? \
-                 WHERE \"id\" = ?",
-                vec![
-                    turso::Value::Blob(code_seal.to_vec()),
-                    turso::Value::Integer(code_expires_at),
                     turso::Value::Text(id.to_string()),
                 ],
             )
@@ -1163,6 +1358,285 @@ impl OrganizationStore {
             .await?;
 
         Ok(())
+    }
+
+    // machine links
+
+    /// Write the row behind a link made for an account whose password is set.
+    ///
+    /// **Unsigned**, for the reason [`MachineLinkRecord`] gives. `INSERT OR REPLACE`, so a member
+    /// who makes a second link for the same id overwrites the first rather than growing a second
+    /// row for it.
+    pub async fn write_machine_link(&self, machine_link: &MachineLinkRecord) -> Result<(), Error> {
+        self.connection
+            .execute(
+                "INSERT OR REPLACE INTO \"machine_link\" \
+                 (\"id\", \"member_id\", \"expires_at\", \"consumed_at\", \"created_at\") \
+                 VALUES (?, ?, ?, ?, ?)",
+                vec![
+                    turso::Value::Text(machine_link.id.clone()),
+                    turso::Value::Text(machine_link.member_id.clone()),
+                    turso::Value::Integer(machine_link.expires_at),
+                    machine_link
+                        .consumed_at
+                        .map_or(turso::Value::Null, turso::Value::Integer),
+                    turso::Value::Integer(machine_link.created_at),
+                ],
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// The row a machine link names, or `None` where nobody made one or it was replaced.
+    ///
+    /// **No verifying key, because there is nothing to verify.** Every other read here checks a
+    /// signature and refuses the row that fails it; this row carries none, so what the caller gets
+    /// is what the replica holds, and what it is worth is [`MachineLinkRecord`]'s docstring.
+    pub async fn machine_link(&self, id: &str) -> Result<Option<MachineLinkRecord>, Error> {
+        let mut rows = self
+            .connection
+            .query(
+                "SELECT \"id\", \"member_id\", \"expires_at\", \"consumed_at\", \"created_at\" \
+                 FROM \"machine_link\" WHERE \"id\" = ?",
+                vec![turso::Value::Text(id.to_string())],
+            )
+            .await?;
+
+        match rows.next().await? {
+            Some(row) => Ok(Some(MachineLinkRecord {
+                id: text(&row, 0)?,
+                member_id: text(&row, 1)?,
+                expires_at: integer(&row, 2)?,
+                consumed_at: match row.get_value(3)? {
+                    turso::Value::Integer(value) => Some(value),
+                    _ => None,
+                },
+                created_at: integer(&row, 4)?,
+            })),
+            None => Ok(None),
+        }
+    }
+
+    /// Mark a machine link spent: the machine that opened it holds the organization from here on,
+    /// and the link admits nobody else.
+    pub async fn consume_machine_link(&self, id: &str, now: i64) -> Result<(), Error> {
+        self.connection
+            .execute(
+                "UPDATE \"machine_link\" SET \"consumed_at\" = ? WHERE \"id\" = ?",
+                vec![
+                    turso::Value::Integer(now),
+                    turso::Value::Text(id.to_string()),
+                ],
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// Drop every unspent machine link this account holds, which is what makes one stand at a
+    /// time.
+    ///
+    /// **Three callers clear the account's open rows, and each for its own reason.**
+    /// `invite::make_link` clears them on the branch that makes this kind, so that somebody who
+    /// lost the pair presses again and the link they could not use stops being a way in the
+    /// moment the new one exists. `invite::reseal_account`, which a reset runs and which the
+    /// invitation branch of the same act runs too, clears them because the vault the re-seal
+    /// replaces is the one the account's old password opened, and a machine link made before it
+    /// still carries a live credential over a row nothing has spent.
+    /// `removal::retire_member` clears them because a link is judged against the row behind it
+    /// and never against the member's standing, so one made before the removal would go on
+    /// connecting machines after the person had been let go.
+    ///
+    /// A spent row is left where it is in all three: it is what refuses the link that already
+    /// connected a machine.
+    pub async fn delete_open_machine_links_of(&self, member_id: &str) -> Result<(), Error> {
+        self.connection
+            .execute(
+                "DELETE FROM \"machine_link\" WHERE \"member_id\" = ? AND \"consumed_at\" IS NULL",
+                vec![turso::Value::Text(member_id.to_string())],
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    // machines
+
+    /// Put this machine in the registry: it holds the organization from now on.
+    ///
+    /// **Unsigned**, for the reason [`MachineRecord`] gives, and so is every other write here.
+    /// `INSERT OR REPLACE`, so a machine that connects again under an id it already used starts
+    /// its row over rather than growing a second one; the id is drawn at the connect, so that is
+    /// a machine which disconnected and came back.
+    pub async fn register_machine(
+        &self,
+        id: &str,
+        member_id: Option<&str>,
+        now: i64,
+    ) -> Result<(), Error> {
+        self.write_machine(id, member_id, now, now).await
+    }
+
+    /// Say this machine is still here, and who is signed in on it: `Some` at a sign-in, `None` at
+    /// a sign-out, and whoever the record names at a launch.
+    ///
+    /// **It writes the row where there is none**, which is what a record written before this
+    /// build meets at its next launch, and what a machine whose row somebody deleted meets at
+    /// its next. `created_at` is read first and kept, so refreshing a row does not make an old
+    /// machine look new.
+    pub async fn machine_seen(
+        &self,
+        id: &str,
+        member_id: Option<&str>,
+        now: i64,
+    ) -> Result<(), Error> {
+        let created_at = self.machine_created_at(id).await?.unwrap_or(now);
+
+        self.write_machine(id, member_id, now, created_at).await
+    }
+
+    /// Take this machine out of the registry: what a disconnect writes before it forgets the
+    /// organization locally, so the machine stops standing in anybody's way at once rather than
+    /// in a week.
+    pub async fn unregister_machine(&self, id: &str) -> Result<(), Error> {
+        self.connection
+            .execute(
+                "DELETE FROM \"machine\" WHERE \"id\" = ?",
+                vec![turso::Value::Text(id.to_string())],
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// Take this member's name off every machine in the registry: what ending their sessions
+    /// everywhere leaves behind (effort 828, requirements 15 and 20).
+    ///
+    /// **The rows stay and stop naming anybody**, which is the shape an ordinary sign-out writes
+    /// through [`OrganizationStore::machine_seen`]: those machines still hold the organization,
+    /// and what ended is who is signed in on them. So the standing line on that account's card
+    /// reads *no machine signed in* from the next look onwards, which is the fact this act made
+    /// true.
+    pub async fn clear_member_from_machines(&self, member_id: &str) -> Result<(), Error> {
+        self.connection
+            .execute(
+                "UPDATE \"machine\" SET \"member_id\" = NULL WHERE \"member_id\" = ?",
+                vec![turso::Value::Text(member_id.to_string())],
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// Every machine seen inside [`MACHINE_PRESENCE_WINDOW`] of `now`, each with the member row
+    /// signed in on it where one is named: the registry's one reader (effort 828, requirement
+    /// 15).
+    ///
+    /// **What it answers gates nothing** (the human, 2026-09-20). Its one production caller is
+    /// `invite::standings`, behind the standing line a member's card carries (requirement 19).
+    /// It had two more, the Turso way in's refusal and the link act's, and both are gone: an
+    /// account is held on as many machines as its holder signs in on.
+    ///
+    /// **The member half is the ordinary verified read**, so what a caller gets back is a role it
+    /// can act on: the machine row carries no signature and nothing about it is trusted, and the
+    /// member row beside it is verified against the chain exactly as [`OrganizationStore::members`]
+    /// verifies it. That is why this read takes the organization's verifying key while every
+    /// write above takes nothing: there is no signer anywhere in the registry, and the key is
+    /// what judges the member rows the registry points at, never the rows it holds.
+    ///
+    /// A machine naming a member who is no longer in the organization comes back with `None`
+    /// beside it rather than being dropped: it is still a machine holding the organization, and
+    /// what the caller is counting is machines.
+    ///
+    /// **The window is bounded at both ends.** Every machine writes its own `seen_at` and the row
+    /// carries no signature, so a row dated in the future is one anybody could write, and a window
+    /// left open above would let a single row stand as connected for as long as that date says
+    /// rather than for the week the window is. A machine seen later than now has not been seen.
+    pub async fn connected_machines(
+        &self,
+        organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
+        now: i64,
+    ) -> Result<Vec<(MachineRecord, Option<MemberRecord>)>, Error> {
+        let members = self.members(organization_verifying_key).await?;
+        let mut rows = self
+            .connection
+            .query(
+                "SELECT \"id\", \"member_id\", \"seen_at\", \"created_at\" FROM \"machine\" \
+                 WHERE \"seen_at\" > ? AND \"seen_at\" <= ? \n                 ORDER BY \"created_at\", \"id\"",
+                vec![
+                    turso::Value::Integer(now - MACHINE_PRESENCE_WINDOW),
+                    turso::Value::Integer(now),
+                ],
+            )
+            .await?;
+        let mut machines = Vec::new();
+
+        while let Some(row) = rows.next().await? {
+            let machine = MachineRecord {
+                id: text(&row, 0)?,
+                member_id: match row.get_value(1)? {
+                    turso::Value::Text(value) => Some(value),
+                    _ => None,
+                },
+                seen_at: integer(&row, 2)?,
+                created_at: integer(&row, 3)?,
+            };
+            let member = machine.member_id.as_ref().and_then(|member_id| {
+                members
+                    .iter()
+                    .find(|member| &member.id == member_id)
+                    .cloned()
+            });
+
+            machines.push((machine, member));
+        }
+
+        Ok(machines)
+    }
+
+    /// The write behind [`OrganizationStore::register_machine`] and
+    /// [`OrganizationStore::machine_seen`], which differ only in what they do with `created_at`.
+    async fn write_machine(
+        &self,
+        id: &str,
+        member_id: Option<&str>,
+        seen_at: i64,
+        created_at: i64,
+    ) -> Result<(), Error> {
+        self.connection
+            .execute(
+                "INSERT OR REPLACE INTO \"machine\" \
+                 (\"id\", \"member_id\", \"seen_at\", \"created_at\") \
+                 VALUES (?, ?, ?, ?)",
+                vec![
+                    turso::Value::Text(id.to_string()),
+                    member_id.map_or(turso::Value::Null, |member_id| {
+                        turso::Value::Text(member_id.to_string())
+                    }),
+                    turso::Value::Integer(seen_at),
+                    turso::Value::Integer(created_at),
+                ],
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// When this machine first registered, where it has a row: what a refresh keeps.
+    async fn machine_created_at(&self, id: &str) -> Result<Option<i64>, Error> {
+        let mut rows = self
+            .connection
+            .query(
+                "SELECT \"created_at\" FROM \"machine\" WHERE \"id\" = ?",
+                vec![turso::Value::Text(id.to_string())],
+            )
+            .await?;
+
+        match rows.next().await? {
+            Some(row) => Ok(Some(integer(&row, 0)?)),
+            None => Ok(None),
+        }
     }
 
     /// Rename a workspace. Unsigned, as the plan keeps the name: the database identity is what
@@ -1342,6 +1816,105 @@ impl OrganizationStore {
         Ok(re_signed)
     }
 
+    // successions
+
+    /// Write a succession as offered or as accepted. The signature it carries is the organization
+    /// key's and was made by the caller, exactly as a certificate's is: this module holds no
+    /// organization key and makes no signature with one.
+    pub async fn write_succession(&self, succession: &SuccessionRecord) -> Result<(), Error> {
+        self.connection
+            .execute(
+                "INSERT OR REPLACE INTO \"succession\" \
+                 (\"id\", \"offered_member_id\", \"offered_by\", \"offered_at\", \
+                  \"old_verifying_key\", \"new_verifying_key\", \"accepted_at\", \"signature\") \
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                vec![
+                    turso::Value::Text(succession.id.clone()),
+                    turso::Value::Text(succession.offered_member_id.clone()),
+                    turso::Value::Text(succession.offered_by.clone()),
+                    turso::Value::Integer(succession.offered_at),
+                    turso::Value::Blob(succession.old_verifying_key.to_vec()),
+                    match &succession.new_verifying_key {
+                        Some(key) => turso::Value::Blob(key.to_vec()),
+                        None => turso::Value::Null,
+                    },
+                    match succession.accepted_at {
+                        Some(at) => turso::Value::Integer(at),
+                        None => turso::Value::Null,
+                    },
+                    turso::Value::Blob(succession.signature.clone()),
+                ],
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// Every succession, oldest first, with no signature checked.
+    ///
+    /// **The second read in this module that verifies nothing, and the reason is the opposite of
+    /// [`OrganizationStore::members_unverified`]'s.** That one reads before a key exists; this one
+    /// reads the rows that say which key to hold, so the key to judge them by is exactly what the
+    /// caller is working out. Verifying here would mean picking one, and the pick is the decision.
+    ///
+    /// **What a caller must do with these is check each one** through
+    /// `authority::verify_succession`, against the key it already pinned and then against each key
+    /// the chain hands it (`role::follow_succession`, which is the only walk there is). A row
+    /// whose signature does not check under the key in hand is a row somebody wrote, and every
+    /// such row is worth exactly nothing: without the check this table would be a way to tell any
+    /// machine to trust any key.
+    pub async fn successions(&self) -> Result<Vec<SuccessionRecord>, Error> {
+        let mut rows = self
+            .connection
+            .query(
+                "SELECT \"id\", \"offered_member_id\", \"offered_by\", \"offered_at\", \
+                        \"old_verifying_key\", \"new_verifying_key\", \"accepted_at\", \
+                        \"signature\" \
+                 FROM \"succession\" ORDER BY \"offered_at\", \"id\"",
+                (),
+            )
+            .await?;
+        let mut successions = Vec::new();
+
+        while let Some(row) = rows.next().await? {
+            successions.push(SuccessionRecord {
+                id: text(&row, 0)?,
+                offered_member_id: text(&row, 1)?,
+                offered_by: text(&row, 2)?,
+                offered_at: integer(&row, 3)?,
+                old_verifying_key: fixed::<VERIFYING_KEY_BYTES>(&row, 4, "old_verifying_key")?,
+                new_verifying_key: match nullable_blob(&row, 5)? {
+                    Some(bytes) => Some(
+                        <[u8; VERIFYING_KEY_BYTES]>::try_from(bytes.as_slice()).map_err(|_| {
+                            Error::Integrity {
+                                message: "a succession's new verifying key is not a key"
+                                    .to_string(),
+                            }
+                        })?,
+                    ),
+                    None => None,
+                },
+                accepted_at: nullable_integer(&row, 6)?,
+                signature: blob(&row, 7)?,
+            });
+        }
+
+        Ok(successions)
+    }
+
+    /// Take a standing offer away, which is what withdrawing one is. A completed succession is
+    /// never deleted, and nothing here distinguishes the two: the caller names the row.
+    pub async fn delete_succession(&self, id: &str) -> Result<(), Error> {
+        self.connection
+            .execute(
+                "DELETE FROM \"succession\" WHERE \"id\" = ?",
+                vec![turso::Value::Text(id.to_string())],
+            )
+            .await?;
+
+        Ok(())
+    }
+
     /// The columns one table carries, as the database reports them: what the startup check reads
     /// to tell a replica built under an earlier schema from one this build wrote
     /// (`organization/forget.rs`). A table that is not there has no columns.
@@ -1422,10 +1995,26 @@ fn blob(row: &turso::Row, index: usize) -> Result<Vec<u8>, Error> {
     }
 }
 
+fn nullable_blob(row: &turso::Row, index: usize) -> Result<Option<Vec<u8>>, Error> {
+    match row.get_value(index)? {
+        turso::Value::Blob(value) => Ok(Some(value)),
+        turso::Value::Null => Ok(None),
+        other => Err(unexpected(index, "a blob or null", &other)),
+    }
+}
+
 fn integer(row: &turso::Row, index: usize) -> Result<i64, Error> {
     match row.get_value(index)? {
         turso::Value::Integer(value) => Ok(value),
         other => Err(unexpected(index, "an integer", &other)),
+    }
+}
+
+fn nullable_integer(row: &turso::Row, index: usize) -> Result<Option<i64>, Error> {
+    match row.get_value(index)? {
+        turso::Value::Integer(value) => Ok(Some(value)),
+        turso::Value::Null => Ok(None),
+        other => Err(unexpected(index, "an integer or null", &other)),
     }
 }
 
@@ -1573,6 +2162,7 @@ mod tests {
                 created_at: 1_757_000_000_000,
                 updated_at: 1_757_000_000_000,
                 session_epoch: 0,
+                owner_seed_sealed: None,
             }
         }
 
@@ -1611,10 +2201,6 @@ mod tests {
                 name_sealed: chain.sealed("organization.name_sealed", "Acme Rentals"),
                 verifying_key: chain.verifying_key(),
                 remote_url: "libsql://org-acme-acme.aws-eu-west-1.turso.io".to_string(),
-                link_credential_sealed: chain.sealed(
-                    "organization.link_credential_sealed",
-                    "a-read-only-credential",
-                ),
                 created_at: 1_757_000_000_000,
             })
             .await
@@ -1663,7 +2249,56 @@ mod tests {
     // criterion 1: the schema, and two workspaces of one organization
 
     #[tokio::test]
-    async fn the_seven_tables_exist_and_an_organization_holds_two_workspaces_at_once() {
+    async fn a_replica_lacking_a_table_the_schema_names_gains_it_and_says_so() {
+        // an organization made by a build that knew nine tables: every statement but the last.
+        let directory = scratch("schema-completes");
+        let store = OrganizationStore::open(&directory.join("org-x.db"), None, || async {
+            Ok::<String, turso::Error>(String::new())
+        })
+        .await
+        .expect("the store");
+
+        for statement in &super::SCHEMA[..super::SCHEMA.len() - 1] {
+            store
+                .connection
+                .execute(statement, ())
+                .await
+                .expect("the older schema");
+        }
+        assert!(
+            !store
+                .tables()
+                .await
+                .expect("the tables")
+                .iter()
+                .any(|t| t == "succession"),
+            "the fixture already held the tenth table"
+        );
+
+        assert!(
+            store.complete_schema().await.expect("the completion"),
+            "a missing table was not created"
+        );
+        assert!(
+            store
+                .tables()
+                .await
+                .expect("the tables")
+                .iter()
+                .any(|t| t == "succession"),
+            "the tenth table was not created"
+        );
+        assert!(
+            !store
+                .complete_schema()
+                .await
+                .expect("the second completion"),
+            "a complete schema was reported as completed again"
+        );
+    }
+
+    #[tokio::test]
+    async fn the_ten_tables_exist_and_an_organization_holds_two_workspaces_at_once() {
         let directory = scratch("schema");
         let store = open(&directory).await;
         let chain = Chain::new();
@@ -1706,12 +2341,11 @@ mod tests {
         assert!(names.contains(&"database_name".to_string()));
         assert!(names.contains(&"schema_version".to_string()));
 
-        // the invitation's own columns, pinned: the four effort 826 added are what a copy
-        // control, a confirmation code and the forget signal read, and `forget::old_shape` calls
-        // a replica without `sealed_secret` or without `code_seal` the old shape, so a schema
-        // that stopped declaring either would wipe every machine at startup rather than fail
-        // here. The code's two sit last because they were added last, and outside the signature,
-        // which `InvitationRecord` says why of.
+        // the invitation's own columns, pinned: `sealed_secret` is what `forget::old_shape` calls
+        // a replica without the old shape by, so a schema that stopped declaring it would wipe
+        // every machine at startup rather than fail here. *`code_seal` and
+        // `code_expires_at` sat last, added last and outside the signature, until effort 828 moved
+        // the seal into the link's own text.*
         let mut columns = store
             .connection()
             .query("PRAGMA table_info(\"invitation\")", ())
@@ -1734,9 +2368,7 @@ mod tests {
                 "issued_by",
                 "certificate_id",
                 "signature",
-                "created_at",
-                "code_seal",
-                "code_expires_at"
+                "created_at"
             ]
         );
 
@@ -1744,6 +2376,10 @@ mod tests {
         // an owner certifies when they widen somebody into an act that signs (effort 826,
         // requirement 6), `session_epoch` is what ends a session opened on another machine
         // (requirement 22), and `forget::old_shape` calls a replica without either the old shape.
+        // `owner_seed_sealed` is last and nullable, which is load-bearing: it is the organization
+        // key's seed sealed to an owner who was given the organization (effort 828, requirement
+        // 22), and it is folded into the signed preimage only where it is present, so a row
+        // without it hashes exactly as it did before the column existed.
         let mut columns = store
             .connection()
             .query("PRAGMA table_info(\"member\")", ())
@@ -1773,12 +2409,94 @@ mod tests {
                 "signature",
                 "created_at",
                 "updated_at",
-                "session_epoch"
+                "session_epoch",
+                "owner_seed_sealed"
             ]
         );
 
         // and the schema is idempotent, which is what a second machine runs into.
         store.install_schema().await.expect("the schema, again");
+    }
+
+    /// Effort 828, requirement 16: **a replica still carrying `link_credential_sealed` opens, and
+    /// its organization row reads.**
+    ///
+    /// The column left the schema and nothing migrates the databases that have it:
+    /// `CREATE TABLE IF NOT EXISTS` leaves a table that exists alone, and the write and the read
+    /// both name their columns, so the one nobody names any more is simply never touched. This is
+    /// the whole of what retiring the organization's own link does to data at rest.
+    #[tokio::test]
+    async fn a_replica_still_carrying_the_link_credential_column_opens_and_reads() {
+        let directory = scratch("dropped-column");
+        let store = OrganizationStore::open(&directory.join("org-acme.db"), None, || async {
+            Ok::<String, turso::Error>(String::new())
+        })
+        .await
+        .expect("the organization replica");
+        let chain = Chain::new();
+
+        // the table as a replica written before this build has it: the dropped column, not null
+        // and filled, exactly where it was.
+        store
+            .connection()
+            .execute(
+                "CREATE TABLE \"organization\" (\
+                 \"id\" TEXT PRIMARY KEY NOT NULL, \
+                 \"name_sealed\" BLOB NOT NULL, \
+                 \"verifying_key\" BLOB NOT NULL, \
+                 \"remote_url\" TEXT NOT NULL, \
+                 \"link_credential_sealed\" BLOB NOT NULL, \
+                 \"created_at\" INTEGER NOT NULL)",
+                (),
+            )
+            .await
+            .expect("the previous shape of the table");
+        store
+            .connection()
+            .execute(
+                "INSERT INTO \"organization\" VALUES (?, ?, ?, ?, ?, ?)",
+                vec![
+                    turso::Value::Text("acme".to_string()),
+                    turso::Value::Blob(chain.sealed("organization.name_sealed", "Acme Rentals")),
+                    turso::Value::Blob(chain.verifying_key().to_vec()),
+                    turso::Value::Text("libsql://org-acme-acme.aws-eu-west-1.turso.io".to_string()),
+                    turso::Value::Blob(chain.sealed(
+                        "organization.link_credential_sealed",
+                        "a-read-only-credential",
+                    )),
+                    turso::Value::Integer(1_757_000_000_000),
+                ],
+            )
+            .await
+            .expect("the row in the previous shape");
+
+        store
+            .install_schema()
+            .await
+            .expect("the schema over a replica that still has the column");
+
+        let row = store
+            .organization()
+            .await
+            .expect("the organization row could not be read")
+            .expect("a row");
+
+        assert_eq!(row.id, "acme");
+        assert_eq!(
+            row.remote_url,
+            "libsql://org-acme-acme.aws-eu-west-1.turso.io"
+        );
+        assert_eq!(row.verifying_key, chain.verifying_key());
+        assert_eq!(row.created_at, 1_757_000_000_000);
+        assert_eq!(
+            open_content(
+                &chain.content_key,
+                "organization.name_sealed",
+                &row.name_sealed
+            )
+            .expect("the name"),
+            b"Acme Rentals"
+        );
     }
 
     // criterion 2: the boundary
@@ -1962,6 +2680,80 @@ mod tests {
             Some("1757600000000")
         );
         assert_eq!(organization.verifying_key, key);
+    }
+
+    /// Effort 828, requirement 22: **a row written before the column and a row written with it
+    /// both verify**, against the same unchanged key.
+    ///
+    /// The nullable column is folded into the signed preimage only where it is present
+    /// (`authority::preimage`), so a row with no seal signs exactly the bytes it signed before
+    /// the column existed; `authority.rs` pins those bytes, and this is the same claim read
+    /// through the store, where a row also has to survive a write and a read.
+    ///
+    /// **The seal is under signature and not beside it**, which is what the third read here
+    /// shows: the column moved by hand on a row signed without it refuses the whole read, so
+    /// nobody can hand themselves the key that certifies signers by writing a blob.
+    #[tokio::test]
+    async fn a_member_row_with_the_owner_seed_and_one_without_both_read_back_verified() {
+        let directory = scratch("owner-seed");
+        let store = open(&directory).await;
+        let chain = Chain::new();
+        let key = chain.verifying_key();
+        let sealed = b"a sealed organization seed".to_vec();
+
+        store
+            .write_certificate(&chain.certificate)
+            .await
+            .expect("the certificate");
+        store
+            .write_member(&chain.signer(), &chain.member("founder", "olivia", "owner"))
+            .await
+            .expect("the row written before the column");
+        store
+            .write_member(
+                &chain.signer(),
+                &MemberRecord {
+                    owner_seed_sealed: Some(sealed.clone()),
+                    ..chain.member("transferee", "ada", "owner")
+                },
+            )
+            .await
+            .expect("the row written with the column");
+
+        let members = store.members(&key).await.expect("both rows verify");
+        let founder = members
+            .iter()
+            .find(|member| member.id == "founder")
+            .expect("the founder's row");
+        let transferee = members
+            .iter()
+            .find(|member| member.id == "transferee")
+            .expect("the transferee's row");
+
+        assert_eq!(founder.owner_seed_sealed, None);
+        assert_eq!(transferee.owner_seed_sealed.as_deref(), Some(&sealed[..]));
+
+        // and the column is under signature: putting a seal on the row that was signed without
+        // one refuses the read by name rather than handing back a row that carries it.
+        store
+            .connection()
+            .execute(
+                "UPDATE \"member\" SET \"owner_seed_sealed\" = ? WHERE \"id\" = ?",
+                vec![
+                    turso::Value::Blob(sealed.clone()),
+                    turso::Value::Text("founder".to_string()),
+                ],
+            )
+            .await
+            .expect("the update");
+
+        let refused = store
+            .members(&key)
+            .await
+            .expect_err("a seal added by hand read back as though it were signed");
+
+        assert!(matches!(refused, Error::Integrity { .. }), "{refused:?}");
+        assert!(refused.to_string().contains("founder"), "{refused}");
     }
 
     /// **A whole-row write never puts a member's session epoch back**, which is the whole of
@@ -2217,7 +3009,6 @@ mod tests {
                 name_sealed: chain.sealed("organization.name_sealed", "Acme"),
                 verifying_key: chain.verifying_key(),
                 remote_url: "libsql://org-acme.turso.io".to_string(),
-                link_credential_sealed: chain.sealed("organization.link_credential_sealed", "ro"),
                 created_at: 1_757_000_000_000,
             })
             .await
@@ -2291,8 +3082,6 @@ mod tests {
                     sealed_secret: b"a secret sealed to the issuer".to_vec(),
                     issued_by: "member-admin".to_string(),
                     created_at: 1_757_000_000_000,
-                    code_seal: Some(b"a password sealed under a code".to_vec()),
-                    code_expires_at: Some(1_757_000_090_000),
                 },
             )
             .await
@@ -2402,6 +3191,183 @@ mod tests {
         assert_ne!(path, crate::database::Database::replica_path(base, "acme"));
     }
 
+    // effort 828, criterion 15: the registry of connected machines
+
+    /// **A machine counts as connected for seven days after it was last seen, and the member
+    /// beside it is the verified row** (effort 828, requirement 15).
+    ///
+    /// The window is what stops a machine that died without disconnecting standing in the owner's
+    /// way for ever: a machine seen six days ago is still connected and one seen eight days ago
+    /// is not, and neither row was written or read through a signer. The member half is the
+    /// ordinary verified read, which is why the reader takes the organization's key and none of
+    /// the writes takes anything.
+    #[tokio::test]
+    async fn a_machine_counts_as_connected_for_seven_days_and_carries_the_member_signed_in_on_it() {
+        let directory = scratch("registry");
+        let store = open(&directory).await;
+        let chain = Chain::new();
+
+        populated(&store, &chain).await;
+
+        let now = 1_757_000_000_000_i64;
+        let day = 24 * 60 * 60 * 1000;
+
+        // registered with no member, as a connect registers one.
+        store
+            .register_machine("machine-fresh", None, now)
+            .await
+            .expect("the machine did not register");
+        // seen six days ago with the owner on it, and eight days ago with the member: one is
+        // inside the window and the other is not.
+        store
+            .machine_seen("machine-recent", Some("member-owner"), now - 6 * day)
+            .await
+            .expect("the recent machine");
+        store
+            .machine_seen("machine-lapsed", Some("member-staff"), now - 8 * day)
+            .await
+            .expect("the lapsed machine");
+
+        let connected = store
+            .connected_machines(&chain.verifying_key(), now)
+            .await
+            .expect("the connected machines");
+        let ids: Vec<&str> = connected
+            .iter()
+            .map(|(machine, _)| machine.id.as_str())
+            .collect();
+
+        // oldest first, which is the order `created_at` gives.
+        assert_eq!(
+            ids,
+            vec!["machine-recent", "machine-fresh"],
+            "the seven-day window counted the wrong machines"
+        );
+
+        let (recent, its_member) = &connected[0];
+        let (fresh, nobody) = &connected[1];
+
+        assert_eq!(recent.seen_at, now - 6 * day);
+        assert_eq!(
+            its_member.as_ref().map(|member| member.role.as_str()),
+            Some("owner"),
+            "the member row beside a machine is not the one it names"
+        );
+        assert_eq!(fresh.member_id, None);
+        assert!(nobody.is_none(), "a machine with no member carried one");
+
+        // a refresh keeps `created_at`, so a machine that says it is here does not look new.
+        store
+            .machine_seen("machine-recent", None, now)
+            .await
+            .expect("the refresh");
+
+        let connected = store
+            .connected_machines(&chain.verifying_key(), now)
+            .await
+            .expect("the connected machines");
+        let recent = connected
+            .iter()
+            .find(|(machine, _)| machine.id == "machine-recent")
+            .expect("the refreshed machine");
+
+        assert_eq!(recent.0.created_at, now - 6 * day);
+        assert_eq!(recent.0.seen_at, now);
+        assert_eq!(recent.0.member_id, None, "a sign-out kept the member");
+        assert!(recent.1.is_none());
+
+        // and a machine that left is gone at once rather than in a week.
+        store
+            .unregister_machine("machine-fresh")
+            .await
+            .expect("the machine did not leave");
+
+        let connected = store
+            .connected_machines(&chain.verifying_key(), now)
+            .await
+            .expect("the connected machines");
+
+        assert_eq!(connected.len(), 1);
+        assert_eq!(connected[0].0.id, "machine-recent");
+
+        // no signature is written over any of it: the row is four plain columns.
+        let mut columns = store
+            .connection()
+            .query("PRAGMA table_info(\"machine\")", ())
+            .await
+            .expect("the machine columns");
+        let mut names = Vec::new();
+
+        while let Some(row) = columns.next().await.expect("a column row") {
+            names.push(super::text(&row, 1).expect("a column name"));
+        }
+
+        assert_eq!(
+            names,
+            vec!["id", "member_id", "seen_at", "created_at"],
+            "the machine row carries a column the registry does not need"
+        );
+    }
+
+    /// Ticket 20, the review's sixth finding: **a row dated in the future does not count as
+    /// connected.**
+    ///
+    /// Every machine writes its own `seen_at` and nothing signs the row, so a date years out is a
+    /// row anybody with the organization credential could write; with the window open above, one
+    /// of them stood as connected for as long as that date said rather than for the week the
+    /// window is. What that was worth then was the owner's way back in, which this read gated
+    /// until 2026-09-20; what it is worth now is one line on a card, and the bound stays because a
+    /// line nobody can correct is still wrong. A machine seen later than now has not been seen.
+    #[tokio::test]
+    async fn a_machine_seen_in_the_future_does_not_count_as_connected() {
+        let directory = scratch("registry-future");
+        let store = open(&directory).await;
+        let chain = Chain::new();
+
+        populated(&store, &chain).await;
+
+        let now = 1_757_000_000_000_i64;
+        let year = 365 * 24 * 60 * 60 * 1000_i64;
+
+        store
+            .machine_seen("machine-here", Some("member-owner"), now - 1)
+            .await
+            .expect("the machine that is here");
+        store
+            .machine_seen("machine-ahead", Some("member-staff"), now + year)
+            .await
+            .expect("the machine dated ahead");
+
+        let ids: Vec<String> = store
+            .connected_machines(&chain.verifying_key(), now)
+            .await
+            .expect("the connected machines")
+            .into_iter()
+            .map(|(machine, _)| machine.id)
+            .collect();
+
+        assert_eq!(
+            ids,
+            vec!["machine-here".to_string()],
+            "a row dated in the future counted as a connected machine"
+        );
+
+        // and it is the date and not the row that is refused: the same machine seen now counts.
+        store
+            .machine_seen("machine-ahead", Some("member-staff"), now)
+            .await
+            .expect("the machine seen now");
+
+        assert_eq!(
+            store
+                .connected_machines(&chain.verifying_key(), now)
+                .await
+                .expect("the connected machines")
+                .len(),
+            2
+        );
+    }
+
     // the plan's untested capability: two synced databases open at once
 
     /// **Two `turso::sync` engines are open at once and work is done on both.** The plan records
@@ -2452,7 +3418,10 @@ mod tests {
 
         assert_eq!(members.len(), 2);
         assert_eq!(super::integer(&row, 0).expect("a count"), 1);
-        assert_eq!(store.tables().await.expect("the tables").len(), 7);
+        assert_eq!(
+            store.tables().await.expect("the tables").len(),
+            TABLES.len()
+        );
     }
 
     /// Live, at the human's request: **machine A writes, machine B reads it back**, against a
@@ -2598,5 +3567,60 @@ mod tests {
             .expect("the live delete failed, and the database is left behind");
 
         eprintln!("removed {name}");
+    }
+
+    /// **The unverified member read has one caller, and this is what says so.**
+    ///
+    /// [`OrganizationStore::members_unverified`] exists for `setup::connect_existing`, where a
+    /// machine meets the rows before it holds a key to judge them by, and its docstring says why
+    /// that one path has to read first and verify afterwards. Every other reader of the member
+    /// table asks the chain. A second caller would be somebody asking the database to vouch for
+    /// itself, which is not something a reviewer can see by reading one file, so the source tree
+    /// is read here instead.
+    #[test]
+    fn the_unverified_member_read_has_one_caller() {
+        fn rust_files(directory: &std::path::Path, into: &mut Vec<PathBuf>) {
+            for entry in std::fs::read_dir(directory).expect("the source directory") {
+                let path = entry.expect("a source entry").path();
+
+                if path.is_dir() {
+                    rust_files(&path, into);
+                } else if path.extension().is_some_and(|extension| extension == "rs") {
+                    into.push(path);
+                }
+            }
+        }
+
+        let source = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut files = Vec::new();
+
+        rust_files(&source, &mut files);
+        files.sort();
+
+        let mut callers = Vec::new();
+
+        for file in &files {
+            // the module that defines it names it in its own docstrings and in this test.
+            if file.ends_with("organization/store.rs") || file.ends_with("organization\\store.rs") {
+                continue;
+            }
+
+            let text = std::fs::read_to_string(file).expect("a source file");
+
+            for _ in 0..text.matches("members_unverified(").count() {
+                callers.push(
+                    file.strip_prefix(&source)
+                        .expect("a path under src")
+                        .to_string_lossy()
+                        .replace('\\', "/"),
+                );
+            }
+        }
+
+        assert_eq!(
+            callers,
+            vec!["organization/setup.rs".to_string()],
+            "the unverified member read is meant to have exactly one caller"
+        );
     }
 }

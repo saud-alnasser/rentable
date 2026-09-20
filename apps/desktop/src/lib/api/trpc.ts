@@ -136,6 +136,31 @@ export const middleware = {
 
 			return next({ ctx: { identity } });
 		}),
+	/**
+	 * refuses a call by somebody whose membership carries none of the acts it names.
+	 *
+	 * **Any of them, where `requirePermission` above wants every one.** A procedure asks for this
+	 * where two acts each carry the same authority over the same thing rather than where one
+	 * procedure does two things: making a link is `inviteMember`'s or `resetPassword`'s, because
+	 * whoever may take an account's password away may hand back the link that restores it.
+	 *
+	 * Everything else about it is `requirePermission`'s, including that it is the second opinion
+	 * and never the one that decides: `permission::require_any` refuses the same request against
+	 * the member's signed row.
+	 */
+	requireAnyPermission: (...acts: NamedActs) =>
+		t.middleware(async ({ ctx, next }) => {
+			const identity = ctx.identity;
+
+			if (!identity || !acts.some((act) => permits(identity.permissions, act))) {
+				throw new TRPCError({
+					code: 'FORBIDDEN',
+					message: `this account holds none of ${acts.join(', ')} in this workspace`
+				});
+			}
+
+			return next({ ctx: { identity } });
+		}),
 	scheduleWorkspaceSync: t.middleware(async ({ next }) => {
 		const result = await next();
 
@@ -217,5 +242,22 @@ export const procedure = {
 		t.procedure
 			.use(middleware.log)
 			.use(middleware.requireIdentity)
-			.use(middleware.requirePermission(...acts))
+			.use(middleware.requirePermission(...acts)),
+	/**
+	 * permittedAny
+	 *
+	 * a call by somebody the workspace permits to do **any one** of the named acts.
+	 *
+	 * **It is the exception and `permitted` is the rule**, deliberately in that order: a procedure
+	 * gated on two acts is ordinarily a procedure that does two things, and the holder of one
+	 * cannot do it. This is for the other case, where two acts carry the same authority over the
+	 * same thing and either is enough, which is one procedure: `member.linkMake`.
+	 *
+	 * middlewares: [log, requireIdentity, requireAnyPermission(...acts)]
+	 */
+	permittedAny: (...acts: NamedActs) =>
+		t.procedure
+			.use(middleware.log)
+			.use(middleware.requireIdentity)
+			.use(middleware.requireAnyPermission(...acts))
 };

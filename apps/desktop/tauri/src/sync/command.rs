@@ -42,7 +42,32 @@ pub async fn remote_sync_rename_workspace(
 /// they wrote.
 #[tauri::command]
 pub async fn remote_sync_push(app_state: tauri::State<'_, AppState>) -> Result<bool, Error> {
-    Ok(app_state.db.read().await.push_replica().await)
+    let pushed = app_state.db.read().await.push_replica().await;
+
+    // a push that went is a replication that went through, and the last one of a session is
+    // exactly the moment the block should read on the next launch (effort 828, requirement 25).
+    if pushed {
+        note_reached(&app_state).await;
+    }
+
+    Ok(pushed)
+}
+
+/// Record on this machine that a replication went through just now.
+///
+/// **Called wherever one completes, and there are three such places**: the replication below,
+/// which is the heartbeat and the "check now" control, in both its arms; the push on the way out
+/// above; and the pull `bootstrap` makes at sign-in. `Database` holds the engine and not the
+/// record, so the moment is written by the callers that hold both. A record that cannot be
+/// written is a diagnostic rather than a failed replication: the replication itself went.
+pub(crate) async fn note_reached(app_state: &AppState) {
+    let mut remote_sync = app_state.remote_sync.write().await;
+
+    if let Err(error) = remote_sync.note_reached(crate::timestamp::now()) {
+        crate::diagnostics::error("sync.lastReached.notRecorded")
+            .with("error", error.to_string())
+            .write();
+    }
 }
 
 /// Send what this machine wrote, then take what the others wrote.
@@ -92,6 +117,12 @@ pub async fn remote_sync_replicate(
                 remote_sync.clear_credential_refusal();
             }
 
+            // the moment the standing block says: a half went through, whether or not anything
+            // moved. A quiet heartbeat that found nothing new still reached Turso.
+            if replicated.completed {
+                note_reached(&app_state).await;
+            }
+
             Ok(Replication::of(replicated, standing))
         }
         // requirement 25: the account's, said as the account's. The local replica goes on
@@ -133,6 +164,12 @@ pub async fn remote_sync_replicate(
                 } else if matches!(again.refusal, SyncRefusal::Credential) {
                     remote_sync.note_credential_refusal(crate::timestamp::now());
                 }
+            }
+
+            // the retry under the collected credential went through: the same moment the first
+            // arm records, since this is the other place a replication completes.
+            if matches!(again.refusal, SyncRefusal::None) && again.completed {
+                note_reached(&app_state).await;
             }
 
             Ok(Replication {

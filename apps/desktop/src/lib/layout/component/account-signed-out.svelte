@@ -81,7 +81,7 @@
 			>
 				<DropdownMenu.Item onSelect={onWayIn}>
 					<LogInIcon class="size-4 shrink-0" />
-					<span>{$LL.common.actions.signIn()}</span>
+					<span class="capitalize">{$LL.common.actions.signIn()}</span>
 				</DropdownMenu.Item>
 
 				<DropdownMenu.Separator />

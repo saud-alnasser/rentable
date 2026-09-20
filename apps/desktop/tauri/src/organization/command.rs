@@ -3,20 +3,27 @@ use std::sync::{Arc, Mutex, atomic::Ordering};
 use serde::{Deserialize, Serialize};
 use tauri::Emitter;
 
-use crate::{diagnostics, error::Error, state::AppState, timestamp};
+use crate::{
+    diagnostics, error::Error, persisted::Persisted, state::AppState, sync::RemoteSyncStore,
+    timestamp,
+};
 
 use super::{
     HeldOrganization, connect, forget,
-    invite::{self, FreshCode, Invitation, Invited, MemberFacts, WorkspaceGrant},
-    join::{self, LinkFacts},
-    link::JoinLink,
+    invite::{self, MadeLink, MemberFacts, MemberStanding, UnreachableWorkspace, WorkspaceGrant},
+    join,
+    link::{self, JoinLink, LinkShape},
+    machine,
     migrate::Pipeline,
     migration::{self, MigrationPhase, PipelineLease},
     password,
     removal::{self, LockOutCost, Removed},
     role,
-    session::{self, CredentialSlot, Resumption, SessionFacts, SessionsEnded, WorkspaceFacts},
-    setup::{self, CreateOrganization, OrganizationCreated, Remote},
+    session::{
+        self, CredentialSlot, MemberSession, Resumption, SessionFacts, SessionsEnded,
+        WorkspaceFacts,
+    },
+    setup::{self, CreateOrganization, GroupState, OrganizationCreated, Remote},
     store::OrganizationStore,
     workspace,
 };
@@ -85,8 +92,10 @@ pub struct OrganizationState {
 /// **None of the four crosses back, and nothing else crosses at all.** The password is turned
 /// into a vault here and dropped; the organization key and the owner's signing key are derived
 /// and never stored; the Platform API token is read from the keyring where the consent filed it.
-/// What the web layer is told is the organization's id, the join link, and whether the rows have
-/// reached Turso yet ([[rules/credentials]], *Client boundary*).
+/// What the web layer is told is the organization's id and whether the rows have reached Turso
+/// yet ([[rules/credentials]], *Client boundary*). *It was told the organization's own join link
+/// as well until effort 828's requirement 16 retired that link; the first run mints nothing to
+/// hand out now.*
 ///
 /// A machine with no consent is refused before anything is asked of Turso, with an answer that
 /// says to connect the account first. Every failure after the database exists removes it, so a
@@ -149,10 +158,93 @@ pub async fn organization_create(
     let credential: CredentialSlot = Arc::new(Mutex::new(None));
     let member = session::sign_in(&store, &joined, &password, &credential).await?;
 
+    // the owner's machine enters the registry (effort 828, requirement 15). A first run draws the
+    // machine id with the record (`setup.rs`) and registers here, after the sign-in, because the
+    // push goes out under the credential the vault unsealed.
+    session::machine_seen(&store, &joined, Some(&member.member_id), timestamp::now()).await;
+
     *app_state.organization.write().await = Some(store);
     *app_state.member.write().await = Some(member);
 
     Ok(created)
+}
+
+/// What the consented group already holds, read after the consent and before anything is created
+/// (effort 828, requirement 14).
+///
+/// **`public`, because it happens before there is anybody to act as**, exactly as the consent and
+/// the create do. A group holding nothing of ours answers `empty` and the walk asks for a name; a
+/// group already holding an organization answers `held` and the walk asks for the owner's username
+/// and password instead of refusing the run.
+///
+/// It reads and nothing else: nothing is minted, nothing is created, no replica is opened and
+/// this machine's record is untouched, so a person who stops here has changed nothing on their
+/// account.
+#[tauri::command]
+pub async fn organization_group_inspect(
+    _app_state: tauri::State<'_, AppState>,
+) -> Result<GroupState, Error> {
+    let platform_token = setup::authority()?;
+
+    setup::group_inspect(&platform_token, &McpEndpoint::production()).await
+}
+
+/// Connect this machine to the organization the consented group already holds, and sign the owner
+/// in to it (effort 828, requirement 14).
+///
+/// **`public` for the same reason the create is**: it runs on a machine that holds nothing, where
+/// there is nobody to act as yet, and what it answers with is a machine that holds an organization
+/// and somebody signed in to it.
+///
+/// **Only the owner's password does it.** The password goes in and facts come out
+/// ([[rules/credentials]], *Client boundary*): what it opens, what it derives and what that key
+/// proves all stay in Rust, and `setup.rs` says in what order. A wrong username or password is
+/// refused with the wall's one sentence, which tells the two apart by nothing; anybody who is not
+/// the owner is refused by name and the machine is left holding nothing.
+///
+/// **The register of connected machines shuts nothing** (requirement 15, as the human corrected it
+/// on 2026-09-20). This used to refuse while a machine an owner or an administrator was on had been
+/// seen inside the week, and point at the link that machine could make; the owner is handed no
+/// link, and an account is held on as many machines as its holder signs in on.
+#[tauri::command]
+pub async fn organization_connect_existing(
+    app_state: tauri::State<'_, AppState>,
+    username: String,
+    password: String,
+) -> Result<OrganizationState, Error> {
+    let platform_token = setup::authority()?;
+    let database_path = {
+        let settings = app_state.settings.read().await;
+
+        settings.database_path.clone()
+    };
+
+    // held across the connect, network round trips included, the way a first run holds it: the
+    // record of what this machine holds and which Turso account its consent is over are both
+    // inside `RemoteSync`, and this writes both. Dropped before the state is read back, because
+    // that read takes the same lock.
+    let (store, session) = {
+        let mut remote_sync = app_state.remote_sync.write().await;
+        let (_, store, session) = setup::connect_existing(
+            remote_sync.store_mut(),
+            &platform_token,
+            &McpEndpoint::production(),
+            |organization| PlatformApi::new(PlatformEndpoint::production(), organization),
+            Remote::libsql(),
+            &database_path,
+            &username,
+            &password,
+            timestamp::now(),
+        )
+        .await?;
+
+        (store, session)
+    };
+
+    *app_state.organization.write().await = Some(store);
+    *app_state.member.write().await = Some(session);
+
+    state_of(&app_state).await
 }
 
 /// Where this machine stands: the organization it holds and who is signed in.
@@ -182,12 +274,28 @@ pub async fn organization_state_get(
 /// rather than two because both are things that happen once, before anything else opens the
 /// replica, and the order between them matters: a machine holding the old shape has just had its
 /// replica deleted and its record emptied, and there is nothing left for a resume to open.
+///
+/// **And registers the machine** (effort 828, requirement 15), which is the third thing that
+/// happens once a launch and is last for the same reason: the resume is what opens the replica
+/// the row is written through, so a machine that came back signed in refreshes its row here
+/// without anybody typing a password.
 pub(crate) async fn state_of(app_state: &AppState) -> Result<OrganizationState, Error> {
     app_state
         .old_shape_check
         .get_or_try_init(|| async {
             forget::forget_old_shape(app_state).await?;
             resume_remembered(app_state).await;
+
+            // and the one sign that is the remote's rather than the replica's: the owner deleted
+            // the organization from another machine, so there is no database to sync against any
+            // more (effort 828, requirement 18). It is after the resume because the pull it reads
+            // spends the credential the resumed vault unsealed, and before the registration
+            // because a machine that has just forgotten has no row to write.
+            if forget::forget_deleted_organization(app_state).await? {
+                return Ok(());
+            }
+
+            machine_registered(app_state).await?;
 
             Ok::<(), Error>(())
         })
@@ -202,7 +310,19 @@ pub(crate) async fn state_of(app_state: &AppState) -> Result<OrganizationState, 
             .as_ref()
             .map(HeldOrganizationFacts::from)
     };
-    let session = current_facts(app_state).await?;
+    // **and the one thing that can make this machine's key wrong** (effort 828, requirement 22).
+    // A handover somebody else accepted arrives here as rows this machine cannot verify, which is
+    // what the read below refuses with. So a refusal is the sign, and the succession is followed
+    // and the read made again; a machine whose key still reads the directory pays nothing for
+    // this, and one that pinned neither end of a chain is refused exactly as it is today.
+    let session = match current_facts(app_state).await {
+        Ok(session) => session,
+        Err(_) => {
+            succession_followed(app_state).await;
+
+            current_facts(app_state).await?
+        }
+    };
     let holds_turso_authority = owner_platform(app_state).await.is_some();
 
     // the standing is only ever about a wall that is up: somebody signed in has answered it,
@@ -222,54 +342,6 @@ pub(crate) async fn state_of(app_state: &AppState) -> Result<OrganizationState, 
     })
 }
 
-/// Connect this machine to the organization a link names: reach its replica as
-/// `organization_link_inspect` does, check the rows against the key the link pins, and record
-/// the organization with no member. No vault opens; the person signs in at the wall, or opens
-/// their invitation (`invitation_accept`) where the link carries one.
-///
-/// A machine holds one organization (requirement 17). A link naming the one it already holds
-/// changes nothing and answers with the state, so an invitation link to the held organization
-/// goes straight to its password step; a link naming another is refused, and the way to it is a
-/// disconnect first.
-#[tauri::command]
-pub async fn organization_connect(
-    app_state: tauri::State<'_, AppState>,
-    link: String,
-) -> Result<OrganizationState, Error> {
-    let link = JoinLink::decode(&link)?;
-
-    {
-        let mut remote_sync = app_state.remote_sync.write().await;
-        let held = remote_sync.store_mut();
-
-        if held
-            .organization
-            .as_ref()
-            .is_some_and(|held| held.id == link.organization_id)
-        {
-            drop(remote_sync);
-
-            return state_of(&app_state).await;
-        }
-
-        connect::refuse_while_held(held)?;
-    }
-
-    let store = reached(&app_state, &link).await?;
-
-    {
-        let mut remote_sync = app_state.remote_sync.write().await;
-
-        connect::connect(&store, remote_sync.store_mut(), &link, timestamp::now()).await?;
-    }
-
-    // the replica is let go of rather than held: nobody is signed in, and the sign-in opens it
-    // again with the credential the vault unseals.
-    drop(store);
-
-    state_of(&app_state).await
-}
-
 /// Forget the organization this machine holds (requirement 20): sign out where somebody is in,
 /// delete every replica under the data directory, empty the record, and clear the Turso
 /// authority. The organization on Turso is untouched, and the person can connect again by the
@@ -279,6 +351,34 @@ pub async fn organization_disconnect(
     app_state: tauri::State<'_, AppState>,
 ) -> Result<OrganizationState, Error> {
     forget::forget(&app_state).await?;
+
+    state_of(&app_state).await
+}
+
+/// Delete the organization: every workspace database and the organization's own directory go from
+/// the owner's Turso account, and this machine forgets what it held (effort 828, requirement 18).
+///
+/// **The owner's alone**, twice over: the authority is on their machine and nobody else's, which
+/// is what this refuses on first, and `removal::delete_organization` refuses again on the role the
+/// wall opened. The password is the second thing it asks for and it never crosses back.
+///
+/// What comes back is where the machine stands, which is a machine holding nothing: the shell
+/// reads it and raises the first screen, exactly as a disconnect leaves it.
+#[tauri::command]
+pub async fn organization_delete(
+    app_state: tauri::State<'_, AppState>,
+    password: String,
+) -> Result<OrganizationState, Error> {
+    let platform = owner_platform(&app_state)
+        .await
+        .ok_or_else(|| Error::Forbidden {
+            message:
+                "only an owner can delete the organization, from the machine that connected the \
+                  turso account. ask the owner"
+                    .to_string(),
+        })?;
+
+    removal::delete_organization(&app_state, &platform, &password).await?;
 
     state_of(&app_state).await
 }
@@ -316,6 +416,25 @@ pub async fn organization_sign_in(
     };
     let (store, credential) = open_replica(app_state.inner(), &held).await?;
 
+    // a handover accepted while this machine was at the wall left rows this machine's key cannot
+    // verify, and the sign-in reads rows (effort 828, requirement 22). The succession is followed
+    // before the password is tried, so the wall admits under the key the organization is on now.
+    let held = {
+        let mut remote_sync = app_state.remote_sync.write().await;
+
+        match role::follow_succession(&store, remote_sync.store_mut()).await {
+            Ok(Some(_)) => remote_sync.store_mut().organization.clone().unwrap_or(held),
+            Ok(None) => held,
+            Err(refusal) => {
+                diagnostics::warn("organization.succession.notFollowed")
+                    .with("reason", refusal.to_string())
+                    .write();
+
+                held
+            }
+        }
+    };
+
     let member = {
         let mut remote_sync = app_state.remote_sync.write().await;
 
@@ -326,6 +445,7 @@ pub async fn organization_sign_in(
             &username,
             &password,
             &credential,
+            timestamp::now(),
         )
         .await?
     };
@@ -380,6 +500,22 @@ pub(crate) async fn sign_out(app_state: &AppState) {
         }
     }
 
+    // the machine stays in the registry and stops naming anybody (effort 828, requirement 15):
+    // it still holds the organization, and what ended is the session. Before the replica is let
+    // go of below, since that is what carries the write.
+    {
+        let held = {
+            let mut remote_sync = app_state.remote_sync.write().await;
+
+            remote_sync.store_mut().organization.clone()
+        };
+        let organization = app_state.organization.read().await;
+
+        if let (Some(held), Some(store)) = (held, organization.as_ref()) {
+            session::machine_seen(store, &held, None, timestamp::now()).await;
+        }
+    }
+
     *app_state.member.write().await = None;
     *app_state.organization.write().await = None;
 }
@@ -394,6 +530,15 @@ pub(crate) async fn sign_out(app_state: &AppState) {
 ///
 /// The replica is opened the way `organization_sign_in` opens it, through the same call, so a
 /// resumed session reaches its remote on exactly the terms a typed one does.
+///
+/// **What the organization says now is read the way the heartbeat reads it**, once the session is
+/// open and its vault can pay for the pull: one call of [`ended_elsewhere`], which pulls, follows
+/// a succession where the rows that arrived ask for one, and signs out where the row has moved
+/// on. A machine closed across a handover launches on a replica that has not received it, and
+/// following the succession before the pull finds nothing to follow; the follow that matters is
+/// the one after, and it is the heartbeat's (effort 828, requirement 22). The one before the vault
+/// opens stays for a replica that already holds the re-keyed rows, which is what reads the member
+/// row the key has to open.
 async fn resume_remembered(app_state: &AppState) {
     if app_state.member.read().await.is_some() {
         return;
@@ -409,9 +554,35 @@ async fn resume_remembered(app_state: &AppState) {
     };
 
     let resumed = match open_replica(app_state, &held).await {
-        Ok((store, credential)) => session::resume(&store, &held, &credential)
-            .await
-            .map(|resumption| (store, resumption)),
+        Ok((store, credential)) => {
+            // a replica that already holds a handover this machine has not followed: the
+            // succession is followed before the remembered key opens anything, so the resume
+            // reads the member row under the key the rows are on (effort 828, requirement 22).
+            // A handover the replica has not received yet is followed after the pull, below.
+            let held = {
+                let mut remote_sync = app_state.remote_sync.write().await;
+
+                match role::follow_succession(&store, remote_sync.store_mut()).await {
+                    Ok(Some(_)) => remote_sync
+                        .store_mut()
+                        .organization
+                        .clone()
+                        .unwrap_or_else(|| held.clone()),
+                    Ok(None) => held.clone(),
+                    Err(refusal) => {
+                        diagnostics::warn("organization.succession.notFollowed")
+                            .with("reason", refusal.to_string())
+                            .write();
+
+                        held.clone()
+                    }
+                }
+            };
+
+            session::resume(&store, &held, &credential)
+                .await
+                .map(|resumption| (store, resumption))
+        }
         Err(refusal) => Err(refusal),
     };
 
@@ -442,9 +613,108 @@ async fn resume_remembered(app_state: &AppState) {
     *app_state.organization.write().await = Some(store);
     *app_state.member.write().await = Some(member);
 
+    // and what the organization says now, through the heartbeat's own check: the pull spends the
+    // credential the vault just unsealed, a handover that arrives with it is followed and the
+    // session re-pinned, and a row that moved on while this machine was closed puts the wall up
+    // with the sentence for it. A pull that could not go is the offline case, and this machine
+    // stays signed in on the rows it has (819's requirement 18).
+    if ended_elsewhere(app_state).await {
+        return;
+    }
+
     diagnostics::info("organization.session.resumed")
         .with("organization", held.id.as_str())
         .write();
+}
+
+/// Say this machine is still here, and give a record written before this build the machine id it
+/// has no field for: the launch's own write to the registry (effort 828, requirement 15).
+///
+/// **The id is drawn here for an old record and nowhere else.** A record from before the field
+/// existed deserialises with an empty one rather than being refused, so the machine keeps what it
+/// holds; this is the first launch that can give it one, and the row it writes below is that
+/// machine's first. An id once drawn is never redrawn, so a machine keeps one row across every
+/// launch after this.
+///
+/// **Only a launch that opened the replica writes a row**, which is a machine that came back
+/// signed in. Reaching the organization database at all takes a credential a vault holds, so a
+/// launch that stops at the wall has nothing to write through and nothing to write it under; the
+/// sign-in that follows is what writes the row, and the id drawn here is the one it writes.
+async fn machine_registered(app_state: &AppState) -> Result<(), Error> {
+    let held = {
+        let mut remote_sync = app_state.remote_sync.write().await;
+        let Some(held) = remote_sync.store_mut().organization.clone() else {
+            return Ok(());
+        };
+
+        if !held.machine_id.is_empty() {
+            held
+        } else {
+            let identified = HeldOrganization {
+                machine_id: invite::random_id()?,
+                ..held
+            };
+
+            let record = remote_sync.store_mut();
+
+            record.organization = Some(identified.clone());
+            record.commit()?;
+
+            diagnostics::info("organization.machine.identified")
+                .with("organization", identified.id.as_str())
+                .write();
+
+            identified
+        }
+    };
+    let organization = app_state.organization.read().await;
+
+    if let Some(store) = organization.as_ref() {
+        session::machine_seen(store, &held, held.member_id.as_deref(), timestamp::now()).await;
+    }
+
+    Ok(())
+}
+
+/// Take this machine out of the registry, through the replica that carries the delete: what a
+/// disconnect does before it forgets the organization locally (effort 828, requirement 15).
+///
+/// **The replica is taken rather than borrowed**, so the sign-out `forget` performs next finds
+/// none and writes nothing back: a machine that deleted its row and then said it was still here
+/// would draw a standing line on its member's card for a week over a disconnect it performed
+/// itself.
+///
+/// A disconnect from the wall has no replica open and leaves the row where it is, which the
+/// seven-day window ages out. Nothing here is a refusal: the person asked to forget the
+/// organization and that is what happens either way.
+pub(crate) async fn leave_registry(app_state: &AppState) {
+    let held = {
+        let mut remote_sync = app_state.remote_sync.write().await;
+
+        remote_sync.store_mut().organization.clone()
+    };
+    let Some(held) = held.filter(|held| !held.machine_id.is_empty()) else {
+        return;
+    };
+    let Some(store) = app_state.organization.write().await.take() else {
+        diagnostics::info("organization.machine.notUnregistered")
+            .with("organization", held.id.as_str())
+            .with("reason", "no replica is open on this machine")
+            .write();
+
+        return;
+    };
+
+    if let Err(refusal) = store.unregister_machine(&held.machine_id).await {
+        diagnostics::warn("organization.machine.notUnregistered")
+            .with("organization", held.id.as_str())
+            .with("reason", refusal.to_string())
+            .write();
+    } else if !store.push().await {
+        diagnostics::warn("organization.machine.unregisteredNotYetSent")
+            .with("organization", held.id.as_str())
+            .write();
+    }
 }
 
 /// Whether the member signed in on this machine has been signed out from every machine since,
@@ -460,12 +730,20 @@ async fn resume_remembered(app_state: &AppState) {
 /// What it does when the row has moved on is exactly what a sign-out does, through the same
 /// routine: the keys go, the replica is let go of, the remembered key is deleted. What it adds is
 /// the standing, so the wall says which sign-out this was.
+///
+/// **And it is where a machine open across a handover follows it** (effort 828, requirement 22).
+/// The pull is what brings the re-keyed rows, so a row that will not read under the session's key
+/// right after one is the sign of a succession this machine has not followed: it is followed
+/// here, the record and the session re-pinned by [`followed`], and the question asked again under
+/// the key the rows are on. A row that still will not read is the offline case as before, and this
+/// member goes on working against what the replica holds (819's requirement 18). The launch runs
+/// this same check once a remembered session is open, so both paths follow after the pull.
 pub(crate) async fn ended_elsewhere(app_state: &AppState) -> bool {
     let ended = {
-        let member = app_state.member.read().await;
+        let mut member = app_state.member.write().await;
         let organization = app_state.organization.read().await;
 
-        let (Some(member), Some(store)) = (member.as_ref(), organization.as_ref()) else {
+        let (Some(session), Some(store)) = (member.as_mut(), organization.as_ref()) else {
             return false;
         };
 
@@ -479,7 +757,20 @@ pub(crate) async fn ended_elsewhere(app_state: &AppState) -> bool {
         // made one.
         store.push().await;
 
-        match session::ended_elsewhere(store, member).await {
+        let standing = match session::ended_elsewhere(store, session).await {
+            Ok(ended) => Ok(ended),
+            Err(refusal) => {
+                let mut remote_sync = app_state.remote_sync.write().await;
+
+                if followed(store, session, remote_sync.store_mut()).await {
+                    session::ended_elsewhere(store, session).await
+                } else {
+                    Err(refusal)
+                }
+            }
+        };
+
+        match standing {
             Ok(ended) => ended,
             // a row that will not read is not a sign-out: the replica is the offline case and
             // this member goes on working against what it holds (requirement 18).
@@ -541,6 +832,69 @@ async fn open_replica(
     Ok((store, credential))
 }
 
+/// Follow a handover this machine was not present for, and pin the key it left behind (effort
+/// 828, requirement 22).
+///
+/// **Nothing here is a refusal.** A machine whose pinned key still reads the directory is left
+/// alone, and one that cannot follow the succession is left holding what it held, which is a
+/// machine that refuses the rows exactly as it refuses any row it cannot verify. What the person
+/// meets either way is the read that brought this here.
+///
+/// **The open session is re-pinned beside the record**, because a session carries its own copy of
+/// the key and every act reads rows through it. The locks are taken in the order every other act
+/// here takes them, the member before the replica before the record, so two acts cannot wait on
+/// each other.
+async fn succession_followed(app_state: &AppState) {
+    let mut member = app_state.member.write().await;
+    let organization = app_state.organization.read().await;
+
+    let (Some(session), Some(store)) = (member.as_mut(), organization.as_ref()) else {
+        return;
+    };
+    let mut remote_sync = app_state.remote_sync.write().await;
+
+    followed(store, session, remote_sync.store_mut()).await;
+}
+
+/// Follow a succession on a machine with a session open, and say whether one was: the record is
+/// re-pinned by the walk, and the session moves onto the key with what its own row says under it
+/// (effort 828, requirement 22).
+///
+/// **The session's role and permissions are the row's, not the ones it opened with.** A handover
+/// is the one act that rewrites the acting member's own row from another machine: the founder's
+/// session, kept as `owner`, passed every gate that reads the word after they had handed over,
+/// deleting the organization among them, and signed certificates under a key that certified
+/// nothing. `session::repin` reads the row under the new key and takes both. A row the new key
+/// does not find leaves the session as it was, said in the diagnostics, and the read that brought
+/// the caller here refuses as it did.
+async fn followed(
+    store: &OrganizationStore,
+    session: &mut MemberSession,
+    machine: &mut Persisted<RemoteSyncStore>,
+) -> bool {
+    let key = match role::follow_succession(store, machine).await {
+        Ok(Some(key)) => key,
+        Ok(None) => return false,
+        Err(refusal) => {
+            diagnostics::warn("organization.succession.notFollowed")
+                .with("reason", refusal.to_string())
+                .write();
+
+            return false;
+        }
+    };
+
+    if let Err(refusal) = session::repin(store, session, key).await {
+        diagnostics::warn("organization.succession.sessionNotRepinned")
+            .with("reason", refusal.to_string())
+            .write();
+
+        return false;
+    }
+
+    true
+}
+
 /// The signed-in member's facts, re-read from the replica so a row that changed under them since
 /// sign-in is what the screen shows.
 async fn current_facts(app_state: &AppState) -> Result<Option<SessionFacts>, Error> {
@@ -571,9 +925,9 @@ async fn owner_platform(app_state: &AppState) -> Option<PlatformApi> {
 
 /// The signed-in member and their organization replica, or the wall.
 fn signed_in<'a>(
-    member: &'a mut Option<session::MemberSession>,
+    member: &'a mut Option<MemberSession>,
     store: &'a Option<OrganizationStore>,
-) -> Result<(&'a mut session::MemberSession, &'a OrganizationStore), Error> {
+) -> Result<(&'a mut MemberSession, &'a OrganizationStore), Error> {
     match (member.as_mut(), store.as_ref()) {
         (Some(member), Some(store)) => Ok((member, store)),
         _ => Err(Error::PreconditionFailed {
@@ -827,23 +1181,6 @@ pub async fn organization_renew_credentials(
     workspace::renew_credentials(store, member, &platform, &organization_database).await
 }
 
-/// The organization's own join link, rebuilt for the owner to share or to keep.
-///
-/// **The owner's, and readable any time rather than only in the moment setup shows it.** An owner
-/// whose first machine is gone restores from this link (requirement 6), so a link shown once and
-/// never again is a way to lose the organization. It carries a read-only credential over the sealed
-/// rows, the same the setup walk produced; that credential is stored sealed under the content key,
-/// so rebuilding the link needs the owner's open vault and not the Turso authority, which a restored
-/// owner does not yet hold. It is refused to anyone but the owner, whose link it is to share.
-#[tauri::command]
-pub async fn organization_own_link(app_state: tauri::State<'_, AppState>) -> Result<String, Error> {
-    let mut member = app_state.member.write().await;
-    let store = app_state.organization.read().await;
-    let (member, store) = signed_in(&mut member, &store)?;
-
-    invite::own_link(member, store).await
-}
-
 /// Renew credentials if any is close to lapsing, on the owner's machine, best effort. Answers
 /// whether it renewed. This is what keeps an organization syncing past the four-week credential
 /// lifetime: the owner's machine, which is the only one holding the platform authority, calls it
@@ -878,69 +1215,74 @@ pub async fn organization_renew_due(app_state: tauri::State<'_, AppState>) -> Re
     Ok(true)
 }
 
-/// Invite a member: a row, and one link. The application sends nothing; the administrator hands
-/// the link over themselves.
+/// Make an account: a row somebody will open, and no link (effort 828, requirements 19 and 20).
 ///
-/// **No password crosses.** The generated password the vault is sealed under leaves `invite::issue`
-/// in two sealed columns of the invitation row, `sealed_secret` and `code_seal`, and nowhere else.
-/// What crosses is the link, which carries the invitation id and the link secret, and the
-/// six-character code, which is the other half of what opens that seal; [[rules/credentials]],
-/// *Client boundary*, is what sanctions the two. Everything else the invitation makes stays on
-/// this side: the member's vault, the content key sealed to them, and the grants. A read-only
-/// grant is minted with the owner's authority, which is why the platform is handed in where this
-/// machine holds it.
+/// **Nothing crosses back but the account as the directory draws it.** The generated password the
+/// vault is sealed under never leaves `invite::create_account`, and nothing stores it: the account
+/// holds no password anybody knows until its first link is opened, which is [`member_link_make`].
+/// Everything the account is made of stays on this side: the vault, the content key sealed to
+/// them, and the grants. A read-only grant is minted with the owner's authority, which is why the
+/// platform is handed in where this machine holds it.
 #[tauri::command]
-pub async fn member_invite(
+pub async fn member_create(
     app_state: tauri::State<'_, AppState>,
     username: String,
     role: String,
+    permissions: i64,
     workspaces: Vec<WorkspaceGrant>,
-) -> Result<Invited, Error> {
+) -> Result<MemberFacts, Error> {
     let platform = owner_platform(&app_state).await;
     let mut member = app_state.member.write().await;
     let store = app_state.organization.read().await;
     let (member, store) = signed_in(&mut member, &store)?;
-    let link = invite::organization_link(store, member).await?;
 
-    invite::invite_member(
+    invite::create_account(
         store,
         member,
         platform.as_ref(),
-        &link,
-        Invitation {
-            username: &username,
-            role: &role,
-            workspaces: &workspaces,
-        },
+        &username,
+        &role,
+        permissions,
+        &workspaces,
         invite::INVITED_KDF,
         timestamp::now(),
     )
     .await
 }
 
-/// Reset a member's password: a fresh vault under a fresh secret, everything the resetting
-/// administrator reaches re-sealed to it, and a fresh invitation, handed back as a new link. What
-/// a reset is, for a member whose password nobody knows; the answer names the workspaces it could
-/// not restore, and the member's permissions are kept.
+/// Make the one link that admits a machine to an account (effort 828, requirement 20).
+///
+/// **The account's standing chooses the kind and the caller chooses nothing.** An account whose
+/// password is not yet set gets an invitation-kind link, which asks the person opening it to
+/// choose a password; one that has a password gets a machine-kind link, which lands the machine at
+/// the wall. No standing refuses it: an account is held on as many machines as it is given links
+/// for, and each link admits one of them, once.
+///
+/// **Both halves cross, and neither is a credential** ([[rules/credentials]], *Client boundary*).
+/// The link's text carries the credential sealed and the code is what the person reads off the
+/// screen and reads out on a call; nothing is written under the data directory, and a person who
+/// lost the pair makes another, which drops the one they lost.
 #[tauri::command]
-pub async fn member_reset(
+pub async fn member_link_make(
     app_state: tauri::State<'_, AppState>,
     member_id: String,
-) -> Result<Invited, Error> {
+) -> Result<MadeLink, Error> {
     let platform = owner_platform(&app_state).await;
     let mut member = app_state.member.write().await;
     let store = app_state.organization.read().await;
     let (member, store) = signed_in(&mut member, &store)?;
-    // the row this act writes back whole carries the session epoch, so it is read after a pull
-    // rather than off this machine's last sight of it (effort 826, requirement 22).
+    // an invitation-kind link writes the account's row back whole, and that row carries the
+    // session epoch, so it is read after a pull rather than off this machine's last sight of it
+    // (effort 826, requirement 22). *The register this act was gated on was read from the same
+    // pull until 2026-09-20; the gate is gone (828, requirement 20 as corrected).*
     store.pull().await;
-    let link = invite::organization_link(store, member).await?;
+    let locator = invite::locator(store, member).await?;
 
-    invite::reissue_invitation(
+    invite::make_link(
         store,
         member,
         platform.as_ref(),
-        &link,
+        &locator,
         &member_id,
         invite::INVITED_KDF,
         timestamp::now(),
@@ -948,42 +1290,30 @@ pub async fn member_reset(
     .await
 }
 
-/// The invitation link again, for the person who issued it: the secret is sealed to their key on
-/// the row, so their open vault is the one thing that rebuilds it. Anybody else with the act is
-/// refused and offered a new link, which is a reset.
-#[tauri::command]
-pub async fn invitation_link(
-    app_state: tauri::State<'_, AppState>,
-    invitation_id: String,
-) -> Result<String, Error> {
-    let mut member = app_state.member.write().await;
-    let store = app_state.organization.read().await;
-    let (member, store) = signed_in(&mut member, &store)?;
-
-    invite::invitation_link(store, member, &invitation_id).await
-}
-
-/// A fresh confirmation code for an invitation, for the person who issued it (effort 826,
-/// requirement 23). The vault password is sealed under it and the link's secret together, so only
-/// the issuer's open vault can make one; anybody else with the act is refused and offered a new
-/// link, which is a reset.
+/// Unset a member's password: a fresh vault under a fresh secret, everything the resetting
+/// administrator reaches re-sealed to it, and the requirement to choose a password set, so the
+/// next link asks for one. What a reset is, for a member whose password nobody knows.
 ///
-/// **The code crosses once, as the generated password used to**: it is read out on a call or in
-/// person and typed into the connect screen, which is the one thing the person on the other side
-/// can do with it, and it is never written under the data directory.
+/// **It hands over nothing.** The answer names the workspaces it could not restore, and the
+/// member's permissions are kept; a link is a separate act on the same account.
 #[tauri::command]
-pub async fn invitation_code(
+pub async fn member_password_unset(
     app_state: tauri::State<'_, AppState>,
-    invitation_id: String,
-) -> Result<FreshCode, Error> {
+    member_id: String,
+) -> Result<Vec<UnreachableWorkspace>, Error> {
+    let platform = owner_platform(&app_state).await;
     let mut member = app_state.member.write().await;
     let store = app_state.organization.read().await;
     let (member, store) = signed_in(&mut member, &store)?;
+    // the row this act writes back whole carries the session epoch, so it is read after a pull
+    // rather than off this machine's last sight of it (effort 826, requirement 22).
+    store.pull().await;
 
-    invite::invitation_code(
+    invite::unset_password(
         store,
         member,
-        &invitation_id,
+        platform.as_ref(),
+        &member_id,
         invite::INVITED_KDF,
         timestamp::now(),
     )
@@ -991,12 +1321,17 @@ pub async fn invitation_code(
 }
 
 /// Open an invitation link: the way in for a person who was invited or reset (effort 826,
-/// requirements 8 and 9). The organization the link names has to be the one this machine holds,
-/// which `organization_connect` arranges first; the secret inside the link opens the member's
-/// vault, the password they chose reseals it, the invitation is spent, and they are signed in.
+/// requirements 8 and 9; effort 828, requirement 1).
 ///
-/// **`public`, because it happens at the wall.** Neither the secret nor the password crosses
-/// back; what comes back is where the machine stands, with a session in it.
+/// **The code comes first and everything follows it.** The link carries no credential anybody can
+/// read, so the code and the link's secret together unseal the issuer's own grant and the vault
+/// password; the replica is opened under that grant; the organization is recorded on this machine
+/// where it holds none, which is why this works on a machine that never connected; the invitation
+/// is judged; and the password the person chose reseals their vault. A link naming an organization
+/// other than the one this machine holds is refused, and the way to it is a disconnect.
+///
+/// **`public`, because it happens at the wall.** Neither the credential, the secret nor the
+/// password crosses back; what comes back is where the machine stands, with a session in it.
 #[tauri::command]
 pub async fn invitation_accept(
     app_state: tauri::State<'_, AppState>,
@@ -1005,68 +1340,15 @@ pub async fn invitation_accept(
     password: String,
 ) -> Result<OrganizationState, Error> {
     let link = JoinLink::decode(&link)?;
-    let held = {
-        let mut remote_sync = app_state.remote_sync.write().await;
-
-        remote_sync
-            .store_mut()
-            .organization
-            .clone()
-            .ok_or_else(|| Error::PreconditionFailed {
-                message: "this machine holds no organization yet; connect with the link first"
-                    .to_string(),
-            })?
-    };
-
-    if held.id != link.organization_id {
-        return Err(Error::PreconditionFailed {
-            message: format!(
-                "this link is for {} and this machine holds {}; disconnect it first",
-                link.organization_name, held.name
-            ),
-        });
-    }
-
-    let database_path = {
-        let settings = app_state.settings.read().await;
-
-        settings.database_path.clone()
-    };
-
-    // the replica, under the link's read-only credential until the vault is open: the invitation
-    // row may have been written after this machine connected, and the read-only credential is what
-    // lets the pull collect it. The accept then leaves the member's own credential in the slot.
-    let credential: CredentialSlot = Arc::new(Mutex::new(Some(link.read_only_credential.clone())));
-    let slot = Arc::clone(&credential);
-    let store = OrganizationStore::open(
-        &OrganizationStore::replica_path(&database_path, &held.id),
-        Some(held.remote_url.clone()),
-        move || {
-            let slot = Arc::clone(&slot);
-
-            async move {
-                slot.lock()
-                    .ok()
-                    .and_then(|slot| slot.clone())
-                    .ok_or_else(|| turso::Error::Misuse("no credential is held".into()))
-            }
-        },
-    )
-    .await?;
-
-    store.pull().await;
-
-    let member = {
+    let (store, member) = {
         let mut remote_sync = app_state.remote_sync.write().await;
 
         join::accept(
-            &store,
+            |credential| reached(&app_state, &link, credential),
             remote_sync.store_mut(),
-            &held,
             &link,
             &code,
             &password,
-            &credential,
             setup::SHIPPING_KDF,
             timestamp::now(),
         )
@@ -1078,6 +1360,42 @@ pub async fn invitation_accept(
 
     *app_state.organization.write().await = Some(store);
     *app_state.member.write().await = Some(member);
+
+    state_of(&app_state).await
+}
+
+/// Connect this machine with a machine-kind link, and leave it at the wall.
+///
+/// **`public`, because it happens before there is anybody to act as**, exactly as a connect and an
+/// invitation accept do. The code and the link's secret together unseal the member's own grant,
+/// the replica is opened under it, the organization is recorded with no member, and the row behind
+/// the link is spent. A machine that already holds an organization is refused, and the way to
+/// another is a disconnect.
+///
+/// **The credential is let go of with the replica.** Nobody is signed in here, so the store is
+/// dropped rather than kept, and the sign-in at the wall opens it again
+/// with what the member's vault unseals.
+#[tauri::command]
+pub async fn machine_connect(
+    app_state: tauri::State<'_, AppState>,
+    link: String,
+    code: String,
+) -> Result<OrganizationState, Error> {
+    let link = JoinLink::decode(&link)?;
+
+    {
+        let mut remote_sync = app_state.remote_sync.write().await;
+
+        machine::connect(
+            |credential| reached(&app_state, &link, credential),
+            remote_sync.store_mut(),
+            &link,
+            &code,
+            setup::SHIPPING_KDF,
+            timestamp::now(),
+        )
+        .await?;
+    }
 
     state_of(&app_state).await
 }
@@ -1111,6 +1429,94 @@ pub async fn member_change_role(
     .await
 }
 
+/// Offer the organization to another account: the first of the two acts a handover is (effort
+/// 828, requirement 22).
+///
+/// **The owner's alone, and their password is what performs it.** The role is read off the session
+/// the wall opened and refused in Rust; the password is tried against the owner's own row, so a
+/// wrong one refuses before a single row is written and a machine somebody walked away from is not
+/// a way to give their organization away. Nothing about the password crosses back.
+///
+/// **Nothing about the organization moves here.** The offer seals the key this directory is signed
+/// under to the account named, writes a succession row saying so, and stops; the roles, the key
+/// and every signature stay as they were until the other person accepts on a machine of their own.
+///
+/// What comes back is the offered account as the members list shows them.
+#[tauri::command]
+pub async fn member_offer_ownership(
+    app_state: tauri::State<'_, AppState>,
+    member_id: String,
+    password: String,
+) -> Result<MemberFacts, Error> {
+    let mut member = app_state.member.write().await;
+    let store = app_state.organization.read().await;
+    let (member, store) = signed_in(&mut member, &store)?;
+    // the row this act writes back whole carries the session epoch, so it is read after a pull
+    // rather than off this machine's last sight of it (effort 826, requirement 22).
+    store.pull().await;
+
+    role::offer_ownership(store, member, &member_id, &password, timestamp::now()).await
+}
+
+/// Take the offer back (effort 828, requirement 22).
+///
+/// The owner's, and it asks for no password: nothing is unsealed and what is being undone is
+/// something this person did. Whether an offer stands at all is Rust's to answer, and the refusal
+/// where none does is the sentence the members section shows.
+#[tauri::command]
+pub async fn member_withdraw_offer(app_state: tauri::State<'_, AppState>) -> Result<(), Error> {
+    let mut member = app_state.member.write().await;
+    let store = app_state.organization.read().await;
+    let (member, store) = signed_in(&mut member, &store)?;
+
+    store.pull().await;
+
+    role::withdraw_offer(store, member, timestamp::now()).await
+}
+
+/// Accept the organization: the second act, on the offered account's own machine (effort 828,
+/// requirement 22).
+///
+/// **The password is what becomes the key.** Their vault derives the organization's new key, every
+/// certificate is re-issued under it, the roles swap, and this machine pins the new key in its own
+/// record and in the open session. Nothing about the password or the key crosses back
+/// ([[rules/credentials]], *Client boundary*).
+///
+/// **What comes back is the whole state**, rather than the member row the offer answers with: this
+/// reader is the owner from here on, so the sections the settings area draws, the acts its cards
+/// carry and the rail's menus all change with it, and every one of them is read off the state.
+///
+/// The Turso account does not move with the ownership: until the new owner grants the consent on
+/// their own machine the acts that mint run on the founder's machine or not at all, which is what
+/// the Turso account block in the organization section says beside the reconnect.
+#[tauri::command]
+pub async fn ownership_accept(
+    app_state: tauri::State<'_, AppState>,
+    password: String,
+) -> Result<OrganizationState, Error> {
+    {
+        let mut member = app_state.member.write().await;
+        let store = app_state.organization.read().await;
+        let (member, store) = signed_in(&mut member, &store)?;
+        // the rows this act writes back whole carry the session epoch, so they are read after a
+        // pull rather than off this machine's last sight of them (effort 826, requirement 22).
+        store.pull().await;
+
+        let mut remote_sync = app_state.remote_sync.write().await;
+
+        role::accept_ownership(
+            store,
+            member,
+            remote_sync.store_mut(),
+            &password,
+            timestamp::now(),
+        )
+        .await?;
+    }
+
+    state_of(&app_state).await
+}
+
 /// Rename a member: their row written back with the username re-sealed and signed by whoever
 /// renamed them. The owner's or an administrator's, on any row but their own; the username is
 /// held to the same rules and the same uniqueness as an invitation's. What comes back is the
@@ -1139,7 +1545,7 @@ pub async fn member_rename(
 /// is closed meets it at its next launch.
 ///
 /// **What comes back says whether the bump went out.** A push that could not go leaves the other
-/// machines open until one does, and the you section says so rather than reporting the act done.
+/// machines open until one does, and the account section says so rather than reporting the act done.
 #[tauri::command]
 pub async fn organization_session_end_elsewhere(
     app_state: tauri::State<'_, AppState>,
@@ -1354,27 +1760,10 @@ pub async fn organization_change_password(
     state_of(&app_state).await
 }
 
-/// Revoke an invitation. A person who never opened their link is removed with it, so the link
-/// opens nothing afterwards; a reset link on a member who has signed in before is deleted alone.
-#[tauri::command]
-pub async fn invitation_revoke(
-    app_state: tauri::State<'_, AppState>,
-    invitation_id: String,
-) -> Result<(), Error> {
-    let mut member = app_state.member.write().await;
-    let store = app_state.organization.read().await;
-    let (member, store) = signed_in(&mut member, &store)?;
-    // the row this act writes back whole carries the session epoch, so it is read after a pull
-    // rather than off this machine's last sight of it (effort 826, requirement 22).
-    store.pull().await;
-
-    invite::revoke_invitation(store, member, &invitation_id, timestamp::now()).await
-}
-
-/// Every member, for the members list: names opened with the content key the session holds, the
-/// workspaces each holds with their access, and the pending invitation where there is one. *There
-/// was a second command answering the invitations until effort 826; one row of the list needs
-/// both, so the row is answered whole here.*
+/// Every member, for the members list: names opened with the content key the session holds and the
+/// workspaces each holds with their access. *There was a second command answering the invitations
+/// until effort 826, which folded the unspent one into the row; effort 828 dropped it again, since
+/// nothing read it.*
 #[tauri::command]
 pub async fn organization_members(
     app_state: tauri::State<'_, AppState>,
@@ -1383,7 +1772,26 @@ pub async fn organization_members(
     let store = app_state.organization.read().await;
     let (member, store) = signed_in(&mut member, &store)?;
 
-    invite::members(store, member, timestamp::now()).await
+    invite::members(store, member).await
+}
+
+/// Where each account stands, for the line the directory draws under a name (effort 828,
+/// requirement 19): whether it has a password of its own yet, and whether a machine is signed in
+/// on it inside the presence window.
+///
+/// **Beside the members rather than on them**, because the two halves come from two places: the
+/// password is on the signed member row and the machine is on the unsigned register every machine
+/// writes for itself. Asked apart, a list of people is still a list of people when the register
+/// says nothing, and the directory joins the two on the member's id.
+#[tauri::command]
+pub async fn organization_member_standings(
+    app_state: tauri::State<'_, AppState>,
+) -> Result<Vec<MemberStanding>, Error> {
+    let mut member = app_state.member.write().await;
+    let store = app_state.organization.read().await;
+    let (member, store) = signed_in(&mut member, &store)?;
+
+    invite::standings(store, member, timestamp::now()).await
 }
 
 /// The link the operating system handed this process, if one is waiting: a launch with a link
@@ -1404,19 +1812,17 @@ pub async fn organization_link_take(
     Ok(arriving.take())
 }
 
-/// Read a link: which organization it names, and where its invitation stands where it carries
-/// one, before anything is done with it. The link is parsed here, the organization is reached with
-/// the credential it carries, and what crosses back is a name, where it is, the standing and the
-/// invited username; the secret stays on this side ([[rules/credentials]]).
+/// Read a link: which organization it names, which kind of link it is, and when it lapses.
+///
+/// **A decode and nothing else** (effort 828, requirement 1). Nothing is reached and no row is
+/// read, because there is no credential to read one with until somebody types the code; where the
+/// invitation behind a link stands is judged inside `invitation_accept`, which has one. What
+/// crosses back is what the text says; the credential and the secret stay on this side
+/// ([[rules/credentials]]). *It was `organization_link_inspect`, which opened the replica with the
+/// link's clear credential before the person had given anything.*
 #[tauri::command]
-pub async fn organization_link_inspect(
-    app_state: tauri::State<'_, AppState>,
-    link: String,
-) -> Result<LinkFacts, Error> {
-    let link = JoinLink::decode(&link)?;
-    let store = reached(&app_state, &link).await?;
-
-    join::inspect(&store, &link, timestamp::now()).await
+pub fn organization_link_read(link: String) -> Result<LinkShape, Error> {
+    link::read(&link)
 }
 
 /// Record which Turso account the consent this machine now holds is over, so the owner's
@@ -1451,17 +1857,26 @@ pub async fn organization_reconnect_authority(
 }
 
 /// The organization a link names, reached: its replica on this machine, opened against the
-/// remote the link spells with the read-only credential it carries, and pulled. A machine that
-/// has never seen the organization and cannot reach it now has nothing to say about the link,
-/// and says so as a network failure rather than as a refusal. The credential stays in the slot
-/// the replica reads; nobody signs in on this replica, which is let go of once read.
-async fn reached(app_state: &AppState, link: &JoinLink) -> Result<OrganizationStore, Error> {
+/// remote the link spells with the credential it was handed, and pulled. A machine that has never
+/// seen the organization and cannot reach it now has nothing to say about the link, and says so
+/// as a network failure rather than as a refusal.
+///
+/// **The credential is handed in rather than read off the link** (effort 828, requirement 1).
+/// No link carries one legibly: every link seals its payload under the code that was read out
+/// with it, so what fills this slot is what the code unsealed. The slot is the caller's, because
+/// a session opened over this replica replaces its contents with the member's own. *The
+/// organization's own link carried a legible credential until requirement 16 retired the link and
+/// the credential together.*
+async fn reached(
+    app_state: &AppState,
+    link: &JoinLink,
+    credential: CredentialSlot,
+) -> Result<OrganizationStore, Error> {
     let database_path = {
         let settings = app_state.settings.read().await;
 
         settings.database_path.clone()
     };
-    let credential: CredentialSlot = Arc::new(Mutex::new(Some(link.read_only_credential.clone())));
     let slot = Arc::clone(&credential);
     let store = OrganizationStore::open(
         &OrganizationStore::replica_path(&database_path, &link.organization_id),
@@ -1502,9 +1917,13 @@ mod tests {
     use super::{open_replica, sign_out, state_of};
     use crate::{
         database::Database,
+        error::Error,
         keyring::{self, CredentialStoreTurn, refuse_the_next_store, take_the_credential_store},
         organization::{
-            forget, join, session,
+            authority::VERIFYING_KEY_BYTES,
+            forget, invite, join,
+            link::JoinLink,
+            permission, removal, role, session,
             session::{CredentialSlot, MEMBER_KEY_SERVICE, read_entry, verifying_key_of},
             setup::{CreateOrganization, Remote, create_organization},
             store::OrganizationStore,
@@ -1514,7 +1933,7 @@ mod tests {
         settings::Settings,
         state::AppState,
         sync::{
-            RemoteSync,
+            RemoteSync, RemoteSyncStore,
             test::server::{ScriptedResponse, ScriptedServer},
             turso::{consent::TursoConsent, discovery::McpEndpoint, platform::InMemoryPlatform},
         },
@@ -1912,6 +2331,7 @@ mod tests {
                 USERNAME,
                 PASSWORD,
                 &credential,
+                crate::timestamp::now(),
             )
             .await
             .expect("the sign-in failed")
@@ -2063,5 +2483,381 @@ mod tests {
             "/pull-updates",
             "the heartbeat pulled twice and pushed nothing"
         );
+    }
+    // -------------------------------------------------------------------------------------
+    // Effort 828, requirement 22: the handover holds at its seams.
+    // -------------------------------------------------------------------------------------
+
+    /// What the settled administrator chose when they opened their link, which is the password
+    /// that becomes the organization's key when they accept it.
+    const ADMINISTRATORS_PASSWORD: &str = "the administrators password";
+
+    /// A verifying key as a machine's record spells it.
+    fn encoded(key: [u8; VERIFYING_KEY_BYTES]) -> String {
+        base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, key)
+    }
+
+    /// The organization's replica opened a second time over the same file: another machine, as
+    /// far as the rows go, once a push and a pull have run between them. There is no remote here,
+    /// so the file is what they share, and what one writes the other reads at once.
+    async fn elsewhere(directory: &std::path::Path, organization_id: &str) -> OrganizationStore {
+        OrganizationStore::open(
+            &OrganizationStore::replica_path(&directory.join(Database::FILENAME), organization_id),
+            None,
+            || async { Ok::<String, turso::Error>(String::new()) },
+        )
+        .await
+        .expect("the other machine's replica")
+    }
+
+    /// An administrator who opened their link on a machine of their own and chose a password:
+    /// the standing an offer of the organization needs. *`role.rs` keeps the same fixture; one is
+    /// written out per module ([[rules/testing]]).*
+    async fn a_settled_administrator(
+        directory: &std::path::Path,
+        store: &OrganizationStore,
+        owner: &session::MemberSession,
+        username: &'static str,
+        password: &str,
+    ) -> (String, session::MemberSession, Persisted<RemoteSyncStore>) {
+        let link = invite::locator(store, owner)
+            .await
+            .expect("the organization's locator");
+        let invited = invite::make_account_and_link(
+            store,
+            owner,
+            None::<&InMemoryPlatform>,
+            &link,
+            invite::Invitation {
+                username,
+                role: permission::ADMINISTRATOR,
+                workspaces: &[],
+            },
+            test_cost(),
+            CREATED_AT,
+        )
+        .await
+        .expect("the invitation failed");
+        let theirs = directory.join(username);
+
+        std::fs::create_dir_all(&theirs).expect("the machine directory");
+
+        let mut machine = Persisted::<RemoteSyncStore>::load(theirs.join("remote-sync.json"))
+            .expect("the record");
+        let (_, session) = join::accept(
+            |_| async { Ok::<_, crate::error::Error>(store) },
+            &mut machine,
+            &JoinLink::decode(&invited.join_link).expect("the invitation link"),
+            &invited.code,
+            password,
+            test_cost(),
+            CREATED_AT,
+        )
+        .await
+        .expect("the account could not open its link");
+
+        (invited.member_id, session, machine)
+    }
+
+    /// The handover, made on another machine: the founder offers the organization to a settled
+    /// administrator, who accepts on a machine of their own. Answers the key the organization is
+    /// on afterwards, which the machine under test has not followed yet.
+    async fn handed_over(
+        directory: &std::path::Path,
+        app_state: &AppState,
+    ) -> [u8; VERIFYING_KEY_BYTES] {
+        let held = {
+            let mut remote_sync = app_state.remote_sync.write().await;
+
+            remote_sync
+                .store_mut()
+                .organization
+                .clone()
+                .expect("the record names no organization")
+        };
+        let theirs = elsewhere(directory, &held.id).await;
+        let founder = session::sign_in(&theirs, &held, PASSWORD, &slot())
+            .await
+            .expect("the founder did not sign in on the other machine");
+        let (ada, mut ada_session, mut ada_machine) = a_settled_administrator(
+            directory,
+            &theirs,
+            &founder,
+            "ada.admin",
+            ADMINISTRATORS_PASSWORD,
+        )
+        .await;
+
+        role::offer_ownership(&theirs, &founder, &ada, PASSWORD, CREATED_AT + 1)
+            .await
+            .expect("the offer failed");
+        role::accept_ownership(
+            &theirs,
+            &mut ada_session,
+            &mut ada_machine,
+            ADMINISTRATORS_PASSWORD,
+            CREATED_AT + 2,
+        )
+        .await
+        .expect("the acceptance failed");
+
+        ada_session.verifying_key
+    }
+
+    /// What the record on this machine pins.
+    async fn pinned(app_state: &AppState) -> String {
+        let mut remote_sync = app_state.remote_sync.write().await;
+
+        remote_sync
+            .store_mut()
+            .organization
+            .as_ref()
+            .expect("the record names no organization")
+            .verifying_key
+            .clone()
+    }
+
+    /// The key and the role the open session holds.
+    async fn session_holds(app_state: &AppState) -> ([u8; VERIFYING_KEY_BYTES], String) {
+        let member = app_state.member.read().await;
+        let session = member.as_ref().expect("nobody is in");
+
+        (session.verifying_key, session.role.clone())
+    }
+
+    /// **Criterion 22 at its seams: the founder's open session is an administrator's after the
+    /// handover.** The organization is handed over on another machine while the founder's session
+    /// is open here. Before this machine has read anything, making an administrator from the
+    /// stale session is refused rather than written; the next state read follows the succession
+    /// and re-reads the founder's own row, so the session is the administrator's it now is on
+    /// every gate: deleting the organization and certifying a signer are refused by name, a plain
+    /// member is theirs to make, and the directory verifies on every machine afterwards.
+    #[tokio::test]
+    async fn the_founders_open_session_is_an_administrators_after_a_handover_elsewhere() {
+        let _turn = a_turn().await;
+        let directory = scratch("founder-after-handover");
+        let app_state = first_run(&directory).await;
+        let (organization_id, _) = recorded(&app_state).await;
+        let state = state_of(&app_state).await.expect("the state");
+
+        assert_eq!(
+            state.session.expect("the launch did not resume").role,
+            "owner"
+        );
+
+        let (old_key, _) = session_holds(&app_state).await;
+        let new_key = handed_over(&directory, &app_state).await;
+
+        assert_ne!(new_key, old_key);
+
+        // before any read: the session still says owner and still holds the old key, and the one
+        // thing it could do with that is refused before a certificate is written.
+        {
+            let mut member = app_state.member.write().await;
+            let organization = app_state.organization.read().await;
+            let (session, store) = super::signed_in(&mut member, &organization).expect("signed in");
+            let certificates = store.certificates().await.expect("the certificates").len();
+
+            assert_eq!(session.role, "owner");
+
+            invite::create_account(
+                store,
+                &*session,
+                None::<&InMemoryPlatform>,
+                "noor.new",
+                permission::ADMINISTRATOR,
+                permission::mask_of_role(permission::ADMINISTRATOR),
+                &[],
+                test_cost(),
+                CREATED_AT + 3,
+            )
+            .await
+            .expect_err("a stale session made an administrator");
+
+            assert_eq!(
+                store.certificates().await.expect("the certificates").len(),
+                certificates,
+                "a certificate was written under the key that was handed over"
+            );
+        }
+
+        // the state read follows the succession, and the session is the row's.
+        let state = state_of(&app_state).await.expect("the state");
+
+        assert_eq!(
+            state.session.expect("the session was lost").role,
+            "administrator"
+        );
+        assert_eq!(
+            session_holds(&app_state).await,
+            (new_key, "administrator".to_string())
+        );
+        assert_eq!(pinned(&app_state).await, encoded(new_key));
+
+        // deleting the organization: this machine holds the authority, and the session is refused
+        // on the role by name.
+        let platform = InMemoryPlatform::new("an-org");
+        let refused = removal::delete_organization(&app_state, &platform, PASSWORD)
+            .await
+            .expect_err("the founder deleted the organization after handing it over");
+
+        assert!(
+            matches!(refused, Error::Forbidden { ref message } if message == removal::ONLY_THE_OWNER_DELETES),
+            "{refused:?}"
+        );
+
+        // certifying a signer: refused by name, and a plain member is theirs to make.
+        {
+            let mut member = app_state.member.write().await;
+            let organization = app_state.organization.read().await;
+            let (session, store) = super::signed_in(&mut member, &organization).expect("signed in");
+            let refused = invite::create_account(
+                store,
+                &*session,
+                None::<&InMemoryPlatform>,
+                "noor.new",
+                permission::ADMINISTRATOR,
+                permission::mask_of_role(permission::ADMINISTRATOR),
+                &[],
+                test_cost(),
+                CREATED_AT + 4,
+            )
+            .await
+            .expect_err("an administrator certified a signer");
+
+            assert!(
+                matches!(refused, Error::Forbidden { ref message } if message.contains("only an owner")),
+                "{refused:?}"
+            );
+
+            invite::create_account(
+                store,
+                &*session,
+                None::<&InMemoryPlatform>,
+                "sami.staff",
+                permission::MEMBER,
+                permission::mask_of_role(permission::MEMBER),
+                &[],
+                test_cost(),
+                CREATED_AT + 5,
+            )
+            .await
+            .expect("an administrator could not make a member");
+        }
+
+        // and the directory verifies under the key in force, here and on the other machine.
+        {
+            let organization = app_state.organization.read().await;
+
+            organization
+                .as_ref()
+                .expect("the replica")
+                .members(&new_key)
+                .await
+                .expect("every member row verifies on this machine");
+        }
+        elsewhere(&directory, &organization_id)
+            .await
+            .members(&new_key)
+            .await
+            .expect("every member row verifies on the other machine");
+    }
+
+    /// **Criterion 22 at its seams: a machine closed across the handover.** The founder's key is
+    /// filed and nobody is in; the organization is handed over on another machine; the launch
+    /// resumes the session, pulls, follows the succession and keeps the session, under the new
+    /// key and as the administrator the row says, with no sign-out and the remembered key kept.
+    ///
+    /// The two stores share one file, so the launch meets the re-keyed rows at its first read
+    /// rather than after its pull; what the pull would bring is already there. The follow after
+    /// the pull runs on the same path the heartbeat test below reads, and this pins that the
+    /// launch ends signed in on the key in force rather than at the wall.
+    #[tokio::test]
+    async fn a_machine_closed_across_a_handover_launches_signed_in_under_the_new_key() {
+        let _turn = a_turn().await;
+        let directory = scratch("launch-after-handover");
+        let app_state = first_run(&directory).await;
+        let (organization_id, member_id) = recorded(&app_state).await;
+        let new_key = handed_over(&directory, &app_state).await;
+
+        assert!(
+            app_state.member.read().await.is_none(),
+            "a launch starts with nobody in"
+        );
+        assert!(filed(&organization_id, &member_id).is_some());
+
+        let state = state_of(&app_state).await.expect("the state");
+        let session = state
+            .session
+            .expect("the launch across the handover did not resume");
+
+        assert_eq!(session.member_id, member_id);
+        assert_eq!(session.role, "administrator");
+        assert!(
+            !state.signed_out_elsewhere,
+            "the wall was told a sign-out that did not happen"
+        );
+        assert!(
+            filed(&organization_id, &member_id).is_some(),
+            "the remembered key was forgotten"
+        );
+        assert_eq!(
+            session_holds(&app_state).await,
+            (new_key, "administrator".to_string())
+        );
+        assert_eq!(pinned(&app_state).await, encoded(new_key));
+    }
+
+    /// **Criterion 22 at its seams: a machine open across the handover.** The founder is signed in
+    /// here; the organization is handed over on another machine; the heartbeat that pulls the
+    /// re-keyed rows follows the succession rather than swallowing the read that refused, and the
+    /// session goes on under the new key as the administrator the row says. Nothing was ended, so
+    /// the heartbeat says so and keeps everything it holds.
+    #[tokio::test]
+    async fn a_machine_open_across_a_handover_follows_it_on_the_heartbeat() {
+        let _turn = a_turn().await;
+        let directory = scratch("heartbeat-after-handover");
+        let app_state = first_run(&directory).await;
+        let (organization_id, member_id) = recorded(&app_state).await;
+
+        assert!(
+            state_of(&app_state)
+                .await
+                .expect("the state")
+                .session
+                .is_some(),
+            "the launch did not resume"
+        );
+
+        let (old_key, _) = session_holds(&app_state).await;
+        let new_key = handed_over(&directory, &app_state).await;
+
+        assert_eq!(pinned(&app_state).await, encoded(old_key));
+
+        // one heartbeat.
+        assert!(
+            !super::ended_elsewhere(&app_state).await,
+            "the heartbeat read a handover as a sign-out"
+        );
+        assert_eq!(
+            session_holds(&app_state).await,
+            (new_key, "administrator".to_string()),
+            "the heartbeat did not follow the succession"
+        );
+        assert_eq!(pinned(&app_state).await, encoded(new_key));
+        assert!(
+            app_state.organization.read().await.is_some(),
+            "the replica was let go of"
+        );
+        assert!(
+            filed(&organization_id, &member_id).is_some(),
+            "the remembered key was forgotten"
+        );
+
+        // and the state read afterwards has nothing left to follow.
+        let state = state_of(&app_state).await.expect("the state");
+
+        assert_eq!(state.session.expect("the session").role, "administrator");
+        assert!(!state.signed_out_elsewhere);
     }
 }

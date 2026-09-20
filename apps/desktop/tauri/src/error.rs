@@ -19,6 +19,20 @@ pub enum Error {
     NotFound { message: String },
     /// the operation is not allowed on this target (a protected snapshot).
     Forbidden { message: String },
+    /// where a link's own standing is what refuses, after the code that opened
+    /// it was right: the link has lapsed, was already opened, was withdrawn, or
+    /// was replaced by a newer one. `reason` names which, so the screen routes
+    /// on it and says its own sentence in the reader's language.
+    ///
+    /// **It is not `Forbidden`, which stays the wrong code and every other
+    /// refusal on the merits.** All five of these crossed as one `forbidden`
+    /// until effort 828, which left the connect screen unable to tell a
+    /// mistyped code from a dead link, and the only thing separating them was
+    /// English prose the other side is not allowed to read.
+    Refused {
+        reason: RefusalReason,
+        message: String,
+    },
     /// the system is not in the state the operation requires (database not
     /// connected, workspace not linked).
     PreconditionFailed { message: String },
@@ -49,6 +63,24 @@ pub enum Error {
     Internal { message: String },
 }
 
+/// Why a link admits nobody, with the code it came with typed correctly.
+///
+/// Four values and no more: an invitation is `Lapsed`, `Consumed` or `Revoked`, and a machine
+/// link is `Lapsed`, `Consumed` or `Replaced`. Each rides beside the message as a stable word,
+/// which is what the connect screen names its refusals from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum RefusalReason {
+    /// past its moment, whether the link's own text says so or the row behind it does.
+    Lapsed,
+    /// opened once already, and it admits one.
+    Consumed,
+    /// withdrawn: the invitation it was made for is gone, or the member it named is.
+    Revoked,
+    /// no row stands behind it, because a newer link took its place.
+    Replaced,
+}
+
 impl Error {
     /// extend the rendering, keeping the discriminant. A failure met while
     /// recovering from another one is context on the original — the caller
@@ -65,6 +97,7 @@ impl Error {
         | Self::InvalidInput { message }
         | Self::NotFound { message }
         | Self::Forbidden { message }
+        | Self::Refused { message, .. }
         | Self::PreconditionFailed { message }
         | Self::Busy { message }
         | Self::TimedOut { message }
@@ -86,6 +119,7 @@ impl fmt::Display for Error {
         | Self::InvalidInput { message }
         | Self::NotFound { message }
         | Self::Forbidden { message }
+        | Self::Refused { message, .. }
         | Self::PreconditionFailed { message }
         | Self::Busy { message }
         | Self::TimedOut { message }
@@ -134,20 +168,23 @@ impl From<turso::Error> for Error {
 
 #[cfg(test)]
 mod tests {
-    use super::Error;
+    use super::{Error, RefusalReason};
 
     fn message() -> String {
         "something went wrong".to_string()
     }
 
     /// the pinned discriminant per variant. The match is exhaustive, so adding
-    /// a variant fails to compile until its code is pinned here.
+    /// a variant fails to compile until its code is pinned here. `refused` is
+    /// the one variant whose wire shape carries a third field, so it is pinned
+    /// here and asserted in its own test below.
     fn stable_code(error: &Error) -> &'static str {
         match error {
             Error::NotConfigured { .. } => "notConfigured",
             Error::InvalidInput { .. } => "invalidInput",
             Error::NotFound { .. } => "notFound",
             Error::Forbidden { .. } => "forbidden",
+            Error::Refused { .. } => "refused",
             Error::PreconditionFailed { .. } => "preconditionFailed",
             Error::Busy { .. } => "busy",
             Error::TimedOut { .. } => "timedOut",
@@ -188,6 +225,37 @@ mod tests {
                 serde_json::json!({ "code": code, "message": "something went wrong" }),
                 "unexpected wire shape for {code}"
             );
+        }
+    }
+
+    /// effort 828, requirement 1: a link refused on its own standing names which standing it was,
+    /// beside the message rather than inside it, because the screen says its own sentence in the
+    /// reader's language and a code that was merely wrong is a different answer.
+    #[test]
+    fn a_refused_link_carries_its_reason_beside_the_message() {
+        let reasons = [
+            (RefusalReason::Lapsed, "lapsed"),
+            (RefusalReason::Consumed, "consumed"),
+            (RefusalReason::Revoked, "revoked"),
+            (RefusalReason::Replaced, "replaced"),
+        ];
+
+        for (reason, spelling) in reasons {
+            let error = Error::Refused {
+                reason,
+                message: message(),
+            };
+
+            assert_eq!(
+                serde_json::to_value(&error).expect("failed to serialize error"),
+                serde_json::json!({
+                    "code": "refused",
+                    "reason": spelling,
+                    "message": "something went wrong"
+                }),
+                "unexpected wire shape for {spelling}"
+            );
+            assert_eq!(error.to_string(), "something went wrong");
         }
     }
 

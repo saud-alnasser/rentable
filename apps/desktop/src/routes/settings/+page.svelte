@@ -12,24 +12,27 @@
 	import { LL, locale, setLocale } from '$lib/i18n/i18n-svelte';
 	import type { Locales } from '$lib/i18n/i18n-types';
 	import { useStartup } from '$lib/layout/startup-context';
-	import { showInvited } from '$lib/organization/dialogs.svelte';
+	import { showMadeLink } from '$lib/organization/dialogs.svelte';
 	import {
+		useAcceptOwnership,
 		useChangeAccess,
 		useChangePassword,
 		useChangeRole,
+		useOfferOwnership,
+		useWithdrawOffer,
+		useDeleteOrganization,
 		useDeleteWorkspace,
 		useDisconnectOrganization,
 		useEndMemberSessions,
 		useEndOtherSessions,
+		useFetchMemberStandings,
 		useFetchMembers,
 		useFetchOrganizationState,
-		useInvitationCode,
-		useInvitationLink,
 		useLockOutCost,
-		useReissueInvitation,
+		useMakeMemberLink,
 		useRemoveMember,
 		useRenameMember,
-		useRevokeInvitation
+		useUnsetMemberPassword
 	} from '$lib/organization/query';
 	import SettingsArea from '$lib/settings/component/area.svelte';
 	import { useFetchRemoteSyncState, useFetchSettings } from '$lib/settings/query';
@@ -59,21 +62,27 @@
 	const settingsQuery = useFetchSettings();
 	const stateQuery = useFetchOrganizationState();
 	const membersQuery = useFetchMembers();
+	// where each account stands, asked beside the list and joined to it on the member's id: the
+	// password is on the signed member row and the machine is on the register (effort 828,
+	// requirement 19).
+	const standingsQuery = useFetchMemberStandings();
 
 	const session = $derived(stateQuery.data?.session ?? null);
 
 	const remoteSyncQuery = useFetchRemoteSyncState(() => session !== null);
 
 	const changePassword = useChangePassword();
-	const reissueInvitation = useReissueInvitation();
-	const revokeInvitation = useRevokeInvitation();
-	const invitationLink = useInvitationLink();
-	const invitationCode = useInvitationCode();
+	const makeMemberLink = useMakeMemberLink();
+	const unsetMemberPassword = useUnsetMemberPassword();
 	const removeMember = useRemoveMember();
 	const renameMember = useRenameMember();
 	const changeRole = useChangeRole();
+	const offerOwnership = useOfferOwnership();
+	const withdrawOffer = useWithdrawOffer();
+	const acceptOwnership = useAcceptOwnership();
 	const changeAccess = useChangeAccess();
 	const deleteWorkspace = useDeleteWorkspace();
+	const deleteOrganization = useDeleteOrganization();
 	const disconnectOrganization = useDisconnectOrganization();
 	const endOtherSessions = useEndOtherSessions();
 	const endMemberSessions = useEndMemberSessions();
@@ -159,15 +168,14 @@
 		await stateQuery.refetch();
 	};
 
-	let reissuing = $state<string | null>(null);
-	let revoking = $state<string | null>(null);
-	let copying = $state<string | null>(null);
+	let makingLink = $state<string | null>(null);
+	let unsetting = $state<string | null>(null);
 	let endingSessions = $state<string | null>(null);
 
 	/**
 	 * sign a member out of every machine, from their row.
 	 *
-	 * It runs on the press, as the new link beside it does: the row's actions act, and the one
+	 * It runs on the press, as the reset beside it does: the row's actions act, and the one
 	 * question this effort asks before ending sessions is the reader's own, in the you section,
 	 * where what is at stake is the machines they are not standing at.
 	 */
@@ -182,80 +190,43 @@
 			endingSessions = null;
 		}
 	};
-	let codeFor = $state<string | null>(null);
 
-	const reissue = async (memberId: string) => {
-		reissuing = memberId;
+	/**
+	 * the one link that admits a machine to an account (effort 828, requirement 20).
+	 *
+	 * **The reader chooses nothing but the account.** Whether the link asks for a password or lands
+	 * its machine at the wall is read off the account's own standing in the shell, and a machine
+	 * already signed in on it is what the shell refuses this with. What comes back is shown once,
+	 * on the one panel that shows a link and a code.
+	 */
+	const makeLink = async (memberId: string) => {
+		makingLink = memberId;
 
 		try {
-			const invited = await reissueInvitation.mutateAsync({ memberId });
-
-			showInvited({
-				invitationId: invited.invitationId,
-				username: invited.username,
-				joinLink: invited.joinLink,
-				code: invited.code,
-				codeExpiresAt: invited.codeExpiresAt,
-				unreachableWorkspaces: invited.unreachableWorkspaces
-			});
+			showMadeLink(await makeMemberLink.mutateAsync({ memberId }));
 		} catch {
 			// said by the shared handler.
 		} finally {
-			reissuing = null;
+			makingLink = null;
 		}
 	};
 
 	/**
-	 * the same link again, for the person who issued it: Rust seals it to their key and refuses
-	 * anybody else, who is offered a new link instead. It opens the panel an invitation and a
-	 * reset open, because all three end with one link in one person's hands.
+	 * the reset: the account's password unset, so the next link made for it asks for a new one.
+	 *
+	 * It hands over nothing, which is the whole of what changed: what it could not carry over is
+	 * announced by the hook, the one place a toast is raised ([[rules/frontend]], *Data access*),
+	 * and the link is a second press on the same card.
 	 */
-	const copyLink = async (invitationId: string, username: string) => {
-		copying = invitationId;
+	const unsetPassword = async (memberId: string) => {
+		unsetting = memberId;
 
 		try {
-			showInvited({
-				invitationId,
-				username,
-				joinLink: await invitationLink.mutateAsync({ invitationId }),
-				// a copied link makes no code: the row's own code action is what makes one, and a
-				// code shown beside a link nobody asked for a code for is one more thing to leak.
-				code: null,
-				codeExpiresAt: null,
-				unreachableWorkspaces: []
-			});
+			await unsetMemberPassword.mutateAsync({ memberId });
 		} catch {
 			// said by the shared handler.
 		} finally {
-			copying = null;
-		}
-	};
-
-	/**
-	 * a fresh code for a pending member, from their row: the same panel an invitation and a reset
-	 * open, showing the link and a code that was made a moment ago. Two calls, because the panel
-	 * draws both halves and the row holds neither: the link is rebuilt from the issuer's sealed
-	 * copy and the code is drawn and written over the old one.
-	 */
-	const freshCode = async (invitationId: string, username: string) => {
-		codeFor = invitationId;
-
-		try {
-			const joinLink = await invitationLink.mutateAsync({ invitationId });
-			const fresh = await invitationCode.mutateAsync({ invitationId });
-
-			showInvited({
-				invitationId,
-				username,
-				joinLink,
-				code: fresh.code,
-				codeExpiresAt: fresh.expiresAt,
-				unreachableWorkspaces: []
-			});
-		} catch {
-			// said by the shared handler.
-		} finally {
-			codeFor = null;
+			unsetting = null;
 		}
 	};
 
@@ -302,18 +273,6 @@
 		await stateQuery.refetch();
 	};
 
-	const revoke = async (invitationId: string) => {
-		revoking = invitationId;
-
-		try {
-			await revokeInvitation.mutateAsync({ invitationId });
-		} catch {
-			// said by the shared handler.
-		} finally {
-			revoking = null;
-		}
-	};
-
 	/**
 	 * the disconnect, once confirmed: the shell forgets the organization, and the startup unit
 	 * reads where the machine stands and raises the first screen. A refusal is said by the shared
@@ -321,6 +280,53 @@
 	 */
 	const disconnect = async () => {
 		await disconnectOrganization.mutateAsync();
+		void startup.standingChanged();
+	};
+
+	/**
+	 * the organization, offered once the surface has taken the owner's password (effort 828,
+	 * requirement 22).
+	 *
+	 * The state is not read again: nothing about this reader changed, because an offer moves
+	 * nothing until the other person accepts it on a machine of their own. What changed is on the
+	 * members list, which the hook refreshes. A refusal is said by the shared handler and
+	 * rethrown, so the surface stays open and marks the password.
+	 */
+	const offer = async (memberId: string, password: string) => {
+		await offerOwnership.mutateAsync({ memberId, password });
+	};
+
+	/** the offer taken back, from the same card. It asks nothing and announces itself. */
+	const withdraw = async () => {
+		try {
+			await withdrawOffer.mutateAsync();
+		} catch {
+			// said by the shared handler.
+		}
+	};
+
+	/**
+	 * the organization, accepted once the surface has taken this reader's password.
+	 *
+	 * The state is read again after it, because the reader's own role changed: they are the owner
+	 * now, and the sections the area offers, the acts the cards carry and the rail's menus are all
+	 * drawn off that. A refusal is said by the shared handler and rethrown, so the surface stays
+	 * open and marks the password.
+	 */
+	const accept = async (password: string) => {
+		await acceptOwnership.mutateAsync({ password });
+		await stateQuery.refetch();
+	};
+
+	/**
+	 * the organization, deleted once the surface has taken the owner's password: the shell removes
+	 * every workspace database and the directory from the Turso account and forgets all of it
+	 * here, and the startup unit raises the first screen, exactly as a disconnect leaves it. A
+	 * refusal is said by the shared handler and rethrown, so the surface stays open and marks the
+	 * password.
+	 */
+	const removeOrganization = async (password: string) => {
+		await deleteOrganization.mutateAsync({ password });
 		void startup.standingChanged();
 	};
 </script>
@@ -354,14 +360,17 @@
 		holdsTursoAuthority={stateQuery.data?.holdsTursoAuthority === true}
 		syncState={remoteSyncQuery.data ?? null}
 		members={membersQuery.data ?? []}
-		{reissuing}
-		{revoking}
-		{copying}
+		standings={standingsQuery.data ?? []}
+		{makingLink}
+		{unsetting}
 		{endingSessions}
-		{codeFor}
 		isChangingPassword={changePassword.isPending}
 		isChangingRole={changeRole.isPending}
 		isChangingAccess={changeAccess.isPending}
+		isOffering={offerOwnership.isPending}
+		isWithdrawing={withdrawOffer.isPending}
+		isAcceptingOwnership={acceptOwnership.isPending}
+		isDeletingOrganization={deleteOrganization.isPending}
 		onChangeLocale={(next) => void changeLocale(next)}
 		onRevealDiagnostics={() => void revealDiagnostics()}
 		onChangePassword={async (current, next) => {
@@ -371,10 +380,8 @@
 			await endOtherSessions.mutateAsync();
 		}}
 		onEndSessions={(memberId) => void endSessions(memberId)}
-		onReissue={(memberId) => void reissue(memberId)}
-		onRevoke={(invitationId) => void revoke(invitationId)}
-		onCopyLink={(invitationId, username) => void copyLink(invitationId, username)}
-		onFreshCode={(invitationId, username) => void freshCode(invitationId, username)}
+		onMakeLink={(memberId) => void makeLink(memberId)}
+		onUnsetPassword={(memberId) => void unsetPassword(memberId)}
 		onRemove={(memberId) => {
 			removing = { memberId, lockOut: false };
 		}}
@@ -388,9 +395,13 @@
 			await changeRole.mutateAsync({ memberId, role, permissions });
 		}}
 		onChangeAccess={changeMemberAccess}
+		onOfferOwnership={offer}
+		onWithdrawOffer={() => void withdraw()}
+		onAcceptOwnership={accept}
 		onChangeWorkspaceAccess={changeWorkspaceAccess}
 		onDeleteWorkspace={removeWorkspace}
 		onAuthorityReconnected={() => void stateQuery.refetch()}
+		onDeleteOrganization={removeOrganization}
 		onDisconnect={disconnect}
 	/>
 

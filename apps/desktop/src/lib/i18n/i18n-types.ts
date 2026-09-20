@@ -211,10 +211,6 @@ type RootTranslation = {
 			 */
 			sortBy: string
 			/**
-			 * s​y​n​c
-			 */
-			syncNow: string
-			/**
 			 * t​e​r​m​i​n​a​t​e
 			 */
 			terminate: string
@@ -296,6 +292,10 @@ type RootTranslation = {
 			 * s​o​m​e​t​h​i​n​g​ ​h​a​s​ ​t​o​ ​b​e​ ​r​e​a​d​y​ ​b​e​f​o​r​e​ ​t​h​i​s​ ​c​a​n​ ​r​u​n​.
 			 */
 			preconditionFailed: string
+			/**
+			 * t​h​i​s​ ​l​i​n​k​ ​n​o​ ​l​o​n​g​e​r​ ​o​p​e​n​s​.
+			 */
+			refused: string
 			/**
 			 * t​h​e​ ​o​p​e​r​a​t​i​o​n​ ​t​o​o​k​ ​t​o​o​ ​l​o​n​g​ ​a​n​d​ ​s​t​o​p​p​e​d​.
 			 */
@@ -1191,10 +1191,6 @@ type RootTranslation = {
 			 */
 			create: string
 			/**
-			 * i​n​v​i​t​e
-			 */
-			invite: string
-			/**
 			 * n​o​t​ ​a​v​a​i​l​a​b​l​e
 			 */
 			locked: string
@@ -1212,15 +1208,7 @@ type RootTranslation = {
 			 */
 			open: string
 			/**
-			 * t​h​e​ ​o​w​n​e​r​ ​o​r​ ​a​n​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​ ​i​n​v​i​t​e​s​.​ ​a​s​k​ ​o​n​e​ ​o​f​ ​t​h​e​m​.
-			 */
-			inviteRefused: string
-			/**
-			 * t​h​e​ ​o​w​n​e​r​ ​c​r​e​a​t​e​s​ ​a​ ​w​o​r​k​s​p​a​c​e​.​ ​a​s​k​ ​t​h​e​ ​o​w​n​e​r​.
-			 */
-			workspaceRefusedOwner: string
-			/**
-			 * c​r​e​a​t​i​n​g​ ​a​ ​w​o​r​k​s​p​a​c​e​ ​n​e​e​d​s​ ​t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​,​ ​a​n​d​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​i​s​ ​n​o​t​ ​c​o​n​n​e​c​t​e​d​ ​t​o​ ​i​t​.​ ​r​e​c​o​n​n​e​c​t​ ​i​t​ ​i​n​ ​t​h​e​ ​s​y​n​c​ ​s​e​c​t​i​o​n​ ​o​f​ ​s​e​t​t​i​n​g​s​.
+			 * c​r​e​a​t​i​n​g​ ​a​ ​w​o​r​k​s​p​a​c​e​ ​n​e​e​d​s​ ​t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​,​ ​a​n​d​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​i​s​ ​n​o​t​ ​c​o​n​n​e​c​t​e​d​ ​t​o​ ​i​t​.​ ​r​e​c​o​n​n​e​c​t​ ​i​t​ ​i​n​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​s​e​c​t​i​o​n​ ​o​f​ ​s​e​t​t​i​n​g​s​.
 			 */
 			workspaceRefusedAuthority: string
 		}
@@ -1260,7 +1248,7 @@ type RootTranslation = {
 			 */
 			noOrganizationTitle: string
 			/**
-			 * a​n​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​i​s​ ​c​r​e​a​t​e​d​ ​o​n​ ​y​o​u​r​ ​o​w​n​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​,​ ​o​r​ ​j​o​i​n​e​d​ ​w​i​t​h​ ​a​ ​l​i​n​k​ ​y​o​u​ ​w​e​r​e​ ​g​i​v​e​n​.
+			 * n​o​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​y​e​t​.
 			 */
 			noOrganizationSubtitle: string
 			/**
@@ -1296,13 +1284,21 @@ type RootTranslation = {
 			 */
 			roleMember: string
 			/**
-			 * c​r​e​a​t​e​ ​o​r​g​a​n​i​z​a​t​i​o​n
+			 * u​s​e​ ​y​o​u​r​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t
 			 */
 			setUp: string
 			/**
-			 * c​o​n​n​e​c​t​ ​w​i​t​h​ ​l​i​n​k
+			 * y​o​u​ ​o​w​n​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.
+			 */
+			setUpDescription: string
+			/**
+			 * u​s​e​ ​a​ ​l​i​n​k​ ​a​n​d​ ​c​o​d​e
 			 */
 			connectByLink: string
+			/**
+			 * y​o​u​ ​w​e​r​e​ ​g​i​v​e​n​ ​a​ ​l​i​n​k​ ​a​n​d​ ​a​ ​c​o​d​e​.
+			 */
+			connectByLinkDescription: string
 			/**
 			 * y​o​u​ ​w​e​r​e​ ​s​i​g​n​e​d​ ​o​u​t​ ​o​f​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​f​r​o​m​ ​a​n​o​t​h​e​r​ ​o​n​e​.​ ​s​i​g​n​ ​i​n​ ​a​g​a​i​n​ ​t​o​ ​c​a​r​r​y​ ​o​n​.
 			 */
@@ -1316,7 +1312,7 @@ type RootTranslation = {
 			 */
 			disconnect: string
 			/**
-			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​f​o​r​g​e​t​s​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​:​ ​e​v​e​r​y​ ​c​o​p​y​ ​o​f​ ​i​t​ ​a​n​d​ ​o​f​ ​i​t​s​ ​w​o​r​k​s​p​a​c​e​s​ ​k​e​p​t​ ​h​e​r​e​ ​i​s​ ​d​e​l​e​t​e​d​,​ ​a​n​d​ ​t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​i​s​ ​f​o​r​g​o​t​t​e​n​ ​w​i​t​h​ ​t​h​e​m​.​ ​n​o​t​h​i​n​g​ ​o​n​ ​t​u​r​s​o​ ​c​h​a​n​g​e​s​,​ ​a​n​d​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​l​i​n​k​ ​c​o​n​n​e​c​t​s​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​a​g​a​i​n​.
+			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​f​o​r​g​e​t​s​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​:​ ​e​v​e​r​y​ ​c​o​p​y​ ​o​f​ ​i​t​ ​a​n​d​ ​o​f​ ​i​t​s​ ​w​o​r​k​s​p​a​c​e​s​ ​k​e​p​t​ ​h​e​r​e​ ​i​s​ ​d​e​l​e​t​e​d​,​ ​a​n​d​ ​t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​i​s​ ​f​o​r​g​o​t​t​e​n​ ​w​i​t​h​ ​t​h​e​m​.​ ​n​o​t​h​i​n​g​ ​o​n​ ​t​u​r​s​o​ ​c​h​a​n​g​e​s​.​ ​t​h​e​ ​o​w​n​e​r​ ​c​o​n​n​e​c​t​s​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​a​g​a​i​n​ ​w​i​t​h​ ​t​h​e​i​r​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​;​ ​a​n​y​b​o​d​y​ ​e​l​s​e​ ​i​s​ ​g​i​v​e​n​ ​a​ ​l​i​n​k​ ​b​y​ ​w​h​o​e​v​e​r​ ​k​e​e​p​s​ ​t​h​e​ ​a​c​c​o​u​n​t​s​.
 			 */
 			disconnectDescription: string
 		}
@@ -1446,6 +1442,10 @@ type RootTranslation = {
 		 */
 		diagnosticsReveal: string
 		/**
+		 * d​i​a​g​n​o​s​t​i​c​s
+		 */
+		diagnosticsTitle: string
+		/**
 		 * d​o​w​n​l​o​a​d​i​n​g​ ​u​p​d​a​t​e
 		 */
 		downloadingUpdate: string
@@ -1495,29 +1495,17 @@ type RootTranslation = {
 			 */
 			general: string
 			/**
-			 * y​o​u
+			 * a​c​c​o​u​n​t
 			 */
-			you: string
+			account: string
 			/**
-			 * m​e​m​b​e​r​s
+			 * o​r​g​a​n​i​z​a​t​i​o​n
 			 */
-			members: string
+			organization: string
 			/**
 			 * w​o​r​k​s​p​a​c​e​s
 			 */
 			workspaces: string
-			/**
-			 * s​y​n​c
-			 */
-			sync: string
-			/**
-			 * u​p​d​a​t​e​s
-			 */
-			updates: string
-			/**
-			 * d​i​a​g​n​o​s​t​i​c​s
-			 */
-			diagnostics: string
 		}
 		/**
 		 * s​e​t​t​i​n​g​s
@@ -1531,6 +1519,10 @@ type RootTranslation = {
 		 * c​h​e​c​k​ ​w​h​e​t​h​e​r​ ​a​ ​n​e​w​e​r​ ​v​e​r​s​i​o​n​ ​o​f​ ​r​e​n​t​a​b​l​e​ ​i​s​ ​a​v​a​i​l​a​b​l​e​,​ ​a​n​d​ ​i​n​s​t​a​l​l​ ​i​t​.​ ​i​f​ ​t​h​e​ ​a​p​p​ ​w​i​l​l​ ​n​o​t​ ​s​t​a​r​t​ ​a​f​t​e​r​w​a​r​d​s​,​ ​i​t​ ​o​f​f​e​r​s​ ​t​o​ ​p​u​t​ ​b​a​c​k​ ​t​h​e​ ​v​e​r​s​i​o​n​ ​y​o​u​ ​w​e​r​e​ ​o​n​.
 		 */
 		updatesDescription: string
+		/**
+		 * u​p​d​a​t​e​s
+		 */
+		updatesTitle: string
 		you: {
 			/**
 			 * s​i​g​n​e​d​ ​i​n​ ​a​s
@@ -1595,6 +1587,17 @@ type RootTranslation = {
 				 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​i​s​ ​o​f​f​l​i​n​e​;​ ​t​h​e​ ​s​i​g​n​-​o​u​t​ ​r​e​a​c​h​e​s​ ​t​h​e​ ​o​t​h​e​r​s​ ​o​n​c​e​ ​i​t​ ​i​s​ ​b​a​c​k​ ​o​n​l​i​n​e​.
 				 */
 				endedPending: string
+			}
+			ownership: {
+				/**
+				 * o​w​n​e​r​s​h​i​p
+				 */
+				title: string
+				/**
+				 * {​o​w​n​e​r​}​ ​h​a​s​ ​o​f​f​e​r​e​d​ ​y​o​u​ ​t​h​i​s​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​a​c​c​e​p​t​i​n​g​ ​m​a​k​e​s​ ​y​o​u​ ​t​h​e​ ​o​w​n​e​r​ ​a​n​d​ ​m​a​k​e​s​ ​t​h​e​m​ ​a​n​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​.
+				 * @param {string} owner
+				 */
+				offered: RequiredParams<'owner'>
 			}
 		}
 	}
@@ -2249,7 +2252,7 @@ type RootTranslation = {
 		 */
 		endingSoonUpdated: string
 		/**
-		 * t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​i​s​ ​u​p​ ​t​o​ ​d​a​t​e​!
+		 * e​v​e​r​y​t​h​i​n​g​ ​i​s​ ​u​p​ ​t​o​ ​d​a​t​e​.
 		 */
 		workspaceUpToDate: string
 	}
@@ -2274,7 +2277,7 @@ type RootTranslation = {
 			 */
 			groupCoverage: string
 			/**
-			 * a​ ​g​r​o​u​p​ ​h​o​l​d​s​ ​o​n​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​a​ ​g​r​o​u​p​ ​t​h​a​t​ ​a​l​r​e​a​d​y​ ​h​o​l​d​s​ ​o​n​e​ ​i​s​ ​r​e​f​u​s​e​d​ ​h​e​r​e​,​ ​b​e​f​o​r​e​ ​a​n​y​t​h​i​n​g​ ​i​s​ ​c​r​e​a​t​e​d​.
+			 * a​ ​g​r​o​u​p​ ​h​o​l​d​s​ ​o​n​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​a​ ​g​r​o​u​p​ ​t​h​a​t​ ​a​l​r​e​a​d​y​ ​h​o​l​d​s​ ​o​n​e​ ​i​s​ ​c​o​n​n​e​c​t​e​d​ ​t​o​,​ ​n​o​t​ ​r​e​f​u​s​e​d​.
 			 */
 			oneOrganization: string
 			/**
@@ -2313,6 +2316,22 @@ type RootTranslation = {
 			 * t​u​r​s​o​ ​r​e​f​u​s​e​d​ ​t​h​e​ ​c​o​n​s​e​n​t​.
 			 */
 			consentFailed: string
+			/**
+			 * s​i​g​n​ ​i​n​ ​t​o​ ​y​o​u​r​ ​o​r​g​a​n​i​z​a​t​i​o​n
+			 */
+			existingTitle: string
+			/**
+			 * t​h​i​s​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​a​l​r​e​a​d​y​ ​h​a​s​ ​a​n​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​i​t​s​ ​o​w​n​e​r​ ​s​i​g​n​s​ ​i​n​ ​t​o​ ​c​o​n​n​e​c​t​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​t​o​ ​i​t​.
+			 */
+			existingDescription: string
+			/**
+			 * c​o​n​n​e​c​t​ ​t​h​i​s​ ​m​a​c​h​i​n​e
+			 */
+			existingConnect: string
+			/**
+			 * c​o​n​n​e​c​t​i​n​g​ ​t​h​i​s​ ​m​a​c​h​i​n​e​.​.​.
+			 */
+			existingConnecting: string
 			/**
 			 * n​a​m​e​ ​y​o​u​r​ ​o​r​g​a​n​i​z​a​t​i​o​n
 			 */
@@ -2400,19 +2419,19 @@ type RootTranslation = {
 		}
 		join: {
 			/**
-			 * c​o​n​n​e​c​t​ ​t​o​ ​a​n​ ​o​r​g​a​n​i​z​a​t​i​o​n
+			 * c​o​n​n​e​c​t​ ​w​i​t​h​ ​a​ ​l​i​n​k
 			 */
 			title: string
 			/**
-			 * p​a​s​t​e​ ​t​h​e​ ​l​i​n​k​ ​y​o​u​ ​w​e​r​e​ ​g​i​v​e​n​.​ ​a​n​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​l​i​n​k​ ​r​e​c​o​r​d​s​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​a​n​d​ ​t​a​k​e​s​ ​y​o​u​ ​t​o​ ​t​h​e​ ​s​i​g​n​-​i​n​;​ ​a​n​ ​i​n​v​i​t​a​t​i​o​n​ ​l​i​n​k​ ​r​e​c​o​r​d​s​ ​i​t​ ​a​n​d​ ​a​s​k​s​ ​y​o​u​ ​t​o​ ​c​h​o​o​s​e​ ​a​ ​p​a​s​s​w​o​r​d​.
+			 * p​a​s​t​e​ ​t​h​e​ ​l​i​n​k​ ​a​n​d​ ​t​y​p​e​ ​t​h​e​ ​c​o​d​e​ ​t​h​a​t​ ​c​a​m​e​ ​w​i​t​h​ ​i​t​.
 			 */
 			description: string
 			/**
-			 * o​r​g​a​n​i​z​a​t​i​o​n​ ​l​i​n​k​ ​o​r​ ​i​n​v​i​t​a​t​i​o​n​ ​l​i​n​k
+			 * l​i​n​k
 			 */
 			linkLabel: string
 			/**
-			 * c​o​n​n​e​c​t​i​n​g​ ​t​o​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​.​.
+			 * r​e​a​d​i​n​g​ ​t​h​e​ ​l​i​n​k​.​.​.
 			 */
 			reading: string
 			/**
@@ -2432,9 +2451,17 @@ type RootTranslation = {
 			 */
 			consumed: string
 			/**
+			 * t​h​i​s​ ​l​i​n​k​ ​h​a​s​ ​a​l​r​e​a​d​y​ ​b​e​e​n​ ​o​p​e​n​e​d​ ​o​n​ ​a​n​o​t​h​e​r​ ​m​a​c​h​i​n​e​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​k​e​e​p​s​ ​t​h​e​ ​a​c​c​o​u​n​t​s​ ​f​o​r​ ​a​ ​n​e​w​ ​o​n​e​.
+			 */
+			consumedElsewhere: string
+			/**
 			 * t​h​i​s​ ​i​n​v​i​t​a​t​i​o​n​ ​w​a​s​ ​w​i​t​h​d​r​a​w​n​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​i​n​v​i​t​e​d​ ​y​o​u​ ​f​o​r​ ​a​ ​n​e​w​ ​l​i​n​k​.
 			 */
 			revoked: string
+			/**
+			 * a​ ​n​e​w​e​r​ ​l​i​n​k​ ​t​o​o​k​ ​t​h​e​ ​p​l​a​c​e​ ​o​f​ ​t​h​i​s​ ​o​n​e​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​k​e​e​p​s​ ​t​h​e​ ​a​c​c​o​u​n​t​s​ ​f​o​r​ ​t​h​e​ ​n​e​w​ ​o​n​e​.
+			 */
+			replaced: string
 			/**
 			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​a​l​r​e​a​d​y​ ​h​o​l​d​s​ ​a​n​o​t​h​e​r​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​d​i​s​c​o​n​n​e​c​t​ ​i​t​ ​f​i​r​s​t​,​ ​t​h​e​n​ ​o​p​e​n​ ​t​h​i​s​ ​l​i​n​k​.
 			 */
@@ -2456,25 +2483,21 @@ type RootTranslation = {
 			 */
 			organizationLabel: string
 			/**
-			 * u​s​e​r​n​a​m​e
-			 */
-			usernameLabel: string
-			/**
-			 * c​o​n​f​i​r​m​a​t​i​o​n​ ​c​o​d​e
+			 * c​o​d​e
 			 */
 			codeLabel: string
 			/**
-			 * t​h​e​ ​s​i​x​ ​c​h​a​r​a​c​t​e​r​s​ ​w​h​o​e​v​e​r​ ​i​n​v​i​t​e​d​ ​y​o​u​ ​r​e​a​d​ ​o​u​t​.​ ​i​t​ ​l​a​p​s​e​s​ ​n​i​n​e​t​y​ ​s​e​c​o​n​d​s​ ​a​f​t​e​r​ ​i​t​ ​w​a​s​ ​m​a​d​e​;​ ​a​s​k​ ​t​h​e​m​ ​f​o​r​ ​a​ ​f​r​e​s​h​ ​o​n​e​ ​i​f​ ​i​t​ ​h​a​s​.
+			 * t​h​e​ ​s​i​x​ ​c​h​a​r​a​c​t​e​r​s​ ​r​e​a​d​ ​o​u​t​ ​t​o​ ​y​o​u​ ​w​i​t​h​ ​t​h​e​ ​l​i​n​k​.
 			 */
 			codeDescription: string
 			/**
-			 * t​h​e​ ​c​o​d​e​ ​i​s​ ​w​r​o​n​g​ ​o​r​ ​h​a​s​ ​l​a​p​s​e​d​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​i​n​v​i​t​e​d​ ​y​o​u​ ​f​o​r​ ​a​ ​f​r​e​s​h​ ​o​n​e​.
+			 * t​h​e​ ​c​o​d​e​ ​i​s​ ​w​r​o​n​g​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​s​e​n​t​ ​y​o​u​ ​t​h​e​ ​l​i​n​k​ ​t​o​ ​r​e​a​d​ ​i​t​ ​o​u​t​ ​a​g​a​i​n​.
 			 */
 			codeWrong: string
 			/**
-			 * t​h​a​t​ ​c​o​d​e​ ​h​a​s​ ​l​a​p​s​e​d​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​i​n​v​i​t​e​d​ ​y​o​u​ ​f​o​r​ ​a​ ​f​r​e​s​h​ ​o​n​e​.
+			 * t​y​p​e​ ​t​h​e​ ​s​i​x​ ​c​h​a​r​a​c​t​e​r​s​ ​t​h​a​t​ ​c​a​m​e​ ​w​i​t​h​ ​t​h​e​ ​l​i​n​k​.
 			 */
-			codeLapsed: string
+			codeMissing: string
 			/**
 			 * y​o​u​r​ ​p​a​s​s​w​o​r​d​,​ ​a​g​a​i​n
 			 */
@@ -2492,21 +2515,93 @@ type RootTranslation = {
 			 */
 			back: string
 		}
+		standing: {
+			/**
+			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​a​n​d​ ​t​u​r​s​o
+			 */
+			title: string
+			/**
+			 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​i​s​ ​k​e​p​t​ ​o​n​ ​t​u​r​s​o​ ​a​n​d​ ​r​e​a​c​h​e​s​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​o​n​ ​i​t​s​ ​o​w​n​.​ ​w​h​a​t​ ​y​o​u​ ​w​r​i​t​e​ ​h​e​r​e​ ​g​o​e​s​ ​o​u​t​ ​a​s​ ​s​o​o​n​ ​a​s​ ​t​u​r​s​o​ ​c​a​n​ ​b​e​ ​r​e​a​c​h​e​d​.
+			 */
+			purpose: string
+			/**
+			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​h​a​s​ ​n​o​t​ ​r​e​a​c​h​e​d​ ​t​u​r​s​o​ ​y​e​t
+			 */
+			notYetReached: string
+			/**
+			 * u​p​ ​t​o​ ​d​a​t​e​,​ ​c​h​e​c​k​e​d​ ​{​m​o​m​e​n​t​}
+			 * @param {string} moment
+			 */
+			upToDateChecked: RequiredParams<'moment'>
+			/**
+			 * l​a​s​t​ ​r​e​a​c​h​e​d​ ​t​u​r​s​o​ ​o​n​ ​{​m​o​m​e​n​t​}
+			 * @param {string} moment
+			 */
+			lastReached: RequiredParams<'moment'>
+			/**
+			 * t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​n​e​e​d​s​ ​a​t​t​e​n​t​i​o​n
+			 */
+			accountNeedsAttention: string
+			/**
+			 * t​h​i​s​ ​m​a​c​h​i​n​e​'​s​ ​a​c​c​e​s​s​ ​n​e​e​d​s​ ​a​t​t​e​n​t​i​o​n
+			 */
+			accessNeedsAttention: string
+			/**
+			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​n​e​e​d​s​ ​r​e​c​o​n​n​e​c​t​i​n​g
+			 */
+			needsReconnecting: string
+			/**
+			 * t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​i​s​ ​r​e​c​o​n​n​e​c​t​e​d​ ​i​n​ ​t​h​e​ ​b​l​o​c​k​ ​b​e​l​o​w​.
+			 */
+			reconnectBelow: string
+			/**
+			 * s​y​n​c
+			 */
+			checkNow: string
+			/**
+			 * s​y​n​c​i​n​g​.​.​.
+			 */
+			checking: string
+		}
 		dashboard: {
 			/**
-			 * i​n​v​i​t​e​ ​s​o​m​e​b​o​d​y
+			 * m​e​m​b​e​r​s
 			 */
-			inviteTitle: string
+			membersTitle: string
 			/**
-			 * a​n​ ​i​n​v​i​t​a​t​i​o​n​ ​m​a​k​e​s​ ​s​o​m​e​b​o​d​y​ ​a​ ​m​e​m​b​e​r​:​ ​a​ ​u​s​e​r​n​a​m​e​,​ ​a​ ​r​o​l​e​ ​a​n​d​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e​s​ ​t​h​e​y​ ​h​o​l​d​,​ ​e​a​c​h​ ​a​t​ ​f​u​l​l​ ​a​c​c​e​s​s​ ​o​r​ ​r​e​a​d​ ​o​n​l​y​.​ ​y​o​u​ ​h​a​n​d​ ​t​h​e​m​ ​t​h​e​ ​l​i​n​k​ ​y​o​u​r​s​e​l​f​.
+			 * e​v​e​r​y​b​o​d​y​ ​i​n​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​m​e​m​b​e​r​s​ ​a​r​e​ ​m​a​d​e​ ​a​n​d​ ​c​h​a​n​g​e​d​ ​h​e​r​e​.
 			 */
-			inviteDescription: string
+			membersDescription: string
+			/**
+			 * e​v​e​r​y​ ​w​o​r​k​s​p​a​c​e​ ​i​n​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​w​o​r​k​s​p​a​c​e​s​ ​a​r​e​ ​m​a​d​e​ ​a​n​d​ ​c​h​a​n​g​e​d​ ​h​e​r​e​.
+			 */
+			workspacesDescription: string
+			/**
+			 * n​o​ ​p​a​s​s​w​o​r​d​ ​y​e​t
+			 */
+			standingNoPassword: string
+			/**
+			 * n​o​ ​m​a​c​h​i​n​e​ ​s​i​g​n​e​d​ ​i​n
+			 */
+			standingNoMachine: string
+			/**
+			 * s​i​g​n​e​d​ ​i​n​ ​o​n​ ​a​ ​m​a​c​h​i​n​e
+			 */
+			standingSignedIn: string
+			/**
+			 * a​ ​n​e​w​ ​m​e​m​b​e​r
+			 */
+			memberTitle: string
+			/**
+			 * a​ ​m​e​m​b​e​r​ ​i​s​ ​a​ ​u​s​e​r​n​a​m​e​,​ ​a​ ​r​o​l​e​,​ ​w​h​a​t​ ​t​h​e​y​ ​m​a​y​ ​d​o​ ​a​n​d​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e​s​ ​t​h​e​y​ ​h​o​l​d​.​ ​t​h​e​y​ ​h​a​v​e​ ​n​o​ ​p​a​s​s​w​o​r​d​ ​u​n​t​i​l​ ​y​o​u​ ​m​a​k​e​ ​t​h​e​m​ ​a​ ​l​i​n​k​ ​a​n​d​ ​t​h​e​y​ ​o​p​e​n​ ​i​t​.
+			 */
+			memberDescription: string
 			/**
 			 * r​o​l​e
 			 */
 			role: string
 			/**
-			 * o​n​l​y​ ​t​h​e​ ​o​w​n​e​r​ ​c​a​n​ ​i​n​v​i​t​e​ ​a​n​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​.
+			 * o​n​l​y​ ​t​h​e​ ​o​w​n​e​r​ ​c​a​n​ ​m​a​k​e​ ​a​n​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​.
 			 */
 			administratorsAreTheOwners: string
 			/**
@@ -2514,17 +2609,17 @@ type RootTranslation = {
 			 */
 			noWorkspaceToGrant: string
 			/**
-			 * i​n​v​i​t​e
+			 * a​d​d​ ​a​ ​m​e​m​b​e​r
 			 */
-			invite: string
+			addMember: string
 			/**
-			 * r​e​n​t​a​b​l​e​ ​s​e​n​d​s​ ​n​o​t​h​i​n​g​.​ ​c​o​p​y​ ​t​h​e​ ​l​i​n​k​ ​b​e​l​o​w​ ​a​n​d​ ​h​a​n​d​ ​i​t​ ​t​o​ ​t​h​e​ ​p​e​r​s​o​n​ ​y​o​u​r​s​e​l​f​;​ ​o​p​e​n​i​n​g​ ​i​t​ ​i​s​ ​h​o​w​ ​t​h​e​y​ ​c​h​o​o​s​e​ ​t​h​e​i​r​ ​p​a​s​s​w​o​r​d​.
+			 * r​e​n​t​a​b​l​e​ ​s​e​n​d​s​ ​n​o​t​h​i​n​g​.​ ​c​o​p​y​ ​t​h​e​ ​l​i​n​k​ ​b​e​l​o​w​ ​a​n​d​ ​h​a​n​d​ ​i​t​ ​o​v​e​r​ ​y​o​u​r​s​e​l​f​,​ ​a​n​d​ ​r​e​a​d​ ​t​h​e​ ​c​o​d​e​ ​o​u​t​ ​s​e​p​a​r​a​t​e​l​y​.​ ​i​t​ ​a​d​m​i​t​s​ ​o​n​e​ ​m​a​c​h​i​n​e​,​ ​o​n​c​e​.
 			 */
 			cannotSend: string
 			/**
-			 * i​n​v​i​t​a​t​i​o​n​ ​l​i​n​k
+			 * l​i​n​k​ ​a​n​d​ ​c​o​d​e
 			 */
-			invitationLinkTitle: string
+			linkTitle: string
 			/**
 			 * c​o​n​f​i​r​m​a​t​i​o​n​ ​c​o​d​e
 			 */
@@ -2534,44 +2629,84 @@ type RootTranslation = {
 			 */
 			codeDescription: string
 			/**
-			 * l​a​p​s​e​s​ ​i​n​ ​{​s​e​c​o​n​d​s​}​ ​s​e​c​o​n​d​s
-			 * @param {unknown} seconds
-			 */
-			codeExpires: RequiredParams<'seconds'>
-			/**
-			 * t​h​i​s​ ​c​o​d​e​ ​h​a​s​ ​l​a​p​s​e​d​.
-			 */
-			codeLapsed: string
-			/**
-			 * f​r​e​s​h​ ​c​o​d​e
-			 */
-			freshCode: string
-			/**
-			 * m​a​k​e​ ​a​ ​c​o​n​f​i​r​m​a​t​i​o​n​ ​c​o​d​e
-			 */
-			memberCode: string
-			/**
 			 * d​o​n​e
 			 */
 			done: string
-			/**
-			 * n​o​t​ ​y​e​t​ ​s​i​g​n​e​d​ ​i​n
-			 */
-			notYetSignedIn: string
 			/**
 			 * t​h​e​ ​l​i​n​k​ ​e​x​p​i​r​e​s​ ​{​d​a​t​e​}
 			 * @param {string} date
 			 */
 			invitationExpires: RequiredParams<'date'>
 			/**
-			 * t​h​e​ ​l​i​n​k​ ​l​a​p​s​e​d​ ​{​d​a​t​e​}
-			 * @param {string} date
+			 * m​a​k​e​ ​a​ ​l​i​n​k
 			 */
-			invitationLapsed: RequiredParams<'date'>
+			makeLink: string
 			/**
-			 * n​e​w​ ​l​i​n​k
+			 * h​a​n​d​ ​o​v​e​r​ ​o​w​n​e​r​s​h​i​p
 			 */
-			newLink: string
+			transferOwnership: string
+			/**
+			 * t​h​e​ ​p​e​r​s​o​n​ ​y​o​u​ ​c​h​o​o​s​e​ ​i​s​ ​o​f​f​e​r​e​d​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​n​o​t​h​i​n​g​ ​c​h​a​n​g​e​s​ ​u​n​t​i​l​ ​t​h​e​y​ ​a​c​c​e​p​t​ ​i​t​,​ ​o​n​ ​a​ ​m​a​c​h​i​n​e​ ​t​h​e​y​ ​a​r​e​ ​a​l​r​e​a​d​y​ ​s​i​g​n​e​d​ ​i​n​ ​o​n​,​ ​w​i​t​h​ ​t​h​e​i​r​ ​o​w​n​ ​p​a​s​s​w​o​r​d​.​ ​w​h​e​n​ ​t​h​e​y​ ​d​o​,​ ​t​h​e​y​ ​b​e​c​o​m​e​ ​t​h​e​ ​o​w​n​e​r​ ​a​n​d​ ​y​o​u​ ​b​e​c​o​m​e​ ​a​n​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​.
+			 */
+			transferOwnershipGoes: string
+			/**
+			 * w​h​o​ ​i​s​ ​o​f​f​e​r​e​d​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n
+			 */
+			transferOwnershipMember: string
+			/**
+			 * y​o​u​r​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​d​o​e​s​ ​n​o​t​ ​m​o​v​e​.​ ​t​h​e​ ​d​a​t​a​b​a​s​e​s​ ​s​t​a​y​ ​o​n​ ​i​t​,​ ​a​n​d​ ​t​h​e​ ​n​e​w​ ​o​w​n​e​r​ ​c​o​n​n​e​c​t​s​ ​t​h​e​i​r​ ​o​w​n​ ​a​c​c​o​u​n​t​ ​f​r​o​m​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​s​e​c​t​i​o​n​ ​b​e​f​o​r​e​ ​t​h​e​y​ ​c​a​n​ ​c​r​e​a​t​e​ ​a​ ​w​o​r​k​s​p​a​c​e​,​ ​l​o​c​k​ ​a​n​y​b​o​d​y​ ​o​u​t​ ​o​r​ ​r​e​n​e​w​ ​c​r​e​d​e​n​t​i​a​l​s​.
+			 */
+			transferOwnershipAuthority: string
+			/**
+			 * o​f​f​e​r​ ​i​t
+			 */
+			transferOwnershipConfirm: string
+			/**
+			 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​w​a​s​ ​o​f​f​e​r​e​d​.​ ​t​h​e​y​ ​a​c​c​e​p​t​ ​i​t​ ​o​n​ ​a​ ​m​a​c​h​i​n​e​ ​o​f​ ​t​h​e​i​r​ ​o​w​n​.
+			 */
+			ownershipOffered: string
+			/**
+			 * w​i​t​h​d​r​a​w​ ​t​h​e​ ​o​f​f​e​r
+			 */
+			withdrawOffer: string
+			/**
+			 * t​h​e​ ​o​f​f​e​r​ ​w​a​s​ ​w​i​t​h​d​r​a​w​n​.​ ​n​o​t​h​i​n​g​ ​c​h​a​n​g​e​d​ ​h​a​n​d​s​.
+			 */
+			ownershipOfferWithdrawn: string
+			/**
+			 * a​c​c​e​p​t​ ​o​w​n​e​r​s​h​i​p
+			 */
+			acceptOwnership: string
+			/**
+			 * y​o​u​ ​b​e​c​o​m​e​ ​t​h​e​ ​o​w​n​e​r​ ​o​f​ ​{​o​r​g​a​n​i​z​a​t​i​o​n​}​ ​a​n​d​ ​{​o​w​n​e​r​}​ ​b​e​c​o​m​e​s​ ​a​n​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​.​ ​y​o​u​r​ ​p​a​s​s​w​o​r​d​ ​b​e​c​o​m​e​s​ ​w​h​a​t​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​i​s​ ​s​i​g​n​e​d​ ​w​i​t​h​,​ ​s​o​ ​f​r​o​m​ ​n​o​w​ ​o​n​ ​i​t​ ​i​s​ ​y​o​u​r​ ​p​a​s​s​w​o​r​d​ ​t​h​a​t​ ​g​e​t​s​ ​y​o​u​ ​b​a​c​k​ ​i​n​ ​o​n​ ​a​ ​n​e​w​ ​m​a​c​h​i​n​e​.
+			 * @param {string} organization
+			 * @param {string} owner
+			 */
+			acceptOwnershipGoes: RequiredParams<'organization' | 'owner'>
+			/**
+			 * t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​s​t​a​y​s​ ​w​i​t​h​ ​w​h​o​e​v​e​r​ ​c​o​n​n​e​c​t​e​d​ ​i​t​.​ ​u​n​t​i​l​ ​y​o​u​ ​c​o​n​n​e​c​t​ ​y​o​u​r​ ​o​w​n​ ​f​r​o​m​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​s​e​c​t​i​o​n​,​ ​c​r​e​a​t​i​n​g​ ​a​ ​w​o​r​k​s​p​a​c​e​,​ ​l​o​c​k​i​n​g​ ​s​o​m​e​b​o​d​y​ ​o​u​t​ ​a​n​d​ ​r​e​n​e​w​i​n​g​ ​c​r​e​d​e​n​t​i​a​l​s​ ​r​u​n​ ​o​n​ ​t​h​e​i​r​ ​m​a​c​h​i​n​e​ ​o​r​ ​n​o​t​ ​a​t​ ​a​l​l​.
+			 */
+			acceptOwnershipAuthority: string
+			/**
+			 * a​c​c​e​p​t​ ​i​t
+			 */
+			acceptOwnershipConfirm: string
+			/**
+			 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​i​s​ ​y​o​u​r​s​.​ ​y​o​u​ ​a​r​e​ ​t​h​e​ ​o​w​n​e​r​ ​n​o​w​.
+			 */
+			ownershipAccepted: string
+			/**
+			 * l​o​c​k​ ​o​u​t
+			 */
+			lockOut: string
+			/**
+			 * r​e​s​e​t​ ​p​a​s​s​w​o​r​d
+			 */
+			unsetPassword: string
+			/**
+			 * t​h​e​i​r​ ​p​a​s​s​w​o​r​d​ ​w​a​s​ ​u​n​s​e​t​.​ ​m​a​k​e​ ​t​h​e​m​ ​a​ ​l​i​n​k​ ​s​o​ ​t​h​e​y​ ​c​a​n​ ​c​h​o​o​s​e​ ​a​ ​n​e​w​ ​o​n​e​.
+			 */
+			passwordUnset: string
 			/**
 			 * s​i​g​n​ ​o​u​t​ ​e​v​e​r​y​w​h​e​r​e
 			 */
@@ -2584,10 +2719,6 @@ type RootTranslation = {
 			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​i​s​ ​o​f​f​l​i​n​e​;​ ​t​h​e​ ​s​i​g​n​-​o​u​t​ ​r​e​a​c​h​e​s​ ​t​h​e​i​r​ ​m​a​c​h​i​n​e​s​ ​o​n​c​e​ ​i​t​ ​i​s​ ​b​a​c​k​ ​o​n​l​i​n​e​.
 			 */
 			sessionsEndedPending: string
-			/**
-			 * c​o​p​y​ ​t​h​e​ ​l​i​n​k​ ​a​g​a​i​n
-			 */
-			copyLink: string
 			/**
 			 * r​e​n​a​m​e
 			 */
@@ -2609,14 +2740,6 @@ type RootTranslation = {
 			 */
 			renamed: string
 			/**
-			 * o​r​g​a​n​i​z​a​t​i​o​n​ ​l​i​n​k
-			 */
-			linkTitle: string
-			/**
-			 * t​h​e​ ​l​i​n​k​ ​c​o​n​n​e​c​t​s​ ​a​n​o​t​h​e​r​ ​m​a​c​h​i​n​e​ ​t​o​ ​t​h​i​s​ ​o​r​g​a​n​i​z​a​t​i​o​n​;​ ​w​i​t​h​ ​a​ ​u​s​e​r​n​a​m​e​ ​a​n​d​ ​a​ ​p​a​s​s​w​o​r​d​,​ ​i​t​ ​i​s​ ​t​h​e​ ​w​a​y​ ​i​n​.​ ​i​t​ ​c​a​r​r​i​e​s​ ​a​ ​r​e​a​d​ ​o​n​l​y​ ​v​i​e​w​ ​o​f​ ​t​h​e​ ​d​i​r​e​c​t​o​r​y​,​ ​s​o​ ​s​h​a​r​e​ ​i​t​ ​t​h​e​ ​w​a​y​ ​y​o​u​ ​w​o​u​l​d​ ​a​ ​p​a​s​s​w​o​r​d​.
-			 */
-			linkDescription: string
-			/**
 			 * t​u​r​s​o​ ​a​c​c​o​u​n​t
 			 */
 			authorityTitle: string
@@ -2624,6 +2747,10 @@ type RootTranslation = {
 			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​h​o​l​d​s​ ​n​o​ ​a​u​t​h​o​r​i​t​y​ ​o​v​e​r​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​,​ ​s​o​ ​i​t​ ​c​a​n​n​o​t​ ​c​r​e​a​t​e​ ​a​ ​w​o​r​k​s​p​a​c​e​,​ ​l​o​c​k​ ​a​n​y​b​o​d​y​ ​o​u​t​ ​o​r​ ​r​e​n​e​w​ ​c​r​e​d​e​n​t​i​a​l​s​.​ ​t​h​e​ ​a​u​t​h​o​r​i​t​y​ ​i​s​ ​n​o​w​h​e​r​e​ ​t​o​ ​r​e​s​t​o​r​e​ ​i​t​ ​f​r​o​m​;​ ​g​r​a​n​t​ ​t​h​e​ ​c​o​n​s​e​n​t​ ​a​g​a​i​n​ ​h​e​r​e​,​ ​a​s​ ​y​o​u​ ​d​i​d​ ​o​n​ ​t​h​e​ ​f​i​r​s​t​ ​r​u​n​.
 			 */
 			authorityDescription: string
+			/**
+			 * t​h​e​ ​a​u​t​h​o​r​i​t​y​ ​f​o​l​l​o​w​s​ ​t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​t​h​a​t​ ​g​r​a​n​t​e​d​ ​i​t​,​ ​n​o​t​ ​w​h​o​ ​o​w​n​s​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.
+			 */
+			authorityFollowsTheAccount: string
 			/**
 			 * t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​i​s​ ​c​o​n​n​e​c​t​e​d​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​.
 			 */
@@ -2665,21 +2792,14 @@ type RootTranslation = {
 			 */
 			unreachableWorkspaces: RequiredParams<'workspaces'>
 			/**
-			 * l​a​p​s​e​d
-			 */
-			standingLapsed: string
-			/**
-			 * r​e​v​o​k​e
-			 */
-			revoke: string
-			/**
-			 * t​h​e​ ​i​n​v​i​t​a​t​i​o​n​ ​w​a​s​ ​r​e​v​o​k​e​d​.
-			 */
-			revoked: string
-			/**
 			 * n​o​ ​w​o​r​k​s​p​a​c​e​ ​y​e​t​.
 			 */
 			noWorkspaces: string
+			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​w​o​r​k​s​p​a​c​e​|​w​o​r​k​s​p​a​c​e​s​}​}
+			 * @param {string | number | boolean} count
+			 */
+			workspacesHeld: RequiredParams<'count|number'>
 			/**
 			 * f​u​l​l​ ​a​c​c​e​s​s
 			 */
@@ -2693,14 +2813,9 @@ type RootTranslation = {
 			 */
 			accessNone: string
 			/**
-			 * w​o​r​k​s​p​a​c​e​s​ ​a​n​d​ ​a​c​c​e​s​s
+			 * t​a​k​i​n​g​ ​a​ ​w​o​r​k​s​p​a​c​e​ ​b​a​c​k​ ​m​i​n​t​s​ ​n​o​t​h​i​n​g​,​ ​s​o​ ​w​h​a​t​ ​t​h​e​y​ ​a​l​r​e​a​d​y​ ​h​o​l​d​ ​w​o​r​k​s​ ​u​n​t​i​l​ ​i​t​ ​r​u​n​s​ ​o​u​t​.
 			 */
-			accessTitle: string
-			/**
-			 * w​h​i​c​h​ ​w​o​r​k​s​p​a​c​e​s​ ​{​u​s​e​r​n​a​m​e​}​ ​h​o​l​d​s​,​ ​a​n​d​ ​w​h​a​t​ ​e​a​c​h​ ​o​n​e​ ​i​s​ ​g​o​o​d​ ​f​o​r​.​ ​t​a​k​i​n​g​ ​a​ ​w​o​r​k​s​p​a​c​e​ ​b​a​c​k​ ​m​i​n​t​s​ ​n​o​t​h​i​n​g​,​ ​s​o​ ​w​h​a​t​ ​t​h​e​y​ ​a​l​r​e​a​d​y​ ​h​o​l​d​ ​w​o​r​k​s​ ​u​n​t​i​l​ ​i​t​ ​r​u​n​s​ ​o​u​t​.
-			 * @param {string} username
-			 */
-			accessDescription: RequiredParams<'username'>
+			accessTakenBack: string
 			/**
 			 * t​h​e​ ​w​o​r​k​s​p​a​c​e​s​ ​w​e​r​e​ ​s​a​v​e​d​.
 			 */
@@ -2740,14 +2855,34 @@ type RootTranslation = {
 			 */
 			readOnlyIsTheOwners: string
 			/**
-			 * r​o​l​e​ ​a​n​d​ ​p​e​r​m​i​s​s​i​o​n​s
-			 */
-			changeRoleTitle: string
-			/**
-			 * t​h​e​ ​r​o​l​e​ ​i​s​ ​w​h​a​t​ ​t​h​e​ ​l​i​s​t​ ​c​a​l​l​s​ ​{​u​s​e​r​n​a​m​e​}​;​ ​t​h​e​ ​a​c​t​s​ ​b​e​l​o​w​ ​a​r​e​ ​w​h​a​t​ ​t​h​e​y​ ​m​a​y​ ​a​c​t​u​a​l​l​y​ ​d​o​,​ ​a​n​d​ ​p​i​c​k​i​n​g​ ​a​ ​r​o​l​e​ ​s​e​t​s​ ​t​h​e​m​ ​a​l​l​ ​a​t​ ​o​n​c​e​.
+			 * w​h​a​t​ ​{​u​s​e​r​n​a​m​e​}​ ​m​a​y​ ​d​o​ ​i​n​ ​t​h​i​s​ ​o​r​g​a​n​i​z​a​t​i​o​n​.
 			 * @param {string} username
 			 */
-			changeRoleDescription: RequiredParams<'username'>
+			memberSheetDescription: RequiredParams<'username'>
+			/**
+			 * b​e​y​o​n​d​ ​t​h​e​i​r​ ​r​o​l​e
+			 */
+			beyondRole: string
+			/**
+			 * w​h​a​t​ ​t​h​i​s​ ​m​e​m​b​e​r​ ​c​a​n​ ​d​o​ ​t​h​a​t​ ​a​ ​m​e​m​b​e​r​ ​u​s​u​a​l​l​y​ ​c​a​n​n​o​t​.
+			 */
+			beyondRoleDescription: string
+			/**
+			 * n​o​t​h​i​n​g​ ​b​e​y​o​n​d​ ​t​h​e​i​r​ ​r​o​l​e​.
+			 */
+			beyondRoleNone: string
+			/**
+			 * a​l​l​o​w​ ​s​o​m​e​t​h​i​n​g​ ​e​l​s​e
+			 */
+			beyondRoleAdd: string
+			/**
+			 * a​l​l​o​w
+			 */
+			allowActs: string
+			/**
+			 * a​n​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​ ​m​a​y​ ​a​l​r​e​a​d​y​ ​d​o​ ​a​l​l​ ​o​f​ ​i​t​.
+			 */
+			administratorAllowedEvery: string
 			/**
 			 * w​h​a​t​ ​t​h​e​y​ ​m​a​y​ ​d​o
 			 */
@@ -2789,6 +2924,10 @@ type RootTranslation = {
 			 */
 			roleChanged: string
 			/**
+			 * l​e​a​v​i​n​g
+			 */
+			leavingTitle: string
+			/**
 			 * d​i​s​c​o​n​n​e​c​t​i​n​g​ ​f​o​r​g​e​t​s​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​:​ ​y​o​u​ ​a​r​e​ ​s​i​g​n​e​d​ ​o​u​t​,​ ​e​v​e​r​y​ ​c​o​p​y​ ​o​f​ ​i​t​ ​a​n​d​ ​o​f​ ​i​t​s​ ​w​o​r​k​s​p​a​c​e​s​ ​k​e​p​t​ ​h​e​r​e​ ​i​s​ ​d​e​l​e​t​e​d​,​ ​a​n​d​ ​t​h​e​ ​t​u​r​s​o​ ​a​u​t​h​o​r​i​t​y​ ​i​s​ ​c​l​e​a​r​e​d​.​ ​n​o​t​h​i​n​g​ ​o​n​ ​t​u​r​s​o​ ​i​s​ ​t​o​u​c​h​e​d​,​ ​a​n​d​ ​t​h​e​ ​l​i​n​k​ ​c​o​n​n​e​c​t​s​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​a​g​a​i​n​.​ ​t​o​ ​r​e​a​c​h​ ​a​n​o​t​h​e​r​ ​o​r​g​a​n​i​z​a​t​i​o​n​,​ ​d​i​s​c​o​n​n​e​c​t​ ​a​n​d​ ​c​o​n​n​e​c​t​ ​t​o​ ​i​t​.
 			 */
 			disconnectForgets: string
@@ -2816,6 +2955,160 @@ type RootTranslation = {
 			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​n​o​ ​l​o​n​g​e​r​ ​h​o​l​d​s​ ​a​ ​t​o​k​e​n​ ​f​o​r​ ​y​o​u​r​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​.
 			 */
 			accountForgotten: string
+			/**
+			 * d​e​l​e​t​e​ ​o​r​g​a​n​i​z​a​t​i​o​n
+			 */
+			deleteOrganization: string
+			/**
+			 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​a​n​d​ ​e​v​e​r​y​ ​w​o​r​k​s​p​a​c​e​ ​i​n​ ​i​t​ ​a​r​e​ ​d​e​l​e​t​e​d​ ​f​r​o​m​ ​y​o​u​r​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​.​ ​n​o​t​h​i​n​g​ ​p​u​t​s​ ​t​h​e​m​ ​b​a​c​k​.
+			 */
+			deleteOrganizationDescription: string
+			/**
+			 * e​v​e​r​y​ ​w​o​r​k​s​p​a​c​e​ ​g​o​e​s​,​ ​a​n​d​ ​e​v​e​r​y​t​h​i​n​g​ ​i​n​ ​i​t​:​ ​t​e​n​a​n​t​s​,​ ​c​o​m​p​l​e​x​e​s​,​ ​u​n​i​t​s​,​ ​c​o​n​t​r​a​c​t​s​ ​a​n​d​ ​p​a​y​m​e​n​t​s​.​ ​s​o​ ​d​o​e​s​ ​e​v​e​r​y​ ​w​a​y​ ​i​n​,​ ​f​o​r​ ​e​v​e​r​y​ ​m​e​m​b​e​r​.​ ​t​h​e​ ​o​t​h​e​r​ ​m​a​c​h​i​n​e​s​ ​f​i​n​d​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​g​o​n​e​ ​t​h​e​ ​n​e​x​t​ ​t​i​m​e​ ​t​h​e​y​ ​o​p​e​n​ ​a​n​d​ ​l​a​n​d​ ​o​n​ ​t​h​e​ ​f​i​r​s​t​ ​s​c​r​e​e​n​.​ ​n​o​t​h​i​n​g​ ​p​u​t​s​ ​t​h​i​s​ ​b​a​c​k​.
+			 */
+			deleteOrganizationGoes: string
+			/**
+			 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​w​a​s​ ​d​e​l​e​t​e​d​.
+			 */
+			organizationDeleted: string
+		}
+		roles: {
+			owner: {
+				/**
+				 * h​o​l​d​s​ ​t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​e​v​e​r​y​t​h​i​n​g​ ​i​s​ ​k​e​p​t​ ​o​n​,​ ​a​n​d​ ​c​a​n​ ​d​o​ ​a​n​y​t​h​i​n​g​ ​h​e​r​e​.​ ​t​h​e​r​e​ ​i​s​ ​o​n​e​ ​o​w​n​e​r​,​ ​a​n​d​ ​h​a​n​d​i​n​g​ ​i​t​ ​o​v​e​r​ ​i​s​ ​t​h​e​i​r​ ​o​w​n​ ​a​c​t​.
+				 */
+				who: string
+			}
+			administrator: {
+				/**
+				 * l​o​o​k​s​ ​a​f​t​e​r​ ​t​h​e​ ​p​e​o​p​l​e​ ​a​n​d​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e​s​:​ ​a​d​d​s​ ​a​ ​m​e​m​b​e​r​,​ ​m​a​k​e​s​ ​l​i​n​k​s​,​ ​r​e​n​a​m​e​s​,​ ​g​r​a​n​t​s​ ​a​ ​w​o​r​k​s​p​a​c​e​.​ ​t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​s​t​a​y​s​ ​t​h​e​ ​o​w​n​e​r​'​s​.
+				 */
+				who: string
+			}
+			member: {
+				/**
+				 * w​o​r​k​s​ ​i​n​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e​s​ ​t​h​e​y​ ​h​o​l​d​,​ ​a​n​d​ ​c​h​a​n​g​e​s​ ​n​o​t​h​i​n​g​ ​a​b​o​u​t​ ​a​n​y​b​o​d​y​ ​e​l​s​e​ ​u​n​l​e​s​s​ ​y​o​u​ ​a​l​l​o​w​ ​i​t​.
+				 */
+				who: string
+			}
+		}
+		acts: {
+			inviteMember: {
+				/**
+				 * c​a​n​ ​i​n​v​i​t​e​ ​m​e​m​b​e​r​s
+				 */
+				does: string
+			}
+			removeMember: {
+				/**
+				 * c​a​n​ ​r​e​m​o​v​e​ ​m​e​m​b​e​r​s
+				 */
+				does: string
+			}
+			changeRole: {
+				/**
+				 * c​a​n​ ​c​h​a​n​g​e​ ​w​h​a​t​ ​a​ ​m​e​m​b​e​r​ ​m​a​y​ ​d​o
+				 */
+				does: string
+			}
+			renameWorkspace: {
+				/**
+				 * c​a​n​ ​r​e​n​a​m​e​ ​a​ ​w​o​r​k​s​p​a​c​e
+				 */
+				does: string
+			}
+			resetPassword: {
+				/**
+				 * c​a​n​ ​r​e​s​e​t​ ​a​ ​m​e​m​b​e​r​'​s​ ​p​a​s​s​w​o​r​d
+				 */
+				does: string
+			}
+			renameMember: {
+				/**
+				 * c​a​n​ ​r​e​n​a​m​e​ ​m​e​m​b​e​r​s
+				 */
+				does: string
+			}
+			grantWorkspace: {
+				/**
+				 * c​a​n​ ​g​i​v​e​ ​a​ ​m​e​m​b​e​r​ ​a​ ​w​o​r​k​s​p​a​c​e
+				 */
+				does: string
+			}
+		}
+		levels: {
+			full: {
+				/**
+				 * r​e​a​d​s​ ​a​n​d​ ​w​r​i​t​e​s​ ​e​v​e​r​y​t​h​i​n​g​ ​i​n​ ​i​t​.
+				 */
+				does: string
+			}
+			readOnly: {
+				/**
+				 * r​e​a​d​s​ ​i​t​,​ ​a​n​d​ ​w​r​i​t​e​s​ ​n​o​t​h​i​n​g​.
+				 */
+				does: string
+			}
+			none: {
+				/**
+				 * d​o​e​s​ ​n​o​t​ ​r​e​a​c​h​ ​i​t​ ​a​t​ ​a​l​l​.
+				 */
+				does: string
+			}
+		}
+		roleTable: {
+			/**
+			 * w​h​a​t​ ​e​a​c​h​ ​r​o​l​e​ ​m​a​y​ ​d​o
+			 */
+			title: string
+			/**
+			 * a​ ​r​o​l​e​ ​i​s​ ​w​h​a​t​ ​s​o​m​e​b​o​d​y​ ​i​s​ ​c​a​l​l​e​d​ ​a​n​d​ ​w​h​a​t​ ​t​h​e​y​ ​s​t​a​r​t​ ​w​i​t​h​.​ ​a​n​y​t​h​i​n​g​ ​e​l​s​e​ ​i​s​ ​a​l​l​o​w​e​d​ ​o​n​ ​t​h​e​i​r​ ​o​w​n​ ​s​h​e​e​t​.
+			 */
+			description: string
+			/**
+			 * w​h​a​t​ ​y​o​u​ ​c​a​n​ ​g​i​v​e​ ​s​o​m​e​b​o​d​y
+			 */
+			given: string
+			/**
+			 * a​ ​m​e​m​b​e​r​ ​s​t​a​r​t​s​ ​w​i​t​h​ ​n​o​n​e​ ​o​f​ ​t​h​e​s​e​,​ ​a​n​d​ ​i​s​ ​a​l​l​o​w​e​d​ ​t​h​e​m​ ​o​n​ ​t​h​e​i​r​ ​o​w​n​ ​s​h​e​e​t​.
+			 */
+			memberNote: string
+			/**
+			 * t​h​e​ ​o​w​n​e​r​ ​a​l​o​n​e
+			 */
+			ownerAlone: string
+			/**
+			 * t​h​e​s​e​ ​r​u​n​ ​o​n​ ​t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​t​h​e​ ​o​w​n​e​r​ ​c​o​n​n​e​c​t​e​d​,​ ​s​o​ ​n​o​b​o​d​y​ ​c​a​n​ ​b​e​ ​g​i​v​e​n​ ​t​h​e​m​.
+			 */
+			ownerAloneReason: string
+			/**
+			 * y​e​s
+			 */
+			allowed: string
+			/**
+			 * n​o
+			 */
+			notAllowed: string
+			/**
+			 * m​a​k​e​ ​a​ ​n​e​w​ ​w​o​r​k​s​p​a​c​e​.
+			 */
+			createWorkspace: string
+			/**
+			 * d​e​l​e​t​e​ ​a​ ​w​o​r​k​s​p​a​c​e​ ​a​n​d​ ​e​v​e​r​y​t​h​i​n​g​ ​i​n​ ​i​t​.
+			 */
+			deleteWorkspace: string
+			/**
+			 * c​u​t​ ​s​o​m​e​b​o​d​y​ ​o​f​f​ ​f​r​o​m​ ​e​v​e​r​y​ ​w​o​r​k​s​p​a​c​e​ ​a​t​ ​o​n​c​e​.
+			 */
+			lockOut: string
+			/**
+			 * r​e​n​e​w​ ​t​h​e​ ​c​r​e​d​e​n​t​i​a​l​s​ ​t​h​a​t​ ​k​e​e​p​ ​e​v​e​r​y​b​o​d​y​ ​s​y​n​c​i​n​g​.
+			 */
+			renew: string
+			/**
+			 * c​o​n​n​e​c​t​ ​t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​,​ ​a​n​d​ ​f​o​r​g​e​t​ ​i​t​.
+			 */
+			tursoAccount: string
 		}
 	}
 	workspace: {
@@ -2839,26 +3132,6 @@ type RootTranslation = {
 		 * t​h​e​ ​w​o​r​k​s​p​a​c​e​ ​w​a​s​ ​r​e​n​a​m​e​d​.
 		 */
 		renamed: string
-		/**
-		 * t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​i​s​ ​k​e​p​t​ ​f​o​r​ ​y​o​u​ ​a​n​d​ ​r​e​a​c​h​e​s​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​o​n​ ​i​t​s​ ​o​w​n​.​ ​c​h​e​c​k​i​n​g​ ​i​n​ ​n​o​w​ ​k​e​e​p​s​ ​i​t​ ​w​o​r​k​i​n​g​ ​o​f​f​l​i​n​e​ ​f​o​r​ ​t​h​e​ ​n​e​x​t​ ​t​h​r​e​e​ ​d​a​y​s​.
-		 */
-		syncDescription: string
-		/**
-		 * n​e​e​d​s​ ​r​e​c​o​n​n​e​c​t
-		 */
-		syncStatusNeedsReconnect: string
-		/**
-		 * s​y​n​c​e​d
-		 */
-		syncStatusSynced: string
-		/**
-		 * t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​n​e​e​d​s​ ​a​t​t​e​n​t​i​o​n
-		 */
-		syncStatusAccountRefused: string
-		/**
-		 * a​c​c​e​s​s​ ​n​e​e​d​s​ ​a​t​t​e​n​t​i​o​n
-		 */
-		syncStatusCredentialRefused: string
 		/**
 		 * y​o​u​r​ ​a​c​c​e​s​s​ ​t​o​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​w​a​s​ ​r​e​f​r​e​s​h​e​d​,​ ​a​n​d​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​i​s​ ​c​o​l​l​e​c​t​i​n​g​ ​t​h​e​ ​n​e​w​ ​c​r​e​d​e​n​t​i​a​l​.​ ​i​f​ ​i​t​ ​d​o​e​s​ ​n​o​t​ ​c​l​e​a​r​ ​o​n​ ​i​t​s​ ​o​w​n​,​ ​a​s​k​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​o​w​n​e​r​.​ ​e​v​e​r​y​t​h​i​n​g​ ​h​e​r​e​ ​k​e​e​p​s​ ​w​o​r​k​i​n​g​ ​m​e​a​n​w​h​i​l​e​.
 		 */
@@ -3082,10 +3355,6 @@ export type TranslationFunctions = {
 			 */
 			sortBy: () => LocalizedString
 			/**
-			 * sync
-			 */
-			syncNow: () => LocalizedString
-			/**
 			 * terminate
 			 */
 			terminate: () => LocalizedString
@@ -3167,6 +3436,10 @@ export type TranslationFunctions = {
 			 * something has to be ready before this can run.
 			 */
 			preconditionFailed: () => LocalizedString
+			/**
+			 * this link no longer opens.
+			 */
+			refused: () => LocalizedString
 			/**
 			 * the operation took too long and stopped.
 			 */
@@ -4006,10 +4279,6 @@ export type TranslationFunctions = {
 			 */
 			create: () => LocalizedString
 			/**
-			 * invite
-			 */
-			invite: () => LocalizedString
-			/**
 			 * not available
 			 */
 			locked: () => LocalizedString
@@ -4026,15 +4295,7 @@ export type TranslationFunctions = {
 			 */
 			open: () => LocalizedString
 			/**
-			 * the owner or an administrator invites. ask one of them.
-			 */
-			inviteRefused: () => LocalizedString
-			/**
-			 * the owner creates a workspace. ask the owner.
-			 */
-			workspaceRefusedOwner: () => LocalizedString
-			/**
-			 * creating a workspace needs the turso account, and this machine is not connected to it. reconnect it in the sync section of settings.
+			 * creating a workspace needs the turso account, and this machine is not connected to it. reconnect it in the organization section of settings.
 			 */
 			workspaceRefusedAuthority: () => LocalizedString
 		}
@@ -4074,7 +4335,7 @@ export type TranslationFunctions = {
 			 */
 			noOrganizationTitle: () => LocalizedString
 			/**
-			 * an organization is created on your own turso account, or joined with a link you were given.
+			 * no organization on this machine yet.
 			 */
 			noOrganizationSubtitle: () => LocalizedString
 			/**
@@ -4110,13 +4371,21 @@ export type TranslationFunctions = {
 			 */
 			roleMember: () => LocalizedString
 			/**
-			 * create organization
+			 * use your turso account
 			 */
 			setUp: () => LocalizedString
 			/**
-			 * connect with link
+			 * you own the organization.
+			 */
+			setUpDescription: () => LocalizedString
+			/**
+			 * use a link and code
 			 */
 			connectByLink: () => LocalizedString
+			/**
+			 * you were given a link and a code.
+			 */
+			connectByLinkDescription: () => LocalizedString
 			/**
 			 * you were signed out of this machine from another one. sign in again to carry on.
 			 */
@@ -4130,7 +4399,7 @@ export type TranslationFunctions = {
 			 */
 			disconnect: () => LocalizedString
 			/**
-			 * this machine forgets the organization: every copy of it and of its workspaces kept here is deleted, and the turso account is forgotten with them. nothing on turso changes, and the organization's link connects this machine again.
+			 * this machine forgets the organization: every copy of it and of its workspaces kept here is deleted, and the turso account is forgotten with them. nothing on turso changes. the owner connects this machine again with their turso account; anybody else is given a link by whoever keeps the accounts.
 			 */
 			disconnectDescription: () => LocalizedString
 		}
@@ -4255,6 +4524,10 @@ export type TranslationFunctions = {
 		 */
 		diagnosticsReveal: () => LocalizedString
 		/**
+		 * diagnostics
+		 */
+		diagnosticsTitle: () => LocalizedString
+		/**
 		 * downloading update
 		 */
 		downloadingUpdate: () => LocalizedString
@@ -4304,29 +4577,17 @@ export type TranslationFunctions = {
 			 */
 			general: () => LocalizedString
 			/**
-			 * you
+			 * account
 			 */
-			you: () => LocalizedString
+			account: () => LocalizedString
 			/**
-			 * members
+			 * organization
 			 */
-			members: () => LocalizedString
+			organization: () => LocalizedString
 			/**
 			 * workspaces
 			 */
 			workspaces: () => LocalizedString
-			/**
-			 * sync
-			 */
-			sync: () => LocalizedString
-			/**
-			 * updates
-			 */
-			updates: () => LocalizedString
-			/**
-			 * diagnostics
-			 */
-			diagnostics: () => LocalizedString
 		}
 		/**
 		 * settings
@@ -4340,6 +4601,10 @@ export type TranslationFunctions = {
 		 * check whether a newer version of rentable is available, and install it. if the app will not start afterwards, it offers to put back the version you were on.
 		 */
 		updatesDescription: () => LocalizedString
+		/**
+		 * updates
+		 */
+		updatesTitle: () => LocalizedString
 		you: {
 			/**
 			 * signed in as
@@ -4404,6 +4669,16 @@ export type TranslationFunctions = {
 				 * this machine is offline; the sign-out reaches the others once it is back online.
 				 */
 				endedPending: () => LocalizedString
+			}
+			ownership: {
+				/**
+				 * ownership
+				 */
+				title: () => LocalizedString
+				/**
+				 * {owner} has offered you this organization. accepting makes you the owner and makes them an administrator.
+				 */
+				offered: (arg: { owner: string }) => LocalizedString
 			}
 		}
 	}
@@ -5019,7 +5294,7 @@ export type TranslationFunctions = {
 		 */
 		endingSoonUpdated: () => LocalizedString
 		/**
-		 * this workspace is up to date!
+		 * everything is up to date.
 		 */
 		workspaceUpToDate: () => LocalizedString
 	}
@@ -5042,7 +5317,7 @@ export type TranslationFunctions = {
 			 */
 			groupCoverage: () => LocalizedString
 			/**
-			 * a group holds one organization. a group that already holds one is refused here, before anything is created.
+			 * a group holds one organization. a group that already holds one is connected to, not refused.
 			 */
 			oneOrganization: () => LocalizedString
 			/**
@@ -5081,6 +5356,22 @@ export type TranslationFunctions = {
 			 * turso refused the consent.
 			 */
 			consentFailed: () => LocalizedString
+			/**
+			 * sign in to your organization
+			 */
+			existingTitle: () => LocalizedString
+			/**
+			 * this turso account already has an organization. its owner signs in to connect this machine to it.
+			 */
+			existingDescription: () => LocalizedString
+			/**
+			 * connect this machine
+			 */
+			existingConnect: () => LocalizedString
+			/**
+			 * connecting this machine...
+			 */
+			existingConnecting: () => LocalizedString
 			/**
 			 * name your organization
 			 */
@@ -5168,19 +5459,19 @@ export type TranslationFunctions = {
 		}
 		join: {
 			/**
-			 * connect to an organization
+			 * connect with a link
 			 */
 			title: () => LocalizedString
 			/**
-			 * paste the link you were given. an organization link records the organization on this machine and takes you to the sign-in; an invitation link records it and asks you to choose a password.
+			 * paste the link and type the code that came with it.
 			 */
 			description: () => LocalizedString
 			/**
-			 * organization link or invitation link
+			 * link
 			 */
 			linkLabel: () => LocalizedString
 			/**
-			 * connecting to the organization...
+			 * reading the link...
 			 */
 			reading: () => LocalizedString
 			/**
@@ -5200,9 +5491,17 @@ export type TranslationFunctions = {
 			 */
 			consumed: () => LocalizedString
 			/**
+			 * this link has already been opened on another machine. ask whoever keeps the accounts for a new one.
+			 */
+			consumedElsewhere: () => LocalizedString
+			/**
 			 * this invitation was withdrawn. ask whoever invited you for a new link.
 			 */
 			revoked: () => LocalizedString
+			/**
+			 * a newer link took the place of this one. ask whoever keeps the accounts for the new one.
+			 */
+			replaced: () => LocalizedString
 			/**
 			 * this machine already holds another organization. disconnect it first, then open this link.
 			 */
@@ -5224,25 +5523,21 @@ export type TranslationFunctions = {
 			 */
 			organizationLabel: () => LocalizedString
 			/**
-			 * username
-			 */
-			usernameLabel: () => LocalizedString
-			/**
-			 * confirmation code
+			 * code
 			 */
 			codeLabel: () => LocalizedString
 			/**
-			 * the six characters whoever invited you read out. it lapses ninety seconds after it was made; ask them for a fresh one if it has.
+			 * the six characters read out to you with the link.
 			 */
 			codeDescription: () => LocalizedString
 			/**
-			 * the code is wrong or has lapsed. ask whoever invited you for a fresh one.
+			 * the code is wrong. ask whoever sent you the link to read it out again.
 			 */
 			codeWrong: () => LocalizedString
 			/**
-			 * that code has lapsed. ask whoever invited you for a fresh one.
+			 * type the six characters that came with the link.
 			 */
-			codeLapsed: () => LocalizedString
+			codeMissing: () => LocalizedString
 			/**
 			 * your password, again
 			 */
@@ -5260,21 +5555,91 @@ export type TranslationFunctions = {
 			 */
 			back: () => LocalizedString
 		}
+		standing: {
+			/**
+			 * this machine and turso
+			 */
+			title: () => LocalizedString
+			/**
+			 * the organization is kept on turso and reaches this machine on its own. what you write here goes out as soon as turso can be reached.
+			 */
+			purpose: () => LocalizedString
+			/**
+			 * this machine has not reached turso yet
+			 */
+			notYetReached: () => LocalizedString
+			/**
+			 * up to date, checked {moment}
+			 */
+			upToDateChecked: (arg: { moment: string }) => LocalizedString
+			/**
+			 * last reached turso on {moment}
+			 */
+			lastReached: (arg: { moment: string }) => LocalizedString
+			/**
+			 * the turso account needs attention
+			 */
+			accountNeedsAttention: () => LocalizedString
+			/**
+			 * this machine's access needs attention
+			 */
+			accessNeedsAttention: () => LocalizedString
+			/**
+			 * this machine needs reconnecting
+			 */
+			needsReconnecting: () => LocalizedString
+			/**
+			 * the turso account is reconnected in the block below.
+			 */
+			reconnectBelow: () => LocalizedString
+			/**
+			 * sync
+			 */
+			checkNow: () => LocalizedString
+			/**
+			 * syncing...
+			 */
+			checking: () => LocalizedString
+		}
 		dashboard: {
 			/**
-			 * invite somebody
+			 * members
 			 */
-			inviteTitle: () => LocalizedString
+			membersTitle: () => LocalizedString
 			/**
-			 * an invitation makes somebody a member: a username, a role and the workspaces they hold, each at full access or read only. you hand them the link yourself.
+			 * everybody in the organization. members are made and changed here.
 			 */
-			inviteDescription: () => LocalizedString
+			membersDescription: () => LocalizedString
+			/**
+			 * every workspace in the organization. workspaces are made and changed here.
+			 */
+			workspacesDescription: () => LocalizedString
+			/**
+			 * no password yet
+			 */
+			standingNoPassword: () => LocalizedString
+			/**
+			 * no machine signed in
+			 */
+			standingNoMachine: () => LocalizedString
+			/**
+			 * signed in on a machine
+			 */
+			standingSignedIn: () => LocalizedString
+			/**
+			 * a new member
+			 */
+			memberTitle: () => LocalizedString
+			/**
+			 * a member is a username, a role, what they may do and the workspaces they hold. they have no password until you make them a link and they open it.
+			 */
+			memberDescription: () => LocalizedString
 			/**
 			 * role
 			 */
 			role: () => LocalizedString
 			/**
-			 * only the owner can invite an administrator.
+			 * only the owner can make an administrator.
 			 */
 			administratorsAreTheOwners: () => LocalizedString
 			/**
@@ -5282,17 +5647,17 @@ export type TranslationFunctions = {
 			 */
 			noWorkspaceToGrant: () => LocalizedString
 			/**
-			 * invite
+			 * add a member
 			 */
-			invite: () => LocalizedString
+			addMember: () => LocalizedString
 			/**
-			 * rentable sends nothing. copy the link below and hand it to the person yourself; opening it is how they choose their password.
+			 * rentable sends nothing. copy the link below and hand it over yourself, and read the code out separately. it admits one machine, once.
 			 */
 			cannotSend: () => LocalizedString
 			/**
-			 * invitation link
+			 * link and code
 			 */
-			invitationLinkTitle: () => LocalizedString
+			linkTitle: () => LocalizedString
 			/**
 			 * confirmation code
 			 */
@@ -5302,41 +5667,81 @@ export type TranslationFunctions = {
 			 */
 			codeDescription: () => LocalizedString
 			/**
-			 * lapses in {seconds} seconds
-			 */
-			codeExpires: (arg: { seconds: unknown }) => LocalizedString
-			/**
-			 * this code has lapsed.
-			 */
-			codeLapsed: () => LocalizedString
-			/**
-			 * fresh code
-			 */
-			freshCode: () => LocalizedString
-			/**
-			 * make a confirmation code
-			 */
-			memberCode: () => LocalizedString
-			/**
 			 * done
 			 */
 			done: () => LocalizedString
-			/**
-			 * not yet signed in
-			 */
-			notYetSignedIn: () => LocalizedString
 			/**
 			 * the link expires {date}
 			 */
 			invitationExpires: (arg: { date: string }) => LocalizedString
 			/**
-			 * the link lapsed {date}
+			 * make a link
 			 */
-			invitationLapsed: (arg: { date: string }) => LocalizedString
+			makeLink: () => LocalizedString
 			/**
-			 * new link
+			 * hand over ownership
 			 */
-			newLink: () => LocalizedString
+			transferOwnership: () => LocalizedString
+			/**
+			 * the person you choose is offered the organization. nothing changes until they accept it, on a machine they are already signed in on, with their own password. when they do, they become the owner and you become an administrator.
+			 */
+			transferOwnershipGoes: () => LocalizedString
+			/**
+			 * who is offered the organization
+			 */
+			transferOwnershipMember: () => LocalizedString
+			/**
+			 * your turso account does not move. the databases stay on it, and the new owner connects their own account from the organization section before they can create a workspace, lock anybody out or renew credentials.
+			 */
+			transferOwnershipAuthority: () => LocalizedString
+			/**
+			 * offer it
+			 */
+			transferOwnershipConfirm: () => LocalizedString
+			/**
+			 * the organization was offered. they accept it on a machine of their own.
+			 */
+			ownershipOffered: () => LocalizedString
+			/**
+			 * withdraw the offer
+			 */
+			withdrawOffer: () => LocalizedString
+			/**
+			 * the offer was withdrawn. nothing changed hands.
+			 */
+			ownershipOfferWithdrawn: () => LocalizedString
+			/**
+			 * accept ownership
+			 */
+			acceptOwnership: () => LocalizedString
+			/**
+			 * you become the owner of {organization} and {owner} becomes an administrator. your password becomes what the organization is signed with, so from now on it is your password that gets you back in on a new machine.
+			 */
+			acceptOwnershipGoes: (arg: { organization: string, owner: string }) => LocalizedString
+			/**
+			 * the turso account stays with whoever connected it. until you connect your own from the organization section, creating a workspace, locking somebody out and renewing credentials run on their machine or not at all.
+			 */
+			acceptOwnershipAuthority: () => LocalizedString
+			/**
+			 * accept it
+			 */
+			acceptOwnershipConfirm: () => LocalizedString
+			/**
+			 * the organization is yours. you are the owner now.
+			 */
+			ownershipAccepted: () => LocalizedString
+			/**
+			 * lock out
+			 */
+			lockOut: () => LocalizedString
+			/**
+			 * reset password
+			 */
+			unsetPassword: () => LocalizedString
+			/**
+			 * their password was unset. make them a link so they can choose a new one.
+			 */
+			passwordUnset: () => LocalizedString
 			/**
 			 * sign out everywhere
 			 */
@@ -5349,10 +5754,6 @@ export type TranslationFunctions = {
 			 * this machine is offline; the sign-out reaches their machines once it is back online.
 			 */
 			sessionsEndedPending: () => LocalizedString
-			/**
-			 * copy the link again
-			 */
-			copyLink: () => LocalizedString
 			/**
 			 * rename
 			 */
@@ -5374,14 +5775,6 @@ export type TranslationFunctions = {
 			 */
 			renamed: () => LocalizedString
 			/**
-			 * organization link
-			 */
-			linkTitle: () => LocalizedString
-			/**
-			 * the link connects another machine to this organization; with a username and a password, it is the way in. it carries a read only view of the directory, so share it the way you would a password.
-			 */
-			linkDescription: () => LocalizedString
-			/**
 			 * turso account
 			 */
 			authorityTitle: () => LocalizedString
@@ -5389,6 +5782,10 @@ export type TranslationFunctions = {
 			 * this machine holds no authority over the organization's turso account, so it cannot create a workspace, lock anybody out or renew credentials. the authority is nowhere to restore it from; grant the consent again here, as you did on the first run.
 			 */
 			authorityDescription: () => LocalizedString
+			/**
+			 * the authority follows the turso account that granted it, not who owns the organization.
+			 */
+			authorityFollowsTheAccount: () => LocalizedString
 			/**
 			 * the turso account is connected on this machine.
 			 */
@@ -5426,21 +5823,13 @@ export type TranslationFunctions = {
 			 */
 			unreachableWorkspaces: (arg: { workspaces: unknown }) => LocalizedString
 			/**
-			 * lapsed
-			 */
-			standingLapsed: () => LocalizedString
-			/**
-			 * revoke
-			 */
-			revoke: () => LocalizedString
-			/**
-			 * the invitation was revoked.
-			 */
-			revoked: () => LocalizedString
-			/**
 			 * no workspace yet.
 			 */
 			noWorkspaces: () => LocalizedString
+			/**
+			 * {count|number} {{workspace|workspaces}}
+			 */
+			workspacesHeld: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
 			 * full access
 			 */
@@ -5454,13 +5843,9 @@ export type TranslationFunctions = {
 			 */
 			accessNone: () => LocalizedString
 			/**
-			 * workspaces and access
+			 * taking a workspace back mints nothing, so what they already hold works until it runs out.
 			 */
-			accessTitle: () => LocalizedString
-			/**
-			 * which workspaces {username} holds, and what each one is good for. taking a workspace back mints nothing, so what they already hold works until it runs out.
-			 */
-			accessDescription: (arg: { username: string }) => LocalizedString
+			accessTakenBack: () => LocalizedString
 			/**
 			 * the workspaces were saved.
 			 */
@@ -5498,13 +5883,33 @@ export type TranslationFunctions = {
 			 */
 			readOnlyIsTheOwners: () => LocalizedString
 			/**
-			 * role and permissions
+			 * what {username} may do in this organization.
 			 */
-			changeRoleTitle: () => LocalizedString
+			memberSheetDescription: (arg: { username: string }) => LocalizedString
 			/**
-			 * the role is what the list calls {username}; the acts below are what they may actually do, and picking a role sets them all at once.
+			 * beyond their role
 			 */
-			changeRoleDescription: (arg: { username: string }) => LocalizedString
+			beyondRole: () => LocalizedString
+			/**
+			 * what this member can do that a member usually cannot.
+			 */
+			beyondRoleDescription: () => LocalizedString
+			/**
+			 * nothing beyond their role.
+			 */
+			beyondRoleNone: () => LocalizedString
+			/**
+			 * allow something else
+			 */
+			beyondRoleAdd: () => LocalizedString
+			/**
+			 * allow
+			 */
+			allowActs: () => LocalizedString
+			/**
+			 * an administrator may already do all of it.
+			 */
+			administratorAllowedEvery: () => LocalizedString
 			/**
 			 * what they may do
 			 */
@@ -5546,6 +5951,10 @@ export type TranslationFunctions = {
 			 */
 			roleChanged: () => LocalizedString
 			/**
+			 * leaving
+			 */
+			leavingTitle: () => LocalizedString
+			/**
 			 * disconnecting forgets the organization on this machine: you are signed out, every copy of it and of its workspaces kept here is deleted, and the turso authority is cleared. nothing on turso is touched, and the link connects this machine again. to reach another organization, disconnect and connect to it.
 			 */
 			disconnectForgets: () => LocalizedString
@@ -5573,6 +5982,160 @@ export type TranslationFunctions = {
 			 * this machine no longer holds a token for your turso account.
 			 */
 			accountForgotten: () => LocalizedString
+			/**
+			 * delete organization
+			 */
+			deleteOrganization: () => LocalizedString
+			/**
+			 * the organization and every workspace in it are deleted from your turso account. nothing puts them back.
+			 */
+			deleteOrganizationDescription: () => LocalizedString
+			/**
+			 * every workspace goes, and everything in it: tenants, complexes, units, contracts and payments. so does every way in, for every member. the other machines find the organization gone the next time they open and land on the first screen. nothing puts this back.
+			 */
+			deleteOrganizationGoes: () => LocalizedString
+			/**
+			 * the organization was deleted.
+			 */
+			organizationDeleted: () => LocalizedString
+		}
+		roles: {
+			owner: {
+				/**
+				 * holds the turso account everything is kept on, and can do anything here. there is one owner, and handing it over is their own act.
+				 */
+				who: () => LocalizedString
+			}
+			administrator: {
+				/**
+				 * looks after the people and the workspaces: adds a member, makes links, renames, grants a workspace. the turso account stays the owner's.
+				 */
+				who: () => LocalizedString
+			}
+			member: {
+				/**
+				 * works in the workspaces they hold, and changes nothing about anybody else unless you allow it.
+				 */
+				who: () => LocalizedString
+			}
+		}
+		acts: {
+			inviteMember: {
+				/**
+				 * can invite members
+				 */
+				does: () => LocalizedString
+			}
+			removeMember: {
+				/**
+				 * can remove members
+				 */
+				does: () => LocalizedString
+			}
+			changeRole: {
+				/**
+				 * can change what a member may do
+				 */
+				does: () => LocalizedString
+			}
+			renameWorkspace: {
+				/**
+				 * can rename a workspace
+				 */
+				does: () => LocalizedString
+			}
+			resetPassword: {
+				/**
+				 * can reset a member's password
+				 */
+				does: () => LocalizedString
+			}
+			renameMember: {
+				/**
+				 * can rename members
+				 */
+				does: () => LocalizedString
+			}
+			grantWorkspace: {
+				/**
+				 * can give a member a workspace
+				 */
+				does: () => LocalizedString
+			}
+		}
+		levels: {
+			full: {
+				/**
+				 * reads and writes everything in it.
+				 */
+				does: () => LocalizedString
+			}
+			readOnly: {
+				/**
+				 * reads it, and writes nothing.
+				 */
+				does: () => LocalizedString
+			}
+			none: {
+				/**
+				 * does not reach it at all.
+				 */
+				does: () => LocalizedString
+			}
+		}
+		roleTable: {
+			/**
+			 * what each role may do
+			 */
+			title: () => LocalizedString
+			/**
+			 * a role is what somebody is called and what they start with. anything else is allowed on their own sheet.
+			 */
+			description: () => LocalizedString
+			/**
+			 * what you can give somebody
+			 */
+			given: () => LocalizedString
+			/**
+			 * a member starts with none of these, and is allowed them on their own sheet.
+			 */
+			memberNote: () => LocalizedString
+			/**
+			 * the owner alone
+			 */
+			ownerAlone: () => LocalizedString
+			/**
+			 * these run on the turso account the owner connected, so nobody can be given them.
+			 */
+			ownerAloneReason: () => LocalizedString
+			/**
+			 * yes
+			 */
+			allowed: () => LocalizedString
+			/**
+			 * no
+			 */
+			notAllowed: () => LocalizedString
+			/**
+			 * make a new workspace.
+			 */
+			createWorkspace: () => LocalizedString
+			/**
+			 * delete a workspace and everything in it.
+			 */
+			deleteWorkspace: () => LocalizedString
+			/**
+			 * cut somebody off from every workspace at once.
+			 */
+			lockOut: () => LocalizedString
+			/**
+			 * renew the credentials that keep everybody syncing.
+			 */
+			renew: () => LocalizedString
+			/**
+			 * connect the turso account, and forget it.
+			 */
+			tursoAccount: () => LocalizedString
 		}
 	}
 	workspace: {
@@ -5597,26 +6160,6 @@ export type TranslationFunctions = {
 		 */
 		renamed: () => LocalizedString
 		/**
-		 * this workspace is kept for you and reaches this machine on its own. checking in now keeps it working offline for the next three days.
-		 */
-		syncDescription: () => LocalizedString
-		/**
-		 * needs reconnect
-		 */
-		syncStatusNeedsReconnect: () => LocalizedString
-		/**
-		 * synced
-		 */
-		syncStatusSynced: () => LocalizedString
-		/**
-		 * turso account needs attention
-		 */
-		syncStatusAccountRefused: () => LocalizedString
-		/**
-		 * access needs attention
-		 */
-		syncStatusCredentialRefused: () => LocalizedString
-		/**
 		 * your access to this workspace was refreshed, and this machine is collecting the new credential. if it does not clear on its own, ask the organization's owner. everything here keeps working meanwhile.
 		 */
 		credentialRefused: () => LocalizedString
@@ -5640,5 +6183,5 @@ export type TranslationFunctions = {
 }
 
 export type Formatters = {
-	number: (value: unknown) => unknown
+	number: (value: unknown | string | number | boolean) => unknown
 }

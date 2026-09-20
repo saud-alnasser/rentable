@@ -5,7 +5,7 @@ import { i18nObject } from '$lib/i18n/i18n-util';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import { fakeSyncState } from '$lib/platform/tests/testing';
 import { accountRefusalSentence } from '$lib/sync/refusal';
-import { syncStatusLabel, syncStatusOf } from '$lib/workspace/sync-status';
+import { syncStandingSentence, syncStatusOf } from '$lib/workspace/sync-status';
 
 /**
  * REQUIREMENT 25, IN WORDS
@@ -54,10 +54,14 @@ for (const locale of ['en', 'ar'] as const) {
 			fakeSyncState({ workspace: { ...fakeSyncState().workspace, lastError: 'offline' } })
 		);
 
+		const now = Date.UTC(2026, 8, 15, 14, 0, 0);
+		const sentenceOf = (status: ReturnType<typeof syncStatusOf>) =>
+			syncStandingSentence(status, null, locale, now, LL);
+
 		assert.equal(refused, 'accountRefused');
 		assert.notEqual(refused, offline);
-		assert.notEqual(syncStatusLabel(refused, LL), syncStatusLabel(offline, LL));
-		assert.notEqual(syncStatusLabel(refused, LL), syncStatusLabel('synced', LL));
+		assert.notEqual(sentenceOf(refused), sentenceOf(offline));
+		assert.notEqual(sentenceOf(refused), sentenceOf('synced'));
 	});
 }
 

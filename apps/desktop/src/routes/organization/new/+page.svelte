@@ -5,19 +5,24 @@
 	import OrganizationSetupWalk from '$lib/organization/component/setup-walk.svelte';
 	import {
 		useBeginConsent,
+		useConnectExisting,
 		useConsentResult,
 		useCreateOrganization,
 		useCreateWorkspace,
 		useDisconnect,
-		useFetchOrganizationState
+		useFetchOrganizationState,
+		useInspectGroup
 	} from '$lib/organization/query';
 	import {
 		SETUP_STEPS,
 		TURSO_DASHBOARD_URL,
+		refusalAfterFailedConnect,
 		refusalAfterFailedCreate,
+		stepAfterConsent,
 		stepFor,
 		type SetupStep
 	} from '$lib/organization/setup';
+	import { toErrorDetail } from '$lib/error/message';
 	import { THE_WAY_IN } from '$lib/layout/shell-surface';
 	import { useStartup } from '$lib/layout/startup-context';
 
@@ -32,6 +37,18 @@
 	 * **It reads where the machine stands before asking for a consent.** A machine that already
 	 * holds Turso authority, because a person connected, went back to the wall and came here again,
 	 * opens the walk at `connect` already granted rather than asking for a consent it has.
+	 *
+	 * **The consent is where the two ways part.** What the account already holds is read once
+	 * after it, and the walk goes on to name an organization or to the step where the owner of the
+	 * one that is there signs in (effort 828, requirement 14). A read that fails leaves the person
+	 * on the consent step with the shared handler's sentence and the button still there.
+	 *
+	 * **A connect the organization refuses is said on its own step**, against the password, for
+	 * the reason the group refusal is said beside its field: the sentence belongs where the typing
+	 * happened. The one exception is a refusal nothing typed on the step can answer, one about the
+	 * consented account itself, which is told apart by the code Rust gave it and returns to the
+	 * consent. *Until 2026-09-20 that refusal was a machine somebody was still on, and until ticket
+	 * 20 it was read off the authority rather than off the code.*
 	 *
 	 * **A create the group refuses sends the walk back to the consent.** One group holds one
 	 * organization, so a group that already holds one is refused before anything is created and
@@ -67,6 +84,7 @@
 	let refusal = $state<string | null>(null);
 	let askGroup = $state(false);
 	let groupDetail = $state<string | null>(null);
+	let existingRefusal = $state<string | null>(null);
 	let isHandingOver = $state(false);
 
 	const stateQuery = useFetchOrganizationState();
@@ -95,6 +113,9 @@
 	// say is the one this walk answers on the surface; `create` below says the rest.
 	const createOrganization = useCreateOrganization();
 	const createWorkspace = useCreateWorkspace();
+	const inspectGroup = useInspectGroup();
+	// every refusal here is said on the step, so none of them is raised as a toast as well.
+	const connectExisting = useConnectExisting();
 
 	const consent = $derived.by(() => {
 		if (!sessionId) return { status: 'idle' as const, error: null };
@@ -128,6 +149,51 @@
 		} catch {
 			// said by the shared handler.
 		}
+	};
+
+	/**
+	 * the way on from the consent: ask the account what it already holds, and go where the answer
+	 * says. A read that failed leaves the person where they are, with the handler's sentence.
+	 */
+	const goOn = async () => {
+		try {
+			step = stepAfterConsent(await inspectGroup.mutateAsync());
+			existingRefusal = null;
+		} catch {
+			// said by the shared handler; the consent is granted and the button is still there.
+		}
+	};
+
+	const connectToExisting = async (username: string, password: string) => {
+		try {
+			await connectExisting.mutateAsync({ username, password });
+		} catch (error) {
+			// read off what was refused rather than off where this machine stands: a refusal about
+			// the consented account itself is the `preconditionFailed`, and nothing typed on this
+			// step answers one, so they go back to the consent. Everything else is said against the
+			// password on the step they are on, with what they typed still in it. *This refetched
+			// the state and read the Turso authority, so a connection that dropped at the wrong
+			// moment sent the person back to grant a consent they still had.*
+			const back = refusalAfterFailedConnect(error);
+
+			if (!back) {
+				existingRefusal = toErrorDetail(error);
+
+				return;
+			}
+
+			sessionId = null;
+			existingRefusal = null;
+			refusal = back.message;
+			step = back.step;
+
+			return;
+		}
+
+		// the owner is in, on a machine that now holds the organization: the startup unit reads
+		// where it stands from the way in, which is the path a sign-in takes past the wall.
+		await goto(resolve(THE_WAY_IN));
+		void startup.standingChanged();
 	};
 
 	const create = async (name: string, username: string, password: string, group: string | null) => {
@@ -185,11 +251,7 @@
 		void startup.standingChanged();
 	};
 
-	const next = () => {
-		const index = SETUP_STEPS.indexOf(step);
-
-		step = SETUP_STEPS[Math.min(index + 1, SETUP_STEPS.length - 1)] ?? step;
-	};
+	const next = () => void goOn();
 
 	/**
 	 * the corner control: the wall from the first step, the step before from every other. Leaving
@@ -197,6 +259,14 @@
 	 * creates nothing on the account.
 	 */
 	const back = () => {
+		// the second step of the other way in, whose one step behind is the consent.
+		if (step === 'existing') {
+			existingRefusal = null;
+			step = 'connect';
+
+			return;
+		}
+
 		const index = SETUP_STEPS.indexOf(step);
 
 		if (index <= 0) {
@@ -219,14 +289,19 @@
 	{refusal}
 	{askGroup}
 	{groupDetail}
+	{existingRefusal}
 	holdsTursoAuthority={stateQuery.data?.holdsTursoAuthority ?? false}
-	isConnecting={beginConsent.isPending}
-	isCreating={createOrganization.isPending || createWorkspace.isPending || isHandingOver}
+	isConnecting={beginConsent.isPending || inspectGroup.isPending}
+	isCreating={createOrganization.isPending ||
+		connectExisting.isPending ||
+		createWorkspace.isPending ||
+		isHandingOver}
 	onOpenDashboard={() => void tauri.opener.openUrl(TURSO_DASHBOARD_URL)}
 	onConnect={() => void connect()}
 	onDisconnect={() => void forget()}
 	onContinue={next}
 	onBack={back}
 	onCreate={create}
+	onConnectExisting={connectToExisting}
 	onCreateWorkspace={createFirstWorkspace}
 />

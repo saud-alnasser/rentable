@@ -1,11 +1,10 @@
 import { fireEvent, render, screen } from '@testing-library/svelte';
-import { beforeEach, expect, test } from 'vitest';
+import { expect, test } from 'vitest';
 
 import en from '$lib/i18n/en';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import WorkspaceMenu from '$lib/layout/component/workspace-menu.svelte';
-import { organizationDialog, resetOrganizationDialogs } from '$lib/organization/dialogs.svelte';
 import { fakeOrganizationWorkspace, fakeWorkspace } from '$lib/platform/tests/testing.ts';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 
@@ -14,19 +13,19 @@ import RailProviders from './rail-providers.svelte';
 /**
  * THE WORKSPACE MENU, RENDERED
  *
- * What the menu at the top of the rail puts in the document once it is open: one row per
- * workspace the member holds, the open one marked, and a choice of another handed back as that
- * workspace's id. And that a switch redraws the menu rather than replacing it, which is the
- * spec's criterion 11 read at the menu, since the sidebar has no test of its own.
+ * What the menu at the top of the rail puts in the document once it is open: the header naming
+ * the workspace that is open, one row per workspace the member holds with the open one marked, a
+ * choice of another handed back as that workspace's id, and one row to the workspaces section of
+ * the settings area. That is the whole of it, which is criterion 9 of effort 828. And that a
+ * switch redraws the menu rather than replacing it, which is effort 824's criterion 11 read at
+ * the menu, since the sidebar has no test of its own.
  *
- * And its two actions (criterion 10 and criterion 12): each opens its dialog for whoever the
- * row's permission admits, and for everybody else is drawn refused with the sentence the sidebar
- * composed, never with a padlock. The menu draws and never decides, so the sentences here are
- * whatever a caller hands in; the locale's are used so the test reads as the screen does.
+ * **Nothing here invites anybody and nothing here makes a workspace**, so no test hands the menu
+ * a permission and none looks for a refusal sentence. Both acts left the menu on 2026-09-15 and
+ * are covered where they live, in the members and workspaces sections of the settings area.
  *
  * The menu is dumb on purpose: props and a callback, no query and no client, so nothing here
- * provides one. The one thing it reaches past its props is the dialog request in
- * `organization/dialogs.svelte.ts`, which is what the opener tests read.
+ * provides one. It reaches nothing past its props now that the two dialogs are gone from it.
  */
 
 const noop = () => {};
@@ -69,9 +68,6 @@ const menu = (overrides: Partial<Parameters<typeof render<typeof WorkspaceMenu>>
 			workspaces: [north, south],
 			openId: 'north',
 			memberCount: 3,
-			canInvite: true,
-			canCreateWorkspace: true,
-			refusal: { invite: null, workspace: null },
 			onSwitch: noop,
 			...overrides
 		},
@@ -86,12 +82,16 @@ const open = async () => {
 	return screen.getAllByRole('menuitemradio');
 };
 
-const inviteRow = () => document.querySelector<HTMLElement>('[data-workspace-menu-invite]');
-const createRow = () => document.querySelector<HTMLElement>('[data-workspace-menu-create]');
-const workspacesRow = () => document.querySelector<HTMLElement>('[data-workspace-menu-workspaces]');
+const header = () => document.querySelector<HTMLElement>('[data-slot="dropdown-menu-label"]');
+const workspacesRows = () => document.querySelectorAll('[data-workspace-menu-workspaces]');
 
-beforeEach(() => {
-	resetOrganizationDialogs();
+test('the open menu is headed by the workspace this machine has open', async () => {
+	menu();
+	await open();
+
+	expect(header()?.textContent).toContain('North Properties');
+	// the second line says something true about the workspace rather than repeating its name.
+	expect(header()?.textContent).toMatch(/3\s+member/);
 });
 
 test('the menu lists every workspace the member holds, with the open one marked', async () => {
@@ -131,8 +131,8 @@ test('choosing another row hands back its id, and choosing the open one hands ba
 	expect(chosen).toEqual(['south']);
 });
 
-// criterion 11: after a switch the menu is the same instance with new props, so the marker
-// moves and no second menu is mounted.
+// criterion 11 of effort 824: after a switch the menu is the same instance with new props, so the
+// marker moves and no second menu is mounted.
 test('a new open id redraws the menu rather than replacing it', async () => {
 	const { rerender } = menu();
 
@@ -152,102 +152,30 @@ test('a new open id redraws the menu rather than replacing it', async () => {
 	expect(screen.getByRole('button', { expanded: true }).textContent).toContain('South Properties');
 });
 
-// criterion 10 and criterion 12: the invite row opens the invite dialog for whoever the session
-// admits.
-test('the invite row opens the invite dialog for whoever may invite', async () => {
-	menu({ canInvite: true });
-	await open();
-
-	const row = inviteRow();
-
-	expect(row?.getAttribute('aria-disabled')).not.toBe('true');
-	expect(document.querySelector('[data-workspace-menu-invite-refusal]')).toBeNull();
-	expect(organizationDialog.open).toBeNull();
-
-	await fireEvent.click(row as HTMLElement);
-
-	expect(organizationDialog.open).toBe('invite');
-});
-
-test('for everybody else the invite row is refused with the sentence it was handed, and no padlock', async () => {
-	menu({
-		canInvite: false,
-		refusal: { invite: en.layout.workspaceMenu.inviteRefused, workspace: null }
-	});
-	await open();
-
-	const row = inviteRow();
-
-	expect(row?.getAttribute('aria-disabled')).toBe('true');
-	// the sentence is on screen, and the row names it for a reader who cannot see the layout.
-	expect(screen.getByText(en.layout.workspaceMenu.inviteRefused)).toBeDefined();
-	expect(
-		document.getElementById(row?.getAttribute('aria-describedby') ?? '')?.textContent?.trim()
-	).toBe(en.layout.workspaceMenu.inviteRefused);
-	expect(document.querySelector('svg.lucide-lock')).toBeNull();
-
-	await fireEvent.click(row as HTMLElement);
-
-	expect(organizationDialog.open).toBeNull();
-});
-
-test('the new-workspace row opens the workspace dialog for an owner holding the authority', async () => {
-	menu({ canCreateWorkspace: true });
-	await open();
-
-	const row = createRow();
-
-	expect(row?.getAttribute('aria-disabled')).not.toBe('true');
-	expect(document.querySelector('[data-workspace-menu-create-refusal]')).toBeNull();
-
-	await fireEvent.click(row as HTMLElement);
-
-	expect(organizationDialog.open).toBe('workspace');
-});
-
-test('for a member who is not the owner the new-workspace row says whose act it is', async () => {
-	menu({
-		canCreateWorkspace: false,
-		refusal: { invite: null, workspace: en.layout.workspaceMenu.workspaceRefusedOwner }
-	});
-	await open();
-
-	const row = createRow();
-
-	expect(row?.getAttribute('aria-disabled')).toBe('true');
-	expect(row?.textContent).toContain(en.layout.workspaceMenu.workspaceRefusedOwner);
-	expect(document.querySelector('svg.lucide-lock')).toBeNull();
-
-	await fireEvent.click(row as HTMLElement);
-
-	expect(organizationDialog.open).toBeNull();
-});
-
-test('for an owner whose machine holds no authority the new-workspace row says what to do first', async () => {
-	menu({
-		canCreateWorkspace: false,
-		refusal: { invite: null, workspace: en.layout.workspaceMenu.workspaceRefusedAuthority }
-	});
-	await open();
-
-	const row = createRow();
-
-	expect(row?.getAttribute('aria-disabled')).toBe('true');
-	expect(row?.textContent).toContain(en.layout.workspaceMenu.workspaceRefusedAuthority);
-	expect(row?.textContent).not.toContain(en.layout.workspaceMenu.workspaceRefusedOwner);
-});
-
-// requirement 17 of effort 826: the menu keeps the switcher and offers workspaces and invite.
-// The row opened the workspace page, which was one workspace; the section it opens now is the
-// list of the ones this member holds.
-test('the workspaces row opens the settings area at the workspaces section', async () => {
+// requirement 9 of effort 828: one row, and it is the only thing the menu offers besides the
+// switch. The row opened the workspace page until 2026-09-14, which was one workspace; the
+// section it opens now is the list of the ones this member holds.
+test('one row leads to the settings area at the workspaces section', async () => {
 	menu();
 	await open();
 
-	const row = workspacesRow();
+	const rows = workspacesRows();
 
-	expect(row?.getAttribute('href')).toBe('/settings?section=workspaces');
-	expect(row?.textContent).toContain(en.settings.section.workspaces);
+	expect(rows).toHaveLength(1);
+	expect(rows[0]?.getAttribute('href')).toBe('/settings?section=workspaces');
+	expect(rows[0]?.textContent).toContain(en.settings.section.workspaces);
 	// nothing in the menu reaches the page the row used to open.
 	expect(document.querySelector('a[href="/workspace"]')).toBeNull();
+});
+
+// requirement 9 of effort 828: the two acts that are not the workspace's left the switcher on
+// 2026-09-15, and the sentence that refused most readers left with them. They are offered in the
+// members and workspaces sections of the settings area, which is where their tests are.
+test('nothing in the menu invites anybody or makes a workspace', async () => {
+	menu();
+	await open();
+
+	expect(document.querySelector('[data-workspace-menu-invite]')).toBeNull();
+	expect(document.querySelector('[data-workspace-menu-create]')).toBeNull();
+	expect(document.querySelector('[data-workspace-menu-invite-refusal]')).toBeNull();
 });

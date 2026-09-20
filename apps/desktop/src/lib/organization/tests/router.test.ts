@@ -58,14 +58,6 @@ function hostRecording(asked: string[]): Host {
 			consentDisconnect: async () => {
 				asked.push('consentDisconnect');
 			},
-			connect: async (link) => {
-				asked.push(`connect:${link}`);
-
-				return fakeOrganizationState({
-					organization: fakeHeldOrganization({ memberId: null, role: null }),
-					session: null
-				});
-			},
 			disconnect: async () => {
 				asked.push('disconnect');
 
@@ -74,7 +66,19 @@ function hostRecording(asked: string[]): Host {
 			create: async (name, username, password, group) => {
 				asked.push(`create:${name}:${username}:${password.length}:${group}`);
 
-				return { organizationId: 'org-1', joinLink: 'rentable://join/abc', synced: true };
+				return { organizationId: 'org-1', synced: true };
+			},
+			groupInspect: async () => {
+				asked.push('groupInspect');
+
+				return { kind: 'held', organizationId: '7f3a' };
+			},
+			connectExisting: async (username, password) => {
+				asked.push(`connectExisting:${username}:${password.length}`);
+
+				return fakeOrganizationState({
+					organization: fakeHeldOrganization({ memberId: 'member-owner', role: 'owner' })
+				});
 			}
 		}
 	});
@@ -93,18 +97,17 @@ test('the consent is opened, polled and given up through the host, and nobody ha
 	assert.deepEqual(asked, ['consentBegin', 'consentResult:consent-1', 'consentDisconnect']);
 });
 
-// effort 824, requirements 18 and 20: connecting by the link and forgetting the organization both
-// happen at the wall, so both are public, and each hands back the state the machine is left in.
-test('connecting by link and disconnecting reach the host signed out, and answer with the state', async () => {
+// effort 824, requirement 20: forgetting the organization happens at the wall, so it is public and
+// hands back the state the machine is left in. *A `connect` stood beside it, taking the
+// organization's own link, until effort 828's requirement 16 retired that link; the two acts that
+// take a link now each take its code with it and are `invitation.accept` and `machine.connect`.*
+test('disconnecting reaches the host signed out, and answers with the state', async () => {
 	const asked: string[] = [];
 	const api = await signedOutApi(hostRecording(asked));
 
-	const connected = await api.app.organization.connect({ link: ' rentable://join/abc ' });
 	const forgotten = await api.app.organization.disconnect();
 
-	assert.deepEqual(asked, ['connect:rentable://join/abc', 'disconnect']);
-	assert.equal(connected.organization?.memberId, null, 'a connect recorded a member');
-	assert.equal(connected.session, null, 'a connect opened a vault');
+	assert.deepEqual(asked, ['disconnect']);
 	assert.equal(forgotten.organization, null);
 });
 
@@ -122,7 +125,7 @@ test('creating hands the trimmed name, the trimmed username and the password to 
 		password: 'a long enough password'
 	});
 
-	assert.equal(created.joinLink, 'rentable://join/abc');
+	assert.equal(created.organizationId, 'org-1');
 
 	await api.app.organization.create({
 		name: '  Acme Rentals ',
@@ -187,8 +190,8 @@ test('changing a role and withdrawing a grant each need their act, and hand thei
 						role,
 						permissions,
 						workspaces: [],
-						pending: null,
-						createdAt: 0
+						createdAt: 0,
+						offeredOwnership: false
 					};
 				}
 			},
@@ -243,24 +246,29 @@ test('nothing here asks the host to list organizations', () => {
 	const procedures = Object.keys(organization._def.procedures).sort();
 
 	assert.deepEqual(procedures, [
-		'connect',
+		'connectExisting',
 		'consent.begin',
 		'consent.disconnect',
 		'consent.result',
 		'create',
+		'delete',
 		'disconnect',
+		'groupInspect',
 		'invitation.accept',
-		'invitation.code',
-		'invitation.link',
-		'invitation.revoke',
+		'machine.connect',
 		'member.changeRole',
+		'member.create',
 		'member.endSessions',
-		'member.invite',
+		'member.linkMake',
 		'member.list',
 		'member.lockOutCost',
+		'member.offerOwnership',
 		'member.remove',
 		'member.rename',
-		'member.reset',
+		'member.standings',
+		'member.unsetPassword',
+		'member.withdrawOffer',
+		'ownershipAccept',
 		'password.change',
 		'session.endElsewhere',
 		'workspace.create',
@@ -333,34 +341,197 @@ test('opening an invitation link reaches the host signed out, and a short passwo
 	assert.deepEqual(asked, ['accept:rentable://join/abc:7K4M9Q:21']);
 });
 
-// requirement 23 from this side: a fresh code is under the act that makes invitations, and whether
-// the caller is the one who issued this one is Rust's, because it turns on whose key the row's
-// sealed secret opens for.
-test('a fresh code is held to inviteMember and hands the invitation on as given', async () => {
+// effort 828, requirement 19 from this side: where each account stands is asked beside the list
+// and answered for every member at once, under any signed-in member's procedure. The directory
+// joins the two on the member's id, and a reader with no session reaches neither. *There was a
+// procedure that copied an invitation's link and code until requirement 19 settled what a card
+// offers: a link is shown once when it is made, and a person who lost the pair makes another.*
+test('where each account stands is answered for every member, to any signed-in member', async () => {
+	let asked = 0;
+	const host = fakeHost({
+		organization: {
+			...fakeHost().organization,
+			member: {
+				...fakeHost().organization.member,
+				standings: async () => {
+					asked += 1;
+
+					return [
+						{ memberId: 'member-1', passwordSet: true, machineSignedIn: true },
+						{ memberId: 'member-2', passwordSet: false, machineSignedIn: false }
+					];
+				}
+			}
+		}
+	});
+	// a plain member: a session with no administration act on it, which is what `permittedApi`
+	// builds when it is named none.
+	const member = await permittedApi(host);
+	const standings = await member.app.organization.member.standings();
+
+	assert.deepEqual(standings, [
+		{ memberId: 'member-1', passwordSet: true, machineSignedIn: true },
+		{ memberId: 'member-2', passwordSet: false, machineSignedIn: false }
+	]);
+	assert.equal(asked, 1);
+
+	const signedOut = await signedOutApi(host);
+
+	await assert.rejects(signedOut.app.organization.member.standings());
+	assert.equal(asked, 1);
+});
+
+// effort 828, requirement 20 from this side: one act makes a link for an account, and it is held to
+// `inviteMember` **or** `resetPassword`. What it hands somebody is the way a machine joins an
+// account, which is what making an account was always half of; it is also the only thing that
+// restores an account whose password `unsetPassword` beside it took away, and that act is
+// `resetPassword`'s. Held to the first alone, a member widened with the second and not the first
+// could take a password away and could not hand back the link that gives one; the human struck
+// that risk on 2026-09-16. Opening a link happens on a machine where nobody has signed in yet, so
+// the connect is public. The code is six characters here as it is on an invitation, and everything
+// else about the link is Rust's.
+test('making a link is held to inviteMember or resetPassword, and connecting with one reaches the host signed out', async () => {
 	const asked: string[] = [];
 	const host = fakeHost({
 		organization: {
 			...fakeHost().organization,
-			invitation: {
-				...fakeHost().organization.invitation,
-				code: async (invitationId) => {
-					asked.push(`code:${invitationId}`);
+			member: {
+				...fakeHost().organization.member,
+				linkMake: async (memberId) => {
+					asked.push(`linkMake:${memberId}`);
 
-					return { code: '7K4M9Q', expiresAt: 1_757_000_090_000 };
+					return { link: 'rentable://join/abc', code: '7K4M9Q', expiresAt: 1_757_604_800_000 };
+				}
+			},
+			machineConnect: async (link, code) => {
+				asked.push(`machineConnect:${link}:${code}`);
+
+				return fakeOrganizationState({
+					organization: fakeHeldOrganization({ memberId: null, role: null }),
+					session: null
+				});
+			}
+		}
+	});
+	const signedOut = await signedOutApi(host);
+
+	await assert.rejects(
+		signedOut.app.organization.member.linkMake({ memberId: 'member-2' }),
+		'a link was made by nobody'
+	);
+	assert.deepEqual(asked, []);
+
+	// a member with no act of their own is refused before the host is reached.
+	const member = await permittedApi(host);
+
+	await assert.rejects(member.app.organization.member.linkMake({ memberId: 'member-2' }));
+	assert.deepEqual(asked, []);
+
+	const inviting = await permittedApi(host, 'inviteMember');
+	const made = await inviting.app.organization.member.linkMake({ memberId: 'member-2' });
+
+	assert.equal(made.code, '7K4M9Q');
+	assert.equal(made.link, 'rentable://join/abc');
+	assert.deepEqual(asked, ['linkMake:member-2']);
+
+	// and a holder of the other act alone, who is whoever can take the password away.
+	const resetting = await permittedApi(host, 'resetPassword');
+
+	assert.equal(
+		(await resetting.app.organization.member.linkMake({ memberId: 'member-3' })).code,
+		'7K4M9Q'
+	);
+	assert.deepEqual(asked, ['linkMake:member-2', 'linkMake:member-3']);
+
+	const connected = await signedOut.app.organization.machine.connect({
+		link: ' rentable://join/abc ',
+		code: '7K4M9Q'
+	});
+
+	assert.equal(connected.organization?.memberId, null, 'a connect recorded a member');
+	assert.equal(connected.session, null, 'a connect opened a vault');
+	assert.deepEqual(asked, [
+		'linkMake:member-2',
+		'linkMake:member-3',
+		'machineConnect:rentable://join/abc:7K4M9Q'
+	]);
+
+	for (const code of ['', '7K4M9', '7K4M9QQ']) {
+		await assert.rejects(
+			signedOut.app.organization.machine.connect({ link: 'rentable://join/abc', code })
+		);
+	}
+
+	await assert.rejects(signedOut.app.organization.machine.connect({ link: '  ', code: '7K4M9Q' }));
+	assert.deepEqual(asked, [
+		'linkMake:member-2',
+		'linkMake:member-3',
+		'machineConnect:rentable://join/abc:7K4M9Q'
+	]);
+});
+
+// effort 828, requirement 20: making an account and unsetting its password are two acts behind two
+// different bits, because making somebody a way in and taking one away are different things to be
+// trusted with. What each writes is Rust's; what is read here is which bit each is held to and what
+// crosses.
+test('making an account is inviteMember and unsetting a password is resetPassword', async () => {
+	const asked: string[] = [];
+	const host = fakeHost({
+		organization: {
+			...fakeHost().organization,
+			member: {
+				...fakeHost().organization.member,
+				create: async (username, role, permissions, workspaces) => {
+					asked.push(`create:${username}:${role}:${permissions}:${workspaces.length}`);
+
+					return {
+						id: 'member-9',
+						username,
+						role,
+						permissions,
+						workspaces,
+						createdAt: 1_757_000_000_000,
+						offeredOwnership: false
+					};
+				},
+				unsetPassword: async (memberId) => {
+					asked.push(`unsetPassword:${memberId}`);
+
+					return [{ id: 'workspace-9', name: 'South' }];
 				}
 			}
 		}
 	});
 	const inviting = await permittedApi(host, 'inviteMember');
-	const fresh = await inviting.app.organization.invitation.code({ invitationId: ' inv-1 ' });
+	const account = await inviting.app.organization.member.create({
+		username: '  sami.staff  ',
+		role: 'member',
+		permissions: 0,
+		workspaces: [{ id: 'workspace-1', access: 'full-access' }]
+	});
 
-	assert.equal(fresh.code, '7K4M9Q');
-	assert.deepEqual(asked, ['code:inv-1']);
+	assert.equal(account.username, 'sami.staff', 'the username was not trimmed before the host');
+	assert.deepEqual(asked, ['create:sami.staff:member:0:1']);
+
+	// unsetting is a different bit, so the caller who makes accounts is refused it.
+	await assert.rejects(inviting.app.organization.member.unsetPassword({ memberId: 'member-2' }));
 
 	const resetting = await permittedApi(host, 'resetPassword');
 
-	await assert.rejects(resetting.app.organization.invitation.code({ invitationId: 'inv-1' }));
-	assert.deepEqual(asked, ['code:inv-1']);
+	assert.deepEqual(
+		await resetting.app.organization.member.unsetPassword({ memberId: 'member-2' }),
+		[{ id: 'workspace-9', name: 'South' }]
+	);
+	// and making an account is refused to the caller who only resets.
+	await assert.rejects(
+		resetting.app.organization.member.create({
+			username: 'sami.staff',
+			role: 'member',
+			permissions: 0,
+			workspaces: []
+		})
+	);
+	assert.deepEqual(asked, ['create:sami.staff:member:0:1', 'unsetPassword:member-2']);
 });
 
 /**
@@ -429,6 +600,122 @@ test('ending sessions reaches the host behind reset password, and ending your ow
 	assert.deepEqual(asked, ['endSessions:member-2', 'endElsewhere', 'endElsewhere']);
 });
 
+// effort 828, requirement 18: deleting the organization needs somebody signed in and a password,
+// and it hands both on as given. It is `member` here rather than an act, because there is no act a
+// role could be given for it: it needs the platform authority only the owner's machine holds, and
+// the owner check is Rust's, on the role the password opened. A caller with nobody signed in is
+// refused before the host is reached, and so is an empty password.
+test('deleting the organization needs a session and a password, and reaches the host with it', async () => {
+	const asked: string[] = [];
+	const host = fakeHost({
+		organization: {
+			...fakeHost().organization,
+			delete: async (password) => {
+				asked.push(`delete:${password}`);
+
+				return fakeOrganizationState({ organization: null, session: null });
+			}
+		}
+	});
+
+	const member = await permittedApi(host);
+	const deleted = await member.app.organization.delete({ password: 'the owners password' });
+
+	assert.equal(deleted.organization, null);
+	assert.deepEqual(asked, ['delete:the owners password']);
+
+	await assert.rejects(member.app.organization.delete({ password: '' }));
+
+	const signedOut = await signedOutApi(host);
+
+	await assert.rejects(signedOut.app.organization.delete({ password: 'the owners password' }));
+	assert.deepEqual(asked, ['delete:the owners password']);
+});
+
+// effort 828, requirement 22: a handover is three procedures, and each of the three is `member`
+// here rather than an act, for the reason deleting the organization is: being the owner is what a
+// password opened rather than a bit on a row, so the owner check and the password are Rust's. A
+// caller with nobody signed in is refused before the host is reached, and so is an empty password
+// or an empty account.
+test('the three acts of a handover need a session, and the offer needs an account and a password', async () => {
+	const asked: string[] = [];
+	const host = fakeHost({
+		organization: {
+			...fakeHost().organization,
+			member: {
+				...fakeHost().organization.member,
+				offerOwnership: async (memberId, password) => {
+					asked.push(`offer:${memberId}:${password}`);
+
+					return {
+						id: memberId,
+						username: 'ada',
+						role: 'administrator',
+						permissions: 127,
+						workspaces: [],
+						createdAt: 0,
+						offeredOwnership: true
+					};
+				},
+				withdrawOffer: async () => {
+					asked.push('withdraw');
+				}
+			},
+			ownershipAccept: async (password) => {
+				asked.push(`accept:${password}`);
+
+				return fakeOrganizationState();
+			}
+		}
+	});
+
+	const member = await permittedApi(host);
+	const offered = await member.app.organization.member.offerOwnership({
+		memberId: 'member-2',
+		password: 'the owners password'
+	});
+
+	assert.equal(offered.offeredOwnership, true);
+
+	await member.app.organization.member.withdrawOffer();
+	await member.app.organization.ownershipAccept({ password: 'their own password' });
+
+	assert.deepEqual(asked, [
+		'offer:member-2:the owners password',
+		'withdraw',
+		'accept:their own password'
+	]);
+
+	await assert.rejects(
+		member.app.organization.member.offerOwnership({ memberId: 'member-2', password: '' })
+	);
+	await assert.rejects(
+		member.app.organization.member.offerOwnership({
+			memberId: ' ',
+			password: 'the owners password'
+		})
+	);
+	await assert.rejects(member.app.organization.ownershipAccept({ password: '' }));
+
+	const signedOut = await signedOutApi(host);
+
+	await assert.rejects(
+		signedOut.app.organization.member.offerOwnership({
+			memberId: 'member-2',
+			password: 'the owners password'
+		})
+	);
+	await assert.rejects(signedOut.app.organization.member.withdrawOffer());
+	await assert.rejects(
+		signedOut.app.organization.ownershipAccept({ password: 'their own password' })
+	);
+	assert.deepEqual(asked, [
+		'offer:member-2:the owners password',
+		'withdraw',
+		'accept:their own password'
+	]);
+});
+
 // requirement 23: a rename is held to requirement 21's rules before the host is reached, and what
 // reaches the host is the trimmed username; a caller without `renameMember` is refused before
 // either. Whether the username is taken is Rust's alone.
@@ -448,8 +735,8 @@ test('a rename hands the trimmed username on, refuses one outside the rules firs
 						role: 'member',
 						permissions: 0,
 						workspaces: [],
-						pending: null,
-						createdAt: 0
+						createdAt: 0,
+						offeredOwnership: false
 					};
 				}
 			}
@@ -478,4 +765,49 @@ test('a rename hands the trimmed username on, refuses one outside the rules firs
 		without.app.organization.member.rename({ memberId: 'member-2', username: 'sami' })
 	);
 	assert.deepEqual(asked, ['rename:member-2:Sami.Staff']);
+});
+
+// effort 828, requirement 14: both halves of the way in that connects to an organization the
+// account already holds happen on a machine that holds nothing, so both are public and both reach
+// the host and nothing else. The username is trimmed the way the create trims it; the password
+// crosses in untouched and nothing about it crosses back.
+test('inspecting the group and connecting to what it holds reach the host signed out', async () => {
+	const asked: string[] = [];
+	const api = await signedOutApi(hostRecording(asked));
+
+	const group = await api.app.organization.groupInspect();
+	const connected = await api.app.organization.connectExisting({
+		username: ' Olivia.Owner ',
+		password: 'the owners password'
+	});
+
+	assert.deepEqual(group, { kind: 'held', organizationId: '7f3a' });
+	assert.equal(connected.organization?.role, 'owner');
+	assert.deepEqual(asked, ['groupInspect', 'connectExisting:Olivia.Owner:19']);
+});
+
+// and the same two bounds the create states, refused before the host is reached: a username
+// outside the rules and a password under the floor.
+test('a username outside the rules or a password under the floor never reaches the connect', async () => {
+	const asked: string[] = [];
+	const api = await signedOutApi(hostRecording(asked));
+
+	await assert.rejects(
+		api.app.organization.connectExisting({
+			username: 'olivia',
+			password: 'x'.repeat(PASSWORD_FLOOR - 1)
+		})
+	);
+
+	for (const username of ['ol', 'o'.repeat(33), 'olivia owner', '']) {
+		await assert.rejects(
+			api.app.organization.connectExisting({
+				username,
+				password: 'a long enough password'
+			}),
+			username
+		);
+	}
+
+	assert.deepEqual(asked, []);
 });

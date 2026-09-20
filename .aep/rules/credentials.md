@@ -79,6 +79,54 @@ secret is the other, and it is never stored on this side. The invitation link cr
 carrying the invitation id and the link secret. Those are still the two, and the sentence above
 about a third holds.*
 
+**What a link is worth to whoever finds it.** *Added 2026-09-15
+([[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]], requirements 1, 2, 4 and
+5).* There are two kinds. **The organization's own link** carries the read-only credential over the
+organization database in the clear, and that credential is minted with no expiry, so it is the one
+credential this application holds that never lapses: whoever finds it pulls a replica of every
+sealed row and guesses passwords offline for as long as they like, and the password floor is the
+only bound. It is the owner's recovery copy and is handed to nobody, and it connects a machine with
+no code precisely because when every machine is gone there is nobody left to read one out.
+**Every other link** — an invitation, a reset, and the second-machine link effort 828 adds —
+carries no legible credential at all: the issuer's own four-week grant on the organization database
+and, where the link opens a vault, the password that vault was made under, sealed together under a
+key Argon2id derives from a six-character code salted with the link's own thirty-two byte secret,
+with the link's kind, its row and the moment it lapses bound as associated data. What stands
+between a found link and the directory is therefore thirty-two to the sixth guesses at Argon2id,
+the bound the invited vault already accepted, and the credential inside is dead within four weeks
+whatever happens to the link. Reading a link is a decode and reaches nothing; the code is checked
+by being used, never compared, and it lives exactly as long as the link it came with. *The
+invitation code crossed out of `invitation_code` until 2026-09-15; there is one code per link now,
+so it crosses out of `member_invite`, `member_reset` and `invitation_link`, and a fresh code means
+a fresh link. Corrected 2026-09-16 (requirements 19 and 20): those three commands are gone, and a
+code crosses out of `member_link_make` alone, which is the one act that makes a link. Nothing hands
+a link over a second time, so nothing reads a code back out of a row.*
+
+*Corrected 2026-09-16 ([[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]],
+requirement 16, which supersedes requirement 4): **no link carries a legible credential, and the
+"every other link" paragraph above now describes every link there is.** The organization's own link
+retired, and with it the never-expiring read-only credential it was the only holder of: nothing
+mints one, nothing stores one, nothing shows one and nothing accepts one, the column that held it
+sealed is gone from the organization row, and there is no kind of link left that connects a machine
+without a code. What each link carries is what that paragraph says, on all of them.*
+
+*Corrected 2026-09-16 ([[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]],
+requirement 20): **there are two kinds of link, and a reset is not one of them.** The paragraph
+above glosses "every other link" as an invitation, a reset and the second-machine link effort 828
+adds, which is three; what the code holds is two, `HalfKind::Invitation` and `HalfKind::Machine`. A
+reset makes no link at all: `invite::unset_password`, held to `resetPassword`, takes an account's
+password away and reseals its grants, and what follows it is an ordinary link made from the
+account's card, asking the person to choose a new password because the account now has none. The
+second-machine link is not a third kind either; it is the machine kind, made by the owner or an
+administrator for an account no machine is signed in on. What each of the two carries is what that
+paragraph says, unchanged.*
+
+*And **the owner's way back is the account**, which is why the recovery copy could go. An owner
+whose every machine is gone repeats the Turso consent and signs in with their own username and
+password, and that password is what re-derives the organization's key either way (requirement 14).
+Nothing about who can recover an organization changed; what changed is that recovering it no longer
+needs a credential kept somewhere a finder could read.*
+
 Recorded originally as ADR 0003, *The Google Drive client relocates wholly to Rust*.
 
 ## Concurrency — **retired 2026-08-19 with the transport it bound (#554)**

@@ -8,13 +8,18 @@ import en from '$lib/i18n/en/index.ts';
 import { i18nObject } from '$lib/i18n/i18n-util.ts';
 import { loadLocale } from '$lib/i18n/i18n-util.sync.ts';
 import {
+	CONNECT_EXISTING_STEPS,
 	PASSWORD_FLOOR,
+	SETUP_STEPS,
 	SETUP_WALK,
 	THE_GROUP_IS_NEEDED,
 	fieldsPresented,
+	refusalAfterFailedConnect,
 	refusalAfterFailedCreate,
 	statementsBeforeCreation,
-	stepFor
+	stepAfterConsent,
+	stepFor,
+	stepsOf
 } from '$lib/organization/setup.ts';
 import { fakeOrganizationSession, fakeOrganizationWorkspace } from '$lib/platform/tests/testing.ts';
 import { USERNAME_MAX, USERNAME_MIN, usernameSchema } from '$lib/organization/username-form.ts';
@@ -206,7 +211,7 @@ const STATEMENTS = {
 		groupCoverage:
 			'the consent covers every database in the group you choose, and nothing outside it.',
 		oneOrganization:
-			'a group holds one organization. a group that already holds one is refused here, before anything is created.',
+			'a group holds one organization. a group that already holds one is connected to, not refused.',
 		accountCreation:
 			'a free or developer turso account has exactly one group, so an account kept for rentable alone is the clean choice, and the consent screen is where you make one. on a paid account, pick an empty group.',
 		succession:
@@ -217,7 +222,7 @@ const STATEMENTS = {
 	ar: {
 		groupCoverage: 'تشمل الموافقة كل قاعدة بيانات في المجموعة التي تختارها، ولا شيء خارجها.',
 		oneOrganization:
-			'تحمل المجموعة الواحدة مؤسسة واحدة، لذا تُرفض المجموعة التي تحمل مؤسسة بالفعل قبل أن يُنشأ أي شيء.',
+			'تحمل المجموعة الواحدة مؤسسة واحدة، وإن كانت تحمل واحدة بالفعل فالاتصال بها هو ما يحدث، لا الرفض.',
 		accountCreation:
 			'لا يحمل حساب Turso المجاني أو حساب Developer سوى مجموعة واحدة، لذا يبقى تخصيص حساب لـ rentable وحده هو الخيار الأنظف، وشاشة الموافقة تفتح لك حساباً إن لم يكن لديك واحد. أما في الحساب المدفوع فاختر مجموعة فارغة.',
 		succession:
@@ -623,5 +628,137 @@ test('a workspace name over the limit is refused with the one sentence every sur
 
 		assert.equal(atTheBound.success, true);
 		assert.equal(atTheBound.data?.name, 'n'.repeat(WORKSPACE_NAME_LIMIT));
+	}
+});
+
+/**
+ * Effort 828, requirement 14: **the consent is where the two ways part.**
+ *
+ * An account holding nothing runs the walk as it always did and creates; an account already
+ * holding an organization goes to the step where its owner signs in, which is the step that
+ * replaced the refusal that used to be the only answer there.
+ */
+test('what the consent found decides which step follows it', () => {
+	assert.equal(stepAfterConsent({ kind: 'empty' }), 'name');
+	assert.equal(stepAfterConsent({ kind: 'held', organizationId: '7f3a' }), 'existing');
+
+	// and the step it goes to on an empty account is the walk's own second step, unchanged.
+	assert.equal(SETUP_WALK[1]?.step, 'name');
+});
+
+/**
+ * The `existing` step is a step the screen draws and not a step of the walk that creates: the
+ * fields a walk presents are the fields everybody types into, and nobody on the ordinary first
+ * run ever sees these. It has two steps of its own, and the position line counts over them.
+ */
+test('the connect-existing way is two steps and is not the walk that creates', () => {
+	assert.deepEqual([...CONNECT_EXISTING_STEPS], ['connect', 'existing']);
+	assert.deepEqual([...stepsOf('existing')], ['connect', 'existing']);
+	assert.deepEqual([...stepsOf('name')], [...SETUP_STEPS]);
+	assert.ok(
+		!SETUP_WALK.some((step) => step.step === 'existing'),
+		'the existing step is presented by the walk that creates'
+	);
+	assert.deepEqual(fieldsPresented(), ['name', 'username', 'password', 'workspace']);
+});
+
+/**
+ * A refused connect is read off **what was refused**. A refusal about the consented account itself
+ * is Rust's `preconditionFailed`, and nothing typed on the step answers one, so the walk returns to
+ * the consent carrying the sentence; everything else leaves the consent where it was and is said on
+ * the step, against the password, with what was typed still in the fields.
+ *
+ * *It read the Turso authority instead until ticket 20, which is a fact about this machine rather
+ * than about what was refused: a connect that failed on the network at a moment when the state
+ * this machine held of itself said the authority was gone sent the person back to grant a consent
+ * they had never lost. The network case is the last assertion here.*
+ *
+ * *And the refusal it was written for was the register's, a machine somebody was still on, until
+ * the human ruled one machine per account out on 2026-09-20. The sentence below is the one Rust
+ * still formats for a `preconditionFailed` here.*
+ */
+test('a connect refused on the account itself sends the walk to the connect step', () => {
+	const refused = {
+		code: 'preconditionFailed',
+		message: 'this turso account holds no organization to connect to. go back and make one'
+	};
+
+	assert.deepEqual(refusalAfterFailedConnect(refused), {
+		step: 'connect',
+		message: refused.message,
+		askGroup: false,
+		detail: null
+	});
+
+	// the owner typed the wrong password: the consent is intact, so the walk stays where it is.
+	assert.equal(
+		refusalAfterFailedConnect({
+			code: 'forbidden',
+			message:
+				'the username and password do not open a place in the organization this turso account holds'
+		}),
+		null
+	);
+
+	// and the connection dropped: the consent is intact too, and this is the one the authority
+	// could not be trusted to answer for. The person tries again where they are.
+	assert.equal(
+		refusalAfterFailedConnect({
+			code: 'network',
+			message:
+				'the organization could not be reached. the account is right; try again once the connection is back'
+		}),
+		null
+	);
+
+	// a failure the boundary did not name at all leaves them where they are as well.
+	assert.equal(refusalAfterFailedConnect(new Error('something else')), null);
+});
+
+/**
+ * and the sentences the connect refuses with are Rust's, read back out of `setup.rs`.
+ *
+ * *There were two until 2026-09-20, and the one that went pointed at a link a connected machine
+ * could make. Nothing formats it now, which this asserts as well: the owner is handed no link, so
+ * that sentence sent them looking for something nobody could give them.*
+ */
+test('the refusals the existing step can meet are the ones rust formats', async () => {
+	const rust = await readFile(
+		fileURLToPath(new URL('../../../../tauri/src/organization/setup.rs', import.meta.url)),
+		'utf8'
+	);
+	const unwrapped = rust.replace(/\\\n\s*/g, '');
+
+	assert.ok(
+		unwrapped.includes(
+			'this turso account holds no organization to connect to. go back and make one'
+		),
+		'rust no longer says that the account holds nothing to connect to'
+	);
+	assert.ok(
+		unwrapped.includes(
+			'only the owner can connect a machine with the turso account. ask them for a link, or for a new one if yours has lapsed'
+		),
+		'rust no longer refuses anybody but the owner by name'
+	);
+	assert.ok(
+		!/make a link on that machine/.test(unwrapped),
+		'rust still points at a link a connected machine can make'
+	);
+});
+
+/** the step's own words, in both locales, written rather than copied. */
+test('the existing step says whose account it is and who signs in, in both locales', () => {
+	for (const key of ['existingTitle', 'existingDescription', 'existingConnect'] as const) {
+		assert.ok(en.organization.setup[key].length > 0, key);
+		assert.ok(ar.organization.setup[key].length > 0, key);
+		assert.notEqual(ar.organization.setup[key], en.organization.setup[key], key);
+	}
+
+	// one sentence, and it names neither a group nor a database nor a consent.
+	assert.equal(en.organization.setup.existingDescription.split('.').filter(Boolean).length, 2);
+
+	for (const word of [/\bgroup\b/, /\bdatabase\b/, /\bconsent\b/]) {
+		assert.ok(!word.test(en.organization.setup.existingDescription), String(word));
 	}
 });

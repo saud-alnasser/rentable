@@ -47,8 +47,11 @@ const dialog = (
 		{
 			open: true,
 			onOpenChange: noop,
-			title: en.organization.dashboard.accessTitle,
-			description: en.organization.dashboard.accessDescription.replace('{username:string}', 'ada'),
+			title: en.organization.dashboard.workspaceAccessTitle,
+			description: en.organization.dashboard.workspaceAccessDescription.replace(
+				'{workspace:string}',
+				'Riyadh'
+			),
 			rows,
 			canGrantReadOnly: true,
 			isSaving: false,
@@ -77,7 +80,7 @@ test('the dialog is a light form surface with one control per row, opened on wha
 	expect(surface()).not.toBeNull();
 	// light: the centred panel rather than the edge sheet.
 	expect(surface()?.className).toContain('-translate-x-1/2');
-	expect(screen.getByText(en.organization.dashboard.accessTitle)).toBeDefined();
+	expect(screen.getByText(en.organization.dashboard.workspaceAccessTitle)).toBeDefined();
 	expect(
 		Array.from(document.querySelectorAll('[data-access-row]')).map((row) =>
 			row.getAttribute('data-access-row')
@@ -152,14 +155,17 @@ test('and in arabic the choices and the refusal read in their own words, right t
 	dialog(
 		{
 			canGrantReadOnly: false,
-			title: ar.organization.dashboard.accessTitle,
-			description: ar.organization.dashboard.accessDescription.replace('{username}', 'ada')
+			title: ar.organization.dashboard.workspaceAccessTitle,
+			description: ar.organization.dashboard.workspaceAccessDescription.replace(
+				'{workspace}',
+				'Riyadh'
+			)
 		},
 		'rtl'
 	);
 
 	expect(surface()?.getAttribute('dir')).toBe('rtl');
-	expect(screen.getByText(ar.organization.dashboard.accessTitle)).toBeDefined();
+	expect(screen.getByText(ar.organization.dashboard.workspaceAccessTitle)).toBeDefined();
 	expect(screen.getByText(ar.organization.dashboard.readOnlyIsTheOwners)).toBeDefined();
 	expect(ar.organization.dashboard.readOnlyIsTheOwners).not.toBe(
 		en.organization.dashboard.readOnlyIsTheOwners

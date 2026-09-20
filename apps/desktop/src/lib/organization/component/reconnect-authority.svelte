@@ -19,6 +19,13 @@
 	 * owner has given the consent again on this machine; this says so, and offers the same consent
 	 * the first run offered. Once it is granted, the account it is over is discovered the way the
 	 * first run discovered it, and the machine can act as the owner's again.
+	 *
+	 * **It is also what an owner who was handed the organization meets** (effort 828, requirement
+	 * 22), and that is a different reason for the same state: nothing was lost here, the authority
+	 * simply never belonged to the ownership. So one short sentence says where it does belong,
+	 * before the sentence about restoring it, and the offer below is the same offer either way.
+	 * The transfer's own surface says the same thing to the person handing it over, so neither
+	 * side learns it for the first time here.
 	 */
 	let { onReconnected }: { onReconnected: () => void } = $props();
 
@@ -60,6 +67,9 @@
 </script>
 
 <div class="space-y-4" data-reconnect-authority={status}>
+	<Field.Description data-authority-follows-the-account>
+		{$LL.organization.dashboard.authorityFollowsTheAccount()}
+	</Field.Description>
 	<Field.Description>{$LL.organization.dashboard.authorityDescription()}</Field.Description>
 
 	{#if status === 'pending'}

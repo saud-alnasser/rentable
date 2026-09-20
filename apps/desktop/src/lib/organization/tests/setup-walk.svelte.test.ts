@@ -73,6 +73,7 @@ const walk = (
 			onContinue: noop,
 			onBack: noop,
 			onCreate: async () => {},
+			onConnectExisting: async () => {},
 			onCreateWorkspace: async () => {},
 			...overrides
 		},
@@ -660,4 +661,102 @@ test('the walk renders in arabic with the same fields on each step', () => {
 	expect(screen.getByRole('button', { name: ar.layout.noWorkspace.create })).toBeDefined();
 
 	setLocale('en');
+});
+
+/**
+ * Effort 828, requirement 14: **the account that already holds an organization is connected to.**
+ *
+ * The step after the consent on that way in asks for the owner's username and their password, and
+ * says in one sentence whose account this is and who signs in here. It is not a step of the walk
+ * that creates, so `SETUP_WALK` does not carry it and the assertions over that walk above are
+ * untouched; what it is, is what this renders.
+ */
+test('the existing step says one sentence and asks for the username and the password', () => {
+	loadLocale('en');
+	setLocale('en');
+	walk('existing');
+
+	expect(screen.getByText(en.organization.setup.existingTitle)).toBeDefined();
+	expect(screen.getByText(en.organization.setup.existingDescription)).toBeDefined();
+
+	const inputs = inputsOnScreen();
+
+	expect(inputs.map((input) => input.getAttribute('name'))).toEqual(['username', 'password']);
+	expect(inputs.find((input) => input.name === 'password')?.type).toBe('password');
+	expect(screen.getByRole('button', { name: en.organization.setup.existingConnect })).toBeDefined();
+
+	// nothing on it asks for a name, a workspace or a group: the organization is already there.
+	expect(screen.queryByText(en.organization.setup.nameLabel)).toBeNull();
+	expect(document.querySelector('[data-setup-group]')).toBeNull();
+
+	// and it is the second of the two steps that way in has, said where every step says it.
+	expect(document.querySelector('[data-setup-position]')?.textContent?.trim()).toBe(
+		i18nObject('en').organization.setup.position({ step: 2, total: 2 })
+	);
+});
+
+// what the owner typed is handed on as they typed it, trimmed on the username the way the create
+// trims it, and the password untouched.
+test('connecting hands the owner username and password on', async () => {
+	loadLocale('en');
+	setLocale('en');
+
+	const onConnectExisting = vi.fn(async () => {});
+
+	walk('existing', { onConnectExisting });
+
+	for (const [name, value] of [
+		['username', ' olivia.owner '],
+		['password', 'the owners password']
+	]) {
+		await fireEvent.input(document.querySelector(`input[name="${name}"]`)!, {
+			target: { value }
+		});
+	}
+
+	await fireEvent.submit(document.querySelector('form')!);
+
+	await waitFor(() => {
+		expect(onConnectExisting).toHaveBeenCalledWith('olivia.owner', 'the owners password');
+	});
+});
+
+// a pair that opens nothing is said against the password, where the person just typed, and the
+// field is marked: the sentence is Rust's one sentence and says nothing about which half was wrong.
+test('a refused connect marks the password field and says why under it', () => {
+	loadLocale('en');
+	setLocale('en');
+
+	const refused =
+		'the username and password do not open a place in the organization this turso account holds';
+
+	walk('existing', { existingRefusal: refused });
+
+	expect(screen.getByText(refused)).toBeDefined();
+	expect(document.querySelector('input[name="password"]')?.getAttribute('aria-invalid')).toBe(
+		'true'
+	);
+	expect(document.querySelector('input[name="username"]')?.getAttribute('aria-invalid')).toBeNull();
+
+	// and nothing is said until something was refused.
+	expect(document.querySelector('[data-setup-existing-refusal]')).not.toBeNull();
+});
+
+// it is one of the steps before the organization is this machine's, so it carries the one way back
+// every such step carries.
+test('the existing step carries the one back control', () => {
+	loadLocale('en');
+	setLocale('en');
+
+	const onBack = vi.fn();
+
+	walk('existing', { onBack });
+
+	const backs = screen.getAllByRole('button', { name: en.organization.setup.back });
+
+	expect(backs).toHaveLength(1);
+
+	backs[0]!.click();
+
+	expect(onBack).toHaveBeenCalledTimes(1);
 });

@@ -20,8 +20,8 @@ export const keys = {
 	all: ['organization'],
 	consent: (sessionId: string) => ['organization', 'consent', sessionId],
 	members: ['organization', 'members'],
-	state: ['organization', 'state'],
-	ownLink: ['organization', 'own-link']
+	memberStandings: ['organization', 'members', 'standings'],
+	state: ['organization', 'state']
 } as const;
 
 /** how often a pending consent is asked about, while the browser tab is open somewhere else. */
@@ -212,6 +212,32 @@ export function useDisconnectOrganization(
 }
 
 /**
+ * delete the organization: the shell removes every workspace database and the organization's own
+ * directory from the owner's Turso account, then forgets all of it here (effort 828, requirement
+ * 18). Nothing puts either back.
+ *
+ * **No invalidation here**, for the same reason the disconnect has none: what follows is the first
+ * screen, and the caller hands the outcome to the startup unit, which reads where the machine
+ * stands and clears the whole cache on the way. The one question before it runs is the surface's,
+ * and it is where the password is typed.
+ */
+export function useDeleteOrganization(
+	opts: MutationOptions = {
+		toast: {
+			success: () => get(LL).organization.dashboard.organizationDeleted(),
+			error: true,
+			unexpected: () => get(LL).common.messages.unexpectedError()
+		}
+	}
+) {
+	return createMutation(() => ({
+		mutationFn: (input: { password: string }) => api.app.organization.delete(input),
+		onSuccess: () => onMutationSuccess(opts),
+		onError: (e) => onMutationError(opts, e)
+	}));
+}
+
+/**
  * create the organization, from the name, the username and the password the walk's name step
  * collects, and the Turso group where the step was asked to collect one. The refusals a person
  * can act on arrive as `BAD_REQUEST` and are shown verbatim; everything else reads as an
@@ -249,6 +275,51 @@ export function useCreateOrganization(
 		// is forgotten here the way the wall and a sign-out forget it (`api/caller`).
 		onSuccess: () => {
 			forgetContext();
+			onMutationSuccess(opts);
+		},
+		onError: (e) => onMutationError(opts, e)
+	}));
+}
+
+/**
+ * what the consented Turso account already holds, asked once after the consent (effort 828,
+ * requirement 14). It reads and changes nothing, and the walk goes to the name step or to the
+ * sign-in step on what it answers. A refusal is the shared handler's: the person is on the
+ * consent step and the button is still there.
+ */
+export function useInspectGroup(
+	opts: MutationOptions = {
+		toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() }
+	}
+) {
+	return createMutation(() => ({
+		mutationFn: () => api.app.organization.groupInspect(),
+		onSuccess: () => onMutationSuccess(opts),
+		onError: (e) => onMutationError(opts, e)
+	}));
+}
+
+/**
+ * connect this machine to the organization the account already holds, with the owner's username
+ * and password. Every refusal is said on the step rather than in a toast, the way the create's
+ * group refusal is: the sentence belongs beside the fields that were typed into, and the walk is
+ * what decides whether to keep the step or go back to the consent.
+ */
+export function useConnectExisting(
+	opts: MutationOptions = {
+		toast: { error: () => null, unexpected: () => get(LL).common.messages.unexpectedError() }
+	}
+) {
+	const client = useQueryClient();
+
+	return createMutation(() => ({
+		mutationFn: ({ username, password }: { username: string; password: string }) =>
+			api.app.organization.connectExisting({ username, password }),
+		// the connect signs the owner in, and the held context was built while nobody was: it is
+		// forgotten here the way a create forgets it, so the next call has an actor.
+		onSuccess: async () => {
+			forgetContext();
+			await client.invalidateQueries({ queryKey: keys.state });
 			onMutationSuccess(opts);
 		},
 		onError: (e) => onMutationError(opts, e)
@@ -335,14 +406,19 @@ export function useFetchMembers() {
 }
 
 /**
- * the organization's own link, for the owner to share or keep. Fetched on demand where the owner's
- * dashboard draws it; the credential it carries is the owner's own and already in their vault.
+ * where each account stands: whether it has a password of its own yet, and whether a machine is
+ * signed in on it (effort 828, requirement 19).
+ *
+ * **A second query rather than a wider member row**, because the two halves come from two places:
+ * the password is on the signed member row and the machine is on the register every machine writes
+ * for itself. Its key sits under the members' own, so everything that invalidates the list
+ * invalidates the standings with it, which is what keeps a card's line true after a link, a reset
+ * or a removal.
  */
-export function useOrganizationLink(enabled: () => boolean) {
+export function useFetchMemberStandings() {
 	return createQuery(() => ({
-		queryKey: keys.ownLink,
-		queryFn: () => tauri.organization.ownLink(),
-		enabled: enabled()
+		queryKey: keys.memberStandings,
+		queryFn: () => api.app.organization.member.standings()
 	}));
 }
 
@@ -355,10 +431,10 @@ export function useFetchOrganizationState() {
 }
 
 /**
- * invite a member. What comes back is shown once by the surface that asked; this hook only
- * refreshes the two lists it changed.
+ * make an account. It hands over nothing: the account holds no password until a link is made for
+ * it, so this only refreshes the list it changed.
  */
-export function useInviteMember(
+export function useCreateAccount(
 	opts: MutationOptions = {
 		toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() }
 	}
@@ -369,12 +445,14 @@ export function useInviteMember(
 		mutationFn: ({
 			username,
 			role,
+			permissions,
 			workspaces
 		}: {
 			username: string;
 			role: 'administrator' | 'member';
+			permissions: number;
 			workspaces: { id: string; access: 'full-access' | 'read-only' }[];
-		}) => api.app.organization.member.invite({ username, role, workspaces }),
+		}) => api.app.organization.member.create({ username, role, permissions, workspaces }),
 		onSuccess: async () => {
 			await client.invalidateQueries({ queryKey: keys.members });
 			onMutationSuccess(opts);
@@ -444,28 +522,6 @@ export function useLockOutCost(memberId: () => string | null) {
 	}));
 }
 
-export function useRevokeInvitation(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).organization.dashboard.revoked(),
-			error: true,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
-	}
-) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: ({ invitationId }: { invitationId: string }) =>
-			api.app.organization.invitation.revoke({ invitationId }),
-		onSuccess: async () => {
-			await client.invalidateQueries({ queryKey: keys.members });
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
-
 /**
  * the signed-in member's own password, changed from the account page. The refusal a person
  * can act on, a password under the floor or a current one that did not open, is shown.
@@ -488,7 +544,7 @@ export function useChangePassword(
 }
 
 /**
- * end the reader's own sessions on every other machine, from the you section (effort 826,
+ * end the reader's own sessions on every other machine, from the account section (effort 826,
  * requirement 22).
  *
  * **This machine stays signed in**, so there is nothing to invalidate but where the machine
@@ -594,6 +650,96 @@ export function useChangeRole(
 }
 
 /**
+ * offer the organization to another account: the first of the two acts a handover is (effort 828,
+ * requirement 22).
+ *
+ * **Only the list is refreshed.** Nothing about the organization moves on an offer, so the
+ * reader is still the owner and the sections the settings area draws them are unchanged; what
+ * changes is that one card now carries the offer, which is on the list.
+ *
+ * The refusal a person can act on is a password that does not open their vault, and the surface
+ * marks it on the field ([[rules/interface]], *Validation errors*), so the caller reads the
+ * rejection rather than only hearing it.
+ */
+export function useOfferOwnership(
+	opts: MutationOptions = {
+		toast: {
+			success: () => get(LL).organization.dashboard.ownershipOffered(),
+			error: true,
+			unexpected: () => get(LL).common.messages.unexpectedError()
+		}
+	}
+) {
+	const client = useQueryClient();
+
+	return createMutation(() => ({
+		mutationFn: ({ memberId, password }: { memberId: string; password: string }) =>
+			api.app.organization.member.offerOwnership({ memberId, password }),
+		onSuccess: async () => {
+			await client.invalidateQueries({ queryKey: keys.members });
+			onMutationSuccess(opts);
+		},
+		onError: (e) => onMutationError(opts, e)
+	}));
+}
+
+/** take the offer back, which leaves the organization exactly where it was. */
+export function useWithdrawOffer(
+	opts: MutationOptions = {
+		toast: {
+			success: () => get(LL).organization.dashboard.ownershipOfferWithdrawn(),
+			error: true,
+			unexpected: () => get(LL).common.messages.unexpectedError()
+		}
+	}
+) {
+	const client = useQueryClient();
+
+	return createMutation(() => ({
+		mutationFn: () => api.app.organization.member.withdrawOffer(),
+		onSuccess: async () => {
+			await client.invalidateQueries({ queryKey: keys.members });
+			onMutationSuccess(opts);
+		},
+		onError: (e) => onMutationError(opts, e)
+	}));
+}
+
+/**
+ * accept the organization that was offered to this reader (effort 828, requirement 22).
+ *
+ * **The state key is refreshed beside the list**, because the reader's own role changes with the
+ * act: they are the owner the moment it goes through, and the sections the settings area offers
+ * them, the acts its cards carry and the rail's menus are all read off that. Without it the
+ * screen would go on drawing a member's controls until a relaunch.
+ *
+ * The refusal a person can act on is a password that does not open their vault, and the surface
+ * marks it on the field ([[rules/interface]], *Validation errors*).
+ */
+export function useAcceptOwnership(
+	opts: MutationOptions = {
+		toast: {
+			success: () => get(LL).organization.dashboard.ownershipAccepted(),
+			error: true,
+			unexpected: () => get(LL).common.messages.unexpectedError()
+		}
+	}
+) {
+	const client = useQueryClient();
+
+	return createMutation(() => ({
+		mutationFn: ({ password }: { password: string }) =>
+			api.app.organization.ownershipAccept({ password }),
+		onSuccess: async () => {
+			await client.invalidateQueries({ queryKey: keys.members });
+			await client.invalidateQueries({ queryKey: keys.state });
+			onMutationSuccess(opts);
+		},
+		onError: (e) => onMutationError(opts, e)
+	}));
+}
+
+/**
  * one member's access on one workspace, as a dialog hands the change back. `none` is the grant
  * coming back.
  */
@@ -661,49 +807,14 @@ export function useChangeAccess(
 }
 
 /**
- * the invitation link again, for the person who issued it. Nobody else can read it, and the row
- * offers them a new link instead; the refusal arrives as a forbidden and is shown.
+ * make the one link that admits a machine to an account (effort 828, requirement 20).
  *
  * **A mutation rather than a query**, because it is asked for at the moment somebody presses a
- * control and its answer is shown once: cached under a key, it would be a secret kept in memory
- * for as long as the section is open.
+ * control and its answer is shown once: cached under a key it would be a secret kept in memory for
+ * as long as the section is open. The list is refreshed
+ * because an invitation-kind link leaves a pending mark on the account's row.
  */
-export function useInvitationLink(
-	opts: MutationOptions = {
-		toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() }
-	}
-) {
-	return createMutation(() => ({
-		mutationFn: ({ invitationId }: { invitationId: string }) =>
-			api.app.organization.invitation.link({ invitationId }),
-		onSuccess: () => onMutationSuccess(opts),
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
-
-/**
- * a fresh confirmation code for an invitation, for the person who issued it. The one before it
- * opens nothing from then on, and anybody else is refused and offered a new link.
- *
- * **A mutation rather than a query**, and quiet, for the reasons `useInvitationLink` gives: it is
- * asked for at the moment somebody presses a control, its answer is a secret shown once, and the
- * panel it lands in is where the reader learns it worked.
- */
-export function useInvitationCode(
-	opts: MutationOptions = {
-		toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() }
-	}
-) {
-	return createMutation(() => ({
-		mutationFn: ({ invitationId }: { invitationId: string }) =>
-			api.app.organization.invitation.code({ invitationId }),
-		onSuccess: () => onMutationSuccess(opts),
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
-
-/** reset a member's password: a fresh link, from what the resetting administrator holds. */
-export function useReissueInvitation(
+export function useMakeMemberLink(
 	opts: MutationOptions = {
 		toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() }
 	}
@@ -712,11 +823,47 @@ export function useReissueInvitation(
 
 	return createMutation(() => ({
 		mutationFn: ({ memberId }: { memberId: string }) =>
-			api.app.organization.member.reset({ memberId }),
+			api.app.organization.member.linkMake({ memberId }),
 		onSuccess: async () => {
 			await client.invalidateQueries({ queryKey: keys.members });
 			onMutationSuccess(opts);
 		},
 		onError: (e) => onMutationError(opts, e)
 	}));
+}
+
+/**
+ * unset a member's password, so the next link made for them asks for a new one.
+ *
+ * **What it could not carry over is said rather than swallowed.** A workspace the person resetting
+ * holds no full credential on is taken off the member's row, and the sentence naming those is the
+ * announcement this act makes; where it carried everything over, the plain one is said.
+ */
+export function useUnsetMemberPassword(
+	opts: MutationOptions = {
+		toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() }
+	}
+) {
+	const client = useQueryClient();
+
+	return createMutation(() => ({
+		mutationFn: ({ memberId }: { memberId: string }) =>
+			api.app.organization.member.unsetPassword({ memberId }),
+		onSuccess: async (unreachable) => {
+			await client.invalidateQueries({ queryKey: keys.members });
+			onMutationSuccess(announcing(opts, unsetSentence(unreachable)));
+		},
+		onError: (e) => onMutationError(opts, e)
+	}));
+}
+
+/** what a reset says: what it carried over, or what it could not and whom to ask. */
+function unsetSentence(unreachable: { id: string; name: string }[]) {
+	const ll = get(LL);
+
+	return unreachable.length === 0
+		? ll.organization.dashboard.passwordUnset()
+		: ll.organization.dashboard.unreachableWorkspaces({
+				workspaces: unreachable.map((workspace) => workspace.name).join(', ')
+			});
 }

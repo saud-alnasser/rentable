@@ -74,20 +74,28 @@
 	 * Each field leads with its subject's glyph inside the input group, muted so it does not
 	 * outweigh the label (requirement 15), and the unlock carries its verb's (requirement 14).
 	 *
-	 * **A machine with nothing is offered two ways in.** One word of title, a line that says what
-	 * the two are for, and two controls carrying their verb's glyph and a short label: create an
-	 * organization, which is the first run on the person's own Turso account, and connect with a
-	 * link, which is the connect screen. *Settled with the human on 2026-09-13 over three looks
-	 * at the first screen of the build that forgets the old shape: one word in the title, a
-	 * friendly line under it, three words at most on a control.*
+	 * **A machine with nothing is offered two ways in, and each says what it needs** (effort 828,
+	 * requirement 13). One word of title, a line saying this machine holds nothing yet, and two
+	 * controls carrying their verb's glyph and a short label, each with one sentence under it: the
+	 * Turso account, which is the walk, for whoever owns the organization whether it is being made
+	 * now or is already on the account; and the link with its code, which is the connect screen,
+	 * for what an administrator or a member handed over. *Settled with the human on 2026-09-13 over
+	 * three looks at the first screen of the build that forgets the old shape: one word in the
+	 * title, a friendly line under it, three words at most on a control. The two sentences were
+	 * added on 2026-09-15, when the human walked the merged build and could not tell from the
+	 * labels which of the two was theirs.*
+	 *
+	 * **Nothing here names a group, a database or a consent.** They are the walk's own machinery
+	 * and mean nothing to a person deciding which of two ways in they hold; the account they have
+	 * and the link they were handed are what they can answer with.
 	 *
 	 * **Disconnect forgets the organization on this machine** (effort 824, requirement 20), after
 	 * the one confirm the dialog asks, and the wall comes back as a machine that holds nothing,
 	 * offering the two ways in again. Setting up is offered only there, since a machine holds one
 	 * organization (requirement 17) and reaching another is disconnect, then connect. Beside it,
 	 * the way to the connect screen for a person holding a link (effort 826, requirement 11): a
-	 * reset link is opened by somebody whose machine already holds the organization, so the screen
-	 * it is opened on has to be reachable from here.
+	 * link for an account that already has a password is opened by somebody whose machine may
+	 * already hold the organization, so the screen it is opened on has to be reachable from here.
 	 */
 	let {
 		situation,
@@ -112,11 +120,11 @@
 		onSignIn: (username: string, password: string) => void;
 		/** forget the held organization on this machine, once the person has confirmed it. */
 		onDisconnect: () => Promise<void> | void;
-		/** the first run: an organization on the person's own Turso account. */
+		/** the walk, on the person's own Turso account: the way in for whoever owns the organization. */
 		onSetUpOrganization: () => void;
 		/**
-		 * the connect screen: an organization link or an invitation link, pasted or handed over by
-		 * the operating system. Offered in both situations, since a reset link is opened from here.
+		 * the connect screen: a link and its code, pasted or handed over by the operating system.
+		 * Offered in both situations, since a link for an account with a password is opened from here.
 		 */
 		onJoinByLink: () => void;
 	} = $props();
@@ -180,14 +188,29 @@
 		{/if}
 
 		{#if !held}
-			<Button class="w-full justify-center" onclick={onSetUpOrganization}>
-				<BuildingIcon class="size-4" />
-				{$LL.layout.signIn.setUp()}
-			</Button>
-			<Button variant="outline" class="w-full justify-center" onclick={onJoinByLink}>
-				<LinkIcon class="size-4" />
-				{$LL.layout.signIn.connectByLink()}
-			</Button>
+			<!-- each way in says what it needs, under the control that takes it: a person standing
+			     here holds one of the two and nothing else on the screen tells them which is theirs
+			     (effort 828, requirement 13). The sentence is muted and a step below its control in
+			     weight, so the two controls stay the thing being chosen between. -->
+			<div class="space-y-2">
+				<Button class="w-full justify-center" onclick={onSetUpOrganization}>
+					<BuildingIcon class="size-4" />
+					{$LL.layout.signIn.setUp()}
+				</Button>
+				<p class="text-sm text-muted-foreground" data-sign-in-set-up-description>
+					{$LL.layout.signIn.setUpDescription()}
+				</p>
+			</div>
+
+			<div class="space-y-2">
+				<Button variant="outline" class="w-full justify-center" onclick={onJoinByLink}>
+					<LinkIcon class="size-4" />
+					{$LL.layout.signIn.connectByLink()}
+				</Button>
+				<p class="text-sm text-muted-foreground" data-sign-in-link-description>
+					{$LL.layout.signIn.connectByLinkDescription()}
+				</p>
+			</div>
 		{:else}
 			<form
 				class="space-y-4"

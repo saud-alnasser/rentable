@@ -17,7 +17,7 @@
 //!
 //! **The old shape, and why it is forgotten rather than migrated.** Nothing was published, so a
 //! machine holding what 819 built holds test data of its own, and the human decided on 2026-09-13
-//! to start over rather than carry it. Seven signs, any one of which is the old shape: the record
+//! to start over rather than carry it. Eight signs, any one of which is the old shape: the record
 //! still carries a non-empty `organizations` list, which is what a machine that had joined
 //! several kept; the held organization's replica file is missing, which is a record with nothing
 //! behind it; that replica's `member` table has no `username_sealed` column, which is the
@@ -26,24 +26,40 @@
 //! mean; its `member` table has no `signing_public_key` column, which is every replica
 //! written before the same effort gave an owner something to certify a widened member against;
 //! its `member` table has no `session_epoch` column, which is every replica written before the
-//! same effort gave a member a run of sessions to be signed out of (requirement 22); or its
-//! `invitation` table has no `code_seal` column, which is every replica written before the same
-//! effort made a link's secret one half of what opens the invited vault (requirement 23).
+//! same effort gave a member a run of sessions to be signed out of (requirement 22); and its
+//! `member` table has no `owner_seed_sealed` column, which is every replica written before effort
+//! 828's requirement 22 gave the founder's key a row to be handed over in, and which every read of
+//! a member row names.
 //! The last five are a local `PRAGMA table_info`, read before any pull, so an
 //! unreachable remote does not stop the check. It runs on the first `organization_state_get` of a
 //! launch, before anything else opens the replica.
+//!
+//! *There was a seventh sign, and effort 828 retired it with the column it read.* An `invitation`
+//! table with no `code_seal` marked a replica written before effort 826 sealed the invited vault's
+//! password under a code; effort 828 moved that seal into the link's own text and dropped the
+//! column, so the sign would now read every replica this build writes as the old shape and wipe
+//! the machine at launch. What it uniquely caught was a replica written inside effort 826, between
+//! the ticket that added `session_epoch` and the ticket that added `code_seal`; everything older
+//! is still caught by the two member signs above.
 //!
 //! **The fourth sign is what makes the permission table safe to renumber.** A row written under
 //! the six-act table stores a number whose bits 4 and 5 now name other acts, and no read can tell
 //! the two apart. Forgetting the replica is what stops one being read as the other, so the sign
 //! and the renumbering land together (requirement 19 of effort 826).
+//!
+//! **One sign is not a shape at all**, and it is [`forget_deleted_organization`]: the owner
+//! deleted the organization on their Turso account, so the database this machine's replica syncs
+//! against is not there any more (effort 828, requirement 18). Every other sign is read off the
+//! replica on disk; this one is the remote's answer to a pull, so it is read after the launch has
+//! resumed a session and has a credential to pull with, and it is keyed on the remote saying the
+//! database is absent rather than on any refusal it could make.
 
 use std::{
     fmt,
     path::{Path, PathBuf},
 };
 
-use crate::{diagnostics, error::Error, state::AppState};
+use crate::{diagnostics, error::Error, state::AppState, sync::turso::platform::database_is_gone};
 
 use super::store::OrganizationStore;
 
@@ -71,11 +87,11 @@ pub enum OldShape {
     /// added for requirement 22; without it no reader here can say whether a remembered key is
     /// still this member's run of sessions, and every read of the row would fail on the column.
     MemberWithoutSessionEpoch,
-    /// the held organization's `invitation` table carries no `code_seal`, the column effort 826
-    /// added last; an invitation written without it was made for a link whose secret opened the
-    /// invited vault on its own, and this build opens that vault with the secret and a code
-    /// together (requirement 23).
-    InvitationWithoutCodeSeal,
+    /// the held organization's `member` table carries no `owner_seed_sealed`, the column effort
+    /// 828 added for its requirement 22; every read of a member row names it, so a replica written
+    /// without it answers nothing at all, and the column is under the member signature, so a row
+    /// written before it hashes a preimage no reader here builds.
+    MemberWithoutOwnerSeed,
 }
 
 impl fmt::Display for OldShape {
@@ -102,9 +118,8 @@ impl fmt::Display for OldShape {
             Self::MemberWithoutSessionEpoch => {
                 formatter.write_str("the held organization's member table carries no session_epoch")
             }
-            Self::InvitationWithoutCodeSeal => {
-                formatter.write_str("the held organization's invitation table carries no code_seal")
-            }
+            Self::MemberWithoutOwnerSeed => formatter
+                .write_str("the held organization's member table carries no owner_seed_sealed"),
         }
     }
 }
@@ -128,9 +143,11 @@ const SIGNING_KEY_COLUMN: &str = "signing_public_key";
 /// The column a member has carried since effort 826 gave a member a run of sessions to be signed
 /// out of (requirement 22), whose absence marks a replica no read of a member row would survive.
 const SESSION_EPOCH_COLUMN: &str = "session_epoch";
-/// The column an invitation has carried since effort 826 made the code a key half, whose absence
-/// marks a replica whose invitations were made for links that opened a vault on their own.
-const CODE_SEAL_COLUMN: &str = "code_seal";
+
+/// The column a member has carried since effort 828 gave ownership somewhere to be handed over
+/// (requirement 22), whose absence marks a replica whose member rows no read here can answer and
+/// whose signatures no reader here can rebuild.
+const OWNER_SEED_COLUMN: &str = "owner_seed_sealed";
 
 /// Forget the organization this machine holds, whole.
 ///
@@ -139,6 +156,12 @@ const CODE_SEAL_COLUMN: &str = "code_seal";
 /// clears the Turso authority from the keyring (`TursoConsent::disconnect`), and commits. A file
 /// that could not be removed is reported after all of that has run, by name.
 pub async fn forget(app_state: &AppState) -> Result<(), Error> {
+    // the row this machine wrote to the registry goes first, through the replica that carries the
+    // delete (effort 828, requirement 15): after the sign-out below there is no replica left to
+    // say anything through, and a machine that disconnected should stop standing in the owner's
+    // way at once rather than in a week.
+    super::leave_registry(app_state).await;
+
     // the sign-out, the one `organization_sign_out` performs: the keys go and the organization
     // replica is dropped, which is what lets its file be deleted below.
     super::sign_out(app_state).await;
@@ -203,6 +226,57 @@ pub async fn forget_old_shape(app_state: &AppState) -> Result<Option<OldShape>, 
     forget(app_state).await?;
 
     Ok(Some(shape))
+}
+
+/// Forget the organization where the remote says its database is not there any more: the other
+/// machines' half of the owner deleting the organization (effort 828, requirement 18).
+///
+/// **It reads a pull rather than the replica**, which is why it is not one of [`OldShape`]'s
+/// signs: what is being asked is a fact about the account, and the only thing that can answer it
+/// is the remote. The pull is the launch's own, made through the replica a resume has already
+/// opened, so it spends the credential that vault unsealed and costs one round trip on a launch
+/// that made one anyway.
+///
+/// **A machine that stopped at the wall pulls nothing and learns nothing**, because reaching the
+/// organization database at all takes a credential a vault holds. It signs in on the rows it has,
+/// and the launch after that one, which resumes, is where it finds out.
+///
+/// Answers whether the organization was forgotten. Anything but the remote saying the database is
+/// absent leaves the machine exactly as it was: a credential that lapsed, a refusal for the
+/// account and a remote nothing could reach are all the offline case, and the replica goes on
+/// serving what it holds (819's requirement 18).
+pub async fn forget_deleted_organization(app_state: &AppState) -> Result<bool, Error> {
+    let gone = {
+        let organization = app_state.organization.read().await;
+        let Some(store) = organization.as_ref() else {
+            return Ok(false);
+        };
+
+        match store.pulled().await {
+            Ok(_) => false,
+            Err(refusal) => {
+                let gone = database_is_gone(&refusal);
+
+                if !gone {
+                    diagnostics::info("organization.launch.notPulled")
+                        .with("reason", refusal.to_string())
+                        .write();
+                }
+
+                gone
+            }
+        }
+    };
+
+    if !gone {
+        return Ok(false);
+    }
+
+    diagnostics::warn("organization.forgotten.deletedOnThePlatform").write();
+
+    forget(app_state).await?;
+
+    Ok(true)
 }
 
 /// The sign that what this machine holds was built before this build, where there is one.
@@ -280,13 +354,13 @@ async fn old_shape(app_state: &AppState) -> Result<Option<OldShape>, Error> {
         return Ok(Some(OldShape::MemberWithoutSessionEpoch));
     }
 
-    // read last, because a replica missing this one and any of the four above is the older shape
-    // and the sign a reader is told about should be the one that came first.
-    if !invitation_columns
+    // last of the member signs, because a replica missing it alone is the newest of them: it was
+    // written inside effort 828, before the transfer of ownership gave the founder's key a row.
+    if !member_columns
         .iter()
-        .any(|column| column == CODE_SEAL_COLUMN)
+        .any(|column| column == OWNER_SEED_COLUMN)
     {
-        return Ok(Some(OldShape::InvitationWithoutCodeSeal));
+        return Ok(Some(OldShape::MemberWithoutOwnerSeed));
     }
 
     Ok(None)
@@ -356,7 +430,7 @@ mod tests {
     use serde_json::json;
     use tokio::sync::RwLock;
 
-    use super::{OldShape, forget, forget_old_shape, is_replica_file};
+    use super::{OldShape, forget, forget_deleted_organization, forget_old_shape, is_replica_file};
     use crate::{
         database::Database,
         organization::{
@@ -664,9 +738,8 @@ mod tests {
     /// forgotten; one written under the six-act permission table, whose `invitation` table carries
     /// no `sealed_secret`, is forgotten; one whose `member` table carries no `signing_public_key`
     /// is forgotten; one whose `member` table carries no `session_epoch` is forgotten, which is
-    /// requirement 22's; one whose `invitation` table carries no `code_seal` is forgotten, which
-    /// is requirement 23's; one whose replica is not on disk at all is forgotten the same way;
-    /// and one of this build's shape is kept.
+    /// requirement 22's; one whose replica is not on disk at all is forgotten the same way; and one
+    /// of this build's shape is kept, `code_seal` gone with effort 828 and all.
     #[tokio::test]
     async fn a_replica_of_the_old_schema_or_none_at_all_is_forgotten_at_startup() {
         let _turn = crate::keyring::take_the_credential_store().await;
@@ -896,13 +969,14 @@ mod tests {
                 .is_none()
         );
 
-        // the shape before a link's secret became one half of what opens a vault: usernames, a
-        // signing key on the member row, and an invitation with `sealed_secret` but no
-        // `code_seal`. A link written there opens the invited vault on its own, which is what
-        // requirement 23 took away.
-        let directory = scratch("no-code-seal");
+        // ticket 20, the human's second ask: the shape written inside effort 828 before the
+        // transfer of ownership gave the founder's key a row. Everything above is there and the
+        // `member` table has no `owner_seed_sealed`; every read of a member row names the column,
+        // so the machine is forgotten at launch and lands on the first screen rather than meeting
+        // a failure on whatever it reads first.
+        let directory = scratch("no-owner-seed");
         let replica =
-            OrganizationStore::replica_path(&directory.join(Database::FILENAME), "nocode");
+            OrganizationStore::replica_path(&directory.join(Database::FILENAME), "noseed");
         let store = OrganizationStore::open(&replica, None, || async {
             Ok::<String, turso::Error>(String::new())
         })
@@ -918,7 +992,55 @@ mod tests {
                 .connection()
                 .execute(statement, ())
                 .await
-                .expect("the tables before the code seal");
+                .expect("the tables before the owner seed");
+        }
+
+        drop(store);
+        std::fs::write(directory.join(RemoteSync::FILENAME), record("noseed")).expect("the record");
+
+        let app_state = state_over(&directory).await;
+
+        assert_eq!(
+            forget_old_shape(&app_state)
+                .await
+                .expect("the check failed"),
+            Some(OldShape::MemberWithoutOwnerSeed)
+        );
+        assert_eq!(replica_files(&directory), Vec::<String>::new());
+        assert!(
+            app_state
+                .remote_sync
+                .write()
+                .await
+                .store_mut()
+                .organization
+                .is_none(),
+            "the organization was not forgotten"
+        );
+
+        // an invitation table with no `code_seal` is this build's own shape, and is kept. Effort
+        // 826 read that absence as the old shape; effort 828 moved the seal into the link's own
+        // text and dropped the column, so the sign had to go with it or every replica this build
+        // writes would be wiped at launch.
+        let directory = scratch("no-code-seal");
+        let replica =
+            OrganizationStore::replica_path(&directory.join(Database::FILENAME), "nocode");
+        let store = OrganizationStore::open(&replica, None, || async {
+            Ok::<String, turso::Error>(String::new())
+        })
+        .await
+        .expect("the replica");
+
+        for statement in [
+            "CREATE TABLE IF NOT EXISTS \"member\" (\"id\" TEXT PRIMARY KEY NOT NULL, \"username_sealed\" BLOB NOT NULL, \"public_key\" BLOB NOT NULL, \"signing_public_key\" BLOB NOT NULL, \"permissions\" INTEGER NOT NULL, \"session_epoch\" INTEGER NOT NULL DEFAULT 0, \"owner_seed_sealed\" BLOB)",
+            "CREATE TABLE IF NOT EXISTS \"invitation\" (\"id\" TEXT PRIMARY KEY NOT NULL, \"member_id\" TEXT NOT NULL, \"expires_at\" INTEGER NOT NULL, \"consumed_at\" INTEGER, \"sealed_secret\" BLOB NOT NULL, \"issued_by\" TEXT NOT NULL, \"certificate_id\" TEXT NOT NULL, \"signature\" BLOB NOT NULL, \"created_at\" INTEGER NOT NULL)",
+            "INSERT INTO \"member\" VALUES ('member-owner', X'00', X'00', X'00', 127, 0, NULL)",
+        ] {
+            store
+                .connection()
+                .execute(statement, ())
+                .await
+                .expect("the tables of this build's shape");
         }
 
         drop(store);
@@ -930,17 +1052,14 @@ mod tests {
             forget_old_shape(&app_state)
                 .await
                 .expect("the check failed"),
-            Some(OldShape::InvitationWithoutCodeSeal)
+            None,
+            "an invitation table with no code_seal was read as the old shape"
         );
-        assert_eq!(replica_files(&directory), Vec::<String>::new());
         assert!(
-            app_state
-                .remote_sync
-                .write()
-                .await
-                .store_mut()
-                .organization
-                .is_none()
+            replica_files(&directory)
+                .iter()
+                .any(|name| name == "org-nocode.db"),
+            "the replica was swept"
         );
 
         // no replica at all behind the record.
@@ -982,6 +1101,135 @@ mod tests {
             replica_files(&directory)
                 .iter()
                 .any(|name| name == &format!("org-{}.db", held.id))
+        );
+    }
+
+    /// The replica the launch holds open, against `remote`: the file the first run wrote, reopened
+    /// with a remote to pull from and a credential to pull with, which is what a resumed session
+    /// leaves in `app_state.organization`.
+    async fn replica_against(
+        directory: &std::path::Path,
+        held: &HeldOrganization,
+        remote: &str,
+    ) -> OrganizationStore {
+        OrganizationStore::open(
+            &OrganizationStore::replica_path(&directory.join(Database::FILENAME), &held.id),
+            Some(remote.to_string()),
+            || async { Ok::<String, turso::Error>("a-credential".to_string()) },
+        )
+        .await
+        .expect("the replica")
+    }
+
+    /// Criterion 18, the other machines' half: **a launch whose pull is answered by a remote that
+    /// has no such database forgets the organization**, and lands where a machine holding nothing
+    /// lands. The owner deleted it from their own machine and this one finds out no other way.
+    ///
+    /// **And what a machine meets instead is pinned beside it.** A `401`, which is a credential
+    /// that lapsed or was rotated, and a remote that answers nothing at all, each leave the machine
+    /// exactly as it was: the replica goes on serving what it holds, which is 819's requirement 18,
+    /// and a sign keyed any wider than *not there* would wipe a machine whose credential could
+    /// simply be renewed.
+    ///
+    /// This is also where what the client answers is established, without deleting anything on any
+    /// account: `turso::Error` carries no variant for a remote's answer, so what a refusal says is
+    /// read out of its message, and the scripted server is what pins that the status really is in
+    /// there for a pull.
+    #[tokio::test]
+    async fn a_launch_whose_pull_says_the_database_is_gone_forgets_the_organization() {
+        let _turn = crate::keyring::take_the_credential_store().await;
+        let directory = scratch("deleted");
+        let (organization, held) = created(&directory).await;
+
+        drop(organization);
+
+        // the remote says there is no such database. Every request of the pull is answered the
+        // same way, since the engine makes more than one and any of them is where it stops.
+        let absent = ScriptedServer::start(
+            (0..8)
+                .map(|_| ScriptedResponse::new(404, r#"{"error":"database not found"}"#))
+                .collect(),
+        )
+        .await;
+        let app_state = state_over(&directory).await;
+
+        *app_state.organization.write().await =
+            Some(replica_against(&directory, &held, &absent.url("")).await);
+
+        assert!(
+            forget_deleted_organization(&app_state)
+                .await
+                .expect("the check failed"),
+            "a pull answered by a remote holding no such database left the organization here"
+        );
+        assert_eq!(replica_files(&directory), Vec::<String>::new());
+        assert!(
+            app_state
+                .remote_sync
+                .write()
+                .await
+                .store_mut()
+                .organization
+                .is_none()
+        );
+        assert!(app_state.organization.read().await.is_none());
+
+        // a credential the remote will not accept is not a deleted organization: the machine keeps
+        // what it holds and the shell renews or reconnects.
+        let directory = scratch("refused");
+        let (organization, held) = created(&directory).await;
+
+        drop(organization);
+
+        let refusing = ScriptedServer::start(
+            (0..8)
+                .map(|_| ScriptedResponse::new(401, r#"{"error":"Unauthorized: invalid JWT"}"#))
+                .collect(),
+        )
+        .await;
+        let app_state = state_over(&directory).await;
+
+        *app_state.organization.write().await =
+            Some(replica_against(&directory, &held, &refusing.url("")).await);
+
+        assert!(
+            !forget_deleted_organization(&app_state)
+                .await
+                .expect("the check failed"),
+            "a refused credential was read as a deleted organization"
+        );
+        assert!(
+            replica_files(&directory)
+                .iter()
+                .any(|name| name == &format!("org-{}.db", held.id)),
+            "a refused credential swept the replicas"
+        );
+
+        // and a machine that reaches nothing at all is the offline case, which says nothing about
+        // whether the organization is still there.
+        let directory = scratch("unreachable");
+        let (organization, held) = created(&directory).await;
+
+        drop(organization);
+
+        let unreachable =
+            ScriptedServer::start((0..8).map(|_| ScriptedResponse::hangup()).collect()).await;
+        let app_state = state_over(&directory).await;
+
+        *app_state.organization.write().await =
+            Some(replica_against(&directory, &held, &unreachable.url("")).await);
+
+        assert!(
+            !forget_deleted_organization(&app_state)
+                .await
+                .expect("the check failed"),
+            "a remote that answered nothing was read as a deleted organization"
+        );
+        assert!(
+            replica_files(&directory)
+                .iter()
+                .any(|name| name == &format!("org-{}.db", held.id)),
+            "an unreachable remote swept the replicas"
         );
     }
 }

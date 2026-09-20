@@ -104,6 +104,29 @@ pub fn require(permissions: i64, act: Administration) -> Result<(), Error> {
     }
 }
 
+/// The refusal a command makes for a member whose row carries none of the acts named.
+///
+/// **Any of them, where [`require`] is every one of them.** A command asks for this where two acts
+/// each carry the same authority over the same thing, rather than where one act is two things: the
+/// one link act is `inviteMember`'s or `resetPassword`'s, because a person trusted to take an
+/// account's password away is trusted to hand back the link that restores it, and the alternative
+/// is a holder of the second who can lock somebody out and cannot let them back in (effort 828,
+/// the spec's Risks, struck on the human's word on 2026-09-16).
+///
+/// The sentence names every act that would have done, because a caller told only the first would
+/// go looking for a bit they do not need.
+pub fn require_any(permissions: i64, acts: &[Administration]) -> Result<(), Error> {
+    if acts.iter().any(|act| permits(permissions, *act)) {
+        return Ok(());
+    }
+
+    let named: Vec<&str> = acts.iter().map(|act| act.name()).collect();
+
+    Err(Error::Forbidden {
+        message: format!("your role does not include {}", named.join(" or ")),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::{ADMINISTRATOR, Administration, MEMBER, OWNER, mask_of_role, permits, require};

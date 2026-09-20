@@ -127,6 +127,13 @@ export type RemoteSyncState = {
 	 * re-sealed one yet; the member is told their access needs attention rather than shown nothing.
 	 */
 	credentialRefusal: { since: number } | null;
+	/**
+	 * the moment of the last replication that went through, as epoch milliseconds, or `null`
+	 * before any has: the remote took the push or answered the pull, whether or not it had
+	 * anything to bring. What the standing block says beside "up to date" (effort 828,
+	 * requirement 25). Recorded on this machine, so it reads on a launch made offline.
+	 */
+	lastReachedAt: number | null;
 };
 
 /** why a replication did not go, where Turso said: the account's, the credential's, or neither. */
@@ -213,12 +220,15 @@ export type OrganizationConsentResult = {
 };
 
 /**
- * what a first run answers with: the organization's id, the link an owner hands out, and
- * whether the rows have reached Turso yet. No key, no token, no password.
+ * what a first run answers with: the organization's id, and whether the rows have reached Turso
+ * yet. No key, no token, no password.
+ *
+ * *It carried the organization's own link until effort 828's requirement 16 retired it. The first
+ * run hands out nothing now: an owner invites a member, and a member makes their own
+ * second-machine link, each sealed under the code that came with it.*
  */
 export type OrganizationCreated = {
 	organizationId: string;
-	joinLink: string;
 	synced: boolean;
 };
 
@@ -265,15 +275,24 @@ export type OrganizationSession = {
 	workspaces: OrganizationWorkspace[];
 	/** the owner's username: whom a member is told to tell when the account needs attention. */
 	ownerUsername: string;
+	/**
+	 * whether this reader has been offered the organization and has not accepted yet (effort 828,
+	 * requirement 22), which is what draws the acceptance in their account section. A fact about a
+	 * standing offer and never the offer itself; who offered it is `ownerUsername`.
+	 */
+	ownershipOffered: boolean;
 };
 
 /**
- * where a link stands, as the connect screen is told before it does anything: the four values an
- * invitation link takes, and `none` for the organization's own link, which names the organization
- * and admits nobody by itself. *Between effort 824 and effort 826 there was one kind of link and
- * `none` was the one value produced.*
+ * which of the two kinds of link a text is, read from the text alone (effort 828, requirements 1
+ * and 16). An invitation and a second machine's link each carry a payload nothing opens without
+ * the code that came with it, and there is no third kind: the organization's own link carried a
+ * legible credential and admitted a machine with no code, and it retired with requirement 16.
+ * *It was a standing, `open | lapsed | consumed | revoked | none`, read off the row behind the
+ * link; nothing reads a row before the credential is out, so where the row stands is judged by
+ * the act that takes the code.*
  */
-export type LinkStanding = 'open' | 'lapsed' | 'consumed' | 'revoked' | 'none';
+export type LinkKind = 'invitation' | 'machine';
 
 /**
  * one workspace and the access held on it: what an invitation asks for, and what the members list
@@ -309,21 +328,25 @@ export type MemberRemoved = {
 };
 
 /**
- * what a link says once the organization it names has been reached: its name, where it is,
- * where the link stands, and whom it invites where it invites anybody. No credential, no key, no
- * secret; the link was parsed in Rust.
+ * what a link says about itself, read from its own text: which organization it names, which kind
+ * of link it is, and when it lapses. No credential, no key, no secret, and no network: the link
+ * was decoded in Rust and nothing behind it was reached.
  */
-export type LinkFacts = {
+export type LinkShape = {
 	organizationId: string;
 	organizationName: string;
-	remoteUrl: string;
-	standing: LinkStanding;
-	/**
-	 * the invited person, where the link carries an invitation whose secret opens their row;
-	 * `null` on the organization's own link, and on an invitation whose secret opens nothing.
-	 */
-	invitation: { username: string } | null;
+	kind: LinkKind;
+	/** when the link lapses. Every link does. */
+	expiresAt: number;
 };
+
+/**
+ * what the turso account a consent was just granted over already holds (effort 828, requirement
+ * 14). `empty` is the ordinary first run and the walk goes on to name the organization and create
+ * it; `held` is an owner coming back to one that is already there, and the walk asks for their
+ * username and password instead.
+ */
+export type GroupState = { kind: 'empty' } | { kind: 'held'; organizationId: string };
 
 /**
  * where this machine stands: the one organization it holds, or none, and who is signed in.
@@ -350,22 +373,10 @@ export type OrganizationState = {
 };
 
 /**
- * the invitation a member is still waiting on: the pending mark on their row, its expiry, and
- * whether the person reading can hand the same link over again. A member has at most one.
- */
-export type PendingInvitation = {
-	invitationId: string;
-	expiresAt: number;
-	/** `open` or `lapsed`; a consumed invitation is not pending and is never reported. */
-	standing: 'open' | 'lapsed' | 'consumed';
-	/** whether the caller issued it, which is whether the same link opens for them again. */
-	canCopy: boolean;
-};
-
-/**
  * one member as the members list draws them. The username opened on the other side; no key, no
- * credential. *The workspaces were ids, and the invitations were a second list read from a call of
- * their own, until effort 826: one row needs both, so the row is answered whole.*
+ * credential. *The workspaces were ids until effort 826, and the row carried the member's unspent
+ * invitation beside them until effort 828 found nothing on this side reading it: where an account
+ * stands is `MemberStanding`, read on its own.*
  */
 export type OrganizationMember = {
 	id: string;
@@ -374,45 +385,54 @@ export type OrganizationMember = {
 	permissions: number;
 	/** the workspaces this member holds, with the access on each. */
 	workspaces: WorkspaceGrant[];
-	/** their unspent invitation, or `null` for somebody who has signed in. */
-	pending: PendingInvitation | null;
 	createdAt: number;
+	/**
+	 * whether the organization has been offered to this account and not yet accepted (effort 828,
+	 * requirement 22). One account carries it or none does, and it is what puts *withdraw the
+	 * offer* on the owner's card in place of the offer.
+	 */
+	offeredOwnership: boolean;
 };
 
 /**
- * what an invitation makes, shown to the administrator: the two things they hand over, the
- * invitation link and the code that confirms it, beside the username and the ids the members list
- * reads. The link carries one half of what opens the member's vault and the code is the other, so
- * the link is sent and the code is read out; no password crosses on its own.
+ * where one account stands, as the directory says it in a line (effort 828, requirement 19).
+ *
+ * **Two facts, and the three standings are read off the pair**: an account with no password of its
+ * own, one nobody is signed in on, and one a machine is signed in on. The line is a fact about the
+ * account and gates nothing: a link is made whichever of the three it reads.
  */
-export type FreshCode = {
+export type MemberStanding = {
+	memberId: string;
+	/** whether the account has a password of its own yet. `false` until its first link is opened. */
+	passwordSet: boolean;
+	/** whether a machine seen inside the presence window is signed in on the account. */
+	machineSignedIn: boolean;
+};
+
+/**
+ * the link and the code one act makes for an account (effort 828, requirement 20).
+ *
+ * **One shape for both kinds.** An account whose password is not yet set gets an invitation-kind
+ * link and one that has a password gets a machine-kind link; what the person handing it over does
+ * with either is the same, so this says nothing about which it is. The link is carried to the
+ * other machine and the code is read out; neither is stored, and a person who lost the pair makes
+ * another, which drops the one they lost.
+ */
+export type MadeLink = {
+	link: string;
 	/** six characters from the alphabet with the letters that read alike taken out. */
 	code: string;
-	/** the moment it lapses, ninety seconds from when it was drawn. */
+	/** the earlier of a week out and the moment the maker's own grant on the database dies. */
 	expiresAt: number;
 };
 
-export type Invited = {
-	memberId: string;
-	invitationId: string;
-	/** the username the member signs in with, as the row seals it. */
-	username: string;
-	/** the invitation link: the organization's own link with this invitation's half in it. */
-	joinLink: string;
-	expiresAt: number;
-	/**
-	 * the six-character code that confirms the link (effort 826, requirement 23). It is the
-	 * other half of what opens the invited vault, so it is read out on a call or in person and
-	 * never sent beside the link.
-	 */
-	code: string;
-	/** the moment that code lapses, ninety seconds from when it was drawn. */
-	codeExpiresAt: number;
-	/**
-	 * on a reset, the workspaces the member held that the resetting administrator could not
-	 * restore, because they hold no full credential on them themselves. Empty on an invitation.
-	 */
-	unreachableWorkspaces: { id: string; name: string }[];
+/**
+ * a workspace a reset could not carry over, because the person resetting holds no full credential
+ * on it themselves. The member waits on somebody who does.
+ */
+export type UnreachableWorkspace = {
+	id: string;
+	name: string;
 };
 
 /**
@@ -518,21 +538,41 @@ export type Host = {
 			password: string,
 			group: string | null
 		) => Promise<OrganizationCreated>;
+		/**
+		 * what the consented turso account already holds, read after the consent and before
+		 * anything is created (effort 828, requirement 14). A read: nothing is minted, nothing is
+		 * created and this machine's record is untouched. Rejects as `notConfigured` where no
+		 * consent has been granted.
+		 */
+		groupInspect: () => Promise<GroupState>;
+		/**
+		 * connect this machine to the organization the consented account already holds, and sign
+		 * its owner in to it. Only the owner's password does it, because only their password
+		 * re-derives the key the rows are judged against: anybody else rejects as `forbidden` and
+		 * the machine is left holding nothing. A wrong username and a wrong password reject with
+		 * the wall's one sentence, which tells them apart by nothing. Other machines holding the
+		 * organization stand in nobody's way: the register is not read here, because an account is
+		 * held on as many machines as its holder signs in on.
+		 */
+		connectExisting: (username: string, password: string) => Promise<OrganizationState>;
 		/** the organization this machine holds, and who is signed in. */
 		getState: () => Promise<OrganizationState>;
-		/**
-		 * connect this machine to the organization a link names: its id, name, remote and key are
-		 * recorded, no vault opens and no member is recorded; the person signs in at the wall.
-		 * Rejects as `preconditionFailed` while an organization is held, as `invalidInput` where
-		 * the text is not a link, and as `network` where the organization could not be reached.
-		 */
-		connect: (link: string) => Promise<OrganizationState>;
 		/**
 		 * forget the organization this machine holds: sign out where somebody is in, delete every
 		 * replica on this machine, empty the record, and clear the Turso authority. The
 		 * organization on Turso is untouched. The one confirm before it is the screen's.
 		 */
 		disconnect: () => Promise<OrganizationState>;
+		/**
+		 * delete the organization, with the owner's password: every workspace database and the
+		 * organization's own directory are removed from the owner's Turso account, and this machine
+		 * then forgets what it held exactly as a disconnect leaves it. Nothing puts either back.
+		 * Rejects as `forbidden` for anybody but the owner and for a machine holding no Turso
+		 * authority, and with the vault's one sentence for a password that does not open the
+		 * owner's vault; nothing is deleted on either. Every other machine finds the organization
+		 * gone at its next launch and forgets it too.
+		 */
+		delete: (password: string) => Promise<OrganizationState>;
 		/**
 		 * sign in to the organization this machine holds, by username and password, with or
 		 * without a network. The wrong password, a username nobody holds, and a username held by
@@ -561,11 +601,12 @@ export type Host = {
 		/** where a workspace upgrade is, while one runs on open. Resolves to its own removal. */
 		onMigration: (listener: (notice: MigrationNotice) => void) => Promise<Unlisten>;
 		/**
-		 * read a link: which organization it names, and where its invitation stands where it
-		 * carries one. Rejects as `invalidInput` where the text is not a link, and as `network`
-		 * where the organization could not be reached from a machine that has never seen it.
+		 * read a link: which organization it names, which kind of link it is, and when it lapses.
+		 * A decode and nothing else, so it reaches no network and reads no row; rejects as
+		 * `invalidInput` where the text is not a link, which a link in the shape before effort 828
+		 * is.
 		 */
-		linkInspect: (link: string) => Promise<LinkFacts>;
+		linkRead: (link: string) => Promise<LinkShape>;
 		/**
 		 * after an owner repeats the consent on a new machine: record which account it is over,
 		 * so the machine can act as the owner's again. Rejects where no consent stands.
@@ -578,12 +619,6 @@ export type Host = {
 		 * forgets it; it never blocks sign-in, which works offline.
 		 */
 		renewDue: () => Promise<boolean>;
-		/**
-		 * the organization's own join link, rebuilt for the owner to share or keep. The owner's,
-		 * refused to a member; needs the open vault and not the Turso authority, so a restored owner
-		 * can read it before repeating the consent (requirement 6).
-		 */
-		ownLink: () => Promise<string>;
 		workspace: {
 			/**
 			 * create a workspace on the account: a database, migrated, recorded, and granted to the
@@ -616,22 +651,38 @@ export type Host = {
 			/** every member, with names opened by the vault this process holds. */
 			list: () => Promise<OrganizationMember[]>;
 			/**
-			 * invite a member: a row they will open, and one link. The application sends nothing;
-			 * the administrator hands the link over. A read-only grant is minted on the owner's
-			 * machine, and refused by name elsewhere.
+			 * where each account stands: whether it has a password of its own yet, and whether a
+			 * machine is signed in on it inside the presence window. Beside the list rather than on
+			 * it, because the password is on the signed member row and the machine is on the
+			 * register every machine writes for itself.
 			 */
-			invite: (
+			standings: () => Promise<MemberStanding[]>;
+			/**
+			 * make an account: a row somebody will open, and no link. It holds no password until
+			 * its first link is opened, which is `linkMake`. A read-only grant is minted on the
+			 * owner's machine, and refused by name elsewhere.
+			 */
+			create: (
 				username: string,
 				role: 'administrator' | 'member',
+				permissions: number,
 				workspaces: WorkspaceGrant[]
-			) => Promise<Invited>;
+			) => Promise<OrganizationMember>;
 			/**
-			 * reset a member's password: a fresh vault under a fresh secret, everything the
-			 * resetting administrator reaches re-sealed to it, and a fresh link. The answer names
-			 * the workspaces it could not restore, and the member's permissions are kept. The
-			 * member's previous password is not needed and not learned.
+			 * make the one link that admits a machine to an account. The account's standing chooses
+			 * the kind: one whose password is not yet set gets a link that asks the person to
+			 * choose one, and one that has a password gets a link that lands the machine at the
+			 * wall. No standing refuses it, and each link admits one more machine, once.
 			 */
-			reset: (memberId: string) => Promise<Invited>;
+			linkMake: (memberId: string) => Promise<MadeLink>;
+			/**
+			 * unset a member's password: a fresh vault under a fresh secret, everything the
+			 * resetting administrator reaches re-sealed to it, and the requirement to choose a
+			 * password set, so the next link asks for one. The answer names the workspaces it
+			 * could not restore, and the member's permissions are kept. The member's previous
+			 * password is not needed and not learned.
+			 */
+			unsetPassword: (memberId: string) => Promise<UnreachableWorkspace[]>;
 			/**
 			 * remove a member. `lockOut` false is the ordinary removal: their grants go, their row
 			 * is signed as removed, and nobody else is disturbed; their credential works until it
@@ -653,6 +704,23 @@ export type Host = {
 				permissions: number
 			) => Promise<OrganizationMember>;
 			/**
+			 * offer the organization to another account: the first of the two acts a handover is
+			 * (effort 828, requirement 22). Nothing about the organization moves, and the owner can
+			 * take it back; the other person accepts on a machine of their own.
+			 *
+			 * The owner's alone, and their password is what performs it; a wrong one rejects
+			 * before anything is written and nothing about it comes back. An account with no
+			 * password of its own, a removed one and the caller's own row are each rejected by
+			 * name.
+			 */
+			offerOwnership: (memberId: string, password: string) => Promise<OrganizationMember>;
+			/**
+			 * take the offer back: the offer and the seal it wrote both go. The owner's, and it
+			 * asks for no password, because nothing is unsealed and what is undone is something
+			 * this person did. Rejects where no offer stands.
+			 */
+			withdrawOffer: () => Promise<void>;
+			/**
 			 * sign a member out of every machine. Their password is not changed by it. Rejects the
 			 * caller's own row, which is `sessionEndElsewhere`, and the owner's row, which is
 			 * nobody else's to end.
@@ -668,40 +736,44 @@ export type Host = {
 		};
 		invitation: {
 			/**
-			 * revoke an invitation. A person who never opened their link is removed with it, so
-			 * the link opens nothing afterwards; a reset link on a member who has signed in before
-			 * is deleted alone.
-			 */
-			revoke: (invitationId: string) => Promise<void>;
-			/**
-			 * open an invitation link on the organization this machine holds, with the code the
-			 * issuer read out and a password of the person's choosing: the link's secret and the
-			 * code together open the vault, which is resealed under the password, the invitation
-			 * is spent, and the person is signed in. Rejects a lapsed, consumed or revoked
-			 * invitation by name, a wrong code as `forbidden` and a lapsed one as
-			 * `preconditionFailed`, a missing code and a password under the floor as
-			 * `invalidInput`, and a link for another organization than the one held as
-			 * `preconditionFailed`.
+			 * open an invitation link, with the code the issuer read out and a password of the
+			 * person's choosing: the code and the link's secret together unseal the credential and
+			 * the vault password, the organization is reached and recorded where this machine
+			 * holds none, the vault is resealed under the password, the invitation is spent, and
+			 * the person is signed in. Rejects a lapsed link, a lapsed, consumed or revoked
+			 * invitation by name as `forbidden`, a wrong code as `forbidden`, a missing code and a
+			 * password under the floor as `invalidInput`, and a link for another organization than
+			 * the one held as `preconditionFailed`.
 			 */
 			accept: (link: string, code: string, password: string) => Promise<OrganizationState>;
-			/**
-			 * the invitation link again, for the person who issued it; `forbidden` for anybody
-			 * else, who is offered a new link instead.
-			 */
-			link: (invitationId: string) => Promise<string>;
-			/**
-			 * a fresh confirmation code for an invitation, for the person who issued it; the old
-			 * one opens nothing from then on. `forbidden` for anybody else, who is offered a new
-			 * link instead, which is a reset.
-			 */
-			code: (invitationId: string) => Promise<FreshCode>;
 		};
+		/**
+		 * connect this machine with a machine-kind link, and land at the wall. The code
+		 * and the link's secret together unseal the member's own grant, the organization is
+		 * recorded with no member, and the link is spent. Rejects a wrong or missing code as
+		 * `forbidden` and `invalidInput`, a lapsed link and a replaced or already spent one by
+		 * name as `forbidden`, and a machine that already holds an organization as
+		 * `preconditionFailed`.
+		 */
+		machineConnect: (link: string, code: string) => Promise<OrganizationState>;
 		/**
 		 * change the signed-in member's own password. The current one has to open the vault and
 		 * the new one has to reach the floor; nothing else on the database moves, and what comes
 		 * back is where the machine stands, with the requirement to change cleared.
 		 */
 		changePassword: (current: string, next: string) => Promise<OrganizationState>;
+		/**
+		 * accept the organization that was offered to this reader: the second of the two acts a
+		 * handover is (effort 828, requirement 22). Their password becomes the organization's key,
+		 * every certificate is re-issued under it, the roles swap, and this machine pins the new
+		 * key. It runs on a machine the account is signed in on and nowhere else.
+		 *
+		 * Rejects where no offer stands, where the password does not open their vault, and where
+		 * what was sealed onto their row is not the key this machine holds, which is what a seal
+		 * somebody planted is. Nothing about the password or the key comes back; what does is
+		 * where the machine stands, with this reader now the owner.
+		 */
+		ownershipAccept: (password: string) => Promise<OrganizationState>;
 		/**
 		 * Turso's own sentence about the standing account refusal, for the owner and nobody else:
 		 * `null` for everybody else, and where nothing is refused.

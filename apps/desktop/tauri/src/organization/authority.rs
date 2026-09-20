@@ -35,6 +35,20 @@
 //! as a second verifier written at a call site for convenience, not as a bug in
 //! this file.
 //!
+//! [`verify_succession`] is the one exception and it is not that second verifier
+//! (effort 828, requirement 22). A succession names no certificate, because what
+//! it tells a reader is which key issues certificates from now on; there is
+//! nothing behind it to forget, and it can answer about no row.
+//!
+//! # The key changes when the owner does
+//!
+//! An organization key is the current owner's derivation, and handing the
+//! organization over replaces it ([`SuccessionAuthority`]). Every certificate is
+//! re-issued under the new key with the same ids and the same signing keys, so
+//! every row an administrator signed still verifies and nothing is re-signed for
+//! the sake of it; a machine holding the old key follows the succession to the
+//! new one. *The key was fixed for the life of the organization until 2026-09-16.*
+//!
 //! # What a failure says
 //!
 //! Which of the three checks refused a row, which is the opposite of what the
@@ -85,6 +99,17 @@ const WORKSPACE_DOMAIN: &[u8] = b"rentable.organization.authority.workspace.v1";
 
 /// Separates a `grant` row's preimage from every other row's.
 const GRANT_DOMAIN: &[u8] = b"rentable.organization.authority.grant.v1";
+
+/// Separates a `succession` row's preimage from every other row's, and from a certificate's.
+///
+/// **The one preimage the organization key signs that is not a certificate** (effort 828,
+/// requirement 22). A succession is how a machine holding the old key learns which key replaced
+/// it, so it cannot be signed under a certificate: a certificate is a thing the reader is being
+/// asked to trust, and what the reader has to check here is the key that issues certificates.
+const SUCCESSION_DOMAIN: &[u8] = b"rentable.organization.authority.succession.v1";
+
+/// What a `succession` row's signature refuses with.
+const FORGED_SUCCESSION: &str = "the succession is not signed by the key it says it is leaving";
 
 /// The fourth row, which the invitation ticket gave a signature: the plan's data model gave the
 /// row the column, and the ticket that writes one is the ticket that signs it. `v2` since effort
@@ -207,6 +232,57 @@ pub struct MemberAuthority<'a> {
     pub role: &'a str,
     /// What the member may administer, as the column holds it.
     pub permissions: i64,
+    /// The organization key's seed, sealed to this member's public key, on the row
+    /// of an account that has been offered the organization and has not accepted
+    /// yet (effort 828, requirement 22). `None` on every other row, and `None`
+    /// again the moment the offer is accepted or withdrawn.
+    ///
+    /// **It is the offer's carrier and never anybody's anchor.** The acceptance
+    /// opens it only on a machine that already holds the old key by another route,
+    /// and refuses unless what it opens derives the key that machine pinned, so a
+    /// seal somebody planted opens nothing that is then believed. *It was the
+    /// transferee's way back until 2026-09-16, which meant a value read out of the
+    /// database it was meant to judge.*
+    ///
+    /// **Under signature, and appended rather than tagged.** A writer able to put
+    /// a seal on a row of their own choosing would be naming themselves the
+    /// organization's next owner. The
+    /// preimage appends it only where it is present, so a row without it signs the
+    /// bytes it signed before the column existed and every row written before the
+    /// transfer still verifies; [`preimage`] says why that is unambiguous here
+    /// where `optional_field` is used elsewhere.
+    pub owner_seed_sealed: Option<&'a [u8]>,
+}
+
+/// What a `succession` row puts under signature: which account was offered the organization, who
+/// offered it, the key that is being left, and the key that replaced it once one has (effort 828,
+/// requirement 22).
+///
+/// **Signed by the organization key rather than by an administrator**, which is the whole of what
+/// makes it worth anything. A machine that pinned the old key meets rows it cannot verify and has
+/// to decide whether to pin another one; the only thing it holds that can answer is the key it
+/// already pinned, so the offer is signed by the key in force when it was made and the completion
+/// by that same key over the key replacing it. A certificate in between would be one more thing
+/// the reader has to be persuaded of by the key it is trying to replace.
+///
+/// **`new_verifying_key` and `accepted_at` are `None` until the offer is accepted**, and the
+/// completion signs them in. So the two states are two preimages and one column: an offer whose
+/// signature was lifted onto a completed row verifies as neither.
+#[derive(Clone, Copy, Debug)]
+pub struct SuccessionAuthority<'a> {
+    pub id: &'a str,
+    /// the account that was offered the organization, and the only one that can accept.
+    pub offered_member_id: &'a str,
+    /// the owner who offered it.
+    pub offered_by: &'a str,
+    pub offered_at: i64,
+    /// the organization key in force when the offer was written, which is the key whose holder
+    /// signed this row.
+    pub old_verifying_key: &'a [u8; VERIFYING_KEY_BYTES],
+    /// what the new owner's own vault derives, once they have accepted. `None` on a standing
+    /// offer.
+    pub new_verifying_key: Option<&'a [u8; VERIFYING_KEY_BYTES]>,
+    pub accepted_at: Option<i64>,
 }
 
 /// What a `workspace` row puts under signature: the identity of the database it
@@ -341,6 +417,46 @@ pub fn issue_certificate(
     certificate
 }
 
+/// Signs a succession under the organization key (effort 828, requirement 22).
+///
+/// **The second and last thing the organization key signs**, beside a certificate, and it is
+/// deliberately not reachable as a general "sign anything with the organization key": the
+/// preimage is built here from a named struct, so the key cannot be turned on a row by a caller
+/// who found it convenient.
+pub fn sign_succession(
+    organization_key: &OrganizationKey,
+    succession: SuccessionAuthority<'_>,
+) -> Vec<u8> {
+    organization_key
+        .0
+        .sign(&succession_preimage(succession))
+        .to_bytes()
+        .to_vec()
+}
+
+/// Verifies a succession against the key the reader already holds.
+///
+/// **Separate from [`verify`] because there is no certificate to forget.** The warning at the top
+/// of this file is about a reader that checks a row and skips the authority behind it; a
+/// succession has no authority behind it but the organization key itself, which is the input, so
+/// the failure mode that made `verify` a single function does not exist here.
+///
+/// `organization_verifying_key` is the key the caller pinned, and it is what the signature has to
+/// have been made by. A machine following a chain of successions calls this once per link, each
+/// time with the key the previous link handed it.
+pub fn verify_succession(
+    organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
+    succession: SuccessionAuthority<'_>,
+    signature: &[u8],
+) -> Result<(), Error> {
+    verify_signature(
+        organization_verifying_key,
+        &succession_preimage(succession),
+        signature,
+        FORGED_SUCCESSION,
+    )
+}
+
 /// Signs the authority fields of one row, under the certificate that authorises
 /// the signer.
 ///
@@ -444,6 +560,7 @@ fn preimage(certificate_id: &str, authority: Authority<'_>) -> Vec<u8> {
             signing_public_key,
             role,
             permissions,
+            owner_seed_sealed,
         }) => {
             message.extend_from_slice(MEMBER_DOMAIN);
             field(&mut message, certificate_id.as_bytes());
@@ -451,6 +568,20 @@ fn preimage(certificate_id: &str, authority: Authority<'_>) -> Vec<u8> {
             field(&mut message, signing_public_key);
             field(&mut message, role.as_bytes());
             field(&mut message, &permissions.to_be_bytes());
+
+            // appended where it is present and nothing at all where it is not, so a
+            // row with no seal signs exactly the bytes it signed before the column
+            // existed. That is what lets a column be added to a signed row without
+            // re-signing the directory (effort 828, requirement 22), and it is why
+            // `optional_field` is wrong here: its absent tag is one byte, and that
+            // byte is the whole of what would have broken every row already written.
+            //
+            // **Unambiguous because it is last and length-prefixed.** Nothing
+            // follows it, so an absent seal cannot be read as a present empty one:
+            // the first ends the message and the second appends eight zero bytes.
+            if let Some(owner_seed_sealed) = owner_seed_sealed {
+                field(&mut message, owner_seed_sealed);
+            }
         }
         Authority::Workspace(WorkspaceAuthority {
             database_name,
@@ -488,6 +619,37 @@ fn preimage(certificate_id: &str, authority: Authority<'_>) -> Vec<u8> {
             field(&mut message, &expires_at.to_be_bytes());
         }
     }
+
+    message
+}
+
+/// What the organization key signs when it hands the organization on.
+///
+/// Named field by field rather than with `..`, for the reason the arms of [`preimage`] are: a
+/// column added to the succession row is a compile error here instead of a field nobody signed.
+fn succession_preimage(succession: SuccessionAuthority<'_>) -> Vec<u8> {
+    let SuccessionAuthority {
+        id,
+        offered_member_id,
+        offered_by,
+        offered_at,
+        old_verifying_key,
+        new_verifying_key,
+        accepted_at,
+    } = succession;
+
+    let mut message = SUCCESSION_DOMAIN.to_vec();
+
+    field(&mut message, id.as_bytes());
+    field(&mut message, offered_member_id.as_bytes());
+    field(&mut message, offered_by.as_bytes());
+    field(&mut message, &offered_at.to_be_bytes());
+    field(&mut message, old_verifying_key);
+    optional_field(&mut message, new_verifying_key.map(|key| &key[..]));
+    optional_field(
+        &mut message,
+        accepted_at.map(i64::to_be_bytes).as_ref().map(|at| &at[..]),
+    );
 
     message
 }
@@ -640,6 +802,22 @@ mod tests {
             signing_public_key: CHECKED_IN_MEMBER_SIGNING_PUBLIC_KEY,
             role,
             permissions: ADMINISTRATOR_PERMISSIONS,
+            owner_seed_sealed: None,
+        })
+    }
+
+    /// The same row, carrying the organization seed a transfer sealed onto it.
+    fn member_authority_with_seal<'a>(
+        public_key: &'a [u8],
+        role: &'a str,
+        owner_seed_sealed: &'a [u8],
+    ) -> Authority<'a> {
+        Authority::Member(MemberAuthority {
+            public_key,
+            signing_public_key: CHECKED_IN_MEMBER_SIGNING_PUBLIC_KEY,
+            role,
+            permissions: ADMINISTRATOR_PERMISSIONS,
+            owner_seed_sealed: Some(owner_seed_sealed),
         })
     }
 
@@ -731,6 +909,98 @@ mod tests {
                 &signature
             ),
             Ok(())
+        );
+    }
+
+    /// Effort 828, requirement 22: **a member row with no owner seed signs exactly the
+    /// bytes it signed before the column existed**, so every row written before a
+    /// transfer still verifies against the unchanged organization key.
+    ///
+    /// The expectation is written out here rather than taken from the function under
+    /// test: an assertion that the preimage equals the preimage says nothing, and
+    /// what this has to pin is the layout a row already on somebody's replica was
+    /// signed under.
+    #[test]
+    fn a_member_row_without_the_owner_seed_signs_the_bytes_it_signed_before_the_column() {
+        let public_key = checked_in_member_public_key();
+        let mut before = Vec::new();
+
+        before.extend_from_slice(MEMBER_DOMAIN);
+        field(&mut before, b"cert-an-administrator");
+        field(&mut before, &public_key);
+        field(&mut before, CHECKED_IN_MEMBER_SIGNING_PUBLIC_KEY);
+        field(&mut before, b"member");
+        field(&mut before, &ADMINISTRATOR_PERMISSIONS.to_be_bytes());
+
+        assert_eq!(
+            preimage(
+                "cert-an-administrator",
+                member_authority(&public_key, "member")
+            ),
+            before
+        );
+    }
+
+    /// And the row that carries one signs the same bytes with the seal appended, so
+    /// the two are different messages and a seal cannot be added to a row or taken
+    /// off one without the signature failing.
+    #[test]
+    fn a_member_row_carrying_the_owner_seed_folds_it_into_what_it_signs() {
+        let organization = an_organization();
+        let public_key = checked_in_member_public_key();
+        let seal = b"a sealed organization seed".as_slice();
+        let without = member_authority(&public_key, "owner");
+        let with = member_authority_with_seal(&public_key, "owner", seal);
+        let mut expected = preimage("cert-an-administrator", without);
+
+        field(&mut expected, seal);
+
+        assert_eq!(preimage("cert-an-administrator", with), expected);
+
+        // and the signature over one is not a signature over the other, in both
+        // directions: a row handed a seal it was not signed with is refused, and so
+        // is a row whose seal was taken off.
+        let signed_with_seal = sign(
+            &organization.administrator_key,
+            &organization.certificate,
+            with,
+        )
+        .expect("failed to sign");
+
+        assert_eq!(
+            verify(
+                &organization.verifying_key,
+                &organization.certificate,
+                with,
+                &signed_with_seal
+            ),
+            Ok(())
+        );
+        assert_eq!(
+            verify(
+                &organization.verifying_key,
+                &organization.certificate,
+                without,
+                &signed_with_seal
+            ),
+            Err(integrity(FORGED_ROW))
+        );
+
+        let signed_without = sign(
+            &organization.administrator_key,
+            &organization.certificate,
+            without,
+        )
+        .expect("failed to sign");
+
+        assert_eq!(
+            verify(
+                &organization.verifying_key,
+                &organization.certificate,
+                with,
+                &signed_without
+            ),
+            Err(integrity(FORGED_ROW))
         );
     }
 
@@ -1067,6 +1337,26 @@ mod tests {
             "a member row covers a different set of fields"
         );
 
+        // and the same row carrying the seed a transfer sealed onto it (effort 828, requirement
+        // 22): the bytes above with one more length-prefixed field appended, so the row above is
+        // still the row this crate signed before the column existed.
+        assert_eq!(
+            to_hex(&preimage(
+                CHECKED_IN_CERTIFICATE_ID,
+                member_authority_with_seal(&public_key, "administrator", b"a sealed seed")
+            )),
+            concat!(
+                "72656e7461626c652e6f7267616e697a6174696f6e2e617574686f726974792e",
+                "6d656d6265722e7632000000000000000d63657274696669636174652d310000",
+                "0000000000200102030405060708090a0b0c0d0e0f101112131415161718191a",
+                "1b1c1d1e1f2000000000000000203d4017c3e843895a92b70aa74d1b7ebc9c98",
+                "2ccf2ec4968cc0cd55f12af4660c000000000000000d61646d696e6973747261",
+                "746f7200000000000000080000000000000007",
+                "000000000000000d61207365616c65642073656564",
+            ),
+            "a member row carrying an owner seed covers a different set of fields"
+        );
+
         assert_eq!(
             to_hex(&preimage(
                 CHECKED_IN_CERTIFICATE_ID,
@@ -1124,6 +1414,7 @@ mod tests {
                     signing_public_key: &other_public_key,
                     role: "member",
                     permissions: ADMINISTRATOR_PERMISSIONS,
+                    owner_seed_sealed: None,
                 }),
             ),
             (
@@ -1133,7 +1424,14 @@ mod tests {
                     signing_public_key: CHECKED_IN_MEMBER_SIGNING_PUBLIC_KEY,
                     role: "member",
                     permissions: ADMINISTRATOR_PERMISSIONS + 1,
+                    owner_seed_sealed: None,
                 }),
+            ),
+            // and the seed a transfer seals onto an owner's row, put on a row that was signed
+            // without one (effort 828, requirement 22).
+            (
+                signed_member,
+                member_authority_with_seal(&public_key, "member", b"a sealed organization seed"),
             ),
             // workspace: database_name, database_hostname
             (

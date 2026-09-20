@@ -259,6 +259,14 @@ pub struct SessionFacts {
     /// the owner's username, opened with the content key: whom a member is told to tell when
     /// the organization's account needs attention (requirement 25), and nothing else about them.
     pub owner_username: String,
+    /// whether this reader has been offered the organization and has not accepted yet (effort
+    /// 828, requirement 22), which is what puts the acceptance in their account section.
+    ///
+    /// **A fact about a standing offer and never the offer itself**: what the seal on the row
+    /// carries stays in Rust ([[rules/credentials]], *Client boundary*), and the offered person
+    /// needs to know only that it is there and whose it is, which the owner's username beside it
+    /// already says.
+    pub ownership_offered: bool,
 }
 
 /// Open the member row `joined` names in `store` with `password`.
@@ -316,6 +324,50 @@ pub async fn sign_in(
         credential,
     )
     .await
+}
+
+/// Write this machine into the organization's registry, naming whoever is signed in on it
+/// (effort 828, requirement 15).
+///
+/// The one write three of the four acts share: a sign-in passes the member, from `join::admit`
+/// at the wall and from the first run's own sign-in; a sign-out passes `None`; and the first
+/// state read of a launch passes whoever the record names, which is what registers a machine
+/// that came back signed in without anybody typing a password. A connect is the fourth and
+/// registers through `connect::connect`, because that is where the id is drawn.
+///
+/// **Nothing here is a refusal, and nothing comes back.** A machine whose row could not be
+/// written or could not be sent still holds the organization and its person is still signed in;
+/// what is lost is that the registry is a day out of date, and the next launch writes it again.
+/// There is nothing for a caller to act on, so this answers with nothing and writes what happened
+/// to the diagnostics log, the way [`remember`] does.
+///
+/// **A record with no `machine_id` writes nothing**, which is a record from before this build on
+/// the way to its first launch under it: `command::state_of` is what gives it one, and until it
+/// has one there is no row to write.
+pub async fn machine_seen(
+    store: &OrganizationStore,
+    held: &HeldOrganization,
+    member_id: Option<&str>,
+    now: i64,
+) {
+    if held.machine_id.is_empty() {
+        return;
+    }
+
+    if let Err(refusal) = store.machine_seen(&held.machine_id, member_id, now).await {
+        diagnostics::warn("organization.machine.notSeen")
+            .with("organization", held.id.as_str())
+            .with("reason", refusal.to_string())
+            .write();
+
+        return;
+    }
+
+    if !store.push().await {
+        diagnostics::warn("organization.machine.seenNotYetSent")
+            .with("organization", held.id.as_str())
+            .write();
+    }
 }
 
 /// Find the member `username` and `password` name in `held`'s replica, and open their vault:
@@ -482,11 +534,15 @@ pub(crate) enum Resumption {
 /// and no derivation, because the derivation's output is what was filed. The rows are read and
 /// verified first, as [`sign_in`] reads them, so a forged row is refused before the key is spent.
 ///
-/// **The epoch the entry files is compared against the row's, twice** (requirement 22): once on
-/// the rows this machine already holds, before the key is spent, and once after the vault has
-/// opened and the credential it unsealed has paid for a pull, which is the only moment this
-/// machine can learn of a sign-out that happened while it was closed. Either way the entry goes
-/// and the wall carries the sentence.
+/// **The epoch the entry files is compared against the row's before the key is spent**
+/// (requirement 22), on the rows this machine already holds, which is every machine whose
+/// heartbeat saw the bump before it was closed. The second comparison, on what the organization
+/// says now, is the caller's: the pull it takes spends the credential the vault holds, and what
+/// arrives may be re-keyed by a handover this machine was closed across as well as bumped, so the
+/// launch runs the heartbeat's own check once the session is open (`command::ended_elsewhere`),
+/// which pulls, follows a succession where the rows ask for one, and signs out where the row has
+/// moved on. *The pull and that check were in here until effort 828's review found that a
+/// succession could only be followed before the pull, on a replica that had not received it.*
 ///
 /// **Any failure forgets the entry and leaves the wall up.** Nothing filed, a value that is not a
 /// key, a member row that is gone or removed, and a vault resealed by anybody since are one
@@ -562,23 +618,49 @@ async fn resumed(
     )
     .await?;
 
-    // and again on what the organization says now. The pull is here rather than before the vault
-    // opened because it spends the credential the vault holds; its failure is the offline case
-    // and leaves this machine signed in on the rows it has, which is requirement 18.
-    store.pull().await;
-
-    if ended_elsewhere(store, &session).await? {
-        return Ok(Resumption::SignedOutElsewhere);
-    }
-
     Ok(Resumption::Opened(Box::new(session)))
+}
+
+/// Move an open session onto the key a succession handed over, and take what its own row says
+/// under that key (effort 828, requirement 22).
+///
+/// **The role and the permissions are re-read rather than carried**, because a handover is the
+/// one act that changes them under a session that is open somewhere else: the founder who handed
+/// over is an administrator now, and a session that kept `owner` would pass every gate that
+/// reads the word and sign a certificate under a key that certifies nothing. The row is read
+/// before anything on the session moves, so a row the new key does not find leaves the session as
+/// it was and the caller says so; the other snapshot fields stay, since the epoch is compared
+/// against the row on every act and the password standing is the vault's.
+pub(crate) async fn repin(
+    store: &OrganizationStore,
+    session: &mut MemberSession,
+    key: [u8; VERIFYING_KEY_BYTES],
+) -> Result<(), Error> {
+    let member = store
+        .member(&key, &session.member_id)
+        .await?
+        .ok_or_else(|| Error::NotFound {
+            message: "this member's row is not in the organization any more".to_string(),
+        })?;
+
+    session.verifying_key = key;
+    session.role = member.role;
+    session.permissions = member.permissions;
+
+    Ok(())
 }
 
 /// Whether the row has moved past the session: somebody ended this member's sessions from another
 /// machine, and this one is behind (effort 826, requirement 22).
 ///
 /// Read off the replica as it stands, so the caller decides whether to pull first. The sync
-/// heartbeat does; a resume does it once the vault has paid for the pull.
+/// heartbeat does, and the launch runs the heartbeat's check once the resumed vault can pay for
+/// the pull (`command::ended_elsewhere`).
+///
+/// **A row that will not read under the session's key is an error and not an answer**, and the
+/// caller is what reads it as a handover this machine has not followed yet (effort 828,
+/// requirement 22): the rows a pull brought were re-keyed, and the succession is followed and the
+/// session re-pinned before the question is asked again.
 pub async fn ended_elsewhere(
     store: &OrganizationStore,
     session: &MemberSession,
@@ -659,6 +741,11 @@ pub async fn end_elsewhere(
 /// is [`end_elsewhere`] and does something different; and the owner's, for anybody but the owner,
 /// which is the line `role::change_role` draws in the same words.
 ///
+/// **The register follows the act**, because the standing the members directory draws is read off
+/// it: an account nobody is signed in on is an account a link is offered for (requirement 20), and
+/// a register still naming this member on machines that are all behind the epoch would keep the
+/// one act that gets them back in absent from their card.
+///
 /// **What comes back is whether the bump reached the organization database**, for the reason
 /// [`end_elsewhere`] gives: an act whose whole value is that it takes effect on another machine
 /// cannot be reported done while it is still sitting on this one.
@@ -677,7 +764,7 @@ pub async fn end_member_sessions(
     if member_id == session.member_id {
         return Err(Error::Forbidden {
             message: "you cannot end your own sessions from somebody else's row. sign out of your \
-                      other machines from the you section"
+                      other machines from the account section"
                 .to_string(),
         });
     }
@@ -701,6 +788,12 @@ pub async fn end_member_sessions(
     store
         .set_session_epoch(member_id, member.session_epoch + 1, now)
         .await?;
+
+    // and the register stops naming them (effort 828, requirement 15). Every machine they were on
+    // is behind the epoch now, so a register that went on saying one is signed in on the account
+    // would draw a standing line for a state that ended here. The rows stay: those machines still
+    // hold the organization, and what ended is who is on them.
+    store.clear_member_from_machines(member_id).await?;
 
     let sent = store.push().await;
 
@@ -966,6 +1059,9 @@ pub async fn facts_of(
         role: member.role.clone(),
         permissions: member.permissions,
         workspaces: workspace_facts,
+        ownership_offered: super::role::standing_offer(store, key)
+            .await?
+            .is_some_and(|offer| offer.offered_member_id == member.id),
     })
 }
 
@@ -1334,12 +1430,6 @@ mod tests {
                     .expect("sealed"),
                 verifying_key: organization_key.verifying_key(),
                 remote_url: "libsql://org-b-other.aws-eu-west-1.turso.io".to_string(),
-                link_credential_sealed: seal_content(
-                    &content_key,
-                    "organization.link_credential_sealed",
-                    b"a-read-only-credential",
-                )
-                .expect("sealed"),
                 created_at: 1_757_000_000_000,
             })
             .await
@@ -1383,6 +1473,7 @@ mod tests {
                     created_at: 1_757_000_000_000,
                     updated_at: 1_757_000_000_000,
                     session_epoch: 0,
+                    owner_seed_sealed: None,
                 },
             )
             .await
@@ -1410,6 +1501,7 @@ mod tests {
                 organization_key.verifying_key(),
             ),
             remote_url: "libsql://org-b-other.aws-eu-west-1.turso.io".to_string(),
+            machine_id: "machine-one".to_string(),
             member_id: Some("me-there".to_string()),
             role: Some("member".to_string()),
             joined_at: 1_757_000_000_001,
@@ -1676,6 +1768,7 @@ mod tests {
                     created_at: 1_757_000_000_000,
                     updated_at: 1_757_000_000_000,
                     session_epoch: 0,
+                    owner_seed_sealed: None,
                 },
             )
             .await
@@ -1894,6 +1987,23 @@ mod tests {
         )
         .await;
 
+        // two machines in the register, one for each of them, so what the act does to the register
+        // is visible (ticket 20, the review's ninth finding).
+        let at = 1_757_000_000_100;
+
+        store
+            .machine_seen("machine-sami-laptop", Some("member-sami"), at)
+            .await
+            .expect("the member's machine did not register");
+        store
+            .machine_seen("machine-sami-desk", Some("member-sami"), at)
+            .await
+            .expect("the member's second machine did not register");
+        store
+            .machine_seen("machine-ada", Some("member-ada"), at)
+            .await
+            .expect("the administrator's machine did not register");
+
         // the act, on somebody else's row: the epoch moves and nothing else does.
         end_member_sessions(&store, &administrator, "member-sami", 1_757_000_000_200)
             .await
@@ -1901,6 +2011,33 @@ mod tests {
 
         assert_eq!(epoch_of(&store, &joined, "member-sami").await, 1);
         assert_eq!(epoch_of(&store, &joined, "member-ada").await, 0);
+
+        // **and the register stops naming them, so the standing line follows the sign-out.**
+        // Every machine they were on is behind the epoch now; the rows stay, because those
+        // machines still hold the organization, and the standing the members directory draws is
+        // *no machine signed in*, a fact and nothing more since 2026-09-20 (requirement 20 as
+        // corrected). *The epoch moved and the register did not, until ticket 20, so the card
+        // said somebody was signed in on a machine nothing admitted any more.*
+        let named: Vec<Option<String>> = store
+            .connected_machines(
+                &super::verifying_key_of(&joined).expect("the key"),
+                1_757_000_000_300,
+            )
+            .await
+            .expect("the register")
+            .into_iter()
+            .map(|(machine, _)| machine.member_id)
+            .collect();
+
+        assert_eq!(
+            named.iter().filter(|member| member.is_none()).count(),
+            2,
+            "the register still names the member on a machine: {named:?}"
+        );
+        assert!(
+            named.contains(&Some("member-ada".to_string())),
+            "the act reached a row it was not about: {named:?}"
+        );
 
         // their own row is the other act's.
         let own = end_member_sessions(&store, &administrator, "member-ada", 1_757_000_000_300)

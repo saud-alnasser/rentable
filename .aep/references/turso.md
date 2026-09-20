@@ -27,6 +27,16 @@ API did for it was create it once, and everything after that is the sync engine'
 plane's own records, `control-plane` and `control-plane-live-test`, are still on the human's
 account and are theirs; the application that read them retired on 2026-09-12.*
 
+**What this API does to `org-<id>` widened on 2026-09-16, with effort 828, so "all this API did
+for it was create it once" no longer holds.** Two of that effort's requirements reach the
+directory. Requirement 14 connects a machine to an organization the group already holds, and
+`setup::connect_existing` mints a token over `org-<id>` on this API for the machine that is
+joining, the way a first run mints one over the database it just created. Requirement 18 lets the
+owner delete the organization, and `removal::delete_organization` removes `org-<id>` through
+`delete_database` after every `ws-` database the directory names. So the API creates the directory,
+mints over it and deletes it; the reads and writes in between are still the sync engine's, which is
+the part of the sentence that stands. *Never run* carries the delete as the third deletion reason.
+
 ## Prerequisites
 
 In the shipping application, one thing: **a consent**. The owner grants the application authority
@@ -255,6 +265,16 @@ on purpose and no number of attempts changes that.
   rotation cannot remove one person without cutting off everybody on that database, which is
   why the desktop removes somebody by declining to renew and rotates only on a lock-out
   (`apps/desktop/tauri/src/organization/removal.rs`).
+- **A database that is not there answers the sync engine, and the answer is a string.**
+  `turso` 0.8.0-pre.7 carries no variant for a remote's answer: every refusal and every transport
+  fault arrive as `turso::Error::Error(String)`, with an HTTP refusal spelled `status=NNN, body=…`
+  inside it and a transport fault carrying no status at all. `platform.rs`'s `database_is_gone`
+  reads a `404` out of that text, which is what tells a machine the owner deleted the organization
+  (`organization/forget.rs`, effort 828 requirement 18); `401` and `403` are the credential's and
+  never that. Pinned against a loopback server answering each, on 2026-09-16, in
+  `organization/forget.rs`. **What a database deleted on this account actually answers has not
+  been run**, because running it means deleting one. If it is not a `404`, a machine keeps what it
+  holds and the person disconnects by hand, which is the direction that mistake should fail in.
 - **A delete-protected group refuses to delete the databases inside it**, and the message is
   about the group rather than about what was asked for:
   `403 {"error":"group rentable is delete-protected and cannot be deleted"}` — returned for a
@@ -272,9 +292,13 @@ on purpose and no number of attempts changes that.
 - **Do not delete a database this process did not just create, unless a human deleted the
   workspace in the interface.** A workspace's database is somebody's ledger, and nothing else is a
   reason to call it. **On the desktop the rule is a type**: `platform.rs`'s `delete_database` takes
-  a `DeletionIntent`, and its two variants are exactly these two reasons, an owner deleting the
+  a `DeletionIntent`, and its variants are exactly the reasons named here, an owner deleting the
   workspace in the interface now, and a database this process just created and could not finish
   making into a workspace. Every live test removes what it provisioned by the second intent.
+  **A third reason arrived on 2026-09-16 with effort 828's requirement 18**, and it is the owner
+  deleting the whole organization in the interface: `OrganizationDeletedByHuman` removes every
+  `ws-` database the organization's directory names and then the `org-<id>` directory itself, on
+  the owner's own account, after their password has opened their own vault.
 - **Do not delete `control-plane` or `control-plane-live-test`.** They are the retired control
   plane's, one holding every account, workspace, membership and session it decided on and the other
   what its live test wrote into; the application is gone and the databases are the human's. No

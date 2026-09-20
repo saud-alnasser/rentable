@@ -1,15 +1,17 @@
 import type {
-	FreshCode,
-	Invited,
+	GroupState,
 	LockOutCost,
+	MadeLink,
 	MemberRemoved,
+	MemberStanding,
 	OrganizationConsentResult,
 	OrganizationConsentStart,
 	OrganizationCreated,
 	OrganizationMember,
 	OrganizationState,
 	OrganizationWorkspace,
-	SessionsEnded
+	SessionsEnded,
+	UnreachableWorkspace
 } from '$lib/platform/tauri';
 import { procedure, router } from '$lib/api/trpc';
 import z from 'zod';
@@ -58,21 +60,62 @@ export const organization = router({
 		})
 	},
 	/**
-	 * Connect this machine to the organization a link names, and forget the one it holds.
+	 * Forget the organization this machine holds.
 	 *
-	 * **`public`, both, because both happen at the wall.** A connect is offered to a machine that
-	 * holds nothing, before there is anybody to act as; a disconnect is offered on the wall while
+	 * **`public`, because it happens at the wall.** A disconnect is offered on the wall while
 	 * signed out as well as on the organization page, and the host signs out first where somebody
-	 * is in. Neither reaches `ctx.db`. The one confirm before a disconnect is the screen's.
+	 * is in. It does not reach `ctx.db`. The one confirm before it is the screen's.
+	 *
+	 * *A `connect` stood beside it, taking the organization's own link, until effort 828's
+	 * requirement 16 retired that link. Every link needs its code now, and the acts that take one
+	 * are `invitation.accept` and `machine.connect`, which the connect screen calls on the host
+	 * directly for the refusals they name.*
 	 */
-	connect: procedure.public
-		.input(z.object({ link: z.string().trim().min(1) }))
-		.mutation(async ({ input, ctx }): Promise<OrganizationState> => {
-			return ctx.host.organization.connect(input.link);
-		}),
 	disconnect: procedure.public.mutation(async ({ ctx }): Promise<OrganizationState> => {
 		return ctx.host.organization.disconnect();
 	}),
+	/**
+	 * Accept the organization that was offered to this reader: the second of the two acts a
+	 * handover is (effort 828, requirement 22).
+	 *
+	 * **`member`, and every judgement is Rust's.** Whether an offer stands for this reader,
+	 * whether the password opens their vault, and whether what was sealed onto their row is the
+	 * key this machine holds are all answered where the keys are. What this side can say is that
+	 * somebody is signed in and that a password was typed, which is the shape `organization.delete`
+	 * has and for the same reason.
+	 *
+	 * The floor is not applied, as it is not on a current password anywhere else here. What comes
+	 * back is the whole state, because this reader is the owner from here on and every section the
+	 * settings area offers is drawn off it.
+	 */
+	ownershipAccept: procedure.member
+		.input(z.object({ password: z.string().min(1) }))
+		.mutation(async ({ input, ctx }): Promise<OrganizationState> => {
+			return ctx.host.organization.ownershipAccept(input.password);
+		}),
+	/**
+	 * Delete the organization: every workspace database and the organization's own directory go
+	 * from the owner's Turso account, and this machine forgets what it held (effort 828,
+	 * requirement 18).
+	 *
+	 * **`member`, and the owner check is Rust's**, which is the shape `workspace.create` and
+	 * `workspace.remove` already have and for the same reason: there is no act in
+	 * `packages/workspace-permission` a role could be given for this, because it needs the
+	 * platform authority only the owner's machine holds. What this side can say is that somebody
+	 * is signed in and that a password was typed; whether it opens the owner's vault is Rust's
+	 * alone, and the password crosses in and nothing about it crosses back ([[rules/credentials]],
+	 * *Client boundary*).
+	 *
+	 * The floor is not applied here. The password is being checked against a vault rather than
+	 * chosen, and an organization sealed before the floor moved would be undeletable by its own
+	 * owner if this refused it, which is the same reading `password.change` takes of the current
+	 * password.
+	 */
+	delete: procedure.member
+		.input(z.object({ password: z.string().min(1) }))
+		.mutation(async ({ input, ctx }): Promise<OrganizationState> => {
+			return ctx.host.organization.delete(input.password);
+		}),
 	/**
 	 * Create the organization from the three things the setup walk collects, and the group where
 	 * Turso left one to be asked for.
@@ -103,6 +146,31 @@ export const organization = router({
 				input.password,
 				input.group ?? null
 			);
+		}),
+	/**
+	 * What the consented Turso account already holds, and the connect that follows where it holds
+	 * an organization (effort 828, requirement 14).
+	 *
+	 * **`public`, both, for the reason the consent and the create are**: they happen on a machine
+	 * that holds nothing, before there is anybody to act as. The inspect reads and changes
+	 * nothing; the connect takes the owner's username and password, and what comes back is where
+	 * the machine stands. The password crosses in and nothing about it crosses back
+	 * ([[rules/credentials]], *Client boundary*), which is the shape the sign-in already has.
+	 *
+	 * The floor is the walk's own, refused here before a round trip, as the create's is.
+	 */
+	groupInspect: procedure.public.mutation(async ({ ctx }): Promise<GroupState> => {
+		return ctx.host.organization.groupInspect();
+	}),
+	connectExisting: procedure.public
+		.input(
+			z.object({
+				username: USERNAME,
+				password: z.string().min(PASSWORD_FLOOR)
+			})
+		)
+		.mutation(async ({ input, ctx }): Promise<OrganizationState> => {
+			return ctx.host.organization.connectExisting(input.username, input.password);
 		}),
 	/**
 	 * A workspace: created by the owner, opened by whoever holds a grant, granted and removed by
@@ -169,10 +237,11 @@ export const organization = router({
 		})
 	},
 	/**
-	 * Members and their invitations, which is the members list.
+	 * Accounts and their invitations, which is the members section.
 	 *
-	 * **Inviting is `permitted('inviteMember')` here and refused again in Rust**, on the member's
-	 * verified row; this is the earlier of the two refusals, made so a caller is turned away before
+	 * **Making an account is `permitted('inviteMember')` and making a link is that act or
+	 * `resetPassword`, and both are refused again in Rust**, on the member's verified row; this is
+	 * the earlier of the two refusals, made so a caller is turned away before
 	 * a round trip, and never the deciding one. Listing is any signed-in member's: who is in the
 	 * organization is not a secret from the people in it, and since effort 826 that one list
 	 * carries the pending invitations too. Whether a read-only grant can be minted
@@ -182,12 +251,22 @@ export const organization = router({
 		list: procedure.member.query(async ({ ctx }): Promise<OrganizationMember[]> => {
 			return ctx.host.organization.member.list();
 		}),
-		invite: procedure
+		/**
+		 * Where each account stands, for the line the directory draws under a name (effort 828,
+		 * requirement 19). Any signed-in member's, like the list beside it: who is in the
+		 * organization and whether they are connected is not a secret from the people in it, and
+		 * the directory that draws it is offered to a holder of an administration act anyway.
+		 */
+		standings: procedure.member.query(async ({ ctx }): Promise<MemberStanding[]> => {
+			return ctx.host.organization.member.standings();
+		}),
+		create: procedure
 			.permitted('inviteMember')
 			.input(
 				z.object({
 					username: USERNAME,
 					role: z.enum(['administrator', 'member']),
+					permissions: z.number().int().min(0),
 					workspaces: z.array(
 						z.object({
 							id: z.string().trim().min(1),
@@ -196,20 +275,43 @@ export const organization = router({
 					)
 				})
 			)
-			.mutation(async ({ input, ctx }): Promise<Invited> => {
-				return ctx.host.organization.member.invite(input.username, input.role, input.workspaces);
+			.mutation(async ({ input, ctx }): Promise<OrganizationMember> => {
+				return ctx.host.organization.member.create(
+					input.username,
+					input.role,
+					input.permissions,
+					input.workspaces
+				);
 			}),
 		/**
-		 * A reset: a fresh link for a member who already has a row. It is `resetPassword` rather
-		 * than `inviteMember` from effort 826 on, because what it hands somebody is a way back into
-		 * an account that exists rather than a new one, and requirement 4 made those two separate
-		 * things to be trusted with. *`invitation.reissue` until the same effort.*
+		 * The one link act (effort 828, requirement 20). It is `inviteMember`'s **or**
+		 * `resetPassword`'s: what it hands somebody is the way a machine joins an account, which is
+		 * what making an account was always half of, and it is also the only thing that restores an
+		 * account whose password `unsetPassword` beside it took away. Held to the first alone, a
+		 * member widened with the second and not the first could lock somebody out and not let them
+		 * back in. *The human struck that risk on 2026-09-16.* Which kind of link it is is Rust's,
+		 * read off the account's row; nothing about where the account stands refuses one, because
+		 * an account is held on as many machines as it is given links for.
+		 * *`invitation.reissue`, then `member.reset`, then this.*
 		 */
-		reset: procedure
+		linkMake: procedure
+			.permittedAny('inviteMember', 'resetPassword')
+			.input(z.object({ memberId: z.string().trim().min(1) }))
+			.mutation(async ({ input, ctx }): Promise<MadeLink> => {
+				return ctx.host.organization.member.linkMake(input.memberId);
+			}),
+		/**
+		 * A reset: the account's password unset, so the next link asks for a new one. It is
+		 * `resetPassword` rather than `inviteMember` from effort 826 on, because taking somebody's
+		 * way in away is a different thing to be trusted with than making an account. What comes
+		 * back names the workspaces it could not carry over. *`member.reset` handed a link back
+		 * until effort 828 made the link its own act.*
+		 */
+		unsetPassword: procedure
 			.permitted('resetPassword')
 			.input(z.object({ memberId: z.string().trim().min(1) }))
-			.mutation(async ({ input, ctx }): Promise<Invited> => {
-				return ctx.host.organization.member.reset(input.memberId);
+			.mutation(async ({ input, ctx }): Promise<UnreachableWorkspace[]> => {
+				return ctx.host.organization.member.unsetPassword(input.memberId);
 			}),
 		/**
 		 * Removal, at one of two speeds. **`lockOut` defaults to false here as well as in Rust**,
@@ -263,6 +365,35 @@ export const organization = router({
 				);
 			}),
 		/**
+		 * Offer the organization to another account: the first of the two acts a handover is
+		 * (effort 828, requirement 22).
+		 *
+		 * **The owner's, and this side cannot tell.** There is no owner procedure here and there
+		 * should not be one: being the owner is what a password opened rather than a bit on a row,
+		 * so this asks only that somebody is signed in and that a password and an account were
+		 * given. Whether the caller is the owner, whether the password opens their vault, and
+		 * whether the account named has a password of its own are Rust's alone, exactly as
+		 * `organization.delete` leaves them.
+		 *
+		 * The password crosses in and nothing about it crosses back ([[rules/credentials]],
+		 * *Client boundary*). The floor is not applied: it is being checked against a vault rather
+		 * than chosen, which is the reading `organization.delete` and `password.change` take of a
+		 * current password.
+		 */
+		offerOwnership: procedure.member
+			.input(z.object({ memberId: z.string().trim().min(1), password: z.string().min(1) }))
+			.mutation(async ({ input, ctx }): Promise<OrganizationMember> => {
+				return ctx.host.organization.member.offerOwnership(input.memberId, input.password);
+			}),
+		/**
+		 * Take the offer back. The owner's on the same reading, and it takes nothing: nothing is
+		 * unsealed and there is one standing offer or none, so naming which would be naming
+		 * something this side would have to have read.
+		 */
+		withdrawOffer: procedure.member.mutation(async ({ ctx }): Promise<void> => {
+			return ctx.host.organization.member.withdrawOffer();
+		}),
+		/**
 		 * Sign a member out of every machine (effort 826, requirement 22).
 		 *
 		 * **`resetPassword` and no act of its own**, on the reading requirement 22 states: whoever
@@ -282,40 +413,19 @@ export const organization = router({
 			})
 	},
 	/**
-	 * Invitations: revoked by the act that makes them, copied again by their issuer, and opened at
-	 * the wall. *They were listed here too until effort 826 put the pending one on the member's
-	 * own row.*
+	 * Invitations: made by `member.linkMake` and opened at the wall. *They were listed here too
+	 * until effort 826 put the pending one on the member's own row, revoked here until effort 828
+	 * found nothing calling it, and copied again by their issuer until requirement 19 settled what
+	 * a card offers.*
 	 *
 	 * **`accept` is `public` for the same reason `connect` is.** A person opening their link has
 	 * no identity here yet; being admitted is what the call does. It reaches `ctx.host` and never
 	 * `ctx.db`. The password floor is the first run's and the code is six characters, both
-	 * refused here before a round trip for a caller that is not the screen; whether the invitation
-	 * stands, and whether the link's secret and the code together open anything, are Rust's alone.
+	 * refused here before a round trip for a caller that is not the screen; whether the link has
+	 * lapsed, where the invitation stands, and whether the code and the link's own secret together
+	 * open anything, are Rust's alone.
 	 */
 	invitation: {
-		revoke: procedure
-			.permitted('inviteMember')
-			.input(z.object({ invitationId: z.string().trim().min(1) }))
-			.mutation(async ({ input, ctx }): Promise<void> => {
-				return ctx.host.organization.invitation.revoke(input.invitationId);
-			}),
-		link: procedure
-			.permitted('inviteMember')
-			.input(z.object({ invitationId: z.string().trim().min(1) }))
-			.mutation(async ({ input, ctx }): Promise<string> => {
-				return ctx.host.organization.invitation.link(input.invitationId);
-			}),
-		/**
-		 * A fresh confirmation code, under the act that makes invitations. Whether the caller is
-		 * the one who issued this invitation is Rust's, because it turns on whose key the row's
-		 * sealed secret opens for; anybody else is offered a new link instead, which is a reset.
-		 */
-		code: procedure
-			.permitted('inviteMember')
-			.input(z.object({ invitationId: z.string().trim().min(1) }))
-			.mutation(async ({ input, ctx }): Promise<FreshCode> => {
-				return ctx.host.organization.invitation.code(input.invitationId);
-			}),
 		accept: procedure.public
 			.input(
 				z.object({
@@ -329,7 +439,32 @@ export const organization = router({
 			})
 	},
 	/**
-	 * The reader's own sessions on their other machines, ended from the you section (effort 826,
+	 * Opening a machine-kind link, which is the connect that spends it (effort 828, requirement
+	 * 20). Making one is `member.linkMake`, beside the other kind, because one act makes a link for
+	 * an account and the account's standing chooses which kind it is.
+	 *
+	 * **`public`, for the reason `invitation.accept` is**: it happens on a machine where nobody has
+	 * signed in yet, so requiring an identity would be requiring the thing the call exists to make
+	 * possible.
+	 *
+	 * The code is six characters here as it is on an invitation, refused before a round trip for a
+	 * caller that is not the screen; whether the link has lapsed, where the row behind it stands,
+	 * and whether the code and the link's own secret together open anything, are Rust's alone.
+	 */
+	machine: {
+		connect: procedure.public
+			.input(
+				z.object({
+					link: z.string().trim().min(1),
+					code: z.string().trim().length(CODE_LENGTH)
+				})
+			)
+			.mutation(async ({ input, ctx }): Promise<OrganizationState> => {
+				return ctx.host.organization.machineConnect(input.link, input.code);
+			})
+	},
+	/**
+	 * The reader's own sessions on their other machines, ended from the account section (effort 826,
 	 * requirement 22).
 	 *
 	 * **`member`, because it is theirs**: it acts on the caller's own row and nobody else's, it

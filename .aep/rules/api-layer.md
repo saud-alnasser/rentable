@@ -51,13 +51,23 @@ use-when: "adding or changing a router, a domain module, a database client or tr
   about this should be the safe one, so the safe one is the one you reach for by habit.
 - **Host-only is the test for `public`, not harmless-looking.** A public procedure reaches
   `ctx.host` and never `ctx.db`. A read of the workspace is not public however read-only it
-  looks, because the workspace belongs to somebody. Today there are twelve: this machine's
+  looks, because the workspace belongs to somebody. Today there are fourteen: this machine's
   settings, its updater, what the shell knows about syncing, the organization's consent and
   first run, which happen before there is anybody to act as (`organization/router.ts` argues it),
-  and accepting an invitation, which is how there comes to be somebody (*twelve since
+  what a consented Turso account already holds and the connect onto it, and opening a link of
+  either kind, which is how there comes to be somebody (*twelve since
   2026-09-15, counted as every `procedure.public` under `src/lib`, the updater's two in
   `api/app.ts` included; it read nine, which was already short of the eleven the tree then had,
   until effort 826 added `invitation.accept`*).
+  *Corrected 2026-09-16 by
+  [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]]: the count is fourteen,
+  counted the same way, and the three that effort added are each public for a reason already on
+  this list. `organization.groupInspect` and `organization.connectExisting` (requirement 14) run
+  on a machine that holds nothing, while the consented Turso account is read and the organization
+  it already holds is connected to, which is before there is anybody to act as; the password
+  crosses in and nothing about it crosses back. `machine.connect` (requirement 20) opens a
+  machine-kind link, and it is public for the reason `invitation.accept` is: requiring an identity
+  would be requiring the thing the call exists to make possible.*
 - **`Context.identity` is `Identity | null`, and `null` is never filled in.** An absent actor is
   absent — never an anonymous, guest, or placeholder user. Decision 03 called a placeholder the
   harder of the two failures, and an absence that is expressible again is exactly when one gets
