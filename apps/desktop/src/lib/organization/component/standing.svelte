@@ -29,9 +29,11 @@
 	 * claiming to be up to date; a standing that needs something says what needs doing, and
 	 * beneath it only what that standing calls for: the account refusal's sentence and the
 	 * owner's dashboard control, the credential refusal's sentence, or the fault's own sentence.
-	 * Then one quiet control, "check now". No badge, no status word standing alone, and the word
-	 * "sync" nowhere on it: a person reading this is asking whether their machine is reaching
-	 * the organization, and "synced" in a coloured pill answered a different question.
+	 * Then one quiet control, named "sync" since the human's second look on 2026-09-17. No badge,
+	 * no status word standing alone, and the word "sync" on nothing but that control: a person
+	 * reading this is asking whether their machine is reaching the organization, and "synced" in a
+	 * coloured pill answered a different question, while the control is the one place the word is
+	 * a thing to press. *The control read "check now" and the word was nowhere on the block.*
 	 *
 	 * **The reconnect stays in the Turso account block below.** The plan lists the reconnect
 	 * beneath "this machine needs reconnecting" where the machine holds no authority, and that

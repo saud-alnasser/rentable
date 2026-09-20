@@ -260,7 +260,7 @@ pub struct SessionFacts {
     /// the organization's account needs attention (requirement 25), and nothing else about them.
     pub owner_username: String,
     /// whether this reader has been offered the organization and has not accepted yet (effort
-    /// 828, requirement 22), which is what puts the acceptance in their you section.
+    /// 828, requirement 22), which is what puts the acceptance in their account section.
     ///
     /// **A fact about a standing offer and never the offer itself**: what the seal on the row
     /// carries stays in Rust ([[rules/credentials]], *Client boundary*), and the offered person
@@ -764,7 +764,7 @@ pub async fn end_member_sessions(
     if member_id == session.member_id {
         return Err(Error::Forbidden {
             message: "you cannot end your own sessions from somebody else's row. sign out of your \
-                      other machines from the you section"
+                      other machines from the account section"
                 .to_string(),
         });
     }

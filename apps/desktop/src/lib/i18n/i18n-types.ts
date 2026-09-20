@@ -2688,10 +2688,6 @@ type RootTranslation = {
 			 */
 			acceptOwnershipAuthority: string
 			/**
-			 * y​o​u​r​ ​p​a​s​s​w​o​r​d
-			 */
-			acceptOwnershipPassword: string
-			/**
 			 * a​c​c​e​p​t​ ​i​t
 			 */
 			acceptOwnershipConfirm: string
@@ -5726,10 +5722,6 @@ export type TranslationFunctions = {
 			 * the turso account stays with whoever connected it. until you connect your own from the organization section, creating a workspace, locking somebody out and renewing credentials run on their machine or not at all.
 			 */
 			acceptOwnershipAuthority: () => LocalizedString
-			/**
-			 * your password
-			 */
-			acceptOwnershipPassword: () => LocalizedString
 			/**
 			 * accept it
 			 */

@@ -828,7 +828,8 @@ const en = {
 		// the block at the top of the organization section: where this machine stands with the
 		// organization on turso, in one sentence (effort 828, requirement 25). A standing that
 		// needs something says what needs doing; synced says when this machine last reached
-		// turso. No status word stands alone here, and none of these says "sync".
+		// turso. No status word stands alone here, and the only one of these that says "sync" is
+		// the control, which the human named so on 2026-09-17.
 		standing: {
 			// the legend and the sentence of purpose, the same whatever the standing: what the block
 			// is about, before the line that changes.
@@ -901,7 +902,6 @@ const en = {
 				'you become the owner of {organization:string} and {owner:string} becomes an administrator. your password becomes what the organization is signed with, so from now on it is your password that gets you back in on a new machine.',
 			acceptOwnershipAuthority:
 				'the turso account stays with whoever connected it. until you connect your own from the organization section, creating a workspace, locking somebody out and renewing credentials run on their machine or not at all.',
-			acceptOwnershipPassword: 'your password',
 			acceptOwnershipConfirm: 'accept it',
 			ownershipAccepted: 'the organization is yours. you are the owner now.',
 			lockOut: 'lock out',

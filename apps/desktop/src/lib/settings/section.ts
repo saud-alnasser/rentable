@@ -5,7 +5,7 @@ import { permits, type Administration } from '@rentable/workspace-permission';
 /**
  * THE SETTINGS AREA'S FOUR SECTIONS, AND HOW ONE IS ADDRESSED
  *
- * `/settings` is one surface with seven sections, and a section is named in the address rather
+ * `/settings` is one surface with four sections, and a section is named in the address rather
  * than in a path segment: `?section=<name>`, the idiom `record-surface.svelte` established and
  * `contracts/[id]` reads. **The pathname staying `/settings` is what the choice is for**, and
  * two things depend on it. `layout/shell-surface.ts` admits exactly `/settings` while nobody is
@@ -28,12 +28,16 @@ export const SECTION_PARAM = 'section';
  * The members directory is a list of cards, and a card opens its record
  * ([[rules/interface]], *Row activation*), so the card's `href` is its section's address with the
  * member named on it: `/settings?section=organization&member=<id>`. A member has no page of their
- * own, so what opening one means is the section drawing that member's edit.
+ * own, so what opening one means is the section drawing that member's edit; the rule records this
+ * as its accepted deviation, dated 2026-09-17: in the settings directories a record's page is its
+ * sheet.
  *
  * **It says member, because a member is what it names.** `account` is this application's word for
- * the Turso account and nothing else (effort 826, requirement 18), so a parameter naming a person
- * by it put the one reserved word on the one thing it is reserved against. *It read `account`
- * until ticket 21 of effort 828.*
+ * the Turso account (effort 826, requirement 18), with one exception: the section below that holds
+ * the reader's own username, password and machines is named `account`, because it is the reader's
+ * own (effort 828, requirement 24), and `settings.section.account` is the one key the locale guard
+ * leaves out. A parameter naming a person by the word put it on the one thing it is reserved
+ * against. *It read `account` until ticket 21 of effort 828.*
  */
 export const RECORD_PARAM = 'member';
 

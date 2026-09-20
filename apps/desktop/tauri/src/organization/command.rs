@@ -1484,7 +1484,7 @@ pub async fn member_withdraw_offer(app_state: tauri::State<'_, AppState>) -> Res
 ///
 /// The Turso account does not move with the ownership: until the new owner grants the consent on
 /// their own machine the acts that mint run on the founder's machine or not at all, which is what
-/// the sync section says beside the reconnect.
+/// the Turso account block in the organization section says beside the reconnect.
 #[tauri::command]
 pub async fn ownership_accept(
     app_state: tauri::State<'_, AppState>,
@@ -1541,7 +1541,7 @@ pub async fn member_rename(
 /// is closed meets it at its next launch.
 ///
 /// **What comes back says whether the bump went out.** A push that could not go leaves the other
-/// machines open until one does, and the you section says so rather than reporting the act done.
+/// machines open until one does, and the account section says so rather than reporting the act done.
 #[tauri::command]
 pub async fn organization_session_end_elsewhere(
     app_state: tauri::State<'_, AppState>,

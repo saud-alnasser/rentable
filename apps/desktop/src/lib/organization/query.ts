@@ -544,7 +544,7 @@ export function useChangePassword(
 }
 
 /**
- * end the reader's own sessions on every other machine, from the you section (effort 826,
+ * end the reader's own sessions on every other machine, from the account section (effort 826,
  * requirement 22).
  *
  * **This machine stays signed in**, so there is nothing to invalidate but where the machine

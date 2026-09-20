@@ -171,6 +171,10 @@ rail's two menus open. Every concept has one name.
    What restores the person is the next link made for that account, a separate act on the
    card held to `inviteMember`, and it asks them to choose a new password because the account
    has none. The member's own password change is unchanged.*
+   *Corrected 2026-09-17 by the same spec's Risks, struck at converge: the link act is held to
+   `inviteMember` or `resetPassword`, in `invite::make_link`, in the router and on the card, so
+   whoever may take a password away may hand back the link that gives one. "Held to
+   `inviteMember`" above was the gate before the human's call.*
 10. **The organization link stays, for a second machine.** An existing member connects a new
     machine with the organization's link and signs in with their username and password, as
     824 built. The connect screen takes either kind of link in one field and reads which it
@@ -335,6 +339,12 @@ rail's two menus open. Every concept has one name.
     Every other word in this requirement stands: a person in the organization is still a
     `member` on every screen, down to the control that adds one, and `Turso account` is still
     the only thing called an account in what a reader meets.*
+    *Corrected 2026-09-17 by the same spec, requirement 24: **the reader's own section of the
+    settings area is named "account"**, the one exception. The four sections are named for what
+    they hold, and the section holding your username, your password and your other machines is
+    `settings.section.account` in both locales; the human chose the name on 2026-09-16 and the
+    locale guard test names it as the exception. The organization strings still call nothing but
+    the Turso account an account, and the guard test holds that.*
 
 *Everything in scope*
 

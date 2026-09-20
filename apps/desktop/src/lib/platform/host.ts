@@ -277,7 +277,7 @@ export type OrganizationSession = {
 	ownerUsername: string;
 	/**
 	 * whether this reader has been offered the organization and has not accepted yet (effort 828,
-	 * requirement 22), which is what draws the acceptance in their you section. A fact about a
+	 * requirement 22), which is what draws the acceptance in their account section. A fact about a
 	 * standing offer and never the offer itself; who offered it is `ownerUsername`.
 	 */
 	ownershipOffered: boolean;

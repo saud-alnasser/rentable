@@ -188,7 +188,7 @@
 		onWithdrawOffer: () => void;
 		/**
 		 * accept the organization offered to this reader, with their own password. Rejects with
-		 * what the shared handler has said, which the you section puts on the password.
+		 * what the shared handler has said, which the account section puts on the password.
 		 */
 		onAcceptOwnership: (password: string) => Promise<void>;
 		/** the same grants read the other way round: one workspace, and the members that changed. */

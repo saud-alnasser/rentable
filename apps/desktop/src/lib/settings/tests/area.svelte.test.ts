@@ -298,8 +298,8 @@ test('the organization section is ordered: standing, account, people, leaving', 
 });
 
 // criterion 25 of effort 828, from the area's side: the block at the top of the organization
-// section states one sentence built from the standing and the moment, offers one "check now"
-// control, draws no badge and carries the word "sync" on the control alone. Each standing's
+// section states one sentence built from the standing and the moment, offers one control named
+// "sync", draws no badge and carries the word "sync" on that control alone. Each standing's
 // sentence is read in `organization/tests/standing.svelte.test.ts`; what is read here is that
 // the section draws that block, first, with the moment the machine holds.
 test('the organization section opens with one sentence on where this machine stands, and one check', () => {

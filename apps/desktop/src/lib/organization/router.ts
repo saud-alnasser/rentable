@@ -464,7 +464,7 @@ export const organization = router({
 			})
 	},
 	/**
-	 * The reader's own sessions on their other machines, ended from the you section (effort 826,
+	 * The reader's own sessions on their other machines, ended from the account section (effort 826,
 	 * requirement 22).
 	 *
 	 * **`member`, because it is theirs**: it acts on the caller's own row and nobody else's, it

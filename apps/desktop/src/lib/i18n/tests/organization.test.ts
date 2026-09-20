@@ -324,7 +324,12 @@ test('each term of requirement 18 is one english key, and its arabic is written'
 	}
 });
 
-test('the turso account is the only thing the organization strings call an account', () => {
+// requirement 18 of effort 826, with the one exception requirement 24 of effort 828 made:
+// `settings.section.account` names the reader's own section of the settings area, because that is
+// what the human chose to call the place their username, their password and their machines are
+// kept. It is outside the key prefixes this test reads, and that is deliberate rather than an
+// oversight: every other thing a reader meets that is called an account is the Turso account.
+test('the turso account is the only thing the organization strings call an account, settings.section aside', () => {
 	const english = leaves(en);
 
 	for (const [key, value] of Object.entries(english)) {

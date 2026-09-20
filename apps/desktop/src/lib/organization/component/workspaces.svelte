@@ -47,8 +47,9 @@
 	 * **Activating a card opens its record** ([[rules/interface]], *Row activation*). A workspace
 	 * has no page, so what opening one means is this section drawing that workspace's edit, and the
 	 * card's `href` is this section's address with the workspace named on it. The address is
-	 * consumed on arrival and cleared, the way the members directory consumes an account, so
-	 * pressing the same card twice opens the same surface twice.
+	 * consumed on arrival and cleared, the way the members directory consumes a member, so
+	 * pressing the same card twice opens the same surface twice. The rule records this as its
+	 * accepted deviation, dated 2026-09-17: in the settings directories a record's page is its sheet.
 	 *
 	 * **What a card opens is the members and access surface, and the rename only where that is all
 	 * this reader has.** The access is the edit every card carries, and the rename belongs to the

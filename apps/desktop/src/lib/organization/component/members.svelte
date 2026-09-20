@@ -61,7 +61,8 @@
 	 * no page, so what opening one means is this section drawing that member's sheet, and the card's
 	 * `href` is this section's address with the member named on it. The address is consumed on
 	 * arrival and cleared, the way `complex/component/directory.svelte` consumes its create intent,
-	 * so pressing the same card twice opens the same surface twice.
+	 * so pressing the same card twice opens the same surface twice. The rule records this as its
+	 * accepted deviation, dated 2026-09-17: in the settings directories a record's page is its sheet.
 	 *
 	 * **What a card opens is one sheet rather than two dialogs** (requirement 23). A member's role,
 	 * what they are also allowed beyond it, and the workspaces they hold are one person's standing,

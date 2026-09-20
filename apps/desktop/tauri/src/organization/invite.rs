@@ -2799,10 +2799,11 @@ mod tests {
     /// database and the generated vault password, and it lapses with that grant.**
     ///
     /// The payload opens on the code and on nothing else; the credential inside it is the one in
-    /// the session's slot rather than the never-expiring one the organization's own link carries;
-    /// its expiry is inside four weeks, which is what the owner's machine mints for; and where the
-    /// grant dies before the week is out, the link's own moment is the grant's. All of it on an
-    /// invitation and on a reset alike.
+    /// the session's slot, a four-week grant, and no link carries a credential that does not lapse
+    /// (the organization's own link, which did, is gone with requirement 16); its expiry is inside
+    /// four weeks, which is what the owner's machine mints for; and where the grant dies before the
+    /// week is out, the link's own moment is the grant's. All of it on the first link an account
+    /// is made and on the link that follows a reset alike, which are the same act, `make_link`.
     #[tokio::test]
     async fn a_link_seals_the_issuers_own_grant_and_lapses_no_later_than_it_does() {
         let directory = scratch("sealed-payload");

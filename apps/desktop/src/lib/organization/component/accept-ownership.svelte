@@ -94,7 +94,7 @@
 
 		<Field.Field>
 			<Field.Label for="accept-ownership-password">
-				{$LL.organization.dashboard.acceptOwnershipPassword()}
+				{$LL.organization.setup.passwordLabel()}
 			</Field.Label>
 			<InputGroup.Root class={insetControl} data-disabled={isAccepting ? 'true' : undefined}>
 				<InputGroup.Addon>

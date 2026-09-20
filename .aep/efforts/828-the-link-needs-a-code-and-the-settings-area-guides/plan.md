@@ -398,6 +398,15 @@ seal any more: the owner's password derives the key, founder or transferee alike
 who handed over derives a key that no longer matches and is refused as an administrator, which
 closes the review's second finding by construction.
 
+*Corrected 2026-09-20 against the tree ticket 27 built: **a machine follows the succession after
+its pull, not before.** The rows a succession re-keyed arrive with the pull, so the launch's
+resume stores the session and then runs `command::ended_elsewhere`, which pulls, follows where
+the check refuses under the old key, and re-pins; the heartbeat runs the same routine, so a
+machine closed across a handover and one open across it take one path. The session is re-pinned
+beside the record through `session::repin`, which re-reads the acting row under the new key, so
+the founder's open session is an administrator's on every gate rather than an owner's carried
+over.*
+
 **What is signed and what is not.** The succession row's completion is signed by the old key;
 the offer by the current key; the seal itself is data under the signed member row and is only
 ever opened on a machine that already holds the old key by another route. The Turso authority
@@ -471,6 +480,17 @@ standing, the moment where there is one, the control, and the absence of a badge
 
 *Rejected: keeping the badge and renaming it, which leaves a status word standing alone; and a
 block under general, which the human chose against since it speaks of the organization.*
+
+*Corrected 2026-09-20 against the tree ticket 26 built, in three places. **The control is named
+"sync"**, on the human's second look on 2026-09-17, so "check now" above is the name it had and
+requirement 25 was corrected with it; the word leaves the badge and the four status words but
+stays on the control, which is the one place it is a thing to press rather than a standing, and
+the component test asserts it nowhere else. **The relative-time formatting did not already
+exist**: the application had date formatting alone, and ticket 26 added
+`formatLocaleRelativeTime` to `platform/locale.ts` for this sentence, which is what says "checked
+two minutes ago" within a day and falls back to the date beyond it. **And a standing was added**:
+a machine that never reached Turso says so (`neverReached`, ticket 27) rather than reading as up
+to date with no moment to give.*
 
 # Interfaces
 
@@ -595,6 +615,14 @@ at launch. The store now completes its schema after every successful pull, creat
 sync connection each table it names that the replica lacks and pushing it, so the organization on
 Turso gains the table for everybody; a replica holding every table writes nothing. Not on open,
 since a fresh connect opens an empty replica before its first pull.*
+
+*Added 2026-09-20 with ticket 27: a machine whose key a handover replaced carries the same shape
+and a stale key, and it is not a migration but it arrives at the same moment. The pull is what
+brings the re-keyed rows, so the follow runs after it, not before: the launch resumes the
+remembered session and then runs the heartbeat's own check, which pulls, follows the succession
+where the read refuses under the pinned key, re-pins the record and the session, and asks again.
+A machine closed across a handover and one open across it take that one path, and neither is
+signed out by it.*
 
 # Testing Strategy
 

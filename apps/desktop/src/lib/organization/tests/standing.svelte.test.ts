@@ -15,10 +15,10 @@ import QueryProviders from './query-providers.svelte';
  * THE STANDING BLOCK, RENDERED
  *
  * Criterion 25 of [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]]: one
- * sentence per standing, the moment where there is one, one "check now" control, no badge, and
- * the word "sync" on nothing but the control, which the human named so on 2026-09-17. Which standing a state is in is decided in
- * `workspace/sync-status.ts` and read in its own test; what is read here is what the block
- * draws for each answer, in both locales.
+ * sentence per standing, the moment where there is one, one control named "sync", no badge, and
+ * the word "sync" on nothing but that control, which the human named so on 2026-09-17. Which
+ * standing a state is in is decided in `workspace/sync-status.ts` and read in its own test; what
+ * is read here is what the block draws for each answer, in both locales.
  *
  * **The replication is stood in for**, because the control runs the sync mutation and the
  * mutation reaches the shell, which this runner has none of. What the stand-in answers is held
@@ -226,7 +226,7 @@ test('and where the machine holds no authority, the sentence points at the recon
 	);
 });
 
-test('the control reads checking while the replication runs, and check now again after', async () => {
+test('the control reads syncing while the replication runs, and sync again after', async () => {
 	block();
 
 	await fireEvent.click(checkNow());

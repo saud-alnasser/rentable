@@ -454,7 +454,8 @@ mod tests {
     }
 
     /// An organization with its owner signed in, one workspace, and one member invited into it:
-    /// the store with two members every test here runs over, the organization's own link, and the
+    /// the store with two members every test here runs over, the organization's locator (the four
+    /// clear fields every link seals a payload onto; nothing connects with it alone), and the
     /// member's invitation link. The replica the owner wrote is what a connected machine reads once
     /// it has pulled; the pull itself is `organization/store.rs`'s and is not what this module
     /// proves.
@@ -991,8 +992,9 @@ mod tests {
     }
 
     /// What an accept refuses before it opens anything: a link for another organization than the
-    /// one held, a password under the floor, and the organization's own link, which invites
-    /// nobody. Nothing is recorded and the invitation is not spent by any of them.
+    /// one held, a password under the floor, and a link under a machine half, which is what an
+    /// account with a password is handed and invites nobody. Nothing is recorded and the
+    /// invitation is not spent by any of them.
     #[tokio::test]
     async fn an_accept_refuses_another_organizations_link_a_short_password_and_a_link_with_no_half()
     {

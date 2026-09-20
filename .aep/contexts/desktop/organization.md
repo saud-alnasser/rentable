@@ -33,6 +33,15 @@ card and a member makes none. The member's own act this sentence described was b
 828 and retired inside it. The ninth table, `machine`, is requirement 15's register of the machines
 that hold the organization, and that half of the sentence stands.*
 
+*Corrected 2026-09-17 ([[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]],
+requirements 20 and 22): **ten tables, and the link act follows two permissions.** The entry and
+the correction above both count nine; `store::TABLES` lists ten, the tenth being `succession`,
+the row a handover writes when ownership is offered and completes when it is accepted (the *Chain*
+entry says how it is signed and followed). And `invite::make_link` is held to `inviteMember` or
+`resetPassword` (`permission::require_any`), not to `inviteMember` alone: the human's call at
+converge was that whoever may take a password away may hand back the link that gives one, and the
+router and the card gate the act the same way. Refused on the owner's own row still.*
+
 **Vault**:
 A member's X25519 keypair, sealed under a key Argon2id derives from their password, on their own
 row. The password opens it on any machine, with or without a network; what it unseals is the
@@ -134,6 +143,9 @@ four clear fields an invitation, a reset and a machine link seal a payload onto,
 `connect::connect` takes that locator with the credential its caller unsealed rather than reading
 one off a link. What recovers an organization whose every machine is gone is the owner's Turso
 account and their password (requirement 14), so the sync section shows no link at all.*
+*Corrected 2026-09-17 (828, requirement 24): there is no sync section; the settings area has four
+sections, and the block that held the link sits at the top of the organization section and shows
+no link either.*
 
 **Authority**:
 The Platform API token a consent produced, in the keyring on the owner's machine and nowhere else.
@@ -144,14 +156,16 @@ repeats the consent for it, because no row holds it.
 requirement 22): **the authority follows the account that consented and not the ownership**, so an
 owner who was handed the organization holds none until they grant the consent on their own machine,
 and until they do the acts that mint run on the founder's machine or not at all; the sync section
-says so beside the reconnect.*
+says so beside the reconnect.* *Corrected 2026-09-17 (828, requirement 24): the sync section is
+gone; the Turso account block that says so, with the reconnect, is in the organization section.*
 
 *Corrected again 2026-09-16, at review round one: **a handover is two acts, and the organization
 key becomes the new owner's own derivation.** The owner offers from the account's card with their
 own password (`role::offer_ownership`), which seals the outgoing key's seed to the offered member's
 public key in `member.owner_seed_sealed` and writes a `succession` row signed by the key in force;
 nothing else moves, and `role::withdraw_offer` takes both back. The offered member accepts from
-their you section on a machine they are signed in on, with their own password
+their you section (*the account section since 828's requirement 24; corrected 2026-09-17*) on a
+machine they are signed in on, with their own password
 (`role::accept_ownership`): that password derives the new organization key exactly as the
 founder's derived theirs, the seal is opened and **refused unless what it yields is the key this
 machine pinned**, and the directory is re-keyed as the *Chain* entry describes. So an owner's way
@@ -236,7 +250,13 @@ to judge, and a member with a full-access grant could replace it.*
   alone. An owner who was handed the organization opens the same key from the seed the transfer
   sealed into their vault, because `setup::owner_key_from` reads `member.owner_seed_sealed` first
   and derives only where there is none; what their password reaches is the founder's key either
-  way, which is why only the owner can. The **Authority** entry above writes it out.* The way is
+  way, which is why only the owner can. The **Authority** entry above writes it out.* *Corrected
+  2026-09-17 (828, requirement 22, as reopened at review round one): the sentence before this one
+  describes the first shape and contradicts the **Authority** entry it points at. `setup::owner_key_from`
+  is one derivation over the secret the password unseals and reads no seal; the seal branch went
+  with the reopening, and "re-derives" is true of a founder and a transferee alike, because the
+  acceptance re-keyed the directory under the new owner's own derivation. Only the owner can, for
+  one reason on both.* The way is
   open only while no owner's or administrator's machine has been seen in the
   last seven days, since such a machine can hand out a link, and the refusal says so and abandons
   the consent. *Nothing creates in a held group:* the refusal requirement 21 added stands for a

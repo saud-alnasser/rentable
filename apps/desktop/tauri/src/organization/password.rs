@@ -16,11 +16,13 @@
 //! owner's is.
 //!
 //! **A reset is not here.** An administrator who does not know a member's password cannot
-//! re-seal their vault, because nothing they hold opens it; what they can do is reissue the
-//! member a fresh one from what they hold themselves, which is `invite::reset_account`, and
-//! a test in this module tries every key an administrator holds against a vault they did not
-//! build and finds none of them opens it. That test is what keeps an escrow copy from arriving
-//! as a convenience.
+//! re-seal their vault, because nothing they hold opens it; what they can do is take the password
+//! away and reseal the member a fresh vault from what they hold themselves, which is
+//! `invite::unset_password`, with the link that follows made from the account's card (effort 828,
+//! requirement 20), and a test in this module tries every key an administrator holds against a
+//! vault they did not build and finds none of them opens it. That test is what keeps an escrow
+//! copy from arriving as a convenience. *`invite::reset_account`, the unset and the link in one
+//! call, is a test fixture now.*
 
 use crate::{diagnostics, error::Error};
 
