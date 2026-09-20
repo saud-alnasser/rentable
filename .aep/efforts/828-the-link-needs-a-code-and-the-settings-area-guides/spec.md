@@ -558,6 +558,13 @@ and named"; one picker round*)
   link act is held to `inviteMember` or `resetPassword`, in `invite::make_link` and in the router,
   so whoever may take a password away may hand back the link that gives one. No default role
   moves, and there is no longer a widening that locks somebody out with no way to let them in.*
+- **A stale founder session on a replica that is truly offline** acts under the old key
+  until its next heartbeat or state read reaches Turso; every write it makes is refused by every
+  machine that verifies under the new key. *Recorded 2026-09-17 at the close, from ticket 27;
+  the offline-first limit.*
+- **A machine that stops at the wall learns the organization was deleted one launch late**,
+  since it reaches no organization database until a sign-in pulls. *Recorded 2026-09-17 at the
+  close, from ticket 13.*
 - **Deleting the organization is irreversible on the platform.** The confirmation says so and
   takes the password; delete protection is lifted per database as the platform port already
   does for a workspace.
