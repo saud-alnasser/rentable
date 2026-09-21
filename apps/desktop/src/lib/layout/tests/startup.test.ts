@@ -213,6 +213,21 @@ test('and a machine the bootstrap turns out of the organization meets the wall a
 	assert.equal(journal.reconciled, 0, 'and nothing after it did');
 });
 
+// effort 826, requirement 22: a session ended from another machine while this one was closed
+// is learned at the launch's own pull, and the launch ends at the wall rather than on a
+// workspace nobody is signed in to.
+test('and a session ended elsewhere, learned at the pull the launch makes, ends the launch at the wall', async () => {
+	const { startup, journal } = harness();
+
+	journal.standing = 'signedOutElsewhere';
+
+	await startup.start();
+
+	assert.equal(startup.snapshot.state, 'sign-in');
+	assert.equal(journal.synced, 1, 'the pull ran');
+	assert.equal(journal.reconciled, 0, 'and nothing after it did');
+});
+
 // --- 3. A password that does not open the vault -----------------------------------------
 
 test('a wrong password leaves the wall as it was, and says only that the value did not open', async () => {
@@ -520,6 +535,38 @@ test('and a pull that landed rows announces them, while one that landed none doe
 	assert.equal(journal.announced, 1, 'rows arrived, and derived state has to be told');
 });
 
+// rows that land while a day-crossing pass is out are announced after it rather than dropped:
+// that pass may have read the tables before they arrived, and nothing else refetches them.
+test('and rows that land while a day-crossing reconcile is out are announced once it is back', async () => {
+	let release: () => void = () => {};
+	const held = new Promise<void>((resolve) => {
+		release = resolve;
+	});
+	let holding = false;
+	const { startup, journal, now } = harness({
+		reconcile: async () => {
+			// the day-crossing pass waits; the launch's own and what follows it do not.
+			if (holding) {
+				holding = false;
+				await held;
+			}
+		}
+	});
+
+	await startup.start();
+
+	now.value = AT + A_DAY;
+	holding = true;
+	const crossing = startup.reconcileOnDayCrossing();
+	await startup.applySyncOutcome({ action: 'none', received: true, workspaceId: 'north' });
+	assert.equal(journal.announced, 0, 'the pass is still out, so the rows wait');
+
+	release();
+	await crossing;
+
+	assert.equal(journal.announced, 1, 'and are announced once it is back');
+});
+
 // --- A switch between workspaces, from inside the application -----------------------------
 
 /** a member holding two workspaces, with the first one open. */
@@ -621,6 +668,33 @@ test('and a switch asked for while one is loading, or while a password is being 
 
 	assert.deepEqual(signingIn.harness.journal.workspacesOpened, ['north']);
 	assert.equal(signingIn.harness.startup.snapshot.state, 'ready');
+});
+
+// the card is still on screen while the workspace is being opened, which is a pull of the
+// organization replica and an open of the workspace's own: a second submit in that window would
+// derive a second key and run the way in twice, so the card stays closed until the loading
+// surface is up.
+test('and the card stays closed while the workspace the sign-in reached is being opened', async () => {
+	const opening: { harness: ReturnType<typeof harness> | null; seen: boolean[] } = {
+		harness: null,
+		seen: []
+	};
+	opening.harness = harness({
+		organization: locked(),
+		openWorkspace: async () => {
+			opening.seen.push(opening.harness?.startup.snapshot.isSigningIn ?? false);
+			// a second submit lands while the open is out, and is refused.
+			await opening.harness?.startup.signIn('olivia', 'a long enough password');
+		}
+	});
+
+	await opening.harness.startup.start();
+	await opening.harness.startup.signIn('olivia', 'a long enough password');
+
+	assert.deepEqual(opening.seen, [true], 'the card was closed while the open was out');
+	assert.deepEqual(opening.harness.journal.workspacesOpened, ['north'], 'and opened once');
+	assert.equal(opening.harness.startup.snapshot.isSigningIn, false);
+	assert.equal(opening.harness.startup.snapshot.state, 'ready');
 });
 
 // the plan's first technical risk: a dispatch in flight during the switch reports for the

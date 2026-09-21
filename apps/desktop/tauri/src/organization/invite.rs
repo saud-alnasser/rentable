@@ -173,6 +173,13 @@ pub struct MadeLink {
     /// database dies, whichever is sooner (effort 828, requirement 2). The row behind the link
     /// carries the same moment, so the link and the row lapse together.
     pub expires_at: i64,
+    /// the workspaces the link could not carry over, named so the maker can say whom to ask. A
+    /// link for an account with no password yet re-seals its grants to the fresh vault, and a
+    /// grant the maker cannot seal again, full access on a workspace they hold no full credential
+    /// on or read only where they hold no Turso authority, is taken off the row rather than left
+    /// as a sign-in that fails; `unset_password` answers the same list, and this is the other
+    /// act that drops grants and has to say so.
+    pub unreachable_workspaces: Vec<UnreachableWorkspace>,
 }
 
 /// One workspace and the access held on it: what an invitation asks for, and what the members
@@ -460,12 +467,15 @@ pub async fn make_link<P: TursoPlatform>(
     let link_secret = generate_link_secret()?;
     let code = generate_code()?;
 
+    let mut unreachable_workspaces = Vec::new();
     let (kind, vault_password) = if member.must_change_password {
         // no password to admit them with, so the link carries the one the vault is built under and
         // the person opening it replaces it with theirs. The row is written before the link so a
         // link that exists always has a row behind it.
-        let (password, _) =
+        let (password, unreachable) =
             reseal_account(store, session, platform, &member, kdf_params, now).await?;
+
+        unreachable_workspaces = unreachable;
         let (key, certificate) = signer_of(store, session).await?;
         let signer = Signer {
             key: &key,
@@ -549,6 +559,7 @@ pub async fn make_link<P: TursoPlatform>(
         link,
         code,
         expires_at,
+        unreachable_workspaces,
     })
 }
 
@@ -3167,6 +3178,112 @@ mod tests {
         .expect_err("an invitation granted a workspace the inviter does not hold");
 
         assert!(refusal.to_string().contains("full access"), "{refusal}");
+    }
+
+    /// A link for an account with no password yet re-seals its grants, and a grant the maker cannot
+    /// seal again is taken off the row and named in the answer, as a reset names it: nobody is
+    /// told otherwise, and the person opening the link would find the workspace missing.
+    #[tokio::test]
+    async fn a_link_made_by_somebody_who_cannot_reach_a_workspace_says_which_grant_it_dropped() {
+        let directory = scratch("dropped-grant");
+        let (store, owner, link, workspace_id, _) = owned(&directory).await;
+        let admin = make_account_and_link(
+            &store,
+            &owner,
+            no_platform(),
+            &link,
+            Invitation {
+                username: "ada.admin",
+                role: permission::ADMINISTRATOR,
+                workspaces: &[],
+            },
+            test_cost(),
+            1,
+        )
+        .await
+        .expect("the administrator");
+        let mut ada = sign_in(
+            &store,
+            &joined_as(&owner, &admin.member_id, permission::ADMINISTRATOR),
+            &secret_of(&admin),
+            &slot(),
+        )
+        .await
+        .expect("the administrator did not sign in");
+        ada.must_change_password = false;
+
+        // the owner, who holds the workspace, makes the account into it; the administrator, who
+        // does not, makes the first link.
+        let account = create_account(
+            &store,
+            &owner,
+            no_platform(),
+            "sami.staff",
+            permission::MEMBER,
+            0,
+            &full(std::slice::from_ref(&workspace_id)),
+            test_cost(),
+            2,
+        )
+        .await
+        .expect("the account");
+        let made = make_link(
+            &store,
+            &ada,
+            no_platform(),
+            &link,
+            &account.id,
+            test_cost(),
+            3,
+        )
+        .await
+        .expect("the link");
+
+        assert_eq!(
+            made.unreachable_workspaces
+                .iter()
+                .map(|workspace| workspace.id.as_str())
+                .collect::<Vec<_>>(),
+            vec![workspace_id.as_str()],
+            "the dropped grant was not named"
+        );
+        assert!(
+            !store
+                .grants(&owner.verifying_key)
+                .await
+                .expect("the grants")
+                .iter()
+                .any(|grant| grant.member_id == account.id && grant.workspace_id == workspace_id),
+            "the grant the link could not carry over is still on the row"
+        );
+
+        // and a link the owner makes, holding the workspace, drops nothing.
+        let account = create_account(
+            &store,
+            &owner,
+            no_platform(),
+            "rana.staff",
+            permission::MEMBER,
+            0,
+            &full(std::slice::from_ref(&workspace_id)),
+            test_cost(),
+            4,
+        )
+        .await
+        .expect("the account");
+        let made = make_link(
+            &store,
+            &owner,
+            no_platform(),
+            &link,
+            &account.id,
+            test_cost(),
+            5,
+        )
+        .await
+        .expect("the link");
+
+        assert!(made.unreachable_workspaces.is_empty());
     }
 
     /// Requirement 21's rules, at their limits: three and thirty-two characters are accepted,

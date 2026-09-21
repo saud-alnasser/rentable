@@ -80,6 +80,11 @@ export type Journal = {
 	localeSet: string | null;
 	/** the workspaces the unit asked the shell to open, in order. */
 	workspacesOpened: string[];
+	/**
+	 * where the member stands after a dispatch: `signedOutElsewhere` is a session ended from
+	 * another machine, and the dispatch signs the member out as Rust does.
+	 */
+	standing: 'held' | 'signedOutElsewhere';
 };
 
 export type Harness = {
@@ -112,6 +117,8 @@ export function harness(
 		openWorkspace?: (workspaceId: string) => Promise<void>;
 		/** what forgetting the organization meets, for the path where the shell refuses to. */
 		disconnect?: () => Promise<void>;
+		/** what a whole-table reconcile waits on, for the path where two overlap. */
+		reconcile?: () => Promise<void>;
 	} = {}
 ): Harness {
 	const journal: Journal = {
@@ -129,6 +136,7 @@ export function harness(
 		cacheCleared: 0,
 		undrawnDropped: 0,
 		invalidatedAll: 0,
+		standing: 'held',
 		remoteSyncInvalidated: 0,
 		remembered: [],
 		contextsForgotten: 0,
@@ -214,13 +222,20 @@ export function harness(
 				}),
 			reconcile: async () => {
 				journal.reconciled += 1;
+				await overrides.reconcile?.();
 
 				return { reconciledAt: now.value };
 			},
 			syncNow: async (given) => {
 				journal.synced += 1;
 
-				return { state: given ?? state };
+				// the dispatch is what signs the member out on the Rust side, so the next read
+				// of where the machine stands finds nobody in.
+				if (journal.standing === 'signedOutElsewhere') {
+					organization = { ...organization, session: null, signedOutElsewhere: true };
+				}
+
+				return { state: given ?? state, standing: journal.standing };
 			},
 			syncBeforeExit: async (given) => {
 				journal.syncedBeforeExit += 1;
@@ -230,6 +245,7 @@ export function harness(
 			},
 			announceReceived: async () => {
 				journal.announced += 1;
+				await overrides.reconcile?.();
 
 				return now.value;
 			}

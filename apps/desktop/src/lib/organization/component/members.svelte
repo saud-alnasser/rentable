@@ -351,6 +351,10 @@
 
 		const member = members.find((candidate) => candidate.id === named);
 
+		// a list still on its way is empty, and an organization has an owner: the address keeps
+		// its name until the list can answer for it, and this runs again when it arrives.
+		if (!member && members.length === 0) return;
+
 		if (member) openEdit(member);
 
 		void goto(sectionAddress, { replaceState: true, noScroll: true, keepFocus: true });

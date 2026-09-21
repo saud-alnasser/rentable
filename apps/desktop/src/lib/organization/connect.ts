@@ -374,9 +374,25 @@ export function joinFailed(
  * again on its next mount, and a second link replaces a first nobody opened.
  */
 let arriving: string | null = null;
+const arrivals = new Set<() => void>();
 
 export function linkArrived(link: string) {
 	arriving = link;
+
+	// a screen already open is told, since navigating to the address it is on mounts nothing:
+	// it takes the link the way a mount does, and one nobody is listening for waits for a mount.
+	for (const listener of arrivals) {
+		listener();
+	}
+}
+
+/** hear a link arrive while a screen that reads them is open. Answers how to stop. */
+export function listenForArrivingLink(listener: () => void) {
+	arrivals.add(listener);
+
+	return () => {
+		arrivals.delete(listener);
+	};
 }
 
 export function takeArrivingLink(): string | null {

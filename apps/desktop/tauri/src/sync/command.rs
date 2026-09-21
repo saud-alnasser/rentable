@@ -102,6 +102,19 @@ pub async fn remote_sync_replicate(
     } else {
         SessionStanding::Held
     };
+
+    // and that is where this replication ends: the wall is up, and the workspace's push and pull
+    // would go out under a credential the member no longer stands behind. What this machine wrote
+    // stays captured for whoever signs in and holds a grant on it.
+    if standing == SessionStanding::SignedOutElsewhere {
+        return Ok(Replication {
+            pushed: false,
+            received: false,
+            refusal: ReplicationRefusal::None,
+            standing,
+        });
+    }
+
     let replicated = {
         let db = app_state.db.read().await;
 
@@ -159,10 +172,24 @@ pub async fn remote_sync_replicate(
             // nothing wrong (requirement 25's shape, for the credential rather than the account).
             {
                 let mut remote_sync = app_state.remote_sync.write().await;
-                if matches!(again.refusal, SyncRefusal::None) && (again.pushed || again.received) {
-                    remote_sync.clear_credential_refusal();
-                } else if matches!(again.refusal, SyncRefusal::Credential) {
-                    remote_sync.note_credential_refusal(crate::timestamp::now());
+
+                // the same three answers the first dispatch has, recorded the same way: a retry
+                // that the account refused is the account's, and one that went through settles
+                // both, or the owner is shown an account needing attention with no sentence
+                // behind it until the next heartbeat.
+                match &again.refusal {
+                    SyncRefusal::None => {
+                        if again.pushed || again.received {
+                            remote_sync.clear_account_refusal();
+                            remote_sync.clear_credential_refusal();
+                        }
+                    }
+                    SyncRefusal::Account { detail } => {
+                        remote_sync.note_account_refusal(detail, crate::timestamp::now());
+                    }
+                    SyncRefusal::Credential => {
+                        remote_sync.note_credential_refusal(crate::timestamp::now());
+                    }
                 }
             }
 

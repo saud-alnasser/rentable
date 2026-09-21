@@ -40,6 +40,34 @@ export type WorkspaceSyncEventResult = {
 
 const REQUEST_EVENT = 'rentable:workspace-sync-request';
 const RESULT_EVENT = 'rentable:workspace-sync-result';
+const SESSION_ENDED_EVENT = 'rentable:session-ended';
+
+/**
+ * a dispatch found the session ended from another machine (effort 826, requirement 22).
+ *
+ * **Said on the window because a dispatch has three callers and one shell.** The heartbeat, the
+ * sync control in the settings area and the startup pass each call the same replication, and it
+ * is the replication that signs the member out on the Rust side; whichever caller it was, what
+ * follows is the shell's, which reads where the machine stands and puts the wall up.
+ */
+export function emitSessionEnded() {
+	if (typeof window === 'undefined') {
+		return;
+	}
+
+	window.dispatchEvent(new CustomEvent(SESSION_ENDED_EVENT));
+}
+
+export function listenForSessionEnded(listener: () => void) {
+	if (typeof window === 'undefined') {
+		return () => {};
+	}
+
+	const handler = () => listener();
+
+	window.addEventListener(SESSION_ENDED_EVENT, handler);
+	return () => window.removeEventListener(SESSION_ENDED_EVENT, handler);
+}
 
 export function requestWorkspaceSync(detail: WorkspaceSyncRequest = {}) {
 	if (typeof window === 'undefined') {

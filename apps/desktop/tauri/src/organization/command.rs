@@ -414,6 +414,14 @@ pub async fn organization_sign_in(
                 message: "this machine holds no organization to sign in to".to_string(),
             })?
     };
+    // a session already open on this machine ends first, as a sign-out ends it: its remembered
+    // key is deleted, the register stops naming it and its replica is let go of. Signing in over
+    // it would file a second member's key beside the first and leave the first for nothing to
+    // delete, since a sign-out and a disconnect forget the one member the record names.
+    if app_state.member.read().await.is_some() {
+        sign_out(app_state.inner()).await;
+    }
+
     let (store, credential) = open_replica(app_state.inner(), &held).await?;
 
     // a handover accepted while this machine was at the wall left rows this machine's key cannot
@@ -1176,9 +1184,39 @@ pub async fn organization_renew_credentials(
     let mut member = app_state.member.write().await;
     let store = app_state.organization.read().await;
     let (member, store) = signed_in(&mut member, &store)?;
+    // the renewal seals to every member's public key as the row carries it, so the rows are read
+    // after a pull rather than off this machine's last sight of them: a vault reset on another
+    // machine since would otherwise have its grants sealed to the key it no longer holds, and
+    // that member could open nothing at all.
+    store.pull().await;
     let organization_database = format!("org-{}", member.organization_id);
 
-    workspace::renew_credentials(store, member, &platform, &organization_database).await
+    let renewed =
+        workspace::renew_credentials(store, member, &platform, &organization_database).await?;
+
+    hold_renewed_token(&app_state, member).await;
+
+    Ok(renewed)
+}
+
+/// Hand the sync engine the credential the session now holds for the open workspace, where a
+/// renewal or a rotation moved it.
+///
+/// **The engine reads its token off `RemoteSync`, and a renewal writes the session.** Every other
+/// member's engine learns of a moved credential through `reconnect`, which compares the rows
+/// against the session; the acting owner's session already carries the new one, so nothing there
+/// moves and the engine goes on under the token that was just rotated away. This is the one
+/// place the owner's own engine is told.
+async fn hold_renewed_token(app_state: &AppState, member: &MemberSession) {
+    let mut remote_sync = app_state.remote_sync.write().await;
+    let current = remote_sync.workspace();
+
+    if let Some(remote_id) = current.remote_id.as_deref()
+        && let Some(held) = member.workspace_credentials.get(remote_id)
+        && remote_sync.workspace_token().as_deref() != Some(held.token.as_str())
+    {
+        remote_sync.hold_organization_workspace_token(&held.token);
+    }
 }
 
 /// Renew credentials if any is close to lapsing, on the owner's machine, best effort. Answers
@@ -1202,6 +1240,9 @@ pub async fn organization_renew_due(app_state: tauri::State<'_, AppState>) -> Re
         return Ok(false);
     }
 
+    // after a pull, for the reason `organization_renew_credentials` gives.
+    store.pull().await;
+
     let now = crate::timestamp::now();
     if !workspace::credentials_due(store, member, workspace::CREDENTIAL_RENEWAL_WINDOW_MS, now)
         .await?
@@ -1211,6 +1252,7 @@ pub async fn organization_renew_due(app_state: tauri::State<'_, AppState>) -> Re
 
     let organization_database = format!("org-{}", member.organization_id);
     workspace::renew_credentials(store, member, &platform, &organization_database).await?;
+    hold_renewed_token(&app_state, member).await;
 
     Ok(true)
 }
@@ -1602,6 +1644,14 @@ pub async fn member_lock_out_cost(
     let store = app_state.organization.read().await;
     let (member, store) = signed_in(&mut member, &store)?;
 
+    // the same gate the lock-out itself stands behind: the interface asks this before offering
+    // the act, and every command refuses again on the row rather than trusting the screen.
+    member.settled()?;
+    crate::organization::permission::require(
+        session::permissions_on_row(store, member).await?,
+        crate::organization::permission::Administration::RemoveMember,
+    )?;
+
     removal::lock_out_cost(store, member, &member_id).await
 }
 
@@ -1625,7 +1675,7 @@ pub async fn member_remove(
     store.pull().await;
     let organization_database = format!("org-{}", member.organization_id);
 
-    removal::remove_member(
+    let removed = removal::remove_member(
         store,
         member,
         platform.as_ref(),
@@ -1634,7 +1684,14 @@ pub async fn member_remove(
         lock_out.unwrap_or(false),
         timestamp::now(),
     )
-    .await
+    .await?;
+
+    // a lock-out rotated the workspaces the member held, this one among them where the owner has
+    // it open, and the owner's session already carries the fresh credential: the engine is told,
+    // since `reconnect` finds nothing moved between the rows and this session.
+    hold_renewed_token(&app_state, member).await;
+
+    Ok(removed)
 }
 
 /// Collect whatever the organization database holds for this member that this process does
@@ -1665,12 +1722,21 @@ pub(crate) async fn reconnect(app_state: &AppState) -> bool {
         }
     };
 
-    if !moved {
-        return false;
-    }
-
     let mut remote_sync = app_state.remote_sync.write().await;
     let current = remote_sync.workspace();
+
+    // the engine's own token is compared as well as the rows: a renewal or a lock-out made on
+    // this machine wrote the session and not the engine, so the rows and the session agree while
+    // the engine is still on the credential that was rotated away.
+    let engine_behind = current
+        .remote_id
+        .as_deref()
+        .and_then(|remote_id| member.workspace_credentials.get(remote_id))
+        .is_some_and(|held| remote_sync.workspace_token().as_deref() != Some(held.token.as_str()));
+
+    if !moved && !engine_behind {
+        return false;
+    }
 
     if let Some(remote_id) = current.remote_id.as_deref()
         && let Some(held) = member.workspace_credentials.get(remote_id)

@@ -80,7 +80,14 @@ where
             fs::create_dir_all(parent)?;
         }
 
-        fs::write(&self.path, contents)?;
+        // written beside the file and moved over it, so what is on disk is either the previous
+        // record or this one. This file is rewritten on every replication that goes through, and a
+        // process that dies between the truncate and the flush of an in-place write leaves a
+        // record the next launch cannot read; a rename is atomic on every platform this ships to.
+        let staging = self.path.with_extension("json.tmp");
+
+        fs::write(&staging, contents)?;
+        fs::rename(&staging, &self.path)?;
 
         self.dirty = false;
 

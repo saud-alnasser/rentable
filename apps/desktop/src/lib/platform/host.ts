@@ -424,6 +424,12 @@ export type MadeLink = {
 	code: string;
 	/** the earlier of a week out and the moment the maker's own grant on the database dies. */
 	expiresAt: number;
+	/**
+	 * the workspaces the link could not carry over, taken off the account's row: a grant the
+	 * maker could not seal again for an account choosing its first password. Named so the maker
+	 * is told rather than the person finding a workspace missing.
+	 */
+	unreachableWorkspaces: { id: string; name: string }[];
 };
 
 /**

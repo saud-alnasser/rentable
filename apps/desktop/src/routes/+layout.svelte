@@ -3,6 +3,7 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { startWorkspaceSyncManager } from '$lib/sync/autosync';
+	import { listenForSessionEnded } from '$lib/sync/event';
 	import { listenForSignOut } from '$lib/sync/sign-out';
 	import { trustWorkspaceData } from '$lib/design/query';
 	import { TooltipProvider } from '@rentable/design/primitive/tooltip/index.js';
@@ -155,13 +156,24 @@
 		const appWindow = getCurrentWindow();
 		let unlistenCloseRequested: (() => void) | undefined;
 		let stopListeningForCloseRequests: (() => void) | undefined;
+		// somebody ended this member's sessions from another machine: the shell has already
+		// dropped the keys, so reading where the machine stands is what raises the wall, the
+		// same path a sign-out takes (effort 826, requirement 22), and it leaves the three
+		// addresses that open signed out first for the same reason the sign-out does below.
+		const sessionEnded = async () => {
+			const destination = addressAfterSignOut(page.url.pathname);
+
+			if (destination) {
+				await goto(resolve(destination));
+			}
+
+			await startup.standingChanged();
+		};
 		const stopWorkspaceSyncManager = startWorkspaceSyncManager({
 			onResult: (detail) => startup.applySyncOutcome(detail),
-			// somebody ended this member's sessions from another machine: the shell has already
-			// dropped the keys, so reading where the machine stands is what raises the wall, the
-			// same path a sign-out takes (effort 826, requirement 22).
-			onSessionEnded: () => startup.standingChanged()
+			onSessionEnded: sessionEnded
 		});
+		const stopListeningForSessionEnded = listenForSessionEnded(() => void sessionEnded());
 		// leaving first, and reading where the machine stands afterwards. The wall is drawn in place
 		// of the route, so on the three addresses that open signed out there is no wall to draw and
 		// signing out from `/settings` left the settings of a machine nobody is signed in on still
@@ -221,6 +233,7 @@
 			clearInterval(dayCrossingInterval);
 			stopWorkspaceSyncManager();
 			stopListeningForSignOut();
+			stopListeningForSessionEnded();
 			stopObserving();
 			unlistenCloseRequested?.();
 			stopListeningForCloseRequests?.();

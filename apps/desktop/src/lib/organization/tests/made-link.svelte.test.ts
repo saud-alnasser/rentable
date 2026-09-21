@@ -36,7 +36,8 @@ const LAPSES_AT = Date.UTC(2026, 8, 22);
 const made = {
 	link: 'rentable://join/abc',
 	code: '7K4M9Q',
-	expiresAt: LAPSES_AT
+	expiresAt: LAPSES_AT,
+	unreachableWorkspaces: []
 };
 
 const panel = (

@@ -22,10 +22,17 @@ and everything after that is between the members' machines and their own account
 
 ## Before the first run
 
-- Node 24 and pnpm 11. `engine-strict` is on, so npm and yarn will refuse.
+- Node 24 and pnpm 12. `engine-strict` is on, so npm and yarn will refuse.
 - The Rust toolchain, plus Tauri 2's platform prerequisites: <https://tauri.app/start/prerequisites/>.
 - A Turso account, to set an organization up on. The application asks for the consent on its
-  first run and creates what it needs; nothing is pasted or typed.
+  first run and creates what it needs; nothing is pasted or typed. The consent is scoped to one
+  Turso group, and one group holds one organization: the group you pick is where every database
+  the organization makes will live, and a group that already holds one connects the machine to
+  it rather than making a second.
+- A network, for the first run only. The first run reaches Turso to grant the consent and create
+  or connect the organization, and a member's first launch opens a link against it; every launch
+  after that opens the replica on this machine, and signing in, reading and writing all work with
+  no network at all.
 
 ## Setup
 
