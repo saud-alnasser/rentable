@@ -938,6 +938,8 @@ const en = {
 				'the member was locked out. {count|number} other member(s) reconnect on their own.',
 			unreachableWorkspaces:
 				'you do not hold {workspaces}, so the reset could not restore it. an administrator who does can grant it again.',
+			linkUnreachableWorkspaces:
+				'you do not hold {workspaces}, so the link could not carry it over. an administrator who does can grant it again.',
 			noWorkspaces: 'no workspace yet.',
 			// what a card says about the workspaces somebody holds: how many, and not which. Which
 			// ones, and what each is good for, is the surface the card's own menu opens.

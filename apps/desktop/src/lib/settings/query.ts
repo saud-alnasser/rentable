@@ -1,3 +1,4 @@
+import { emitSessionEnded } from '$lib/sync/event';
 import api from '$lib/api/caller';
 import { tauri, type RemoteSyncState } from '$lib/platform/tauri';
 import {
@@ -174,6 +175,15 @@ export function useSyncWorkspace(
 	return createMutation(() => ({
 		mutationFn: () => syncWorkspaceNow(),
 		onSuccess: async (result) => {
+			// the dispatch signed the member out on the Rust side, and there is no workspace for
+			// this outcome to be about: the shell hears it and puts the wall up, and nothing here
+			// announces a workspace that is closed (effort 826, requirement 22).
+			if (result.standing === 'signedOutElsewhere') {
+				emitSessionEnded();
+
+				return;
+			}
+
 			client.setQueryData(keys.remoteSync, result.state);
 			await client.invalidateQueries({ queryKey: keys.remoteSync });
 

@@ -142,6 +142,13 @@ impl KdfParams {
     }
 }
 
+/// The most a stored cost may ask for, at four times what a vault is sealed at today. A cost
+/// is data on a row every member can write, so the ceiling is what keeps a row from being a
+/// way to take every wall in the organization down (see [`derive_member_key`]).
+pub const MAX_MEMORY_KIB: u32 = 1024 * 1024;
+pub const MAX_ITERATIONS: u32 = 64;
+pub const MAX_LANES: u32 = 16;
+
 /// A key derived from a password. Never stored, never serialized, and scrubbed
 /// when it drops.
 pub struct MemberKey([u8; MEMBER_KEY_BYTES]);
@@ -332,6 +339,21 @@ pub fn derive_member_key(
     kdf_salt: &[u8; KDF_SALT_BYTES],
     kdf_params: KdfParams,
 ) -> Result<MemberKey, Error> {
+    // the cost is read off the row, and the row is written by whoever holds the organization
+    // credential: a cost past what any client of ours sealed at is refused here, as a vault that
+    // does not open, rather than allocated. Without the bound a row asking for four gibibytes is
+    // an allocation failure inside the wall's walk over every vault, and nobody signs in anywhere
+    // until the row is repaired.
+    if kdf_params.memory_kib > MAX_MEMORY_KIB
+        || kdf_params.iterations > MAX_ITERATIONS
+        || kdf_params.lanes > MAX_LANES
+    {
+        return Err(Error::InvalidInput {
+            message: "the stored derivation parameters are past what this application will spend"
+                .to_string(),
+        });
+    }
+
     let params = Params::new(
         kdf_params.memory_kib,
         kdf_params.iterations,
@@ -1207,6 +1229,23 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn a_cost_past_the_ceiling_is_refused_rather_than_spent() {
+        let vault = create_vault("a chosen password", test_cost()).expect("failed to create");
+        let asked = Vault {
+            kdf_params: KdfParams {
+                memory_kib: MAX_MEMORY_KIB + 1,
+                ..test_cost()
+            },
+            ..vault.clone()
+        };
+
+        let refused = open_vault("a chosen password", &asked).expect_err("the cost was spent");
+
+        assert!(matches!(refused, Error::InvalidInput { .. }), "{refused:?}");
+        assert!(open_vault("a chosen password", &vault).is_ok());
     }
 
     // the cost is data the caller passes

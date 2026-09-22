@@ -403,30 +403,33 @@ pub async fn sign_in_by_username(
 
     let mut found = None;
 
+    // every vault the password opens is asked whose it is, and the walk goes on past one that
+    // is somebody else's. Two members who chose the same password each open under it, since a
+    // vault is its own salt, and the one that opens first is whoever joined first: stopping
+    // there would refuse the later of the two at the wall for as long as they share it.
     for member in members
         .iter()
         .filter(|member| member.role != super::permission::REMOVED)
     {
-        if let Ok((secret, member_key)) = open_vault_with_key(password, &member.vault) {
-            found = Some((member, secret, member_key));
+        let Ok((secret, member_key)) = open_vault_with_key(password, &member.vault) else {
+            continue;
+        };
+        let content_key = content_key_of(member, &secret)?;
+        let carried = opened(
+            &content_key,
+            "member.username_sealed",
+            &member.username_sealed,
+        )?;
+
+        if carried.trim().to_lowercase() == wanted {
+            found = Some((member, secret, member_key, content_key));
             break;
         }
     }
 
-    let Some((member, secret, member_key)) = found else {
+    let Some((member, secret, member_key, content_key)) = found else {
         return Err(refused());
     };
-
-    let content_key = content_key_of(member, &secret)?;
-    let carried = opened(
-        &content_key,
-        "member.username_sealed",
-        &member.username_sealed,
-    )?;
-
-    if carried.trim().to_lowercase() != wanted {
-        return Err(refused());
-    }
 
     // a vault still sealed under the generated secret its invitation link carries is opened by
     // that link and by nothing typed at the wall (effort 826, ticket 03): the secret was never

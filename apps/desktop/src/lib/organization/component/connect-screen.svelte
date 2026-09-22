@@ -104,6 +104,23 @@
 	// them, which is why the first read is untracked rather than derived.
 	let pasted = $state(untrack(() => (step.kind === 'paste' ? step.link : '')));
 	let code = $state(untrack(() => (step.kind === 'paste' ? step.code : '')));
+
+	// and they follow the form step when the route hands one back: back from a refusal returns
+	// the link with the code cleared, because that code is spent, and a fresh link arriving
+	// replaces both. What the step carries there is what the person typed or what arrived, never
+	// a third thing, so the fields stay theirs.
+	$effect(() => {
+		if (step.kind !== 'paste') return;
+
+		const { link, code: handed } = step;
+
+		// the fields are read untracked: this follows the step and never the typing, or every
+		// character typed would be put back to what the step arrived with.
+		untrack(() => {
+			if (pasted !== link) pasted = link;
+			if (code !== handed) code = handed;
+		});
+	});
 	let password = $state('');
 	let confirmation = $state('');
 

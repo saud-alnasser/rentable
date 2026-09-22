@@ -47,7 +47,7 @@ use super::{
     HeldOrganization,
     authority::{
         AdministratorKey, OrganizationKey, SuccessionAuthority, VERIFYING_KEY_BYTES,
-        issue_certificate, sign_succession, verify_succession,
+        issue_certificate, sign_succession, verify_certificate, verify_succession,
     },
     invite::{MemberFacts, members, random_id},
     permission::{self, Administration},
@@ -581,6 +581,23 @@ pub async fn accept_ownership(
             continue;
         }
 
+        // only what the key being left issued is re-issued under the key replacing it. The table
+        // is read raw, and a certificate no row names is checked by nothing else, so one written
+        // by anybody holding the organization credential, with a signature nothing ever verified,
+        // would otherwise leave here signed by the organization key and authorise every row its
+        // holder signs from then on. It is left as it is, refused under the new key as it was
+        // under the old, rather than refusing the handover: a planted row must not be able to
+        // hold the organization to its founder.
+        if let Err(refusal) = verify_certificate(&pinned, certificate) {
+            diagnostics::warn("organization.succession.certificateNotReissued")
+                .with("certificate", certificate.id.as_str())
+                .with("member", certificate.member_id.as_str())
+                .with("reason", refusal.to_string())
+                .write();
+
+            continue;
+        }
+
         // the same id, the same member and the same signing key, which is what lets every row
         // that names this certificate stay exactly as it was signed. `revoked_at` is carried over
         // because it was never under the issue signature and a re-issue is not a reinstatement.
@@ -947,7 +964,10 @@ mod tests {
         error::Error,
         organization::{
             HeldOrganization,
-            authority::{AdministratorKey, OrganizationKey, VERIFYING_KEY_BYTES},
+            authority::{
+                AdministratorKey, Certificate, OrganizationKey, VERIFYING_KEY_BYTES,
+                verify_certificate,
+            },
             invite::{AccountAndLink, Invitation, WorkspaceGrant, locator, make_account_and_link},
             join::accept,
             link::{JoinLink, Locator},
@@ -2330,6 +2350,124 @@ mod tests {
             .await
             .expect("the directory is still signed under the key it was");
         assert_eq!(ada_session.role, permission::ADMINISTRATOR);
+    }
+
+    /// **Criterion 22, a planted certificate.** The certificate table is read raw, and a
+    /// certificate no row names is checked by nothing until a handover re-issues the table. One
+    /// written by a member holding the organization credential, naming their own signing key under
+    /// a signature nothing made, must come out of the acceptance as refused as it went in: the
+    /// re-issue is of what the key being left issued, and of nothing else.
+    #[tokio::test]
+    async fn a_planted_certificate_is_not_reissued_by_the_handover() {
+        let directory = scratch("planted-certificate");
+        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (ada, mut ada_session, mut ada_machine) = a_settled_administrator(
+            &directory,
+            &store,
+            &owner,
+            &link,
+            &workspace_id,
+            "ada.admin",
+            ADMINISTRATORS_PASSWORD,
+        )
+        .await;
+        let (bilal, bilal_session) = a_member(
+            &store,
+            &owner,
+            &link,
+            "bilal",
+            permission::MEMBER,
+            &workspace_id,
+        )
+        .await;
+        let old_key = owner.verifying_key;
+
+        // a member holding the organization credential writes a certificate for the key their
+        // own vault derives, with a signature nothing issued. No row names it, so nothing refuses
+        // it: it waits for the handover.
+        let planted_key = AdministratorKey::from_bytes(
+            &bilal_session
+                .secret
+                .derive_seed(ADMINISTRATOR_KEY_PURPOSE)
+                .expect("the seed"),
+        );
+        let planted = Certificate {
+            id: format!("cert-{}", bilal.member_id),
+            member_id: bilal.member_id.clone(),
+            signing_public_key: planted_key.verifying_key(),
+            signature_by_organization_key: vec![7; 64],
+            issued_at: NOW.to_string(),
+            revoked_at: None,
+        };
+
+        store
+            .write_certificate(&planted)
+            .await
+            .expect("the planted certificate");
+        assert!(verify_certificate(&old_key, &planted).is_err());
+
+        offer_ownership(&store, &owner, &ada.member_id, PASSWORD, NOW + 1)
+            .await
+            .expect("the offer failed");
+        accept_ownership(
+            &store,
+            &mut ada_session,
+            &mut ada_machine,
+            ADMINISTRATORS_PASSWORD,
+            NOW + 2,
+        )
+        .await
+        .expect("the acceptance failed");
+
+        let new_key = ada_session.verifying_key;
+
+        // the founder's certificate was re-issued and still authorises; the planted one is as it
+        // was written, verifies under neither key, and its holder signs nothing.
+        assert!(certified(&store, &owner.member_id).await);
+        assert!(certified(&store, &ada.member_id).await);
+
+        let after = store
+            .certificates()
+            .await
+            .expect("the certificates")
+            .into_iter()
+            .find(|certificate| certificate.id == planted.id)
+            .expect("the planted certificate is still there");
+
+        assert_eq!(after.signature_by_organization_key, vec![7; 64]);
+        assert!(verify_certificate(&new_key, &after).is_err());
+
+        let rows = store
+            .members(&new_key)
+            .await
+            .expect("every member row still verifies under the new key");
+
+        // and a row signed under it is refused by every reader, which is what the re-issue
+        // would have changed: the planted certificate would have come out signed by the key.
+        let row = rows
+            .into_iter()
+            .find(|member| member.id == bilal.member_id)
+            .expect("bilal's row");
+        let signer = Signer {
+            key: &planted_key,
+            certificate: &after,
+        };
+
+        store
+            .write_member(
+                &signer,
+                &MemberRecord {
+                    role: permission::ADMINISTRATOR.to_string(),
+                    permissions: permission::mask_of_role(permission::ADMINISTRATOR),
+                    ..row
+                },
+            )
+            .await
+            .expect("the row is written; it is the readers that refuse it");
+        assert!(
+            store.members(&new_key).await.is_err(),
+            "a row signed under the planted certificate verified"
+        );
     }
 
     /// **Criterion 22, the withdrawal.** Taking the offer back deletes the succession row and

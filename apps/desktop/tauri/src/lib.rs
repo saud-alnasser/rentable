@@ -188,7 +188,7 @@ pub fn run() {
             // configuration; a development build has no installer, so it registers the scheme for
             // its own executable here, and a failure to is logged rather than fatal, because the
             // join screen also takes a pasted link.
-            #[cfg(any(windows, target_os = "linux"))]
+            #[cfg(all(debug_assertions, any(windows, target_os = "linux")))]
             if let Err(error) = app.deep_link().register_all() {
                 diagnostics::warn("organization.link.schemeNotRegistered")
                     .with("error", error.to_string().as_str())

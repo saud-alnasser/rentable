@@ -400,7 +400,12 @@ test('making a link is held to inviteMember or resetPassword, and connecting wit
 				linkMake: async (memberId) => {
 					asked.push(`linkMake:${memberId}`);
 
-					return { link: 'rentable://join/abc', code: '7K4M9Q', expiresAt: 1_757_604_800_000 };
+					return {
+						link: 'rentable://join/abc',
+						code: '7K4M9Q',
+						expiresAt: 1_757_604_800_000,
+						unreachableWorkspaces: []
+					};
 				}
 			},
 			machineConnect: async (link, code) => {

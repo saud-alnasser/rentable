@@ -130,7 +130,14 @@ export type StartupPorts = {
 	workspace: {
 		bootstrap(): Promise<Recovery>;
 		reconcile(): Promise<{ reconciledAt: number }>;
-		syncNow(state: RemoteSyncState | null): Promise<{ state: RemoteSyncState }>;
+		/**
+		 * push and pull, and say where the member stands after it: `signedOutElsewhere` is a
+		 * session ended from another machine, learned at this pull, and the shell has already
+		 * signed the member out on its side (effort 826, requirement 22).
+		 */
+		syncNow(
+			state: RemoteSyncState | null
+		): Promise<{ state: RemoteSyncState; standing?: 'held' | 'signedOutElsewhere' }>;
 		syncBeforeExit(state: RemoteSyncState | null): Promise<{ state: RemoteSyncState }>;
 		/** a pull landed rows; announce them and say the day they were reconciled on. */
 		announceReceived(): Promise<number>;
@@ -208,6 +215,7 @@ export class Startup {
 	#isSyncingWindowClose = false;
 	#isFinalizingWindowClose = false;
 	#isReconcilingDayCrossing = false;
+	#receivedWhileReconciling = false;
 	#lastReconciledUtcDay: number;
 
 	constructor(ports: StartupPorts) {
@@ -392,9 +400,18 @@ export class Startup {
 		// reconcile two lines down is a whole-table pass over exactly what a pull would have made
 		// stale, and the render has not happened yet.
 		this.#ports.reportStage('changes');
-		this.#set({
-			remoteSync: (await this.#ports.workspace.syncNow(this.#snapshot.remoteSync)).state
-		});
+		const synced = await this.#ports.workspace.syncNow(this.#snapshot.remoteSync);
+		this.#set({ remoteSync: synced.state });
+
+		// a session ended from another machine while this one was closed is learned at this
+		// pull, and the shell has already signed the member out on its side: where the machine
+		// stands is read again, which raises the wall, rather than going on to a workspace nobody
+		// is signed in to (effort 826, requirement 22).
+		if (synced.standing === 'signedOutElsewhere') {
+			await this.standingChanged();
+
+			return;
+		}
 
 		this.#ports.reportStage('records');
 		const { reconciledAt } = await this.#ports.workspace.reconcile();
@@ -495,21 +512,28 @@ export class Startup {
 		try {
 			this.#set({ organization: await this.#ports.organization.signIn(username, password) });
 		} catch (error) {
-			this.#set({ error: this.#ports.describeError(error) });
+			this.#set({ error: this.#ports.describeError(error), isSigningIn: false });
 
 			return;
-		} finally {
-			this.#set({ isSigningIn: false });
 		}
 
 		this.#rememberSession();
 
-		if (!(await this.#admit())) {
-			return;
-		}
+		// **The card stays closed until the loading surface is up.** Opening the workspace is a
+		// pull of the organization replica and an open of the workspace's own, seconds on a real
+		// network, and the card is still what is on screen for all of it: a second submit in that
+		// window would derive a second key and run the way in twice, and a disconnect would delete
+		// the replica the open is reading. Cleared on every path that leaves the person at a wall.
+		try {
+			if (!(await this.#admit())) {
+				return;
+			}
 
-		if (!(await this.#hasWorkspace())) {
-			return;
+			if (!(await this.#hasWorkspace())) {
+				return;
+			}
+		} finally {
+			this.#set({ isSigningIn: false });
 		}
 
 		await this.#enterApplication();
@@ -737,16 +761,38 @@ export class Startup {
 
 		await this.#ports.cache.invalidateRemoteSync();
 
-		if (outcome.received && !this.#isReconcilingDayCrossing) {
-			this.#isReconcilingDayCrossing = true;
+		if (!outcome.received) {
+			return;
+		}
 
-			try {
-				this.#lastReconciledUtcDay = toUtcDay(
-					await this.#ports.workspace.announceReceived()
-				).getTime();
-			} finally {
-				this.#isReconcilingDayCrossing = false;
-			}
+		// rows that land while a day-crossing pass is out are announced once it is back, rather
+		// than dropped: that pass started before they arrived and may have read the tables first,
+		// and the query cache is `staleTime: Infinity`, so a pull nobody announced is rows the
+		// screen never shows. Both passes are whole-table, which is why they do not overlap.
+		if (this.#isReconcilingDayCrossing) {
+			this.#receivedWhileReconciling = true;
+
+			return;
+		}
+
+		await this.#announceReceived();
+	}
+
+	/** the whole-table pass a pull that brought rows owes, and the announcement after it. */
+	async #announceReceived() {
+		this.#isReconcilingDayCrossing = true;
+
+		try {
+			this.#lastReconciledUtcDay = toUtcDay(
+				await this.#ports.workspace.announceReceived()
+			).getTime();
+		} finally {
+			this.#isReconcilingDayCrossing = false;
+		}
+
+		if (this.#receivedWhileReconciling) {
+			this.#receivedWhileReconciling = false;
+			await this.#announceReceived();
 		}
 	}
 
@@ -776,6 +822,12 @@ export class Startup {
 			/* the next tick retries */
 		} finally {
 			this.#isReconcilingDayCrossing = false;
+		}
+
+		// a pull that brought rows while this pass was out is owed its announcement.
+		if (this.#receivedWhileReconciling) {
+			this.#receivedWhileReconciling = false;
+			await this.#announceReceived();
 		}
 	}
 

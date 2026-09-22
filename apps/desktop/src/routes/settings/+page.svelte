@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import api from '$lib/api/caller';
 	import { tauri } from '$lib/platform/tauri';
@@ -11,6 +13,7 @@
 	import { showErrorToast } from '$lib/error/toast';
 	import { LL, locale, setLocale } from '$lib/i18n/i18n-svelte';
 	import type { Locales } from '$lib/i18n/i18n-types';
+	import { addressAfterSignOut } from '$lib/layout/shell-surface';
 	import { useStartup } from '$lib/layout/startup-context';
 	import { showMadeLink } from '$lib/organization/dialogs.svelte';
 	import {
@@ -280,6 +283,21 @@
 	 */
 	const disconnect = async () => {
 		await disconnectOrganization.mutateAsync();
+		await leaveForTheWall();
+	};
+
+	/**
+	 * the wall is drawn in place of the route, and this address opens signed out, so a machine
+	 * left standing here after it let go of its organization would show the settings of nothing
+	 * with no wall in front of them. The sign-out leaves the same way (`routes/+layout.svelte`).
+	 */
+	const leaveForTheWall = async () => {
+		const destination = addressAfterSignOut(page.url.pathname);
+
+		if (destination) {
+			await goto(resolve(destination));
+		}
+
 		void startup.standingChanged();
 	};
 
@@ -327,7 +345,7 @@
 	 */
 	const removeOrganization = async (password: string) => {
 		await deleteOrganization.mutateAsync({ password });
-		void startup.standingChanged();
+		await leaveForTheWall();
 	};
 </script>
 

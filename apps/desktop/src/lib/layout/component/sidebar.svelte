@@ -58,7 +58,10 @@
 	// reported as a failure, so the rail that already knows the answer does not ask.
 	const remoteSyncQuery = useFetchRemoteSyncState(() => !signedOut);
 	const organizationQuery = useFetchOrganizationState();
-	const membersQuery = useFetchMembers();
+	// gated the same way, and for the same reason: the rail is one instance across the wall and
+	// the application, a refused read is kept as an error that nothing retries, and a menu drawn
+	// off it would say the workspace has no members for the run of the process.
+	const membersQuery = useFetchMembers(() => !signedOut);
 
 	const workspace = $derived(remoteSyncQuery.data?.workspace);
 	const session = $derived(organizationQuery.data?.session ?? null);

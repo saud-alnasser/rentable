@@ -128,6 +128,15 @@ pub(crate) async fn open_database(app_state: &AppState) -> Option<Error> {
     if matches!(standing, WorkspaceStanding::GrantEnded)
         && let Some((workspace_id, _)) = workspace.as_ref()
     {
+        // let go of first, as the rule above says, and here it is the file about to be deleted:
+        // an engine still open on it keeps the handle, the delete of the main file fails on
+        // Windows, and what is left is part of a ledger this machine has no right to, untracked.
+        {
+            let mut db = app_state.db.write().await;
+
+            db.disconnect().await;
+        }
+
         release_replica(app_state, workspace_id).await;
 
         // **The machine has to end up somewhere a person can act from**, and an empty database is

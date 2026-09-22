@@ -875,6 +875,8 @@ const ar = {
 			lockedOut: 'حُظر العضو. يعيد {count|number} من الأعضاء الآخرين الاتصال من تلقاء أنفسهم.',
 			unreachableWorkspaces:
 				'أنت لا تملك {workspaces}، لذا لم تستطع إعادة التعيين استعادتها. يمكن لمدير يملكها منحها مجددًا.',
+			linkUnreachableWorkspaces:
+				'أنت لا تملك {workspaces}، لذا لم يستطع الرابط نقلها. يمكن لمدير يملكها منحها مجددًا.',
 			noWorkspaces: 'لا مساحة عمل بعد.',
 			workspacesHeld: '{count|number} {{مساحة عمل|مساحات عمل}}',
 			accessFull: 'وصول كامل',

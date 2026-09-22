@@ -182,6 +182,10 @@
 
 		const workspace = workspaces.find((candidate) => candidate.id === named);
 
+		// a list still on its way is empty: the address keeps its name until the list can answer
+		// for it, and this runs again when it arrives.
+		if (!workspace && workspaces.length === 0) return;
+
 		if (workspace) openEdit(workspace);
 
 		void goto(sectionAddress, { replaceState: true, noScroll: true, keepFocus: true });

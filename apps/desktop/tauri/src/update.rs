@@ -11,6 +11,17 @@ use crate::{
 
 const BASE_RELEASE_URL: &str = "https://github.com/saud-alnasser/rentable/releases";
 
+/// The page of the release a version came from.
+///
+/// **The tag is `<package>@<version>`**, cut by `.github/changeset-tag.cjs` from the desktop
+/// package's name, so `@rentable/desktop@0.13.0` and never `v0.13.0`: the `v` shape stopped at
+/// 0.12.0, and this route back is the one move left to somebody whose new build will not start,
+/// so it has to land on a page that exists. The two characters GitHub needs escaped in a tag
+/// are escaped here.
+fn previous_release_url(version: &str) -> String {
+    format!("{BASE_RELEASE_URL}/tag/%40rentable%2Fdesktop%40{version}")
+}
+
 fn normalize_version(value: &str) -> String {
     value.trim().trim_start_matches('v').to_string()
 }
@@ -141,8 +152,7 @@ impl Update {
         self.recovery.previous_version = previous_version.clone();
         self.recovery.status = RecoveryStatus::Pending;
         self.recovery.update_error = None;
-        self.recovery.previous_release_url =
-            format!("{}/tag/v{}", BASE_RELEASE_URL, previous_version);
+        self.recovery.previous_release_url = previous_release_url(&previous_version);
 
         if let Err(error) = self.recovery.commit() {
             *self.recovery = previous_recovery;
@@ -422,7 +432,7 @@ mod tests {
                 assert_eq!(recovery.previous_version, "0.5.1");
                 assert_eq!(
                     recovery.previous_release_url,
-                    "https://github.com/saud-alnasser/rentable/releases/tag/v0.5.1"
+                    "https://github.com/saud-alnasser/rentable/releases/tag/%40rentable%2Fdesktop%400.5.1"
                 );
 
                 db.write().await.disconnect().await;

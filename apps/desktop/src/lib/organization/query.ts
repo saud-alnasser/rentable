@@ -398,10 +398,11 @@ export function useDeleteWorkspace(
 	}));
 }
 
-export function useFetchMembers() {
+export function useFetchMembers(enabled: () => boolean = () => true) {
 	return createQuery(() => ({
 		queryKey: keys.members,
-		queryFn: () => api.app.organization.member.list()
+		queryFn: () => api.app.organization.member.list(),
+		enabled: enabled()
 	}));
 }
 
@@ -824,8 +825,25 @@ export function useMakeMemberLink(
 	return createMutation(() => ({
 		mutationFn: ({ memberId }: { memberId: string }) =>
 			api.app.organization.member.linkMake({ memberId }),
-		onSuccess: async () => {
+		onSuccess: async (made) => {
 			await client.invalidateQueries({ queryKey: keys.members });
+
+			// a workspace the link could not carry over is said, as a reset says it: the grant is
+			// off the row, and the person opening the link would otherwise find it missing with
+			// nobody told.
+			if (made.unreachableWorkspaces.length > 0) {
+				onMutationSuccess(
+					announcing(
+						opts,
+						get(LL).organization.dashboard.linkUnreachableWorkspaces({
+							workspaces: made.unreachableWorkspaces.map((workspace) => workspace.name).join(', ')
+						})
+					)
+				);
+
+				return;
+			}
+
 			onMutationSuccess(opts);
 		},
 		onError: (e) => onMutationError(opts, e)

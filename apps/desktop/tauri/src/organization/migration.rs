@@ -36,7 +36,7 @@ use std::{future::Future, time::Duration};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-use crate::{diagnostics, error::Error, http::build_client};
+use crate::{diagnostics, error::Error, http::build_client, sync::turso::platform::AccessLevel};
 
 use super::{
     migrate::{self, Pipeline},
@@ -383,6 +383,19 @@ where
     let shipped = migrate::shipped_version();
     let mut current = facts.schema_version;
 
+    // a read-only credential cannot write the schema, so a holder of one takes no lease: the
+    // lease would be spent on a refusal from the database and held, for as long as that takes,
+    // against whoever could apply the migrations. What they are owed is the sentence, and the
+    // workspace opens for them once a member with full access has opened it.
+    if current < shipped && held.access != AccessLevel::FullAccess {
+        return Err(Error::PreconditionFailed {
+            message: format!(
+                "{} is behind this version and read-only access cannot bring it up. ask a member with full access to open it once",
+                facts.name
+            ),
+        });
+    }
+
     while current < shipped {
         let taken_at = now();
         let until = taken_at + MIGRATION_LEASE_LIFETIME_MS;
@@ -411,12 +424,17 @@ where
                 )
                 .await;
 
-                // the lease goes whatever happened: a migration that failed is somebody's to try
-                // again, and a lease held over a failure would make them wait out the deadline.
-                let released = lease.release(&facts.id, &session.member_id).await;
+                // the version is recorded and sent before the lease goes: a waiting client
+                // breaks its wait the moment the lease is free and reads the version to decide
+                // whether to take it, so a lease released first is a window in which the same
+                // statements are applied twice. A migration that failed releases at once, since
+                // it is somebody's to try again and a lease held over a failure would make them
+                // wait out the deadline.
+                if let Err(refusal) = applied {
+                    lease.release(&facts.id, &session.member_id).await?;
 
-                applied?;
-                released?;
+                    return Err(refusal);
+                }
 
                 store
                     .record_schema_version(&facts.id, shipped, now())
@@ -427,6 +445,8 @@ where
                         .with("workspace", facts.id.as_str())
                         .write();
                 }
+
+                lease.release(&facts.id, &session.member_id).await?;
 
                 current = shipped;
             }

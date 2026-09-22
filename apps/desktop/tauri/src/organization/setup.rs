@@ -993,30 +993,32 @@ async fn the_owners_key(
     let members = replica.members_unverified().await?;
     let mut opened = None;
 
+    // past any vault the password opens that is somebody else's, as the wall walks them: two
+    // members who chose the same password each open under it, and the owner is not always the
+    // one who opens first.
     for member in members
         .iter()
         .filter(|member| member.role != permission::REMOVED)
     {
-        if let Ok(secret) = open_vault(password, &member.vault) {
-            opened = Some((member, secret));
+        let Ok(secret) = open_vault(password, &member.vault) else {
+            continue;
+        };
+        let content_key = content_key_of(member, &secret)?;
+        let carried = opened_text(
+            &content_key,
+            "member.username_sealed",
+            &member.username_sealed,
+        )?;
+
+        if carried.trim().to_lowercase() == wanted {
+            opened = Some((member, secret, content_key));
             break;
         }
     }
 
-    let Some((member, secret)) = opened else {
+    let Some((member, secret, content_key)) = opened else {
         return Err(refused());
     };
-    let content_key = content_key_of(member, &secret)?;
-
-    let carried = opened_text(
-        &content_key,
-        "member.username_sealed",
-        &member.username_sealed,
-    )?;
-
-    if carried.trim().to_lowercase() != wanted {
-        return Err(refused());
-    }
 
     // a vault still sealed under the secret an invitation link carries opens for whoever decoded
     // that link and for nobody typing at a wall, which is the wall's own rule and is said here in

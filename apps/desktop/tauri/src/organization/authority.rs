@@ -417,6 +417,27 @@ pub fn issue_certificate(
     certificate
 }
 
+/// Verifies a certificate alone, against the key the caller pinned.
+///
+/// **The one reader that has a certificate and no row**: a handover re-issues every certificate
+/// under the new owner's key, and what it re-issues has to have been issued under the old one.
+/// `store.certificates()` is a raw read, and a certificate no row names is verified by nothing
+/// else, so without this a certificate anybody wrote into the table, with a signature nothing ever
+/// checked, would come out of the acceptance signed by the organization key. A row is still
+/// judged by [`verify`], which checks the row, this, and the revocation, in that order; this is
+/// the middle check on its own, for the caller that has nothing but the certificate.
+pub fn verify_certificate(
+    organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
+    certificate: &Certificate,
+) -> Result<(), Error> {
+    verify_signature(
+        organization_verifying_key,
+        &certificate_preimage(certificate),
+        &certificate.signature_by_organization_key,
+        FORGED_CERTIFICATE,
+    )
+}
+
 /// Signs a succession under the organization key (effort 828, requirement 22).
 ///
 /// **The second and last thing the organization key signs**, beside a certificate, and it is

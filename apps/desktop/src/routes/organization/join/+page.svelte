@@ -14,6 +14,7 @@
 		joinBegun,
 		joinFailed,
 		normalizeLink,
+		listenForArrivingLink,
 		pasting,
 		takeArrivingLink,
 		THE_WALL,
@@ -61,6 +62,20 @@
 	const startup = useStartup();
 
 	let step = $state<JoinStep>(beginWith(takeArrivingLink()));
+
+	// a link handed over while this screen is open replaces what the form holds, as it would
+	// have on a mount: the person opened a fresh one from a chat, and the screen they are on is
+	// the one that reads it.
+	$effect(() =>
+		listenForArrivingLink(() => {
+			const link = takeArrivingLink();
+
+			if (link) {
+				attempt += 1;
+				step = beginWith(link);
+			}
+		})
+	);
 
 	// which connect is the one whose answer counts: the latest begun. A person can paste the same
 	// link again while its first read is still out, and the first answer must not land over the

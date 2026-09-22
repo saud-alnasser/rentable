@@ -2792,6 +2792,11 @@ type RootTranslation = {
 			 */
 			unreachableWorkspaces: RequiredParams<'workspaces'>
 			/**
+			 * y​o​u​ ​d​o​ ​n​o​t​ ​h​o​l​d​ ​{​w​o​r​k​s​p​a​c​e​s​}​,​ ​s​o​ ​t​h​e​ ​l​i​n​k​ ​c​o​u​l​d​ ​n​o​t​ ​c​a​r​r​y​ ​i​t​ ​o​v​e​r​.​ ​a​n​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​ ​w​h​o​ ​d​o​e​s​ ​c​a​n​ ​g​r​a​n​t​ ​i​t​ ​a​g​a​i​n​.
+			 * @param {unknown} workspaces
+			 */
+			linkUnreachableWorkspaces: RequiredParams<'workspaces'>
+			/**
 			 * n​o​ ​w​o​r​k​s​p​a​c​e​ ​y​e​t​.
 			 */
 			noWorkspaces: string
@@ -5822,6 +5827,10 @@ export type TranslationFunctions = {
 			 * you do not hold {workspaces}, so the reset could not restore it. an administrator who does can grant it again.
 			 */
 			unreachableWorkspaces: (arg: { workspaces: unknown }) => LocalizedString
+			/**
+			 * you do not hold {workspaces}, so the link could not carry it over. an administrator who does can grant it again.
+			 */
+			linkUnreachableWorkspaces: (arg: { workspaces: unknown }) => LocalizedString
 			/**
 			 * no workspace yet.
 			 */

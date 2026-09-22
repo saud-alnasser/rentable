@@ -472,8 +472,12 @@ impl TursoConsent {
 
             // read back from where the next run will look, and drop what comes back. A
             // credential store that accepted a write and kept nothing would otherwise be
-            // reported as a grant and discovered as a failure at the first provisioning.
-            platform_token().map(|_| ())
+            // reported as a grant and discovered as a failure at the first provisioning. One
+            // that took the write and refuses the read is told to let go of it, so a consent
+            // reported as failed leaves no authority behind that a later run could spend.
+            platform_token().map(|_| ()).inspect_err(|_| {
+                let _ = forget_platform_token();
+            })
         });
 
         let mut sessions = self.sessions.lock().map_err(|_| consents_poisoned())?;
