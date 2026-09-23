@@ -54,7 +54,7 @@
 		"@types/better-sqlite3": "^9.6.0",
 		"@types/node": "^24.13.3",
 		"better-sqlite3": "^13.0.3",
-		"dotenv": "^17.4.2",
+		"dotenv": "^18.0.0",
 		"drizzle-kit": "^0.31.10",
 		"eslint": "^10.9.0",
 		"jsdom": "^30.0.1",
