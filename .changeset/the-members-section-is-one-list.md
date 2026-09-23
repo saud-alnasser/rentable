@@ -1,5 +1,0 @@
----
-'@rentable/desktop': minor
----
-
-the people in the organization are one directory of cards, everybody on a card of their own, the people who have not signed in yet included: the username with the role beside it, how many workspaces they hold, and one line saying where they stand, whether they have no password yet, no machine signed in, or a machine signed in. what you may do to somebody is on the card's own menu, and you are offered only the acts you may perform: edit, a link, reset password, sign out everywhere, remove, and lock out. opening a card, or edit on its menu, opens one surface carrying their role, what they may do beyond it and the workspaces they hold, with a sentence saying what each role is for and what each act lets the person do; giving somebody an act that writes another person's row is the owner's alone and is offered to nobody else. adding an account asks for a username, a role, what they may do and the workspaces they hold, and shows nothing to copy afterwards, because the account holds no password until a link is made for it and opened. the separate list of pending accounts is gone.
