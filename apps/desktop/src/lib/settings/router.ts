@@ -1,5 +1,6 @@
 import type { Settings, SettingsChangeset } from '$lib/platform/tauri';
 import { procedure, router } from '$lib/api/trpc';
+import { APPEARANCES } from '$lib/platform/appearance';
 import z from 'zod';
 
 /**
@@ -23,13 +24,15 @@ export default router({
 		.input(
 			z.object({
 				endingSoonNoticeDays: z.number().int().optional(),
-				locale: z.string().optional()
+				locale: z.string().optional(),
+				appearance: z.enum(APPEARANCES).optional()
 			})
 		)
 		.mutation(async ({ input, ctx }) => {
 			return ctx.host.settings.set({
 				endingSoonNoticeDays: input.endingSoonNoticeDays,
-				locale: input.locale
+				locale: input.locale,
+				appearance: input.appearance
 			} satisfies SettingsChangeset);
 		})
 });

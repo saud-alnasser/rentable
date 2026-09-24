@@ -106,8 +106,16 @@ export type StartupPorts = {
 		hide(): Promise<unknown>;
 		close(): Promise<unknown>;
 	};
-	/** the shell's own settings, read off the host: they carry the locale the wall is drawn in. */
-	settings: { get(): Promise<{ locale?: string | null }> };
+	/**
+	 * the shell's own settings, read off the host: they carry the locale the wall is drawn in and
+	 * the appearance every screen is drawn in.
+	 */
+	settings: { get(): Promise<{ locale?: string | null; appearance?: string | null }> };
+	/**
+	 * light, dark or following the system, drawn at once. What it is handed is the stored value
+	 * as it came off the file, and anything it does not recognise is system.
+	 */
+	appearance: { apply(setting: string | null | undefined): void };
 	remoteSync: {
 		getState(): Promise<RemoteSyncState>;
 	};
@@ -436,6 +444,12 @@ export class Startup {
 			// not, now that a request names its acting user.
 			const settings = await this.#ports.settings.get();
 			const chosen = settings.locale ?? this.#ports.locale.base;
+
+			// **The appearance before anything can be shown.** The window is created hidden and
+			// every path below ends by showing it, so drawing the reader's choice here is what keeps
+			// the first frame from painting in the wrong one. Until this line the appearance follows
+			// the system, which is also what a launch whose settings cannot be read is shown in.
+			this.#ports.appearance.apply(settings.appearance);
 
 			// **The reader's own locale first, so the loading screen can be drawn.** This loaded
 			// every locale before setting one, and nothing renders until a locale is ready, so the

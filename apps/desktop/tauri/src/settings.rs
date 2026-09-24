@@ -5,6 +5,20 @@ use serde::{Deserialize, Deserializer, Serialize};
 
 const DEFAULT_ENDING_SOON_NOTICE_DAYS: u16 = 60;
 
+/// whether the application draws light or dark, as the reader chose it.
+///
+/// `System` follows the operating system and is what a file written before this key reads as,
+/// so an installed copy keeps working without its settings being rewritten. The webview resolves
+/// it; nothing on this side draws.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Appearance {
+    #[default]
+    System,
+    Light,
+    Dark,
+}
+
 /// application settings stored in json file.
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -14,6 +28,7 @@ pub struct Settings {
     pub recovery_path: PathBuf,
     pub diagnostics_dir: PathBuf,
     pub locale: Option<String>,
+    pub appearance: Appearance,
     pub version: String,
 }
 
@@ -27,6 +42,7 @@ struct SettingsStored {
     recovery_path: PathBuf,
     diagnostics_dir: PathBuf,
     locale: Option<String>,
+    appearance: Appearance,
     version: String,
 }
 
@@ -38,6 +54,7 @@ impl Default for Settings {
             recovery_path: PathBuf::new(),
             diagnostics_dir: PathBuf::new(),
             locale: None,
+            appearance: Appearance::System,
             version: String::new(),
         }
     }
@@ -59,6 +76,7 @@ impl From<SettingsStored> for Settings {
             recovery_path: value.recovery_path,
             diagnostics_dir: value.diagnostics_dir,
             locale: value.locale,
+            appearance: value.appearance,
             version: value.version,
         }
     }
@@ -99,6 +117,7 @@ impl Settings {
 pub struct SettingsChangeset {
     pub ending_soon_notice_days: Option<u16>,
     pub locale: Option<String>,
+    pub appearance: Option<Appearance>,
 }
 
 #[tauri::command]
@@ -137,6 +156,10 @@ pub async fn settings_set_inner(
         settings.locale = Some(locale);
     }
 
+    if let Some(appearance) = changeset.appearance {
+        settings.appearance = appearance;
+    }
+
     settings.commit()?;
 
     Ok(settings.inner().clone())
@@ -144,7 +167,7 @@ pub async fn settings_set_inner(
 
 #[cfg(test)]
 mod tests {
-    use super::Settings;
+    use super::{Appearance, Settings, SettingsChangeset};
     use std::path::PathBuf;
 
     /// A settings file written by an earlier version still loads, `migrationDir` and all.
@@ -170,5 +193,53 @@ mod tests {
 
         assert_eq!(settings.database_path, PathBuf::from("active.db"));
         assert_eq!(settings.ending_soon_notice_days, 45);
+    }
+
+    /// A file written before the appearance existed reads as following the system.
+    #[test]
+    fn reads_a_file_without_an_appearance_as_system() {
+        let settings = serde_json::from_str::<Settings>(
+            r#"{ "endingSoonNoticeDays": 60, "locale": "ar", "version": "0.14.0" }"#,
+        )
+        .expect("failed to deserialize settings without an appearance");
+
+        assert_eq!(settings.appearance, Appearance::System);
+    }
+
+    /// The key is written as the webview reads it, and read back as it was written.
+    #[test]
+    fn round_trips_the_appearance() {
+        for appearance in [Appearance::System, Appearance::Light, Appearance::Dark] {
+            let settings = Settings {
+                appearance,
+                ..Settings::default()
+            };
+
+            let json = serde_json::to_value(&settings).expect("failed to serialize settings");
+            let read = serde_json::from_value::<Settings>(json.clone())
+                .expect("failed to deserialize settings");
+
+            assert_eq!(read.appearance, appearance);
+            assert!(json.get("appearance").is_some());
+        }
+
+        let json = serde_json::to_value(Settings {
+            appearance: Appearance::Dark,
+            ..Settings::default()
+        })
+        .expect("failed to serialize settings");
+        assert_eq!(json["appearance"], "dark");
+    }
+
+    /// A changeset names the appearance in the same words, and one that leaves it out changes
+    /// nothing about it.
+    #[test]
+    fn reads_the_appearance_from_a_changeset() {
+        let changeset =
+            serde_json::from_str::<SettingsChangeset>(r#"{ "appearance": "light" }"#).unwrap();
+        assert_eq!(changeset.appearance, Some(Appearance::Light));
+
+        let changeset = serde_json::from_str::<SettingsChangeset>(r#"{ "locale": "en" }"#).unwrap();
+        assert_eq!(changeset.appearance, None);
     }
 }

@@ -6,6 +6,7 @@ import { setLocale } from '$lib/i18n/i18n-svelte';
 import { baseLocale, locales } from '$lib/i18n/i18n-util';
 import { loadLocaleAsync } from '$lib/i18n/i18n-util.async';
 import type { Locales } from '$lib/i18n/i18n-types';
+import { browserAppearance } from '$lib/platform/appearance';
 import { recordDiagnosticError } from '$lib/platform/diagnostics';
 import { tauri } from '$lib/platform/tauri';
 import { keys as settingsKeys } from '$lib/settings/query';
@@ -38,6 +39,13 @@ export function browserStartupPorts(queryClient: QueryClient): StartupPorts {
 			close: () => tauri.window.close()
 		},
 		settings: { get: () => tauri.settings.get() },
+		// made here, while the ports are assembled, so it follows the system from before anything
+		// is shown; startup then applies what the reader chose.
+		appearance: (() => {
+			const appearance = browserAppearance();
+
+			return { apply: (setting) => appearance.apply(setting) };
+		})(),
 		remoteSync: {
 			getState: () => tauri.remoteSync.getState()
 		},

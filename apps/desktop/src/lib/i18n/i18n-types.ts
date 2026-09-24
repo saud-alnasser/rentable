@@ -1489,6 +1489,28 @@ type RootTranslation = {
 		 * l​a​n​g​u​a​g​e
 		 */
 		localeTitle: string
+		/**
+		 * a​p​p​e​a​r​a​n​c​e
+		 */
+		appearanceTitle: string
+		/**
+		 * l​i​g​h​t​ ​o​r​ ​d​a​r​k​,​ ​o​r​ ​f​o​l​l​o​w​ ​y​o​u​r​ ​s​y​s​t​e​m​ ​a​s​ ​i​t​ ​c​h​a​n​g​e​s​.
+		 */
+		appearanceDescription: string
+		appearance: {
+			/**
+			 * s​y​s​t​e​m
+			 */
+			system: string
+			/**
+			 * l​i​g​h​t
+			 */
+			light: string
+			/**
+			 * d​a​r​k
+			 */
+			dark: string
+		}
 		section: {
 			/**
 			 * g​e​n​e​r​a​l
@@ -4576,6 +4598,28 @@ export type TranslationFunctions = {
 		 * language
 		 */
 		localeTitle: () => LocalizedString
+		/**
+		 * appearance
+		 */
+		appearanceTitle: () => LocalizedString
+		/**
+		 * light or dark, or follow your system as it changes.
+		 */
+		appearanceDescription: () => LocalizedString
+		appearance: {
+			/**
+			 * system
+			 */
+			system: () => LocalizedString
+			/**
+			 * light
+			 */
+			light: () => LocalizedString
+			/**
+			 * dark
+			 */
+			dark: () => LocalizedString
+		}
 		section: {
 			/**
 			 * general

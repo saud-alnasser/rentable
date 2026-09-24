@@ -118,7 +118,17 @@ Tailwind v4, configured CSS-first — there is no JS config file to edit. **The 
 in two files and the split is by owner.** `packages/design/src/lib/tokens.css` is **the token
 layer**: what the product's surfaces are drawn from, and the name used for it throughout this
 rule. It holds the palette, the tone colours, the radius, the shell breakpoint, and the global
-rules any Rentable client wants. `apps/desktop/src/app.css` imports it, registers the package with
+rules any Rentable client wants.
+
+**There are two appearances, light and dark, and every colour token has a value in each**: light
+on `:root`, dark under `.dark`. The class on `<html>` is the only thing that chooses, and the
+application sets it (`apps/desktop/src/lib/platform/appearance.ts`), following the system live
+unless the reader chose light or dark in general settings, and before the window is first shown.
+A surface never chooses: there is no `dark:` variant in use, and a utility names a token, which
+already differs by appearance. `packages/design/src/lib/tests/tokens.test.ts` refuses a token
+declared in one block and not the other, and any text or tone under WCAG AA (4.5:1) against the
+background, card or popover in either. A tone darkened for light is the same token, saying the
+same thing. `apps/desktop/src/app.css` imports it, registers the package with
 `@source`, and holds only what belongs to this window.
 
 **The token layer's own header states the consumer contract**, and it is three lines rather than
@@ -136,7 +146,8 @@ re-splitting the layer across two files with no error.
 of that file, it writes into it, and it inserts only where the stylesheet already carries an
 `@import` or a `@theme` at-rule. `tokens.css` carries two, so a registry item's `cssVars` would
 land — and a `cssVars.dark` block brings `@custom-variant dark` and a `.dark {}` rule with it,
-into the one file whose header declares one palette and no modes. **No `add` reaches it.** All 56
+into the one file that already holds the dark appearance's own `.dark` block, where a second one
+would override it silently. **No `add` reaches it.** All 56
 `registry:ui` items were read at #783 and not one carries `cssVars`; the theme lives in the
 `registry:style` `init` item, and `init` is not run here. That is what makes this safe, rather
 than the file being out of reach.

@@ -458,6 +458,14 @@ const ar = {
 		localeDescription: 'تتغير الواجهة بمجرد اختيارك.',
 		localeTitle: 'اللغة',
 
+		appearanceTitle: 'المظهر',
+		appearanceDescription: 'فاتح أو داكن، أو يتبع نظامك كلما تغيّر.',
+		appearance: {
+			system: 'النظام',
+			light: 'فاتح',
+			dark: 'داكن'
+		},
+
 		// أقسام الإعدادات السبعة، بترتيب الشريط لا بالترتيب الأبجدي: الترتيب من المتطلب 14
 		// ويُقرأ هنا كقائمة.
 		section: {

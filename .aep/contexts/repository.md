@@ -190,6 +190,9 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
   boundary is argued now.*
 - **Arabic and English, RTL and LTR.** Both locales are first-class; a layout that only
   works in one direction is broken.
+- **Light and dark.** Both appearances are first-class: the application follows the system live
+  unless the reader chose one in general settings, and a surface that reads in only one of them
+  is broken. `[[rules/frontend]]`, under *Styling*, says how the token layer carries both.
 - **Saudi identity documents.** A tenant is identified by a government document whose two
   accepted forms are fixed by Saudi issuance, not by this application.
 

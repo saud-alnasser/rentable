@@ -135,6 +135,33 @@ test('and the locale is loaded before the wall, so the wall is readable', async 
 	assert.deepEqual(journal.localesLoaded, ['ar', 'en'], 'and the rest after it');
 });
 
+// the window is created hidden, so the reader's appearance drawn before the first showing is
+// what keeps a frame from painting in the wrong one (effort 832, requirement 2).
+test('and the stored appearance is applied before the window is shown', async () => {
+	const { startup, journal } = harness({
+		organization: nowhereToGo(),
+		settings: async () => ({ locale: 'en', appearance: 'light' })
+	});
+
+	await startup.start();
+
+	assert.equal(journal.appearance, 'light');
+	assert.ok(journal.shown > 0, 'the wall was shown');
+	assert.ok(
+		journal.shownIn.every((appearance) => appearance === 'light'),
+		`shown in ${journal.shownIn.join(', ')}`
+	);
+});
+
+test('a settings file with no appearance is shown following the system', async () => {
+	const { startup, journal } = harness({ settings: async () => ({ locale: 'en' }) });
+
+	await startup.start();
+
+	assert.equal(startup.snapshot.state, 'ready');
+	assert.deepEqual(journal.shownIn, ['system']);
+});
+
 // --- 2. Launch already signed in -------------------------------------------------------
 
 test('a launch on a signed-in machine reaches the application', async () => {

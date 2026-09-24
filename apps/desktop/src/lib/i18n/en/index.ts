@@ -469,6 +469,14 @@ const en = {
 		localeDescription: 'the interface changes as soon as you pick one.',
 		localeTitle: 'language',
 
+		appearanceTitle: 'appearance',
+		appearanceDescription: 'light or dark, or follow your system as it changes.',
+		appearance: {
+			system: 'system',
+			light: 'light',
+			dark: 'dark'
+		},
+
 		// the four sections of the settings area, each named for what it holds and in the order the
 		// rail draws them rather than in alphabetical order: the order is read here as a list.
 		section: {

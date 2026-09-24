@@ -12,11 +12,15 @@
  * is not answered here. There is one implementation, and no second one is being built.
  */
 
+import type { AppearanceSetting } from './appearance';
+
 export type Settings = {
 	endingSoonNoticeDays: number;
 	databasePath: string;
 	diagnosticsDir: string;
 	locale: string | null;
+	/** light, dark, or following the system; a file written before it existed reads as system. */
+	appearance: AppearanceSetting;
 	version: string;
 };
 
@@ -65,6 +69,7 @@ export type DiagnosticRecord = {
 export type SettingsChangeset = {
 	endingSoonNoticeDays?: number;
 	locale?: string;
+	appearance?: AppearanceSetting;
 };
 
 /**

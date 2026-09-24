@@ -6,7 +6,6 @@
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 
 	import { Toaster as Sonner, type ToasterProps as SonnerProps } from 'svelte-sonner';
-	import { mode } from 'mode-watcher';
 
 	let { ...restProps }: SonnerProps = $props();
 </script>
@@ -23,9 +22,12 @@
 
 	The wash is mixed rather than authored: `color-mix` over the popover ground keeps a toast a
 	toast, and keeps these four in step with the tokens instead of beside them.
+
+	**`theme` is the application's to pass**, as the appearance it resolved: this package does not
+	choose light or dark, and sonner cannot read the class on `<html>`. *It read `mode-watcher`
+	until effort 832, which followed nothing the application set, so toasts stayed dark in light.*
 -->
 <Sonner
-	theme={mode.current}
 	class="toaster group"
 	richColors
 	style="--normal-bg: var(--color-popover); --normal-text: var(--color-popover-foreground); --normal-border: var(--color-border);

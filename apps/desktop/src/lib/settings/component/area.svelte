@@ -24,6 +24,7 @@
 	import OrganizationReconnectAuthority from '$lib/organization/component/reconnect-authority.svelte';
 	import OrganizationStanding from '$lib/organization/component/standing.svelte';
 	import OrganizationWorkspaces from '$lib/organization/component/workspaces.svelte';
+	import SettingsAppearance from '$lib/settings/component/appearance.svelte';
 	import SettingsDiagnostics from '$lib/settings/component/diagnostics.svelte';
 	import SettingsEndingSoon from '$lib/settings/component/ending-soon.svelte';
 	import SettingsLocale from '$lib/settings/component/locale.svelte';
@@ -331,6 +332,8 @@
 			     below carry one each, because they are things of their own under that name. -->
 			<Field.Set data-general>
 				<SettingsLocale currentLocale={$locale} onChange={onChangeLocale} />
+				<Field.Separator />
+				<SettingsAppearance stored={settings.appearance} />
 				<Field.Separator />
 				<SettingsEndingSoon {settings} />
 			</Field.Set>

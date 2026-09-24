@@ -25,6 +25,7 @@ export function fakeSettings(overrides: Partial<Settings> = {}): Settings {
 		databasePath: 'C:/rentable/app.db',
 		diagnosticsDir: 'C:/rentable/diagnostics',
 		locale: 'en',
+		appearance: 'system',
 		version: '0.0.0-test',
 		...overrides
 	};
@@ -115,7 +116,15 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 		},
 		settings: {
 			get: async () => settings,
-			set: async () => settings
+			// what the shell does with a changeset: a member it names is written, and one it leaves
+			// out keeps what it was.
+			set: async (changeset) => {
+				for (const [key, value] of Object.entries(changeset)) {
+					if (value !== undefined) Object.assign(settings, { [key]: value });
+				}
+
+				return settings;
+			}
 		},
 		organization: {
 			consentBegin: refuse('organization.consentBegin'),

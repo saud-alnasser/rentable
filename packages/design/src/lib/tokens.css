@@ -27,13 +27,22 @@
  */
 
 /*
- * one palette, no modes: the tokens live here alone, and there is no `dark:` variant to
- * select against them — every utility states the one value it renders. the base is neutral
- * black — chroma 0 throughout — and elevation is carried by value: background < card <
- * popover < muted < secondary < accent, each step lighter reading as more raised. blue
- * exists only in `primary` and `ring`, so it can only ever mark the active, selected, or
- * focused element. every other hue here is named for the one thing it says, so a surface
- * cannot reach for a colour without saying what it means by it.
+ * two appearances, one vocabulary: light on `:root`, dark under `.dark`, and the class on
+ * `<html>` is the only thing that chooses between them. the application sets it (in desktop,
+ * `platform/appearance.ts`, following the system unless the reader chose one), so a surface
+ * never does: there is no `dark:` variant to select against the tokens, and every utility
+ * states the one token it renders, which carries a value in both. a token added to one block
+ * and not the other is a defect, and `tests/tokens.test.ts` refuses it, along with any text or
+ * tone that falls under WCAG AA against the surfaces it sits on.
+ *
+ * the base is neutral, chroma 0 throughout, and elevation is carried by value. in dark:
+ * background < card < popover < muted < secondary < accent, each step lighter reading as more
+ * raised. in light the ground is a pale grey and a card or popover is white above it. borders
+ * and inputs are black alpha in light and white alpha in dark. blue exists only in `primary`
+ * and `ring`, so it can only ever mark the active, selected, or focused element. every other
+ * hue here is named for the one thing it says, so a surface cannot reach for a colour without
+ * saying what it means by it, and a tone darkened for light is still the same token saying the
+ * same thing.
  */
 :root {
 	/*
@@ -42,6 +51,55 @@
 	 * input-group primitive still derives from it; it feeds no ladder token.
 	 */
 	--radius: 0.875rem;
+	/*
+	 * the light appearance. the names are explained once, in the dark block below, and mean
+	 * the same here. the tones are darker than their dark twins so that each still reads at
+	 * 4.5:1 on the white card and the grey ground.
+	 */
+	--background: oklch(0.965 0 0);
+	--foreground: oklch(0.22 0 0);
+	--card: oklch(1 0 0);
+	--card-foreground: oklch(0.22 0 0);
+	--popover: oklch(1 0 0);
+	--popover-foreground: oklch(0.22 0 0);
+	--primary: oklch(0.58 0.2 256);
+	--primary-foreground: oklch(0.99 0 0);
+	--secondary: oklch(0.935 0 0);
+	--secondary-foreground: oklch(0.22 0 0);
+	--muted: oklch(0.95 0 0);
+	--muted-foreground: oklch(0.5 0 0);
+	--accent: oklch(0.915 0 0);
+	--accent-foreground: oklch(0.18 0 0);
+	--destructive: oklch(0.56 0.21 25);
+	--info: oklch(0.52 0.15 252);
+	--warning: oklch(0.54 0.12 70);
+	--success: oklch(0.52 0.14 152);
+	--permitted: oklch(0.52 0.12 163);
+	--permitted-foreground: oklch(0.99 0 0);
+	--money: oklch(0.51 0.15 152);
+	--border: oklch(0 0 0 / 9%);
+	--input: oklch(0 0 0 / 12%);
+	--ring: oklch(0.58 0.2 256);
+	--chart-1: oklch(0.55 0.22 264);
+	--chart-2: oklch(0.6 0.15 162);
+	--chart-3: oklch(0.7 0.16 70);
+	--chart-4: oklch(0.58 0.23 304);
+	--chart-5: oklch(0.6 0.22 16);
+	--sidebar: oklch(0.945 0 0);
+	--sidebar-foreground: oklch(0.22 0 0);
+	--sidebar-primary: oklch(0.58 0.2 256);
+	--sidebar-primary-foreground: oklch(0.99 0 0);
+	--sidebar-accent: oklch(0.905 0 0);
+	--sidebar-accent-foreground: oklch(0.18 0 0);
+	--sidebar-border: oklch(0 0 0 / 8%);
+	--sidebar-ring: oklch(0.58 0.2 256);
+}
+
+/*
+ * the dark appearance, and the palette the application had alone until it had two. every value
+ * here is the one it carried then, so dark reads exactly as it did.
+ */
+.dark {
 	--background: oklch(0.13 0 0);
 	--foreground: oklch(0.97 0 0);
 	--card: oklch(0.17 0 0);
