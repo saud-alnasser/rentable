@@ -10,7 +10,7 @@
 		},
 		variants: {
 			size: {
-				row: { arc: 'size-9', figure: 'text-[10px] font-medium' },
+				row: { arc: 'size-9', figure: 'text-xs font-medium' },
 				// the hero reading gives ground on a narrow window: three of these at full size
 				// fill a short one on their own, leaving no room for what they sit above.
 				hero: { arc: 'size-16 sm:size-24', figure: 'text-base font-semibold sm:text-lg' }

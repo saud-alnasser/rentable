@@ -300,7 +300,7 @@
 			<div
 				class="flex h-full w-fit max-w-full items-center gap-2 rounded-2xl bg-muted/60 px-4 text-xs font-medium"
 			>
-				<span class="min-w-0 truncate tracking-wide uppercase">{formatMonth(month)}</span>
+				<span class="min-w-0 truncate uppercase">{formatMonth(month)}</span>
 				<span class="text-muted-foreground" aria-hidden="true">&middot;</span>
 				<span class="shrink-0 text-muted-foreground">
 					<span class="sr-only">
@@ -335,7 +335,7 @@
 			class="flex shrink-0 flex-wrap items-end justify-between gap-x-6 gap-y-2 rounded-2xl bg-card px-4 py-3 motion-safe:animate-in motion-safe:fade-in"
 		>
 			<div class="flex min-w-0 flex-col gap-1 text-start">
-				<span class="text-xs tracking-wide text-muted-foreground uppercase">
+				<span class="text-xs text-muted-foreground uppercase">
 					{$LL.contracts.payments.remainingBalance()}
 				</span>
 				<span class="text-lg font-semibold">
@@ -345,7 +345,7 @@
 				</span>
 			</div>
 			<div class="flex min-w-0 flex-col gap-1 text-end">
-				<span class="text-xs tracking-wide text-muted-foreground uppercase">
+				<span class="text-xs text-muted-foreground uppercase">
 					{$LL.common.labels.paymentFulfillment()}
 				</span>
 				<span class="text-sm tabular-nums">

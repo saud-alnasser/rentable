@@ -208,7 +208,7 @@
 
 {#snippet plate(label: string, value: string, isFigure: boolean)}
 	<div class="rounded-xl bg-muted p-3">
-		<dt class="text-xs tracking-wide text-muted-foreground uppercase">{label}</dt>
+		<dt class="text-xs text-muted-foreground uppercase">{label}</dt>
 		<!-- a version is the machine's and reads left to right in both locales; the words that
 		     stand in for one while there is no version are the reader's. -->
 		<dd
@@ -279,7 +279,7 @@
 	{#if release}
 		<div class="space-y-3 rounded-xl border bg-muted p-3 text-start">
 			<div>
-				<p class="text-xs tracking-wide text-muted-foreground uppercase">
+				<p class="text-xs text-muted-foreground uppercase">
 					{$LL.common.labels.releaseDate()}
 				</p>
 				<p class="mt-1 text-sm font-medium">{formatReleaseDate(release.date)}</p>
@@ -287,7 +287,7 @@
 
 			{#if release.body}
 				<div class="space-y-1 border-t pt-3">
-					<p class="text-xs tracking-wide text-muted-foreground uppercase">
+					<p class="text-xs text-muted-foreground uppercase">
 						{$LL.common.labels.releaseNotes()}
 					</p>
 					<p class="text-sm whitespace-pre-wrap text-muted-foreground">{release.body}</p>

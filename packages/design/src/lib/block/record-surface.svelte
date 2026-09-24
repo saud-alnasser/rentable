@@ -112,7 +112,7 @@
 </script>
 
 {#snippet heading(text: string)}
-	<h2 class="shrink-0 text-xs tracking-[0.2em] text-muted-foreground uppercase">{text}</h2>
+	<h2 class="shrink-0 text-xs text-muted-foreground uppercase">{text}</h2>
 {/snippet}
 
 <!-- fills: a record's collections scroll inside their own panel, which they cannot do unless the
@@ -172,8 +172,8 @@
 					</div>
 
 					<div class="mt-4 min-w-0 space-y-1 text-start">
-						<p class="text-xs tracking-[0.2em] text-muted-foreground uppercase">{eyebrow}</p>
-						<h1 class="truncate text-2xl font-semibold tracking-tight sm:text-3xl">{title}</h1>
+						<p class="text-xs text-muted-foreground uppercase">{eyebrow}</p>
+						<h1 class="truncate text-2xl font-semibold sm:text-3xl">{title}</h1>
 						{#if identity}
 							<div class="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
 								{@render identity()}

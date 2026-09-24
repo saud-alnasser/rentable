@@ -124,7 +124,7 @@
 				{#if Glyph}
 					<Glyph class="size-5 shrink-0" />
 				{/if}
-				<h1 class="min-w-0 flex-1 text-lg font-semibold tracking-tight first-letter:uppercase">
+				<h1 class="min-w-0 flex-1 text-lg font-semibold first-letter:uppercase">
 					{title}
 				</h1>
 
@@ -148,7 +148,7 @@
 					<Spinner class="mt-0.5 size-5 shrink-0 text-muted-foreground" />
 				{/if}
 				<div class="min-w-0 flex-1 space-y-1">
-					<h1 class="text-lg font-semibold tracking-tight first-letter:uppercase">{title}</h1>
+					<h1 class="text-lg font-semibold first-letter:uppercase">{title}</h1>
 					{#if description}
 						<p class="text-sm text-muted-foreground">{description}</p>
 					{/if}

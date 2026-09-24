@@ -17,7 +17,7 @@
 			{...props}
 			data-slot="form-label"
 			class={cn(
-				'text-[0.72rem] font-semibold tracking-[0.18em] text-muted-foreground uppercase data-[fs-error]:text-destructive',
+				'text-xs font-semibold text-muted-foreground uppercase data-[fs-error]:text-destructive',
 				className
 			)}
 		>

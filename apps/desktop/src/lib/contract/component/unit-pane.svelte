@@ -105,9 +105,9 @@
 </script>
 
 <section class="flex min-h-0 flex-col gap-2">
-	<h3 class="shrink-0 text-xs tracking-[0.2em] text-muted-foreground uppercase">
+	<h3 class="shrink-0 text-xs text-muted-foreground uppercase">
 		{heading}
-		<span class="ms-1 tracking-normal">({count})</span>
+		<span class="ms-1">({count})</span>
 	</h3>
 
 	{#if isLoading}

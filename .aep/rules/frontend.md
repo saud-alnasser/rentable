@@ -185,6 +185,51 @@ not on this ladder, and the packaged `primitive/` keeps the geometry it was port
 scale beside the framework's own would make every component read in a dialect, and the token
 layer is deliberately kept to what is genuinely global.
 
+**Both locales render in Readex Pro**, one variable family drawn for Latin and Arabic together,
+chosen by prototype in effort 832. The files are committed under
+`packages/design/src/lib/fonts/` with their licence, `@font-face` in the token layer loads them
+with `font-display: block`, and `--font-sans` names it first and `system-ui` after it. Nothing is
+fetched from a network, and no fontsource package stands in for the files. `fonts/README.md` has
+the source and the command that rebuilds them.
+
+**Every text size and weight comes from one scale**, and it is Tailwind's own steps, a subset
+of them:
+
+| Size        | px | For                                                                  |
+| ----------- | -- | -------------------------------------------------------------------- |
+| `text-xs`   | 12 | metadata, field and menu labels, eyebrows, counts on a row, shortcuts |
+| `text-sm`   | 14 | the body: list rows, controls, descriptions, menus                   |
+| `text-base` | 16 | what is typed into an input, a card's title                          |
+| `text-lg`   | 18 | a dialog, sheet or standalone surface's title                        |
+| `text-xl`   | 20 | a figure the dashboard leads with                                    |
+| `text-2xl`  | 24 | a record's title, on a narrow window                                 |
+| `text-3xl`  | 30 | a record's or an area's title, and the link code                     |
+
+| Weight          | For                                           |
+| --------------- | --------------------------------------------- |
+| `font-normal`   | running text, where a primitive resets it     |
+| `font-medium`   | emphasis inside a line, a row's primary value |
+| `font-semibold` | titles, labels, and the one figure a surface leads with |
+
+No arbitrary size (`text-[...]`) and no other weight. A node test in each package fails on
+`text-[`: `packages/design/src/lib/tests/typography.test.ts` and
+`apps/desktop/src/lib/design/tests/typography.test.ts`. A size that seems to be missing is a
+question about the scale, and the answer changes this table rather than one class.
+
+**Money, counts and any figure compared down a column carry `tabular-nums`.** The cells in
+`design/cell/` already do, and a component test holds them to it. *Readex Pro ships no `tnum`
+feature, so the bundled Latin file is patched to carry one; `fonts/README.md` has how, and a node
+test fails if the feature goes missing.*
+
+**No letter spacing on a reader's text.** `tracking-*` pulls Arabic letters apart where they are
+meant to join, and an uppercase English eyebrow does not need it enough to have a rule that
+holds in one locale only. The same two tests fail on `tracking-` outside an allowlist of machine
+strings, which are held `ltr` and never render Arabic: the link code and the keyboard shortcuts.
+
+**Arabic gets its own line height**, 1.8 across the whole scale, set in the token layer on
+`:root:lang(ar)`. Arabic ink reaches half an em below the baseline, and at the scale's English
+line heights a line that truncates cuts it off. The token layer holds the measurement.
+
 **Every icon is lucide (`@lucide/svelte`), at lucide's own stroke, and sized from three steps.**
 A glyph is matched to the text beside it, so the step is read off the text rather than chosen,
 and a glyph with no text beside it takes the step of the role it plays:

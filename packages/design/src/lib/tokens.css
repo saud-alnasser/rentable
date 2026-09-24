@@ -224,6 +224,77 @@
 }
 
 /* ===================================== */
+/* Typeface                              */
+/* ===================================== */
+
+/*
+ * Readex Pro, one variable family drawn for both scripts, committed under `fonts/` with its
+ * licence and loaded from there alone: nothing here reaches a network. Two files split by
+ * `unicode-range`, so a screen in one script never decodes the other's glyphs. `fonts/README.md`
+ * holds where they came from and the command that rebuilt them, and the ranges below are the
+ * ones that command names.
+ *
+ * `block` rather than `swap` because the files are local: the wait is a disk read, and swapping
+ * would flash the system face for a frame on every start.
+ *
+ * `system-ui` follows it for any character neither file carries.
+ */
+@font-face {
+	font-family: 'Readex Pro';
+	font-style: normal;
+	font-weight: 160 700;
+	font-display: block;
+	src: url('./fonts/readex-pro-latin.woff2') format('woff2');
+	unicode-range:
+		U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+		U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+	font-family: 'Readex Pro';
+	font-style: normal;
+	font-weight: 160 700;
+	font-display: block;
+	src: url('./fonts/readex-pro-arabic.woff2') format('woff2');
+	unicode-range:
+		U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E,
+		U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC;
+}
+
+@theme {
+	--font-sans:
+		'Readex Pro', system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
+		'Noto Color Emoji';
+}
+
+/*
+ * the line height Arabic needs, set on every size in the type scale at once. Readex Pro's line
+ * box is 1em above the baseline and 0.25em below it, and Arabic ink goes much further down: a
+ * yeh with a kasra reaches 0.5em below the baseline at weight 700. The leading added to a line is
+ * split evenly above and below, so a line clears that descent only from 1.75 times the size, and
+ * anything less is cut off wherever a surface truncates. 1.8 leaves a margin over that floor.
+ * Measured by shaping vocalised text with HarfBuzz on 2026-09-24.
+ *
+ * keyed on the document's language, which `routes/+layout.svelte` sets on `<html>`, so English
+ * keeps the scale's own tighter lines. `leading-none` is not reached here: it is a literal `1`
+ * and is meant for a single figure centred in a fixed box. The plain `line-height` is what text
+ * carrying no size class inherits, in place of the 1.5 Tailwind's preflight gives it.
+ */
+:root:lang(ar) {
+	line-height: 1.8;
+	--text-xs--line-height: 1.8;
+	--text-sm--line-height: 1.8;
+	--text-base--line-height: 1.8;
+	--text-lg--line-height: 1.8;
+	--text-xl--line-height: 1.8;
+	--text-2xl--line-height: 1.8;
+	--text-3xl--line-height: 1.8;
+	--leading-tight: 1.8;
+	--leading-snug: 1.8;
+	--leading-normal: 1.8;
+}
+
+/* ===================================== */
 /* Motion                                */
 /* ===================================== */
 

@@ -18,7 +18,7 @@
 	data-slot="context-menu-label"
 	data-inset={inset}
 	class={cn(
-		'px-2.5 py-2 text-[0.72rem] font-semibold tracking-[0.18em] text-muted-foreground uppercase data-[inset]:ps-7',
+		'px-2.5 py-2 text-xs font-semibold text-muted-foreground uppercase data-[inset]:ps-7',
 		className
 	)}
 	{...restProps}

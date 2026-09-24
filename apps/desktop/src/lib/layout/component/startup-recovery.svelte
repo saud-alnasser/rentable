@@ -33,7 +33,7 @@
 
 {#snippet plate(label: string, value: string, isFigure: boolean)}
 	<div class="rounded-xl bg-muted p-3">
-		<dt class="text-xs tracking-wide text-muted-foreground uppercase">{label}</dt>
+		<dt class="text-xs text-muted-foreground uppercase">{label}</dt>
 		<!-- a version is the machine's and reads left to right in both locales; the words that
 		     stand in for one while there is no version are the reader's. -->
 		<dd class="mt-1 text-sm font-medium break-words" dir={isFigure ? 'ltr' : undefined}>
