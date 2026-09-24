@@ -1,6 +1,6 @@
 ---
 status: open
-blocked-by: [02, 04, 06, 07, 14, 15, 16, 26]
+blocked-by: [02, 04, 06, 07, 14, 15, 16, 26, 28, 29, 30, 31, 32]
 ---
 
 # test(desktop): every route walked in both directions and both appearances
