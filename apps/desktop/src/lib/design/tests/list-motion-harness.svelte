@@ -20,7 +20,7 @@
 
 <DesignProvider {strings} direction="ltr">
 	<Tooltip.Provider>
-		<List {data} bind:search>
+		<List {data} bind:search emptyTitle="nothing here yet">
 			{#snippet record(row)}
 				<span>{row.id}</span>
 			{/snippet}

@@ -13,6 +13,9 @@ const en = {
 			checkForUpdates: 'check for updates',
 			checkingForUpdates: 'checking for updates...',
 			clearFilter: 'clear this filter',
+			clearFilters: 'clear filters',
+			clearSearch: 'clear search',
+			clearSearchAndFilters: 'clear search and filters',
 			clearSelection: 'clear selection',
 			connect: 'connect',
 			copyDetails: 'copy details',
@@ -27,6 +30,7 @@ const en = {
 			edit: 'edit',
 			export: 'export',
 			exportSelection: 'export selection',
+			goBack: 'go back',
 			import: 'import',
 			installingUpdate: 'installing update...',
 			join: 'join',
@@ -196,7 +200,9 @@ const en = {
 			exported: 'exported to {path:string}',
 			loadingRecord: 'loading record...',
 			loadingSettings: 'loading settings...',
-			noResults: 'no results.',
+			noMatch: 'nothing matches',
+			recordNotFound: 'this record does not exist',
+			recordNotFoundDescription: 'it may have been deleted.',
 			unexpectedError: 'unexpected error occurred!',
 			unknown: 'unknown'
 		},
@@ -339,6 +345,11 @@ const en = {
 		}
 	},
 	layout: {
+		notFound: {
+			description: 'the link that led here may be out of date.',
+			title: 'this page does not exist'
+		},
+
 		error: {
 			description:
 				'something went wrong on this screen. going back to the dashboard usually clears it.',
@@ -527,6 +538,11 @@ const en = {
 		}
 	},
 	complexes: {
+		empty: {
+			description: 'complexes you add, with their units, will be listed here.',
+			title: 'no complexes yet'
+		},
+
 		hooks: {
 			createSuccess: 'complex created successfully!',
 			deleteManySuccess: '{count|number} complex(es) deleted',
@@ -567,12 +583,19 @@ const en = {
 		units: {
 			contractsEmptyDescription: 'contracts that mention this unit will appear here.',
 			contractsEmptyTitle: 'no contracts mention this unit',
+			emptyDescription: 'units you add to this complex will be listed here.',
+			emptyTitle: 'no units in this complex yet',
 			duplicateName: 'name is associated with a unit in the same complex.',
 			management: 'units management'
 		}
 	},
 
 	tenants: {
+		empty: {
+			description: 'tenants you add will be listed here.',
+			title: 'no tenants yet'
+		},
+
 		contracts: {
 			emptyTitle: 'no contracts yet',
 			emptyDescription: 'contracts this tenant holds will appear here.'
@@ -604,6 +627,11 @@ const en = {
 	},
 
 	contracts: {
+		empty: {
+			description: 'contracts you create will be listed here, those needing attention first.',
+			title: 'no contracts yet'
+		},
+
 		form: {
 			startDate: 'start date',
 			calculatedEndDate: 'end date',
@@ -669,6 +697,7 @@ const en = {
 		},
 
 		payments: {
+			emptyTitle: 'no payments yet',
 			fullyPaidNotice:
 				'this contract has already reached its required total payment amount. you can still edit or delete payments if needed, but you cannot add more until the paid total drops below the required amount.',
 			fullyPaidSummary:

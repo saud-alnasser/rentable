@@ -168,6 +168,8 @@
 	}}
 	onImport={() => void importDialog?.choose()}
 	onCreate={() => tenantHost.create()}
+	emptyTitle={$LL.tenants.empty.title()}
+	emptyDescription={$LL.tenants.empty.description()}
 >
 	{#snippet record(tenant: TenantRecord)}
 		{@const counts = contractCounts(tenant)}

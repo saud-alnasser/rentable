@@ -12,6 +12,9 @@ const ar = {
 			checkForUpdates: 'التحقق من التحديثات',
 			checkingForUpdates: 'جاري التحقق من التحديثات...',
 			clearFilter: 'إزالة هذه التصفية',
+			clearFilters: 'إزالة التصفية',
+			clearSearch: 'مسح البحث',
+			clearSearchAndFilters: 'مسح البحث والتصفية',
 			clearSelection: 'إلغاء التحديد',
 			connect: 'ربط',
 			copyDetails: 'نسخ التفاصيل',
@@ -26,6 +29,7 @@ const ar = {
 			edit: 'تعديل',
 			export: 'تصدير',
 			exportSelection: 'تصدير المحدد',
+			goBack: 'العودة',
 			import: 'استيراد',
 			installingUpdate: 'جاري تثبيت التحديث...',
 			join: 'انضمام',
@@ -189,7 +193,9 @@ const ar = {
 			exported: 'تم التصدير إلى {path}',
 			loadingRecord: 'جاري تحميل السجل...',
 			loadingSettings: 'جاري تحميل الإعدادات...',
-			noResults: 'لا توجد نتائج.',
+			noMatch: 'لا يوجد ما يطابق',
+			recordNotFound: 'هذا السجل غير موجود',
+			recordNotFoundDescription: 'ربما حُذف.',
 			unexpectedError: 'حدث خطأ غير متوقع!',
 			unknown: 'غير معروف'
 		},
@@ -332,6 +338,11 @@ const ar = {
 		}
 	},
 	layout: {
+		notFound: {
+			description: 'ربما كان الرابط الذي أوصلك إلى هنا قديمًا.',
+			title: 'هذه الصفحة غير موجودة'
+		},
+
 		error: {
 			description: 'حدث خطأ في هذه الشاشة. العودة إلى لوحة التحكم تحل المشكلة عادة.',
 			goHome: 'الذهاب إلى لوحة التحكم',
@@ -512,6 +523,11 @@ const ar = {
 		}
 	},
 	complexes: {
+		empty: {
+			description: 'ستظهر هنا المجمعات التي تضيفها مع وحداتها.',
+			title: 'لا توجد مجمعات بعد'
+		},
+
 		hooks: {
 			createSuccess: 'تم إنشاء المجمع بنجاح!',
 			deleteManySuccess: 'تم حذف {count|number} مجمع',
@@ -550,12 +566,19 @@ const ar = {
 		units: {
 			contractsEmptyDescription: 'ستظهر هنا العقود التي تذكر هذه الوحدة.',
 			contractsEmptyTitle: 'لا توجد عقود تذكر هذه الوحدة',
+			emptyDescription: 'ستظهر هنا الوحدات التي تضيفها إلى هذا المجمع.',
+			emptyTitle: 'لا توجد وحدات في هذا المجمع بعد',
 			duplicateName: 'الاسم مرتبط بوحدة في نفس المجمع.',
 			management: 'إدارة الوحدات'
 		}
 	},
 
 	tenants: {
+		empty: {
+			description: 'سيظهر هنا المستأجرون الذين تضيفهم.',
+			title: 'لا يوجد مستأجرون بعد'
+		},
+
 		contracts: {
 			emptyTitle: 'لا توجد عقود بعد',
 			emptyDescription: 'ستظهر هنا العقود التي يحملها هذا المستأجر.'
@@ -587,6 +610,11 @@ const ar = {
 	},
 
 	contracts: {
+		empty: {
+			description: 'ستظهر هنا العقود التي تنشئها، وأولها ما يحتاج إلى متابعة.',
+			title: 'لا توجد عقود بعد'
+		},
+
 		form: {
 			startDate: 'تاريخ البداية',
 			calculatedEndDate: 'تاريخ النهاية المحسوب',
@@ -652,6 +680,7 @@ const ar = {
 		},
 
 		payments: {
+			emptyTitle: 'لا توجد دفعات بعد',
 			fullyPaidNotice:
 				'تم الوصول إلى إجمالي المبلغ المطلوب. يمكنك التعديل أو الحذف لكن لا يمكن إضافة دفعات جديدة.',
 			fullyPaidSummary: 'تم سداد العقد بالكامل.',

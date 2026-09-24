@@ -1178,9 +1178,11 @@ test('a search that finds nobody says so, in the list shell’s words', async ()
 	await pastTheWait();
 
 	expect(shownMembers()).toEqual([]);
-	expect(document.querySelector('[data-directory-no-match]')?.textContent?.trim()).toBe(
-		en.common.messages.noResults
-	);
+	const noMatch = document.querySelector('[data-directory-no-match]');
+
+	expect(noMatch?.querySelector('[data-empty]')?.getAttribute('data-empty')).toBe('no-match');
+	expect(noMatch?.textContent).toContain(en.common.messages.noMatch);
+	expect(noMatch?.textContent).toContain(en.common.actions.clearSearch);
 });
 
 test('the directory is ordered by username, then back the other way', async () => {

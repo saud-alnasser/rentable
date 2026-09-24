@@ -3,12 +3,14 @@
 	import { resolve } from '$app/paths';
 	import type api from '$lib/api/caller';
 	import * as Cell from '$lib/design/cell';
-	import { locale } from '$lib/i18n/i18n-svelte';
+	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { formatLocaleNumber } from '$lib/platform/locale';
+	import Empty from '@rentable/design/block/empty.svelte';
 	import { listRows } from '@rentable/design/group.js';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Skeleton } from '@rentable/design/primitive/skeleton/index.js';
 	import type PlusIcon from '@lucide/svelte/icons/plus';
+	import XIcon from '@lucide/svelte/icons/x';
 	import { createVirtualizer } from '@tanstack/svelte-virtual';
 	import { get } from 'svelte/store';
 
@@ -31,11 +33,13 @@
 		isLocked,
 		isTransferring,
 		gridded = false,
+		isSearched = false,
+		onClearSearch,
 		onTransfer
 	}: {
 		heading: string;
 		units: AssignableUnit[];
-		/** What to say where the side is empty. */
+		/** What to say where the side holds no units and nothing is searched. */
 		empty: string;
 		/** The transfer control's action, which names itself with the unit. */
 		label: string;
@@ -54,6 +58,13 @@
 		 * cards in it.
 		 */
 		gridded?: boolean;
+		/**
+		 * Whether a search is narrowing the panes. An empty side under a search is a search that
+		 * matched nothing, and says so rather than saying the side holds no units.
+		 */
+		isSearched?: boolean;
+		/** Put the search down, offered where a search emptied the side. */
+		onClearSearch?: () => void;
 		onTransfer: (unitId: string, wasHeld: boolean) => void;
 	} = $props();
 
@@ -67,6 +78,8 @@
 	// over its complex's name, with a status glyph and a control beside them.
 	const CARD_MIN_WIDTH = 240;
 	const OVERSCAN_ROWS = 4;
+	// the empty treatment at a pane's size: no screen's worth of padding, and no growing to fill.
+	const PANE_EMPTY = 'h-auto flex-none gap-3 rounded-xl border border-dashed p-4 md:p-4';
 
 	let viewport = $state<HTMLElement | null>(null);
 	let viewportWidth = $state(0);
@@ -104,6 +117,13 @@
 	const count = $derived(formatLocaleNumber($locale, units.length));
 </script>
 
+{#snippet clearAct()}
+	<Button type="button" variant="outline" size="sm" onclick={() => onClearSearch?.()}>
+		<XIcon />
+		{$LL.common.actions.clearSearch()}
+	</Button>
+{/snippet}
+
 <section class="flex min-h-0 flex-col gap-2">
 	<h3 class="shrink-0 text-xs text-muted-foreground uppercase">
 		{heading}
@@ -116,9 +136,19 @@
 			<Skeleton class="h-16 w-full rounded-xl" />
 		</div>
 	{:else if units.length === 0}
-		<p class="rounded-xl border border-dashed bg-muted p-4 text-sm text-muted-foreground">
-			{empty}
-		</p>
+		<!-- the one empty treatment ([[rules/interface]], *Empty*), sized to a pane rather than to a
+		     screen: a side is half of one transfer, and a screen's worth of padding would push the
+		     other side's units out of sight. -->
+		{#if isSearched}
+			<Empty
+				kind="no-match"
+				title={$LL.common.messages.noMatch()}
+				class={PANE_EMPTY}
+				action={onClearSearch ? clearAct : undefined}
+			/>
+		{:else}
+			<Empty kind="nothing-yet" title={empty} class={PANE_EMPTY} />
+		{/if}
 	{:else}
 		<div
 			bind:this={viewport}

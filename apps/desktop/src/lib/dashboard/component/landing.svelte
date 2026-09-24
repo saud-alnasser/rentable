@@ -6,7 +6,7 @@
 	import Loading from '@rentable/design/block/loading.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as DropdownMenu from '@rentable/design/primitive/dropdown-menu/index.js';
-	import * as Empty from '@rentable/design/primitive/empty/index.js';
+	import Empty from '@rentable/design/block/empty.svelte';
 	import { toDashboardSections } from '$lib/dashboard/dashboard';
 	import { useFetchContractWorkQueue } from '$lib/dashboard/query';
 	import DashboardSectionCard from '$lib/dashboard/component/section.svelte';
@@ -210,12 +210,15 @@
 		{/snippet}
 
 		{#if sections.length === 0}
-			<Empty.Root class="rounded-2xl border border-dashed">
-				<Empty.Header>
-					<Empty.Title>{$LL.dashboard.empty.title()}</Empty.Title>
-					<Empty.Description>{$LL.dashboard.empty.description()}</Empty.Description>
-				</Empty.Header>
-			</Empty.Root>
+			<!-- the one empty treatment ([[rules/interface]], *Empty*). Nothing to chase is the landing
+			     screen with nothing in it yet, and there is no act to offer: the sections fill as
+			     contracts fall behind or near their end. -->
+			<Empty
+				kind="nothing-yet"
+				title={$LL.dashboard.empty.title()}
+				description={$LL.dashboard.empty.description()}
+				class="rounded-2xl border border-dashed"
+			/>
 		{:else}
 			{#each sections as section (section.summary.rank)}
 				<DashboardSectionCard {section} />

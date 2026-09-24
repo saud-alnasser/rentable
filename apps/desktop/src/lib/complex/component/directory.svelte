@@ -154,6 +154,8 @@
 	}}
 	onImport={() => void importDialog?.choose()}
 	onCreate={() => complexHost.create()}
+	emptyTitle={$LL.complexes.empty.title()}
+	emptyDescription={$LL.complexes.empty.description()}
 >
 	{#snippet record(complex: ComplexRecord)}
 		<!-- occupancy is not on the query: a unit is occupied or vacant, so the third figure is

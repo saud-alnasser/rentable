@@ -140,6 +140,8 @@
 			}}
 			onImport={() => void importDialog?.choose()}
 			onCreate={() => contractHost.create()}
+			emptyTitle={$LL.contracts.empty.title()}
+			emptyDescription={$LL.contracts.empty.description()}
 		>
 			{#snippet record(contract: ContractRow)}
 				<ContractRecord {contract} />

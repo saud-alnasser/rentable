@@ -156,6 +156,8 @@
 	}}
 	onImport={() => void importDialog?.choose()}
 	onCreate={() => unitHost.create({ complexId })}
+	emptyTitle={$LL.complexes.units.emptyTitle()}
+	emptyDescription={$LL.complexes.units.emptyDescription()}
 >
 	{#snippet record(record: UnitRecord)}
 		<RecordCard

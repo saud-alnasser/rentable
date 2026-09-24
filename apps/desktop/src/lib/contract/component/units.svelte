@@ -109,6 +109,8 @@
 			{isLocked}
 			{isTransferring}
 			gridded={isLocked}
+			isSearched={search.trim() !== ''}
+			onClearSearch={() => (search = '')}
 			onTransfer={transfer}
 		/>
 		{#if !isLocked}
@@ -122,6 +124,8 @@
 				isLoading={assignableQuery.isLoading}
 				{isLocked}
 				{isTransferring}
+				isSearched={search.trim() !== ''}
+				onClearSearch={() => (search = '')}
 				onTransfer={transfer}
 			/>
 		{/if}

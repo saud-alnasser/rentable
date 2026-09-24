@@ -469,6 +469,43 @@ and is not what this governs.
 happening. A shape says what is coming and where it will be, and the delay and the hold keep a
 fast local read from flashing a skeleton for a frame.*
 
+### Empty
+
+**A region with nothing to show draws `packages/design/src/lib/block/empty.svelte`, and nothing
+else**: a title, an optional line under it, and one act beneath both. The block names no concept
+and reads no words from the string contract; every sentence is the caller's. It says which of
+three situations it is, on `data-empty`, and the three never read the same:
+
+- **Nothing here yet.** The set holds nothing, and the title says what it will hold in the
+  concept's own words (*no tenants yet*), with a line saying where the records come from. Its act
+  is the set's create, in words, where the set can be added to: the list shell draws it from the
+  same `onCreate` its toolbar control answers, and it holds no place of its own, so the create key
+  still has one answer. The list shell takes `emptyTitle` as a required prop, so every list says
+  its own. A set nothing may be added to (a record's history, the dashboard) offers no act.
+- **No match.** The set holds records and a search or a filter narrowed all of them away. The title
+  says nothing matches, never what the set will hold, and the act puts the narrowing down, named
+  for what it clears: the search, the filters, or both. The list shell decides which from its own
+  search and filters; the contract's unit panes and the settings directories draw the same state
+  under their search.
+- **Not found.** The record or the page that was asked for does not exist. The record surface says
+  so (`recordNotFound`, `recordNotFoundDescription` in the string contract) under its usual back
+  control, and offers a labelled way back that goes where that control goes. The unknown route's
+  error page says the page does not exist, rather than that a screen failed, and offers the
+  dashboard.
+
+"No results" is not a sentence any of them says: it names neither the situation nor the way out.
+
+The block is sized to the region it stands in. It fills a list's frame and a record's body; a pane
+or a settings section passes a class that keeps it to the space it has.
+
+*Why: one empty sentence served a list with nothing in it, a search that found nothing and a
+record that was gone, so a reader who had typed a search was told the same thing as one who had
+never added anything, and neither was told what to do next. Apple's guidance is to say what will
+appear and offer the action that fills it; the research behind the effort found the same practice
+in every tool it read.*
+
+Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 13.
+
 ### Feedback
 
 **Every toast goes through the shared handlers.** A mutation announces through its declaration and

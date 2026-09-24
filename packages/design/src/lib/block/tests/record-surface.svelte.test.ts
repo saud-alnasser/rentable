@@ -2,6 +2,7 @@ import { LOADING_DELAY } from '#lib/block/loading.svelte';
 import RecordSurface from '#lib/block/record-surface.svelte';
 import { shownRecord } from '#lib/shown-record.svelte.js';
 import { type DesignStrings } from '#lib/strings.js';
+import { forgetNavigations, navigations } from '#tests/app-navigation.js';
 import { suppliedStrings } from '#tests/contract-strings.js';
 import Providers from '#tests/providers.svelte';
 import RecordSurfaceHarness from '#tests/record-surface-harness.svelte';
@@ -57,14 +58,35 @@ test('a record on its way says so, in the words the contract was handed', async 
 	}
 });
 
-test('a record that is not there says so, and does not say it is loading', () => {
-	surface(
-		{ isLoading: false, found: false },
-		{ loadingRecord: 'the record is on its way', noResults: 'no such record' }
-	);
+const missingWords = {
+	loadingRecord: 'the record is on its way',
+	recordNotFound: 'this record does not exist',
+	recordNotFoundDescription: 'it may have been deleted',
+	goBack: 'go back'
+} satisfies Partial<DesignStrings>;
 
-	expect(document.body.textContent).toContain('no such record');
+// criterion 13 of effort 832, its not-found half: a missing record says it does not exist and
+// offers the way back, and does not read as a search that found nothing.
+test('a record that is not there says it does not exist, and does not say it is loading', () => {
+	const { container } = surface({ isLoading: false, found: false }, missingWords);
+
+	const empty = container.querySelector('[data-empty]');
+
+	expect(empty?.getAttribute('data-empty')).toBe('not-found');
+	expect(empty?.textContent).toContain('this record does not exist');
+	expect(empty?.textContent).toContain('it may have been deleted');
 	expect(document.body.textContent).not.toContain('the record is on its way');
+});
+
+test('a record that is not there offers the way back, which goes where back goes', () => {
+	forgetNavigations();
+	surface({ isLoading: false, found: false }, missingWords);
+
+	screen.getByRole('button', { name: 'go back' }).click();
+
+	// nothing was visited before it in this file, so back has nowhere to return to and takes the
+	// concept's directory, exactly as the back control does.
+	expect(navigations().map((call) => call.url)).toEqual(['/tenants']);
 });
 
 test('the loading state is marked busy from the start', () => {

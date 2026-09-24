@@ -13,11 +13,13 @@
 </script>
 
 <script lang="ts">
+	import { back } from '#lib/back.svelte.js';
 	import BackControl from '#lib/block/back-control.svelte';
+	import Empty from '#lib/block/empty.svelte';
 	import Loading from '#lib/block/loading.svelte';
 	import PageFrame from '#lib/block/page-frame.svelte';
 	import SectionSwitch from '#lib/block/section-switch.svelte';
-	import * as Empty from '#lib/primitive/empty/index.js';
+	import { Button } from '#lib/primitive/button/index.js';
 	import { Skeleton } from '#lib/primitive/skeleton/index.js';
 	import { shownRecord } from '#lib/shown-record.svelte.js';
 	import { useDesignContract } from '#lib/strings.js';
@@ -143,11 +145,21 @@
 				<BackControl fallback={backFallback} />
 			</div>
 
-			<Empty.Root class="flex-1">
-				<Empty.Header>
-					<Empty.Title>{contract.strings.noResults}</Empty.Title>
-				</Empty.Header>
-			</Empty.Root>
+			<!-- that the record does not exist, never that a search found nothing: nothing was
+			     searched. The labelled way back beneath it goes where the back control goes, for a
+			     reader whose eye lands on the sentence rather than on the corner. -->
+			<Empty
+				kind="not-found"
+				title={contract.strings.recordNotFound}
+				description={contract.strings.recordNotFoundDescription}
+				class="flex-1"
+			>
+				{#snippet action()}
+					<Button variant="outline" size="sm" onclick={() => void back.go(backFallback)}>
+						{contract.strings.goBack}
+					</Button>
+				{/snippet}
+			</Empty>
 		{:else}
 			<!-- the record and its own fields are one group, and the gap inside it is smaller than
 			     the gap to the collection below: spacing is what says the fields belong to the record

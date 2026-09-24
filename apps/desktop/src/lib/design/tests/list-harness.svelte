@@ -36,6 +36,7 @@
 	<Tooltip.Provider>
 		<List
 			data={[{ id: 'one' }]}
+			emptyTitle="nothing here yet"
 			filterOptions={[status]}
 			bind:filters
 			sortOptions={[

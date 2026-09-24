@@ -3,6 +3,7 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import type { MemberStanding, OrganizationMember } from '$lib/platform/tauri';
+	import Empty from '@rentable/design/block/empty.svelte';
 	import RecordCard from '@rentable/design/block/record-card.svelte';
 	import * as Avatar from '@rentable/design/primitive/avatar/index.js';
 	import { Badge } from '@rentable/design/primitive/badge/index.js';
@@ -21,6 +22,7 @@
 	import { memberActs, memberHost, memberPending } from '$lib/organization/host.svelte';
 	import { RECORD_PARAM, recordOf, withSection } from '$lib/settings/section';
 	import ListChecksIcon from '@lucide/svelte/icons/list-checks';
+	import XIcon from '@lucide/svelte/icons/x';
 
 	/**
 	 * Everybody in the organization, as a directory of record cards.
@@ -244,6 +246,9 @@
 	let readingRoles = $state(false);
 
 	let search = $state('');
+	// the empty treatment at a settings section's size: a directory here is one block among
+	// others, so it takes no screen's worth of padding.
+	const DIRECTORY_EMPTY = 'h-auto flex-none gap-3 rounded-2xl border border-dashed p-4 md:p-6';
 	let sort = $state<ListSort | null>(null);
 
 	const sortOptions = $derived([
@@ -313,10 +318,18 @@
 
 	<div class="flex flex-col gap-3" data-members>
 		{#if members.length > 0 && shown.length === 0}
-			<!-- the list shell's words for a search that found nothing, so the two read alike. -->
-			<p class="text-sm text-muted-foreground" data-directory-no-match>
-				{$LL.common.messages.noResults()}
-			</p>
+			<!-- the one empty treatment's no-match ([[rules/interface]], *Empty*): the search found
+			     nobody, and the way out is putting it down. -->
+			<div data-directory-no-match>
+				<Empty kind="no-match" title={$LL.common.messages.noMatch()} class={DIRECTORY_EMPTY}>
+					{#snippet action()}
+						<Button type="button" variant="outline" size="sm" onclick={() => (search = '')}>
+							<XIcon />
+							{$LL.common.actions.clearSearch()}
+						</Button>
+					{/snippet}
+				</Empty>
+			</div>
 		{/if}
 
 		{#each shown as member (member.id)}

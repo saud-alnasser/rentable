@@ -229,6 +229,7 @@
 		isFetching={paymentsQuery.isFetching}
 		recordHeight={ROW_HEIGHT}
 		groupHeaderHeight={MONTH_HEIGHT}
+		emptyTitle={$LL.contracts.payments.emptyTitle()}
 		emptyDescription={isAddLocked ? undefined : $LL.contracts.payments.trackSummary()}
 		exportAs={{
 			// the contract is in the name, because a ledger is one contract's and a file called

@@ -47,6 +47,18 @@ type RootTranslation = {
 			 */
 			clearFilter: string
 			/**
+			 * c​l​e​a​r​ ​f​i​l​t​e​r​s
+			 */
+			clearFilters: string
+			/**
+			 * c​l​e​a​r​ ​s​e​a​r​c​h
+			 */
+			clearSearch: string
+			/**
+			 * c​l​e​a​r​ ​s​e​a​r​c​h​ ​a​n​d​ ​f​i​l​t​e​r​s
+			 */
+			clearSearchAndFilters: string
+			/**
 			 * c​l​e​a​r​ ​s​e​l​e​c​t​i​o​n
 			 */
 			clearSelection: string
@@ -102,6 +114,10 @@ type RootTranslation = {
 			 * e​x​p​o​r​t​ ​s​e​l​e​c​t​i​o​n
 			 */
 			exportSelection: string
+			/**
+			 * g​o​ ​b​a​c​k
+			 */
+			goBack: string
 			/**
 			 * i​m​p​o​r​t
 			 */
@@ -686,9 +702,17 @@ type RootTranslation = {
 			 */
 			loadingSettings: string
 			/**
-			 * n​o​ ​r​e​s​u​l​t​s​.
+			 * n​o​t​h​i​n​g​ ​m​a​t​c​h​e​s
 			 */
-			noResults: string
+			noMatch: string
+			/**
+			 * t​h​i​s​ ​r​e​c​o​r​d​ ​d​o​e​s​ ​n​o​t​ ​e​x​i​s​t
+			 */
+			recordNotFound: string
+			/**
+			 * i​t​ ​m​a​y​ ​h​a​v​e​ ​b​e​e​n​ ​d​e​l​e​t​e​d​.
+			 */
+			recordNotFoundDescription: string
 			/**
 			 * u​n​e​x​p​e​c​t​e​d​ ​e​r​r​o​r​ ​o​c​c​u​r​r​e​d​!
 			 */
@@ -1159,6 +1183,16 @@ type RootTranslation = {
 		}
 	}
 	layout: {
+		notFound: {
+			/**
+			 * t​h​e​ ​l​i​n​k​ ​t​h​a​t​ ​l​e​d​ ​h​e​r​e​ ​m​a​y​ ​b​e​ ​o​u​t​ ​o​f​ ​d​a​t​e​.
+			 */
+			description: string
+			/**
+			 * t​h​i​s​ ​p​a​g​e​ ​d​o​e​s​ ​n​o​t​ ​e​x​i​s​t
+			 */
+			title: string
+		}
 		error: {
 			/**
 			 * s​o​m​e​t​h​i​n​g​ ​w​e​n​t​ ​w​r​o​n​g​ ​o​n​ ​t​h​i​s​ ​s​c​r​e​e​n​.​ ​g​o​i​n​g​ ​b​a​c​k​ ​t​o​ ​t​h​e​ ​d​a​s​h​b​o​a​r​d​ ​u​s​u​a​l​l​y​ ​c​l​e​a​r​s​ ​i​t​.
@@ -1629,6 +1663,16 @@ type RootTranslation = {
 		}
 	}
 	complexes: {
+		empty: {
+			/**
+			 * c​o​m​p​l​e​x​e​s​ ​y​o​u​ ​a​d​d​,​ ​w​i​t​h​ ​t​h​e​i​r​ ​u​n​i​t​s​,​ ​w​i​l​l​ ​b​e​ ​l​i​s​t​e​d​ ​h​e​r​e​.
+			 */
+			description: string
+			/**
+			 * n​o​ ​c​o​m​p​l​e​x​e​s​ ​y​e​t
+			 */
+			title: string
+		}
 		hooks: {
 			/**
 			 * c​o​m​p​l​e​x​ ​c​r​e​a​t​e​d​ ​s​u​c​c​e​s​s​f​u​l​l​y​!
@@ -1760,6 +1804,14 @@ type RootTranslation = {
 			 */
 			contractsEmptyTitle: string
 			/**
+			 * u​n​i​t​s​ ​y​o​u​ ​a​d​d​ ​t​o​ ​t​h​i​s​ ​c​o​m​p​l​e​x​ ​w​i​l​l​ ​b​e​ ​l​i​s​t​e​d​ ​h​e​r​e​.
+			 */
+			emptyDescription: string
+			/**
+			 * n​o​ ​u​n​i​t​s​ ​i​n​ ​t​h​i​s​ ​c​o​m​p​l​e​x​ ​y​e​t
+			 */
+			emptyTitle: string
+			/**
 			 * n​a​m​e​ ​i​s​ ​a​s​s​o​c​i​a​t​e​d​ ​w​i​t​h​ ​a​ ​u​n​i​t​ ​i​n​ ​t​h​e​ ​s​a​m​e​ ​c​o​m​p​l​e​x​.
 			 */
 			duplicateName: string
@@ -1770,6 +1822,16 @@ type RootTranslation = {
 		}
 	}
 	tenants: {
+		empty: {
+			/**
+			 * t​e​n​a​n​t​s​ ​y​o​u​ ​a​d​d​ ​w​i​l​l​ ​b​e​ ​l​i​s​t​e​d​ ​h​e​r​e​.
+			 */
+			description: string
+			/**
+			 * n​o​ ​t​e​n​a​n​t​s​ ​y​e​t
+			 */
+			title: string
+		}
 		contracts: {
 			/**
 			 * n​o​ ​c​o​n​t​r​a​c​t​s​ ​y​e​t
@@ -1853,6 +1915,16 @@ type RootTranslation = {
 		}
 	}
 	contracts: {
+		empty: {
+			/**
+			 * c​o​n​t​r​a​c​t​s​ ​y​o​u​ ​c​r​e​a​t​e​ ​w​i​l​l​ ​b​e​ ​l​i​s​t​e​d​ ​h​e​r​e​,​ ​t​h​o​s​e​ ​n​e​e​d​i​n​g​ ​a​t​t​e​n​t​i​o​n​ ​f​i​r​s​t​.
+			 */
+			description: string
+			/**
+			 * n​o​ ​c​o​n​t​r​a​c​t​s​ ​y​e​t
+			 */
+			title: string
+		}
 		form: {
 			/**
 			 * s​t​a​r​t​ ​d​a​t​e
@@ -2071,6 +2143,10 @@ type RootTranslation = {
 			semiAnnual: string
 		}
 		payments: {
+			/**
+			 * n​o​ ​p​a​y​m​e​n​t​s​ ​y​e​t
+			 */
+			emptyTitle: string
 			/**
 			 * t​h​i​s​ ​c​o​n​t​r​a​c​t​ ​h​a​s​ ​a​l​r​e​a​d​y​ ​r​e​a​c​h​e​d​ ​i​t​s​ ​r​e​q​u​i​r​e​d​ ​t​o​t​a​l​ ​p​a​y​m​e​n​t​ ​a​m​o​u​n​t​.​ ​y​o​u​ ​c​a​n​ ​s​t​i​l​l​ ​e​d​i​t​ ​o​r​ ​d​e​l​e​t​e​ ​p​a​y​m​e​n​t​s​ ​i​f​ ​n​e​e​d​e​d​,​ ​b​u​t​ ​y​o​u​ ​c​a​n​n​o​t​ ​a​d​d​ ​m​o​r​e​ ​u​n​t​i​l​ ​t​h​e​ ​p​a​i​d​ ​t​o​t​a​l​ ​d​r​o​p​s​ ​b​e​l​o​w​ ​t​h​e​ ​r​e​q​u​i​r​e​d​ ​a​m​o​u​n​t​.
 			 */
@@ -3223,6 +3299,18 @@ export type TranslationFunctions = {
 			 */
 			clearFilter: () => LocalizedString
 			/**
+			 * clear filters
+			 */
+			clearFilters: () => LocalizedString
+			/**
+			 * clear search
+			 */
+			clearSearch: () => LocalizedString
+			/**
+			 * clear search and filters
+			 */
+			clearSearchAndFilters: () => LocalizedString
+			/**
 			 * clear selection
 			 */
 			clearSelection: () => LocalizedString
@@ -3278,6 +3366,10 @@ export type TranslationFunctions = {
 			 * export selection
 			 */
 			exportSelection: () => LocalizedString
+			/**
+			 * go back
+			 */
+			goBack: () => LocalizedString
 			/**
 			 * import
 			 */
@@ -3833,9 +3925,17 @@ export type TranslationFunctions = {
 			 */
 			loadingSettings: () => LocalizedString
 			/**
-			 * no results.
+			 * nothing matches
 			 */
-			noResults: () => LocalizedString
+			noMatch: () => LocalizedString
+			/**
+			 * this record does not exist
+			 */
+			recordNotFound: () => LocalizedString
+			/**
+			 * it may have been deleted.
+			 */
+			recordNotFoundDescription: () => LocalizedString
 			/**
 			 * unexpected error occurred!
 			 */
@@ -4277,6 +4377,16 @@ export type TranslationFunctions = {
 		}
 	}
 	layout: {
+		notFound: {
+			/**
+			 * the link that led here may be out of date.
+			 */
+			description: () => LocalizedString
+			/**
+			 * this page does not exist
+			 */
+			title: () => LocalizedString
+		}
 		error: {
 			/**
 			 * something went wrong on this screen. going back to the dashboard usually clears it.
@@ -4741,6 +4851,16 @@ export type TranslationFunctions = {
 		}
 	}
 	complexes: {
+		empty: {
+			/**
+			 * complexes you add, with their units, will be listed here.
+			 */
+			description: () => LocalizedString
+			/**
+			 * no complexes yet
+			 */
+			title: () => LocalizedString
+		}
 		hooks: {
 			/**
 			 * complex created successfully!
@@ -4861,6 +4981,14 @@ export type TranslationFunctions = {
 			 */
 			contractsEmptyTitle: () => LocalizedString
 			/**
+			 * units you add to this complex will be listed here.
+			 */
+			emptyDescription: () => LocalizedString
+			/**
+			 * no units in this complex yet
+			 */
+			emptyTitle: () => LocalizedString
+			/**
 			 * name is associated with a unit in the same complex.
 			 */
 			duplicateName: () => LocalizedString
@@ -4871,6 +4999,16 @@ export type TranslationFunctions = {
 		}
 	}
 	tenants: {
+		empty: {
+			/**
+			 * tenants you add will be listed here.
+			 */
+			description: () => LocalizedString
+			/**
+			 * no tenants yet
+			 */
+			title: () => LocalizedString
+		}
 		contracts: {
 			/**
 			 * no contracts yet
@@ -4949,6 +5087,16 @@ export type TranslationFunctions = {
 		}
 	}
 	contracts: {
+		empty: {
+			/**
+			 * contracts you create will be listed here, those needing attention first.
+			 */
+			description: () => LocalizedString
+			/**
+			 * no contracts yet
+			 */
+			title: () => LocalizedString
+		}
 		form: {
 			/**
 			 * start date
@@ -5160,6 +5308,10 @@ export type TranslationFunctions = {
 			semiAnnual: () => LocalizedString
 		}
 		payments: {
+			/**
+			 * no payments yet
+			 */
+			emptyTitle: () => LocalizedString
 			/**
 			 * this contract has already reached its required total payment amount. you can still edit or delete payments if needed, but you cannot add more until the paid total drops below the required amount.
 			 */

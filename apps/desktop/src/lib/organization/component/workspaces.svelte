@@ -3,7 +3,9 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import type { OrganizationMember, OrganizationWorkspace } from '$lib/platform/host';
+	import Empty from '@rentable/design/block/empty.svelte';
 	import RecordCard from '@rentable/design/block/record-card.svelte';
+	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import { Separator } from '@rentable/design/primitive/separator/index.js';
 	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
@@ -18,6 +20,7 @@
 	import { recordOf, withSection, WORKSPACE_PARAM } from '$lib/settings/section';
 	import WorkspaceTransfer from '$lib/workspace/component/transfer.svelte';
 	import DiscIcon from '$lib/design/cell/disc.svelte';
+	import XIcon from '@lucide/svelte/icons/x';
 
 	/**
 	 * The workspaces of the organization, as a directory of record cards, and the file that moves
@@ -136,6 +139,9 @@
 	const open = $derived(workspaces.find((workspace) => workspace.id === openWorkspaceId) ?? null);
 
 	let search = $state('');
+	// the empty treatment at a settings section's size: a directory here is one block among
+	// others, so it takes no screen's worth of padding.
+	const DIRECTORY_EMPTY = 'h-auto flex-none gap-3 rounded-2xl border border-dashed p-4 md:p-6';
 	let sort = $state<ListSort | null>(null);
 
 	const sortOptions = $derived([
@@ -221,12 +227,24 @@
 
 	<div class="flex flex-col gap-3" data-workspaces>
 		{#if workspaces.length === 0}
-			<p class="text-sm text-muted-foreground">{$LL.organization.dashboard.noWorkspaces()}</p>
+			<Empty
+				kind="nothing-yet"
+				title={$LL.organization.dashboard.noWorkspaces()}
+				class={DIRECTORY_EMPTY}
+			/>
 		{:else if shown.length === 0}
-			<!-- the list shell's words for a search that found nothing, so the two read alike. -->
-			<p class="text-sm text-muted-foreground" data-directory-no-match>
-				{$LL.common.messages.noResults()}
-			</p>
+			<!-- the one empty treatment's no-match ([[rules/interface]], *Empty*): the search found
+			     nobody, and the way out is putting it down. -->
+			<div data-directory-no-match>
+				<Empty kind="no-match" title={$LL.common.messages.noMatch()} class={DIRECTORY_EMPTY}>
+					{#snippet action()}
+						<Button type="button" variant="outline" size="sm" onclick={() => (search = '')}>
+							<XIcon />
+							{$LL.common.actions.clearSearch()}
+						</Button>
+					{/snippet}
+				</Empty>
+			</div>
 		{/if}
 
 		{#each shown as workspace (workspace.id)}

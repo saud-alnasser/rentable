@@ -2,6 +2,7 @@
 	import { browser } from '$app/environment';
 	import ExportDialog from '@rentable/design/block/export-dialog.svelte';
 	import CreateControl from '$lib/design/block/create-control.svelte';
+	import EmptyState, { type EmptyKind } from '@rentable/design/block/empty.svelte';
 	import Loading from '@rentable/design/block/loading.svelte';
 	import RecordActionControl from '@rentable/design/block/record-action-control.svelte';
 	import {
@@ -14,9 +15,9 @@
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Checkbox } from '@rentable/design/primitive/checkbox/index.js';
 	import * as DropdownMenu from '@rentable/design/primitive/dropdown-menu/index.js';
-	import * as Empty from '@rentable/design/primitive/empty/index.js';
 	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
 	import {
+		hasAnyFilter,
 		toChosenOption,
 		toFilterLabel,
 		toFilterOptions,
@@ -50,6 +51,7 @@
 	import ListTodoIcon from '@lucide/svelte/icons/list-todo';
 	import FunnelIcon from '@lucide/svelte/icons/funnel';
 	import ArrowLeftRightIcon from '@lucide/svelte/icons/arrow-left-right';
+	import PlusIcon from '@lucide/svelte/icons/plus';
 	import XIcon from '@lucide/svelte/icons/x';
 	import { createVirtualizer } from '@tanstack/svelte-virtual';
 	import { hasSameOrder, toClipPath, toTransitionName } from '$lib/design/list-motion';
@@ -165,9 +167,13 @@
 		 * it that does not change.
 		 */
 		selected?: string[];
-		/** What the empty state says when the list has no records to show. */
-		emptyTitle?: string;
-		/** An optional line under it, where the list can say why it is empty. */
+		/**
+		 * What the list says where it holds nothing yet: the concept's own words for what it will
+		 * hold. Required, because a list that holds nothing is not a search that found nothing, and
+		 * only the concept can say which records belong here ([[rules/interface]], *Empty*).
+		 */
+		emptyTitle: string;
+		/** A line under it, saying where the records come from. */
 		emptyDescription?: string;
 	};
 
@@ -191,7 +197,7 @@
 		recordHeight = 56,
 		groupHeaderHeight = 36,
 		recordMinWidth,
-		emptyTitle = $LL.common.messages.noResults(),
+		emptyTitle,
 		emptyDescription
 	}: ListProps = $props();
 
@@ -464,6 +470,27 @@
 	const selectedRows = $derived(selectedRecords(data, selected));
 
 	const hasResults = $derived(rows.length > 0);
+	// an empty list read under a search or a filter is a narrowing that matched nothing, and says
+	// so; read under neither, it is a list with nothing in it yet. The two never read the same.
+	const isSearched = $derived(search.trim() !== '');
+	const isFiltered = $derived(hasAnyFilter(filters));
+	const emptyKind = $derived<EmptyKind>(isSearched || isFiltered ? 'no-match' : 'nothing-yet');
+	const clearLabel = $derived(
+		isSearched && isFiltered
+			? $LL.common.actions.clearSearchAndFilters()
+			: isSearched
+				? $LL.common.actions.clearSearch()
+				: $LL.common.actions.clearFilters()
+	);
+
+	/** Put down whatever narrowed the list to nothing, so the whole set is drawn again. */
+	function clearNarrowing() {
+		// the answer is the list's own search being undone, so it is drawn at once, as a keystroke's
+		// answer is.
+		isAwaitingSearch = true;
+		search = '';
+		filters = {};
+	}
 	const isAwaitingFirstResults = $derived(isLoading && !hasResults);
 
 	const virtualizer = createVirtualizer<HTMLElement, HTMLElement>({
@@ -620,6 +647,15 @@
 	{:else}
 		{@render record(item)}
 	{/if}
+{/snippet}
+
+<!-- the create the toolbar offers, in words, where the list holds nothing yet. The key stays the
+     toolbar control's: this one holds no place, so the two cannot answer it twice. -->
+{#snippet createAct()}
+	<Button variant="outline" size="sm" onclick={() => onCreate?.()}>
+		<PlusIcon />
+		{$LL.common.actions.newRecord()}
+	</Button>
 {/snippet}
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -875,14 +911,26 @@
 			{/snippet}
 
 			{#if !hasResults}
-				<Empty.Root class="h-full">
-					<Empty.Header>
-						<Empty.Title>{emptyTitle}</Empty.Title>
-						{#if emptyDescription}
-							<Empty.Description>{emptyDescription}</Empty.Description>
-						{/if}
-					</Empty.Header>
-				</Empty.Root>
+				<!-- the one empty treatment ([[rules/interface]], *Empty*). Nothing yet says what the
+				     list will hold and offers the create the toolbar offers; a narrowing that matched
+				     nothing says so and offers to put the narrowing down. -->
+				{#if emptyKind === 'no-match'}
+					<EmptyState kind="no-match" title={$LL.common.messages.noMatch()}>
+						{#snippet action()}
+							<Button variant="outline" size="sm" onclick={clearNarrowing}>
+								<XIcon />
+								{clearLabel}
+							</Button>
+						{/snippet}
+					</EmptyState>
+				{:else}
+					<EmptyState
+						kind="nothing-yet"
+						title={emptyTitle}
+						description={emptyDescription}
+						action={onCreate ? createAct : undefined}
+					/>
+				{/if}
 			{:else}
 				<div
 					bind:this={viewport}
