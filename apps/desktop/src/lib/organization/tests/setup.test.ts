@@ -214,9 +214,9 @@ const STATEMENTS = {
 		oneOrganization:
 			'a group holds one organization. a group that already holds one is connected to, not refused.',
 		accountCreation:
-			'a free or developer turso account has exactly one group, so an account kept for rentable alone is the clean choice, and the consent screen is where you make one. on a paid account, pick an empty group.',
+			'a free or developer turso account holds one group, so keep one for rentable alone. on a paid one, pick an empty group.',
 		succession:
-			'on a personal account only you can grant access again; in a turso organization any admin can, and turso can move a group. rentable does neither for you.',
+			"only you, or a turso organization's admin, can grant access again, and turso can move a group. rentable does neither.",
 		groupAskedOnce:
 			'a group holding nothing yet is asked its name once, on the next step; turso names it nowhere.'
 	},
@@ -225,9 +225,9 @@ const STATEMENTS = {
 		oneOrganization:
 			'تحمل المجموعة الواحدة مؤسسة واحدة، وإن كانت تحمل واحدة بالفعل فالاتصال بها هو ما يحدث، لا الرفض.',
 		accountCreation:
-			'لا يحمل حساب Turso المجاني أو حساب Developer سوى مجموعة واحدة، لذا يبقى تخصيص حساب لـ rentable وحده هو الخيار الأنظف، وشاشة الموافقة تفتح لك حساباً إن لم يكن لديك واحد. أما في الحساب المدفوع فاختر مجموعة فارغة.',
+			'حساب Turso المجاني أو Developer يحمل مجموعة واحدة، فخصّص حسابًا لـ rentable وحده. وفي الحساب المدفوع اختر مجموعة فارغة.',
 		succession:
-			'في الحساب الشخصي أنت وحدك من يمنح الصلاحية مجدداً؛ وفي منظمة Turso يستطيع أي مدير ذلك، وتستطيع Turso نقل المجموعة. لا يفعل rentable أياً منهما نيابة عنك.',
+			'لا يمنح الصلاحية مجددًا إلا أنت أو مدير منظمة Turso، وتستطيع Turso نقل المجموعة. لا يفعل rentable أيًا منهما.',
 		groupAskedOnce:
 			'المجموعة التي لا تحمل شيئاً بعد يطلب rentable اسمها مرة واحدة في الخطوة التالية، فـ Turso لا تذكر هذا الاسم في أي مكان يصل إليه.'
 	}
