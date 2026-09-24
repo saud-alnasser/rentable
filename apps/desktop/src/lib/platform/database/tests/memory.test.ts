@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import { appRouter } from '$lib/api/router.ts';
 import { caller, context } from '$lib/api/trpc.ts';
-import { fakeIdentity } from '$lib/api/tests/testing.ts';
+import { fakeIdentity, refusedWith } from '$lib/api/tests/testing.ts';
 import { fakeHost } from '$lib/platform/tests/testing.ts';
 import { isRecordId, newId } from '../identity.ts';
 import { createMemoryDatabase } from '../memory.ts';
@@ -59,7 +59,7 @@ test('a domain rule enforced in a procedure rejects a duplicate national id', as
 
 	await assert.rejects(
 		() => api.tenant.create({ ...tenant, phone: '+966551234500' }),
-		/national id/
+		refusedWith('tenant.nationalIdTaken')
 	);
 });
 

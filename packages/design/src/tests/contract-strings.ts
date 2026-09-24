@@ -3,7 +3,7 @@ import type { DesignStrings } from '#lib/strings.js';
 /**
  * A complete set of strings for a test that cares about one of them.
  *
- * Scaffolding rather than a test. The contract is 36 keys, and a call site writing all of them
+ * Scaffolding rather than a test. The contract is 37 keys, and a call site writing all of them
  * out would be 35 lines of noise around the one being asserted.
  *
  * **Every default is the key's own name in braces**, which is a value no component here renders
@@ -49,6 +49,7 @@ export function suppliedStrings(overrides: Partial<DesignStrings> = {}): DesignS
 		previousSlide: '{previousSlide}',
 		recordNotFound: '{recordNotFound}',
 		recordNotFoundDescription: '{recordNotFoundDescription}',
+		refusal: (failure) => (failure instanceof Error ? failure.message : '{refusal}'),
 		sidebar: '{sidebar}',
 		toggleSidebar: '{toggleSidebar}',
 		unexpectedError: '{unexpectedError}',

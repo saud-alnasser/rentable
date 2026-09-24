@@ -4,7 +4,13 @@ import { beforeEach, describe, it, mock } from 'node:test';
 import type { CreateMutationResult } from '@tanstack/svelte-query';
 import { get } from 'svelte/store';
 
-import { type Api, createApi, monthsFromNow, seedTenant } from '$lib/api/tests/testing.ts';
+import {
+	type Api,
+	createApi,
+	monthsFromNow,
+	seedTenant,
+	refusedWith
+} from '$lib/api/tests/testing.ts';
 import { bindingOf } from '$lib/design/tests/testing.ts';
 import { fakeSyncState } from '$lib/platform/tests/testing.ts';
 
@@ -180,7 +186,7 @@ describe('undoing a record change', () => {
 					nationalId: '1999999999',
 					phone: '+966559999999'
 				}),
-			/another record already holds that id/
+			refusedWith('record.idTaken')
 		);
 	});
 
@@ -194,7 +200,7 @@ describe('undoing a record change', () => {
 		await run(useUpdateTenant, { id: tenant.id, name: 'Renamed' });
 		await caller.tenant.delete({ id: tenant.id });
 
-		await assert.rejects(() => inverseStack.undo(), /no longer in the workspace/);
+		await assert.rejects(() => inverseStack.undo(), refusedWith('tenant.gone'));
 
 		assert.equal(
 			await caller.tenant.get({ id: tenant.id }),
@@ -211,14 +217,14 @@ describe('undoing a record change', () => {
 		await run(useUpdateUnit, { id: unit.id, complexId: complex.id, name: 'A2' });
 		await caller.complex.units.delete({ id: unit.id });
 
-		await assert.rejects(() => inverseStack.undo(), /no longer in the workspace/);
+		await assert.rejects(() => inverseStack.undo(), refusedWith('unit.gone'));
 
 		inverseStack.clear();
 
 		await run(useUpdateComplex, { id: complex.id, name: 'Renamed' });
 		await caller.complex.delete({ id: complex.id });
 
-		await assert.rejects(() => inverseStack.undo(), /no longer in the workspace/);
+		await assert.rejects(() => inverseStack.undo(), refusedWith('complex.gone'));
 	});
 
 	it('takes back a complex, a unit, a contract and a payment alike', async () => {

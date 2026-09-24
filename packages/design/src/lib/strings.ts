@@ -28,10 +28,12 @@ import { getContext } from 'svelte';
  * surface's not-found three of that kind, `recordNotFound`, `recordNotFoundDescription` and
  * `goBack`, in place of the `noResults` it borrowed from the lists.
  *
- * **One key is a function and every other one is a string.** `moreRecords` counts the records a
+ * **Two keys are functions and every other one is a string.** `moreRecords` counts the records a
  * selection dialog decided not to name, which is arithmetic over a plan the consumer handed in
  * and therefore a number no consumer could have resolved the phrase against. When a key belongs
- * here at all is [[rules/frontend]]'s, and it turns on which side knows the number.
+ * here at all is [[rules/frontend]]'s, and it turns on which side knows the number. `refusal`
+ * words the refusal a confirmation earned, which crosses as a code the consumer alone can read
+ * (effort 832, requirement 23).
  *
  * The type is the first enforcement and not the only one. A consumer whose object is missing a
  * key fails `svelte-check` at the place it renders the provider, and the message names the key;
@@ -117,6 +119,9 @@ export type DesignStrings = {
 	recordNotFound: string;
 	/** the line under {@link DesignStrings.recordNotFound}, saying how a record comes to be gone. */
 	recordNotFoundDescription: string;
+	/** what a confirmation says for the refusal its action earned, in the reader's words. The
+	 * second key that is a function; the docstring above has why. */
+	refusal: (failure: unknown) => string;
 	/** what the sidebar's drawer presentation is titled, for a reader who cannot see it. */
 	sidebar: string;
 	/** the accessible name of both controls that fold and unfold the sidebar. */

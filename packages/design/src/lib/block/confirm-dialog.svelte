@@ -55,7 +55,8 @@
 		isOpen: () => open,
 		perform: () => onSubmit(),
 		close: () => onOpenChange(false),
-		unexpected: () => contract.strings.unexpectedError
+		unexpected: () => contract.strings.unexpectedError,
+		refusal: (failure) => contract.strings.refusal(failure)
 	});
 </script>
 

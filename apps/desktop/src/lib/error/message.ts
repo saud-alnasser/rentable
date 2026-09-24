@@ -1,5 +1,6 @@
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 
+import { readRefusal, toRefusalText } from '$lib/error/refusal';
 import { toTauriErrorCode } from '$lib/error/tauri';
 
 const FIRST_STRONG_ISOLATE = '⁨';
@@ -50,11 +51,12 @@ export function toErrorDetail(error: unknown): string | null {
 }
 
 /**
- * render a thrown value for the user. a failure that crossed the tauri boundary
- * is titled from its code so it is translated, and rust's untranslated prose is
- * kept as detail rather than discarded — it is the only description of what
- * actually went wrong. anything raised inside typescript is already written in
- * the user's language, so it is shown as it was written.
+ * render a thrown value for the user. a refusal a procedure raised is titled from
+ * its code (`error/refusal.ts`). a failure that crossed the tauri boundary is
+ * titled from its code so it is translated, and rust's untranslated prose is
+ * kept as detail rather than discarded, since it is the only description of what
+ * actually went wrong. anything else raised inside typescript is already written
+ * in the user's language, so it is shown as it was written.
  *
  * `fallback` replaces the generic message when there is nothing readable at all,
  * for callers that can say something more useful about where the failure was.
@@ -64,6 +66,11 @@ export function toErrorMessage(
 	translations: TranslationFunctions,
 	fallback?: string
 ): ErrorMessage {
+	// a refusal a procedure raised is a code, and its message is a developer's description.
+	if (readRefusal(error)) {
+		return { title: toRefusalText(error, translations), detail: null };
+	}
+
 	const code = toTauriErrorCode(error);
 
 	if (code) {

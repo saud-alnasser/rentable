@@ -33,8 +33,9 @@ the root helper beside it; an invalidation that spells a key out inline drifts t
 the key changes. Settings and remote-sync keep their own keys and invalidations.
 
 Toast behaviour on a mutation goes through the shared success and error handlers, never
-through direct toast calls in a component — that is what keeps `BAD_REQUEST` messages
-reaching the user and everything else reading as an unexpected failure.
+through direct toast calls in a component — that is what keeps a refusal reaching the user
+as the sentence its code stands for, in their language (`error/refusal.ts`, and
+[[rules/api-layer]] under *Errors*), and everything else reading as an unexpected failure.
 
 ## Components
 
@@ -453,9 +454,11 @@ packaged component says in its prop's own documentation that it expects a resolv
 that docstring is the only thing a second consumer will read before supplying one.
 
 **A parameterised string is the contract's only where the package owns the number.**
-`DesignStrings` is 36 keys and 35 of them are plain strings; `moreRecords` is a function because
+`DesignStrings` is 37 keys and 35 of them are plain strings; `moreRecords` is a function because
 `block/selection-dialog` counts the refused records it had no room to name, from a plan its
 consumer handed in, so there is no moment at which the consumer could have resolved the phrase.
+`refusal` is the second function: a confirmation turns the refusal its act earned into the
+reader's words, and only the consumer holds the refusal sentences (`error/refusal.ts`).
 Every other counted phrase on that surface arrives as a prop, `describeReason` and `summarize`
 among them, because the words are the concept's. **Ask who knows the number**: the package, and
 it is a key; the caller, and it is a prop.

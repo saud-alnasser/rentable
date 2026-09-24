@@ -63,3 +63,22 @@ test('a refusal carrying no message of its own falls back rather than showing an
 		'something went wrong'
 	);
 });
+
+// effort 832: a refusal crosses as a code, and only the consumer holds the sentence for it, so the
+// consumer's reader is what words it. The package still decides which failures are refusals.
+test("a refusal is worded by the consumer's reader, where one is given", () => {
+	const refusal = new TRPCError({ code: 'BAD_REQUEST', message: 'refused: unit.gone' });
+
+	assert.equal(
+		toRefusal(refusal, 'oops', () => 'لم تعد هذه الوحدة موجودة'),
+		'لم تعد هذه الوحدة موجودة'
+	);
+	assert.equal(
+		toRefusal(refusal, 'oops', () => ''),
+		'oops'
+	);
+	assert.equal(
+		toRefusal(new Error('the database is gone'), 'oops', () => 'never read'),
+		null
+	);
+});

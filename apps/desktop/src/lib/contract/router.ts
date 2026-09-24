@@ -4,6 +4,7 @@ import { matchesAnySearch } from '$lib/platform/database/search';
 import { ensureIdFree, newId } from '$lib/platform/database/identity';
 import * as s from '$lib/platform/database/schema';
 import { ContractSchema } from '$lib/platform/database/schema';
+import { refuse } from '$lib/api/refusal';
 import { autosync, procedure, router } from '$lib/api/trpc';
 import {
 	CONTRACT_ATTENTION_ORDER,
@@ -43,7 +44,6 @@ import { serializeContract } from '$lib/contract/serialize';
 import dashboard from '$lib/dashboard/router';
 import { groupPaymentsByContractId } from '$lib/payment/payment';
 import payment from '$lib/payment/router';
-import { TRPCError } from '@trpc/server';
 import {
 	and,
 	asc,
@@ -131,7 +131,7 @@ async function selectContract(db: Database, contractId: string) {
 	const contract = await db.select().from(s.contract).where(eq(s.contract.id, contractId)).get();
 
 	if (!contract) {
-		throw new TRPCError({ code: 'BAD_REQUEST', message: 'contract does not exist' });
+		throw refuse('contract.missing');
 	}
 
 	return contract;
@@ -433,10 +433,7 @@ export default router({
 				.get();
 
 			if (!tenant) {
-				throw new TRPCError({
-					code: 'BAD_REQUEST',
-					message: 'tenant does not exist'
-				});
+				throw refuse('contract.tenantMissing');
 			}
 
 			const normalizedGovId = input.govId?.trim() || null;
@@ -603,10 +600,7 @@ export default router({
 				.get();
 
 			if (!existingContract) {
-				throw new TRPCError({
-					code: 'BAD_REQUEST',
-					message: 'contract does not exist'
-				});
+				throw refuse('contract.missing');
 			}
 
 			ensureContractIsNotTerminated(existingContract.status);
@@ -618,10 +612,7 @@ export default router({
 				.get();
 
 			if (!tenant) {
-				throw new TRPCError({
-					code: 'BAD_REQUEST',
-					message: 'tenant does not exist'
-				});
+				throw refuse('contract.tenantMissing');
 			}
 
 			const normalizedGovId = input.govId?.trim() || null;
@@ -710,10 +701,7 @@ export default router({
 				.get();
 
 			if (!existingContract) {
-				throw new TRPCError({
-					code: 'BAD_REQUEST',
-					message: 'contract does not exist'
-				});
+				throw refuse('contract.missing');
 			}
 
 			const payments = await selectPaymentsForContract(ctx.db, input.id);
@@ -848,10 +836,7 @@ export default router({
 				.get();
 
 			if (!existingContract) {
-				throw new TRPCError({
-					code: 'BAD_REQUEST',
-					message: 'contract does not exist'
-				});
+				throw refuse('contract.missing');
 			}
 
 			ensureContractUnterminable(existingContract.status);
@@ -976,10 +961,7 @@ export default router({
 				govIds.find((govId, index) => govIds.indexOf(govId) !== index);
 
 			if (repeated) {
-				throw new TRPCError({
-					code: 'BAD_REQUEST',
-					message: `two contracts in this set claim ${repeated}`
-				});
+				throw refuse('contract.repeatedInSet', { value: repeated });
 			}
 
 			const held = await ctx.db.select().from(s.contract).where(inArray(s.contract.id, ids));
@@ -995,10 +977,7 @@ export default router({
 			const missingTenant = tenantIds.find((tenantId) => !heldTenantIds.has(tenantId));
 
 			if (missingTenant) {
-				throw new TRPCError({
-					code: 'BAD_REQUEST',
-					message: `tenant ${missingTenant} does not exist`
-				});
+				throw refuse('contract.tenantMissingNamed', { named: missingTenant });
 			}
 
 			const taken = govIds.length
@@ -1308,10 +1287,7 @@ export default router({
 					: [];
 
 				if (units.length !== nextUnitIds.length) {
-					throw new TRPCError({
-						code: 'BAD_REQUEST',
-						message: 'one or more units could not be found'
-					});
+					throw refuse('contract.unitsMissing');
 				}
 
 				const held = await ctx.db

@@ -5,6 +5,7 @@ import { ensureIdFree, newId } from '$lib/platform/database/identity';
 import { matchesAnySearch } from '$lib/platform/database/search';
 import * as s from '$lib/platform/database/schema';
 import { PaymentSchema, type Payment } from '$lib/platform/database/schema';
+import { refuse } from '$lib/api/refusal';
 import { autosync, procedure, router } from '$lib/api/trpc';
 import {
 	ensureContractIsNotTerminated,
@@ -19,7 +20,6 @@ import {
 	whatRefusesPaymentDeletion,
 	type PaymentRefusalReason
 } from '$lib/payment/payment';
-import { TRPCError } from '@trpc/server';
 import { and, desc, eq, inArray, sql, type AnyColumn, type SQL } from 'drizzle-orm';
 import z from 'zod';
 
@@ -248,10 +248,7 @@ export default router({
 				.get();
 
 			if (!contract) {
-				throw new TRPCError({
-					code: 'BAD_REQUEST',
-					message: 'contract does not exist'
-				});
+				throw refuse('contract.missing');
 			}
 
 			const registered = await ctx.db
@@ -292,10 +289,7 @@ export default router({
 				.get();
 
 			if (!existingPayment) {
-				throw new TRPCError({
-					code: 'BAD_REQUEST',
-					message: 'payment does not exist'
-				});
+				throw refuse('payment.missing');
 			}
 
 			const contract = await ctx.db
@@ -305,10 +299,7 @@ export default router({
 				.get();
 
 			if (!contract) {
-				throw new TRPCError({
-					code: 'BAD_REQUEST',
-					message: 'contract does not exist'
-				});
+				throw refuse('contract.missing');
 			}
 
 			ensureContractIsNotTerminated(contract.status);
@@ -353,10 +344,7 @@ export default router({
 				.get();
 
 			if (!contract) {
-				throw new TRPCError({
-					code: 'BAD_REQUEST',
-					message: 'contract does not exist'
-				});
+				throw refuse('contract.missing');
 			}
 
 			ensureContractIsNotTerminated(contract.status);
@@ -453,10 +441,7 @@ export default router({
 			const repeated = ids.find((id, index) => ids.indexOf(id) !== index);
 
 			if (repeated) {
-				throw new TRPCError({
-					code: 'BAD_REQUEST',
-					message: `two payments in this set claim ${repeated}`
-				});
+				throw refuse('payment.repeatedInSet', { value: repeated });
 			}
 
 			const held = await ctx.db.select().from(s.payment).where(inArray(s.payment.id, ids));
@@ -472,7 +457,7 @@ export default router({
 			const absent = contractIds.find((contractId) => !contractsById.has(contractId));
 
 			if (absent) {
-				throw new TRPCError({ code: 'BAD_REQUEST', message: 'contract does not exist' });
+				throw refuse('contract.missing');
 			}
 
 			const registered = await ctx.db

@@ -39,6 +39,7 @@
 	import { useCreateWorkspace } from '$lib/organization/query';
 	import { browserStartupPorts } from '$lib/layout/startup-ports';
 	import { DesignProvider, type DesignStrings } from '@rentable/design/strings.js';
+	import { toRefusalText } from '$lib/error/refusal';
 	import { QueryClient, QueryClientProvider } from '@tanstack/svelte-query';
 	import { getCurrentWindow } from '@tauri-apps/api/window';
 	import { tauri } from '$lib/platform/tauri';
@@ -120,6 +121,7 @@
 		previousSlide: $LL.common.ui.previousSlide(),
 		recordNotFound: $LL.common.messages.recordNotFound(),
 		recordNotFoundDescription: $LL.common.messages.recordNotFoundDescription(),
+		refusal: (failure: unknown) => toRefusalText(failure, $LL),
 		sidebar: $LL.common.ui.sidebar(),
 		toggleSidebar: $LL.common.ui.toggleSidebar(),
 		unexpectedError: $LL.common.messages.unexpectedError(),

@@ -1,6 +1,7 @@
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 
 import { toErrorMessage } from '$lib/error/message';
+import { toRefusalText } from '$lib/error/refusal';
 import { toRefusal } from '@rentable/design/confirmation.js';
 import { toast } from 'svelte-sonner';
 
@@ -50,12 +51,14 @@ export function showSuccessToast(title: string, detail?: string | null) {
  * show the refusal an act earned where no confirmation was open to hold it: a delete that ran at
  * once ([[rules/interface]], *Delete and confirm*).
  *
- * The same reading the confirmation dialogs make (`toRefusal`): a `BAD_REQUEST` is a sentence
- * written for the reader and is shown, anything else is a fault the mutation's own declaration
+ * The same reading the confirmation dialogs make (`toRefusal`): a `BAD_REQUEST` is a refusal
+ * and is shown in the reader's words (`toRefusalText`), anything else is a fault the mutation's own declaration
  * has already reported, and is not raised twice.
  */
 export function showRefusal(error: unknown, translations: TranslationFunctions) {
-	const refusal = toRefusal(error, translations.common.messages.unexpectedError());
+	const refusal = toRefusal(error, translations.common.messages.unexpectedError(), (failure) =>
+		toRefusalText(failure, translations)
+	);
 
 	if (refusal) {
 		showErrorSentence(refusal);

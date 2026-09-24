@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { type Api, createApi, monthsFromNow, NOW } from '$lib/api/tests/testing.ts';
+import { type Api, createApi, monthsFromNow, NOW, refusedWith } from '$lib/api/tests/testing.ts';
 import { toTables } from './file.ts';
 import {
 	emptyHeld,
@@ -165,7 +165,7 @@ test('a unit no sheet answers for is named back the way the file wrote it', asyn
 			],
 			payments: []
 		}),
-		{ message: "no unit called 'Al Waha / B1'" }
+		refusedWith('workspace.unknownUnit', { name: 'Al Waha / B1' })
 	);
 });
 
@@ -196,7 +196,7 @@ test('a contract worth nothing is refused here as it is everywhere else', async 
 			],
 			payments: []
 		}),
-		{ message: 'cost per payment must be greater than zero' }
+		refusedWith('contract.costNotPositive')
 	);
 
 	assert.deepEqual(await api.contract.getMany({}), []);
@@ -224,7 +224,7 @@ test('a contract whose term matches no whole number of cycles is refused here to
 			],
 			payments: []
 		}),
-		/annual cycle end date/
+		refusedWith('contract.periodOffCycle')
 	);
 
 	assert.deepEqual(await api.contract.getMany({}), []);
@@ -285,15 +285,9 @@ test('a payment a file names is held to the same rules the ledger is', async () 
 			payments: [{ contract: 'GOV-7', date, amount }]
 		});
 
-	await assert.rejects(write(0, monthsFromNow(0)), {
-		message: 'payment amount must be greater than zero'
-	});
-	await assert.rejects(write(-500, monthsFromNow(0)), {
-		message: 'payment amount must be greater than zero'
-	});
-	await assert.rejects(write(500, monthsFromNow(6)), {
-		message: 'a payment cannot be dated in the future'
-	});
+	await assert.rejects(write(0, monthsFromNow(0)), refusedWith('payment.amountNotPositive'));
+	await assert.rejects(write(-500, monthsFromNow(0)), refusedWith('payment.amountNotPositive'));
+	await assert.rejects(write(500, monthsFromNow(6)), refusedWith('payment.datedInFuture'));
 
 	const [contract] = await api.contract.getMany({});
 
@@ -342,14 +336,14 @@ test('a file cannot put money on a contract that has been terminated', async () 
 		});
 
 	// the same refusal the ledger gives, in the same words
-	await assert.rejects(write(), { message: 'terminated contracts are locked' });
+	await assert.rejects(write(), refusedWith('contract.terminatedLocked'));
 	await assert.rejects(
 		api.contract.payments.create({
 			contractId: contract.id,
 			date: monthsFromNow(0),
 			amount: 500
 		}),
-		{ message: 'terminated contracts are locked' }
+		refusedWith('contract.terminatedLocked')
 	);
 
 	const after = await api.contract.get({ id: contract.id });

@@ -5,6 +5,7 @@ import { ensureIdFree, newId } from '$lib/platform/database/identity';
 import * as s from '$lib/platform/database/schema';
 import { ComplexSchema, UnitSchema } from '$lib/platform/database/schema';
 import { planSelection } from '$lib/api/selection';
+import { refuse } from '$lib/api/refusal';
 import { autosync, procedure, router } from '$lib/api/trpc';
 import { addUtcDays, toUtcDay, type DateLike } from '$lib/api/date';
 import {
@@ -22,7 +23,6 @@ import {
 } from '$lib/complex/complex';
 import { CONTRACT_OCCUPYING_STATUSES, deriveUnitStatuses } from '$lib/contract/contract';
 import { groupPaymentsByContractId } from '$lib/payment/payment';
-import { TRPCError } from '@trpc/server';
 import { and, asc, desc, eq, gte, inArray, lt, sql, type AnyColumn, type SQL } from 'drizzle-orm';
 import { QueryBuilder } from 'drizzle-orm/sqlite-core';
 import z from 'zod';
@@ -309,10 +309,7 @@ export default router({
 					: null;
 
 			if (isNameUsed) {
-				throw new TRPCError({
-					code: 'BAD_REQUEST',
-					message: 'name is associated with a previously registered complex'
-				});
+				throw refuse('complex.nameTaken');
 			}
 
 			const values = {
@@ -430,10 +427,7 @@ export default router({
 				names.find((name, index) => names.indexOf(name) !== index);
 
 			if (repeated) {
-				throw new TRPCError({
-					code: 'BAD_REQUEST',
-					message: `two complexes in this set claim ${repeated}`
-				});
+				throw refuse('complex.repeatedInSet', { value: repeated });
 			}
 
 			const held = await ctx.db.select().from(s.complex).where(inArray(s.complex.id, ids));
@@ -723,10 +717,7 @@ export default router({
 				const repeated = ids.find((id, index) => ids.indexOf(id) !== index);
 
 				if (repeated) {
-					throw new TRPCError({
-						code: 'BAD_REQUEST',
-						message: `two units in this set claim ${repeated}`
-					});
+					throw refuse('unit.repeatedInSet', { value: repeated });
 				}
 
 				// a unit's name is unique within its complex rather than across the workspace, so the

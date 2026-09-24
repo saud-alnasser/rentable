@@ -19,9 +19,10 @@ import {
 	toUnitParts,
 	toUnitReference,
 	type WorkspaceHeld,
+	type WorkspaceRefusalCode,
 	type WorkspaceTransfer
 } from '$lib/workspace/workspace';
-import { TRPCError } from '@trpc/server';
+import { refuse } from '$lib/api/refusal';
 import { asc, eq } from 'drizzle-orm';
 import z from 'zod';
 
@@ -82,6 +83,14 @@ const WorkspaceTransferSchema = z.object({
 	payments: z.array(TransferPaymentSchema)
 });
 
+/** the refusal for a name the file refers to and does not hold, by what it names. */
+const UNKNOWN = {
+	complex: 'workspace.unknownComplex',
+	contract: 'workspace.unknownContract',
+	tenant: 'workspace.unknownTenant',
+	unit: 'workspace.unknownUnit'
+} as const satisfies Record<string, WorkspaceRefusalCode>;
+
 /**
  * The id a name stands for, or a refusal naming what could not be found.
  *
@@ -93,13 +102,13 @@ const WorkspaceTransferSchema = z.object({
 function resolve(
 	ids: Map<string, string>,
 	name: string,
-	what: string,
+	what: 'complex' | 'contract' | 'tenant' | 'unit',
 	values: readonly string[] = [name]
 ) {
 	const id = ids.get(toTransferKey(...values));
 
 	if (id === undefined) {
-		throw new TRPCError({ code: 'BAD_REQUEST', message: `no ${what} called '${name.trim()}'` });
+		throw refuse(UNKNOWN[what], { name: name.trim() });
 	}
 
 	return id;
@@ -428,7 +437,7 @@ export default router({
 			];
 
 			if (statements.length === 0) {
-				throw new TRPCError({ code: 'BAD_REQUEST', message: 'there is nothing to import' });
+				throw refuse('workspace.nothingToImport');
 			}
 
 			// the batch's type asks for at least one statement, and the guard above is what

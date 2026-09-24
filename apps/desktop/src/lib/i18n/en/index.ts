@@ -227,6 +227,80 @@ const en = {
 			'this-year': 'this year'
 		},
 
+		// what a procedure's refusal says, by the code it was raised with (`$lib/api/refusal`). A
+		// refusal crosses as a code and its values, and this is the only place it becomes words.
+		refusals: {
+			complex: {
+				gone: 'this complex is no longer in the workspace. reload to see what changed.',
+				holdsUnits: 'this complex still holds units. delete them before deleting it.',
+				nameTaken: 'name is associated with a previously registered complex.',
+				nameTakenNamed:
+					'the name {named:string} is associated with a previously registered complex.',
+				repeatedInSet: 'two complexes in this set claim {value:string}.'
+			},
+			contract: {
+				costNotPositive: 'cost per payment must be greater than zero.',
+				endBeforeStart: 'end date must be after start date.',
+				govIdTaken: 'government id is associated with another contract.',
+				govIdTakenNamed: 'government id {named:string} is associated with another contract.',
+				holdsPayments: 'this contract has payments. delete them before deleting it.',
+				holdsUnits: 'this contract still holds units. remove them before deleting it.',
+				missing: 'this contract is no longer in the workspace. reload to see what changed.',
+				notTerminable: 'only an active, fulfilled or past contract can be terminated.',
+				notUnterminable: 'only a terminated contract can be restored.',
+				paidInFull: 'this contract is paid in full and takes no more payments.',
+				periodOffCycle:
+					'end date must stay within {days:number} days before or after the calculated {interval:string} cycle end date.',
+				periodOverlapsUnits:
+					'another contract holds one or more of these units over the new dates. choose different dates.',
+				renewalBeforeEnd: 'a renewal must start after the contract it renews ends.',
+				repeatedInSet: 'two contracts in this set claim {value:string}.',
+				tenantMissing: 'the selected tenant is no longer in the workspace. choose another.',
+				tenantMissingNamed: 'no tenant with the id {named:string} is in the workspace.',
+				terminatedLocked: 'this contract is terminated and locked. restore it before changing it.',
+				unitsLockedByPayments:
+					'the units of a contract cannot change once payments are registered against it.',
+				unitsMissing:
+					'one or more of these units are no longer in the workspace. reload to see what changed.',
+				unitsUnavailable:
+					'another contract holds one or more of these units over the selected term. choose a different term.'
+			},
+			payment: {
+				amountNotPositive: 'payment amount must be greater than zero.',
+				datedInFuture: 'a payment cannot be dated in the future.',
+				missing: 'this payment is no longer in the workspace. reload to see what changed.',
+				repeatedInSet: 'two payments in this set claim {value:string}.'
+			},
+			record: {
+				idTaken: 'another record already holds that id.',
+				idTakenNamed: 'another record already holds the id {named:string}.'
+			},
+			tenant: {
+				gone: 'this tenant is no longer in the workspace. reload to see what changed.',
+				holdsContracts: 'contracts mention this tenant, so it cannot be deleted.',
+				nationalIdTaken: 'national id is associated with a registered tenant.',
+				nationalIdTakenNamed: 'national id {named:string} is associated with a registered tenant.',
+				phoneTaken: 'phone is associated with a registered tenant.',
+				phoneTakenNamed: 'phone {named:string} is associated with a registered tenant.',
+				repeatedInSet: 'two tenants in this set claim {value:string}.'
+			},
+			unit: {
+				gone: 'this unit is no longer in the workspace. reload to see what changed.',
+				holdsContracts: 'a contract mentions this unit, so it cannot be deleted.',
+				nameRepeated: '{name:string} is used twice; each unit needs its own name.',
+				nameTaken: 'name is associated with a unit in the same complex.',
+				nameTakenNamed: 'the name {named:string} is associated with a unit in the same complex.',
+				repeatedInSet: 'two units in this set claim {value:string}.'
+			},
+			workspace: {
+				nothingToImport: 'there is nothing to import.',
+				unknownComplex: 'the file names a complex called {name:string}, and there is none.',
+				unknownContract: 'the file names a contract called {name:string}, and there is none.',
+				unknownTenant: 'the file names a tenant called {name:string}, and there is none.',
+				unknownUnit: 'the file names a unit called {name:string}, and there is none.'
+			}
+		},
+
 		selection: {
 			more: 'and {count|number} more',
 			nothingToDo: 'none of the selected records can take this action.',
@@ -556,9 +630,7 @@ const en = {
 		},
 
 		form: {
-			duplicateName: 'name is associated with a previously registered complex.',
 			duplicateUnitName: '{name:string} is already in the list.',
-			duplicateUnitNames: 'two units share a name; each needs its own.',
 			noUnitNamed: 'name at least one unit.',
 			noUnitsYet: 'no units yet. add them here, or later from the complex itself.',
 			unitName: 'unit name',
@@ -585,7 +657,6 @@ const en = {
 			contractsEmptyTitle: 'no contracts mention this unit',
 			emptyDescription: 'units you add to this complex will be listed here.',
 			emptyTitle: 'no units in this complex yet',
-			duplicateName: 'name is associated with a unit in the same complex.',
 			management: 'units management'
 		}
 	},
@@ -610,8 +681,6 @@ const en = {
 
 		form: {
 			phoneCountryCode: 'country code',
-			duplicateNationalId: 'national id is associated with a registered tenant.',
-			duplicatePhone: 'phone is associated with a registered tenant.',
 			invalidNationalId: 'national identity number must start with 1 or 2 and be 10 digits long.',
 			invalidPhone: 'phone must be valid for the selected country code {countryCode}.',
 			phoneNumberPlaceholder: '5xxxxxxxx',
@@ -639,15 +708,11 @@ const en = {
 				'updated automatically from the selected cycle, start date, and number of cycles. you can manually adjust it within {days} days before or after the suggested end date; allowed dates are highlighted in green.',
 			costDecimalPlaces: 'cost can have at most two decimal places.',
 			costGreaterThanZero: 'cost must be greater than zero.',
-			costPerPaymentGreaterThanZero: 'cost per payment must be greater than zero.',
 			costRequired: 'cost is required.',
 			cyclesGreaterThanZero: 'number of cycles must be greater than zero.',
 			cyclesRequired: 'number of cycles is required.',
-			duplicateGovernmentId: 'government id is associated with another contract.',
-			endDateAfterStart: 'end date must be after start date.',
 			endDateRequired: 'end date is required.',
 			endDateShort: 'end date',
-			invalidTenant: 'please select a valid tenant.',
 			loadingTenant: 'loading tenant...',
 			loadingTenants: 'loading tenants...',
 			noTenantFound: 'no tenant found.',
@@ -664,9 +729,6 @@ const en = {
 			renewDescription:
 				'the tenant, units, cycle and cost carry over from the contract being renewed. set the term the renewal runs for.',
 			renewTitle: 'renew contract',
-			renewalMustFollowOriginal: 'a renewal must start after the contract it renews ends.',
-			renewalUnitsUnavailable:
-				'another contract holds one or more of these units over the selected term. choose a different term.',
 			searchAndSelectTenant: 'search and select tenant',
 			searchTenantPlaceholder: 'search tenant by name, id or phone...',
 			startDateRequired: 'start date is required.',

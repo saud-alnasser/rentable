@@ -67,10 +67,12 @@ export function isTauriError(value: unknown): value is TauriError {
  * crossed as one code until effort 828 gave them this one.
  */
 export function toTauriRefusalReason(error: unknown): TauriRefusalReason | null {
-	if (!isTauriError(error) || error.code !== 'refused') return null;
+	const rejected = toTauriError(error);
 
-	return TAURI_REFUSAL_REASONS.includes(error.reason as TauriRefusalReason)
-		? (error.reason as TauriRefusalReason)
+	if (!rejected || rejected.code !== 'refused') return null;
+
+	return TAURI_REFUSAL_REASONS.includes(rejected.reason as TauriRefusalReason)
+		? (rejected.reason as TauriRefusalReason)
 		: null;
 }
 
@@ -79,5 +81,23 @@ export function toTauriRefusalReason(error: unknown): TauriRefusalReason | null 
  * inside typescript and never crossed the boundary.
  */
 export function toTauriErrorCode(error: unknown): TauriErrorCode | null {
-	return isTauriError(error) ? error.code : null;
+	return toTauriError(error)?.code ?? null;
+}
+
+/**
+ * the payload a command rejected with, whether it arrived as it was sent or inside the error a
+ * procedure wrapped it in.
+ *
+ * **A rejection that crossed a procedure is not the payload any more.** tRPC turns anything thrown
+ * inside one that is not its own error into an `INTERNAL_SERVER_ERROR`, and keeps what was thrown
+ * as its `cause`, with the payload's fields copied onto it. A read of the outer error alone finds
+ * no code, which is how every refusal a `ctx.host` call raised read as unexpected until effort 832
+ * (`error/tests/tauri.test.ts` pins the wrapping, so a change in the library shows up there).
+ */
+export function toTauriError(error: unknown): TauriError | null {
+	if (isTauriError(error)) return error;
+
+	if (error instanceof Error && isTauriError(error.cause)) return error.cause;
+
+	return null;
 }

@@ -5,6 +5,7 @@
 	import FormSurface, { insetControl } from '@rentable/design/block/form-surface.svelte';
 	import * as Form from '@rentable/design/primitive/form/index.js';
 	import { Input } from '@rentable/design/primitive/input/index.js';
+	import { fieldOfRefusal, readRefusal, toRefusalText } from '$lib/error/refusal';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { useCreateManyUnits, useFetchUnits, useUpdateUnit } from '$lib/complex/query';
 	import type { DraftUnit } from '$lib/complex/unit-name';
@@ -101,14 +102,12 @@
 					// an unexpected failure is the shared error handler's to report, and it already has:
 					// what is left here is the refusal, mapped onto the field the reader would fix.
 					if (e instanceof TRPCError && e.code === 'BAD_REQUEST') {
-						// a collision the workspace found belongs to the list being named, except
-						// while editing, where the one field is the whole form.
+						// a refusal belongs to the list being named, except while editing, where
+						// the one field is the whole form.
 						if (isCreating) {
-							unitError = e.message.includes('used twice')
-								? $LL.complexes.form.duplicateUnitNames()
-								: $LL.complexes.units.duplicateName();
-						} else if (e.message.includes('name')) {
-							setError(form, 'name', $LL.complexes.units.duplicateName());
+							unitError = toRefusalText(e, $LL);
+						} else if (fieldOfRefusal(readRefusal(e)?.code) === 'name') {
+							setError(form, 'name', toRefusalText(e, $LL));
 						}
 					}
 				}

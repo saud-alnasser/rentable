@@ -2,6 +2,13 @@
 // isolated in-memory database, a fixed clock, and a fake host. Not a `*.test.ts` file, so
 // the test runner does not pick it up directly.
 
+import assert from 'node:assert/strict';
+
+import { readRefusal, type RefusalCode, type RefusalParams } from '$lib/api/refusal.ts';
+import { toRefusalText } from '$lib/error/refusal.ts';
+import type { Locales } from '$lib/i18n/i18n-types.ts';
+import { i18nObject } from '$lib/i18n/i18n-util.ts';
+import { loadLocale } from '$lib/i18n/i18n-util.sync.ts';
 import {
 	closeFileDatabase,
 	createFileDatabase,
@@ -137,4 +144,42 @@ export async function withStatementLog(run: (api: Api, drain: () => string[]) =>
 /** how many of the logged statements were of a kind. */
 export function countMatching(statements: readonly string[], pattern: RegExp) {
 	return statements.filter((sql) => pattern.test(sql)).length;
+}
+
+/**
+ * What `assert.rejects` and `assert.throws` are handed to say a call was refused with this code.
+ *
+ * A refusal crosses as a code and its values ([[rules/api-layer]], under *Errors*), so that is
+ * what a test pins rather than the message, which is a developer's description and free to change.
+ * Pass `params` to pin the values the sentence will be built from as well.
+ */
+export function refusedWith(code: RefusalCode, params?: RefusalParams) {
+	return (error: unknown) => {
+		const refusal = readRefusal(error);
+
+		assert.equal(refusal?.code, code, `expected a refusal of ${code}, got ${String(error)}`);
+
+		if (params) {
+			assert.deepEqual(refusal?.params, params);
+		}
+
+		return true;
+	};
+}
+
+/**
+ * What a refused call says to a reader of `locale`: the sentence the interface would show for it.
+ *
+ * Arabic by default, because that is the reader a refusal written as English prose used to fail
+ * (effort 832, requirement 23), and the test that reads it there is the one that would notice.
+ */
+export async function refusalReadIn(call: () => Promise<unknown>, locale: Locales = 'ar') {
+	loadLocale(locale);
+
+	const error = await call().then(
+		() => assert.fail('the call should have been refused'),
+		(failure: unknown) => failure
+	);
+
+	return toRefusalText(error, i18nObject(locale));
 }

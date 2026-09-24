@@ -782,6 +782,237 @@ type RootTranslation = {
 			 */
 			'this-year': string
 		}
+		refusals: {
+			complex: {
+				/**
+				 * t​h​i​s​ ​c​o​m​p​l​e​x​ ​i​s​ ​n​o​ ​l​o​n​g​e​r​ ​i​n​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e​.​ ​r​e​l​o​a​d​ ​t​o​ ​s​e​e​ ​w​h​a​t​ ​c​h​a​n​g​e​d​.
+				 */
+				gone: string
+				/**
+				 * t​h​i​s​ ​c​o​m​p​l​e​x​ ​s​t​i​l​l​ ​h​o​l​d​s​ ​u​n​i​t​s​.​ ​d​e​l​e​t​e​ ​t​h​e​m​ ​b​e​f​o​r​e​ ​d​e​l​e​t​i​n​g​ ​i​t​.
+				 */
+				holdsUnits: string
+				/**
+				 * n​a​m​e​ ​i​s​ ​a​s​s​o​c​i​a​t​e​d​ ​w​i​t​h​ ​a​ ​p​r​e​v​i​o​u​s​l​y​ ​r​e​g​i​s​t​e​r​e​d​ ​c​o​m​p​l​e​x​.
+				 */
+				nameTaken: string
+				/**
+				 * t​h​e​ ​n​a​m​e​ ​{​n​a​m​e​d​}​ ​i​s​ ​a​s​s​o​c​i​a​t​e​d​ ​w​i​t​h​ ​a​ ​p​r​e​v​i​o​u​s​l​y​ ​r​e​g​i​s​t​e​r​e​d​ ​c​o​m​p​l​e​x​.
+				 * @param {string} named
+				 */
+				nameTakenNamed: RequiredParams<'named'>
+				/**
+				 * t​w​o​ ​c​o​m​p​l​e​x​e​s​ ​i​n​ ​t​h​i​s​ ​s​e​t​ ​c​l​a​i​m​ ​{​v​a​l​u​e​}​.
+				 * @param {string} value
+				 */
+				repeatedInSet: RequiredParams<'value'>
+			}
+			contract: {
+				/**
+				 * c​o​s​t​ ​p​e​r​ ​p​a​y​m​e​n​t​ ​m​u​s​t​ ​b​e​ ​g​r​e​a​t​e​r​ ​t​h​a​n​ ​z​e​r​o​.
+				 */
+				costNotPositive: string
+				/**
+				 * e​n​d​ ​d​a​t​e​ ​m​u​s​t​ ​b​e​ ​a​f​t​e​r​ ​s​t​a​r​t​ ​d​a​t​e​.
+				 */
+				endBeforeStart: string
+				/**
+				 * g​o​v​e​r​n​m​e​n​t​ ​i​d​ ​i​s​ ​a​s​s​o​c​i​a​t​e​d​ ​w​i​t​h​ ​a​n​o​t​h​e​r​ ​c​o​n​t​r​a​c​t​.
+				 */
+				govIdTaken: string
+				/**
+				 * g​o​v​e​r​n​m​e​n​t​ ​i​d​ ​{​n​a​m​e​d​}​ ​i​s​ ​a​s​s​o​c​i​a​t​e​d​ ​w​i​t​h​ ​a​n​o​t​h​e​r​ ​c​o​n​t​r​a​c​t​.
+				 * @param {string} named
+				 */
+				govIdTakenNamed: RequiredParams<'named'>
+				/**
+				 * t​h​i​s​ ​c​o​n​t​r​a​c​t​ ​h​a​s​ ​p​a​y​m​e​n​t​s​.​ ​d​e​l​e​t​e​ ​t​h​e​m​ ​b​e​f​o​r​e​ ​d​e​l​e​t​i​n​g​ ​i​t​.
+				 */
+				holdsPayments: string
+				/**
+				 * t​h​i​s​ ​c​o​n​t​r​a​c​t​ ​s​t​i​l​l​ ​h​o​l​d​s​ ​u​n​i​t​s​.​ ​r​e​m​o​v​e​ ​t​h​e​m​ ​b​e​f​o​r​e​ ​d​e​l​e​t​i​n​g​ ​i​t​.
+				 */
+				holdsUnits: string
+				/**
+				 * t​h​i​s​ ​c​o​n​t​r​a​c​t​ ​i​s​ ​n​o​ ​l​o​n​g​e​r​ ​i​n​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e​.​ ​r​e​l​o​a​d​ ​t​o​ ​s​e​e​ ​w​h​a​t​ ​c​h​a​n​g​e​d​.
+				 */
+				missing: string
+				/**
+				 * o​n​l​y​ ​a​n​ ​a​c​t​i​v​e​,​ ​f​u​l​f​i​l​l​e​d​ ​o​r​ ​p​a​s​t​ ​c​o​n​t​r​a​c​t​ ​c​a​n​ ​b​e​ ​t​e​r​m​i​n​a​t​e​d​.
+				 */
+				notTerminable: string
+				/**
+				 * o​n​l​y​ ​a​ ​t​e​r​m​i​n​a​t​e​d​ ​c​o​n​t​r​a​c​t​ ​c​a​n​ ​b​e​ ​r​e​s​t​o​r​e​d​.
+				 */
+				notUnterminable: string
+				/**
+				 * t​h​i​s​ ​c​o​n​t​r​a​c​t​ ​i​s​ ​p​a​i​d​ ​i​n​ ​f​u​l​l​ ​a​n​d​ ​t​a​k​e​s​ ​n​o​ ​m​o​r​e​ ​p​a​y​m​e​n​t​s​.
+				 */
+				paidInFull: string
+				/**
+				 * e​n​d​ ​d​a​t​e​ ​m​u​s​t​ ​s​t​a​y​ ​w​i​t​h​i​n​ ​{​d​a​y​s​}​ ​d​a​y​s​ ​b​e​f​o​r​e​ ​o​r​ ​a​f​t​e​r​ ​t​h​e​ ​c​a​l​c​u​l​a​t​e​d​ ​{​i​n​t​e​r​v​a​l​}​ ​c​y​c​l​e​ ​e​n​d​ ​d​a​t​e​.
+				 * @param {number} days
+				 * @param {string} interval
+				 */
+				periodOffCycle: RequiredParams<'days' | 'interval'>
+				/**
+				 * a​n​o​t​h​e​r​ ​c​o​n​t​r​a​c​t​ ​h​o​l​d​s​ ​o​n​e​ ​o​r​ ​m​o​r​e​ ​o​f​ ​t​h​e​s​e​ ​u​n​i​t​s​ ​o​v​e​r​ ​t​h​e​ ​n​e​w​ ​d​a​t​e​s​.​ ​c​h​o​o​s​e​ ​d​i​f​f​e​r​e​n​t​ ​d​a​t​e​s​.
+				 */
+				periodOverlapsUnits: string
+				/**
+				 * a​ ​r​e​n​e​w​a​l​ ​m​u​s​t​ ​s​t​a​r​t​ ​a​f​t​e​r​ ​t​h​e​ ​c​o​n​t​r​a​c​t​ ​i​t​ ​r​e​n​e​w​s​ ​e​n​d​s​.
+				 */
+				renewalBeforeEnd: string
+				/**
+				 * t​w​o​ ​c​o​n​t​r​a​c​t​s​ ​i​n​ ​t​h​i​s​ ​s​e​t​ ​c​l​a​i​m​ ​{​v​a​l​u​e​}​.
+				 * @param {string} value
+				 */
+				repeatedInSet: RequiredParams<'value'>
+				/**
+				 * t​h​e​ ​s​e​l​e​c​t​e​d​ ​t​e​n​a​n​t​ ​i​s​ ​n​o​ ​l​o​n​g​e​r​ ​i​n​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e​.​ ​c​h​o​o​s​e​ ​a​n​o​t​h​e​r​.
+				 */
+				tenantMissing: string
+				/**
+				 * n​o​ ​t​e​n​a​n​t​ ​w​i​t​h​ ​t​h​e​ ​i​d​ ​{​n​a​m​e​d​}​ ​i​s​ ​i​n​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e​.
+				 * @param {string} named
+				 */
+				tenantMissingNamed: RequiredParams<'named'>
+				/**
+				 * t​h​i​s​ ​c​o​n​t​r​a​c​t​ ​i​s​ ​t​e​r​m​i​n​a​t​e​d​ ​a​n​d​ ​l​o​c​k​e​d​.​ ​r​e​s​t​o​r​e​ ​i​t​ ​b​e​f​o​r​e​ ​c​h​a​n​g​i​n​g​ ​i​t​.
+				 */
+				terminatedLocked: string
+				/**
+				 * t​h​e​ ​u​n​i​t​s​ ​o​f​ ​a​ ​c​o​n​t​r​a​c​t​ ​c​a​n​n​o​t​ ​c​h​a​n​g​e​ ​o​n​c​e​ ​p​a​y​m​e​n​t​s​ ​a​r​e​ ​r​e​g​i​s​t​e​r​e​d​ ​a​g​a​i​n​s​t​ ​i​t​.
+				 */
+				unitsLockedByPayments: string
+				/**
+				 * o​n​e​ ​o​r​ ​m​o​r​e​ ​o​f​ ​t​h​e​s​e​ ​u​n​i​t​s​ ​a​r​e​ ​n​o​ ​l​o​n​g​e​r​ ​i​n​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e​.​ ​r​e​l​o​a​d​ ​t​o​ ​s​e​e​ ​w​h​a​t​ ​c​h​a​n​g​e​d​.
+				 */
+				unitsMissing: string
+				/**
+				 * a​n​o​t​h​e​r​ ​c​o​n​t​r​a​c​t​ ​h​o​l​d​s​ ​o​n​e​ ​o​r​ ​m​o​r​e​ ​o​f​ ​t​h​e​s​e​ ​u​n​i​t​s​ ​o​v​e​r​ ​t​h​e​ ​s​e​l​e​c​t​e​d​ ​t​e​r​m​.​ ​c​h​o​o​s​e​ ​a​ ​d​i​f​f​e​r​e​n​t​ ​t​e​r​m​.
+				 */
+				unitsUnavailable: string
+			}
+			payment: {
+				/**
+				 * p​a​y​m​e​n​t​ ​a​m​o​u​n​t​ ​m​u​s​t​ ​b​e​ ​g​r​e​a​t​e​r​ ​t​h​a​n​ ​z​e​r​o​.
+				 */
+				amountNotPositive: string
+				/**
+				 * a​ ​p​a​y​m​e​n​t​ ​c​a​n​n​o​t​ ​b​e​ ​d​a​t​e​d​ ​i​n​ ​t​h​e​ ​f​u​t​u​r​e​.
+				 */
+				datedInFuture: string
+				/**
+				 * t​h​i​s​ ​p​a​y​m​e​n​t​ ​i​s​ ​n​o​ ​l​o​n​g​e​r​ ​i​n​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e​.​ ​r​e​l​o​a​d​ ​t​o​ ​s​e​e​ ​w​h​a​t​ ​c​h​a​n​g​e​d​.
+				 */
+				missing: string
+				/**
+				 * t​w​o​ ​p​a​y​m​e​n​t​s​ ​i​n​ ​t​h​i​s​ ​s​e​t​ ​c​l​a​i​m​ ​{​v​a​l​u​e​}​.
+				 * @param {string} value
+				 */
+				repeatedInSet: RequiredParams<'value'>
+			}
+			record: {
+				/**
+				 * a​n​o​t​h​e​r​ ​r​e​c​o​r​d​ ​a​l​r​e​a​d​y​ ​h​o​l​d​s​ ​t​h​a​t​ ​i​d​.
+				 */
+				idTaken: string
+				/**
+				 * a​n​o​t​h​e​r​ ​r​e​c​o​r​d​ ​a​l​r​e​a​d​y​ ​h​o​l​d​s​ ​t​h​e​ ​i​d​ ​{​n​a​m​e​d​}​.
+				 * @param {string} named
+				 */
+				idTakenNamed: RequiredParams<'named'>
+			}
+			tenant: {
+				/**
+				 * t​h​i​s​ ​t​e​n​a​n​t​ ​i​s​ ​n​o​ ​l​o​n​g​e​r​ ​i​n​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e​.​ ​r​e​l​o​a​d​ ​t​o​ ​s​e​e​ ​w​h​a​t​ ​c​h​a​n​g​e​d​.
+				 */
+				gone: string
+				/**
+				 * c​o​n​t​r​a​c​t​s​ ​m​e​n​t​i​o​n​ ​t​h​i​s​ ​t​e​n​a​n​t​,​ ​s​o​ ​i​t​ ​c​a​n​n​o​t​ ​b​e​ ​d​e​l​e​t​e​d​.
+				 */
+				holdsContracts: string
+				/**
+				 * n​a​t​i​o​n​a​l​ ​i​d​ ​i​s​ ​a​s​s​o​c​i​a​t​e​d​ ​w​i​t​h​ ​a​ ​r​e​g​i​s​t​e​r​e​d​ ​t​e​n​a​n​t​.
+				 */
+				nationalIdTaken: string
+				/**
+				 * n​a​t​i​o​n​a​l​ ​i​d​ ​{​n​a​m​e​d​}​ ​i​s​ ​a​s​s​o​c​i​a​t​e​d​ ​w​i​t​h​ ​a​ ​r​e​g​i​s​t​e​r​e​d​ ​t​e​n​a​n​t​.
+				 * @param {string} named
+				 */
+				nationalIdTakenNamed: RequiredParams<'named'>
+				/**
+				 * p​h​o​n​e​ ​i​s​ ​a​s​s​o​c​i​a​t​e​d​ ​w​i​t​h​ ​a​ ​r​e​g​i​s​t​e​r​e​d​ ​t​e​n​a​n​t​.
+				 */
+				phoneTaken: string
+				/**
+				 * p​h​o​n​e​ ​{​n​a​m​e​d​}​ ​i​s​ ​a​s​s​o​c​i​a​t​e​d​ ​w​i​t​h​ ​a​ ​r​e​g​i​s​t​e​r​e​d​ ​t​e​n​a​n​t​.
+				 * @param {string} named
+				 */
+				phoneTakenNamed: RequiredParams<'named'>
+				/**
+				 * t​w​o​ ​t​e​n​a​n​t​s​ ​i​n​ ​t​h​i​s​ ​s​e​t​ ​c​l​a​i​m​ ​{​v​a​l​u​e​}​.
+				 * @param {string} value
+				 */
+				repeatedInSet: RequiredParams<'value'>
+			}
+			unit: {
+				/**
+				 * t​h​i​s​ ​u​n​i​t​ ​i​s​ ​n​o​ ​l​o​n​g​e​r​ ​i​n​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e​.​ ​r​e​l​o​a​d​ ​t​o​ ​s​e​e​ ​w​h​a​t​ ​c​h​a​n​g​e​d​.
+				 */
+				gone: string
+				/**
+				 * a​ ​c​o​n​t​r​a​c​t​ ​m​e​n​t​i​o​n​s​ ​t​h​i​s​ ​u​n​i​t​,​ ​s​o​ ​i​t​ ​c​a​n​n​o​t​ ​b​e​ ​d​e​l​e​t​e​d​.
+				 */
+				holdsContracts: string
+				/**
+				 * {​n​a​m​e​}​ ​i​s​ ​u​s​e​d​ ​t​w​i​c​e​;​ ​e​a​c​h​ ​u​n​i​t​ ​n​e​e​d​s​ ​i​t​s​ ​o​w​n​ ​n​a​m​e​.
+				 * @param {string} name
+				 */
+				nameRepeated: RequiredParams<'name'>
+				/**
+				 * n​a​m​e​ ​i​s​ ​a​s​s​o​c​i​a​t​e​d​ ​w​i​t​h​ ​a​ ​u​n​i​t​ ​i​n​ ​t​h​e​ ​s​a​m​e​ ​c​o​m​p​l​e​x​.
+				 */
+				nameTaken: string
+				/**
+				 * t​h​e​ ​n​a​m​e​ ​{​n​a​m​e​d​}​ ​i​s​ ​a​s​s​o​c​i​a​t​e​d​ ​w​i​t​h​ ​a​ ​u​n​i​t​ ​i​n​ ​t​h​e​ ​s​a​m​e​ ​c​o​m​p​l​e​x​.
+				 * @param {string} named
+				 */
+				nameTakenNamed: RequiredParams<'named'>
+				/**
+				 * t​w​o​ ​u​n​i​t​s​ ​i​n​ ​t​h​i​s​ ​s​e​t​ ​c​l​a​i​m​ ​{​v​a​l​u​e​}​.
+				 * @param {string} value
+				 */
+				repeatedInSet: RequiredParams<'value'>
+			}
+			workspace: {
+				/**
+				 * t​h​e​r​e​ ​i​s​ ​n​o​t​h​i​n​g​ ​t​o​ ​i​m​p​o​r​t​.
+				 */
+				nothingToImport: string
+				/**
+				 * t​h​e​ ​f​i​l​e​ ​n​a​m​e​s​ ​a​ ​c​o​m​p​l​e​x​ ​c​a​l​l​e​d​ ​{​n​a​m​e​}​,​ ​a​n​d​ ​t​h​e​r​e​ ​i​s​ ​n​o​n​e​.
+				 * @param {string} name
+				 */
+				unknownComplex: RequiredParams<'name'>
+				/**
+				 * t​h​e​ ​f​i​l​e​ ​n​a​m​e​s​ ​a​ ​c​o​n​t​r​a​c​t​ ​c​a​l​l​e​d​ ​{​n​a​m​e​}​,​ ​a​n​d​ ​t​h​e​r​e​ ​i​s​ ​n​o​n​e​.
+				 * @param {string} name
+				 */
+				unknownContract: RequiredParams<'name'>
+				/**
+				 * t​h​e​ ​f​i​l​e​ ​n​a​m​e​s​ ​a​ ​t​e​n​a​n​t​ ​c​a​l​l​e​d​ ​{​n​a​m​e​}​,​ ​a​n​d​ ​t​h​e​r​e​ ​i​s​ ​n​o​n​e​.
+				 * @param {string} name
+				 */
+				unknownTenant: RequiredParams<'name'>
+				/**
+				 * t​h​e​ ​f​i​l​e​ ​n​a​m​e​s​ ​a​ ​u​n​i​t​ ​c​a​l​l​e​d​ ​{​n​a​m​e​}​,​ ​a​n​d​ ​t​h​e​r​e​ ​i​s​ ​n​o​n​e​.
+				 * @param {string} name
+				 */
+				unknownUnit: RequiredParams<'name'>
+			}
+		}
 		selection: {
 			/**
 			 * a​n​d​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​m​o​r​e
@@ -1716,18 +1947,10 @@ type RootTranslation = {
 		}
 		form: {
 			/**
-			 * n​a​m​e​ ​i​s​ ​a​s​s​o​c​i​a​t​e​d​ ​w​i​t​h​ ​a​ ​p​r​e​v​i​o​u​s​l​y​ ​r​e​g​i​s​t​e​r​e​d​ ​c​o​m​p​l​e​x​.
-			 */
-			duplicateName: string
-			/**
 			 * {​n​a​m​e​}​ ​i​s​ ​a​l​r​e​a​d​y​ ​i​n​ ​t​h​e​ ​l​i​s​t​.
 			 * @param {string} name
 			 */
 			duplicateUnitName: RequiredParams<'name'>
-			/**
-			 * t​w​o​ ​u​n​i​t​s​ ​s​h​a​r​e​ ​a​ ​n​a​m​e​;​ ​e​a​c​h​ ​n​e​e​d​s​ ​i​t​s​ ​o​w​n​.
-			 */
-			duplicateUnitNames: string
 			/**
 			 * n​a​m​e​ ​a​t​ ​l​e​a​s​t​ ​o​n​e​ ​u​n​i​t​.
 			 */
@@ -1812,10 +2035,6 @@ type RootTranslation = {
 			 */
 			emptyTitle: string
 			/**
-			 * n​a​m​e​ ​i​s​ ​a​s​s​o​c​i​a​t​e​d​ ​w​i​t​h​ ​a​ ​u​n​i​t​ ​i​n​ ​t​h​e​ ​s​a​m​e​ ​c​o​m​p​l​e​x​.
-			 */
-			duplicateName: string
-			/**
 			 * u​n​i​t​s​ ​m​a​n​a​g​e​m​e​n​t
 			 */
 			management: string
@@ -1866,14 +2085,6 @@ type RootTranslation = {
 			 * c​o​u​n​t​r​y​ ​c​o​d​e
 			 */
 			phoneCountryCode: string
-			/**
-			 * n​a​t​i​o​n​a​l​ ​i​d​ ​i​s​ ​a​s​s​o​c​i​a​t​e​d​ ​w​i​t​h​ ​a​ ​r​e​g​i​s​t​e​r​e​d​ ​t​e​n​a​n​t​.
-			 */
-			duplicateNationalId: string
-			/**
-			 * p​h​o​n​e​ ​i​s​ ​a​s​s​o​c​i​a​t​e​d​ ​w​i​t​h​ ​a​ ​r​e​g​i​s​t​e​r​e​d​ ​t​e​n​a​n​t​.
-			 */
-			duplicatePhone: string
 			/**
 			 * n​a​t​i​o​n​a​l​ ​i​d​e​n​t​i​t​y​ ​n​u​m​b​e​r​ ​m​u​s​t​ ​s​t​a​r​t​ ​w​i​t​h​ ​1​ ​o​r​ ​2​ ​a​n​d​ ​b​e​ ​1​0​ ​d​i​g​i​t​s​ ​l​o​n​g​.
 			 */
@@ -1948,10 +2159,6 @@ type RootTranslation = {
 			 */
 			costGreaterThanZero: string
 			/**
-			 * c​o​s​t​ ​p​e​r​ ​p​a​y​m​e​n​t​ ​m​u​s​t​ ​b​e​ ​g​r​e​a​t​e​r​ ​t​h​a​n​ ​z​e​r​o​.
-			 */
-			costPerPaymentGreaterThanZero: string
-			/**
 			 * c​o​s​t​ ​i​s​ ​r​e​q​u​i​r​e​d​.
 			 */
 			costRequired: string
@@ -1964,14 +2171,6 @@ type RootTranslation = {
 			 */
 			cyclesRequired: string
 			/**
-			 * g​o​v​e​r​n​m​e​n​t​ ​i​d​ ​i​s​ ​a​s​s​o​c​i​a​t​e​d​ ​w​i​t​h​ ​a​n​o​t​h​e​r​ ​c​o​n​t​r​a​c​t​.
-			 */
-			duplicateGovernmentId: string
-			/**
-			 * e​n​d​ ​d​a​t​e​ ​m​u​s​t​ ​b​e​ ​a​f​t​e​r​ ​s​t​a​r​t​ ​d​a​t​e​.
-			 */
-			endDateAfterStart: string
-			/**
 			 * e​n​d​ ​d​a​t​e​ ​i​s​ ​r​e​q​u​i​r​e​d​.
 			 */
 			endDateRequired: string
@@ -1979,10 +2178,6 @@ type RootTranslation = {
 			 * e​n​d​ ​d​a​t​e
 			 */
 			endDateShort: string
-			/**
-			 * p​l​e​a​s​e​ ​s​e​l​e​c​t​ ​a​ ​v​a​l​i​d​ ​t​e​n​a​n​t​.
-			 */
-			invalidTenant: string
 			/**
 			 * l​o​a​d​i​n​g​ ​t​e​n​a​n​t​.​.​.
 			 */
@@ -2041,14 +2236,6 @@ type RootTranslation = {
 			 * r​e​n​e​w​ ​c​o​n​t​r​a​c​t
 			 */
 			renewTitle: string
-			/**
-			 * a​ ​r​e​n​e​w​a​l​ ​m​u​s​t​ ​s​t​a​r​t​ ​a​f​t​e​r​ ​t​h​e​ ​c​o​n​t​r​a​c​t​ ​i​t​ ​r​e​n​e​w​s​ ​e​n​d​s​.
-			 */
-			renewalMustFollowOriginal: string
-			/**
-			 * a​n​o​t​h​e​r​ ​c​o​n​t​r​a​c​t​ ​h​o​l​d​s​ ​o​n​e​ ​o​r​ ​m​o​r​e​ ​o​f​ ​t​h​e​s​e​ ​u​n​i​t​s​ ​o​v​e​r​ ​t​h​e​ ​s​e​l​e​c​t​e​d​ ​t​e​r​m​.​ ​c​h​o​o​s​e​ ​a​ ​d​i​f​f​e​r​e​n​t​ ​t​e​r​m​.
-			 */
-			renewalUnitsUnavailable: string
 			/**
 			 * s​e​a​r​c​h​ ​a​n​d​ ​s​e​l​e​c​t​ ​t​e​n​a​n​t
 			 */
@@ -4005,6 +4192,218 @@ export type TranslationFunctions = {
 			 */
 			'this-year': () => LocalizedString
 		}
+		refusals: {
+			complex: {
+				/**
+				 * this complex is no longer in the workspace. reload to see what changed.
+				 */
+				gone: () => LocalizedString
+				/**
+				 * this complex still holds units. delete them before deleting it.
+				 */
+				holdsUnits: () => LocalizedString
+				/**
+				 * name is associated with a previously registered complex.
+				 */
+				nameTaken: () => LocalizedString
+				/**
+				 * the name {named} is associated with a previously registered complex.
+				 */
+				nameTakenNamed: (arg: { named: string }) => LocalizedString
+				/**
+				 * two complexes in this set claim {value}.
+				 */
+				repeatedInSet: (arg: { value: string }) => LocalizedString
+			}
+			contract: {
+				/**
+				 * cost per payment must be greater than zero.
+				 */
+				costNotPositive: () => LocalizedString
+				/**
+				 * end date must be after start date.
+				 */
+				endBeforeStart: () => LocalizedString
+				/**
+				 * government id is associated with another contract.
+				 */
+				govIdTaken: () => LocalizedString
+				/**
+				 * government id {named} is associated with another contract.
+				 */
+				govIdTakenNamed: (arg: { named: string }) => LocalizedString
+				/**
+				 * this contract has payments. delete them before deleting it.
+				 */
+				holdsPayments: () => LocalizedString
+				/**
+				 * this contract still holds units. remove them before deleting it.
+				 */
+				holdsUnits: () => LocalizedString
+				/**
+				 * this contract is no longer in the workspace. reload to see what changed.
+				 */
+				missing: () => LocalizedString
+				/**
+				 * only an active, fulfilled or past contract can be terminated.
+				 */
+				notTerminable: () => LocalizedString
+				/**
+				 * only a terminated contract can be restored.
+				 */
+				notUnterminable: () => LocalizedString
+				/**
+				 * this contract is paid in full and takes no more payments.
+				 */
+				paidInFull: () => LocalizedString
+				/**
+				 * end date must stay within {days} days before or after the calculated {interval} cycle end date.
+				 */
+				periodOffCycle: (arg: { days: number, interval: string }) => LocalizedString
+				/**
+				 * another contract holds one or more of these units over the new dates. choose different dates.
+				 */
+				periodOverlapsUnits: () => LocalizedString
+				/**
+				 * a renewal must start after the contract it renews ends.
+				 */
+				renewalBeforeEnd: () => LocalizedString
+				/**
+				 * two contracts in this set claim {value}.
+				 */
+				repeatedInSet: (arg: { value: string }) => LocalizedString
+				/**
+				 * the selected tenant is no longer in the workspace. choose another.
+				 */
+				tenantMissing: () => LocalizedString
+				/**
+				 * no tenant with the id {named} is in the workspace.
+				 */
+				tenantMissingNamed: (arg: { named: string }) => LocalizedString
+				/**
+				 * this contract is terminated and locked. restore it before changing it.
+				 */
+				terminatedLocked: () => LocalizedString
+				/**
+				 * the units of a contract cannot change once payments are registered against it.
+				 */
+				unitsLockedByPayments: () => LocalizedString
+				/**
+				 * one or more of these units are no longer in the workspace. reload to see what changed.
+				 */
+				unitsMissing: () => LocalizedString
+				/**
+				 * another contract holds one or more of these units over the selected term. choose a different term.
+				 */
+				unitsUnavailable: () => LocalizedString
+			}
+			payment: {
+				/**
+				 * payment amount must be greater than zero.
+				 */
+				amountNotPositive: () => LocalizedString
+				/**
+				 * a payment cannot be dated in the future.
+				 */
+				datedInFuture: () => LocalizedString
+				/**
+				 * this payment is no longer in the workspace. reload to see what changed.
+				 */
+				missing: () => LocalizedString
+				/**
+				 * two payments in this set claim {value}.
+				 */
+				repeatedInSet: (arg: { value: string }) => LocalizedString
+			}
+			record: {
+				/**
+				 * another record already holds that id.
+				 */
+				idTaken: () => LocalizedString
+				/**
+				 * another record already holds the id {named}.
+				 */
+				idTakenNamed: (arg: { named: string }) => LocalizedString
+			}
+			tenant: {
+				/**
+				 * this tenant is no longer in the workspace. reload to see what changed.
+				 */
+				gone: () => LocalizedString
+				/**
+				 * contracts mention this tenant, so it cannot be deleted.
+				 */
+				holdsContracts: () => LocalizedString
+				/**
+				 * national id is associated with a registered tenant.
+				 */
+				nationalIdTaken: () => LocalizedString
+				/**
+				 * national id {named} is associated with a registered tenant.
+				 */
+				nationalIdTakenNamed: (arg: { named: string }) => LocalizedString
+				/**
+				 * phone is associated with a registered tenant.
+				 */
+				phoneTaken: () => LocalizedString
+				/**
+				 * phone {named} is associated with a registered tenant.
+				 */
+				phoneTakenNamed: (arg: { named: string }) => LocalizedString
+				/**
+				 * two tenants in this set claim {value}.
+				 */
+				repeatedInSet: (arg: { value: string }) => LocalizedString
+			}
+			unit: {
+				/**
+				 * this unit is no longer in the workspace. reload to see what changed.
+				 */
+				gone: () => LocalizedString
+				/**
+				 * a contract mentions this unit, so it cannot be deleted.
+				 */
+				holdsContracts: () => LocalizedString
+				/**
+				 * {name} is used twice; each unit needs its own name.
+				 */
+				nameRepeated: (arg: { name: string }) => LocalizedString
+				/**
+				 * name is associated with a unit in the same complex.
+				 */
+				nameTaken: () => LocalizedString
+				/**
+				 * the name {named} is associated with a unit in the same complex.
+				 */
+				nameTakenNamed: (arg: { named: string }) => LocalizedString
+				/**
+				 * two units in this set claim {value}.
+				 */
+				repeatedInSet: (arg: { value: string }) => LocalizedString
+			}
+			workspace: {
+				/**
+				 * there is nothing to import.
+				 */
+				nothingToImport: () => LocalizedString
+				/**
+				 * the file names a complex called {name}, and there is none.
+				 */
+				unknownComplex: (arg: { name: string }) => LocalizedString
+				/**
+				 * the file names a contract called {name}, and there is none.
+				 */
+				unknownContract: (arg: { name: string }) => LocalizedString
+				/**
+				 * the file names a tenant called {name}, and there is none.
+				 */
+				unknownTenant: (arg: { name: string }) => LocalizedString
+				/**
+				 * the file names a unit called {name}, and there is none.
+				 */
+				unknownUnit: (arg: { name: string }) => LocalizedString
+			}
+		}
 		selection: {
 			/**
 			 * and {count|number} more
@@ -4901,17 +5300,9 @@ export type TranslationFunctions = {
 		}
 		form: {
 			/**
-			 * name is associated with a previously registered complex.
-			 */
-			duplicateName: () => LocalizedString
-			/**
 			 * {name} is already in the list.
 			 */
 			duplicateUnitName: (arg: { name: string }) => LocalizedString
-			/**
-			 * two units share a name; each needs its own.
-			 */
-			duplicateUnitNames: () => LocalizedString
 			/**
 			 * name at least one unit.
 			 */
@@ -4989,10 +5380,6 @@ export type TranslationFunctions = {
 			 */
 			emptyTitle: () => LocalizedString
 			/**
-			 * name is associated with a unit in the same complex.
-			 */
-			duplicateName: () => LocalizedString
-			/**
 			 * units management
 			 */
 			management: () => LocalizedString
@@ -5042,14 +5429,6 @@ export type TranslationFunctions = {
 			 * country code
 			 */
 			phoneCountryCode: () => LocalizedString
-			/**
-			 * national id is associated with a registered tenant.
-			 */
-			duplicateNationalId: () => LocalizedString
-			/**
-			 * phone is associated with a registered tenant.
-			 */
-			duplicatePhone: () => LocalizedString
 			/**
 			 * national identity number must start with 1 or 2 and be 10 digits long.
 			 */
@@ -5119,10 +5498,6 @@ export type TranslationFunctions = {
 			 */
 			costGreaterThanZero: () => LocalizedString
 			/**
-			 * cost per payment must be greater than zero.
-			 */
-			costPerPaymentGreaterThanZero: () => LocalizedString
-			/**
 			 * cost is required.
 			 */
 			costRequired: () => LocalizedString
@@ -5135,14 +5510,6 @@ export type TranslationFunctions = {
 			 */
 			cyclesRequired: () => LocalizedString
 			/**
-			 * government id is associated with another contract.
-			 */
-			duplicateGovernmentId: () => LocalizedString
-			/**
-			 * end date must be after start date.
-			 */
-			endDateAfterStart: () => LocalizedString
-			/**
 			 * end date is required.
 			 */
 			endDateRequired: () => LocalizedString
@@ -5150,10 +5517,6 @@ export type TranslationFunctions = {
 			 * end date
 			 */
 			endDateShort: () => LocalizedString
-			/**
-			 * please select a valid tenant.
-			 */
-			invalidTenant: () => LocalizedString
 			/**
 			 * loading tenant...
 			 */
@@ -5210,14 +5573,6 @@ export type TranslationFunctions = {
 			 * renew contract
 			 */
 			renewTitle: () => LocalizedString
-			/**
-			 * a renewal must start after the contract it renews ends.
-			 */
-			renewalMustFollowOriginal: () => LocalizedString
-			/**
-			 * another contract holds one or more of these units over the selected term. choose a different term.
-			 */
-			renewalUnitsUnavailable: () => LocalizedString
 			/**
 			 * search and select tenant
 			 */

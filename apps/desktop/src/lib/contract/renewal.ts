@@ -1,7 +1,7 @@
 import type { Contract } from '$lib/platform/database/schema';
 import { addUtcDays, toUtcDay, type DateLike } from '$lib/api/date';
+import { refuse } from '$lib/api/refusal';
 import {
-	badRequest,
 	getContractCycleCountForPeriod,
 	getContractEndDateForCycles
 } from '$lib/contract/contract';
@@ -86,6 +86,6 @@ export function ensureRenewalFollowsPredecessor(
 	successorStart: DateLike
 ) {
 	if (!doesRenewalFollowPredecessor(predecessorEnd, successorStart)) {
-		badRequest('a renewal must start after the contract it renews ends');
+		throw refuse('contract.renewalBeforeEnd');
 	}
 }

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { refusedWith } from '$lib/api/tests/testing.ts';
 import test from 'node:test';
 import {
 	ensureValidPaymentAmount,
@@ -38,8 +39,8 @@ test('groupPaymentsByContractId keeps row order within each contract', () => {
 });
 
 test('ensureValidPaymentAmount rejects an amount that is not positive', () => {
-	assert.throws(() => ensureValidPaymentAmount(0), /payment amount must be greater than zero/);
-	assert.throws(() => ensureValidPaymentAmount(-1), /payment amount must be greater than zero/);
+	assert.throws(() => ensureValidPaymentAmount(0), refusedWith('payment.amountNotPositive'));
+	assert.throws(() => ensureValidPaymentAmount(-1), refusedWith('payment.amountNotPositive'));
 	assert.doesNotThrow(() => ensureValidPaymentAmount(0.01));
 });
 

@@ -8,6 +8,7 @@
 	import { Input } from '@rentable/design/primitive/input/index.js';
 	import * as Select from '@rentable/design/primitive/select/index.js';
 	import { cn } from '@rentable/design/tailwind.js';
+	import { fieldOfRefusal, readRefusal, toRefusalText } from '$lib/error/refusal';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { useCreateTenant, useUpdateTenant } from '$lib/tenant/query';
 	import PlusIcon from '@lucide/svelte/icons/plus';
@@ -142,10 +143,10 @@
 					// an unexpected failure is the shared error handler's to report, and it already has:
 					// what is left here is the refusal, mapped onto the field the reader would fix.
 					if (e instanceof TRPCError && e.code === 'BAD_REQUEST') {
-						if (e.message.includes('national id')) {
-							setError(form, 'nationalId', $LL.tenants.form.duplicateNationalId());
-						} else if (e.message.includes('phone')) {
-							setError(form, 'phoneNumber', $LL.tenants.form.duplicatePhone());
+						const field = fieldOfRefusal(readRefusal(e)?.code);
+
+						if (field === 'nationalId' || field === 'phoneNumber') {
+							setError(form, field, toRefusalText(e, $LL));
 						}
 					}
 				}

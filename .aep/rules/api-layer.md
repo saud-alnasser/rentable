@@ -90,9 +90,37 @@ needs an acting user is a property of the call.*
 
 ## Errors
 
-User-facing validation failures are raised as a `BAD_REQUEST`, and the message is shown to
-the user verbatim — write it for them, in lower case, saying what they must do. Any other
-code is treated as unexpected and surfaces as a generic failure.
+**A refusal is a code, and its message is a developer's description.** A request a person could
+have made and the domain turns away is thrown as `refuse(code, params?)` from
+`src/lib/api/refusal.ts`, which builds the `BAD_REQUEST` and carries `{ code, params }` on its
+`cause`; `errorFormatter` copies it into `shape.data` as `refusal`. Nothing shows the message to a
+person. Any other code is treated as unexpected and surfaces as a generic failure.
+
+- **The code is named by its concept**, `contract.endBeforeStart`, from the `RefusalCode` union
+  that concept declares beside the rules that raise it. `RefusalCode` in `api/refusal.ts` is their
+  union. A refusal naming a value carries it in `params`, never spliced into the code.
+- **The sentence is the interface's.** `common.refusals.<concept>.<name>` holds one per code in
+  both locales, written for the reader in lower case and saying what they must do.
+  `error/refusal.ts` turns an error into that sentence (`toRefusalText`), and a type check there
+  fails where a code has no sentence or a sentence has no code.
+- **A form maps a code to its field** through `fieldOfRefusal`, and never matches the words of a
+  message.
+- **A procedure's own input schema is the one exception.** A `BAD_REQUEST` tRPC raises for input
+  the schema turned away carries no refusal, and is shown as it was raised.
+
+*Why a code: a sentence written in a router is written in one language, a form placing it has to
+match its words, and a reader who switches language holds sentences cached in the one they left.
+Revised 2026-09-24 by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement
+23; this read "the message is shown to the user verbatim — write it for them", and the forms
+matched fourteen English substrings to place one.*
+
+**`FORBIDDEN` and `UNAUTHORIZED` are not refusals.** They are raised in the middlewares for a caller
+who reached a procedure the interface would not have drawn, and they keep surfacing as a generic
+failure.
+
+**A rejection from `ctx.host` reaches the caller wrapped.** tRPC turns anything thrown in a procedure
+that is not its own error into an `INTERNAL_SERVER_ERROR`, with the Tauri payload as its `cause`.
+`error/tauri.ts` reads the code and the reason from there as well as from the error itself.
 
 ## One database client type
 

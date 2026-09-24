@@ -1,4 +1,4 @@
-import { TRPCError } from '@trpc/server';
+import { refuse } from '$lib/api/refusal';
 
 /**
  * COMPLEX
@@ -7,6 +7,25 @@ import { TRPCError } from '@trpc/server';
  * complexes directory. The rules that decide whether a write is allowed still live in the
  * router beside the uniqueness checks they read the database for.
  */
+
+/**
+ * Every refusal a complex rule or procedure raises, by code, and the same for a unit below it.
+ * The sentences are the interface's, under `common.refusals`; see `$lib/api/refusal`.
+ */
+export type ComplexRefusalCode =
+	| 'complex.holdsUnits'
+	| 'complex.nameTaken'
+	| 'complex.nameTakenNamed'
+	| 'complex.gone'
+	| 'complex.repeatedInSet';
+
+export type UnitRefusalCode =
+	| 'unit.holdsContracts'
+	| 'unit.nameTaken'
+	| 'unit.nameTakenNamed'
+	| 'unit.gone'
+	| 'unit.nameRepeated'
+	| 'unit.repeatedInSet';
 
 /**
  * Whether a complex may be deleted: no unit may belong to it.
@@ -22,21 +41,21 @@ export const isUnitDeletable = (assignments: unknown[]) => assignments.length ==
 /**
  * Refuse a deletion the rule above turns away.
  *
- * The message lives here rather than in the procedure, because a rule that decides whether
+ * The code lives here rather than in the procedure, because a rule that decides whether
  * something is allowed belongs to the concept and not to a caller of it. Two procedures apply
  * each of these now, one record at a time and a selection at a time, and two copies of a
- * sentence are two sentences waiting to disagree.
+ * refusal are two refusals waiting to disagree.
  */
 export function ensureComplexDeletable(units: unknown[]) {
 	if (!isComplexDeletable(units)) {
-		badRequest('cannot delete complex with associated units');
+		throw refuse('complex.holdsUnits');
 	}
 }
 
 /** The same, for a unit. See {@link ensureComplexDeletable}. */
 export function ensureUnitDeletable(assignments: unknown[]) {
 	if (!isUnitDeletable(assignments)) {
-		badRequest('cannot delete unit with associated contracts');
+		throw refuse('unit.holdsContracts');
 	}
 }
 
@@ -50,16 +69,14 @@ export function ensureUnitDeletable(assignments: unknown[]) {
  */
 export function ensureComplexNameAvailable(conflicting: unknown, named?: string) {
 	if (conflicting) {
-		badRequest(
-			`name${named ? ` ${named}` : ''} is associated with a previously registered complex`
-		);
+		throw named ? refuse('complex.nameTakenNamed', { named }) : refuse('complex.nameTaken');
 	}
 }
 
 /** The same, for a unit's name, which is unique within the complex holding it. */
 export function ensureUnitNameAvailable(conflicting: unknown, named?: string) {
 	if (conflicting) {
-		badRequest(`name${named ? ` ${named}` : ''} is associated with a unit in the same complex`);
+		throw named ? refuse('unit.nameTakenNamed', { named }) : refuse('unit.nameTaken');
 	}
 }
 
@@ -108,7 +125,7 @@ export const whatRefusesUnitDeletion = (assignments: unknown[]) =>
  */
 export function ensureComplexStillExists<T>(complex: T | undefined | null): T {
 	if (!complex) {
-		badRequest('this complex is no longer in the workspace — reload to see what changed');
+		throw refuse('complex.gone');
 	}
 
 	return complex;
@@ -117,14 +134,10 @@ export function ensureComplexStillExists<T>(complex: T | undefined | null): T {
 /** The same, for a unit. See {@link ensureComplexStillExists} for why it is here at all. */
 export function ensureUnitStillExists<T>(unit: T | undefined | null): T {
 	if (!unit) {
-		badRequest('this unit is no longer in the workspace — reload to see what changed');
+		throw refuse('unit.gone');
 	}
 
 	return unit;
-}
-
-function badRequest(message: string): never {
-	throw new TRPCError({ code: 'BAD_REQUEST', message });
 }
 
 /**
@@ -145,10 +158,7 @@ export function ensureUnitNamesDistinct(names: string[]) {
 		const normalized = name.trim().toLowerCase();
 
 		if (seen.has(normalized)) {
-			throw new TRPCError({
-				code: 'BAD_REQUEST',
-				message: `"${name.trim()}" is used twice; each unit needs its own name`
-			});
+			throw refuse('unit.nameRepeated', { name: name.trim() });
 		}
 
 		seen.add(normalized);

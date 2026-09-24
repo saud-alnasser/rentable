@@ -5,6 +5,7 @@
 	import FormSurface, { insetControl } from '@rentable/design/block/form-surface.svelte';
 	import * as Form from '@rentable/design/primitive/form/index.js';
 	import { Input } from '@rentable/design/primitive/input/index.js';
+	import { fieldOfRefusal, readRefusal, toRefusalText } from '$lib/error/refusal';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { useCreateComplex, useUpdateComplex } from '$lib/complex/query';
 	import type { DraftUnit } from '$lib/complex/unit-name';
@@ -86,10 +87,12 @@
 					if (e instanceof TRPCError && e.code === 'BAD_REQUEST') {
 						// a collision within the unit list belongs to the list rather than to the
 						// complex's own name field, which is what the other refusal is about.
-						if (e.message.includes('used twice')) {
-							unitError = $LL.complexes.form.duplicateUnitNames();
-						} else if (e.message.includes('name')) {
-							setError(form, 'name', $LL.complexes.form.duplicateName());
+						const field = fieldOfRefusal(readRefusal(e)?.code);
+
+						if (field === 'units') {
+							unitError = toRefusalText(e, $LL);
+						} else if (field === 'name') {
+							setError(form, 'name', toRefusalText(e, $LL));
 						}
 					}
 				}

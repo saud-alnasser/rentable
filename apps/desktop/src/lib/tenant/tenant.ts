@@ -1,4 +1,4 @@
-import { TRPCError } from '@trpc/server';
+import { refuse } from '$lib/api/refusal';
 import z from 'zod';
 
 /**
@@ -36,9 +36,18 @@ export type TenantSortColumnId = (typeof TENANT_SORT_COLUMN_IDS)[number];
  */
 export const identityField = (message: string) => z.string().trim().regex(identity, message);
 
-function badRequest(message: string): never {
-	throw new TRPCError({ code: 'BAD_REQUEST', message });
-}
+/**
+ * Every refusal a tenant rule or procedure raises, by code. The sentences are the interface's,
+ * under `common.refusals.tenant`; see `$lib/api/refusal`.
+ */
+export type TenantRefusalCode =
+	| 'tenant.nationalIdTaken'
+	| 'tenant.nationalIdTakenNamed'
+	| 'tenant.phoneTaken'
+	| 'tenant.phoneTakenNamed'
+	| 'tenant.gone'
+	| 'tenant.holdsContracts'
+	| 'tenant.repeatedInSet';
 
 /**
  * the router passes whatever row its uniqueness query found; any row is a conflict.
@@ -50,7 +59,9 @@ function badRequest(message: string): never {
  */
 export function ensureIdentityAvailable(conflicting: unknown, named?: string) {
 	if (conflicting) {
-		badRequest(`national id${named ? ` ${named}` : ''} is associated with a registered tenant`);
+		throw named
+			? refuse('tenant.nationalIdTakenNamed', { named })
+			: refuse('tenant.nationalIdTaken');
 	}
 }
 
@@ -62,7 +73,7 @@ export function ensureIdentityAvailable(conflicting: unknown, named?: string) {
  */
 export function ensurePhoneAvailable(conflicting: unknown, named?: string) {
 	if (conflicting) {
-		badRequest(`phone${named ? ` ${named}` : ''} is associated with a registered tenant`);
+		throw named ? refuse('tenant.phoneTakenNamed', { named }) : refuse('tenant.phoneTaken');
 	}
 }
 
@@ -78,7 +89,7 @@ export function ensurePhoneAvailable(conflicting: unknown, named?: string) {
  */
 export function ensureTenantStillExists<T>(tenant: T | undefined | null): T {
 	if (!tenant) {
-		badRequest('this tenant is no longer in the workspace — reload to see what changed');
+		throw refuse('tenant.gone');
 	}
 
 	return tenant;
@@ -94,7 +105,7 @@ export const isTenantDeletable = (contracts: unknown[]) => contracts.length === 
 
 export function ensureTenantDeletable(contracts: unknown[]) {
 	if (!isTenantDeletable(contracts)) {
-		badRequest('cannot delete tenant with associated contracts');
+		throw refuse('tenant.holdsContracts');
 	}
 }
 

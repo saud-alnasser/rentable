@@ -14,6 +14,18 @@ import { hasValidPaymentAmount, isPaymentInTheFuture } from '$lib/payment/paymen
 import { identity as nationalIdPattern, phone as phonePattern } from '$lib/tenant/tenant';
 
 /**
+ * Every refusal an import raises, by code. An `unknown...` names a record the file refers to and
+ * does not hold, by the name the file wrote. The sentences are the interface's, under
+ * `common.refusals.workspace`; see `$lib/api/refusal`.
+ */
+export type WorkspaceRefusalCode =
+	| 'workspace.unknownComplex'
+	| 'workspace.unknownContract'
+	| 'workspace.unknownTenant'
+	| 'workspace.unknownUnit'
+	| 'workspace.nothingToImport';
+
+/**
  * How long a workspace's name may be.
  *
  * **The organization store is the authority and this is a copy of its number**, which is worth stating

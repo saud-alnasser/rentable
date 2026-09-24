@@ -8,6 +8,12 @@ import {
 	toTauriErrorCode,
 	toTauriRefusalReason
 } from '$lib/error/tauri';
+import { appRouter } from '$lib/api/router.ts';
+import { caller, context } from '$lib/api/trpc.ts';
+import { PASSWORD_FLOOR, refusalAfterFailedConnect } from '$lib/organization/setup.ts';
+import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
+import { fakeHost } from '$lib/platform/tests/testing.ts';
+import { TRPCError } from '@trpc/server';
 
 test('a rejected command payload is recognised by its code and message', () => {
 	assert.equal(isTauriError({ code: 'busy', message: 'a sync is already running' }), true);
@@ -57,4 +63,50 @@ test('nothing but a refused carries a reason, and an unknown word is no reason a
 	assert.equal(toTauriRefusalReason({ code: 'refused', reason: 'burnt', message: 'x' }), null);
 	assert.equal(toTauriRefusalReason({ code: 'refused', message: 'x' }), null);
 	assert.equal(toTauriRefusalReason(new Error('the invitation has lapsed')), null);
+});
+
+// effort 832, the premise of ticket 19: a refusal Rust raises is read off a call that went through
+// a procedure, not only off a call made straight to the shell. tRPC wraps anything thrown inside a
+// procedure that is not its own error, so what reaches the caller is an `INTERNAL_SERVER_ERROR`
+// whose `cause` holds the payload Rust rejected with. The code and the reason are read from there.
+test('a rejection from the host survives a procedure, and its code is read off the cause', async () => {
+	const rejected = { code: 'preconditionFailed', message: 'another organization is held here' };
+	const host = fakeHost({
+		organization: {
+			...fakeHost().organization,
+			connectExisting: async () => {
+				throw rejected;
+			}
+		}
+	});
+	const api = caller(appRouter)(
+		await context({ db: createMemoryDatabase(), clock: { now: () => 0 }, host, identity: null })
+	);
+
+	const failure = await api.app.organization
+		.connectExisting({ username: 'owner', password: 'x'.repeat(PASSWORD_FLOOR) })
+		.then(
+			() => assert.fail('the procedure should have been refused'),
+			(error: unknown) => error
+		);
+
+	// what tRPC does to it, pinned so a change in the library shows up here first.
+	assert.ok(failure instanceof TRPCError);
+	assert.equal(failure.code, 'INTERNAL_SERVER_ERROR');
+	assert.equal(isTauriError(failure), false);
+	assert.equal((failure.cause as unknown as { code: string }).code, 'preconditionFailed');
+
+	// and what this side reads regardless.
+	assert.equal(toTauriErrorCode(failure), 'preconditionFailed');
+	assert.equal(refusalAfterFailedConnect(failure)?.step, 'connect');
+});
+
+test('a refused link keeps its reason through a procedure', async () => {
+	const failure = new TRPCError({
+		code: 'INTERNAL_SERVER_ERROR',
+		cause: { code: 'refused', reason: 'lapsed', message: 'the invitation has lapsed' }
+	});
+
+	assert.equal(toTauriErrorCode(failure), 'refused');
+	assert.equal(toTauriRefusalReason(failure), 'lapsed');
 });

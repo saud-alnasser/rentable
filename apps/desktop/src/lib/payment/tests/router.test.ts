@@ -9,7 +9,9 @@ import {
 	monthsFromNow,
 	seedTenant,
 	unusedId,
-	withStatementLog
+	withStatementLog,
+	refusedWith,
+	refusalReadIn
 } from '$lib/api/tests/testing.ts';
 
 /** What `contract.create` takes — read off the procedure, so a fixture cannot drift from it. */
@@ -221,7 +223,7 @@ test('a payment against a missing contract is rejected', async () => {
 				date: monthsFromNow(0),
 				amount: 500
 			}),
-		/contract does not exist/
+		refusedWith('contract.missing')
 	);
 });
 
@@ -232,7 +234,7 @@ test('a non-positive payment is rejected', async () => {
 	await assert.rejects(
 		() =>
 			api.contract.payments.create({ contractId: contract.id, date: monthsFromNow(0), amount: 0 }),
-		/payment amount must be greater than zero/
+		refusedWith('payment.amountNotPositive')
 	);
 });
 
@@ -249,7 +251,7 @@ test('a payment is rejected once the contract is fully paid', async () => {
 	await assert.rejects(
 		() =>
 			api.contract.payments.create({ contractId: contract.id, date: monthsFromNow(0), amount: 1 }),
-		/fully paid/
+		refusedWith('contract.paidInFull')
 	);
 });
 
@@ -264,7 +266,7 @@ test('a payment dated after today is rejected', async () => {
 				date: monthsFromNow(0, 1),
 				amount: 500
 			}),
-		/cannot be dated in the future/
+		refusedWith('payment.datedInFuture')
 	);
 });
 
@@ -293,7 +295,7 @@ test('a payment cannot be moved into the future by an edit', async () => {
 
 	await assert.rejects(
 		() => api.contract.payments.update({ id: payment.id, date: monthsFromNow(0, 1), amount: 500 }),
-		/cannot be dated in the future/
+		refusedWith('payment.datedInFuture')
 	);
 });
 
@@ -627,7 +629,7 @@ test('and where the contract will not take them back, none is restored', async (
 
 	await assert.rejects(
 		() => api.contract.payments.createMany({ payments: deleted.deleted }),
-		/terminated contracts are locked/
+		refusedWith('contract.terminatedLocked')
 	);
 
 	assert.equal((await api.contract.payments.getMany({ contractId: contract.id })).length, 0);
@@ -644,7 +646,7 @@ test('and a set claiming one identity twice is refused before anything is writte
 
 	await assert.rejects(
 		() => api.contract.payments.createMany({ payments: [head, { ...tail, id: head.id }] }),
-		new RegExp(`two payments in this set claim ${head.id}`)
+		refusedWith('payment.repeatedInSet', { value: head.id })
 	);
 
 	assert.equal((await api.contract.payments.getMany({ contractId: contract.id })).length, 0);
@@ -671,5 +673,84 @@ test('putting a selection back is one batch and one reconcile pass', async () =>
 	assert.ok(
 		countMatching(statements, /^\s*update "contract"/i) <= 1,
 		`one reconcile pass, not one per row: ${countMatching(statements, /^\s*update "contract"/i)}`
+	);
+});
+
+// --- Refusals, as a reader of Arabic meets them ----------------------------------------
+//
+// effort 832, requirement 23 and its criterion: the payment router's refusals reach the interface
+// in the reader's language. Each is read through the function every surface shows one with.
+
+test("the payment router's refusals read in Arabic", async () => {
+	const api = await createApi();
+	const contract = await seedContract(api);
+	const pay = (overrides: { contractId?: string; date?: number; amount?: number }) =>
+		api.contract.payments.create({
+			contractId: contract.id,
+			date: monthsFromNow(0),
+			amount: 500,
+			...overrides
+		});
+
+	assert.equal(
+		await refusalReadIn(() => pay({ amount: 0 })),
+		'يجب أن يكون مبلغ الدفعة أكبر من صفر.'
+	);
+	assert.equal(
+		await refusalReadIn(() => pay({ date: monthsFromNow(0, 1) })),
+		'لا يمكن أن يكون تاريخ الدفعة في المستقبل.'
+	);
+	assert.equal(
+		await refusalReadIn(() => pay({ contractId: unusedId() })),
+		'لم يعد هذا العقد موجوداً في مساحة العمل. أعد التحميل لترى ما تغيّر.'
+	);
+	assert.equal(
+		await refusalReadIn(() =>
+			api.contract.payments.update({ id: unusedId(), date: monthsFromNow(0), amount: 500 })
+		),
+		'لم تعد هذه الدفعة موجودة في مساحة العمل. أعد التحميل لترى ما تغيّر.'
+	);
+
+	await pay({ amount: 1_000_000 });
+
+	assert.equal(
+		await refusalReadIn(() => pay({ amount: 1 })),
+		'سُدد هذا العقد بالكامل ولا يقبل دفعات أخرى.'
+	);
+});
+
+test('a payment against a terminated contract is refused in Arabic', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api);
+
+	await api.contract.terminate({ id: contract.id });
+
+	assert.equal(
+		await refusalReadIn(() =>
+			api.contract.payments.create({
+				contractId: contract.id,
+				date: monthsFromNow(0),
+				amount: 500
+			})
+		),
+		'هذا العقد منتهٍ ومقفل. استعده قبل تعديله.'
+	);
+});
+
+test('the same refusal reads in English for a reader of English', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api);
+
+	assert.equal(
+		await refusalReadIn(
+			() =>
+				api.contract.payments.create({
+					contractId: contract.id,
+					date: monthsFromNow(0),
+					amount: 0
+				}),
+			'en'
+		),
+		'payment amount must be greater than zero.'
 	);
 });

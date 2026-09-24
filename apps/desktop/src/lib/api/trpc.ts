@@ -3,6 +3,7 @@ import { permits, type NamedActs } from '@rentable/workspace-permission';
 import { TRPCError, initTRPC } from '@trpc/server';
 import { ZodError } from 'zod';
 import { context } from './context';
+import { readRefusal } from './refusal';
 
 /**
  * CONTEXT
@@ -25,7 +26,10 @@ const t = initTRPC.context<typeof context>().create({
 			...shape,
 			data: {
 				...shape.data,
-				zodError: error.cause instanceof ZodError ? error.cause.flatten() : null
+				zodError: error.cause instanceof ZodError ? error.cause.flatten() : null,
+				// the code and values a refusal was raised with, which is what the interface reads
+				// rather than the message ([[rules/api-layer]], under *Errors*).
+				refusal: readRefusal(error)
 			}
 		};
 	}

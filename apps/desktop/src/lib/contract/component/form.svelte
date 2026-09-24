@@ -44,6 +44,7 @@
 		useRenewContract,
 		useUpdateContract
 	} from '$lib/contract/query';
+	import { fieldOfRefusal, readRefusal, toRefusalText } from '$lib/error/refusal';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { useFetchTenant, useFetchTenants } from '$lib/tenant/query';
 	import { DateFormatter, type CalendarDate } from '@internationalized/date';
@@ -294,23 +295,18 @@
 					// an unexpected failure is the shared error handler's to report, and it already has:
 					// what is left here is the refusal, mapped onto the field the reader would fix.
 					if (e instanceof TRPCError && e.code === 'BAD_REQUEST') {
-						// both renewal refusals are about the term, so each marks the end of it the
-						// reader has to move — a refusal shown as a banner names the problem and
-						// never the field.
-						if (e.message.includes('already assigned to an overlapping contract')) {
-							setError(form, 'end', $LL.contracts.form.renewalUnitsUnavailable());
-						} else if (e.message.includes('renewal must start after')) {
-							setError(form, 'start', $LL.contracts.form.renewalMustFollowOriginal());
-						} else if (e.message.includes('government id')) {
-							setError(form, 'govId', $LL.contracts.form.duplicateGovernmentId());
-						} else if (e.message.includes('end date')) {
-							setError(form, 'end', $LL.contracts.form.endDateAfterStart());
-						} else if (e.message.includes('contract period')) {
-							setError(form, 'end', getContractPeriodValidationMessage(form.data.interval));
-						} else if (e.message.includes('cost')) {
-							setError(form, 'cost', $LL.contracts.form.costPerPaymentGreaterThanZero());
-						} else if (e.message.includes('tenant')) {
-							setError(form, 'tenantId', $LL.contracts.form.invalidTenant());
+						// the refusal's code says which field it belongs under; a refusal shown as a
+						// banner names the problem and never the field.
+						const field = fieldOfRefusal(readRefusal(e)?.code);
+
+						if (
+							field === 'end' ||
+							field === 'start' ||
+							field === 'govId' ||
+							field === 'cost' ||
+							field === 'tenantId'
+						) {
+							setError(form, field, toRefusalText(e, $LL));
 						} else {
 							onMutationError({ toast: { error: true } }, e);
 						}

@@ -73,18 +73,26 @@ export function isConfirmable(state: ConfirmationState, isSubmitting: boolean): 
 /**
  * What a failed confirmation says to the reader, or `null` where it says nothing.
  *
- * Only a `BAD_REQUEST` was written for a reader: it is the refusal the procedure raises to be
- * read, so it is shown as it was written. Anything else is a fault rather than an answer to
- * what was asked, and the surface stays silent rather than putting an internal message in a
- * callout — the caller's own error handling is what reports one.
+ * Only a `BAD_REQUEST` is a refusal the procedure raised to be read. Anything else is a fault
+ * rather than an answer to what was asked, and the surface stays silent rather than putting an
+ * internal message in a callout; the caller's own error handling is what reports one.
  *
- * `unexpected` covers the refusal that carries no message at all, which is a shape nothing
- * here writes deliberately and every surface would otherwise render as an empty callout.
+ * `read` turns the refusal into the reader's words. **The package has no locale**, so the
+ * consumer supplies it through the string contract's `refusal`: a refusal crosses as a code and
+ * its values rather than as a sentence, and only the consumer knows the sentence. Left out, the
+ * refusal is shown as it was raised.
+ *
+ * `unexpected` covers the refusal that reads as nothing at all, which is a shape nothing here
+ * writes deliberately and every surface would otherwise render as an empty callout.
  */
-export function toRefusal(failure: unknown, unexpected: string): string | null {
+export function toRefusal(
+	failure: unknown,
+	unexpected: string,
+	read: (refusal: TRPCError) => string = (refusal) => refusal.message
+): string | null {
 	if (!(failure instanceof TRPCError) || failure.code !== 'BAD_REQUEST') {
 		return null;
 	}
 
-	return failure.message || unexpected;
+	return read(failure) || unexpected;
 }

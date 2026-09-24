@@ -8,7 +8,9 @@ import {
 	monthsFromNow,
 	seedTenant,
 	unusedId,
-	withStatementLog
+	withStatementLog,
+	refusedWith,
+	refusalReadIn
 } from '$lib/api/tests/testing.ts';
 import { isRecordId } from '$lib/platform/database/identity.ts';
 import type { ContractSortColumnId } from '$lib/contract/contract.ts';
@@ -78,7 +80,7 @@ test('creation rejects an end date before the start date', async () => {
 				interval: '12m',
 				cost: 1000
 			}),
-		/end date must be after start date/
+		refusedWith('contract.endBeforeStart')
 	);
 });
 
@@ -95,7 +97,7 @@ test('creation rejects a non-positive cost', async () => {
 				interval: '12m',
 				cost: 0
 			}),
-		/cost per payment must be greater than zero/
+		refusedWith('contract.costNotPositive')
 	);
 });
 
@@ -112,7 +114,7 @@ test('creation rejects a period that is not a whole number of interval cycles', 
 				interval: '12m',
 				cost: 1000
 			}),
-		/contract period must stay within/
+		refusedWith('contract.periodOffCycle')
 	);
 });
 
@@ -128,7 +130,7 @@ test('creation rejects a tenant that does not exist', async () => {
 				interval: '12m',
 				cost: 1000
 			}),
-		/tenant does not exist/
+		refusedWith('contract.tenantMissing')
 	);
 });
 
@@ -136,7 +138,10 @@ test('creation rejects a government id already used by another contract', async 
 	const api = await createApi();
 	await seedContract(api, { govId: 'DUP-1' });
 
-	await assert.rejects(() => seedContract(api, { govId: 'DUP-1' }), /government id is associated/);
+	await assert.rejects(
+		() => seedContract(api, { govId: 'DUP-1' }),
+		refusedWith('contract.govIdTaken')
+	);
 });
 
 // --- Update --------------------------------------------------------------------------
@@ -171,7 +176,7 @@ test('updating a contract that does not exist is rejected', async () => {
 				interval: '12m',
 				cost: 1000
 			}),
-		/contract does not exist/
+		refusedWith('contract.missing')
 	);
 });
 
@@ -190,7 +195,7 @@ test('a terminated contract is locked against updates', async () => {
 				interval: '12m',
 				cost: 3000
 			}),
-		/terminated contracts are locked/
+		refusedWith('contract.terminatedLocked')
 	);
 });
 
@@ -208,7 +213,7 @@ test('updating with an invalid cost is rejected', async () => {
 				interval: '12m',
 				cost: 0
 			}),
-		/cost per payment must be greater than zero/
+		refusedWith('contract.costNotPositive')
 	);
 });
 
@@ -323,7 +328,7 @@ test('the successor is refused a government id another contract already holds', 
 
 	await assert.rejects(
 		() => renew(api, contract, { govId: 'GOV-TAKEN' }),
-		/government id is associated/
+		refusedWith('contract.govIdTaken')
 	);
 });
 
@@ -344,7 +349,7 @@ test('renewal is refused where the original’s units are held over the new term
 
 	await api.contract.units.set({ contractId: rival.id, unitIds: [unit.id] });
 
-	await assert.rejects(() => renew(api, contract), /already assigned to an overlapping contract/);
+	await assert.rejects(() => renew(api, contract), refusedWith('contract.unitsUnavailable'));
 });
 
 test('a refused renewal writes nothing at all', async () => {
@@ -381,7 +386,7 @@ test('renewal is refused a term that starts before the original ends', async () 
 				start: contract.start,
 				end: contract.end
 			}),
-		/a renewal must start after the contract it renews ends/
+		refusedWith('contract.renewalBeforeEnd')
 	);
 });
 
@@ -396,7 +401,7 @@ test('renewal is refused a term that starts on the day the original ends', async
 				start: contract.end,
 				end: monthsFromNow(23)
 			}),
-		/a renewal must start after the contract it renews ends/
+		refusedWith('contract.renewalBeforeEnd')
 	);
 });
 
@@ -411,7 +416,7 @@ test('renewal is refused a term that is not a whole number of the original’s c
 				start: contract.end + 24 * 60 * 60 * 1000,
 				end: monthsFromNow(16)
 			}),
-		/contract period must stay within/
+		refusedWith('contract.periodOffCycle')
 	);
 });
 
@@ -425,7 +430,7 @@ test('renewal is refused for a contract that does not exist', async () => {
 				start: monthsFromNow(12),
 				end: monthsFromNow(23)
 			}),
-		/contract does not exist/
+		refusedWith('contract.missing')
 	);
 });
 
@@ -473,7 +478,7 @@ test('renewal is refused an identity another contract already holds', async () =
 
 	await assert.rejects(
 		() => renew(api, contract, { id: contract.id }),
-		/another record already holds that id/
+		refusedWith('record.idTaken')
 	);
 });
 
@@ -593,7 +598,10 @@ test('the held pane lists a unit an overlapping contract also holds, so a delete
 
 	// the delete dialog counts its unit blocker from `units.getMany`, and the procedure refuses
 	// for the same reason, so the count a refusal reports is the held pane's length.
-	await assert.rejects(() => api.contract.delete({ id: contract.id }), /associated units/);
+	await assert.rejects(
+		() => api.contract.delete({ id: contract.id }),
+		refusedWith('contract.holdsUnits')
+	);
 	assert.equal(heldUnits.length, 1);
 });
 
@@ -642,7 +650,7 @@ test('assigning a unit already held by an overlapping contract is rejected', asy
 				contractId: second.id,
 				unitIds: [unit.id]
 			}),
-		/overlapping contract/
+		refusedWith('contract.unitsUnavailable')
 	);
 });
 
@@ -652,7 +660,7 @@ test('a set naming a unit that does not exist is rejected', async () => {
 
 	await assert.rejects(
 		() => api.contract.units.set({ contractId: contract.id, unitIds: [unusedId()] }),
-		/one or more units could not be found/
+		refusedWith('contract.unitsMissing')
 	);
 });
 
@@ -673,7 +681,7 @@ test('a unit cannot be assigned once the contract has payments', async () => {
 				contractId: contract.id,
 				unitIds: [unit.id]
 			}),
-		/cannot change contract units after payments have been registered/
+		refusedWith('contract.unitsLockedByPayments')
 	);
 });
 
@@ -694,7 +702,7 @@ test('a unit cannot be removed once the contract has payments', async () => {
 
 	await assert.rejects(
 		() => api.contract.units.set({ contractId: contract.id, unitIds: [] }),
-		/cannot change contract units after payments have been registered/
+		refusedWith('contract.unitsLockedByPayments')
 	);
 });
 
@@ -2056,7 +2064,7 @@ test('and where one of them cannot be put back, none is', async () => {
 
 	await assert.rejects(
 		() => api.contract.createMany({ contracts: deleted.deleted }),
-		/CT-BLOCK-2/,
+		refusedWith('contract.govIdTakenNamed', { named: 'CT-BLOCK-2' }),
 		'the refusal names the contract that blocked it'
 	);
 
@@ -2072,7 +2080,10 @@ test('and a set claiming one government id twice is refused before anything is w
 	const deleted = await api.contract.deleteMany({ ids: [first.id, second.id] });
 	const collided = deleted.deleted.map((contract) => ({ ...contract, govId: 'CT-TWICE' }));
 
-	await assert.rejects(() => api.contract.createMany({ contracts: collided }), /CT-TWICE/);
+	await assert.rejects(
+		() => api.contract.createMany({ contracts: collided }),
+		refusedWith('contract.repeatedInSet', { value: 'CT-TWICE' })
+	);
 
 	assert.equal(await api.contract.get({ id: first.id }), undefined);
 	assert.equal(await api.contract.get({ id: second.id }), undefined);
@@ -2098,5 +2109,84 @@ test('putting a selection back is one batch and one reconcile pass', async () =>
 	assert.ok(
 		countMatching(statements, /select .* from "contract" where/i) <= 3,
 		`one pass over the set, not one per row: ${statements.filter((sql) => /select .* from "contract" where/i.test(sql)).length}`
+	);
+});
+
+// --- Refusals, as a reader of Arabic meets them ----------------------------------------
+//
+// effort 832, requirement 23: a refusal crosses as a code, and the interface words it in the
+// reader's language. These read the contract refusals a form places under a field through the
+// same function the form calls, in Arabic, which is where an English sentence used to surface.
+
+test('the contract refusals a form shows read in Arabic', async () => {
+	const api = await createApi();
+	const tenant = await seedTenant(api);
+	const create = (overrides: Partial<ContractInput>) =>
+		api.contract.create({
+			tenantId: tenant.id,
+			start: monthsFromNow(-1),
+			end: monthsFromNow(11),
+			interval: '12m',
+			cost: 1000,
+			...overrides
+		});
+
+	assert.equal(
+		await refusalReadIn(() => create({ start: monthsFromNow(11), end: monthsFromNow(-1) })),
+		'يجب أن يكون تاريخ النهاية بعد تاريخ البداية.'
+	);
+	assert.equal(
+		await refusalReadIn(() => create({ cost: 0 })),
+		'يجب أن تكون تكلفة الدفعة أكبر من صفر.'
+	);
+	// the cycle crosses as its stored key and is read back as the reader's word for it.
+	assert.equal(
+		await refusalReadIn(() => create({ end: monthsFromNow(4) })),
+		'يجب أن يبقى تاريخ النهاية ضمن 5 أيام قبل أو بعد تاريخ نهاية دورة سنوي المحسوب.'
+	);
+	assert.equal(
+		await refusalReadIn(() => create({ tenantId: unusedId() })),
+		'لم يعد المستأجر المختار موجوداً في مساحة العمل. اختر مستأجراً آخر.'
+	);
+
+	await seedContract(api, { govId: 'DUP-1' });
+
+	assert.equal(
+		await refusalReadIn(() => create({ govId: 'DUP-1' })),
+		'المعرف الحكومي مرتبط بعقد آخر.'
+	);
+});
+
+test('a renewal refused for its term reads in Arabic', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api);
+
+	assert.equal(
+		await refusalReadIn(() =>
+			api.contract.renew({ contractId: contract.id, start: contract.start, end: contract.end })
+		),
+		'يجب أن يبدأ التجديد بعد انتهاء العقد الذي يجدده.'
+	);
+	assert.equal(
+		await refusalReadIn(() =>
+			api.contract.renew({ contractId: unusedId(), start: contract.start, end: contract.end })
+		),
+		'لم يعد هذا العقد موجوداً في مساحة العمل. أعد التحميل لترى ما تغيّر.'
+	);
+});
+
+test('a refusal naming a value keeps the value whole inside the Arabic sentence', async () => {
+	const api = await createApi();
+	const first = await seedContract(api, { govId: 'GOV-A' });
+	const second = await seedContract(api, { govId: 'GOV-B' });
+
+	const deleted = await api.contract.deleteMany({ ids: [first.id, second.id] });
+	await seedContract(api, { govId: 'GOV-B' });
+
+	// the id runs left to right whatever the sentence around it does, so it is isolated rather
+	// than left for the bidirectional algorithm to reorder.
+	assert.equal(
+		await refusalReadIn(() => api.contract.createMany({ contracts: deleted.deleted })),
+		'المعرف الحكومي \u2068GOV-B\u2069 مرتبط بعقد آخر.'
 	);
 });
