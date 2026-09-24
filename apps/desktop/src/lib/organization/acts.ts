@@ -1,5 +1,11 @@
 import type { RecordAct } from '$lib/design/acts';
-import type { OrganizationMember, OrganizationWorkspace } from '$lib/platform/host';
+import type {
+	MemberStanding,
+	OrganizationMember,
+	OrganizationSession,
+	OrganizationWorkspace
+} from '$lib/platform/host';
+import { permits } from '@rentable/workspace-permission';
 import CrownIcon from '@lucide/svelte/icons/crown';
 import LaptopIcon from '@lucide/svelte/icons/laptop';
 import LinkIcon from '@lucide/svelte/icons/link';
@@ -71,6 +77,68 @@ export type MemberActContext = MemberReader & {
 
 /** What a member act is given: the member, and the facts its gates read. */
 export type MemberActRecord = { member: OrganizationMember; context: MemberActContext };
+
+/**
+ * who is reading, as the member acts are gated on it, read off the session.
+ *
+ * **The one place a reader's gates are read**, so the members directory and the command menu gate
+ * an act on the same facts: a copy of these nine lines in each would be two answers to who may do
+ * what, and the first permission added to one would leave the other offering an act the card does
+ * not.
+ */
+export function memberReaderOf(session: OrganizationSession): MemberReader {
+	const isOwner = session.role === 'owner';
+
+	return {
+		selfId: session.memberId,
+		isOwner,
+		canInvite: permits(session.permissions, 'inviteMember'),
+		canReset: permits(session.permissions, 'resetPassword'),
+		canRemove: permits(session.permissions, 'removeMember'),
+		canLockOut: isOwner,
+		canRename: permits(session.permissions, 'renameMember'),
+		canChangeRole: permits(session.permissions, 'changeRole'),
+		canGrantWorkspace: permits(session.permissions, 'grantWorkspace')
+	};
+}
+
+/**
+ * the members the organization could be offered to: everybody but the owner's own row, and
+ * nobody whose password is not set yet.
+ *
+ * A removed member is not in this list either, because the members query does not answer one.
+ * A member with no password of their own has no vault to derive the organization's next key
+ * from, which is what Rust refuses such an offer by name for; this is the earlier refusal, and
+ * it is what keeps the chooser from offering a choice that cannot go through. A member whose
+ * standing has not been answered yet is left out too: an offer drawn from nothing would name
+ * somebody Rust refuses.
+ */
+function offerableOf(members: readonly OrganizationMember[], standings: readonly MemberStanding[]) {
+	const passwordSet = (memberId: string) =>
+		standings.find((standing) => standing.memberId === memberId)?.passwordSet === true;
+
+	return members
+		.filter((member) => member.role !== 'owner' && passwordSet(member.id))
+		.map((member) => ({ id: member.id, username: member.username }));
+}
+
+/**
+ * what every member act is gated on, for the whole organization at once: who is reading, what
+ * their row carries, where the handover stands, and which writes are still running.
+ */
+export function toMemberActContext(
+	reader: MemberReader,
+	members: readonly OrganizationMember[],
+	standings: readonly MemberStanding[],
+	pending: MemberPending
+): MemberActContext {
+	return {
+		...reader,
+		offerStands: members.some((member) => member.offeredOwnership),
+		offerable: offerableOf(members, standings),
+		pending
+	};
+}
 
 /** Every member act, by the id the palette keys it on. */
 export type MemberActId =
@@ -237,6 +305,22 @@ export type WorkspaceActContext = {
 	/** the owner, refused again in Rust (`require_owner`). */
 	canDelete: boolean;
 };
+
+/**
+ * what the workspace acts are gated on, read off the session and the workspace open on this
+ * machine. The one place they are read, for the reason {@link memberReaderOf} gives.
+ */
+export function workspaceContextOf(
+	session: OrganizationSession,
+	openWorkspaceId: string | null
+): WorkspaceActContext {
+	return {
+		openWorkspaceId,
+		canRename: permits(session.permissions, 'renameWorkspace'),
+		canGrantWorkspace: permits(session.permissions, 'grantWorkspace'),
+		canDelete: session.role === 'owner'
+	};
+}
 
 /** What a workspace act is given: the workspace, and the facts its gates read. */
 export type WorkspaceActRecord = { workspace: OrganizationWorkspace; context: WorkspaceActContext };

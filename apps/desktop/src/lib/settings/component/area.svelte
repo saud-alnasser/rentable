@@ -26,6 +26,7 @@
 	import OrganizationReconnectAuthority from '$lib/organization/component/reconnect-authority.svelte';
 	import OrganizationStanding from '$lib/organization/component/standing.svelte';
 	import OrganizationWorkspaces from '$lib/organization/component/workspaces.svelte';
+	import { memberReaderOf, workspaceContextOf } from '$lib/organization/acts';
 	import SettingsAppearance from '$lib/settings/component/appearance.svelte';
 	import SettingsDiagnostics from '$lib/settings/component/diagnostics.svelte';
 	import SettingsEndingSoon from '$lib/settings/component/ending-soon.svelte';
@@ -39,7 +40,6 @@
 		withSection,
 		type AddressableSection
 	} from '$lib/settings/section';
-	import { permits } from '@rentable/workspace-permission';
 	import CrownIcon from '@lucide/svelte/icons/crown';
 	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
 
@@ -167,8 +167,6 @@
 	// an owner restored on this machine holds no Turso authority until they repeat the consent.
 	const needsAuthority = $derived(isOwner && !holdsTursoAuthority);
 	const canCreateWorkspace = $derived(isOwner && holdsTursoAuthority);
-	const canInvite = $derived(permits(session?.permissions ?? 0, 'inviteMember'));
-	const canRemove = $derived(permits(session?.permissions ?? 0, 'removeMember'));
 	// the directory is the organization section's own gate: it was a section of its own, and what
 	// admitted a reader to that section now decides whether the block is drawn.
 	const administers = $derived(administersMembers(session));
@@ -424,19 +422,8 @@
 			     the add at its foot; what is decided here is what this reader may do, and a member
 			     who changes nobody's row meets no directory at all. -->
 			{#if administers}
-				<OrganizationMembers
-					{members}
-					{standings}
-					{canInvite}
-					{canRemove}
-					canLockOut={isOwner}
-					canRename={permits(session.permissions, 'renameMember')}
-					canReset={permits(session.permissions, 'resetPassword')}
-					canChangeRole={permits(session.permissions, 'changeRole')}
-					canGrantWorkspace={permits(session.permissions, 'grantWorkspace')}
-					{isOwner}
-					selfId={session.memberId}
-				/>
+				<!-- the reader's gates, read by the one builder the command menu reads them by. -->
+				<OrganizationMembers {members} {standings} {...memberReaderOf(session)} />
 
 				<Separator />
 			{/if}
@@ -478,11 +465,8 @@
 			<OrganizationWorkspaces
 				workspaces={session.workspaces}
 				{members}
-				openWorkspaceId={syncState?.workspace.remoteId ?? null}
+				{...workspaceContextOf(session, syncState?.workspace.remoteId ?? null)}
 				canCreate={canCreateWorkspace}
-				canDelete={isOwner}
-				canRename={permits(session.permissions, 'renameWorkspace')}
-				canGrantWorkspace={permits(session.permissions, 'grantWorkspace')}
 				refusal={needsAuthority ? $LL.layout.workspaceMenu.workspaceRefusedAuthority() : null}
 			/>
 		</Field.Group>

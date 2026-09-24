@@ -28,9 +28,9 @@
 	}: {
 		strings: DesignStrings;
 		direction: DesignDirection;
-		/** the route on screen, drawn with `screenProps`. */
-		screen: Component<Record<string, unknown>>;
-		screenProps: Record<string, unknown>;
+		/** the route on screen, drawn with `screenProps`; none where the palette is the subject. */
+		screen?: Component<Record<string, unknown>>;
+		screenProps?: Record<string, unknown>;
 	} = $props();
 
 	const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -44,7 +44,9 @@
 			<LayoutShortcutListener />
 			<LayoutPalette bind:open={isPaletteOpen} />
 			<output data-palette-open={isPaletteOpen}></output>
-			<Screen {...screenProps} />
+			{#if Screen}
+				<Screen {...screenProps} />
+			{/if}
 		</TooltipProvider>
 	</QueryClientProvider>
 </DesignProvider>

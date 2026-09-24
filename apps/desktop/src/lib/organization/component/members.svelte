@@ -15,7 +15,7 @@
 	import type { ListSort } from '@rentable/design/sort.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { accountInitials } from '$lib/sync/account';
-	import type { MemberActContext, MemberActRecord } from '$lib/organization/acts';
+	import { toMemberActContext, type MemberActRecord } from '$lib/organization/acts';
 	import DirectoryTray from '$lib/organization/component/directory-tray.svelte';
 	import { toMemberDirectory } from '$lib/organization/directory';
 	import RoleTable from '$lib/organization/component/role-table.svelte';
@@ -185,40 +185,28 @@
 	};
 
 	/**
-	 * the members the organization could be offered to: everybody but the owner's own row, and
-	 * nobody whose password is not set yet.
-	 *
-	 * A removed member is not in this list either, because the members query does not answer one.
-	 * A member with no password of their own has no vault to derive the organization's next key
-	 * from, which is what Rust refuses such an offer by name for; this is the earlier refusal, and
-	 * it is what keeps the chooser from offering a choice that cannot go through. A member whose
-	 * standing has not been answered yet is left out too: an offer drawn from nothing would name
-	 * somebody Rust refuses.
+	 * what every member act is gated on, read once for the whole directory, through the builder the
+	 * command menu reads it through too: who is reading, what their row carries, where the handover
+	 * stands, and which writes are still running.
 	 */
-	const offerable = $derived(
-		members
-			.filter((member) => member.role !== 'owner' && standingOf(member.id)?.passwordSet === true)
-			.map((member) => ({ id: member.id, username: member.username }))
+	const context = $derived(
+		toMemberActContext(
+			{
+				selfId,
+				isOwner,
+				canInvite,
+				canReset,
+				canRemove,
+				canLockOut,
+				canRename,
+				canChangeRole,
+				canGrantWorkspace
+			},
+			members,
+			standings,
+			memberPending()
+		)
 	);
-
-	/**
-	 * what every member act is gated on, read once for the whole directory: who is reading, what
-	 * their row carries, where the handover stands, and which writes are still running.
-	 */
-	const context = $derived<MemberActContext>({
-		selfId,
-		isOwner,
-		canInvite,
-		canReset,
-		canRemove,
-		canLockOut,
-		canRename,
-		canChangeRole,
-		canGrantWorkspace,
-		offerStands: members.some((member) => member.offeredOwnership),
-		offerable,
-		pending: memberPending()
-	});
 
 	const recordOfMember = (member: OrganizationMember): MemberActRecord => ({ member, context });
 

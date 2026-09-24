@@ -1,4 +1,5 @@
 import { toShortcutHint } from '@rentable/design/shortcut.js';
+import type { RecordMatch } from '$lib/api/search';
 import type { ShortcutRegistration } from '$lib/design/shortcut-registry';
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 import { foldSearchText } from '$lib/platform/database/search';
@@ -22,7 +23,20 @@ import { foldSearchText } from '$lib/platform/database/search';
  */
 
 /** A concept the palette can ask the reader to choose a record of. */
-export type RecordSubject = 'tenant' | 'complex' | 'unit' | 'contract' | 'payment';
+export type RecordSubject =
+	'tenant' | 'complex' | 'unit' | 'contract' | 'payment' | 'member' | 'workspace';
+
+/**
+ * One record the palette found.
+ *
+ * `unavailable` is where the concept already knows, while the reader is choosing, that the act
+ * waiting for a record cannot run on this one now: the row is shown and refused with the reason,
+ * as a shortcut's is. A member's and a workspace's acts are the ones that know it.
+ */
+export type PaletteMatch = RecordMatch & { unavailable?: string };
+
+/** What a concept's search answers the palette with, found in SQL or in memory. */
+export type RecordSearch = { readonly data: PaletteMatch[] | undefined };
 
 /**
  * One shortcut the palette offers by name.

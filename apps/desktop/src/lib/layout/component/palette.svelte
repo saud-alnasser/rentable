@@ -33,7 +33,7 @@
 		type PaletteShortcut,
 		type RecordSubject
 	} from '$lib/layout/palette';
-	import { recordConcepts } from '$lib/layout/record-search';
+	import { useRecordConcepts } from '$lib/layout/record-search';
 	import ZapIcon from '@lucide/svelte/icons/zap';
 	import FileIcon from '@lucide/svelte/icons/file-text';
 	import PlusIcon from '@lucide/svelte/icons/plus';
@@ -41,6 +41,8 @@
 	/** An act the palette is holding while the reader chooses the record it runs on. */
 	type Asking = {
 		subject: RecordSubject;
+		/** the record act waiting, where it is one; a create asking for its parent is none. */
+		actId?: string;
 		label: string;
 		run: (recordId: string) => void;
 	};
@@ -66,6 +68,10 @@
 		/** Whether the palette is showing. Bind to it to open the palette from a trigger. */
 		open?: boolean;
 	} = $props();
+
+	// the concepts the palette finds records of. What a member's and a workspace's acts are gated
+	// on is read while the palette is showing, and not otherwise.
+	const recordConcepts = useRecordConcepts(() => open);
 
 	// the term the palette is holding. It reaches the record searches as a query and narrows the
 	// destinations here, which is why the command primitive's own filtering is off: records are
@@ -129,7 +135,10 @@
 	// search's own minimum, so each of them simply does not run.
 	const found = recordConcepts.map((concept) => ({
 		concept,
-		query: concept.find(() => (asking && asking.subject !== concept.subject ? '' : term))
+		query: concept.find(
+			() => (asking && asking.subject !== concept.subject ? '' : term),
+			() => asking?.actId ?? null
+		)
 	}));
 
 	// the concept the held action is asking for, and the records it has found. A subject naming
@@ -203,10 +212,21 @@
 			     here and what choosing from it will do. -->
 			<Command.Group heading={asking.label}>
 				{#each askedFor?.query.data ?? [] as match (match.id)}
-					<Command.Item value={String(match.id)} onSelect={() => runAsked(match.id)}>
+					<!-- a record the act cannot run on now is shown and refused, with the reason where
+					     the hint would be, as a shortcut's row refuses. -->
+					<Command.Item
+						value={String(match.id)}
+						disabled={Boolean(match.unavailable)}
+						data-record={match.id}
+						onSelect={() => {
+							if (!match.unavailable) runAsked(match.id);
+						}}
+					>
 						<FileIcon />
 						<span class="min-w-0 flex-1 truncate">{match.label}</span>
-						<span class="shrink-0 truncate text-xs text-muted-foreground">{match.hint}</span>
+						<span class="shrink-0 truncate text-xs text-muted-foreground">
+							{match.unavailable ?? match.hint}
+						</span>
 					</Command.Item>
 				{/each}
 			</Command.Group>
@@ -289,6 +309,7 @@
 							onSelect={() =>
 								ask({
 									subject: group.subject,
+									actId: act.id,
 									label: act.label,
 									run: (recordId) => group.runOn(act.id, recordId)
 								})}

@@ -279,8 +279,11 @@ human accepted it at that effort's review round two on 2026-09-17.*
 directories declare their acts in `organization/acts.ts` like every concept (*Record card actions*,
 below), and the sheet a card opens is the organization host's, mounted in the frame. A member's or a
 workspace's acts are gated on who is reading as much as on the record, so the record an act is given
-carries the reader's facts beside the member or the workspace. A member's name is part of its one
-edit, so the card offers *edit* and never *rename* beside it.*
+carries the reader's facts beside the member or the workspace. Those facts are read in one place
+(`memberReaderOf`, `toMemberActContext` and `workspaceContextOf` in `organization/acts.ts`), by the
+settings area for its directories and by the command menu for its own offer, so neither can gate an
+act the other does not. A member's name is part of its one edit, so the card offers *edit* and never
+*rename* beside it.*
 
 ### Record card actions
 
@@ -306,6 +309,14 @@ exposes `run(actId, record)` and `create(prefill?)` through a module store
 (`contract/host.svelte.ts` is the first). A surface mounts none of them, so there is one form per
 concept in the tree, and the command menu reaches every act from any screen: choosing one asks for the
 record, and the host reads it and refuses, with a sentence, an act that record does not admit.
+
+A member's and a workspace's acts are gated on who is reading, which the menu knows before a record
+is named, so it goes one step further for them (`organization/palette.ts`): it offers only the acts
+this reader can take on somebody, and once one is chosen it lists only the members or workspaces
+that act admits, all of them before anything is typed, since an organization's are a handful. A
+record the act admits but cannot run on now, behind a write already running, is listed and refused
+with the reason. They are found only through an act: a member or a workspace is opened from its
+settings directory.
 
 **Groups and shortcuts.** Acts fall in `primary`, `lifecycle` and `destructive`, in that order on
 every concept, and the card's menus draw a separator wherever the group changes. An act's shortcut,
@@ -869,7 +880,8 @@ the create control (`create-control.svelte`, given the set's reason by the list'
 `createUnavailable`), whose key answers with the same reason, and the create an empty list offers
 under its title. The command menu puts it beside the
 row, where its keys would be, because its rows are chosen from the search field and never take the
-focus a tooltip opens on; a record's act asked for there is refused by the host with the same line.
+focus a tooltip opens on; a record's act asked for there is refused by the host with the same line,
+and a member or a workspace the chosen act cannot run on now carries it on its own row.
 
 The control is **never the platform's disabled**: a disabled button or menu entry leaves the
 keyboard's path and ignores the pointer, so its reason could never be reached. It is marked
