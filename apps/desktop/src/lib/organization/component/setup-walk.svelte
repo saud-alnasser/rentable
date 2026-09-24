@@ -285,7 +285,7 @@
 
 	// **Built here rather than at module load**, for the reason `workspace/component/rename-form`
 	// gives: the messages resolve against a locale, and at module load there is none. The
-	// username's rule is the shared one the invite and rename dialogs read, so the owner's is
+	// username's rule is the shared one the invite dialog and the member's sheet read, so the owner's is
 	// refused with the sentence every other username is.
 	const SetupSchema = z.object({
 		name: z

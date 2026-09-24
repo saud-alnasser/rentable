@@ -338,7 +338,7 @@ test('a create refused over the group leaves the name step filled in, so the gro
 });
 
 // criterion 21: the owner's username is refused on the field with the one sentence the invite
-// and rename dialogs refuse with, since all three read `organization/username-form.ts`.
+// dialog and the member's sheet refuse with, since all three read `organization/username-form.ts`.
 test('a username outside the rules is refused on the name step with the one sentence every form reads', async () => {
 	loadLocale('en');
 	setLocale('en');

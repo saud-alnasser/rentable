@@ -367,3 +367,371 @@ for (const status of [...STATUSES, undefined]) {
 		assertDeclarationHolds(acts);
 	});
 }
+
+/**
+ * The members and workspaces directories in settings, held to the same criterion (effort 832,
+ * ticket 11). What a member or a workspace admits is read off the reader as much as the record,
+ * so the states a record is in here are the readers it can be read by: the owner, an
+ * administrator, a member widened by one act, and a member holding none, on each kind of card.
+ */
+const ORGANIZATION_GLYPHS = [
+	'crown',
+	'laptop',
+	'link',
+	'lock',
+	'refresh-cw',
+	'square-pen',
+	'trash-2',
+	'user-minus',
+	'users'
+];
+
+// a glyph the contract's acts already stood in for is not stood in for twice.
+for (const glyph of ORGANIZATION_GLYPHS.filter((declared) => !GLYPHS.includes(declared))) {
+	mock.module(`@lucide/svelte/icons/${glyph}`, {
+		defaultExport: Object.assign(() => {}, { glyph })
+	});
+}
+
+const { declareMemberActs, declareWorkspaceActs } = await import('$lib/organization/acts');
+type MemberActRecord = import('$lib/organization/acts').MemberActRecord;
+type MemberActContext = import('$lib/organization/acts').MemberActContext;
+type WorkspaceActRecord = import('$lib/organization/acts').WorkspaceActRecord;
+type WorkspaceActContext = import('$lib/organization/acts').WorkspaceActContext;
+type OrganizationMember = import('$lib/platform/host').OrganizationMember;
+type OrganizationWorkspace = import('$lib/platform/host').OrganizationWorkspace;
+
+/** A host that records what each member or workspace act asked of it. */
+function recordingOrganizationHost() {
+	const asked: string[] = [];
+	const onMember = (request: string) => (record: MemberActRecord) =>
+		asked.push(`${request}:${record.member.id}`);
+	const onWorkspace = (request: string) => (record: WorkspaceActRecord) =>
+		asked.push(`${request}:${record.workspace.id}`);
+
+	return {
+		asked,
+		member: {
+			edit: onMember('edit'),
+			offerOwnership: onMember('offerOwnership'),
+			withdrawOffer: onMember('withdrawOffer'),
+			makeLink: onMember('makeLink'),
+			unsetPassword: onMember('unsetPassword'),
+			endSessions: onMember('endSessions'),
+			confirmRemoval: (record: MemberActRecord, lockOut: boolean) =>
+				asked.push(`${lockOut ? 'confirm.lockOut' : 'confirm.remove'}:${record.member.id}`)
+		},
+		workspace: {
+			edit: onWorkspace('edit'),
+			changeAccess: onWorkspace('changeAccess'),
+			confirmDelete: onWorkspace('confirmDelete')
+		}
+	};
+}
+
+const memberOf = (id: string, role: OrganizationMember['role']): OrganizationMember => ({
+	id,
+	username: id,
+	role,
+	permissions: 0,
+	workspaces: [],
+	createdAt: 0,
+	offeredOwnership: false
+});
+
+const NONE_HELD = {
+	canInvite: false,
+	canReset: false,
+	canRemove: false,
+	canLockOut: false,
+	canRename: false,
+	canChangeRole: false,
+	canGrantWorkspace: false
+};
+
+const EVERY_HELD = {
+	canInvite: true,
+	canReset: true,
+	canRemove: true,
+	canLockOut: true,
+	canRename: true,
+	canChangeRole: true,
+	canGrantWorkspace: true
+};
+
+const IDLE = {
+	linking: false,
+	unsetting: false,
+	endingSessions: false,
+	offering: false,
+	withdrawing: false
+};
+
+/** the readers a member's card is read by, each in the organization olivia owns. */
+const MEMBER_READERS: Record<string, MemberActContext> = {
+	owner: {
+		selfId: 'olivia',
+		isOwner: true,
+		...EVERY_HELD,
+		offerStands: false,
+		offerable: [{ id: 'ada', username: 'ada' }],
+		pending: IDLE
+	},
+	'owner with an offer standing': {
+		selfId: 'olivia',
+		isOwner: true,
+		...EVERY_HELD,
+		offerStands: true,
+		offerable: [{ id: 'ada', username: 'ada' }],
+		pending: IDLE
+	},
+	administrator: {
+		selfId: 'ada',
+		isOwner: false,
+		...EVERY_HELD,
+		canLockOut: false,
+		offerStands: false,
+		offerable: [],
+		pending: IDLE
+	},
+	'member widened by renameMember': {
+		selfId: 'sami',
+		isOwner: false,
+		...NONE_HELD,
+		canRename: true,
+		offerStands: false,
+		offerable: [],
+		pending: IDLE
+	},
+	'member holding nothing': {
+		selfId: 'sami',
+		isOwner: false,
+		...NONE_HELD,
+		offerStands: false,
+		offerable: [],
+		pending: IDLE
+	}
+};
+
+const MEMBERS = [
+	memberOf('olivia', 'owner'),
+	memberOf('ada', 'administrator'),
+	memberOf('sami', 'member')
+];
+
+for (const [reader, context] of Object.entries(MEMBER_READERS)) {
+	for (const member of MEMBERS) {
+		test(`the card of ${member.id}, read by the ${reader}, offers the same acts on the card, the page and the palette`, () => {
+			const acts = declareMemberActs(recordingOrganizationHost().member);
+			const record = { member, context };
+
+			const card = reduce(
+				toCardActions(acts, record, translations).map((action) => ({
+					id: action.attributes?.['data-act'],
+					label: action.label,
+					icon: action.icon
+				}))
+			);
+			const page = reduce(toPageActions(acts, record, translations));
+			const palette = reduce(toPaletteVerbs(acts, record, translations, false));
+
+			assert.ok(
+				card.every((entry) => ORGANIZATION_GLYPHS.includes(entry.icon ?? '')),
+				'every entry carries its glyph'
+			);
+			assert.deepEqual(page, card);
+			assert.deepEqual(palette, card);
+		});
+	}
+}
+
+test('a member is offered one edit, never a rename beside it, under the edit glyph', () => {
+	const acts = declareMemberActs(recordingOrganizationHost().member);
+	const idsFor = (member: OrganizationMember, context: MemberActContext) =>
+		toCardActions(acts, { member, context }, translations).map(
+			(action) => action.attributes?.['data-act']
+		);
+
+	// the owner reading anybody else's card: every act, in the declared order.
+	assert.deepEqual(idsFor(memberOf('ada', 'administrator'), MEMBER_READERS.owner), [
+		'member.edit',
+		'member.makeLink',
+		'member.unsetPassword',
+		'member.endSessions',
+		'member.remove',
+		'member.lockOut'
+	]);
+	// their own card: the handover, and while an offer stands its withdrawal in its place.
+	assert.deepEqual(idsFor(memberOf('olivia', 'owner'), MEMBER_READERS.owner), [
+		'member.offerOwnership'
+	]);
+	assert.deepEqual(
+		idsFor(memberOf('olivia', 'owner'), MEMBER_READERS['owner with an offer standing']),
+		['member.withdrawOffer']
+	);
+	// an administrator meets nothing on the owner's card or their own, and no lock-out anywhere.
+	assert.deepEqual(idsFor(memberOf('olivia', 'owner'), MEMBER_READERS.administrator), []);
+	assert.deepEqual(idsFor(memberOf('ada', 'administrator'), MEMBER_READERS.administrator), []);
+	assert.deepEqual(idsFor(memberOf('sami', 'member'), MEMBER_READERS.administrator), [
+		'member.edit',
+		'member.makeLink',
+		'member.unsetPassword',
+		'member.endSessions',
+		'member.remove'
+	]);
+	// a member who may only rename meets the one edit, and nothing else.
+	assert.deepEqual(
+		idsFor(memberOf('ada', 'administrator'), MEMBER_READERS['member widened by renameMember']),
+		['member.edit']
+	);
+	assert.deepEqual(
+		idsFor(memberOf('ada', 'administrator'), MEMBER_READERS['member holding nothing']),
+		[]
+	);
+
+	const edit = acts.find((act) => act.id === 'member.edit')!;
+	const contractEdit = declareContractActs(recordingHost().host).find(
+		(act) => act.id === 'contract.edit'
+	)!;
+
+	assert.equal(edit.label(translations), translations.common.actions.edit());
+	assert.equal(edit.icon, contractEdit.icon);
+});
+
+test('a member act waiting on the shell is shown and refused until it lands', () => {
+	const acts = declareMemberActs(recordingOrganizationHost().member);
+	const record = {
+		member: memberOf('sami', 'member'),
+		context: { ...MEMBER_READERS.owner, pending: { ...IDLE, linking: true } }
+	};
+	const entry = (id: string) =>
+		toCardActions(acts, record, translations).find(
+			(action) => action.attributes?.['data-act'] === id
+		);
+
+	assert.equal(entry('member.makeLink')?.disabled, true);
+	assert.equal(entry('member.edit')?.disabled, false);
+});
+
+const workspaceOf = (id: string): OrganizationWorkspace => ({
+	id,
+	name: id,
+	databaseName: id,
+	databaseHostname: `${id}.turso.io`,
+	schemaVersion: 1,
+	accessLevel: 'full-access'
+});
+
+/** the readers a workspace's card is read by; ws-1 is the one open on this machine. */
+const WORKSPACE_READERS: Record<string, WorkspaceActContext> = {
+	owner: { openWorkspaceId: 'ws-1', canRename: true, canGrantWorkspace: true, canDelete: true },
+	administrator: {
+		openWorkspaceId: 'ws-1',
+		canRename: true,
+		canGrantWorkspace: true,
+		canDelete: false
+	},
+	'member widened by renameWorkspace': {
+		openWorkspaceId: 'ws-1',
+		canRename: true,
+		canGrantWorkspace: false,
+		canDelete: false
+	},
+	'member holding nothing': {
+		openWorkspaceId: 'ws-1',
+		canRename: false,
+		canGrantWorkspace: false,
+		canDelete: false
+	}
+};
+
+for (const [reader, context] of Object.entries(WORKSPACE_READERS)) {
+	for (const workspace of [workspaceOf('ws-1'), workspaceOf('ws-2')]) {
+		test(`the card of ${workspace.id}, read by the ${reader}, offers the same acts on the card, the page and the palette`, () => {
+			const acts = declareWorkspaceActs(recordingOrganizationHost().workspace);
+			const record = { workspace, context };
+
+			const card = reduce(
+				toCardActions(acts, record, translations).map((action) => ({
+					id: action.attributes?.['data-act'],
+					label: action.label,
+					icon: action.icon
+				}))
+			);
+			const page = reduce(toPageActions(acts, record, translations));
+			const palette = reduce(toPaletteVerbs(acts, record, translations, false));
+
+			assert.ok(
+				card.every((entry) => ORGANIZATION_GLYPHS.includes(entry.icon ?? '')),
+				'every entry carries its glyph'
+			);
+			assert.deepEqual(page, card);
+			assert.deepEqual(palette, card);
+		});
+	}
+}
+
+test('a workspace is edited only where it is open, and the owner alone deletes one', () => {
+	const acts = declareWorkspaceActs(recordingOrganizationHost().workspace);
+	const idsFor = (id: string, reader: string) =>
+		toPageActions(
+			acts,
+			{ workspace: workspaceOf(id), context: WORKSPACE_READERS[reader] },
+			translations
+		).map((act) => act.id);
+
+	assert.deepEqual(idsFor('ws-1', 'owner'), [
+		'workspace.edit',
+		'workspace.members',
+		'workspace.delete'
+	]);
+	assert.deepEqual(idsFor('ws-2', 'owner'), ['workspace.members', 'workspace.delete']);
+	assert.deepEqual(idsFor('ws-1', 'administrator'), ['workspace.edit', 'workspace.members']);
+	assert.deepEqual(idsFor('ws-1', 'member widened by renameWorkspace'), ['workspace.edit']);
+	assert.deepEqual(idsFor('ws-2', 'member widened by renameWorkspace'), []);
+	assert.deepEqual(idsFor('ws-1', 'member holding nothing'), []);
+
+	const edit = acts.find((act) => act.id === 'workspace.edit')!;
+
+	assert.equal(edit.label(translations), translations.common.actions.edit());
+});
+
+test('the destructive group comes last on a member and on a workspace', () => {
+	const host = recordingOrganizationHost();
+
+	for (const acts of [declareMemberActs(host.member), declareWorkspaceActs(host.workspace)]) {
+		const groups: (string | undefined)[] = acts.map((act) => act.group);
+		const first = groups.indexOf('destructive');
+
+		assert.equal(groups.at(-1), 'destructive');
+		assert.ok(groups.slice(first).every((group) => group === 'destructive'));
+	}
+});
+
+test('every organization surface runs an act by asking the host, on the record it was offered for', () => {
+	const host = recordingOrganizationHost();
+	const memberActs = declareMemberActs(host.member);
+	const workspaceActs = declareWorkspaceActs(host.workspace);
+	const sami = { member: memberOf('sami', 'member'), context: MEMBER_READERS.owner };
+	const open = { workspace: workspaceOf('ws-1'), context: WORKSPACE_READERS.owner };
+
+	toCardActions(memberActs, sami, translations)
+		.find((action) => action.attributes?.['data-act'] === 'member.lockOut')
+		?.onSelect();
+	toPaletteVerbs(memberActs, sami, translations, false)
+		.find((act) => act.id === 'member.edit')
+		?.run();
+	toCardActions(workspaceActs, open, translations)
+		.find((action) => action.attributes?.['data-act'] === 'workspace.members')
+		?.onSelect();
+	toPaletteVerbs(workspaceActs, open, translations, false)
+		.find((act) => act.id === 'workspace.delete')
+		?.run();
+
+	assert.deepEqual(host.asked, [
+		'confirm.lockOut:sami',
+		'edit:sami',
+		'changeAccess:ws-1',
+		'confirmDelete:ws-1'
+	]);
+});

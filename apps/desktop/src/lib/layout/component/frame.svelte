@@ -5,6 +5,7 @@
 	import ContractHost from '$lib/contract/component/host.svelte';
 	import PaymentHost from '$lib/payment/component/host.svelte';
 	import TenantHost from '$lib/tenant/component/host.svelte';
+	import OrganizationHost from '$lib/organization/component/host.svelte';
 	import { tauri } from '$lib/platform/tauri';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Kbd } from '@rentable/design/primitive/kbd/index.js';
@@ -193,6 +194,9 @@
 			<UnitHost />
 			<ContractHost />
 			<PaymentHost />
+			<!-- and every member and workspace surface, for the same reason: the settings directories
+			     ask for them, and nothing they open is mounted twice. -->
+			<OrganizationHost />
 			<LayoutShortcutSheet bind:open={isShortcutSheetOpen} />
 		{/if}
 		<Sidebar.Provider class="h-full min-h-0 overflow-hidden">

@@ -68,7 +68,9 @@
 	 *
 	 * **It owns no query**, which is what makes requirement 14's gating readable without a shell:
 	 * the route reads the four queries the four pages read, and this is handed their answers and
-	 * a callback per act. So its test renders it with one session and then another and reads the
+	 * a callback per act of its own. A member's or a workspace's acts are not among them: the
+	 * directories project them from `organization/acts.ts`, and the organization host in the frame
+	 * runs them (effort 832, requirement 8). So its test renders it with one session and then another and reads the
 	 * rail, which no test of a route could do.
 	 *
 	 * **What a section shows is the session's, and a section with nothing to show is absent**:
@@ -76,7 +78,7 @@
 	 * each block. Rust refuses every one of them again.
 	 *
 	 * **Each block is one component, and this composes rather than draws.** The members list, the
-	 * workspaces list and the standing block each own their rows, their dialogs and their gates;
+	 * workspaces list and the standing block each own their rows and their gates;
 	 * what is here is which of them a reader is offered and what they are handed. *The workspaces
 	 * and sync blocks were the retired pages' components stood side by side until ticket 11 rebuilt
 	 * them; the sync block became the standing block with ticket 26 of effort 828.*
@@ -89,33 +91,14 @@
 		syncState,
 		members,
 		standings,
-		makingLink,
-		unsetting,
-		endingSessions,
 		isChangingPassword,
-		isChangingRole,
-		isChangingAccess,
-		isOffering,
-		isWithdrawing,
 		isAcceptingOwnership,
 		isDeletingOrganization,
 		onChangeLocale,
 		onRevealDiagnostics,
 		onChangePassword,
 		onEndOtherSessions,
-		onEndSessions,
-		onMakeLink,
-		onUnsetPassword,
-		onRemove,
-		onLockOut,
-		onRename,
-		onChangeRole,
-		onChangeAccess,
-		onOfferOwnership,
-		onWithdrawOffer,
 		onAcceptOwnership,
-		onChangeWorkspaceAccess,
-		onDeleteWorkspace,
 		onAuthorityReconnected,
 		onDeleteOrganization,
 		onDisconnect
@@ -135,19 +118,7 @@
 		members: OrganizationMember[];
 		/** where each account stands, as the members section draws it in a line. */
 		standings: MemberStanding[];
-		/** the account a link is being made for, while it is. */
-		makingLink: string | null;
-		/** the account whose password is being unset, while it is. */
-		unsetting: string | null;
-		/** the member whose sessions are being ended, while they are. */
-		endingSessions: string | null;
 		isChangingPassword: boolean;
-		isChangingRole: boolean;
-		isChangingAccess: boolean;
-		/** the offer is being written, which is a signed row, a succession row and a push. */
-		isOffering: boolean;
-		/** the offer is being taken back. */
-		isWithdrawing: boolean;
 		/** the organization is being accepted, which re-keys the whole directory and pushes it. */
 		isAcceptingOwnership: boolean;
 		/** the organization is being deleted, which is several requests and a sweep of the disk. */
@@ -160,45 +131,11 @@
 		 * sign the reader out of their other machines; rejects so the confirm stays open on it.
 		 */
 		onEndOtherSessions: () => Promise<void>;
-		/** sign a member out of every machine, from their row. */
-		onEndSessions: (memberId: string) => void;
-		/** make the one link that admits a machine to an account (effort 828, requirement 20). */
-		onMakeLink: (memberId: string) => void;
-		/** unset an account's password, so the next link made for it asks for a new one. */
-		onUnsetPassword: (memberId: string) => void;
-		/** ask to remove a member: the route raises the confirm that names what it costs. */
-		onRemove: (memberId: string) => void;
-		onLockOut: (memberId: string) => void;
-		onRename: (memberId: string, username: string) => Promise<void>;
-		onChangeRole: (
-			memberId: string,
-			role: 'administrator' | 'member',
-			permissions: number
-		) => Promise<void>;
-		onChangeAccess: (
-			memberId: string,
-			changes: { id: string; access: 'none' | 'full-access' | 'read-only' }[]
-		) => Promise<void>;
-		/**
-		 * offer the organization to another account, with the owner's own password (effort 828,
-		 * requirement 22). Rejects with what the shared handler has said, which the members
-		 * section puts on the password.
-		 */
-		onOfferOwnership: (memberId: string, password: string) => Promise<void>;
-		/** take that offer back, which leaves the organization where it was. */
-		onWithdrawOffer: () => void;
 		/**
 		 * accept the organization offered to this reader, with their own password. Rejects with
 		 * what the shared handler has said, which the account section puts on the password.
 		 */
 		onAcceptOwnership: (password: string) => Promise<void>;
-		/** the same grants read the other way round: one workspace, and the members that changed. */
-		onChangeWorkspaceAccess: (
-			workspaceId: string,
-			changes: { memberId: string; access: 'none' | 'full-access' | 'read-only' }[]
-		) => Promise<void>;
-		/** delete a workspace and its database; rejects so the confirm stays open on the refusal. */
-		onDeleteWorkspace: (workspaceId: string) => Promise<void>;
 		onAuthorityReconnected: () => void;
 		/**
 		 * delete the organization with the owner's password: every workspace database and the
@@ -244,30 +181,6 @@
 			changingPassword = false;
 		} catch (error) {
 			passwordRefusal = toErrorText(error, $LL);
-		}
-	};
-
-	/** what the shell refused the last offer with, marked on the surface's password field. */
-	let offerRefusal = $state<string | null>(null);
-
-	/**
-	 * the organization, offered to another account from the members directory.
-	 *
-	 * The same shape the password change and the delete have, and for the same reason: the surface
-	 * that went through closes and empties, and a refusal keeps it open and puts the sentence on
-	 * the password, because the password is what the shell refuses this with ([[rules/interface]],
-	 * *Validation errors*). Nothing about what the owner sees changes on an offer: they are still
-	 * the owner until the other person accepts, and their card carries the withdrawal instead.
-	 */
-	const offerOwnership = async (memberId: string, password: string) => {
-		offerRefusal = null;
-
-		try {
-			await onOfferOwnership(memberId, password);
-		} catch (error) {
-			offerRefusal = toErrorText(error, $LL);
-
-			throw error;
 		}
 	};
 
@@ -501,7 +414,6 @@
 				<OrganizationMembers
 					{members}
 					{standings}
-					workspaces={session.workspaces}
 					{canInvite}
 					{canRemove}
 					canLockOut={isOwner}
@@ -511,24 +423,6 @@
 					canGrantWorkspace={permits(session.permissions, 'grantWorkspace')}
 					{isOwner}
 					selfId={session.memberId}
-					{makingLink}
-					{unsetting}
-					{endingSessions}
-					{isChangingRole}
-					{isChangingAccess}
-					{isOffering}
-					{isWithdrawing}
-					{offerRefusal}
-					{onEndSessions}
-					{onMakeLink}
-					{onUnsetPassword}
-					{onRemove}
-					{onLockOut}
-					{onRename}
-					{onChangeRole}
-					{onChangeAccess}
-					{onWithdrawOffer}
-					onOfferOwnership={offerOwnership}
 				/>
 
 				<Separator />
@@ -576,12 +470,7 @@
 				canDelete={isOwner}
 				canRename={permits(session.permissions, 'renameWorkspace')}
 				canGrantWorkspace={permits(session.permissions, 'grantWorkspace')}
-				{isOwner}
-				selfId={session.memberId}
-				{isChangingAccess}
 				refusal={needsAuthority ? $LL.layout.workspaceMenu.workspaceRefusedAuthority() : null}
-				onChangeAccess={onChangeWorkspaceAccess}
-				onDelete={onDeleteWorkspace}
 			/>
 		</Field.Group>
 	{/if}

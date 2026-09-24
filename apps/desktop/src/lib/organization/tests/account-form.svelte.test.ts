@@ -200,7 +200,7 @@ test('read only is refused for anybody but the owner, in words rather than by hi
 });
 
 // criterion 21: the username is refused on the field with the sentence the walk's name step and
-// the rename dialog refuse with, since all three read `organization/username-form.ts`.
+// the member's sheet refuse with, since all three read `organization/username-form.ts`.
 test('a username outside the rules is refused with the one sentence every form reads', async () => {
 	loadLocale('en');
 	setLocale('en');

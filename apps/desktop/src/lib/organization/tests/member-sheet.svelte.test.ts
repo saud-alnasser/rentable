@@ -1,6 +1,8 @@
 import { DesignProvider } from '@rentable/design/strings.js';
 import { fireEvent, render, screen } from '@testing-library/svelte';
 import { beforeEach, expect, test } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
@@ -71,11 +73,13 @@ const sheet = (
 			role: 'member',
 			permissions: 0,
 			rows,
+			canRename: false,
 			canChangeRole: true,
 			canGrantWorkspace: true,
 			canGrantSigning: true,
 			canGrantReadOnly: true,
 			isSaving: false,
+			nameRefusal: null,
 			roleRefusal: null,
 			workspacesRefusal: null,
 			onSave: noop,
@@ -85,6 +89,21 @@ const sheet = (
 	);
 
 const surface = () => document.querySelector('[data-slot=form-surface]');
+const usernameInput = () => document.querySelector<HTMLInputElement>('input[name=username]');
+
+/** the one sentence Rust refuses a username outside the rules with, read off the source. */
+const rustUsernameRules = () => {
+	const source = readFileSync(
+		// the runner's root is `apps/desktop`, and the crate sits beside `src` there.
+		resolve(process.cwd(), 'tauri/src/organization/invite.rs'),
+		'utf8'
+	);
+	const declared = /pub const USERNAME_RULES: &str = "([^"]+)";/.exec(source);
+
+	if (!declared) throw new Error('invite.rs no longer declares USERNAME_RULES');
+
+	return declared[1];
+};
 const tray = (name: string) => document.querySelector(`[data-sheet-tray="${name}"]`);
 const section = (name: string) => document.querySelector(`[data-sheet-section="${name}"]`);
 const listed = () =>
@@ -423,6 +442,8 @@ test('one save hands back the role, the acts and the workspaces that changed', a
 
 	expect(saved).toEqual([
 		{
+			// the reader may not rename here, so the name handed back is the one the member holds.
+			username: 'ada',
 			role: 'member',
 			permissions: maskOf('renameMember'),
 			changes: [{ id: 'ws-2', access: 'full-access' }]
@@ -516,6 +537,76 @@ test('each section is drawn by the act it is written with', () => {
 	expect(section('role')).not.toBeNull();
 	expect(section('acts')).not.toBeNull();
 	expect(section('workspaces')).toBeNull();
+});
+
+// effort 832, requirement 6: one verb per act. The name was its own surface behind a *rename*
+// entry beside the *edit*; it is the sheet's first section now, drawn by `renameMember` alone.
+test('the name is the first section, drawn by renameMember and opened on the name they hold', () => {
+	const renaming = sheet({ canRename: true });
+
+	expect(
+		Array.from(document.querySelectorAll('[data-sheet-section]')).map((block) =>
+			block.getAttribute('data-sheet-section')
+		)
+	).toEqual(['name', 'role', 'acts', 'workspaces']);
+	expect(usernameInput()?.value).toBe('ada');
+	expect(section('name')?.querySelector('[data-list-head="member-name"]')?.textContent).toContain(
+		en.organization.dashboard.renameDescription
+	);
+	renaming.unmount();
+
+	// a reader holding renameMember alone meets the name and nothing else.
+	sheet({ canRename: true, canChangeRole: false, canGrantWorkspace: false });
+
+	expect(
+		Array.from(document.querySelectorAll('[data-sheet-section]')).map((block) =>
+			block.getAttribute('data-sheet-section')
+		)
+	).toEqual(['name']);
+});
+
+test('one save hands back the new name, trimmed', async () => {
+	const saved: { username: string }[] = [];
+
+	sheet({ canRename: true, onSave: (edit) => saved.push(edit) });
+
+	await fireEvent.input(usernameInput()!, { target: { value: '  ada.l  ' } });
+	await submit();
+
+	expect(saved.map((edit) => edit.username)).toEqual(['ada.l']);
+});
+
+// criterion 23 of effort 824: a username outside the rules is refused on the field with the one
+// sentence, and the sentence is Rust's own. Nothing is handed back while it stands.
+test('a username outside the rules is refused with the sentence rust refuses it with', async () => {
+	const saved: unknown[] = [];
+
+	sheet({ canRename: true, onSave: (edit) => saved.push(edit) });
+
+	const input = usernameInput()!;
+
+	await fireEvent.input(input, { target: { value: 'ad' } });
+	await fireEvent.focusOut(input);
+
+	expect(section('name')?.querySelector('[data-sheet-error="name"]')?.textContent?.trim()).toBe(
+		en.organization.dashboard.usernameRules
+	);
+	expect(input.getAttribute('aria-invalid')).toBe('true');
+	expect(en.organization.dashboard.usernameRules).toBe(rustUsernameRules());
+
+	await submit();
+
+	expect(saved).toEqual([]);
+});
+
+// and what Rust refuses (a username somebody holds) marks the name the way the others mark theirs.
+test('a refused rename marks the name', () => {
+	sheet({ canRename: true, nameRefusal: 'that username is taken' });
+
+	expect(section('name')?.querySelector('[data-sheet-error="name"]')?.textContent?.trim()).toBe(
+		'that username is taken'
+	);
+	expect(usernameInput()?.getAttribute('aria-invalid')).toBe('true');
 });
 
 test('a closed sheet puts nothing in the document', () => {

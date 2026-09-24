@@ -44,7 +44,7 @@
 	 * **The username is the whole of the identity, under the one rule.** No address and no display
 	 * name: the member signs in with the username and nothing else names them (requirement 21 of
 	 * effort 824). The rule it is refused by is `organization/username-form.ts`, the same schema
-	 * the walk's `name` step and the rename dialog read, so a username refused here is refused
+	 * the walk's `name` step and the member's sheet read, so a username refused here is refused
 	 * there with the same sentence.
 	 *
 	 * **The role sets the acts; the acts are the truth** (requirement 6 of effort 826). A role is a

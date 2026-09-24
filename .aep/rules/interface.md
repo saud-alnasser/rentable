@@ -160,6 +160,13 @@ else; the acts are still explicit controls on the card. Requirement 23 of
 [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]] is the precedent, and the
 human accepted it at that effort's review round two on 2026-09-17.*
 
+*Kept by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 8: the two
+directories declare their acts in `organization/acts.ts` like every concept (*Record card actions*,
+below), and the sheet a card opens is the organization host's, mounted in the frame. A member's or a
+workspace's acts are gated on who is reading as much as on the record, so the record an act is given
+carries the reader's facts beside the member or the workspace. A member's name is part of its one
+edit, so the card offers *edit* and never *rename* beside it.*
+
 ### Record card actions
 
 **A record's acts are declared once per concept, and every surface offering them is a projection
