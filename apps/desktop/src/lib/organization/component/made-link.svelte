@@ -2,6 +2,7 @@
 	import type { MadeLink } from '$lib/platform/host';
 	import FormSurface from '@rentable/design/block/form-surface.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
+	import CheckIcon from '@lucide/svelte/icons/check';
 	import { onSubmit } from '$lib/design/form';
 	import { showErrorSentence } from '$lib/error/toast';
 	import { LL } from '$lib/i18n/i18n-svelte';
@@ -88,6 +89,10 @@
 	{/if}
 
 	{#snippet actions()}
-		<Button type="submit">{$LL.organization.dashboard.done()}</Button>
+		<!-- the verb's glyph before its label, as every submit carries one. -->
+		<Button type="submit">
+			<CheckIcon class="size-4" />
+			{$LL.organization.dashboard.done()}
+		</Button>
 	{/snippet}
 </FormSurface>

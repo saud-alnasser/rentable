@@ -20,6 +20,7 @@
 	} from '@rentable/workspace-permission';
 	import UserIcon from '@lucide/svelte/icons/user';
 	import UserPlusIcon from '@lucide/svelte/icons/user-plus';
+	import { surfaceForm } from '$lib/design/form';
 	import { defaults, superForm } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';
 	import z from 'zod';
@@ -138,7 +139,7 @@
 	let { form, constraints, errors, enhance, reset, ...rest } = superForm<AccountForm>(
 		defaults(blank, zod4(AccountSchema)),
 		{
-			SPA: true,
+			...surfaceForm,
 			validators: zod4(AccountSchema),
 			onUpdate: ({ form }) => {
 				if (!form.valid || isCreating) return;

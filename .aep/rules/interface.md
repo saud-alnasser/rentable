@@ -267,6 +267,50 @@ is already a dialog, so there was never a second component to swap to.*
 
 Recorded originally as ADR 0017, *A form surface is one component that presents two ways, not two components swapped*.
 
+**A concept's weight is decided by its create form, and holds for edit.** It is **heavy** when the
+form chooses other records or writes more than one record (contract, complex with its units, tenant
+with its phone composite, member), and **light** otherwise (payment, unit, rename, password). So a
+complex is heavy for both create and edit, and a concept never opens on two presentations.
+
+**A submit is labelled with its verb, and carries the verb's glyph before the label.** Every submit
+does, the domain forms' as well as the organization's and the startup screens': *create* takes the
+plus, *save* and *update* the save glyph, and an act's own verb takes the glyph its act declares
+(renew, the calendar with a plus). One convention, and it is *all*, because the primaries of
+[[efforts/824-the-way-in-and-the-workspace-control-are-redesigned/spec]] (requirement 14) already
+carried theirs.
+
+**A refused submit moves focus to the first invalid field**, in the order the reader meets them,
+and scrolls it into view inside the surface's own body. Enter submits. Every schema form spreads
+`surfaceForm` from `apps/desktop/src/lib/design/form.ts` into its `superForm` call, which is where
+both are set; `tenant/tests/form.svelte.test.ts` holds the focus.
+
+Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 10: complex
+was heavy on create and light on edit, and the domain submits carried no glyph where the
+organization's did.
+
+### Field kinds
+
+**Each kind of value takes one control**, in a form and on a record alike:
+
+| Value | Control |
+| --- | --- |
+| a choice of two to four, exclusive | toggle group |
+| a setting that takes effect at once | switch |
+| a choice of five or more | select, or a combobox when searched |
+| another record | combobox over its search |
+| a date | the popover calendar, given the reader's locale |
+| money | the input group with the riyal sign as adornment, `inputmode="decimal"` |
+| a phone | country select plus number, `dir="ltr"` |
+| a status | the status icon cell |
+| a count | the count cell |
+
+The contract's cycle, four options, is a toggle group. Money is the input group with the riyal sign
+leading, drawn left to right in both locales as every amount is (`formatLocaleMoney`). A date's
+popover holds its open state in the form, closed whenever the form opens or closes, and keeps a
+collision padding of 16 so the calendar never meets the window's edge.
+
+Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 15.
+
 ### Validation errors
 
 **A validation error marks its own field.**

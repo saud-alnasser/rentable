@@ -5,7 +5,7 @@
 	import FieldError from '@rentable/design/block/field-error.svelte';
 	import FormSurface, { insetControl } from '@rentable/design/block/form-surface.svelte';
 	import * as Form from '@rentable/design/primitive/form/index.js';
-	import { Input } from '@rentable/design/primitive/input/index.js';
+	import * as InputGroup from '@rentable/design/primitive/input-group/index.js';
 	import * as Popover from '@rentable/design/primitive/popover/index.js';
 	import {
 		formatCalendarDate,
@@ -14,7 +14,7 @@
 		parseDateInput,
 		toCalendarDate
 	} from '$lib/design/date';
-	import { formatLocaleMoney, getIntlLocale } from '$lib/platform/locale';
+	import { formatLocaleMoney, getIntlLocale, RIYAL } from '$lib/platform/locale';
 	import { isWholeHalalas } from '@rentable/design/money.js';
 	import { cn } from '@rentable/design/tailwind.js';
 	import { getRemainingContractBalance } from '$lib/contract/contract';
@@ -23,7 +23,10 @@
 	import { useCreatePayment, useUpdatePayment } from '$lib/payment/query';
 	import { DateFormatter, type CalendarDate } from '@internationalized/date';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
+	import PlusIcon from '@lucide/svelte/icons/plus';
+	import SaveIcon from '@lucide/svelte/icons/save';
 	import { TRPCError } from '@trpc/server';
+	import { surfaceForm } from '$lib/design/form';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';
 	import { z } from 'zod';
@@ -74,13 +77,16 @@
 				};
 
 	let paymentDateValue = $state<CalendarDate | undefined>(undefined);
+	// held here rather than left to the popover, as the contract's pickers are: a calendar left
+	// open when the surface closes would otherwise open again with it.
+	let isDatePickerOpen = $state(false);
 	let isEditMode = $derived(Boolean(value?.id));
 	let isPending = $derived(createMutation.isPending || updateMutation.isPending);
 
 	let { form, constraints, errors, enhance, reset, ...rest } = superForm<PaymentForm>(
 		defaults(zod4(PaymentFormSchema)),
 		{
-			SPA: true,
+			...surfaceForm,
 			validators: zod4(PaymentFormSchema),
 			onUpdate: async ({ form }) => {
 				if (!form.valid) return;
@@ -134,6 +140,8 @@
 	let latestPaymentDate = $state<CalendarDate | undefined>(undefined);
 
 	$effect(() => {
+		isDatePickerOpen = false;
+
 		if (open) {
 			const nextFormValue = getInitialForm(value);
 			paymentDateValue = parseCalendarDate(nextFormValue.date);
@@ -226,7 +234,7 @@
 			<Form.Control>
 				<Form.Label>{$LL.common.labels.paymentDate()}</Form.Label>
 				<input type="hidden" name="date" value={$form.date} />
-				<Popover.Root>
+				<Popover.Root bind:open={isDatePickerOpen}>
 					<Popover.Trigger>
 						{#snippet child({ props })}
 							<Button
@@ -251,7 +259,7 @@
 							</Button>
 						{/snippet}
 					</Popover.Trigger>
-					<Popover.Content class="w-auto p-0" align="start">
+					<Popover.Content class="w-auto p-0" align="start" collisionPadding={16}>
 						<Calendar.Calendar
 							type="single"
 							bind:value={paymentDateValue}
@@ -268,19 +276,22 @@
 		<Form.Field form={superform} name="amount" class="group relative">
 			<Form.Control>
 				<Form.Label>{$LL.common.labels.amount()}</Form.Label>
-				<Input
-					type="number"
-					min="0.01"
-					step="0.01"
-					value={$form.amount}
-					oninput={(event) => {
-						$form.amount = event.currentTarget.value;
-					}}
-					placeholder="0.00"
-					class={insetControl}
-					aria-invalid={$errors.amount ? 'true' : undefined}
-					{...$constraints.amount}
-				/>
+				<!-- money: the riyal sign as the adornment and the decimal keypad, left to right in
+				     both locales as every amount is drawn ([[rules/interface]], *Field kinds*). -->
+				<InputGroup.Root class={insetControl} dir="ltr">
+					<InputGroup.Addon>{RIYAL}</InputGroup.Addon>
+					<InputGroup.Input
+						inputmode="decimal"
+						autocomplete="off"
+						value={$form.amount}
+						oninput={(event) => {
+							$form.amount = event.currentTarget.value;
+						}}
+						placeholder="0.00"
+						aria-invalid={$errors.amount ? 'true' : undefined}
+						{...$constraints.amount}
+					/>
+				</InputGroup.Root>
 			</Form.Control>
 			<FieldError />
 		</Form.Field>
@@ -295,14 +306,15 @@
 		>
 			{$LL.common.actions.cancel()}
 		</Button>
+		<!-- the verb's glyph before its label, as every submit carries one. -->
 		<Button type="submit" disabled={isPending} class="capitalize">
-			{isEditMode
-				? isPending
-					? $LL.common.actions.saving()
-					: $LL.common.actions.save()
-				: isPending
-					? $LL.common.actions.creating()
-					: $LL.common.actions.create()}
+			{#if isEditMode}
+				<SaveIcon class="size-4" />
+				{isPending ? $LL.common.actions.saving() : $LL.common.actions.save()}
+			{:else}
+				<PlusIcon class="size-4" />
+				{isPending ? $LL.common.actions.creating() : $LL.common.actions.create()}
+			{/if}
 		</Button>
 	{/snippet}
 </FormSurface>

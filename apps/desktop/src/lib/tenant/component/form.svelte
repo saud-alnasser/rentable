@@ -10,7 +10,10 @@
 	import { cn } from '@rentable/design/tailwind.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { useCreateTenant, useUpdateTenant } from '$lib/tenant/query';
+	import PlusIcon from '@lucide/svelte/icons/plus';
+	import SaveIcon from '@lucide/svelte/icons/save';
 	import { TRPCError } from '@trpc/server';
+	import { surfaceForm } from '$lib/design/form';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';
 	import { z } from 'zod';
@@ -100,7 +103,7 @@
 	let { form, constraints, errors, enhance, reset, ...rest } = superForm<TenantForm>(
 		defaults(zod4(TenantFormSchema)),
 		{
-			SPA: true,
+			...surfaceForm,
 			validators: zod4(TenantFormSchema),
 			onUpdate: async ({ form }) => {
 				if (!form.valid) return;
@@ -260,12 +263,19 @@
 		>
 			{$LL.common.actions.cancel()}
 		</Button>
+		<!-- the verb's glyph before its label, as every submit carries one. -->
 		<Button
 			type="submit"
 			disabled={CreateMutation.isPending || UpdateMutation.isPending}
 			class="capitalize"
 		>
-			{value?.id ? $LL.common.actions.update() : $LL.common.actions.create()}
+			{#if value?.id}
+				<SaveIcon class="size-4" />
+				{$LL.common.actions.update()}
+			{:else}
+				<PlusIcon class="size-4" />
+				{$LL.common.actions.create()}
+			{/if}
 		</Button>
 	{/snippet}
 </FormSurface>

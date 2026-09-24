@@ -7,8 +7,9 @@
 	import FormSurface, { insetControl } from '@rentable/design/block/form-surface.svelte';
 	import * as Form from '@rentable/design/primitive/form/index.js';
 	import { Input } from '@rentable/design/primitive/input/index.js';
+	import * as InputGroup from '@rentable/design/primitive/input-group/index.js';
 	import * as Popover from '@rentable/design/primitive/popover/index.js';
-	import * as Select from '@rentable/design/primitive/select/index.js';
+	import * as ToggleGroup from '@rentable/design/primitive/toggle-group/index.js';
 	import {
 		formatCalendarDate,
 		formatDateInput,
@@ -16,7 +17,7 @@
 		parseDateInput,
 		toCalendarDate
 	} from '$lib/design/date';
-	import { formatLocaleMoney, getIntlLocale } from '$lib/platform/locale';
+	import { formatLocaleMoney, getIntlLocale, RIYAL } from '$lib/platform/locale';
 	import { isWholeHalalas } from '@rentable/design/money.js';
 	import { cn } from '@rentable/design/tailwind.js';
 	import {
@@ -46,9 +47,13 @@
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { useFetchTenant, useFetchTenants } from '$lib/tenant/query';
 	import { DateFormatter, type CalendarDate } from '@internationalized/date';
+	import CalendarPlusIcon from '@lucide/svelte/icons/calendar-plus';
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
+	import PlusIcon from '@lucide/svelte/icons/plus';
+	import SaveIcon from '@lucide/svelte/icons/save';
 	import { TRPCError } from '@trpc/server';
+	import { surfaceForm } from '$lib/design/form';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';
 	import { z } from 'zod';
@@ -239,7 +244,7 @@
 	let { form, constraints, errors, enhance, reset, ...rest } = superForm<ContractForm>(
 		defaults(zod4(ContractFormSchema)),
 		{
-			SPA: true,
+			...surfaceForm,
 			resetForm: false,
 			validators: zod4(ContractFormSchema),
 			onUpdate: async ({ form }) => {
@@ -653,19 +658,29 @@
 			<Form.Field form={superform} name="interval" class="group relative">
 				<Form.Control>
 					<Form.Label>{$LL.common.labels.cycle()}</Form.Label>
-					<Select.Root type="single" bind:value={$form.interval} disabled={isRenewing}>
-						<Select.Trigger
-							class={cn('w-full', insetControl)}
-							aria-invalid={$errors.interval ? 'true' : undefined}
-						>
-							{intervalLabels[$form.interval]()}
-						</Select.Trigger>
-						<Select.Content>
-							{#each intervals as interval (interval.value)}
-								<Select.Item value={interval.value} label={interval.label} />
-							{/each}
-						</Select.Content>
-					</Select.Root>
+					<!-- four exclusive choices, so a toggle group rather than a menu: all four are seen
+					     side by side ([[rules/interface]], *Field kinds*). -->
+					<ToggleGroup.Root
+						type="single"
+						variant="outline"
+						size="sm"
+						class="w-full"
+						aria-label={$LL.common.labels.cycle()}
+						aria-invalid={$errors.interval ? 'true' : undefined}
+						disabled={isRenewing}
+						value={$form.interval}
+						onValueChange={(next) => {
+							// pressing the one already chosen would unset a single group; a contract
+							// always has a cycle.
+							if (next) $form.interval = next as Contract['interval'];
+						}}
+					>
+						{#each intervals as interval (interval.value)}
+							<ToggleGroup.Item value={interval.value} class="flex-1 capitalize">
+								{interval.label}
+							</ToggleGroup.Item>
+						{/each}
+					</ToggleGroup.Root>
 				</Form.Control>
 				<FieldError />
 			</Form.Field>
@@ -673,20 +688,23 @@
 			<Form.Field form={superform} name="cost" class="group relative">
 				<Form.Control>
 					<Form.Label>{$LL.common.labels.costPerPayment()}</Form.Label>
-					<Input
-						type="number"
-						min="0.01"
-						step="0.01"
-						disabled={isRenewing}
-						value={$form.cost}
-						oninput={(event) => {
-							$form.cost = event.currentTarget.value;
-						}}
-						placeholder="0.00"
-						class={insetControl}
-						aria-invalid={$errors.cost ? 'true' : undefined}
-						{...$constraints.cost}
-					/>
+					<!-- money: the riyal sign as the adornment and the decimal keypad, left to right in
+					     both locales as every amount is drawn ([[rules/interface]], *Field kinds*). -->
+					<InputGroup.Root class={insetControl} dir="ltr" data-disabled={isRenewing || undefined}>
+						<InputGroup.Addon>{RIYAL}</InputGroup.Addon>
+						<InputGroup.Input
+							inputmode="decimal"
+							autocomplete="off"
+							disabled={isRenewing}
+							value={$form.cost}
+							oninput={(event) => {
+								$form.cost = event.currentTarget.value;
+							}}
+							placeholder="0.00"
+							aria-invalid={$errors.cost ? 'true' : undefined}
+							{...$constraints.cost}
+						/>
+					</InputGroup.Root>
 				</Form.Control>
 				<FieldError />
 			</Form.Field>
@@ -829,11 +847,18 @@
 		<Button type="button" variant="outline" disabled={isSaving} onclick={closeContractForm}>
 			{$LL.common.actions.cancel()}
 		</Button>
+		<!-- the verb's glyph before its label, as every submit carries one; renew takes the glyph
+		     its act carries in `contract/acts.ts`. -->
 		<Button type="submit" disabled={isSaving} class="capitalize">
 			{#if isRenewing}
+				<CalendarPlusIcon class="size-4" />
 				{RenewMutation.isPending ? $LL.common.actions.renewing() : $LL.common.actions.renew()}
+			{:else if value?.id}
+				<SaveIcon class="size-4" />
+				{$LL.common.actions.update()}
 			{:else}
-				{value?.id ? $LL.common.actions.update() : $LL.common.actions.create()}
+				<PlusIcon class="size-4" />
+				{$LL.common.actions.create()}
 			{/if}
 		</Button>
 	{/snippet}

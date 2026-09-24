@@ -9,7 +9,10 @@
 	import { useCreateComplex, useUpdateComplex } from '$lib/complex/query';
 	import type { DraftUnit } from '$lib/complex/unit-name';
 	import UnitEntry from './unit-entry.svelte';
+	import PlusIcon from '@lucide/svelte/icons/plus';
+	import SaveIcon from '@lucide/svelte/icons/save';
 	import { TRPCError } from '@trpc/server';
+	import { surfaceForm } from '$lib/design/form';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';
 	import z from 'zod';
@@ -44,7 +47,7 @@
 	let { form, constraints, errors, enhance, reset, ...rest } = superForm<ComplexForm>(
 		defaults(zod4(ComplexFormSchema)),
 		{
-			SPA: true,
+			...surfaceForm,
 			validators: zod4(ComplexFormSchema),
 			onUpdate: async ({ form }) => {
 				if (!form.valid) return;
@@ -109,15 +112,10 @@
 	const superform = { form, constraints, errors, enhance, reset, ...rest };
 </script>
 
-<!-- the weight follows the create case, which carries the unit-building surface as well as the
-     two fields; editing a complex is still those two fields and keeps the panel. -->
-<FormSurface
-	{open}
-	{onOpenChange}
-	{enhance}
-	weight={isCreating ? 'heavy' : 'light'}
-	title={$LL.common.labels.complex()}
->
+<!-- heavy, for edit as well: a concept's weight is decided by its create form, and creating a
+     complex writes its units with it ([[rules/interface]], *Form surface*). One concept opens on
+     one presentation, so the reader never meets the same record in two. -->
+<FormSurface {open} {onOpenChange} {enhance} weight="heavy" title={$LL.common.labels.complex()}>
 	<!-- no pinned read-out: a complex is a name and a location, and a panel restating the two
 	     fields directly beneath it is decoration rather than an answer. -->
 	<div class="flex flex-col gap-4">
@@ -167,12 +165,19 @@
 		>
 			{$LL.common.actions.cancel()}
 		</Button>
+		<!-- the verb's glyph before its label, as every submit carries one. -->
 		<Button
 			type="submit"
 			disabled={CreateMutation.isPending || UpdateMutation.isPending}
 			class="capitalize"
 		>
-			{value?.id ? $LL.common.actions.update() : $LL.common.actions.create()}
+			{#if value?.id}
+				<SaveIcon class="size-4" />
+				{$LL.common.actions.update()}
+			{:else}
+				<PlusIcon class="size-4" />
+				{$LL.common.actions.create()}
+			{/if}
 		</Button>
 	{/snippet}
 </FormSurface>
