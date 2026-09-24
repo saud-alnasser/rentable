@@ -83,8 +83,10 @@ test('a record page ends on the record, under the directory it belongs to', () =
 			{ kind: 'place', route: '/contracts', isLast: false },
 			{ kind: 'record', route: '/contracts/units/[id]', isLast: true }
 		],
+		// a payment is reached through its contract, and its trail runs through it (ticket 33).
 		'/contracts/payments/[id]': [
 			{ kind: 'place', route: '/contracts', isLast: false },
+			{ kind: 'parent', route: '/contracts/[id]', isLast: false },
 			{ kind: 'record', route: '/contracts/payments/[id]', isLast: true }
 		]
 	};

@@ -493,7 +493,7 @@ the order and before the create, holding *export* and *import* and nothing else.
   list is showing, under its search and order, in the columns its rows show (`exportAs`), under a
   name that carries the list and what narrowed it. It announces where the file went and opens its
   folder; walking away from the save dialog writes nothing and says nothing. A list with no rows
-  cannot export. With a selection, the selection bar's *export selection* writes only the
+  cannot export, and its entry stays in the menu, refused, saying so (*Guidance*). With a selection, the selection bar's *export selection* writes only the
   selection, under a name that says so.
 - **Import** reads a file into the directory it was opened from, through
   `workspace/component/directory-import-dialog.svelte`: choose the file, see what it would do, then
@@ -502,8 +502,9 @@ the order and before the create, holding *export* and *import* and nothing else.
   rest goes in; a file whose rows contradict each other is refused whole and offers no import
   (`design/import.ts`). An import is outside undo (*Undo*).
 
-Tenants, complexes, units, contracts and payments offer both; a contract that takes no new payment
-offers no import on its ledger. The settings directories offer neither (*Search*).
+Tenants, complexes, units, contracts and payments offer both. A contract that takes no new payment
+refuses the import on its ledger, with the reason its create is refused (`importUnavailable` on
+the list shell), since an import only adds payments. The settings directories offer neither (*Search*).
 
 **A whole workspace is one file, and it moves from the settings area**, beside sync
 (`workspace/component/transfer.svelte`), never from a directory: a directory's control writes that
@@ -718,6 +719,9 @@ three situations it is, on `data-empty`, and the three never read the same:
   application surface.
 
 "No results" is not a sentence any of them says: it names neither the situation nor the way out.
+Nor does the bar above a set that holds nothing yet count it: `list-toolbar.svelte` draws its
+count only where the set holds something or a search or a filter narrowed it, so *nothing here
+yet* is said once.
 
 The block is sized to the region it stands in. It fills a list's frame and a record's body; a pane
 or a settings section passes a class that keeps it to the space it has.
@@ -748,7 +752,8 @@ failure** (*Not found*, under *Empty*, above).
   (`layout/component/caught-error.svelte`). It offers *retry*, which draws the screen again, and
   *go home* where the frame around it still works; where the frame itself failed, retry alone,
   since every screen would draw the same broken frame. A route that failed to load draws the same
-  surface from the routes' `+error.svelte` and offers *go home*. Both show the status or the thrown
+  surface from the routes' `+error.svelte` and offers the same two: *retry*, which loads the route
+  again, and *go home*. Both show the status or the thrown
   message beneath the sentence, for whoever is asked what happened.
 
 *Why: a refusal reached the reader in whatever language its author wrote, Turso's English
@@ -788,7 +793,10 @@ place: a unit's address passes through `/complexes/units`, and no page lives the
 
 **A record's page ends the trail on the record, by name.** The record surface says what the record
 it shows is called (`shown-record.svelte.ts` in the design package), because only the concept
-knows: a contract is named by its tenant. Until the record is read the trail ends on the directory
+knows: a contract is named by its tenant. A record reached through another runs its trail through
+that one: a payment's trail is its directory, its contract, then the payment
+(`RECORD_PARENTS` in `layout/navigation.ts`), and the record surface names and addresses the
+contract as its `parent`. Until the record is read the trail ends on the directory
 above it, and a record that is not there is named as unknown. The dashboard and the way in carry no
 trail: the first is where the application opens, and the second is a walk whose card says which
 step it is on.

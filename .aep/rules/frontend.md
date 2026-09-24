@@ -391,6 +391,13 @@ its edges: "Adeline Wiegand Sr." reads ".Adeline Wiegand Sr" and "4253 Russel Mo
 also picks the edge the box aligns to. `design/cell/text.svelte` is the cell a row draws one with;
 the record surface's title and eyebrow and a specification's text values isolate themselves.
 
+**The locale files are written in lower case, and a product's name keeps its capital.** A heading
+is raised to sentence case where it renders (`first-letter:uppercase`, or `toTitleCase` for a
+title); a description, the line under a heading or a field, reads as written, in lower case, on
+every surface, because raising only its first letter would leave its second sentence lower case
+beside it. *Turso* is a product's name and is written *Turso* in both locales, wherever it falls
+in the sentence. `i18n/tests/casing.test.ts` holds both.
+
 **Figures use Western digits in both locales.** Money, counts, dates and relative times read
 `1,500`, not `١٬٥٠٠`, in Arabic as in English. `getIntlLocale` in `platform/locale.ts` is where
 that is decided: it maps `ar` to `ar-SA-u-nu-latn`, and every `Intl` and `DateFormatter`

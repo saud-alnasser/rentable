@@ -42,6 +42,19 @@ export const TRAIL_PLACES = [
 
 export type TrailPlace = (typeof TRAIL_PLACES)[number];
 
+/**
+ * The record page a record's page is reached through, where it has one.
+ *
+ * **A payment is reached through its contract**: it has no name of its own and no directory, and
+ * its address sits under `/contracts` without a page at `/contracts/payments`. So its trail runs
+ * through the contract it was made against, which is a page, rather than skipping from the
+ * directory to an amount. The crumb is named and addressed by the payment's record surface, since
+ * the route id says which kind of record the parent is and never which one.
+ */
+export const RECORD_PARENTS: Partial<Record<PageRoute, PageRoute>> = {
+	'/contracts/payments/[id]': '/contracts/[id]'
+};
+
 /** One crumb of the trail. */
 export type BreadcrumbCrumb =
 	| {
@@ -50,6 +63,15 @@ export type BreadcrumbCrumb =
 			route: TrailPlace;
 			/** Whether this is the deepest crumb, which reads as the current page. */
 			isLast: boolean;
+	  }
+	| {
+			/**
+			 * the record the page's record is reached through, named and addressed by the page's
+			 * record surface. Never the last crumb.
+			 */
+			kind: 'parent';
+			route: PageRoute;
+			isLast: false;
 	  }
 	| {
 			/** the record the trail ends on, named by its record surface. Always the last crumb. */
@@ -86,7 +108,8 @@ const isPage = (route: string): route is PageRoute =>
  * of a unit passes through `/complexes/units`, and no page lives there, so a trail read off the
  * address linked to three screens that did not exist. Here a prefix of the route id is a crumb only
  * where it is one of the trail's places, and the page's own last segment, where it is a record's
- * identifier, is the record the trail ends on.
+ * identifier, is the record the trail ends on, after the record it is reached through where it has
+ * one (`RECORD_PARENTS`).
  *
  * `null` is SvelteKit's route id for an address no route matched, which has no trail.
  */
@@ -103,6 +126,12 @@ export function toBreadcrumbTrail(routeId: string | null): BreadcrumbCrumb[] {
 		const isOwnSegment = index === segments.length - 1;
 
 		if (isOwnSegment && segment.startsWith('[')) {
+			const parent = RECORD_PARENTS[routeId];
+
+			if (parent) {
+				crumbs.push({ kind: 'parent', route: parent, isLast: false });
+			}
+
 			crumbs.push({ kind: 'record', route: routeId, isLast: true });
 
 			return;

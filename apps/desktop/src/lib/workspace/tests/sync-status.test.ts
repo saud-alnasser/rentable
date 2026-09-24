@@ -93,11 +93,11 @@ test('synced says when this machine last reached turso, and how depends on how f
 
 	assert.equal(
 		syncStandingSentence('neverReached', null, 'en', now, LL),
-		'this machine has not reached turso yet'
+		'this machine has not reached Turso yet'
 	);
 	assert.equal(
 		syncStandingSentence('synced', null, 'en', now, LL),
-		'this machine has not reached turso yet'
+		'this machine has not reached Turso yet'
 	);
 	assert.equal(
 		syncStandingSentence('synced', now - 2 * 60_000, 'en', now, LL),
@@ -110,7 +110,7 @@ test('synced says when this machine last reached turso, and how depends on how f
 
 	const old = syncStandingSentence('synced', now - 3 * 86_400_000, 'en', now, LL);
 
-	assert.ok(old.startsWith('last reached turso on '), old);
+	assert.ok(old.startsWith('last reached Turso on '), old);
 	assert.ok(!old.includes('up to date'), old);
 	assert.ok(old.includes('2026'), old);
 });
@@ -123,7 +123,7 @@ test('a standing that needs something says what needs doing, whatever the moment
 	for (const moment of [null, now - 60_000, now - 3 * 86_400_000]) {
 		assert.equal(
 			syncStandingSentence('accountRefused', moment, 'en', now, LL),
-			'the turso account needs attention'
+			'the Turso account needs attention'
 		);
 		assert.equal(
 			syncStandingSentence('credentialRefused', moment, 'en', now, LL),

@@ -258,7 +258,7 @@ test('the role chooser says who the chosen role is for, and never offers the own
 	expect(roleItem('owner')).toBeNull();
 	expect(screen.queryByText(en.organization.roles.owner.who)).toBeNull();
 	// and the administrator's names the one thing the word does not cover.
-	expect(en.organization.roles.administrator.who).toMatch(/turso account/);
+	expect(en.organization.roles.administrator.who).toMatch(/Turso account/);
 });
 
 // the human's third look: what a member may do beyond their role is a short plain list, one line

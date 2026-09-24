@@ -180,3 +180,19 @@ test('a record that is not there is named as absent, and one on its way is not n
 
 	expect(shownRecord.name).toBeUndefined();
 });
+
+// ticket 33 of effort 832: a payment's trail runs through its contract, which the payment's surface
+// names and addresses, and only while the payment itself is found.
+test('the surface names the record it is reached through while its own record stands', () => {
+	const parent = { name: 'a tenant', href: '/contracts/contract-1' };
+	const found = surface({ isLoading: false, found: true, parent });
+
+	expect(shownRecord.parent).toEqual(parent);
+	found.unmount();
+
+	expect(shownRecord.parent).toBeUndefined();
+
+	surface({ isLoading: false, found: false, parent });
+
+	expect(shownRecord.parent).toBeUndefined();
+});

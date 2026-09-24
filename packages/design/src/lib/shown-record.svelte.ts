@@ -14,7 +14,17 @@
  */
 class ShownRecord {
 	name = $state<string | null | undefined>(undefined);
+	/**
+	 * The record this one is reached through, where it has one: a payment's contract. Named and
+	 * addressed by the surface, since only the concept knows either, and set only while the record
+	 * itself is found. The trail runs through it rather than skipping from the directory to the
+	 * record.
+	 */
+	parent = $state<ShownParent | undefined>(undefined);
 }
+
+/** The record a shown record is reached through: what it is called, and its resolved address. */
+export type ShownParent = { name: string; href: string };
 
 /** what `block/record-surface.svelte` writes and the application's breadcrumb reads. */
 export const shownRecord = new ShownRecord();

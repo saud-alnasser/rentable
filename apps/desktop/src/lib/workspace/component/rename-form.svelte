@@ -90,13 +90,15 @@
 	const superform = { form, constraints, errors, enhance, ...rest };
 </script>
 
-<!-- light: one field, and the weight is what it is rather than what the window is. -->
+<!-- light: one field, and the weight is what it is rather than what the window is. Titled edit, the
+     name of the act that opens it and the title the member's sheet wears ([[rules/interface]],
+     *Edit*). -->
 <FormSurface
 	{open}
 	{onOpenChange}
 	{enhance}
 	weight="light"
-	title={$LL.workspace.rename()}
+	title={$LL.common.actions.edit()}
 	description={$LL.workspace.renameDescription()}
 >
 	<Form.Field form={superform} name="name" class="group relative">

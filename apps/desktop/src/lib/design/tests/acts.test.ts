@@ -394,12 +394,28 @@ for (const status of [...STATUSES, undefined]) {
 		const acts = declarePaymentActs(host);
 		const ids = assertProjectionsAgree(acts, paymentAgainst(status));
 
-		// a terminated contract's statement is read-only: copying is a read and stays.
+		// every act applies to a payment, whatever its contract.
+		assert.deepEqual(ids, [
+			'payment.copyDetails',
+			'payment.duplicate',
+			'payment.edit',
+			'payment.delete'
+		]);
+
+		// a terminated contract's statement is read-only: copying is a read and runs, and what writes
+		// is shown refused with the contract's state as its reason (ticket 33).
+		const refused = toPageActions(acts, paymentAgainst(status), translations)
+			.filter((act) => act.unavailable)
+			.map((act) => [act.id, act.unavailable]);
+
 		assert.deepEqual(
-			ids,
+			refused,
 			status === 'terminated'
-				? ['payment.copyDetails']
-				: ['payment.copyDetails', 'payment.duplicate', 'payment.edit', 'payment.delete']
+				? ['payment.duplicate', 'payment.edit', 'payment.delete'].map((id) => [
+						id,
+						translations.contracts.payments.terminatedNotice()
+					])
+				: []
 		);
 		assertDeclarationHolds(acts);
 	});

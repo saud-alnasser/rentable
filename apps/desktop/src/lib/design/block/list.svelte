@@ -166,6 +166,12 @@
 		 */
 		onImport?: () => void;
 		/**
+		 * Why this list takes no file right now, in one line, or nothing where it does. The import
+		 * stays in the menu, refused, and says it on hover and focus, as the create control does
+		 * ([[rules/interface]], *Guidance*).
+		 */
+		importUnavailable?: string;
+		/**
 		 * What the surface offers for the records currently selected.
 		 *
 		 * Giving it is what turns selection on: a list with nothing to do to several records at
@@ -207,6 +213,7 @@
 		filterOptions = [],
 		filters = $bindable({}),
 		onImport,
+		importUnavailable,
 		selectionActions,
 		selected = $bindable([]),
 		exportAs,
@@ -326,6 +333,18 @@
 	// what names the empty state's refused create to assistive technology, whether or not its
 	// tooltip is drawn.
 	const emptyCreateReasonId = `${listId}-create-reason`;
+	// the same, for the transfer menu's refused entries.
+	const transferReasonId = (which: 'export' | 'import') => `${listId}-${which}-reason`;
+	// the tooltip trigger's attributes on a menu entry, less the two that would name it something
+	// else: its slot, and the button type a trigger carries. As `record-card.svelte` does it.
+	const asMenuEntry = (props: Record<string, unknown>) => {
+		const hint = { ...props };
+
+		delete hint['data-slot'];
+		delete hint.type;
+
+		return hint;
+	};
 	let frame = $state<HTMLElement | null>(null);
 
 	/**
@@ -489,6 +508,9 @@
 	const selectedRows = $derived(selectedRecords(data, selected));
 
 	const hasResults = $derived(rows.length > 0);
+	// why the list cannot be written to a file now: it shows nothing, and a file of no rows is not
+	// one anybody asked for ([[rules/interface]], *Export and import*).
+	const exportUnavailable = $derived(hasResults ? undefined : $LL.common.export.nothingToExport());
 	// an empty list read under a search or a filter is a narrowing that matched nothing, and says
 	// so; read under neither, it is a list with nothing in it yet. The two never read the same.
 	const isSearched = $derived(search.trim() !== '');
@@ -736,6 +758,52 @@
 	</Tooltip.Root>
 {/snippet}
 
+<!-- one direction of the transfer menu. Where it cannot run it stays in the menu, dimmed and
+     refused, and says why beside the entry on hover and focus, as a record's menu entry does: a
+     menu's own disabled entry is skipped by the keyboard and ignores the pointer, which would leave
+     the reason unreachable ([[rules/interface]], *Guidance*). Refusing the selection also keeps the
+     menu open with the reason showing. -->
+{#snippet transferEntry(
+	which: 'export' | 'import',
+	label: string,
+	unavailable: string | undefined,
+	run: () => void
+)}
+	{#if unavailable}
+		<Tooltip.Root>
+			<Tooltip.Trigger>
+				{#snippet child({ props: hint })}
+					<DropdownMenu.Item
+						{...asMenuEntry(hint)}
+						data-transfer={which}
+						onSelect={(event: Event) => event.preventDefault()}
+					>
+						{#snippet child({ props })}
+							<div
+								{...props}
+								aria-disabled="true"
+								aria-describedby={transferReasonId(which)}
+								data-unavailable=""
+								class={cn(props.class as string, 'cursor-not-allowed opacity-50')}
+							>
+								<span class="flex-1 capitalize">{label}</span>
+								<span id={transferReasonId(which)} class="sr-only">{unavailable}</span>
+							</div>
+						{/snippet}
+					</DropdownMenu.Item>
+				{/snippet}
+			</Tooltip.Trigger>
+			<Tooltip.Content side={direction === 'rtl' ? 'left' : 'right'} sideOffset={8}>
+				<span data-unavailable-reason>{unavailable}</span>
+			</Tooltip.Content>
+		</Tooltip.Root>
+	{:else}
+		<DropdownMenu.Item data-transfer={which} disabled={isExporting} onSelect={run}>
+			<span class="flex-1 capitalize">{label}</span>
+		</DropdownMenu.Item>
+	{/if}
+{/snippet}
+
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="flex min-h-0 flex-1 flex-col gap-3" onkeydown={handleKeydown}>
 	<!-- the bar every searchable set opens with: the search, what the set is, and what can be done
@@ -744,6 +812,7 @@
 		bind:search
 		onSearch={() => (isAwaitingSearch = true)}
 		count={displayed.length}
+		narrowed={isFiltered}
 		{sortOptions}
 		bind:sort
 	>
@@ -872,18 +941,18 @@
 					     third action beside them; it is a question about one of the two, and it is
 					     asked in a dialog of its own once that one is chosen. -->
 					{#if exportAs}
-						<DropdownMenu.Item
-							disabled={!hasResults || isExporting}
-							onSelect={() => (exporting = { rows: data, name: exportAs.name })}
-						>
-							<span class="flex-1 capitalize">{$LL.common.actions.export()}</span>
-						</DropdownMenu.Item>
+						{@render transferEntry(
+							'export',
+							$LL.common.actions.export(),
+							exportUnavailable,
+							() => (exporting = { rows: data, name: exportAs.name })
+						)}
 					{/if}
 
 					{#if onImport}
-						<DropdownMenu.Item onSelect={() => onImport?.()}>
-							<span class="flex-1 capitalize">{$LL.common.actions.import()}</span>
-						</DropdownMenu.Item>
+						{@render transferEntry('import', $LL.common.actions.import(), importUnavailable, () =>
+							onImport?.()
+						)}
 					{/if}
 				</DropdownMenu.Content>
 			</DropdownMenu.Root>

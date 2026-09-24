@@ -91,7 +91,8 @@ const en = {
 		},
 
 		export: {
-			description: 'which file should this become?'
+			description: 'which file should this become?',
+			nothingToExport: 'there is nothing here to export'
 		},
 
 		formats: {
@@ -162,6 +163,7 @@ const en = {
 			contractEnds: 'contract ends',
 			contractNumber: 'contract number',
 			contractPeriod: 'contract period',
+			contractStatus: 'contract status',
 			costPerPayment: 'cost per cycle',
 			currentDatabasePath: 'current database path',
 			currentValue: 'current value',
@@ -310,7 +312,7 @@ const en = {
 				ownerProtected: "the owner's account is not changed this way. the organization is theirs.",
 				ownerOnly: 'only the owner can do this. ask the owner.',
 				ownerMachineOnly:
-					"this needs the turso account, which is connected on the owner's machine. ask the owner.",
+					"this needs the Turso account, which is connected on the owner's machine. ask the owner.",
 				roleLacksAct: 'your role does not include this. ask an administrator.',
 				notAdministrator: 'only an administrator can do this.',
 				alreadyOwner: 'you are the owner already. choose the account that is to have it.',
@@ -339,23 +341,23 @@ const en = {
 				databaseRefused:
 					'the database refused the request, and nothing was changed. try again later.',
 				tursoNotConnected:
-					'this machine is not connected to the turso account. connect it and try again.',
+					'this machine is not connected to the Turso account. connect it and try again.',
 				consentNeededAgain:
-					'turso needs the consent granted again. connect the turso account again.',
+					'Turso needs the consent granted again. connect the Turso account again.',
 				consentGone: 'this consent is no longer waiting. start it again.',
 				groupMismatch:
 					'that is not the group the consent was given over. check the name and try again.',
-				groupNeeded: 'turso needs the name of the group you picked. type it below.',
+				groupNeeded: 'Turso needs the name of the group you picked. type it below.',
 				groupHoldsOrganization:
-					'that group already holds an organization. pick another group or another turso account.',
+					'that group already holds an organization. pick another group or another Turso account.',
 				groupEmpty:
 					'the consent was given over a group that holds no organization. give it over the group that holds yours.',
 				nothingToConnectTo:
-					'this turso account holds no organization to connect to. go back and make one.',
-				createRefused: "turso would not create the organization's database.",
-				tursoRefused: 'turso refused the request. trying again will not help.',
+					'this Turso account holds no organization to connect to. go back and make one.',
+				createRefused: "Turso would not create the organization's database.",
+				tursoRefused: 'Turso refused the request. trying again will not help.',
 				tursoAccountRefused:
-					"turso refused the request because of the account itself. check the account's plan in turso."
+					"Turso refused the request because of the account itself. check the account's plan in Turso."
 			},
 			payment: {
 				amountNotPositive: 'payment amount must be greater than zero.',
@@ -539,16 +541,16 @@ const en = {
 			switchTo: 'switch to',
 			open: 'open',
 			workspaceRefusedAuthority:
-				'creating a workspace needs the turso account. reconnect it in settings, under organization.'
+				'creating a workspace needs the Turso account. reconnect it in settings, under organization.'
 		},
 
 		noWorkspace: {
 			nameLabel: 'workspace name',
 			create: 'create workspace',
-			creating: 'creating the workspace on your turso account. this takes a moment.',
+			creating: 'creating the workspace on your Turso account. this takes a moment.',
 			created: 'the workspace was created.',
 			ownerOnly:
-				'only the owner can create the first workspace, from the machine that connected the turso account.',
+				'only the owner can create the first workspace, from the machine that connected the Turso account.',
 			title: 'no workspace yet',
 			description:
 				'your organization has no workspace yet. create the first one to start keeping records.'
@@ -565,7 +567,7 @@ const en = {
 			roleOwner: 'owner',
 			roleAdministrator: 'administrator',
 			roleMember: 'member',
-			setUp: 'use your turso account',
+			setUp: 'use your Turso account',
 			setUpDescription: 'you own the organization.',
 			connectByLink: 'use a link and code',
 			connectByLinkDescription: 'you were given a link and a code.',
@@ -574,7 +576,7 @@ const en = {
 			useALink: 'use a link',
 			disconnect: 'disconnect this machine',
 			disconnectDescription:
-				'this machine deletes its copy of the organization and its workspaces, and forgets the turso account. nothing on turso changes. the owner connects again with their turso account; anyone else needs a new link.'
+				'this machine deletes its copy of the organization and its workspaces, and forgets the Turso account. nothing on Turso changes. the owner connects again with their Turso account; anyone else needs a new link.'
 		},
 
 		startup: {
@@ -591,7 +593,7 @@ const en = {
 			stageChanges: 'checking for changes',
 			stageRecords: 'bringing records up to date',
 			migrationApplying:
-				'bringing the workspace up to this version of rentable. this reaches turso and takes a moment; nothing here is stuck.',
+				'bringing the workspace up to this version of rentable. this reaches Turso and takes a moment; nothing here is stuck.',
 			migrationWaiting:
 				'another member is bringing the workspace up to this version of rentable. waiting on them, until {until} at the latest.',
 			stagePrepare: 'creating your first workspace',
@@ -936,8 +938,8 @@ const en = {
 
 	organization: {
 		setup: {
-			connectTitle: 'connect your turso account',
-			connectDescription: 'your organization lives on your own turso account.',
+			connectTitle: 'connect your Turso account',
+			connectDescription: 'your organization lives on your own Turso account.',
 			connectDetails: 'before you connect',
 			position: 'step {step|number} of {total|number}',
 			groupCoverage:
@@ -945,20 +947,20 @@ const en = {
 			oneOrganization:
 				'a group holds one organization. a group that already holds one is connected to, not refused.',
 			accountCreation:
-				'a free or developer turso account holds one group, so keep one for rentable alone. on a paid one, pick an empty group.',
+				'a free or developer Turso account holds one group, so keep one for rentable alone. on a paid one, pick an empty group.',
 			succession:
-				"only you, or a turso organization's admin, can grant access again, and turso can move a group. rentable does neither.",
+				"only you, or a Turso organization's admin, can grant access again, and Turso can move a group. rentable does neither.",
 			groupAskedOnce:
-				'a group holding nothing yet is asked its name once, on the next step; turso names it nowhere.',
-			openDashboard: 'open turso dashboard',
-			connect: 'connect turso account',
+				'a group holding nothing yet is asked its name once, on the next step; Turso names it nowhere.',
+			openDashboard: 'open Turso dashboard',
+			connect: 'connect Turso account',
 			connecting: 'finish the consent in the browser window that just opened.',
-			connected: 'turso account connected.',
+			connected: 'Turso account connected.',
 			consentAbandoned: 'the consent was not granted. nothing was created.',
-			consentFailed: 'turso refused the consent.',
+			consentFailed: 'Turso refused the consent.',
 			existingTitle: 'sign in to your organization',
 			existingDescription:
-				'this turso account already has an organization. its owner signs in to connect this machine to it.',
+				'this Turso account already has an organization. its owner signs in to connect this machine to it.',
 			existingConnect: 'connect this machine',
 			existingConnecting: 'connecting this machine...',
 			nameTitle: 'name your organization',
@@ -973,13 +975,13 @@ const en = {
 				'use at least 12 characters. this password is all that stands between the records and anyone who holds a copy.',
 			passwordTooShort: 'use at least 12 characters.',
 			groupNeeded:
-				'turso could not tell rentable which group you picked, so type its name here once.',
-			groupLabel: 'turso group',
+				'Turso could not tell rentable which group you picked, so type its name here once.',
+			groupLabel: 'Turso group',
 			groupDescription:
-				"the name as it reads on turso's consent screen. the organization's database goes in it.",
-			groupRequired: "name the group you chose on turso's consent screen.",
+				"the name as it reads on Turso's consent screen. the organization's database goes in it.",
+			groupRequired: "name the group you chose on Turso's consent screen.",
 			create: 'create organization',
-			creating: 'creating the organization on your turso account...',
+			creating: 'creating the organization on your Turso account...',
 			copyLink: 'copy link',
 			linkCopied: 'link copied.',
 			continue: 'continue',
@@ -1017,28 +1019,28 @@ const en = {
 			back: 'back'
 		},
 		// the block at the top of the organization section: where this machine stands with the
-		// organization on turso, in one sentence (effort 828, requirement 25). A standing that
+		// organization on Turso, in one sentence (effort 828, requirement 25). A standing that
 		// needs something says what needs doing; synced says when this machine last reached
-		// turso. No status word stands alone here, and the only one of these that says "sync" is
+		// Turso. No status word stands alone here, and the only one of these that says "sync" is
 		// the control, which the human named so on 2026-09-17.
 		standing: {
 			// the legend and the sentence of purpose, the same whatever the standing: what the block
 			// is about, before the line that changes.
-			title: 'this machine and turso',
+			title: 'this machine and Turso',
 			purpose:
-				'the organization lives on turso and reaches this machine on its own. what you write goes out when turso is reachable.',
-			// a machine that has never reached turso: a fresh machine opened offline, which is not
+				'the organization lives on Turso and reaches this machine on its own. what you write goes out when Turso is reachable.',
+			// a machine that has never reached Turso: a fresh machine opened offline, which is not
 			// up to date and has no moment to say. *It read "up to date" until review round two of
 			// effort 828.*
-			notYetReached: 'this machine has not reached turso yet',
+			notYetReached: 'this machine has not reached Turso yet',
 			upToDateChecked: 'up to date, checked {moment:string}',
-			lastReached: 'last reached turso on {moment:string}',
-			accountNeedsAttention: 'the turso account needs attention',
+			lastReached: 'last reached Turso on {moment:string}',
+			accountNeedsAttention: 'the Turso account needs attention',
 			accessNeedsAttention: "this machine's access needs attention",
 			needsReconnecting: 'this machine needs reconnecting',
 			// an owner whose machine holds no authority: the reconnect is the block below, and the
 			// standing block points at it rather than drawing a second consent.
-			reconnectBelow: 'the turso account is reconnected in the block below.',
+			reconnectBelow: 'the Turso account is reconnected in the block below.',
 			checkNow: 'sync',
 			checking: 'syncing...'
 		},
@@ -1083,7 +1085,7 @@ const en = {
 				'they are offered the organization. once they accept, they become the owner and you become an administrator.',
 			transferOwnershipMember: 'who is offered the organization',
 			transferOwnershipAuthority:
-				'your turso account and its databases stay yours. the new owner connects their own before creating workspaces.',
+				'your Turso account and its databases stay yours. the new owner connects their own before creating workspaces.',
 			transferOwnershipConfirm: 'offer it',
 			ownershipOffered: 'the organization was offered. they accept it on a machine of their own.',
 			withdrawOffer: 'withdraw the offer',
@@ -1092,7 +1094,7 @@ const en = {
 			acceptOwnershipGoes:
 				'you own {organization:string} and {owner:string} becomes an administrator. your password now signs the organization.',
 			acceptOwnershipAuthority:
-				'the turso account stays with whoever connected it. connect yours in the organization section to create workspaces.',
+				'the Turso account stays with whoever connected it. connect yours in the organization section to create workspaces.',
 			acceptOwnershipConfirm: 'accept it',
 			ownershipAccepted: 'the organization is yours. you are the owner now.',
 			lockOut: 'lock out',
@@ -1109,14 +1111,14 @@ const en = {
 			usernameRules:
 				'a username is three to thirty-two characters of letters, digits, dots, underscores and hyphens',
 			renamed: 'the member was renamed.',
-			authorityTitle: 'turso account',
+			authorityTitle: 'Turso account',
 			authorityDescription:
-				'this machine holds no authority over the turso account, and it cannot be restored. grant the consent again.',
+				'this machine holds no authority over the Turso account, and it cannot be restored. grant the consent again.',
 			// requirement 22: an owner who was handed the organization holds no authority, and the
 			// reason is not that this machine lost one. One short sentence saying where it is.
 			authorityFollowsTheAccount:
-				'the authority follows the turso account that granted it, not who owns the organization.',
-			authorityReconnected: 'the turso account is connected on this machine.',
+				'the authority follows the Turso account that granted it, not who owns the organization.',
+			authorityReconnected: 'the Turso account is connected on this machine.',
 			remove: 'remove',
 			removeDescription:
 				'their access ends when their credential runs out, within four weeks. no one else is affected.',
@@ -1146,10 +1148,10 @@ const en = {
 				'who holds {workspace:string} and what each can do there. access taken back lasts until it runs out.',
 			deleteWorkspace: 'delete workspace',
 			deleteWorkspaceDescription:
-				'the workspace and every record in it are deleted from turso and from every machine that syncs it. nothing puts it back.',
+				'the workspace and every record in it are deleted from Turso and from every machine that syncs it. nothing puts it back.',
 			workspaceDeleted: 'the workspace was deleted.',
 			transferTitle: 'export and import {workspace:string}',
-			forgetAccount: 'forget turso account',
+			forgetAccount: 'forget Turso account',
 			readOnlyIsTheOwners: "only the owner can grant read only access, on the owner's own machine.",
 			memberSheetDescription: 'what {username:string} may do in this organization.',
 			beyondRole: 'beyond their role',
@@ -1175,18 +1177,18 @@ const en = {
 			// read either description.
 			leavingTitle: 'leaving',
 			disconnectForgets:
-				"signs you out and deletes the organization's copy on this machine. nothing on turso changes.",
+				"signs you out and deletes the organization's copy on this machine. nothing on Turso changes.",
 			disconnect: 'disconnect',
 			disconnected: 'this machine no longer holds the organization.',
 			forgetAccountDescription:
-				"this machine holds a token for the organization's turso account. forget it, and nothing here reaches that account.",
+				"this machine holds a token for the organization's Turso account. forget it, and nothing here reaches that account.",
 			forgetAccountRevokes:
-				"forgetting does not revoke the token. end the grant yourself on turso's dashboard at app.turso.tech.",
+				"forgetting does not revoke the token. end the grant yourself on Turso's dashboard at app.turso.tech.",
 			forgetAccountRevokesAt: 'app.turso.tech',
-			accountForgotten: 'this machine no longer holds a token for your turso account.',
+			accountForgotten: 'this machine no longer holds a token for your Turso account.',
 			deleteOrganization: 'delete organization',
 			deleteOrganizationDescription:
-				'the organization and every workspace in it are deleted from your turso account. nothing puts them back.',
+				'the organization and every workspace in it are deleted from your Turso account. nothing puts them back.',
 			deleteOrganizationGoes:
 				'every workspace and every record in it is deleted, and every member loses their way in. nothing puts this back.',
 			organizationDeleted: 'the organization was deleted.'
@@ -1201,10 +1203,10 @@ const en = {
 		 */
 		roles: {
 			owner: {
-				who: 'holds the turso account and can do anything. there is one owner, and only they can hand it over.'
+				who: 'holds the Turso account and can do anything. there is one owner, and only they can hand it over.'
 			},
 			administrator: {
-				who: "adds members, makes links and grants workspaces. the turso account stays the owner's."
+				who: "adds members, makes links and grants workspaces. the Turso account stays the owner's."
 			},
 			member: {
 				who: 'works in the workspaces they hold, and changes nothing about anybody else unless you allow it.'
@@ -1250,31 +1252,30 @@ const en = {
 			memberNote: 'a member starts with none of these, and is allowed them on their own sheet.',
 			ownerAlone: 'the owner alone',
 			ownerAloneReason:
-				'these run on the turso account the owner connected, so nobody can be given them.',
+				'these run on the Turso account the owner connected, so nobody can be given them.',
 			allowed: 'yes',
 			notAllowed: 'no',
 			createWorkspace: 'make a new workspace.',
 			deleteWorkspace: 'delete a workspace and everything in it.',
 			lockOut: 'cut somebody off from every workspace at once.',
 			renew: 'renew the credentials that keep everybody syncing.',
-			tursoAccount: 'connect the turso account, and forget it.'
+			tursoAccount: 'connect the Turso account, and forget it.'
 		}
 	},
 
 	workspace: {
 		nameTooLong: 'that name is too long.',
 		nameRequired: 'give this workspace a name.',
-		rename: 'rename',
 		renameDescription: 'what this workspace is called, on every machine signed in to it.',
 		renamed: 'the workspace was renamed.',
 		credentialRefused:
 			'your access was renewed and this machine is fetching it. work goes on here; if it does not clear, ask the owner.',
 		accountRefusedMember:
-			"the organization's turso account needs attention, so nothing reaches turso for now. tell {owner}. work here goes on.",
+			"the organization's Turso account needs attention, so nothing reaches Turso for now. tell {owner}. work here goes on.",
 		accountRefusedOwner:
-			"turso is refusing the organization's account: {detail}. work goes on here; fix it at app.turso.tech to send it.",
+			"Turso is refusing the organization's account: {detail}. work goes on here; fix it at app.turso.tech to send it.",
 		accountRefusedOwnerNoDetail:
-			"turso is refusing the organization's account. work goes on here; fix it at app.turso.tech to send it.",
+			"Turso is refusing the organization's account. work goes on here; fix it at app.turso.tech to send it.",
 		transferDescription:
 			'write every record to one workbook, or read one in. records name each other, so the file opens on any machine.'
 	}

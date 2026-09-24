@@ -13,7 +13,9 @@
 	 * Every place is named here, one entry to each, so a place the trail can hold and nothing
 	 * names does not compile. The record is named by the record surface showing it, which is the
 	 * only thing that knows what a record is called; until it says, the trail ends on the place
-	 * above it, and a record that is not there is named as unknown.
+	 * above it, and a record that is not there is named as unknown. A record reached through another
+	 * (a payment, through its contract) has that one named and addressed by the same surface, and
+	 * its crumb waits on the surface as the record's does.
 	 */
 	const placeNames: Record<TrailPlace, (t: TranslationFunctions) => string> = {
 		'/tenants': (t) => t.common.nav.tenants(),
@@ -23,9 +25,16 @@
 	};
 
 	const crumbs = $derived(
-		toBreadcrumbTrail(page.route.id).filter(
-			(crumb) => crumb.kind === 'place' || shownRecord.name !== undefined
-		)
+		toBreadcrumbTrail(page.route.id).filter((crumb) => {
+			switch (crumb.kind) {
+				case 'place':
+					return true;
+				case 'parent':
+					return shownRecord.parent !== undefined;
+				case 'record':
+					return shownRecord.name !== undefined;
+			}
+		})
 	);
 </script>
 
@@ -37,7 +46,18 @@
 			{/if}
 
 			<Breadcrumb.Item>
-				{#if crumb.kind === 'record'}
+				{#if crumb.kind === 'parent'}
+					{#if shownRecord.parent}
+						<!-- a record's name, and an address its surface already resolved. -->
+						<Breadcrumb.Link
+							href={shownRecord.parent.href}
+							class="max-w-48 truncate"
+							data-crumb-parent
+						>
+							<bdi>{shownRecord.parent.name}</bdi>
+						</Breadcrumb.Link>
+					{/if}
+				{:else if crumb.kind === 'record'}
 					<Breadcrumb.Page class="max-w-48 truncate">
 						<!-- the record's name is what somebody typed, so it keeps its own direction. -->
 						<bdi>{shownRecord.name ?? $LL.common.messages.unknown()}</bdi>

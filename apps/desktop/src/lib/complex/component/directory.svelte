@@ -27,8 +27,9 @@
 	import { useImportRecords } from '$lib/workspace/query';
 	import { toTransferInput } from '$lib/workspace/workspace';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
-	import CircleDashedIcon from '@lucide/svelte/icons/circle-dashed';
-	import DiscIcon from '$lib/design/cell/disc.svelte';
+	// the counts of occupied and vacant units wear the glyphs the unit's own status wears, so a
+	// count and the status it counts read as the same mark.
+	import { statusGlyphs } from '$lib/design/cell/status.svelte';
 	import LayoutGridIcon from '@lucide/svelte/icons/layout-grid';
 
 	type ComplexRecord = Awaited<ReturnType<typeof api.complex.getMany>>[number];
@@ -182,14 +183,14 @@
 					/>
 
 					<Cell.Count
-						icon={DiscIcon}
+						icon={statusGlyphs.occupied}
 						count={occupiedUnitCount}
 						label={$LL.common.labels.occupiedUnits()}
 						tone={occupiedUnitCount > 0 ? 'running' : 'settled'}
 					/>
 
 					<Cell.Count
-						icon={CircleDashedIcon}
+						icon={statusGlyphs.vacant}
 						count={complex.vacantUnitCount}
 						label={$LL.common.labels.vacantUnits()}
 					/>

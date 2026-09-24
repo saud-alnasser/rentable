@@ -19,7 +19,7 @@
 	import PageFrame from '#lib/block/page-frame.svelte';
 	import SectionSwitch from '#lib/block/section-switch.svelte';
 	import { Skeleton } from '#lib/primitive/skeleton/index.js';
-	import { shownRecord } from '#lib/shown-record.svelte.js';
+	import { shownRecord, type ShownParent } from '#lib/shown-record.svelte.js';
 	import { useDesignContract } from '#lib/strings.js';
 
 	/**
@@ -44,6 +44,7 @@
 		path,
 		eyebrow,
 		title,
+		parent,
 		identity,
 		actions,
 		fields,
@@ -63,6 +64,12 @@
 		eyebrow: string;
 		/** The record's name. Read only where the record was found. */
 		title: string;
+		/**
+		 * The record this one is reached through, where it has one: its name and its address,
+		 * already resolved. The breadcrumb runs through it, so a payment's trail names its contract
+		 * rather than skipping from the directory to the payment.
+		 */
+		parent?: ShownParent;
 		/**
 		 * What identifies the record besides its name, read without labels because format and
 		 * context already say what each one is (_Labels are a last resort_).
@@ -106,9 +113,11 @@
 	// record is not there. Taken back when the surface goes.
 	$effect(() => {
 		shownRecord.name = isLoading ? undefined : found ? title : null;
+		shownRecord.parent = !isLoading && found ? parent : undefined;
 
 		return () => {
 			shownRecord.name = undefined;
+			shownRecord.parent = undefined;
 		};
 	});
 </script>

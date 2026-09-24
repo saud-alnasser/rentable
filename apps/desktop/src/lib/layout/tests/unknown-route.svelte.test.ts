@@ -40,6 +40,9 @@ vi.mock('$app/state', () => ({
 vi.mock('$app/navigation', () => ({
 	goto: async (url: string) => {
 		navigations.push(url);
+	},
+	invalidateAll: async () => {
+		navigations.push('invalidateAll');
 	}
 }));
 
@@ -92,4 +95,22 @@ test('a screen that failed is still the failure card, not a missing page', () =>
 
 	expect(document.querySelector('[data-empty]')).toBeNull();
 	expect(document.body.textContent).toContain(en.layout.error.title);
+});
+
+// ticket 33 of effort 832, from ticket 31's catalogue: a route that failed to load offered only the
+// way home, where a screen that failed to draw offers retry beside it. The two are one surface, so
+// they offer the same two, in the same order ([[rules/interface]], *Error*).
+test('a route that failed to load offers retry beside the way home, and retry loads it again', async () => {
+	address.status = 500;
+	page();
+
+	const home = screen.getByRole('link', { name: en.layout.error.goHome });
+	const retry = screen.getByRole('button', { name: en.layout.error.retry });
+
+	// retry last, where the eye lands, as the caught error puts it.
+	expect(home.compareDocumentPosition(retry) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+	await fireEvent.click(retry);
+
+	expect(navigations).toEqual(['invalidateAll']);
 });

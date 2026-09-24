@@ -149,3 +149,20 @@ test("a terminated contract's empty ledger refuses its create with the toolbar's
 	await fireEvent.click(offered!);
 	expect(created).toEqual([]);
 });
+
+// ticket 33 of effort 832, from ticket 31's catalogue: the ledger took its import out of the menu on
+// a contract that takes no new payment. It stays, refused, with the create's own reason, since an
+// import only adds payments ([[rules/interface]], *Export and import*).
+test("a terminated contract's ledger shows its import refused, with the create's reason", async () => {
+	ledger();
+
+	await fireEvent.click(
+		document.querySelector<HTMLElement>(`[aria-label="${en.common.actions.transferData}"]`)!
+	);
+
+	const entry = document.querySelector<HTMLElement>('[data-transfer="import"]');
+
+	expect(entry, 'the import is still offered').not.toBeNull();
+	expect(entry?.getAttribute('aria-disabled')).toBe('true');
+	expect(describedBy(entry)).toBe(en.contracts.payments.terminatedNotice);
+});

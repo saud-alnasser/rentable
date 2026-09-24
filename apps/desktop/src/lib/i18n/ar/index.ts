@@ -90,7 +90,8 @@ const ar = {
 		},
 
 		export: {
-			description: 'إلى أي ملف يتحول هذا؟'
+			description: 'إلى أي ملف يتحول هذا؟',
+			nothingToExport: 'لا شيء هنا للتصدير'
 		},
 
 		formats: {
@@ -155,6 +156,7 @@ const ar = {
 			contractEnds: 'ينتهي العقد',
 			contractNumber: 'رقم العقد',
 			contractPeriod: 'مدة العقد',
+			contractStatus: 'حالة العقد',
 			costPerPayment: 'التكلفة لكل دفعة',
 			currentDatabasePath: 'مسار قاعدة البيانات الحالي',
 			currentValue: 'القيمة الحالية',
@@ -1151,7 +1153,6 @@ const ar = {
 	workspace: {
 		nameTooLong: 'هذا الاسم طويل جداً.',
 		nameRequired: 'أعطِ مساحة العمل اسماً.',
-		rename: 'إعادة تسمية',
 		renameDescription: 'اسم مساحة العمل هذه على كل جهاز مسجل الدخول إليها.',
 		renamed: 'تمت إعادة تسمية مساحة العمل.',
 		credentialRefused:

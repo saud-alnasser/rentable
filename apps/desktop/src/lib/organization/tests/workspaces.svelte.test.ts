@@ -559,6 +559,9 @@ test('the edit opens the light form surface on the open workspace, with one name
 	// light: the centred panel, which the surface draws as a translated box rather than an edge
 	// sheet.
 	expect(surface()?.className).toContain('-translate-x-1/2');
+	// titled for the act that opened it, as the member's sheet is: edit, never rename (ticket 33
+	// of effort 832; [[rules/interface]], *Edit*).
+	expect(dialogTitle()?.toLowerCase()).toBe(en.common.actions.edit);
 	expect(screen.getByText(en.workspace.renameDescription)).toBeDefined();
 	const fields = Array.from(surface()!.querySelectorAll<HTMLInputElement>('input'));
 

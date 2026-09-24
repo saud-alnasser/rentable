@@ -97,3 +97,30 @@ for (const [status, word, description] of [
 test('the unit rows draw the status through the one status cell', () => {
 	expect(unitDirectory).toContain('<Cell.Status status={record.status} />');
 });
+
+// ticket 33 of effort 832, from the second walk of ticket 27: the occupied glyph was a solid disc,
+// which in the state colour read as a bare blue dot. Each status is a shape of its own now, as
+// every other status is, so the two read apart with the colour taken away.
+test("a unit's two statuses are two shapes, and neither is a lone dot", () => {
+	const drawn = (['occupied', 'vacant'] as const).map((status) => {
+		const { container, unmount } = render(Cell.Status, { status }, { wrapper: Providers });
+		const glyph = container.querySelector('svg')!;
+		const shape = {
+			marks: glyph.querySelectorAll('circle, path, line, rect, polyline').length,
+			outline: glyph.innerHTML,
+			filled: glyph.getAttribute('class')?.includes('fill-current') ?? false
+		};
+
+		unmount();
+
+		return shape;
+	});
+
+	expect(drawn[0].outline).not.toBe(drawn[1].outline);
+
+	for (const shape of drawn) {
+		expect(shape.filled).toBe(false);
+		// a lone circle is a dot at any size; each of these draws more than one mark.
+		expect(shape.marks).toBeGreaterThan(1);
+	}
+});

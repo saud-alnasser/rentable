@@ -3,11 +3,11 @@
 	import BadgeCheckIcon from '@lucide/svelte/icons/badge-check';
 	import CircleCheckIcon from '@lucide/svelte/icons/circle-check';
 	import CircleDashedIcon from '@lucide/svelte/icons/circle-dashed';
+	import CircleUserRoundIcon from '@lucide/svelte/icons/circle-user-round';
 	import ClockAlertIcon from '@lucide/svelte/icons/clock-alert';
 	import ClockIcon from '@lucide/svelte/icons/clock';
 	import HourglassIcon from '@lucide/svelte/icons/hourglass';
 	import LockIcon from '@lucide/svelte/icons/lock';
-	import DiscIcon from '$lib/design/cell/disc.svelte';
 	import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 	import { tv } from 'tailwind-variants';
 
@@ -25,11 +25,12 @@
 	 * from `expired`'s plain circle and `defaulted` apart from `overdue`'s clock. A glyph changed
 	 * without that rule in mind breaks the set rather than one entry.
 	 *
-	 * A unit's two statuses sit outside that rule — they turn on occupancy, not on payment —
-	 * and are a solid disc against a dashed ring. They are **filled versus hollow at a
-	 * distance**, because the surface that shows them is a board of tiles where the glyph
-	 * stands alone: a pair distinguished by fine detail reads as one mark there, and a dashed
-	 * ring already means *vacant* on the complexes directory beside its count.
+	 * A unit's two statuses sit outside that rule, since they turn on occupancy, not on payment:
+	 * a ring holding a person against an empty dashed ring. They are **held versus empty at a
+	 * distance**, because a pair distinguished by fine detail reads as one mark, and a dashed
+	 * ring already means *vacant* on the complexes directory beside its count. Occupied was a
+	 * solid disc until ticket 33 of effort 832, and a disc in the state colour read as a bare
+	 * coloured dot: a shape that says nothing once its colour is taken away.
 	 */
 	export const statusGlyphs: Record<StatusName, typeof LockIcon> = {
 		scheduled: HourglassIcon,
@@ -38,7 +39,7 @@
 		defaulted: BadgeAlertIcon,
 		expired: CircleCheckIcon,
 		terminated: LockIcon,
-		occupied: DiscIcon,
+		occupied: CircleUserRoundIcon,
 		vacant: CircleDashedIcon,
 		overdue: ClockAlertIcon
 	};

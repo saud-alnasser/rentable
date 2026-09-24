@@ -37,6 +37,7 @@
 		search = $bindable(''),
 		onSearch,
 		count,
+		narrowed = false,
 		sortOptions = [],
 		sort = $bindable(null),
 		narrowing,
@@ -48,6 +49,11 @@
 		onSearch?: (term: string) => void;
 		/** How many records the set is showing. */
 		count: number;
+		/**
+		 * Whether something besides the search narrows the set: a filter. With the search, it is
+		 * what tells a set that holds nothing from a narrowing that matched nothing.
+		 */
+		narrowed?: boolean;
 		/** The orders the reader may choose between. A set that offers none gets no control. */
 		sortOptions?: readonly ListSortOption[];
 		/** The order the set is using, or `null` for its own. */
@@ -62,6 +68,11 @@
 	const activeSortLabel = $derived(
 		sortOptions.find((option) => option.id === sort?.columnId)?.label
 	);
+
+	// a set with nothing in it, read under no search and no filter, says so in its empty state, and
+	// a count of nothing above that sentence says it twice. A narrowing that matched nothing keeps
+	// its count, since that one is an answer to what was asked ([[rules/interface]], *Empty*).
+	const isCounted = $derived(count > 0 || search.trim() !== '' || narrowed);
 
 	function chooseSort(columnId: string) {
 		sort = nextListSort(sort, columnId, sortableColumnIds);
@@ -78,9 +89,11 @@
 	<SearchField bind:value={search} {onSearch} />
 
 	<div data-set-bar-end class="flex shrink-0 flex-wrap items-center gap-3">
-		<span class="text-xs text-muted-foreground" aria-live="polite" data-list-count>
-			{$LL.common.table.results({ count })}
-		</span>
+		{#if isCounted}
+			<span class="text-xs text-muted-foreground" aria-live="polite" data-list-count>
+				{$LL.common.table.results({ count })}
+			</span>
+		{/if}
 
 		{@render narrowing?.()}
 

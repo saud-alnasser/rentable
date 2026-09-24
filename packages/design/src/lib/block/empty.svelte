@@ -55,9 +55,12 @@
 	<!-- polite rather than silent: a search that empties the set replaces the records under the
 	     reader's cursor, and a reader who cannot see that is told what happened. -->
 	<Empty.Header aria-live="polite">
+		<!-- the title is a heading, raised to sentence case as every heading is; the line under it is a
+		     description, and reads as written, in lower case, as every description does. Raising
+		     only its first letter would leave its second sentence lower case beside it. -->
 		<Empty.Title class="text-base first-letter:uppercase">{title}</Empty.Title>
 		{#if description}
-			<Empty.Description class="first-letter:uppercase">{description}</Empty.Description>
+			<Empty.Description>{description}</Empty.Description>
 		{/if}
 	</Empty.Header>
 

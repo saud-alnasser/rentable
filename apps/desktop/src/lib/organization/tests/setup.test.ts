@@ -214,11 +214,11 @@ const STATEMENTS = {
 		oneOrganization:
 			'a group holds one organization. a group that already holds one is connected to, not refused.',
 		accountCreation:
-			'a free or developer turso account holds one group, so keep one for rentable alone. on a paid one, pick an empty group.',
+			'a free or developer Turso account holds one group, so keep one for rentable alone. on a paid one, pick an empty group.',
 		succession:
-			"only you, or a turso organization's admin, can grant access again, and turso can move a group. rentable does neither.",
+			"only you, or a Turso organization's admin, can grant access again, and Turso can move a group. rentable does neither.",
 		groupAskedOnce:
-			'a group holding nothing yet is asked its name once, on the next step; turso names it nowhere.'
+			'a group holding nothing yet is asked its name once, on the next step; Turso names it nowhere.'
 	},
 	ar: {
 		groupCoverage: 'تشمل الموافقة كل قاعدة بيانات في المجموعة التي تختارها، ولا شيء خارجها.',

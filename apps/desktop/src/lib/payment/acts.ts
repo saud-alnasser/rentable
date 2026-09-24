@@ -16,8 +16,9 @@ import Trash2Icon from '@lucide/svelte/icons/trash-2';
  * does not.
  *
  * **A terminated contract's payments are read-only.** Copying is a read, so it stands outside that
- * lock; everything that writes is hidden. The refusal itself is the procedure's; this only decides
- * what the surfaces offer.
+ * lock; everything that writes is shown refused, with the contract's state as its reason, because
+ * it applies to a payment and cannot run now ([[rules/interface]], *Guidance*). The refusal itself
+ * is the procedure's; this only decides what the surfaces offer.
  */
 
 /**
@@ -49,8 +50,12 @@ export type PaymentHostRequests = {
 /** A payment act, with the id narrowed to the ones declared here. */
 export type PaymentAct = RecordAct<PaymentActRecord> & { id: PaymentActId };
 
-/** Whether the payment's contract still takes changes to what it holds. */
-const isWritable = (payment: PaymentActRecord) => payment.contractStatus !== 'terminated';
+/**
+ * Why the payment takes no change now, or nothing where it does: its contract is terminated, and a
+ * terminated contract's statement is read-only.
+ */
+const toWriteUnavailable = (payment: PaymentActRecord, t: TranslationFunctions) =>
+	payment.contractStatus === 'terminated' ? t.contracts.payments.terminatedNotice() : undefined;
 
 /**
  * The payment's acts, bound to the host that carries them out: a function of the host so the list
@@ -70,7 +75,7 @@ export function declarePaymentActs(host: PaymentHostRequests): PaymentAct[] {
 			label: (t) => t.common.actions.duplicate(),
 			icon: FilesIcon,
 			group: 'primary',
-			appliesTo: isWritable,
+			unavailable: toWriteUnavailable,
 			run: host.duplicate
 		},
 		{
@@ -78,7 +83,7 @@ export function declarePaymentActs(host: PaymentHostRequests): PaymentAct[] {
 			label: (t) => t.common.actions.edit(),
 			icon: SquarePenIcon,
 			group: 'primary',
-			appliesTo: isWritable,
+			unavailable: toWriteUnavailable,
 			run: host.edit
 		},
 		{
@@ -89,7 +94,7 @@ export function declarePaymentActs(host: PaymentHostRequests): PaymentAct[] {
 			group: 'destructive',
 			// the record is all it removes, so it runs at once and offers undo.
 			confirmation: 'none',
-			appliesTo: isWritable,
+			unavailable: toWriteUnavailable,
 			run: host.confirmDelete
 		}
 	];

@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(desktop): the last inconsistencies the walk and the catalogue found
@@ -21,19 +21,19 @@ Found by the second walk of ticket 27 (unit status, the count above an empty set
 record, description casing) and by ticket 31's catalogue (the four acts that depart from their
 sections).
 
-- [ ] A unit's status, on its page and its rows, is drawn with a shape or glyph per status as
+- [x] A unit's status, on its page and its rows, is drawn with a shape or glyph per status as
       the status cells are, never a bare coloured dot; the lock beside a payment's contract number
-      carries its word. Component test.
-- [ ] The toolbar hides its count while the set is empty and unfiltered. Component test.
-- [ ] The payment record's eyebrow follows its siblings' convention, its breadcrumb runs through
+      carries its word. Component test. Verified: occupied is `circle-user-round` and vacant `circle-dashed` on the unit page, rows and complex counts; the payment page shows the contract's status as a labelled field; `unit-status.svelte.test.ts` and `payment/tests/record.svelte.test.ts` pass (desktop vitest 362 of 362 on the merged tree).
+- [x] The toolbar hides its count while the set is empty and unfiltered. Component test. Verified: `list-toolbar` hides its count when the set is empty and unnarrowed; `list-transfer.svelte.test.ts` passes.
+- [x] The payment record's eyebrow follows its siblings' convention, its breadcrumb runs through
       its contract, and its acts that do not apply render disabled with their reason. Component
-      test.
-- [ ] Every description in both locales starts in the same case, and Turso is written one way in
-      both locales. A node test holds both.
-- [ ] The workspace edit sheet is titled edit; export disabled on an empty set carries its reason;
+      test. Verified: the payment eyebrow is `nav.payments`; its trail runs through the contract (`RECORD_PARENTS`, the record surface's `parent`); on a terminated contract its writing acts are `unavailable` with the reason; record, navigation, acts and record-surface tests pass.
+- [x] Every description in both locales starts in the same case, and Turso is written one way in
+      both locales. A node test holds both. Verified: descriptions read in lower case as written on every surface, headings in sentence case, and Turso is capitalised; `i18n/tests/casing.test.ts` holds both; desktop node 1176 of 1176.
+- [x] The workspace edit sheet is titled edit; export disabled on an empty set carries its reason;
       a locked ledger shows import refused with its reason; `+error.svelte` offers retry beside the
       way back. Each matches its section of `[[rules/interface]]`.
-
+ Verified: the workspace edit sheet is titled edit; export on an empty list and import on a locked ledger stay in the menu refused with their reason; `+error.svelte` offers go home and retry; workspaces, list-transfer, ledger and unknown-route tests pass; the rule's sections are updated.
 ## Relevant areas
 
 - `complex/component/unit-*`, `design/cell/*`, `design/block/list-toolbar.svelte`,

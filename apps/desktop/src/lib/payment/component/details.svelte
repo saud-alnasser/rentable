@@ -19,9 +19,20 @@
 
 	// the page's cluster is a projection of the one list the ledger's card and the command menu read,
 	// so it offers what they offer, in their order and under their names: copying on every payment,
-	// and what writes only while its contract is not terminated. What each act opens is the payment
-	// host's, mounted once in the frame, so this page mounts no form and no dialog.
+	// and what writes refused, with its reason, while its contract is terminated. What each act opens
+	// is the payment host's, mounted once in the frame, so this page mounts no form and no dialog.
 	const pageActions = $derived(payment ? toPageActions(paymentActs, payment, $LL) : []);
+
+	// the contract the payment is reached through, named as the contract's own page names it (by its
+	// tenant), so the trail's crumb and the page it opens say the same thing.
+	const parent = $derived(
+		payment
+			? {
+					name: payment.tenantName?.trim() || $LL.common.labels.contract(),
+					href: resolve(`/contracts/${payment.contractId}`)
+				}
+			: undefined
+	);
 </script>
 
 {#snippet identity()}
@@ -43,12 +54,12 @@
 	{/each}
 {/snippet}
 
-{#snippet contractNumber()}
+<!-- a field of its own, under its own label, rather than a glyph beside the contract number: the
+     glyph names the contract's state and says nothing about the number it stood beside. Drawn as
+     every status is, and as the unit page draws its own. -->
+{#snippet contractStatus()}
 	{#if payment}
-		<span class="flex items-center gap-2">
-			<Cell.Status status={payment.contractStatus} />
-			<span class="tabular-nums">{payment.contractGovId || '—'}</span>
-		</span>
+		<Cell.Status status={payment.contractStatus} />
 	{/if}
 {/snippet}
 
@@ -56,7 +67,11 @@
 	<Specification
 		entries={[
 			{ label: $LL.common.labels.tenant(), value: payment?.tenantName ?? '' },
-			{ label: $LL.common.labels.contractNumber(), value: contractNumber }
+			{
+				label: $LL.common.labels.contractNumber(),
+				value: payment?.contractGovId || $LL.common.messages.unknown()
+			},
+			{ label: $LL.common.labels.contractStatus(), value: contractStatus }
 		]}
 	/>
 {/snippet}
@@ -66,8 +81,9 @@
 	found={Boolean(payment)}
 	backFallback={payment ? resolve(`/contracts/${payment.contractId}`) : resolve('/contracts')}
 	path={resolve(`/contracts/payments/${paymentId}`)}
-	eyebrow={$LL.common.labels.payment()}
+	eyebrow={$LL.common.nav.payments()}
 	title={payment ? formatMoney(payment.amount) : ''}
+	{parent}
 	{identity}
 	{actions}
 	{fields}

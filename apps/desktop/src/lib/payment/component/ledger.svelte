@@ -106,7 +106,8 @@
 	// why this contract takes no new payment, where it takes none: the create act's reason, which
 	// the create control shows on hover and focus in place of a paragraph above the ledger. A
 	// terminated contract is read-only; a satisfied one still takes corrections to what it already
-	// holds, so only the new payment is refused.
+	// holds, so only the new payment is refused. An import only ever adds payments, so it is refused
+	// with the same reason, in the transfer menu, rather than taken out of it.
 	const createUnavailable = $derived(toPaymentCreateUnavailable(contractQuery.data, $LL));
 	const isAddLocked = $derived(createUnavailable !== undefined);
 	const hasRowActions = $derived(!isTerminated);
@@ -253,7 +254,8 @@
 				}
 			]
 		}}
-		onImport={isAddLocked ? undefined : () => void importDialog?.choose()}
+		onImport={() => void importDialog?.choose()}
+		importUnavailable={createUnavailable}
 		onCreate={() => paymentHost.create({ contractId })}
 		createLabel={$LL.common.actions.newPayment()}
 		{createUnavailable}

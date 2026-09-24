@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
 	import NotFound from '@rentable/design/block/not-found.svelte';
@@ -11,6 +12,20 @@
 	// simply nothing there, and saying it could not be shown would send the reader looking for a
 	// fault ([[rules/interface]], *Empty*).
 	const isMissing = $derived(page.status === 404);
+
+	// loading the route again, the same answer a caught error gives: a load that failed once may
+	// not fail twice, and the reader should not have to leave the screen to find out.
+	let isRetrying = $state(false);
+
+	async function retry() {
+		isRetrying = true;
+
+		try {
+			await invalidateAll();
+		} finally {
+			isRetrying = false;
+		}
+	}
 </script>
 
 {#if isMissing}
@@ -38,8 +53,11 @@
 			{page.status}{page.error?.message ? ` · ${page.error.message}` : ''}
 		</p>
 
+		<!-- the caught error's two, in its order: going home, and last, where the eye lands, trying
+		     again ([[rules/interface]], *Error*). -->
 		{#snippet actions()}
-			<Button href={resolve('/')}>{$LL.layout.error.goHome()}</Button>
+			<Button variant="outline" href={resolve('/')}>{$LL.layout.error.goHome()}</Button>
+			<Button onclick={retry} disabled={isRetrying} data-retry>{$LL.layout.error.retry()}</Button>
 		{/snippet}
 	</StandaloneSurface>
 {/if}

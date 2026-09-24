@@ -45,3 +45,20 @@ test('with no act and no line, it draws the title alone', () => {
 	expect(container.querySelector('[data-slot="empty-description"]')).toBeNull();
 	expect(container.querySelector('[data-slot="empty-title"]')?.textContent).toBe('nothing matches');
 });
+
+// ticket 33 of effort 832: the title is a heading and is raised to sentence case; the line under it
+// is a description, and reads as written, in lower case, as every description does
+// ([[rules/frontend]], *i18n*).
+test('the title is raised to sentence case, and the line under it reads as written', () => {
+	const { container } = render(Empty, {
+		kind: 'not-found',
+		title: 'this record does not exist',
+		description: 'it may have been deleted.'
+	});
+
+	const title = container.querySelector('[data-slot="empty-title"]');
+	const description = container.querySelector('[data-slot="empty-description"]');
+
+	expect(title?.className).toContain('first-letter:uppercase');
+	expect(description?.className).not.toMatch(/uppercase|capitalize/);
+});
