@@ -34,6 +34,7 @@
 		observeContractEndDate,
 		observeContractEndDateInputs
 	} from '$lib/contract/end-date';
+	import type { ContractPrefill } from '$lib/contract/host.svelte';
 	import { getContractRenewalTerm } from '$lib/contract/renewal';
 	import { onMutationError } from '$lib/design/mutation';
 	import {
@@ -123,6 +124,7 @@
 	let {
 		value,
 		renewsContractId,
+		prefill,
 		open,
 		onOpenChange
 	}: {
@@ -139,6 +141,8 @@
 		 * renewal and one of them holds nothing but the id.
 		 */
 		renewsContractId?: string;
+		/** what a new contract starts with, where whoever opened the form already knows it. */
+		prefill?: ContractPrefill;
 		open: boolean;
 		onOpenChange: (value: boolean) => void;
 	} = $props();
@@ -153,7 +157,7 @@
 	const getInitialForm = (): ContractForm => ({
 		id: undefined,
 		govId: '',
-		tenantId: '',
+		tenantId: prefill?.tenantId ?? '',
 		interval: '1m',
 		cost: '',
 		cycles: '1',

@@ -2,7 +2,6 @@
 	import type api from '$lib/api/caller';
 	import List from '$lib/design/block/list.svelte';
 	import type { ListSort } from '@rentable/design/sort.js';
-	import ContractActions from '$lib/contract/component/actions.svelte';
 	import ContractRecord from '$lib/contract/component/record.svelte';
 	import ContractSelectionActions from '$lib/contract/component/selection-actions.svelte';
 	import { CONTRACT_SORT_COLUMN_IDS, type ContractSortColumnId } from '$lib/contract/contract';
@@ -51,30 +50,26 @@
 	});
 </script>
 
-<ContractActions>
-	{#snippet children(contractActions)}
-		<ContractSelectionActions onActed={() => (selected = [])}>
-			{#snippet children(selectionActions)}
-				<List
-					data={contracts}
-					bind:search
-					bind:sort
-					{sortOptions}
-					bind:filters
-					filterOptions={[RANK_FILTER]}
-					bind:selected
-					{selectionActions}
-					isLoading={contractsQuery.isLoading}
-					isFetching={contractsQuery.isFetching}
-					recordHeight={ROW_HEIGHT}
-					emptyTitle={$LL.complexes.units.contractsEmptyTitle()}
-					emptyDescription={$LL.complexes.units.contractsEmptyDescription()}
-				>
-					{#snippet record(contract: ContractRow)}
-						<ContractRecord {contract} actions={contractActions.of(contract)} />
-					{/snippet}
-				</List>
+<ContractSelectionActions onActed={() => (selected = [])}>
+	{#snippet children(selectionActions)}
+		<List
+			data={contracts}
+			bind:search
+			bind:sort
+			{sortOptions}
+			bind:filters
+			filterOptions={[RANK_FILTER]}
+			bind:selected
+			{selectionActions}
+			isLoading={contractsQuery.isLoading}
+			isFetching={contractsQuery.isFetching}
+			recordHeight={ROW_HEIGHT}
+			emptyTitle={$LL.complexes.units.contractsEmptyTitle()}
+			emptyDescription={$LL.complexes.units.contractsEmptyDescription()}
+		>
+			{#snippet record(contract: ContractRow)}
+				<ContractRecord {contract} />
 			{/snippet}
-		</ContractSelectionActions>
+		</List>
 	{/snippet}
-</ContractActions>
+</ContractSelectionActions>

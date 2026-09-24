@@ -2,7 +2,9 @@ import { resolve } from '$app/paths';
 import type { ResolvedPathname } from '$app/types';
 import type { RecordMatch } from '$lib/api/search';
 import { useSearchComplexes, useSearchUnits } from '$lib/complex/query';
+import { contractActs, contractHost } from '$lib/contract/host.svelte';
 import { useSearchContracts } from '$lib/contract/query';
+import { toPaletteActs, type PaletteAct } from '$lib/design/acts';
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 import type { RecordSubject } from '$lib/layout/palette';
 import { useSearchPayments } from '$lib/payment/query';
@@ -30,6 +32,15 @@ type RecordConcept = {
 	href: (match: RecordMatch) => ResolvedPathname;
 	/** the concept's own search, bound to the term the palette is holding. */
 	find: (term: () => string) => CreateQueryResult<RecordMatch[], Error>;
+	/**
+	 * what the palette offers to do to one of these records, where the concept has declared its
+	 * acts: every act in the concept's own order, and how one is run on the record the reader then
+	 * chooses. The concept's host reads that record and answers on its terms.
+	 */
+	acts?: {
+		offered: (translations: TranslationFunctions, isAppleKeyboard: boolean) => PaletteAct[];
+		runOn: (actId: string, recordId: string) => void;
+	};
 };
 
 /** The concepts the palette searches, in the order it presents them. */
@@ -56,7 +67,11 @@ export const recordConcepts: RecordConcept[] = [
 		subject: 'contract',
 		heading: (t) => t.common.nav.contracts(),
 		href: (match) => resolve(`/contracts/${match.id}`),
-		find: (term) => useSearchContracts(term, MATCH_LIMIT)
+		find: (term) => useSearchContracts(term, MATCH_LIMIT),
+		acts: {
+			offered: (t, isAppleKeyboard) => toPaletteActs(contractActs, t, isAppleKeyboard),
+			runOn: (actId, contractId) => contractHost.runOn(actId, contractId)
+		}
 	},
 	{
 		subject: 'payment',

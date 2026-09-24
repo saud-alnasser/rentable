@@ -23,7 +23,7 @@
 	import * as Cell from '$lib/design/cell';
 	import { Badge } from '@rentable/design/primitive/badge/index.js';
 	import { Button } from '@rentable/design/primitive/button/index.js';
-	import ContractForm from '$lib/contract/component/form.svelte';
+	import { contractHost } from '$lib/contract/host.svelte';
 	import { isMoneyRank } from '$lib/contract/rank';
 	import { withContractRank } from '$lib/contract/rank-filter';
 	import type { DashboardSection } from '$lib/dashboard/dashboard';
@@ -57,17 +57,10 @@
 	 */
 	const offersRenewal = $derived(!isMoneyRank(rank));
 
-	// the contract the renewal form was opened on. A queue row carries an identity and the
-	// figures the row shows; the form reads everything a renewal needs off the contract itself.
-	let renewingContractId = $state<string | undefined>(undefined);
-	let isRenewalFormOpen = $state(false);
-	let renewalFormRenderKey = $state(0);
-
-	const openRenewal = (id: string) => {
-		renewingContractId = id;
-		renewalFormRenderKey += 1;
-		isRenewalFormOpen = true;
-	};
+	// a queue row carries an identity and the figures the row shows, so the renewal is asked of the
+	// contract host by identity: it reads the contract, and the form reads everything a renewal
+	// needs off it. The form is the host's, mounted once in the frame, as every contract form is.
+	const openRenewal = (id: string) => contractHost.runOn('contract.renew', id);
 </script>
 
 <section class="shrink-0 rounded-2xl bg-card">
@@ -162,21 +155,3 @@
 		</a>
 	{/if}
 </section>
-
-<!-- one form for the whole section, because a row's control acts on the one contract the reader
-     reached for. Mounted only under the rank that offers renewal. -->
-{#if offersRenewal}
-	{#key renewalFormRenderKey}
-		<ContractForm
-			open={isRenewalFormOpen}
-			onOpenChange={(isOpen) => {
-				if (!isOpen) {
-					renewalFormRenderKey += 1;
-				}
-
-				isRenewalFormOpen = isOpen;
-			}}
-			renewsContractId={renewingContractId}
-		/>
-	{/key}
-{/if}

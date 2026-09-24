@@ -143,10 +143,6 @@ type RootTranslation = {
 			 */
 			renew: string
 			/**
-			 * r​e​n​e​w​ ​a​ ​c​o​n​t​r​a​c​t
-			 */
-			renewContract: string
-			/**
 			 * r​e​n​e​w​i​n​g​.​.​.
 			 */
 			renewing: string
@@ -1045,6 +1041,12 @@ type RootTranslation = {
 			 * c​o​m​m​a​n​d​ ​p​a​l​e​t​t​e
 			 */
 			commandPalette: string
+			/**
+			 * {​a​c​t​}​ ​d​o​e​s​ ​n​o​t​ ​a​p​p​l​y​ ​t​o​ ​{​r​e​c​o​r​d​}​.
+			 * @param {unknown} act
+			 * @param {unknown} record
+			 */
+			commandPaletteActDoesNotApply: RequiredParams<'act' | 'record'>
 			/**
 			 * t​y​p​e​ ​t​o​ ​f​i​n​d​ ​t​h​e​ ​r​e​c​o​r​d​ ​t​h​i​s​ ​r​u​n​s​ ​o​n​.
 			 */
@@ -3314,10 +3316,6 @@ export type TranslationFunctions = {
 			 */
 			renew: () => LocalizedString
 			/**
-			 * renew a contract
-			 */
-			renewContract: () => LocalizedString
-			/**
 			 * renewing...
 			 */
 			renewing: () => LocalizedString
@@ -4163,6 +4161,10 @@ export type TranslationFunctions = {
 			 * command palette
 			 */
 			commandPalette: () => LocalizedString
+			/**
+			 * {act} does not apply to {record}.
+			 */
+			commandPaletteActDoesNotApply: (arg: { act: unknown, record: unknown }) => LocalizedString
 			/**
 			 * type to find the record this runs on.
 			 */

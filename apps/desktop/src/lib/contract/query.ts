@@ -11,7 +11,7 @@ import { workspacePrefixes } from '$lib/design/query';
 import type { ContractRank } from '$lib/contract/rank';
 import type { ListSort } from '@rentable/design/sort.js';
 import { LL } from '$lib/i18n/i18n-svelte';
-import { createQuery } from '@tanstack/svelte-query';
+import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 import { get } from 'svelte/store';
 
 /**
@@ -200,6 +200,19 @@ export function useFetchContract(id: () => string, enabled: () => boolean = () =
 			queryFn: () => api.contract.get({ id: freshId })
 		};
 	});
+}
+
+/**
+ * Read one contract once, for a caller that holds only its identity and has to act on the rest:
+ * the contract host, answering an act the command menu or the dashboard named by id. Through the
+ * cache, under the same key the record's page reads, so a contract already on screen is not read
+ * twice.
+ */
+export function useReadContract() {
+	const client = useQueryClient();
+
+	return (id: string) =>
+		client.fetchQuery({ queryKey: keys.get(id), queryFn: () => api.contract.get({ id }) });
 }
 
 export const useCreateContract = declareMutation({

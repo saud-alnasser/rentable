@@ -27,7 +27,7 @@
 	 * What a selection of contracts offers, and everything those actions need.
 	 *
 	 * Three surfaces list contracts — the directory, a tenant's page and a unit's — and the set is
-	 * one set, for the reason `actions.svelte` gives about a single record: assembled per surface,
+	 * one set, for the reason `contract/acts.ts` gives about a single record: assembled per surface,
 	 * what may be done to a selection would come to depend on where the reader met it.
 	 *
 	 * **The bar carries all three whatever is in the selection.** Whether an action applies to any

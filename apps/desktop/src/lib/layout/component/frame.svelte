@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import ContractHost from '$lib/contract/component/host.svelte';
 	import { tauri } from '$lib/platform/tauri';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Kbd } from '@rentable/design/primitive/kbd/index.js';
@@ -9,7 +10,6 @@
 	import LayoutBreadcrumb from '$lib/layout/component/breadcrumb.svelte';
 	import LayoutCaughtError from '$lib/layout/component/caught-error.svelte';
 	import LayoutPalette, { PALETTE_SHORTCUT_HINT } from '$lib/layout/component/palette.svelte';
-	import LayoutRecordVerbs from '$lib/layout/component/record-verbs.svelte';
 	import LayoutShortcutListener from '$lib/layout/component/shortcut-listener.svelte';
 	import LayoutShortcutSheet from '$lib/layout/component/shortcut-sheet.svelte';
 	import LayoutSidebar from '$lib/layout/component/sidebar.svelte';
@@ -181,9 +181,10 @@
 	{#if hasRail}
 		{#if !isSignedOut}
 			<LayoutPalette bind:open={isPaletteOpen} />
-			<!-- beside the palette, because the palette is the only thing that runs these and what
-			     they open has to survive it closing. -->
-			<LayoutRecordVerbs />
+			<!-- every contract form and confirmation, mounted once: a card, a record page, the
+			     dashboard and the palette each ask it for what an act opens, and what it opens has
+			     to outlive the palette closing and the reader moving between screens. -->
+			<ContractHost />
 			<LayoutShortcutSheet bind:open={isShortcutSheetOpen} />
 		{/if}
 		<Sidebar.Provider class="h-full min-h-0 overflow-hidden">

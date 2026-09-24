@@ -137,7 +137,7 @@
 		{
 			label: $LL.common.actions.delete(),
 			icon: Trash2Icon,
-			variant: 'destructive',
+			tone: 'error',
 			onSelect: () => {
 				deleteOpensOn = complex;
 			}

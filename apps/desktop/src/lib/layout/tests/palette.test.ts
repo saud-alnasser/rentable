@@ -6,12 +6,9 @@ import { loadLocale } from '$lib/i18n/i18n-util.sync.ts';
 import {
 	ShortcutRegistry,
 	type ApplicationShortcut,
-	type RecordVerb,
-	type ShortcutCollision,
-	type ShortcutRegistration,
-	toShortcutSheetEntries
+	type ShortcutRegistration
 } from '../../design/shortcut-registry.ts';
-import { matchesTerm, toPaletteVerbs } from '../palette.ts';
+import { matchesTerm, toPaletteShortcuts } from '../palette.ts';
 
 // the loaded locale rather than a hand-written stand-in: a name and a reason are read from the
 // whole of `TranslationFunctions`, and the three-key object this used to pass was a shape
@@ -45,19 +42,8 @@ function sidebarToggle(ran: string[] = []): ApplicationShortcut {
 	};
 }
 
-/** the action that has to ask which contract before it can do anything. */
-function renewContract(ran: string[] = []): RecordVerb {
-	return {
-		id: 'contract.renew',
-		scope: 'record',
-		subject: 'contract',
-		describe: (t) => t.common.actions.renewContract(),
-		run: (contractId) => ran.push(`contract.renew:${contractId}`)
-	};
-}
-
 test('an application shortcut is offered by name, with the keys that also run it', () => {
-	const verbs = toPaletteVerbs(registryOf(sidebarToggle()).registered, translations, false);
+	const verbs = toPaletteShortcuts(registryOf(sidebarToggle()).registered, translations, false);
 
 	assert.deepEqual(
 		verbs.map((verb) => ({ id: verb.id, label: verb.label, hints: verb.hints })),
@@ -75,7 +61,7 @@ test('a surface shortcut is not an action, so the palette does not offer it', ()
 		describe: () => 'move between records'
 	});
 
-	assert.deepEqual(toPaletteVerbs(registry.registered, translations, false), []);
+	assert.deepEqual(toPaletteShortcuts(registry.registered, translations, false), []);
 });
 
 test('and nor is a shortcut that says it is not offered', () => {
@@ -88,7 +74,7 @@ test('and nor is a shortcut that says it is not offered', () => {
 		run: () => {}
 	});
 
-	assert.deepEqual(toPaletteVerbs(registry.registered, translations, false), []);
+	assert.deepEqual(toPaletteShortcuts(registry.registered, translations, false), []);
 });
 
 // the criterion the whole ticket rests on: the action runs where the reader is standing. The
@@ -97,36 +83,15 @@ test('and nor is a shortcut that says it is not offered', () => {
 test('running an action does its work and nothing else — no navigation happens', () => {
 	const ran: string[] = [];
 	const navigated: string[] = [];
-	const verbs = toPaletteVerbs(registryOf(sidebarToggle(ran)).registered, translations, false);
+	const verbs = toPaletteShortcuts(registryOf(sidebarToggle(ran)).registered, translations, false);
 	const [verb] = verbs;
 
-	// naming no destination is also what says the row runs on nothing: the two members of a
-	// verb differ in exactly this, so the row carrying no subject is the one `run` takes
-	// nothing for — which is why this is asserted before it is run rather than after.
-	assert.ok(verb.subject === undefined, 'nothing about the row names a destination');
+	assert.ok(!('href' in verb), 'nothing about the row names a destination');
 
 	verb.run();
 
 	assert.deepEqual(ran, ['sidebar.toggle']);
 	assert.deepEqual(navigated, []);
-});
-
-test('an action that acts on a record names the concept it has to ask for', () => {
-	const verbs = toPaletteVerbs(registryOf(renewContract()).registered, translations, false);
-
-	assert.equal(verbs[0].subject, 'contract');
-	assert.deepEqual(verbs[0].hints, [], 'no keydown can say which contract, so no keys reach it');
-});
-
-test('and is given the record the reader chose, rather than failing without one', () => {
-	const ran: string[] = [];
-	const verbs = toPaletteVerbs(registryOf(renewContract(ran)).registered, translations, false);
-	const [verb] = verbs;
-
-	assert.ok(verb.subject !== undefined, 'the row asks for a record before it runs');
-	verb.run('42');
-
-	assert.deepEqual(ran, ['contract.renew:42']);
 });
 
 // never silently inert: the row is offered and refused, and the refusal carries its reason.
@@ -141,52 +106,30 @@ test('an action that cannot run right now says why, in the active locale', () =>
 	});
 
 	assert.equal(
-		toPaletteVerbs(registry.registered, translations, false)[0].unavailable,
+		toPaletteShortcuts(registry.registered, translations, false)[0].unavailable,
 		'nothing to take back'
 	);
 });
 
 test('and one that can carries no reason at all', () => {
-	const verbs = toPaletteVerbs(registryOf(sidebarToggle()).registered, translations, false);
+	const verbs = toPaletteShortcuts(registryOf(sidebarToggle()).registered, translations, false);
 
 	assert.equal(verbs[0].unavailable, undefined);
 });
 
 test('actions are ordered by name, not by the order they were mounted in', () => {
-	const registry = registryOf(renewContract(), sidebarToggle());
+	const registry = registryOf(sidebarToggle(), {
+		id: 'palette.toggle',
+		scope: 'application',
+		keys: [{ key: 'k', command: true }],
+		describe: (t) => t.common.ui.commandPalette(),
+		run: () => {}
+	});
 
 	assert.deepEqual(
-		toPaletteVerbs(registry.registered, translations, false).map((verb) => verb.id),
-		['contract.renew', 'sidebar.toggle']
+		toPaletteShortcuts(registry.registered, translations, false).map((verb) => verb.id),
+		['palette.toggle', 'sidebar.toggle']
 	);
-});
-
-// the sheet answers *what does pressing something do*, and an action nothing reaches answers it
-// with a blank. The two surfaces read one registry and disagree only about this.
-test('an action with no keys reaches the palette and stays off the shortcut sheet', () => {
-	const registry = registryOf(renewContract(), sidebarToggle());
-
-	assert.deepEqual(
-		toShortcutSheetEntries(registry.registered, translations, false).map((entry) => entry.id),
-		['sidebar.toggle']
-	);
-	assert.deepEqual(
-		toPaletteVerbs(registry.registered, translations, false).map((verb) => verb.id),
-		['contract.renew', 'sidebar.toggle']
-	);
-});
-
-// two registrations that share no keydown cannot collide, and an action reached by no keydown
-// shares one with nothing.
-test('an action with no keys collides with nothing', () => {
-	const collisions: ShortcutCollision[] = [];
-	const registry = new ShortcutRegistry((collision) => collisions.push(collision));
-
-	registry.register(renewContract());
-	registry.register({ ...renewContract(), id: 'contract.terminate' });
-	registry.register(sidebarToggle());
-
-	assert.deepEqual(collisions, []);
 });
 
 test('an empty term matches everything, so the palette opens on all of it', () => {

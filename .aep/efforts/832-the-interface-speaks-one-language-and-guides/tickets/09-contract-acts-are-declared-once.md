@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [03]
 ---
 
@@ -18,24 +18,24 @@ details and duplicate on the card too. There is one `ContractForm` in the tree.
 Traces requirements 6, 7 and 8 of [[efforts/832-the-interface-speaks-one-language-and-guides/spec]],
 and its criteria 7(b) and 8.
 
-- [ ] `apps/desktop/src/lib/design/acts.ts` holds `RecordAct<T>` as the plan's *Interfaces* states,
-      and `toCardActions`, `toPageActions` and `toPaletteVerbs`.
-- [ ] `packages/design/src/lib/block/record-card.svelte`'s `RecordCardAction` gains `shortcut?` (a
+- [x] `apps/desktop/src/lib/design/acts.ts` holds `RecordAct<T>` as the plan's *Interfaces* states,
+      and `toCardActions`, `toPageActions` and `toPaletteVerbs`. Verified: `design/acts.ts` holds `RecordAct<T>` with `toCardActions`, `toPageActions`, `toPaletteVerbs` (plus `toPaletteActs`); `pnpm check` 0 errors on the merged tree.
+- [x] `packages/design/src/lib/block/record-card.svelte`'s `RecordCardAction` gains `shortcut?` (a
       `Kbd` in both menus) and `group?` (a separator), and `variant` becomes
-      `tone: 'neutral' | 'error'`. Its component test covers the separator and the shortcut hint.
-- [ ] `contract/acts.ts` declares copy details, duplicate, renew, edit, terminate, restore, delete,
-      with `appliesTo` and `unavailable` from the contract's own rules.
-- [ ] `contract/component/host.svelte` mounts the form (keyed as today) and the dialogs once, in
+      `tone: 'neutral' | 'error'`. Its component test covers the separator and the shortcut hint. Verified: `RecordCardAction` has `shortcut?`, `group?` and `tone`; three new tests in `record-card.svelte.test.ts`; design vitest 81 of 81 on the effort branch.
+- [x] `contract/acts.ts` declares copy details, duplicate, renew, edit, terminate, restore, delete,
+      with `appliesTo` and `unavailable` from the contract's own rules. Verified: `contract/acts.ts` declares copy details, duplicate, renew, edit, terminate, restore, delete in order, `appliesTo` from `contract.ts` rules; covered by `acts.test.ts`.
+- [x] `contract/component/host.svelte` mounts the form (keyed as today) and the dialogs once, in
       `layout/component/frame.svelte`, and exposes `run(actId, contract)` and `create(prefill?)`
       through a module store. `contract/component/actions.svelte` and
       `layout/component/record-verbs.svelte` are deleted, and `contract/component/details.svelte`
-      mounts no form or dialog.
-- [ ] A node test asserts that for a contract in each status, the card, page and palette
-      projections yield the same ids, labels, icons and order.
-- [ ] The command menu lists every contract act that applies, with its shortcut where it has one.
-- [ ] `[[rules/interface]]` *Record card actions* is revised: one declaration per concept, three
+      mounts no form or dialog. Verified: `actions.svelte` and `record-verbs.svelte` are gone (ls: no such file); `<ContractForm` is rendered only in `host.svelte`, mounted once in `frame.svelte`; `details.svelte` mounts no form or dialog.
+- [x] A node test asserts that for a contract in each status, the card, page and palette
+      projections yield the same ids, labels, icons and order. Verified: `design/tests/acts.test.ts` covers all six statuses, same ids, labels, icons and order across the three projections; desktop node 1032 of 1032 on the merged tree.
+- [x] The command menu lists every contract act that applies, with its shortcut where it has one. Verified: the palette's asking mode lists every contract act with icon and key hint, and the host refuses an act that does not apply; read from the code and the node test (no contract act carries a key yet).
+- [x] `[[rules/interface]]` *Record card actions* is revised: one declaration per concept, three
       surfaces plus the command menu, groups and shortcuts.
-
+ Verified: `rules/interface.md` *Record card actions* rewritten: one declaration per concept, three surfaces plus the command menu, groups and shortcuts.
 ## Relevant areas
 
 - `packages/design/src/lib/block/record-card.svelte:45` (the action type), `record-action-control.svelte`

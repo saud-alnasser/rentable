@@ -3,6 +3,7 @@ import { DesignProvider, type DesignStrings } from '#lib/strings.js';
 import RecordCardHarness from '#tests/record-card-harness.svelte';
 import { suppliedStrings } from '#tests/contract-strings.js';
 import { fireEvent, render } from '@testing-library/svelte';
+import CopyIcon from '@lucide/svelte/icons/copy';
 import SquarePenIcon from '@lucide/svelte/icons/square-pen';
 import Trash2Icon from '@lucide/svelte/icons/trash-2';
 import { expect, test, vi } from 'vitest';
@@ -156,10 +157,7 @@ test('keyboard focus arriving on a card animates nothing', () => {
 // draw it first, which is what lines the rows up down the menu.
 test('every entry on both routes leads with its icon', async () => {
 	show({
-		actions: [
-			action,
-			{ label: 'احذف', icon: Trash2Icon, variant: 'destructive', onSelect: () => {} }
-		]
+		actions: [action, { label: 'احذف', icon: Trash2Icon, tone: 'error', onSelect: () => {} }]
 	});
 
 	const leads = (entry: Element) => entry.firstElementChild?.tagName.toLowerCase() === 'svg';
@@ -173,4 +171,70 @@ test('every entry on both routes leads with its icon', async () => {
 	const throughGesture = await throughTheGesture();
 	expect(throughGesture).toHaveLength(2);
 	expect(throughGesture.every(leads)).toBe(true);
+});
+
+// requirement 8 of effort 832: an act is declared once and projected onto every surface, so what
+// the card draws of it is what the record's page and the command menu draw. The keys an act answers
+// to are printed beside it, and a group is a line between two runs of acts, on both routes.
+const grouped = [
+	{ label: 'انسخ', icon: CopyIcon, group: 'primary', onSelect: () => {} },
+	{
+		label: 'عدل',
+		icon: SquarePenIcon,
+		group: 'primary',
+		shortcut: { key: 'e' },
+		onSelect: () => {}
+	},
+	{
+		label: 'احذف',
+		icon: Trash2Icon,
+		group: 'destructive',
+		tone: 'error' as const,
+		onSelect: () => {}
+	}
+];
+
+/** the entries and the separators of an open menu, in the order it draws them. */
+const drawn = (slot: 'dropdown-menu' | 'context-menu') =>
+	[...document.querySelectorAll(`[data-slot=${slot}-item], [data-slot=${slot}-separator]`)].map(
+		(node) =>
+			node.getAttribute('data-slot')?.endsWith('separator') ? '|' : (node.textContent ?? '').trim()
+	);
+
+test('a separator is drawn where the group changes, and only there, on both routes', async () => {
+	show({ actions: grouped });
+
+	await throughTheControl();
+	expect(drawn('dropdown-menu')).toEqual(['انسخ', expect.stringContaining('عدل'), '|', 'احذف']);
+
+	await fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+
+	await throughTheGesture();
+	expect(drawn('context-menu')).toEqual(['انسخ', expect.stringContaining('عدل'), '|', 'احذف']);
+});
+
+test('an act with a shortcut shows its keys as a hint on both routes, and one without shows none', async () => {
+	show({ actions: grouped });
+
+	const hintOf = (entry: Element | undefined) => entry?.querySelector('kbd');
+
+	const throughControl = await throughTheControl();
+	expect(hintOf(throughControl[1])?.textContent?.trim()).toBe('E');
+	expect(hintOf(throughControl[1])?.getAttribute('dir')).toBe('ltr');
+	expect(hintOf(throughControl[0])).toBe(null);
+
+	await fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+
+	const throughGesture = await throughTheGesture();
+	expect(hintOf(throughGesture[1])?.textContent?.trim()).toBe('E');
+	expect(hintOf(throughGesture[2])).toBe(null);
+});
+
+test('an act in the error tone is drawn as the menus draw a destructive entry', async () => {
+	show({ actions: grouped });
+
+	const throughControl = await throughTheControl();
+
+	expect(throughControl[2]?.getAttribute('data-variant')).toBe('destructive');
+	expect(throughControl[0]?.getAttribute('data-variant')).toBe('default');
 });

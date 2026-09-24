@@ -1,4 +1,6 @@
 <script lang="ts" module>
+	import type { RecordActionTone } from '#lib/block/record-action-control.svelte';
+	import type { ShortcutCombination } from '#lib/shortcut.js';
 	import EllipsisIcon from '@lucide/svelte/icons/ellipsis';
 
 	type IconComponent = typeof EllipsisIcon;
@@ -39,23 +41,42 @@
 	 * `onSelect` is the menus' own selection event, which is what lets a single list drive both of
 	 * a card's routes without either holding a vocabulary of its own.
 	 *
-	 * The two optional fields are what a row needed and a card never had a reason to ask for, and
+	 * The optional fields are what a row needed and a card never had a reason to ask for, and
 	 * they are on the shared type rather than beside it so that a card and a row offering the same
 	 * act describe it the same way. `disabled` is the act already running, which is the state a
 	 * menu cannot show by hiding the entry: an act that vanishes mid-press reads as an act that
 	 * was never there. `attributes` is what the surface marks the entry with, the `data-*` every
 	 * list here is read by, and it is the caller's because the act it stands for is.
+	 *
+	 * `shortcut` and `group` arrived with the record acts of effort 832: an act declared once is
+	 * projected onto the card, the record's page and the command menu, so the card draws the keys
+	 * the act answers to, and a line between two acts that belong to different groups.
 	 */
 	export type RecordCardAction = {
 		label: string;
 		icon: IconComponent;
-		variant?: 'default' | 'destructive';
+		/**
+		 * whether pressing it destroys something the reader cannot get back. The two tones
+		 * `record-action-control` speaks, so an act reads the same on a card as on its page.
+		 */
+		tone?: RecordActionTone;
+		/** the keys that also run it, printed beside it on both routes. */
+		shortcut?: ShortcutCombination;
+		/**
+		 * which group of acts it belongs to. A separator is drawn wherever the group changes from
+		 * one entry to the next, so the caller orders the entries and the card only draws the seams.
+		 */
+		group?: string;
 		/** whether the act is already running, and so not pressable again for now. */
 		disabled?: boolean;
 		/** what the surface marks this entry with, on whichever route draws it. */
 		attributes?: Record<string, string>;
 		onSelect: () => void;
 	};
+
+	/** whether this entry opens a new group, and so has a separator drawn above it. */
+	const opensGroup = (actions: RecordCardAction[], index: number) =>
+		index > 0 && actions[index].group !== actions[index - 1].group;
 </script>
 
 <script lang="ts">
@@ -64,11 +85,17 @@
 	import { Button } from '#lib/primitive/button/index.js';
 	import * as ContextMenu from '#lib/primitive/context-menu/index.js';
 	import * as DropdownMenu from '#lib/primitive/dropdown-menu/index.js';
+	import { Kbd } from '#lib/primitive/kbd/index.js';
+	import { toShortcutHint, usesAppleKeyboard } from '#lib/shortcut.js';
 	import { useDesignContract } from '#lib/strings.js';
 	import { cn } from '#lib/tailwind.js';
 	import type { Snippet } from 'svelte';
 
 	const contract = useDesignContract();
+
+	// which keyboard this is does not change while the window is open, so it is read once rather
+	// than once per entry.
+	const isAppleKeyboard = usesAppleKeyboard();
 
 	/**
 	 * A record in a list: the card that opens it, and the record's actions by both of the routes a
@@ -109,6 +136,11 @@
 	{@const Icon = action.icon}
 	<Icon class="size-4" />
 	<span class="min-w-0 flex-1 truncate">{action.label}</span>
+	{#if action.shortcut}
+		<!-- a key name is not prose: it is what is printed on the keyboard, and the keyboard does
+		     not change with the locale. -->
+		<Kbd dir="ltr" class="shrink-0">{toShortcutHint(action.shortcut, isAppleKeyboard)}</Kbd>
+	{/if}
 {/snippet}
 
 {#snippet card(triggerProps: Record<string, unknown>)}
@@ -150,9 +182,12 @@
 					</DropdownMenu.Trigger>
 
 					<DropdownMenu.Content align="end" class="min-w-[12rem]">
-						{#each actions as action (action.label)}
+						{#each actions as action, index (action.label)}
+							{#if opensGroup(actions, index)}
+								<DropdownMenu.Separator />
+							{/if}
 							<DropdownMenu.Item
-								variant={action.variant}
+								variant={action.tone === 'error' ? 'destructive' : 'default'}
 								disabled={action.disabled}
 								onSelect={action.onSelect}
 								class="capitalize"
@@ -177,9 +212,12 @@
 		</ContextMenu.Trigger>
 
 		<ContextMenu.Content class="min-w-[12rem]">
-			{#each actions as action (action.label)}
+			{#each actions as action, index (action.label)}
+				{#if opensGroup(actions, index)}
+					<ContextMenu.Separator />
+				{/if}
 				<ContextMenu.Item
-					variant={action.variant}
+					variant={action.tone === 'error' ? 'destructive' : 'default'}
 					disabled={action.disabled}
 					onSelect={action.onSelect}
 					class="capitalize"

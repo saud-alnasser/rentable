@@ -259,7 +259,7 @@
 					{
 						label: $LL.common.actions.delete(),
 						icon: Trash2Icon,
-						variant: 'destructive' as const,
+						tone: 'error' as const,
 						attributes: { 'data-workspace-delete': workspace.id },
 						onSelect: () => {
 							deleting = workspace;

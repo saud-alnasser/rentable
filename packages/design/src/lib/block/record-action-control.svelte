@@ -36,7 +36,9 @@
 
 <script lang="ts">
 	import { Button } from '#lib/primitive/button/index.js';
+	import { Kbd } from '#lib/primitive/kbd/index.js';
 	import * as Tooltip from '#lib/primitive/tooltip/index.js';
+	import { toShortcutHint, usesAppleKeyboard, type ShortcutCombination } from '#lib/shortcut.js';
 	import type { Component } from 'svelte';
 
 	/**
@@ -55,6 +57,8 @@
 		label,
 		icon: Icon,
 		tone = 'neutral',
+		shortcut,
+		disabled = false,
 		onclick
 	}: {
 		/** What the action is, translated — the tooltip, and the control's accessible name. */
@@ -62,6 +66,10 @@
 		/** The glyph standing for the action. */
 		icon: Component<{ class?: string }>;
 		tone?: RecordActionTone;
+		/** The keys that also run it, printed in the tooltip beside its name. */
+		shortcut?: ShortcutCombination;
+		/** Whether it cannot be pressed for now. */
+		disabled?: boolean;
 		onclick: () => void;
 	} = $props();
 </script>
@@ -75,6 +83,7 @@
 				size="icon-sm"
 				class={control({ tone })}
 				aria-label={label}
+				{disabled}
 				{onclick}
 			>
 				<Icon class="size-4" />
@@ -82,5 +91,11 @@
 			</Button>
 		{/snippet}
 	</Tooltip.Trigger>
-	<Tooltip.Content side="top" sideOffset={8}>{label}</Tooltip.Content>
+	<Tooltip.Content side="top" sideOffset={8}>
+		{label}
+		{#if shortcut}
+			<!-- a key name is not prose, so it reads left to right in both locales. -->
+			<Kbd dir="ltr">{toShortcutHint(shortcut, usesAppleKeyboard())}</Kbd>
+		{/if}
+	</Tooltip.Content>
 </Tooltip.Root>

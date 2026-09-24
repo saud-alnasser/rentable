@@ -540,7 +540,7 @@
 					{
 						label: $LL.organization.dashboard.remove(),
 						icon: UserMinusIcon,
-						variant: 'destructive' as const,
+						tone: 'error' as const,
 						attributes: { 'data-member-remove': member.id },
 						onSelect: () => onRemove(member.id)
 					}
@@ -551,7 +551,7 @@
 					{
 						label: $LL.organization.dashboard.lockOut(),
 						icon: LockIcon,
-						variant: 'destructive' as const,
+						tone: 'error' as const,
 						attributes: { 'data-member-lock-out': member.id },
 						onSelect: () => onLockOut(member.id)
 					}

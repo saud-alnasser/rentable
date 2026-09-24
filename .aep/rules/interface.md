@@ -162,16 +162,46 @@ human accepted it at that effort's review round two on 2026-09-17.*
 
 ### Record card actions
 
-**A record card offers its actions from a visible control and from the context gesture.**
+**A record's acts are declared once per concept, and every surface offering them is a projection
+of that declaration.** The concept writes one ordered list in `apps/desktop/src/lib/<concept>/acts.ts`,
+of the `RecordAct` shape in `design/acts.ts`: each act's id, label, icon, tone, group, shortcut, and
+the concept's own rules for whether it applies to a record (hidden where it does not) and whether it
+is unavailable (shown, refused, with the reason). Three surfaces and the command menu read it:
 
-One block owns the card's markup, so a surface inherits both routes instead of choosing.
-**The two routes are not equals, and the asymmetry is the rule:** the visible tertiary control
-is what the card promises and holds every action, reachable by pointer and by keyboard; the
-context gesture is derived from the same list and may hold nothing the control does not.
+| Surface | Projection |
+| --- | --- |
+| the card's visible control, and its context menu | `toCardActions` |
+| the record page's action cluster | `toPageActions` |
+| the command menu, before and after the record is named | `toPaletteActs`, `toPaletteVerbs` |
 
-*Why: a gesture-only card promises nothing, and keyboard users reach no action at all.*
+So label, icon, order, tone, shortcut and availability cannot differ between them, and a card offers
+what its page offers, copy details and duplicate included. `design/tests/acts.test.ts` holds every
+declared concept to it, for a record in each state it can be in.
 
-Recorded originally as ADR 0034, *A record card carries its actions twice, and one block owns both routes*.
+**An act never opens a form or a dialog itself.** Its `run` asks the concept's host, mounted once in
+`layout/component/frame.svelte`, which owns every form and confirmation the concept's acts open and
+exposes `run(actId, record)` and `create(prefill?)` through a module store
+(`contract/host.svelte.ts` is the first). A surface mounts none of them, so there is one form per
+concept in the tree, and the command menu reaches every act from any screen: choosing one asks for the
+record, and the host reads it and refuses, with a sentence, an act that record does not admit.
+
+**Groups and shortcuts.** Acts fall in `primary`, `lifecycle` and `destructive`, in that order on
+every concept, and the card's menus draw a separator wherever the group changes. An act's shortcut,
+where it has one, is printed beside it on every surface: a `Kbd` in both of the card's menus, in the
+page control's tooltip, and on its command-menu row.
+
+**The card's two routes are not equals, and the asymmetry is the rule:** the visible tertiary control
+is what the card promises and holds every action, reachable by pointer and by keyboard; the context
+gesture is derived from the same list and may hold nothing the control does not. One block owns the
+card's markup, so a surface inherits both routes instead of choosing.
+
+*Why: a gesture-only card promises nothing, and keyboard users reach no action at all. And an act
+wired per surface was written three times and drifted: cards never offered copy details, and the
+contract form was mounted four times over.*
+
+Recorded originally as ADR 0034, *A record card carries its actions twice, and one block owns both
+routes*. Revised by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirements 7
+and 8: contract is the first concept declared this way, and the others follow it.
 
 ## Forms
 
