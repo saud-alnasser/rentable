@@ -1219,7 +1219,8 @@ export default router({
 		 * The search narrows in SQL, over the unit's name and the name of the complex holding
 		 * it, so the surface never receives a wider set to filter. Units held by a contract
 		 * whose term overlaps this one are left out: they are not this contract's to take, so
-		 * offering them would be offering a refusal.
+		 * offering them would be offering a refusal. A unit this contract holds is kept even
+		 * then, because the held pane lists what the contract holds.
 		 */
 		getAssignableMany: procedure.member
 			.input(ContractAssignableUnitsSchema)
@@ -1272,8 +1273,10 @@ export default router({
 						.map((assignment) => assignment.unitId)
 				);
 
+				// a unit this contract holds is always listed, even where an overlapping contract
+				// holds it too: the held pane must show what a delete refusal counts.
 				return units
-					.filter((unit) => !conflictingUnitIds.has(unit.id))
+					.filter((unit) => assignedUnitIds.has(unit.id) || !conflictingUnitIds.has(unit.id))
 					.map((unit) => ({
 						...unit,
 						status: statusByUnitId.get(unit.id) ?? 'vacant',

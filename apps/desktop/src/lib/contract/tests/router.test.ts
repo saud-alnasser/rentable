@@ -561,6 +561,42 @@ test('the assignable set offers every unit no overlapping contract holds', async
 	assert.equal(byId.has(taken.unit.id), false, 'a unit an overlapping contract holds was offered');
 });
 
+test('the held pane lists a unit an overlapping contract also holds, so a delete refusal counts what it shows', async () => {
+	const api = await createApi();
+	const shared = await seedComplexWithUnit(api, 'S');
+	const theirs = await seedComplexWithUnit(api, 'T');
+	const contract = await seedContract(api);
+	const other = await seedContract(api);
+
+	// two overlapping contracts come to hold one unit: the first holds it and is terminated,
+	// which frees the unit for the second, and restoring the first does not give it back.
+	await api.contract.units.set({ contractId: contract.id, unitIds: [shared.unit.id] });
+	await api.contract.terminate({ id: contract.id });
+	await api.contract.units.set({
+		contractId: other.id,
+		unitIds: [shared.unit.id, theirs.unit.id]
+	});
+	await api.contract.unterminate({ id: contract.id });
+
+	const assignable = await api.contract.units.getAssignableMany({ contractId: contract.id });
+	const byId = new Map(assignable.map((unit) => [unit.id, unit]));
+	const heldPane = assignable.filter((unit) => unit.isAssigned);
+	const heldUnits = await api.contract.units.getMany({ contractId: contract.id });
+
+	assert.equal(byId.get(shared.unit.id)?.isAssigned, true, 'a unit the contract holds was dropped');
+	assert.equal(
+		byId.has(theirs.unit.id),
+		false,
+		'a unit only the overlapping contract holds was offered'
+	);
+	assert.equal(heldPane.length, heldUnits.length);
+
+	// the delete dialog counts its unit blocker from `units.getMany`, and the procedure refuses
+	// for the same reason, so the count a refusal reports is the held pane's length.
+	await assert.rejects(() => api.contract.delete({ id: contract.id }), /associated units/);
+	assert.equal(heldUnits.length, 1);
+});
+
 test('the assignable search narrows on the unit name and on the complex holding it', async () => {
 	const api = await createApi();
 	const contract = await seedContract(api);
