@@ -9,6 +9,7 @@
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
+	import CreateControl from '$lib/design/block/create-control.svelte';
 	import { toCardActions } from '$lib/design/acts';
 	import type { ListSort } from '@rentable/design/sort.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
@@ -17,11 +18,9 @@
 	import DirectoryTray from '$lib/organization/component/directory-tray.svelte';
 	import { toMemberDirectory } from '$lib/organization/directory';
 	import RoleTable from '$lib/organization/component/role-table.svelte';
-	import { openOrganizationDialog } from '$lib/organization/dialogs.svelte';
 	import { memberActs, memberHost, memberPending } from '$lib/organization/host.svelte';
 	import { RECORD_PARAM, recordOf, withSection } from '$lib/settings/section';
 	import ListChecksIcon from '@lucide/svelte/icons/list-checks';
-	import UserPlusIcon from '@lucide/svelte/icons/user-plus';
 
 	/**
 	 * Everybody in the organization, as a directory of record cards.
@@ -50,8 +49,8 @@
 	 * **Activating a card opens its record** ([[rules/interface]], *Row activation*). A member has
 	 * no page, so what opening one means is the member's sheet, and the card's `href` is this
 	 * section's address with the member named on it. The address is consumed on arrival and
-	 * cleared, the way `complex/component/directory.svelte` consumes its create intent, so pressing
-	 * the same card twice opens the same surface twice. The rule records this as its accepted
+	 * cleared, the way a concept's host consumes a create intent (`design/create-intent.svelte.ts`),
+	 * so pressing the same card twice opens the same surface twice. The rule records this as its accepted
 	 * deviation, dated 2026-09-17: in the settings directories a record's page is its sheet.
 	 *
 	 * **The acts are declared once, in `organization/acts.ts`**, and a card's menu and context menu
@@ -221,10 +220,9 @@
 
 	const recordOfMember = (member: OrganizationMember): MemberActRecord => ({ member, context });
 
-	// the member the address names is opened and then cleared out of the address, the way
-	// `complex/component/directory.svelte` consumes a create intent: left there, a reload would
-	// reopen a surface the person has already dismissed, and pressing the same card a second time
-	// would navigate nowhere.
+	// the member the address names is opened and then cleared out of the address, the way a
+	// concept's host consumes a create intent: left there, a reload would reopen a surface the
+	// person has already dismissed, and pressing the same card a second time would navigate nowhere.
 	$effect(() => {
 		const named = recordOf(page.url);
 
@@ -289,26 +287,13 @@
 		</Tooltip.Content>
 	</Tooltip.Root>
 
+	<!-- last in the tray, where every set offers its create ([[rules/interface]], *Create*). -->
 	{#if canInvite}
-		<Tooltip.Root>
-			<Tooltip.Trigger>
-				{#snippet child({ props })}
-					<Button
-						{...props}
-						variant="outline"
-						size="icon-sm"
-						data-invite-open
-						aria-label={$LL.organization.dashboard.addMember()}
-						onclick={() => openOrganizationDialog('account')}
-					>
-						<UserPlusIcon />
-					</Button>
-				{/snippet}
-			</Tooltip.Trigger>
-			<Tooltip.Content side="top" sideOffset={8}>
-				{$LL.organization.dashboard.addMember()}
-			</Tooltip.Content>
-		</Tooltip.Root>
+		<CreateControl
+			label={$LL.organization.dashboard.addMember()}
+			onCreate={() => memberHost.create()}
+			data-invite-open
+		/>
 	{/if}
 {/snippet}
 

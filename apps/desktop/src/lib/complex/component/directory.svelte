@@ -1,8 +1,5 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { page } from '$app/state';
-	import { untrack } from 'svelte';
 	import type api from '$lib/api/caller';
 	import { COMPLEX_SORT_COLUMN_IDS, type ComplexSortColumnId } from '$lib/complex/complex';
 	import { complexActs, complexHost } from '$lib/complex/host.svelte';
@@ -19,7 +16,6 @@
 	import SelectionDialog from '@rentable/design/block/selection-dialog.svelte';
 	import { toCardActions } from '$lib/design/acts';
 	import * as Cell from '$lib/design/cell';
-	import { hasCreateIntent } from '@rentable/design/create-intent.js';
 	import {
 		describeRefusals,
 		foreseenRefusals,
@@ -115,19 +111,6 @@
 		};
 
 		return COMPLEX_SORT_COLUMN_IDS.map((id) => ({ id, label: labels[id] }));
-	});
-
-	// the intent is consumed on arrival and cleared from the URL, so a reload or a back
-	// navigation does not reopen a form the user has already dismissed.
-	$effect(() => {
-		if (!hasCreateIntent(page.url)) {
-			return;
-		}
-
-		// the form is the host's, so the directory only asks for it, untracked: opening reads the
-		// host's render key to advance it, and an effect that reads what it writes never settles.
-		untrack(() => complexHost.create());
-		void goto(resolve('/complexes'), { replaceState: true, noScroll: true, keepFocus: true });
 	});
 </script>
 

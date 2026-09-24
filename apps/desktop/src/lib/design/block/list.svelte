@@ -1,6 +1,7 @@
 <script lang="ts" generics="TData extends { id: string }, TGroup extends ListGroup">
 	import { browser } from '$app/environment';
 	import ExportDialog from '@rentable/design/block/export-dialog.svelte';
+	import CreateControl from '$lib/design/block/create-control.svelte';
 	import Loading from '@rentable/design/block/loading.svelte';
 	import RecordActionControl from '@rentable/design/block/record-action-control.svelte';
 	import {
@@ -49,7 +50,6 @@
 	import ListTodoIcon from '@lucide/svelte/icons/list-todo';
 	import FunnelIcon from '@lucide/svelte/icons/funnel';
 	import ArrowLeftRightIcon from '@lucide/svelte/icons/arrow-left-right';
-	import PlusIcon from '@lucide/svelte/icons/plus';
 	import XIcon from '@lucide/svelte/icons/x';
 	import { createVirtualizer } from '@tanstack/svelte-virtual';
 	import { hasSameOrder, toClipPath, toTransitionName } from '$lib/design/list-motion';
@@ -89,7 +89,11 @@
 		 * the list flashes through its loading state on every search keystroke.
 		 */
 		isFetching?: boolean;
-		/** Offered as the leading action when the list can create a record. */
+		/**
+		 * Ask the concept's host for its create form, where the list can take a record. Given it, the
+		 * list draws the create control last in its toolbar, and answers the create key while it is
+		 * on screen.
+		 */
 		onCreate?: () => void;
 		/**
 		 * The narrowings this list offers, declared rather than drawn.
@@ -769,25 +773,10 @@
 				</DropdownMenu.Content>
 			</DropdownMenu.Root>
 		{/if}
+		<!-- last, at the end of the bar: the one place every set offers its create
+		     ([[rules/interface]], *Create*). -->
 		{#if onCreate}
-			<Tooltip.Root>
-				<Tooltip.Trigger>
-					{#snippet child({ props })}
-						<Button
-							{...props}
-							variant="outline"
-							size="icon-sm"
-							aria-label={$LL.common.actions.newRecord()}
-							onclick={() => onCreate()}
-						>
-							<PlusIcon />
-						</Button>
-					{/snippet}
-				</Tooltip.Trigger>
-				<Tooltip.Content side="top" sideOffset={8}>
-					{$LL.common.actions.newRecord()}
-				</Tooltip.Content>
-			</Tooltip.Root>
+			<CreateControl label={$LL.common.actions.newRecord()} {onCreate} />
 		{/if}
 	</ListToolbar>
 

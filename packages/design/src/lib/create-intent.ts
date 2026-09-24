@@ -1,11 +1,11 @@
 import type { Pathname } from '$app/types';
 
 /**
- * The search parameter a link carries to ask the list it opens to start a new record.
+ * The search parameter a link carries to ask for a new record in the list it opens.
  *
- * A list owns its own create form, so nothing outside it can open that form directly. The
- * intent travels in the URL instead: whoever wants a record created navigates to the list
- * carrying this parameter, and the list consumes it on arrival.
+ * Whoever wants a record created where it will be listed navigates to the list carrying this
+ * parameter. The concept's host, which owns the create form, consumes it on arrival; the list
+ * itself does not read it.
  */
 export const CREATE_INTENT_PARAM = 'create';
 

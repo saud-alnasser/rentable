@@ -18,11 +18,13 @@
 	import { resolve } from '$app/paths';
 	import type { ResolvedPathname } from '$app/types';
 	import { withCreateIntent } from '@rentable/design/create-intent.js';
+	import { unitHost } from '$lib/complex/unit/host.svelte';
+	import { declarePaletteCreates, type CreateDirectory } from '$lib/layout/create';
+	import { paymentHost } from '$lib/payment/host.svelte';
 	import { Kbd, KbdGroup } from '@rentable/design/primitive/kbd/index.js';
 	import * as Command from '@rentable/design/primitive/command/index.js';
 	import { shortcuts } from '$lib/design/shortcut-registry.svelte';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 	import { primaryDestinations, secondaryDestinations } from '$lib/layout/destination';
 	import {
 		matchesTerm,
@@ -42,16 +44,20 @@
 		run: (recordId: string) => void;
 	};
 
-	type CreateAction = {
-		href: ResolvedPathname;
-		label: (translations: TranslationFunctions) => string;
-	};
+	// every concept a person can create (`layout/create.ts`). The three that stand on their own are
+	// made in their directory, which their host opens the form on; a unit and a payment ask for the
+	// record they cannot be without, and their host is asked with it.
+	const createActions = declarePaletteCreates({
+		unit: (prefill) => unitHost.create(prefill),
+		payment: (prefill) => paymentHost.create(prefill)
+	});
 
-	const createActions: CreateAction[] = [
-		{ href: resolve(withCreateIntent('/tenants')), label: (t) => t.common.labels.tenant() },
-		{ href: resolve(withCreateIntent('/complexes')), label: (t) => t.common.labels.complex() },
-		{ href: resolve(withCreateIntent('/contracts')), label: (t) => t.common.labels.contract() }
-	];
+	// resolved once, and each literally: `resolve` reads the route out of the type it is handed.
+	const createAddresses = {
+		'/tenants': resolve(withCreateIntent('/tenants')),
+		'/complexes': resolve(withCreateIntent('/complexes')),
+		'/contracts': resolve(withCreateIntent('/contracts'))
+	} satisfies Record<CreateDirectory, ResolvedPathname>;
 
 	let {
 		open = $bindable(false)
@@ -243,16 +249,35 @@
 			<Command.Separator />
 
 			<Command.Group heading={$LL.common.actions.create()}>
-				{#each creations as action (action.href)}
-					<Command.LinkItem
-						href={action.href}
-						keywords={[$LL.common.actions.create()]}
-						onSelect={() => (open = false)}
-						class="capitalize"
-					>
-						<PlusIcon />
-						<span>{action.label($LL)}</span>
-					</Command.LinkItem>
+				{#each creations as action (action.subject)}
+					{#if action.kind === 'directory'}
+						<Command.LinkItem
+							href={createAddresses[action.directory]}
+							keywords={[$LL.common.actions.create()]}
+							onSelect={() => (open = false)}
+							class="capitalize"
+						>
+							<PlusIcon />
+							<span>{action.label($LL)}</span>
+						</Command.LinkItem>
+					{:else}
+						<!-- asks for the record the new one belongs to, the way a record's act asks for
+						     the record it runs on; the heading then says what choosing one will make. -->
+						<Command.Item
+							value={`create.${action.subject}`}
+							keywords={[$LL.common.actions.create()]}
+							onSelect={() =>
+								ask({
+									subject: action.asks,
+									label: `${$LL.common.actions.create()} ${action.label($LL)}`,
+									run: action.create
+								})}
+							class="capitalize"
+						>
+							<PlusIcon />
+							<span>{action.label($LL)}</span>
+						</Command.Item>
+					{/if}
 				{/each}
 			</Command.Group>
 

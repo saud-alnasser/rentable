@@ -8,6 +8,7 @@
 	import { usesAppleKeyboard } from '@rentable/design/shortcut.js';
 	import { useListContracts } from '$lib/contract/query';
 	import { toDeleteStep, toPaletteVerbs } from '$lib/design/acts';
+	import { consumeCreateIntent } from '$lib/design/create-intent.svelte';
 	import { onMutationError, onMutationSuccess } from '$lib/design/mutation';
 	import { showErrorSentence, showErrorToast, showRefusal } from '$lib/error/toast';
 	import { LL } from '$lib/i18n/i18n-svelte';
@@ -18,6 +19,7 @@
 		closeTenantForm,
 		resetTenantHost,
 		tenantActs,
+		tenantHost,
 		tenantHostState
 	} from '$lib/tenant/host.svelte';
 	import { useDeleteTenant, useReadTenant } from '$lib/tenant/query';
@@ -218,6 +220,10 @@
 		closeTenantConfirmation();
 		untrack(() => void deleteAtOnce(id));
 	});
+
+	// the command menu's new tenant arrives as `?create` on its directory. The host that owns the
+	// form answers it, rather than the directory ([[rules/interface]], *Create*).
+	consumeCreateIntent(resolve('/tenants'), () => tenantHost.create());
 
 	onDestroy(resetTenantHost);
 </script>

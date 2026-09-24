@@ -131,9 +131,9 @@ Settled by [[efforts/capabilities-only-one-surface-got/spec]], requirement 17.
 **The list mechanism is shared and the presentation is per concept.**
 
 One shell owns the query state, the search and its debounce, virtualization, the empty state,
-the result count, and the create action. The module that owns the data supplies a snippet
-saying what one record looks like. The search field and the bar it sits in are the shell's parts
-that other sets draw too (*Search*, below).
+the result count, and the create control (*Create*, below). The module that owns the data
+supplies a snippet saying what one record looks like. The search field and the bar it sits in are
+the shell's parts that other sets draw too (*Search*, below).
 
 *Why: the five lists are not five of a kind — payments are an account statement, units an
 occupancy board, contracts a triage queue, tenants and complexes directories searched rather
@@ -286,6 +286,38 @@ lost if the application closes before it is taken back
 ([[efforts/832-the-interface-speaks-one-language-and-guides/spec]], *Risks*).
 
 Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 11.
+
+### Create
+
+**Every set a person can add to offers one create control, in one place, and one key.**
+
+- **The control** is `design/block/create-control.svelte`, and nothing else draws a create: a
+  quiet plus, its words in the tooltip and on the control, with the key beside them. It stands
+  **last at the end of the bar above the records**: `design/block/list-toolbar.svelte`, which the
+  list shell draws and the settings directories' tray (`organization/component/directory-tray.svelte`)
+  draws too. A set
+  that may not be added to right now draws no control; the workspaces tray puts its refusal in that
+  place instead.
+- **The key** is Ctrl or Cmd with N, an application shortcut in the registry
+  (`design/create-key.ts`, registered by `layout/component/create-shortcut.svelte`). It is answered
+  by the set on screen: a drawn control holds its place (`design/create-target.svelte.ts`) and the
+  last one drawn answers. Where no set is on screen the key is unavailable and says why, and it is
+  still taken from the webview, which would otherwise open a window. A form or confirmation standing
+  over the set takes the key and opens nothing a second time.
+- **The command menu** creates every concept a person can (`layout/create.ts`): tenants, complexes
+  and contracts in their directory, and a unit or a payment after asking, in the menu's asking
+  mode, for the complex or the contract it cannot be without.
+- **Every route reaches the concept host's `create`**, and nothing else opens a create form. The
+  command menu's `?create` on a directory is consumed by the host, which owns the form
+  (`design/create-intent.svelte.ts`), and never by the directory.
+
+*Why: a create drawn per surface came from two icon families and was reached by a link the
+directory itself had to answer. A reader who has added a tenant knows where to add a payment,
+and the key does what the control does because it asks the same call.*
+
+Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 9. The
+key is Ctrl/Cmd+N because the page can answer it in WebView2
+([[efforts/832-the-interface-speaks-one-language-and-guides/evidence/prototypes/the-create-key]]).
 
 ## Forms
 

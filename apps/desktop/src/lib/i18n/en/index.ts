@@ -320,6 +320,7 @@ const en = {
 			morePages: 'more pages',
 			next: 'next',
 			nextSlide: 'next slide',
+			nothingToCreateHere: 'nothing on this screen takes a new record',
 			pagination: 'pagination',
 			previous: 'previous',
 			previousSlide: 'previous slide',
@@ -437,7 +438,6 @@ const en = {
 			alsoEnding: 'also ending',
 			contractCount: '{count|number} contract(s)',
 			openContract: 'open the contract for {tenant}',
-			renewContract: 'renew the contract for {tenant}',
 			seeAll: 'see all ({count|number})'
 		},
 

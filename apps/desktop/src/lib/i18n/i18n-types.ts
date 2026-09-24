@@ -1100,6 +1100,10 @@ type RootTranslation = {
 			 */
 			nextSlide: string
 			/**
+			 * n​o​t​h​i​n​g​ ​o​n​ ​t​h​i​s​ ​s​c​r​e​e​n​ ​t​a​k​e​s​ ​a​ ​n​e​w​ ​r​e​c​o​r​d
+			 */
+			nothingToCreateHere: string
+			/**
 			 * p​a​g​i​n​a​t​i​o​n
 			 */
 			pagination: string
@@ -1422,11 +1426,6 @@ type RootTranslation = {
 			 * @param {unknown} tenant
 			 */
 			openContract: RequiredParams<'tenant'>
-			/**
-			 * r​e​n​e​w​ ​t​h​e​ ​c​o​n​t​r​a​c​t​ ​f​o​r​ ​{​t​e​n​a​n​t​}
-			 * @param {unknown} tenant
-			 */
-			renewContract: RequiredParams<'tenant'>
 			/**
 			 * s​e​e​ ​a​l​l​ ​(​{​c​o​u​n​t​|​n​u​m​b​e​r​}​)
 			 * @param {unknown} count
@@ -4222,6 +4221,10 @@ export type TranslationFunctions = {
 			 */
 			nextSlide: () => LocalizedString
 			/**
+			 * nothing on this screen takes a new record
+			 */
+			nothingToCreateHere: () => LocalizedString
+			/**
 			 * pagination
 			 */
 			pagination: () => LocalizedString
@@ -4537,10 +4540,6 @@ export type TranslationFunctions = {
 			 * open the contract for {tenant}
 			 */
 			openContract: (arg: { tenant: unknown }) => LocalizedString
-			/**
-			 * renew the contract for {tenant}
-			 */
-			renewContract: (arg: { tenant: unknown }) => LocalizedString
 			/**
 			 * see all ({count|number})
 			 */

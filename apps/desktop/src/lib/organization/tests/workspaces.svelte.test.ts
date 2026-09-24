@@ -19,6 +19,7 @@ import {
 	searchGlass,
 	typeSearch
 } from '$lib/design/tests/search';
+import { expectCreateControlLast } from '$lib/design/tests/create-control';
 import { chooseOption, openSelect } from '$lib/design/tests/select';
 
 import { hostAnswers, resetHostAnswers } from './host-hooks';
@@ -328,6 +329,9 @@ test('new workspace stands in the tray for the owner holding the authority, and 
 	expect(opener.querySelector('svg')).not.toBeNull();
 	expect(opener.textContent?.trim()).toBe('');
 	expect(opener.compareDocumentPosition(first) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+	// the one create control, in the position every set gives it (effort 832, criterion 9(a)).
+	expect(opener.hasAttribute('data-create-control')).toBe(true);
+	expectCreateControlLast();
 	expect(organizationDialog.open).toBeNull();
 	await fireEvent.click(opener);
 	expect(organizationDialog.open).toBe('workspace');

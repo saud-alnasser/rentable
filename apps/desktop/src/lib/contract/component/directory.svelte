@@ -2,9 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import { untrack } from 'svelte';
 	import type api from '$lib/api/caller';
-	import { hasCreateIntent } from '@rentable/design/create-intent.js';
 	import List from '$lib/design/block/list.svelte';
 	import type { ListSort } from '@rentable/design/sort.js';
 	import { CONTRACT_SORT_COLUMN_IDS, type ContractSortColumnId } from '$lib/contract/contract';
@@ -71,22 +69,9 @@
 		return CONTRACT_SORT_COLUMN_IDS.map((id) => ({ id, label: labels[id] }));
 	});
 
-	// the intent is consumed on arrival and cleared from the URL, so a reload or a back
-	// navigation does not reopen a form the user has already dismissed. The form is the host's,
-	// so the directory only asks for it, untracked: opening reads the host's render key to advance
-	// it, and an effect that reads what it writes never settles.
-	$effect(() => {
-		if (!hasCreateIntent(page.url)) {
-			return;
-		}
-
-		untrack(() => contractHost.create());
-		void goto(resolve('/contracts'), { replaceState: true, noScroll: true, keepFocus: true });
-	});
-
 	// the rank the list opened on is then cleared from the URL, so a reload does not put back a
-	// narrowing the reader has since cleared — the create intent above is consumed and cleared the
-	// same way. This effect reads the URL and writes the URL and touches the selection not at all,
+	// narrowing the reader has since cleared, the way the contract host consumes and clears a create
+	// intent. This effect reads the URL and writes the URL and touches the selection not at all,
 	// which is what ends it: the clear lands, the next pass reads no rank, and it returns.
 	$effect(() => {
 		if (!readContractRank(page.url)) {

@@ -4,21 +4,19 @@
 	import { page } from '$app/state';
 	import type { OrganizationMember, OrganizationWorkspace } from '$lib/platform/host';
 	import RecordCard from '@rentable/design/block/record-card.svelte';
-	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import { Separator } from '@rentable/design/primitive/separator/index.js';
 	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
+	import CreateControl from '$lib/design/block/create-control.svelte';
 	import { toCardActions } from '$lib/design/acts';
 	import type { ListSort } from '@rentable/design/sort.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import type { WorkspaceActContext, WorkspaceActRecord } from '$lib/organization/acts';
 	import DirectoryTray from '$lib/organization/component/directory-tray.svelte';
 	import { toWorkspaceDirectory } from '$lib/organization/directory';
-	import { openOrganizationDialog } from '$lib/organization/dialogs.svelte';
 	import { workspaceActs, workspaceHost } from '$lib/organization/host.svelte';
 	import { recordOf, withSection, WORKSPACE_PARAM } from '$lib/settings/section';
 	import WorkspaceTransfer from '$lib/workspace/component/transfer.svelte';
-	import PlusIcon from '@lucide/svelte/icons/plus';
 	import DiscIcon from '$lib/design/cell/disc.svelte';
 
 	/**
@@ -189,31 +187,16 @@
 </script>
 
 <!--
-	the section's one primary, in the tray above the cards (requirement 21). Quiet and glyph-only
-	with its words in a tooltip and on the control itself, which is how the contracts view and the
-	members directory offer the same thing. The form that names a new workspace is the shared one
-	mounted in the shell, and this is the control that opens it.
+	the section's one primary, last in the tray above the cards (requirement 21): the one create
+	control every set draws in the same place ([[rules/interface]], *Create*). The form that names a
+	new workspace is the shared one mounted in the shell, and the organization host opens it.
 -->
 {#snippet newWorkspace()}
-	<Tooltip.Root>
-		<Tooltip.Trigger>
-			{#snippet child({ props })}
-				<Button
-					{...props}
-					variant="outline"
-					size="icon-sm"
-					data-workspace-create
-					aria-label={$LL.layout.workspaceMenu.create()}
-					onclick={() => openOrganizationDialog('workspace')}
-				>
-					<PlusIcon />
-				</Button>
-			{/snippet}
-		</Tooltip.Trigger>
-		<Tooltip.Content side="top" sideOffset={8}>
-			{$LL.layout.workspaceMenu.create()}
-		</Tooltip.Content>
-	</Tooltip.Root>
+	<CreateControl
+		label={$LL.layout.workspaceMenu.create()}
+		onCreate={() => workspaceHost.create()}
+		data-workspace-create
+	/>
 {/snippet}
 
 <!-- what stands where the control would have been, for the owner whose machine lost the authority:

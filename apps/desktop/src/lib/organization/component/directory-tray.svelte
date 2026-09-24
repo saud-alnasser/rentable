@@ -30,7 +30,8 @@
 	 * **The end of the bar is the caller's snippet, and a section with nothing to put there passes
 	 * none.** The members section puts its add behind `inviteMember`; the workspaces section puts
 	 * a create or the sentence that stands in its place, after the count and the order as the list
-	 * shell puts its own.
+	 * shell puts its own. A create is the one create control, last in the bar, where the list
+	 * shell's toolbar puts it too ([[rules/interface]], *Create*).
 	 */
 	let {
 		legendId,

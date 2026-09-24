@@ -12,11 +12,13 @@
 		closeComplexConfirmation,
 		closeComplexForm,
 		complexActs,
+		complexHost,
 		complexHostState,
 		resetComplexHost
 	} from '$lib/complex/host.svelte';
 	import { useDeleteComplex, useFetchUnits, useReadComplex } from '$lib/complex/query';
 	import { toDeleteStep, toPaletteVerbs } from '$lib/design/acts';
+	import { consumeCreateIntent } from '$lib/design/create-intent.svelte';
 	import { onMutationError, onMutationSuccess } from '$lib/design/mutation';
 	import { showErrorSentence, showErrorToast, showRefusal } from '$lib/error/toast';
 	import { LL } from '$lib/i18n/i18n-svelte';
@@ -213,6 +215,10 @@
 		closeComplexConfirmation();
 		untrack(() => void deleteAtOnce(id));
 	});
+
+	// the command menu's new complex arrives as `?create` on its directory. The host that owns the
+	// form answers it, rather than the directory ([[rules/interface]], *Create*).
+	consumeCreateIntent(resolve('/complexes'), () => complexHost.create());
 
 	onDestroy(resetComplexHost);
 </script>

@@ -68,13 +68,16 @@
 	}
 </script>
 
+<!-- marked as the bar a set's create control ends: the control is the last thing at its end, on
+     every set that draws this bar ([[rules/interface]], *Create*). -->
 <div
 	data-list-toolbar
+	data-set-bar
 	class="flex shrink-0 flex-col gap-3 rounded-2xl bg-card px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between"
 >
 	<SearchField bind:value={search} {onSearch} />
 
-	<div class="flex shrink-0 flex-wrap items-center gap-3">
+	<div data-set-bar-end class="flex shrink-0 flex-wrap items-center gap-3">
 		<span class="text-xs text-muted-foreground" aria-live="polite" data-list-count>
 			{$LL.common.table.results({ count })}
 		</span>

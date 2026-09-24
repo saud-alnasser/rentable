@@ -8,6 +8,7 @@ import {
 	type WorkspaceActRecord
 } from '$lib/organization/acts';
 import type { RecordAct } from '$lib/design/acts';
+import { openOrganizationDialog } from '$lib/organization/dialogs.svelte';
 
 /**
  * THE ORGANIZATION HOST, ASKED FOR ANYWHERE AND DRAWN ONCE
@@ -134,13 +135,17 @@ function runDeclared<T>(acts: readonly RecordAct<T>[], actId: string, record: T)
 
 export const memberHost = {
 	/** run one act on a member. An act the member does not admit is not run. */
-	run: (actId: MemberActId, record: MemberActRecord) => runDeclared(memberActs, actId, record)
+	run: (actId: MemberActId, record: MemberActRecord) => runDeclared(memberActs, actId, record),
+	/** open the form that makes an account, mounted once in the shell. */
+	create: () => openOrganizationDialog('account')
 };
 
 export const workspaceHost = {
 	/** run one act on a workspace. An act the workspace does not admit is not run. */
 	run: (actId: WorkspaceActId, record: WorkspaceActRecord) =>
-		runDeclared(workspaceActs, actId, record)
+		runDeclared(workspaceActs, actId, record),
+	/** open the form that names a new workspace, mounted once in the shell. */
+	create: () => openOrganizationDialog('workspace')
 };
 
 /** nobody is signed in any more: nothing here outlives the session that opened it. */

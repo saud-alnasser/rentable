@@ -22,8 +22,8 @@
 	import type api from '$lib/api/caller';
 	import * as Cell from '$lib/design/cell';
 	import { Badge } from '@rentable/design/primitive/badge/index.js';
-	import { Button } from '@rentable/design/primitive/button/index.js';
-	import { contractHost } from '$lib/contract/host.svelte';
+	import RecordActionControl from '@rentable/design/block/record-action-control.svelte';
+	import { contractActs, contractHost } from '$lib/contract/host.svelte';
 	import { isMoneyRank } from '$lib/contract/rank';
 	import { withContractRank } from '$lib/contract/rank-filter';
 	import type { DashboardSection } from '$lib/dashboard/dashboard';
@@ -57,10 +57,14 @@
 	 */
 	const offersRenewal = $derived(!isMoneyRank(rank));
 
+	// the act as the contract declares it, so the row offers it under the name and glyph the card,
+	// the page and the command menu do.
+	const renewal = contractActs.find((act) => act.id === 'contract.renew')!;
+
 	// a queue row carries an identity and the figures the row shows, so the renewal is asked of the
 	// contract host by identity: it reads the contract, and the form reads everything a renewal
 	// needs off it. The form is the host's, mounted once in the frame, as every contract form is.
-	const openRenewal = (id: string) => contractHost.runOn('contract.renew', id);
+	const openRenewal = (id: string) => contractHost.runOn(renewal.id, id);
 </script>
 
 <section class="shrink-0 rounded-2xl bg-card">
@@ -129,15 +133,17 @@
 				     its record and never does a second thing, so acting on one is always an
 				     explicit control on it. -->
 				{#if offersRenewal}
-					<Button
-						variant="outline"
-						size="sm"
-						class="relative shrink-0"
-						aria-label={$LL.dashboard.sections.renewContract({ tenant: entry.tenantName })}
-						onclick={() => openRenewal(entry.id)}
-					>
-						{$LL.common.actions.renew()}
-					</Button>
+					<!-- the contract's own renew act, drawn as every record act's control is: its
+					     glyph, its name in the tooltip, and the same everywhere it is offered. -->
+					<span class="relative shrink-0">
+						<RecordActionControl
+							label={renewal.label($LL)}
+							icon={renewal.icon}
+							tone={renewal.tone}
+							shortcut={renewal.shortcut}
+							onclick={() => openRenewal(entry.id)}
+						/>
+					</span>
 				{/if}
 			</div>
 		{/each}

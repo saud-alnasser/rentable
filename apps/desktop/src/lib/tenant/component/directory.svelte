@@ -1,15 +1,11 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { page } from '$app/state';
-	import { untrack } from 'svelte';
 	import DirectoryImportDialog from '$lib/workspace/component/directory-import-dialog.svelte';
 	import List from '$lib/design/block/list.svelte';
 	import RecordActionControl from '@rentable/design/block/record-action-control.svelte';
 	import RecordCard from '@rentable/design/block/record-card.svelte';
 	import SelectionDialog from '@rentable/design/block/selection-dialog.svelte';
 	import * as Cell from '$lib/design/cell';
-	import { hasCreateIntent } from '@rentable/design/create-intent.js';
 	import {
 		describeRefusals,
 		foreseenRefusals,
@@ -126,19 +122,6 @@
 		};
 
 		return TENANT_SORT_COLUMN_IDS.map((id) => ({ id, label: labels[id] }));
-	});
-
-	// the intent is consumed on arrival and cleared from the URL, so a reload or a back
-	// navigation does not reopen a form the user has already dismissed.
-	$effect(() => {
-		if (!hasCreateIntent(page.url)) {
-			return;
-		}
-
-		// the form is the host's, so the directory only asks for it, untracked: opening reads the
-		// host's render key to advance it, and an effect that reads what it writes never settles.
-		untrack(() => tenantHost.create());
-		void goto(resolve('/tenants'), { replaceState: true, noScroll: true, keepFocus: true });
 	});
 </script>
 

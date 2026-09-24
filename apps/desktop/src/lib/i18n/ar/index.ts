@@ -313,6 +313,7 @@ const ar = {
 			morePages: 'صفحات أكثر',
 			next: 'التالي',
 			nextSlide: 'الشريحة التالية',
+			nothingToCreateHere: 'لا شيء في هذه الشاشة يقبل سجلاً جديداً',
 			pagination: 'ترقيم الصفحات',
 			previous: 'السابق',
 			previousSlide: 'الشريحة السابقة',
@@ -426,7 +427,6 @@ const ar = {
 			alsoEnding: 'ينتهي أيضاً',
 			contractCount: '{count|number} عقد',
 			openContract: 'افتح عقد {tenant}',
-			renewContract: 'جدّد عقد {tenant}',
 			seeAll: 'عرض الكل ({count|number})'
 		},
 

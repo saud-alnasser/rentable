@@ -12,6 +12,7 @@ import type { MemberStanding, OrganizationMember, OrganizationWorkspace } from '
 import en from '$lib/i18n/en';
 import ar from '$lib/i18n/ar';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
+import { expectCreateControlLast } from '$lib/design/tests/create-control';
 import { chooseOption, openSelect } from '$lib/design/tests/select';
 import {
 	insideTheWait,
@@ -848,6 +849,9 @@ test('the add control stands in the tray before the first card and asks the shel
 	expect(opener.querySelector('svg')).not.toBeNull();
 	expect(opener.textContent?.trim()).toBe('');
 	expect(opener.compareDocumentPosition(first) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+	// the one create control, in the position every set gives it (effort 832, criterion 9(a)).
+	expect(opener.hasAttribute('data-create-control')).toBe(true);
+	expectCreateControlLast();
 	expect(organizationDialog.open).toBeNull();
 	await fireEvent.click(opener);
 	expect(organizationDialog.open).toBe('account');

@@ -41,6 +41,11 @@ test('submitting an invalid tenant form focuses its first invalid field', async 
 	const name = screen.getByPlaceholderText(en.common.labels.name);
 	const nationalId = screen.getByPlaceholderText(en.common.labels.nationalId);
 
+	// the surface takes focus as it opens; a submit that raced it would have its focus taken back.
+	await waitFor(() =>
+		expect(form.closest('[role=dialog]')?.contains(document.activeElement)).toBe(true)
+	);
+
 	// a name and nothing else: the name passes, so the first invalid field is the one after it,
 	// and focus has to move there rather than stay where the surface opened it.
 	await fireEvent.input(name, { target: { value: 'Sami' } });

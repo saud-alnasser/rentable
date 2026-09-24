@@ -13,6 +13,7 @@
 	import * as Sidebar from '@rentable/design/primitive/sidebar/index.js';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import LayoutBreadcrumb from '$lib/layout/component/breadcrumb.svelte';
+	import LayoutCreateShortcut from '$lib/layout/component/create-shortcut.svelte';
 	import LayoutCaughtError from '$lib/layout/component/caught-error.svelte';
 	import LayoutPalette, { PALETTE_SHORTCUT_HINT } from '$lib/layout/component/palette.svelte';
 	import LayoutShortcutListener from '$lib/layout/component/shortcut-listener.svelte';
@@ -181,6 +182,9 @@
      can take back. -->
 <LayoutShortcutListener />
 <LayoutUndoShortcut />
+<!-- and the create key, on every screen for the same reason: where no set is on screen it is
+     refused with its reason, rather than left to the webview. -->
+<LayoutCreateShortcut />
 
 <div lang={$locale} dir={currentDirection} class="h-screen w-screen overflow-hidden border">
 	{#if hasRail}
