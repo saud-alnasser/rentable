@@ -47,7 +47,7 @@
 		useRenewContract,
 		useUpdateContract
 	} from '$lib/contract/query';
-	import { fieldOfRefusal, readRefusal, toRefusalText } from '$lib/error/refusal';
+	import { fieldOfFailure, toRefusalText } from '$lib/error/refusal';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { useFetchTenant, useFetchTenants } from '$lib/tenant/query';
 	import { DateFormatter, type CalendarDate } from '@internationalized/date';
@@ -321,7 +321,7 @@
 					if (e instanceof TRPCError && e.code === 'BAD_REQUEST') {
 						// the refusal's code says which field it belongs under; a refusal shown as a
 						// banner names the problem and never the field.
-						const field = fieldOfRefusal(readRefusal(e)?.code);
+						const field = fieldOfFailure(e);
 
 						if (field === 'unitIds') {
 							// a list's own error sits beside its items rather than on one of them.

@@ -2,6 +2,7 @@ import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 
 import { isRefusal, toRefusalText } from '$lib/error/refusal';
 import { toTauriErrorCode } from '$lib/error/tauri';
+import { TRPCError } from '@trpc/server';
 
 const FIRST_STRONG_ISOLATE = '⁨';
 const POP_DIRECTIONAL_ISOLATE = '⁩';
@@ -58,8 +59,11 @@ export function toErrorDetail(error: unknown): string | null {
  * through `toErrorDetail`. any other failure that crossed the tauri boundary is
  * titled from its code so it is translated, and rust's untranslated prose is
  * kept as detail rather than discarded, since it is the only description of what
- * actually went wrong. anything else raised inside typescript is already written
- * in the user's language, so it is shown as it was written.
+ * actually went wrong. a failure a router raised that is not a refusal, a
+ * permission failure, an input its schema turned away or anything unexpected, is
+ * titled from its code with nothing beside it (`toRouterFailureText`), since its
+ * message was written for a developer. anything else raised inside typescript is
+ * already written in the user's language, so it is shown as it was written.
  *
  * `fallback` replaces the generic message when there is nothing readable at all,
  * for callers that can say something more useful about where the failure was.
@@ -79,6 +83,12 @@ export function toErrorMessage(
 
 	if (code) {
 		return { title: translations.common.errors[code](), detail: toErrorDetail(error) };
+	}
+
+	// a router's failure that is not a refusal: its message is a developer's description, written
+	// in English for a log, so it is titled from its code and carries nothing beside it.
+	if (error instanceof TRPCError) {
+		return { title: toRefusalText(error, translations), detail: null };
 	}
 
 	return {

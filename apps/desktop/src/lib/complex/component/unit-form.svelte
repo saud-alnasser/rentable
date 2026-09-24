@@ -5,7 +5,7 @@
 	import FormSurface, { insetControl } from '@rentable/design/block/form-surface.svelte';
 	import * as Form from '@rentable/design/primitive/form/index.js';
 	import { Input } from '@rentable/design/primitive/input/index.js';
-	import { fieldOfRefusal, readRefusal, toRefusalText } from '$lib/error/refusal';
+	import { fieldOfFailure, toRefusalText } from '$lib/error/refusal';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { useCreateManyUnits, useFetchUnits, useUpdateUnit } from '$lib/complex/query';
 	import type { DraftUnit } from '$lib/complex/unit-name';
@@ -106,7 +106,7 @@
 						// the one field is the whole form.
 						if (isCreating) {
 							unitError = toRefusalText(e, $LL);
-						} else if (fieldOfRefusal(readRefusal(e)?.code) === 'name') {
+						} else if (fieldOfFailure(e) === 'name') {
 							setError(form, 'name', toRefusalText(e, $LL));
 						}
 					}

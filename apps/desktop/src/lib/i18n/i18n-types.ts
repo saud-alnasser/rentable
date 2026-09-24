@@ -347,6 +347,20 @@ type RootTranslation = {
 			 */
 			nothingToExport: string
 		}
+		failures: {
+			/**
+			 * y​o​u​r​ ​r​o​l​e​ ​d​o​e​s​ ​n​o​t​ ​a​l​l​o​w​ ​t​h​i​s​ ​i​n​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​.
+			 */
+			forbidden: string
+			/**
+			 * s​o​m​e​t​h​i​n​g​ ​e​n​t​e​r​e​d​ ​i​s​ ​n​o​t​ ​v​a​l​i​d​.​ ​c​h​e​c​k​ ​i​t​ ​a​n​d​ ​t​r​y​ ​a​g​a​i​n​.
+			 */
+			invalidInput: string
+			/**
+			 * s​i​g​n​ ​i​n​ ​t​o​ ​d​o​ ​t​h​i​s​.
+			 */
+			signedOut: string
+		}
 		formats: {
 			/**
 			 * c​s​v
@@ -4091,6 +4105,20 @@ export type TranslationFunctions = {
 			 * there is nothing here to export
 			 */
 			nothingToExport: () => LocalizedString
+		}
+		failures: {
+			/**
+			 * your role does not allow this in this workspace.
+			 */
+			forbidden: () => LocalizedString
+			/**
+			 * something entered is not valid. check it and try again.
+			 */
+			invalidInput: () => LocalizedString
+			/**
+			 * sign in to do this.
+			 */
+			signedOut: () => LocalizedString
 		}
 		formats: {
 			/**

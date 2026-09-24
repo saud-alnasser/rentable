@@ -4,11 +4,12 @@ import { test } from 'node:test';
 import { refuse, readRefusal } from '$lib/api/refusal.ts';
 import { appRouter } from '$lib/api/router.ts';
 import { toErrorMessage } from '$lib/error/message.ts';
-import { fieldOfRefusal, toRefusalText } from '$lib/error/refusal.ts';
+import { fieldOfFailure, fieldOfRefusal, toRefusalText } from '$lib/error/refusal.ts';
 import { i18nObject } from '$lib/i18n/i18n-util.ts';
 import { loadAllLocales } from '$lib/i18n/i18n-util.sync.ts';
 import { TRPCError } from '@trpc/server';
 import { getErrorShape } from '@trpc/server/unstable-core-do-not-import';
+import { z } from 'zod';
 
 // effort 832, requirement 23: a refusal crosses as a code and its values, and this is where the
 // interface turns one into the reader's words and a form learns where to put them.
@@ -58,15 +59,67 @@ test('a value a refusal names is isolated, so an Arabic sentence cannot reorder 
 	assert.equal(text, 'رقم الهاتف ⁨+966551234567⁩ مرتبط بمستأجر مسجل.');
 });
 
-test('a BAD_REQUEST carrying no refusal is shown as it was raised, and anything else as unexpected', () => {
-	const schema = new TRPCError({ code: 'BAD_REQUEST', message: 'name at least one unit.' });
+// effort 832, requirement 23: a failure a router raises that is not a refusal still reads in the
+// reader's language, and the English it was raised with, a developer's description, never shows.
 
-	assert.equal(toRefusalText(schema, en), 'name at least one unit.');
-	assert.equal(
-		toRefusalText(new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'no such table' }), ar),
-		ar.common.messages.unexpectedError()
-	);
+/** the input a procedure's schema turned away, raised the way tRPC raises it. */
+function inputRejection(input: unknown) {
+	const parsed = z
+		.object({ amount: z.number().positive(), note: z.string().optional() })
+		.safeParse(input);
+
+	return new TRPCError({ code: 'BAD_REQUEST', cause: parsed.error });
+}
+
+const ROUTER_FAILURES = [
+	[
+		new TRPCError({
+			code: 'FORBIDDEN',
+			message: 'this account does not hold createPayment in this workspace'
+		}),
+		'دورك لا يسمح بهذا في مساحة العمل هذه.'
+	],
+	[
+		new TRPCError({ code: 'UNAUTHORIZED', message: 'no account is signed in on this machine' }),
+		'سجّل الدخول للقيام بهذا.'
+	],
+	[
+		new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'no such table: payments' }),
+		'حدث خطأ غير متوقع!'
+	],
+	[inputRejection({ amount: -1 }), 'بعض ما أُدخل غير صالح. راجعه وحاول مرة أخرى.'],
+	[
+		new TRPCError({ code: 'BAD_REQUEST', message: 'name at least one unit.' }),
+		'بعض ما أُدخل غير صالح. راجعه وحاول مرة أخرى.'
+	]
+] as const;
+
+test('every failure a router raises reads in Arabic, with none of its message visible', () => {
+	for (const [error, sentence] of ROUTER_FAILURES) {
+		const text = toRefusalText(error, ar);
+
+		assert.equal(text, sentence, error.code);
+		assert.doesNotMatch(text, /[a-z]/i, `English reached the reader for ${error.code}`);
+		assert.ok(!text.includes(error.message), `the message of ${error.code} reached the reader`);
+	}
+
 	assert.equal(toRefusalText(new Error('boom'), ar), ar.common.messages.unexpectedError());
+});
+
+test('a toast titles a router failure in Arabic and carries no English detail', () => {
+	for (const [error, sentence] of ROUTER_FAILURES) {
+		assert.deepEqual(toErrorMessage(error, ar), { title: sentence, detail: null }, error.code);
+	}
+});
+
+test('an input the schema turned away is placed under the field its path names', () => {
+	assert.equal(fieldOfFailure(inputRejection({ amount: -1 })), 'amount');
+	// a path naming no field a form places, and a rejection with no path, belong to no field.
+	assert.equal(fieldOfFailure(inputRejection({ amount: 1, note: 4 })), null);
+	assert.equal(fieldOfFailure(new TRPCError({ code: 'BAD_REQUEST', message: 'x' })), null);
+	// a refusal is still placed by its code, and a failure that is not a rejection by nothing.
+	assert.equal(fieldOfFailure(refuse('contract.govIdTaken')), 'govId');
+	assert.equal(fieldOfFailure(new TRPCError({ code: 'FORBIDDEN' })), null);
 });
 
 test('a toast titles a refusal from its code and carries no English detail', () => {

@@ -7,6 +7,7 @@ import { i18nObject } from '$lib/i18n/i18n-util.ts';
 import { loadLocale } from '$lib/i18n/i18n-util.sync.ts';
 import { toErrorDetail, toErrorMessage, toErrorText } from '$lib/error/message.ts';
 import { TAURI_ERROR_CODES, TAURI_REFUSAL_REASONS } from '$lib/error/tauri.ts';
+import { TRPCError } from '@trpc/server';
 
 // the loaded locale rather than a hand-written stand-in: these functions take the whole of
 // `TranslationFunctions`, and the two-key object this used to pass was a shape nothing ever
@@ -44,6 +45,27 @@ test('a command failure is titled from its code and keeps the rust prose as deta
 		title: 'the data does not match what was expected.',
 		detail: 'hash mismatch'
 	});
+});
+
+test('a router failure is titled from its code, and its English message is neither title nor detail', () => {
+	const failure = new TRPCError({
+		code: 'FORBIDDEN',
+		message: 'this account does not hold createPayment in this workspace'
+	});
+
+	assert.deepEqual(toErrorMessage(failure, translations), {
+		title: 'your role does not allow this in this workspace.',
+		detail: null
+	});
+	assert.equal(
+		toErrorText(
+			new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'no such table' }),
+			translations
+		),
+		'unexpected error occurred!'
+	);
+	// the message is still there for whoever reads diagnostics or opens a disclosure.
+	assert.equal(toErrorDetail(failure), failure.message);
 });
 
 test('an error raised inside typescript is shown as it was written', () => {

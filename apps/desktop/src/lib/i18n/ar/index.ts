@@ -94,6 +94,12 @@ const ar = {
 			nothingToExport: 'لا شيء هنا للتصدير'
 		},
 
+		failures: {
+			forbidden: 'دورك لا يسمح بهذا في مساحة العمل هذه.',
+			invalidInput: 'بعض ما أُدخل غير صالح. راجعه وحاول مرة أخرى.',
+			signedOut: 'سجّل الدخول للقيام بهذا.'
+		},
+
 		formats: {
 			csv: 'csv',
 			xlsx: 'مصنف إكسل'

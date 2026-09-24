@@ -95,6 +95,12 @@ const en = {
 			nothingToExport: 'there is nothing here to export'
 		},
 
+		failures: {
+			forbidden: 'your role does not allow this in this workspace.',
+			invalidInput: 'something entered is not valid. check it and try again.',
+			signedOut: 'sign in to do this.'
+		},
+
 		formats: {
 			csv: 'csv',
 			xlsx: 'excel workbook'

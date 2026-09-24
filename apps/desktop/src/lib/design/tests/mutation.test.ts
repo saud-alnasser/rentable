@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import { describe, it, mock } from 'node:test';
 
 import { TRPCError } from '@trpc/server';
+import { z } from 'zod';
+
+import { readRefusal, refuse } from '$lib/api/refusal.ts';
 
 import type { Inverse } from '$lib/design/inverse.ts';
 import type { MutationDeclaration } from '$lib/design/mutation.ts';
@@ -81,6 +84,7 @@ const { setLocale } = await import('$lib/i18n/i18n-svelte');
 // an offer names itself in the reader's language, so the announcement is only assertable
 // once a locale is loaded — the same two calls the application makes at startup.
 loadLocale('en');
+loadLocale('ar');
 setLocale('en');
 
 function bind<TVariables, TResult, TCaptured = void>(
@@ -164,16 +168,65 @@ describe('a declared mutation', () => {
 		assert.deepEqual(raised, [{ level: 'success', message: 'tenant saved' }]);
 	});
 
-	it('shows a validation failure in the words the procedure raised it with', () => {
+	// effort 832, requirement 23: no failure a router raises reaches the reader in the English it
+	// was raised with. Each is rendered in Arabic, and the message must not appear in what is shown.
+	it('says every failure a router raises in the reader’s language, never its message', () => {
+		setLocale('ar');
+
+		try {
+			const { mutation } = bind({
+				mutate: async () => undefined,
+				touches: ['contracts'],
+				toast: { error: true }
+			});
+			const rejection = z.object({ amount: z.number().positive() }).safeParse({ amount: -1 });
+			const failures = [
+				new TRPCError({
+					code: 'FORBIDDEN',
+					message: 'this account does not hold createPayment in this workspace'
+				}),
+				new TRPCError({ code: 'UNAUTHORIZED', message: 'no account is signed in on this machine' }),
+				new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'no such table: payments' }),
+				new TRPCError({ code: 'BAD_REQUEST', cause: rejection.error })
+			];
+
+			for (const failure of failures) {
+				mutation.onError(failure);
+			}
+
+			assert.deepEqual(
+				raised.map(({ message }) => message),
+				[
+					'دورك لا يسمح بهذا في مساحة العمل هذه.',
+					'سجّل الدخول للقيام بهذا.',
+					'حدث خطأ غير متوقع!',
+					'بعض ما أُدخل غير صالح. راجعه وحاول مرة أخرى.'
+				]
+			);
+
+			for (const [index, failure] of failures.entries()) {
+				assert.doesNotMatch(raised[index].message, /[a-z]/i, `English reached the reader`);
+				assert.ok(!raised[index].message.includes(failure.message));
+			}
+		} finally {
+			setLocale('en');
+		}
+	});
+
+	it('prefers the declared unexpected sentence for a failure nobody could act on', () => {
 		const { mutation } = bind({
 			mutate: async () => undefined,
 			touches: ['contracts'],
-			toast: { error: true, unexpected: () => 'unexpected' }
+			toast: { error: true, unexpected: () => 'something went wrong' }
 		});
 
-		mutation.onError(new TRPCError({ code: 'BAD_REQUEST', message: 'unit is already assigned' }));
+		mutation.onError(new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'SQLITE_BUSY' }));
+		mutation.onError(new Error('Cannot read properties of undefined'));
 
-		assert.deepEqual(raised, [{ level: 'error', message: 'unit is already assigned' }]);
+		assert.deepEqual(raised, [
+			{ level: 'error', message: 'something went wrong' },
+			{ level: 'error', message: 'something went wrong' }
+		]);
 	});
 
 	it('falls back to the declared sentence when the failure was not the user’s', () => {
@@ -220,18 +273,18 @@ describe('a declared mutation', () => {
 			mutate: async () => undefined,
 			touches: ['contracts'],
 			toast: {
-				error: (error) => (error.message === 'said in place' ? null : true),
+				error: (error) => (readRefusal(error)?.code === 'contract.govIdTaken' ? null : true),
 				unexpected: () => 'something went wrong'
 			}
 		});
 
-		mutation.onError(new Error('said in place'));
+		mutation.onError(refuse('contract.govIdTaken'));
 
 		assert.deepEqual(raised, [], 'the refusal said in place was raised as a toast');
 
-		mutation.onError(new Error('another refusal'));
+		mutation.onError(refuse('contract.endBeforeStart'));
 
-		assert.deepEqual(raised, [{ level: 'error', message: 'another refusal' }]);
+		assert.deepEqual(raised, [{ level: 'error', message: 'end date must be after start date.' }]);
 	});
 
 	// an action over a set has nothing worth saying without this: how many of the twelve went

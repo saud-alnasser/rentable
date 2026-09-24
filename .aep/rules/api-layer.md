@@ -94,7 +94,7 @@ needs an acting user is a property of the call.*
 have made and the domain turns away is thrown as `refuse(code, params?)` from
 `src/lib/api/refusal.ts`, which builds the `BAD_REQUEST` and carries `{ code, params }` on its
 `cause`; `errorFormatter` copies it into `shape.data` as `refusal`. Nothing shows the message to a
-person. Any other code is treated as unexpected and surfaces as a generic failure.
+person.
 
 - **The code is named by its concept**, `contract.endBeforeStart`, from the `RefusalCode` union
   that concept declares beside the rules that raise it. `RefusalCode` in `api/refusal.ts` is their
@@ -105,8 +105,10 @@ person. Any other code is treated as unexpected and surfaces as a generic failur
   fails where a code has no sentence or a sentence has no code.
 - **A form maps a code to its field** through `fieldOfRefusal`, and never matches the words of a
   message.
-- **A procedure's own input schema is the one exception.** A `BAD_REQUEST` tRPC raises for input
-  the schema turned away carries no refusal, and is shown as it was raised.
+- **A procedure's own input schema raises no refusal, and its message is not shown either.** A
+  `BAD_REQUEST` tRPC raises for input the schema turned away reads as
+  `common.failures.invalidInput`, and a form places it through `fieldOfFailure`, which reads the
+  field from the first issue's path where it names one of `RefusalField`.
 
 *Why a code: a sentence written in a router is written in one language, a form placing it has to
 match its words, and a reader who switches language holds sentences cached in the one they left.
@@ -114,9 +116,16 @@ Revised 2026-09-24 by [[efforts/832-the-interface-speaks-one-language-and-guides
 23; this read "the message is shown to the user verbatim — write it for them", and the forms
 matched fourteen English substrings to place one.*
 
-**`FORBIDDEN` and `UNAUTHORIZED` are not refusals.** They are raised in the middlewares for a caller
-who reached a procedure the interface would not have drawn, and they keep surfacing as a generic
-failure.
+**A failure that is not a refusal still reads in the reader's language, and never as its
+message.** `FORBIDDEN` and `UNAUTHORIZED` are not refusals: the middlewares raise them for a caller
+who reached a procedure the interface would not have drawn. Each reads as a sentence of its own,
+`common.failures.forbidden` and `common.failures.signedOut`, through `toRouterFailureText` in
+`error/refusal.ts`. Any other code reads as the declaration's unexpected sentence or the generic
+`common.messages.unexpectedError`. The message stays a developer's: `design/mutation.ts` records it
+in diagnostics, and a screen that already offers a details disclosure may show it there, never in
+visible text. *Revised 2026-09-25 by ticket 35 of the same effort: this read "they keep surfacing as
+a generic failure", and the mutation handler, `toErrorMessage` and `toRefusalText` showed their
+English message instead.*
 
 **A rejection from `ctx.host` reaches the caller wrapped.** tRPC turns anything thrown in a procedure
 that is not its own error into an `INTERNAL_SERVER_ERROR`, with the Tauri payload as its `cause`.

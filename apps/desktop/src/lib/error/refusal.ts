@@ -83,13 +83,40 @@ function toSentenceParams(params: RefusalParams, translations: TranslationFuncti
 }
 
 /**
+ * The sentence for a failure a router raised that is not a refusal, or `null` where the error is
+ * none of them.
+ *
+ * Three have one: `FORBIDDEN` and `UNAUTHORIZED` from the middlewares in `api/trpc.ts`, and a
+ * `BAD_REQUEST` carrying no refusal, which is the input a procedure's own schema turned away. Their
+ * messages are a developer's description, written in English for a log, so none is shown.
+ */
+export function toRouterFailureText(
+	error: unknown,
+	translations: TranslationFunctions
+): string | null {
+	if (!(error instanceof TRPCError)) {
+		return null;
+	}
+
+	switch (error.code) {
+		case 'FORBIDDEN':
+			return translations.common.failures.forbidden();
+		case 'UNAUTHORIZED':
+			return translations.common.failures.signedOut();
+		case 'BAD_REQUEST':
+			return readRefusal(error) ? null : translations.common.failures.invalidInput();
+		default:
+			return null;
+	}
+}
+
+/**
  * What a refused call says to the reader, in their language.
  *
  * A refusal raised with a code reads as that code's sentence, and so does one the shell raised
- * with a reason. A `BAD_REQUEST` carrying none is
- * the input a procedure's own schema turned away, and is shown as it was raised, since that is a
- * sentence its schema was handed. Anything else, and a refusal with nothing to say, reads as the
- * unexpected failure.
+ * with a reason. A router's failure that is not a refusal reads as its own sentence
+ * ({@link toRouterFailureText}). Anything else, and a refusal with nothing to say, reads as the
+ * unexpected failure. No message an error was raised with is ever the text.
  */
 export function toRefusalText(error: unknown, translations: TranslationFunctions): string {
 	const refusal = readRefusal(error) ?? readHostRefusal(error);
@@ -106,11 +133,34 @@ export function toRefusalText(error: unknown, translations: TranslationFunctions
 			: translations.common.messages.unexpectedError();
 	}
 
-	if (error instanceof TRPCError && error.code === 'BAD_REQUEST' && error.message.trim()) {
-		return error.message;
+	return toRouterFailureText(error, translations) ?? translations.common.messages.unexpectedError();
+}
+
+/**
+ * The field the input a procedure's schema turned away belongs under, or `null` where the error is
+ * no such rejection or its first issue names no field a form places.
+ *
+ * Read from the schema's issue path rather than from its message: the first segment is the input's
+ * own name for the field, which is the name the forms use.
+ */
+export function fieldOfInputRejection(error: unknown): RefusalField | null {
+	if (!(error instanceof TRPCError) || error.code !== 'BAD_REQUEST' || readRefusal(error)) {
+		return null;
 	}
 
-	return translations.common.messages.unexpectedError();
+	const issues = (error.cause as { issues?: unknown } | undefined)?.issues;
+	const path = Array.isArray(issues) ? (issues[0] as { path?: unknown } | undefined)?.path : null;
+	const first = Array.isArray(path) ? path[0] : null;
+
+	return typeof first === 'string' && isRefusalField(first) ? first : null;
+}
+
+/**
+ * The field a failed call belongs under: a refusal's by its code, and a schema's rejection by the
+ * path of its first issue. What a form asks when it places a failure beside the field to fix.
+ */
+export function fieldOfFailure(error: unknown): RefusalField | null {
+	return fieldOfRefusal(readRefusal(error)?.code) ?? fieldOfInputRejection(error);
 }
 
 /**
@@ -151,15 +201,22 @@ const FIELDS: Partial<Record<RefusalCode, RefusalField>> = {
 };
 
 /** every field a refusal can belong under, across the forms that place one. */
-export type RefusalField =
-	| 'amount'
-	| 'cost'
-	| 'end'
-	| 'govId'
-	| 'name'
-	| 'nationalId'
-	| 'phoneNumber'
-	| 'start'
-	| 'tenantId'
-	| 'unitIds'
-	| 'units';
+const REFUSAL_FIELDS = [
+	'amount',
+	'cost',
+	'end',
+	'govId',
+	'name',
+	'nationalId',
+	'phoneNumber',
+	'start',
+	'tenantId',
+	'unitIds',
+	'units'
+] as const;
+
+export type RefusalField = (typeof REFUSAL_FIELDS)[number];
+
+function isRefusalField(name: string): name is RefusalField {
+	return (REFUSAL_FIELDS as readonly string[]).includes(name);
+}

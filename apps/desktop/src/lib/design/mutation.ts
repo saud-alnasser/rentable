@@ -5,7 +5,9 @@ import { recordDiagnosticError } from '$lib/platform/diagnostics';
 import { inverseStack, type Inverse } from '$lib/design/inverse';
 import { NAMED_RECORDS, unforeseenRefusals } from '@rentable/design/selection.js';
 import { LL } from '$lib/i18n/i18n-svelte';
-import { readHostRefusal, toRefusalText } from '$lib/error/refusal';
+import { readHostRefusal, toRefusalText, toRouterFailureText } from '$lib/error/refusal';
+import { toTauriErrorCode } from '$lib/error/tauri';
+import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 import { createMutation, useQueryClient, type QueryClient } from '@tanstack/svelte-query';
 import { TRPCError } from '@trpc/server';
 import { get } from 'svelte/store';
@@ -366,14 +368,37 @@ export function onMutationError(opts: MutationOptions, e: Error) {
 			toast.error(errorToast);
 		}
 	} else {
-		if (errorToast === true && e.message.trim()) {
-			toast.error(e.message);
+		// what the error was raised with is a developer's description, in English whatever the
+		// reader's language, so it is kept for diagnostics and never becomes the toast.
+		recordDiagnosticError('mutation.failed', {
+			code: e instanceof TRPCError ? e.code : null,
+			detail: e.message
+		});
+
+		const translations = get(LL);
+		const sentence = toKnownFailureText(e, translations);
+
+		if (errorToast === true && sentence) {
+			toast.error(sentence);
 		} else if (typeof errorToast === 'string') {
 			toast.error(errorToast);
 		} else if (opts.toast?.unexpected) {
 			toast.error(resolveToastMessage(opts.toast.unexpected));
+		} else if (errorToast === true) {
+			toast.error(translations.common.messages.unexpectedError());
 		}
 	}
+}
+
+/**
+ * The sentence for a failure that is neither a refusal nor unexpected: a permission failure a
+ * router raised, or a failure the shell sent with a code. `null` for anything else, which reads as
+ * the declaration's unexpected sentence or the generic one.
+ */
+function toKnownFailureText(e: Error, translations: TranslationFunctions): string | null {
+	const code = toTauriErrorCode(e);
+
+	return toRouterFailureText(e, translations) ?? (code ? translations.common.errors[code]() : null);
 }
 
 /**
