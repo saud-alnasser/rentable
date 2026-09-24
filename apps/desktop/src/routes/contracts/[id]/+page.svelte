@@ -1,11 +1,13 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import ContractDetails, { type ContractCollection } from '$lib/contract/component/details.svelte';
+	import ContractDetails from '$lib/contract/component/details.svelte';
+	import { contractSectionOf } from '$lib/contract/section';
 
 	const contractId = page.params.id ?? '';
-	let initialCollection: ContractCollection = $derived(
-		page.url.searchParams.get('section') === 'units' ? 'units' : 'payments'
-	);
+
+	// every section the page has is read from the address, so each one, history included, is a
+	// place a link can open.
+	const section = $derived(contractSectionOf(page.url));
 </script>
 
-<ContractDetails {contractId} {initialCollection} />
+<ContractDetails {contractId} {section} />

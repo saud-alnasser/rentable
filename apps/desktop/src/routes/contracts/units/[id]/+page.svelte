@@ -5,4 +5,4 @@
 	const contractId = page.params.id ?? '';
 </script>
 
-<ContractDetails {contractId} initialCollection="units" />
+<ContractDetails {contractId} section="units" />

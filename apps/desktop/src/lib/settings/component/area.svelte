@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import type api from '$lib/api/caller';
 	import type {
 		MemberStanding,
@@ -8,6 +9,7 @@
 	} from '$lib/platform/host';
 	import type { Locales } from '$lib/i18n/i18n-types';
 	import PageFrame from '@rentable/design/block/page-frame.svelte';
+	import SectionSwitch from '@rentable/design/block/section-switch.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import { Separator } from '@rentable/design/primitive/separator/index.js';
@@ -28,13 +30,13 @@
 	import SettingsDiagnostics from '$lib/settings/component/diagnostics.svelte';
 	import SettingsEndingSoon from '$lib/settings/component/ending-soon.svelte';
 	import SettingsLocale from '$lib/settings/component/locale.svelte';
-	import SettingsRail from '$lib/settings/component/rail.svelte';
 	import SettingsUpdates from '$lib/settings/component/updates.svelte';
 	import {
 		administersMembers,
 		holdingSection,
 		sectionsFor,
 		shownSection,
+		withSection,
 		type AddressableSection
 	} from '$lib/settings/section';
 	import { permits } from '@rentable/workspace-permission';
@@ -150,6 +152,17 @@
 	const sections = $derived(sectionsFor(session, holdsTursoAuthority));
 	const shown = $derived(shownSection(holdingSection(section), sections));
 
+	// every section is addressable, so the switch is a row of links to the addresses a menu row,
+	// the command palette and a bookmark open too. The mark follows `shown`, so an address naming
+	// a section this reader is not offered marks the section that is drawn.
+	const switchable = $derived(
+		sections.map((value) => ({
+			value,
+			label: $LL.settings.section[value](),
+			href: resolve(withSection(value))
+		}))
+	);
+
 	const isOwner = $derived(session?.role === 'owner');
 	// an owner restored on this machine holds no Turso authority until they repeat the consent.
 	const needsAuthority = $derived(isOwner && !holdsTursoAuthority);
@@ -236,7 +249,7 @@
 	     so a sentence here would list what the tabs already list. -->
 	<h1 class="text-3xl font-semibold capitalize">{$LL.settings.title()}</h1>
 
-	<SettingsRail {sections} />
+	<SectionSwitch sections={switchable} current={shown} label={$LL.settings.title()} />
 
 	{#if shown === 'general'}
 		<Field.Group>

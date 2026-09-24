@@ -173,19 +173,21 @@ Three things bind a component test, and each of them is a way of passing while m
   does: an alias to the directory a file is already in reads as though it points somewhere else.
   `imports` is private to the package, so none of this adds anything a consumer can reach.
 
-- **`$app/*` is supplied by the runner, never by the package.** Two modules in
-  `@rentable/design` call `goto` from `$app/navigation`, and `packages/design/svelte.config.js`
+- **`$app/*` is supplied by the runner, never by the package.** `back.svelte.ts` in
+  `@rentable/design` calls `goto` from `$app/navigation`, every block drawing the back control
+  reaches it, and `packages/design/svelte.config.js`
   declares no alias on purpose: an alias in a library is rewritten by `svelte-package` on the way
   out, this package has no build step, and the specifier would reach the consumer resolving
   against *their* tree. So `packages/design/vitest.config.js` carries the alias and points it at
   `src/tests/app-navigation.ts`, which is scaffolding like every other file in that directory and
   is outside the `exports` map that would make it public.
 
-  *Added at #811. Before it, a component test that touched either module failed at resolution
+  *Added at #811. Before it, a component test that touched such a module failed at resolution
   rather than at an assertion: `Failed to resolve import "$app/navigation" from
   "src/lib/block/record-surface.svelte"`. The stub records what it was asked to navigate to as
-  well as satisfying the import, because the one navigation worth watching in this package is an
-  effect: `record-surface` writes the chosen collection into the address with no reader acting.*
+  well as satisfying the import, because where back goes is the navigation worth watching. It said
+  `record-surface` wrote the chosen collection into the address from an effect, and was the
+  navigation to watch, until effort 832 made a record's sections links.*
 
   **`apps/desktop` needs none of this.** `sveltekit()` resolves `$app/*` there from the real
   framework, which is the difference between testing an application and testing a library, and it

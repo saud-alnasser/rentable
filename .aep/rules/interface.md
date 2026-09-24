@@ -371,6 +371,52 @@ vocabulary above, never a hand-coloured box. The contract units lock notice is t
 
 Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 12.
 
+## Navigation
+
+### The breadcrumb
+
+**The trail is built from the page's route id, and every crumb is a page.** `layout/navigation.ts`
+lists the pages and the places the trail names (the four directories and the settings area); a
+prefix of the route id is a crumb only where it is one of those places. An address segment is not a
+place: a unit's address passes through `/complexes/units`, and no page lives there.
+`layout/tests/navigation.test.ts` asks every page's trail against the routes directory itself.
+
+**A record's page ends the trail on the record, by name.** The record surface says what the record
+it shows is called (`shown-record.svelte.ts` in the design package), because only the concept
+knows: a contract is named by its tenant. Until the record is read the trail ends on the directory
+above it, and a record that is not there is named as unknown. The dashboard and the way in carry no
+trail: the first is where the application opens, and the second is a walk whose card says which
+step it is on.
+
+### Going back
+
+**One control goes back, `packages/design/src/lib/block/back-control.svelte`, on every surface that
+has a way back**: a record's page, and each step of the way in. On a record it returns to the
+screen that opened the record, or to the concept's directory where there was none. A walk decides
+for itself, since back from its second step is its first step on the same address, so a walk hands
+the control what back does instead of a fallback. It is drawn the same everywhere, its arrow
+mirrors in Arabic, and no surface draws a back control of its own.
+
+### Switching sections
+
+**A page's sections switch with one control, `packages/design/src/lib/block/section-switch.svelte`,
+a row of links on `?section=`.** The settings area and a record with more than one collection both
+draw it. Every section is therefore an address a menu row, the command palette or a link can open,
+and the page draws whichever section the address names: `settings/section.ts` and
+`contract/section.ts` each read every section their page has, so `?section=history` opens a
+contract's history. A record's first collection is its own address, carrying no section, and an
+address naming a section the page does not offer draws the first.
+
+A switch replaces the address rather than adding to it and keeps the scroll and the focus: moving
+between a page's sections is not leaving it, which is also why the back trail keys on the pathname.
+
+*Why: the breadcrumb linked to three routes that did not exist, onboarding drew a back control of
+its own, and a record's sections were a tab list writing the address from an effect while the
+settings area's were links, so a contract's history could not be opened from anywhere but its
+tab.*
+
+Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 14.
+
 ## The visual reference
 
 _Refactoring UI_ (Adam Wathan & Steve Schoger) is this repository's reference for visual

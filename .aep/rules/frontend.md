@@ -67,7 +67,7 @@ reaching the user and everything else reading as an unexpected failure.
   by concepts; the application shell's own components are not, and live in `layout` (#257).
   **Which `block/` is decided by what the composite reaches**, and #781 sorted the fifteen that
   existed: `packages/design/src/lib/block/` holds the eleven that reach nothing but the design
-  system and what the package is already allowed (`$app/*`, which `record-surface` navigates
+  system and what the package is already allowed (`$app/*`, which `back` navigates
   with), and `design/block/` here holds the four that reach past it. A new composite that
   reaches `$lib/api`, `$lib/platform`, `$lib/error` or a concept belongs in this application; one
   that reaches none of them belongs in the package, where a second client can draw it.
@@ -448,7 +448,7 @@ still caught.
 **Nothing can close that from inside the package**: narrowing the type would mean naming a
 consumer's routes in the library written not to know them. So it is an obligation on the two sides
 instead. **The consumer hands in a path it has already resolved**, which is what
-`record-card`, `record-surface` and `back` each say in a comment at the point they use one. **The
+`record-card`, `record-surface`, `section-switch` and `back` each say in a comment at the point they use one. **The
 packaged component says in its prop's own documentation that it expects a resolved path**, because
 that docstring is the only thing a second consumer will read before supplying one.
 

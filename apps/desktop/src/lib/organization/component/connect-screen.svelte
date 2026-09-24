@@ -1,14 +1,13 @@
 <script lang="ts">
 	import { CODE_LENGTH, normalizeCode, type JoinStep } from '$lib/organization/connect';
 	import StandaloneSurface from '@rentable/design/block/standalone-surface.svelte';
-	import SurfaceAction from '@rentable/design/block/surface-action.svelte';
+	import BackControl from '@rentable/design/block/back-control.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Callout } from '@rentable/design/primitive/callout/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import * as InputGroup from '@rentable/design/primitive/input-group/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { PASSWORD_FLOOR } from '$lib/organization/setup';
-	import BackGlyph from './back-glyph.svelte';
 	import HashIcon from '@lucide/svelte/icons/hash';
 	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
 	import LinkIcon from '@lucide/svelte/icons/link';
@@ -263,7 +262,7 @@
 	{#snippet corner()}
 		<!-- always available, busy or not: the way past a screen that is disabled is a trap, and a
 		     link still being read costs nothing to walk away from. -->
-		<SurfaceAction label={$LL.organization.join.back()} icon={BackGlyph} onclick={onBack} />
+		<BackControl label={$LL.organization.join.back()} onclick={onBack} />
 	{/snippet}
 
 	<div class="space-y-4 pt-2" data-join-step={step.kind}>

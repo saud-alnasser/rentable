@@ -1,9 +1,5 @@
-<script lang="ts" module>
-	/** Which of the contract's two collections the address arrived on. */
-	export type ContractCollection = 'payments' | 'units';
-</script>
-
 <script lang="ts">
+	import type { ContractSection } from '$lib/contract/section';
 	import RecordHistory from '$lib/history/component/record-history.svelte';
 	import { resolve } from '$app/paths';
 	import type { Contract } from '$lib/platform/database/schema';
@@ -22,10 +18,11 @@
 
 	let {
 		contractId,
-		initialCollection
+		section
 	}: {
 		contractId: string;
-		initialCollection?: ContractCollection;
+		/** the section the address names. */
+		section?: ContractSection;
 	} = $props();
 
 	const intervalLabels: Record<Contract['interval'], () => string> = {
@@ -140,7 +137,7 @@
 	{identity}
 	{actions}
 	{fields}
-	{initialCollection}
+	{section}
 	collections={[
 		{ value: 'payments', label: $LL.common.nav.payments(), content: payments },
 		{ value: 'units', label: $LL.common.nav.units(), content: units },

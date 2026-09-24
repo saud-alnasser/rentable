@@ -1,6 +1,6 @@
 <script lang="ts">
 	import StandaloneSurface from '@rentable/design/block/standalone-surface.svelte';
-	import SurfaceAction from '@rentable/design/block/surface-action.svelte';
+	import BackControl from '@rentable/design/block/back-control.svelte';
 	import FieldError from '@rentable/design/block/field-error.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Callout } from '@rentable/design/primitive/callout/index.js';
@@ -34,7 +34,6 @@
 	} from '../setup';
 	import { usernameSchema } from '../username-form';
 	import { workspaceFormSchema } from '../workspace-form';
-	import BackGlyph from './back-glyph.svelte';
 	import WorkspaceFields from './workspace-fields.svelte';
 
 	/**
@@ -71,7 +70,7 @@
 	 *
 	 * **Every step says where it is, and the two before the organization exists can be left from
 	 * the card's corner.** The position is a quiet line under the title, no bar and no dots; the
-	 * way back is one `SurfaceAction` in the surface's `corner` slot, which is where a reader
+	 * way back is the shared `back-control` in the surface's `corner` slot, which is where a reader
 	 * looks for the way past a screen, and where it leads is the route's to decide. The third
 	 * step has none: the name step created the organization on the account and signed the owner
 	 * in, so there is nowhere behind it to go, and a return to a filled name form with a second
@@ -435,7 +434,7 @@
 			     on the account, so walking away from it costs nothing, and the way past a screen
 			     that is disabled is a trap. Not on the third step, where the organization already
 			     exists and the owner is in. -->
-			<SurfaceAction label={$LL.organization.setup.back()} icon={BackGlyph} onclick={onBack} />
+			<BackControl label={$LL.organization.setup.back()} onclick={onBack} />
 		{/if}
 	{/snippet}
 

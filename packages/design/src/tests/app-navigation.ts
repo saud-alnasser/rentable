@@ -1,11 +1,12 @@
 /**
  * What `$app/navigation` resolves to under `vitest run`, and the only thing that supplies it here.
  *
- * **The package imports `$app/*` and that is settled.** `back.svelte.ts` and
- * `block/record-surface.svelte` both call `goto`. What was never settled is what those specifiers
- * resolve to under a test: `svelte.config.js` declares no alias on purpose, because an alias in a
+ * **The package imports `$app/*` and that is settled.** `back.svelte.ts` calls `goto`, and every
+ * block drawing the back control reaches it. *`block/record-surface.svelte` called it too, to write
+ * the chosen collection into the address, until effort 832 made the sections links.* What was never
+ * settled is what that specifier resolves to under a test: `svelte.config.js` declares no alias on purpose, because an alias in a
  * library reaches the consumer unrewritten, and `vitest.config.js` declared none either. So a test
- * that touched either module failed before it reached an assertion, with
+ * that touched one of them failed before it reached an assertion, with
  * `Failed to resolve import "$app/navigation"`.
  *
  * **The alias is the runner's rather than the package's**, and that is the whole of why this file
@@ -14,9 +15,8 @@
  * `exports` map covers `src/lib/` alone, so a stub written one directory over would be
  * `@rentable/design/tests/app-navigation.js` to everybody who installs the package.
  *
- * It records rather than only resolving, because the one navigation in the package that a test
- * would want to watch is an effect: `record-surface` writes the chosen collection into the address
- * without a reader doing anything.
+ * It records rather than only resolving, because where back goes is the thing a test of the back
+ * control wants to watch.
  */
 
 /** one call, as the caller made it. */

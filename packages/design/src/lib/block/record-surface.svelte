@@ -13,13 +13,13 @@
 </script>
 
 <script lang="ts">
-	import { goto } from '$app/navigation';
 	import BackControl from '#lib/block/back-control.svelte';
 	import Loading from '#lib/block/loading.svelte';
 	import PageFrame from '#lib/block/page-frame.svelte';
+	import SectionSwitch from '#lib/block/section-switch.svelte';
 	import * as Empty from '#lib/primitive/empty/index.js';
 	import { Skeleton } from '#lib/primitive/skeleton/index.js';
-	import * as Tabs from '#lib/primitive/tabs/index.js';
+	import { shownRecord } from '#lib/shown-record.svelte.js';
 	import { useDesignContract } from '#lib/strings.js';
 
 	/**
@@ -48,7 +48,7 @@
 		actions,
 		fields,
 		collections = [],
-		initialCollection
+		section
 	}: {
 		/** Whether the record is still on its way. */
 		isLoading?: boolean;
@@ -74,8 +74,11 @@
 		fields?: Snippet;
 		/** What hangs off the record. One is shown under its heading; two or more are chosen between. */
 		collections?: RecordCollection[];
-		/** The collection the address arrived on, where the record has more than one. */
-		initialCollection?: string;
+		/**
+		 * The collection the address names, read from `?section=` by the route. One the record
+		 * does not have, and none at all, draw the first.
+		 */
+		section?: string | null;
 	} = $props();
 
 	const contract = useDesignContract();
@@ -84,30 +87,29 @@
 	// nothing to say there, and four of the five used to say it anyway.
 	const isChoosable = $derived(collections.length > 1);
 	const defaultCollection = $derived(collections[0]?.value ?? '');
-	const addressed = $derived(initialCollection ?? defaultCollection);
+	const chosen = $derived(
+		collections.find((collection) => collection.value === section)?.value ?? defaultCollection
+	);
 
-	// eslint-disable-next-line svelte/prefer-writable-derived
-	let chosen = $state('');
+	// the first collection is the record's own address, so the address a reader arrives on with no
+	// section and the one the switch writes for the first are the same address.
+	const switchable = $derived(
+		collections.map((collection) => ({
+			value: collection.value,
+			label: collection.label,
+			href: collection.value === defaultCollection ? path : `${path}?section=${collection.value}`
+		}))
+	);
 
-	const collectionHref = (collection: string) =>
-		collection === defaultCollection ? path : `${path}?section=${collection}`;
-
+	// the chrome above names the record this surface is showing, and only once it knows whether
+	// there is one: nothing while it loads, the record's name once found, and `null` where the
+	// record is not there. Taken back when the surface goes.
 	$effect(() => {
-		chosen = addressed;
-	});
+		shownRecord.name = isLoading ? undefined : found ? title : null;
 
-	$effect(() => {
-		if (!isChoosable || chosen === addressed) {
-			return;
-		}
-
-		// `path` is a route the concept already resolved, so the base is on it once — resolving
-		// the href again would put it on twice.
-		void goto(collectionHref(chosen), {
-			replaceState: true,
-			noScroll: true,
-			keepFocus: true
-		});
+		return () => {
+			shownRecord.name = undefined;
+		};
 	});
 </script>
 
@@ -190,34 +192,24 @@
 			</div>
 
 			{#if isChoosable}
-				<Tabs.Root bind:value={chosen} class="min-h-0 flex-1 gap-3">
-					<Tabs.List class="shrink-0 self-start">
-						{#each collections as collection (collection.value)}
-							<!-- the chosen collection is marked by a value step rather than by the
-							     primitive's solid `primary` fill: with the panel and the tiles gone there is
-							     nothing else loud on the surface, and a filled switcher would lead a screen
-							     nobody opened to change sections on. -->
-							<Tabs.Trigger
-								value={collection.value}
-								class="capitalize data-[state=active]:bg-accent data-[state=active]:text-foreground"
-							>
-								{collection.label}
-							</Tabs.Trigger>
-						{/each}
-					</Tabs.List>
+				{@const shown = collections.find((collection) => collection.value === chosen)}
+				<div class="flex min-h-0 flex-1 flex-col gap-3">
+					<SectionSwitch sections={switchable} current={chosen} label={title} />
 
-					{#each collections as collection (collection.value)}
-						<!-- a flex column, not merely a sized box: the panel is a block by default, so a
-						     collection inside it asking for a share of the height resolves against nothing
-						     and grows without bound — the list then runs past the window instead of
-						     scrolling inside it, and anything pinned to its scroll edge has nothing to
-						     pin against. Only a record with more than one collection takes this path,
-						     which is why exactly one screen showed it. -->
-						<Tabs.Content value={collection.value} class="flex min-h-0 flex-1 flex-col">
-							{@render collection.content()}
-						</Tabs.Content>
-					{/each}
-				</Tabs.Root>
+					<!-- a flex column, not merely a sized box: a collection asking for a share of the
+					     height resolves against nothing otherwise and grows without bound, so the list
+					     runs past the window instead of scrolling inside it, and anything pinned to its
+					     scroll edge has nothing to pin against. -->
+					{#if shown}
+						<section
+							class="flex min-h-0 flex-1 flex-col"
+							aria-label={shown.label}
+							data-collection={shown.value}
+						>
+							{@render shown.content()}
+						</section>
+					{/if}
+				</div>
 			{:else if collections.length === 1}
 				{@const only = collections[0]}
 				<section class="flex min-h-0 flex-1 flex-col gap-3">

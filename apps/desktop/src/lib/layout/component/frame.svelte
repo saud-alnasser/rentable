@@ -63,7 +63,7 @@
 	const hasRail = $derived(shell !== 'bare');
 	const isSignedOut = $derived(shell === 'signed-out');
 
-	const hasBreadcrumb = $derived(toBreadcrumbTrail(page.url.pathname).length > 0);
+	const hasBreadcrumb = $derived(toBreadcrumbTrail(page.route.id).length > 0);
 
 	let isPaletteOpen = $state(false);
 	let isShortcutSheetOpen = $state(false);
