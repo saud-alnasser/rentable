@@ -22,11 +22,15 @@
 	 * *It was declared by the list block until #782, and the edge ran the wrong way: a card that
 	 * carries no domain imported it from the one component that does. It sits on the component
 	 * that wears it now, and the list reads it from here.*
+	 *
+	 * The lift is gated with its transition rather than left to snap: under reduced motion a hovered
+	 * card still deepens its shadow and does not move. Nothing here answers focus, so moving through
+	 * a list from the keyboard carries no transition at all.
 	 */
 	export const recordCard = [
 		'rounded-2xl bg-card ring-1 ring-foreground/5 shadow-[0_1px_3px_rgba(0,0,0,0.18)]',
-		'motion-safe:transition-[transform,box-shadow] motion-safe:duration-150',
-		'hover:-translate-y-[3px] hover:shadow-[0_10px_20px_rgba(0,0,0,0.16)]'
+		'motion-safe:transition-[transform,box-shadow] motion-safe:duration-quick motion-safe:ease-move',
+		'motion-safe:hover:-translate-y-[3px] hover:shadow-[0_10px_20px_rgba(0,0,0,0.16)]'
 	].join(' ');
 
 	/**

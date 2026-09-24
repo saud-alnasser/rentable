@@ -134,3 +134,18 @@ test('what the caller marks an act with reaches the entry on both routes', async
 	expect(fromGesture?.getAttribute('data-workspace-rename')).toBe('ws-1');
 	expect(fromGesture?.getAttribute('data-kind')).toBe('edit');
 });
+
+// moving through a list from the keyboard lands focus on each card's link in turn, many times a
+// minute, so arriving there must not animate: the link carries no transition, and nothing the card
+// itself transitions is answered by focus. The lift answers the pointer alone.
+test('keyboard focus arriving on a card animates nothing', () => {
+	show();
+
+	const surface = link()?.parentElement;
+	const classes = [...(surface?.classList ?? []), ...(link()?.classList ?? [])];
+
+	expect([...(link()?.classList ?? [])].filter((token) => /transition/.test(token))).toEqual([]);
+	expect(
+		classes.filter((token) => /(^|:)focus[\w-]*:.*(translate|scale|shadow)/.test(token))
+	).toEqual([]);
+});

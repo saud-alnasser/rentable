@@ -103,7 +103,7 @@
 			stroke-dasharray={CIRCUMFERENCE}
 			stroke-dashoffset={CIRCUMFERENCE * (1 - shown)}
 			class={cn(
-				'motion-safe:transition-[stroke-dashoffset] motion-safe:duration-700 motion-safe:ease-out',
+				'motion-safe:transition-[stroke-dashoffset] motion-safe:duration-slow motion-safe:ease-move',
 				isSettled ? 'text-foreground' : 'text-primary'
 			)}
 		/>

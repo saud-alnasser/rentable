@@ -180,14 +180,51 @@ layer is deliberately kept to what is genuinely global.
 interaction (hover, press, focus, scrolling to it) or a trigger (data arrives, state changes).
 Nothing starts by itself and nothing loops. Recorded originally as ADR 0016; this is the part that binds a change.
 
+**Motion answers cause and effect.** A record created arrives, a record deleted leaves, an undone
+delete comes back in place, a reordered set moves, a pane swap carries its direction. Motion that
+explains nothing is not added.
+
+**Every duration and easing is a named token**, declared in `@rentable/design`'s `tokens.css`
+and nowhere else. A surface names one of each and never writes a number:
+
+| Token | Utility | Value | For |
+| ----- | ------- | ----- | --- |
+| `--ease-enter` | `ease-enter` | decelerate, `cubic-bezier(0, 0, 0.2, 1)` | something arriving |
+| `--ease-exit` | `ease-exit` | accelerate, `cubic-bezier(0.4, 0, 1, 1)` | something leaving |
+| `--ease-move` | `ease-move` | standard, `cubic-bezier(0.2, 0, 0, 1)` | something on screen changing place or size |
+| `--duration-quick` | `duration-quick` | 150ms | a colour, a small control |
+| `--duration-base` | `duration-base` | 200ms | a dialog, a menu, a row |
+| `--duration-slow` | `duration-slow` | 250ms | a panel crossing the window |
+
+Tailwind's stock easings are cleared, so `ease-in` and its siblings build nothing, and a bare
+`transition-*` falls back on `duration-quick` and `ease-move`. `duration-*` and `ease-*` also set
+the variables `tw-animate-css` reads, so one pair drives a transition and an `animate-in` alike.
+In CSS, name the token: `var(--duration-base)`. Where a mechanism takes a number rather than a
+class (Svelte's `in:`, `out:`, `animate:` and `svelte/motion`), the number is read from the token
+rather than restated. `motion.test.ts` in `apps/desktop/src/lib/design/tests/` fails on a raw
+duration or easing in either tree.
+
+**Nothing animates on a path used many times a day from the keyboard**: moving through a list
+with the arrow keys, and the command palette. Both answer at once. The dialog primitive's
+`motion={false}` is how the palette opts out, because class merging cannot take an animation back
+off.
+
 **No motion library.** Reach for what is installed, choosing by what causes the motion:
 
 | Cause | Mechanism |
 | ----------------------------------- | ------------------------------------------------ |
-| hover, press, focus                 | Tailwind `transition-*`                          |
-| an element arriving on mount        | `tw-animate-css` (`animate-in`), as the primitives do |
+| hover, press                        | Tailwind `transition-*`                          |
+| an element arriving or leaving that bits-ui drives (dialog, sheet, menu) | `tw-animate-css` (`animate-in`, `animate-out`), as the primitives do |
 | an element leaving on a data change | Svelte `out:` — CSS cannot, the node is gone first |
-| an element moving position          | **unavailable** — see the ADR                    |
+| a value changing (a count, a ring filling) | `svelte/motion` (`Tween`, `Spring`)     |
+| an element moving position among siblings on screen | `svelte/animate` (`animate:flip`) |
+| a record created, deleted, restored or re-sorted in a directory; a pane swap | a same-document view transition (`document.startViewTransition`) |
+
+**A view transition is feature-detected, and its fallback is no animation.** Where
+`startViewTransition` is missing (macOS below 15, an old WebKitGTK) the change is committed
+directly and simply appears. Only a change caused by a mutation, an undo or a sort transitions; a
+search keystroke does not. `animate:flip` moves only rows already on screen, which is why a
+virtualised directory uses a view transition rather than it.
 
 Prefer a transition defined through `css` over one through `tick`: the first runs off the main
 thread, the second does not.
@@ -196,10 +233,12 @@ thread, the second does not.
 unfinished.** Tailwind's `motion-safe:` gates CSS motion; `prefersReducedMotion` from
 `svelte/motion` gates anything JavaScript-driven.
 
-The token layer carries the two cases a surface cannot reach for itself: every CSS transition,
-and the keyframe animation on anything bits-ui marks with `data-state` or `data-motion`. A
-keyframe animation on an element carrying neither is still the surface's own to gate — which
-covers anything composed here, and the looping indicators, left running deliberately.
+The token layer carries the three cases a surface cannot reach for itself: every CSS transition,
+the keyframe animation on anything bits-ui marks with `data-state` or `data-motion`, and every
+`::view-transition-*` pseudo-element. A keyframe animation on an element carrying none of those is
+still the surface's own to gate, and so is a transform a pointer applies, such as a hover lift:
+collapsing its transition makes it jump rather than stop. That covers anything composed here, and
+the looping indicators (spinner, skeleton, caret), left running deliberately.
 
 **Motion is bidirectional, like everything else here.** A transform that assumes LTR breaks in
 Arabic — prefer logical properties, and check both directions rather than one.

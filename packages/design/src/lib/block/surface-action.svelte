@@ -117,7 +117,7 @@
 		{onclick}
 	>
 		<Icon
-			class="size-4 transition-transform duration-500 {spins
+			class="size-4 transition-transform duration-slow {spins
 				? 'motion-safe:group-hover:rotate-180'
 				: 'motion-safe:group-hover:scale-110'}"
 		/>

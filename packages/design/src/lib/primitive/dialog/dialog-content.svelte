@@ -13,23 +13,32 @@
 		portalProps,
 		children,
 		showCloseButton = true,
+		motion = true,
 		...restProps
 	}: WithoutChildrenOrChild<DialogPrimitive.ContentProps> & {
 		portalProps?: WithoutChildrenOrChild<ComponentProps<typeof DialogPortal>>;
 		children: Snippet;
 		showCloseButton?: boolean;
+		/**
+		 * whether the dialog and its overlay animate in and out. Off for a surface reached from the
+		 * keyboard many times a day, the command palette, where an entrance is a wait rather than an
+		 * answer. A prop rather than a class, because class merging cannot take an animation back off.
+		 */
+		motion?: boolean;
 	} = $props();
 
 	const contract = useDesignContract();
 </script>
 
 <DialogPortal {...portalProps}>
-	<Dialog.Overlay />
+	<Dialog.Overlay {motion} />
 	<DialogPrimitive.Content
 		bind:ref
 		data-slot="dialog-content"
 		class={cn(
-			'fixed top-[50%] left-[50%] z-50 grid max-h-[calc(100vh-2rem)] w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-0 overflow-hidden rounded-3xl bg-card p-0 shadow-xl ring-1 ring-foreground/10 duration-200 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 sm:max-w-lg',
+			'fixed top-[50%] left-[50%] z-50 grid max-h-[calc(100vh-2rem)] w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-0 overflow-hidden rounded-3xl bg-card p-0 shadow-xl ring-1 ring-foreground/10 sm:max-w-lg',
+			motion &&
+				'duration-base data-[state=closed]:animate-out data-[state=closed]:ease-exit data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:ease-enter data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95',
 			className
 		)}
 		dir={contract.direction}

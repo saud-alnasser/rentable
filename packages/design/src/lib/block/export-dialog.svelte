@@ -74,7 +74,7 @@
 					type="button"
 					onclick={() => (chosen = format)}
 					aria-pressed={isChosen}
-					class="flex cursor-pointer items-center gap-3 rounded-2xl border p-4 text-start transition-colors duration-200 {isChosen
+					class="flex cursor-pointer items-center gap-3 rounded-2xl border p-4 text-start transition-colors duration-base {isChosen
 						? 'border-primary bg-primary/10'
 						: 'border-transparent bg-muted hover:bg-muted/70'}"
 				>

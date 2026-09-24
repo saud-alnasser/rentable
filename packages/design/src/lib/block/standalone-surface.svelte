@@ -110,7 +110,7 @@
 		class={cn(
 			'w-full max-w-lg rounded-3xl bg-card text-start shadow-xl ring-1 ring-foreground/10',
 			banded ? 'overflow-hidden' : 'p-6',
-			'motion-safe:animate-in motion-safe:animation-duration-200 motion-safe:zoom-in-95 motion-safe:fade-in',
+			'motion-safe:animate-in motion-safe:duration-base motion-safe:ease-enter motion-safe:zoom-in-95 motion-safe:fade-in',
 			className
 		)}
 		role={busy ? 'status' : undefined}

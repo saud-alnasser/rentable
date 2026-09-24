@@ -2,13 +2,13 @@
 	import { tv, type VariantProps } from 'tailwind-variants';
 
 	const presentation = tv({
-		base: 'fixed z-50 flex flex-col gap-0 overflow-hidden bg-card shadow-xl ring-1 ring-foreground/10 ease-out data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0',
+		base: 'fixed z-50 flex flex-col gap-0 overflow-hidden bg-card shadow-xl ring-1 ring-foreground/10 data-[state=closed]:animate-out data-[state=closed]:ease-exit data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:ease-enter data-[state=open]:fade-in-0',
 		variants: {
 			weight: {
 				light:
-					'top-1/2 left-1/2 max-h-[calc(100vh-2rem)] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-3xl animation-duration-200 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 md:max-w-lg',
+					'top-1/2 left-1/2 max-h-[calc(100vh-2rem)] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-3xl duration-base data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 md:max-w-lg',
 				heavy:
-					'inset-y-0 end-0 h-full w-full animation-duration-300 data-[state=closed]:slide-out-to-end data-[state=open]:slide-in-from-end md:max-w-lg'
+					'inset-y-0 end-0 h-full w-full data-[state=open]:duration-slow data-[state=closed]:duration-base data-[state=closed]:slide-out-to-end data-[state=open]:slide-in-from-end md:max-w-lg'
 			}
 		}
 	});
