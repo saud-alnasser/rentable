@@ -34,6 +34,7 @@ const en = {
 			import: 'import',
 			installingUpdate: 'installing update...',
 			join: 'join',
+			newContract: 'new contract',
 			newRecord: 'new record',
 			openMenu: 'open menu',
 			openPayments: 'open payments',
@@ -739,6 +740,7 @@ const en = {
 			loadingUnits: 'loading units...',
 			noUnitFree: 'no unit is free over this term.',
 			searchUnitPlaceholder: 'search units by name or complex...',
+			unitHeldOverTerm: 'held by another contract over this term',
 			unitsHint:
 				"only units free over the contract's term are offered. you can change them later on the contract's units tab.",
 			unitsNeedTerm: 'pick the start date first; the units free over the term are offered then.',

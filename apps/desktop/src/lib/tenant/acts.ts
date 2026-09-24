@@ -1,6 +1,7 @@
 import type { RecordAct } from '$lib/design/acts';
 import type { Tenant } from '$lib/platform/database/schema';
 import CopyIcon from '@lucide/svelte/icons/copy';
+import FilePlusIcon from '@lucide/svelte/icons/file-plus';
 import SquarePenIcon from '@lucide/svelte/icons/square-pen';
 import Trash2Icon from '@lucide/svelte/icons/trash-2';
 
@@ -19,7 +20,8 @@ import Trash2Icon from '@lucide/svelte/icons/trash-2';
 export type TenantActRecord = Tenant;
 
 /** Every tenant act, by the id the palette keys it on. */
-export type TenantActId = 'tenant.copyDetails' | 'tenant.edit' | 'tenant.delete';
+export type TenantActId =
+	'tenant.copyDetails' | 'tenant.edit' | 'tenant.newContract' | 'tenant.delete';
 
 /**
  * What the acts ask of the tenant host. Each one opens something the host owns, and none of them
@@ -30,6 +32,8 @@ export type TenantHostRequests = {
 	copyDetails: (tenant: TenantActRecord) => void;
 	/** open the form on this tenant. */
 	edit: (tenant: TenantActRecord) => void;
+	/** open the contract form on a new contract, with this tenant already chosen. */
+	newContract: (tenant: TenantActRecord) => void;
 	/** delete this tenant: at once where nothing refuses it, as its policy says; the host decides. */
 	confirmDelete: (tenant: TenantActRecord) => void;
 };
@@ -56,6 +60,14 @@ export function declareTenantActs(host: TenantHostRequests): TenantAct[] {
 			icon: SquarePenIcon,
 			group: 'primary',
 			run: host.edit
+		},
+		{
+			// a contract is started where the reader already is: on the tenant it is for.
+			id: 'tenant.newContract',
+			label: (t) => t.common.actions.newContract(),
+			icon: FilePlusIcon,
+			group: 'primary',
+			run: host.newContract
 		},
 		{
 			// always offered: what a deletion is refused for (contracts held) is read when it is asked,

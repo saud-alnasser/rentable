@@ -131,6 +131,10 @@ type RootTranslation = {
 			 */
 			join: string
 			/**
+			 * n​e​w​ ​c​o​n​t​r​a​c​t
+			 */
+			newContract: string
+			/**
 			 * n​e​w​ ​r​e​c​o​r​d
 			 */
 			newRecord: string
@@ -2273,6 +2277,10 @@ type RootTranslation = {
 			 */
 			searchUnitPlaceholder: string
 			/**
+			 * h​e​l​d​ ​b​y​ ​a​n​o​t​h​e​r​ ​c​o​n​t​r​a​c​t​ ​o​v​e​r​ ​t​h​i​s​ ​t​e​r​m
+			 */
+			unitHeldOverTerm: string
+			/**
 			 * o​n​l​y​ ​u​n​i​t​s​ ​f​r​e​e​ ​o​v​e​r​ ​t​h​e​ ​c​o​n​t​r​a​c​t​'​s​ ​t​e​r​m​ ​a​r​e​ ​o​f​f​e​r​e​d​.​ ​y​o​u​ ​c​a​n​ ​c​h​a​n​g​e​ ​t​h​e​m​ ​l​a​t​e​r​ ​o​n​ ​t​h​e​ ​c​o​n​t​r​a​c​t​'​s​ ​u​n​i​t​s​ ​t​a​b​.
 			 */
 			unitsHint: string
@@ -3601,6 +3609,10 @@ export type TranslationFunctions = {
 			 * join
 			 */
 			join: () => LocalizedString
+			/**
+			 * new contract
+			 */
+			newContract: () => LocalizedString
 			/**
 			 * new record
 			 */
@@ -5641,6 +5653,10 @@ export type TranslationFunctions = {
 			 * search units by name or complex...
 			 */
 			searchUnitPlaceholder: () => LocalizedString
+			/**
+			 * held by another contract over this term
+			 */
+			unitHeldOverTerm: () => LocalizedString
 			/**
 			 * only units free over the contract's term are offered. you can change them later on the contract's units tab.
 			 */

@@ -1,3 +1,4 @@
+import { contractHost } from '$lib/contract/host.svelte';
 import { declareUnitActs, type UnitActId, type UnitActRecord } from '$lib/complex/unit/acts';
 
 /**
@@ -60,6 +61,7 @@ export const unitActs = declareUnitActs({
 		unitHostState.copying = unit;
 	},
 	edit: (unit) => openForm(unit.complexId, unit),
+	newContract: (unit) => contractHost.create({ unitIds: [unit.id] }),
 	confirmDelete: (unit) => {
 		unitHostState.deleting = unit;
 	}

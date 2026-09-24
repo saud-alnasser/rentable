@@ -75,6 +75,7 @@ for (const glyph of [
 	'calendar-plus',
 	'copy',
 	'crown',
+	'file-plus',
 	'files',
 	'laptop',
 	'link',

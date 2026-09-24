@@ -37,6 +37,7 @@
 	} from '$lib/contract/end-date';
 	import type { ContractPrefill } from '$lib/contract/host.svelte';
 	import { getContractRenewalTerm } from '$lib/contract/renewal';
+	import { useReadUnit } from '$lib/complex/query';
 	import { onMutationError } from '$lib/design/mutation';
 	import {
 		useCreateContract,
@@ -58,6 +59,7 @@
 	import { surfaceForm } from '$lib/design/form';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';
+	import { untrack } from 'svelte';
 	import { z } from 'zod';
 
 	const intervals = [
@@ -436,6 +438,45 @@
 
 	const toUnitName = (unit: { name: string; complexName: string }) =>
 		`${unit.name} · ${unit.complexName}`;
+
+	// a unit chosen before the form opened (a unit's own page asked for the contract) is named from
+	// its own read: the free units are not read until the term is set, and need not include it.
+	const readUnit = useReadUnit();
+
+	$effect(() => {
+		if (!open || !choosesUnits) return;
+
+		const prefilledUnitIds = prefill?.unitIds ?? [];
+
+		untrack(() => {
+			for (const id of prefilledUnitIds) {
+				if (chosenUnitNames[id]) continue;
+
+				readUnit(id)
+					.then((unit) => {
+						if (unit) chosenUnitNames[id] = toUnitName(unit);
+					})
+					.catch(() => {});
+			}
+		});
+	});
+
+	// the chosen units the term leaves out, because another contract holds them over it. Read only
+	// off the whole free set for this term (no search narrowing it, nothing still arriving), since
+	// a unit missing from a narrowed or a stale list says nothing about the term.
+	const heldUnitIds = $derived.by(() => {
+		if (!unitTerm || unitSearch.trim() || freeUnitsQuery.isFetching || !freeUnitsQuery.data) {
+			return [];
+		}
+
+		const freeUnitIds = new Set(freeUnits.map((unit) => unit.id));
+
+		return $form.unitIds.filter((id) => !freeUnitIds.has(id));
+	});
+
+	const unchooseUnit = (id: string) => {
+		$form.unitIds = $form.unitIds.filter((chosen) => chosen !== id);
+	};
 
 	const toggleUnit = (unit: { id: string; name: string; complexName: string }) => {
 		if ($form.unitIds.includes(unit.id)) {
@@ -956,6 +997,23 @@
 										placeholder={$LL.contracts.form.searchUnitPlaceholder()}
 									/>
 									<Command.List>
+										<!-- a chosen unit the term leaves out stays in the list, checked and saying
+										     why, so the reader can take it back out; the free ones follow. -->
+										{#if heldUnitIds.length > 0}
+											<Command.Group>
+												{#each heldUnitIds as id (id)}
+													<Command.Item value={id} onSelect={() => unchooseUnit(id)}>
+														<div class="flex min-w-0 flex-1 flex-col text-start">
+															<span class="truncate">{chosenUnitNames[id] ?? '…'}</span>
+															<span class="truncate text-xs text-muted-foreground">
+																{$LL.contracts.form.unitHeldOverTerm()}
+															</span>
+														</div>
+														<CheckIcon class="ms-auto size-4" />
+													</Command.Item>
+												{/each}
+											</Command.Group>
+										{/if}
 										{#if freeUnitsQuery.isLoading && freeUnits.length === 0}
 											<div class="p-3 text-sm text-muted-foreground">
 												{$LL.contracts.form.loadingUnits()}
@@ -990,7 +1048,11 @@
 						</Popover.Root>
 					</Form.Control>
 					<Form.Description>
-						{unitTerm ? $LL.contracts.form.unitsHint() : $LL.contracts.form.unitsNeedTerm()}
+						{#if heldUnitIds.length > 0}
+							{$LL.common.refusals.contract.unitsTaken()}
+						{:else}
+							{unitTerm ? $LL.contracts.form.unitsHint() : $LL.contracts.form.unitsNeedTerm()}
+						{/if}
 					</Form.Description>
 					<FieldError />
 				</Form.Field>

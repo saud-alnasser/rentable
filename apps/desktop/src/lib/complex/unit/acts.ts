@@ -1,6 +1,7 @@
 import type { RecordAct } from '$lib/design/acts';
 import type { Unit } from '$lib/platform/database/schema';
 import CopyIcon from '@lucide/svelte/icons/copy';
+import FilePlusIcon from '@lucide/svelte/icons/file-plus';
 import SquarePenIcon from '@lucide/svelte/icons/square-pen';
 import Trash2Icon from '@lucide/svelte/icons/trash-2';
 
@@ -24,7 +25,7 @@ import Trash2Icon from '@lucide/svelte/icons/trash-2';
 export type UnitActRecord = Unit & { complexName?: string };
 
 /** Every unit act, by the id the palette keys it on. */
-export type UnitActId = 'unit.copyDetails' | 'unit.edit' | 'unit.delete';
+export type UnitActId = 'unit.copyDetails' | 'unit.edit' | 'unit.newContract' | 'unit.delete';
 
 /**
  * What the acts ask of the unit host. Each one opens something the host owns, and none of them
@@ -35,6 +36,8 @@ export type UnitHostRequests = {
 	copyDetails: (unit: UnitActRecord) => void;
 	/** open the form on this unit. */
 	edit: (unit: UnitActRecord) => void;
+	/** open the contract form on a new contract, with this unit already chosen. */
+	newContract: (unit: UnitActRecord) => void;
 	/** delete this unit: at once where nothing refuses it, as its policy says; the host decides. */
 	confirmDelete: (unit: UnitActRecord) => void;
 };
@@ -61,6 +64,16 @@ export function declareUnitActs(host: UnitHostRequests): UnitAct[] {
 			icon: SquarePenIcon,
 			group: 'primary',
 			run: host.edit
+		},
+		{
+			// a contract is started where the reader already is: on the unit it will hold. Offered
+			// whatever the unit's status, because whether it is free depends on the term the form is
+			// given, which is not known until then.
+			id: 'unit.newContract',
+			label: (t) => t.common.actions.newContract(),
+			icon: FilePlusIcon,
+			group: 'primary',
+			run: host.newContract
 		},
 		{
 			// always offered: what a deletion is refused for (any contract that ever named the unit) is

@@ -114,7 +114,10 @@ export const contractHost = {
 	runOn(actId: string, contractId: string) {
 		contractHostState.asked = { actId, contractId };
 	},
-	/** open the form on a new contract, starting from what the caller already knows. */
+	/**
+	 * open the form on a new contract, starting from what the caller already knows: the tenant's
+	 * page names the tenant, and the unit's page the unit.
+	 */
 	create(prefill?: ContractPrefill) {
 		openForm({ prefill });
 	}

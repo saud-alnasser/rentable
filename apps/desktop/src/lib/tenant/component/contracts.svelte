@@ -7,6 +7,7 @@
 	import { CONTRACT_SORT_COLUMN_IDS, type ContractSortColumnId } from '$lib/contract/contract';
 	import { RANK_FILTER, toChosenRank } from '$lib/contract/rank-filter';
 	import { useListContracts } from '$lib/contract/query';
+	import { contractHost } from '$lib/contract/host.svelte';
 	import type { FilterSelection } from '$lib/design/filter';
 	import { LL } from '$lib/i18n/i18n-svelte';
 
@@ -67,6 +68,7 @@
 			isLoading={contractsQuery.isLoading}
 			isFetching={contractsQuery.isFetching}
 			recordHeight={ROW_HEIGHT}
+			onCreate={() => contractHost.create({ tenantId })}
 			emptyTitle={$LL.tenants.contracts.emptyTitle()}
 			emptyDescription={$LL.tenants.contracts.emptyDescription()}
 		>

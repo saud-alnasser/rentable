@@ -1,3 +1,4 @@
+import { contractHost } from '$lib/contract/host.svelte';
 import { declareTenantActs, type TenantActId, type TenantActRecord } from '$lib/tenant/acts';
 
 /**
@@ -51,6 +52,7 @@ export const tenantActs = declareTenantActs({
 		tenantHostState.copying = tenant;
 	},
 	edit: (tenant) => openForm(tenant),
+	newContract: (tenant) => contractHost.create({ tenantId: tenant.id }),
 	confirmDelete: (tenant) => {
 		tenantHostState.deleting = tenant;
 	}

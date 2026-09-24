@@ -15,7 +15,16 @@ import { ContractSchema } from '$lib/platform/database/schema.ts';
  * value of its own: what is compared is *which* glyph each surface draws, and that survives the
  * substitution exactly.
  */
-const GLYPHS = ['ban', 'calendar-plus', 'copy', 'files', 'rotate-ccw', 'square-pen', 'trash-2'];
+const GLYPHS = [
+	'ban',
+	'calendar-plus',
+	'copy',
+	'file-plus',
+	'files',
+	'rotate-ccw',
+	'square-pen',
+	'trash-2'
+];
 
 for (const glyph of GLYPHS) {
 	mock.module(`@lucide/svelte/icons/${glyph}`, {
@@ -269,13 +278,19 @@ function assertDeclarationHolds<T>(acts: RecordActs<T>) {
 
 const TENANT = { id: 'tenant-1', name: 'Noura', nationalId: '1000000001', phone: '+966500000001' };
 
-test('a tenant is offered copy details, edit and delete alike on its card, its page and in the palette', () => {
-	const { asked, host } = recordingRequests(['copyDetails', 'edit', 'confirmDelete'] as const);
+test('a tenant is offered copy details, edit, new contract and delete alike on its card, its page and in the palette', () => {
+	const { asked, host } = recordingRequests([
+		'copyDetails',
+		'edit',
+		'newContract',
+		'confirmDelete'
+	] as const);
 	const acts = declareTenantActs(host);
 
 	assert.deepEqual(assertProjectionsAgree(acts, TENANT), [
 		'tenant.copyDetails',
 		'tenant.edit',
+		'tenant.newContract',
 		'tenant.delete'
 	]);
 	assertDeclarationHolds(acts);
@@ -286,8 +301,16 @@ test('a tenant is offered copy details, edit and delete alike on its card, its p
 	toPageActions(acts, TENANT, translations)
 		.find((act) => act.id === 'tenant.copyDetails')
 		?.run();
+	// requirement 21: a contract is started from the tenant's page, on that tenant.
+	toPageActions(acts, TENANT, translations)
+		.find((act) => act.id === 'tenant.newContract')
+		?.run();
 
-	assert.deepEqual(asked, ['confirmDelete:tenant-1', 'copyDetails:tenant-1']);
+	assert.deepEqual(asked, [
+		'confirmDelete:tenant-1',
+		'copyDetails:tenant-1',
+		'newContract:tenant-1'
+	]);
 });
 
 const COMPLEX = { id: 'complex-1', name: 'Al Nakheel', location: 'Riyadh' };
@@ -311,8 +334,13 @@ test('a complex is offered copy details, edit and delete alike on its card, its 
 });
 
 for (const status of UnitSchema.shape.status.options) {
-	test(`a unit that is ${status} is offered edit and delete on its page as on its card`, () => {
-		const { asked, host } = recordingRequests(['copyDetails', 'edit', 'confirmDelete'] as const);
+	test(`a unit that is ${status} is offered edit, new contract and delete on its page as on its card`, () => {
+		const { asked, host } = recordingRequests([
+			'copyDetails',
+			'edit',
+			'newContract',
+			'confirmDelete'
+		] as const);
 		const acts = declareUnitActs(host);
 		const unit = { id: `unit-${status}`, name: 'A1', complexId: 'complex-1', status };
 
@@ -320,6 +348,7 @@ for (const status of UnitSchema.shape.status.options) {
 		assert.deepEqual(assertProjectionsAgree(acts, unit), [
 			'unit.copyDetails',
 			'unit.edit',
+			'unit.newContract',
 			'unit.delete'
 		]);
 		assertDeclarationHolds(acts);
@@ -330,8 +359,16 @@ for (const status of UnitSchema.shape.status.options) {
 		toPageActions(acts, unit, translations)
 			.find((act) => act.id === 'unit.delete')
 			?.run();
+		// requirement 21: a contract is started from the unit's page, whatever the unit's status.
+		toPageActions(acts, unit, translations)
+			.find((act) => act.id === 'unit.newContract')
+			?.run();
 
-		assert.deepEqual(asked, [`edit:unit-${status}`, `confirmDelete:unit-${status}`]);
+		assert.deepEqual(asked, [
+			`edit:unit-${status}`,
+			`confirmDelete:unit-${status}`,
+			`newContract:unit-${status}`
+		]);
 	});
 }
 
