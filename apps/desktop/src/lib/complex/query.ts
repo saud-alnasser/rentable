@@ -312,6 +312,8 @@ export const useDeleteComplex = declareMutation({
 		},
 	toast: {
 		success: () => get(LL).complexes.hooks.deleteSuccess(),
+		// no dialog asked first, so the announcement says how long it can be taken back.
+		detail: () => get(LL).common.undo.lasts(),
 		error: false,
 		unexpected: () => get(LL).common.messages.unexpectedError()
 	}
@@ -486,6 +488,8 @@ export const useDeleteUnit = declareMutation({
 		},
 	toast: {
 		success: () => get(LL).complexes.hooks.unitDeleteSuccess(),
+		// no dialog asked first, so the announcement says how long it can be taken back.
+		detail: () => get(LL).common.undo.lasts(),
 		error: false,
 		unexpected: () => get(LL).common.messages.unexpectedError()
 	}

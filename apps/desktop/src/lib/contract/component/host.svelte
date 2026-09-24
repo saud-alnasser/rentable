@@ -3,6 +3,7 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { back } from '@rentable/design/back.svelte.js';
+	import ConfirmDialog from '@rentable/design/block/confirm-dialog.svelte';
 	import DeleteDialog from '@rentable/design/block/delete-dialog.svelte';
 	import { AWAITING_BLOCKERS } from '@rentable/design/confirmation.js';
 	import { usesAppleKeyboard } from '@rentable/design/shortcut.js';
@@ -22,9 +23,9 @@
 		useTerminateContract,
 		useUnterminateContract
 	} from '$lib/contract/query';
-	import { toPaletteVerbs } from '$lib/design/acts';
+	import { toDeleteStep, toPaletteVerbs } from '$lib/design/acts';
 	import { onMutationError, onMutationSuccess } from '$lib/design/mutation';
-	import { showErrorSentence, showErrorToast } from '$lib/error/toast';
+	import { showErrorSentence, showErrorToast, showRefusal } from '$lib/error/toast';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { useFetchContractPayments } from '$lib/payment/query';
 	import { writeDetailsToClipboard } from '$lib/platform/clipboard';
@@ -44,6 +45,10 @@
 	 * **The mutations are here**, inside the providers, so each reads the query client from context
 	 * the way every other hook does. What they write, and how each is taken back, is unchanged from
 	 * when each surface mounted its own copy.
+	 *
+	 * **A delete runs at once and offers undo**, as its act declares; the delete dialog is drawn only
+	 * where something refuses it, to say what. Terminating and restoring ask first, in the confirm
+	 * dialog under their own verbs ([[rules/interface]], *Delete and confirm*).
 	 *
 	 * **Drawn while a session is held**, which the frame decides; what is here on unmount is reset,
 	 * so a form left open at sign-out does not reopen on the next sign-in.
@@ -108,24 +113,44 @@
 		closeContractConfirmation();
 	};
 
+	async function leaveDeleted(id: string) {
+		const recordPage = resolve(`/contracts/${id}`);
+
+		// the contract's own page is not somewhere back can return to now that the record is gone.
+		// Where the reader is standing on it, they are taken to the directory; anywhere else, the
+		// page is only forgotten from behind them.
+		if (page.url.pathname === recordPage) {
+			back.forgetCurrent();
+			await goto(resolve('/contracts'));
+
+			return;
+		}
+
+		back.forget(recordPage);
+	}
+
 	const deleteConfirming = () =>
 		runOnConfirming(async (id) => {
 			await deleteMutation.mutateAsync(id);
-
-			const recordPage = resolve(`/contracts/${id}`);
-
-			// the contract's own page is not somewhere back can return to now that the record is gone.
-			// Where the reader is standing on it, they are taken to the directory; anywhere else, the
-			// page is only forgotten from behind them.
-			if (page.url.pathname === recordPage) {
-				back.forgetCurrent();
-				await goto(resolve('/contracts'));
-
-				return;
-			}
-
-			back.forget(recordPage);
+			await leaveDeleted(id);
 		});
+
+	/** A delete nothing asked about: its refusal, where it earns one, is raised rather than held. */
+	async function deleteAtOnce(id: string) {
+		try {
+			await deleteMutation.mutateAsync(id);
+		} catch (error) {
+			showRefusal(error, $LL);
+
+			return;
+		}
+
+		await leaveDeleted(id);
+	}
+
+	// whether the delete asks, waits on what refuses it, or runs now, by the act's own policy.
+	const deletePolicy = contractActs.find((act) => act.id === 'contract.delete')?.confirmation;
+	const deleteStep = $derived(isDeleting ? toDeleteStep(deletePolicy, deleteBlockers) : 'wait');
 
 	const intervalLabels = $derived<Record<ContractActRecord['interval'], string>>({
 		'1m': $LL.contracts.intervals.monthly(),
@@ -241,6 +266,18 @@
 		untrack(() => void answerAsked(asked.actId, asked.contractId));
 	});
 
+	// the request is answered once and cleared first, as the two above are.
+	$effect(() => {
+		if (deleteStep !== 'run' || !confirming) {
+			return;
+		}
+
+		const { id } = confirming.contract;
+
+		closeContractConfirmation();
+		untrack(() => void deleteAtOnce(id));
+	});
+
 	onDestroy(resetContractHost);
 </script>
 
@@ -259,7 +296,7 @@
 {/key}
 
 <DeleteDialog
-	open={confirming?.kind === 'delete'}
+	open={confirming?.kind === 'delete' && deleteStep === 'ask'}
 	onOpenChange={(isOpen) => {
 		if (!isOpen) {
 			closeContractConfirmation();
@@ -270,8 +307,8 @@
 	onSubmit={deleteConfirming}
 />
 
-<!-- terminate and restore keep the delete dialog's shape until the confirm pattern replaces it. -->
-<DeleteDialog
+<!-- terminate and restore are not deletes, so they ask in the confirm dialog, named for the act. -->
+<ConfirmDialog
 	open={confirming?.kind === 'terminate'}
 	onOpenChange={(isOpen) => {
 		if (!isOpen) {
@@ -283,10 +320,11 @@
 	description={$LL.contracts.table.terminateDescription()}
 	confirmLabel={$LL.common.actions.terminate()}
 	confirmLoadingLabel={$LL.common.actions.terminating()}
+	tone="error"
 	onSubmit={() => runOnConfirming((id) => terminateMutation.mutateAsync(id))}
 />
 
-<DeleteDialog
+<ConfirmDialog
 	open={confirming?.kind === 'restore'}
 	onOpenChange={(isOpen) => {
 		if (!isOpen) {
@@ -298,6 +336,6 @@
 	description={$LL.contracts.table.restoreDescription()}
 	confirmLabel={$LL.common.actions.unterminate()}
 	confirmLoadingLabel={$LL.common.actions.restoring()}
-	confirmVariant="default"
+	tone="neutral"
 	onSubmit={() => runOnConfirming((id) => unterminateMutation.mutateAsync(id))}
 />

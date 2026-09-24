@@ -276,6 +276,7 @@ const ar = {
 			createdMany: 'إنشاء {count|number} سجل',
 			deletedMany: 'حذف {count|number} سجل',
 			edited: 'تعديل {record}',
+			lasts: 'يمكنك التراجع عن هذا ما دام التطبيق مفتوحًا.',
 			nothingToRedo: 'لا يوجد ما يمكن إعادته',
 			nothingToUndo: 'لا يوجد ما يمكن التراجع عنه',
 			redo: 'إعادة',
@@ -325,7 +326,7 @@ const ar = {
 			blockedDescription: 'لا يمكن الحذف ما دامت العناصر التالية مرتبطة به.',
 			blockedPayments: '{count|number} دفعة مسجلة عليه',
 			blockedUnits: '{count|number} وحدة تابعة له',
-			description: 'يمكنك التراجع عن هذا ما دام التطبيق مفتوحًا.',
+			description: 'لا يمكن التراجع عن هذا.',
 			unnamedRecord: 'هذا السجل'
 		}
 	},

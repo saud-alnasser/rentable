@@ -207,6 +207,7 @@ export function declareMemberActs(host: MemberHostRequests): MemberAct[] {
 			icon: UserMinusIcon,
 			tone: 'error',
 			group: 'destructive',
+			confirmation: 'irreversible',
 			appliesTo: (record) => record.context.canRemove && writable(record),
 			run: (record) => host.confirmRemoval(record, false)
 		},
@@ -217,6 +218,7 @@ export function declareMemberActs(host: MemberHostRequests): MemberAct[] {
 			icon: LockIcon,
 			tone: 'error',
 			group: 'destructive',
+			confirmation: 'irreversible',
 			appliesTo: (record) =>
 				record.context.canRemove && record.context.canLockOut && writable(record),
 			run: (record) => host.confirmRemoval(record, true)
@@ -284,6 +286,7 @@ export function declareWorkspaceActs(host: WorkspaceHostRequests): WorkspaceAct[
 			icon: Trash2Icon,
 			tone: 'error',
 			group: 'destructive',
+			confirmation: 'irreversible',
 			appliesTo: ({ context }) => context.canDelete,
 			run: host.confirmDelete
 		}

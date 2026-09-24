@@ -30,7 +30,7 @@ export type ComplexHostRequests = {
 	copyDetails: (complex: ComplexActRecord) => void;
 	/** open the form on this complex. */
 	edit: (complex: ComplexActRecord) => void;
-	/** ask before deleting this complex. */
+	/** delete this complex: at once where nothing refuses it, as its policy says; the host decides. */
 	confirmDelete: (complex: ComplexActRecord) => void;
 };
 
@@ -59,12 +59,14 @@ export function declareComplexActs(host: ComplexHostRequests): ComplexAct[] {
 		},
 		{
 			// always offered: what a deletion is refused for (units held) is read when it is asked, and
-			// the confirmation says it.
+			// the delete dialog says it.
 			id: 'complex.delete',
 			label: (t) => t.common.actions.delete(),
 			icon: Trash2Icon,
 			tone: 'error',
 			group: 'destructive',
+			// the record is all it removes, so it runs at once and offers undo.
+			confirmation: 'none',
 			run: host.confirmDelete
 		}
 	];

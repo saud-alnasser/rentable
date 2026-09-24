@@ -24,6 +24,12 @@ type ToastErrorDecision = boolean | string | null;
 export type MutationOptions = {
 	toast?: {
 		success?: ToastMessage;
+		/**
+		 * a second line under the announcement. A delete that runs at once declares the one the
+		 * delete dialog used to carry, that it can be taken back while the application is open,
+		 * because no dialog is shown to say it any more ([[rules/interface]], *Delete and confirm*).
+		 */
+		detail?: ToastMessage;
 		error?: boolean | ToastMessage | ((error: Error) => ToastErrorDecision);
 		unexpected?: ToastMessage;
 	};
@@ -248,9 +254,11 @@ export function onMutationSuccess(opts: MutationOptions, offer?: UndoOffer) {
 	}
 
 	const message = resolveToastMessage(opts.toast.success);
+	// only where one is declared, so an announcement without one is raised exactly as before.
+	const detail = opts.toast.detail && { description: resolveToastMessage(opts.toast.detail) };
 
 	if (!offer) {
-		toast.success(message);
+		toast.success(message, detail || undefined);
 
 		return;
 	}
@@ -258,6 +266,7 @@ export function onMutationSuccess(opts: MutationOptions, offer?: UndoOffer) {
 	withdrawOutstandingOffer();
 
 	outstandingOffer = toast.success(message, {
+		...detail,
 		action: toToastAction(offer),
 		duration: OFFER_DURATION
 	});

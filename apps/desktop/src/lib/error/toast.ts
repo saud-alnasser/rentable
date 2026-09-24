@@ -1,6 +1,7 @@
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 
 import { toErrorMessage } from '$lib/error/message';
+import { toRefusal } from '@rentable/design/confirmation.js';
 import { toast } from 'svelte-sonner';
 
 /**
@@ -43,4 +44,20 @@ export function showErrorSentence(title: string, detail?: string | null) {
  */
 export function showSuccessToast(title: string, detail?: string | null) {
 	toast.success(title, { description: detail ?? undefined });
+}
+
+/**
+ * show the refusal an act earned where no confirmation was open to hold it: a delete that ran at
+ * once ([[rules/interface]], *Delete and confirm*).
+ *
+ * The same reading the confirmation dialogs make (`toRefusal`): a `BAD_REQUEST` is a sentence
+ * written for the reader and is shown, anything else is a fault the mutation's own declaration
+ * has already reported, and is not raised twice.
+ */
+export function showRefusal(error: unknown, translations: TranslationFunctions) {
+	const refusal = toRefusal(error, translations.common.messages.unexpectedError());
+
+	if (refusal) {
+		showErrorSentence(refusal);
+	}
 }

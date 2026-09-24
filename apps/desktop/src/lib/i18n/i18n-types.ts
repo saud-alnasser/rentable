@@ -963,6 +963,10 @@ type RootTranslation = {
 			 */
 			edited: RequiredParams<'record'>
 			/**
+			 * y​o​u​ ​c​a​n​ ​u​n​d​o​ ​t​h​i​s​ ​w​h​i​l​e​ ​t​h​e​ ​a​p​p​ ​i​s​ ​o​p​e​n​.
+			 */
+			lasts: string
+			/**
 			 * n​o​t​h​i​n​g​ ​t​o​ ​a​p​p​l​y​ ​a​g​a​i​n
 			 */
 			nothingToRedo: string
@@ -1141,7 +1145,7 @@ type RootTranslation = {
 			 */
 			blockedUnits: RequiredParams<'count|number'>
 			/**
-			 * y​o​u​ ​c​a​n​ ​u​n​d​o​ ​t​h​i​s​ ​w​h​i​l​e​ ​t​h​e​ ​a​p​p​ ​i​s​ ​o​p​e​n​.
+			 * t​h​i​s​ ​c​a​n​n​o​t​ ​b​e​ ​u​n​d​o​n​e​.
 			 */
 			description: string
 			/**
@@ -4090,6 +4094,10 @@ export type TranslationFunctions = {
 			 */
 			edited: (arg: { record: string }) => LocalizedString
 			/**
+			 * you can undo this while the app is open.
+			 */
+			lasts: () => LocalizedString
+			/**
 			 * nothing to apply again
 			 */
 			nothingToRedo: () => LocalizedString
@@ -4256,7 +4264,7 @@ export type TranslationFunctions = {
 			 */
 			blockedUnits: (arg: { count: unknown }) => LocalizedString
 			/**
-			 * you can undo this while the app is open.
+			 * this cannot be undone.
 			 */
 			description: () => LocalizedString
 			/**

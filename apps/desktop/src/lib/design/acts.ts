@@ -1,4 +1,5 @@
 import type { RecordCardAction } from '@rentable/design/block/record-card.svelte';
+import { toConfirmation, type Blockers } from '@rentable/design/confirmation.js';
 import { toShortcutHint, type ShortcutCombination } from '@rentable/design/shortcut.js';
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 
@@ -25,6 +26,16 @@ export type IconComponent = RecordCardAction['icon'];
 /** The groups an act falls in, in the order they appear on every concept. */
 export type RecordActGroup = 'primary' | 'lifecycle' | 'destructive';
 
+/**
+ * Whether a delete asks before it runs ([[rules/interface]], *Delete and confirm*).
+ *
+ * `none` deletes at once and offers undo, because the record is all it removes and taking it back
+ * is one keystroke. `cascade` asks, because it removes more than the record. `irreversible` asks,
+ * because nothing puts it back. What refuses a delete is a separate question: a delete refused
+ * asks under any of the three, since the answer is that it cannot be done.
+ */
+export type ConfirmationPolicy = 'none' | 'cascade' | 'irreversible';
+
 /** One thing a person can do to a record. */
 export type RecordAct<T> = {
 	/** stable, and the palette's key: `contract.renew`. */
@@ -40,9 +51,48 @@ export type RecordAct<T> = {
 	appliesTo?: (record: T) => boolean;
 	/** shown and refused, with the reason, where this gives one. */
 	unavailable?: (record: T, t: TranslationFunctions) => string | undefined;
+	/**
+	 * whether the host asks before running it. Declared on every act in the `destructive` group,
+	 * which `design/tests/acts.test.ts` holds each concept to; the host reads it through
+	 * {@link toDeleteStep}.
+	 */
+	confirmation?: ConfirmationPolicy;
 	/** asks the host. */
 	run: (record: T) => void;
 };
+
+/**
+ * What a host does with a delete it was asked for: put the delete dialog in front of the reader,
+ * wait on what might refuse it, or run it now.
+ */
+export type DeleteStep = 'ask' | 'wait' | 'run';
+
+/**
+ * The host's answer to a delete, from the act's policy and what refuses it.
+ *
+ * A delete declared `none` waits on its blockers rather than asking while they are read, so the
+ * dialog is never drawn for a record that turns out to have nothing in the way; then it runs, or,
+ * where something refuses it, asks, because that dialog is where the refusal is named. A delete
+ * declared anything else asks at once and reads its blockers inside the dialog. An act that
+ * declares nothing asks: a delete that forgot to say is safer asking than not.
+ */
+export function toDeleteStep(
+	policy: ConfirmationPolicy | undefined,
+	blockers: Blockers | undefined
+): DeleteStep {
+	if (policy !== 'none') {
+		return 'ask';
+	}
+
+	switch (toConfirmation(blockers).state) {
+		case 'awaiting':
+			return 'wait';
+		case 'blocked':
+			return 'ask';
+		case 'offered':
+			return 'run';
+	}
+}
 
 /** The acts that apply to this record, in the order they were declared. */
 function applying<T>(acts: readonly RecordAct<T>[], record: T) {

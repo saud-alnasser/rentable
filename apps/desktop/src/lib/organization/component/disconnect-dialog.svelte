@@ -1,5 +1,5 @@
 <script lang="ts">
-	import DeleteDialog from '@rentable/design/block/delete-dialog.svelte';
+	import ConfirmDialog from '@rentable/design/block/confirm-dialog.svelte';
 	import { LL } from '$lib/i18n/i18n-svelte';
 
 	/**
@@ -11,8 +11,9 @@
 	 * surface offers the act puts this in front of it. The wall offers it while signed out, and the
 	 * organization page offers it while signed in; both mount this and neither asks twice.
 	 *
-	 * **It is the destructive confirm every other loss in the application uses**, the design
-	 * package's delete dialog, worded for this act: the organization leads the sentence as the
+	 * **It is the design package's confirm dialog, named for this act** rather than the delete
+	 * dialog, because disconnecting is not a delete ([[rules/interface]], *Delete and confirm*):
+	 * the title and the control are the act's verb, the organization leads the sentence as the
 	 * record being acted on, the line under it says what the machine loses and what Turso keeps,
 	 * and the destructive control carries the verb. The handler is awaited before the dialog
 	 * closes, and a refusal it throws is shown inside the dialog, so the person is still standing
@@ -33,7 +34,7 @@
 	} = $props();
 </script>
 
-<DeleteDialog
+<ConfirmDialog
 	{open}
 	{onOpenChange}
 	onSubmit={onDisconnect}

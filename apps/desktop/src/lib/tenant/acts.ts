@@ -30,7 +30,7 @@ export type TenantHostRequests = {
 	copyDetails: (tenant: TenantActRecord) => void;
 	/** open the form on this tenant. */
 	edit: (tenant: TenantActRecord) => void;
-	/** ask before deleting this tenant. */
+	/** delete this tenant: at once where nothing refuses it, as its policy says; the host decides. */
 	confirmDelete: (tenant: TenantActRecord) => void;
 };
 
@@ -59,12 +59,14 @@ export function declareTenantActs(host: TenantHostRequests): TenantAct[] {
 		},
 		{
 			// always offered: what a deletion is refused for (contracts held) is read when it is asked,
-			// and the confirmation says it.
+			// and the delete dialog says it.
 			id: 'tenant.delete',
 			label: (t) => t.common.actions.delete(),
 			icon: Trash2Icon,
 			tone: 'error',
 			group: 'destructive',
+			// the record is all it removes, so it runs at once and offers undo.
+			confirmation: 'none',
 			run: host.confirmDelete
 		}
 	];

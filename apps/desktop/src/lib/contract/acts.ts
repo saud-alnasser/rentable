@@ -121,12 +121,14 @@ export function declareContractActs(host: ContractHostRequests): ContractAct[] {
 		},
 		{
 			// always offered: what a deletion is refused for (units held, payments made) is read when
-			// it is asked, and the confirmation says it.
+			// it is asked, and the delete dialog says it.
 			id: 'contract.delete',
 			label: (t) => t.common.actions.delete(),
 			icon: Trash2Icon,
 			tone: 'error',
 			group: 'destructive',
+			// the record is all it removes, so it runs at once and offers undo.
+			confirmation: 'none',
 			run: (contract) => host.confirm('delete', contract)
 		}
 	];

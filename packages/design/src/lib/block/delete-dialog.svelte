@@ -13,7 +13,11 @@
 	const contract = useDesignContract();
 
 	/**
-	 * The one surface that asks before something is destroyed, shared by every action that does.
+	 * The one surface that asks before a delete, and only a delete that still asks: one that removes
+	 * more than the record, or that nothing can take back. An ordinary delete asks nothing and offers
+	 * undo, and an act that is not a delete asks with `confirm-dialog.svelte` under its own verb
+	 * ([[rules/interface]], *Delete and confirm*). It is also where a delete that is refused says
+	 * what refuses it, below.
 	 *
 	 * It is built the way _Semantics are secondary_ (62) builds a confirmation: the action names
 	 * the dialog, the record it acts on leads the sentence below, and the destructive control is

@@ -40,7 +40,7 @@ export type PaymentHostRequests = {
 	duplicate: (payment: PaymentActRecord) => void;
 	/** open the form on this payment. */
 	edit: (payment: PaymentActRecord) => void;
-	/** ask before deleting this payment. */
+	/** delete this payment: at once where nothing refuses it, as its policy says; the host decides. */
 	confirmDelete: (payment: PaymentActRecord) => void;
 };
 
@@ -85,6 +85,8 @@ export function declarePaymentActs(host: PaymentHostRequests): PaymentAct[] {
 			icon: Trash2Icon,
 			tone: 'error',
 			group: 'destructive',
+			// the record is all it removes, so it runs at once and offers undo.
+			confirmation: 'none',
 			appliesTo: isWritable,
 			run: host.confirmDelete
 		}

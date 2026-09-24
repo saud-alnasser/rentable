@@ -270,6 +270,8 @@ export const useDeletePayment = declareMutation({
 		},
 	toast: {
 		success: () => get(LL).contracts.hooks.deletePaymentSuccess(),
+		// no dialog asked first, so the announcement says how long it can be taken back.
+		detail: () => get(LL).common.undo.lasts(),
 		error: false,
 		unexpected: () => get(LL).common.messages.unexpectedError()
 	}

@@ -16,16 +16,18 @@
 		resetComplexHost
 	} from '$lib/complex/host.svelte';
 	import { useDeleteComplex, useFetchUnits, useReadComplex } from '$lib/complex/query';
-	import { toPaletteVerbs } from '$lib/design/acts';
+	import { toDeleteStep, toPaletteVerbs } from '$lib/design/acts';
 	import { onMutationError, onMutationSuccess } from '$lib/design/mutation';
-	import { showErrorSentence, showErrorToast } from '$lib/error/toast';
+	import { showErrorSentence, showErrorToast, showRefusal } from '$lib/error/toast';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { writeDetailsToClipboard } from '$lib/platform/clipboard';
 	import { onDestroy, untrack } from 'svelte';
 	import ComplexForm from './form.svelte';
 
 	/**
-	 * The complex form and the complex's delete confirmation, mounted once for the whole shell.
+	 * The complex form and the complex's delete, mounted once for the whole shell. A delete runs at
+	 * once and offers undo, as its act declares; the dialog is drawn only where something refuses
+	 * it, to say what ([[rules/interface]], *Delete and confirm*).
 	 *
 	 * A complex's acts are one list (`complex/acts.ts`), and every surface offering them is a
 	 * projection of it; what those acts open is here, so there is one `ComplexForm` in the tree.
@@ -65,6 +67,10 @@
 			: [$LL.common.deleteDialog.blockedUnits({ count: held.length })];
 	});
 
+	// whether the delete asks, waits on what refuses it, or runs now, by the act's own policy.
+	const deletePolicy = complexActs.find((act) => act.id === 'complex.delete')?.confirmation;
+	const deleteStep = $derived(deleting ? toDeleteStep(deletePolicy, deleteBlockers) : 'wait');
+
 	async function deleteConfirmed() {
 		if (!deleting) {
 			return;
@@ -74,7 +80,23 @@
 
 		await deleteMutation.mutateAsync(id);
 		closeComplexConfirmation();
+		await leaveDeleted(id);
+	}
 
+	/** A delete nothing asked about: its refusal, where it earns one, is raised rather than held. */
+	async function deleteAtOnce(id: string) {
+		try {
+			await deleteMutation.mutateAsync(id);
+		} catch (error) {
+			showRefusal(error, $LL);
+
+			return;
+		}
+
+		await leaveDeleted(id);
+	}
+
+	async function leaveDeleted(id: string) {
 		const recordPage = resolve(`/complexes/${id}`);
 
 		// the complex's own page is not somewhere back can return to now that the record is gone.
@@ -180,6 +202,18 @@
 		untrack(() => void answerAsked(asked.actId, asked.complexId));
 	});
 
+	// the request is answered once and cleared first, as the two above are.
+	$effect(() => {
+		if (deleteStep !== 'run' || !deleting) {
+			return;
+		}
+
+		const { id } = deleting;
+
+		closeComplexConfirmation();
+		untrack(() => void deleteAtOnce(id));
+	});
+
 	onDestroy(resetComplexHost);
 </script>
 
@@ -196,7 +230,7 @@
 {/key}
 
 <DeleteDialog
-	open={deleting !== null}
+	open={deleting !== null && deleteStep === 'ask'}
 	onOpenChange={(isOpen) => {
 		if (!isOpen) {
 			closeComplexConfirmation();

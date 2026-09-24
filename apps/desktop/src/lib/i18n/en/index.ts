@@ -283,6 +283,7 @@ const en = {
 			createdMany: 'creating {count|number} record(s)',
 			deletedMany: 'deleting {count|number} record(s)',
 			edited: 'editing {record:string}',
+			lasts: 'you can undo this while the app is open.',
 			nothingToRedo: 'nothing to apply again',
 			nothingToUndo: 'nothing to take back',
 			redo: 'redo',
@@ -332,7 +333,7 @@ const en = {
 			blockedDescription: 'this cannot be deleted while the following still depend on it.',
 			blockedPayments: '{count|number} payment(s) recorded against it',
 			blockedUnits: '{count|number} unit(s) belong to it',
-			description: 'you can undo this while the app is open.',
+			description: 'this cannot be undone.',
 			unnamedRecord: 'this record'
 		}
 	},

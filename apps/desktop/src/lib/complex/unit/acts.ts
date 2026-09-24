@@ -35,7 +35,7 @@ export type UnitHostRequests = {
 	copyDetails: (unit: UnitActRecord) => void;
 	/** open the form on this unit. */
 	edit: (unit: UnitActRecord) => void;
-	/** ask before deleting this unit. */
+	/** delete this unit: at once where nothing refuses it, as its policy says; the host decides. */
 	confirmDelete: (unit: UnitActRecord) => void;
 };
 
@@ -64,12 +64,14 @@ export function declareUnitActs(host: UnitHostRequests): UnitAct[] {
 		},
 		{
 			// always offered: what a deletion is refused for (any contract that ever named the unit) is
-			// read when it is asked, and the confirmation says it.
+			// read when it is asked, and the delete dialog says it.
 			id: 'unit.delete',
 			label: (t) => t.common.actions.delete(),
 			icon: Trash2Icon,
 			tone: 'error',
 			group: 'destructive',
+			// the record is all it removes, so it runs at once and offers undo.
+			confirmation: 'none',
 			run: host.confirmDelete
 		}
 	];

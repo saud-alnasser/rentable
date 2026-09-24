@@ -210,6 +210,47 @@ Recorded originally as ADR 0034, *A record card carries its actions twice, and o
 routes*. Revised by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirements 7
 and 8: contract is the first concept declared this way, and the others follow it.
 
+### Delete and confirm
+
+**An ordinary delete happens at once and offers undo.** A record whose delete removes the record
+and nothing else is gone the moment the act is chosen, and the announcement it raises carries the
+undo control and the line saying the undo lasts while the application is open (the declaration's
+`toast.detail` in `design/mutation.ts`). Ctrl/Cmd+Z takes it back as well. There is no dialog in
+front of it.
+
+**A confirmation appears only where a delete removes more than the record, or cannot be undone.**
+Each act declares which, as its `confirmation` in `design/acts.ts`: `none`, `cascade` or
+`irreversible`, and every act in the `destructive` group declares one
+(`design/tests/delete-and-confirm.test.ts` holds each concept to it). The host reads it through
+`toDeleteStep` and opens `packages/design/src/lib/block/delete-dialog.svelte` only when the policy
+asks. Today the tenant, complex, unit, payment and contract deletes are `none`; deleting a
+workspace, removing a member and locking one out are `irreversible`, which keeps the organization
+host's deletes in the delete dialog. The delete dialog's button names the verb (*delete*, *remove*),
+never *confirm* or *OK*.
+
+**A refused delete is still refused, and says why.** A delete declared `none` waits on what might
+refuse it before it runs; where something does (a tenant with contracts, a complex with units), the
+host opens the delete dialog in its blocked state, which names what stands in the way and offers no
+destructive control. The procedure refuses it either way.
+
+**An act that is not a delete confirms in `packages/design/src/lib/block/confirm-dialog.svelte`**,
+titled and labelled with its own verb: terminate, restore, end the other sessions, forget the
+account, disconnect. It has no default title or button word, so a caller cannot fall back to
+*delete*. Its control is destructive for an act that takes something away, and the ordinary
+primary control for one that gives something back (restore).
+
+*Why: a dialog in front of every delete is a question the reader learns to answer without reading,
+which is the worst place for the one delete that really cannot be taken back. Undo answers the
+ordinary case better than a question does, and a confirmation kept for the rare case is one people
+still read. A terminate dialog drawn in the delete dialog's shape said "delete" to the reader in
+every way but its words.*
+
+The cost the spec accepts: undo lasts for the session, so a record deleted without a question is
+lost if the application closes before it is taken back
+([[efforts/832-the-interface-speaks-one-language-and-guides/spec]], *Risks*).
+
+Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 11.
+
 ## Forms
 
 ### Form surface

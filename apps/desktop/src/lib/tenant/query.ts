@@ -276,6 +276,8 @@ export const useDeleteTenant = declareMutation({
 		},
 	toast: {
 		success: () => get(LL).tenants.hooks.deleteSuccess(),
+		// no dialog asked first, so the announcement says how long it can be taken back.
+		detail: () => get(LL).common.undo.lasts(),
 		error: false,
 		unexpected: () => get(LL).common.messages.unexpectedError()
 	}
