@@ -128,7 +128,7 @@ Start at [[protocol]].
 | 824-the-way-in-and-the-workspace-control-are-redesigned | implemented | [[efforts/824-the-way-in-and-the-workspace-control-are-redesigned/spec]] | 0 | 0 | 17 |
 | 826-the-organization-and-the-way-in-are-rethought | implemented | [[efforts/826-the-organization-and-the-way-in-are-rethought/spec]] | 2 | 1 | 22 |
 | 828-the-link-needs-a-code-and-the-settings-area-guides | implemented | [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]] | 5 | 0 | 29 |
-| 832-the-interface-speaks-one-language-and-guides | accepted | [[efforts/832-the-interface-speaks-one-language-and-guides/spec]] | 3 | 4 | 32 |
+| 832-the-interface-speaks-one-language-and-guides | accepted | [[efforts/832-the-interface-speaks-one-language-and-guides/spec]] | 3 | 4 | 33 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -299,9 +299,10 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/832-the-interface-speaks-one-language-and-guides/tickets/24-a-contract-is-created-with-its-units]] feat(contract): a contract is created with its units | 832-the-interface-speaks-one-language-and-guides | resolved | 08, 18, 19 |
 | [[efforts/832-the-interface-speaks-one-language-and-guides/tickets/25-a-contract-starts-where-the-user-is]] feat(contract): a contract starts from a tenant or a unit | 832-the-interface-speaks-one-language-and-guides | resolved | 24 |
 | [[efforts/832-the-interface-speaks-one-language-and-guides/tickets/26-short-copy]] docs(i18n): the words are short and plain | 832-the-interface-speaks-one-language-and-guides | resolved | 21, 23, 25 |
-| [[efforts/832-the-interface-speaks-one-language-and-guides/tickets/27-the-walk]] test(desktop): every route walked in both directions and both appearances | 832-the-interface-speaks-one-language-and-guides | open | 02, 04, 06, 07, 14, 15, 16, 26, 28, 29, 30, 31, 32 |
+| [[efforts/832-the-interface-speaks-one-language-and-guides/tickets/27-the-walk]] test(desktop): every route walked in both directions and both appearances | 832-the-interface-speaks-one-language-and-guides | resolved | 02, 04, 06, 07, 14, 15, 16, 26, 28, 29, 30, 31, 32 |
 | [[efforts/832-the-interface-speaks-one-language-and-guides/tickets/28-the-last-words-read-right]] docs(i18n): counts, create labels and titles read right in both locales | 832-the-interface-speaks-one-language-and-guides | resolved | — |
 | [[efforts/832-the-interface-speaks-one-language-and-guides/tickets/29-direction-and-legibility-hold]] fix(desktop): direction and legibility hold in both reading directions | 832-the-interface-speaks-one-language-and-guides | resolved | — |
 | [[efforts/832-the-interface-speaks-one-language-and-guides/tickets/30-every-set-behaves-alike]] fix(desktop): every set and every missing page behaves alike | 832-the-interface-speaks-one-language-and-guides | resolved | — |
 | [[efforts/832-the-interface-speaks-one-language-and-guides/tickets/31-the-catalogue-holds-every-act]] docs(desktop): the catalogue holds every act, and every difference is resolved or excepted | 832-the-interface-speaks-one-language-and-guides | resolved | 28, 29, 30, 32 |
 | [[efforts/832-the-interface-speaks-one-language-and-guides/tickets/32-few-options-take-a-segmented-control]] feat(organization): a choice of four or fewer takes a segmented control | 832-the-interface-speaks-one-language-and-guides | resolved | — |
+| [[efforts/832-the-interface-speaks-one-language-and-guides/tickets/33-the-last-inconsistencies]] fix(desktop): the last inconsistencies the walk and the catalogue found | 832-the-interface-speaks-one-language-and-guides | open | — |
