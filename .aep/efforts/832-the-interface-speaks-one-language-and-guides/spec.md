@@ -268,11 +268,13 @@ owner; Western digits in both locales.
 
 # Open Questions
 
-- Which typeface pair — settled by prototype on the switcher, before build tickets.
-- The exact form-weight rule (by field count, by kind of act, or by whether the form writes
-  several records) — the plan proposes it.
-- The create key (Ctrl/Cmd+N or another) and whether it collides with anything the webview or OS
-  reserves — the plan checks.
+- Which typeface pair — settled by prototype on the switcher, before build tickets
+  ([[efforts/832-the-interface-speaks-one-language-and-guides/plan]], *Prototypes*).
+- The create key (Ctrl/Cmd+N or another) and whether WebView2 keeps it for itself — settled by
+  the same prototype run.
+
+*Settled 2026-09-24 by the plan:* the form-weight rule — a concept's weight is decided by its
+create form (heavy when it chooses other records or writes several) and holds for edit.
 
 # Risks
 
