@@ -3,9 +3,9 @@
 	import FormSurface from '@rentable/design/block/form-surface.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { onSubmit } from '$lib/design/form';
+	import { showErrorSentence } from '$lib/error/toast';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import LinkHandover from '$lib/organization/component/link-handover.svelte';
-	import { toast } from 'svelte-sonner';
 
 	/**
 	 * The link and the code one act made for an account, shown once (effort 828, requirement 20).
@@ -54,7 +54,7 @@
 			await navigator.clipboard.writeText(made.link);
 			copied = true;
 		} catch {
-			toast.error($LL.common.messages.unexpectedError());
+			showErrorSentence($LL.common.messages.unexpectedError());
 		}
 	};
 

@@ -1,7 +1,7 @@
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 
 import { toErrorMessage } from '$lib/error/message';
-import { toast } from 'svelte-sonner';
+import { showErrorSentence, showSuccessToast } from '$lib/error/toast';
 
 /**
  * WHAT THE UPDATES SECTION SAYS, AND WHERE IT SAYS IT
@@ -83,11 +83,9 @@ export function announceUpdateOutcome(outcome: UpdateOutcome, translations: Tran
 		return;
 	}
 
-	const options = { description: announcement.detail ?? undefined };
-
 	if (announcement.tone === 'success') {
-		toast.success(announcement.title, options);
+		showSuccessToast(announcement.title, announcement.detail);
 	} else {
-		toast.error(announcement.title, options);
+		showErrorSentence(announcement.title, announcement.detail);
 	}
 }

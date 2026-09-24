@@ -6,9 +6,11 @@
 	import { tauri } from '$lib/platform/tauri';
 	import DeleteDialog from '@rentable/design/block/delete-dialog.svelte';
 	import { AWAITING_BLOCKERS } from '@rentable/design/confirmation.js';
+	import Loading from '@rentable/design/block/loading.svelte';
+	import PageFrame from '@rentable/design/block/page-frame.svelte';
 	import StandaloneSurface from '@rentable/design/block/standalone-surface.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
-	import { Spinner } from '@rentable/design/primitive/spinner/index.js';
+	import { Skeleton } from '@rentable/design/primitive/skeleton/index.js';
 	import { toErrorText } from '$lib/error/message';
 	import { showErrorToast } from '$lib/error/toast';
 	import { LL, locale, setLocale } from '$lib/i18n/i18n-svelte';
@@ -40,7 +42,6 @@
 	import SettingsArea from '$lib/settings/component/area.svelte';
 	import { useFetchRemoteSyncState, useFetchSettings } from '$lib/settings/query';
 	import { sectionOf } from '$lib/settings/section';
-	import { toast } from 'svelte-sonner';
 
 	/**
 	 * Everything a person sets, at one address.
@@ -107,7 +108,7 @@
 		try {
 			await tauri.opener.revealItemInDir(diagnosticsDir);
 		} catch (error) {
-			toast.error(toErrorText(error, $LL));
+			showErrorToast(error, $LL);
 		}
 	}
 
@@ -349,103 +350,116 @@
 	};
 </script>
 
-{#if isLoading}
-	<div class="flex min-h-full flex-1 items-center justify-center p-1">
-		<div class="flex flex-col items-center gap-3">
-			<Spinner class="size-8 text-muted-foreground" />
-			<p class="text-sm text-muted-foreground">{$LL.common.messages.loadingSettings()}</p>
-		</div>
-	</div>
-{:else if loadError}
-	<!-- no description between the title and the failure: the title says the settings are not
-	     available and the line below says why, so a sentence in between only says it a third
-	     time in weaker words. -->
-	<!-- neutral: settings failing to load leaves the rest of the application working. -->
-	<StandaloneSurface tone="neutral" title={$LL.settings.loadErrorTitle()}>
-		<p class="text-sm text-muted-foreground">{toErrorText(loadError, $LL)}</p>
+<Loading loading={isLoading} label={$LL.common.messages.loadingSettings()}>
+	<!-- the shape of the area: the title, the rail of sections under it, and a section's fields. -->
+	{#snippet skeleton()}
+		<PageFrame>
+			<Skeleton class="h-9 w-40" />
+			<div class="flex gap-6 border-b pb-3">
+				{#each { length: 4 }, index (index)}
+					<Skeleton class="h-4 w-20" />
+				{/each}
+			</div>
+			{#each { length: 3 }, index (index)}
+				<div class="flex flex-col gap-2">
+					<Skeleton class="h-4 w-32" />
+					<Skeleton class="h-9 w-full max-w-md" />
+				</div>
+			{/each}
+		</PageFrame>
+	{/snippet}
 
-		{#snippet actions()}
-			<Button onclick={() => void settingsQuery.refetch()}>
-				{$LL.common.actions.retry()}
-			</Button>
-		{/snippet}
-	</StandaloneSurface>
-{:else if settingsQuery.data}
-	<SettingsArea
-		{section}
-		settings={settingsQuery.data}
-		{session}
-		holdsTursoAuthority={stateQuery.data?.holdsTursoAuthority === true}
-		syncState={remoteSyncQuery.data ?? null}
-		members={membersQuery.data ?? []}
-		standings={standingsQuery.data ?? []}
-		{makingLink}
-		{unsetting}
-		{endingSessions}
-		isChangingPassword={changePassword.isPending}
-		isChangingRole={changeRole.isPending}
-		isChangingAccess={changeAccess.isPending}
-		isOffering={offerOwnership.isPending}
-		isWithdrawing={withdrawOffer.isPending}
-		isAcceptingOwnership={acceptOwnership.isPending}
-		isDeletingOrganization={deleteOrganization.isPending}
-		onChangeLocale={(next) => void changeLocale(next)}
-		onRevealDiagnostics={() => void revealDiagnostics()}
-		onChangePassword={async (current, next) => {
-			await changePassword.mutateAsync({ current, next });
-		}}
-		onEndOtherSessions={async () => {
-			await endOtherSessions.mutateAsync();
-		}}
-		onEndSessions={(memberId) => void endSessions(memberId)}
-		onMakeLink={(memberId) => void makeLink(memberId)}
-		onUnsetPassword={(memberId) => void unsetPassword(memberId)}
-		onRemove={(memberId) => {
-			removing = { memberId, lockOut: false };
-		}}
-		onLockOut={(memberId) => {
-			removing = { memberId, lockOut: true };
-		}}
-		onRename={async (memberId, username) => {
-			await renameMember.mutateAsync({ memberId, username });
-		}}
-		onChangeRole={async (memberId, role, permissions) => {
-			await changeRole.mutateAsync({ memberId, role, permissions });
-		}}
-		onChangeAccess={changeMemberAccess}
-		onOfferOwnership={offer}
-		onWithdrawOffer={() => void withdraw()}
-		onAcceptOwnership={accept}
-		onChangeWorkspaceAccess={changeWorkspaceAccess}
-		onDeleteWorkspace={removeWorkspace}
-		onAuthorityReconnected={() => void stateQuery.refetch()}
-		onDeleteOrganization={removeOrganization}
-		onDisconnect={disconnect}
-	/>
+	{#if loadError}
+		<!-- no description between the title and the failure: the title says the settings are not
+		     available and the line below says why, so a sentence in between only says it a third
+		     time in weaker words. -->
+		<!-- neutral: settings failing to load leaves the rest of the application working. -->
+		<StandaloneSurface tone="neutral" title={$LL.settings.loadErrorTitle()}>
+			<p class="text-sm text-muted-foreground">{toErrorText(loadError, $LL)}</p>
 
-	<!-- the ordinary removal asks once and says what it does not do: nothing on the member's
-	     machine is taken back. The lock-out asks with the cost read first, and names how many
-	     others stop syncing, because turso revokes per database and totally.
+			{#snippet actions()}
+				<Button onclick={() => void settingsQuery.refetch()}>
+					{$LL.common.actions.retry()}
+				</Button>
+			{/snippet}
+		</StandaloneSurface>
+	{:else if settingsQuery.data}
+		<SettingsArea
+			{section}
+			settings={settingsQuery.data}
+			{session}
+			holdsTursoAuthority={stateQuery.data?.holdsTursoAuthority === true}
+			syncState={remoteSyncQuery.data ?? null}
+			members={membersQuery.data ?? []}
+			standings={standingsQuery.data ?? []}
+			{makingLink}
+			{unsetting}
+			{endingSessions}
+			isChangingPassword={changePassword.isPending}
+			isChangingRole={changeRole.isPending}
+			isChangingAccess={changeAccess.isPending}
+			isOffering={offerOwnership.isPending}
+			isWithdrawing={withdrawOffer.isPending}
+			isAcceptingOwnership={acceptOwnership.isPending}
+			isDeletingOrganization={deleteOrganization.isPending}
+			onChangeLocale={(next) => void changeLocale(next)}
+			onRevealDiagnostics={() => void revealDiagnostics()}
+			onChangePassword={async (current, next) => {
+				await changePassword.mutateAsync({ current, next });
+			}}
+			onEndOtherSessions={async () => {
+				await endOtherSessions.mutateAsync();
+			}}
+			onEndSessions={(memberId) => void endSessions(memberId)}
+			onMakeLink={(memberId) => void makeLink(memberId)}
+			onUnsetPassword={(memberId) => void unsetPassword(memberId)}
+			onRemove={(memberId) => {
+				removing = { memberId, lockOut: false };
+			}}
+			onLockOut={(memberId) => {
+				removing = { memberId, lockOut: true };
+			}}
+			onRename={async (memberId, username) => {
+				await renameMember.mutateAsync({ memberId, username });
+			}}
+			onChangeRole={async (memberId, role, permissions) => {
+				await changeRole.mutateAsync({ memberId, role, permissions });
+			}}
+			onChangeAccess={changeMemberAccess}
+			onOfferOwnership={offer}
+			onWithdrawOffer={() => void withdraw()}
+			onAcceptOwnership={accept}
+			onChangeWorkspaceAccess={changeWorkspaceAccess}
+			onDeleteWorkspace={removeWorkspace}
+			onAuthorityReconnected={() => void stateQuery.refetch()}
+			onDeleteOrganization={removeOrganization}
+			onDisconnect={disconnect}
+		/>
 
-	     It sits here rather than in the area because it reads a query of its own, and the area
-	     reads none; the members section raises it through `onRemove` and `onLockOut`. -->
-	<DeleteDialog
-		open={removing !== null}
-		onOpenChange={(open) => {
-			if (!open) removing = null;
-		}}
-		onSubmit={confirmRemoval}
-		record={removingName}
-		title={removing?.lockOut
-			? $LL.organization.dashboard.removeAndLockOut()
-			: $LL.organization.dashboard.remove()}
-		description={removing?.lockOut
-			? lockOutDescription
-			: $LL.organization.dashboard.removeDescription()}
-		confirmLabel={removing?.lockOut
-			? $LL.organization.dashboard.removeAndLockOut()
-			: $LL.organization.dashboard.remove()}
-		confirmLoadingLabel={$LL.common.actions.working()}
-		blockers={removing?.lockOut && !lockOutCost.data ? AWAITING_BLOCKERS : undefined}
-	/>
-{/if}
+		<!-- the ordinary removal asks once and says what it does not do: nothing on the member's
+		     machine is taken back. The lock-out asks with the cost read first, and names how many
+		     others stop syncing, because turso revokes per database and totally.
+
+		     It sits here rather than in the area because it reads a query of its own, and the area
+		     reads none; the members section raises it through `onRemove` and `onLockOut`. -->
+		<DeleteDialog
+			open={removing !== null}
+			onOpenChange={(open) => {
+				if (!open) removing = null;
+			}}
+			onSubmit={confirmRemoval}
+			record={removingName}
+			title={removing?.lockOut
+				? $LL.organization.dashboard.removeAndLockOut()
+				: $LL.organization.dashboard.remove()}
+			description={removing?.lockOut
+				? lockOutDescription
+				: $LL.organization.dashboard.removeDescription()}
+			confirmLabel={removing?.lockOut
+				? $LL.organization.dashboard.removeAndLockOut()
+				: $LL.organization.dashboard.remove()}
+			confirmLoadingLabel={$LL.common.actions.working()}
+			blockers={removing?.lockOut && !lockOutCost.data ? AWAITING_BLOCKERS : undefined}
+		/>
+	{/if}
+</Loading>

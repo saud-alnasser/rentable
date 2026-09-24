@@ -69,10 +69,13 @@ export type DesignStrings = {
 	goToNextPage: string;
 	/** the accessible name of a pagination control that goes back a page. */
 	goToPreviousPage: string;
-	/** the accessible name of a spinner, which is a `role="status"` with nothing else to read. */
+	/**
+	 * the accessible name of a spinner or a loading skeleton, each a `role="status"` with nothing
+	 * else to read.
+	 */
 	loading: string;
 	/**
-	 * what a record surface says beneath its spinner while the record is still being read.
+	 * what a record surface's skeleton says to a screen reader while the record is still being read.
 	 *
 	 * **A sentence about the record, not about the application.** This block is shared by every
 	 * concept, so it cannot name which kind of record is on its way, and a consumer that supplies

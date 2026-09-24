@@ -35,6 +35,7 @@
 		observeContractEndDateInputs
 	} from '$lib/contract/end-date';
 	import { getContractRenewalTerm } from '$lib/contract/renewal';
+	import { onMutationError } from '$lib/design/mutation';
 	import {
 		useCreateContract,
 		useFetchContract,
@@ -47,7 +48,6 @@
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import { TRPCError } from '@trpc/server';
-	import { toast } from 'svelte-sonner';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';
 	import { z } from 'zod';
@@ -303,7 +303,7 @@
 						} else if (e.message.includes('tenant')) {
 							setError(form, 'tenantId', $LL.contracts.form.invalidTenant());
 						} else {
-							toast.error(e.message);
+							onMutationError({ toast: { error: true } }, e);
 						}
 					}
 				}

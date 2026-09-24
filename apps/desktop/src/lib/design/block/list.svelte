@@ -1,6 +1,7 @@
 <script lang="ts" generics="TData extends { id: string }, TGroup extends ListGroup">
 	import { browser } from '$app/environment';
 	import ExportDialog from '@rentable/design/block/export-dialog.svelte';
+	import Loading from '@rentable/design/block/loading.svelte';
 	import RecordActionControl from '@rentable/design/block/record-action-control.svelte';
 	import {
 		writeExport,
@@ -35,7 +36,7 @@
 	import { selectedRecords } from '@rentable/design/selection.js';
 	import DownloadIcon from '@lucide/svelte/icons/download';
 	import { isolateDirection } from '$lib/error/message';
-	import { showErrorToast } from '$lib/error/toast';
+	import { showErrorToast, showSuccessToast } from '$lib/error/toast';
 	import { isEditingText } from '@rentable/design/shortcut.js';
 	import { shortcuts } from '$lib/design/shortcut-registry.svelte';
 	import { nextListSort, type ListSort } from '@rentable/design/sort.js';
@@ -43,7 +44,7 @@
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import { tauri } from '$lib/platform/tauri';
-	import { Spinner } from '@rentable/design/primitive/spinner/index.js';
+	import { Skeleton } from '@rentable/design/primitive/skeleton/index.js';
 	import ArrowsSortIcon from '@tabler/icons-svelte/icons/arrows-sort';
 	import CheckIcon from '@tabler/icons-svelte/icons/check';
 	import ChecklistIcon from '@tabler/icons-svelte/icons/list-check';
@@ -55,7 +56,6 @@
 	import SearchIcon from '@tabler/icons-svelte/icons/search';
 	import XIcon from '@tabler/icons-svelte/icons/x';
 	import { createVirtualizer } from '@tanstack/svelte-virtual';
-	import { toast } from 'svelte-sonner';
 	import { tick, type Snippet } from 'svelte';
 	import { get } from 'svelte/store';
 
@@ -207,6 +207,9 @@
 	// the grid overscanned two rows of cards; a record row is a fraction of a card's height,
 	// so the same two rows would buy a fraction of the distance ahead of the scroll.
 	const OVERSCAN_ROWS = 8;
+	// as many cards as the tallest window shows before the first result lands; the frame clips
+	// the rest.
+	const SKELETON_ROWS = 12;
 
 	let isExporting = $state(false);
 	/**
@@ -258,7 +261,7 @@
 
 			// the path is isolated because it is written left to right whatever the sentence
 			// around it is, and an unisolated one reorders the Arabic it is spliced into.
-			toast.success($LL.common.messages.exported({ path: isolateDirection(path) }));
+			showSuccessToast($LL.common.messages.exported({ path: isolateDirection(path) }));
 
 			// a file manager that will not open is not a failed export: the file is written and
 			// the user has been told where.
@@ -301,6 +304,12 @@
 	// the reader's window decides how many records fit, and the query knows nothing about it.
 	const columns = $derived(
 		recordMinWidth ? Math.max(1, Math.floor(viewportWidth / recordMinWidth)) : 1
+	);
+	// the skeleton stands where the viewport will be, before there is a viewport to measure, so it
+	// counts its columns off the frame around both.
+	let frameWidth = $state(0);
+	const skeletonColumns = $derived(
+		recordMinWidth ? Math.max(1, Math.floor(frameWidth / recordMinWidth)) : 1
 	);
 	// grouping without a header snippet would insert rows that render nothing and still take
 	// up a header's height, so the two props only take effect as a pair.
@@ -822,69 +831,85 @@
 
 	<!-- no frame of its own: the cards carry their own edges, and a bordered box drawn around
 	     bordered rows is the arrangement _Use fewer borders_ (238) exists to replace. -->
-	<div class="min-h-0 flex-1 overflow-hidden rounded-3xl">
-		{#if isAwaitingFirstResults}
-			<div class="flex h-full items-center justify-center" aria-busy="true">
-				<Spinner class="size-6 text-muted-foreground" />
-				<span class="sr-only">{$LL.common.ui.loading()}</span>
-			</div>
-		{:else if !hasResults}
-			<Empty.Root class="h-full">
-				<Empty.Header>
-					<Empty.Title>{emptyTitle}</Empty.Title>
-					{#if emptyDescription}
-						<Empty.Description>{emptyDescription}</Empty.Description>
-					{/if}
-				</Empty.Header>
-			</Empty.Root>
-		{:else}
-			<div
-				bind:this={viewport}
-				bind:clientWidth={viewportWidth}
-				class="h-full overflow-y-auto"
-				aria-busy={isFetching || undefined}
-			>
-				<div class="relative w-full" style={`height: ${totalHeight}px;`}>
-					{#each virtualRows as virtualRow (virtualRow.key)}
-						{@const row = rows[virtualRow.index]}
-						{#if row}
-							<!-- the row is not clipped, and that is a trade rather than an oversight: the
-							     clip used to make a card that outgrew its declared height visible where it
-							     was caused, and a card that lifts on hover has to leave its row. The two
-							     cannot both hold, so an outgrown card now overlaps the one below instead of
-							     being cut — still visible, and still fixed by raising `recordHeight`. -->
-							<div
-								data-index={virtualRow.index}
-								class={cn(ROW_INSET, 'absolute start-0 top-0 w-full')}
-								style={`height: ${virtualRow.size}px; padding-bottom: ${ROW_GAP}px; transform: translateY(${virtualRow.start}px);`}
-							>
-								<!-- each record renders inside a cell of the block's own, so a move can name the
-								     record it lands on and find it again in the document. Nothing else hangs
-								     off it: the card is still the concept's, and the cell is the address. -->
-								{#if row.kind === 'header'}
-									{@render groupHeader?.(row.group)}
-								{:else if columns === 1}
-									<div data-record="0" class="h-full">
-										{@render selectableRecord(row.records[0])}
-									</div>
-								{:else}
-									<div
-										class="grid h-full"
-										style={`grid-template-columns: repeat(${columns}, minmax(0, 1fr));`}
-									>
-										{#each row.records as item, column (item.id)}
-											<div data-record={column} class="h-full min-w-0">
-												{@render selectableRecord(item)}
-											</div>
-										{/each}
-									</div>
-								{/if}
-							</div>
+	<div class="min-h-0 flex-1 overflow-hidden rounded-3xl" bind:clientWidth={frameWidth}>
+		<Loading
+			loading={isAwaitingFirstResults}
+			label={$LL.common.ui.loading()}
+			class={cn(ROW_INSET, 'flex h-full flex-col overflow-hidden')}
+		>
+			<!-- the shape of the first screenful: cards at the height and in the columns the rows will
+			     take, with the gap the virtualizer puts before and between them. -->
+			{#snippet skeleton()}
+				{#each { length: SKELETON_ROWS }, index (index)}
+					<div
+						class="grid shrink-0 gap-3"
+						style={`height: ${recordHeight}px; margin-top: ${ROW_GAP}px; grid-template-columns: repeat(${skeletonColumns}, minmax(0, 1fr));`}
+					>
+						{#each { length: skeletonColumns }, column (column)}
+							<Skeleton class="h-full rounded-2xl" />
+						{/each}
+					</div>
+				{/each}
+			{/snippet}
+
+			{#if !hasResults}
+				<Empty.Root class="h-full">
+					<Empty.Header>
+						<Empty.Title>{emptyTitle}</Empty.Title>
+						{#if emptyDescription}
+							<Empty.Description>{emptyDescription}</Empty.Description>
 						{/if}
-					{/each}
+					</Empty.Header>
+				</Empty.Root>
+			{:else}
+				<div
+					bind:this={viewport}
+					bind:clientWidth={viewportWidth}
+					class="h-full overflow-y-auto"
+					aria-busy={isFetching || undefined}
+				>
+					<div class="relative w-full" style={`height: ${totalHeight}px;`}>
+						{#each virtualRows as virtualRow (virtualRow.key)}
+							{@const row = rows[virtualRow.index]}
+							{#if row}
+								<!-- the row is not clipped, and that is a trade rather than an oversight: the
+								     clip used to make a card that outgrew its declared height visible where it
+								     was caused, and a card that lifts on hover has to leave its row. The two
+								     cannot both hold, so an outgrown card now overlaps the one below instead of
+								     being cut — still visible, and still fixed by raising `recordHeight`. -->
+								<div
+									data-index={virtualRow.index}
+									class={cn(ROW_INSET, 'absolute start-0 top-0 w-full')}
+									style={`height: ${virtualRow.size}px; padding-bottom: ${ROW_GAP}px; transform: translateY(${virtualRow.start}px);`}
+								>
+									<!-- each record renders inside a cell of the block's own, so a move can name the
+									     record it lands on and find it again in the document. Nothing else hangs
+									     off it: the card is still the concept's, and the cell is the address. -->
+									{#if row.kind === 'header'}
+										{@render groupHeader?.(row.group)}
+									{:else if columns === 1}
+										<div data-record="0" class="h-full">
+											{@render selectableRecord(row.records[0])}
+										</div>
+									{:else}
+										<div
+											class="grid h-full"
+											style={`grid-template-columns: repeat(${columns}, minmax(0, 1fr));`}
+										>
+											{#each row.records as item, column (item.id)}
+												<div data-record={column} class="h-full min-w-0">
+													{@render selectableRecord(item)}
+												</div>
+											{/each}
+										</div>
+									{/if}
+								</div>
+							{/if}
+						{/each}
+					</div>
 				</div>
-			</div>
-		{/if}
+			{/if}
+		</Loading>
 	</div>
 </div>
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Callout } from '@rentable/design/primitive/callout/index.js';
 	import { Input } from '@rentable/design/primitive/input/index.js';
 	import { cn } from '@rentable/design/tailwind.js';
 	import UnitPane from './unit-pane.svelte';
@@ -73,11 +74,11 @@
 
 <div class="flex min-h-0 flex-1 flex-col gap-3">
 	{#if lockNotice}
-		<p
-			class="shrink-0 rounded-2xl border border-destructive/40 bg-destructive/10 px-4 py-2.5 text-start text-xs text-muted-foreground"
-		>
+		<!-- info rather than error: a locked contract is working as it should, and the notice says
+		     why the transfer controls are absent rather than that something failed. -->
+		<Callout tone="info" class="shrink-0 text-start" data-lock-notice>
 			{lockNotice}
-		</p>
+		</Callout>
 	{:else}
 		<p class="shrink-0 text-start text-xs text-muted-foreground">
 			{$LL.contracts.units.transferDescription()}

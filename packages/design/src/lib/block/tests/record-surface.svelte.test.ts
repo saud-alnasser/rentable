@@ -1,9 +1,10 @@
+import { LOADING_DELAY } from '#lib/block/loading.svelte';
 import RecordSurface from '#lib/block/record-surface.svelte';
 import { type DesignStrings } from '#lib/strings.js';
 import { suppliedStrings } from '#tests/contract-strings.js';
 import Providers from '#tests/providers.svelte';
-import { render } from '@testing-library/svelte';
-import { expect, test } from 'vitest';
+import { act, render } from '@testing-library/svelte';
+import { expect, test, vi } from 'vitest';
 
 /**
  * The two states of this surface that are words rather than a record, and the first component test
@@ -39,10 +40,19 @@ const surface = (props: Record<string, unknown>, strings: Partial<DesignStrings>
 		}
 	);
 
-test('a record on its way says so, in the words the contract was handed', () => {
-	surface({ isLoading: true }, { loadingRecord: 'the record is on its way' });
+test('a record on its way says so, in the words the contract was handed', async () => {
+	vi.useFakeTimers();
 
-	expect(document.body.textContent).toContain('the record is on its way');
+	try {
+		surface({ isLoading: true }, { loadingRecord: 'the record is on its way' });
+
+		// the loading block says nothing before its delay, which `loading.svelte.test.ts` covers.
+		await act(() => vi.advanceTimersByTime(LOADING_DELAY));
+
+		expect(document.body.textContent).toContain('the record is on its way');
+	} finally {
+		vi.useRealTimers();
+	}
 });
 
 test('a record that is not there says so, and does not say it is loading', () => {
@@ -55,7 +65,7 @@ test('a record that is not there says so, and does not say it is loading', () =>
 	expect(document.body.textContent).not.toContain('the record is on its way');
 });
 
-test('the loading state is the one that draws the spinner, and it is a status', () => {
+test('the loading state is marked busy from the start', () => {
 	const { container } = surface({ isLoading: true });
 
 	expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();

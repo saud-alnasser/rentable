@@ -15,9 +15,10 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import BackControl from '#lib/block/back-control.svelte';
+	import Loading from '#lib/block/loading.svelte';
 	import PageFrame from '#lib/block/page-frame.svelte';
 	import * as Empty from '#lib/primitive/empty/index.js';
-	import { Spinner } from '#lib/primitive/spinner/index.js';
+	import { Skeleton } from '#lib/primitive/skeleton/index.js';
 	import * as Tabs from '#lib/primitive/tabs/index.js';
 	import { useDesignContract } from '#lib/strings.js';
 
@@ -117,99 +118,109 @@
 <!-- fills: a record's collections scroll inside their own panel, which they cannot do unless the
      frame above them is exactly as tall as the window. -->
 <PageFrame fills>
-	{#if isLoading}
-		<div class="flex flex-1 items-center justify-center" aria-busy="true">
-			<div class="flex flex-col items-center gap-3">
-				<Spinner class="size-8 text-muted-foreground" />
-				<p class="text-sm text-muted-foreground">{contract.strings.loadingRecord}</p>
+	<Loading loading={isLoading} label={contract.strings.loadingRecord} class="flex flex-col gap-4">
+		<!-- the shape of the header every record draws: the back control and the action cluster on
+		     one line, then the eyebrow, the name and the identity beneath it, then the fields. -->
+		{#snippet skeleton()}
+			<div class="flex items-start justify-between gap-3">
+				<Skeleton class="size-8 rounded-full" />
+				<Skeleton class="h-8 w-32 rounded-full" />
 			</div>
-		</div>
-	{:else if !found}
-		<!-- the back control keeps its usual place, so a record that is not there is still a
-		     screen the reader can leave the way they leave every other one. -->
-		<div>
-			<BackControl fallback={backFallback} />
-		</div>
+			<div class="space-y-2">
+				<Skeleton class="h-3 w-20" />
+				<Skeleton class="h-8 w-64 max-w-full" />
+				<Skeleton class="h-4 w-40" />
+			</div>
+			<Skeleton class="h-24 w-full rounded-xl" />
+		{/snippet}
 
-		<Empty.Root class="flex-1">
-			<Empty.Header>
-				<Empty.Title>{contract.strings.noResults}</Empty.Title>
-			</Empty.Header>
-		</Empty.Root>
-	{:else}
-		<!-- the record and its own fields are one group, and the gap inside it is smaller than
-		     the gap to the collection below: spacing is what says the fields belong to the record
-		     rather than to the list (_Avoid ambiguous spacing_).
+		{#if !found}
+			<!-- the back control keeps its usual place, so a record that is not there is still a
+			     screen the reader can leave the way they leave every other one. -->
+			<div>
+				<BackControl fallback={backFallback} />
+			</div>
 
-		     no panel behind any of it. Four treatments were prototyped and every one that put the
-		     record on the page background beat the one that kept a filled slab — the slab spent a
-		     third of the window on a name and left the fields reading as though they belonged to
-		     nothing. -->
-		<div class="flex shrink-0 flex-col gap-4">
-			<header>
-				<div class="flex items-start justify-between gap-3 rtl:flex-row-reverse">
-					<BackControl fallback={backFallback} />
+			<Empty.Root class="flex-1">
+				<Empty.Header>
+					<Empty.Title>{contract.strings.noResults}</Empty.Title>
+				</Empty.Header>
+			</Empty.Root>
+		{:else}
+			<!-- the record and its own fields are one group, and the gap inside it is smaller than
+			     the gap to the collection below: spacing is what says the fields belong to the record
+			     rather than to the list (_Avoid ambiguous spacing_).
 
-					{#if actions}
-						<div class="flex flex-wrap items-center justify-end gap-2">
-							{@render actions()}
-						</div>
-					{/if}
-				</div>
+			     no panel behind any of it. Four treatments were prototyped and every one that put the
+			     record on the page background beat the one that kept a filled slab — the slab spent a
+			     third of the window on a name and left the fields reading as though they belonged to
+			     nothing. -->
+			<div class="flex shrink-0 flex-col gap-4">
+				<header>
+					<div class="flex items-start justify-between gap-3 rtl:flex-row-reverse">
+						<BackControl fallback={backFallback} />
 
-				<div class="mt-4 min-w-0 space-y-1 text-start">
-					<p class="text-xs tracking-[0.2em] text-muted-foreground uppercase">{eyebrow}</p>
-					<h1 class="truncate text-2xl font-semibold tracking-tight sm:text-3xl">{title}</h1>
-					{#if identity}
-						<div class="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-							{@render identity()}
-						</div>
-					{/if}
-				</div>
-			</header>
+						{#if actions}
+							<div class="flex flex-wrap items-center justify-end gap-2">
+								{@render actions()}
+							</div>
+						{/if}
+					</div>
 
-			<!-- no inset of its own: the fields align with the header and the collection below,
-			     which are the page's own edges. -->
-			{#if fields}
-				{@render fields()}
-			{/if}
-		</div>
+					<div class="mt-4 min-w-0 space-y-1 text-start">
+						<p class="text-xs tracking-[0.2em] text-muted-foreground uppercase">{eyebrow}</p>
+						<h1 class="truncate text-2xl font-semibold tracking-tight sm:text-3xl">{title}</h1>
+						{#if identity}
+							<div class="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+								{@render identity()}
+							</div>
+						{/if}
+					</div>
+				</header>
 
-		{#if isChoosable}
-			<Tabs.Root bind:value={chosen} class="min-h-0 flex-1 gap-3">
-				<Tabs.List class="shrink-0 self-start">
+				<!-- no inset of its own: the fields align with the header and the collection below,
+				     which are the page's own edges. -->
+				{#if fields}
+					{@render fields()}
+				{/if}
+			</div>
+
+			{#if isChoosable}
+				<Tabs.Root bind:value={chosen} class="min-h-0 flex-1 gap-3">
+					<Tabs.List class="shrink-0 self-start">
+						{#each collections as collection (collection.value)}
+							<!-- the chosen collection is marked by a value step rather than by the
+							     primitive's solid `primary` fill: with the panel and the tiles gone there is
+							     nothing else loud on the surface, and a filled switcher would lead a screen
+							     nobody opened to change sections on. -->
+							<Tabs.Trigger
+								value={collection.value}
+								class="capitalize data-[state=active]:bg-accent data-[state=active]:text-foreground"
+							>
+								{collection.label}
+							</Tabs.Trigger>
+						{/each}
+					</Tabs.List>
+
 					{#each collections as collection (collection.value)}
-						<!-- the chosen collection is marked by a value step rather than by the
-						     primitive's solid `primary` fill: with the panel and the tiles gone there is
-						     nothing else loud on the surface, and a filled switcher would lead a screen
-						     nobody opened to change sections on. -->
-						<Tabs.Trigger
-							value={collection.value}
-							class="capitalize data-[state=active]:bg-accent data-[state=active]:text-foreground"
-						>
-							{collection.label}
-						</Tabs.Trigger>
+						<!-- a flex column, not merely a sized box: the panel is a block by default, so a
+						     collection inside it asking for a share of the height resolves against nothing
+						     and grows without bound — the list then runs past the window instead of
+						     scrolling inside it, and anything pinned to its scroll edge has nothing to
+						     pin against. Only a record with more than one collection takes this path,
+						     which is why exactly one screen showed it. -->
+						<Tabs.Content value={collection.value} class="flex min-h-0 flex-1 flex-col">
+							{@render collection.content()}
+						</Tabs.Content>
 					{/each}
-				</Tabs.List>
-
-				{#each collections as collection (collection.value)}
-					<!-- a flex column, not merely a sized box: the panel is a block by default, so a
-					     collection inside it asking for a share of the height resolves against nothing
-					     and grows without bound — the list then runs past the window instead of
-					     scrolling inside it, and anything pinned to its scroll edge has nothing to
-					     pin against. Only a record with more than one collection takes this path,
-					     which is why exactly one screen showed it. -->
-					<Tabs.Content value={collection.value} class="flex min-h-0 flex-1 flex-col">
-						{@render collection.content()}
-					</Tabs.Content>
-				{/each}
-			</Tabs.Root>
-		{:else if collections.length === 1}
-			{@const only = collections[0]}
-			<section class="flex min-h-0 flex-1 flex-col gap-3">
-				{@render heading(only.label)}
-				{@render only.content()}
-			</section>
+				</Tabs.Root>
+			{:else if collections.length === 1}
+				{@const only = collections[0]}
+				<section class="flex min-h-0 flex-1 flex-col gap-3">
+					{@render heading(only.label)}
+					{@render only.content()}
+				</section>
+			{/if}
 		{/if}
-	{/if}
+	</Loading>
 </PageFrame>

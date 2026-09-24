@@ -3,6 +3,7 @@
 	import { isFilterPeriod, type FilterPeriod } from '$lib/api/period';
 	import * as Cell from '$lib/design/cell';
 	import { PERIOD_FILTER, toFilterOptions } from '$lib/design/filter';
+	import Loading from '@rentable/design/block/loading.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as DropdownMenu from '@rentable/design/primitive/dropdown-menu/index.js';
 	import * as Empty from '@rentable/design/primitive/empty/index.js';
@@ -11,7 +12,7 @@
 	import DashboardSectionCard from '$lib/dashboard/component/section.svelte';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { formatLocaleRangeWithUnit } from '$lib/platform/locale';
-	import { Spinner } from '@rentable/design/primitive/spinner/index.js';
+	import { Skeleton } from '@rentable/design/primitive/skeleton/index.js';
 	import CheckIcon from '@tabler/icons-svelte/icons/check';
 	import ChevronDownIcon from '@tabler/icons-svelte/icons/chevron-down';
 	import CoinIcon from '@tabler/icons-svelte/icons/coin';
@@ -188,21 +189,37 @@
 		</a>
 	</div>
 
-	{#if workQueueQuery.isLoading}
-		<div class="flex flex-1 items-center justify-center py-16" aria-busy="true">
-			<Spinner class="size-6 text-muted-foreground" />
-			<span class="sr-only">{$LL.common.ui.loading()}</span>
-		</div>
-	{:else if sections.length === 0}
-		<Empty.Root class="rounded-2xl border border-dashed">
-			<Empty.Header>
-				<Empty.Title>{$LL.dashboard.empty.title()}</Empty.Title>
-				<Empty.Description>{$LL.dashboard.empty.description()}</Empty.Description>
-			</Empty.Header>
-		</Empty.Root>
-	{:else}
-		{#each sections as section (section.summary.rank)}
-			<DashboardSectionCard {section} />
-		{/each}
-	{/if}
+	<Loading
+		loading={workQueueQuery.isLoading}
+		label={$LL.common.ui.loading()}
+		class="flex flex-col gap-4"
+	>
+		<!-- the shape of two sections: a header naming the rank over a few rows of contracts. -->
+		{#snippet skeleton()}
+			{#each { length: 2 }, index (index)}
+				<div class="flex flex-col gap-3 rounded-2xl bg-card p-4">
+					<div class="flex items-center gap-3">
+						<Skeleton class="size-8 rounded-lg" />
+						<Skeleton class="h-4 w-32" />
+					</div>
+					{#each { length: 3 }, row (row)}
+						<Skeleton class="h-10 w-full rounded-xl" />
+					{/each}
+				</div>
+			{/each}
+		{/snippet}
+
+		{#if sections.length === 0}
+			<Empty.Root class="rounded-2xl border border-dashed">
+				<Empty.Header>
+					<Empty.Title>{$LL.dashboard.empty.title()}</Empty.Title>
+					<Empty.Description>{$LL.dashboard.empty.description()}</Empty.Description>
+				</Empty.Header>
+			</Empty.Root>
+		{:else}
+			{#each sections as section (section.summary.rank)}
+				<DashboardSectionCard {section} />
+			{/each}
+		{/if}
+	</Loading>
 </div>

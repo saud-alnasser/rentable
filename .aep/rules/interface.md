@@ -258,6 +258,41 @@ to read them first, which is why the contracts list could not filter by rank.*
 
 Recorded originally as ADR 0031, *A contract's attention rank is the contract's own*.
 
+## Loading and feedback
+
+### Loading
+
+**A surface waiting on its content draws `packages/design/src/lib/block/loading.svelte`, and
+nothing else.** The surface hands in a snippet drawing the shape of what is on its way (a list's
+cards, a record's header, the settings area's rail and fields, the dashboard's sections) from the
+skeleton primitive. The block decides when that shape appears: **not before 200 ms, and once shown,
+for at least 300 ms.** A load that settles inside the delay draws no skeleton at all. Until then the
+region is empty and marked busy, and the skeleton, once it is up, is a status carrying the
+surface's own loading sentence.
+
+No surface draws a spinner in place of its content. **The startup progress bar is not a load and
+stays as it is**, because it reports the stages of starting rather than waiting on one read. A
+spinner inside a control that is working (a pressed submit, the toaster's own) is a control's state
+and is not what this governs.
+
+*Why: loading had several treatments and no two agreed, and a spinner says only that something is
+happening. A shape says what is coming and where it will be, and the delay and the hold keep a
+fast local read from flashing a skeleton for a frame.*
+
+### Feedback
+
+**Every toast goes through the shared handlers.** A mutation announces through its declaration and
+the handlers in `design/mutation.ts`; anything else, a failure raised outside a mutation or a
+success nothing declared, goes through `error/toast.ts`. Those two modules are the only importers
+of `toast`, and `error/tests/toast-reach.test.ts` fails on a third. [[rules/frontend]] states the
+same line for mutations under *Data access*.
+
+**A notice that stands on a surface is a callout**, drawn with the callout primitive in the tone
+vocabulary above, never a hand-coloured box. The contract units lock notice is the worked example:
+`info`, because a locked contract is working as it should.
+
+Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 12.
+
 ## The visual reference
 
 _Refactoring UI_ (Adam Wathan & Steve Schoger) is this repository's reference for visual
