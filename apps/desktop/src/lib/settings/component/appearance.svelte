@@ -32,7 +32,9 @@
 
 <Field.Field orientation="responsive">
 	<Field.Content>
-		<Field.Label id="app-appearance-label">{$LL.settings.appearanceTitle()}</Field.Label>
+		<Field.Label id="app-appearance-label">
+			<span class="first-letter:uppercase">{$LL.settings.appearanceTitle()}</span>
+		</Field.Label>
 		<Field.Description>{$LL.settings.appearanceDescription()}</Field.Description>
 	</Field.Content>
 	<ToggleGroup.Root

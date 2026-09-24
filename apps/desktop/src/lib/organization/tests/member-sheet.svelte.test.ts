@@ -8,6 +8,7 @@ import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import MemberSheet from '$lib/organization/component/member-sheet.svelte';
 import en from '$lib/i18n/en';
+import { toTitleCase } from '@rentable/design/title-case.js';
 import ar from '$lib/i18n/ar';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import { EVERY_ADMINISTRATION, maskOf, permits } from '@rentable/workspace-permission';
@@ -162,7 +163,7 @@ test('the sheet is a heavy form surface of three sections, named for the member'
 	expect(surface()?.className).toContain('h-full');
 	expect(surface()?.className).not.toContain('rounded-3xl');
 	expect(surface()?.className).not.toContain('-translate-x-1/2');
-	expect(screen.getByText(en.common.actions.edit)).toBeDefined();
+	expect(screen.getByText(toTitleCase(en.common.actions.edit))).toBeDefined();
 	expect(
 		screen.getByText(
 			en.organization.dashboard.memberSheetDescription.replace('{username:string}', 'ada')

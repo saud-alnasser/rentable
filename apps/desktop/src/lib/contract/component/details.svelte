@@ -7,7 +7,7 @@
 	import Specification from '@rentable/design/block/specification.svelte';
 	import * as Cell from '$lib/design/cell';
 	import RecordActionControl from '@rentable/design/block/record-action-control.svelte';
-	import { formatLocaleDate } from '$lib/platform/locale';
+	import { formatRecordDateRange } from '$lib/design/date';
 	import { contractActs } from '$lib/contract/host.svelte';
 	import { useFetchContract } from '$lib/contract/query';
 	import { toPageActions } from '$lib/design/acts';
@@ -38,8 +38,6 @@
 		id: contract?.tenantId,
 		enabled: Boolean(contract?.tenantId)
 	}));
-	const formatDate = (value: number) =>
-		formatLocaleDate($locale, value, { dateStyle: 'medium', timeZone: 'UTC' });
 
 	const tenantLabel = $derived.by(() => {
 		if (!contract) return $LL.common.messages.unknown();
@@ -47,7 +45,7 @@
 		return tenantQuery.data?.name?.trim() || $LL.common.labels.tenant();
 	});
 	const period = $derived(
-		contract ? `${formatDate(contract.start)} — ${formatDate(contract.end)}` : ''
+		contract ? formatRecordDateRange($locale, contract.start, contract.end) : ''
 	);
 
 	// the contract as its acts are given it: with its tenant's name, which is what the confirmation

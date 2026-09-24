@@ -1,4 +1,5 @@
 <script lang="ts" module>
+	import { toTitleCase } from '@rentable/design/title-case.js';
 	import {
 		toShortcutHint,
 		usesAppleKeyboard,
@@ -235,13 +236,9 @@
 				<!-- keyed on the whole address rather than on its pathname: the settings area's
 				     four sections are four rows on `/settings`, told apart by `?section=`. -->
 				{#each destinations as destination (destination.url)}
-					<Command.LinkItem
-						href={resolve(destination.url)}
-						onSelect={() => (open = false)}
-						class="capitalize"
-					>
+					<Command.LinkItem href={resolve(destination.url)} onSelect={() => (open = false)}>
 						<destination.icon />
-						<span>{destination.label($LL)}</span>
+						<span>{toTitleCase(destination.label($LL))}</span>
 					</Command.LinkItem>
 				{/each}
 			</Command.Group>
@@ -255,10 +252,9 @@
 							href={createAddresses[action.directory]}
 							keywords={[$LL.common.actions.create()]}
 							onSelect={() => (open = false)}
-							class="capitalize"
 						>
 							<PlusIcon />
-							<span>{action.label($LL)}</span>
+							<span>{toTitleCase(action.label($LL))}</span>
 						</Command.LinkItem>
 					{:else}
 						<!-- asks for the record the new one belongs to, the way a record's act asks for
@@ -272,10 +268,9 @@
 									label: `${$LL.common.actions.create()} ${action.label($LL)}`,
 									run: action.create
 								})}
-							class="capitalize"
 						>
 							<PlusIcon />
-							<span>{action.label($LL)}</span>
+							<span>{toTitleCase(action.label($LL))}</span>
 						</Command.Item>
 					{/if}
 				{/each}
@@ -297,10 +292,9 @@
 									label: act.label,
 									run: (recordId) => group.runOn(act.id, recordId)
 								})}
-							class="capitalize"
 						>
 							<act.icon />
-							<span class="min-w-0 flex-1 truncate">{act.label}</span>
+							<span class="min-w-0 flex-1 truncate">{toTitleCase(act.label)}</span>
 
 							{#if act.hints.length > 0}
 								<!-- a key name is not prose: it is what is printed on the keyboard. -->
@@ -327,10 +321,9 @@
 							value={verb.id}
 							disabled={Boolean(verb.unavailable)}
 							onSelect={() => choose(verb)}
-							class="capitalize"
 						>
 							<ZapIcon />
-							<span class="min-w-0 flex-1 truncate">{verb.label}</span>
+							<span class="min-w-0 flex-1 truncate">{toTitleCase(verb.label)}</span>
 
 							<!-- the reason sits where the keys would, because it is the answer to the same
 							     question: a row that refuses says why in the place the reader is already

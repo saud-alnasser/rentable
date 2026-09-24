@@ -10,6 +10,7 @@ import { organizationHostState, resetOrganizationHost } from '$lib/organization/
 import { fakeOrganizationSession } from '$lib/platform/tests/testing';
 import type { MemberStanding, OrganizationMember, OrganizationWorkspace } from '$lib/platform/host';
 import en from '$lib/i18n/en';
+import { toTitleCase } from '@rentable/design/title-case.js';
 import ar from '$lib/i18n/ar';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import { expectCreateControlLast } from '$lib/design/tests/create-control';
@@ -706,7 +707,7 @@ test('the link act is offered whatever the standing says, and the line stays a f
 
 	const entry = await openTo('sami', 'link');
 
-	expect(entry?.textContent?.trim()).toBe(en.organization.dashboard.makeLink);
+	expect(entry?.textContent?.trim()).toBe(toTitleCase(en.organization.dashboard.makeLink));
 	expect(document.querySelector('[data-member-copy-link]')).toBeNull();
 	expect(document.querySelector('[data-member-code]')).toBeNull();
 	open.unmount();
@@ -753,7 +754,7 @@ test('signing a member out of every machine is offered behind reset password, an
 
 	const entry = await openTo('sami', 'end-sessions');
 
-	expect(entry?.textContent?.trim()).toBe(en.organization.dashboard.endSessions);
+	expect(entry?.textContent?.trim()).toBe(toTitleCase(en.organization.dashboard.endSessions));
 
 	await fireEvent.click(entry!);
 
@@ -808,12 +809,12 @@ test('every act on the menu reads as one or two plain words', async () => {
 
 	// one verb per act (effort 832, requirement 6): the edit, and no rename beside it.
 	expect(said).toEqual({
-		edit: en.common.actions.edit,
-		link: en.organization.dashboard.makeLink,
-		'unset-password': en.organization.dashboard.unsetPassword,
-		'end-sessions': en.organization.dashboard.endSessions,
-		remove: en.organization.dashboard.remove,
-		'lock-out': en.organization.dashboard.lockOut
+		edit: toTitleCase(en.common.actions.edit),
+		link: toTitleCase(en.organization.dashboard.makeLink),
+		'unset-password': toTitleCase(en.organization.dashboard.unsetPassword),
+		'end-sessions': toTitleCase(en.organization.dashboard.endSessions),
+		remove: toTitleCase(en.organization.dashboard.remove),
+		'lock-out': toTitleCase(en.organization.dashboard.lockOut)
 	});
 
 	for (const [kind, words] of Object.entries(said)) {
@@ -1145,7 +1146,7 @@ test('a term narrows the cards only once the reader stops typing', async () => {
 
 	await pastTheWait();
 	expect(shownMembers()).toEqual(['ada']);
-	expect(document.querySelector('[data-list-count]')?.textContent?.trim()).toBe('1 result(s)');
+	expect(document.querySelector('[data-list-count]')?.textContent?.trim()).toBe('1 result');
 });
 
 test('the search key puts the cursor in the directory’s field', async () => {

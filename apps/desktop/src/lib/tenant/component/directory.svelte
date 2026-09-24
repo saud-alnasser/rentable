@@ -168,6 +168,7 @@
 	}}
 	onImport={() => void importDialog?.choose()}
 	onCreate={() => tenantHost.create()}
+	createLabel={$LL.common.actions.newTenant()}
 	emptyTitle={$LL.tenants.empty.title()}
 	emptyDescription={$LL.tenants.empty.description()}
 >

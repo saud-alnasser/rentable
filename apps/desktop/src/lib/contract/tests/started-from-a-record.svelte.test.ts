@@ -85,8 +85,12 @@ afterEach(() => {
 
 const providers = { wrapper: QueryProviders, wrapperProps: { strings, direction: 'ltr' as const } };
 
-/** the page's "new contract" control, found by the act its projection carries. */
-const newContract = () => screen.getByRole('button', { name: en.common.actions.newContract });
+/**
+ * the page's "new contract" control, found by the act its projection carries. The contracts list
+ * on the page names its create the same way, and each opens the form from the same record, so
+ * the first is the page's own.
+ */
+const newContract = () => screen.getAllByRole('button', { name: en.common.actions.newContract })[0];
 
 /** the contract form, once the host has opened it. */
 const contractForm = () => screen.findByRole('dialog');

@@ -236,6 +236,7 @@
 		}}
 		onImport={isAddLocked ? undefined : () => void importDialog?.choose()}
 		onCreate={() => paymentHost.create({ contractId })}
+		createLabel={$LL.common.actions.newPayment()}
 		{createUnavailable}
 	>
 		{#snippet groupHeader(month: PaymentLedgerMonth)}

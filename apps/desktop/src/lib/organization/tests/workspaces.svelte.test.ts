@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/sve
 import { beforeEach, expect, test, vi } from 'vitest';
 
 import { setLocale } from '$lib/i18n/i18n-svelte';
+import { i18nObject } from '$lib/i18n/i18n-util';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import Workspaces from '$lib/organization/component/workspaces.svelte';
 import { organizationDialog, resetOrganizationDialogs } from '$lib/organization/dialogs.svelte';
@@ -9,6 +10,7 @@ import { organizationHostState, resetOrganizationHost } from '$lib/organization/
 import { fakeOrganizationSession } from '$lib/platform/tests/testing';
 import type { OrganizationMember, OrganizationWorkspace } from '$lib/platform/host';
 import en from '$lib/i18n/en';
+import { toTitleCase } from '@rentable/design/title-case.js';
 import ar from '$lib/i18n/ar';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import {
@@ -230,8 +232,7 @@ const dialogParagraphs = () =>
 	Array.from(document.querySelectorAll('[data-slot="dialog-content"] p'));
 
 /** the rail's own sentence for how many people are in a workspace, as the card draws it. */
-const memberCount = (count: number) =>
-	en.layout.workspaceMenu.members.replace('{count|number}', String(count));
+const memberCount = (count: number) => i18nObject('en').layout.workspaceMenu.members({ count });
 
 beforeEach(() => {
 	resetOrganizationDialogs();
@@ -538,7 +539,7 @@ test('delete opens the packaged confirm, naming the workspace and what goes with
 
 	await press('ws-2', 'delete');
 
-	expect(dialogTitle()).toBe(en.organization.dashboard.deleteWorkspace);
+	expect(dialogTitle()).toBe(toTitleCase(en.organization.dashboard.deleteWorkspace));
 	expect(dialogParagraphs()[0]?.textContent?.trim()).toBe('Jeddah');
 	expect(dialogParagraphs()[1]?.textContent?.trim()).toBe(
 		en.organization.dashboard.deleteWorkspaceDescription
@@ -572,9 +573,11 @@ test('the acts read as one plain word each, in the words the rest of the applica
 	await fireEvent.click(control('ws-1')!);
 
 	// one verb per act (effort 832, requirement 6): the name's entry is the edit every record has.
-	expect(on('edit', 'ws-1')?.textContent?.trim()).toBe(en.common.actions.edit);
-	expect(on('grant', 'ws-1')?.textContent?.trim()).toBe(en.organization.dashboard.membersTitle);
-	expect(on('delete', 'ws-1')?.textContent?.trim()).toBe(en.common.actions.delete);
+	expect(on('edit', 'ws-1')?.textContent?.trim()).toBe(toTitleCase(en.common.actions.edit));
+	expect(on('grant', 'ws-1')?.textContent?.trim()).toBe(
+		toTitleCase(en.organization.dashboard.membersTitle)
+	);
+	expect(on('delete', 'ws-1')?.textContent?.trim()).toBe(toTitleCase(en.common.actions.delete));
 	expect(on('delete', 'ws-1')?.getAttribute('data-variant')).toBe('destructive');
 	expect(on('edit', 'ws-1')?.getAttribute('data-variant')).toBe('default');
 });

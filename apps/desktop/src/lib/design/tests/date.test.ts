@@ -1,10 +1,15 @@
 import { DateFormatter, parseDate } from '@internationalized/date';
 import assert from 'node:assert/strict';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join, relative, sep } from 'node:path';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 
 import {
 	formatCalendarDate,
 	formatDateInput,
+	formatRecordDateRange,
+	joinDateRange,
 	parseCalendarDate,
 	parseDateInput,
 	toCalendarDate
@@ -39,4 +44,32 @@ test('a date is written for the reader, and its absence shows the placeholder', 
 		'Jan 31, 2025'
 	);
 	assert.equal(formatCalendarDate(undefined, formatter, 'pick a date'), 'pick a date');
+});
+
+// ticket 28 of effort 832: a period reads with the en dash everywhere, the record header and the
+// lists alike, because every surface writes one through `joinDateRange`.
+test('a period is written with an en dash between its ends', () => {
+	assert.equal(joinDateRange('Jan 1, 2026', 'Dec 31, 2026'), 'Jan 1, 2026 – Dec 31, 2026');
+	assert.equal(
+		formatRecordDateRange('en', Date.UTC(2026, 0, 1), Date.UTC(2026, 11, 31)),
+		'1 Jan 2026 – 31 Dec 2026'
+	);
+});
+
+test('no surface joins the two ends of a period itself', () => {
+	const lib = fileURLToPath(new URL('../..', import.meta.url));
+	// a dash between two interpolations or two elements: `${a} – ${b}`, `/> – <`.
+	const joined = /[}>]\s*[–—]\s*[$<{]/;
+	const offenders = readdirSync(lib, { recursive: true, withFileTypes: true })
+		.filter((entry) => entry.isFile() && /\.(svelte|ts)$/.test(entry.name))
+		.map((entry) => join(entry.parentPath, entry.name))
+		.map((file) => relative(lib, file).split(sep).join('/'))
+		.filter((label) => !label.split('/').includes('tests') && label !== 'design/date.ts')
+		.filter((label) =>
+			readFileSync(join(lib, label), 'utf8')
+				.split('\n')
+				.some((line) => joined.test(line) && /date|start|end|period/i.test(line))
+		);
+
+	assert.deepEqual(offenders, [], 'join a period with joinDateRange in design/date.ts');
 });

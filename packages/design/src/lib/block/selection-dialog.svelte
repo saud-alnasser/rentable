@@ -4,6 +4,7 @@
 	import { Button } from '#lib/primitive/button/index.js';
 	import { Callout } from '#lib/primitive/callout/index.js';
 	import * as Dialog from '#lib/primitive/dialog/index.js';
+	import { toTitleCase } from '#lib/title-case.js';
 	import { Spinner } from '#lib/primitive/spinner/index.js';
 	import { groupRefusals, NAMED_RECORDS, type SelectionPlan } from '#lib/selection.js';
 	import { useDesignContract } from '#lib/strings.js';
@@ -84,7 +85,7 @@
 <Dialog.Root {open} {onOpenChange}>
 	<Dialog.Content class="w-full max-w-md">
 		<Dialog.Header>
-			<Dialog.Title class="capitalize">{title}</Dialog.Title>
+			<Dialog.Title>{toTitleCase(title)}</Dialog.Title>
 			<!-- the set, named where every dialog here puts what its title is about. The records
 			     themselves are on the screen behind it; the number is what the reader cannot see. -->
 			<Dialog.Description>{selected}</Dialog.Description>

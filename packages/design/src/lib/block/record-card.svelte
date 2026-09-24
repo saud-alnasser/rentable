@@ -1,6 +1,7 @@
 <script lang="ts" module>
 	import type { RecordActionTone } from '#lib/block/record-action-control.svelte';
 	import type { ShortcutCombination } from '#lib/shortcut.js';
+	import { toTitleCase } from '#lib/title-case.js';
 	import EllipsisIcon from '@lucide/svelte/icons/ellipsis';
 
 	type IconComponent = typeof EllipsisIcon;
@@ -183,7 +184,7 @@
 {#snippet entry(action: RecordCardAction)}
 	{@const Icon = action.icon}
 	<Icon class="size-4" />
-	<span class="min-w-0 flex-1 truncate">{action.label}</span>
+	<span class="min-w-0 flex-1 truncate">{toTitleCase(action.label)}</span>
 	{#if action.shortcut}
 		<!-- a key name is not prose: it is what is printed on the keyboard, and the keyboard does
 		     not change with the locale. -->
@@ -242,7 +243,6 @@
 												{...asEntry(hint)}
 												variant={action.tone === 'error' ? 'destructive' : 'default'}
 												onSelect={refuse}
-												class="capitalize"
 												{...action.attributes}
 											>
 												{#snippet child({ props })}
@@ -266,7 +266,6 @@
 									variant={action.tone === 'error' ? 'destructive' : 'default'}
 									disabled={action.disabled}
 									onSelect={action.onSelect}
-									class="capitalize"
 									{...action.attributes}
 								>
 									{@render entry(action)}
@@ -301,7 +300,6 @@
 									{...asEntry(hint)}
 									variant={action.tone === 'error' ? 'destructive' : 'default'}
 									onSelect={refuse}
-									class="capitalize"
 									{...action.attributes}
 								>
 									{#snippet child({ props })}
@@ -325,7 +323,6 @@
 						variant={action.tone === 'error' ? 'destructive' : 'default'}
 						disabled={action.disabled}
 						onSelect={action.onSelect}
-						class="capitalize"
 						{...action.attributes}
 					>
 						{@render entry(action)}

@@ -6,6 +6,7 @@ import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import ChangePasswordDialog from '$lib/organization/component/change-password-dialog.svelte';
 import en from '$lib/i18n/en';
+import { toTitleCase } from '@rentable/design/title-case.js';
 import ar from '$lib/i18n/ar';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 
@@ -74,7 +75,7 @@ test('it is the shared form surface, and a closed one puts nothing in the docume
 	// one form, and it is the surface's own.
 	expect(document.querySelectorAll('form')).toHaveLength(1);
 	expect(document.querySelector('[data-slot=dialog-title]')?.textContent?.trim()).toBe(
-		en.settings.you.password.change
+		toTitleCase(en.settings.you.password.change)
 	);
 	open.unmount();
 

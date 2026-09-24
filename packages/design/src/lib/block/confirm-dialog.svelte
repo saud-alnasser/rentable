@@ -3,6 +3,7 @@
 	import { Button } from '#lib/primitive/button/index.js';
 	import { Callout } from '#lib/primitive/callout/index.js';
 	import * as Dialog from '#lib/primitive/dialog/index.js';
+	import { toTitleCase } from '#lib/title-case.js';
 	import { useDesignContract } from '#lib/strings.js';
 
 	const contract = useDesignContract();
@@ -63,7 +64,7 @@
 <Dialog.Root {open} {onOpenChange}>
 	<Dialog.Content class="w-full max-w-md" data-confirm-dialog>
 		<Dialog.Header>
-			<Dialog.Title class="capitalize">{title}</Dialog.Title>
+			<Dialog.Title>{toTitleCase(title)}</Dialog.Title>
 		</Dialog.Header>
 
 		<div class="flex flex-col gap-4 px-6 py-5">

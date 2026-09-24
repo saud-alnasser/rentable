@@ -27,7 +27,9 @@
 
 <Field.Field orientation="responsive">
 	<Field.Content>
-		<Field.Label id="app-locale-label">{$LL.settings.localeTitle()}</Field.Label>
+		<Field.Label id="app-locale-label">
+			<span class="first-letter:uppercase">{$LL.settings.localeTitle()}</span>
+		</Field.Label>
 		<Field.Description>{$LL.settings.localeDescription()}</Field.Description>
 	</Field.Content>
 	<ToggleGroup.Root

@@ -12,6 +12,7 @@
 
 <script lang="ts">
 	import { cn } from '#lib/tailwind.js';
+	import { toTitleCase } from '#lib/title-case.js';
 
 	/**
 	 * A record's fields, read as a specification.
@@ -49,7 +50,7 @@
 <dl class={cn('text-start text-sm', className)}>
 	{#each entries as entry (entry.label)}
 		<div class="flex items-baseline gap-6 border-b border-border/40 py-2 last:border-0">
-			<dt class="w-40 shrink-0 text-muted-foreground capitalize">{entry.label}</dt>
+			<dt class="w-40 shrink-0 text-muted-foreground">{toTitleCase(entry.label)}</dt>
 			<dd class="min-w-0 font-medium break-words text-foreground">
 				{#if typeof entry.value === 'string'}
 					<bdi>{entry.value}</bdi>

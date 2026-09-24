@@ -7,6 +7,7 @@ import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import AccountForm from '$lib/organization/component/account-form.svelte';
 import { resetOrganizationDialogs } from '$lib/organization/dialogs.svelte';
 import en from '$lib/i18n/en';
+import { toTitleCase } from '@rentable/design/title-case.js';
 import ar from '$lib/i18n/ar';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 
@@ -89,7 +90,7 @@ test('the form opens on the shared form surface and asks for a username, a role,
 	expect(document.querySelector('[data-slot=form-surface]')).not.toBeNull();
 	// one form, and it is the surface's own.
 	expect(document.querySelectorAll('form')).toHaveLength(1);
-	expect(screen.getByText(en.organization.dashboard.memberTitle)).toBeDefined();
+	expect(screen.getByText(toTitleCase(en.organization.dashboard.memberTitle))).toBeDefined();
 	expect(screen.getByText(en.organization.dashboard.memberDescription)).toBeDefined();
 
 	const names = inputsOnScreen()

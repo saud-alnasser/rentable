@@ -474,7 +474,7 @@ describe('undoing a record change', () => {
 		});
 
 		assert.equal(created.length, 18);
-		assert.equal(inverseStack.undoable?.describe(get(LL)), 'creating 18 record(s)');
+		assert.equal(inverseStack.undoable?.describe(get(LL)), 'creating 18 records');
 
 		await inverseStack.undo();
 		assert.deepEqual(await caller.complex.units.getMany({ complexId: complex.id }), []);

@@ -2,6 +2,7 @@ import { render, screen, within } from '@testing-library/svelte';
 import { tick } from 'svelte';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
+import ar from '$lib/i18n/ar';
 import en from '$lib/i18n/en';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
@@ -48,11 +49,28 @@ test('a list with nothing in it offers its create, which asks the host', () => {
 	render(ListEmptyHarness, { onCreate });
 
 	// the toolbar's control carries the same words, so the one read here is the empty state's own.
-	const create = within(empty()!).getByRole('button', { name: en.common.actions.newRecord });
+	const create = within(empty()!).getByRole('button', { name: en.common.actions.newTenant });
 
 	create.click();
 
 	expect(onCreate).toHaveBeenCalledOnce();
+});
+
+// ticket 28 of effort 832: a create names what it makes, in both locales, never "new record".
+test('the empty state’s create names the concept, never a record in general', () => {
+	render(ListEmptyHarness, { onCreate: () => {} });
+
+	const act = within(empty()!).getByRole('button').textContent?.trim();
+
+	expect(act).toBe('new tenant');
+	expect(act).not.toBe(en.common.actions.newRecord);
+
+	const creates = ['newComplex', 'newContract', 'newPayment', 'newTenant', 'newUnit'] as const;
+
+	for (const key of creates) {
+		expect(en.common.actions[key]).not.toBe(en.common.actions.newRecord);
+		expect(ar.common.actions[key]).not.toBe(ar.common.actions.newRecord);
+	}
 });
 
 test('a list nothing may be added to offers no create in its empty state', () => {

@@ -35,6 +35,7 @@
 
 <script lang="ts">
 	import * as Dialog from '#lib/primitive/dialog/index.js';
+	import { toTitleCase } from '#lib/title-case.js';
 	import { useDesignContract } from '#lib/strings.js';
 	import XIcon from '@lucide/svelte/icons/x';
 	import { Dialog as DialogPrimitive } from 'bits-ui';
@@ -102,7 +103,7 @@
 			     validation is the schema's, and its messages are the translated ones. -->
 			<form method="POST" use:enhance novalidate class="flex min-h-0 flex-1 flex-col">
 				<div class="flex flex-col gap-2 border-b border-border/60 bg-muted/10 px-5 py-4">
-					<Dialog.Title class="capitalize">{title}</Dialog.Title>
+					<Dialog.Title>{toTitleCase(title)}</Dialog.Title>
 					{#if description}
 						<Dialog.Description>{description}</Dialog.Description>
 					{/if}

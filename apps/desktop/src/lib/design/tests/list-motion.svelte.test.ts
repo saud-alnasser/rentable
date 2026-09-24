@@ -71,7 +71,7 @@ test('a change the list did not cause is committed inside a view transition', as
 
 	await rerender({ data: records('one', 'two', 'three') });
 
-	await waitFor(() => expect(screen.getByText('3 result(s)')).toBeTruthy());
+	await waitFor(() => expect(screen.getByText('3 results')).toBeTruthy());
 	expect(start).toHaveBeenCalledTimes(1);
 	// the document is marked, and the clip is stated, before the old state is captured.
 	expect(asked[0].marked).toBe(true);
@@ -90,13 +90,13 @@ test("a change answering the list's own search is committed without one", async 
 	await new Promise((resolve) => setTimeout(resolve, PAST_THE_DEBOUNCE_MS));
 	await rerender({ data: records('one') });
 
-	await waitFor(() => expect(screen.getByText('1 result(s)')).toBeTruthy());
+	await waitFor(() => expect(screen.getByText('1 result')).toBeTruthy());
 	expect(start).not.toHaveBeenCalled();
 
 	// the search is spent by the change that answered it, so the next one moves again.
 	await rerender({ data: records('one', 'four') });
 
-	await waitFor(() => expect(screen.getByText('2 result(s)')).toBeTruthy());
+	await waitFor(() => expect(screen.getByText('2 results')).toBeTruthy());
 	expect(start).toHaveBeenCalledTimes(1);
 });
 
@@ -114,7 +114,7 @@ test('where the webview has no view transitions, the change is committed directl
 
 	await rerender({ data: records('two') });
 
-	await waitFor(() => expect(screen.getByText('1 result(s)')).toBeTruthy());
+	await waitFor(() => expect(screen.getByText('1 result')).toBeTruthy());
 });
 
 /**

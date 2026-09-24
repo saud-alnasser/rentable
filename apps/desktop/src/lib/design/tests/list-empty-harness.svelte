@@ -10,6 +10,7 @@
 	import type { FilterSelection, ListFilter } from '$lib/design/filter';
 	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
 	import { DesignProvider } from '@rentable/design/strings.js';
+	import en from '$lib/i18n/en';
 	import { untrack } from 'svelte';
 	import { placeholderStrings as strings } from './strings';
 
@@ -45,6 +46,7 @@
 			bind:filters
 			filterOptions={[status]}
 			{onCreate}
+			createLabel={en.common.actions.newTenant}
 			emptyTitle="no tenants yet"
 			emptyDescription="tenants you add will be listed here."
 		>

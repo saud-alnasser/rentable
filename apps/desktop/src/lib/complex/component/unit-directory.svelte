@@ -156,6 +156,7 @@
 	}}
 	onImport={() => void importDialog?.choose()}
 	onCreate={() => unitHost.create({ complexId })}
+	createLabel={$LL.common.actions.newUnit()}
 	emptyTitle={$LL.complexes.units.emptyTitle()}
 	emptyDescription={$LL.complexes.units.emptyDescription()}
 >

@@ -6,6 +6,7 @@ import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import AccessDialog from '$lib/organization/component/access-dialog.svelte';
 import en from '$lib/i18n/en';
+import { toTitleCase } from '@rentable/design/title-case.js';
 import ar from '$lib/i18n/ar';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 
@@ -87,7 +88,9 @@ test('the dialog is a light form surface with one control per row, opened on wha
 	expect(surface()).not.toBeNull();
 	// light: the centred panel rather than the edge sheet.
 	expect(surface()?.className).toContain('-translate-x-1/2');
-	expect(screen.getByText(en.organization.dashboard.workspaceAccessTitle)).toBeDefined();
+	expect(
+		screen.getByText(toTitleCase(en.organization.dashboard.workspaceAccessTitle))
+	).toBeDefined();
 	expect(
 		Array.from(document.querySelectorAll('[data-access-row]')).map((row) =>
 			row.getAttribute('data-access-row')

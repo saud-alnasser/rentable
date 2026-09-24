@@ -305,7 +305,7 @@ type PaymentRow = { contract: string; date: string; amount: string };
 
 const TENANT_FIELDS: readonly ImportField<TenantRow>[] = [
 	{ id: 'name', headers: ['Name', 'الاسم'], required: true },
-	{ id: 'nationalId', headers: ['National Id', 'الهوية الوطنية'], required: true, identity: true },
+	{ id: 'nationalId', headers: ['National ID', 'الهوية الوطنية'], required: true, identity: true },
 	{ id: 'phone', headers: ['Phone', 'الهاتف'], required: true, identity: true }
 ];
 
@@ -324,12 +324,12 @@ const UNIT_FIELDS: readonly ImportField<UnitRow>[] = [
 ];
 
 const CONTRACT_FIELDS: readonly ImportField<ContractRow>[] = [
-	// `Government Id` is what the contracts directory calls the same column: a contract's
+	// `Government ID` is what the contracts directory calls the same column: a contract's
 	// reference *is* its government number wherever it has one, and a directory of contracts
 	// shows the number rather than the fallback.
 	{
 		id: 'reference',
-		headers: ['Contract', 'العقد', 'Government Id', 'المعرف الحكومي'],
+		headers: ['Contract', 'العقد', 'Government ID', 'المعرف الحكومي'],
 		required: true,
 		identity: true
 	},
@@ -376,7 +376,7 @@ export const TRANSFER_COLUMNS: {
 } = {
 	tenants: [
 		{ header: 'Name', value: (tenant) => tenant.name },
-		{ header: 'National Id', value: (tenant) => tenant.nationalId },
+		{ header: 'National ID', value: (tenant) => tenant.nationalId },
 		{ header: 'Phone', value: (tenant) => tenant.phone }
 	],
 	complexes: [

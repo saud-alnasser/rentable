@@ -35,8 +35,12 @@ const en = {
 			import: 'import',
 			installingUpdate: 'installing update...',
 			join: 'join',
+			newComplex: 'new complex',
 			newContract: 'new contract',
+			newPayment: 'new payment',
 			newRecord: 'new record',
+			newTenant: 'new tenant',
+			newUnit: 'new unit',
 			openMenu: 'open menu',
 			openPayments: 'open payments',
 			openPreviousRelease: 'open previous release',
@@ -97,14 +101,13 @@ const en = {
 
 		import: {
 			title: 'import {record:string}',
-			missingColumns:
-				'this file is missing the column(s): {columns:string}. nothing can be read from it.',
+			missingColumns: 'this file has no {columns:string}, so nothing can be read from it.',
 			collision:
 				'rows {rows:string} both claim {identity:string}. nothing will be imported until one of them goes.',
 			nothingToCreate:
 				'every row in this file is already here or cannot be read, so there is nothing to import.',
-			willCreate: '{count|number} record(s) will be created',
-			willReject: '{count|number} row(s) will be skipped',
+			willCreate: '{count|number} {{record|records}} will be created',
+			willReject: '{count|number} {{row|rows}} will be skipped',
 			rejectedRow: 'row {row|number}',
 			reasons: {
 				duplicateOfExisting: '{detail:string} is already here',
@@ -117,13 +120,13 @@ const en = {
 			skippedUnresolved: '{count|number} naming a record that is not here',
 			noSheets: 'this file holds no sheet this recognises, so there is nothing to import.',
 			sheetMissingColumns:
-				'the {sheet:string} sheet is missing the column(s): {columns:string}. nothing can be read from this file.',
+				'the {sheet:string} sheet has no {columns:string}, so nothing can be read from this file.',
 			sheetIncompleteColumns:
 				'the {sheet:string} sheet has no {columns:string}, so its rows can only match records already here.',
 			sheetCollision:
 				'rows {rows:string} of the {sheet:string} sheet both claim {identity:string}. remove one to import.',
 			unresolvedRefused:
-				'{count|number} row(s) name a record no sheet holds, so nothing in this file can be imported.',
+				'{count|number} {{row names|rows name}} a record no sheet holds, so nothing in this file can be imported.',
 			unresolvedRow: '{sheet:string} row {row|number} names {reference:string}',
 			skippedHeld: '{count|number} already here',
 			skippedIncomplete: '{count|number} missing a required value',
@@ -170,12 +173,12 @@ const en = {
 			dueBalanceCoveredToDate: 'due balance covered to date',
 			end: 'end',
 			expected: 'expected',
-			governmentId: 'government id',
+			governmentId: 'government ID',
 			information: 'information',
-			governmentIdOptional: 'government id (optional)',
+			governmentIdOptional: 'government ID (optional)',
 			location: 'location',
 			name: 'name',
-			nationalId: 'national id',
+			nationalId: 'national ID',
 			noticeWindowDays: 'notice window (days)',
 			occupiedUnits: 'occupied units',
 			payment: 'payment',
@@ -243,8 +246,8 @@ const en = {
 			contract: {
 				costNotPositive: 'cost per payment must be greater than zero.',
 				endBeforeStart: 'end date must be after start date.',
-				govIdTaken: 'government id is associated with another contract.',
-				govIdTakenNamed: 'government id {named:string} is associated with another contract.',
+				govIdTaken: 'government ID is associated with another contract.',
+				govIdTakenNamed: 'government ID {named:string} is associated with another contract.',
 				holdsPayments: 'this contract has payments. delete them before deleting it.',
 				holdsUnits: 'this contract still holds units. remove them before deleting it.',
 				missing: 'this contract is no longer in the workspace. reload to see what changed.',
@@ -258,7 +261,7 @@ const en = {
 				renewalBeforeEnd: 'a renewal must start after the contract it renews ends.',
 				repeatedInSet: 'two contracts in this set claim {value:string}.',
 				tenantMissing: 'the selected tenant is no longer in the workspace. choose another.',
-				tenantMissingNamed: 'no tenant with the id {named:string} is in the workspace.',
+				tenantMissingNamed: 'no tenant with the ID {named:string} is in the workspace.',
 				terminatedLocked: 'this contract is terminated and locked. restore it before changing it.',
 				unitsLockedByPayments:
 					'the units of a contract cannot change once payments are registered against it.',
@@ -361,14 +364,14 @@ const en = {
 				repeatedInSet: 'two payments in this set claim {value:string}.'
 			},
 			record: {
-				idTaken: 'another record already holds that id.',
-				idTakenNamed: 'another record already holds the id {named:string}.'
+				idTaken: 'another record already holds that ID.',
+				idTakenNamed: 'another record already holds the ID {named:string}.'
 			},
 			tenant: {
 				gone: 'this tenant is no longer in the workspace. reload to see what changed.',
 				holdsContracts: 'contracts mention this tenant, so it cannot be deleted.',
-				nationalIdTaken: 'national id is associated with a registered tenant.',
-				nationalIdTakenNamed: 'national id {named:string} is associated with a registered tenant.',
+				nationalIdTaken: 'national ID is associated with a registered tenant.',
+				nationalIdTakenNamed: 'national ID {named:string} is associated with a registered tenant.',
 				phoneTaken: 'phone is associated with a registered tenant.',
 				phoneTakenNamed: 'phone {named:string} is associated with a registered tenant.',
 				repeatedInSet: 'two tenants in this set claim {value:string}.'
@@ -396,7 +399,7 @@ const en = {
 			outcomeChanged:
 				'the workspace changed while this was open, so {records:string} could not be done. nothing was retried.',
 			outcomeChangedCount:
-				'the workspace changed while this was open, so {count|number} record(s) could not be done. nothing was retried.'
+				'the workspace changed while this was open, so {count|number} {{record|records}} could not be done. nothing was retried.'
 		},
 
 		status: {
@@ -433,9 +436,9 @@ const en = {
 			openRecord: 'open the focused record',
 			pageOf: 'page {page} of {count}',
 			recordsSelected: '{count|number} selected',
-			results: '{count|number} result(s)',
+			results: '{count|number} {{result|results}}',
 			rowsPerPage: 'rows per page',
-			rowsSelected: '{selected} of {total} row(s) selected.',
+			rowsSelected: '{selected} of {total} {{row|rows}} selected.',
 			searchPlaceholder: 'search...',
 			selectRecord: 'select this record'
 		},
@@ -449,8 +452,8 @@ const en = {
 			assigned: 'changing the units of {record:string}',
 			created: 'creating {record:string}',
 			deleted: 'deleting {record:string}',
-			createdMany: 'creating {count|number} record(s)',
-			deletedMany: 'deleting {count|number} record(s)',
+			createdMany: 'creating {count|number} {{record|records}}',
+			deletedMany: 'deleting {count|number} {{record|records}}',
 			edited: 'editing {record:string}',
 			lasts: 'you can undo this while the app is open.',
 			nothingToRedo: 'nothing to apply again',
@@ -459,11 +462,11 @@ const en = {
 			redone: '{change:string} applied again',
 			renewed: 'renewing {record:string}',
 			terminated: 'terminating {record:string}',
-			terminatedMany: 'terminating {count|number} contract(s)',
+			terminatedMany: 'terminating {count|number} {{contract|contracts}}',
 			undo: 'undo',
 			undone: '{change:string} undone',
 			unterminated: 'restoring {record:string}',
-			unterminatedMany: 'restoring {count|number} contract(s)'
+			unterminatedMany: 'restoring {count|number} {{contract|contracts}}'
 		},
 
 		window: {
@@ -499,10 +502,10 @@ const en = {
 		},
 
 		deleteDialog: {
-			blockedContracts: '{count|number} contract(s) still mention it',
+			blockedContracts: '{count|number} {{contract still mentions|contracts still mention}} it',
 			blockedDescription: 'this cannot be deleted while the following still depend on it.',
-			blockedPayments: '{count|number} payment(s) recorded against it',
-			blockedUnits: '{count|number} unit(s) belong to it',
+			blockedPayments: '{count|number} {{payment|payments}} recorded against it',
+			blockedUnits: '{count|number} {{unit belongs|units belong}} to it',
 			description: 'this cannot be undone.',
 			unnamedRecord: 'this record'
 		}
@@ -532,7 +535,7 @@ const en = {
 		workspaceMenu: {
 			create: 'new workspace',
 			locked: 'not available',
-			members: '{count|number} member(s)',
+			members: '{count|number} {{member|members}}',
 			switchTo: 'switch to',
 			open: 'open',
 			workspaceRefusedAuthority:
@@ -611,7 +614,7 @@ const en = {
 
 		sections: {
 			alsoEnding: 'also ending',
-			contractCount: '{count|number} contract(s)',
+			contractCount: '{count|number} {{contract|contracts}}',
 			openContract: 'open the contract for {tenant}',
 			seeAll: 'see all ({count|number})'
 		},
@@ -709,9 +712,9 @@ const en = {
 			createSuccess: 'complex created successfully!',
 			deleteManySuccess: '{count|number} complex(es) deleted',
 			deleteSuccess: 'complex deleted successfully!',
-			unitCreateManySuccess: '{count|number} unit(s) created',
+			unitCreateManySuccess: '{count|number} {{unit|units}} created',
 			unitCreateSuccess: 'unit created successfully!',
-			unitDeleteManySuccess: '{count|number} unit(s) deleted',
+			unitDeleteManySuccess: '{count|number} {{unit|units}} deleted',
 			unitDeleteSuccess: 'unit deleted successfully!',
 			unitUpdateSuccess: 'unit updated successfully!',
 			updateSuccess: 'complex updated successfully!'
@@ -732,7 +735,7 @@ const en = {
 			deleteTitle: 'delete complexes',
 			refusedHoldsUnits: '{count|number} still hold units',
 			refusedMissing: '{count|number} are no longer in the workspace',
-			unitDeleteSummary: '{count|number} unit(s) will be deleted',
+			unitDeleteSummary: '{count|number} {{unit|units}} will be deleted',
 			unitDeleteTitle: 'delete units',
 			// every contract that ever mentioned it, not the one holding it today: a unit reading
 			// as vacant on the list can still be one no deletion may touch.
@@ -762,7 +765,7 @@ const en = {
 
 		hooks: {
 			createSuccess: 'tenant created successfully!',
-			deleteManySuccess: '{count|number} tenant(s) deleted',
+			deleteManySuccess: '{count|number} {{tenant|tenants}} deleted',
 			deleteSuccess: 'tenant deleted successfully!',
 			updateSuccess: 'tenant updated successfully!'
 		},
@@ -776,7 +779,7 @@ const en = {
 		},
 
 		selection: {
-			deleteSummary: '{count|number} tenant(s) will be deleted',
+			deleteSummary: '{count|number} {{tenant|tenants}} will be deleted',
 			deleteTitle: 'delete tenants',
 			refusedHoldsContracts: '{count|number} still hold contracts',
 			refusedMissing: '{count|number} are no longer in the workspace'
@@ -818,7 +821,7 @@ const en = {
 				'the tenant, units, cycle and cost carry over from the contract being renewed. set the term the renewal runs for.',
 			renewTitle: 'renew contract',
 			searchAndSelectTenant: 'search and select tenant',
-			searchTenantPlaceholder: 'search tenant by name, id or phone...',
+			searchTenantPlaceholder: 'search tenant by name, ID or phone...',
 			startDateRequired: 'start date is required.',
 			tenantRequired: 'tenant is required.',
 			chooseUnits: 'choose units',
@@ -835,14 +838,14 @@ const en = {
 		hooks: {
 			createPaymentSuccess: 'payment created successfully!',
 			createSuccess: 'contract created successfully!',
-			deleteManyPaymentsSuccess: '{count|number} payment(s) deleted',
-			deleteManySuccess: '{count|number} contract(s) deleted',
+			deleteManyPaymentsSuccess: '{count|number} {{payment|payments}} deleted',
+			deleteManySuccess: '{count|number} {{contract|contracts}} deleted',
 			deletePaymentSuccess: 'payment deleted successfully!',
 			deleteSuccess: 'contract deleted successfully!',
 			renewSuccess: 'contract renewed successfully!',
-			restoreManySuccess: '{count|number} contract(s) restored',
+			restoreManySuccess: '{count|number} {{contract|contracts}} restored',
 			restoreSuccess: 'contract restored successfully!',
-			terminateManySuccess: '{count|number} contract(s) terminated',
+			terminateManySuccess: '{count|number} {{contract|contracts}} terminated',
 			terminateSuccess: 'contract terminated successfully!',
 			updatePaymentSuccess: 'payment updated successfully!',
 			updateSuccess: 'contract updated successfully!'
@@ -879,9 +882,9 @@ const en = {
 		},
 
 		selection: {
-			deleteSummary: '{count|number} contract(s) will be deleted',
+			deleteSummary: '{count|number} {{contract|contracts}} will be deleted',
 			deleteTitle: 'delete contracts',
-			paymentDeleteSummary: '{count|number} payment(s) will be deleted',
+			paymentDeleteSummary: '{count|number} {{payment|payments}} will be deleted',
 			paymentDeleteTitle: 'delete payments',
 			// a payment carries no rule of its own; everything that locks one is its contract's
 			// state, and the ledger hides its controls there, so this is only ever reached by the
@@ -893,9 +896,9 @@ const en = {
 			refusedMissing: '{count|number} are no longer in the workspace',
 			refusedNotRestorable: '{count|number} are not terminated',
 			refusedNotTerminable: '{count|number} cannot be terminated by hand',
-			restoreSummary: '{count|number} contract(s) will be restored',
+			restoreSummary: '{count|number} {{contract|contracts}} will be restored',
 			restoreTitle: 'restore contracts',
-			terminateSummary: '{count|number} contract(s) will be terminated',
+			terminateSummary: '{count|number} {{contract|contracts}} will be terminated',
 			terminateTitle: 'terminate contracts'
 		},
 
@@ -1120,10 +1123,10 @@ const en = {
 			removeAndLockOut: 'remove and lock out',
 			lockOutReading: 'reading which workspaces this touches...',
 			lockOutDescription:
-				'their access to {workspaces} ends now. {count|number} other member(s) there pause syncing until their app reconnects.',
+				'their access to {workspaces} ends now. {count|number} other {{member pauses|members pause}} syncing until reconnected.',
 			removed: 'the member was removed. their access ends when their credential runs out.',
 			lockedOut:
-				'the member was locked out. {count|number} other member(s) reconnect on their own.',
+				'the member was locked out. {count|number} other {{member reconnects|members reconnect}} on their own.',
 			unreachableWorkspaces:
 				'you do not hold {workspaces}, so the reset could not restore it. an administrator who does can grant it again.',
 			linkUnreachableWorkspaces:

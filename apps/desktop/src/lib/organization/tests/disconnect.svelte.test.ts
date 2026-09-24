@@ -7,6 +7,7 @@ import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import Disconnect from '$lib/organization/component/disconnect.svelte';
 import en from '$lib/i18n/en';
+import { toTitleCase } from '@rentable/design/title-case.js';
 import ar from '$lib/i18n/ar';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 
@@ -67,7 +68,7 @@ test('pressing the control asks once, naming the organization and what it costs'
 		expect(dialog()).not.toBeNull();
 	});
 	expect(document.querySelector('[data-slot="dialog-title"]')?.textContent).toBe(
-		en.layout.signIn.disconnect
+		toTitleCase(en.layout.signIn.disconnect)
 	);
 	expect(paragraphs()[0]?.textContent?.trim()).toBe('Acme Rentals');
 	expect(paragraphs()[1]?.textContent?.trim()).toBe(en.layout.signIn.disconnectDescription);

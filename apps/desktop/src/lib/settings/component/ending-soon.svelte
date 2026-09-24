@@ -47,7 +47,9 @@
 
 <Field.Field orientation="responsive">
 	<Field.Content>
-		<Field.Label for="ending-soon-notice-days">{$LL.settings.endingSoonTitle()}</Field.Label>
+		<Field.Label for="ending-soon-notice-days">
+			<span class="first-letter:uppercase">{$LL.settings.endingSoonTitle()}</span>
+		</Field.Label>
 		<Field.Description>{$LL.settings.endingSoonDescription()}</Field.Description>
 	</Field.Content>
 	<!-- the saved value is the field's own value: a second panel restating it was the page

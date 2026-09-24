@@ -7,6 +7,7 @@
 	import { toCardActions } from '$lib/design/acts';
 	import * as Cell from '$lib/design/cell';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
+	import { formatRecordDateRange } from '$lib/design/date';
 	import { formatLocaleMoney } from '$lib/platform/locale';
 	import BanknoteIcon from '@lucide/svelte/icons/banknote';
 
@@ -53,7 +54,7 @@
 				<!-- a range rather than "start → end": an arrow does not mirror in Arabic, where the
 				     two dates swap and it would then point at the wrong one. -->
 				<span class="truncate tabular-nums">
-					<Cell.Date value={contract.start} /> – <Cell.Date value={contract.end} />
+					{formatRecordDateRange($locale, contract.start, contract.end)}
 				</span>
 			</span>
 		</span>

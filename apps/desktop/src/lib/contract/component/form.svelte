@@ -13,6 +13,7 @@
 	import {
 		formatCalendarDate,
 		formatDateInput,
+		joinDateRange,
 		parseCalendarDate,
 		parseDateInput,
 		toCalendarDate
@@ -635,7 +636,10 @@
 	// missing a half — the em dash already means "nothing here" everywhere else in this panel.
 	const contractPeriod = $derived(
 		contractStartDateValue && contractEndDateValue
-			? `${formatCalendarDate(contractStartDateValue, dateFormatter, '')} – ${formatCalendarDate(contractEndDateValue, dateFormatter, '')}`
+			? joinDateRange(
+					formatCalendarDate(contractStartDateValue, dateFormatter, ''),
+					formatCalendarDate(contractEndDateValue, dateFormatter, '')
+				)
 			: '—'
 	);
 </script>

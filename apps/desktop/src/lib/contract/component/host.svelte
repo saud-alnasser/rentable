@@ -31,7 +31,7 @@
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { useFetchContractPayments } from '$lib/payment/query';
 	import { writeDetailsToClipboard } from '$lib/platform/clipboard';
-	import { formatLocaleDate } from '$lib/platform/locale';
+	import { formatRecordDateRange } from '$lib/design/date';
 	import { useReadTenant } from '$lib/tenant/query';
 	import { onDestroy, untrack } from 'svelte';
 	import ContractForm from './form.svelte';
@@ -167,8 +167,6 @@
 	 */
 	async function copyDetails(contract: ContractActRecord) {
 		const tenant = await readTenant(contract.tenantId).catch(() => undefined);
-		const formatDate = (value: number) =>
-			formatLocaleDate($locale, value, { dateStyle: 'medium', timeZone: 'UTC' });
 
 		const copied = await writeDetailsToClipboard([
 			{
@@ -181,7 +179,7 @@
 			{ label: $LL.common.labels.cycle(), value: intervalLabels[contract.interval] },
 			{
 				label: $LL.common.labels.contractPeriod(),
-				value: `${formatDate(contract.start)} – ${formatDate(contract.end)}`
+				value: formatRecordDateRange($locale, contract.start, contract.end)
 			}
 		]);
 

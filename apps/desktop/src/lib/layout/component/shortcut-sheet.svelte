@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { toTitleCase } from '@rentable/design/title-case.js';
 	import { Kbd, KbdGroup } from '@rentable/design/primitive/kbd/index.js';
 	import * as Sheet from '@rentable/design/primitive/sheet/index.js';
 	import { usesAppleKeyboard } from '@rentable/design/shortcut.js';
@@ -29,7 +30,7 @@
 		     rows below line up with the title, and so neither line runs under the close control
 		     the content primitive floats over this corner. -->
 		<Sheet.Header class="px-4 pe-12">
-			<Sheet.Title class="capitalize">{$LL.common.ui.keyboardShortcuts()}</Sheet.Title>
+			<Sheet.Title>{toTitleCase($LL.common.ui.keyboardShortcuts())}</Sheet.Title>
 			<Sheet.Description>{$LL.common.ui.keyboardShortcutsDescription()}</Sheet.Description>
 		</Sheet.Header>
 
@@ -38,7 +39,7 @@
 		<ul class="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-4">
 			{#each entries as entry (entry.id)}
 				<li class="flex items-center justify-between gap-4 py-1.5">
-					<span class="min-w-0 flex-1 truncate text-sm capitalize">{entry.description}</span>
+					<span class="min-w-0 flex-1 truncate text-sm">{toTitleCase(entry.description)}</span>
 
 					<!-- a key name is not prose: it is what is printed on the keyboard, and the
 					     keyboard does not change with the locale. -->

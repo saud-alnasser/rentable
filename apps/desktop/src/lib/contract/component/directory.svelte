@@ -140,6 +140,7 @@
 			}}
 			onImport={() => void importDialog?.choose()}
 			onCreate={() => contractHost.create()}
+			createLabel={$LL.common.actions.newContract()}
 			emptyTitle={$LL.contracts.empty.title()}
 			emptyDescription={$LL.contracts.empty.description()}
 		>

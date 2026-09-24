@@ -5,6 +5,7 @@ import { expect, test } from 'vitest';
 
 import ar from '$lib/i18n/ar';
 import en from '$lib/i18n/en';
+import { toTitleCase } from '@rentable/design/title-case.js';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import StartupNoWorkspace from '$lib/layout/component/startup-no-workspace.svelte';
@@ -352,7 +353,7 @@ test('disconnect asks once, naming the organization, and confirming runs it', as
 
 	expect(dialog()).not.toBeNull();
 	expect(dialog()?.querySelector('[data-slot=dialog-title]')?.textContent).toBe(
-		en.layout.signIn.disconnect
+		toTitleCase(en.layout.signIn.disconnect)
 	);
 	expect(dialog()?.textContent).toContain('Acme Rentals');
 	expect(dialog()?.textContent).toContain(en.layout.signIn.disconnectDescription);

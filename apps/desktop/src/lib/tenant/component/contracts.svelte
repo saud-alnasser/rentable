@@ -69,6 +69,7 @@
 			isFetching={contractsQuery.isFetching}
 			recordHeight={ROW_HEIGHT}
 			onCreate={() => contractHost.create({ tenantId })}
+			createLabel={$LL.common.actions.newContract()}
 			emptyTitle={$LL.tenants.contracts.emptyTitle()}
 			emptyDescription={$LL.tenants.contracts.emptyDescription()}
 		>

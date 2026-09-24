@@ -62,3 +62,18 @@ export const formatCalendarDate = (
  */
 export const formatRecordDate = (locale: Locales, value: number | string | Date) =>
 	formatLocaleDate(locale, value, { dateStyle: 'medium', timeZone: 'UTC' });
+
+/**
+ * A period, its two ends already written, as every surface here writes one: an en dash with a
+ * space either side. The en dash is the mark for a range, and the em dash already means "nothing
+ * here" wherever a value is missing, so a period written with one read as two different things
+ * on the record header and in the list.
+ */
+export const joinDateRange = (from: string, to: string) => `${from} – ${to}`;
+
+/** A stored period as every surface here renders one, each end the way `formatRecordDate` has it. */
+export const formatRecordDateRange = (
+	locale: Locales,
+	start: number | string | Date,
+	end: number | string | Date
+) => joinDateRange(formatRecordDate(locale, start), formatRecordDate(locale, end));

@@ -247,7 +247,7 @@
 <PageFrame>
 	<!-- the title alone, as the settings page has carried it: the rail below names the sections,
 	     so a sentence here would list what the tabs already list. -->
-	<h1 class="text-3xl font-semibold capitalize">{$LL.settings.title()}</h1>
+	<h1 class="text-3xl font-semibold first-letter:uppercase">{$LL.settings.title()}</h1>
 
 	<SectionSwitch sections={switchable} current={shown} label={$LL.settings.title()} />
 

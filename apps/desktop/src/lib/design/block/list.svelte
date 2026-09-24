@@ -100,6 +100,11 @@
 		 */
 		onCreate?: () => void;
 		/**
+		 * What the create makes, in the concept's words: "new tenant", never "new record". Given
+		 * with `onCreate`, and read by the toolbar's control and the empty state's act alike.
+		 */
+		createLabel?: string;
+		/**
 		 * Why the set takes no new record right now, in one line, or nothing where it does. The create
 		 * control stays drawn, refused, and says it on hover and focus, as the key does.
 		 */
@@ -195,6 +200,7 @@
 		isLoading = false,
 		isFetching = false,
 		onCreate,
+		createLabel,
 		createUnavailable,
 		filterOptions = [],
 		filters = $bindable({}),
@@ -691,7 +697,7 @@
 {#snippet createAct()}
 	<Button variant="outline" size="sm" onclick={() => onCreate?.()}>
 		<PlusIcon />
-		{$LL.common.actions.newRecord()}
+		{createLabel}
 	</Button>
 {/snippet}
 
@@ -849,11 +855,7 @@
 		<!-- last, at the end of the bar: the one place every set offers its create
 		     ([[rules/interface]], *Create*). -->
 		{#if onCreate}
-			<CreateControl
-				label={$LL.common.actions.newRecord()}
-				{onCreate}
-				unavailable={createUnavailable}
-			/>
+			<CreateControl label={createLabel ?? ''} {onCreate} unavailable={createUnavailable} />
 		{/if}
 	</ListToolbar>
 

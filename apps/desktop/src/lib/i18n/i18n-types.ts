@@ -135,13 +135,29 @@ type RootTranslation = {
 			 */
 			join: string
 			/**
+			 * n​e​w​ ​c​o​m​p​l​e​x
+			 */
+			newComplex: string
+			/**
 			 * n​e​w​ ​c​o​n​t​r​a​c​t
 			 */
 			newContract: string
 			/**
+			 * n​e​w​ ​p​a​y​m​e​n​t
+			 */
+			newPayment: string
+			/**
 			 * n​e​w​ ​r​e​c​o​r​d
 			 */
 			newRecord: string
+			/**
+			 * n​e​w​ ​t​e​n​a​n​t
+			 */
+			newTenant: string
+			/**
+			 * n​e​w​ ​u​n​i​t
+			 */
+			newUnit: string
 			/**
 			 * o​p​e​n​ ​m​e​n​u
 			 */
@@ -344,7 +360,7 @@ type RootTranslation = {
 			 */
 			title: RequiredParams<'record'>
 			/**
-			 * t​h​i​s​ ​f​i​l​e​ ​i​s​ ​m​i​s​s​i​n​g​ ​t​h​e​ ​c​o​l​u​m​n​(​s​)​:​ ​{​c​o​l​u​m​n​s​}​.​ ​n​o​t​h​i​n​g​ ​c​a​n​ ​b​e​ ​r​e​a​d​ ​f​r​o​m​ ​i​t​.
+			 * t​h​i​s​ ​f​i​l​e​ ​h​a​s​ ​n​o​ ​{​c​o​l​u​m​n​s​}​,​ ​s​o​ ​n​o​t​h​i​n​g​ ​c​a​n​ ​b​e​ ​r​e​a​d​ ​f​r​o​m​ ​i​t​.
 			 * @param {string} columns
 			 */
 			missingColumns: RequiredParams<'columns'>
@@ -359,13 +375,13 @@ type RootTranslation = {
 			 */
 			nothingToCreate: string
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​r​e​c​o​r​d​(​s​)​ ​w​i​l​l​ ​b​e​ ​c​r​e​a​t​e​d
-			 * @param {unknown} count
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​r​e​c​o​r​d​|​r​e​c​o​r​d​s​}​}​ ​w​i​l​l​ ​b​e​ ​c​r​e​a​t​e​d
+			 * @param {string | number | boolean} count
 			 */
 			willCreate: RequiredParams<'count|number'>
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​r​o​w​(​s​)​ ​w​i​l​l​ ​b​e​ ​s​k​i​p​p​e​d
-			 * @param {unknown} count
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​r​o​w​|​r​o​w​s​}​}​ ​w​i​l​l​ ​b​e​ ​s​k​i​p​p​e​d
+			 * @param {string | number | boolean} count
 			 */
 			willReject: RequiredParams<'count|number'>
 			/**
@@ -410,7 +426,7 @@ type RootTranslation = {
 			 */
 			noSheets: string
 			/**
-			 * t​h​e​ ​{​s​h​e​e​t​}​ ​s​h​e​e​t​ ​i​s​ ​m​i​s​s​i​n​g​ ​t​h​e​ ​c​o​l​u​m​n​(​s​)​:​ ​{​c​o​l​u​m​n​s​}​.​ ​n​o​t​h​i​n​g​ ​c​a​n​ ​b​e​ ​r​e​a​d​ ​f​r​o​m​ ​t​h​i​s​ ​f​i​l​e​.
+			 * t​h​e​ ​{​s​h​e​e​t​}​ ​s​h​e​e​t​ ​h​a​s​ ​n​o​ ​{​c​o​l​u​m​n​s​}​,​ ​s​o​ ​n​o​t​h​i​n​g​ ​c​a​n​ ​b​e​ ​r​e​a​d​ ​f​r​o​m​ ​t​h​i​s​ ​f​i​l​e​.
 			 * @param {string} columns
 			 * @param {string} sheet
 			 */
@@ -429,8 +445,8 @@ type RootTranslation = {
 			 */
 			sheetCollision: RequiredParams<'identity' | 'rows' | 'sheet'>
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​r​o​w​(​s​)​ ​n​a​m​e​ ​a​ ​r​e​c​o​r​d​ ​n​o​ ​s​h​e​e​t​ ​h​o​l​d​s​,​ ​s​o​ ​n​o​t​h​i​n​g​ ​i​n​ ​t​h​i​s​ ​f​i​l​e​ ​c​a​n​ ​b​e​ ​i​m​p​o​r​t​e​d​.
-			 * @param {unknown} count
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​r​o​w​ ​n​a​m​e​s​|​r​o​w​s​ ​n​a​m​e​}​}​ ​a​ ​r​e​c​o​r​d​ ​n​o​ ​s​h​e​e​t​ ​h​o​l​d​s​,​ ​s​o​ ​n​o​t​h​i​n​g​ ​i​n​ ​t​h​i​s​ ​f​i​l​e​ ​c​a​n​ ​b​e​ ​i​m​p​o​r​t​e​d​.
+			 * @param {string | number | boolean} count
 			 */
 			unresolvedRefused: RequiredParams<'count|number'>
 			/**
@@ -591,7 +607,7 @@ type RootTranslation = {
 			 */
 			expected: string
 			/**
-			 * g​o​v​e​r​n​m​e​n​t​ ​i​d
+			 * g​o​v​e​r​n​m​e​n​t​ ​I​D
 			 */
 			governmentId: string
 			/**
@@ -599,7 +615,7 @@ type RootTranslation = {
 			 */
 			information: string
 			/**
-			 * g​o​v​e​r​n​m​e​n​t​ ​i​d​ ​(​o​p​t​i​o​n​a​l​)
+			 * g​o​v​e​r​n​m​e​n​t​ ​I​D​ ​(​o​p​t​i​o​n​a​l​)
 			 */
 			governmentIdOptional: string
 			/**
@@ -611,7 +627,7 @@ type RootTranslation = {
 			 */
 			name: string
 			/**
-			 * n​a​t​i​o​n​a​l​ ​i​d
+			 * n​a​t​i​o​n​a​l​ ​I​D
 			 */
 			nationalId: string
 			/**
@@ -825,11 +841,11 @@ type RootTranslation = {
 				 */
 				endBeforeStart: string
 				/**
-				 * g​o​v​e​r​n​m​e​n​t​ ​i​d​ ​i​s​ ​a​s​s​o​c​i​a​t​e​d​ ​w​i​t​h​ ​a​n​o​t​h​e​r​ ​c​o​n​t​r​a​c​t​.
+				 * g​o​v​e​r​n​m​e​n​t​ ​I​D​ ​i​s​ ​a​s​s​o​c​i​a​t​e​d​ ​w​i​t​h​ ​a​n​o​t​h​e​r​ ​c​o​n​t​r​a​c​t​.
 				 */
 				govIdTaken: string
 				/**
-				 * g​o​v​e​r​n​m​e​n​t​ ​i​d​ ​{​n​a​m​e​d​}​ ​i​s​ ​a​s​s​o​c​i​a​t​e​d​ ​w​i​t​h​ ​a​n​o​t​h​e​r​ ​c​o​n​t​r​a​c​t​.
+				 * g​o​v​e​r​n​m​e​n​t​ ​I​D​ ​{​n​a​m​e​d​}​ ​i​s​ ​a​s​s​o​c​i​a​t​e​d​ ​w​i​t​h​ ​a​n​o​t​h​e​r​ ​c​o​n​t​r​a​c​t​.
 				 * @param {string} named
 				 */
 				govIdTakenNamed: RequiredParams<'named'>
@@ -881,7 +897,7 @@ type RootTranslation = {
 				 */
 				tenantMissing: string
 				/**
-				 * n​o​ ​t​e​n​a​n​t​ ​w​i​t​h​ ​t​h​e​ ​i​d​ ​{​n​a​m​e​d​}​ ​i​s​ ​i​n​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e​.
+				 * n​o​ ​t​e​n​a​n​t​ ​w​i​t​h​ ​t​h​e​ ​I​D​ ​{​n​a​m​e​d​}​ ​i​s​ ​i​n​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e​.
 				 * @param {string} named
 				 */
 				tenantMissingNamed: RequiredParams<'named'>
@@ -1169,11 +1185,11 @@ type RootTranslation = {
 			}
 			record: {
 				/**
-				 * a​n​o​t​h​e​r​ ​r​e​c​o​r​d​ ​a​l​r​e​a​d​y​ ​h​o​l​d​s​ ​t​h​a​t​ ​i​d​.
+				 * a​n​o​t​h​e​r​ ​r​e​c​o​r​d​ ​a​l​r​e​a​d​y​ ​h​o​l​d​s​ ​t​h​a​t​ ​I​D​.
 				 */
 				idTaken: string
 				/**
-				 * a​n​o​t​h​e​r​ ​r​e​c​o​r​d​ ​a​l​r​e​a​d​y​ ​h​o​l​d​s​ ​t​h​e​ ​i​d​ ​{​n​a​m​e​d​}​.
+				 * a​n​o​t​h​e​r​ ​r​e​c​o​r​d​ ​a​l​r​e​a​d​y​ ​h​o​l​d​s​ ​t​h​e​ ​I​D​ ​{​n​a​m​e​d​}​.
 				 * @param {string} named
 				 */
 				idTakenNamed: RequiredParams<'named'>
@@ -1188,11 +1204,11 @@ type RootTranslation = {
 				 */
 				holdsContracts: string
 				/**
-				 * n​a​t​i​o​n​a​l​ ​i​d​ ​i​s​ ​a​s​s​o​c​i​a​t​e​d​ ​w​i​t​h​ ​a​ ​r​e​g​i​s​t​e​r​e​d​ ​t​e​n​a​n​t​.
+				 * n​a​t​i​o​n​a​l​ ​I​D​ ​i​s​ ​a​s​s​o​c​i​a​t​e​d​ ​w​i​t​h​ ​a​ ​r​e​g​i​s​t​e​r​e​d​ ​t​e​n​a​n​t​.
 				 */
 				nationalIdTaken: string
 				/**
-				 * n​a​t​i​o​n​a​l​ ​i​d​ ​{​n​a​m​e​d​}​ ​i​s​ ​a​s​s​o​c​i​a​t​e​d​ ​w​i​t​h​ ​a​ ​r​e​g​i​s​t​e​r​e​d​ ​t​e​n​a​n​t​.
+				 * n​a​t​i​o​n​a​l​ ​I​D​ ​{​n​a​m​e​d​}​ ​i​s​ ​a​s​s​o​c​i​a​t​e​d​ ​w​i​t​h​ ​a​ ​r​e​g​i​s​t​e​r​e​d​ ​t​e​n​a​n​t​.
 				 * @param {string} named
 				 */
 				nationalIdTakenNamed: RequiredParams<'named'>
@@ -1283,8 +1299,8 @@ type RootTranslation = {
 			 */
 			outcomeChanged: RequiredParams<'records'>
 			/**
-			 * t​h​e​ ​w​o​r​k​s​p​a​c​e​ ​c​h​a​n​g​e​d​ ​w​h​i​l​e​ ​t​h​i​s​ ​w​a​s​ ​o​p​e​n​,​ ​s​o​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​r​e​c​o​r​d​(​s​)​ ​c​o​u​l​d​ ​n​o​t​ ​b​e​ ​d​o​n​e​.​ ​n​o​t​h​i​n​g​ ​w​a​s​ ​r​e​t​r​i​e​d​.
-			 * @param {unknown} count
+			 * t​h​e​ ​w​o​r​k​s​p​a​c​e​ ​c​h​a​n​g​e​d​ ​w​h​i​l​e​ ​t​h​i​s​ ​w​a​s​ ​o​p​e​n​,​ ​s​o​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​r​e​c​o​r​d​|​r​e​c​o​r​d​s​}​}​ ​c​o​u​l​d​ ​n​o​t​ ​b​e​ ​d​o​n​e​.​ ​n​o​t​h​i​n​g​ ​w​a​s​ ​r​e​t​r​i​e​d​.
+			 * @param {string | number | boolean} count
 			 */
 			outcomeChangedCount: RequiredParams<'count|number'>
 		}
@@ -1405,8 +1421,8 @@ type RootTranslation = {
 			 */
 			recordsSelected: RequiredParams<'count|number'>
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​r​e​s​u​l​t​(​s​)
-			 * @param {unknown} count
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​r​e​s​u​l​t​|​r​e​s​u​l​t​s​}​}
+			 * @param {string | number | boolean} count
 			 */
 			results: RequiredParams<'count|number'>
 			/**
@@ -1414,9 +1430,9 @@ type RootTranslation = {
 			 */
 			rowsPerPage: string
 			/**
-			 * {​s​e​l​e​c​t​e​d​}​ ​o​f​ ​{​t​o​t​a​l​}​ ​r​o​w​(​s​)​ ​s​e​l​e​c​t​e​d​.
+			 * {​s​e​l​e​c​t​e​d​}​ ​o​f​ ​{​t​o​t​a​l​}​ ​{​{​r​o​w​|​r​o​w​s​}​}​ ​s​e​l​e​c​t​e​d​.
 			 * @param {unknown} selected
-			 * @param {unknown} total
+			 * @param {string | number | boolean} total
 			 */
 			rowsSelected: RequiredParams<'selected' | 'total'>
 			/**
@@ -1457,13 +1473,13 @@ type RootTranslation = {
 			 */
 			deleted: RequiredParams<'record'>
 			/**
-			 * c​r​e​a​t​i​n​g​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​r​e​c​o​r​d​(​s​)
-			 * @param {unknown} count
+			 * c​r​e​a​t​i​n​g​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​r​e​c​o​r​d​|​r​e​c​o​r​d​s​}​}
+			 * @param {string | number | boolean} count
 			 */
 			createdMany: RequiredParams<'count|number'>
 			/**
-			 * d​e​l​e​t​i​n​g​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​r​e​c​o​r​d​(​s​)
-			 * @param {unknown} count
+			 * d​e​l​e​t​i​n​g​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​r​e​c​o​r​d​|​r​e​c​o​r​d​s​}​}
+			 * @param {string | number | boolean} count
 			 */
 			deletedMany: RequiredParams<'count|number'>
 			/**
@@ -1503,8 +1519,8 @@ type RootTranslation = {
 			 */
 			terminated: RequiredParams<'record'>
 			/**
-			 * t​e​r​m​i​n​a​t​i​n​g​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​c​o​n​t​r​a​c​t​(​s​)
-			 * @param {unknown} count
+			 * t​e​r​m​i​n​a​t​i​n​g​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​c​o​n​t​r​a​c​t​|​c​o​n​t​r​a​c​t​s​}​}
+			 * @param {string | number | boolean} count
 			 */
 			terminatedMany: RequiredParams<'count|number'>
 			/**
@@ -1522,8 +1538,8 @@ type RootTranslation = {
 			 */
 			unterminated: RequiredParams<'record'>
 			/**
-			 * r​e​s​t​o​r​i​n​g​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​c​o​n​t​r​a​c​t​(​s​)
-			 * @param {unknown} count
+			 * r​e​s​t​o​r​i​n​g​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​c​o​n​t​r​a​c​t​|​c​o​n​t​r​a​c​t​s​}​}
+			 * @param {string | number | boolean} count
 			 */
 			unterminatedMany: RequiredParams<'count|number'>
 		}
@@ -1639,8 +1655,8 @@ type RootTranslation = {
 		}
 		deleteDialog: {
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​c​o​n​t​r​a​c​t​(​s​)​ ​s​t​i​l​l​ ​m​e​n​t​i​o​n​ ​i​t
-			 * @param {unknown} count
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​c​o​n​t​r​a​c​t​ ​s​t​i​l​l​ ​m​e​n​t​i​o​n​s​|​c​o​n​t​r​a​c​t​s​ ​s​t​i​l​l​ ​m​e​n​t​i​o​n​}​}​ ​i​t
+			 * @param {string | number | boolean} count
 			 */
 			blockedContracts: RequiredParams<'count|number'>
 			/**
@@ -1648,13 +1664,13 @@ type RootTranslation = {
 			 */
 			blockedDescription: string
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​p​a​y​m​e​n​t​(​s​)​ ​r​e​c​o​r​d​e​d​ ​a​g​a​i​n​s​t​ ​i​t
-			 * @param {unknown} count
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​p​a​y​m​e​n​t​|​p​a​y​m​e​n​t​s​}​}​ ​r​e​c​o​r​d​e​d​ ​a​g​a​i​n​s​t​ ​i​t
+			 * @param {string | number | boolean} count
 			 */
 			blockedPayments: RequiredParams<'count|number'>
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​u​n​i​t​(​s​)​ ​b​e​l​o​n​g​ ​t​o​ ​i​t
-			 * @param {unknown} count
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​u​n​i​t​ ​b​e​l​o​n​g​s​|​u​n​i​t​s​ ​b​e​l​o​n​g​}​}​ ​t​o​ ​i​t
+			 * @param {string | number | boolean} count
 			 */
 			blockedUnits: RequiredParams<'count|number'>
 			/**
@@ -1724,8 +1740,8 @@ type RootTranslation = {
 			 */
 			locked: string
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​m​e​m​b​e​r​(​s​)
-			 * @param {unknown} count
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​m​e​m​b​e​r​|​m​e​m​b​e​r​s​}​}
+			 * @param {string | number | boolean} count
 			 */
 			members: RequiredParams<'count|number'>
 			/**
@@ -1940,8 +1956,8 @@ type RootTranslation = {
 			 */
 			alsoEnding: string
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​c​o​n​t​r​a​c​t​(​s​)
-			 * @param {unknown} count
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​c​o​n​t​r​a​c​t​|​c​o​n​t​r​a​c​t​s​}​}
+			 * @param {string | number | boolean} count
 			 */
 			contractCount: RequiredParams<'count|number'>
 			/**
@@ -2177,8 +2193,8 @@ type RootTranslation = {
 			 */
 			deleteSuccess: string
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​u​n​i​t​(​s​)​ ​c​r​e​a​t​e​d
-			 * @param {unknown} count
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​u​n​i​t​|​u​n​i​t​s​}​}​ ​c​r​e​a​t​e​d
+			 * @param {string | number | boolean} count
 			 */
 			unitCreateManySuccess: RequiredParams<'count|number'>
 			/**
@@ -2186,8 +2202,8 @@ type RootTranslation = {
 			 */
 			unitCreateSuccess: string
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​u​n​i​t​(​s​)​ ​d​e​l​e​t​e​d
-			 * @param {unknown} count
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​u​n​i​t​|​u​n​i​t​s​}​}​ ​d​e​l​e​t​e​d
+			 * @param {string | number | boolean} count
 			 */
 			unitDeleteManySuccess: RequiredParams<'count|number'>
 			/**
@@ -2256,8 +2272,8 @@ type RootTranslation = {
 			 */
 			refusedMissing: RequiredParams<'count|number'>
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​u​n​i​t​(​s​)​ ​w​i​l​l​ ​b​e​ ​d​e​l​e​t​e​d
-			 * @param {unknown} count
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​u​n​i​t​|​u​n​i​t​s​}​}​ ​w​i​l​l​ ​b​e​ ​d​e​l​e​t​e​d
+			 * @param {string | number | boolean} count
 			 */
 			unitDeleteSummary: RequiredParams<'count|number'>
 			/**
@@ -2325,8 +2341,8 @@ type RootTranslation = {
 			 */
 			createSuccess: string
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​t​e​n​a​n​t​(​s​)​ ​d​e​l​e​t​e​d
-			 * @param {unknown} count
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​t​e​n​a​n​t​|​t​e​n​a​n​t​s​}​}​ ​d​e​l​e​t​e​d
+			 * @param {string | number | boolean} count
 			 */
 			deleteManySuccess: RequiredParams<'count|number'>
 			/**
@@ -2363,8 +2379,8 @@ type RootTranslation = {
 		}
 		selection: {
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​t​e​n​a​n​t​(​s​)​ ​w​i​l​l​ ​b​e​ ​d​e​l​e​t​e​d
-			 * @param {unknown} count
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​t​e​n​a​n​t​|​t​e​n​a​n​t​s​}​}​ ​w​i​l​l​ ​b​e​ ​d​e​l​e​t​e​d
+			 * @param {string | number | boolean} count
 			 */
 			deleteSummary: RequiredParams<'count|number'>
 			/**
@@ -2499,7 +2515,7 @@ type RootTranslation = {
 			 */
 			searchAndSelectTenant: string
 			/**
-			 * s​e​a​r​c​h​ ​t​e​n​a​n​t​ ​b​y​ ​n​a​m​e​,​ ​i​d​ ​o​r​ ​p​h​o​n​e​.​.​.
+			 * s​e​a​r​c​h​ ​t​e​n​a​n​t​ ​b​y​ ​n​a​m​e​,​ ​I​D​ ​o​r​ ​p​h​o​n​e​.​.​.
 			 */
 			searchTenantPlaceholder: string
 			/**
@@ -2553,13 +2569,13 @@ type RootTranslation = {
 			 */
 			createSuccess: string
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​p​a​y​m​e​n​t​(​s​)​ ​d​e​l​e​t​e​d
-			 * @param {unknown} count
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​p​a​y​m​e​n​t​|​p​a​y​m​e​n​t​s​}​}​ ​d​e​l​e​t​e​d
+			 * @param {string | number | boolean} count
 			 */
 			deleteManyPaymentsSuccess: RequiredParams<'count|number'>
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​c​o​n​t​r​a​c​t​(​s​)​ ​d​e​l​e​t​e​d
-			 * @param {unknown} count
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​c​o​n​t​r​a​c​t​|​c​o​n​t​r​a​c​t​s​}​}​ ​d​e​l​e​t​e​d
+			 * @param {string | number | boolean} count
 			 */
 			deleteManySuccess: RequiredParams<'count|number'>
 			/**
@@ -2575,8 +2591,8 @@ type RootTranslation = {
 			 */
 			renewSuccess: string
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​c​o​n​t​r​a​c​t​(​s​)​ ​r​e​s​t​o​r​e​d
-			 * @param {unknown} count
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​c​o​n​t​r​a​c​t​|​c​o​n​t​r​a​c​t​s​}​}​ ​r​e​s​t​o​r​e​d
+			 * @param {string | number | boolean} count
 			 */
 			restoreManySuccess: RequiredParams<'count|number'>
 			/**
@@ -2584,8 +2600,8 @@ type RootTranslation = {
 			 */
 			restoreSuccess: string
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​c​o​n​t​r​a​c​t​(​s​)​ ​t​e​r​m​i​n​a​t​e​d
-			 * @param {unknown} count
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​c​o​n​t​r​a​c​t​|​c​o​n​t​r​a​c​t​s​}​}​ ​t​e​r​m​i​n​a​t​e​d
+			 * @param {string | number | boolean} count
 			 */
 			terminateManySuccess: RequiredParams<'count|number'>
 			/**
@@ -2693,8 +2709,8 @@ type RootTranslation = {
 		}
 		selection: {
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​c​o​n​t​r​a​c​t​(​s​)​ ​w​i​l​l​ ​b​e​ ​d​e​l​e​t​e​d
-			 * @param {unknown} count
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​c​o​n​t​r​a​c​t​|​c​o​n​t​r​a​c​t​s​}​}​ ​w​i​l​l​ ​b​e​ ​d​e​l​e​t​e​d
+			 * @param {string | number | boolean} count
 			 */
 			deleteSummary: RequiredParams<'count|number'>
 			/**
@@ -2702,8 +2718,8 @@ type RootTranslation = {
 			 */
 			deleteTitle: string
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​p​a​y​m​e​n​t​(​s​)​ ​w​i​l​l​ ​b​e​ ​d​e​l​e​t​e​d
-			 * @param {unknown} count
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​p​a​y​m​e​n​t​|​p​a​y​m​e​n​t​s​}​}​ ​w​i​l​l​ ​b​e​ ​d​e​l​e​t​e​d
+			 * @param {string | number | boolean} count
 			 */
 			paymentDeleteSummary: RequiredParams<'count|number'>
 			/**
@@ -2746,8 +2762,8 @@ type RootTranslation = {
 			 */
 			refusedNotTerminable: RequiredParams<'count|number'>
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​c​o​n​t​r​a​c​t​(​s​)​ ​w​i​l​l​ ​b​e​ ​r​e​s​t​o​r​e​d
-			 * @param {unknown} count
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​c​o​n​t​r​a​c​t​|​c​o​n​t​r​a​c​t​s​}​}​ ​w​i​l​l​ ​b​e​ ​r​e​s​t​o​r​e​d
+			 * @param {string | number | boolean} count
 			 */
 			restoreSummary: RequiredParams<'count|number'>
 			/**
@@ -2755,8 +2771,8 @@ type RootTranslation = {
 			 */
 			restoreTitle: string
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​c​o​n​t​r​a​c​t​(​s​)​ ​w​i​l​l​ ​b​e​ ​t​e​r​m​i​n​a​t​e​d
-			 * @param {unknown} count
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​c​o​n​t​r​a​c​t​|​c​o​n​t​r​a​c​t​s​}​}​ ​w​i​l​l​ ​b​e​ ​t​e​r​m​i​n​a​t​e​d
+			 * @param {string | number | boolean} count
 			 */
 			terminateSummary: RequiredParams<'count|number'>
 			/**
@@ -3348,8 +3364,8 @@ type RootTranslation = {
 			 */
 			lockOutReading: string
 			/**
-			 * t​h​e​i​r​ ​a​c​c​e​s​s​ ​t​o​ ​{​w​o​r​k​s​p​a​c​e​s​}​ ​e​n​d​s​ ​n​o​w​.​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​o​t​h​e​r​ ​m​e​m​b​e​r​(​s​)​ ​t​h​e​r​e​ ​p​a​u​s​e​ ​s​y​n​c​i​n​g​ ​u​n​t​i​l​ ​t​h​e​i​r​ ​a​p​p​ ​r​e​c​o​n​n​e​c​t​s​.
-			 * @param {unknown} count
+			 * t​h​e​i​r​ ​a​c​c​e​s​s​ ​t​o​ ​{​w​o​r​k​s​p​a​c​e​s​}​ ​e​n​d​s​ ​n​o​w​.​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​o​t​h​e​r​ ​{​{​m​e​m​b​e​r​ ​p​a​u​s​e​s​|​m​e​m​b​e​r​s​ ​p​a​u​s​e​}​}​ ​s​y​n​c​i​n​g​ ​u​n​t​i​l​ ​r​e​c​o​n​n​e​c​t​e​d​.
+			 * @param {string | number | boolean} count
 			 * @param {unknown} workspaces
 			 */
 			lockOutDescription: RequiredParams<'count|number' | 'workspaces'>
@@ -3358,8 +3374,8 @@ type RootTranslation = {
 			 */
 			removed: string
 			/**
-			 * t​h​e​ ​m​e​m​b​e​r​ ​w​a​s​ ​l​o​c​k​e​d​ ​o​u​t​.​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​o​t​h​e​r​ ​m​e​m​b​e​r​(​s​)​ ​r​e​c​o​n​n​e​c​t​ ​o​n​ ​t​h​e​i​r​ ​o​w​n​.
-			 * @param {unknown} count
+			 * t​h​e​ ​m​e​m​b​e​r​ ​w​a​s​ ​l​o​c​k​e​d​ ​o​u​t​.​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​o​t​h​e​r​ ​{​{​m​e​m​b​e​r​ ​r​e​c​o​n​n​e​c​t​s​|​m​e​m​b​e​r​s​ ​r​e​c​o​n​n​e​c​t​}​}​ ​o​n​ ​t​h​e​i​r​ ​o​w​n​.
+			 * @param {string | number | boolean} count
 			 */
 			lockedOut: RequiredParams<'count|number'>
 			/**
@@ -3860,13 +3876,29 @@ export type TranslationFunctions = {
 			 */
 			join: () => LocalizedString
 			/**
+			 * new complex
+			 */
+			newComplex: () => LocalizedString
+			/**
 			 * new contract
 			 */
 			newContract: () => LocalizedString
 			/**
+			 * new payment
+			 */
+			newPayment: () => LocalizedString
+			/**
 			 * new record
 			 */
 			newRecord: () => LocalizedString
+			/**
+			 * new tenant
+			 */
+			newTenant: () => LocalizedString
+			/**
+			 * new unit
+			 */
+			newUnit: () => LocalizedString
 			/**
 			 * open menu
 			 */
@@ -4068,7 +4100,7 @@ export type TranslationFunctions = {
 			 */
 			title: (arg: { record: string }) => LocalizedString
 			/**
-			 * this file is missing the column(s): {columns}. nothing can be read from it.
+			 * this file has no {columns}, so nothing can be read from it.
 			 */
 			missingColumns: (arg: { columns: string }) => LocalizedString
 			/**
@@ -4080,13 +4112,13 @@ export type TranslationFunctions = {
 			 */
 			nothingToCreate: () => LocalizedString
 			/**
-			 * {count|number} record(s) will be created
+			 * {count|number} {{record|records}} will be created
 			 */
-			willCreate: (arg: { count: unknown }) => LocalizedString
+			willCreate: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
-			 * {count|number} row(s) will be skipped
+			 * {count|number} {{row|rows}} will be skipped
 			 */
-			willReject: (arg: { count: unknown }) => LocalizedString
+			willReject: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
 			 * row {row|number}
 			 */
@@ -4122,7 +4154,7 @@ export type TranslationFunctions = {
 			 */
 			noSheets: () => LocalizedString
 			/**
-			 * the {sheet} sheet is missing the column(s): {columns}. nothing can be read from this file.
+			 * the {sheet} sheet has no {columns}, so nothing can be read from this file.
 			 */
 			sheetMissingColumns: (arg: { columns: string, sheet: string }) => LocalizedString
 			/**
@@ -4134,9 +4166,9 @@ export type TranslationFunctions = {
 			 */
 			sheetCollision: (arg: { identity: string, rows: string, sheet: string }) => LocalizedString
 			/**
-			 * {count|number} row(s) name a record no sheet holds, so nothing in this file can be imported.
+			 * {count|number} {{row names|rows name}} a record no sheet holds, so nothing in this file can be imported.
 			 */
-			unresolvedRefused: (arg: { count: unknown }) => LocalizedString
+			unresolvedRefused: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
 			 * {sheet} row {row|number} names {reference}
 			 */
@@ -4288,7 +4320,7 @@ export type TranslationFunctions = {
 			 */
 			expected: () => LocalizedString
 			/**
-			 * government id
+			 * government ID
 			 */
 			governmentId: () => LocalizedString
 			/**
@@ -4296,7 +4328,7 @@ export type TranslationFunctions = {
 			 */
 			information: () => LocalizedString
 			/**
-			 * government id (optional)
+			 * government ID (optional)
 			 */
 			governmentIdOptional: () => LocalizedString
 			/**
@@ -4308,7 +4340,7 @@ export type TranslationFunctions = {
 			 */
 			name: () => LocalizedString
 			/**
-			 * national id
+			 * national ID
 			 */
 			nationalId: () => LocalizedString
 			/**
@@ -4519,11 +4551,11 @@ export type TranslationFunctions = {
 				 */
 				endBeforeStart: () => LocalizedString
 				/**
-				 * government id is associated with another contract.
+				 * government ID is associated with another contract.
 				 */
 				govIdTaken: () => LocalizedString
 				/**
-				 * government id {named} is associated with another contract.
+				 * government ID {named} is associated with another contract.
 				 */
 				govIdTakenNamed: (arg: { named: string }) => LocalizedString
 				/**
@@ -4571,7 +4603,7 @@ export type TranslationFunctions = {
 				 */
 				tenantMissing: () => LocalizedString
 				/**
-				 * no tenant with the id {named} is in the workspace.
+				 * no tenant with the ID {named} is in the workspace.
 				 */
 				tenantMissingNamed: (arg: { named: string }) => LocalizedString
 				/**
@@ -4857,11 +4889,11 @@ export type TranslationFunctions = {
 			}
 			record: {
 				/**
-				 * another record already holds that id.
+				 * another record already holds that ID.
 				 */
 				idTaken: () => LocalizedString
 				/**
-				 * another record already holds the id {named}.
+				 * another record already holds the ID {named}.
 				 */
 				idTakenNamed: (arg: { named: string }) => LocalizedString
 			}
@@ -4875,11 +4907,11 @@ export type TranslationFunctions = {
 				 */
 				holdsContracts: () => LocalizedString
 				/**
-				 * national id is associated with a registered tenant.
+				 * national ID is associated with a registered tenant.
 				 */
 				nationalIdTaken: () => LocalizedString
 				/**
-				 * national id {named} is associated with a registered tenant.
+				 * national ID {named} is associated with a registered tenant.
 				 */
 				nationalIdTakenNamed: (arg: { named: string }) => LocalizedString
 				/**
@@ -4958,9 +4990,9 @@ export type TranslationFunctions = {
 			 */
 			outcomeChanged: (arg: { records: string }) => LocalizedString
 			/**
-			 * the workspace changed while this was open, so {count|number} record(s) could not be done. nothing was retried.
+			 * the workspace changed while this was open, so {count|number} {{record|records}} could not be done. nothing was retried.
 			 */
-			outcomeChangedCount: (arg: { count: unknown }) => LocalizedString
+			outcomeChangedCount: (arg: { count: string | number | boolean }) => LocalizedString
 		}
 		status: {
 			/**
@@ -5076,17 +5108,17 @@ export type TranslationFunctions = {
 			 */
 			recordsSelected: (arg: { count: unknown }) => LocalizedString
 			/**
-			 * {count|number} result(s)
+			 * {count|number} {{result|results}}
 			 */
-			results: (arg: { count: unknown }) => LocalizedString
+			results: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
 			 * rows per page
 			 */
 			rowsPerPage: () => LocalizedString
 			/**
-			 * {selected} of {total} row(s) selected.
+			 * {selected} of {total} {{row|rows}} selected.
 			 */
-			rowsSelected: (arg: { selected: unknown, total: unknown }) => LocalizedString
+			rowsSelected: (arg: { selected: unknown, total: string | number | boolean }) => LocalizedString
 			/**
 			 * search...
 			 */
@@ -5120,13 +5152,13 @@ export type TranslationFunctions = {
 			 */
 			deleted: (arg: { record: string }) => LocalizedString
 			/**
-			 * creating {count|number} record(s)
+			 * creating {count|number} {{record|records}}
 			 */
-			createdMany: (arg: { count: unknown }) => LocalizedString
+			createdMany: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
-			 * deleting {count|number} record(s)
+			 * deleting {count|number} {{record|records}}
 			 */
-			deletedMany: (arg: { count: unknown }) => LocalizedString
+			deletedMany: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
 			 * editing {record}
 			 */
@@ -5160,9 +5192,9 @@ export type TranslationFunctions = {
 			 */
 			terminated: (arg: { record: string }) => LocalizedString
 			/**
-			 * terminating {count|number} contract(s)
+			 * terminating {count|number} {{contract|contracts}}
 			 */
-			terminatedMany: (arg: { count: unknown }) => LocalizedString
+			terminatedMany: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
 			 * undo
 			 */
@@ -5176,9 +5208,9 @@ export type TranslationFunctions = {
 			 */
 			unterminated: (arg: { record: string }) => LocalizedString
 			/**
-			 * restoring {count|number} contract(s)
+			 * restoring {count|number} {{contract|contracts}}
 			 */
-			unterminatedMany: (arg: { count: unknown }) => LocalizedString
+			unterminatedMany: (arg: { count: string | number | boolean }) => LocalizedString
 		}
 		window: {
 			/**
@@ -5290,21 +5322,21 @@ export type TranslationFunctions = {
 		}
 		deleteDialog: {
 			/**
-			 * {count|number} contract(s) still mention it
+			 * {count|number} {{contract still mentions|contracts still mention}} it
 			 */
-			blockedContracts: (arg: { count: unknown }) => LocalizedString
+			blockedContracts: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
 			 * this cannot be deleted while the following still depend on it.
 			 */
 			blockedDescription: () => LocalizedString
 			/**
-			 * {count|number} payment(s) recorded against it
+			 * {count|number} {{payment|payments}} recorded against it
 			 */
-			blockedPayments: (arg: { count: unknown }) => LocalizedString
+			blockedPayments: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
-			 * {count|number} unit(s) belong to it
+			 * {count|number} {{unit belongs|units belong}} to it
 			 */
-			blockedUnits: (arg: { count: unknown }) => LocalizedString
+			blockedUnits: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
 			 * this cannot be undone.
 			 */
@@ -5372,9 +5404,9 @@ export type TranslationFunctions = {
 			 */
 			locked: () => LocalizedString
 			/**
-			 * {count|number} member(s)
+			 * {count|number} {{member|members}}
 			 */
-			members: (arg: { count: unknown }) => LocalizedString
+			members: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
 			 * switch to
 			 */
@@ -5586,9 +5618,9 @@ export type TranslationFunctions = {
 			 */
 			alsoEnding: () => LocalizedString
 			/**
-			 * {count|number} contract(s)
+			 * {count|number} {{contract|contracts}}
 			 */
-			contractCount: (arg: { count: unknown }) => LocalizedString
+			contractCount: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
 			 * open the contract for {tenant}
 			 */
@@ -5818,17 +5850,17 @@ export type TranslationFunctions = {
 			 */
 			deleteSuccess: () => LocalizedString
 			/**
-			 * {count|number} unit(s) created
+			 * {count|number} {{unit|units}} created
 			 */
-			unitCreateManySuccess: (arg: { count: unknown }) => LocalizedString
+			unitCreateManySuccess: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
 			 * unit created successfully!
 			 */
 			unitCreateSuccess: () => LocalizedString
 			/**
-			 * {count|number} unit(s) deleted
+			 * {count|number} {{unit|units}} deleted
 			 */
-			unitDeleteManySuccess: (arg: { count: unknown }) => LocalizedString
+			unitDeleteManySuccess: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
 			 * unit deleted successfully!
 			 */
@@ -5890,9 +5922,9 @@ export type TranslationFunctions = {
 			 */
 			refusedMissing: (arg: { count: unknown }) => LocalizedString
 			/**
-			 * {count|number} unit(s) will be deleted
+			 * {count|number} {{unit|units}} will be deleted
 			 */
-			unitDeleteSummary: (arg: { count: unknown }) => LocalizedString
+			unitDeleteSummary: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
 			 * delete units
 			 */
@@ -5956,9 +5988,9 @@ export type TranslationFunctions = {
 			 */
 			createSuccess: () => LocalizedString
 			/**
-			 * {count|number} tenant(s) deleted
+			 * {count|number} {{tenant|tenants}} deleted
 			 */
-			deleteManySuccess: (arg: { count: unknown }) => LocalizedString
+			deleteManySuccess: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
 			 * tenant deleted successfully!
 			 */
@@ -5992,9 +6024,9 @@ export type TranslationFunctions = {
 		}
 		selection: {
 			/**
-			 * {count|number} tenant(s) will be deleted
+			 * {count|number} {{tenant|tenants}} will be deleted
 			 */
-			deleteSummary: (arg: { count: unknown }) => LocalizedString
+			deleteSummary: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
 			 * delete tenants
 			 */
@@ -6122,7 +6154,7 @@ export type TranslationFunctions = {
 			 */
 			searchAndSelectTenant: () => LocalizedString
 			/**
-			 * search tenant by name, id or phone...
+			 * search tenant by name, ID or phone...
 			 */
 			searchTenantPlaceholder: () => LocalizedString
 			/**
@@ -6176,13 +6208,13 @@ export type TranslationFunctions = {
 			 */
 			createSuccess: () => LocalizedString
 			/**
-			 * {count|number} payment(s) deleted
+			 * {count|number} {{payment|payments}} deleted
 			 */
-			deleteManyPaymentsSuccess: (arg: { count: unknown }) => LocalizedString
+			deleteManyPaymentsSuccess: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
-			 * {count|number} contract(s) deleted
+			 * {count|number} {{contract|contracts}} deleted
 			 */
-			deleteManySuccess: (arg: { count: unknown }) => LocalizedString
+			deleteManySuccess: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
 			 * payment deleted successfully!
 			 */
@@ -6196,17 +6228,17 @@ export type TranslationFunctions = {
 			 */
 			renewSuccess: () => LocalizedString
 			/**
-			 * {count|number} contract(s) restored
+			 * {count|number} {{contract|contracts}} restored
 			 */
-			restoreManySuccess: (arg: { count: unknown }) => LocalizedString
+			restoreManySuccess: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
 			 * contract restored successfully!
 			 */
 			restoreSuccess: () => LocalizedString
 			/**
-			 * {count|number} contract(s) terminated
+			 * {count|number} {{contract|contracts}} terminated
 			 */
-			terminateManySuccess: (arg: { count: unknown }) => LocalizedString
+			terminateManySuccess: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
 			 * contract terminated successfully!
 			 */
@@ -6308,17 +6340,17 @@ export type TranslationFunctions = {
 		}
 		selection: {
 			/**
-			 * {count|number} contract(s) will be deleted
+			 * {count|number} {{contract|contracts}} will be deleted
 			 */
-			deleteSummary: (arg: { count: unknown }) => LocalizedString
+			deleteSummary: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
 			 * delete contracts
 			 */
 			deleteTitle: () => LocalizedString
 			/**
-			 * {count|number} payment(s) will be deleted
+			 * {count|number} {{payment|payments}} will be deleted
 			 */
-			paymentDeleteSummary: (arg: { count: unknown }) => LocalizedString
+			paymentDeleteSummary: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
 			 * delete payments
 			 */
@@ -6352,17 +6384,17 @@ export type TranslationFunctions = {
 			 */
 			refusedNotTerminable: (arg: { count: unknown }) => LocalizedString
 			/**
-			 * {count|number} contract(s) will be restored
+			 * {count|number} {{contract|contracts}} will be restored
 			 */
-			restoreSummary: (arg: { count: unknown }) => LocalizedString
+			restoreSummary: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
 			 * restore contracts
 			 */
 			restoreTitle: () => LocalizedString
 			/**
-			 * {count|number} contract(s) will be terminated
+			 * {count|number} {{contract|contracts}} will be terminated
 			 */
-			terminateSummary: (arg: { count: unknown }) => LocalizedString
+			terminateSummary: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
 			 * terminate contracts
 			 */
@@ -6944,17 +6976,17 @@ export type TranslationFunctions = {
 			 */
 			lockOutReading: () => LocalizedString
 			/**
-			 * their access to {workspaces} ends now. {count|number} other member(s) there pause syncing until their app reconnects.
+			 * their access to {workspaces} ends now. {count|number} other {{member pauses|members pause}} syncing until reconnected.
 			 */
-			lockOutDescription: (arg: { count: unknown, workspaces: unknown }) => LocalizedString
+			lockOutDescription: (arg: { count: string | number | boolean, workspaces: unknown }) => LocalizedString
 			/**
 			 * the member was removed. their access ends when their credential runs out.
 			 */
 			removed: () => LocalizedString
 			/**
-			 * the member was locked out. {count|number} other member(s) reconnect on their own.
+			 * the member was locked out. {count|number} other {{member reconnects|members reconnect}} on their own.
 			 */
-			lockedOut: (arg: { count: unknown }) => LocalizedString
+			lockedOut: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
 			 * you do not hold {workspaces}, so the reset could not restore it. an administrator who does can grant it again.
 			 */
@@ -7324,5 +7356,5 @@ export type TranslationFunctions = {
 }
 
 export type Formatters = {
-	number: (value: unknown | string | number | boolean) => unknown
+	number: (value: string | number | boolean | unknown) => unknown
 }
