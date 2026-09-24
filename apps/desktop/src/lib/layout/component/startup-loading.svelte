@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Progress } from '@rentable/design/primitive/progress/index.js';
-	import { LL } from '$lib/i18n/i18n-svelte';
+	import { LL, locale } from '$lib/i18n/i18n-svelte';
+	import { formatLocaleDate } from '$lib/platform/locale';
 	import { migrationNotice } from '$lib/layout/migration-notice.svelte';
 	import {
 		STARTUP_STAGES,
@@ -84,7 +85,7 @@
 		return notice.phase === 'applying'
 			? $LL.layout.startup.migrationApplying()
 			: $LL.layout.startup.migrationWaiting({
-					until: new Date(notice.until).toLocaleTimeString()
+					until: formatLocaleDate($locale, notice.until, { timeStyle: 'medium' })
 				});
 	});
 </script>

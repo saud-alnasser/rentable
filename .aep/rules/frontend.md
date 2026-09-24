@@ -230,6 +230,14 @@ parameter and sets `dir={isFigure ? 'ltr' : undefined}`.
 *Why this is written down: it was applied consistently and recorded nowhere, so the only way
 to learn it was to notice it, and a surface that missed it failed in Arabic alone.*
 
+**Figures use Western digits in both locales.** Money, counts, dates and relative times read
+`1,500`, not `١٬٥٠٠`, in Arabic as in English. `getIntlLocale` in `platform/locale.ts` is where
+that is decided: it maps `ar` to `ar-SA-u-nu-latn`, and every `Intl` and `DateFormatter`
+construction goes through it, the calendar primitive included, which is handed the reader's
+locale rather than left on its `en-US` default. A search typed in Arabic-Indic digits still
+matches, because search folds them. *This is the human's decision of 2026-09-24, and it reverses
+effort 810, which formatted Arabic in Arabic-Indic digits.*
+
 The type definitions and utility files are **generated**. Edit the locale files, then
 regenerate — see [[references/pnpm]]. Components read translations from the store,
 never from a locale module directly.

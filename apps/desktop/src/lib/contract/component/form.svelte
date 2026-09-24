@@ -721,6 +721,7 @@
 								type="single"
 								bind:value={contractStartDateValue}
 								captionLayout="dropdown"
+								locale={getIntlLocale($locale)}
 							/>
 						</Popover.Content>
 					</Popover.Root>
@@ -786,6 +787,7 @@
 								bind:value={contractEndDateValue}
 								placeholder={contractEndDateValue ?? calculatedEndDate ?? contractStartDateValue}
 								captionLayout="dropdown"
+								locale={getIntlLocale($locale)}
 								minValue={manualEndDateWindow?.start}
 								maxValue={manualEndDateWindow?.end}
 							>

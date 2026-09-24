@@ -28,20 +28,23 @@ import { ASCII_ONLY_COLUMNS } from './schema';
  * either.
  */
 
-/** ٠١٢٣٤٥٦٧٨٩ — what `ar-SA` renders every number as, and therefore what a reader types. */
+/**
+ * ٠١٢٣٤٥٦٧٨٩, the digits an Arabic keyboard types. Every number renders in Western digits, but
+ * a reader may still type these, and the search matches them.
+ */
 const ARABIC_INDIC_DIGITS = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'].map(
 	(digit, value) => [digit, String(value)] as const
 );
 
 /**
- * The separators a number is *rendered* with and never stored with: `1,500` in `en-GB` and
- * `١٬٥٠٠` in `ar-SA` both stand for the `1500` in the column. The group separators go, and
+ * The separators a number is *rendered* with and never stored with: `1,500` as either
+ * locale renders it and `١٬٥٠٠` as an Arabic keyboard writes it both stand for the `1500` in the column. The group separators go, and
  * the Arabic decimal separator becomes the point SQLite casts a real with.
  */
 const NUMBER_SEPARATORS = [
 	[',', ''], // U+002C, the en-GB group separator
-	['٬', ''], // ٬ the ar-SA group separator
-	['٫', '.'] // ٫ the ar-SA decimal separator
+	['٬', ''], // ٬ the Arabic group separator
+	['٫', '.'] // ٫ the Arabic decimal separator
 ] as const;
 
 /**

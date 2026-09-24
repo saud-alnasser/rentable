@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { getIntlLocale } from '../../platform/locale.ts';
 import {
 	PAYMENT_LEDGER_MONTH_FORMAT,
 	formatPaymentLedgerMonth,
@@ -76,9 +77,11 @@ test('an Arabic month header carries the Gregorian month its rows belong to', ()
 	const month = paymentLedgerMonths([])(payment(2026, 3, 20, 500));
 	const label = formatPaymentLedgerMonth('ar', month);
 
+	assert.equal(label, 'مارس 2026', 'the year reads in western digits');
+
 	assert.equal(
 		label,
-		new Intl.DateTimeFormat('ar-SA', {
+		new Intl.DateTimeFormat(getIntlLocale('ar'), {
 			month: 'long',
 			year: 'numeric',
 			timeZone: 'UTC',
@@ -87,7 +90,7 @@ test('an Arabic month header carries the Gregorian month its rows belong to', ()
 	);
 	assert.notEqual(
 		label,
-		new Intl.DateTimeFormat('ar-SA', {
+		new Intl.DateTimeFormat(getIntlLocale('ar'), {
 			month: 'long',
 			year: 'numeric',
 			timeZone: 'UTC',

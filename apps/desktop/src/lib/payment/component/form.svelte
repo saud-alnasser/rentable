@@ -257,6 +257,7 @@
 							bind:value={paymentDateValue}
 							maxValue={latestPaymentDate}
 							captionLayout="dropdown"
+							locale={getIntlLocale($locale)}
 						/>
 					</Popover.Content>
 				</Popover.Root>

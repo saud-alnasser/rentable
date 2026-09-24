@@ -133,7 +133,7 @@ test('up to date with a moment within the day says it relative, in the words of 
 	block({ syncState: fakeSyncState({ lastReachedAt: Date.now() - 3 * 60 * MINUTE }) }, 'ar');
 
 	expect(sentences().at(-1)).toBe(
-		ar.organization.standing.upToDateChecked.replace('{moment}', 'قبل ٣ ساعات')
+		ar.organization.standing.upToDateChecked.replace('{moment}', 'قبل 3 ساعات')
 	);
 });
 

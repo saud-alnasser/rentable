@@ -5,8 +5,8 @@ import type { Formatters, Locales } from './i18n-types';
 export const initFormatters: FormattersInitializer<Locales, Formatters> = (locale: Locales) => {
 	const formatters: Formatters = {
 		// the same `Intl` call the money and date treatments make, so a count and an amount on
-		// one screen cannot disagree about what a digit looks like — Arabic reads both in
-		// Arabic-Indic numerals or neither.
+		// one screen cannot disagree about what a digit looks like. Both read in Western digits,
+		// in Arabic as in English.
 		number: (value: unknown) =>
 			typeof value === 'number' ? formatLocaleNumber(locale, value) : String(value)
 	};
