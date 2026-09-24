@@ -34,6 +34,35 @@ Every rule governing what a surface **is** and how it **presents**. How the code
 draws it is written is [[rules/frontend]]'s; what it reads and writes is
 [[rules/data]]'s.
 
+## The catalogue of acts
+
+**Each act a person repeats has one pattern, and its section is where that pattern is written.**
+A surface follows it; a surface that departs from it says why in that section, as a stated
+exception, and nowhere else.
+
+| Act | Section |
+| --- | --- |
+| search | *Search* |
+| filter | *Filter* |
+| sort | *Sort* |
+| create | *Create* |
+| edit | *Edit* |
+| delete and confirm | *Delete and confirm* |
+| undo | *Undo* |
+| row actions | *Row activation* |
+| record actions | *Record card actions* |
+| bulk selection | *Bulk selection* |
+| export and import | *Export and import* |
+| going back | *Going back* |
+| switching sections | *Switching sections* |
+| empty | *Empty* |
+| loading | *Loading* |
+| error | *Error* |
+| not found | *Empty*, under *Not found* |
+| notifying | *Feedback* |
+
+Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 6.
+
 ## Where a surface's shape comes from
 
 ### Surface kinds
@@ -180,6 +209,52 @@ its twin. And the settings directories had no search at all, which is what a dir
 
 Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 7.
 
+### Filter
+
+**A list narrows by what its concept declares, and the list shell draws every narrowing the same
+way.** The concept hands the shell `filterOptions`, declared in `design/filter.ts`: a choice over
+the concept's own values (a contract's attention rank), or the one period filter,
+`PERIOD_FILTER`, which every surface asking about a span of time offers rather than naming a
+period of its own. The shell draws each as a funnel control in the bar, after the count. Its menu
+lists the values with the chosen one checked, and *clear filter* beneath them once one is chosen;
+choosing the chosen value again clears it too. A narrowed list says so by the control being
+filled, and the control's accessible name carries the value, so a reader who cannot see the fill
+still hears what the list is narrowed to.
+
+**The narrowing happens in the concept's read, never over the rows already loaded**
+([[rules/data]], under *List reads*): a filter over what was fetched answers a different question
+than a filter over what exists. A narrowing that matches nothing is the *no match* state
+(*Empty*, below), whose act clears it. Today the contracts directory, a tenant's contracts and a
+unit's contracts filter by attention rank, and the payment ledger by period.
+
+**A stated exception: the dashboard's period picker is a text control.** The collected figure's
+period is chosen from a menu over the same `PERIOD_FILTER` vocabulary, but its control is a quiet
+button showing the chosen period's name, not a funnel (`dashboard/component/landing.svelte`). The
+chosen period is what the band's figures mean. A list's filter narrows records the reader can see
+for themselves; this one changes what a number says, and a figure without its span of time can be
+read wrong without looking wrong, so the span is on the control rather than behind it.
+
+*Why: the one list that filled the filter position built its own control, and every list doing
+the same would have looked like a different application on each screen.*
+
+Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 6.
+
+### Sort
+
+**Every list offers an order, through the bar's one sort control**
+(`design/block/list-toolbar.svelte`). The concept names its orders as `sortOptions`, built from the
+column ids its read orders by, so the control cannot offer an order the query would refuse. The
+control is an icon after what narrows, filled while an order is chosen, and its menu marks the
+chosen order's direction. Choosing an order starts it ascending, choosing it again reverses it,
+and a third time gives the list back its own order (`nextListSort` in
+`packages/design/src/lib/sort.ts`). The list shell and the settings directories draw it alike. Which
+lists offer an order, and why a ledger ordered by amount drops its month headers, is *Search*'s.
+
+*Why: the unit directory and the ledger offered no order while every other list did, so a reader
+could not tell from one list what the next would let them do.*
+
+Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 6.
+
 ### Row activation
 
 **A row opens its record's page, everywhere, and does nothing else.**
@@ -289,6 +364,48 @@ The cost the spec accepts: undo lasts for the session, so a record deleted witho
 lost if the application closes before it is taken back
 ([[efforts/832-the-interface-speaks-one-language-and-guides/spec]], *Risks*).
 
+**A stated exception: deleting the organization is a heavy form with a password, not the delete
+dialog.** It removes every workspace and everything in them, every member's way in, and every
+other machine's place in the organization, and nothing puts any of it back: it is the one act in
+the application that nothing undoes. So it takes the shared form surface at the heavy weight
+(`organization/component/delete-organization.svelte`). Its body says what goes in the plainest
+words there are, and the owner's password is the confirmation, refused on its own field when it
+does not open the owner's vault (*Validation errors*). A question answered with one press is the
+wrong weight for the act a reader can least afford to answer without reading.
+
+Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 11.
+
+### Undo
+
+**A change to a workspace's records can be taken back while the application is open, by the
+announcement or by the key, and the two do one thing.** A mutation that declares an `inverse` in
+`design/mutation.ts` leaves it on the session's stack (`design/inverse.ts`), and its announcement
+carries *undo*. Ctrl/Cmd+Z takes back the change on top of the stack, and Ctrl/Cmd+Shift+Z or
+Ctrl+Y applies it again (`design/undo-shortcut.ts`). Both are application shortcuts that stand down
+in a text field, where those keys are the field's own, and the command menu offers both by name,
+saying why where there is nothing to move.
+
+- **What was taken back is announced, with the offer to apply it again**, so undo and redo answer
+  each other from the same toast.
+- **One offer at a time.** Only the change on top of the stack can move, so a new offer withdraws
+  the one before it rather than leaving a control over somebody else's change.
+- **An offer stays eight seconds**, longer than an announcement that only has to be read, because
+  it also has to be decided on and reached for.
+- **Switching workspace empties the stack**, and any offer on screen goes with it: an inverse is a
+  statement about one database.
+
+Every create, edit and delete of a tenant, complex, unit, contract or payment is inside undo, as
+are a contract's renewal, termination, restoration and units, and every action on a selection
+(*Bulk selection*, below), which is one change however many records it touched. **Two things are
+outside it, by decision.** The organization's acts (members, workspaces, passwords, the
+organization itself) are the shell's rather than a workspace's records; the ones that take
+something away confirm instead (*Delete and confirm*). And a file imported is not taken back,
+because its inverse would be a file's worth of deletions hung off a toast (`workspace/query.ts`).
+The mechanism, replaying inverses through the real procedures, is [[rules/data]]'s, under *Undo*.
+
+*Why: undo is what lets an ordinary delete skip its question (*Delete and confirm*), and it can
+only carry that weight if the reader can find it the same way after every change.*
+
 Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 11.
 
 ### Create
@@ -322,6 +439,82 @@ and the key does what the control does because it asks the same call.*
 Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 9. The
 key is Ctrl/Cmd+N because the page can answer it in WebView2
 ([[efforts/832-the-interface-speaks-one-language-and-guides/evidence/prototypes/the-create-key]]).
+
+### Edit
+
+**An edit is the concept's create form, opened on the record.** Every concept declares one edit
+act in its `acts.ts`, labelled *edit* and drawn with the square pen, members and workspaces
+included, and it is offered wherever the record's acts are (*Record card actions*). It asks the
+concept's host, which opens the form create opens, at the same weight (*Form surface*), filled
+from the record, with a submit named for its verb. **There is no inline edit**: a value on a card
+or a record's page is read there and changed in the form. An edit is inside undo (*Undo*).
+
+*Why: one concept said "rename" where the next said "edit" for the same act, under two different
+pens, and a complex opened a different surface for edit than for create.*
+
+Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirements 8 and 10.
+
+### Bulk selection
+
+**Selecting is a mode a list turns on, and only a list with something to do to several records
+offers it.** A list given `selectionActions` draws a select control in its bar beside the filters,
+filled while the mode is on. Each card then carries a checkbox, shift extends a run from the last
+record picked without it, and leaving the mode puts the selection down, since a set held out of
+sight is one the next action would act on by surprise. The selection is held by id, so it
+survives the virtualised rows scrolling past, and it names only records the list still shows.
+
+**While anything is selected, a bar stands above the records, never over them**: the count, the
+concept's actions, the list's own *export selection*, and *clear selection*. The actions are the
+controls a record's own cluster wears, labelled with the count: delete for tenants, complexes,
+units and payments; terminate, restore and delete for contracts, declared once in
+`contract/component/selection-actions.svelte` for the three surfaces that list contracts.
+
+**An action on a selection always asks first, in
+`packages/design/src/lib/block/selection-dialog.svelte`, because what it asks is not "are you
+sure".** The concept plans the action, and the dialog shows the outcome before anything is
+written: how many would go through, and how many would be turned away, counted by reason with a
+few of them named. Where nothing can go through it offers no destructive control. What landed is
+announced through the mutation's declaration, with a second notice where the workspace moved
+between the plan and the write, and the whole action is one change to undo.
+
+*Why: a selection is a set the reader assembled, and part of it may be refused for reasons
+nobody can see from the rows. A delete of one record says at once whether it went; a delete of
+nine has to say which of the nine before it runs, or the reader learns it from what is left.*
+
+Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 6.
+
+### Export and import
+
+**A list's file goes out and comes in through one control in its bar**: the transfer menu, after
+the order and before the create, holding *export* and *import* and nothing else.
+
+- **Export** asks which file in `packages/design/src/lib/block/export-dialog.svelte` (csv, chosen
+  by default, or a workbook), then where, through the system's save dialog. It writes the rows the
+  list is showing, under its search and order, in the columns its rows show (`exportAs`), under a
+  name that carries the list and what narrowed it. It announces where the file went and opens its
+  folder; walking away from the save dialog writes nothing and says nothing. A list with no rows
+  cannot export. With a selection, the selection bar's *export selection* writes only the
+  selection, under a name that says so.
+- **Import** reads a file into the directory it was opened from, through
+  `workspace/component/directory-import-dialog.svelte`: choose the file, see what it would do, then
+  agree. **Nothing is written before the last step.** The dialog says how many rows go in, how many
+  do not and why, and which rows to go and look at. A row wrong on its own is turned away and the
+  rest goes in; a file whose rows contradict each other is refused whole and offers no import
+  (`design/import.ts`). An import is outside undo (*Undo*).
+
+Tenants, complexes, units, contracts and payments offer both; a contract that takes no new payment
+offers no import on its ledger. The settings directories offer neither (*Search*).
+
+**A whole workspace is one file, and it moves from the settings area**, beside sync
+(`workspace/component/transfer.svelte`), never from a directory: a directory's control writes that
+directory's records and nothing else. Its import shows a line per sheet
+(`workspace/component/import-dialog.svelte`), and a reference nothing in the file answers refuses
+the whole file.
+
+*Why: the export was an icon that could say export and nothing else, so a second format had nowhere
+to be named and the other direction had nowhere to go.*
+
+Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 6.
 
 ## Forms
 
@@ -537,6 +730,33 @@ in every tool it read.*
 
 Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 13.
 
+### Error
+
+**What failed says so in the reader's words, where they asked for it; what is not there is not a
+failure** (*Not found*, under *Empty*, above).
+
+- **An act refused or failed** is an error toast, raised by the mutation's declaration or through
+  `error/toast.ts` (*Feedback*, below). Its title is the reader's sentence, read from the refusal's
+  code (`error/refusal.ts`), never the words a procedure or the shell wrote. A confirmation holds
+  the refusal its act earned in the dialog, and a refusal that belongs to a form's field marks that
+  field (*Validation errors*).
+- **What the shell or Turso said behind a refusal is kept, closed**, under a disclosure
+  (`error/component/detail-disclosure.svelte`). The sentence is the reader's, and the machine's
+  words are for whoever the reader asks about it.
+- **A screen that could not be drawn takes the shared application surface** (*Application
+  surfaces*), neutral in tone, since the application around it is still running
+  (`layout/component/caught-error.svelte`). It offers *retry*, which draws the screen again, and
+  *go home* where the frame around it still works; where the frame itself failed, retry alone,
+  since every screen would draw the same broken frame. A route that failed to load draws the same
+  surface from the routes' `+error.svelte` and offers *go home*. Both show the status or the thrown
+  message beneath the sentence, for whoever is asked what happened.
+
+*Why: a refusal reached the reader in whatever language its author wrote, Turso's English
+included, and an address that led nowhere was drawn as a screen that failed, which sent the
+reader looking for a fault that was not there.*
+
+Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 6.
+
 ### Feedback
 
 **Every toast goes through the shared handlers.** A mutation announces through its declaration and
@@ -548,6 +768,11 @@ same line for mutations under *Data access*.
 **A notice that stands on a surface is a callout**, drawn with the callout primitive in the tone
 vocabulary above, never a hand-coloured box. The contract units lock notice is the worked example:
 `info`, because a locked contract is working as it should.
+
+**Notifying is these two and nothing else.** The application tells the reader something through a
+toast, raised through the shared handlers, or through a callout standing on the surface it is
+about; it raises no system notification. A toast is read and gone in the toaster's shared
+duration, and one carrying an offer stays longer (*Undo*).
 
 Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 12.
 
