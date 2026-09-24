@@ -612,8 +612,18 @@ export class Startup {
 	 * the standing is read anyway, and a machine it left with no workspace lands on the no-workspace
 	 * surface, which already offers the create. Saying what went wrong is the `prepare`'s own, as it
 	 * is for any mutation, so nothing here repeats it.
+	 *
+	 * **A caller that has to leave its own address hands the move in as `arrive`** (effort 832,
+	 * requirement 19). It is waited for under the loading surface before the standing is read, and
+	 * it is not a stage: moving the address costs nothing a bar could show. Without it the pass
+	 * could end while the address was still the caller's, and a screen that opens signed out, the
+	 * connect screen, would be drawn again over a finished pass. A move that fails is not a reason
+	 * to stop: the standing is read anyway, and the shell draws what it says.
 	 */
-	async standingChanged({ prepare }: { prepare?: () => Promise<unknown> } = {}) {
+	async standingChanged({
+		prepare,
+		arrive
+	}: { prepare?: () => Promise<unknown>; arrive?: () => Promise<unknown> } = {}) {
 		// where the screen goes back to if the read fails: the caller is standing on a surface
 		// that can say so, and a failure here is not a reason to leave them under a loading
 		// surface that has nothing left to load.
@@ -630,6 +640,14 @@ export class Startup {
 				// said by the `prepare`. The pass ends at its first stage, so the next one the
 				// no-workspace surface starts is not counted as its continuation.
 				this.#ports.reportComplete();
+			}
+		}
+
+		if (arrive) {
+			try {
+				await arrive();
+			} catch {
+				// the address stays where it was, and what the standing says is drawn over it.
 			}
 		}
 

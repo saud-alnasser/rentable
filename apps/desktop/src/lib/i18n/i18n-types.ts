@@ -3015,31 +3015,31 @@ type RootTranslation = {
 			 */
 			unreadable: string
 			/**
-			 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​c​o​u​l​d​ ​n​o​t​ ​b​e​ ​r​e​a​c​h​e​d​.​ ​t​h​e​ ​l​i​n​k​ ​i​s​ ​r​i​g​h​t​;​ ​t​r​y​ ​a​g​a​i​n​ ​o​n​c​e​ ​t​h​e​ ​c​o​n​n​e​c​t​i​o​n​ ​i​s​ ​b​a​c​k​.
+			 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​c​o​u​l​d​ ​n​o​t​ ​b​e​ ​r​e​a​c​h​e​d​.​ ​c​h​e​c​k​ ​t​h​e​ ​c​o​n​n​e​c​t​i​o​n​ ​a​n​d​ ​t​r​y​ ​a​g​a​i​n​.
 			 */
 			unreachable: string
 			/**
-			 * t​h​i​s​ ​i​n​v​i​t​a​t​i​o​n​ ​h​a​s​ ​l​a​p​s​e​d​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​i​n​v​i​t​e​d​ ​y​o​u​ ​f​o​r​ ​a​ ​n​e​w​ ​l​i​n​k​.
+			 * t​h​i​s​ ​l​i​n​k​ ​h​a​s​ ​l​a​p​s​e​d​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​s​e​n​t​ ​i​t​ ​f​o​r​ ​a​ ​n​e​w​ ​o​n​e​.
 			 */
 			lapsed: string
 			/**
-			 * t​h​i​s​ ​i​n​v​i​t​a​t​i​o​n​ ​l​i​n​k​ ​h​a​s​ ​a​l​r​e​a​d​y​ ​b​e​e​n​ ​o​p​e​n​e​d​.​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​i​s​ ​c​o​n​n​e​c​t​e​d​,​ ​s​o​ ​s​i​g​n​ ​i​n​ ​w​i​t​h​ ​y​o​u​r​ ​u​s​e​r​n​a​m​e​ ​a​n​d​ ​t​h​e​ ​p​a​s​s​w​o​r​d​ ​y​o​u​ ​c​h​o​s​e​.
+			 * t​h​i​s​ ​l​i​n​k​ ​w​a​s​ ​a​l​r​e​a​d​y​ ​u​s​e​d​ ​h​e​r​e​.​ ​s​i​g​n​ ​i​n​ ​w​i​t​h​ ​t​h​e​ ​p​a​s​s​w​o​r​d​ ​y​o​u​ ​c​h​o​s​e​.
 			 */
 			consumed: string
 			/**
-			 * t​h​i​s​ ​l​i​n​k​ ​h​a​s​ ​a​l​r​e​a​d​y​ ​b​e​e​n​ ​o​p​e​n​e​d​ ​o​n​ ​a​n​o​t​h​e​r​ ​m​a​c​h​i​n​e​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​k​e​e​p​s​ ​t​h​e​ ​a​c​c​o​u​n​t​s​ ​f​o​r​ ​a​ ​n​e​w​ ​o​n​e​.
+			 * t​h​i​s​ ​l​i​n​k​ ​w​a​s​ ​a​l​r​e​a​d​y​ ​u​s​e​d​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​s​e​n​t​ ​i​t​ ​f​o​r​ ​a​ ​n​e​w​ ​o​n​e​.
 			 */
 			consumedElsewhere: string
 			/**
-			 * t​h​i​s​ ​i​n​v​i​t​a​t​i​o​n​ ​w​a​s​ ​w​i​t​h​d​r​a​w​n​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​i​n​v​i​t​e​d​ ​y​o​u​ ​f​o​r​ ​a​ ​n​e​w​ ​l​i​n​k​.
+			 * t​h​i​s​ ​l​i​n​k​ ​w​a​s​ ​w​i​t​h​d​r​a​w​n​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​s​e​n​t​ ​i​t​ ​f​o​r​ ​a​ ​n​e​w​ ​o​n​e​.
 			 */
 			revoked: string
 			/**
-			 * a​ ​n​e​w​e​r​ ​l​i​n​k​ ​t​o​o​k​ ​t​h​e​ ​p​l​a​c​e​ ​o​f​ ​t​h​i​s​ ​o​n​e​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​k​e​e​p​s​ ​t​h​e​ ​a​c​c​o​u​n​t​s​ ​f​o​r​ ​t​h​e​ ​n​e​w​ ​o​n​e​.
+			 * a​ ​n​e​w​e​r​ ​l​i​n​k​ ​r​e​p​l​a​c​e​d​ ​t​h​i​s​ ​o​n​e​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​s​e​n​t​ ​i​t​ ​f​o​r​ ​t​h​e​ ​n​e​w​ ​o​n​e​.
 			 */
 			replaced: string
 			/**
-			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​a​l​r​e​a​d​y​ ​h​o​l​d​s​ ​a​n​o​t​h​e​r​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​d​i​s​c​o​n​n​e​c​t​ ​i​t​ ​f​i​r​s​t​,​ ​t​h​e​n​ ​o​p​e​n​ ​t​h​i​s​ ​l​i​n​k​.
+			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​h​o​l​d​s​ ​a​n​o​t​h​e​r​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​d​i​s​c​o​n​n​e​c​t​ ​i​t​ ​a​t​ ​t​h​e​ ​s​i​g​n​-​i​n​ ​f​i​r​s​t​.
 			 */
 			anotherOrganization: string
 			/**
@@ -6616,31 +6616,31 @@ export type TranslationFunctions = {
 			 */
 			unreadable: () => LocalizedString
 			/**
-			 * the organization could not be reached. the link is right; try again once the connection is back.
+			 * the organization could not be reached. check the connection and try again.
 			 */
 			unreachable: () => LocalizedString
 			/**
-			 * this invitation has lapsed. ask whoever invited you for a new link.
+			 * this link has lapsed. ask whoever sent it for a new one.
 			 */
 			lapsed: () => LocalizedString
 			/**
-			 * this invitation link has already been opened. this machine is connected, so sign in with your username and the password you chose.
+			 * this link was already used here. sign in with the password you chose.
 			 */
 			consumed: () => LocalizedString
 			/**
-			 * this link has already been opened on another machine. ask whoever keeps the accounts for a new one.
+			 * this link was already used. ask whoever sent it for a new one.
 			 */
 			consumedElsewhere: () => LocalizedString
 			/**
-			 * this invitation was withdrawn. ask whoever invited you for a new link.
+			 * this link was withdrawn. ask whoever sent it for a new one.
 			 */
 			revoked: () => LocalizedString
 			/**
-			 * a newer link took the place of this one. ask whoever keeps the accounts for the new one.
+			 * a newer link replaced this one. ask whoever sent it for the new one.
 			 */
 			replaced: () => LocalizedString
 			/**
-			 * this machine already holds another organization. disconnect it first, then open this link.
+			 * this machine holds another organization. disconnect it at the sign-in first.
 			 */
 			anotherOrganization: () => LocalizedString
 			/**

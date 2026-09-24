@@ -169,6 +169,68 @@ test('a prepare that fails lands on the no-workspace surface, with the owner in'
 	assert.equal(journal.bootstrapped, 0);
 });
 
+// effort 832, requirement 19: a join leaves the connect screen's address, and the move is waited
+// for under the loading surface, as no stage of its own, before the standing is read. A pass that
+// did not wait could end while the address was still the connect screen's, which opens signed out
+// and would be drawn again over the finished pass.
+test('an arrive runs under the loading surface with no stage of its own, before the standing is read', async () => {
+	const joined = fakeOrganizationState({
+		session: fakeOrganizationSession({
+			workspaces: [fakeOrganizationWorkspace({ id: 'acme', name: 'Acme Rentals' })]
+		})
+	});
+	const { startup, journal, seen } = harness({
+		organization: nowhereToGo(),
+		afterBootstrap: joined
+	});
+
+	await startup.start();
+	journal.stages.length = 0;
+
+	const seenBefore = seen.length;
+	const whileArriving: { state: string; stages: string[]; read: boolean }[] = [];
+
+	await startup.standingChanged({
+		arrive: async () => {
+			whileArriving.push({
+				state: startup.snapshot.state,
+				stages: [...journal.stages],
+				read: startup.snapshot.organization?.session != null
+			});
+		}
+	});
+
+	// up under the loading surface, counted as nothing, and before the standing was read.
+	assert.deepEqual(whileArriving, [{ state: 'loading', stages: [], read: false }]);
+	assert.deepEqual(journal.stages, ['workspace', 'changes', 'records']);
+	assert.deepEqual(
+		[...new Set(seen.slice(seenBefore).map((snapshot) => snapshot.state))],
+		['loading', 'ready']
+	);
+	assert.deepEqual(journal.workspacesOpened, ['acme']);
+});
+
+// and a move that fails is not a reason to stop: the standing is read, and the pass goes on.
+test('an arrive that fails still reads the standing and goes on', async () => {
+	const joined = fakeOrganizationState({
+		session: fakeOrganizationSession({
+			workspaces: [fakeOrganizationWorkspace({ id: 'acme', name: 'Acme Rentals' })]
+		})
+	});
+	const { startup, journal } = harness({ organization: nowhereToGo(), afterBootstrap: joined });
+
+	await startup.start();
+	await startup.standingChanged({
+		arrive: async () => {
+			throw new Error('the navigation was cancelled');
+		}
+	});
+
+	assert.equal(startup.snapshot.state, 'ready');
+	assert.equal(startup.snapshot.error, null);
+	assert.deepEqual(journal.workspacesOpened, ['acme']);
+});
+
 // effort 824, requirement 18: connecting by the organization's link records it on this machine
 // with no member and opens no vault, and the route then tells the unit where the machine stands
 // changed. What the unit reads is an organization held and nobody in, which is the wall, locked,

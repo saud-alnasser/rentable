@@ -3,7 +3,7 @@
 	import { resolve } from '$app/paths';
 	import { tauri } from '$lib/platform/tauri';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import { toErrorText } from '$lib/error/message';
+	import { toErrorMessage } from '$lib/error/message';
 	import { THE_WAY_IN } from '$lib/layout/shell-surface';
 	import { useStartup } from '$lib/layout/startup-context';
 	import OrganizationConnectScreen from '$lib/organization/component/connect-screen.svelte';
@@ -82,15 +82,27 @@
 	// second wait.
 	let attempt = 0;
 
-	/** where every finished link ends: the shell reads where the machine stands and moves itself. */
+	/**
+	 * where every finished link ends: the shell reads where the machine stands and moves itself.
+	 *
+	 * **The loading surface is the next thing drawn, and the address moves under it** (effort 832,
+	 * requirement 19). The unit raises the surface at once, over this screen, and waits for the
+	 * address to reach the way in before it reads the standing, so the pass cannot end while the
+	 * address is still this one: this screen opens signed out, and the shell would draw it again,
+	 * on its working line, over a finished pass. *It navigated first and told the unit beside it,
+	 * without waiting, so which of the two finished first was left to chance.*
+	 */
 	const standingChanged = () => {
-		void goto(resolve(THE_WAY_IN));
-		void startup.standingChanged();
+		void startup.standingChanged({ arrive: () => goto(resolve(THE_WAY_IN)) });
 	};
 
-	/** what every refusal is said in: the shell's own sentence, in the reader's language. */
+	/**
+	 * what every refusal is said in: one sentence in the reader's language, from the refusal's
+	 * reason where it carried one, and never with the shell's own words spliced after it. Those are
+	 * the detail each step keeps behind a disclosure.
+	 */
 	const describe = (failure: unknown) =>
-		toErrorText(failure, $LL, $LL.common.messages.unexpectedError());
+		toErrorMessage(failure, $LL, $LL.common.messages.unexpectedError()).title;
 
 	/**
 	 * the connect opens the organization over the network and takes seconds, and the corner back is

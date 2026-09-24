@@ -993,18 +993,16 @@ const en = {
 			reading: 'reading the link...',
 			unreadable:
 				'this is not a rentable link. paste the whole link, exactly as it was handed to you.',
-			unreachable:
-				'the organization could not be reached. the link is right; try again once the connection is back.',
-			lapsed: 'this invitation has lapsed. ask whoever invited you for a new link.',
-			consumed:
-				'this invitation link has already been opened. this machine is connected, so sign in with your username and the password you chose.',
-			consumedElsewhere:
-				'this link has already been opened on another machine. ask whoever keeps the accounts for a new one.',
-			revoked: 'this invitation was withdrawn. ask whoever invited you for a new link.',
-			replaced:
-				'a newer link took the place of this one. ask whoever keeps the accounts for the new one.',
+			// the seven refusals: one line each, and each names the next step (effort 832,
+			// requirement 19). What the shell said is behind the details disclosure under them.
+			unreachable: 'the organization could not be reached. check the connection and try again.',
+			lapsed: 'this link has lapsed. ask whoever sent it for a new one.',
+			consumed: 'this link was already used here. sign in with the password you chose.',
+			consumedElsewhere: 'this link was already used. ask whoever sent it for a new one.',
+			revoked: 'this link was withdrawn. ask whoever sent it for a new one.',
+			replaced: 'a newer link replaced this one. ask whoever sent it for the new one.',
 			anotherOrganization:
-				'this machine already holds another organization. disconnect it first, then open this link.',
+				'this machine holds another organization. disconnect it at the sign-in first.',
 			toSignIn: 'go to the sign-in',
 			passwordTitle: 'choose your password',
 			passwordDescription:

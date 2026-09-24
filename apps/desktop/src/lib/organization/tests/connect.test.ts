@@ -65,7 +65,11 @@ const rejection = (code: string, message: string, reason?: string) => ({
 	...(reason ? { reason } : {})
 });
 
-const said = (error: unknown) => (error as { message: string }).message;
+/**
+ * the sentence a refusal is said in, as the route's `describe` makes one from the reason: marked
+ * here so a test can tell it from the shell's own words, which are the step's `detail`.
+ */
+const said = (error: unknown) => `said: ${(error as { message: string }).message}`;
 
 // effort 828, requirement 17: a link opens nothing without the code that came with it, so a link
 // the operating system handed over waits in the field for the six characters rather than being
@@ -109,7 +113,8 @@ test('an invitation link names the organization and asks for a password, holding
 		code: CODE,
 		organizationName: 'Acme Rentals',
 		isJoining: false,
-		errorMessage: null
+		errorMessage: null,
+		detail: null
 	});
 });
 
@@ -130,7 +135,8 @@ test('a lapsed, consumed, revoked or replaced link is refused by name, off the c
 					kind: 'refused',
 					link: LINK,
 					refusal: reason,
-					message: `the link to Acme ${reason}`,
+					// the step says its own sentence, and what the shell said is the detail.
+					detail: `the link to Acme ${reason}`,
 					// which act was refused, which is what says whether the organization was
 					// recorded before the row was judged: the password step is the invitation's
 					// accept, which reaches and records first, and the reading step is the machine
@@ -154,7 +160,7 @@ test('a lapsed, consumed, revoked or replaced link is refused by name, off the c
 				kind: 'refused',
 				link: LINK,
 				refusal: 'anotherOrganization',
-				message: 'this machine holds Beta',
+				detail: 'this machine holds Beta',
 				wasConnecting: step.kind === 'password'
 			},
 			step.kind
@@ -163,7 +169,7 @@ test('a lapsed, consumed, revoked or replaced link is refused by name, off the c
 		// the accept and the machine connect both reach the organization, so both can fail to.
 		assert.deepEqual(
 			joinFailed(joining, rejection('network', 'Acme could not be reached'), said),
-			{ kind: 'unreachable', link: LINK, code: CODE, message: 'Acme could not be reached' },
+			{ kind: 'unreachable', link: LINK, code: CODE, detail: 'Acme could not be reached' },
 			step.kind
 		);
 	}
@@ -176,7 +182,8 @@ test('a refusal naming a standing this side does not know keeps the step and say
 	const step = joinFailed(joining, rejection('refused', 'the link was eaten', 'eaten'), said);
 
 	assert.equal(step.kind, 'password');
-	assert.equal(step.kind === 'password' && step.errorMessage, 'the link was eaten');
+	assert.equal(step.kind === 'password' && step.errorMessage, 'said: the link was eaten');
+	assert.equal(step.kind === 'password' && step.detail, 'the link was eaten');
 });
 
 // effort 828, requirement 17: the link is the half a decode refuses, so the form comes back with
@@ -192,7 +199,7 @@ test('text that is not a link marks the link field, and an organization that can
 			{ code: 'refused', reason: 'linkUnreadable', message: 'not a link' },
 			describe
 		),
-		{ ...pasting('nope', CODE), isUnreadable: true }
+		{ ...pasting('nope', CODE), isUnreadable: true, detail: 'not a link' }
 	);
 	assert.deepEqual(
 		inspectionFailed(
@@ -201,15 +208,26 @@ test('text that is not a link marks the link field, and an organization that can
 			{ code: 'network', message: 'Acme could not be reached' },
 			describe
 		),
-		{ kind: 'unreachable', link: LINK, code: CODE, message: 'Acme could not be reached' }
+		{ kind: 'unreachable', link: LINK, code: CODE, detail: 'Acme could not be reached' }
 	);
 	// a failure with no code is still shown as what it said, rather than swallowed.
 	assert.deepEqual(inspectionFailed(LINK, CODE, new Error('the disk is full'), describe), {
 		kind: 'unreachable',
 		link: LINK,
 		code: CODE,
-		message: 'the disk is full'
+		detail: 'the disk is full'
 	});
+	// and where the sentence is the error's own message, as it is for a failure raised on this
+	// side, there is no detail: the disclosure would only say the sentence again.
+	assert.deepEqual(
+		inspectionFailed(
+			LINK,
+			CODE,
+			new Error('the disk is full'),
+			(error) => (error as Error).message
+		),
+		{ kind: 'unreachable', link: LINK, code: CODE, detail: null }
+	);
 });
 
 // effort 826, requirement 3 of effort 824 still: a machine holds one organization, so a link for
@@ -232,7 +250,7 @@ test('an organization link met on a machine holding another is refused on the re
 			kind: 'refused',
 			link: LINK,
 			refusal: 'anotherOrganization',
-			message: 'this machine already holds Beta; disconnect it before connecting another',
+			detail: 'this machine already holds Beta; disconnect it before connecting another',
 			// nothing was reached and nothing was recorded: the read is a decode.
 			wasConnecting: false
 		}
@@ -250,7 +268,8 @@ test('the accept holds the fields while it runs, and says what refused it', () =
 	assert.deepEqual(joinFailed(joining, new Error('the disk is full'), said), {
 		...step,
 		isJoining: false,
-		errorMessage: 'the disk is full'
+		errorMessage: 'said: the disk is full',
+		detail: 'the disk is full'
 	});
 });
 
@@ -259,7 +278,8 @@ test('the accept holds the fields while it runs, and says what refused it', () =
 test('a nameless failure in the read wait hands the form back, with nothing marked', () => {
 	assert.deepEqual(joinFailed(reading(), new Error('the disk is full'), said), {
 		...pasting(LINK, CODE),
-		errorMessage: 'the disk is full'
+		errorMessage: 'said: the disk is full',
+		detail: 'the disk is full'
 	});
 });
 
@@ -288,10 +308,29 @@ test('a wrong code and a missing one are told apart, and both mark the code fiel
 		);
 
 		// the link the person already typed is handed back with the code, so the one field they
-		// have to answer is the one that was refused.
+		// have to answer is the one that was refused. The field says the whole of it, so no
+		// sentence is carried beside it, and what the shell said is the detail (effort 832,
+		// requirement 19: one line per refusal).
 		assert.deepEqual(
 			landing(rejection('refused', 'the code is wrong', 'codeWrong')),
-			{ ...pasting(LINK, CODE), codeRefusal: 'wrong', errorMessage: 'said' },
+			{
+				...pasting(LINK, CODE),
+				codeRefusal: 'wrong',
+				errorMessage: null,
+				detail: 'the code is wrong'
+			},
+			step.kind
+		);
+		// a rarer refusal answered on the form keeps its own sentence, since the field's does not
+		// say what it was.
+		assert.deepEqual(
+			landing(rejection('refused', 'the password is short', 'passwordTooShort')),
+			{
+				...pasting(LINK, CODE),
+				codeRefusal: 'missing',
+				errorMessage: 'said',
+				detail: 'the password is short'
+			},
 			step.kind
 		);
 	}
