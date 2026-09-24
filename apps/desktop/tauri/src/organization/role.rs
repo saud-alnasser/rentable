@@ -41,7 +41,12 @@
 
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD as BASE64URL};
 
-use crate::{diagnostics, error::Error, persisted::Persisted, sync::RemoteSyncStore};
+use crate::{
+    diagnostics,
+    error::{Error, RefusalReason},
+    persisted::Persisted,
+    sync::RemoteSyncStore,
+};
 
 use super::{
     HeldOrganization,
@@ -127,9 +132,10 @@ pub(super) fn organization_key_of(session: &MemberSession) -> Result<Organizatio
     let key = owner_key_from(&session.secret)?;
 
     if key.verifying_key() != session.verifying_key {
-        return Err(Error::Forbidden {
-            message: NOT_THE_KEY_IN_FORCE.to_string(),
-        });
+        return Err(Error::refused(
+            RefusalReason::KeyNotInForce,
+            NOT_THE_KEY_IN_FORCE,
+        ));
     }
 
     Ok(key)
@@ -222,54 +228,62 @@ pub async fn offer_ownership(
     session.settled()?;
 
     if session.role != permission::OWNER {
-        return Err(Error::Forbidden {
-            message: ONLY_THE_OWNER_TRANSFERS.to_string(),
-        });
+        return Err(Error::refused(
+            RefusalReason::OwnerOnly,
+            ONLY_THE_OWNER_TRANSFERS,
+        ));
     }
 
     if member_id == session.member_id {
-        return Err(Error::InvalidInput {
-            message: "you are the owner already. name the account that is to have it".to_string(),
-        });
+        return Err(Error::refused(
+            RefusalReason::AlreadyOwner,
+            "you are the owner already. name the account that is to have it",
+        ));
     }
 
     let rows = store.members(&session.verifying_key).await?;
     let owner = rows
         .iter()
         .find(|member| member.id == session.member_id)
-        .ok_or_else(|| Error::NotFound {
-            message: "your member row is not in the organization any more. sign in again"
-                .to_string(),
+        .ok_or_else(|| {
+            Error::refused(
+                RefusalReason::SignInAgain,
+                "your member row is not in the organization any more. sign in again",
+            )
         })?;
     let member = rows
         .iter()
         .find(|member| member.id == member_id)
-        .ok_or_else(|| Error::NotFound {
-            message: "that member is not in this organization".to_string(),
+        .ok_or_else(|| {
+            Error::refused(
+                RefusalReason::MemberMissing,
+                "that member is not in this organization",
+            )
         })?;
 
     if member.role == permission::REMOVED {
-        return Err(Error::PreconditionFailed {
-            message: "that member was removed. invite them again if they are to come back"
-                .to_string(),
-        });
+        return Err(Error::refused(
+            RefusalReason::MemberRemoved,
+            "that member was removed. invite them again if they are to come back",
+        ));
     }
 
     if member.must_change_password {
-        return Err(Error::PreconditionFailed {
-            message: AN_UNSET_ACCOUNT_CANNOT_ACCEPT.to_string(),
-        });
+        return Err(Error::refused(
+            RefusalReason::AccountNotSetUp,
+            AN_UNSET_ACCOUNT_CANNOT_ACCEPT,
+        ));
     }
 
     if standing_offer(store, &session.verifying_key)
         .await?
         .is_some()
     {
-        return Err(Error::PreconditionFailed {
-            message: "this organization is already offered to an account. withdraw that offer \
-                      before making another"
-                .to_string(),
-        });
+        return Err(Error::refused(
+            RefusalReason::OfferPending,
+            "this organization is already offered to an account. withdraw that offer \
+                      before making another",
+        ));
     }
 
     // the password, tried against the owner's own row rather than trusted from the session: a
@@ -372,9 +386,10 @@ pub async fn withdraw_offer(
     session.settled()?;
 
     if session.role != permission::OWNER {
-        return Err(Error::Forbidden {
-            message: ONLY_THE_OWNER_TRANSFERS.to_string(),
-        });
+        return Err(Error::refused(
+            RefusalReason::OwnerOnly,
+            ONLY_THE_OWNER_TRANSFERS,
+        ));
     }
 
     if store.successions().await?.iter().any(|succession| {
@@ -387,16 +402,15 @@ pub async fn withdraw_offer(
             )
             .is_ok()
     }) {
-        return Err(Error::PreconditionFailed {
-            message: THE_OFFER_WAS_ACCEPTED.to_string(),
-        });
+        return Err(Error::refused(
+            RefusalReason::OfferAccepted,
+            THE_OFFER_WAS_ACCEPTED,
+        ));
     }
 
     let offer = standing_offer(store, &session.verifying_key)
         .await?
-        .ok_or_else(|| Error::NotFound {
-            message: NOTHING_WAS_OFFERED.to_string(),
-        })?;
+        .ok_or_else(|| Error::refused(RefusalReason::NothingOffered, NOTHING_WAS_OFFERED))?;
     let offered = store
         .members(&session.verifying_key)
         .await?
@@ -478,12 +492,12 @@ pub async fn accept_ownership(
 ) -> Result<(), Error> {
     session.settled()?;
 
-    let held = machine
-        .organization
-        .clone()
-        .ok_or_else(|| Error::PreconditionFailed {
-            message: "this machine holds no organization".to_string(),
-        })?;
+    let held = machine.organization.clone().ok_or_else(|| {
+        Error::refused(
+            RefusalReason::NoOrganization,
+            "this machine holds no organization",
+        )
+    })?;
     // the key this machine pinned when it joined, and not the session's copy of it: the pin is
     // what the offer has to have been signed by, and reading it from the record is what makes
     // that sentence true rather than circular.
@@ -507,15 +521,16 @@ pub async fn accept_ownership(
     let offer = standing_offer(store, &pinned)
         .await?
         .filter(|offer| offer.offered_member_id == session.member_id)
-        .ok_or_else(|| Error::NotFound {
-            message: NOTHING_WAS_OFFERED.to_string(),
-        })?;
+        .ok_or_else(|| Error::refused(RefusalReason::NothingOffered, NOTHING_WAS_OFFERED))?;
     let rows = store.members(&pinned).await?;
     let founder = rows
         .iter()
         .find(|member| member.id == offer.offered_by)
-        .ok_or_else(|| Error::NotFound {
-            message: "the account that offered you the organization is no longer in it".to_string(),
+        .ok_or_else(|| {
+            Error::refused(
+                RefusalReason::OffererGone,
+                "the account that offered you the organization is no longer in it",
+            )
         })?;
 
     // the password, tried against this member's own row, so a machine somebody walked away from
@@ -546,9 +561,7 @@ pub async fn accept_ownership(
     let sealed = mine
         .owner_seed_sealed
         .as_deref()
-        .ok_or_else(|| Error::NotFound {
-            message: NOTHING_WAS_OFFERED.to_string(),
-        })?;
+        .ok_or_else(|| Error::refused(RefusalReason::NothingOffered, NOTHING_WAS_OFFERED))?;
     let old_seed = unseal_with_secret_key(&opened, sealed).map_err(|_| planted())?;
     let old_seed =
         <[u8; SECRET_KEY_BYTES]>::try_from(old_seed.as_slice()).map_err(|_| planted())?;
@@ -813,37 +826,42 @@ pub async fn change_role(
     )?;
 
     if member_id == session.member_id {
-        return Err(Error::Forbidden {
-            message: "you cannot change your own role or permissions. another administrator can"
-                .to_string(),
-        });
+        return Err(Error::refused(
+            RefusalReason::NotYourself,
+            "you cannot change your own role or permissions. another administrator can",
+        ));
     }
 
     if role != permission::ADMINISTRATOR && role != permission::MEMBER {
-        return Err(Error::InvalidInput {
-            message: "a member is an administrator or a member".to_string(),
-        });
+        return Err(Error::refused(
+            RefusalReason::RoleUnknown,
+            "a member is an administrator or a member",
+        ));
     }
 
     let rows = store.members(&session.verifying_key).await?;
     let member = rows
         .iter()
         .find(|member| member.id == member_id)
-        .ok_or_else(|| Error::NotFound {
-            message: "that member is not in this organization".to_string(),
+        .ok_or_else(|| {
+            Error::refused(
+                RefusalReason::MemberMissing,
+                "that member is not in this organization",
+            )
         })?;
 
     if member.role == permission::OWNER {
-        return Err(Error::Forbidden {
-            message: "an owner's role is not changed. the organization is theirs".to_string(),
-        });
+        return Err(Error::refused(
+            RefusalReason::OwnerProtected,
+            "an owner's role is not changed. the organization is theirs",
+        ));
     }
 
     if member.role == permission::REMOVED {
-        return Err(Error::PreconditionFailed {
-            message: "that member was removed. invite them again if they are to come back"
-                .to_string(),
-        });
+        return Err(Error::refused(
+            RefusalReason::MemberRemoved,
+            "that member was removed. invite them again if they are to come back",
+        ));
     }
 
     // the one widening that needs the organization key, refused before anything is written. The
@@ -858,12 +876,12 @@ pub async fn change_role(
         && member.role != permission::ADMINISTRATOR);
 
     if widens && session.role != permission::OWNER {
-        return Err(Error::Forbidden {
-            message: "only an owner can give somebody an act that signs rows, because certifying \
+        return Err(Error::refused(
+            RefusalReason::OwnerOnly,
+            "only an owner can give somebody an act that signs rows, because certifying \
                       a signer needs the organization key. ask the owner, or change what they may \
-                      do without it"
-                .to_string(),
-        });
+                      do without it",
+        ));
     }
 
     let (key, certificate) = signer_of(store, session).await?;
@@ -1401,14 +1419,32 @@ mod tests {
             .await
             .expect_err("the owner changed their own row");
 
-        assert!(matches!(own, Error::Forbidden { .. }), "{own:?}");
+        assert!(
+            matches!(
+                own,
+                Error::Refused {
+                    reason: crate::error::RefusalReason::NotYourself,
+                    ..
+                }
+            ),
+            "{own:?}"
+        );
         assert!(own.to_string().contains("your own"), "{own}");
 
         let theirs = change_role(&store, &ada, &owner_id, permission::MEMBER, 0, NOW + 1)
             .await
             .expect_err("an administrator changed the owner's row");
 
-        assert!(matches!(theirs, Error::Forbidden { .. }), "{theirs:?}");
+        assert!(
+            matches!(
+                theirs,
+                Error::Refused {
+                    reason: crate::error::RefusalReason::OwnerProtected,
+                    ..
+                }
+            ),
+            "{theirs:?}"
+        );
         assert!(theirs.to_string().contains("owner"), "{theirs}");
 
         let without = change_role(
@@ -1428,13 +1464,31 @@ mod tests {
             .await
             .expect_err("a role this build never heard of was written");
 
-        assert!(matches!(unknown, Error::InvalidInput { .. }), "{unknown:?}");
+        assert!(
+            matches!(
+                unknown,
+                Error::Refused {
+                    reason: crate::error::RefusalReason::RoleUnknown,
+                    ..
+                }
+            ),
+            "{unknown:?}"
+        );
 
         let missing = change_role(&store, &owner, "nobody", permission::MEMBER, 0, NOW + 1)
             .await
             .expect_err("a member who is not here was changed");
 
-        assert!(matches!(missing, Error::NotFound { .. }), "{missing:?}");
+        assert!(
+            matches!(
+                missing,
+                Error::Refused {
+                    reason: crate::error::RefusalReason::MemberMissing,
+                    ..
+                }
+            ),
+            "{missing:?}"
+        );
 
         assert_eq!(every_row(&store).await, before, "a refusal wrote something");
     }
@@ -1496,7 +1550,13 @@ mod tests {
             .unwrap_or_else(|| panic!("an administrator handed out {}", act.name()));
 
             assert!(
-                matches!(refusal, Error::Forbidden { .. }),
+                matches!(
+                    refusal,
+                    Error::Refused {
+                        reason: crate::error::RefusalReason::OwnerOnly,
+                        ..
+                    }
+                ),
                 "{}: {refusal:?}",
                 act.name()
             );
@@ -1771,7 +1831,13 @@ mod tests {
         .expect_err("a member narrowed out of inviteMember invited somebody");
 
         assert!(
-            matches!(refusal, Error::Forbidden { .. }),
+            matches!(
+                refusal,
+                Error::Refused {
+                    reason: crate::error::RefusalReason::RoleLacksAct,
+                    ..
+                }
+            ),
             "the refusal is not a forbidden: {refusal}"
         );
         assert!(
@@ -1994,7 +2060,7 @@ mod tests {
             .expect_err("the organization was offered to an account with no password");
 
         assert!(
-            matches!(no_password, Error::PreconditionFailed { ref message } if message == AN_UNSET_ACCOUNT_CANNOT_ACCEPT),
+            matches!(no_password, Error::Refused { reason: crate::error::RefusalReason::AccountNotSetUp, ref message } if message == AN_UNSET_ACCOUNT_CANNOT_ACCEPT),
             "{no_password:?}"
         );
 
@@ -2004,7 +2070,13 @@ mod tests {
             .expect_err("the organization was offered to a removed account");
 
         assert!(
-            matches!(removed, Error::PreconditionFailed { .. }),
+            matches!(
+                removed,
+                Error::Refused {
+                    reason: crate::error::RefusalReason::MemberRemoved,
+                    ..
+                }
+            ),
             "{removed:?}"
         );
 
@@ -2013,7 +2085,16 @@ mod tests {
             .await
             .expect_err("the owner offered the organization to themselves");
 
-        assert!(matches!(own, Error::InvalidInput { .. }), "{own:?}");
+        assert!(
+            matches!(
+                own,
+                Error::Refused {
+                    reason: crate::error::RefusalReason::AlreadyOwner,
+                    ..
+                }
+            ),
+            "{own:?}"
+        );
 
         // and somebody who is not the owner, with their own password, which is the one refusal
         // that is about who is asking rather than about who is being named.
@@ -2028,7 +2109,7 @@ mod tests {
         .expect_err("an administrator offered the organization");
 
         assert!(
-            matches!(not_the_owner, Error::Forbidden { ref message } if message == ONLY_THE_OWNER_TRANSFERS),
+            matches!(not_the_owner, Error::Refused { reason: crate::error::RefusalReason::OwnerOnly, ref message } if message == ONLY_THE_OWNER_TRANSFERS),
             "{not_the_owner:?}"
         );
 
@@ -2524,7 +2605,7 @@ mod tests {
         .expect_err("a withdrawn offer was accepted");
 
         assert!(
-            matches!(refused, Error::NotFound { ref message } if message == NOTHING_WAS_OFFERED),
+            matches!(refused, Error::Refused { reason: crate::error::RefusalReason::NothingOffered, ref message } if message == NOTHING_WAS_OFFERED),
             "{refused:?}"
         );
 
@@ -2534,7 +2615,7 @@ mod tests {
             .expect_err("an offer that is not there was withdrawn");
 
         assert!(
-            matches!(again, Error::NotFound { ref message } if message == NOTHING_WAS_OFFERED),
+            matches!(again, Error::Refused { reason: crate::error::RefusalReason::NothingOffered, ref message } if message == NOTHING_WAS_OFFERED),
             "{again:?}"
         );
     }
@@ -2710,7 +2791,7 @@ mod tests {
         .expect_err("a removed account accepted the organization");
 
         assert!(
-            matches!(removed, Error::Forbidden { ref message } if message.contains("removed")),
+            matches!(removed, Error::Refused { reason: crate::error::RefusalReason::YouWereRemoved, ref message } if message.contains("removed")),
             "{removed:?}"
         );
         assert_eq!(
@@ -2741,7 +2822,7 @@ mod tests {
         .expect_err("a signed-out-everywhere account accepted the organization");
 
         assert!(
-            matches!(signed_out, Error::Forbidden { ref message } if message.contains("ended from another machine")),
+            matches!(signed_out, Error::Refused { reason: crate::error::RefusalReason::SessionsEnded, ref message } if message.contains("ended from another machine")),
             "{signed_out:?}"
         );
         assert_eq!(
@@ -2800,7 +2881,7 @@ mod tests {
             .expect_err("an accepted offer was withdrawn");
 
         assert!(
-            matches!(refused, Error::PreconditionFailed { ref message } if message == THE_OFFER_WAS_ACCEPTED),
+            matches!(refused, Error::Refused { reason: crate::error::RefusalReason::OfferAccepted, ref message } if message == THE_OFFER_WAS_ACCEPTED),
             "{refused:?}"
         );
         assert_eq!(
@@ -2899,7 +2980,7 @@ mod tests {
         let refused = organization_key_of(&owner).expect_err("the founder's vault certified");
 
         assert!(
-            matches!(refused, Error::Forbidden { ref message } if message == NOT_THE_KEY_IN_FORCE),
+            matches!(refused, Error::Refused { reason: crate::error::RefusalReason::KeyNotInForce, ref message } if message == NOT_THE_KEY_IN_FORCE),
             "{refused:?}"
         );
 
@@ -2922,7 +3003,7 @@ mod tests {
         .expect_err("a certificate was issued under a key that was handed over");
 
         assert!(
-            matches!(widened, Error::Forbidden { ref message } if message == NOT_THE_KEY_IN_FORCE),
+            matches!(widened, Error::Refused { reason: crate::error::RefusalReason::KeyNotInForce, ref message } if message == NOT_THE_KEY_IN_FORCE),
             "{widened:?}"
         );
         assert_eq!(

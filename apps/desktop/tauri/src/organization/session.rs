@@ -65,7 +65,11 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use crate::{diagnostics, error::Error, keyring};
+use crate::{
+    diagnostics,
+    error::{Error, RefusalReason},
+    keyring,
+};
 
 use crate::sync::turso::platform::AccessLevel;
 
@@ -146,9 +150,10 @@ impl MemberSession {
     /// the change-password surface first.
     pub fn settled(&self) -> Result<(), Error> {
         if self.must_change_password {
-            return Err(Error::PreconditionFailed {
-                message: "change your password before doing anything else".to_string(),
-            });
+            return Err(Error::refused(
+                RefusalReason::PasswordChangeRequired,
+                "change your password before doing anything else",
+            ));
         }
 
         Ok(())
@@ -200,21 +205,25 @@ pub async fn acting_row(
     let member = store
         .member(&session.verifying_key, &session.member_id)
         .await?
-        .ok_or_else(|| Error::Forbidden {
-            message: "your member row is not in the organization any more. sign in again"
-                .to_string(),
+        .ok_or_else(|| {
+            Error::refused(
+                RefusalReason::SignInAgain,
+                "your member row is not in the organization any more. sign in again",
+            )
         })?;
 
     if member.role == permission::REMOVED {
-        return Err(Error::Forbidden {
-            message: "you were removed from this organization".to_string(),
-        });
+        return Err(Error::refused(
+            RefusalReason::YouWereRemoved,
+            "you were removed from this organization",
+        ));
     }
 
     if session.session_epoch < member.session_epoch {
-        return Err(Error::Forbidden {
-            message: "your sessions were ended from another machine. sign in again".to_string(),
-        });
+        return Err(Error::refused(
+            RefusalReason::SessionsEnded,
+            "your sessions were ended from another machine. sign in again",
+        ));
     }
 
     Ok(member)
@@ -288,26 +297,30 @@ pub async fn sign_in(
     credential: &CredentialSlot,
 ) -> Result<MemberSession, Error> {
     let verifying_key = verifying_key_of(joined)?;
-    let member_id = joined
-        .member_id
-        .as_deref()
-        .ok_or_else(|| Error::PreconditionFailed {
-            message: format!("this machine holds {} and no member in it yet", joined.name),
-        })?;
+    let member_id = joined.member_id.as_deref().ok_or_else(|| {
+        Error::refused(
+            RefusalReason::NoMemberYet,
+            format!("this machine holds {} and no member in it yet", joined.name),
+        )
+    })?;
     let members = store.members(&verifying_key).await?;
     let member = members
         .iter()
         .find(|member| member.id == member_id)
-        .ok_or_else(|| Error::NotFound {
-            message: "this machine's member row is not in the organization any more".to_string(),
+        .ok_or_else(|| {
+            Error::refused(
+                RefusalReason::SignInAgain,
+                "this machine's member row is not in the organization any more",
+            )
         })?;
 
     // a removal is a signed row rather than an absence, and it is read before the password is
     // tried: the vault would still open, and what it opens grants nothing any more.
     if member.role == super::permission::REMOVED {
-        return Err(Error::Forbidden {
-            message: format!("you were removed from {}", joined.name),
-        });
+        return Err(Error::refused(
+            RefusalReason::YouWereRemoved,
+            format!("you were removed from {}", joined.name),
+        ));
     }
 
     // the one place a password can fail, and it says only that the value did not open.
@@ -384,9 +397,10 @@ pub async fn machine_seen(
 /// username, another member's password, and a handed password somebody revoked. It names the
 /// organization and nothing about the account.
 pub fn refused_by_name(organization_name: &str) -> Error {
-    Error::Forbidden {
-        message: format!("the username and password do not open a place in {organization_name}"),
-    }
+    Error::refused(
+        RefusalReason::CredentialsWrong,
+        format!("the username and password do not open a place in {organization_name}"),
+    )
 }
 
 pub async fn sign_in_by_username(
@@ -556,12 +570,12 @@ pub(crate) async fn resume(
     held: &HeldOrganization,
     credential: &CredentialSlot,
 ) -> Result<Resumption, Error> {
-    let member_id = held
-        .member_id
-        .clone()
-        .ok_or_else(|| Error::PreconditionFailed {
-            message: format!("this machine holds {} and no member in it yet", held.name),
-        })?;
+    let member_id = held.member_id.clone().ok_or_else(|| {
+        Error::refused(
+            RefusalReason::NoMemberYet,
+            format!("this machine holds {} and no member in it yet", held.name),
+        )
+    })?;
     let resumed = resumed(store, held, &member_id, credential).await;
 
     if !matches!(resumed, Ok(Resumption::Opened(_))) {
@@ -580,9 +594,10 @@ async fn resumed(
 ) -> Result<Resumption, Error> {
     let filed =
         keyring::read(MEMBER_KEY_SERVICE, &account_of(&held.id, member_id))?.ok_or_else(|| {
-            Error::NotFound {
-                message: "this machine remembers no key for the member it holds".to_string(),
-            }
+            Error::refused(
+                RefusalReason::SignInAgain,
+                "this machine remembers no key for the member it holds",
+            )
         })?;
     let (filed_epoch, member_key) = read_entry(&filed)?;
     let verifying_key = verifying_key_of(held)?;
@@ -590,16 +605,20 @@ async fn resumed(
     let member = members
         .iter()
         .find(|member| member.id == member_id)
-        .ok_or_else(|| Error::NotFound {
-            message: "this machine's member row is not in the organization any more".to_string(),
+        .ok_or_else(|| {
+            Error::refused(
+                RefusalReason::SignInAgain,
+                "this machine's member row is not in the organization any more",
+            )
         })?;
 
     // as `sign_in` reads it: a removal is a signed row rather than an absence, and the vault
     // would still open onto grants that grant nothing.
     if member.role == super::permission::REMOVED {
-        return Err(Error::Forbidden {
-            message: format!("you were removed from {}", held.name),
-        });
+        return Err(Error::refused(
+            RefusalReason::YouWereRemoved,
+            format!("you were removed from {}", held.name),
+        ));
     }
 
     // before the key is spent: the rows this machine already holds may say the sessions ended,
@@ -642,8 +661,11 @@ pub(crate) async fn repin(
     let member = store
         .member(&key, &session.member_id)
         .await?
-        .ok_or_else(|| Error::NotFound {
-            message: "this member's row is not in the organization any more".to_string(),
+        .ok_or_else(|| {
+            Error::refused(
+                RefusalReason::MemberGone,
+                "this member's row is not in the organization any more",
+            )
         })?;
 
     session.verifying_key = key;
@@ -672,8 +694,11 @@ pub async fn ended_elsewhere(
     let member = members
         .iter()
         .find(|member| member.id == session.member_id)
-        .ok_or_else(|| Error::NotFound {
-            message: "this member's row is not in the organization any more".to_string(),
+        .ok_or_else(|| {
+            Error::refused(
+                RefusalReason::MemberGone,
+                "this member's row is not in the organization any more",
+            )
         })?;
 
     Ok(session.session_epoch < member.session_epoch)
@@ -765,27 +790,29 @@ pub async fn end_member_sessions(
     )?;
 
     if member_id == session.member_id {
-        return Err(Error::Forbidden {
-            message: "you cannot end your own sessions from somebody else's row. sign out of your \
-                      other machines from the account section"
-                .to_string(),
-        });
+        return Err(Error::refused(
+            RefusalReason::NotYourself,
+            "you cannot end your own sessions from somebody else's row. sign out of your \
+                      other machines from the account section",
+        ));
     }
 
     let members = store.members(&session.verifying_key).await?;
     let member = members
         .iter()
         .find(|member| member.id == member_id)
-        .ok_or_else(|| Error::NotFound {
-            message: "that member is not in this organization".to_string(),
+        .ok_or_else(|| {
+            Error::refused(
+                RefusalReason::MemberMissing,
+                "that member is not in this organization",
+            )
         })?;
 
     if member.role == permission::OWNER {
-        return Err(Error::Forbidden {
-            message:
-                "an owner's sessions are not ended by anybody else. the organization is theirs"
-                    .to_string(),
-        });
+        return Err(Error::refused(
+            RefusalReason::OwnerProtected,
+            "an owner's sessions are not ended by anybody else. the organization is theirs",
+        ));
     }
 
     store
@@ -993,8 +1020,11 @@ pub async fn facts_of(
     let member = members
         .iter()
         .find(|member| member.id == session.member_id)
-        .ok_or_else(|| Error::NotFound {
-            message: "this member's row is not in the organization any more".to_string(),
+        .ok_or_else(|| {
+            Error::refused(
+                RefusalReason::MemberGone,
+                "this member's row is not in the organization any more",
+            )
         })?;
     let grants = store.grants(key).await?;
     let workspaces = store.workspaces(key).await?;
@@ -1361,7 +1391,13 @@ mod tests {
             .expect_err("a member who must change their password was let through");
 
         assert!(
-            matches!(refusal, crate::error::Error::PreconditionFailed { .. }),
+            matches!(
+                refusal,
+                crate::error::Error::Refused {
+                    reason: crate::error::RefusalReason::PasswordChangeRequired,
+                    ..
+                }
+            ),
             "{refusal:?}"
         );
         assert!(
@@ -1389,7 +1425,13 @@ mod tests {
             .expect_err("a record naming no member signed in");
 
         assert!(
-            matches!(refusal, crate::error::Error::PreconditionFailed { .. }),
+            matches!(
+                refusal,
+                crate::error::Error::Refused {
+                    reason: crate::error::RefusalReason::NoMemberYet,
+                    ..
+                }
+            ),
             "{refusal:?}"
         );
         assert!(refusal.to_string().contains("no member"), "{refusal}");
@@ -1695,7 +1737,13 @@ mod tests {
             .expect_err("a launch with nothing filed resumed a session");
 
         assert!(
-            matches!(refusal, crate::error::Error::NotFound { .. }),
+            matches!(
+                refusal,
+                crate::error::Error::Refused {
+                    reason: crate::error::RefusalReason::SignInAgain,
+                    ..
+                }
+            ),
             "{refusal:?}"
         );
     }
@@ -1718,7 +1766,13 @@ mod tests {
             .expect_err("a record naming no member resumed a session");
 
         assert!(
-            matches!(refusal, crate::error::Error::PreconditionFailed { .. }),
+            matches!(
+                refusal,
+                crate::error::Error::Refused {
+                    reason: crate::error::RefusalReason::NoMemberYet,
+                    ..
+                }
+            ),
             "{refusal:?}"
         );
         assert!(refusal.to_string().contains("no member"), "{refusal}");
@@ -1841,7 +1895,13 @@ mod tests {
             .expect_err("a session behind its row ended everybody else's");
 
         assert!(
-            matches!(refused, crate::error::Error::Forbidden { .. }),
+            matches!(
+                refused,
+                crate::error::Error::Refused {
+                    reason: crate::error::RefusalReason::SessionsEnded,
+                    ..
+                }
+            ),
             "{refused:?}"
         );
         assert!(
@@ -2048,7 +2108,13 @@ mod tests {
             .expect_err("an administrator ended their own sessions from a row");
 
         assert!(
-            matches!(own, crate::error::Error::Forbidden { .. }),
+            matches!(
+                own,
+                crate::error::Error::Refused {
+                    reason: crate::error::RefusalReason::NotYourself,
+                    ..
+                }
+            ),
             "{own:?}"
         );
         assert!(own.to_string().contains("your own sessions"), "{own}");
@@ -2059,7 +2125,13 @@ mod tests {
             .expect_err("an administrator ended the owner's sessions");
 
         assert!(
-            matches!(theirs, crate::error::Error::Forbidden { .. }),
+            matches!(
+                theirs,
+                crate::error::Error::Refused {
+                    reason: crate::error::RefusalReason::OwnerProtected,
+                    ..
+                }
+            ),
             "{theirs:?}"
         );
         assert!(

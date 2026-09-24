@@ -4,7 +4,11 @@ use serde::{Deserialize, Serialize};
 use tauri::Emitter;
 
 use crate::{
-    diagnostics, error::Error, persisted::Persisted, state::AppState, sync::RemoteSyncStore,
+    diagnostics,
+    error::{Error, RefusalReason},
+    persisted::Persisted,
+    state::AppState,
+    sync::RemoteSyncStore,
     timestamp,
 };
 
@@ -369,14 +373,13 @@ pub async fn organization_delete(
     app_state: tauri::State<'_, AppState>,
     password: String,
 ) -> Result<OrganizationState, Error> {
-    let platform = owner_platform(&app_state)
-        .await
-        .ok_or_else(|| Error::Forbidden {
-            message:
-                "only an owner can delete the organization, from the machine that connected the \
-                  turso account. ask the owner"
-                    .to_string(),
-        })?;
+    let platform = owner_platform(&app_state).await.ok_or_else(|| {
+        Error::refused(
+            RefusalReason::OwnerMachineOnly,
+            "only an owner can delete the organization, from the machine that connected the \
+                  turso account. ask the owner",
+        )
+    })?;
 
     removal::delete_organization(&app_state, &platform, &password).await?;
 
@@ -410,8 +413,11 @@ pub async fn organization_sign_in(
             .store_mut()
             .organization
             .clone()
-            .ok_or_else(|| Error::PreconditionFailed {
-                message: "this machine holds no organization to sign in to".to_string(),
+            .ok_or_else(|| {
+                Error::refused(
+                    RefusalReason::NoOrganization,
+                    "this machine holds no organization to sign in to",
+                )
             })?
     };
     // a session already open on this machine ends first, as a sign-out ends it: its remembered
@@ -938,9 +944,10 @@ fn signed_in<'a>(
 ) -> Result<(&'a mut MemberSession, &'a OrganizationStore), Error> {
     match (member.as_mut(), store.as_ref()) {
         (Some(member), Some(store)) => Ok((member, store)),
-        _ => Err(Error::PreconditionFailed {
-            message: "nobody is signed in to an organization on this machine".to_string(),
-        }),
+        _ => Err(Error::refused(
+            RefusalReason::SignedOut,
+            "nobody is signed in to an organization on this machine",
+        )),
     }
 }
 
@@ -951,14 +958,13 @@ pub async fn workspace_create(
     app_state: tauri::State<'_, AppState>,
     name: String,
 ) -> Result<WorkspaceFacts, Error> {
-    let platform = owner_platform(&app_state)
-        .await
-        .ok_or_else(|| Error::Forbidden {
-            message:
-                "only an owner can create a workspace, from the machine that connected the turso \
-                  account. ask the owner"
-                    .to_string(),
-        })?;
+    let platform = owner_platform(&app_state).await.ok_or_else(|| {
+        Error::refused(
+            RefusalReason::OwnerMachineOnly,
+            "only an owner can create a workspace, from the machine that connected the turso \
+                  account. ask the owner",
+        )
+    })?;
     let mut member = app_state.member.write().await;
     let store = app_state.organization.read().await;
     let (member, store) = signed_in(&mut member, &store)?;
@@ -1022,14 +1028,13 @@ pub async fn workspace_delete(
     app_state: tauri::State<'_, AppState>,
     workspace_id: String,
 ) -> Result<(), Error> {
-    let platform = owner_platform(&app_state)
-        .await
-        .ok_or_else(|| Error::Forbidden {
-            message:
-                "only an owner can delete a workspace, from the machine that connected the turso \
-                  account. ask the owner"
-                    .to_string(),
-        })?;
+    let platform = owner_platform(&app_state).await.ok_or_else(|| {
+        Error::refused(
+            RefusalReason::OwnerMachineOnly,
+            "only an owner can delete a workspace, from the machine that connected the turso \
+                  account. ask the owner",
+        )
+    })?;
     let mut member = app_state.member.write().await;
     let store = app_state.organization.read().await;
     let (member, store) = signed_in(&mut member, &store)?;
@@ -1078,8 +1083,11 @@ pub async fn workspace_open(
 
         let workspaces = store.workspaces(&member.verifying_key).await?;
         let (mut facts, credential) = workspace::openable(member, &workspaces, &workspace_id)?
-            .ok_or_else(|| Error::Forbidden {
-                message: "you hold no grant on that workspace".to_string(),
+            .ok_or_else(|| {
+                Error::refused(
+                    RefusalReason::NoGrant,
+                    "you hold no grant on that workspace",
+                )
             })?;
 
         // a workspace this build was not written against is refused here, before the replica is
@@ -1096,10 +1104,7 @@ pub async fn workspace_open(
                 .lock()
                 .ok()
                 .and_then(|slot| slot.clone())
-                .ok_or_else(|| Error::PreconditionFailed {
-                    message: "this machine holds no credential to the organization database, so                               it cannot take the lease to upgrade the workspace"
-                        .to_string(),
-                })?;
+                .ok_or_else(|| Error::refused(RefusalReason::NoOrganizationCredential, "this machine holds no credential to the organization database, so                               it cannot take the lease to upgrade the workspace"))?;
             let organization_host = {
                 let mut remote_sync = app_state.remote_sync.write().await;
 
@@ -1174,13 +1179,12 @@ pub async fn workspace_open(
 pub async fn organization_renew_credentials(
     app_state: tauri::State<'_, AppState>,
 ) -> Result<usize, Error> {
-    let platform = owner_platform(&app_state)
-        .await
-        .ok_or_else(|| Error::Forbidden {
-            message:
-                "credentials are renewed on the owner's machine, which holds the turso authority"
-                    .to_string(),
-        })?;
+    let platform = owner_platform(&app_state).await.ok_or_else(|| {
+        Error::refused(
+            RefusalReason::OwnerMachineOnly,
+            "credentials are renewed on the owner's machine, which holds the turso authority",
+        )
+    })?;
     let mut member = app_state.member.write().await;
     let store = app_state.organization.read().await;
     let (member, store) = signed_in(&mut member, &store)?;
@@ -1759,12 +1763,12 @@ pub(crate) async fn rename_current_workspace(
     let workspace_id = {
         let remote_sync = app_state.remote_sync.read().await;
 
-        remote_sync
-            .workspace()
-            .remote_id
-            .ok_or_else(|| Error::PreconditionFailed {
-                message: "no workspace is open on this machine".to_string(),
-            })?
+        remote_sync.workspace().remote_id.ok_or_else(|| {
+            Error::refused(
+                RefusalReason::NoWorkspaceOpen,
+                "no workspace is open on this machine",
+            )
+        })?
     };
 
     {
@@ -1912,10 +1916,10 @@ pub async fn organization_reconnect_authority(
         .await?
         .is_none()
         {
-            return Err(Error::PreconditionFailed {
-                message: "the consent was granted over a group with no database in it, and the                           organization is not there. grant it over the group that holds the                           organization"
-                    .to_string(),
-            });
+            return Err(Error::refused(
+                RefusalReason::GroupEmpty,
+                "the consent was granted over a group with no database in it, and the                           organization is not there. grant it over the group that holds the                           organization",
+            ));
         }
     }
 
@@ -2768,7 +2772,7 @@ mod tests {
             .expect_err("the founder deleted the organization after handing it over");
 
         assert!(
-            matches!(refused, Error::Forbidden { ref message } if message == removal::ONLY_THE_OWNER_DELETES),
+            matches!(refused, Error::Refused { reason: crate::error::RefusalReason::OwnerOnly, ref message } if message == removal::ONLY_THE_OWNER_DELETES),
             "{refused:?}"
         );
 
@@ -2792,7 +2796,7 @@ mod tests {
             .expect_err("an administrator certified a signer");
 
             assert!(
-                matches!(refused, Error::Forbidden { ref message } if message.contains("only an owner")),
+                matches!(refused, Error::Refused { reason: crate::error::RefusalReason::OwnerOnly, ref message } if message.contains("only an owner")),
                 "{refused:?}"
             );
 

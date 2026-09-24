@@ -6,7 +6,7 @@
 
 use serde::Deserialize;
 
-use crate::error::Error;
+use crate::error::{Error, RefusalReason};
 
 use super::super::store::sanitize_optional_string;
 
@@ -172,7 +172,7 @@ fn token_refusal(status: u16, payload: &OAuthTokenResponse) -> Error {
     match payload.error.as_deref().map(str::trim) {
         // the grant is spent or revoked. Nothing retries into a working state;
         // the account has to be linked again.
-        Some("invalid_grant") => Error::PreconditionFailed { message },
+        Some("invalid_grant") => Error::refused(RefusalReason::ConsentNeededAgain, message),
         // the OAuth client itself is wrong, which is configuration rather than
         // anything this user did.
         Some("invalid_client" | "unauthorized_client") => Error::NotConfigured { message },
@@ -364,7 +364,7 @@ mod tests {
     /// a spent or revoked grant is the one refusal the caller can act on: it means
     /// relink, and nothing about retrying will change it.
     #[test]
-    fn a_dead_grant_is_reported_as_a_failed_precondition() {
+    fn a_dead_grant_is_refused_as_a_consent_needed_again() {
         let error = parse_token_response(
             400,
             token_payload(json!({
@@ -375,7 +375,13 @@ mod tests {
         )
         .expect_err("a dead grant was accepted");
 
-        assert!(matches!(error, Error::PreconditionFailed { .. }));
+        assert!(matches!(
+            error,
+            Error::Refused {
+                reason: crate::error::RefusalReason::ConsentNeededAgain,
+                ..
+            }
+        ));
         assert!(
             error
                 .to_string()

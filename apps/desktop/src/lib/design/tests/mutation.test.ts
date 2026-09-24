@@ -188,6 +188,31 @@ describe('a declared mutation', () => {
 		assert.deepEqual(raised, [{ level: 'error', message: 'something went wrong' }]);
 	});
 
+	// effort 832, requirement 23: a refusal the shell raised is said from its reason, and Rust's
+	// message, a developer's description in English, is never the toast.
+	it('says a shell refusal in the reader’s words, whether or not a procedure wrapped it', () => {
+		const { mutation } = bind({
+			mutate: async () => undefined,
+			touches: ['contracts'],
+			toast: { error: true, unexpected: () => 'unexpected' }
+		});
+		const refused = {
+			code: 'refused',
+			reason: 'ownerOnly',
+			message: 'only an owner can create a workspace. ask the owner'
+		};
+
+		mutation.onError(Object.assign(new Error(refused.message), refused));
+		mutation.onError(
+			new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: refused.message, cause: refused })
+		);
+
+		assert.deepEqual(raised, [
+			{ level: 'error', message: 'only the owner can do this. ask the owner.' },
+			{ level: 'error', message: 'only the owner can do this. ask the owner.' }
+		]);
+	});
+
 	// a declaration that says one refusal in place keeps it out of the toast without the surface
 	// raising the rest itself: the decider reads the error and answers null for that one.
 	it('a decider keeps the refusal it names quiet and raises every other one', () => {

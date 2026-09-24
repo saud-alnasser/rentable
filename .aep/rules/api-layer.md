@@ -122,6 +122,15 @@ failure.
 that is not its own error into an `INTERNAL_SERVER_ERROR`, with the Tauri payload as its `cause`.
 `error/tauri.ts` reads the code and the reason from there as well as from the error itself.
 
+**The shell refuses the same way, with a reason.** Every refusal a person can cause under the
+Rust shell's `organization/` and `sync/` is `Error::Refused { reason }`, the reason one word from
+`RefusalReason` in `tauri/src/error.rs`, mirrored by `TAURI_REFUSAL_REASONS` and read as the code
+`host.<reason>`, whose sentence is `common.refusals.host.<reason>`. Its message is a developer's
+description; where it carries Turso's words a screen shows them behind a details disclosure and
+never inside a sentence. A failure nobody can act on keeps its own variant and its generic
+sentence. *Added 2026-09-24 by the same requirement: the shell's refusals crossed as English prose
+the interface showed raw or matched by phrase.*
+
 ## One database client type
 
 **Every database client is the same type, and reaches the engine through the same row mapping.**

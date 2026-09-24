@@ -1,5 +1,6 @@
 import type { ComplexRefusalCode, UnitRefusalCode } from '$lib/complex/complex';
 import type { ContractRefusalCode } from '$lib/contract/contract';
+import type { HostRefusalCode } from '$lib/error/tauri';
 import type { PaymentRefusalCode } from '$lib/payment/payment';
 import type { RecordRefusalCode } from '$lib/platform/database/identity';
 import type { TenantRefusalCode } from '$lib/tenant/tenant';
@@ -19,10 +20,13 @@ import { TRPCError } from '@trpc/server';
  * cached in the one they left. Effort 832, requirement 23.*
  *
  * Each concept names its own refusals beside the rules that raise them, and this is their union.
+ * `host` is the shell's: a Rust refusal carries its reason, and the reason is named here the way a
+ * router's code is, so one lookup finds either sentence. No procedure raises one.
  */
 export type RefusalCode =
 	| ComplexRefusalCode
 	| ContractRefusalCode
+	| HostRefusalCode
 	| PaymentRefusalCode
 	| RecordRefusalCode
 	| TenantRefusalCode

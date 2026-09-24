@@ -30,8 +30,10 @@
 		stepsOf,
 		type SetupField,
 		type SetupStatement,
-		type SetupStep
+		type SetupStep,
+		type WalkRefusal
 	} from '../setup';
+	import DetailDisclosure from '$lib/error/component/detail-disclosure.svelte';
 	import { usernameSchema } from '../username-form';
 	import { workspaceFormSchema } from '../workspace-form';
 	import WorkspaceFields from './workspace-fields.svelte';
@@ -127,9 +129,10 @@
 		 * what refused the run, where something did and the way on is another consent: the
 		 * group the last one landed on already holds an organization, so Rust created nothing
 		 * and gave the authority back (requirement 21). Shown on the connect step above the
-		 * button that starts the next consent.
+		 * button that starts the next consent, as a sentence with the shell's words behind a
+		 * disclosure.
 		 */
-		refusal: string | null;
+		refusal: WalkRefusal | null;
 		/**
 		 * whether the name step has to ask for the Turso group. Turso refused every name this
 		 * application could work out, so the person who picked the group is the last thing left
@@ -137,8 +140,8 @@
 		 */
 		askGroup?: boolean;
 		/**
-		 * Turso's own account of why the name is being asked for, shown under that sentence and
-		 * muted. It is in Turso's English whatever the locale is, which is why it is detail: a
+		 * Turso's own account of why the name is being asked for, behind a disclosure under that
+		 * sentence. It is in Turso's English whatever the locale is, which is why it is detail: a
 		 * person acts on the sentence above it, and this is what they would quote to somebody
 		 * else. `null` on every run nothing was refused on.
 		 */
@@ -149,7 +152,7 @@
 		 * after a refusal the walk answered by going back to the consent, which carries its
 		 * sentence as `refusal` instead.
 		 */
-		existingRefusal?: string | null;
+		existingRefusal?: WalkRefusal | null;
 		/** whether the machine already holds the authority a consent would grant. */
 		holdsTursoAuthority: boolean;
 		/** the consent is being opened. */
@@ -255,26 +258,35 @@
 	 * machine already held the authority, in which case the confirmation is what it opens with.
 	 */
 	const consentNotice = $derived.by(
-		(): { tone: 'success' | 'warning' | 'error'; message: string } | null => {
+		(): {
+			tone: 'success' | 'warning' | 'error';
+			message: string;
+			detail: string | null;
+		} | null => {
 			// a refusal outranks everything else the step could say: it is why the person is
 			// back here, and the consent it speaks of is already gone.
 			if (refusal) {
-				return { tone: 'error', message: refusal };
+				return { tone: 'error', message: refusal.sentence, detail: refusal.detail };
 			}
 
 			if (granted) {
-				return { tone: 'success', message: $LL.organization.setup.connected() };
+				return { tone: 'success', message: $LL.organization.setup.connected(), detail: null };
 			}
 
 			switch (consent.status) {
 				case 'abandoned':
-					return { tone: 'warning', message: $LL.organization.setup.consentAbandoned() };
+					return {
+						tone: 'warning',
+						message: $LL.organization.setup.consentAbandoned(),
+						detail: null
+					};
 				case 'failed':
+					// what the authorization server said is its own words, in its own language, so it
+					// sits behind a disclosure under the sentence rather than inside it.
 					return {
 						tone: 'error',
-						message: consent.error
-							? `${$LL.organization.setup.consentFailed()} ${consent.error}`
-							: $LL.organization.setup.consentFailed()
+						message: $LL.organization.setup.consentFailed(),
+						detail: consent.error
 					};
 				default:
 					return null;
@@ -473,7 +485,13 @@
 			</ul>
 
 			{#if consentNotice}
-				<Callout tone={consentNotice.tone}>{consentNotice.message}</Callout>
+				<div class="space-y-1" data-setup-consent-notice>
+					<Callout tone={consentNotice.tone}>{consentNotice.message}</Callout>
+
+					{#if consentNotice.detail}
+						<DetailDisclosure detail={consentNotice.detail} name="consent" />
+					{/if}
+				</div>
 			{/if}
 
 			<div class="space-y-2">
@@ -551,7 +569,13 @@
 					</Form.Control>
 					<FieldError />
 					{#if existingRefusal}
-						<p class="text-sm text-destructive" data-setup-existing-refusal>{existingRefusal}</p>
+						<p class="text-sm text-destructive" data-setup-existing-refusal>
+							{existingRefusal.sentence}
+						</p>
+
+						{#if existingRefusal.detail}
+							<DetailDisclosure detail={existingRefusal.detail} name="existing" />
+						{/if}
 					{/if}
 				</Form.Field>
 
@@ -651,14 +675,12 @@
 							<Callout tone="info">{$LL.organization.setup.groupNeeded()}</Callout>
 
 							{#if groupDetail}
-								<!-- Turso's own words, beneath the sentence and quieter than it
-								     (*Balance weight and contrast*, Refactoring UI p.56): the
-								     sentence is what a person acts on, and this is what they
-								     would quote to somebody else. `dir="auto"` because it is
-								     English prose in whichever locale the rest of the card is. -->
-								<p class="text-xs text-muted-foreground" dir="auto" data-setup-group-detail>
-									{groupDetail}
-								</p>
+								<!-- Turso's own words, beneath the sentence, behind a disclosure and
+								     quieter than it (*Balance weight and contrast*, Refactoring UI
+								     p.56): the sentence is what a person acts on, and this is what
+								     they would quote to somebody else, in Turso's English whatever
+								     the locale is. -->
+								<DetailDisclosure detail={groupDetail} name="group" />
 							{/if}
 						</div>
 

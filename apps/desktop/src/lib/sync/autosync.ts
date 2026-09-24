@@ -35,8 +35,11 @@ const HEARTBEAT_MS = 5 * 60_000;
  * workspace. What reaches here now is the replica's push and pull, and a refusal from the
  * remote is `preconditionFailed`: the credential was declined rather than missed, and retrying
  * against a decision is how a client asks the same question forever.*
+ *
+ * *`refused` joined them with effort 832, when a refusal a person can cause began to cross with a
+ * reason of its own: it is a decision in the same sense, and its sentence says who has to act.*
  */
-const SETTLED_WITHOUT_RETRY = new Set(['preconditionFailed', 'forbidden', 'busy']);
+const SETTLED_WITHOUT_RETRY = new Set(['preconditionFailed', 'forbidden', 'refused', 'busy']);
 
 function shouldRetryAfter(error: unknown) {
 	const code = toTauriErrorCode(error);

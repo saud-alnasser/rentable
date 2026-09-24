@@ -490,7 +490,7 @@ pub fn sign(
     authority: Authority<'_>,
 ) -> Result<Vec<u8>, Error> {
     if administrator_key.verifying_key() != certificate.signing_public_key {
-        return Err(Error::InvalidInput {
+        return Err(Error::Internal {
             message: "the signing key is not the one the certificate names".to_string(),
         });
     }
@@ -1841,7 +1841,7 @@ mod tests {
                 &organization.certificate,
                 member_authority(&public_key, "owner")
             ),
-            Err(Error::InvalidInput {
+            Err(Error::Internal {
                 message: "the signing key is not the one the certificate names".to_string()
             })
         );

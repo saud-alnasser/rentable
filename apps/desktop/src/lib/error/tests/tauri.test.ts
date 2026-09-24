@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 
 import {
 	TAURI_ERROR_CODES,
@@ -47,9 +49,34 @@ test('an error raised inside typescript has no code', () => {
 	assert.equal(toTauriErrorCode(new Error('a sync is already running')), null);
 });
 
+/**
+ * Effort 832, requirement 23: **the reasons are one list, declared in Rust and mirrored here.** The
+ * enum is read back out of `error.rs` and each variant spelled the way serde spells it, so a
+ * reason added on one side and not the other fails here rather than reaching a screen as
+ * the generic sentence.
+ */
+test('the reasons this side knows are exactly the ones rust declares', async () => {
+	const rust = await readFile(
+		fileURLToPath(new URL('../../../../tauri/src/error.rs', import.meta.url)),
+		'utf8'
+	);
+	const body = /pub enum RefusalReason \{([\s\S]*?)\n\}/.exec(rust)?.[1];
+
+	assert.ok(body, 'error.rs no longer declares RefusalReason');
+
+	const declared = body
+		.split('\n')
+		.map((line) => line.trim())
+		.filter((line) => /^[A-Z][A-Za-z]*,$/.test(line))
+		.map((line) => line[0]!.toLowerCase() + line.slice(1, -1));
+
+	assert.deepEqual(declared, [...TAURI_REFUSAL_REASONS]);
+});
+
 // effort 828, requirement 1: a link refused on its own standing carries which standing beside its
-// message, so the connect screen names it without reading the sentence. Four words and no more.
-test('a refused link says which standing refused it', () => {
+// message, so the connect screen names it without reading the sentence. Since effort 832 every
+// refusal a person can cause in the shell does.
+test('a refusal says which reason refused it', () => {
 	for (const reason of TAURI_REFUSAL_REASONS) {
 		assert.equal(
 			toTauriRefusalReason({ code: 'refused', reason, message: 'the invitation has lapsed' }),
@@ -70,7 +97,11 @@ test('nothing but a refused carries a reason, and an unknown word is no reason a
 // procedure that is not its own error, so what reaches the caller is an `INTERNAL_SERVER_ERROR`
 // whose `cause` holds the payload Rust rejected with. The code and the reason are read from there.
 test('a rejection from the host survives a procedure, and its code is read off the cause', async () => {
-	const rejected = { code: 'preconditionFailed', message: 'another organization is held here' };
+	const rejected = {
+		code: 'refused',
+		reason: 'anotherOrganizationHeld',
+		message: 'this machine already holds Acme; disconnect it before connecting another'
+	};
 	const host = fakeHost({
 		organization: {
 			...fakeHost().organization,
@@ -94,10 +125,11 @@ test('a rejection from the host survives a procedure, and its code is read off t
 	assert.ok(failure instanceof TRPCError);
 	assert.equal(failure.code, 'INTERNAL_SERVER_ERROR');
 	assert.equal(isTauriError(failure), false);
-	assert.equal((failure.cause as unknown as { code: string }).code, 'preconditionFailed');
+	assert.equal((failure.cause as unknown as { code: string }).code, 'refused');
 
 	// and what this side reads regardless.
-	assert.equal(toTauriErrorCode(failure), 'preconditionFailed');
+	assert.equal(toTauriErrorCode(failure), 'refused');
+	assert.equal(toTauriRefusalReason(failure), 'anotherOrganizationHeld');
 	assert.equal(refusalAfterFailedConnect(failure)?.step, 'connect');
 });
 

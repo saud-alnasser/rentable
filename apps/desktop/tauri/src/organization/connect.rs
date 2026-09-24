@@ -27,7 +27,12 @@
 //! link is looked at. Reaching another is a disconnect (`forget.rs`) and then a connect, which is
 //! requirement 17's shape and the reason the record is an `Option` rather than a list.
 
-use crate::{diagnostics, error::Error, persisted::Persisted, sync::RemoteSyncStore};
+use crate::{
+    diagnostics,
+    error::{Error, RefusalReason},
+    persisted::Persisted,
+    sync::RemoteSyncStore,
+};
 
 use super::{HeldOrganization, invite::random_id, link::Locator, store::OrganizationStore};
 
@@ -57,12 +62,13 @@ pub async fn connect(
     refuse_while_held(machine)?;
 
     if credential.trim().is_empty() {
-        return Err(Error::PreconditionFailed {
-            message: format!(
+        return Err(Error::refused(
+            RefusalReason::LinkUnreadable,
+            format!(
                 "nothing opened a credential to read {}'s records with",
                 locator.organization_name
             ),
-        });
+        ));
     }
 
     let verifying_key = locator.verifying_key_bytes()?;
@@ -186,12 +192,13 @@ pub async fn record(
 /// first.
 pub fn refuse_while_held(machine: &RemoteSyncStore) -> Result<(), Error> {
     match machine.organization.as_ref() {
-        Some(held) => Err(Error::PreconditionFailed {
-            message: format!(
+        Some(held) => Err(Error::refused(
+            RefusalReason::AnotherOrganizationHeld,
+            format!(
                 "this machine already holds {}; disconnect it before connecting another",
                 held.name
             ),
-        }),
+        )),
         None => Ok(()),
     }
 }
@@ -378,7 +385,7 @@ mod tests {
         let refused = connect(&store, &mut owners_machine, &link, UNSEALED, ISSUED_AT + 2).await;
 
         assert!(
-            matches!(refused, Err(Error::PreconditionFailed { ref message }) if message.contains("Acme")),
+            matches!(refused, Err(Error::Refused { reason: crate::error::RefusalReason::AnotherOrganizationHeld, ref message }) if message.contains("Acme")),
             "{refused:?}"
         );
         assert_eq!(
@@ -405,7 +412,7 @@ mod tests {
             let refused = connect(&store, &mut machine, &link, nothing, ISSUED_AT + 1).await;
 
             assert!(
-                matches!(refused, Err(Error::PreconditionFailed { ref message }) if message.contains("Acme")),
+                matches!(refused, Err(Error::Refused { reason: crate::error::RefusalReason::LinkUnreadable, ref message }) if message.contains("Acme")),
                 "{refused:?}"
             );
             assert!(

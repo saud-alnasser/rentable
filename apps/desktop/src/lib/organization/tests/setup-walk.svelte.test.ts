@@ -205,13 +205,23 @@ test('a walk asked for the group draws the field with the sentence above it, and
 	expect(block.contains(field)).toBe(true);
 	expect(sentence.compareDocumentPosition(field) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
-	// and Turso's own account sits between the two, quieter than the sentence it explains.
-	const detail = document.querySelector('[data-setup-group-detail]')!;
+	// and Turso's own account sits between the two, behind a disclosure (effort 832, requirement
+	// 23): closed, it is one quiet control, and opened it is Turso's words, quieter than the
+	// sentence they explain.
+	const disclosure = document.querySelector('[data-error-detail="group"]')!;
+
+	expect(
+		sentence.compareDocumentPosition(disclosure) & Node.DOCUMENT_POSITION_FOLLOWING
+	).toBeTruthy();
+	expect(disclosure.compareDocumentPosition(field) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+	expect(screen.queryByText(TURSO_SAID)).toBeNull();
+
+	await fireEvent.click(screen.getByRole('button', { name: en.common.actions.details }));
+
+	const detail = await waitFor(() => document.querySelector('[data-error-detail-text="group"]')!);
 
 	expect(detail.textContent?.trim()).toBe(TURSO_SAID);
 	expect(detail.getAttribute('class')).toContain('text-muted-foreground');
-	expect(sentence.compareDocumentPosition(detail) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-	expect(detail.compareDocumentPosition(field) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
 	await fillAndCreate('  rentable-empty  ');
 
@@ -233,7 +243,7 @@ test('a walk asked for the group with nothing to quote draws no detail line', ()
 	walk('name', { askGroup: true });
 
 	expect(screen.getByText(en.organization.setup.groupNeeded)).toBeDefined();
-	expect(document.querySelector('[data-setup-group-detail]')).toBeNull();
+	expect(document.querySelector('[data-error-detail="group"]')).toBeNull();
 });
 
 /**
@@ -272,7 +282,7 @@ test('the fields the person already filled survive the group being asked for', a
 		['group', '']
 	]);
 	expect(screen.getByText(en.organization.setup.groupNeeded)).toBeDefined();
-	expect(document.querySelector('[data-setup-group-detail]')?.textContent?.trim()).toBe(TURSO_SAID);
+	expect(document.querySelector('[data-error-detail="group"]')).not.toBeNull();
 });
 
 // the create it was asked for cannot be made without it, so the step refuses on the field before
@@ -425,16 +435,42 @@ test('a refused run says so on the connect step and offers the consent again', (
 	loadLocale('en');
 	setLocale('en');
 
-	const refusal =
-		'this group already holds the organization database `org-7f3a`; a group holds one organization, so pick another group or another Turso account';
+	// the sentence is the reader's, from the refusal's reason; what Rust said is behind a
+	// disclosure under it (effort 832, requirement 23).
+	const refusal = {
+		sentence: en.common.refusals.host.groupHoldsOrganization,
+		detail:
+			'this group already holds the organization database `org-7f3a`; a group holds one organization, so pick another group or another Turso account'
+	};
 
 	walk('connect', { refusal });
 
-	expect(screen.getByText(refusal)).toBeDefined();
+	expect(screen.getByText(refusal.sentence)).toBeDefined();
+	expect(screen.queryByText(refusal.detail)).toBeNull();
+	expect(document.querySelector('[data-error-detail="consent"]')).not.toBeNull();
 	expect(screen.getByRole('button', { name: en.organization.setup.connect })).toBeDefined();
 	expect(screen.queryByRole('button', { name: en.organization.setup.continue })).toBeNull();
 	// and it is said instead of the confirmation, never beside it.
 	expect(screen.queryByText(en.organization.setup.connected)).toBeNull();
+});
+
+// effort 832, requirement 23: a consent the authorization server refused is said in the reader's
+// language, and what the server said is behind a disclosure rather than spliced into the sentence.
+test("a failed consent says so in the reader's language, with the server's words behind a disclosure", async () => {
+	loadLocale('ar');
+	setLocale('ar');
+	walk('connect', { consent: { status: 'failed', error: 'invalid_scope' } }, 'rtl');
+
+	expect(screen.getByText(ar.organization.setup.consentFailed)).toBeDefined();
+	expect(screen.queryByText(/invalid_scope/)).toBeNull();
+
+	await fireEvent.click(screen.getByRole('button', { name: ar.common.actions.details }));
+
+	await waitFor(() => {
+		expect(document.querySelector('[data-error-detail-text="consent"]')?.textContent?.trim()).toBe(
+			'invalid_scope'
+		);
+	});
 });
 
 test('a granted consent offers the way on and the way to give the authority back', () => {
@@ -722,17 +758,23 @@ test('connecting hands the owner username and password on', async () => {
 });
 
 // a pair that opens nothing is said against the password, where the person just typed, and the
-// field is marked: the sentence is Rust's one sentence and says nothing about which half was wrong.
+// field is marked: the sentence is the reader's, from the refusal's reason, and says nothing about
+// which half was wrong. What Rust said is behind a disclosure under it.
 test('a refused connect marks the password field and says why under it', () => {
 	loadLocale('en');
 	setLocale('en');
 
-	const refused =
-		'the username and password do not open a place in the organization this turso account holds';
+	const refused = {
+		sentence: en.common.refusals.host.credentialsWrong,
+		detail:
+			'the username and password do not open a place in the organization this turso account holds'
+	};
 
 	walk('existing', { existingRefusal: refused });
 
-	expect(screen.getByText(refused)).toBeDefined();
+	expect(screen.getByText(refused.sentence)).toBeDefined();
+	expect(screen.queryByText(refused.detail)).toBeNull();
+	expect(document.querySelector('[data-error-detail="existing"]')).not.toBeNull();
 	expect(document.querySelector('input[name="password"]')?.getAttribute('aria-invalid')).toBe(
 		'true'
 	);

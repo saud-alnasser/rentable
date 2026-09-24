@@ -5,7 +5,7 @@ import { recordDiagnosticError } from '$lib/platform/diagnostics';
 import { inverseStack, type Inverse } from '$lib/design/inverse';
 import { NAMED_RECORDS, unforeseenRefusals } from '@rentable/design/selection.js';
 import { LL } from '$lib/i18n/i18n-svelte';
-import { toRefusalText } from '$lib/error/refusal';
+import { readHostRefusal, toRefusalText } from '$lib/error/refusal';
 import { createMutation, useQueryClient, type QueryClient } from '@tanstack/svelte-query';
 import { TRPCError } from '@trpc/server';
 import { get } from 'svelte/store';
@@ -353,6 +353,14 @@ export function onMutationError(opts: MutationOptions, e: Error) {
 	if (e instanceof TRPCError && e.code === 'BAD_REQUEST') {
 		if (errorToast === true) {
 			// a refusal crosses as a code, and this is where it becomes the reader's words.
+			toast.error(toRefusalText(e, get(LL)));
+		} else if (typeof errorToast === 'string') {
+			toast.error(errorToast);
+		}
+	} else if (readHostRefusal(e)) {
+		// the shell refuses with a reason, and its message is a developer's description: the
+		// reason is what becomes the reader's words (effort 832, requirement 23).
+		if (errorToast === true) {
 			toast.error(toRefusalText(e, get(LL)));
 		} else if (typeof errorToast === 'string') {
 			toast.error(errorToast);

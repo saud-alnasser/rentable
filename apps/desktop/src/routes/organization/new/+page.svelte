@@ -20,9 +20,11 @@
 		refusalAfterFailedCreate,
 		stepAfterConsent,
 		stepFor,
-		type SetupStep
+		type SetupStep,
+		type WalkRefusal
 	} from '$lib/organization/setup';
-	import { toErrorDetail } from '$lib/error/message';
+	import { LL } from '$lib/i18n/i18n-svelte';
+	import { toErrorDetail, toErrorText } from '$lib/error/message';
 	import { THE_WAY_IN } from '$lib/layout/shell-surface';
 	import { useStartup } from '$lib/layout/startup-context';
 
@@ -60,14 +62,19 @@
 	 * **A create Turso refuses over the group asks for the group.** That one leaves the consent
 	 * where it is, so the walk stays on the name step and draws the field with what was already
 	 * typed still in it, and the create that follows carries all four values.
-	 * `organization/setup.ts` tells the two refusals apart and splits Turso's own account of the
-	 * refusal off the fixed phrase, which the field shows under its sentence as detail.
+	 * `organization/setup.ts` tells the two refusals apart by their reasons, and Turso's own account
+	 * of the refusal is what the field keeps under its sentence, behind a disclosure.
 	 *
 	 * **That is also why this route says what a failed create failed at, rather than the shared
 	 * handler.** The handler shows a thrown message as a toast, which is the loudest thing on the
 	 * screen, and the group refusal is the one failure the walk answers with a step: the connect
 	 * step foretold it and the field says what to type, so Turso's words belong under that field
 	 * and nowhere else. Every other failure is said here exactly as the handler said it.
+	 *
+	 * **Every refusal said here is a sentence in the reader's language, with what the shell said
+	 * behind a disclosure under it** (effort 832, requirement 23). The sentence comes from the
+	 * refusal's reason; the words behind it are Rust's or Turso's, and are what a person would quote
+	 * to somebody else.
 	 *
 	 * **The walk ends inside the workspace.** Creating it on the third step is the workspace
 	 * mutation, then the way in, and then the startup unit reading where the machine stands
@@ -81,13 +88,19 @@
 
 	let step = $state<SetupStep>('connect');
 	let sessionId = $state<string | null>(null);
-	let refusal = $state<string | null>(null);
+	let refusal = $state<WalkRefusal | null>(null);
 	let askGroup = $state(false);
 	let groupDetail = $state<string | null>(null);
-	let existingRefusal = $state<string | null>(null);
+	let existingRefusal = $state<WalkRefusal | null>(null);
 	let isHandingOver = $state(false);
 
 	const stateQuery = useFetchOrganizationState();
+
+	/** a refusal as the walk says it: the reader's sentence, and the shell's words behind it. */
+	const said = (error: unknown): WalkRefusal => ({
+		sentence: toErrorText(error, $LL),
+		detail: toErrorDetail(error)
+	});
 
 	// the walk resumes where the machine stands, and `organization/setup.ts` decides what that
 	// means: an owner already signed in whose organization holds no workspace is on the third
@@ -169,22 +182,22 @@
 			await connectExisting.mutateAsync({ username, password });
 		} catch (error) {
 			// read off what was refused rather than off where this machine stands: a refusal about
-			// the consented account itself is the `preconditionFailed`, and nothing typed on this
-			// step answers one, so they go back to the consent. Everything else is said against the
-			// password on the step they are on, with what they typed still in it. *This refetched
-			// the state and read the Turso authority, so a connection that dropped at the wrong
-			// moment sent the person back to grant a consent they still had.*
+			// the consented account itself carries a reason nothing typed on this step answers, so
+			// they go back to the consent. Everything else is said against the password on the step
+			// they are on, with what they typed still in it. *This refetched the state and read the
+			// Turso authority, so a connection that dropped at the wrong moment sent the person back
+			// to grant a consent they still had.*
 			const back = refusalAfterFailedConnect(error);
 
 			if (!back) {
-				existingRefusal = toErrorDetail(error);
+				existingRefusal = said(error);
 
 				return;
 			}
 
 			sessionId = null;
 			existingRefusal = null;
-			refusal = back.message;
+			refusal = said(error);
 			step = back.step;
 
 			return;
@@ -224,7 +237,7 @@
 			// the consent this walk polled is gone with the authority, so nothing is left to
 			// report its old status from.
 			sessionId = null;
-			refusal = back.message;
+			refusal = said(error);
 			step = back.step;
 		}
 	};

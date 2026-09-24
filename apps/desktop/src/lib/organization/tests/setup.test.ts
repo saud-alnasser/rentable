@@ -12,8 +12,8 @@ import {
 	PASSWORD_FLOOR,
 	SETUP_STEPS,
 	SETUP_WALK,
-	THE_GROUP_IS_NEEDED,
 	fieldsPresented,
+	isTheGroupNeeded,
 	refusalAfterFailedConnect,
 	refusalAfterFailedCreate,
 	statementsBeforeCreation,
@@ -254,8 +254,9 @@ test('the connect step says these things, and says them in both locales', () => 
  * that, since the machine holds no authority to create with, so it returns to the consent
  * carrying the refusal's own sentence.
  *
- * The sentence itself is Rust's and is shown unchanged; the literal below is read back out of
- * `setup.rs` so the fixture cannot drift away from what the person is actually shown.
+ * The sentence the person reads is the locale's, from the refusal's `groupHoldsOrganization`
+ * reason (effort 832, requirement 23). What Rust says is kept behind a disclosure under it, and the
+ * literal below is read back out of `setup.rs` so the fixture cannot drift away from it.
  */
 const GROUP_ALREADY_HOLDS_ONE =
 	'this group already holds the organization database `org-7f3a`; a group holds one organization, so pick another group or another Turso account';
@@ -285,8 +286,9 @@ test('the refusal a group already holding an organization gives is the sentence 
  * Effort 826's correction to requirement 13: the group the person typed is what the first create
  * names, so a group that is not the one the consent is over is refused before anything is
  * created. **The refusal names both**, because the person is being asked to correct one word and
- * cannot do that without seeing what the other one is. The sentence is Rust's and is shown
- * unchanged, so it is read back out of `setup.rs` here the way the group-already-held one is.
+ * cannot do that without seeing what the other one is. The reader's sentence is the locale's,
+ * from `groupMismatch`, and Rust's words behind it name both, so they are read back out of
+ * `setup.rs` here the way the group-already-held ones are.
  */
 test('the refusal a group that is not the consented one gives names both groups, and rust formats it', async () => {
 	const rust = await readFile(
@@ -305,7 +307,8 @@ test('the refusal a group that is not the consented one gives names both groups,
 // concerned: the authority is untouched, so the person stays on the name step and retypes it.
 test('a create refused over the group leaves the walk on the step the group was typed on', () => {
 	const refused = {
-		code: 'preconditionFailed',
+		code: 'refused',
+		reason: 'groupMismatch',
 		message: 'the group this consent is over is called `rentable`, not `rentabel`'
 	};
 
@@ -313,15 +316,18 @@ test('a create refused over the group leaves the walk on the step the group was 
 });
 
 test('a create refused after the consent was given back sends the walk to the connect step', () => {
-	const refused = { code: 'preconditionFailed', message: GROUP_ALREADY_HOLDS_ONE };
+	const refused = {
+		code: 'refused',
+		reason: 'groupHoldsOrganization',
+		message: GROUP_ALREADY_HOLDS_ONE
+	};
 
 	// the authority is gone, because rust gave it back: the walk goes to the consent and says
-	// why it is there.
+	// why it is there, with what rust said kept for the disclosure under the sentence.
 	assert.deepEqual(refusalAfterFailedCreate(refused, false), {
 		step: 'connect',
-		message: GROUP_ALREADY_HOLDS_ONE,
 		askGroup: false,
-		detail: null
+		detail: GROUP_ALREADY_HOLDS_ONE
 	});
 
 	// and the step it lands on is the one that offers the consent, which is where the person
@@ -332,27 +338,36 @@ test('a create refused after the consent was given back sends the walk to the co
 
 /**
  * Requirement 13's second correction: Turso would take no group this application could work out,
- * so the one name left is the one the person picked. **The signal is the fixed phrase**, because
- * nothing else about that run is different: the consent is intact and the machine still holds
- * the authority, which is what every other refusal is told apart by. The phrase is Rust's, and
- * it is read back out of `setup.rs` so the constant here cannot drift away from what is thrown.
+ * so the one name left is the one the person picked. **The signal is the `groupNeeded` reason**,
+ * because nothing else about that run is different: the consent is intact and the machine still
+ * holds the authority, which is what every other refusal is told apart by.
+ *
+ * *It was a fixed phrase at the head of Rust's message until effort 832, pinned by reading the
+ * constant back out of `setup.rs`. The reason replaced it, and the phrase is gone from both sides.*
  */
-test('the fixed phrase the walk reads is the one rust formats', async () => {
+test('the walk asks for the group on the reason rust gives, and on no phrase', async () => {
 	const rust = await readFile(
 		fileURLToPath(new URL('../../../../tauri/src/organization/setup.rs', import.meta.url)),
 		'utf8'
 	);
 
-	assert.ok(
-		rust.includes(`pub const THE_GROUP_IS_NEEDED: &str = "${THE_GROUP_IS_NEEDED}";`),
-		'rust no longer declares the phrase this file matches on'
+	assert.ok(rust.includes('RefusalReason::GroupNeeded'), 'rust no longer refuses with the reason');
+	assert.ok(!rust.includes('THE_GROUP_IS_NEEDED'), 'rust still carries the phrase');
+
+	assert.equal(isTheGroupNeeded({ code: 'refused', reason: 'groupNeeded', message: 'x' }), true);
+	// the words that used to be the signal are no signal now.
+	assert.equal(
+		isTheGroupNeeded({ code: 'preconditionFailed', message: "the turso group's name is needed" }),
+		false
 	);
 });
 
 test('a create refused because turso will take no group asks for one on the name step', () => {
 	const refused = {
-		code: 'preconditionFailed',
-		message: `${THE_GROUP_IS_NEEDED}. turso refused every group this application could name on its own, and said: group \`default\` does not exist in this organization`
+		code: 'refused',
+		reason: 'groupNeeded',
+		message:
+			'turso refused every group this application could name on its own, and said: group `default` does not exist in this organization'
 	};
 
 	// the consent is untouched, so the machine still holds the authority and the walk stays
@@ -360,36 +375,34 @@ test('a create refused because turso will take no group asks for one on the name
 	// of why comes back beside it as detail rather than as the sentence the field leads with.
 	assert.deepEqual(refusalAfterFailedCreate(refused, true), {
 		step: 'name',
-		message: refused.message,
 		askGroup: true,
-		detail:
-			'turso refused every group this application could name on its own, and said: group `default` does not exist in this organization'
+		detail: refused.message
 	});
 
-	// and it is the phrase rather than the authority that decides, so a machine that somehow
+	// and it is the reason rather than the authority that decides, so a machine that somehow
 	// lost the authority as well is still asked for the group rather than sent to the consent.
 	assert.equal(refusalAfterFailedCreate(refused, false)?.askGroup, true);
 });
 
 /**
- * Requirement 13's fourth correction: what the field shows under its sentence is Turso's own
- * account, and the split that gets it is on the fixed phrase alone. **Everything after the
- * phrase is free to change**, Rust's framing and Turso's last reason inside it, so a split
- * that looked for the words around the reason would be reading a sentence nobody promised.
+ * Requirement 13's fourth correction, as effort 832 left it: what the field keeps under its
+ * sentence is what Rust said, whole, since nothing is split off a phrase any more. Turso's last
+ * reason is inside it and free to change with Turso.
  */
-test('the detail under the field is everything the refusal says after the fixed phrase', () => {
-	// the punctuation between the two belongs to the phrase, so the detail starts a line.
+test('the detail under the field is what rust said, and nothing where it said nothing', () => {
 	assert.equal(
-		refusalAfterFailedCreate({ message: `${THE_GROUP_IS_NEEDED}. 404 group not found` }, true)
-			?.detail,
+		refusalAfterFailedCreate(
+			{ code: 'refused', reason: 'groupNeeded', message: '404 group not found' },
+			true
+		)?.detail,
 		'404 group not found'
 	);
 
-	// a refusal that is the phrase and nothing else has no detail to show, and the field draws
-	// none rather than an empty line under its sentence.
-	assert.equal(refusalAfterFailedCreate({ message: THE_GROUP_IS_NEEDED }, true)?.detail, null);
+	// a refusal that said nothing has no detail to show, and the field draws none rather than an
+	// empty disclosure under its sentence.
 	assert.equal(
-		refusalAfterFailedCreate({ message: `${THE_GROUP_IS_NEEDED}.  ` }, true)?.detail,
+		refusalAfterFailedCreate({ code: 'refused', reason: 'groupNeeded', message: '  ' }, true)
+			?.detail,
 		null
 	);
 });
@@ -664,8 +677,8 @@ test('the connect-existing way is two steps and is not the walk that creates', (
 
 /**
  * A refused connect is read off **what was refused**. A refusal about the consented account itself
- * is Rust's `preconditionFailed`, and nothing typed on the step answers one, so the walk returns to
- * the consent carrying the sentence; everything else leaves the consent where it was and is said on
+ * carries one of the reasons nothing typed on the step answers, so the walk returns to the consent
+ * carrying it; everything else leaves the consent where it was and is said on
  * the step, against the password, with what was typed still in the fields.
  *
  * *It read the Turso authority instead until ticket 20, which is a fact about this machine rather
@@ -674,26 +687,27 @@ test('the connect-existing way is two steps and is not the walk that creates', (
  * they had never lost. The network case is the last assertion here.*
  *
  * *And the refusal it was written for was the register's, a machine somebody was still on, until
- * the human ruled one machine per account out on 2026-09-20. The sentence below is the one Rust
- * still formats for a `preconditionFailed` here.*
+ * the human ruled one machine per account out on 2026-09-20. The words below are the ones Rust
+ * still formats for `nothingToConnectTo` here, kept for the disclosure under the sentence.*
  */
 test('a connect refused on the account itself sends the walk to the connect step', () => {
 	const refused = {
-		code: 'preconditionFailed',
+		code: 'refused',
+		reason: 'nothingToConnectTo',
 		message: 'this turso account holds no organization to connect to. go back and make one'
 	};
 
 	assert.deepEqual(refusalAfterFailedConnect(refused), {
 		step: 'connect',
-		message: refused.message,
 		askGroup: false,
-		detail: null
+		detail: refused.message
 	});
 
 	// the owner typed the wrong password: the consent is intact, so the walk stays where it is.
 	assert.equal(
 		refusalAfterFailedConnect({
-			code: 'forbidden',
+			code: 'refused',
+			reason: 'credentialsWrong',
 			message:
 				'the username and password do not open a place in the organization this turso account holds'
 		}),
@@ -716,7 +730,8 @@ test('a connect refused on the account itself sends the walk to the connect step
 });
 
 /**
- * and the sentences the connect refuses with are Rust's, read back out of `setup.rs`.
+ * and the words the connect refuses with, behind the reader's sentence, are Rust's, read back out
+ * of `setup.rs`.
  *
  * *There were two until 2026-09-20, and the one that went pointed at a link a connected machine
  * could make. Nothing formats it now, which this asserts as well: the owner is handed no link, so

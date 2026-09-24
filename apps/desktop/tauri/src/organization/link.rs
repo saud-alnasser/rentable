@@ -63,7 +63,7 @@
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD as BASE64URL};
 use serde::{Deserialize, Serialize};
 
-use crate::error::Error;
+use crate::error::{Error, RefusalReason};
 
 use super::{
     authority::VERIFYING_KEY_BYTES,
@@ -277,8 +277,11 @@ impl JoinLink {
     /// The link read back. Anything that is not one is refused as input rather than as a defect,
     /// because the ordinary way to get here is a person pasting the wrong thing.
     pub fn decode(link: &str) -> Result<Self, Error> {
-        let unreadable = || Error::InvalidInput {
-            message: "this is not a rentable join link".to_string(),
+        let unreadable = || {
+            Error::refused(
+                RefusalReason::LinkUnreadable,
+                "this is not a rentable join link",
+            )
         };
         let encoded = link
             .trim()
@@ -322,12 +325,18 @@ impl JoinLink {
 
 /// A base64url verifying key as the chain takes it, for the two types that carry one.
 fn verifying_key_bytes(encoded: &str) -> Result<[u8; VERIFYING_KEY_BYTES], Error> {
-    let bytes = BASE64URL.decode(encoded).map_err(|_| Error::InvalidInput {
-        message: "this join link carries no organization key".to_string(),
+    let bytes = BASE64URL.decode(encoded).map_err(|_| {
+        Error::refused(
+            RefusalReason::LinkUnreadable,
+            "this join link carries no organization key",
+        )
     })?;
 
-    <[u8; VERIFYING_KEY_BYTES]>::try_from(bytes.as_slice()).map_err(|_| Error::InvalidInput {
-        message: "this join link carries no organization key".to_string(),
+    <[u8; VERIFYING_KEY_BYTES]>::try_from(bytes.as_slice()).map_err(|_| {
+        Error::refused(
+            RefusalReason::LinkUnreadable,
+            "this join link carries no organization key",
+        )
     })
 }
 
@@ -351,16 +360,18 @@ pub fn read(link: &str) -> Result<LinkShape, Error> {
 /// guess at the code costs one Argon2id pass at the shipping cost. A link whose secret is not the
 /// thirty-two bytes that were drawn is refused here rather than folded into something shorter.
 pub fn code_salt(link_secret: &str) -> Result<[u8; KDF_SALT_BYTES], Error> {
-    let bytes = BASE64URL
-        .decode(link_secret)
-        .map_err(|_| Error::InvalidInput {
-            message: "this join link carries no secret".to_string(),
-        })?;
+    let bytes = BASE64URL.decode(link_secret).map_err(|_| {
+        Error::refused(
+            RefusalReason::LinkUnreadable,
+            "this join link carries no secret",
+        )
+    })?;
 
     <[u8; KDF_SALT_BYTES]>::try_from(&bytes[..bytes.len().min(KDF_SALT_BYTES)]).map_err(|_| {
-        Error::InvalidInput {
-            message: "this join link carries no secret".to_string(),
-        }
+        Error::refused(
+            RefusalReason::LinkUnreadable,
+            "this join link carries no secret",
+        )
     })
 }
 
@@ -437,14 +448,10 @@ pub fn open_payload(
     let code = code.trim().to_uppercase();
 
     if code.is_empty() {
-        return Err(Error::InvalidInput {
-            message: CODE_MISSING.to_string(),
-        });
+        return Err(Error::refused(RefusalReason::CodeMissing, CODE_MISSING));
     }
 
-    let refused = || Error::Forbidden {
-        message: CODE_REFUSED.to_string(),
-    };
+    let refused = || Error::refused(RefusalReason::CodeWrong, CODE_REFUSED);
     let bytes = BASE64URL.decode(sealed).map_err(|_| refused())?;
     let key = derive_member_key(&code, &code_salt(&half.secret)?, kdf_params)?;
     let opened = open_under_member_key(&key, &payload_context(locator, half), &bytes)
@@ -629,7 +636,7 @@ mod tests {
         let error = JoinLink::decode(&text).expect_err("the previous shape decoded");
 
         assert!(
-            matches!(error, crate::error::Error::InvalidInput { ref message }
+            matches!(error, crate::error::Error::Refused { reason: crate::error::RefusalReason::LinkUnreadable, ref message }
                 if message == "this is not a rentable join link"),
             "{error:?}"
         );
@@ -662,7 +669,7 @@ mod tests {
         assert!(
             matches!(
                 JoinLink::decode(&text),
-                Err(crate::error::Error::InvalidInput { ref message })
+                Err(crate::error::Error::Refused { reason: crate::error::RefusalReason::LinkUnreadable, ref message })
                     if message == "this is not a rentable join link"
             ),
             "a link with no half decoded"
@@ -685,7 +692,10 @@ mod tests {
             assert!(
                 matches!(
                     JoinLink::decode(&broken),
-                    Err(crate::error::Error::InvalidInput { .. })
+                    Err(crate::error::Error::Refused {
+                        reason: crate::error::RefusalReason::LinkUnreadable,
+                        ..
+                    })
                 ),
                 "{id:?} {secret:?} decoded"
             );
@@ -699,7 +709,10 @@ mod tests {
         assert!(
             matches!(
                 JoinLink::decode(&blank.encode().expect("encodes")),
-                Err(crate::error::Error::InvalidInput { .. })
+                Err(crate::error::Error::Refused {
+                    reason: crate::error::RefusalReason::LinkUnreadable,
+                    ..
+                })
             ),
             "a blank credential decoded"
         );
@@ -717,7 +730,13 @@ mod tests {
             let error = JoinLink::decode(wrong).expect_err(wrong);
 
             assert!(
-                matches!(error, crate::error::Error::InvalidInput { .. }),
+                matches!(
+                    error,
+                    crate::error::Error::Refused {
+                        reason: crate::error::RefusalReason::LinkUnreadable,
+                        ..
+                    }
+                ),
                 "{wrong}: {error:?}"
             );
         }
@@ -752,7 +771,7 @@ mod tests {
             assert!(
                 matches!(
                     open_payload(wrong, &locator(), &half, &sealed, test_cost()),
-                    Err(crate::error::Error::Forbidden { ref message })
+                    Err(crate::error::Error::Refused { reason: crate::error::RefusalReason::CodeWrong, ref message })
                         if message == super::CODE_REFUSED
                 ),
                 "{wrong:?} opened the payload"
@@ -762,7 +781,7 @@ mod tests {
         assert!(
             matches!(
                 open_payload("   ", &locator(), &half, &sealed, test_cost()),
-                Err(crate::error::Error::InvalidInput { ref message })
+                Err(crate::error::Error::Refused { reason: crate::error::RefusalReason::CodeMissing, ref message })
                     if message == super::CODE_MISSING
             ),
             "an empty code was not refused as input"
@@ -872,7 +891,7 @@ mod tests {
                         &decoded.credential,
                         test_cost()
                     ),
-                    Err(crate::error::Error::Forbidden { ref message })
+                    Err(crate::error::Error::Refused { reason: crate::error::RefusalReason::CodeWrong, ref message })
                         if message == super::CODE_REFUSED
                 ),
                 "a rewritten address opened the payload: {}",

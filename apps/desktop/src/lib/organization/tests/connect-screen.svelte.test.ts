@@ -295,7 +295,7 @@ test('the code field is under the link, six characters, with its own sentence', 
 
 // requirement 23's two refusals and criterion 17: each said by name in the reader's own language,
 // with what the shell said kept under it, and each marking the field the person answers it on.
-// A wrong code comes back `forbidden` and a code nobody typed `invalidInput`.
+// A wrong code comes back refused as `codeWrong` and a code nobody typed as `codeMissing`.
 test('a wrong code and a missing one are each refused by name, and mark the code field', () => {
 	loadLocale('en');
 	setLocale('en');

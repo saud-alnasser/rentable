@@ -21,7 +21,10 @@ use std::time::Duration;
 
 use serde_json::{Value, json};
 
-use crate::{error::Error, http::build_client};
+use crate::{
+    error::{Error, RefusalReason},
+    http::build_client,
+};
 
 include!(concat!(env!("OUT_DIR"), "/workspace-migrations.rs"));
 
@@ -127,11 +130,12 @@ pub async fn apply_between(
     let status = response.status();
 
     if !status.is_success() {
-        return Err(Error::PreconditionFailed {
-            message: format!(
+        return Err(Error::refused(
+            RefusalReason::DatabaseRefused,
+            format!(
                 "the workspace database refused its schema ({status}). the workspace was not created"
             ),
-        });
+        ));
     }
 
     let answered: Value = response.json().await.map_err(|_| Error::Integrity {
@@ -144,12 +148,13 @@ pub async fn apply_between(
         for (index, result) in results.iter().enumerate() {
             if result.get("type").and_then(Value::as_str) == Some("error") {
                 // the statement is not quoted: it is the shipped SQL, and the index names it.
-                return Err(Error::PreconditionFailed {
-                    message: format!(
+                return Err(Error::refused(
+                    RefusalReason::DatabaseRefused,
+                    format!(
                         "statement {index} of the workspace schema was refused by the database. \
                          the workspace was not created"
                     ),
-                });
+                ));
             }
         }
     }
@@ -271,13 +276,16 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_database_that_refuses_the_request_is_a_precondition_and_a_dropped_one_is_network() {
+    async fn a_database_that_refuses_the_request_is_a_refusal_and_a_dropped_one_is_network() {
         let refusing = ScriptedServer::start(vec![ScriptedResponse::new(401, "")]).await;
         let dropping = ScriptedServer::start(vec![ScriptedResponse::hangup()]).await;
 
         assert!(matches!(
             apply(&Pipeline::at(&refusing.url("")), "t", 1).await,
-            Err(crate::error::Error::PreconditionFailed { .. })
+            Err(crate::error::Error::Refused {
+                reason: crate::error::RefusalReason::DatabaseRefused,
+                ..
+            })
         ));
         assert!(matches!(
             apply(&Pipeline::at(&dropping.url("")), "t", 1).await,

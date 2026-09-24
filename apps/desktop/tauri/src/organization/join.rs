@@ -96,8 +96,8 @@ enum Refusal {
 /// and the organization it was for, since the link names the organization and the invitation is
 /// what is refused.
 ///
-/// **It crosses as `Error::Refused` with the reason beside the message**, never as `Forbidden`,
-/// which a wrong code keeps. The screen draws its own sentence per standing and offers the wall
+/// **It crosses as `Error::Refused` with the reason beside the message**, as a wrong code does
+/// with `CodeWrong`. The screen draws its own sentence per standing and offers the wall
 /// on a spent link, so what it needs is the word and not the prose.
 fn invitation_refused(organization_name: &str, refusal: Refusal) -> Error {
     let (reason, why) = match refusal {
@@ -157,9 +157,11 @@ where
     F: std::future::Future<Output = Result<R, Error>>,
     R: std::borrow::Borrow<OrganizationStore>,
 {
-    let no_invitation = || Error::InvalidInput {
-        message: "this link carries no invitation; sign in with your username and password"
-            .to_string(),
+    let no_invitation = || {
+        Error::refused(
+            RefusalReason::LinkNotAnInvitation,
+            "this link carries no invitation; sign in with your username and password",
+        )
     };
     let half = &link.half;
 
@@ -168,12 +170,13 @@ where
     }
 
     if password.chars().count() < MINIMUM_PASSWORD_LENGTH {
-        return Err(Error::InvalidInput {
-            message: format!(
+        return Err(Error::refused(
+            RefusalReason::PasswordTooShort,
+            format!(
                 "the password needs at least {MINIMUM_PASSWORD_LENGTH} characters. it is the only \
                  thing between anybody holding the organization's records and reading them"
             ),
-        });
+        ));
     }
 
     // the link's own moment, before any key is derived. What the seal binds includes this moment,
@@ -200,12 +203,13 @@ where
     let held = match machine.organization.clone() {
         Some(held) if held.id == link.organization_id => held,
         Some(held) => {
-            return Err(Error::PreconditionFailed {
-                message: format!(
+            return Err(Error::refused(
+                RefusalReason::AnotherOrganizationHeld,
+                format!(
                     "this link is for {} and this machine holds {}; disconnect it first",
                     link.organization_name, held.name
                 ),
-            });
+            ));
         }
         None => connect::connect(store, machine, &link.locator(), &payload.credential, now).await?,
     };
@@ -963,7 +967,13 @@ mod tests {
             .expect_err(&format!("{username:?} signed in with {password:?}"));
 
             assert!(
-                matches!(refused, Error::Forbidden { .. }),
+                matches!(
+                    refused,
+                    Error::Refused {
+                        reason: crate::error::RefusalReason::CredentialsWrong,
+                        ..
+                    }
+                ),
                 "{username:?} with {password:?}: {refused:?}"
             );
             sentences.push(refused.to_string());
@@ -1039,7 +1049,7 @@ mod tests {
         .await;
 
         assert!(
-            matches!(refused, Err(Error::PreconditionFailed { ref message }) if message.contains("Other") && message.contains("Acme")),
+            matches!(refused, Err(Error::Refused { reason: crate::error::RefusalReason::AnotherOrganizationHeld, ref message }) if message.contains("Other") && message.contains("Acme")),
             "{refused:?}"
         );
 
@@ -1054,7 +1064,13 @@ mod tests {
         .await;
 
         assert!(
-            matches!(refused, Err(Error::InvalidInput { .. })),
+            matches!(
+                refused,
+                Err(Error::Refused {
+                    reason: crate::error::RefusalReason::PasswordTooShort,
+                    ..
+                })
+            ),
             "{refused:?}"
         );
 
@@ -1078,7 +1094,13 @@ mod tests {
         .await;
 
         assert!(
-            matches!(refused, Err(Error::InvalidInput { .. })),
+            matches!(
+                refused,
+                Err(Error::Refused {
+                    reason: crate::error::RefusalReason::LinkNotAnInvitation,
+                    ..
+                })
+            ),
             "{refused:?}"
         );
         assert_eq!(
@@ -1501,7 +1523,7 @@ mod tests {
         .await;
 
         assert!(
-            matches!(refused, Err(Error::Forbidden { ref message }) if message == CODE_REFUSED),
+            matches!(refused, Err(Error::Refused { reason: crate::error::RefusalReason::CodeWrong, ref message }) if message == CODE_REFUSED),
             "a rewritten expiry opened the payload: {refused:?}"
         );
 
@@ -1517,7 +1539,7 @@ mod tests {
         .await;
 
         assert!(
-            matches!(refused, Err(Error::Forbidden { ref message }) if message == CODE_REFUSED),
+            matches!(refused, Err(Error::Refused { reason: crate::error::RefusalReason::CodeWrong, ref message }) if message == CODE_REFUSED),
             "{refused:?}"
         );
 
@@ -1533,7 +1555,7 @@ mod tests {
         .await;
 
         assert!(
-            matches!(refused, Err(Error::InvalidInput { ref message }) if message == CODE_MISSING),
+            matches!(refused, Err(Error::Refused { reason: crate::error::RefusalReason::CodeMissing, ref message }) if message == CODE_MISSING),
             "{refused:?}"
         );
 

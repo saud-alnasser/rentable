@@ -43,15 +43,15 @@
 	 * legible credential and ran a connect of its own with no code; requirement 16 retired it, so
 	 * there is no path through this screen that does not spend a code.*
 	 *
-	 * **The read is refused on the link and the act on the code.** Both can answer `invalidInput`,
-	 * and the two mean different fields: text that is not a link, and a code nobody typed. So the
+	 * **The read is refused on the link and the act on the code.** Both refuse what was typed, and
+	 * the two mean different fields: text that is not a link, and a code nobody typed. So the
 	 * decode and the act are caught apart, `inspectionFailed` marking the link field and
 	 * `joinFailed` the code, and a person who mistyped one of the two is told which.
 	 *
 	 * **These are the host's commands and not the router's procedures**, as the inspection the
-	 * connect replaced was. The screen branches on the Rust code of a refusal, and on the `reason`
-	 * a `refused` carries beside it, and the router's caller wraps a rejection in its own error and
-	 * keeps the code only on the cause; the host hands it over as it crossed.
+	 * connect replaced was. The screen branches on the `reason` a Rust refusal carries, and the
+	 * router's caller wraps a rejection in its own error and keeps the code only on the cause; the
+	 * host hands it over as it crossed.
 	 * `organization/router.ts` carries `invitation.accept` for every other caller.
 	 *
 	 * **The link the operating system handed over is taken here, once.** The shell put it where

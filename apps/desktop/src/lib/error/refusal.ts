@@ -1,8 +1,9 @@
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 import type { Contract } from '$lib/platform/database/schema';
 
-import { readRefusal, type RefusalCode, type RefusalParams } from '$lib/api/refusal';
+import { readRefusal, type Refusal, type RefusalCode, type RefusalParams } from '$lib/api/refusal';
 import { isolateDirection } from '$lib/error/message';
+import { toTauriRefusalReason } from '$lib/error/tauri';
 import { TRPCError } from '@trpc/server';
 
 export { readRefusal };
@@ -13,7 +14,26 @@ export { readRefusal };
  * A procedure refuses with a code and its values (`$lib/api/refusal`), and this is where the code
  * becomes a sentence in the reader's language and a form learns which field it belongs under.
  * Nothing here reads the message a refusal was raised with: that is a developer's description.
+ *
+ * **The shell refuses the same way.** A Rust refusal crosses as `refused` with a reason, and the
+ * reason is read here as the code `host.<reason>` with no values, so its sentence is found and
+ * checked exactly as a router's is (effort 832, requirement 23).
  */
+
+/**
+ * The shell's refusal an error carries, as a code, or `null` where it carries none or a reason this
+ * side has no word for.
+ */
+export function readHostRefusal(error: unknown): Refusal | null {
+	const reason = toTauriRefusalReason(error);
+
+	return reason ? { code: `host.${reason}`, params: {} } : null;
+}
+
+/** whether an error is a refusal a person can read a sentence for, from a router or the shell. */
+export function isRefusal(error: unknown): boolean {
+	return readRefusal(error) !== null || readHostRefusal(error) !== null;
+}
 
 type Sentences = TranslationFunctions['common']['refusals'];
 
@@ -65,13 +85,14 @@ function toSentenceParams(params: RefusalParams, translations: TranslationFuncti
 /**
  * What a refused call says to the reader, in their language.
  *
- * A refusal raised with a code reads as that code's sentence. A `BAD_REQUEST` carrying none is
+ * A refusal raised with a code reads as that code's sentence, and so does one the shell raised
+ * with a reason. A `BAD_REQUEST` carrying none is
  * the input a procedure's own schema turned away, and is shown as it was raised, since that is a
  * sentence its schema was handed. Anything else, and a refusal with nothing to say, reads as the
  * unexpected failure.
  */
 export function toRefusalText(error: unknown, translations: TranslationFunctions): string {
-	const refusal = readRefusal(error);
+	const refusal = readRefusal(error) ?? readHostRefusal(error);
 
 	if (refusal) {
 		const [concept, name] = refusal.code.split('.') as [keyof Sentences, string];

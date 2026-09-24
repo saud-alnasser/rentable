@@ -106,7 +106,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     diagnostics,
-    error::Error,
+    error::{Error, RefusalReason},
     sync::turso::platform::{AccessLevel, TursoPlatform},
 };
 
@@ -244,9 +244,10 @@ pub fn validate_username(username: &str) -> Result<(), Error> {
     let fits = (USERNAME_MINIMUM_LENGTH..=USERNAME_MAXIMUM_LENGTH).contains(&username.len());
 
     if !allowed || !fits {
-        return Err(Error::InvalidInput {
-            message: USERNAME_RULES.to_string(),
-        });
+        return Err(Error::refused(
+            RefusalReason::UsernameInvalid,
+            USERNAME_RULES,
+        ));
     }
 
     Ok(())
@@ -275,9 +276,7 @@ pub async fn refuse_taken_username(
         let held = opened(session, "member.username_sealed", &member.username_sealed)?;
 
         if held.to_lowercase() == wanted {
-            return Err(Error::InvalidInput {
-                message: USERNAME_TAKEN.to_string(),
-            });
+            return Err(Error::refused(RefusalReason::UsernameTaken, USERNAME_TAKEN));
         }
     }
 
@@ -318,9 +317,10 @@ pub async fn create_account<P: TursoPlatform>(
     validate_username(username)?;
 
     if role != permission::ADMINISTRATOR && role != permission::MEMBER {
-        return Err(Error::InvalidInput {
-            message: "an account is made as an administrator or as a member".to_string(),
-        });
+        return Err(Error::refused(
+            RefusalReason::RoleUnknown,
+            "an account is made as an administrator or as a member",
+        ));
     }
 
     refuse_taken_username(store, session, username, None).await?;
@@ -574,21 +574,22 @@ fn writable_account<'a>(
     let member = members
         .iter()
         .find(|member| member.id == member_id)
-        .ok_or_else(|| Error::NotFound {
-            message: "that member is not in this organization".to_string(),
+        .ok_or_else(|| {
+            Error::refused(
+                RefusalReason::MemberMissing,
+                "that member is not in this organization",
+            )
         })?;
 
     if member.role == permission::OWNER {
-        return Err(Error::Forbidden {
-            message: owner_refusal.to_string(),
-        });
+        return Err(Error::refused(RefusalReason::OwnerProtected, owner_refusal));
     }
 
     if member.role == permission::REMOVED {
-        return Err(Error::Forbidden {
-            message: "that member was removed. make them an account again if they are to come back"
-                .to_string(),
-        });
+        return Err(Error::refused(
+            RefusalReason::MemberRemoved,
+            "that member was removed. make them an account again if they are to come back",
+        ));
     }
 
     Ok(member)
@@ -843,9 +844,10 @@ pub async fn rename_member(
     )?;
 
     if member_id == session.member_id {
-        return Err(Error::Forbidden {
-            message: "you cannot rename yourself. another administrator can".to_string(),
-        });
+        return Err(Error::refused(
+            RefusalReason::NotYourself,
+            "you cannot rename yourself. another administrator can",
+        ));
     }
 
     let username = username.trim();
@@ -856,15 +858,18 @@ pub async fn rename_member(
     let member = rows
         .iter()
         .find(|member| member.id == member_id)
-        .ok_or_else(|| Error::NotFound {
-            message: "that member is not in this organization".to_string(),
+        .ok_or_else(|| {
+            Error::refused(
+                RefusalReason::MemberMissing,
+                "that member is not in this organization",
+            )
         })?;
 
     if member.role == permission::REMOVED {
-        return Err(Error::PreconditionFailed {
-            message: "that member was removed. invite them again if they are to come back"
-                .to_string(),
-        });
+        return Err(Error::refused(
+            RefusalReason::MemberRemoved,
+            "that member was removed. invite them again if they are to come back",
+        ));
     }
 
     refuse_taken_username(store, session, username, Some(member_id)).await?;
@@ -982,9 +987,11 @@ pub(super) fn held_credential(session: &MemberSession) -> Result<String, Error> 
         .lock()
         .ok()
         .and_then(|slot| slot.clone())
-        .ok_or_else(|| Error::PreconditionFailed {
-            message: "this machine holds no credential to the organization database to hand on"
-                .to_string(),
+        .ok_or_else(|| {
+            Error::refused(
+                RefusalReason::NoOrganizationCredential,
+                "this machine holds no credential to the organization database to hand on",
+            )
         })
 }
 
@@ -1059,20 +1066,20 @@ async fn write_account<P: TursoPlatform>(
         .any(|workspace| workspace.access == AccessLevel::ReadOnly)
     {
         if session.role != permission::OWNER {
-            return Err(Error::Forbidden {
-                message: "a read-only grant is minted on the owner's machine. ask the owner, or \
-                          invite with full access"
-                    .to_string(),
-            });
+            return Err(Error::refused(
+                RefusalReason::OwnerMachineOnly,
+                "a read-only grant is minted on the owner's machine. ask the owner, or \
+                          invite with full access",
+            ));
         }
 
         if platform.is_none() {
-            return Err(Error::Forbidden {
-                message: "a read-only grant is minted with the turso authority, which this \
+            return Err(Error::refused(
+                RefusalReason::OwnerMachineOnly,
+                "a read-only grant is minted with the turso authority, which this \
                           machine does not hold. connect the account again, or invite with full \
-                          access"
-                    .to_string(),
-            });
+                          access",
+            ));
         }
     }
 
@@ -1097,12 +1104,11 @@ async fn write_account<P: TursoPlatform>(
     // keep, and a member handed a signing act with no certificate is the same promise unsaid.
     if role == permission::ADMINISTRATOR || super::role::signs_rows(permissions) {
         if session.role != permission::OWNER {
-            return Err(Error::Forbidden {
-                message:
-                    "only an owner can give somebody an act that signs rows, because certifying a \
-                          signer needs the organization key. ask the owner"
-                        .to_string(),
-            });
+            return Err(Error::refused(
+                RefusalReason::OwnerOnly,
+                "only an owner can give somebody an act that signs rows, because certifying a \
+                          signer needs the organization key. ask the owner",
+            ));
         }
 
         // read through `role::organization_key_of`, which derives the owner's own key, founder or
@@ -1213,22 +1219,29 @@ async fn write_account<P: TursoPlatform>(
                 .get(&workspace.id)
                 .filter(|held| held.access == AccessLevel::FullAccess)
                 .map(|held| held.token.clone())
-                .ok_or_else(|| Error::Forbidden {
-                    message: "you can invite into a workspace you hold full access to yourself, \
-                              and no other"
-                        .to_string(),
+                .ok_or_else(|| {
+                    Error::refused(
+                        RefusalReason::GrantBeyondOwn,
+                        "you can invite into a workspace you hold full access to yourself, \
+                              and no other",
+                    )
                 })?,
             AccessLevel::ReadOnly => {
                 let database = known
                     .iter()
                     .find(|known| known.id == workspace.id)
                     .map(|known| known.database_name.clone())
-                    .ok_or_else(|| Error::NotFound {
-                        message: "that workspace is not in this organization".to_string(),
+                    .ok_or_else(|| {
+                        Error::refused(
+                            RefusalReason::WorkspaceMissing,
+                            "that workspace is not in this organization",
+                        )
                     })?;
-                let platform = platform.ok_or_else(|| Error::Forbidden {
-                    message: "a read-only grant is minted on the owner's machine. ask the owner"
-                        .to_string(),
+                let platform = platform.ok_or_else(|| {
+                    Error::refused(
+                        RefusalReason::OwnerMachineOnly,
+                        "a read-only grant is minted on the owner's machine. ask the owner",
+                    )
                 })?;
 
                 platform
@@ -1891,7 +1904,7 @@ mod tests {
         .expect_err("a member holding neither act made a link");
 
         assert!(
-            matches!(&refusal, Error::Forbidden { message }
+            matches!(&refusal, Error::Refused { reason: crate::error::RefusalReason::RoleLacksAct, message }
                 if message.contains("inviteMember") && message.contains("resetPassword")),
             "{refusal:?}"
         );
@@ -3318,7 +3331,16 @@ mod tests {
         for username in refused {
             let error = validate_username(username).expect_err(username);
 
-            assert!(matches!(error, Error::InvalidInput { .. }), "{error:?}");
+            assert!(
+                matches!(
+                    error,
+                    Error::Refused {
+                        reason: crate::error::RefusalReason::UsernameInvalid,
+                        ..
+                    }
+                ),
+                "{error:?}"
+            );
             assert_eq!(error.to_string(), USERNAME_RULES, "{username:?}");
         }
     }
@@ -3358,7 +3380,16 @@ mod tests {
         for taken in ["Alice", "ALICE", " alice ", "OLIVIA"] {
             let error = invite(taken).await.expect_err(taken);
 
-            assert!(matches!(error, Error::InvalidInput { .. }), "{error:?}");
+            assert!(
+                matches!(
+                    error,
+                    Error::Refused {
+                        reason: crate::error::RefusalReason::UsernameTaken,
+                        ..
+                    }
+                ),
+                "{error:?}"
+            );
             assert_eq!(error.to_string(), USERNAME_TAKEN, "{taken:?}");
         }
 
@@ -3563,7 +3594,16 @@ mod tests {
                 .await
                 .expect_err(taken);
 
-            assert!(matches!(error, Error::InvalidInput { .. }), "{error:?}");
+            assert!(
+                matches!(
+                    error,
+                    Error::Refused {
+                        reason: crate::error::RefusalReason::UsernameTaken,
+                        ..
+                    }
+                ),
+                "{error:?}"
+            );
             assert_eq!(error.to_string(), USERNAME_TAKEN, "{taken:?}");
         }
 
@@ -3579,7 +3619,16 @@ mod tests {
             .await
             .expect_err("the owner renamed themselves");
 
-        assert!(matches!(error, Error::Forbidden { .. }), "{error:?}");
+        assert!(
+            matches!(
+                error,
+                Error::Refused {
+                    reason: crate::error::RefusalReason::NotYourself,
+                    ..
+                }
+            ),
+            "{error:?}"
+        );
         assert!(error.to_string().contains("yourself"), "{error}");
 
         let mut member = sign_in(
@@ -3596,14 +3645,32 @@ mod tests {
             .await
             .expect_err("a member renamed somebody");
 
-        assert!(matches!(error, Error::Forbidden { .. }), "{error:?}");
+        assert!(
+            matches!(
+                error,
+                Error::Refused {
+                    reason: crate::error::RefusalReason::RoleLacksAct,
+                    ..
+                }
+            ),
+            "{error:?}"
+        );
         assert!(error.to_string().contains("renameMember"), "{error}");
 
         let error = rename_member(&store, &owner, "nobody", "robert", 2)
             .await
             .expect_err("a member who is not there was renamed");
 
-        assert!(matches!(error, Error::NotFound { .. }), "{error:?}");
+        assert!(
+            matches!(
+                error,
+                Error::Refused {
+                    reason: crate::error::RefusalReason::MemberMissing,
+                    ..
+                }
+            ),
+            "{error:?}"
+        );
 
         // and nothing was written by any of them.
         let mut usernames: Vec<String> = super::members(&store, &owner)

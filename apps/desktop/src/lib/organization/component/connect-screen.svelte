@@ -148,8 +148,8 @@
 
 	// which of the form's two halves was refused, in the reader's own language, and each on the
 	// field that answers for it ([[rules/interface]], *Validation errors*). What the shell said is
-	// kept under them, the way a refused link keeps its detail, because the rare other thing a
-	// `forbidden` means here is a standing that changed while the person was typing.
+	// kept under them, the way a refused link keeps its detail, because the rare other refusal that
+	// hands the form back here is a standing that changed while the person was typing.
 	const linkRefusal = $derived(isUnreadable ? $LL.organization.join.unreadable() : null);
 
 	const codeRefusalMessage = $derived.by(() => {

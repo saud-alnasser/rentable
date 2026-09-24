@@ -145,7 +145,11 @@ test('a lapsed, consumed, revoked or replaced link is refused by name, off the c
 		// a machine that holds another organization already, met by the act that takes the code
 		// rather than by the read, since the read reaches nothing.
 		assert.deepEqual(
-			joinFailed(joining, rejection('preconditionFailed', 'this machine holds Beta'), said),
+			joinFailed(
+				joining,
+				rejection('refused', 'this machine holds Beta', 'anotherOrganizationHeld'),
+				said
+			),
 			{
 				kind: 'refused',
 				link: LINK,
@@ -182,7 +186,12 @@ test('text that is not a link marks the link field, and an organization that can
 	const describe = said;
 
 	assert.deepEqual(
-		inspectionFailed('nope', CODE, { code: 'invalidInput', message: 'not a link' }, describe),
+		inspectionFailed(
+			'nope',
+			CODE,
+			{ code: 'refused', reason: 'linkUnreadable', message: 'not a link' },
+			describe
+		),
 		{ ...pasting('nope', CODE), isUnreadable: true }
 	);
 	assert.deepEqual(
@@ -213,7 +222,8 @@ test('an organization link met on a machine holding another is refused on the re
 			LINK,
 			CODE,
 			{
-				code: 'preconditionFailed',
+				code: 'refused',
+				reason: 'anotherOrganizationHeld',
 				message: 'this machine already holds Beta; disconnect it before connecting another'
 			},
 			describe
@@ -255,8 +265,8 @@ test('a nameless failure in the read wait hands the form back, with nothing mark
 
 // effort 826, requirement 23; effort 828, requirement 1: the two refusals a code gets are the two
 // the person can answer without a new link, and both keep them on the step. A code that failed the
-// seal is `forbidden` and a field nobody filled in is `invalidInput`. A code has no life of its own
-// any more, so there is no third; a link past its moment is a refused link, which is the test above.
+// seal is refused as `codeWrong` and a field nobody filled in as `codeMissing`. A code has no
+// life of its own any more, so there is no third; a link past its moment is a refused link, which is the test above.
 test('a wrong code and a missing one are told apart, and both mark the code field', () => {
 	for (const step of [joinBegun(stepOf({ kind: 'invitation', expiresAt: 1 })), reading()]) {
 		const landing = (error: unknown) => joinFailed(step, error, () => 'said');
@@ -266,9 +276,13 @@ test('a wrong code and a missing one are told apart, and both mark the code fiel
 			return next.kind === 'paste' ? next.codeRefusal : `left for the ${next.kind} step`;
 		};
 
-		assert.equal(refusalOf(rejection('forbidden', 'the code is wrong')), 'wrong', step.kind);
 		assert.equal(
-			refusalOf(rejection('invalidInput', 'type the six-character code')),
+			refusalOf(rejection('refused', 'the code is wrong', 'codeWrong')),
+			'wrong',
+			step.kind
+		);
+		assert.equal(
+			refusalOf(rejection('refused', 'type the six-character code', 'codeMissing')),
 			'missing',
 			step.kind
 		);
@@ -276,7 +290,7 @@ test('a wrong code and a missing one are told apart, and both mark the code fiel
 		// the link the person already typed is handed back with the code, so the one field they
 		// have to answer is the one that was refused.
 		assert.deepEqual(
-			landing(rejection('forbidden', 'the code is wrong')),
+			landing(rejection('refused', 'the code is wrong', 'codeWrong')),
 			{ ...pasting(LINK, CODE), codeRefusal: 'wrong', errorMessage: 'said' },
 			step.kind
 		);

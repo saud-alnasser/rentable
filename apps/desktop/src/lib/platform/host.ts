@@ -552,15 +552,15 @@ export type Host = {
 		/**
 		 * what the consented turso account already holds, read after the consent and before
 		 * anything is created (effort 828, requirement 14). A read: nothing is minted, nothing is
-		 * created and this machine's record is untouched. Rejects as `notConfigured` where no
+		 * created and this machine's record is untouched. Refuses with `tursoNotConnected` where no
 		 * consent has been granted.
 		 */
 		groupInspect: () => Promise<GroupState>;
 		/**
 		 * connect this machine to the organization the consented account already holds, and sign
 		 * its owner in to it. Only the owner's password does it, because only their password
-		 * re-derives the key the rows are judged against: anybody else rejects as `forbidden` and
-		 * the machine is left holding nothing. A wrong username and a wrong password reject with
+		 * re-derives the key the rows are judged against: anybody else is refused with `ownerOnly`
+		 * and the machine is left holding nothing. A wrong username and a wrong password reject with
 		 * the wall's one sentence, which tells them apart by nothing. Other machines holding the
 		 * organization stand in nobody's way: the register is not read here, because an account is
 		 * held on as many machines as its holder signs in on.
@@ -578,8 +578,8 @@ export type Host = {
 		 * delete the organization, with the owner's password: every workspace database and the
 		 * organization's own directory are removed from the owner's Turso account, and this machine
 		 * then forgets what it held exactly as a disconnect leaves it. Nothing puts either back.
-		 * Rejects as `forbidden` for anybody but the owner and for a machine holding no Turso
-		 * authority, and with the vault's one sentence for a password that does not open the
+		 * Refuses with `ownerOnly` for anybody but the owner and `ownerMachineOnly` for a machine
+		 * holding no Turso authority, and with the vault's one sentence for a password that does not open the
 		 * owner's vault; nothing is deleted on either. Every other machine finds the organization
 		 * gone at its next launch and forgets it too.
 		 */
@@ -613,9 +613,9 @@ export type Host = {
 		onMigration: (listener: (notice: MigrationNotice) => void) => Promise<Unlisten>;
 		/**
 		 * read a link: which organization it names, which kind of link it is, and when it lapses.
-		 * A decode and nothing else, so it reaches no network and reads no row; rejects as
-		 * `invalidInput` where the text is not a link, which a link in the shape before effort 828
-		 * is.
+		 * A decode and nothing else, so it reaches no network and reads no row; refuses with
+		 * `linkUnreadable` where the text is not a link, which a link in the shape before effort
+		 * 828 is.
 		 */
 		linkRead: (link: string) => Promise<LinkShape>;
 		/**
@@ -751,20 +751,19 @@ export type Host = {
 			 * person's choosing: the code and the link's secret together unseal the credential and
 			 * the vault password, the organization is reached and recorded where this machine
 			 * holds none, the vault is resealed under the password, the invitation is spent, and
-			 * the person is signed in. Rejects a lapsed link, a lapsed, consumed or revoked
-			 * invitation by name as `forbidden`, a wrong code as `forbidden`, a missing code and a
-			 * password under the floor as `invalidInput`, and a link for another organization than
-			 * the one held as `preconditionFailed`.
+			 * the person is signed in. Refuses a lapsed link and a lapsed, consumed or revoked
+			 * invitation by name, a wrong code with `codeWrong`, a missing code with `codeMissing`,
+			 * a password under the floor with `passwordTooShort`, and a link for another
+			 * organization than the one held with `anotherOrganizationHeld`.
 			 */
 			accept: (link: string, code: string, password: string) => Promise<OrganizationState>;
 		};
 		/**
 		 * connect this machine with a machine-kind link, and land at the wall. The code
 		 * and the link's secret together unseal the member's own grant, the organization is
-		 * recorded with no member, and the link is spent. Rejects a wrong or missing code as
-		 * `forbidden` and `invalidInput`, a lapsed link and a replaced or already spent one by
-		 * name as `forbidden`, and a machine that already holds an organization as
-		 * `preconditionFailed`.
+		 * recorded with no member, and the link is spent. Refuses a wrong or missing code with
+		 * `codeWrong` and `codeMissing`, a lapsed link and a replaced or already spent one by
+		 * name, and a machine that already holds an organization with `anotherOrganizationHeld`.
 		 */
 		machineConnect: (link: string, code: string) => Promise<OrganizationState>;
 		/**

@@ -71,6 +71,10 @@ type RootTranslation = {
 			 */
 			copyDetails: string
 			/**
+			 * d​e​t​a​i​l​s
+			 */
+			details: string
+			/**
 			 * c​h​o​o​s​e​ ​a​ ​f​i​l​e​.​.​.
 			 */
 			chooseFile: string
@@ -309,7 +313,7 @@ type RootTranslation = {
 			 */
 			preconditionFailed: string
 			/**
-			 * t​h​i​s​ ​l​i​n​k​ ​n​o​ ​l​o​n​g​e​r​ ​o​p​e​n​s​.
+			 * t​h​i​s​ ​w​a​s​ ​r​e​f​u​s​e​d​,​ ​a​n​d​ ​n​o​t​h​i​n​g​ ​w​a​s​ ​c​h​a​n​g​e​d​.
 			 */
 			refused: string
 			/**
@@ -901,6 +905,248 @@ type RootTranslation = {
 				 * a​n​o​t​h​e​r​ ​c​o​n​t​r​a​c​t​ ​h​o​l​d​s​ ​o​n​e​ ​o​r​ ​m​o​r​e​ ​o​f​ ​t​h​e​s​e​ ​u​n​i​t​s​ ​o​v​e​r​ ​t​h​e​ ​s​e​l​e​c​t​e​d​ ​t​e​r​m​.​ ​c​h​o​o​s​e​ ​a​ ​d​i​f​f​e​r​e​n​t​ ​t​e​r​m​.
 				 */
 				unitsUnavailable: string
+			}
+			host: {
+				/**
+				 * t​h​i​s​ ​l​i​n​k​ ​h​a​s​ ​l​a​p​s​e​d​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​s​e​n​t​ ​i​t​ ​f​o​r​ ​a​ ​n​e​w​ ​o​n​e​.
+				 */
+				lapsed: string
+				/**
+				 * t​h​i​s​ ​l​i​n​k​ ​w​a​s​ ​a​l​r​e​a​d​y​ ​u​s​e​d​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​s​e​n​t​ ​i​t​ ​f​o​r​ ​a​ ​n​e​w​ ​o​n​e​.
+				 */
+				consumed: string
+				/**
+				 * t​h​i​s​ ​l​i​n​k​ ​w​a​s​ ​w​i​t​h​d​r​a​w​n​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​s​e​n​t​ ​i​t​ ​f​o​r​ ​a​ ​n​e​w​ ​o​n​e​.
+				 */
+				revoked: string
+				/**
+				 * a​ ​n​e​w​e​r​ ​l​i​n​k​ ​r​e​p​l​a​c​e​d​ ​t​h​i​s​ ​o​n​e​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​s​e​n​t​ ​i​t​ ​f​o​r​ ​t​h​e​ ​n​e​w​ ​o​n​e​.
+				 */
+				replaced: string
+				/**
+				 * t​y​p​e​ ​t​h​e​ ​s​i​x​-​c​h​a​r​a​c​t​e​r​ ​c​o​d​e​ ​t​h​a​t​ ​c​a​m​e​ ​w​i​t​h​ ​t​h​e​ ​l​i​n​k​.
+				 */
+				codeMissing: string
+				/**
+				 * t​h​e​ ​c​o​d​e​ ​i​s​ ​w​r​o​n​g​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​s​e​n​t​ ​t​h​e​ ​l​i​n​k​ ​t​o​ ​r​e​a​d​ ​i​t​ ​o​u​t​ ​a​g​a​i​n​.
+				 */
+				codeWrong: string
+				/**
+				 * t​h​i​s​ ​i​s​ ​n​o​t​ ​a​ ​r​e​n​t​a​b​l​e​ ​j​o​i​n​ ​l​i​n​k​.​ ​c​o​p​y​ ​t​h​e​ ​w​h​o​l​e​ ​l​i​n​k​ ​a​n​d​ ​t​r​y​ ​a​g​a​i​n​.
+				 */
+				linkUnreadable: string
+				/**
+				 * t​h​i​s​ ​l​i​n​k​ ​c​o​n​n​e​c​t​s​ ​a​n​o​t​h​e​r​ ​m​a​c​h​i​n​e​ ​r​a​t​h​e​r​ ​t​h​a​n​ ​i​n​v​i​t​i​n​g​ ​y​o​u​.​ ​s​i​g​n​ ​i​n​ ​w​i​t​h​ ​y​o​u​r​ ​u​s​e​r​n​a​m​e​ ​a​n​d​ ​p​a​s​s​w​o​r​d​ ​i​n​s​t​e​a​d​.
+				 */
+				linkNotAnInvitation: string
+				/**
+				 * t​h​i​s​ ​l​i​n​k​ ​i​s​ ​a​n​ ​i​n​v​i​t​a​t​i​o​n​ ​r​a​t​h​e​r​ ​t​h​a​n​ ​a​ ​l​i​n​k​ ​f​o​r​ ​a​n​o​t​h​e​r​ ​m​a​c​h​i​n​e​.​ ​o​p​e​n​ ​i​t​ ​w​h​e​r​e​ ​y​o​u​ ​a​c​c​e​p​t​ ​a​n​ ​i​n​v​i​t​a​t​i​o​n​.
+				 */
+				linkNotForAMachine: string
+				/**
+				 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​a​l​r​e​a​d​y​ ​h​o​l​d​s​ ​a​n​o​t​h​e​r​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​d​i​s​c​o​n​n​e​c​t​ ​i​t​ ​f​i​r​s​t​.
+				 */
+				anotherOrganizationHeld: string
+				/**
+				 * t​h​e​ ​u​s​e​r​n​a​m​e​ ​o​r​ ​p​a​s​s​w​o​r​d​ ​i​s​ ​w​r​o​n​g​.
+				 */
+				credentialsWrong: string
+				/**
+				 * t​h​e​ ​p​a​s​s​w​o​r​d​ ​n​e​e​d​s​ ​a​t​ ​l​e​a​s​t​ ​1​2​ ​c​h​a​r​a​c​t​e​r​s​.
+				 */
+				passwordTooShort: string
+				/**
+				 * c​h​a​n​g​e​ ​y​o​u​r​ ​p​a​s​s​w​o​r​d​ ​b​e​f​o​r​e​ ​d​o​i​n​g​ ​a​n​y​t​h​i​n​g​ ​e​l​s​e​.
+				 */
+				passwordChangeRequired: string
+				/**
+				 * n​o​b​o​d​y​ ​i​s​ ​s​i​g​n​e​d​ ​i​n​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​.​ ​s​i​g​n​ ​i​n​ ​a​n​d​ ​t​r​y​ ​a​g​a​i​n​.
+				 */
+				signedOut: string
+				/**
+				 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​h​o​l​d​s​ ​n​o​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​y​e​t​.
+				 */
+				noOrganization: string
+				/**
+				 * n​o​b​o​d​y​ ​h​a​s​ ​s​i​g​n​e​d​ ​i​n​ ​t​o​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​y​e​t​.​ ​s​i​g​n​ ​i​n​ ​f​i​r​s​t​.
+				 */
+				noMemberYet: string
+				/**
+				 * y​o​u​r​ ​a​c​c​o​u​n​t​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​i​s​ ​o​u​t​ ​o​f​ ​d​a​t​e​.​ ​s​i​g​n​ ​i​n​ ​a​g​a​i​n​.
+				 */
+				signInAgain: string
+				/**
+				 * y​o​u​ ​w​e​r​e​ ​r​e​m​o​v​e​d​ ​f​r​o​m​ ​t​h​i​s​ ​o​r​g​a​n​i​z​a​t​i​o​n​.
+				 */
+				youWereRemoved: string
+				/**
+				 * y​o​u​r​ ​s​e​s​s​i​o​n​s​ ​w​e​r​e​ ​e​n​d​e​d​ ​f​r​o​m​ ​a​n​o​t​h​e​r​ ​m​a​c​h​i​n​e​.​ ​s​i​g​n​ ​i​n​ ​a​g​a​i​n​.
+				 */
+				sessionsEnded: string
+				/**
+				 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​w​a​s​ ​h​a​n​d​e​d​ ​o​v​e​r​,​ ​s​o​ ​o​n​l​y​ ​i​t​s​ ​n​e​w​ ​o​w​n​e​r​ ​c​a​n​ ​d​o​ ​t​h​i​s​.
+				 */
+				keyNotInForce: string
+				/**
+				 * a​ ​u​s​e​r​n​a​m​e​ ​i​s​ ​3​ ​t​o​ ​3​2​ ​l​e​t​t​e​r​s​,​ ​d​i​g​i​t​s​,​ ​d​o​t​s​,​ ​u​n​d​e​r​s​c​o​r​e​s​ ​o​r​ ​h​y​p​h​e​n​s​,​ ​w​i​t​h​ ​n​o​ ​s​p​a​c​e​s​.
+				 */
+				usernameInvalid: string
+				/**
+				 * t​h​a​t​ ​u​s​e​r​n​a​m​e​ ​i​s​ ​a​l​r​e​a​d​y​ ​t​a​k​e​n​ ​i​n​ ​t​h​i​s​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​c​h​o​o​s​e​ ​a​n​o​t​h​e​r​.
+				 */
+				usernameTaken: string
+				/**
+				 * c​h​o​o​s​e​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​ ​o​r​ ​m​e​m​b​e​r​.
+				 */
+				roleUnknown: string
+				/**
+				 * t​h​a​t​ ​m​e​m​b​e​r​ ​i​s​ ​n​o​ ​l​o​n​g​e​r​ ​i​n​ ​t​h​i​s​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​r​e​l​o​a​d​ ​t​o​ ​s​e​e​ ​w​h​a​t​ ​c​h​a​n​g​e​d​.
+				 */
+				memberMissing: string
+				/**
+				 * t​h​i​s​ ​a​c​c​o​u​n​t​ ​i​s​ ​n​o​ ​l​o​n​g​e​r​ ​i​n​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.
+				 */
+				memberGone: string
+				/**
+				 * t​h​a​t​ ​m​e​m​b​e​r​ ​w​a​s​ ​r​e​m​o​v​e​d​.​ ​m​a​k​e​ ​t​h​e​m​ ​a​n​ ​a​c​c​o​u​n​t​ ​a​g​a​i​n​ ​i​f​ ​t​h​e​y​ ​a​r​e​ ​t​o​ ​c​o​m​e​ ​b​a​c​k​.
+				 */
+				memberRemoved: string
+				/**
+				 * y​o​u​ ​c​a​n​n​o​t​ ​d​o​ ​t​h​i​s​ ​t​o​ ​y​o​u​r​ ​o​w​n​ ​a​c​c​o​u​n​t​.​ ​a​n​o​t​h​e​r​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​ ​c​a​n​.
+				 */
+				notYourself: string
+				/**
+				 * t​h​e​ ​o​w​n​e​r​'​s​ ​a​c​c​o​u​n​t​ ​i​s​ ​n​o​t​ ​c​h​a​n​g​e​d​ ​t​h​i​s​ ​w​a​y​.​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​i​s​ ​t​h​e​i​r​s​.
+				 */
+				ownerProtected: string
+				/**
+				 * o​n​l​y​ ​t​h​e​ ​o​w​n​e​r​ ​c​a​n​ ​d​o​ ​t​h​i​s​.​ ​a​s​k​ ​t​h​e​ ​o​w​n​e​r​.
+				 */
+				ownerOnly: string
+				/**
+				 * t​h​i​s​ ​n​e​e​d​s​ ​t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​,​ ​w​h​i​c​h​ ​i​s​ ​c​o​n​n​e​c​t​e​d​ ​o​n​ ​t​h​e​ ​o​w​n​e​r​'​s​ ​m​a​c​h​i​n​e​.​ ​a​s​k​ ​t​h​e​ ​o​w​n​e​r​.
+				 */
+				ownerMachineOnly: string
+				/**
+				 * y​o​u​r​ ​r​o​l​e​ ​d​o​e​s​ ​n​o​t​ ​i​n​c​l​u​d​e​ ​t​h​i​s​.​ ​a​s​k​ ​a​n​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​.
+				 */
+				roleLacksAct: string
+				/**
+				 * o​n​l​y​ ​a​n​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​ ​c​a​n​ ​d​o​ ​t​h​i​s​.
+				 */
+				notAdministrator: string
+				/**
+				 * y​o​u​ ​a​r​e​ ​t​h​e​ ​o​w​n​e​r​ ​a​l​r​e​a​d​y​.​ ​c​h​o​o​s​e​ ​t​h​e​ ​a​c​c​o​u​n​t​ ​t​h​a​t​ ​i​s​ ​t​o​ ​h​a​v​e​ ​i​t​.
+				 */
+				alreadyOwner: string
+				/**
+				 * t​h​a​t​ ​a​c​c​o​u​n​t​ ​h​a​s​ ​n​o​ ​p​a​s​s​w​o​r​d​ ​o​f​ ​i​t​s​ ​o​w​n​ ​y​e​t​.​ ​o​n​c​e​ ​t​h​e​y​ ​o​p​e​n​ ​t​h​e​i​r​ ​l​i​n​k​ ​a​n​d​ ​c​h​o​o​s​e​ ​o​n​e​,​ ​o​f​f​e​r​ ​i​t​ ​a​g​a​i​n​.
+				 */
+				accountNotSetUp: string
+				/**
+				 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​i​s​ ​a​l​r​e​a​d​y​ ​o​f​f​e​r​e​d​ ​t​o​ ​a​n​ ​a​c​c​o​u​n​t​.​ ​w​i​t​h​d​r​a​w​ ​t​h​a​t​ ​o​f​f​e​r​ ​f​i​r​s​t​.
+				 */
+				offerPending: string
+				/**
+				 * t​h​e​ ​o​f​f​e​r​ ​w​a​s​ ​a​l​r​e​a​d​y​ ​a​c​c​e​p​t​e​d​,​ ​a​n​d​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​i​s​ ​t​h​e​i​r​s​ ​n​o​w​.​ ​n​o​t​h​i​n​g​ ​w​a​s​ ​c​h​a​n​g​e​d​.
+				 */
+				offerAccepted: string
+				/**
+				 * n​o​ ​o​f​f​e​r​ ​o​f​ ​t​h​i​s​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​s​t​a​n​d​s​.
+				 */
+				nothingOffered: string
+				/**
+				 * t​h​e​ ​a​c​c​o​u​n​t​ ​t​h​a​t​ ​o​f​f​e​r​e​d​ ​y​o​u​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​i​s​ ​n​o​ ​l​o​n​g​e​r​ ​i​n​ ​i​t​.
+				 */
+				offererGone: string
+				/**
+				 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​n​e​e​d​s​ ​a​ ​n​a​m​e​.
+				 */
+				organizationNameMissing: string
+				/**
+				 * t​h​e​ ​w​o​r​k​s​p​a​c​e​ ​n​e​e​d​s​ ​a​ ​n​a​m​e​.
+				 */
+				workspaceNameMissing: string
+				/**
+				 * t​h​a​t​ ​w​o​r​k​s​p​a​c​e​ ​i​s​ ​n​o​ ​l​o​n​g​e​r​ ​i​n​ ​t​h​i​s​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​r​e​l​o​a​d​ ​t​o​ ​s​e​e​ ​w​h​a​t​ ​c​h​a​n​g​e​d​.
+				 */
+				workspaceMissing: string
+				/**
+				 * n​o​ ​w​o​r​k​s​p​a​c​e​ ​i​s​ ​o​p​e​n​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​.​ ​o​p​e​n​ ​o​n​e​ ​a​n​d​ ​t​r​y​ ​a​g​a​i​n​.
+				 */
+				noWorkspaceOpen: string
+				/**
+				 * y​o​u​ ​h​a​v​e​ ​n​o​ ​a​c​c​e​s​s​ ​t​o​ ​t​h​a​t​ ​w​o​r​k​s​p​a​c​e​.
+				 */
+				noGrant: string
+				/**
+				 * t​h​a​t​ ​m​e​m​b​e​r​ ​h​a​s​ ​n​o​ ​a​c​c​e​s​s​ ​t​o​ ​t​h​a​t​ ​w​o​r​k​s​p​a​c​e​.
+				 */
+				grantMissing: string
+				/**
+				 * y​o​u​ ​c​a​n​ ​s​h​a​r​e​ ​o​n​l​y​ ​a​ ​w​o​r​k​s​p​a​c​e​ ​y​o​u​ ​h​a​v​e​ ​f​u​l​l​ ​a​c​c​e​s​s​ ​t​o​ ​y​o​u​r​s​e​l​f​.
+				 */
+				grantBeyondOwn: string
+				/**
+				 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​h​o​l​d​s​ ​n​o​ ​a​c​c​e​s​s​ ​t​o​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​r​e​c​o​r​d​s​.​ ​s​i​g​n​ ​i​n​ ​a​g​a​i​n​ ​a​n​d​ ​t​r​y​ ​o​n​c​e​ ​m​o​r​e​.
+				 */
+				noOrganizationCredential: string
+				/**
+				 * a​ ​n​e​w​e​r​ ​v​e​r​s​i​o​n​ ​o​f​ ​r​e​n​t​a​b​l​e​ ​u​p​g​r​a​d​e​d​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​.​ ​u​p​d​a​t​e​ ​r​e​n​t​a​b​l​e​ ​t​o​ ​o​p​e​n​ ​i​t​.
+				 */
+				workspaceNewer: string
+				/**
+				 * t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​n​e​e​d​s​ ​u​p​g​r​a​d​i​n​g​,​ ​a​n​d​ ​r​e​a​d​-​o​n​l​y​ ​a​c​c​e​s​s​ ​c​a​n​n​o​t​ ​d​o​ ​i​t​.​ ​a​s​k​ ​a​ ​m​e​m​b​e​r​ ​w​i​t​h​ ​f​u​l​l​ ​a​c​c​e​s​s​ ​t​o​ ​o​p​e​n​ ​i​t​ ​o​n​c​e​.
+				 */
+				workspaceBehind: string
+				/**
+				 * t​h​e​ ​d​a​t​a​b​a​s​e​ ​r​e​f​u​s​e​d​ ​t​h​e​ ​r​e​q​u​e​s​t​,​ ​a​n​d​ ​n​o​t​h​i​n​g​ ​w​a​s​ ​c​h​a​n​g​e​d​.​ ​t​r​y​ ​a​g​a​i​n​ ​l​a​t​e​r​.
+				 */
+				databaseRefused: string
+				/**
+				 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​i​s​ ​n​o​t​ ​c​o​n​n​e​c​t​e​d​ ​t​o​ ​t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​.​ ​c​o​n​n​e​c​t​ ​i​t​ ​a​n​d​ ​t​r​y​ ​a​g​a​i​n​.
+				 */
+				tursoNotConnected: string
+				/**
+				 * t​u​r​s​o​ ​n​e​e​d​s​ ​t​h​e​ ​c​o​n​s​e​n​t​ ​g​r​a​n​t​e​d​ ​a​g​a​i​n​.​ ​c​o​n​n​e​c​t​ ​t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​a​g​a​i​n​.
+				 */
+				consentNeededAgain: string
+				/**
+				 * t​h​i​s​ ​c​o​n​s​e​n​t​ ​i​s​ ​n​o​ ​l​o​n​g​e​r​ ​w​a​i​t​i​n​g​.​ ​s​t​a​r​t​ ​i​t​ ​a​g​a​i​n​.
+				 */
+				consentGone: string
+				/**
+				 * t​h​a​t​ ​i​s​ ​n​o​t​ ​t​h​e​ ​g​r​o​u​p​ ​t​h​e​ ​c​o​n​s​e​n​t​ ​w​a​s​ ​g​i​v​e​n​ ​o​v​e​r​.​ ​c​h​e​c​k​ ​t​h​e​ ​n​a​m​e​ ​a​n​d​ ​t​r​y​ ​a​g​a​i​n​.
+				 */
+				groupMismatch: string
+				/**
+				 * t​u​r​s​o​ ​n​e​e​d​s​ ​t​h​e​ ​n​a​m​e​ ​o​f​ ​t​h​e​ ​g​r​o​u​p​ ​y​o​u​ ​p​i​c​k​e​d​.​ ​t​y​p​e​ ​i​t​ ​b​e​l​o​w​.
+				 */
+				groupNeeded: string
+				/**
+				 * t​h​a​t​ ​g​r​o​u​p​ ​a​l​r​e​a​d​y​ ​h​o​l​d​s​ ​a​n​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​p​i​c​k​ ​a​n​o​t​h​e​r​ ​g​r​o​u​p​ ​o​r​ ​a​n​o​t​h​e​r​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​.
+				 */
+				groupHoldsOrganization: string
+				/**
+				 * t​h​e​ ​c​o​n​s​e​n​t​ ​w​a​s​ ​g​i​v​e​n​ ​o​v​e​r​ ​a​ ​g​r​o​u​p​ ​t​h​a​t​ ​h​o​l​d​s​ ​n​o​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​g​i​v​e​ ​i​t​ ​o​v​e​r​ ​t​h​e​ ​g​r​o​u​p​ ​t​h​a​t​ ​h​o​l​d​s​ ​y​o​u​r​s​.
+				 */
+				groupEmpty: string
+				/**
+				 * t​h​i​s​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​h​o​l​d​s​ ​n​o​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​t​o​ ​c​o​n​n​e​c​t​ ​t​o​.​ ​g​o​ ​b​a​c​k​ ​a​n​d​ ​m​a​k​e​ ​o​n​e​.
+				 */
+				nothingToConnectTo: string
+				/**
+				 * t​u​r​s​o​ ​w​o​u​l​d​ ​n​o​t​ ​c​r​e​a​t​e​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​d​a​t​a​b​a​s​e​.
+				 */
+				createRefused: string
+				/**
+				 * t​u​r​s​o​ ​r​e​f​u​s​e​d​ ​t​h​e​ ​r​e​q​u​e​s​t​.​ ​t​r​y​i​n​g​ ​a​g​a​i​n​ ​w​i​l​l​ ​n​o​t​ ​h​e​l​p​.
+				 */
+				tursoRefused: string
+				/**
+				 * t​u​r​s​o​ ​r​e​f​u​s​e​d​ ​t​h​e​ ​r​e​q​u​e​s​t​ ​b​e​c​a​u​s​e​ ​o​f​ ​t​h​e​ ​a​c​c​o​u​n​t​ ​i​t​s​e​l​f​.​ ​c​h​e​c​k​ ​t​h​e​ ​a​c​c​o​u​n​t​'​s​ ​p​l​a​n​ ​i​n​ ​t​u​r​s​o​.
+				 */
+				tursoAccountRefused: string
 			}
 			payment: {
 				/**
@@ -3550,6 +3796,10 @@ export type TranslationFunctions = {
 			 */
 			copyDetails: () => LocalizedString
 			/**
+			 * details
+			 */
+			details: () => LocalizedString
+			/**
 			 * choose a file...
 			 */
 			chooseFile: () => LocalizedString
@@ -3788,7 +4038,7 @@ export type TranslationFunctions = {
 			 */
 			preconditionFailed: () => LocalizedString
 			/**
-			 * this link no longer opens.
+			 * this was refused, and nothing was changed.
 			 */
 			refused: () => LocalizedString
 			/**
@@ -4344,6 +4594,248 @@ export type TranslationFunctions = {
 				 * another contract holds one or more of these units over the selected term. choose a different term.
 				 */
 				unitsUnavailable: () => LocalizedString
+			}
+			host: {
+				/**
+				 * this link has lapsed. ask whoever sent it for a new one.
+				 */
+				lapsed: () => LocalizedString
+				/**
+				 * this link was already used. ask whoever sent it for a new one.
+				 */
+				consumed: () => LocalizedString
+				/**
+				 * this link was withdrawn. ask whoever sent it for a new one.
+				 */
+				revoked: () => LocalizedString
+				/**
+				 * a newer link replaced this one. ask whoever sent it for the new one.
+				 */
+				replaced: () => LocalizedString
+				/**
+				 * type the six-character code that came with the link.
+				 */
+				codeMissing: () => LocalizedString
+				/**
+				 * the code is wrong. ask whoever sent the link to read it out again.
+				 */
+				codeWrong: () => LocalizedString
+				/**
+				 * this is not a rentable join link. copy the whole link and try again.
+				 */
+				linkUnreadable: () => LocalizedString
+				/**
+				 * this link connects another machine rather than inviting you. sign in with your username and password instead.
+				 */
+				linkNotAnInvitation: () => LocalizedString
+				/**
+				 * this link is an invitation rather than a link for another machine. open it where you accept an invitation.
+				 */
+				linkNotForAMachine: () => LocalizedString
+				/**
+				 * this machine already holds another organization. disconnect it first.
+				 */
+				anotherOrganizationHeld: () => LocalizedString
+				/**
+				 * the username or password is wrong.
+				 */
+				credentialsWrong: () => LocalizedString
+				/**
+				 * the password needs at least 12 characters.
+				 */
+				passwordTooShort: () => LocalizedString
+				/**
+				 * change your password before doing anything else.
+				 */
+				passwordChangeRequired: () => LocalizedString
+				/**
+				 * nobody is signed in on this machine. sign in and try again.
+				 */
+				signedOut: () => LocalizedString
+				/**
+				 * this machine holds no organization yet.
+				 */
+				noOrganization: () => LocalizedString
+				/**
+				 * nobody has signed in to the organization on this machine yet. sign in first.
+				 */
+				noMemberYet: () => LocalizedString
+				/**
+				 * your account on this machine is out of date. sign in again.
+				 */
+				signInAgain: () => LocalizedString
+				/**
+				 * you were removed from this organization.
+				 */
+				youWereRemoved: () => LocalizedString
+				/**
+				 * your sessions were ended from another machine. sign in again.
+				 */
+				sessionsEnded: () => LocalizedString
+				/**
+				 * the organization was handed over, so only its new owner can do this.
+				 */
+				keyNotInForce: () => LocalizedString
+				/**
+				 * a username is 3 to 32 letters, digits, dots, underscores or hyphens, with no spaces.
+				 */
+				usernameInvalid: () => LocalizedString
+				/**
+				 * that username is already taken in this organization. choose another.
+				 */
+				usernameTaken: () => LocalizedString
+				/**
+				 * choose administrator or member.
+				 */
+				roleUnknown: () => LocalizedString
+				/**
+				 * that member is no longer in this organization. reload to see what changed.
+				 */
+				memberMissing: () => LocalizedString
+				/**
+				 * this account is no longer in the organization.
+				 */
+				memberGone: () => LocalizedString
+				/**
+				 * that member was removed. make them an account again if they are to come back.
+				 */
+				memberRemoved: () => LocalizedString
+				/**
+				 * you cannot do this to your own account. another administrator can.
+				 */
+				notYourself: () => LocalizedString
+				/**
+				 * the owner's account is not changed this way. the organization is theirs.
+				 */
+				ownerProtected: () => LocalizedString
+				/**
+				 * only the owner can do this. ask the owner.
+				 */
+				ownerOnly: () => LocalizedString
+				/**
+				 * this needs the turso account, which is connected on the owner's machine. ask the owner.
+				 */
+				ownerMachineOnly: () => LocalizedString
+				/**
+				 * your role does not include this. ask an administrator.
+				 */
+				roleLacksAct: () => LocalizedString
+				/**
+				 * only an administrator can do this.
+				 */
+				notAdministrator: () => LocalizedString
+				/**
+				 * you are the owner already. choose the account that is to have it.
+				 */
+				alreadyOwner: () => LocalizedString
+				/**
+				 * that account has no password of its own yet. once they open their link and choose one, offer it again.
+				 */
+				accountNotSetUp: () => LocalizedString
+				/**
+				 * the organization is already offered to an account. withdraw that offer first.
+				 */
+				offerPending: () => LocalizedString
+				/**
+				 * the offer was already accepted, and the organization is theirs now. nothing was changed.
+				 */
+				offerAccepted: () => LocalizedString
+				/**
+				 * no offer of this organization stands.
+				 */
+				nothingOffered: () => LocalizedString
+				/**
+				 * the account that offered you the organization is no longer in it.
+				 */
+				offererGone: () => LocalizedString
+				/**
+				 * the organization needs a name.
+				 */
+				organizationNameMissing: () => LocalizedString
+				/**
+				 * the workspace needs a name.
+				 */
+				workspaceNameMissing: () => LocalizedString
+				/**
+				 * that workspace is no longer in this organization. reload to see what changed.
+				 */
+				workspaceMissing: () => LocalizedString
+				/**
+				 * no workspace is open on this machine. open one and try again.
+				 */
+				noWorkspaceOpen: () => LocalizedString
+				/**
+				 * you have no access to that workspace.
+				 */
+				noGrant: () => LocalizedString
+				/**
+				 * that member has no access to that workspace.
+				 */
+				grantMissing: () => LocalizedString
+				/**
+				 * you can share only a workspace you have full access to yourself.
+				 */
+				grantBeyondOwn: () => LocalizedString
+				/**
+				 * this machine holds no access to the organization's records. sign in again and try once more.
+				 */
+				noOrganizationCredential: () => LocalizedString
+				/**
+				 * a newer version of rentable upgraded this workspace. update rentable to open it.
+				 */
+				workspaceNewer: () => LocalizedString
+				/**
+				 * this workspace needs upgrading, and read-only access cannot do it. ask a member with full access to open it once.
+				 */
+				workspaceBehind: () => LocalizedString
+				/**
+				 * the database refused the request, and nothing was changed. try again later.
+				 */
+				databaseRefused: () => LocalizedString
+				/**
+				 * this machine is not connected to the turso account. connect it and try again.
+				 */
+				tursoNotConnected: () => LocalizedString
+				/**
+				 * turso needs the consent granted again. connect the turso account again.
+				 */
+				consentNeededAgain: () => LocalizedString
+				/**
+				 * this consent is no longer waiting. start it again.
+				 */
+				consentGone: () => LocalizedString
+				/**
+				 * that is not the group the consent was given over. check the name and try again.
+				 */
+				groupMismatch: () => LocalizedString
+				/**
+				 * turso needs the name of the group you picked. type it below.
+				 */
+				groupNeeded: () => LocalizedString
+				/**
+				 * that group already holds an organization. pick another group or another turso account.
+				 */
+				groupHoldsOrganization: () => LocalizedString
+				/**
+				 * the consent was given over a group that holds no organization. give it over the group that holds yours.
+				 */
+				groupEmpty: () => LocalizedString
+				/**
+				 * this turso account holds no organization to connect to. go back and make one.
+				 */
+				nothingToConnectTo: () => LocalizedString
+				/**
+				 * turso would not create the organization's database.
+				 */
+				createRefused: () => LocalizedString
+				/**
+				 * turso refused the request. trying again will not help.
+				 */
+				tursoRefused: () => LocalizedString
+				/**
+				 * turso refused the request because of the account itself. check the account's plan in turso.
+				 */
+				tursoAccountRefused: () => LocalizedString
 			}
 			payment: {
 				/**
