@@ -1,3 +1,4 @@
+import { mayRun } from '$lib/design/acts';
 import { declareComplexActs, type ComplexActId, type ComplexActRecord } from '$lib/complex/acts';
 
 /**
@@ -64,7 +65,7 @@ export const complexHost = {
 	run(actId: ComplexActId, complex: ComplexActRecord) {
 		const act = complexActs.find((declared) => declared.id === actId);
 
-		if (!act || !(act.appliesTo?.(complex) ?? true)) {
+		if (!mayRun(act, complex)) {
 			return false;
 		}
 

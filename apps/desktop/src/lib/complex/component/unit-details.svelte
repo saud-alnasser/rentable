@@ -19,6 +19,17 @@
 	// so it offers what the card offers, edit and delete included. What each act opens is the unit
 	// host's, mounted once in the frame, so this page mounts no form and no dialog.
 	const pageActions = $derived(unit ? toPageActions(unitActs, unit, $LL) : []);
+
+	// the complex the unit is reached through, named as the complex's own page names it, so the
+	// trail's crumb and the page it opens say the same thing.
+	const parent = $derived(
+		unit
+			? {
+					name: unit.complexName?.trim() || $LL.common.labels.complex(),
+					href: resolve(`/complexes/${unit.complexId}`)
+				}
+			: undefined
+	);
 </script>
 
 <!-- read in the field list and nowhere else. It used to render here and again under the name
@@ -62,6 +73,7 @@
 	path={resolve(`/complexes/units/${unitId}`)}
 	eyebrow={unit?.complexName ?? ''}
 	title={unit?.name ?? ''}
+	{parent}
 	{actions}
 	{fields}
 	collections={[{ value: 'contracts', label: $LL.common.nav.contracts(), content: contracts }]}

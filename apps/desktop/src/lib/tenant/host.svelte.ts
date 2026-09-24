@@ -1,3 +1,4 @@
+import { mayRun } from '$lib/design/acts';
 import { contractHost } from '$lib/contract/host.svelte';
 import { declareTenantActs, type TenantActId, type TenantActRecord } from '$lib/tenant/acts';
 
@@ -66,7 +67,7 @@ export const tenantHost = {
 	run(actId: TenantActId, tenant: TenantActRecord) {
 		const act = tenantActs.find((declared) => declared.id === actId);
 
-		if (!act || !(act.appliesTo?.(tenant) ?? true)) {
+		if (!mayRun(act, tenant)) {
 			return false;
 		}
 

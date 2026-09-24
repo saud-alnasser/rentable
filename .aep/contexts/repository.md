@@ -132,13 +132,18 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
   reached only through the complex holding it, so it lives inside that concept rather than
   beside it. Three homes own no concept, and a domain rule lives in none of them —
   **`design`**, what is left of the frontend machinery once the shareable half became a
-  package — the composite that reaches past the design system, `list.svelte` (`record-actions`
-  retired with effort 832, when copy details became a record act), the record acts' shape and
-  projections in `acts.ts`, the cells, the toast provider that configures the packaged `Toaster`, and the
+  package — the four composites that reach past the design system, in `block/`: `list.svelte`,
+  the `list-toolbar` and `search-field` every set draws above its records, and the
+  `create-control` that is each set's one way to add to it (`record-actions` retired with effort
+  832, when copy details became a record act); the record acts' shape and projections in
+  `acts.ts`, the cells, the toast provider that configures the packaged `Toaster`, and the
   cross-concept helpers beside them: mutation handling, the workspace query-cache policy, undo,
-  the shortcut registry and what builds the list's registrations, and the filter, date and import
-  helpers. *It held 459 files until 2026-08-23 and holds 34. The 425 that left are 387 primitives,
-  thirteen of the fifteen composites, fifteen root modules with the class merging and `csv.ts`
+  the shortcut registry and what builds the list's registrations, the list's motion
+  (`list-motion`), the create key and what it answers (`create-key`, `create-target`,
+  `create-intent`), where a create lands (`landing`), and the filter, date and import helpers.
+  *It holds 77 files, counted on 2026-09-25. It held 459 until 2026-08-23 and 34 just after,
+  and the count read 34 until 2026-09-25 while the home grew. The 425 that left are 387
+  primitives, thirteen of the fifteen composites, fifteen root modules with the class merging and `csv.ts`
   among them, and the ten tests that moved with those; all of them are in `@rentable/design` now,
   whose last move landed at #784 ([[efforts/773-the-design-system-becomes-a-package/spec]]). This read
   "the frontend machinery every concept shares" until then, and what shares is exactly what

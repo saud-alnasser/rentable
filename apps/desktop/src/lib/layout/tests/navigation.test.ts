@@ -71,8 +71,10 @@ test('a record page ends on the record, under the directory it belongs to', () =
 			{ kind: 'place', route: '/complexes', isLast: false },
 			{ kind: 'record', route: '/complexes/[id]', isLast: true }
 		],
+		// a unit is reached through its complex, and its trail runs through it (ticket 36).
 		'/complexes/units/[id]': [
 			{ kind: 'place', route: '/complexes', isLast: false },
+			{ kind: 'parent', route: '/complexes/[id]', isLast: false },
 			{ kind: 'record', route: '/complexes/units/[id]', isLast: true }
 		],
 		'/contracts/[id]': [

@@ -1,3 +1,4 @@
+import { mayRun } from '$lib/design/acts';
 import {
 	declareContractActs,
 	type ContractActId,
@@ -99,7 +100,7 @@ export const contractHost = {
 	run(actId: ContractActId, contract: ContractActRecord) {
 		const act = contractActs.find((declared) => declared.id === actId);
 
-		if (!act || !(act.appliesTo?.(contract) ?? true)) {
+		if (!mayRun(act, contract)) {
 			return false;
 		}
 

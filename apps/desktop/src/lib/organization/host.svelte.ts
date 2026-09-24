@@ -7,7 +7,7 @@ import {
 	type WorkspaceActId,
 	type WorkspaceActRecord
 } from '$lib/organization/acts';
-import type { RecordAct } from '$lib/design/acts';
+import { mayRun, type RecordAct } from '$lib/design/acts';
 import { openOrganizationDialog } from '$lib/organization/dialogs.svelte';
 
 /**
@@ -124,7 +124,7 @@ export const workspaceActs = declareWorkspaceActs({
 function runDeclared<T>(acts: readonly RecordAct<T>[], actId: string, record: T) {
 	const act = acts.find((declared) => declared.id === actId);
 
-	if (!act || !(act.appliesTo?.(record) ?? true)) {
+	if (!mayRun(act, record)) {
 		return false;
 	}
 

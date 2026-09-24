@@ -48,10 +48,13 @@ export type TrailPlace = (typeof TRAIL_PLACES)[number];
  * **A payment is reached through its contract**: it has no name of its own and no directory, and
  * its address sits under `/contracts` without a page at `/contracts/payments`. So its trail runs
  * through the contract it was made against, which is a page, rather than skipping from the
- * directory to an amount. The crumb is named and addressed by the payment's record surface, since
- * the route id says which kind of record the parent is and never which one.
+ * directory to an amount. **A unit is reached through its complex** the same way: its address sits
+ * under `/complexes` without a page at `/complexes/units`, and it belongs to one complex. Each
+ * crumb is named and addressed by the record's own surface, since the route id says which kind of
+ * record the parent is and never which one.
  */
 export const RECORD_PARENTS: Partial<Record<PageRoute, PageRoute>> = {
+	'/complexes/units/[id]': '/complexes/[id]',
 	'/contracts/payments/[id]': '/contracts/[id]'
 };
 

@@ -1,3 +1,4 @@
+import { mayRun } from '$lib/design/acts';
 import { contractHost } from '$lib/contract/host.svelte';
 import { declareUnitActs, type UnitActId, type UnitActRecord } from '$lib/complex/unit/acts';
 
@@ -75,7 +76,7 @@ export const unitHost = {
 	run(actId: UnitActId, unit: UnitActRecord) {
 		const act = unitActs.find((declared) => declared.id === actId);
 
-		if (!act || !(act.appliesTo?.(unit) ?? true)) {
+		if (!mayRun(act, unit)) {
 			return false;
 		}
 

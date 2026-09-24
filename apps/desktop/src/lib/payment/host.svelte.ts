@@ -1,3 +1,4 @@
+import { mayRun } from '$lib/design/acts';
 import { declarePaymentActs, type PaymentActId, type PaymentActRecord } from '$lib/payment/acts';
 
 /**
@@ -85,7 +86,7 @@ export const paymentHost = {
 	run(actId: PaymentActId, payment: PaymentActRecord) {
 		const act = paymentActs.find((declared) => declared.id === actId);
 
-		if (!act || !(act.appliesTo?.(payment) ?? true)) {
+		if (!mayRun(act, payment)) {
 			return false;
 		}
 

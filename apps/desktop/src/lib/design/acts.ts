@@ -1,6 +1,8 @@
 import type { RecordCardAction } from '@rentable/design/block/record-card.svelte';
 import { toConfirmation, type Blockers } from '@rentable/design/confirmation.js';
 import { toShortcutHint, type ShortcutCombination } from '@rentable/design/shortcut.js';
+import { get } from 'svelte/store';
+import { LL } from '$lib/i18n/i18n-svelte';
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 
 /**
@@ -97,6 +99,19 @@ export function toDeleteStep(
 /** The acts that apply to this record, in the order they were declared. */
 function applying<T>(acts: readonly RecordAct<T>[], record: T) {
 	return acts.filter((act) => act.appliesTo?.(record) ?? true);
+}
+
+/**
+ * Whether a host runs this act on this record when asked for it directly: the act applies, and
+ * nothing names a reason it cannot run now. Every surface draws an unavailable act refused, so a
+ * host asked by id refuses it too, rather than doing what no surface would let a person press.
+ */
+export function mayRun<T>(act: RecordAct<T> | undefined, record: T): act is RecordAct<T> {
+	return (
+		act !== undefined &&
+		(act.appliesTo?.(record) ?? true) &&
+		act.unavailable?.(record, get(LL)) === undefined
+	);
 }
 
 /**
