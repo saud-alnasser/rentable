@@ -169,8 +169,8 @@
 		>
 			{#snippet content()}
 				<span class="pointer-events-none relative flex min-w-0 flex-1 flex-col gap-0.5 text-start">
-					<span class="truncate text-sm font-medium">{complex.name}</span>
-					<span class="truncate text-xs text-muted-foreground">{complex.location}</span>
+					<Cell.Text class="truncate text-sm font-medium" text={complex.name} />
+					<Cell.Text class="truncate text-xs text-muted-foreground" text={complex.location} />
 				</span>
 
 				<span class="pointer-events-none relative flex shrink-0 items-center gap-4">

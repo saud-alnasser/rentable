@@ -102,7 +102,7 @@
 							<MarkIcon class="size-4" />
 						</div>
 						<div class="grid flex-1 text-start text-sm leading-tight">
-							<span class="truncate font-medium">{workspace.name}</span>
+							<span class="truncate font-medium"><bdi>{workspace.name}</bdi></span>
 							<!-- the second line tells this row from the account row under it, which carries
 							     the same name on an account whose workspace is named after them. It says
 							     something true about the workspace rather than repeating what it is
@@ -130,7 +130,7 @@
 							<MarkIcon class="size-5" />
 						</div>
 						<div class="grid min-w-0 flex-1 leading-tight">
-							<span class="truncate font-medium">{workspace.name}</span>
+							<span class="truncate font-medium"><bdi>{workspace.name}</bdi></span>
 							<span class="truncate text-xs text-muted-foreground">
 								{$LL.layout.workspaceMenu.members({ count: memberCount })}
 							</span>
@@ -158,7 +158,7 @@
 					{#each workspaces as held (held.id)}
 						<DropdownMenu.RadioItem value={held.id}>
 							{#snippet children({ checked })}
-								<span class="truncate">{held.name}</span>
+								<span class="truncate"><bdi>{held.name}</bdi></span>
 								{#if checked}
 									<span class="sr-only">{$LL.layout.workspaceMenu.open()}</span>
 								{/if}

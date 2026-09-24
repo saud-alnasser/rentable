@@ -9,7 +9,8 @@ import { describe, it } from 'node:test';
  * Two things are asserted. Every colour token has a value in both blocks, since a token missing
  * from one silently falls back to the other appearance's value. And the text a reader has to read,
  * the foreground, the muted foreground and each tone, meets WCAG AA (4.5:1) against each surface it
- * sits on, in both.
+ * sits on, in both. A disabled button's label is held to 3:1, the floor for a control that is
+ * shown but cannot run, against its own fill and every surface a button without one sits on.
  */
 
 const source = readFileSync(new URL('../tokens.css', import.meta.url), 'utf8').replace(
@@ -98,6 +99,15 @@ const TEXT = [
 ];
 const SURFACES = ['background', 'card', 'popover'];
 
+/**
+ * The disabled pair, as `primitive/button/button.svelte` draws it: the label in the disabled
+ * foreground, on the muted fill a filled variant takes, or straight on the surface for a variant
+ * with no fill of its own. The button is read too, so the pair asserted here is the one drawn.
+ */
+const DISABLED_LABEL = 'disabled-foreground';
+const DISABLED_FILL = 'muted';
+const button = readFileSync(new URL('../primitive/button/button.svelte', import.meta.url), 'utf8');
+
 describe('the luminance function', () => {
 	it('puts white at one and black at zero, so white on black is 21:1', () => {
 		const white = { l: 1, c: 0, h: 0, alpha: 1 };
@@ -148,5 +158,37 @@ describe('the two appearances', () => {
 				}
 			});
 		}
+	}
+});
+
+describe('a disabled button', () => {
+	it('is dimmed by the disabled pair rather than by opacity', () => {
+		for (const state of ['disabled', 'aria-disabled']) {
+			assert.ok(button.includes(`${state}:text-${DISABLED_LABEL}`), `${state} takes the label`);
+			assert.ok(button.includes(`${state}:bg-${DISABLED_FILL}`), `${state} takes the fill`);
+		}
+
+		assert.doesNotMatch(button, /disabled:opacity-/);
+	});
+
+	for (const [appearance, tokens] of Object.entries(appearances)) {
+		it(`${appearance}: its label reads at 3:1 on its fill and on every surface`, () => {
+			const label = tokens.get(DISABLED_LABEL);
+
+			assert.ok(label, `${appearance} declares --${DISABLED_LABEL}`);
+
+			for (const ground of [DISABLED_FILL, ...SURFACES]) {
+				const colour = tokens.get(ground);
+
+				assert.ok(colour, `${appearance} declares --${ground}`);
+
+				const ratio = contrast(label, colour);
+
+				assert.ok(
+					ratio >= 3,
+					`${appearance} --${DISABLED_LABEL} on --${ground} is ${ratio.toFixed(2)}:1`
+				);
+			}
+		});
 	}
 });

@@ -7,15 +7,21 @@
 	// `cursor: default` on `button`, so without it every button in the application reads as
 	// unpressable. A disabled one needs no exception — the two `pointer-events-none` rules below
 	// mean it never receives the hover that would show a cursor at all.
+	// a disabled button is dimmed by colour rather than by opacity. Half opacity took the label and
+	// the fill towards the surface together, and on the dark appearance that left a grey label on a
+	// dark blue fill, well under 3:1. The label takes the disabled foreground and a filled variant
+	// takes the muted fill: `tests/tokens.test.ts` holds that pair, and the label on every surface a
+	// variant with no fill of its own sits on, to 3:1 in both appearances.
+	const disabledFill = 'disabled:bg-muted aria-disabled:bg-muted';
+
 	export const buttonVariants = tv({
-		base: "focus-visible:border-ring focus-visible:ring-ring/30 aria-invalid:ring-destructive/20 aria-invalid:border-destructive inline-flex shrink-0 cursor-pointer items-center justify-center rounded-2xl border border-transparent text-sm font-medium whitespace-nowrap transition-[background-color,border-color,color,box-shadow] duration-base outline-none focus-visible:ring-3 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+		base: "focus-visible:border-ring focus-visible:ring-ring/30 aria-invalid:ring-destructive/20 aria-invalid:border-destructive inline-flex shrink-0 cursor-pointer items-center justify-center rounded-2xl border border-transparent text-sm font-medium whitespace-nowrap transition-[background-color,border-color,color,box-shadow] duration-base outline-none focus-visible:ring-3 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:text-disabled-foreground aria-disabled:pointer-events-none aria-disabled:text-disabled-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
 		variants: {
 			variant: {
-				default: 'bg-primary text-primary-foreground hover:bg-primary/90',
-				destructive:
-					'bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/30',
+				default: `bg-primary text-primary-foreground hover:bg-primary/90 ${disabledFill}`,
+				destructive: `bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/30 ${disabledFill}`,
 				outline: 'border-input bg-transparent text-foreground hover:bg-accent',
-				secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/80',
+				secondary: `bg-secondary text-secondary-foreground hover:bg-secondary/80 ${disabledFill}`,
 				ghost: 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
 				link: 'text-primary underline-offset-4 hover:underline'
 			},

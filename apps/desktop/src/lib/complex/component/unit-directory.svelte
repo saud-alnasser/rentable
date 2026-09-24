@@ -167,12 +167,12 @@
 		>
 			{#snippet content()}
 				<span class="pointer-events-none relative flex min-w-0 flex-1 flex-col gap-0.5 text-start">
-					<span class="truncate text-sm font-medium">{record.name}</span>
+					<Cell.Text class="truncate text-sm font-medium" text={record.name} />
 					<!-- who is in it, which is the question the board this replaced existed to answer. -->
 					<span class="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
 						{#if record.tenantName}
 							<UserIcon class="size-3.5 shrink-0" aria-hidden="true" />
-							<span class="truncate">{record.tenantName}</span>
+							<Cell.Text class="truncate" text={record.tenantName} />
 						{:else}
 							<span class="truncate">{$LL.common.status.vacant()}</span>
 						{/if}

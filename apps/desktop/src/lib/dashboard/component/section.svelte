@@ -106,7 +106,7 @@
 
 				<span class="pointer-events-none relative flex min-w-0 flex-1 flex-col gap-1">
 					<span class="flex min-w-0 items-center gap-2">
-						<span class="truncate text-sm font-medium">{entry.tenantName}</span>
+						<Cell.Text class="truncate text-sm font-medium" text={entry.tenantName} />
 						<Cell.Status status={entry.status} />
 						{#if entry.isEndingSoon && isMoneyRank(entry.rank)}
 							<Badge variant="outline">{$LL.dashboard.sections.alsoEnding()}</Badge>

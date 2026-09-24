@@ -8,6 +8,7 @@
 	import { useFetchComplex, useFetchUnits } from '$lib/complex/query';
 	import { useListContracts } from '$lib/contract/query';
 	import { toPageActions } from '$lib/design/acts';
+	import * as Cell from '$lib/design/cell';
 	import { formatLocaleNumber } from '$lib/platform/locale';
 	import UnitDirectory from './unit-directory.svelte';
 
@@ -50,7 +51,7 @@
 </script>
 
 {#snippet identity()}
-	<span>{complex?.location}</span>
+	<Cell.Text text={complex?.location ?? ''} />
 {/snippet}
 
 {#snippet actions()}

@@ -357,7 +357,7 @@
 						<div class="pointer-events-none relative flex min-w-0 flex-1 flex-col gap-1 text-start">
 							<div class="flex min-w-0 flex-wrap items-center gap-2">
 								<span class="truncate text-sm font-medium" data-member-username>
-									{member.username}
+									<bdi>{member.username}</bdi>
 								</span>
 								<Badge variant="secondary">{roleLabel(member.role)}</Badge>
 							</div>

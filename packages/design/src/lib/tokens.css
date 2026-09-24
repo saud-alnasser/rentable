@@ -69,6 +69,7 @@
 	--secondary-foreground: oklch(0.22 0 0);
 	--muted: oklch(0.95 0 0);
 	--muted-foreground: oklch(0.5 0 0);
+	--disabled-foreground: oklch(0.6 0 0);
 	--accent: oklch(0.915 0 0);
 	--accent-foreground: oklch(0.18 0 0);
 	--destructive: oklch(0.56 0.21 25);
@@ -121,6 +122,13 @@
 	--secondary-foreground: oklch(0.97 0 0);
 	--muted: oklch(0.2 0 0);
 	--muted-foreground: oklch(0.72 0 0);
+	/*
+	 * the label of a control that cannot run now. dimmer than the muted foreground, so a quiet
+	 * control still reads as off when it is, and never under 3:1 on a surface or on the muted fill
+	 * a disabled button takes. it replaced half opacity, which took a primary button's white label
+	 * and blue fill towards the ground together and left grey on dark blue.
+	 */
+	--disabled-foreground: oklch(0.55 0 0);
 	--accent: oklch(0.26 0 0);
 	--accent-foreground: oklch(0.985 0 0);
 	--destructive: oklch(0.704 0.191 22.216);
@@ -191,6 +199,7 @@
 	--color-secondary-foreground: var(--secondary-foreground);
 	--color-muted: var(--muted);
 	--color-muted-foreground: var(--muted-foreground);
+	--color-disabled-foreground: var(--disabled-foreground);
 	--color-accent: var(--accent);
 	--color-accent-foreground: var(--accent-foreground);
 	--color-destructive: var(--destructive);
@@ -434,6 +443,19 @@
 *::-webkit-scrollbar-thumb {
 	background: var(--color-border);
 	border-radius: 9999px;
+}
+
+/*
+ * a thumb never shrinks to a dot. over a directory of thousands the thumb's share of the track
+ * is a few pixels, and at the scrollbar's width that reads as a stray mark at the top of the list
+ * rather than as a place in it.
+ */
+*::-webkit-scrollbar-thumb:vertical {
+	min-height: 2rem;
+}
+
+*::-webkit-scrollbar-thumb:horizontal {
+	min-width: 2rem;
 }
 
 *::-webkit-scrollbar-thumb:hover {

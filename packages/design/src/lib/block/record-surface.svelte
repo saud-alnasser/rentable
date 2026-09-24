@@ -186,8 +186,11 @@
 					</div>
 
 					<div class="mt-4 min-w-0 space-y-1 text-start">
-						<p class="text-xs text-muted-foreground uppercase">{eyebrow}</p>
-						<h1 class="truncate text-2xl font-semibold sm:text-3xl">{title}</h1>
+						<!-- the name and the eyebrow are often what somebody typed, a person or an address,
+						     so each keeps its own direction: a Latin name in an Arabic line is otherwise
+						     reordered. Isolated inline, so the line still aligns to the reader's start edge. -->
+						<p class="text-xs text-muted-foreground uppercase"><bdi>{eyebrow}</bdi></p>
+						<h1 class="truncate text-2xl font-semibold sm:text-3xl"><bdi>{title}</bdi></h1>
 						{#if identity}
 							<div class="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
 								{@render identity()}

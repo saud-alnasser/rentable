@@ -45,8 +45,15 @@
 </script>
 
 <!-- the rule belongs to the row rather than to each link, and the underline of the current one
-     sits over it: the hairline pull-up is the overlap, not spacing. -->
-<nav aria-label={label} data-section-switch class="flex shrink-0 gap-6 overflow-x-auto border-b">
+     rests on it. It does not overlap it: a link pulled a pixel over the rule overflowed the row
+     downwards, and a row that scrolls sideways scrolls downwards too, so every page drew a
+     scrollbar thumb at the end of a row that had nothing to scroll. The row scrolls sideways
+     only, and only when its sections do not fit. -->
+<nav
+	aria-label={label}
+	data-section-switch
+	class="flex shrink-0 gap-6 overflow-x-auto overflow-y-hidden border-b"
+>
 	{#each sections as section (section.value)}
 		<!-- the address is the caller's, already resolved: resolving it again here would put the
 		     base on twice. -->
@@ -57,7 +64,7 @@
 			data-sveltekit-replacestate
 			data-sveltekit-noscroll
 			data-sveltekit-keepfocus
-			class="-mb-px shrink-0 border-b-2 border-transparent pb-3 text-sm font-medium whitespace-nowrap text-muted-foreground capitalize transition-colors hover:text-foreground aria-[current=page]:border-primary aria-[current=page]:text-foreground"
+			class="shrink-0 border-b-2 border-transparent pb-3 text-sm font-medium whitespace-nowrap text-muted-foreground capitalize transition-colors hover:text-foreground aria-[current=page]:border-primary aria-[current=page]:text-foreground"
 		>
 			{section.label}
 		</a>

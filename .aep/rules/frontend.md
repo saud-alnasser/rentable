@@ -128,9 +128,10 @@ unless the reader chose light or dark in general settings, and before the window
 A surface never chooses: there is no `dark:` variant in use, and a utility names a token, which
 already differs by appearance. `packages/design/src/lib/tests/tokens.test.ts` refuses a token
 declared in one block and not the other, and any text or tone under WCAG AA (4.5:1) against the
-background, card or popover in either. A tone darkened for light is the same token, saying the
-same thing. `apps/desktop/src/app.css` imports it, registers the package with
-`@source`, and holds only what belongs to this window.
+background, card or popover in either, and a disabled button's label under 3:1 on its muted fill
+or on those surfaces. A disabled button is dimmed by that colour pair, never by opacity. A tone
+darkened for light is the same token, saying the same thing. `apps/desktop/src/app.css` imports
+it, registers the package with `@source`, and holds only what belongs to this window.
 
 **The token layer's own header states the consumer contract**, and it is three lines rather than
 two: `@import 'tailwindcss'` has to precede the package import, or `@theme`, `@layer base` and
@@ -382,6 +383,13 @@ parameter and sets `dir={isFigure ? 'ltr' : undefined}`.
 
 *Why this is written down: it was applied consistently and recorded nowhere, so the only way
 to learn it was to notice it, and a surface that missed it failed in Arabic alone.*
+
+**A reader's own words, a name, an address, a location, are isolated where they render**, in a
+`<bdi>` inside the box that styles them. A Latin value in an Arabic line is otherwise reordered at
+its edges: "Adeline Wiegand Sr." reads ".Adeline Wiegand Sr" and "4253 Russel Motorway" reads
+"Russel Motorway 4253". The isolate is inline rather than `dir="auto"` on the box, because `dir`
+also picks the edge the box aligns to. `design/cell/text.svelte` is the cell a row draws one with;
+the record surface's title and eyebrow and a specification's text values isolate themselves.
 
 **Figures use Western digits in both locales.** Money, counts, dates and relative times read
 `1,500`, not `١٬٥٠٠`, in Arabic as in English. `getIntlLocale` in `platform/locale.ts` is where

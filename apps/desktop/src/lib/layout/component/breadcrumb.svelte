@@ -39,7 +39,8 @@
 			<Breadcrumb.Item>
 				{#if crumb.kind === 'record'}
 					<Breadcrumb.Page class="max-w-48 truncate">
-						{shownRecord.name ?? $LL.common.messages.unknown()}
+						<!-- the record's name is what somebody typed, so it keeps its own direction. -->
+						<bdi>{shownRecord.name ?? $LL.common.messages.unknown()}</bdi>
 					</Breadcrumb.Page>
 				{:else if crumb.isLast}
 					<Breadcrumb.Page class="capitalize">{placeNames[crumb.route]($LL)}</Breadcrumb.Page>

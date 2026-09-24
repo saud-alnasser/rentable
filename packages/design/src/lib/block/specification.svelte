@@ -31,6 +31,10 @@
 	 *
 	 * Values wrap rather than truncate. A contract's government identifier is a UUID, and it was
 	 * truncation that ruled out the denser treatments this one was chosen over.
+	 *
+	 * A value given as text is isolated in a `<bdi>`: it is usually what somebody typed, and a Latin
+	 * name inside an Arabic line is otherwise reordered by the bidi algorithm. A snippet is the
+	 * concept's own and isolates what it draws.
 	 */
 	let {
 		entries,
@@ -48,7 +52,7 @@
 			<dt class="w-40 shrink-0 text-muted-foreground capitalize">{entry.label}</dt>
 			<dd class="min-w-0 font-medium break-words text-foreground">
 				{#if typeof entry.value === 'string'}
-					{entry.value}
+					<bdi>{entry.value}</bdi>
 				{:else}
 					{@render entry.value()}
 				{/if}

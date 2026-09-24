@@ -76,8 +76,11 @@
 	 * appears on signing in makes signing in look like arriving somewhere else. *This is a reading
 	 * of "other things are disabled" rather than a decision stated in those words, and it is the
 	 * cheapest thing on this screen to change.*
+	 *
+	 * The button dims itself once it is marked `aria-disabled`, in the colour its primitive holds
+	 * to 3:1; half opacity on top of that took it under.
 	 */
-	const unavailable = 'pointer-events-none opacity-50';
+	const unavailable = 'pointer-events-none';
 
 	function startDragging(event: MouseEvent) {
 		if (event.button !== 0) {

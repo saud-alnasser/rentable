@@ -289,7 +289,7 @@
 								{/if}
 
 								<span class="truncate text-sm font-medium" data-workspace-name>
-									{workspace.name}
+									<bdi>{workspace.name}</bdi>
 								</span>
 							</div>
 

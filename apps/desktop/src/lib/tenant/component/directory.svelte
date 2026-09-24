@@ -181,7 +181,7 @@
 		>
 			{#snippet content()}
 				<span class="pointer-events-none relative flex min-w-0 flex-1 flex-col gap-0.5 text-start">
-					<span class="truncate text-sm font-medium">{tenant.name}</span>
+					<Cell.Text class="truncate text-sm font-medium" text={tenant.name} />
 					<span class="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
 						<span class="truncate tabular-nums">{tenant.nationalId}</span>
 						<span aria-hidden="true">&middot;</span>
