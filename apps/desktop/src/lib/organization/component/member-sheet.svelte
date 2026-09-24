@@ -16,8 +16,7 @@
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import * as InputGroup from '@rentable/design/primitive/input-group/index.js';
 	import * as Popover from '@rentable/design/primitive/popover/index.js';
-	import * as Select from '@rentable/design/primitive/select/index.js';
-	import { cn } from '@rentable/design/tailwind.js';
+	import * as ToggleGroup from '@rentable/design/primitive/toggle-group/index.js';
 	import { onSubmit } from '$lib/design/form';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import type { AccessChoice, AccessRow } from '$lib/organization/component/access-dialog.svelte';
@@ -350,18 +349,18 @@
 	three lines here rather than two presentation props on a block that draws a section head.
 -->
 {#snippet tray(id: string, legend: string, description: string, control: Snippet | null)}
-	<div
-		data-sheet-tray={id}
-		class="flex flex-col gap-3 rounded-2xl bg-muted/30 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between"
-	>
-		<div class="min-w-0">
-			<Field.Legend id={`${id}-legend`} variant="label" class="mb-1">{legend}</Field.Legend>
-			<Field.Description>{description}</Field.Description>
+	<div data-sheet-tray={id} class="flex flex-col gap-2 rounded-2xl bg-muted/30 px-3 py-2.5">
+		<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+			<Field.Legend id={`${id}-legend`} variant="label" class="mb-0">{legend}</Field.Legend>
+
+			{#if control}
+				<div class="flex shrink-0 items-center gap-3">{@render control()}</div>
+			{/if}
 		</div>
 
-		{#if control}
-			<div class="flex shrink-0 items-center gap-3">{@render control()}</div>
-		{/if}
+		<!-- under the control, and about what it holds now: a segmented control has no room for a
+		     sentence per option, so the one chosen is the one said. -->
+		<Field.Description>{description}</Field.Description>
 	</div>
 {/snippet}
 
@@ -387,30 +386,31 @@
 
 <!-- the role, which is the one choice about the whole person, so it is the tray's own control. -->
 {#snippet roleChooser()}
-	<Select.Root type="single" value={chosenRole} onValueChange={pickRole} disabled={isSaving}>
-		<Select.Trigger id="member-role" class={cn('w-full capitalize sm:w-44', insetControl)}>
-			{roleLabel(chosenRole)}
-		</Select.Trigger>
-		<Select.Content>
-			<!-- the two roles this writes, each carrying the one sentence about who it is for. An
-			     administrator is created holding every act and six of them sign, so for anybody but
-			     the owner the role is drawn refused rather than hidden, and the sentence under the
-			     tray says whose it is. -->
-			{#each ROLES as value (value)}
-				<Select.Item
-					{value}
-					label={roleLabel(value)}
-					class="flex-col items-start gap-1 py-2"
-					disabled={value === 'administrator' && !canGrantSigning}
-				>
-					<span class="text-sm font-medium capitalize">{roleLabel(value)}</span>
-					<span class="text-xs leading-snug text-muted-foreground" data-role-who={value}>
-						{roleWho(value)}
-					</span>
-				</Select.Item>
-			{/each}
-		</Select.Content>
-	</Select.Root>
+	<!-- the two roles this writes, side by side as a choice of two is ([[rules/interface]], *Field
+	     kinds*). An administrator is created holding every act and six of them sign, so for anybody
+	     but the owner the role is drawn refused rather than hidden, and the sentence under the tray
+	     says whose it is. Pressing the one already chosen would unset a single group, and a member
+	     always holds a role, so the setter leaves that alone. -->
+	<ToggleGroup.Root
+		type="single"
+		variant="outline"
+		id="member-role"
+		aria-labelledby="member-role-tray-legend"
+		class="w-full sm:w-auto"
+		bind:value={() => chosenRole, pickRole}
+		disabled={isSaving}
+	>
+		{#each ROLES as value (value)}
+			<ToggleGroup.Item
+				{value}
+				class="flex-1 capitalize"
+				data-role={value}
+				disabled={value === 'administrator' && !canGrantSigning}
+			>
+				{roleLabel(value)}
+			</ToggleGroup.Item>
+		{/each}
+	</ToggleGroup.Root>
 {/snippet}
 
 <!--
@@ -527,8 +527,8 @@
 
 		{#if canChangeRole}
 			<Field.Set class="gap-3" aria-labelledby="member-role-tray-legend" data-sheet-section="role">
-				<!-- the sentence under the tray is the role they hold now, not a list of the three:
-				     what the other two mean is what the chooser says when it is opened. -->
+				<!-- the sentence under the control is the role chosen now, not a list of the two: what
+				     the other means is said the moment it is pressed. -->
 				{@render tray(
 					'member-role-tray',
 					$LL.organization.dashboard.role(),
@@ -620,56 +620,50 @@
 					<!-- a record of this list: the workspace, what they hold on it in words, and the
 					     control that changes it. -->
 					<div
-						class="flex flex-col gap-3 rounded-2xl px-3 py-2 ring-1 ring-foreground/5 sm:flex-row sm:items-center sm:justify-between"
+						class="flex flex-col gap-2 rounded-2xl px-3 py-2 ring-1 ring-foreground/5"
 						data-access-row={row.id}
 					>
-						<div class="min-w-0">
-							<Field.Label for={`access-${row.id}`} class="truncate">{row.name}</Field.Label>
-							<span
-								class="block text-xs leading-snug text-muted-foreground"
-								data-access-says={row.id}
-							>
-								{accessDoes(level)}
-							</span>
-						</div>
+						<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+							<Field.Label id={`access-${row.id}-label`} class="min-w-0 truncate">
+								{row.name}
+							</Field.Label>
 
-						<Select.Root
-							type="single"
-							value={level}
-							onValueChange={(value) => pickAccess(row.id, value)}
-							disabled={isSaving}
-						>
-							<Select.Trigger
+							<!-- each level named on its own segment, and read only drawn refused rather
+							     than absent for anybody but the owner, because the access exists and who
+							     mints it is worth saying. -->
+							<ToggleGroup.Root
+								type="single"
+								variant="outline"
+								size="sm"
+								class="w-full shrink-0 sm:w-auto"
 								id={`access-${row.id}`}
-								class={cn('w-full shrink-0 sm:w-44', insetControl)}
+								aria-labelledby={`access-${row.id}-label`}
+								bind:value={() => level, (value) => pickAccess(row.id, value)}
+								disabled={isSaving}
 							>
-								{accessLabel(level)}
-							</Select.Trigger>
-							<Select.Content>
-								<!-- each level named and said: what a level is good for is the fact a person
-								     is choosing on, and read only is drawn refused rather than absent for
-								     anybody but the owner, because the access exists and who mints it is
-								     worth saying. -->
 								{#each LEVELS as offered (offered)}
-									<Select.Item
+									<ToggleGroup.Item
 										value={offered}
-										label={accessLabel(offered)}
-										class="flex-col items-start gap-1 py-2"
+										class="flex-1"
+										data-level={offered}
 										disabled={offered === 'read-only' &&
 											!canGrantReadOnly &&
 											row.access !== 'read-only'}
 									>
-										<span class="text-sm font-medium">{accessLabel(offered)}</span>
-										<span
-											class="text-xs leading-snug text-muted-foreground"
-											data-level-does={offered}
-										>
-											{accessDoes(offered)}
-										</span>
-									</Select.Item>
+										{accessLabel(offered)}
+									</ToggleGroup.Item>
 								{/each}
-							</Select.Content>
-						</Select.Root>
+							</ToggleGroup.Root>
+						</div>
+
+						<!-- what the level chosen is good for, under the control: that sentence is the
+						     fact a person chooses on, and a segment has no room for one of its own. -->
+						<span
+							class="block text-xs leading-snug text-muted-foreground"
+							data-access-says={row.id}
+						>
+							{accessDoes(level)}
+						</span>
 					</div>
 				{/each}
 

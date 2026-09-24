@@ -1,5 +1,5 @@
 import { DesignProvider } from '@rentable/design/strings.js';
-import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import { beforeEach, expect, test } from 'vitest';
 
 import { setLocale } from '$lib/i18n/i18n-svelte';
@@ -9,7 +9,6 @@ import { resetOrganizationDialogs } from '$lib/organization/dialogs.svelte';
 import en from '$lib/i18n/en';
 import ar from '$lib/i18n/ar';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
-import { chooseOption, openSelect } from '$lib/design/tests/select';
 
 /**
  * THE ACCOUNT FORM, RENDERED
@@ -126,8 +125,23 @@ test('picking a role fills the acts in, and each act stays editable', async () =
 
 	expect(inviteAct.getAttribute('data-state')).toBe('unchecked');
 
-	await openSelect(document.querySelector<HTMLElement>('#account-role')!);
-	await chooseOption(screen.getByRole('option', { name: en.layout.signIn.roleAdministrator }));
+	// two roles, side by side as a choice of two is ([[rules/interface]], *Field kinds*).
+	const role = document.querySelector<HTMLElement>('#account-role')!;
+
+	expect(
+		within(role)
+			.getAllByRole('radio')
+			.map((segment) => segment.textContent?.trim())
+	).toEqual([en.layout.signIn.roleMember, en.layout.signIn.roleAdministrator]);
+	expect(
+		within(role)
+			.getByRole('radio', { name: en.layout.signIn.roleMember })
+			.getAttribute('aria-checked')
+	).toBe('true');
+
+	await fireEvent.click(
+		within(role).getByRole('radio', { name: en.layout.signIn.roleAdministrator })
+	);
 
 	await waitFor(() => {
 		expect(document.querySelector('#account-act-inviteMember')?.getAttribute('data-state')).toBe(
@@ -156,6 +170,18 @@ test('a caller who is not the owner may hand out only the act that signs nothing
 	);
 	expect(screen.getByText(en.organization.dashboard.signingIsTheOwners)).toBeDefined();
 	expect(screen.getByText(en.organization.dashboard.administratorsAreTheOwners)).toBeDefined();
+	// and the administrator role, which carries the signing acts, is drawn refused beside the
+	// member one they may choose.
+	const role = document.querySelector<HTMLElement>('#account-role')!;
+
+	expect(
+		within(role)
+			.getByRole('radio', { name: en.layout.signIn.roleAdministrator })
+			.hasAttribute('disabled')
+	).toBe(true);
+	expect(
+		within(role).getByRole('radio', { name: en.layout.signIn.roleMember }).hasAttribute('disabled')
+	).toBe(false);
 });
 
 // effort 826, requirement 8: a workspace is a checkbox and an access. What the surface hands up
@@ -173,12 +199,21 @@ test('each workspace carries an access, chosen beside the checkbox that grants i
 	);
 
 	await fireEvent.click(document.querySelector('#invite-workspace-ws-1')!);
-	await openSelect(access);
-	await chooseOption(
-		screen.getByRole('option', { name: en.organization.dashboard.accessReadOnly })
-	);
 
-	expect(access.textContent?.trim()).toBe(en.organization.dashboard.accessReadOnly);
+	// a granted workspace starts on full access, and read only is the other of the two.
+	const readOnly = within(access).getByRole('radio', {
+		name: en.organization.dashboard.accessReadOnly
+	});
+
+	expect(
+		within(access)
+			.getByRole('radio', { name: en.organization.dashboard.accessFull })
+			.getAttribute('aria-checked')
+	).toBe('true');
+
+	await fireEvent.click(readOnly);
+
+	expect(readOnly.getAttribute('aria-checked')).toBe('true');
 });
 
 // requirement 5: minting a read-only credential is the owner's, so for anybody else the choice is
@@ -189,13 +224,19 @@ test('read only is refused for anybody but the owner, in words rather than by hi
 	form({ canGrantReadOnly: false });
 
 	await fireEvent.click(document.querySelector('#invite-workspace-ws-1')!);
-	await openSelect(document.querySelector<HTMLElement>('[data-invite-access="ws-1"]')!);
+
+	const access = document.querySelector<HTMLElement>('[data-invite-access="ws-1"]')!;
 
 	expect(
-		screen
-			.getByRole('option', { name: en.organization.dashboard.accessReadOnly })
-			.getAttribute('data-disabled')
-	).not.toBeNull();
+		within(access)
+			.getByRole('radio', { name: en.organization.dashboard.accessReadOnly })
+			.hasAttribute('disabled')
+	).toBe(true);
+	expect(
+		within(access)
+			.getByRole('radio', { name: en.organization.dashboard.accessFull })
+			.hasAttribute('disabled')
+	).toBe(false);
 	expect(screen.getByText(en.organization.dashboard.readOnlyIsTheOwners)).toBeDefined();
 });
 

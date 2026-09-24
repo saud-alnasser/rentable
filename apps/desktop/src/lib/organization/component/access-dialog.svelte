@@ -7,11 +7,10 @@
 </script>
 
 <script lang="ts">
-	import FormSurface, { insetControl } from '@rentable/design/block/form-surface.svelte';
+	import FormSurface from '@rentable/design/block/form-surface.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
-	import * as Select from '@rentable/design/primitive/select/index.js';
-	import { cn } from '@rentable/design/tailwind.js';
+	import * as ToggleGroup from '@rentable/design/primitive/toggle-group/index.js';
 	import { onSubmit } from '$lib/design/form';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import KeyIcon from '@lucide/svelte/icons/key-round';
@@ -104,38 +103,39 @@
 
 		{#each rows as row (row.id)}
 			<Field.Field orientation="horizontal" data-access-row={row.id}>
-				<Field.Label for={`access-${row.id}`} class="flex-1 truncate">{row.name}</Field.Label>
-				<Select.Root
+				<Field.Label id={`access-${row.id}-label`} class="flex-1 truncate">{row.name}</Field.Label>
+				<!-- three exclusive choices, so a toggle group rather than a menu: all three are seen
+				     side by side ([[rules/interface]], *Field kinds*). Pressing the one already chosen
+				     would unset a single group, and every row holds one of the three, so the setter
+				     leaves that alone. -->
+				<ToggleGroup.Root
 					type="single"
-					value={chosen[row.id] ?? row.access}
-					onValueChange={(value) => {
-						if (value === 'none' || value === 'full-access' || value === 'read-only') {
-							chosen[row.id] = value;
+					variant="outline"
+					size="sm"
+					class="shrink-0"
+					id={`access-${row.id}`}
+					aria-labelledby={`access-${row.id}-label`}
+					bind:value={
+						() => chosen[row.id] ?? row.access,
+						(value) => {
+							if (value === 'none' || value === 'full-access' || value === 'read-only') {
+								chosen[row.id] = value;
+							}
 						}
-					}}
+					}
 					disabled={isSaving}
 				>
-					<Select.Trigger id={`access-${row.id}`} class={cn('w-44 shrink-0', insetControl)}>
-						{accessLabel(chosen[row.id] ?? row.access)}
-					</Select.Trigger>
-					<Select.Content>
-						<Select.Item value="none" label={accessLabel('none')}>
-							{accessLabel('none')}
-						</Select.Item>
-						<Select.Item value="full-access" label={accessLabel('full-access')}>
-							{accessLabel('full-access')}
-						</Select.Item>
-						<!-- drawn refused rather than absent for anybody but the owner: the access
-						     exists, and who mints it is the fact worth saying. -->
-						<Select.Item
-							value="read-only"
-							label={accessLabel('read-only')}
-							disabled={!canGrantReadOnly && row.access !== 'read-only'}
-						>
-							{accessLabel('read-only')}
-						</Select.Item>
-					</Select.Content>
-				</Select.Root>
+					<ToggleGroup.Item value="none">{accessLabel('none')}</ToggleGroup.Item>
+					<ToggleGroup.Item value="full-access">{accessLabel('full-access')}</ToggleGroup.Item>
+					<!-- drawn refused rather than absent for anybody but the owner: the access
+					     exists, and who mints it is the fact worth saying. -->
+					<ToggleGroup.Item
+						value="read-only"
+						disabled={!canGrantReadOnly && row.access !== 'read-only'}
+					>
+						{accessLabel('read-only')}
+					</ToggleGroup.Item>
+				</ToggleGroup.Root>
 			</Field.Field>
 		{/each}
 

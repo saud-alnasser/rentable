@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import { beforeEach, expect, test, vi } from 'vitest';
 
 import { setLocale } from '$lib/i18n/i18n-svelte';
@@ -20,7 +20,6 @@ import {
 	typeSearch
 } from '$lib/design/tests/search';
 import { expectCreateControlLast } from '$lib/design/tests/create-control';
-import { chooseOption, openSelect } from '$lib/design/tests/select';
 
 import { hostAnswers, resetHostAnswers } from './host-hooks';
 import HostProviders from './host-providers.svelte';
@@ -516,8 +515,11 @@ test('the members act hands up the rows that changed, as member ids on that work
 	list();
 
 	await press('ws-2', 'grant');
-	await openSelect(document.querySelector<HTMLElement>('#access-ada')!);
-	await chooseOption(screen.getByRole('option', { name: en.organization.dashboard.accessFull }));
+	await fireEvent.click(
+		within(document.querySelector<HTMLElement>('#access-ada')!).getByRole('radio', {
+			name: en.organization.dashboard.accessFull
+		})
+	);
 	await fireEvent.submit(document.querySelector('form')!);
 
 	await waitFor(() => {

@@ -372,10 +372,29 @@ organization's did.
 | a status | the status icon cell |
 | a count | the count cell |
 
-The contract's cycle, four options, is a toggle group. Money is the input group with the riyal sign
-leading, drawn left to right in both locales as every amount is (`formatLocaleMoney`). A date's
-popover holds its open state in the form, closed whenever the form opens or closes, and keeps a
-collision padding of 16 so the calendar never meets the window's edge.
+**No form uses a select for a choice of four or fewer.** Such a choice is a toggle group, the
+chosen segment pressed: the contract's cycle (four), a member's role (two), a workspace's access
+(two or three) and the language (two), as the appearance (three) already was. A segment carries a
+label and at most an icon, so where an option needs a sentence, the sentence of the option chosen
+stands under the control, as a role's *who it is for* and an access level's *what it is good for*
+do on the member's sheet. An option the reader may not choose is drawn refused on its segment,
+never removed, exactly as it was in the menu. `design/tests/few-options.test.ts` fails on a
+`Select` whose written options number four or fewer, and on one drawn from a list that its
+allowlist does not explain as more than a few. The one select the map itself names, a phone's
+country half, stays one: its list is the countries the application can dial, and grows as they are
+added.
+
+*Why: Apple's Human Interface Guidelines give a small set of mutually exclusive options a
+segmented control
+([Segmented controls](https://developer.apple.com/design/human-interface-guidelines/segmented-controls)),
+which shows every option at once, and keep the pop-up menu for a list too long to lay out side by
+side. A select with two entries hides one of them behind a press and says nothing the two buttons
+would not.*
+
+Money is the input group with the riyal sign leading, drawn left to right in both locales as every
+amount is (`formatLocaleMoney`). A date's popover holds its open state in the form, closed whenever
+the form opens or closes, and keeps a collision padding of 16 so the calendar never meets the
+window's edge.
 
 Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 15.
 

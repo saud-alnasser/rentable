@@ -902,11 +902,8 @@ test('one save writes the role, the widening and the grants through the acts tha
 		)!
 	);
 	await fireEvent.click(document.querySelector<HTMLButtonElement>('[data-act-allow]')!);
-	await openSelect(document.querySelector<HTMLElement>('#access-ws-2')!);
-	await chooseOption(
-		document
-			.querySelector('[data-level-does="full-access"]')!
-			.closest('[data-slot=select-item]') as HTMLElement
+	await fireEvent.click(
+		document.querySelector<HTMLElement>('#access-ws-2 [data-level="full-access"]')!
 	);
 	await fireEvent.submit(document.querySelector('form')!);
 
@@ -936,11 +933,8 @@ test('a refused act marks its own section and leaves the sheet open', async () =
 
 	await press('sami', 'edit');
 
-	await openSelect(document.querySelector<HTMLElement>('#access-ws-2')!);
-	await chooseOption(
-		document
-			.querySelector('[data-level-does="full-access"]')!
-			.closest('[data-slot=select-item]') as HTMLElement
+	await fireEvent.click(
+		document.querySelector<HTMLElement>('#access-ws-2 [data-level="full-access"]')!
 	);
 	await fireEvent.submit(document.querySelector('form')!);
 

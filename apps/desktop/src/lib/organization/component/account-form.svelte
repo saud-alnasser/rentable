@@ -8,8 +8,7 @@
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import * as Form from '@rentable/design/primitive/form/index.js';
 	import * as InputGroup from '@rentable/design/primitive/input-group/index.js';
-	import * as Select from '@rentable/design/primitive/select/index.js';
-	import { cn } from '@rentable/design/tailwind.js';
+	import * as ToggleGroup from '@rentable/design/primitive/toggle-group/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import {
 		ADMINISTRATION_BY_ROLE,
@@ -240,27 +239,32 @@
 		</Form.Field>
 
 		<Field.Field>
-			<Field.Label for="account-role">{$LL.organization.dashboard.role()}</Field.Label>
-			<Select.Root type="single" value={$form.role} onValueChange={pickRole} disabled={isCreating}>
-				<Select.Trigger id="account-role" class={cn('w-full capitalize', insetControl)}>
-					{roleLabel($form.role)}
-				</Select.Trigger>
-				<Select.Content>
-					<Select.Item value="member" label={roleLabel('member')} class="capitalize">
-						{roleLabel('member')}
-					</Select.Item>
-					<!-- an administrator carries every act, six of which sign, so for anybody but the
-					     owner the role is drawn refused rather than hidden. -->
-					<Select.Item
-						value="administrator"
-						label={roleLabel('administrator')}
-						class="capitalize"
-						disabled={!canInviteAdministrators}
-					>
-						{roleLabel('administrator')}
-					</Select.Item>
-				</Select.Content>
-			</Select.Root>
+			<Field.Label id="account-role-label">{$LL.organization.dashboard.role()}</Field.Label>
+			<!-- two exclusive choices, so a toggle group rather than a menu: both are seen side by side
+			     ([[rules/interface]], *Field kinds*). Pressing the one already chosen would unset a
+			     single group, and an account always has a role, so the setter leaves that alone. -->
+			<ToggleGroup.Root
+				type="single"
+				variant="outline"
+				id="account-role"
+				aria-labelledby="account-role-label"
+				class="w-full"
+				bind:value={() => $form.role, pickRole}
+				disabled={isCreating}
+			>
+				<ToggleGroup.Item value="member" class="flex-1 capitalize">
+					{roleLabel('member')}
+				</ToggleGroup.Item>
+				<!-- an administrator carries every act, six of which sign, so for anybody but the
+				     owner the role is drawn refused rather than hidden. -->
+				<ToggleGroup.Item
+					value="administrator"
+					class="flex-1 capitalize"
+					disabled={!canInviteAdministrators}
+				>
+					{roleLabel('administrator')}
+				</ToggleGroup.Item>
+			</ToggleGroup.Root>
 			{#if !canInviteAdministrators}
 				<Field.Description
 					>{$LL.organization.dashboard.administratorsAreTheOwners()}</Field.Description
@@ -308,37 +312,30 @@
 					</Field.Label>
 					<!-- the access is the grant's own value and reads beside it; a workspace nobody
 					     granted has none to choose, so the control waits for the checkbox. -->
-					<Select.Root
+					<ToggleGroup.Root
 						type="single"
-						value={access[workspace.id] ?? 'full-access'}
-						onValueChange={(value) => {
-							if (value === 'full-access' || value === 'read-only') {
-								access[workspace.id] = value;
+						variant="outline"
+						size="sm"
+						class="shrink-0"
+						aria-label={workspace.name}
+						data-invite-access={workspace.id}
+						bind:value={
+							() => access[workspace.id] ?? 'full-access',
+							(value) => {
+								if (value === 'full-access' || value === 'read-only') {
+									access[workspace.id] = value;
+								}
 							}
-						}}
+						}
 						disabled={isCreating || !held}
 					>
-						<Select.Trigger
-							class={cn('w-40 shrink-0', insetControl)}
-							data-invite-access={workspace.id}
-						>
-							{accessLabel(access[workspace.id] ?? 'full-access')}
-						</Select.Trigger>
-						<Select.Content>
-							<Select.Item value="full-access" label={accessLabel('full-access')}>
-								{accessLabel('full-access')}
-							</Select.Item>
-							<!-- drawn refused rather than absent: the access exists, and who mints it is
-							     the fact worth saying (requirement 5). -->
-							<Select.Item
-								value="read-only"
-								label={accessLabel('read-only')}
-								disabled={!canGrantReadOnly}
-							>
-								{accessLabel('read-only')}
-							</Select.Item>
-						</Select.Content>
-					</Select.Root>
+						<ToggleGroup.Item value="full-access">{accessLabel('full-access')}</ToggleGroup.Item>
+						<!-- drawn refused rather than absent: the access exists, and who mints it is
+						     the fact worth saying (requirement 5). -->
+						<ToggleGroup.Item value="read-only" disabled={!canGrantReadOnly}>
+							{accessLabel('read-only')}
+						</ToggleGroup.Item>
+					</ToggleGroup.Root>
 				</Field.Field>
 			{/each}
 			{#if !canGrantReadOnly && workspaces.length > 0}
