@@ -22,6 +22,7 @@ import {
 	typeSearch
 } from '$lib/design/tests/search';
 import { expectCreateControlLast } from '$lib/design/tests/create-control';
+import { BAR_CONTROL, expectBarOrder } from '$lib/design/tests/set-bar';
 
 import { hostAnswers, resetHostAnswers } from './host-hooks';
 import HostProviders from './host-providers.svelte';
@@ -702,4 +703,15 @@ test('the directory offers no transfer of its records', () => {
 	list();
 
 	expect(screen.queryByRole('button', { name: en.common.actions.transferData })).toBeNull();
+});
+
+// ticket 30 of effort 832: the tray orders its controls as the list shell's bar does, and the
+// sentence under the legend is muted like every other description.
+test('the tray orders search, count, sort and create as the list shell does', () => {
+	list();
+
+	expectBarOrder([BAR_CONTROL.search, BAR_CONTROL.count, BAR_CONTROL.sort, BAR_CONTROL.create]);
+	expect(document.querySelector('[data-directory-description]')?.className).toContain(
+		'text-muted-foreground'
+	);
 });

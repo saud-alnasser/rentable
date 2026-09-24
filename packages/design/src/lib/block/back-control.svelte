@@ -21,7 +21,8 @@
 	let {
 		fallback,
 		onclick,
-		label
+		label,
+		labelled = false
 	}: (
 		| {
 				/** where back goes when the reader has been nowhere else: the concept's directory. */
@@ -36,6 +37,13 @@
 	) & {
 		/** what the control is called, where the surface has its own word; the contract's otherwise. */
 		label?: string;
+		/**
+		 * Whether the control says its name beside the arrow rather than in a tooltip. Set where the
+		 * way back is the one act of a surface with nothing else on it, as a page that is not there
+		 * is (`not-found.svelte`): the reader's eye lands on the sentence in the middle, and the
+		 * way out is beneath it in words rather than in a corner.
+		 */
+		labelled?: boolean;
 	} = $props();
 
 	const contract = useDesignContract();
@@ -55,22 +63,31 @@
 	}
 </script>
 
-<Tooltip.Root>
-	<Tooltip.Trigger>
-		{#snippet child({ props })}
-			<Button
-				{...props}
-				variant="outline"
-				size="icon-sm"
-				aria-label={name}
-				class="shrink-0 rounded-full bg-secondary"
-				onclick={goBack}
-			>
-				<!-- the arrow mirrors with the locale: back is towards where reading starts. -->
-				<ArrowLeftIcon class="size-4 rtl:rotate-180" />
-				<span class="sr-only">{name}</span>
-			</Button>
-		{/snippet}
-	</Tooltip.Trigger>
-	<Tooltip.Content side="top" sideOffset={8}>{name}</Tooltip.Content>
-</Tooltip.Root>
+{#if labelled}
+	<Button variant="outline" size="sm" data-back-control onclick={goBack}>
+		<!-- the arrow mirrors with the locale: back is towards where reading starts. -->
+		<ArrowLeftIcon class="rtl:rotate-180" />
+		{name}
+	</Button>
+{:else}
+	<Tooltip.Root>
+		<Tooltip.Trigger>
+			{#snippet child({ props })}
+				<Button
+					{...props}
+					variant="outline"
+					size="icon-sm"
+					aria-label={name}
+					class="shrink-0 rounded-full bg-secondary"
+					data-back-control
+					onclick={goBack}
+				>
+					<!-- the arrow mirrors with the locale: back is towards where reading starts. -->
+					<ArrowLeftIcon class="size-4 rtl:rotate-180" />
+					<span class="sr-only">{name}</span>
+				</Button>
+			{/snippet}
+		</Tooltip.Trigger>
+		<Tooltip.Content side="top" sideOffset={8}>{name}</Tooltip.Content>
+	</Tooltip.Root>
+{/if}

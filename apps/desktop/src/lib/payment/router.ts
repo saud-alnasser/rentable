@@ -17,10 +17,11 @@ import {
 	ensurePaymentIsNotInTheFuture,
 	ensureValidPaymentAmount,
 	groupPaymentsByContractId,
+	PAYMENT_SORT_COLUMN_IDS,
 	whatRefusesPaymentDeletion,
 	type PaymentRefusalReason
 } from '$lib/payment/payment';
-import { and, desc, eq, inArray, sql, type AnyColumn, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql, type AnyColumn, type SQL } from 'drizzle-orm';
 import z from 'zod';
 
 /**
@@ -117,6 +118,34 @@ const paymentDay = sql<string>`strftime('%Y-%m-%d', ${s.payment.date} / 1000, 'u
 // one, so a term folds and a column folds the same way here as everywhere else.
 const PAYMENT_SEARCH_COLUMNS: readonly (SQL | AnyColumn)[] = [s.payment.amount, paymentDay];
 
+const PaymentSortSchema = z.object({
+	columnId: z.enum(PAYMENT_SORT_COLUMN_IDS),
+	direction: z.enum(['asc', 'desc'])
+});
+
+/**
+ * A ledger's order: the one chosen, then the statement's own, newest first.
+ *
+ * Two payments made on one day are told apart by which was recorded later, and two of one amount
+ * by which was made later, so the order stays total whatever the reader chose.
+ */
+function paymentOrderBy(sort: z.infer<typeof PaymentSortSchema> | undefined): SQL[] {
+	const statementOrder = [desc(s.payment.date), desc(s.payment.id)];
+
+	if (!sort) {
+		return statementOrder;
+	}
+
+	const column = sort.columnId === 'date' ? s.payment.date : s.payment.amount;
+	const chosen = sort.direction === 'asc' ? asc(column) : desc(column);
+
+	if (sort.columnId === 'date') {
+		return [chosen, sort.direction === 'asc' ? asc(s.payment.id) : desc(s.payment.id)];
+	}
+
+	return [chosen, ...statementOrder];
+}
+
 export default router({
 	/**
 	 * One payment, carrying the contract it was made against and whose tenant holds it.
@@ -183,7 +212,8 @@ export default router({
 
 	/**
 	 * A contract's payments, in one bounded query: the whole result set for a search, newest
-	 * first, so the ledger can read that order to place its month headers.
+	 * first unless an order is chosen, so the ledger can read that order to place its month
+	 * headers.
 	 *
 	 * `search` matches an amount, or the payment's calendar day written as `2026-03-20` — a
 	 * prefix of it, `2026-03`, selects a month. It is the stored day rather than the date the
@@ -200,7 +230,9 @@ export default router({
 				 * paid then*, and a question about what exists cannot be answered by shortening
 				 * what was already fetched ([[rules/data]], under *List reads*).
 				 */
-				period: z.enum(FILTER_PERIODS).optional()
+				period: z.enum(FILTER_PERIODS).optional(),
+				/** the order the reader chose, or the statement's own, newest first. */
+				sort: PaymentSortSchema.optional()
 			})
 		)
 		.query(async ({ input, ctx }) => {
@@ -218,10 +250,9 @@ export default router({
 						input.period ? isPaymentWithinPeriod(input.period, ctx.clock.now()) : undefined
 					)
 				)
-				// a statement reads newest first, and two payments made on one day are told apart
-				// by which was recorded later — without that tie-break the order is not total, and
-				// two renders of the same ledger may disagree.
-				.orderBy(desc(s.payment.date), desc(s.payment.id));
+				// a statement reads newest first unless the reader chose otherwise, and every order
+				// carries a tie-break, so two renders of the same ledger cannot disagree.
+				.orderBy(...paymentOrderBy(input.sort));
 
 			return payments.map(serializePayment);
 		}),

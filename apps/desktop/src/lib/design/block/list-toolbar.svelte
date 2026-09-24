@@ -97,6 +97,7 @@
 							{...props}
 							variant={sort ? 'default' : 'outline'}
 							size="icon-sm"
+							data-sort-control
 							aria-label={activeSortLabel
 								? `${$LL.common.actions.sortBy()}: ${activeSortLabel}`
 								: $LL.common.actions.sortBy()}

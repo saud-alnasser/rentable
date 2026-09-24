@@ -19,7 +19,9 @@ import {
 	ensureUnitStillExists,
 	whatRefusesComplexDeletion,
 	whatRefusesUnitDeletion,
-	type ComplexSortColumnId
+	UNIT_SORT_COLUMN_IDS,
+	type ComplexSortColumnId,
+	type UnitSortColumnId
 } from '$lib/complex/complex';
 import { CONTRACT_OCCUPYING_STATUSES, deriveUnitStatuses } from '$lib/contract/contract';
 import { groupPaymentsByContractId } from '$lib/payment/payment';
@@ -79,6 +81,39 @@ function complexOrderBy(sort: z.infer<typeof ComplexSortSchema> | undefined): SQ
 	const chosen = sort.direction === 'asc' ? asc(column) : desc(column);
 
 	return sort.columnId === 'name' ? [chosen, asc(s.complex.id)] : [chosen, ...directoryOrder];
+}
+
+const UnitSortSchema = z.object({
+	columnId: z.enum(UNIT_SORT_COLUMN_IDS),
+	direction: z.enum(['asc', 'desc'])
+});
+
+/**
+ * A unit directory's order: the one chosen, then the directory's own, name then id.
+ *
+ * A status and an occupant are shared by many units of one complex, so ties fall back to the
+ * name rather than to the id, as the complexes' own ties do. `tenantName` is the expression the
+ * row selects, so the order and the name a card shows cannot come to differ.
+ */
+function unitOrderBy(
+	sort: z.infer<typeof UnitSortSchema> | undefined,
+	tenantName: SQL<string | null>
+): SQL[] {
+	const directoryOrder = [asc(s.unit.name), asc(s.unit.id)];
+
+	if (!sort) {
+		return directoryOrder;
+	}
+
+	const columns: Record<UnitSortColumnId, SQL | AnyColumn> = {
+		name: s.unit.name,
+		tenantName,
+		status: s.unit.status
+	};
+	const column = columns[sort.columnId];
+	const chosen = sort.direction === 'asc' ? asc(column) : desc(column);
+
+	return sort.columnId === 'name' ? [chosen, asc(s.unit.id)] : [chosen, ...directoryOrder];
 }
 
 /**
@@ -528,13 +563,18 @@ export default router({
 			}),
 
 		getMany: procedure.member
-			.input(UnitSchema.pick({ complexId: true }).extend({ search: z.string().optional() }))
+			.input(
+				UnitSchema.pick({ complexId: true }).extend({
+					search: z.string().optional(),
+					sort: UnitSortSchema.optional()
+				})
+			)
 			.query(async ({ input, ctx }) => {
 				const search = input.search?.trim();
 				const tenantName = occupyingTenantName(ctx.clock.now());
 
-				// the board has one order and no control over it, so the search narrows what it
-				// holds and never rearranges it.
+				// the directory's own order is the name, and the reader may choose another from the
+				// keys the card shows, as every list may (effort 832, ticket 30).
 				return await ctx.db
 					.select({
 						id: s.unit.id,
@@ -550,7 +590,7 @@ export default router({
 							search ? matchesAnySearch([s.unit.name, tenantName], search) : undefined
 						)
 					)
-					.orderBy(asc(s.unit.name), asc(s.unit.id));
+					.orderBy(...unitOrderBy(input.sort, tenantName));
 			}),
 
 		// an optional id, so undoing a deletion can put the row back with the identity it had — a

@@ -2,6 +2,7 @@
 	import { resolve } from '$app/paths';
 	import { back } from '@rentable/design/back.svelte.js';
 	import type api from '$lib/api/caller';
+	import { UNIT_SORT_COLUMN_IDS, type UnitSortColumnId } from '$lib/complex/complex';
 	import {
 		useDeleteManyUnits,
 		useListUnits,
@@ -21,6 +22,7 @@
 		type SelectionPlan
 	} from '@rentable/design/selection.js';
 	import * as Cell from '$lib/design/cell';
+	import type { ListSort } from '@rentable/design/sort.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import DirectoryImportDialog from '$lib/workspace/component/directory-import-dialog.svelte';
 	import { useImportRecords } from '$lib/workspace/query';
@@ -41,6 +43,7 @@
 	const ROW_HEIGHT = 64;
 
 	let search = $state('');
+	let sort = $state<ListSort | null>(null);
 	let importDialog = $state<ReturnType<typeof DirectoryImportDialog> | undefined>(undefined);
 	// the records the reader has picked out, and the set a control was reached for with. The two
 	// are separate because the selection stays live behind the confirmation, and an action that
@@ -50,7 +53,8 @@
 
 	const unitsQuery = useListUnits(
 		() => complexId,
-		() => search
+		() => search,
+		() => sort
 	);
 	const units = $derived(unitsQuery.data ?? []);
 	const deleteManyMutation = useDeleteManyUnits();
@@ -118,6 +122,18 @@
 	// is what a unit's details name it by.
 	const cardActions = (record: UnitRecord) =>
 		toCardActions(unitActs, { ...record, complexName }, $LL);
+
+	// built from the ids the procedure orders by, so the control cannot come to offer a key the
+	// query would reject: what a card shows, and nothing it does not.
+	const sortOptions = $derived.by(() => {
+		const labels: Record<UnitSortColumnId, string> = {
+			name: $LL.common.labels.name(),
+			tenantName: $LL.common.labels.tenant(),
+			status: $LL.common.labels.status()
+		};
+
+		return UNIT_SORT_COLUMN_IDS.map((id) => ({ id, label: labels[id] }));
+	});
 </script>
 
 {#snippet selectionActions(ids: readonly string[])}
@@ -135,6 +151,8 @@
 <List
 	data={units}
 	bind:search
+	bind:sort
+	{sortOptions}
 	bind:selected
 	{selectionActions}
 	isLoading={unitsQuery.isLoading}

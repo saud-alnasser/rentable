@@ -2,10 +2,13 @@
 	import { browser } from '$app/environment';
 	import { resolve } from '$app/paths';
 	import type api from '$lib/api/caller';
+	import { unitActs } from '$lib/complex/unit/host.svelte';
+	import { toCardActions } from '$lib/design/acts';
 	import * as Cell from '$lib/design/cell';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { formatLocaleNumber } from '$lib/platform/locale';
 	import Empty from '@rentable/design/block/empty.svelte';
+	import RecordCard from '@rentable/design/block/record-card.svelte';
 	import { listRows } from '@rentable/design/group.js';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Skeleton } from '@rentable/design/primitive/skeleton/index.js';
@@ -73,7 +76,9 @@
 	// declared height and never measures them — a margin would put every card slightly below where
 	// the virtualizer believes it is, and the error would accumulate down the pane.
 	const CARD_HEIGHT = 64;
-	const ROW_GAP = 8;
+	// the list shell's own rhythm, so the cards here sit as far apart as the cards of every other
+	// list, and a card at the top has room to lift into and its shadow room to fall.
+	const ROW_GAP = 12;
 	// the narrowest a card may be laid out at before the pane stops adding columns: a unit's name
 	// over its complex's name, with a status glyph and a control beside them.
 	const CARD_MIN_WIDTH = 240;
@@ -105,6 +110,7 @@
 			getScrollElement: () => viewport,
 			estimateSize: () => CARD_HEIGHT + ROW_GAP,
 			getItemKey: (index) => rows[index]?.key ?? index,
+			paddingStart: ROW_GAP,
 			overscan: OVERSCAN_ROWS,
 			enabled: browser && !!viewport
 		});
@@ -131,9 +137,9 @@
 	</h3>
 
 	{#if isLoading}
-		<div class="flex flex-col gap-2">
-			<Skeleton class="h-16 w-full rounded-xl" />
-			<Skeleton class="h-16 w-full rounded-xl" />
+		<div class="flex flex-col gap-3">
+			<Skeleton class="h-16 w-full rounded-2xl" />
+			<Skeleton class="h-16 w-full rounded-2xl" />
 		</div>
 	{:else if units.length === 0}
 		<!-- the one empty treatment ([[rules/interface]], *Empty*), sized to a pane rather than to a
@@ -153,53 +159,64 @@
 		<div
 			bind:this={viewport}
 			bind:clientWidth={viewportWidth}
-			class="min-h-0 flex-1 overflow-y-auto pe-1"
+			class="min-h-0 flex-1 overflow-y-auto"
 		>
 			<div class="relative w-full" style={`height: ${totalHeight}px;`}>
 				{#each virtualRows as virtualRow (virtualRow.key)}
 					{@const row = rows[virtualRow.index]}
 					{#if row?.kind === 'record'}
 						<div
-							class="absolute start-0 top-0 w-full"
+							class="absolute start-0 top-0 w-full px-2"
 							style={`height: ${virtualRow.size}px; padding-bottom: ${ROW_GAP}px; transform: translateY(${virtualRow.start}px);`}
 						>
 							<!-- the row's own columns, so a card never straddles the gap between two of
 							     them. One column is the ordinary case and the grid collapses to it. -->
 							<div
-								class="grid h-full gap-2"
+								class="grid h-full gap-3"
 								style={`grid-template-columns: repeat(${columns}, minmax(0, 1fr));`}
 							>
 								{#each row.records as unit (unit.id)}
-									<div
-										class="flex items-center gap-3 rounded-xl bg-muted p-3 transition-colors hover:bg-accent"
-									>
-										<a
+									<!-- the record card every unit list draws, so a unit met on a contract reads
+									     and acts as it does in its complex: it opens the unit's page, and its menu
+									     and its context menu offer the unit's acts ([[rules/interface]], *Unit
+									     presentation*). The transfer is this pane's own control, beside them. -->
+									<div data-pane-unit={unit.id} class="h-full">
+										<RecordCard
 											href={resolve(`/complexes/units/${unit.id}`)}
-											class="flex min-w-0 flex-1 items-center gap-3 rounded-lg focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+											label={unit.name}
+											actions={toCardActions(unitActs, unit, $LL)}
 										>
-											<span class="flex min-w-0 flex-1 flex-col gap-0.5 text-start">
-												<span class="truncate text-sm font-medium">{unit.name}</span>
-												<span class="truncate text-xs text-muted-foreground">
-													{unit.complexName}
+											{#snippet content()}
+												<span
+													class="pointer-events-none relative flex min-w-0 flex-1 flex-col gap-0.5 text-start"
+												>
+													<span class="truncate text-sm font-medium">{unit.name}</span>
+													<span class="truncate text-xs text-muted-foreground">
+														{unit.complexName}
+													</span>
 												</span>
-											</span>
 
-											<Cell.Status status={unit.status} />
-										</a>
+												<span class="pointer-events-none relative flex shrink-0 items-center">
+													<Cell.Status status={unit.status} />
+												</span>
 
-										{#if !isLocked}
-											<Button
-												type="button"
-												variant="outline"
-												size="icon-sm"
-												class="shrink-0"
-												aria-label={`${label} ${unit.name}`}
-												disabled={isTransferring}
-												onclick={() => onTransfer(unit.id, wasHeld)}
-											>
-												<Icon class="size-4" />
-											</Button>
-										{/if}
+												{#if !isLocked}
+													<!-- above the card's link, and pressable, as the card's own menu is. -->
+													<Button
+														type="button"
+														variant="outline"
+														size="icon-sm"
+														class="relative shrink-0"
+														aria-label={`${label} ${unit.name}`}
+														data-transfer
+														disabled={isTransferring}
+														onclick={() => onTransfer(unit.id, wasHeld)}
+													>
+														<Icon class="size-4" />
+													</Button>
+												{/if}
+											{/snippet}
+										</RecordCard>
 									</div>
 								{/each}
 							</div>

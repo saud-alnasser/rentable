@@ -596,6 +596,36 @@ test('searching the board reaches the unit name and the occupying tenant', async
 	);
 });
 
+// effort 832, ticket 30: every list sorts, and the unit directory is one of them. The order is
+// the one chosen, and its ties fall back to the name.
+test('the board orders by what the reader chose, and ties fall back to the name', async () => {
+	const api = await createApi();
+	const complex = await api.complex.create({ name: 'Palm Court', location: 'Riyadh' });
+	await api.complex.units.create({ name: 'C3', complexId: complex.id });
+	const occupied = await api.complex.units.create({ name: 'B2', complexId: complex.id });
+	await api.complex.units.create({ name: 'A1', complexId: complex.id });
+	const tenant = await seedTenant(api);
+	const contract = await api.contract.create({
+		tenantId: tenant.id,
+		start: monthsFromNow(-1),
+		end: monthsFromNow(11),
+		interval: '12m',
+		cost: 1000
+	});
+	await api.contract.units.set({ contractId: contract.id, unitIds: [occupied.id] });
+
+	const namesIn = async (columnId: 'name' | 'tenantName' | 'status', direction: 'asc' | 'desc') =>
+		(await api.complex.units.getMany({ complexId: complex.id, sort: { columnId, direction } })).map(
+			(unit) => unit.name
+		);
+
+	assert.deepEqual(await namesIn('name', 'desc'), ['C3', 'B2', 'A1']);
+	// the two vacant units name nobody, and are told apart by their names.
+	assert.deepEqual(await namesIn('tenantName', 'desc'), ['B2', 'A1', 'C3']);
+	assert.deepEqual(await namesIn('status', 'asc'), ['B2', 'A1', 'C3']);
+	assert.deepEqual(await namesIn('status', 'desc'), ['A1', 'C3', 'B2']);
+});
+
 // --- Creating a complex with its units ------------------------------------------------
 
 test('a complex and its units are created in one submission', async () => {

@@ -25,6 +25,8 @@
 		type PaymentLedgerMonth
 	} from '$lib/payment/ledger';
 	import { toPaymentCreateUnavailable } from '$lib/payment/acts';
+	import { PAYMENT_SORT_COLUMN_IDS, type PaymentSortColumnId } from '$lib/payment/payment';
+	import type { ListSort } from '@rentable/design/sort.js';
 	import { paymentActs, paymentHost } from '$lib/payment/host.svelte';
 	import {
 		useDeleteManyPayments,
@@ -50,6 +52,7 @@
 	const MONTH_HEIGHT = 34;
 
 	let search = $state('');
+	let sort = $state<ListSort | null>(null);
 	let filters = $state<FilterSelection>({});
 	let importDialog = $state<ReturnType<typeof DirectoryImportDialog> | undefined>(undefined);
 	// the records the reader has picked out, and the set a control was reached for with. The two
@@ -68,7 +71,7 @@
 	});
 
 	const contractQuery = useFetchContract(() => contractId);
-	const paymentsQuery = useListContractPayments(() => ({ contractId, search, period }));
+	const paymentsQuery = useListContractPayments(() => ({ contractId, search, period, sort }));
 	const deleteManyMutation = useDeleteManyPayments();
 	const importMutation = useImportRecords();
 
@@ -76,6 +79,20 @@
 
 	const payments = $derived(paymentsQuery.data ?? []);
 	const monthOf = $derived(paymentLedgerMonths(payments));
+	// a statement is read in months while it is read in time. Ordered by amount, the months would
+	// open and close again on every row, so the headers go and the rows read as one run.
+	const isReadInTime = $derived(!sort || sort.columnId === 'date');
+
+	// the keys a ledger row shows, as the procedure orders by them. The record type is what makes
+	// a missing label a type error.
+	const sortOptions = $derived.by(() => {
+		const labels: Record<PaymentSortColumnId, string> = {
+			date: $LL.common.labels.paymentDate(),
+			amount: $LL.common.labels.amount()
+		};
+
+		return PAYMENT_SORT_COLUMN_IDS.map((id) => ({ id, label: labels[id] }));
+	});
 
 	const isTerminated = $derived(contractQuery.data?.status === 'terminated');
 	// what this ledger is a ledger of, named the way anything outside a contract's own page
@@ -199,11 +216,13 @@
 	<List
 		data={payments}
 		bind:search
+		bind:sort
+		{sortOptions}
 		bind:filters
 		filterOptions={[PERIOD_FILTER]}
 		bind:selected
 		{selectionActions}
-		groupOf={monthOf}
+		groupOf={isReadInTime ? monthOf : undefined}
 		isLoading={paymentsQuery.isLoading}
 		isFetching={paymentsQuery.isFetching}
 		recordHeight={ROW_HEIGHT}

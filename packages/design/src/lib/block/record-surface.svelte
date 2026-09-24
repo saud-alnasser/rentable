@@ -13,13 +13,11 @@
 </script>
 
 <script lang="ts">
-	import { back } from '#lib/back.svelte.js';
 	import BackControl from '#lib/block/back-control.svelte';
-	import Empty from '#lib/block/empty.svelte';
 	import Loading from '#lib/block/loading.svelte';
+	import NotFound from '#lib/block/not-found.svelte';
 	import PageFrame from '#lib/block/page-frame.svelte';
 	import SectionSwitch from '#lib/block/section-switch.svelte';
-	import { Button } from '#lib/primitive/button/index.js';
 	import { Skeleton } from '#lib/primitive/skeleton/index.js';
 	import { shownRecord } from '#lib/shown-record.svelte.js';
 	import { useDesignContract } from '#lib/strings.js';
@@ -139,27 +137,15 @@
 		{/snippet}
 
 		{#if !found}
-			<!-- the back control keeps its usual place, so a record that is not there is still a
-			     screen the reader can leave the way they leave every other one. -->
-			<div>
-				<BackControl fallback={backFallback} />
-			</div>
-
 			<!-- that the record does not exist, never that a search found nothing: nothing was
-			     searched. The labelled way back beneath it goes where the back control goes, for a
-			     reader whose eye lands on the sentence rather than on the corner. -->
-			<Empty
-				kind="not-found"
+			     searched. One way back, beneath the sentence where the reader's eye lands, and the
+			     same treatment an address leading nowhere gets (`not-found.svelte`). -->
+			<NotFound
 				title={contract.strings.recordNotFound}
 				description={contract.strings.recordNotFoundDescription}
+				fallback={backFallback}
 				class="flex-1"
-			>
-				{#snippet action()}
-					<Button variant="outline" size="sm" onclick={() => void back.go(backFallback)}>
-						{contract.strings.goBack}
-					</Button>
-				{/snippet}
-			</Empty>
+			/>
 		{:else}
 			<!-- the record and its own fields are one group, and the gap inside it is smaller than
 			     the gap to the collection below: spacing is what says the fields belong to the record

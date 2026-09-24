@@ -23,7 +23,7 @@ import { expect, test, vi } from 'vitest';
  * and the only thing that caught it was a human reading a docstring against a locale file.
  *
  * The subject takes its own props and needs no fixture for them. What it does need is two
- * providers rather than one: the not-found branch draws `back-control`, which draws a tooltip, and
+ * providers rather than one: the found branch draws `back-control`, which draws a tooltip, and
  * `wrapper` puts a single component above a subject. `#tests/providers.svelte` is that pair, and
  * it takes the string contract's props unchanged.
  */
@@ -87,6 +87,19 @@ test('a record that is not there offers the way back, which goes where back goes
 	// nothing was visited before it in this file, so back has nowhere to return to and takes the
 	// concept's directory, exactly as the back control does.
 	expect(navigations().map((call) => call.url)).toEqual(['/tenants']);
+});
+
+// ticket 30 of effort 832: a missing record and an unknown address are one treatment with one way
+// back. The corner's back control and a second pill beneath the sentence were two controls going
+// to one place; the record now draws the not-found block, whose one control is the back control.
+test('a record that is not there offers one way back, the back control in the not-found block', () => {
+	const { container } = surface({ isLoading: false, found: false }, missingWords);
+
+	const controls = container.querySelectorAll('[data-back-control]');
+
+	expect(controls).toHaveLength(1);
+	expect(controls[0].closest('[data-empty="not-found"]')).not.toBeNull();
+	expect(controls[0].textContent?.trim()).toBe('go back');
 });
 
 test('the loading state is marked busy from the start', () => {

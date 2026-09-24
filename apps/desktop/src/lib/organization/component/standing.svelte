@@ -131,12 +131,12 @@
 <!-- the shape every block in the area has: a legend, a sentence saying what the block is for,
      and then what it holds. The purpose sentence reads the same whatever the standing, so a
      person who came here worried learns what the block is about before they read the line
-     that changes; the standing is the block's description, in the muted weight every other
-     block gives its own, with the control at its end on the same row. *The standing stood
-     alone as the block's first line until the human looked at it and could not tell what the
-     block was for.* -->
+     that changes. The purpose is a description like every other block's, so it takes the same
+     muted tone rather than the foreground the block's content reads in; the standing follows it,
+     with the control at its end on the same row. *The standing stood alone as the block's first
+     line until the human looked at it and could not tell what the block was for.* -->
 <Field.Legend>{$LL.organization.standing.title()}</Field.Legend>
-<p class="text-sm leading-normal" data-standing-purpose>{$LL.organization.standing.purpose()}</p>
+<Field.Description data-standing-purpose>{$LL.organization.standing.purpose()}</Field.Description>
 
 <Field.Field orientation="responsive" data-standing={status}>
 	<Field.Content>

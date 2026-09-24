@@ -157,7 +157,11 @@ narrows the set, the order, and what acts on it, in that order. The list shell d
 records and the settings directories above their cards. What a directory does not want it leaves
 out: the settings directories offer no export, since a dozen accounts are not a file anybody
 wants, and a workspace's own file is the transfer beneath the cards. The contract's unit panes are
-two halves of one transfer rather than a directory, so they take the field and not the bar.
+two halves of one transfer rather than a directory, so they take the field and not the bar: the
+field on the bar's surface, and their units as the record cards every unit list draws, with the
+unit's acts and the transfer beside them. Every list offers an order, the unit directory and the
+ledger included; a ledger ordered by amount drops its month headers, which only a ledger read in
+time can keep.
 
 **What a term matches is the set's, and it folds.** A list's read folds both sides in SQL and a
 set held in memory folds both sides through the same table (`foldSearchText`, through the
@@ -504,18 +508,21 @@ three situations it is, on `data-empty`, and the three never read the same:
   concept's own words (*no tenants yet*), with a line saying where the records come from. Its act
   is the set's create, in words, where the set can be added to: the list shell draws it from the
   same `onCreate` its toolbar control answers, and it holds no place of its own, so the create key
-  still has one answer. The list shell takes `emptyTitle` as a required prop, so every list says
+  still has one answer. Where the toolbar's create is refused, so is this one, with the same
+  reason (`createUnavailable`, *Guidance* below). The list shell takes `emptyTitle` as a required prop, so every list says
   its own. A set nothing may be added to (a record's history, the dashboard) offers no act.
 - **No match.** The set holds records and a search or a filter narrowed all of them away. The title
   says nothing matches, never what the set will hold, and the act puts the narrowing down, named
   for what it clears: the search, the filters, or both. The list shell decides which from its own
   search and filters; the contract's unit panes and the settings directories draw the same state
   under their search.
-- **Not found.** The record or the page that was asked for does not exist. The record surface says
-  so (`recordNotFound`, `recordNotFoundDescription` in the string contract) under its usual back
-  control, and offers a labelled way back that goes where that control goes. The unknown route's
-  error page says the page does not exist, rather than that a screen failed, and offers the
-  dashboard.
+- **Not found.** The record or the page that was asked for does not exist. Both draw one block,
+  `packages/design/src/lib/block/not-found.svelte`, and it offers one way back: the back control,
+  labelled, beneath the sentence, going where back goes. The record surface says so
+  (`recordNotFound`, `recordNotFoundDescription` in the string contract) and falls back to the
+  concept's directory; the unknown route's error page says the page does not exist, rather than
+  that a screen failed, and falls back to the dashboard. A screen that failed keeps the shared
+  application surface.
 
 "No results" is not a sentence any of them says: it names neither the situation nor the way out.
 
@@ -564,7 +571,8 @@ step it is on.
 ### Going back
 
 **One control goes back, `packages/design/src/lib/block/back-control.svelte`, on every surface that
-has a way back**: a record's page, and each step of the way in. On a record it returns to the
+has a way back**: a record's page, each step of the way in, and a record or a page that is not
+there, where it is the one act and says its name beside the arrow. On a record it returns to the
 screen that opened the record, or to the concept's directory where there was none. A walk decides
 for itself, since back from its second step is its first step on the same address, so a walk hands
 the control what back does instead of a fallback. It is drawn the same everywhere, its arrow
@@ -625,7 +633,8 @@ shown, dimmed, refused, and says why in one line on hover and focus.** The reaso
 `unavailable` (`design/acts.ts`), and every surface draws it from the one declaration: the card's
 two menus (`record-card.svelte`), the record page's cluster (`record-action-control.svelte`), and
 the create control (`create-control.svelte`, given the set's reason by the list's
-`createUnavailable`), whose key answers with the same reason. The command menu puts it beside the
+`createUnavailable`), whose key answers with the same reason, and the create an empty list offers
+under its title. The command menu puts it beside the
 row, where its keys would be, because its rows are chosen from the search field and never take the
 focus a tooltip opens on; a record's act asked for there is refused by the host with the same line.
 

@@ -266,16 +266,17 @@
 	discoverable without competing with the records (*Semantics are secondary*, Refactoring UI
 	p.60). The form is the shell's, opened the same way the rail's row opens it.
 -->
-{#snippet trayActions()}
-	<!-- what each role may do, beside the add and as quiet as it (requirement 23). It is read
-	     before a role is picked and writes nothing, so it stands next to the directory rather than
-	     inside the chooser. -->
+{#snippet trayReading()}
+	<!-- what each role may do (requirement 23). It is read before a role is picked and writes
+	     nothing, so it stands next to the directory rather than inside the chooser, and it stands
+	     where the list shell puts what reads the set rather than what acts on it: after the count
+	     and before the order, outlined like the controls beside it. -->
 	<Tooltip.Root>
 		<Tooltip.Trigger>
 			{#snippet child({ props })}
 				<Button
 					{...props}
-					variant="ghost"
+					variant="outline"
 					size="icon-sm"
 					data-role-table-open
 					aria-label={$LL.organization.roleTable.title()}
@@ -291,7 +292,9 @@
 			{$LL.organization.roleTable.title()}
 		</Tooltip.Content>
 	</Tooltip.Root>
+{/snippet}
 
+{#snippet trayActions()}
 	<!-- last in the tray, where every set offers its create ([[rules/interface]], *Create*). -->
 	{#if canInvite}
 		<CreateControl
@@ -313,6 +316,7 @@
 		count={shown.length}
 		{sortOptions}
 		bind:sort
+		narrowing={trayReading}
 		action={trayActions}
 	/>
 

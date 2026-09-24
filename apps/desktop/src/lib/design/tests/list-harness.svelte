@@ -7,8 +7,8 @@
 	 * a snippet: `record` is required, and a snippet cannot be written in a `.ts` file. It also
 	 * needs two providers, the string contract and the tooltip's. The filter
 	 * is already narrowed, so its menu carries the row that clears it as well as its values; the
-	 * sort is already chosen, so its menu marks the chosen order; and both transfer directions are
-	 * offered.
+	 * sort is already chosen, so its menu marks the chosen order; both transfer directions are
+	 * offered; and records can be selected, so the bar draws its selecting control too.
 	 */
 	import List from '$lib/design/block/list.svelte';
 	import type { FilterSelection, ListFilter } from '$lib/design/filter';
@@ -32,6 +32,10 @@
 	const noop = () => {};
 </script>
 
+{#snippet selectionActions()}
+	<span>acting on the selection</span>
+{/snippet}
+
 <DesignProvider {strings} direction="ltr">
 	<Tooltip.Provider>
 		<List
@@ -47,6 +51,7 @@
 			exportAs={{ name: 'records', columns: [] }}
 			onImport={noop}
 			onCreate={noop}
+			{selectionActions}
 		>
 			{#snippet record(row)}
 				<span>{row.id}</span>

@@ -99,6 +99,10 @@ const shape = (locale: 'en' | 'ar' = 'en') => {
 	expect(document.querySelector('[data-standing-purpose]')?.textContent?.trim()).toBe(
 		words.organization.standing.purpose
 	);
+	// a description, muted like every other block's (effort 832, ticket 30).
+	expect(document.querySelector('[data-standing-purpose]')?.className).toContain(
+		'text-muted-foreground'
+	);
 	expect(sentences()).toHaveLength(1);
 	expect(checkNow()).not.toBeNull();
 	expect(document.querySelector('[data-slot="badge"]')).toBeNull();

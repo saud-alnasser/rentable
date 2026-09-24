@@ -1,5 +1,10 @@
 import api from '$lib/api/caller';
-import { COMPLEX_SORT_COLUMN_IDS, type ComplexSortColumnId } from '$lib/complex/complex';
+import {
+	COMPLEX_SORT_COLUMN_IDS,
+	UNIT_SORT_COLUMN_IDS,
+	type ComplexSortColumnId,
+	type UnitSortColumnId
+} from '$lib/complex/complex';
 import { declareMutation, describeOutcomeChange } from '$lib/design/mutation';
 import type { SelectionCall } from '@rentable/design/selection.js';
 import type { HistoryEntry } from '$lib/history/history';
@@ -31,11 +36,12 @@ export const keys = {
 		all: workspacePrefixes.units,
 		get: (id: string) => [...workspacePrefixes.units, 'detail', id],
 		getMany: (complexId: string) => [...workspacePrefixes.units, complexId],
-		board: (complexId: string, search: string) => [
+		board: (complexId: string, search: string, sort: ListSort | null = null) => [
 			...workspacePrefixes.units,
 			'board',
 			complexId,
-			search
+			search,
+			sort ? `${sort.columnId}:${sort.direction}` : 'default'
 		],
 		plan: (ids: readonly string[]) => [
 			...workspacePrefixes.units,
@@ -103,6 +109,10 @@ function isComplexSortColumnId(columnId: string): columnId is ComplexSortColumnI
 	return (COMPLEX_SORT_COLUMN_IDS as readonly string[]).includes(columnId);
 }
 
+function isUnitSortColumnId(columnId: string): columnId is UnitSortColumnId {
+	return (UNIT_SORT_COLUMN_IDS as readonly string[]).includes(columnId);
+}
+
 /**
  * The complexes directory for a search and an order: the whole result set, each row
  * carrying how many units the complex holds and how many of them stand vacant.
@@ -134,19 +144,31 @@ export function useListComplexes(
 }
 
 /**
- * The occupancy board for one complex: every unit it holds, in the board's own order, each
- * carrying the tenant occupying it. The board has no sort control — its order is what makes
- * it a board — so the search is all the reader varies.
+ * A complex's unit directory for a search and an order: every unit it holds, each carrying the
+ * tenant occupying it. With no order chosen it reads by name, and the reader may choose another
+ * from `UNIT_SORT_COLUMN_IDS`, as every list may.
  */
-export function useListUnits(complexId: () => string, search: () => string = () => '') {
+export function useListUnits(
+	complexId: () => string,
+	search: () => string = () => '',
+	sort: () => ListSort | null = () => null
+) {
 	return createQuery(() => {
 		const id = complexId();
 		const trimmedSearch = search().trim();
+		const chosenSort = sort();
 
 		return {
-			queryKey: keys.units.board(id, trimmedSearch),
+			queryKey: keys.units.board(id, trimmedSearch, chosenSort),
 			queryFn: () =>
-				api.complex.units.getMany({ complexId: id, search: trimmedSearch || undefined }),
+				api.complex.units.getMany({
+					complexId: id,
+					search: trimmedSearch || undefined,
+					sort:
+						chosenSort && isUnitSortColumnId(chosenSort.columnId)
+							? { columnId: chosenSort.columnId, direction: chosenSort.direction }
+							: undefined
+				}),
 			placeholderData: <T>(previous: T) => previous
 		};
 	});

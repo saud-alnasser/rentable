@@ -182,3 +182,12 @@ export const COMPLEX_SORT_COLUMN_IDS = [
 ] as const;
 
 export type ComplexSortColumnId = (typeof COMPLEX_SORT_COLUMN_IDS)[number];
+
+/**
+ * The keys a complex's unit directory may be ordered by, on the same terms as the complexes'
+ * own: the router orders on this list and nothing else, and the directory's sort control is
+ * built from it. A unit's name, who occupies it today, and its status are what its card shows.
+ */
+export const UNIT_SORT_COLUMN_IDS = ['name', 'tenantName', 'status'] as const;
+
+export type UnitSortColumnId = (typeof UNIT_SORT_COLUMN_IDS)[number];

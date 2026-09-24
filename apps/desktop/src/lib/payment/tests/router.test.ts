@@ -53,6 +53,42 @@ test('the ledger lists every payment of its contract, newest first', async () =>
 	);
 });
 
+// effort 832, ticket 30: every list sorts, the ledger included. By the day or by the amount, and
+// two payments of one amount are told apart by the day, newest first.
+test('the ledger orders by the day or the amount the reader chose', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api, { cost: 100000 });
+
+	const oldest = await api.contract.payments.create({
+		contractId: contract.id,
+		date: monthsFromNow(-2),
+		amount: 500
+	});
+	const middle = await api.contract.payments.create({
+		contractId: contract.id,
+		date: monthsFromNow(-1),
+		amount: 100
+	});
+	const newest = await api.contract.payments.create({
+		contractId: contract.id,
+		date: monthsFromNow(0),
+		amount: 500
+	});
+
+	const idsIn = async (columnId: 'date' | 'amount', direction: 'asc' | 'desc') =>
+		(
+			await api.contract.payments.getMany({
+				contractId: contract.id,
+				sort: { columnId, direction }
+			})
+		).map((payment) => payment.id);
+
+	assert.deepEqual(await idsIn('date', 'asc'), [oldest.id, middle.id, newest.id]);
+	assert.deepEqual(await idsIn('date', 'desc'), [newest.id, middle.id, oldest.id]);
+	assert.deepEqual(await idsIn('amount', 'asc'), [middle.id, newest.id, oldest.id]);
+	assert.deepEqual(await idsIn('amount', 'desc'), [newest.id, oldest.id, middle.id]);
+});
+
 test('payments made on one day are listed with the most recently recorded first', async () => {
 	const api = await createApi();
 	const contract = await seedContract(api, { cost: 100000 });

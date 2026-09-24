@@ -27,6 +27,9 @@
 	 * taken out of its fieldset's own layout and cannot stand on a line with anything, so it is
 	 * drawn here and the `Field.Set` around the directory carries `aria-labelledby`.
 	 *
+	 * **The bar's order is the list shell's**: the field, the count, what narrows or reads the set
+	 * (`narrowing`), the order, and what acts on it (`action`), with the create last.
+	 *
 	 * **The end of the bar is the caller's snippet, and a section with nothing to put there passes
 	 * none.** The members section puts its add behind `inviteMember`; the workspaces section puts
 	 * a create or the sentence that stands in its place, after the count and the order as the list
@@ -41,6 +44,7 @@
 		count,
 		sortOptions,
 		sort = $bindable(null),
+		narrowing,
 		action
 	}: {
 		/** what the fieldset around the directory names in `aria-labelledby`. */
@@ -57,6 +61,11 @@
 		sortOptions: readonly ListSortOption[];
 		/** the order the directory is using, or `null` for the order it arrived in. */
 		sort?: ListSort | null;
+		/**
+		 * what stands between the count and the order, where the list shell puts its filter and its
+		 * selecting: a control about what the reader is looking at rather than one that acts on it.
+		 */
+		narrowing?: Snippet;
 		/** what stands at the end of the bar, where the section has anything to put there. */
 		action?: Snippet;
 	} = $props();
@@ -68,7 +77,7 @@
 		<Field.Description data-directory-description>{description}</Field.Description>
 	</div>
 
-	<ListToolbar bind:search {count} {sortOptions} bind:sort>
+	<ListToolbar bind:search {count} {sortOptions} bind:sort {narrowing}>
 		{@render action?.()}
 	</ListToolbar>
 </div>

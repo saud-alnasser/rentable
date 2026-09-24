@@ -88,7 +88,12 @@
 	<!-- the one search field, so the panes search the way every directory does: the glass, the
 	     wait after the last keystroke, and `/` ([[rules/interface]], *Search*). Both panes read the
 	     one term, since a unit moves from one to the other and should stay found. -->
-	<SearchField bind:value={search} class="shrink-0" />
+	<!-- on the surface every set's search sits on, so the field reads as the one it is rather than
+	     as a bare line of text over the panes. The field alone and not the whole bar: the panes are
+	     two halves of one transfer, each counting its own units, with nothing to order or create. -->
+	<div data-pane-search class="shrink-0 rounded-2xl bg-card px-3 py-2.5">
+		<SearchField bind:value={search} />
+	</div>
 
 	<!-- the panes stack below the shell's breakpoint, and they are start and end rather than
 	     left and right: neither the order nor the controls may depend on a physical side.
