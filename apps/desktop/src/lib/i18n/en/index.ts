@@ -591,6 +591,7 @@ const en = {
 				'bringing the workspace up to this version of rentable. this reaches turso and takes a moment; nothing here is stuck.',
 			migrationWaiting:
 				'another member is bringing the workspace up to this version of rentable. waiting on them, until {until} at the latest.',
+			stagePrepare: 'creating your first workspace',
 			stageSettings: 'reading your settings',
 			stageWorkspace: 'opening your workspace'
 		}
@@ -937,8 +938,8 @@ const en = {
 	organization: {
 		setup: {
 			connectTitle: 'connect your turso account',
-			connectDescription:
-				'your organization will live on your own turso account. one consent in the browser is all it takes.',
+			connectDescription: 'your organization lives on your own turso account.',
+			connectDetails: 'before you connect',
 			position: 'step {step|number} of {total|number}',
 			groupCoverage:
 				'the consent covers every database in the group you choose, and nothing outside it.',
@@ -980,9 +981,6 @@ const en = {
 			groupRequired: "name the group you chose on turso's consent screen.",
 			create: 'create organization',
 			creating: 'creating the organization on your turso account...',
-			workspaceTitle: 'create your first workspace',
-			workspaceDescription:
-				'a workspace holds one set of records. you can add more later, from inside the app.',
 			copyLink: 'copy link',
 			linkCopied: 'link copied.',
 			continue: 'continue',

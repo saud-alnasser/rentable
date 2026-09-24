@@ -2,12 +2,16 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+	PREPARED_STAGES,
 	STARTUP_STAGES,
 	STARTUP_STAGE_WEIGHTS,
+	stagesOfPass,
 	startupProgressFor,
-	startupProgressWithin
+	startupProgressWithin,
+	type StartupStage
 } from '../startup-stage.ts';
-import { harness, locked } from './testing.ts';
+import { fakeOrganizationSession, fakeOrganizationState } from '$lib/platform/tests/testing.ts';
+import { harness, locked, nowhereToGo } from './testing.ts';
 
 /**
  * THE BAR IS A REPORT, AND THIS IS WHAT MAKES IT ONE
@@ -46,7 +50,7 @@ test('every stage the screen can name is one the startup path reports', async ()
 test('every stage the startup path reports is one the screen knows', async () => {
 	for (const stage of await stagesOfAStartup()) {
 		assert.ok(
-			STARTUP_STAGES.includes(stage),
+			(STARTUP_STAGES as readonly StartupStage[]).includes(stage),
 			`the startup path reports ${stage} and the bar has no name or weight for it`
 		);
 	}
@@ -181,5 +185,98 @@ test('filling within a stage only ever moves forward', () => {
 			assert.ok(filled >= previous, `${stage} went backwards at ${elapsed}ms`);
 			previous = filled;
 		}
+	}
+});
+
+/**
+ * THE PASS THAT READIES THE FIRST WORKSPACE
+ *
+ * Effort 832, requirement 18: the first run hands over to one loading pass whose first stage makes
+ * the owner's first workspace. It is a pass of its own rather than a sixth launch stage, because a
+ * launch never takes it, and the bar counts and weighs over it while it runs.
+ */
+test('the prepared pass reports its own stages, in order, and ends where a sign-in ends', async () => {
+	const { startup, journal } = harness({
+		organization: nowhereToGo(),
+		afterBootstrap: fakeOrganizationState({ holdsTursoAuthority: true })
+	});
+
+	await startup.start();
+	journal.stages.length = 0;
+
+	await startup.standingChanged({ prepare: async () => {} });
+
+	assert.deepEqual(journal.stages, [...PREPARED_STAGES]);
+	assert.equal(journal.completed, 1, 'the last stage is timed by finishing, as on a launch');
+});
+
+test('and a launch never names it', async () => {
+	assert.ok(!(await stagesOfAStartup()).includes('prepare'));
+	assert.ok(!(STARTUP_STAGES as readonly StartupStage[]).includes('prepare'));
+});
+
+test('which pass a reported stage belongs to', () => {
+	// `prepare` begins the prepared pass, whatever was on screen.
+	assert.equal(stagesOfPass('prepare', STARTUP_STAGES, true), PREPARED_STAGES);
+	assert.equal(stagesOfPass('prepare', STARTUP_STAGES, false), PREPARED_STAGES);
+
+	// and the stages after it carry that pass on while it runs.
+	for (const stage of ['workspace', 'changes', 'records'] as const) {
+		assert.equal(stagesOfPass(stage, PREPARED_STAGES, true), PREPARED_STAGES, stage);
+	}
+
+	// a pass that ended is not carried on: a prepare that failed ends its pass, and the create the
+	// no-workspace surface offers then re-enters the launch's list at `workspace`.
+	assert.equal(stagesOfPass('workspace', PREPARED_STAGES, false), STARTUP_STAGES);
+
+	// a launch, or a retry, is the launch's list from its first stage, whatever ran before it.
+	assert.equal(stagesOfPass('settings', PREPARED_STAGES, true), STARTUP_STAGES);
+	assert.equal(stagesOfPass('account', STARTUP_STAGES, true), STARTUP_STAGES);
+});
+
+test('a prepare that fails ends its pass, so the next pass is counted as its own', async () => {
+	const { startup, journal } = harness({
+		organization: nowhereToGo(),
+		afterBootstrap: fakeOrganizationState({
+			session: fakeOrganizationSession({ workspaces: [] }),
+			holdsTursoAuthority: true
+		})
+	});
+
+	await startup.start();
+	journal.stages.length = 0;
+
+	await startup.standingChanged({
+		prepare: async () => {
+			throw new Error('turso could not be reached');
+		}
+	});
+
+	assert.deepEqual(journal.stages, ['prepare']);
+	assert.equal(journal.completed, 1, 'the pass that failed was closed');
+});
+
+test('the prepared pass carries a weight on every stage, and its bar moves forward and never fills', () => {
+	let previous = -1;
+
+	for (const stage of PREPARED_STAGES) {
+		assert.ok(STARTUP_STAGE_WEIGHTS[stage] > 0, `${stage} has no share of the bar`);
+
+		const progress = startupProgressFor(stage, PREPARED_STAGES);
+
+		assert.ok(progress > previous, `reaching ${stage} does not move the bar`);
+		previous = progress;
+	}
+
+	assert.equal(startupProgressFor('prepare', PREPARED_STAGES), 0, 'the bar starts part-full');
+	assert.ok(previous < 100);
+
+	// and the easing inside a stage stops short of the next boundary here too.
+	for (const [index, stage] of PREPARED_STAGES.entries()) {
+		const next = PREPARED_STAGES[index + 1];
+		const ceiling = next ? startupProgressFor(next, PREPARED_STAGES) : 100;
+		const elapsed = STARTUP_STAGE_WEIGHTS[stage] * 100;
+
+		assert.ok(startupProgressWithin(stage, elapsed, PREPARED_STAGES) < ceiling, stage);
 	}
 });

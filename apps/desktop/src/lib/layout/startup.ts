@@ -604,14 +604,34 @@ export class Startup {
 	 * whole of that round trip, and what a person saw was the surface they had just finished
 	 * with sitting there doing nothing. Everything after the read draws the loading surface
 	 * anyway, so this only moves it in front of the one call that was under it.
+	 *
+	 * **A caller with something to ready first hands it in as `prepare`** (effort 832, requirement
+	 * 18). It runs under the loading surface as that pass's first stage, so the first run creating
+	 * the owner's first workspace is one loading pass rather than a busy walk followed by one. What
+	 * it makes is then read with everything else. **A `prepare` that fails does not stop the pass**:
+	 * the standing is read anyway, and a machine it left with no workspace lands on the no-workspace
+	 * surface, which already offers the create. Saying what went wrong is the `prepare`'s own, as it
+	 * is for any mutation, so nothing here repeats it.
 	 */
-	async standingChanged() {
+	async standingChanged({ prepare }: { prepare?: () => Promise<unknown> } = {}) {
 		// where the screen goes back to if the read fails: the caller is standing on a surface
 		// that can say so, and a failure here is not a reason to leave them under a loading
 		// surface that has nothing left to load.
 		const before = this.#snapshot.state;
 
 		this.#set({ state: 'loading', error: null });
+
+		if (prepare) {
+			this.#ports.reportStage('prepare');
+
+			try {
+				await prepare();
+			} catch {
+				// said by the `prepare`. The pass ends at its first stage, so the next one the
+				// no-workspace surface starts is not counted as its continuation.
+				this.#ports.reportComplete();
+			}
+		}
 
 		try {
 			this.#set({ organization: await this.#ports.organization.getState() });

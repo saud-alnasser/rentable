@@ -561,6 +561,7 @@ const ar = {
 				'يجري رفع مساحة العمل إلى هذا الإصدار من rentable. يصل هذا إلى Turso ويستغرق لحظة؛ لا شيء هنا عالق.',
 			migrationWaiting:
 				'عضو آخر يرفع مساحة العمل إلى هذا الإصدار من rentable. ننتظره، حتى {until} على أبعد تقدير.',
+			stagePrepare: 'إنشاء مساحة عملك الأولى',
 			stageSettings: 'قراءة إعداداتك',
 			stageWorkspace: 'فتح مساحة عملك'
 		}
@@ -893,7 +894,8 @@ const ar = {
 	organization: {
 		setup: {
 			connectTitle: 'اربط حساب Turso الخاص بك',
-			connectDescription: 'ستعيش مؤسستك على حساب Turso الخاص بك. موافقة واحدة في المتصفح تكفي.',
+			connectDescription: 'تقيم مؤسستك على حساب Turso الخاص بك.',
+			connectDetails: 'قبل أن تربط',
 			position: 'الخطوة {step|number} من {total|number}',
 			groupCoverage: 'تشمل الموافقة كل قاعدة بيانات في المجموعة التي تختارها، ولا شيء خارجها.',
 			oneOrganization:
@@ -932,9 +934,6 @@ const ar = {
 			groupRequired: 'اكتب اسم المجموعة التي حدّدتها في شاشة موافقة Turso.',
 			create: 'أنشئ المؤسسة',
 			creating: 'يجري إنشاء المؤسسة على حساب Turso الخاص بك...',
-			workspaceTitle: 'أنشئ مساحة عملك الأولى',
-			workspaceDescription:
-				'تحتفظ مساحة العمل بمجموعة واحدة من السجلات. يمكنك إضافة المزيد لاحقاً من داخل التطبيق.',
 			copyLink: 'انسخ الرابط',
 			linkCopied: 'تم نسخ الرابط.',
 			continue: 'متابعة',

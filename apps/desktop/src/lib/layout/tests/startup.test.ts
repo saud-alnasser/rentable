@@ -93,6 +93,82 @@ test('and the first run, once it has created the organization and a workspace, g
 	assert.equal(startup.snapshot.remoteSync?.workspace.remoteId, 'first');
 });
 
+/**
+ * Effort 832, requirement 18: **the first run is two steps and one loading pass.** The walk
+ * creates the organization and hands the first workspace's creation to the unit as `prepare`. The
+ * loading surface is what is up while it runs, as the pass's first stage, and what it made is read
+ * with everything else: the pass goes on into that workspace.
+ */
+test('a prepare runs under the loading surface as the first stage, and the pass goes on into what it made', async () => {
+	const founded = fakeOrganizationState({
+		session: fakeOrganizationSession({
+			workspaces: [fakeOrganizationWorkspace({ id: 'acme', name: 'Acme Rentals' })]
+		}),
+		holdsTursoAuthority: true
+	});
+	const { startup, journal, seen } = harness({
+		organization: nowhereToGo(),
+		afterBootstrap: founded
+	});
+
+	await startup.start();
+	journal.stages.length = 0;
+
+	const seenBefore = seen.length;
+	const whilePreparing: { state: string; stages: string[] }[] = [];
+
+	await startup.standingChanged({
+		prepare: async () => {
+			whilePreparing.push({ state: startup.snapshot.state, stages: [...journal.stages] });
+		}
+	});
+
+	// the loading surface was already up when the prepare ran, and it was the pass's first stage:
+	// nothing else was drawn between the walk and it.
+	assert.deepEqual(whilePreparing, [{ state: 'loading', stages: ['prepare'] }]);
+	assert.equal(seen[seenBefore]?.state, 'loading');
+	assert.deepEqual(journal.stages, ['prepare', 'workspace', 'changes', 'records']);
+
+	// one pass: loading, and then ready, with no other surface in between.
+	assert.deepEqual(
+		[...new Set(seen.slice(seenBefore).map((snapshot) => snapshot.state))],
+		['loading', 'ready']
+	);
+	assert.deepEqual(journal.workspacesOpened, ['acme']);
+	assert.equal(startup.snapshot.error, null);
+});
+
+// and a prepare that fails lands on the no-workspace surface, which already offers the create: the
+// organization exists and the owner is in, so the pass reads where the machine stands anyway.
+test('a prepare that fails lands on the no-workspace surface, with the owner in', async () => {
+	const founded = fakeOrganizationState({
+		session: fakeOrganizationSession({ workspaces: [] }),
+		holdsTursoAuthority: true
+	});
+	const { startup, journal } = harness({
+		organization: nowhereToGo(),
+		afterBootstrap: founded
+	});
+
+	await startup.start();
+
+	await startup.standingChanged({
+		prepare: async () => {
+			throw new Error('turso could not be reached');
+		}
+	});
+
+	assert.equal(startup.snapshot.state, 'no-workspace');
+	assert.equal(startup.snapshot.railIsUp, true);
+	assert.equal(startup.snapshot.organization?.session?.workspaces.length, 0);
+	// said by the prepare's own handler, so the unit carries no error of its own for it, and it
+	// is not a startup failure.
+	assert.equal(startup.snapshot.error, null);
+	assert.deepEqual(journal.failures, []);
+	assert.deepEqual(journal.workspacesOpened, []);
+	assert.equal(journal.bootstrapped, 0);
+});
+
 // effort 824, requirement 18: connecting by the organization's link records it on this machine
 // with no member and opens no vault, and the route then tells the unit where the machine stands
 // changed. What the unit reads is an organization held and nobody in, which is the wall, locked,

@@ -30,10 +30,10 @@ import { WORKSPACE_NAME_LIMIT } from '$lib/workspace/workspace.ts';
  * THE WALK, ASSERTED OVER
  *
  * Criterion 3 of effort 819: **the only text entered into this application is the
- * organization's name and a password**, and since effort 824 the first workspace's name, which
- * is a person's own word for their records exactly as the organization's name is, and the
- * owner's username, which is their own name for themselves (requirement 21); neither is a Turso
- * detail. The screen draws its fields from `SETUP_WALK`, so this is an assertion over what the
+ * organization's name and a password**, and since effort 824 the owner's username, which is their
+ * own name for themselves (requirement 21) and not a Turso detail. *Effort 824 added the first
+ * workspace's name as well, and effort 832 took it back out: the workspace is made for the owner,
+ * named after the organization.* The screen draws its fields from `SETUP_WALK`, so this is an assertion over what the
  * screen presents and not over a list kept beside it, and a field added later that asks for a
  * slug, a group, a token or a URL fails here before it reaches review.
  * `setup-walk.svelte.test.ts` asserts the same thing over the rendered DOM.
@@ -47,8 +47,8 @@ import { WORKSPACE_NAME_LIMIT } from '$lib/workspace/workspace.ts';
  * `setup-walk.svelte.test.ts` where a person can be shown it.
  */
 
-test('the only fields the walk presents are the name, a username, a password and the workspace', () => {
-	assert.deepEqual(fieldsPresented(), ['name', 'username', 'password', 'workspace']);
+test('the only fields the walk presents are the name, a username and a password', () => {
+	assert.deepEqual(fieldsPresented(), ['name', 'username', 'password']);
 });
 
 // requirement 13: what the consent covers is explained, and no group is asked for. requirement 22
@@ -71,14 +71,15 @@ test('what the consent covers and what succession costs are said before the orga
 	assert.deepEqual(explaining?.fields, []);
 });
 
-// effort 824, requirement 3: the walk ends inside the workspace. The last step names it, asks
-// for nothing else, and there is no step after it showing the link.
-test('the walk is three steps, and the workspace is the last', () => {
+// effort 832, requirement 18 and its criterion (a): the walk is two cards before the application,
+// the consent and the name. The first workspace is made for the owner in the loading pass after
+// it, so no step asks for it, and there is no step after the name showing the link.
+test('the walk is two steps: the consent, then the name', () => {
+	assert.deepEqual([...SETUP_STEPS], ['connect', 'name']);
 	assert.deepEqual(
 		SETUP_WALK.map((step) => step.step),
-		['connect', 'name', 'workspace']
+		['connect', 'name']
 	);
-	assert.deepEqual(SETUP_WALK.at(-1)?.fields, ['workspace']);
 	assert.deepEqual(SETUP_WALK.at(-1)?.statements, []);
 });
 
@@ -416,20 +417,19 @@ test('an ordinary failed create leaves the walk where it is', () => {
 
 /**
  * Requirement 13's second correction, the other half: **the walk hands an admitted machine over
- * rather than drawing it a step.** A reload during a first run, an address typed in, and the
- * moment after the first workspace is created all reach the route with a session on the state
- * query, and until this the walk read only whether that session held no workspace. One that held
- * a workspace fell through and the person was shown the consent step again, on a machine that
- * had finished the walk.
+ * rather than drawing it a step.** A reload during a first run and an address typed in reach the
+ * route with a session on the state query. Until effort 832 an owner whose organization held no
+ * workspace was sent to the walk's third step; there is no third step now, and the way in draws
+ * the no-workspace surface for them, which offers the create.
  */
 test('where the walk goes for a machine that is already somebody', () => {
 	// nobody is in: the walk draws whatever step it was on.
 	assert.equal(stepFor(null), null);
 	assert.equal(stepFor(undefined), null);
 
-	// an owner is in and their organization holds nothing yet: the third step, whatever step the
-	// route was opened at, since the first two would create the organization again.
-	assert.equal(stepFor(fakeOrganizationSession({ workspaces: [] })), 'workspace');
+	// an owner is in and their organization holds nothing yet: the way in, since both steps would
+	// create the organization again.
+	assert.equal(stepFor(fakeOrganizationSession({ workspaces: [] })), 'leave');
 
 	// and one who holds a workspace has finished: there is nothing left to ask, so they go home.
 	assert.equal(stepFor(fakeOrganizationSession()), 'leave');
@@ -606,8 +606,8 @@ test('a username outside the rules is refused with the one sentence every form r
 });
 
 /**
- * Requirement 13 of the redesign: the no-workspace surface, the walk's last step and the
- * new-workspace dialog each draw the one workspace form, so a name over the limit is refused
+ * Requirement 13 of the redesign: the no-workspace surface and the new-workspace dialog each draw
+ * the one workspace form (the walk's last step did too, until effort 832 removed it), so a name over the limit is refused
  * with the same sentence wherever it was typed. This pins that sentence to the schema they all
  * read, and the surfaces' own tests have one thing to equal.
  */
@@ -672,7 +672,7 @@ test('the connect-existing way is two steps and is not the walk that creates', (
 		!SETUP_WALK.some((step) => step.step === 'existing'),
 		'the existing step is presented by the walk that creates'
 	);
-	assert.deepEqual(fieldsPresented(), ['name', 'username', 'password', 'workspace']);
+	assert.deepEqual(fieldsPresented(), ['name', 'username', 'password']);
 });
 
 /**
@@ -775,5 +775,41 @@ test('the existing step says whose account it is and who signs in, in both local
 
 	for (const word of [/\bgroup\b/, /\bdatabase\b/, /\bconsent\b/]) {
 		assert.ok(!word.test(en.organization.setup.existingDescription), String(word));
+	}
+});
+
+/**
+ * Effort 832, requirements 17 and 18: **the connect card carries one line and a disclosure.** The
+ * line is the card's description, and it is one sentence, short, in both locales, written in each
+ * rather than copied. The facts sit behind the disclosure, whose label is short too.
+ */
+test('the connect step says one short line, and the facts are behind a short disclosure', () => {
+	for (const locale of ['en', 'ar'] as const) {
+		const setup = { en, ar }[locale].organization.setup;
+
+		for (const key of ['connectDescription', 'connectDetails'] as const) {
+			assert.ok(setup[key].length > 0, `${locale}: ${key}`);
+			assert.ok(setup[key].length <= 60, `${locale}: ${key} is ${setup[key].length} characters`);
+		}
+
+		// one sentence: a full stop only at its end.
+		assert.equal(setup.connectDescription.trim().replace(/\.$/, '').includes('.'), false, locale);
+	}
+
+	assert.notEqual(
+		ar.organization.setup.connectDescription,
+		en.organization.setup.connectDescription
+	);
+	assert.notEqual(ar.organization.setup.connectDetails, en.organization.setup.connectDetails);
+
+	// the Arabic is Arabic: written in its own script, with Turso the only Latin word in it.
+	for (const key of ['connectDescription', 'connectDetails'] as const) {
+		const latin = ar.organization.setup[key].match(/[A-Za-z]+/g) ?? [];
+
+		assert.ok(
+			latin.every((word) => word === 'Turso'),
+			`ar: ${key} carries ${latin.join(', ')}`
+		);
+		assert.match(ar.organization.setup[key], /[\u0600-\u06FF]/, `ar: ${key}`);
 	}
 });

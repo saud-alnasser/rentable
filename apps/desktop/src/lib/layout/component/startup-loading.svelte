@@ -3,11 +3,7 @@
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { formatLocaleDate } from '$lib/platform/locale';
 	import { migrationNotice } from '$lib/layout/migration-notice.svelte';
-	import {
-		STARTUP_STAGES,
-		startupProgressWithin,
-		startupStage
-	} from '$lib/layout/startup-stage.svelte';
+	import { startupProgressWithin, startupStage } from '$lib/layout/startup-stage.svelte';
 	import MarkIcon from '@lucide/svelte/icons/eclipse';
 
 	/**
@@ -26,8 +22,9 @@
 	 * since the reader last looked cannot be mistaken for one.
 	 *
 	 * **The stages are real**, which is what makes the bar a report — see
-	 * `$lib/layout/startup-stage.svelte`. The counter beside the stage says which of five steps this
-	 * is, and it is the exact figure on the screen: the bar's position is an estimate eased from
+	 * `$lib/layout/startup-stage.svelte`. The counter beside the stage says which of the pass's steps
+	 * this is, five on a launch and four on the pass that readies the first workspace, and it is the
+	 * exact figure on the screen: the bar's position is an estimate eased from
 	 * measured stage durations, so the two are deliberately different kinds of claim and the precise
 	 * one is spelled out rather than left to a length.
 	 *
@@ -40,6 +37,7 @@
 	const TICK_MS = 120;
 
 	const labels = $derived({
+		prepare: $LL.layout.startup.stagePrepare(),
 		settings: $LL.layout.startup.stageSettings(),
 		account: $LL.layout.startup.stageAccount(),
 		workspace: $LL.layout.startup.stageWorkspace(),
@@ -47,12 +45,12 @@
 		records: $LL.layout.startup.stageRecords()
 	});
 
-	const position = $derived(STARTUP_STAGES.indexOf(startupStage.current) + 1);
+	const position = $derived(startupStage.stages.indexOf(startupStage.current) + 1);
 
 	/**
 	 * **The bar is weighted and the counter is not**, and the difference is what each one claims.
 	 * The bar claims *how much of the wait is behind you*, which only measurement can answer; the
-	 * counter claims *which of five steps this is*, which is a fact about the list. Driving both
+	 * counter claims *which of the steps this is*, which is a fact about the list. Driving both
 	 * off the position would put the bar at four fifths while the longest stage was still running.
 	 *
 	 * **It ticks inside a stage as well as at the boundaries**, because two of the five stages take
@@ -69,7 +67,9 @@
 		return () => clearInterval(ticking);
 	});
 
-	const progress = $derived(startupProgressWithin(startupStage.current, now - startupStage.since));
+	const progress = $derived(
+		startupProgressWithin(startupStage.current, now - startupStage.since, startupStage.stages)
+	);
 
 	/**
 	 * the one moment the bar is not the whole story: a workspace being brought up to this build's
@@ -107,7 +107,7 @@
 			<span class="min-w-0 truncate text-foreground">{labels[startupStage.current]}</span>
 			<!-- a count is not prose, and it reads left to right in every locale. -->
 			<span dir="ltr" class="shrink-0 text-muted-foreground tabular-nums">
-				{position}/{STARTUP_STAGES.length}
+				{position}/{startupStage.stages.length}
 			</span>
 		</div>
 

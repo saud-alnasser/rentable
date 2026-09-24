@@ -4,6 +4,7 @@
 	import FieldError from '@rentable/design/block/field-error.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Callout } from '@rentable/design/primitive/callout/index.js';
+	import * as Collapsible from '@rentable/design/primitive/collapsible/index.js';
 	import * as Form from '@rentable/design/primitive/form/index.js';
 	import * as InputGroup from '@rentable/design/primitive/input-group/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
@@ -35,16 +36,16 @@
 	} from '../setup';
 	import DetailDisclosure from '$lib/error/component/detail-disclosure.svelte';
 	import { usernameSchema } from '../username-form';
-	import { workspaceFormSchema } from '../workspace-form';
-	import WorkspaceFields from './workspace-fields.svelte';
 
 	/**
 	 * The first run, on the shared application surface.
 	 *
-	 * **Three steps and four fields.** Connecting the Turso account, which is a consent in the
-	 * browser and nothing typed here; naming the organization, the owner's own username and their
-	 * password; and naming the first workspace, which is where the walk ends: creating it signs
-	 * the owner in to it and the application opens on it.
+	 * **Two steps and three fields.** Connecting the Turso account, which is a consent in the
+	 * browser and nothing typed here; and naming the organization, the owner's own username and
+	 * their password. Creating it signs the owner in, and the route hands over to the loading pass,
+	 * whose first stage makes the first workspace for them (effort 832, requirement 18). Nothing
+	 * after the create is drawn here: the walk stays on its working surface until the loading
+	 * surface replaces it.
 	 *
 	 * **And a second way out of the first step, which is two steps long.** An account that already
 	 * holds an organization is connected to rather than refused (effort 828, requirement 14), so
@@ -70,29 +71,29 @@
 	 * under both, muted, as `groupDetail`: it is the machine's words behind a step rather than
 	 * the headline of a failure, which is the whole of what this ticket moved.
 	 *
-	 * **Every step says where it is, and the two before the organization exists can be left from
-	 * the card's corner.** The position is a quiet line under the title, no bar and no dots; the
-	 * way back is the shared `back-control` in the surface's `corner` slot, which is where a reader
-	 * looks for the way past a screen, and where it leads is the route's to decide. The third
-	 * step has none: the name step created the organization on the account and signed the owner
-	 * in, so there is nowhere behind it to go, and a return to a filled name form with a second
-	 * press of create would make a second organization. It is the no-workspace surface's twin,
-	 * which has no back either.
+	 * **Every step says where it is, and every step can be left from the card's corner.** The
+	 * position is a quiet line under the title, no bar and no dots; the way back is the shared
+	 * `back-control` in the surface's `corner` slot, which is where a reader looks for the way past
+	 * a screen, and where it leads is the route's to decide.
 	 *
-	 * **The connect step is a list, not paragraphs.** The facts a person has to know before
-	 * pressing anything, and none of them asks for a group to be made, are bullets with a
-	 * glyph each, the way *Supercharge the defaults* (Refactoring UI p.220) lifts a plain list: a
-	 * glyph specific to the fact rather than a generic mark, and the action that helps with the
-	 * first fact sits inside that fact rather than at the foot of the screen. The glyphs are muted so they do not outweigh the sentence beside them
-	 * (*Balance weight and contrast*, p.56).
+	 * **The connect step says one line and offers the consent** (effort 832, requirements 17 and
+	 * 18). The line is the card's description; the facts that used to stand between it and the
+	 * button are behind a disclosure under the button, closed, the way the sign-in card keeps its
+	 * help. Apple's onboarding guidance, which the human asked design calls here to follow, is to
+	 * ask for as little as possible and get people in fast: a person who wants the facts first
+	 * opens them, and one who does not is one press from the consent. Opened, they are the list
+	 * they were, a glyph to each fact, the way *Supercharge the defaults* (Refactoring UI p.220)
+	 * lifts a plain list, with the action that helps with the first fact inside that fact. The
+	 * glyphs are muted so they do not outweigh the sentence beside them (*Balance weight and
+	 * contrast*, p.56).
 	 *
 	 * **A machine that already holds Turso authority is not asked again.** The route reads whether
 	 * it does and the connect step opens as granted, with the way on and the way to give the
 	 * authority back, so a person who connected, went back to the wall and came here again is not
 	 * asked for a consent the machine has.
 	 *
-	 * **Everything that talks to the shell is a prop.** The route wires the consent, the polling,
-	 * the create and the workspace; this component draws where they have got to. That is what makes
+	 * **Everything that talks to the shell is a prop.** The route wires the consent, the polling
+	 * and the create; this component draws where they have got to. That is what makes
 	 * it renderable in a test with no Tauri behind it, and it is the same split the sign-in card
 	 * makes.
 	 *
@@ -116,8 +117,7 @@
 		onContinue,
 		onBack,
 		onCreate,
-		onConnectExisting,
-		onCreateWorkspace
+		onConnectExisting
 	}: {
 		step: SetupStep;
 		/** how far the consent has got, or `idle` where none has been started. */
@@ -157,7 +157,10 @@
 		holdsTursoAuthority: boolean;
 		/** the consent is being opened. */
 		isConnecting: boolean;
-		/** the organization, or the workspace, is being created on the account. */
+		/**
+		 * the organization is being created on the account, or the owner is being connected to the
+		 * one it holds, and after either, until the loading surface takes over.
+		 */
 		isCreating: boolean;
 		onOpenDashboard: () => void;
 		onConnect: () => void;
@@ -175,7 +178,6 @@
 		) => Promise<void>;
 		/** the owner signing in to the organization the account already holds. */
 		onConnectExisting: (username: string, password: string) => Promise<void>;
-		onCreateWorkspace: (name: string) => Promise<void>;
 	} = $props();
 
 	const description = $derived(SETUP_WALK.find((candidate) => candidate.step === step));
@@ -186,8 +188,7 @@
 		{
 			connect: $LL.organization.setup.connectTitle(),
 			existing: $LL.organization.setup.existingTitle(),
-			name: $LL.organization.setup.nameTitle(),
-			workspace: $LL.organization.setup.workspaceTitle()
+			name: $LL.organization.setup.nameTitle()
 		}[step]
 	);
 
@@ -195,8 +196,7 @@
 		{
 			connect: $LL.organization.setup.connectDescription(),
 			existing: $LL.organization.setup.existingDescription(),
-			name: $LL.organization.setup.nameDescription(),
-			workspace: $LL.organization.setup.workspaceDescription()
+			name: $LL.organization.setup.nameDescription()
 		}[step]
 	);
 
@@ -390,49 +390,17 @@
 		...existingRest
 	};
 
-	// the third step's form is the shared workspace definition: the schema every surface that
-	// names a workspace reads, and the fields drawn from it, so a name refused here is refused on
-	// the no-workspace surface and in the new-workspace dialog with the same sentence. This
-	// surface owns the `superForm` over it, since the standalone surface owns no `<form>`.
-	const WorkspaceSchema = workspaceFormSchema($LL);
-
-	let {
-		form: workspaceForm,
-		constraints: workspaceConstraints,
-		errors: workspaceErrors,
-		enhance: workspaceEnhance,
-		...workspaceRest
-	} = superForm(defaults(zod4(WorkspaceSchema)), {
-		// named, because the workspace dialog the shell mounts builds a form off the same schema and
-		// superforms would give both one id, and one store: typing here wrote there.
-		id: 'setup-workspace',
-		SPA: true,
-		validators: zod4(WorkspaceSchema),
-		onUpdate: async ({ form }) => {
-			if (!form.valid) return;
-
-			await onCreateWorkspace(form.data.name.trim());
-		}
-	});
-
-	const workspaceSuperform = {
-		form: workspaceForm,
-		constraints: workspaceConstraints,
-		errors: workspaceErrors,
-		enhance: workspaceEnhance,
-		...workspaceRest
-	};
-
 	const isBusy = $derived(isConnecting || isCreating || consent.status === 'pending');
+
+	/** whether the connect step's facts are open. Closed on every visit, until asked for. */
+	let isFactsOpen = $state(false);
 
 	/** what the shell is doing, said only while it is doing it, and named for the step doing it. */
 	const working = $derived(
 		isCreating
-			? step === 'workspace'
-				? $LL.layout.noWorkspace.creating()
-				: step === 'existing'
-					? $LL.organization.setup.existingConnecting()
-					: $LL.organization.setup.creating()
+			? step === 'existing'
+				? $LL.organization.setup.existingConnecting()
+				: $LL.organization.setup.creating()
 			: consent.status === 'pending'
 				? $LL.organization.setup.connecting()
 				: null
@@ -441,13 +409,11 @@
 
 <StandaloneSurface tone="neutral" {title} description={subtitle} busy={isBusy}>
 	{#snippet corner()}
-		{#if step !== 'workspace'}
-			<!-- always available, busy or not: a consent left open in the browser creates nothing
-			     on the account, so walking away from it costs nothing, and the way past a screen
-			     that is disabled is a trap. Not on the third step, where the organization already
-			     exists and the owner is in. -->
-			<BackControl label={$LL.organization.setup.back()} onclick={onBack} />
-		{/if}
+		<!-- always available, busy or not: a consent left open in the browser creates nothing on
+		     the account, so walking away from it costs nothing, and the way past a screen that is
+		     disabled is a trap. Once the organization is created the loading surface is drawn over
+		     this one, so it is never pressed with a created organization behind it. -->
+		<BackControl label={$LL.organization.setup.back()} onclick={onBack} />
 	{/snippet}
 
 	<div class="space-y-4" data-setup-step={step}>
@@ -455,35 +421,6 @@
 		<div class="text-xs text-muted-foreground" data-setup-position>{position}</div>
 
 		{#if step === 'connect'}
-			<!-- what the person has to know before the consent, as a list with a glyph to each fact,
-			     in the order they need them. The dashboard action sits inside the first fact, which
-			     is the one it helps with, rather than in a row of its own at the foot. -->
-			<ul class="space-y-3 text-sm text-muted-foreground">
-				{#each statements as statement (statement)}
-					{@const Glyph = statementGlyph[statement]}
-					<li class="flex gap-3" data-setup-statement={statement}>
-						<!-- centred on the sentence's first line, which is `text-sm`'s 20px, rather than
-						     nudged down by a margin off the spacing ladder. -->
-						<span class="flex h-5 shrink-0 items-center">
-							<Glyph class="size-4" />
-						</span>
-						<span class="min-w-0 flex-1">
-							{statementText(statement)}
-							{#if statement === 'groupCoverage'}
-								<Button
-									variant="link"
-									class="h-auto p-0 align-baseline text-sm"
-									onclick={onOpenDashboard}
-									disabled={isBusy}
-								>
-									{$LL.organization.setup.openDashboard()}
-								</Button>
-							{/if}
-						</span>
-					</li>
-				{/each}
-			</ul>
-
 			{#if consentNotice}
 				<div class="space-y-1" data-setup-consent-notice>
 					<Callout tone={consentNotice.tone}>{consentNotice.message}</Callout>
@@ -516,6 +453,57 @@
 					</Button>
 				{/if}
 			</div>
+
+			<!-- the facts, closed, under the button: quiet, the way the sign-in card keeps its help, so
+			     the card is one line and the consent until somebody asks for more. Opened, they are a
+			     list with a glyph to each fact, in the order they are needed, and the dashboard action
+			     sits inside the first fact, which is the one it helps with. -->
+			<Collapsible.Root bind:open={isFactsOpen} data-setup-facts>
+				<Collapsible.Trigger>
+					{#snippet child({ props })}
+						<Button
+							{...props}
+							variant="link"
+							size="sm"
+							class="w-full justify-center text-muted-foreground"
+						>
+							{$LL.organization.setup.connectDetails()}
+						</Button>
+					{/snippet}
+				</Collapsible.Trigger>
+
+				<Collapsible.Content>
+					<!-- drawn only while open, so facts nobody asked for reach neither a reader nor a
+					     screen reader. -->
+					{#if isFactsOpen}
+						<ul class="space-y-3 pt-2 text-sm text-muted-foreground">
+							{#each statements as statement (statement)}
+								{@const Glyph = statementGlyph[statement]}
+								<li class="flex gap-3" data-setup-statement={statement}>
+									<!-- centred on the sentence's first line, which is `text-sm`'s 20px,
+									     rather than nudged down by a margin off the spacing ladder. -->
+									<span class="flex h-5 shrink-0 items-center">
+										<Glyph class="size-4" />
+									</span>
+									<span class="min-w-0 flex-1">
+										{statementText(statement)}
+										{#if statement === 'groupCoverage'}
+											<Button
+												variant="link"
+												class="h-auto p-0 align-baseline text-sm"
+												onclick={onOpenDashboard}
+												disabled={isBusy}
+											>
+												{$LL.organization.setup.openDashboard()}
+											</Button>
+										{/if}
+									</span>
+								</li>
+							{/each}
+						</ul>
+					{/if}
+				</Collapsible.Content>
+			</Collapsible.Root>
 		{:else if step === 'existing'}
 			<!-- the owner's own pair, and nothing else. The sentence above the card already said
 			     whose account this is and who signs in here, so the fields carry their subject's
@@ -711,24 +699,6 @@
 				<Button type="submit" class="w-full justify-center" disabled={isCreating}>
 					<PlusIcon class="size-4" />
 					{isCreating ? $LL.common.actions.working() : $LL.organization.setup.create()}
-				</Button>
-			</form>
-		{:else if step === 'workspace'}
-			<!-- the one field the description names for this step, drawn from the shared workspace
-			     definition, so it is the same field the no-workspace surface and the dialog draw. -->
-			<form
-				method="POST"
-				use:workspaceEnhance
-				class="space-y-4"
-				data-setup-fields={fields.join(',')}
-			>
-				{#if fields.includes('workspace')}
-					<WorkspaceFields superform={workspaceSuperform} disabled={isCreating} />
-				{/if}
-
-				<Button type="submit" class="w-full justify-center" disabled={isCreating}>
-					<PlusIcon class="size-4" />
-					{isCreating ? $LL.common.actions.working() : $LL.layout.noWorkspace.create()}
 				</Button>
 			</form>
 		{/if}

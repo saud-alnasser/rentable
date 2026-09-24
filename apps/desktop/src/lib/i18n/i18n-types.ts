@@ -1896,6 +1896,10 @@ type RootTranslation = {
 			 */
 			migrationWaiting: RequiredParams<'until'>
 			/**
+			 * c​r​e​a​t​i​n​g​ ​y​o​u​r​ ​f​i​r​s​t​ ​w​o​r​k​s​p​a​c​e
+			 */
+			stagePrepare: string
+			/**
 			 * r​e​a​d​i​n​g​ ​y​o​u​r​ ​s​e​t​t​i​n​g​s
 			 */
 			stageSettings: string
@@ -2839,9 +2843,13 @@ type RootTranslation = {
 			 */
 			connectTitle: string
 			/**
-			 * y​o​u​r​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​w​i​l​l​ ​l​i​v​e​ ​o​n​ ​y​o​u​r​ ​o​w​n​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​.​ ​o​n​e​ ​c​o​n​s​e​n​t​ ​i​n​ ​t​h​e​ ​b​r​o​w​s​e​r​ ​i​s​ ​a​l​l​ ​i​t​ ​t​a​k​e​s​.
+			 * y​o​u​r​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​l​i​v​e​s​ ​o​n​ ​y​o​u​r​ ​o​w​n​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​.
 			 */
 			connectDescription: string
+			/**
+			 * b​e​f​o​r​e​ ​y​o​u​ ​c​o​n​n​e​c​t
+			 */
+			connectDetails: string
 			/**
 			 * s​t​e​p​ ​{​s​t​e​p​|​n​u​m​b​e​r​}​ ​o​f​ ​{​t​o​t​a​l​|​n​u​m​b​e​r​}
 			 * @param {unknown} step
@@ -2968,14 +2976,6 @@ type RootTranslation = {
 			 * c​r​e​a​t​i​n​g​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​o​n​ ​y​o​u​r​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​.​.​.
 			 */
 			creating: string
-			/**
-			 * c​r​e​a​t​e​ ​y​o​u​r​ ​f​i​r​s​t​ ​w​o​r​k​s​p​a​c​e
-			 */
-			workspaceTitle: string
-			/**
-			 * a​ ​w​o​r​k​s​p​a​c​e​ ​h​o​l​d​s​ ​o​n​e​ ​s​e​t​ ​o​f​ ​r​e​c​o​r​d​s​.​ ​y​o​u​ ​c​a​n​ ​a​d​d​ ​m​o​r​e​ ​l​a​t​e​r​,​ ​f​r​o​m​ ​i​n​s​i​d​e​ ​t​h​e​ ​a​p​p​.
-			 */
-			workspaceDescription: string
 			/**
 			 * c​o​p​y​ ​l​i​n​k
 			 */
@@ -5542,6 +5542,10 @@ export type TranslationFunctions = {
 			 */
 			migrationWaiting: (arg: { until: unknown }) => LocalizedString
 			/**
+			 * creating your first workspace
+			 */
+			stagePrepare: () => LocalizedString
+			/**
 			 * reading your settings
 			 */
 			stageSettings: () => LocalizedString
@@ -6442,9 +6446,13 @@ export type TranslationFunctions = {
 			 */
 			connectTitle: () => LocalizedString
 			/**
-			 * your organization will live on your own turso account. one consent in the browser is all it takes.
+			 * your organization lives on your own turso account.
 			 */
 			connectDescription: () => LocalizedString
+			/**
+			 * before you connect
+			 */
+			connectDetails: () => LocalizedString
 			/**
 			 * step {step|number} of {total|number}
 			 */
@@ -6569,14 +6577,6 @@ export type TranslationFunctions = {
 			 * creating the organization on your turso account...
 			 */
 			creating: () => LocalizedString
-			/**
-			 * create your first workspace
-			 */
-			workspaceTitle: () => LocalizedString
-			/**
-			 * a workspace holds one set of records. you can add more later, from inside the app.
-			 */
-			workspaceDescription: () => LocalizedString
 			/**
 			 * copy link
 			 */
