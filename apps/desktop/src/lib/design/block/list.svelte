@@ -56,7 +56,8 @@
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import XIcon from '@lucide/svelte/icons/x';
 	import { createVirtualizer } from '@tanstack/svelte-virtual';
-	import { tick, type Snippet } from 'svelte';
+	import { hasSameOrder, toClipPath, toTransitionName } from '$lib/design/list-motion';
+	import { tick, untrack, type Snippet } from 'svelte';
 	import { get } from 'svelte/store';
 
 	/** One order the list offers the reader, keyed by a column the query can order by. */
@@ -275,6 +276,120 @@
 		}
 	}
 
+	/**
+	 * The result set the rows are drawn from: `data`, committed rather than read.
+	 *
+	 * A change to `data` is not drawn the moment it arrives. It is committed here, inside a view
+	 * transition where it moves something and directly where it does not, so a record created
+	 * arrives, a record deleted leaves, an undone delete comes back in place and a re-sorted record
+	 * moves, rows the virtualiser adds or removes included. Raw, because the records are the
+	 * query's objects and nothing here writes into them.
+	 */
+	let displayed = $state.raw(untrack(() => data));
+	/** What the last commit asked for, which a transition draws once it gets to: always the latest. */
+	let committing = untrack(() => data);
+	/**
+	 * Whether the next change to `data` is the answer to this list's own search.
+	 *
+	 * Set at the moment the block writes `search`, and spent by the change that answers it. A
+	 * keystroke narrows what the reader is looking at, and records sliding under the letters would
+	 * be motion on a path used many times a minute, so that change is drawn at once. Plain rather
+	 * than state: it is read and written inside the commit and nothing draws it.
+	 */
+	let isAwaitingSearch = false;
+	/** Whether the list was still waiting for its first result set when `data` last moved. */
+	let wasLoading = untrack(() => isLoading);
+	/**
+	 * Whether this list's records are what a transition in flight is capturing.
+	 *
+	 * The names are worn only for the length of this list's own transition. Worn always, another
+	 * list on the same screen would have its records captured by this one's transition and clipped
+	 * to this one's frame.
+	 */
+	let isMoving = $state(false);
+	/** Which transition is the current one, so one that was overtaken does not clear what it set. */
+	let currentMove: object | null = null;
+	// what scopes this list's names, so two lists on one screen can show the same record.
+	const listId = $props.id();
+	let frame = $state<HTMLElement | null>(null);
+
+	/**
+	 * Draw `next` inside a same-document view transition, and directly where the webview has none.
+	 *
+	 * The document itself is not captured while this runs: its `view-transition-name` is taken away
+	 * for the length of the transition, so the root snapshot does not animate and everything around
+	 * the records stays live under the pointer. Only the records are captured, and their layer is
+	 * clipped to the frame, since it is drawn above the whole document and the frame's own clip does
+	 * not reach it.
+	 */
+	function commitMoving(next: TData[]) {
+		committing = next;
+
+		if (typeof document.startViewTransition !== 'function' || !frame) {
+			displayed = next;
+
+			return;
+		}
+
+		const root = document.documentElement;
+		const move = {};
+
+		currentMove = move;
+		isMoving = true;
+		root.style.setProperty(
+			'--list-motion-clip',
+			toClipPath(frame.getBoundingClientRect(), getComputedStyle(frame).borderTopLeftRadius)
+		);
+		root.dataset.listMotion = '';
+
+		// the old state is captured at the next frame, after the microtask that draws `isMoving`, so
+		// the names are on the records by then.
+		const transition = document.startViewTransition(async () => {
+			displayed = committing;
+			await tick();
+		});
+
+		void transition.finished.finally(() => {
+			if (currentMove !== move) {
+				return;
+			}
+
+			currentMove = null;
+			isMoving = false;
+			delete root.dataset.listMotion;
+			root.style.removeProperty('--list-motion-clip');
+		});
+	}
+
+	// every change to `data` passes through here, and only a change that moves something moves.
+	$effect(() => {
+		const next = data;
+		const loading = isLoading;
+
+		untrack(() => {
+			// the first result set is the list appearing, not records arriving in it. Read across two
+			// passes, because the set lands in the same update that ends the loading.
+			const isFirstArrival = wasLoading || loading;
+			wasLoading = loading;
+
+			if (next === committing) {
+				return;
+			}
+
+			const isSearchAnswer = isAwaitingSearch;
+			isAwaitingSearch = false;
+
+			if (isFirstArrival || isSearchAnswer || hasSameOrder(committing, next)) {
+				committing = next;
+				displayed = next;
+
+				return;
+			}
+
+			commitMoving(next);
+		});
+	});
+
 	let viewport = $state<HTMLElement | null>(null);
 	let viewportWidth = $state(0);
 	let searchInput = $state(search);
@@ -313,7 +428,7 @@
 	);
 	// grouping without a header snippet would insert rows that render nothing and still take
 	// up a header's height, so the two props only take effect as a pair.
-	const rows = $derived(listRows(data, groupHeader ? groupOf : undefined, columns));
+	const rows = $derived(listRows(displayed, groupHeader ? groupOf : undefined, columns));
 	const recordRows = $derived(toRecordRows(rows));
 	const direction = $derived(localesMetadata[$locale].direction);
 
@@ -407,6 +522,7 @@
 		}
 
 		const timeout = setTimeout(() => {
+			isAwaitingSearch = true;
 			search = searchInput;
 		}, SEARCH_DEBOUNCE_MS);
 
@@ -561,7 +677,7 @@
 
 		<div class="flex shrink-0 flex-wrap items-center gap-3">
 			<span class="text-xs text-muted-foreground" aria-live="polite">
-				{$LL.common.table.results({ count: data.length })}
+				{$LL.common.table.results({ count: displayed.length })}
 			</span>
 
 			<!-- with the other controls rather than before the count: narrowing, ordering, exporting
@@ -833,7 +949,11 @@
 
 	<!-- no frame of its own: the cards carry their own edges, and a bordered box drawn around
 	     bordered rows is the arrangement _Use fewer borders_ (238) exists to replace. -->
-	<div class="min-h-0 flex-1 overflow-hidden rounded-3xl" bind:clientWidth={frameWidth}>
+	<div
+		bind:this={frame}
+		class="min-h-0 flex-1 overflow-hidden rounded-3xl"
+		bind:clientWidth={frameWidth}
+	>
 		<Loading
 			loading={isAwaitingFirstResults}
 			label={$LL.common.ui.loading()}
@@ -888,9 +1008,22 @@
 									     record it lands on and find it again in the document. Nothing else hangs
 									     off it: the card is still the concept's, and the cell is the address. -->
 									{#if row.kind === 'header'}
-										{@render groupHeader?.(row.group)}
+										<div
+											class="h-full"
+											style:view-transition-name={isMoving
+												? toTransitionName(listId, row.key)
+												: undefined}
+										>
+											{@render groupHeader?.(row.group)}
+										</div>
 									{:else if columns === 1}
-										<div data-record="0" class="h-full">
+										<div
+											data-record="0"
+											class="h-full"
+											style:view-transition-name={isMoving
+												? toTransitionName(listId, row.records[0].id)
+												: undefined}
+										>
 											{@render selectableRecord(row.records[0])}
 										</div>
 									{:else}
@@ -899,7 +1032,13 @@
 											style={`grid-template-columns: repeat(${columns}, minmax(0, 1fr));`}
 										>
 											{#each row.records as item, column (item.id)}
-												<div data-record={column} class="h-full min-w-0">
+												<div
+													data-record={column}
+													class="h-full min-w-0"
+													style:view-transition-name={isMoving
+														? toTransitionName(listId, item.id)
+														: undefined}
+												>
 													{@render selectableRecord(item)}
 												</div>
 											{/each}
@@ -929,3 +1068,62 @@
 		onExport={exportRows}
 	/>
 {/if}
+
+<style>
+	/* the document is not captured while a list moves, so nothing outside its records animates and
+	   the page around them stays live. */
+	:global(html[data-list-motion]) {
+		view-transition-name: none;
+	}
+
+	/* the layer the snapshots are drawn on, cut to the list's frame. It lets the pointer through, so
+	   a click during the move reaches the page rather than the layer over it. */
+	:global(html[data-list-motion]::view-transition) {
+		clip-path: var(--list-motion-clip);
+		pointer-events: none;
+	}
+
+	/* a record changing place travels from its old box to its new one. It runs on the slow step
+	   because a re-sorted record can cross the whole frame, and on the base step it read as a jump.
+	   The reduced-motion block in the token layer takes every animation here away. */
+	:global(html[data-list-motion]::view-transition-group(*)) {
+		animation-duration: var(--duration-slow);
+		animation-timing-function: var(--ease-move);
+	}
+
+	/* a record that stays is drawn once: its new image, carried by the group. The browser adds the
+	   old and new images together, and two fades on different curves sum to more than one card's
+	   worth of light for most of the move, so every card that stayed brightened and settled back.
+	   Hiding the old image leaves nothing to add. */
+	:global(html[data-list-motion]::view-transition-old(*)) {
+		animation: none;
+		opacity: 0;
+	}
+
+	:global(html[data-list-motion]::view-transition-new(*)) {
+		animation: none;
+	}
+
+	/* an image with no partner is a record leaving or arriving, and only that one fades: the one
+	   leaving accelerates away and the one arriving settles. */
+	:global(html[data-list-motion]::view-transition-old(*):only-child) {
+		opacity: 1;
+		animation: list-record-leave var(--duration-base) var(--ease-exit) both;
+	}
+
+	:global(html[data-list-motion]::view-transition-new(*):only-child) {
+		animation: list-record-arrive var(--duration-base) var(--ease-enter) both;
+	}
+
+	@keyframes -global-list-record-leave {
+		to {
+			opacity: 0;
+		}
+	}
+
+	@keyframes -global-list-record-arrive {
+		from {
+			opacity: 0;
+		}
+	}
+</style>
