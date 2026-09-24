@@ -65,18 +65,23 @@ carries a refusal code, and its message is a developer's description, not the us
   still match text, and a language switch mid-session leaves stale sentences in the cache.
 - *Localise the routers and leave Rust English.* Fails requirement 23.
 
-## 4. List motion: settled by prototype before tickets are cut
+## 4. List motion: same-document view transitions (chosen by prototype)
 
-Two mechanisms are built on the real contracts list and judged by the human (see *Prototypes*):
-**A**, same-document view transitions around the data swap with a `view-transition-name` per
-record; **B**, Svelte `animate:flip` with `in:`/`out:` after the row wrapper is restructured. The
-research expects A (it reaches rows the virtualiser adds and removes; B moves only rows already on
-screen) and records A's costs: no animation below Safari 18 on macOS, and hit-testing suspended
-for the transition's length. Whichever wins, the other is recorded as lost here with what the
-prototype showed.
+A directory commits a changed result set inside `document.startViewTransition`, and each record
+carries a `view-transition-name` derived from its id, so a record created, deleted, restored by
+undo or moved by a sort animates from where it was to where it is, including rows the virtualiser
+adds or removes. Where `startViewTransition` is missing (macOS below 15), the set is committed
+directly and nothing animates. The human judged it on 2026-09-24 against the seeded workspace
+([[efforts/832-the-interface-speaks-one-language-and-guides/evidence/prototypes/list-motion]]).
 
-Enter and leave only (`@starting-style` and a short leaving state) is the floor either mechanism
-must beat.
+Two things the prototype showed that the build must fix: **a search keystroke must not
+transition** (only a change caused by a mutation, an undo or a sort does), and **the snapshots must
+stay inside the list's clip** during the 200 ms.
+
+**Lost:**
+- *Svelte `animate:flip` with `in`/`out`.* It moves only rows already on screen, and it faded rows
+  the virtualiser brought in during ordinary scrolling.
+- *Enter and leave only.* It was the floor, and it leaves a re-sort with no motion at all.
 
 # Components
 
@@ -88,7 +93,7 @@ must beat.
   `--ease-move` and `--duration-quick` / `--duration-base` / `--duration-slow` (150, 200, 250 ms);
   the header's "one palette, no modes" rewritten. The reduced-motion block stays and gains
   `view-transition` suppression.
-- `fonts/`: the typeface pair as subset `woff2`, loaded by `@font-face` in `tokens.css` with
+- `fonts/`: Readex Pro (variable, both scripts) as subset `woff2` with its licence file, loaded by `@font-face` in `tokens.css` with
   `font-display: block` (the files are local, so blocking costs nothing and avoids a flash).
 - `block/record-card.svelte`: `RecordCardAction` gains `shortcut?: ShortcutCombination` (shown as
   a `Kbd` in both menus) and `group?: string` (a separator between groups). Its `variant` becomes
@@ -336,14 +341,12 @@ Each check below is named against the spec's criteria. **node** means a `node:te
 
 # Prototypes
 
-These are answered on the switcher against the developer database before `/tasks` cuts tickets,
-as the spec's constraints require. Each is written to `evidence/prototypes/` and its code deleted.
+All four were answered on 2026-09-24 on the switcher, against the developer workspace seeded for
+the run, and their code was deleted. Each has its evidence under `evidence/prototypes/`:
 
-1. **The typeface pair**, three variants on the contracts directory and a contract record in both
-   languages: Inter with IBM Plex Sans Arabic; Readex Pro (one family covering both scripts); Inter
-   with Noto Sans Arabic.
-2. **The light appearance**, a first light token block against the dark one on the dashboard, a
-   directory and a record.
-3. **List motion**, A against B on the contracts list: create, delete, undo, and re-sort, including
-   a click straight after a delete.
-4. **The create key**: Ctrl+N answered by the page in WebView2, or refused.
+1. **The typeface:** Readex Pro, over Inter with IBM Plex Sans Arabic and Inter with Noto Sans Arabic
+   (`the-typeface-pair`).
+2. **The light appearance:** kept beside dark and system. Its draft values are the starting point
+   for the light token block (`the-light-appearance`).
+3. **List motion:** view transitions (`list-motion`, and *Architecture 4* above).
+4. **The create key:** Ctrl/Cmd+N; WebView2 lets the page answer it (`the-create-key`).

@@ -145,7 +145,11 @@ owner; Western digits in both locales.
 19. **Joining** follows the same principles: the link and its code, then the password, then the
     application, with one loading pass; refusals say what to do next in one line.
 20. **A contract is created with its units.** The contract form chooses the tenant and the units;
-    one submission creates both. The units tab stays for changes later.
+    one submission creates both. The units tab stays for changes later, and it shows every unit
+    the contract holds, so what a delete refusal counts is what the tab lists. *Added 2026-09-24
+    at the human's word, from the prototype run: on the seeded workspace a contract's delete was
+    refused for units its tab did not show, because the tab's held pane is drawn from the
+    assignable read, which drops a unit another overlapping contract also holds.*
 21. **A contract starts from where the user is.** A tenant's page and a unit's page each start a
     contract with that tenant or unit already chosen.
 
@@ -207,7 +211,9 @@ owner; Western digits in both locales.
     the walk ends. (c) One loading pass separates the walk from the dashboard.
 19. Joining reaches the application with one loading pass after the password.
 20. (a) One contract form submission creates the contract and assigns its chosen units, in one
-    write. (b) `[[rules/interface]]` *Contract unit transfer* is revised to say so.
+    write. (b) `[[rules/interface]]` *Contract unit transfer* is revised to say so. (c) A router
+    test: a contract holding a unit that another overlapping contract also holds lists that unit
+    in its tab's held pane, and the count its delete refusal reports equals the pane's.
 21. A tenant's page and a unit's page each open the contract form with that tenant or unit
     chosen.
 22. (a) A walk of every route in Arabic and English, light and dark, is attached to the pull
@@ -260,21 +266,22 @@ owner; Western digits in both locales.
   only family. The plan may show otherwise.
 - The first workspace's default name is derivable (for example from the organization's name);
   the plan picks it.
-- The typeface pair is an open-licence family that covers Latin and Arabic; which one is decided
-  by prototype.
+- Readex Pro, chosen by prototype, is licensed under the SIL Open Font License and may be bundled.
+  The ticket that bundles it confirms the licence file ships beside the fonts.
 - A macOS machine older than 15 may lack View Transitions; the fallback serves it, and it is not a
   bug.
 - Undo lasts while the application is open, as today. Removing the confirmation relies on that.
 
 # Open Questions
 
-- Which typeface pair — settled by prototype on the switcher, before build tickets
-  ([[efforts/832-the-interface-speaks-one-language-and-guides/plan]], *Prototypes*).
-- The create key (Ctrl/Cmd+N or another) and whether WebView2 keeps it for itself — settled by
-  the same prototype run.
+None remain. Settled on 2026-09-24:
 
-*Settled 2026-09-24 by the plan:* the form-weight rule — a concept's weight is decided by its
-create form (heavy when it chooses other records or writes several) and holds for edit.
+- *The typeface*, by the human on the prototype: **Readex Pro**, one family for both scripts
+  ([[efforts/832-the-interface-speaks-one-language-and-guides/evidence/prototypes/the-typeface-pair]]).
+- *The create key*, by the prototype: **Ctrl/Cmd+N**; WebView2 lets the page answer it
+  ([[efforts/832-the-interface-speaks-one-language-and-guides/evidence/prototypes/the-create-key]]).
+- *The form-weight rule*, by the plan: a concept's weight is decided by its create form (heavy
+  when it chooses other records or writes several) and holds for edit.
 
 # Risks
 
