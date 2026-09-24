@@ -11,6 +11,14 @@ import type { OrganizationMember, OrganizationWorkspace } from '$lib/platform/ho
 import en from '$lib/i18n/en';
 import ar from '$lib/i18n/ar';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
+import {
+	insideTheWait,
+	pastTheWait,
+	pressSearchKey,
+	searchField,
+	searchGlass,
+	typeSearch
+} from '$lib/design/tests/search';
 import { chooseOption, openSelect } from '$lib/design/tests/select';
 
 import { hostAnswers, resetHostAnswers } from './host-hooks';
@@ -592,4 +600,97 @@ test('and in arabic every card reads in its own words, right to left', async () 
 	expect(on('grant', 'ws-1')?.textContent?.trim()).toBe(ar.organization.dashboard.membersTitle);
 
 	setLocale('en');
+});
+
+// --- Search and order (effort 832, requirement 7) ------------------------------------------------
+
+/** the workspaces the directory is showing, by id, in the order it shows them. */
+const shownWorkspaces = () =>
+	Array.from(document.querySelectorAll('[data-workspace]')).map((held) =>
+		held.getAttribute('data-workspace')
+	);
+
+/** choose one of the orders the list shell's sort control offers. */
+const orderBy = async (label: string) => {
+	// named for the order it holds once one is chosen, so it is found by the words it starts with.
+	await fireEvent.click(
+		screen.getByRole('button', { name: new RegExp(`^${en.common.actions.sortBy}`) })
+	);
+
+	const item = Array.from(document.querySelectorAll('[data-slot=dropdown-menu-item]')).find(
+		(entry) => entry.textContent?.trim() === label
+	);
+
+	await fireEvent.click(item!);
+};
+
+// criterion 7(a): the directory searches with the list shell's field, so it leads with the glass.
+test('the directory is searched from the list shell’s own bar, glass first', () => {
+	list();
+
+	const tray = document.querySelector('[data-directory-tray]')!;
+
+	expect(searchGlass()).not.toBeNull();
+	expect(tray.querySelector('[data-list-toolbar]')).not.toBeNull();
+	expect(tray.contains(searchField())).toBe(true);
+});
+
+test('a term narrows the cards only once the reader stops typing', async () => {
+	list();
+	const everything = shownWorkspaces();
+
+	await typeSearch(workspaces[1].name);
+	await insideTheWait();
+	expect(shownWorkspaces()).toEqual(everything);
+
+	await pastTheWait();
+	expect(shownWorkspaces()).toEqual([workspaces[1].id]);
+});
+
+test('the search key puts the cursor in the directory’s field', async () => {
+	list();
+
+	await pressSearchKey();
+
+	expect(document.activeElement).toBe(searchField());
+});
+
+// search keeps folding digits: a name holding Western digits is found by the Arabic-Indic ones an
+// Arabic keyboard types, as a list's read finds it in SQL.
+test('a term typed in Arabic-Indic digits finds a name written in Western ones', async () => {
+	list({
+		workspaces: [
+			{ ...workspaces[0], id: 'tower-12', name: 'Tower 12' },
+			{ ...workspaces[1], id: 'tower-7', name: 'Tower 7' }
+		]
+	});
+
+	await typeSearch('١٢');
+	await pastTheWait();
+
+	expect(shownWorkspaces()).toEqual(['tower-12']);
+});
+
+test('the directory is ordered by name, then by how many hold each', async () => {
+	list();
+
+	await orderBy(en.common.labels.name);
+	const byName = [...workspaces].sort((one, other) => (one.name < other.name ? -1 : 1));
+	expect(shownWorkspaces()).toEqual(byName.map((workspace) => workspace.id));
+
+	const holding = (id: string) =>
+		members.filter((held) => held.workspaces.some((workspace) => workspace.id === id)).length;
+	const byCount = [...workspaces].sort((one, other) => holding(one.id) - holding(other.id));
+
+	expect(holding(byCount[0].id)).toBeLessThan(holding(byCount[1].id));
+	await orderBy(en.organization.dashboard.membersTitle);
+	expect(shownWorkspaces()).toEqual(byCount.map((workspace) => workspace.id));
+});
+
+// the settings directories offer nothing to export: the file a workspace becomes is the transfer
+// beneath the cards, not the directory's.
+test('the directory offers no transfer of its records', () => {
+	list();
+
+	expect(screen.queryByRole('button', { name: en.common.actions.transferData })).toBeNull();
 });

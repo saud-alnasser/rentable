@@ -14,7 +14,6 @@
 	import { Checkbox } from '@rentable/design/primitive/checkbox/index.js';
 	import * as DropdownMenu from '@rentable/design/primitive/dropdown-menu/index.js';
 	import * as Empty from '@rentable/design/primitive/empty/index.js';
-	import { Input } from '@rentable/design/primitive/input/index.js';
 	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
 	import {
 		toChosenOption,
@@ -39,34 +38,23 @@
 	import { showErrorToast, showSuccessToast } from '$lib/error/toast';
 	import { isEditingText } from '@rentable/design/shortcut.js';
 	import { shortcuts } from '$lib/design/shortcut-registry.svelte';
-	import { nextListSort, type ListSort } from '@rentable/design/sort.js';
+	import type { ListSort } from '@rentable/design/sort.js';
+	import ListToolbar, { type ListSortOption } from '$lib/design/block/list-toolbar.svelte';
 	import { cn } from '@rentable/design/tailwind.js';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import { tauri } from '$lib/platform/tauri';
 	import { Skeleton } from '@rentable/design/primitive/skeleton/index.js';
-	import ArrowUpDownIcon from '@lucide/svelte/icons/arrow-up-down';
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import ListTodoIcon from '@lucide/svelte/icons/list-todo';
-	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import FunnelIcon from '@lucide/svelte/icons/funnel';
 	import ArrowLeftRightIcon from '@lucide/svelte/icons/arrow-left-right';
-	import ChevronUpIcon from '@lucide/svelte/icons/chevron-up';
 	import PlusIcon from '@lucide/svelte/icons/plus';
-	import SearchIcon from '@lucide/svelte/icons/search';
 	import XIcon from '@lucide/svelte/icons/x';
 	import { createVirtualizer } from '@tanstack/svelte-virtual';
 	import { hasSameOrder, toClipPath, toTransitionName } from '$lib/design/list-motion';
 	import { tick, untrack, type Snippet } from 'svelte';
 	import { get } from 'svelte/store';
-
-	/** One order the list offers the reader, keyed by a column the query can order by. */
-	type ListSortOption = {
-		/** The column's id, which is what the query orders by. */
-		id: string;
-		/** The name the sort control lists it under. */
-		label: string;
-	};
 
 	type ListProps = {
 		/** The whole result set for the current search and sort, in the query's own order. */
@@ -203,8 +191,6 @@
 		emptyDescription
 	}: ListProps = $props();
 
-	// the card grid's own value, arrived at there against real data.
-	const SEARCH_DEBOUNCE_MS = 250;
 	// the grid overscanned two rows of cards; a record row is a fraction of a card's height,
 	// so the same two rows would buy a fraction of the distance ahead of the scroll.
 	const OVERSCAN_ROWS = 8;
@@ -392,8 +378,6 @@
 
 	let viewport = $state<HTMLElement | null>(null);
 	let viewportWidth = $state(0);
-	let searchInput = $state(search);
-	let searchElement = $state<HTMLInputElement | null>(null);
 	// which record the keyboard is on. It is a place in the layout rather than a record, because a
 	// resize relays the same records across a different number of columns and the reader's finger
 	// stays where it was on the screen.
@@ -471,16 +455,12 @@
 		runAnchor = id;
 		selected = selectedIds.has(id) ? selected.filter((held) => held !== id) : [...selected, id];
 	}
-	const sortableColumnIds = $derived(sortOptions.map((option) => option.id));
 	// which records a selection names, as the shared rule states it: in the list's own order, and
 	// narrowed to the records the list is still showing.
 	const selectedRows = $derived(selectedRecords(data, selected));
 
 	const hasResults = $derived(rows.length > 0);
 	const isAwaitingFirstResults = $derived(isLoading && !hasResults);
-	const activeSortLabel = $derived(
-		sortOptions.find((option) => option.id === sort?.columnId)?.label
-	);
 
 	const virtualizer = createVirtualizer<HTMLElement, HTMLElement>({
 		count: 0,
@@ -516,19 +496,6 @@
 		});
 	});
 
-	$effect(() => {
-		if (searchInput === search) {
-			return;
-		}
-
-		const timeout = setTimeout(() => {
-			isAwaitingSearch = true;
-			search = searchInput;
-		}, SEARCH_DEBOUNCE_MS);
-
-		return () => clearTimeout(timeout);
-	});
-
 	// a new order is a new list: the row under the pointer is not the row that was there, so
 	// staying at the old offset would leave the user somewhere they never scrolled to. The
 	// keyboard's place goes with it, for the same reason.
@@ -551,9 +518,9 @@
 		});
 	});
 
-	// registered rather than listened for: the search key reaches the application's one listener,
-	// and the sheet reads all three from here without being told about them.
-	$effect(() => shortcuts.register(...toListShortcuts(() => searchElement?.focus())));
+	// registered rather than listened for: the sheet reads both from here without being told about
+	// them. The search key is the search field's, which registers it wherever a set is searched.
+	$effect(() => shortcuts.register(...toListShortcuts()));
 
 	/**
 	 * Answer a move by putting the focus on the record it lands on.
@@ -617,10 +584,6 @@
 		event.preventDefault();
 		moveFocus(movement);
 	}
-
-	function chooseSort(columnId: string) {
-		sort = nextListSort(sort, columnId, sortableColumnIds);
-	}
 </script>
 
 <!-- the keys are answered here rather than on the records, so a move works from the search field
@@ -657,29 +620,16 @@
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="flex min-h-0 flex-1 flex-col gap-3" onkeydown={handleKeydown}>
-	<div
-		class="flex shrink-0 flex-col gap-3 rounded-2xl bg-card px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between"
+	<!-- the bar every searchable set opens with: the search, what the set is, and what can be done
+	     to it ([[rules/interface]], *Search*). -->
+	<ListToolbar
+		bind:search
+		onSearch={() => (isAwaitingSearch = true)}
+		count={displayed.length}
+		{sortOptions}
+		bind:sort
 	>
-		<div class="relative w-full sm:max-w-sm">
-			<SearchIcon
-				class="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-			/>
-			<Input
-				bind:ref={searchElement}
-				placeholder={$LL.common.table.searchPlaceholder()}
-				value={searchInput}
-				oninput={(event) => {
-					searchInput = event.currentTarget.value;
-				}}
-				class="h-8 border-transparent bg-transparent ps-9 hover:bg-input/30"
-			/>
-		</div>
-
-		<div class="flex shrink-0 flex-wrap items-center gap-3">
-			<span class="text-xs text-muted-foreground" aria-live="polite">
-				{$LL.common.table.results({ count: displayed.length })}
-			</span>
-
+		{#snippet narrowing()}
 			<!-- with the other controls rather than before the count: narrowing, ordering, exporting
 			     and creating are the four things the toolbar does, and the count is what the list
 			     currently is. Standing between them made the filter read as part of the reading
@@ -770,115 +720,76 @@
 					<ListTodoIcon />
 				</Button>
 			{/if}
+		{/snippet}
 
-			{#if sortOptions.length > 0}
-				<DropdownMenu.Root>
-					<DropdownMenu.Trigger>
-						{#snippet child({ props })}
-							<!-- filled while a sort is chosen, on the same rule as the filter beside it:
-							     a control that decides which records the reader is looking at, or in
-							     what order, says so by being filled. The export and create controls
-							     stay outlined however often they are used — they act on the list rather
-							     than deciding what it holds. -->
-							<Button
-								{...props}
-								variant={sort ? 'default' : 'outline'}
-								size="icon-sm"
-								aria-label={activeSortLabel
-									? `${$LL.common.actions.sortBy()}: ${activeSortLabel}`
-									: $LL.common.actions.sortBy()}
-							>
-								<ArrowUpDownIcon />
-							</Button>
-						{/snippet}
-					</DropdownMenu.Trigger>
-					<DropdownMenu.Content align="end">
-						<DropdownMenu.Label>{$LL.common.actions.sortBy()}</DropdownMenu.Label>
-						<DropdownMenu.Separator />
-						{#each sortOptions as option (option.id)}
-							<DropdownMenu.Item onSelect={() => chooseSort(option.id)}>
-								<span class="flex-1">{option.label}</span>
-								{#if sort?.columnId === option.id}
-									{#if sort.direction === 'asc'}
-										<ChevronUpIcon class="size-3.5" />
-									{:else}
-										<ChevronDownIcon class="size-3.5" />
-									{/if}
-								{/if}
-							</DropdownMenu.Item>
-						{/each}
-					</DropdownMenu.Content>
-				</DropdownMenu.Root>
-			{/if}
-			{#if exportAs || onImport}
-				<!-- a menu rather than the bare icon it was: the icon could say *export* and nothing
-				     else, so a second format had nowhere to be named and neither had the direction.
-				     The groups are the directions, which is what leaves the import one a place to be
-				     added rather than a control to be rebuilt around it. -->
-				<DropdownMenu.Root>
-					<DropdownMenu.Trigger>
-						{#snippet child({ props })}
-							<Button
-								{...props}
-								variant="outline"
-								size="icon-sm"
-								aria-label={$LL.common.actions.transferData()}
-								disabled={isExporting}
-							>
-								<!-- both directions, because the control now offers both: an arrow leaving a
-								     table said *export* and left the import item under a glyph contradicting
-								     it. Two arrows, one each way.
+		{#if exportAs || onImport}
+			<!-- a menu rather than the bare icon it was: the icon could say *export* and nothing
+			     else, so a second format had nowhere to be named and neither had the direction.
+			     The groups are the directions, which is what leaves the import one a place to be
+			     added rather than a control to be rebuilt around it. -->
+			<DropdownMenu.Root>
+				<DropdownMenu.Trigger>
+					{#snippet child({ props })}
+						<Button
+							{...props}
+							variant="outline"
+							size="icon-sm"
+							aria-label={$LL.common.actions.transferData()}
+							disabled={isExporting}
+						>
+							<!-- both directions, because the control now offers both: an arrow leaving a
+							     table said *export* and left the import item under a glyph contradicting
+							     it. Two arrows, one each way.
 
-								     Not mirrored in the other reading direction, unlike every directional
-								     glyph here — a pair that already points both ways is the same pair
-								     reflected, and the class would only swap which arrow is on top. -->
-								<ArrowLeftRightIcon />
-							</Button>
-						{/snippet}
-					</DropdownMenu.Trigger>
-					<DropdownMenu.Content align="end">
-						<!-- the two directions, and nothing else. Which file an export becomes is not a
-						     third action beside them — it is a question about one of the two, and it is
-						     asked in a dialog of its own once that one is chosen. -->
-						{#if exportAs}
-							<DropdownMenu.Item
-								disabled={!hasResults || isExporting}
-								onSelect={() => (exporting = { rows: data, name: exportAs.name })}
-							>
-								<span class="flex-1 capitalize">{$LL.common.actions.export()}</span>
-							</DropdownMenu.Item>
-						{/if}
+							     Not mirrored in the other reading direction, unlike every directional
+							     glyph here: a pair that already points both ways is the same pair
+							     reflected, and the class would only swap which arrow is on top. -->
+							<ArrowLeftRightIcon />
+						</Button>
+					{/snippet}
+				</DropdownMenu.Trigger>
+				<DropdownMenu.Content align="end">
+					<!-- the two directions, and nothing else. Which file an export becomes is not a
+					     third action beside them; it is a question about one of the two, and it is
+					     asked in a dialog of its own once that one is chosen. -->
+					{#if exportAs}
+						<DropdownMenu.Item
+							disabled={!hasResults || isExporting}
+							onSelect={() => (exporting = { rows: data, name: exportAs.name })}
+						>
+							<span class="flex-1 capitalize">{$LL.common.actions.export()}</span>
+						</DropdownMenu.Item>
+					{/if}
 
-						{#if onImport}
-							<DropdownMenu.Item onSelect={() => onImport?.()}>
-								<span class="flex-1 capitalize">{$LL.common.actions.import()}</span>
-							</DropdownMenu.Item>
-						{/if}
-					</DropdownMenu.Content>
-				</DropdownMenu.Root>
-			{/if}
-			{#if onCreate}
-				<Tooltip.Root>
-					<Tooltip.Trigger>
-						{#snippet child({ props })}
-							<Button
-								{...props}
-								variant="outline"
-								size="icon-sm"
-								aria-label={$LL.common.actions.newRecord()}
-								onclick={() => onCreate()}
-							>
-								<PlusIcon />
-							</Button>
-						{/snippet}
-					</Tooltip.Trigger>
-					<Tooltip.Content side="top" sideOffset={8}>
-						{$LL.common.actions.newRecord()}
-					</Tooltip.Content>
-				</Tooltip.Root>
-			{/if}
-		</div>
-	</div>
+					{#if onImport}
+						<DropdownMenu.Item onSelect={() => onImport?.()}>
+							<span class="flex-1 capitalize">{$LL.common.actions.import()}</span>
+						</DropdownMenu.Item>
+					{/if}
+				</DropdownMenu.Content>
+			</DropdownMenu.Root>
+		{/if}
+		{#if onCreate}
+			<Tooltip.Root>
+				<Tooltip.Trigger>
+					{#snippet child({ props })}
+						<Button
+							{...props}
+							variant="outline"
+							size="icon-sm"
+							aria-label={$LL.common.actions.newRecord()}
+							onclick={() => onCreate()}
+						>
+							<PlusIcon />
+						</Button>
+					{/snippet}
+				</Tooltip.Trigger>
+				<Tooltip.Content side="top" sideOffset={8}>
+					{$LL.common.actions.newRecord()}
+				</Tooltip.Content>
+			</Tooltip.Root>
+		{/if}
+	</ListToolbar>
 
 	<!-- present only while something is selected, and above the rows rather than floating over
 	     them: what it offers is destructive, and a bar that covers the last row is a bar that

@@ -132,13 +132,49 @@ Settled by [[efforts/capabilities-only-one-surface-got/spec]], requirement 17.
 
 One shell owns the query state, the search and its debounce, virtualization, the empty state,
 the result count, and the create action. The module that owns the data supplies a snippet
-saying what one record looks like.
+saying what one record looks like. The search field and the bar it sits in are the shell's parts
+that other sets draw too (*Search*, below).
 
 *Why: the five lists are not five of a kind — payments are an account statement, units an
 occupancy board, contracts a triage queue, tenants and complexes directories searched rather
 than browsed — and one uniform table fits none of them.*
 
 Recorded originally as ADR 0013, *Each list gets the presentation its data is shaped like, over one shared shell*.
+
+### Search
+
+**Every set a person can search searches one way: `design/block/search-field.svelte`.** A leading
+search glass, a wait of 250 ms after the last keystroke before the term becomes the search, and
+`/` to put the cursor in the field from anywhere on the surface. The list shell draws it, the
+contract's unit panes draw it, and the settings members and workspaces directories draw it, and a
+set added later draws it rather than an input of its own. The key is registered by the field, so
+it exists exactly where there is something to search, and it stands down while text is being
+typed.
+
+**A set drawn as a directory opens with the list shell's own bar,
+`design/block/list-toolbar.svelte`**: the field at one end, and at the other the count, what
+narrows the set, the order, and what acts on it, in that order. The list shell draws it above its
+records and the settings directories above their cards. What a directory does not want it leaves
+out: the settings directories offer no export, since a dozen accounts are not a file anybody
+wants, and a workspace's own file is the transfer beneath the cards. The contract's unit panes are
+two halves of one transfer rather than a directory, so they take the field and not the bar.
+
+**What a term matches is the set's, and it folds.** A list's read folds both sides in SQL and a
+set held in memory folds both sides through the same table (`foldSearchText`, through the
+palette's `matchesTerm`), so a term typed in Arabic-Indic digits, or with another alef, finds
+what its other spelling finds wherever it is typed.
+
+**The command menu is the application's search, and it opens on Ctrl/Cmd+K from every screen.**
+The frame mounts it once above whatever route is drawn, and the key is an application shortcut
+that does not stand down in a field, so it answers from settings, from a record page and from
+inside any set's search field alike. It is not mounted while nobody is signed in, when there is
+nothing in a workspace to find, and its titlebar control reads unavailable then.
+
+*Why: search was a debounced field with `/` on one list and a bare input searching on every
+keystroke on the next, so a reader could not predict what typing would do from having typed in
+its twin. And the settings directories had no search at all, which is what a directory is for.*
+
+Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 7.
 
 ### Row activation
 

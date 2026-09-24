@@ -13,6 +13,14 @@ import en from '$lib/i18n/en';
 import ar from '$lib/i18n/ar';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import { chooseOption, openSelect } from '$lib/design/tests/select';
+import {
+	insideTheWait,
+	pastTheWait,
+	pressSearchKey,
+	searchField,
+	searchGlass,
+	typeSearch
+} from '$lib/design/tests/search';
 import { EVERY_ADMINISTRATION, maskOf } from '@rentable/workspace-permission';
 
 import { hostAnswers, resetHostAnswers } from './host-hooks';
@@ -1095,4 +1103,103 @@ test('and in arabic every card reads in its own words, right to left', async () 
 	expect(ar.organization.dashboard.remove).not.toBe(ar.organization.dashboard.lockOut);
 
 	setLocale('en');
+});
+
+// --- Search and order (effort 832, requirement 7) ------------------------------------------------
+
+/** the members the directory is showing, by id, in the order it shows them. */
+const shownMembers = () =>
+	Array.from(document.querySelectorAll('[data-member]')).map((held) =>
+		held.getAttribute('data-member')
+	);
+
+/** choose one of the orders the list shell's sort control offers. */
+const orderBy = async (label: string) => {
+	// named for the order it holds once one is chosen, so it is found by the words it starts with.
+	await fireEvent.click(
+		screen.getByRole('button', { name: new RegExp(`^${en.common.actions.sortBy}`) })
+	);
+
+	const item = Array.from(document.querySelectorAll('[data-slot=dropdown-menu-item]')).find(
+		(entry) => entry.textContent?.trim() === label
+	);
+
+	await fireEvent.click(item!);
+};
+
+// criterion 7(a): the directory searches with the list shell's field, so it leads with the glass.
+test('the directory is searched from the list shell’s own bar, glass first', () => {
+	list();
+
+	const tray = document.querySelector('[data-directory-tray]')!;
+
+	expect(searchGlass()).not.toBeNull();
+	expect(tray.querySelector('[data-list-toolbar]')).not.toBeNull();
+	expect(tray.contains(searchField())).toBe(true);
+});
+
+test('a term narrows the cards only once the reader stops typing', async () => {
+	list();
+
+	await typeSearch('ada');
+	await insideTheWait();
+	expect(shownMembers()).toEqual(['owner', 'ada', 'sami']);
+
+	await pastTheWait();
+	expect(shownMembers()).toEqual(['ada']);
+	expect(document.querySelector('[data-list-count]')?.textContent?.trim()).toBe('1 result(s)');
+});
+
+test('the search key puts the cursor in the directory’s field', async () => {
+	list();
+
+	await pressSearchKey();
+
+	expect(document.activeElement).toBe(searchField());
+});
+
+test('a member is found by what their role is called', async () => {
+	list();
+
+	await typeSearch(en.layout.signIn.roleAdministrator);
+	await pastTheWait();
+
+	expect(shownMembers()).toEqual(['ada']);
+});
+
+test('a search that finds nobody says so, in the list shell’s words', async () => {
+	list();
+
+	await typeSearch('nobody-here');
+	await pastTheWait();
+
+	expect(shownMembers()).toEqual([]);
+	expect(document.querySelector('[data-directory-no-match]')?.textContent?.trim()).toBe(
+		en.common.messages.noResults
+	);
+});
+
+test('the directory is ordered by username, then back the other way', async () => {
+	list();
+
+	await orderBy(en.organization.dashboard.username);
+	expect(shownMembers()).toEqual(['ada', 'owner', 'sami']);
+
+	await orderBy(en.organization.dashboard.username);
+	expect(shownMembers()).toEqual(['sami', 'owner', 'ada']);
+});
+
+test('the directory is ordered by role, the most authority first', async () => {
+	list({ members: [members[2], members[1], members[0]] });
+
+	await orderBy(en.organization.dashboard.role);
+
+	expect(shownMembers()).toEqual(['owner', 'ada', 'sami']);
+});
+
+// the settings directories offer nothing to export: a dozen accounts are not a file anybody wants.
+test('the directory offers no transfer of its records', () => {
+	list();
+
+	expect(screen.queryByRole('button', { name: en.common.actions.transferData })).toBeNull();
 });

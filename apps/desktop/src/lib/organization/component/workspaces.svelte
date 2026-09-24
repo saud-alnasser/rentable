@@ -9,9 +9,11 @@
 	import { Separator } from '@rentable/design/primitive/separator/index.js';
 	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
 	import { toCardActions } from '$lib/design/acts';
+	import type { ListSort } from '@rentable/design/sort.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import type { WorkspaceActContext, WorkspaceActRecord } from '$lib/organization/acts';
 	import DirectoryTray from '$lib/organization/component/directory-tray.svelte';
+	import { toWorkspaceDirectory } from '$lib/organization/directory';
 	import { openOrganizationDialog } from '$lib/organization/dialogs.svelte';
 	import { workspaceActs, workspaceHost } from '$lib/organization/host.svelte';
 	import { recordOf, withSection, WORKSPACE_PARAM } from '$lib/settings/section';
@@ -75,6 +77,10 @@
 	 * thing is called the same thing wherever a screen draws it (effort 826, requirement 18; effort
 	 * 832, requirement 6, which made the name's entry *edit* where it read *rename*).
 	 *
+	 * **The directory is searched and ordered from the list shell's own bar** (effort 832,
+	 * requirement 7), the members section's shape: the same field, wait and `/` as every set, and
+	 * an order by name or by how many people hold it.
+	 *
 	 * **A workspace is made from the tray above the cards**, on the shared form surface
 	 * ([[rules/interface]], *Form surface*), and the tray is the members section's, which is the
 	 * contracts view's shape. An owner whose machine lost the Turso authority reads why there is no
@@ -130,6 +136,16 @@
 		members.filter((member) => member.workspaces.some((held) => held.id === workspaceId)).length;
 
 	const open = $derived(workspaces.find((workspace) => workspace.id === openWorkspaceId) ?? null);
+
+	let search = $state('');
+	let sort = $state<ListSort | null>(null);
+
+	const sortOptions = $derived([
+		{ id: 'name', label: $LL.common.labels.name() },
+		{ id: 'members', label: $LL.organization.dashboard.membersTitle() }
+	]);
+
+	const shown = $derived(toWorkspaceDirectory(workspaces, search, sort, memberCount));
 
 	/** what every workspace act is gated on, read once for the whole directory. */
 	const context = $derived<WorkspaceActContext>({
@@ -213,15 +229,24 @@
 		legendId="workspaces-legend"
 		legend={$LL.settings.section.workspaces()}
 		description={$LL.organization.dashboard.workspacesDescription()}
+		bind:search
+		count={shown.length}
+		{sortOptions}
+		bind:sort
 		action={canCreate ? newWorkspace : refusal ? authorityRefused : undefined}
 	/>
 
 	<div class="flex flex-col gap-3" data-workspaces>
 		{#if workspaces.length === 0}
 			<p class="text-sm text-muted-foreground">{$LL.organization.dashboard.noWorkspaces()}</p>
+		{:else if shown.length === 0}
+			<!-- the list shell's words for a search that found nothing, so the two read alike. -->
+			<p class="text-sm text-muted-foreground" data-directory-no-match>
+				{$LL.common.messages.noResults()}
+			</p>
 		{/if}
 
-		{#each workspaces as workspace (workspace.id)}
+		{#each shown as workspace (workspace.id)}
 			<!-- the card is the record and takes no mark of its own, so the workspace it stands for is
 			     named on the element that holds it, which is what this section is read by. -->
 			<div data-workspace={workspace.id}>

@@ -471,11 +471,14 @@ consumer register it**, which keeps one place the key is written down and puts t
 where the dictionary is.
 
 **This rule decides where a component lives, not only how it is written**, and #782 is where that
-turned out to matter. `block/list.svelte` registers three shortcuts through `toListShortcuts`,
-each naming a key under `common.table`, and no amount of inverting its other couplings would have
-made those registrations legal in the package. So the block stays with this application, and
+turned out to matter. `block/list.svelte` registers three shortcuts, each naming a key under
+`common.table`, and no amount of inverting its other couplings would have made those
+registrations legal in the package. So the block stays with this application, and
 `design/list-keyboard.ts` and `design/shortcut-registry.{ts,svelte.ts}` stay with it: the first
-builds the registrations and the second two hold them. **Nothing in the package holds a registry
-or wants one** — `shortcut.ts` says so in its own header, and every other caller is under
-`layout/`. Read the placement rule as the rule's consequence rather than as a second rule; the
+builds the registrations and the second two hold them. *Since effort 832 the search key is
+registered by `design/block/search-field.svelte` (`toSearchShortcut`) and the other two by the
+list (`toListShortcuts`), so the field stays with this application for the same reason, and every
+set that draws it answers `/`.* **Nothing in the package holds a registry or wants one**:
+`shortcut.ts` says so in its own header, and every other caller is under `layout/` or
+`design/block/`. Read the placement rule as the rule's consequence rather than as a second rule; the
 effort's spec carries the full argument under `# Open Questions`.

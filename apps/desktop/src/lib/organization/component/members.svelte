@@ -10,10 +10,12 @@
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
 	import { toCardActions } from '$lib/design/acts';
+	import type { ListSort } from '@rentable/design/sort.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { accountInitials } from '$lib/sync/account';
 	import type { MemberActContext, MemberActRecord } from '$lib/organization/acts';
 	import DirectoryTray from '$lib/organization/component/directory-tray.svelte';
+	import { toMemberDirectory } from '$lib/organization/directory';
 	import RoleTable from '$lib/organization/component/role-table.svelte';
 	import { openOrganizationDialog } from '$lib/organization/dialogs.svelte';
 	import { memberActs, memberHost, memberPending } from '$lib/organization/host.svelte';
@@ -84,6 +86,11 @@
 	 * every workspace they held and stops everybody else in those workspaces until their
 	 * application reconnects; it is the owner's, drawn under the remove, because it is chosen
 	 * rather than fallen into. Both open the confirm the host raises, which reads the cost.
+	 *
+	 * **The directory is searched and ordered from the list shell's own bar** (effort 832,
+	 * requirement 7): the same field, wait and `/` as every set, and an order by username or by
+	 * role. The narrowing is `organization/directory.ts`'s, over the members the session already
+	 * holds.
 	 *
 	 * **A member is made from the tray above the cards**, on the shared form surface
 	 * ([[rules/interface]], *Form surface*). The tray is the contracts view's shape, which is what
@@ -237,6 +244,16 @@
 	});
 
 	let readingRoles = $state(false);
+
+	let search = $state('');
+	let sort = $state<ListSort | null>(null);
+
+	const sortOptions = $derived([
+		{ id: 'username', label: $LL.organization.dashboard.username() },
+		{ id: 'role', label: $LL.organization.dashboard.role() }
+	]);
+
+	const shown = $derived(toMemberDirectory(members, search, sort, roleLabel));
 </script>
 
 <!--
@@ -302,11 +319,22 @@
 		legendId="members-legend"
 		legend={$LL.organization.dashboard.membersTitle()}
 		description={$LL.organization.dashboard.membersDescription()}
+		bind:search
+		count={shown.length}
+		{sortOptions}
+		bind:sort
 		action={trayActions}
 	/>
 
 	<div class="flex flex-col gap-3" data-members>
-		{#each members as member (member.id)}
+		{#if members.length > 0 && shown.length === 0}
+			<!-- the list shell's words for a search that found nothing, so the two read alike. -->
+			<p class="text-sm text-muted-foreground" data-directory-no-match>
+				{$LL.common.messages.noResults()}
+			</p>
+		{/if}
+
+		{#each shown as member (member.id)}
 			{@const standing = standingLine(member.id)}
 			<!-- the card is the record and takes no mark of its own, so the member it stands for is
 			     named on the element that holds it, which is what this section is read by. -->

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Callout } from '@rentable/design/primitive/callout/index.js';
-	import { Input } from '@rentable/design/primitive/input/index.js';
 	import { cn } from '@rentable/design/tailwind.js';
+	import SearchField from '$lib/design/block/search-field.svelte';
 	import UnitPane from './unit-pane.svelte';
 	import {
 		useFetchAssignableContractUnits,
@@ -85,13 +85,10 @@
 		</p>
 	{/if}
 
-	<Input
-		type="search"
-		bind:value={search}
-		placeholder={$LL.common.table.searchPlaceholder()}
-		aria-label={$LL.common.ui.search()}
-		class="shrink-0"
-	/>
+	<!-- the one search field, so the panes search the way every directory does: the glass, the
+	     wait after the last keystroke, and `/` ([[rules/interface]], *Search*). Both panes read the
+	     one term, since a unit moves from one to the other and should stay found. -->
+	<SearchField bind:value={search} class="shrink-0" />
 
 	<!-- the panes stack below the shell's breakpoint, and they are start and end rather than
 	     left and right: neither the order nor the controls may depend on a physical side.
