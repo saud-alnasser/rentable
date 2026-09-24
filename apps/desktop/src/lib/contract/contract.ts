@@ -510,6 +510,7 @@ export type ContractRefusalCode =
 	| 'contract.holdsPayments'
 	| 'contract.periodOverlapsUnits'
 	| 'contract.unitsUnavailable'
+	| 'contract.unitsTaken'
 	| 'contract.renewalBeforeEnd'
 	| 'contract.missing'
 	| 'contract.tenantMissing'
@@ -670,13 +671,22 @@ export function ensurePeriodDoesNotOverlapAssignments(
 	}
 }
 
+/**
+ * Refuses where another contract holds one of these units over this contract's term.
+ *
+ * The refusal names what the reader would change. Where the units are the ones they chose, as a
+ * new contract's are, it is `contract.unitsTaken` and belongs under the units; where the units
+ * come with the contract and only the term was theirs, as a renewal's do, it is the default and
+ * belongs under the term.
+ */
 export function ensureUnitsAssignable(
 	assignments: UnitAssignmentLike[],
 	contract: ContractRangeLike,
-	contractId: string
+	contractId: string,
+	code: 'contract.unitsUnavailable' | 'contract.unitsTaken' = 'contract.unitsUnavailable'
 ) {
 	if (getConflictingAssignedUnitIds(assignments, contract, contractId).size > 0) {
-		throw refuse('contract.unitsUnavailable');
+		throw refuse(code);
 	}
 }
 

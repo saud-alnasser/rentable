@@ -81,6 +81,7 @@ test('a form finds a refusal field by its code', () => {
 	assert.equal(fieldOfRefusal('contract.govIdTakenNamed'), 'govId');
 	assert.equal(fieldOfRefusal('contract.renewalBeforeEnd'), 'start');
 	assert.equal(fieldOfRefusal('contract.unitsUnavailable'), 'end');
+	assert.equal(fieldOfRefusal('contract.unitsTaken'), 'unitIds');
 	assert.equal(fieldOfRefusal('tenant.phoneTaken'), 'phoneNumber');
 	assert.equal(fieldOfRefusal('unit.nameRepeated'), 'units');
 	assert.equal(fieldOfRefusal('payment.amountNotPositive'), 'amount');

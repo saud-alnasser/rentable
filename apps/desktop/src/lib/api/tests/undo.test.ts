@@ -339,6 +339,33 @@ describe('undoing a record change', () => {
 		);
 	});
 
+	// a contract created holding units is taken back whole: the inverse empties it and deletes it,
+	// and applying it again creates both (effort 832, requirement 20).
+	it('takes back a contract created with its units, leaving neither, and applies both again', async () => {
+		const tenant = await seedTenant(caller);
+		const complex = await caller.complex.create({ name: 'Creation Tower', location: 'Riyadh' });
+		const unit = await caller.complex.units.create({ name: 'C1', complexId: complex.id });
+		const contract = await run(useCreateContract, {
+			tenantId: tenant.id,
+			start: monthsFromNow(-1),
+			end: monthsFromNow(11),
+			interval: '12m',
+			cost: 1000,
+			unitIds: [unit.id]
+		});
+
+		await inverseStack.undo();
+		assert.equal(await caller.contract.get({ id: contract.id }), undefined);
+		assert.deepEqual(await caller.contract.getMany({ unitId: unit.id }), []);
+
+		await inverseStack.redo();
+		assert.deepEqual(await caller.contract.get({ id: contract.id }), contract);
+		assert.deepEqual(
+			(await caller.contract.units.getMany({ contractId: contract.id })).map((held) => held.id),
+			[unit.id]
+		);
+	});
+
 	it('reinstates a terminated contract through the procedure that exists for it', async () => {
 		const tenant = await seedTenant(caller);
 		const contract = await run(useCreateContract, {

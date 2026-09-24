@@ -15,7 +15,7 @@ import {
 	createMemoryDatabase
 } from '$lib/platform/database/memory.ts';
 import { newId } from '$lib/platform/database/identity.ts';
-import type { Identity } from '$lib/api/context.ts';
+import type { Database, Identity } from '$lib/api/context.ts';
 import type { Host } from '$lib/platform/host.ts';
 import { fakeHost } from '$lib/platform/tests/testing.ts';
 import { appRouter } from '../router.ts';
@@ -69,16 +69,20 @@ export type Api = Awaited<ReturnType<typeof createApi>>;
 // **It administers nothing unless a test says otherwise**, which is what `identity` is for: a
 // procedure declared with `procedure.permitted` refuses this caller, so a test about one names the
 // acts it needs and every other test goes on being about what it was about.
+//
+// Pass `db` to hand in the in-memory database yourself, for a test that has to watch how a
+// procedure writes to it rather than only what it issues: whether a write is one batch.
 export async function createApi({
 	host,
 	identity,
-	onStatement
+	onStatement,
+	db = createMemoryDatabase(onStatement)
 }: {
 	host?: Host;
 	identity?: Identity;
 	onStatement?: (sql: string, rowCount: number) => void;
+	db?: Database;
 } = {}) {
-	const db = createMemoryDatabase(onStatement);
 	const ctx = await context({
 		db,
 		clock: { now: () => NOW },

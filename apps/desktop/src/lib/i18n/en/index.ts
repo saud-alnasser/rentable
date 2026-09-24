@@ -262,6 +262,8 @@ const en = {
 					'the units of a contract cannot change once payments are registered against it.',
 				unitsMissing:
 					'one or more of these units are no longer in the workspace. reload to see what changed.',
+				unitsTaken:
+					'another contract holds one or more of the chosen units over this term. choose other units or a different term.',
 				unitsUnavailable:
 					'another contract holds one or more of these units over the selected term. choose a different term.'
 			},
@@ -732,7 +734,15 @@ const en = {
 			searchAndSelectTenant: 'search and select tenant',
 			searchTenantPlaceholder: 'search tenant by name, id or phone...',
 			startDateRequired: 'start date is required.',
-			tenantRequired: 'tenant is required.'
+			tenantRequired: 'tenant is required.',
+			chooseUnits: 'choose units',
+			loadingUnits: 'loading units...',
+			noUnitFree: 'no unit is free over this term.',
+			searchUnitPlaceholder: 'search units by name or complex...',
+			unitsHint:
+				"only units free over the contract's term are offered. you can change them later on the contract's units tab.",
+			unitsNeedTerm: 'pick the start date first; the units free over the term are offered then.',
+			unitsOptional: 'units (optional)'
 		},
 
 		hooks: {

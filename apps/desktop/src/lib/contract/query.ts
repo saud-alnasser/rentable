@@ -63,6 +63,14 @@ export const keys = {
 		'assignable',
 		contractId,
 		search
+	],
+	getAssignableUnitsForTerm: (start: number, end: number, search: string) => [
+		...workspacePrefixes.contracts,
+		'units',
+		'assignable-for-term',
+		start,
+		end,
+		search
 	]
 } as const;
 
@@ -215,13 +223,29 @@ export function useReadContract() {
 		client.fetchQuery({ queryKey: keys.get(id), queryFn: () => api.contract.get({ id }) });
 }
 
+/**
+ * Creating a contract, with the units it is created holding.
+ *
+ * It touches units as well as contracts because the assignment rows go down in the same write, so
+ * the occupancy the units query answers with has moved by the time this resolves.
+ */
 export const useCreateContract = declareMutation({
 	mutate: (data: Parameters<typeof api.contract.create>[0]) => api.contract.create(data),
-	touches: ['contracts'],
-	inverse: ({ result }) => ({
+	touches: ['contracts', 'units'],
+	inverse: ({ variables, result }) => ({
 		describe: (t) => t.common.undo.created({ record: t.common.labels.contract() }),
-		undo: () => api.contract.delete({ id: result.id }),
-		redo: () => api.contract.create(result),
+		// the units go first, as a renewal's do: a contract still holding units refuses to be
+		// deleted. A contract created holding none is deleted alone, so taking it back asks nothing
+		// of the rules that lock a contract's units.
+		undo: async () => {
+			if (variables.unitIds?.length) {
+				await api.contract.units.set({ contractId: result.id, unitIds: [] });
+			}
+
+			await api.contract.delete({ id: result.id });
+		},
+		// created again as itself, holding the units it was created with.
+		redo: () => api.contract.create({ ...result, unitIds: variables.unitIds }),
 		records: (direction) => ({
 			concept: 'contract',
 			recordId: result.id,
@@ -547,6 +571,33 @@ export function useFetchAssignableContractUnits(
 			queryFn: () =>
 				api.contract.units.getAssignableMany({
 					contractId,
+					search: trimmedSearch || undefined
+				}),
+			placeholderData: <T>(previous: T) => previous
+		};
+	});
+}
+
+/**
+ * Every unit free over a term, for a contract that does not exist yet: what the contract form
+ * offers. Disabled until the term has both ends, because the conflict rule has nothing to read
+ * before then.
+ */
+export function useFetchAssignableUnitsForTerm(
+	params: () => { start?: number; end?: number; search?: string; enabled: boolean }
+) {
+	return createQuery(() => {
+		const { start, end, search, enabled } = params();
+		const trimmedSearch = search?.trim() ?? '';
+		const hasTerm = start !== undefined && end !== undefined;
+
+		return {
+			queryKey: keys.getAssignableUnitsForTerm(start ?? 0, end ?? 0, trimmedSearch),
+			enabled: enabled && hasTerm,
+			queryFn: () =>
+				api.contract.units.getAssignableForTerm({
+					start: start ?? 0,
+					end: end ?? 0,
 					search: trimmedSearch || undefined
 				}),
 			placeholderData: <T>(previous: T) => previous

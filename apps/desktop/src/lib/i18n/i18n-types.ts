@@ -890,6 +890,10 @@ type RootTranslation = {
 				 */
 				unitsMissing: string
 				/**
+				 * a​n​o​t​h​e​r​ ​c​o​n​t​r​a​c​t​ ​h​o​l​d​s​ ​o​n​e​ ​o​r​ ​m​o​r​e​ ​o​f​ ​t​h​e​ ​c​h​o​s​e​n​ ​u​n​i​t​s​ ​o​v​e​r​ ​t​h​i​s​ ​t​e​r​m​.​ ​c​h​o​o​s​e​ ​o​t​h​e​r​ ​u​n​i​t​s​ ​o​r​ ​a​ ​d​i​f​f​e​r​e​n​t​ ​t​e​r​m​.
+				 */
+				unitsTaken: string
+				/**
 				 * a​n​o​t​h​e​r​ ​c​o​n​t​r​a​c​t​ ​h​o​l​d​s​ ​o​n​e​ ​o​r​ ​m​o​r​e​ ​o​f​ ​t​h​e​s​e​ ​u​n​i​t​s​ ​o​v​e​r​ ​t​h​e​ ​s​e​l​e​c​t​e​d​ ​t​e​r​m​.​ ​c​h​o​o​s​e​ ​a​ ​d​i​f​f​e​r​e​n​t​ ​t​e​r​m​.
 				 */
 				unitsUnavailable: string
@@ -2252,6 +2256,34 @@ type RootTranslation = {
 			 * t​e​n​a​n​t​ ​i​s​ ​r​e​q​u​i​r​e​d​.
 			 */
 			tenantRequired: string
+			/**
+			 * c​h​o​o​s​e​ ​u​n​i​t​s
+			 */
+			chooseUnits: string
+			/**
+			 * l​o​a​d​i​n​g​ ​u​n​i​t​s​.​.​.
+			 */
+			loadingUnits: string
+			/**
+			 * n​o​ ​u​n​i​t​ ​i​s​ ​f​r​e​e​ ​o​v​e​r​ ​t​h​i​s​ ​t​e​r​m​.
+			 */
+			noUnitFree: string
+			/**
+			 * s​e​a​r​c​h​ ​u​n​i​t​s​ ​b​y​ ​n​a​m​e​ ​o​r​ ​c​o​m​p​l​e​x​.​.​.
+			 */
+			searchUnitPlaceholder: string
+			/**
+			 * o​n​l​y​ ​u​n​i​t​s​ ​f​r​e​e​ ​o​v​e​r​ ​t​h​e​ ​c​o​n​t​r​a​c​t​'​s​ ​t​e​r​m​ ​a​r​e​ ​o​f​f​e​r​e​d​.​ ​y​o​u​ ​c​a​n​ ​c​h​a​n​g​e​ ​t​h​e​m​ ​l​a​t​e​r​ ​o​n​ ​t​h​e​ ​c​o​n​t​r​a​c​t​'​s​ ​u​n​i​t​s​ ​t​a​b​.
+			 */
+			unitsHint: string
+			/**
+			 * p​i​c​k​ ​t​h​e​ ​s​t​a​r​t​ ​d​a​t​e​ ​f​i​r​s​t​;​ ​t​h​e​ ​u​n​i​t​s​ ​f​r​e​e​ ​o​v​e​r​ ​t​h​e​ ​t​e​r​m​ ​a​r​e​ ​o​f​f​e​r​e​d​ ​t​h​e​n​.
+			 */
+			unitsNeedTerm: string
+			/**
+			 * u​n​i​t​s​ ​(​o​p​t​i​o​n​a​l​)
+			 */
+			unitsOptional: string
 		}
 		hooks: {
 			/**
@@ -4293,6 +4325,10 @@ export type TranslationFunctions = {
 				 */
 				unitsMissing: () => LocalizedString
 				/**
+				 * another contract holds one or more of the chosen units over this term. choose other units or a different term.
+				 */
+				unitsTaken: () => LocalizedString
+				/**
 				 * another contract holds one or more of these units over the selected term. choose a different term.
 				 */
 				unitsUnavailable: () => LocalizedString
@@ -5589,6 +5625,34 @@ export type TranslationFunctions = {
 			 * tenant is required.
 			 */
 			tenantRequired: () => LocalizedString
+			/**
+			 * choose units
+			 */
+			chooseUnits: () => LocalizedString
+			/**
+			 * loading units...
+			 */
+			loadingUnits: () => LocalizedString
+			/**
+			 * no unit is free over this term.
+			 */
+			noUnitFree: () => LocalizedString
+			/**
+			 * search units by name or complex...
+			 */
+			searchUnitPlaceholder: () => LocalizedString
+			/**
+			 * only units free over the contract's term are offered. you can change them later on the contract's units tab.
+			 */
+			unitsHint: () => LocalizedString
+			/**
+			 * pick the start date first; the units free over the term are offered then.
+			 */
+			unitsNeedTerm: () => LocalizedString
+			/**
+			 * units (optional)
+			 */
+			unitsOptional: () => LocalizedString
 		}
 		hooks: {
 			/**

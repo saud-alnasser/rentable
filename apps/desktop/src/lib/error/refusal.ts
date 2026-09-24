@@ -116,6 +116,8 @@ const FIELDS: Partial<Record<RefusalCode, RefusalField>> = {
 	'contract.tenantMissingNamed': 'tenantId',
 	// both renewal refusals are about the term, so each marks the end of it the reader has to move.
 	'contract.unitsUnavailable': 'end',
+	// a new contract's units are the reader's choice, so a unit already held marks that choice.
+	'contract.unitsTaken': 'unitIds',
 	'payment.amountNotPositive': 'amount',
 	'tenant.nationalIdTaken': 'nationalId',
 	'tenant.nationalIdTakenNamed': 'nationalId',
@@ -138,4 +140,5 @@ export type RefusalField =
 	| 'phoneNumber'
 	| 'start'
 	| 'tenantId'
+	| 'unitIds'
 	| 'units';

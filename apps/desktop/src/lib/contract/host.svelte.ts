@@ -25,6 +25,8 @@ export type ContractFormValue = Omit<ContractActRecord, 'id'> & { id?: string };
 export type ContractPrefill = {
 	/** the tenant the contract is for. */
 	tenantId?: string;
+	/** the units it starts out holding, which the form still offers to change. */
+	unitIds?: string[];
 };
 
 type ContractHostState = {

@@ -13,6 +13,7 @@ import {
 	refusalReadIn
 } from '$lib/api/tests/testing.ts';
 import { isRecordId } from '$lib/platform/database/identity.ts';
+import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
 import type { ContractSortColumnId } from '$lib/contract/contract.ts';
 import type { ContractRank } from '$lib/contract/rank.ts';
 import { getContractRenewalTerm } from '$lib/contract/renewal.ts';
@@ -141,6 +142,179 @@ test('creation rejects a government id already used by another contract', async 
 	await assert.rejects(
 		() => seedContract(api, { govId: 'DUP-1' }),
 		refusedWith('contract.govIdTaken')
+	);
+});
+
+// --- Creation with units -----------------------------------------------------------------
+//
+// effort 832, requirement 20: the contract form chooses the units, and one submission creates the
+// contract and assigns them in one write (ADR 0027), as a renewal already does.
+
+test('a contract is created holding the units chosen for it, in one batch', async () => {
+	const statements: string[] = [];
+	const db = createMemoryDatabase((sql) => statements.push(sql));
+	const batches: string[][] = [];
+	const batch = db.batch.bind(db);
+
+	// every batch the procedure issues, with the statements that ran inside it.
+	db.batch = (async (queries: Parameters<typeof db.batch>[0]) => {
+		const from = statements.length;
+		const result = await batch(queries);
+
+		batches.push(statements.slice(from));
+
+		return result;
+	}) as unknown as typeof db.batch;
+
+	const api = await createApi({ db });
+	const tenant = await seedTenant(api);
+	const first = await seedComplexWithUnit(api, 'Create-1');
+	const second = await seedComplexWithUnit(api, 'Create-2');
+
+	batches.length = 0;
+
+	const contract = await api.contract.create({
+		tenantId: tenant.id,
+		start: monthsFromNow(-1),
+		end: monthsFromNow(11),
+		interval: '12m',
+		cost: 1000,
+		unitIds: [first.unit.id, second.unit.id]
+	});
+
+	assert.equal(batches.length, 1, 'the contract and its units were not written as one batch');
+	assert.equal(countMatching(batches[0], /^\s*insert into "contract" /i), 1);
+	assert.equal(countMatching(batches[0], /^\s*insert into "contract_unit"/i), 2);
+	assert.deepEqual(
+		(await api.contract.units.getMany({ contractId: contract.id })).map((unit) => unit.id).sort(),
+		[first.unit.id, second.unit.id].sort()
+	);
+});
+
+test('a contract created with units occupies them', async () => {
+	const api = await createApi();
+	const { complex, unit } = await seedComplexWithUnit(api, 'Create-Occupied');
+
+	await seedContract(api, { unitIds: [unit.id] });
+
+	const units = await api.complex.units.getMany({ complexId: complex.id });
+
+	assert.equal(units.find((held) => held.id === unit.id)?.status, 'occupied');
+});
+
+test('creation is refused a unit another contract holds over its term, and writes nothing', async () => {
+	const api = await createApi();
+	const { unit } = await seedComplexWithUnit(api, 'Create-Contested');
+
+	await seedContract(api, { unitIds: [unit.id] });
+
+	const before = await api.contract.getMany({});
+
+	await assert.rejects(
+		() => seedContract(api, { unitIds: [unit.id] }),
+		refusedWith('contract.unitsTaken')
+	);
+	assert.deepEqual(await api.contract.getMany({}), before);
+});
+
+test('creation takes a unit whose other contract runs over a different term', async () => {
+	const api = await createApi();
+	const { unit } = await seedComplexWithUnit(api, 'Create-Later');
+
+	await seedContract(api, { unitIds: [unit.id] });
+
+	const later = await seedContract(api, {
+		start: monthsFromNow(12),
+		end: monthsFromNow(24),
+		unitIds: [unit.id]
+	});
+
+	assert.deepEqual(
+		(await api.contract.units.getMany({ contractId: later.id })).map((held) => held.id),
+		[unit.id]
+	);
+});
+
+test('creation is refused a unit that is not in the workspace', async () => {
+	const api = await createApi();
+
+	await assert.rejects(
+		() => seedContract(api, { unitIds: [unusedId()] }),
+		refusedWith('contract.unitsMissing')
+	);
+});
+
+// the inverse `useCreateContract` records: empty the contract, then delete it. Redo creates it
+// again with the identity and the units it had.
+test('a creation with units is undone leaving neither, and redone with both', async () => {
+	const api = await createApi();
+	const { unit } = await seedComplexWithUnit(api, 'Create-Undo');
+	const variables = { unitIds: [unit.id] };
+	const created = await seedContract(api, variables);
+
+	await api.contract.units.set({ contractId: created.id, unitIds: [] });
+	await api.contract.delete({ id: created.id });
+
+	assert.equal(await api.contract.get({ id: created.id }), undefined);
+	assert.deepEqual(await api.contract.getMany({ unitId: unit.id }), []);
+
+	const redone = await api.contract.create({ ...created, ...variables });
+
+	assert.equal(redone.id, created.id);
+	assert.deepEqual(
+		(await api.contract.units.getMany({ contractId: redone.id })).map((held) => held.id),
+		[unit.id]
+	);
+});
+
+test('the units free for a term leave out those an overlapping contract holds', async () => {
+	const api = await createApi();
+	const free = await seedComplexWithUnit(api, 'Term-Free');
+	const taken = await seedComplexWithUnit(api, 'Term-Taken');
+	const later = await seedComplexWithUnit(api, 'Term-Later');
+	const released = await seedComplexWithUnit(api, 'Term-Released');
+
+	await seedContract(api, { unitIds: [taken.unit.id] });
+	await seedContract(api, {
+		start: monthsFromNow(12),
+		end: monthsFromNow(24),
+		unitIds: [later.unit.id]
+	});
+
+	const terminated = await seedContract(api, { unitIds: [released.unit.id] });
+
+	await api.contract.terminate({ id: terminated.id });
+
+	const offered = await api.contract.units.getAssignableForTerm({
+		start: monthsFromNow(-1),
+		end: monthsFromNow(11)
+	});
+	const offeredIds = new Set(offered.map((unit) => unit.id));
+
+	assert.equal(offeredIds.has(free.unit.id), true);
+	assert.equal(offeredIds.has(later.unit.id), true, 'a unit held over another term was left out');
+	assert.equal(offeredIds.has(released.unit.id), true, 'a terminated contract still held a unit');
+	assert.equal(offeredIds.has(taken.unit.id), false, 'a unit held over the term was offered');
+});
+
+test('the units free for a term narrow on the unit name and on the complex holding it', async () => {
+	const api = await createApi();
+	const palm = await seedComplexWithUnit(api, 'Palm');
+	await seedComplexWithUnit(api, 'Coral');
+
+	const term = { start: monthsFromNow(-1), end: monthsFromNow(11) };
+
+	assert.deepEqual(
+		(await api.contract.units.getAssignableForTerm({ ...term, search: 'palm' })).map(
+			(unit) => unit.id
+		),
+		[palm.unit.id]
+	);
+	assert.deepEqual(
+		(await api.contract.units.getAssignableForTerm({ ...term, search: 'Unit Palm' })).map(
+			(unit) => unit.id
+		),
+		[palm.unit.id]
 	);
 });
 
@@ -2154,6 +2328,15 @@ test('the contract refusals a form shows read in Arabic', async () => {
 	assert.equal(
 		await refusalReadIn(() => create({ govId: 'DUP-1' })),
 		'المعرف الحكومي مرتبط بعقد آخر.'
+	);
+
+	const { unit } = await seedComplexWithUnit(api, 'Arabic-Taken');
+
+	await create({ unitIds: [unit.id] });
+
+	assert.equal(
+		await refusalReadIn(() => create({ unitIds: [unit.id] })),
+		'يحتفظ عقد آخر بواحدة أو أكثر من الوحدات المختارة خلال هذه المدة. اختر وحدات أخرى أو مدة أخرى.'
 	);
 });
 

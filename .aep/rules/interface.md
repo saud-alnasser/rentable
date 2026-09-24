@@ -424,16 +424,21 @@ Recorded originally as ADR 0024, *Units read as a directory, and assigning them 
 
 ### Contract unit transfer
 
-**A contract's units are transferred on the tab that lists them.**
+**A contract's units are chosen when it is created, and changed on the tab that lists them.**
 
-The tab holds both panes and performs the transfer itself. There is no assignment dialog and no
-create control standing in for one.
+The contract form chooses the units alongside the tenant, offering only those free over the
+form's term, and one submission creates the contract holding them. Every change after that is
+the tab's: it holds both panes and performs the transfer itself. There is no assignment dialog
+and no create control standing in for one.
 
 *Why: a `+` promises to add a unit, and what it opened chose the contract's whole set in both
 directions — the only way into the surface described a different operation than the surface
 performed.*
 
 Recorded originally as ADR 0029, *A contract's units are transferred on the tab that shows them*.
+Revised by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 20: a
+contract used to be created holding nothing, so every new contract took a second surface before
+it described what was rented.
 
 ### Attention rank
 

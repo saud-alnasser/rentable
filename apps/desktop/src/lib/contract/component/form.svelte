@@ -40,6 +40,7 @@
 	import { onMutationError } from '$lib/design/mutation';
 	import {
 		useCreateContract,
+		useFetchAssignableUnitsForTerm,
 		useFetchContract,
 		useRenewContract,
 		useUpdateContract
@@ -118,7 +119,10 @@
 				message: $LL.contracts.form.cyclesGreaterThanZero()
 			}),
 		start: z.string().min(1, $LL.contracts.form.startDateRequired()),
-		end: z.string().min(1, $LL.contracts.form.endDateRequired())
+		end: z.string().min(1, $LL.contracts.form.endDateRequired()),
+		// the units a new contract is created holding. Only creation offers them: an edit and a
+		// renewal leave the units where the tab and the predecessor put them.
+		unitIds: z.array(z.string()).default([])
 	});
 
 	type ContractForm = z.infer<typeof ContractFormSchema>;
@@ -174,7 +178,8 @@
 		cost: '',
 		cycles: '1',
 		start: '',
-		end: ''
+		end: '',
+		unitIds: [...(prefill?.unitIds ?? [])]
 	});
 
 	let dateFormatter = $derived(new DateFormatter(getIntlLocale($locale), { dateStyle: 'medium' }));
@@ -185,9 +190,11 @@
 		});
 	const closeContractForm = () => {
 		isTenantPickerOpen = false;
+		isUnitPickerOpen = false;
 		isStartDatePickerOpen = false;
 		isEndDatePickerOpen = false;
 		tenantSearch = '';
+		unitSearch = '';
 		lastHydratedFormKey = undefined;
 		endDateState = createContractEndDateState();
 		onOpenChange(false);
@@ -205,7 +212,8 @@
 			contract.interval
 		),
 		start: formatDateInput(contract.start),
-		end: formatDateInput(contract.end)
+		end: formatDateInput(contract.end),
+		unitIds: []
 	});
 
 	/**
@@ -227,7 +235,8 @@
 			cost: contract.cost.toString(),
 			cycles: String(term.cycles),
 			start: formatDateInput(term.start),
-			end: formatDateInput(term.end)
+			end: formatDateInput(term.end),
+			unitIds: []
 		};
 	};
 
@@ -294,7 +303,11 @@
 					} else if (form.data.id) {
 						await UpdateMutation.mutateAsync({ id: form.data.id, ...payload });
 					} else {
-						const created = await CreateMutation.mutateAsync(payload);
+						// one submission, one write: the contract and the units it holds.
+						const created = await CreateMutation.mutateAsync({
+							...payload,
+							unitIds: form.data.unitIds
+						});
 
 						onCreated?.(created);
 					}
@@ -307,7 +320,10 @@
 						// banner names the problem and never the field.
 						const field = fieldOfRefusal(readRefusal(e)?.code);
 
-						if (
+						if (field === 'unitIds') {
+							// a list's own error sits beside its items rather than on one of them.
+							setError(form, 'unitIds._errors', toRefusalText(e, $LL));
+						} else if (
 							field === 'end' ||
 							field === 'start' ||
 							field === 'govId' ||
@@ -328,6 +344,11 @@
 	let isStartDatePickerOpen = $state(false);
 	let isEndDatePickerOpen = $state(false);
 	let tenantSearch = $state('');
+	let isUnitPickerOpen = $state(false);
+	let unitSearch = $state('');
+	// what each chosen unit is called, kept as it is chosen: a search that narrows past a chosen
+	// unit must not leave the field unable to name it.
+	let chosenUnitNames = $state<Record<string, string>>({});
 	let contractStartDateValue = $state<CalendarDate | undefined>(undefined);
 	let contractEndDateValue = $state<CalendarDate | undefined>(undefined);
 	let lastHydratedFormKey = $state<string | undefined>(undefined);
@@ -389,6 +410,50 @@
 	let isTenantResultsLoading = $derived.by(
 		() => tenantsQuery.isLoading && (tenantsQuery.data ?? []).length === 0
 	);
+
+	// only a new contract chooses its units here; an edit and a renewal never do.
+	const choosesUnits = $derived(!isRenewing && !value?.id);
+
+	// the term the units are weighed against, in order, as the payload will state it. Absent until
+	// both ends are set, because the conflict rule has nothing to read before then.
+	const unitTerm = $derived.by(() => {
+		if (!$form.start || !$form.end) return undefined;
+
+		const start = parseDateInput($form.start);
+		const end = parseDateInput($form.end);
+
+		return start <= end ? { start, end } : { start: end, end: start };
+	});
+
+	// the units free over the term, narrowed in SQL by the picker's search.
+	const freeUnitsQuery = useFetchAssignableUnitsForTerm(() => ({
+		start: unitTerm?.start,
+		end: unitTerm?.end,
+		search: unitSearch,
+		enabled: open && choosesUnits
+	}));
+	const freeUnits = $derived(freeUnitsQuery.data ?? []);
+
+	const toUnitName = (unit: { name: string; complexName: string }) =>
+		`${unit.name} · ${unit.complexName}`;
+
+	const toggleUnit = (unit: { id: string; name: string; complexName: string }) => {
+		if ($form.unitIds.includes(unit.id)) {
+			$form.unitIds = $form.unitIds.filter((id) => id !== unit.id);
+		} else {
+			chosenUnitNames[unit.id] = toUnitName(unit);
+			$form.unitIds = [...$form.unitIds, unit.id];
+		}
+	};
+
+	// the chosen units, named in the reader's list style. A unit chosen before its name was read
+	// (one a caller prefilled) is named once the free units arrive.
+	const chosenUnitsLabel = $derived.by(() => {
+		const freeUnitNames = new Map(freeUnits.map((unit) => [unit.id, toUnitName(unit)]));
+		const names = $form.unitIds.map((id) => chosenUnitNames[id] ?? freeUnitNames.get(id) ?? '…');
+
+		return new Intl.ListFormat(getIntlLocale($locale), { type: 'conjunction' }).format(names);
+	});
 	let endDateInputs = $derived.by(() => ({
 		start: contractStartDateValue,
 		interval: $form.interval,
@@ -410,6 +475,7 @@
 		}
 
 		isTenantPickerOpen = false;
+		isUnitPickerOpen = false;
 		isStartDatePickerOpen = false;
 		isEndDatePickerOpen = false;
 		tenantSearch = '';
@@ -502,6 +568,12 @@
 	$effect(() => {
 		if (!isTenantPickerOpen) {
 			tenantSearch = '';
+		}
+	});
+
+	$effect(() => {
+		if (!isUnitPickerOpen) {
+			unitSearch = '';
 		}
 	});
 
@@ -844,6 +916,85 @@
 				</Form.Description>
 				<FieldError />
 			</Form.Field>
+
+			{#if choosesUnits}
+				<!-- other records, so a combobox over their search ([[rules/interface]], *Field
+				     kinds*), choosing several: it stays open while the reader picks. It follows the
+				     term because what it offers is decided by the term. -->
+				<Form.Field form={superform} name="unitIds" class="group relative">
+					<Form.Control>
+						<Form.Label>{$LL.contracts.form.unitsOptional()}</Form.Label>
+						<Popover.Root bind:open={isUnitPickerOpen}>
+							<Popover.Trigger>
+								{#snippet child({ props })}
+									<Button
+										{...props}
+										type="button"
+										variant="outline"
+										disabled={!unitTerm}
+										class={cn(
+											'w-full justify-between font-normal',
+											insetControl,
+											$form.unitIds.length === 0 && 'text-muted-foreground'
+										)}
+										aria-invalid={$errors.unitIds?._errors ? 'true' : undefined}
+									>
+										<span class="min-w-0 flex-1 truncate text-start">
+											{$form.unitIds.length > 0
+												? chosenUnitsLabel
+												: $LL.contracts.form.chooseUnits()}
+										</span>
+										<ChevronDownIcon class="size-4 shrink-0 opacity-50" />
+									</Button>
+								{/snippet}
+							</Popover.Trigger>
+
+							<Popover.Content class="w-(--bits-popover-anchor-width) p-0" align="start">
+								<Command.Root class="w-full" shouldFilter={false}>
+									<Command.Input
+										bind:value={unitSearch}
+										placeholder={$LL.contracts.form.searchUnitPlaceholder()}
+									/>
+									<Command.List>
+										{#if freeUnitsQuery.isLoading && freeUnits.length === 0}
+											<div class="p-3 text-sm text-muted-foreground">
+												{$LL.contracts.form.loadingUnits()}
+											</div>
+										{:else if freeUnits.length === 0}
+											<div class="p-3 text-sm text-muted-foreground">
+												{$LL.contracts.form.noUnitFree()}
+											</div>
+										{:else}
+											<Command.Group>
+												{#each freeUnits as unit (unit.id)}
+													<Command.Item value={unit.id} onSelect={() => toggleUnit(unit)}>
+														<div class="flex min-w-0 flex-1 flex-col text-start">
+															<span class="truncate">{unit.name}</span>
+															<span class="truncate text-xs text-muted-foreground">
+																{unit.complexName}
+															</span>
+														</div>
+														<CheckIcon
+															class={cn(
+																'ms-auto size-4',
+																$form.unitIds.includes(unit.id) ? 'opacity-100' : 'opacity-0'
+															)}
+														/>
+													</Command.Item>
+												{/each}
+											</Command.Group>
+										{/if}
+									</Command.List>
+								</Command.Root>
+							</Popover.Content>
+						</Popover.Root>
+					</Form.Control>
+					<Form.Description>
+						{unitTerm ? $LL.contracts.form.unitsHint() : $LL.contracts.form.unitsNeedTerm()}
+					</Form.Description>
+					<FieldError />
+				</Form.Field>
+			{/if}
 		</div>
 	</div>
 
