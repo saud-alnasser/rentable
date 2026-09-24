@@ -81,12 +81,18 @@
 	let {
 		value,
 		open,
-		onOpenChange
+		onOpenChange,
+		onCreated
 	}: {
 		/** the tenant being edited, or the details a new one starts from when duplicating. */
 		value?: Partial<Tenant>;
 		open: boolean;
 		onOpenChange: (value: boolean) => void;
+		/**
+		 * a new record has been written: the host lands the reader where the next step is
+		 * ([[rules/interface]], *Guidance*).
+		 */
+		onCreated?: (created: { id: string }) => void;
 	} = $props();
 
 	const toFormValue = (tenant?: Partial<Tenant>): TenantForm => {
@@ -135,7 +141,9 @@
 							...payload
 						});
 					} else {
-						await CreateMutation.mutateAsync(payload);
+						const created = await CreateMutation.mutateAsync(payload);
+
+						onCreated?.(created);
 					}
 
 					onOpenChange(false);

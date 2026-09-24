@@ -27,12 +27,18 @@
 	let {
 		value,
 		open,
-		onOpenChange
+		onOpenChange,
+		onCreated
 	}: {
 		/** the complex being edited, or the details a new one starts from when duplicating. */
 		value?: Partial<ComplexForm>;
 		open: boolean;
 		onOpenChange: (value: boolean) => void;
+		/**
+		 * a new record has been written: the host lands the reader where the next step is
+		 * ([[rules/interface]], *Guidance*).
+		 */
+		onCreated?: (created: { id: string }) => void;
 	} = $props();
 
 	// the units a complex is being created with. They are the form's own state rather than a
@@ -74,10 +80,12 @@
 
 						if (names === undefined) return;
 
-						await CreateMutation.mutateAsync({
+						const created = await CreateMutation.mutateAsync({
 							...(form.data as Complex),
 							units: names.map((name) => ({ name }))
 						});
+
+						onCreated?.(created);
 					}
 
 					onOpenChange(false);

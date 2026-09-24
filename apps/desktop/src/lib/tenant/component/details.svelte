@@ -32,7 +32,7 @@
 			icon={act.icon}
 			tone={act.tone}
 			shortcut={act.shortcut}
-			disabled={act.unavailable !== undefined}
+			unavailable={act.unavailable}
 			onclick={act.run}
 		/>
 	{/each}

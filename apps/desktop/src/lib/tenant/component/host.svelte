@@ -24,6 +24,7 @@
 	} from '$lib/tenant/host.svelte';
 	import { useDeleteTenant, useReadTenant } from '$lib/tenant/query';
 	import { isTenantDeletable } from '$lib/tenant/tenant';
+	import { landing } from '$lib/design/landing.svelte';
 	import { onDestroy, untrack } from 'svelte';
 	import TenantForm from './form.svelte';
 
@@ -237,6 +238,7 @@
 			}
 		}}
 		value={tenantHostState.form.value}
+		onCreated={(created) => landing.land(created.id)}
 	/>
 {/key}
 

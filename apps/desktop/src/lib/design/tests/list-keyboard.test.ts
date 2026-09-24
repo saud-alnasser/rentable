@@ -7,9 +7,11 @@ import {
 	nextPosition,
 	toListMovement,
 	toListShortcuts,
+	toPositionOf,
 	toRecordRows,
 	toSearchShortcut
 } from '../list-keyboard.ts';
+import { listRows } from '@rentable/design/group.js';
 import { toShortcutSheetEntries } from '../shortcut-registry.ts';
 
 // the loaded locale rather than a hand-written stand-in: a description reads the whole of
@@ -235,4 +237,16 @@ test('every key the list adds arrives on the help sheet, printed as the keyboard
 			{ id: 'list.move', description: 'move between records', hints: ['↑', '↓', '←', '→'] }
 		]
 	);
+});
+
+// requirement 16 of effort 832: a record just created is brought into view and focused where the
+// list shows it, at the position a move would land on, group headers counted as rows.
+test('a record is found at its row and its place across it, and nothing where it is absent', () => {
+	const records = ['a', 'b', 'c', 'd', 'e'].map((id) => ({ id, month: id < 'c' ? 'jan' : 'feb' }));
+	const grouped = listRows(records, (record) => ({ key: record.month }), 2);
+
+	assert.deepEqual(toPositionOf(grouped, 'a'), { row: 1, column: 0 });
+	assert.deepEqual(toPositionOf(grouped, 'b'), { row: 1, column: 1 });
+	assert.deepEqual(toPositionOf(grouped, 'e'), { row: 4, column: 0 });
+	assert.equal(toPositionOf(grouped, 'z'), undefined);
 });

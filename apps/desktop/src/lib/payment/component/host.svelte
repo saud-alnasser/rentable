@@ -9,17 +9,20 @@
 	import { onMutationError, onMutationSuccess } from '$lib/design/mutation';
 	import { showErrorSentence, showErrorToast, showRefusal } from '$lib/error/toast';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
-	import type { PaymentActRecord } from '$lib/payment/acts';
+	import { toPaymentCreateUnavailable, type PaymentActRecord } from '$lib/payment/acts';
 	import {
 		closePaymentConfirmation,
 		closePaymentForm,
+		openNewPaymentForm,
 		paymentActs,
 		paymentHostState,
 		resetPaymentHost
 	} from '$lib/payment/host.svelte';
+	import { useReadContract } from '$lib/contract/query';
 	import { useDeletePayment, useReadPayment } from '$lib/payment/query';
 	import { writeDetailsToClipboard } from '$lib/platform/clipboard';
 	import { formatLocaleMoney } from '$lib/platform/locale';
+	import { landing } from '$lib/design/landing.svelte';
 	import { onDestroy, untrack } from 'svelte';
 	import PaymentForm from './form.svelte';
 
@@ -40,6 +43,7 @@
 
 	const deleteMutation = useDeletePayment();
 	const readPayment = useReadPayment();
+	const readContract = useReadContract();
 
 	const deleting = $derived(paymentHostState.deleting);
 
@@ -165,6 +169,39 @@
 		verb.run();
 	}
 
+	/**
+	 * A new payment against the contract named: read the contract, and open the form where it takes
+	 * one. Where it takes none the create act's reason is the answer, the same line the ledger's
+	 * create control shows, so the command menu cannot open a form the ledger would refuse.
+	 */
+	async function answerCreate(contractId: string) {
+		let contract: Awaited<ReturnType<typeof readContract>>;
+
+		try {
+			contract = await readContract(contractId);
+		} catch (error) {
+			showErrorToast(error, $LL);
+
+			return;
+		}
+
+		if (!contract) {
+			showErrorSentence($LL.common.errors.notFound());
+
+			return;
+		}
+
+		const reason = toPaymentCreateUnavailable(contract, $LL);
+
+		if (reason) {
+			showErrorSentence(reason);
+
+			return;
+		}
+
+		openNewPaymentForm(contractId);
+	}
+
 	// both requests are answered once and cleared first, so an answer that takes a read cannot be
 	// asked twice by the effect running again while it waits.
 	$effect(() => {
@@ -176,6 +213,17 @@
 
 		paymentHostState.copying = null;
 		untrack(() => void copyDetails(payment));
+	});
+
+	$effect(() => {
+		const creating = paymentHostState.creating;
+
+		if (!creating) {
+			return;
+		}
+
+		paymentHostState.creating = null;
+		untrack(() => void answerCreate(creating.contractId));
 	});
 
 	$effect(() => {
@@ -217,6 +265,7 @@
 					closePaymentForm();
 				}
 			}}
+			onCreated={(created) => landing.land(created.id)}
 		/>
 	{/key}
 {/if}

@@ -739,15 +739,14 @@ const ar = {
 
 		payments: {
 			emptyTitle: 'لا توجد دفعات بعد',
-			fullyPaidNotice:
-				'تم الوصول إلى إجمالي المبلغ المطلوب. يمكنك التعديل أو الحذف لكن لا يمكن إضافة دفعات جديدة.',
+			fullyPaidNotice: 'هذا العقد مسدد بالكامل',
 			fullyPaidSummary: 'تم سداد العقد بالكامل.',
 			monthTotal: 'الإجمالي المعروض في {month}',
 			percentFulfilled: '{percent}% مكتمل',
 			remaining: 'متبقي {amount} ريال',
 			remainingAfter: 'المتبقي بعد هذه الدفعة',
 			remainingBalance: 'الرصيد المتبقي',
-			terminatedNotice: 'العقود المنتهية مقفلة ولا يمكن تعديل المدفوعات.',
+			terminatedNotice: 'هذا العقد منتهي',
 			terminatedSummary: 'العقد منتهي والمدفوعات للقراءة فقط.',
 			title: 'المدفوعات',
 			titleFor: 'مدفوعات {govId}',

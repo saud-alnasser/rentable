@@ -17,7 +17,7 @@
 	import { formatLocaleMoney, getIntlLocale, RIYAL } from '$lib/platform/locale';
 	import { isWholeHalalas } from '@rentable/design/money.js';
 	import { cn } from '@rentable/design/tailwind.js';
-	import { getRemainingContractBalance } from '$lib/contract/contract';
+	import { getAmountDueThisCycle, getRemainingContractBalance } from '$lib/contract/contract';
 	import { useFetchContract } from '$lib/contract/query';
 	import { fieldOfRefusal, readRefusal, toRefusalText } from '$lib/error/refusal';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
@@ -28,6 +28,7 @@
 	import SaveIcon from '@lucide/svelte/icons/save';
 	import { TRPCError } from '@trpc/server';
 	import { surfaceForm } from '$lib/design/form';
+	import { untrack } from 'svelte';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';
 	import { z } from 'zod';
@@ -55,13 +56,19 @@
 		contractId,
 		value,
 		open,
-		onOpenChange
+		onOpenChange,
+		onCreated
 	}: {
 		contractId: string;
 		/** the payment being edited, or the details a new one starts from when duplicating. */
 		value?: Omit<Payment, 'id'> & { id?: string };
 		open: boolean;
 		onOpenChange: (value: boolean) => void;
+		/**
+		 * a new record has been written: the host lands the reader where the next step is
+		 * ([[rules/interface]], *Guidance*).
+		 */
+		onCreated?: (created: { id: string }) => void;
 	} = $props();
 
 	let dateFormatter = $derived(new DateFormatter(getIntlLocale($locale), { dateStyle: 'medium' }));
@@ -108,10 +115,12 @@
 							...payload
 						});
 					} else {
-						await createMutation.mutateAsync({
+						const created = await createMutation.mutateAsync({
 							contractId,
 							...payload
 						});
+
+						onCreated?.(created);
 					}
 
 					onOpenChange(false);
@@ -140,10 +149,15 @@
 	// is the UTC day for the same reason — that is the comparison the rule makes.
 	let latestPaymentDate = $state<CalendarDate | undefined>(undefined);
 
+	// whether this opening has had its amount filled. Plain rather than state: it is read and
+	// written by the effect below and nothing draws it.
+	let isAmountFilled = false;
+
 	$effect(() => {
 		isDatePickerOpen = false;
 
 		if (open) {
+			isAmountFilled = false;
 			const nextFormValue = getInitialForm(value);
 			paymentDateValue = parseCalendarDate(nextFormValue.date);
 			latestPaymentDate = toCalendarDate(new Date());
@@ -172,6 +186,29 @@
 				)
 			: undefined
 	);
+	// a new payment opens on today and on what is due this cycle, capped at what the contract still
+	// owes ([[rules/interface]], *Guidance*): the reader recording an ordinary rent confirms two
+	// figures rather than typing them. The amount waits for the contract to be read, is filled once
+	// per opening, and never over anything the reader has typed. An edit or a duplicate opens on
+	// the payment it came from instead.
+	$effect(() => {
+		const contract = contractQuery.data;
+
+		if (!open || value || !contract || isAmountFilled) {
+			return;
+		}
+
+		isAmountFilled = true;
+
+		const due = getAmountDueThisCycle(contract, Date.now());
+
+		untrack(() => {
+			if (due > 0 && $form.amount === '') {
+				$form.amount = String(due);
+			}
+		});
+	});
+
 	const enteredAmount = $derived(Number($form.amount));
 	const hasEnteredAmount = $derived(Number.isFinite(enteredAmount) && enteredAmount > 0);
 

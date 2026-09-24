@@ -2335,7 +2335,7 @@ type RootTranslation = {
 			 */
 			emptyTitle: string
 			/**
-			 * t​h​i​s​ ​c​o​n​t​r​a​c​t​ ​h​a​s​ ​a​l​r​e​a​d​y​ ​r​e​a​c​h​e​d​ ​i​t​s​ ​r​e​q​u​i​r​e​d​ ​t​o​t​a​l​ ​p​a​y​m​e​n​t​ ​a​m​o​u​n​t​.​ ​y​o​u​ ​c​a​n​ ​s​t​i​l​l​ ​e​d​i​t​ ​o​r​ ​d​e​l​e​t​e​ ​p​a​y​m​e​n​t​s​ ​i​f​ ​n​e​e​d​e​d​,​ ​b​u​t​ ​y​o​u​ ​c​a​n​n​o​t​ ​a​d​d​ ​m​o​r​e​ ​u​n​t​i​l​ ​t​h​e​ ​p​a​i​d​ ​t​o​t​a​l​ ​d​r​o​p​s​ ​b​e​l​o​w​ ​t​h​e​ ​r​e​q​u​i​r​e​d​ ​a​m​o​u​n​t​.
+			 * t​h​i​s​ ​c​o​n​t​r​a​c​t​ ​i​s​ ​p​a​i​d​ ​i​n​ ​f​u​l​l
 			 */
 			fullyPaidNotice: string
 			/**
@@ -2366,7 +2366,7 @@ type RootTranslation = {
 			 */
 			remainingBalance: string
 			/**
-			 * t​e​r​m​i​n​a​t​e​d​ ​c​o​n​t​r​a​c​t​s​ ​a​r​e​ ​l​o​c​k​e​d​.​ ​y​o​u​ ​c​a​n​ ​r​e​v​i​e​w​ ​p​a​y​m​e​n​t​ ​h​i​s​t​o​r​y​ ​h​e​r​e​,​ ​b​u​t​ ​y​o​u​ ​c​a​n​n​o​t​ ​a​d​d​,​ ​e​d​i​t​,​ ​o​r​ ​d​e​l​e​t​e​ ​p​a​y​m​e​n​t​s​ ​u​n​t​i​l​ ​t​h​e​ ​c​o​n​t​r​a​c​t​ ​i​s​ ​u​n​t​e​r​m​i​n​a​t​e​d​.
+			 * t​h​i​s​ ​c​o​n​t​r​a​c​t​ ​i​s​ ​t​e​r​m​i​n​a​t​e​d
 			 */
 			terminatedNotice: string
 			/**
@@ -5668,7 +5668,7 @@ export type TranslationFunctions = {
 			 */
 			emptyTitle: () => LocalizedString
 			/**
-			 * this contract has already reached its required total payment amount. you can still edit or delete payments if needed, but you cannot add more until the paid total drops below the required amount.
+			 * this contract is paid in full
 			 */
 			fullyPaidNotice: () => LocalizedString
 			/**
@@ -5696,7 +5696,7 @@ export type TranslationFunctions = {
 			 */
 			remainingBalance: () => LocalizedString
 			/**
-			 * terminated contracts are locked. you can review payment history here, but you cannot add, edit, or delete payments until the contract is unterminated.
+			 * this contract is terminated
 			 */
 			terminatedNotice: () => LocalizedString
 			/**

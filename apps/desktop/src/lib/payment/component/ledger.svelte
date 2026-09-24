@@ -16,11 +16,7 @@
 	} from '@rentable/design/selection.js';
 	import { PERIOD_FILTER, toChosenLabel, type FilterSelection } from '$lib/design/filter';
 	import { isFilterPeriod } from '$lib/api/period';
-	import {
-		getRemainingContractBalance,
-		hasSatisfiedContractPaymentRequirement,
-		toContractName
-	} from '$lib/contract/contract';
+	import { getRemainingContractBalance, toContractName } from '$lib/contract/contract';
 	import { useFetchContract } from '$lib/contract/query';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import {
@@ -28,6 +24,7 @@
 		paymentLedgerMonths,
 		type PaymentLedgerMonth
 	} from '$lib/payment/ledger';
+	import { toPaymentCreateUnavailable } from '$lib/payment/acts';
 	import { paymentActs, paymentHost } from '$lib/payment/host.svelte';
 	import {
 		useDeleteManyPayments,
@@ -89,25 +86,13 @@
 			: $LL.common.labels.contract()
 	);
 	const tenantName = $derived(contractQuery.data?.tenantName?.trim() ?? '');
-	const isFullyPaid = $derived(
-		contractQuery.data
-			? hasSatisfiedContractPaymentRequirement(
-					contractQuery.data.paidAmount,
-					contractQuery.data.expectedAmount
-				)
-			: false
-	);
-	// a terminated contract is read-only; a satisfied one still takes corrections to what it
-	// already holds, so only the new payment is refused.
-	const isAddLocked = $derived(isTerminated || isFullyPaid);
+	// why this contract takes no new payment, where it takes none: the create act's reason, which
+	// the create control shows on hover and focus in place of a paragraph above the ledger. A
+	// terminated contract is read-only; a satisfied one still takes corrections to what it already
+	// holds, so only the new payment is refused.
+	const createUnavailable = $derived(toPaymentCreateUnavailable(contractQuery.data, $LL));
+	const isAddLocked = $derived(createUnavailable !== undefined);
 	const hasRowActions = $derived(!isTerminated);
-
-	const lockNotice = $derived.by(() => {
-		if (isTerminated) return $LL.contracts.payments.terminatedNotice();
-		if (isFullyPaid) return $LL.contracts.payments.fullyPaidNotice();
-
-		return undefined;
-	});
 
 	const formatMonth = (month: PaymentLedgerMonth) => formatPaymentLedgerMonth($locale, month);
 	const formatMoney = (value: number) => formatLocaleMoney($locale, value);
@@ -211,12 +196,6 @@
 {/snippet}
 
 <div class="flex min-h-0 flex-1 flex-col gap-3">
-	{#if lockNotice}
-		<p class="shrink-0 rounded-2xl bg-card px-4 py-2.5 text-start text-xs text-muted-foreground">
-			{lockNotice}
-		</p>
-	{/if}
-
 	<List
 		data={payments}
 		bind:search
@@ -256,7 +235,8 @@
 			]
 		}}
 		onImport={isAddLocked ? undefined : () => void importDialog?.choose()}
-		onCreate={isAddLocked ? undefined : () => paymentHost.create({ contractId })}
+		onCreate={() => paymentHost.create({ contractId })}
+		{createUnavailable}
 	>
 		{#snippet groupHeader(month: PaymentLedgerMonth)}
 			<!-- a card in the list rather than a marker floating over it, and a separator rather than

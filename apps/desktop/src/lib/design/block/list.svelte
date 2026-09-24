@@ -30,6 +30,7 @@
 		nextPosition,
 		toListMovement,
 		toListShortcuts,
+		toPositionOf,
 		toRecordRows,
 		type ListMovement,
 		type ListPosition
@@ -55,6 +56,7 @@
 	import XIcon from '@lucide/svelte/icons/x';
 	import { createVirtualizer } from '@tanstack/svelte-virtual';
 	import { hasSameOrder, toClipPath, toTransitionName } from '$lib/design/list-motion';
+	import { landing, whenSurfacesClose } from '$lib/design/landing.svelte';
 	import { tick, untrack, type Snippet } from 'svelte';
 	import { get } from 'svelte/store';
 
@@ -97,6 +99,11 @@
 		 * on screen.
 		 */
 		onCreate?: () => void;
+		/**
+		 * Why the set takes no new record right now, in one line, or nothing where it does. The create
+		 * control stays drawn, refused, and says it on hover and focus, as the key does.
+		 */
+		createUnavailable?: string;
 		/**
 		 * The narrowings this list offers, declared rather than drawn.
 		 *
@@ -188,6 +195,7 @@
 		isLoading = false,
 		isFetching = false,
 		onCreate,
+		createUnavailable,
 		filterOptions = [],
 		filters = $bindable({}),
 		onImport,
@@ -597,6 +605,35 @@
 		awaitingFocus = null;
 	});
 
+	// a record just created lands here where this list is showing it: brought into view, and the
+	// focus put on it once the form that made it has gone, through the same standing request a move
+	// raises ([[rules/interface]], *Guidance*). Taken at once, so a second list showing the same
+	// record does not answer it too.
+	$effect(() => {
+		const id = landing.pending;
+
+		if (!id) {
+			return;
+		}
+
+		const position = toPositionOf(rows, id);
+
+		if (!position) {
+			return;
+		}
+
+		untrack(() => {
+			landing.take(id);
+			get(virtualizer).scrollToIndex(position.row, { align: 'center' });
+
+			void whenSurfacesClose().then(() => {
+				focused = position;
+				awaitingFocus = position;
+				get(virtualizer).scrollToIndex(position.row, { align: 'auto' });
+			});
+		});
+	});
+
 	function handleKeydown(event: KeyboardEvent) {
 		const movement = toListMovement(event.key, direction);
 
@@ -812,7 +849,11 @@
 		<!-- last, at the end of the bar: the one place every set offers its create
 		     ([[rules/interface]], *Create*). -->
 		{#if onCreate}
-			<CreateControl label={$LL.common.actions.newRecord()} {onCreate} />
+			<CreateControl
+				label={$LL.common.actions.newRecord()}
+				{onCreate}
+				unavailable={createUnavailable}
+			/>
 		{/if}
 	</ListToolbar>
 

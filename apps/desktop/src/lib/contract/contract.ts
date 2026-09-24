@@ -212,6 +212,33 @@ export function getRemainingContractBalance(paidAmount: number, expectedAmount: 
 	return expectedAmount - paidAmount;
 }
 
+/**
+ * What a new payment against this contract most likely is: the amount due this cycle, capped at
+ * what the contract still owes. It is the payment form's default ([[rules/interface]],
+ * *Guidance*), so a reader recording an ordinary rent confirms a figure rather than typing one.
+ *
+ * Read from the aggregates reconcile materializes, as the balance is. What is due by today less
+ * what is paid is the gap: where it is a cycle or more (arrears), the cycle's rent is due; where it
+ * is part of one, that part is; where nothing is due yet, the next cycle's rent is what a reader
+ * paying ahead is paying. A contract that owes nothing has nothing due. Rounded to the halala,
+ * because the gap is a difference of floats and the form refuses a figure finer than that.
+ */
+export function getAmountDueThisCycle(
+	contract: ContractLike & Pick<Contract, 'paidAmount' | 'expectedAmount'>,
+	now: DateLike
+) {
+	const remaining = getRemainingContractBalance(contract.paidAmount, contract.expectedAmount);
+
+	if (remaining <= 0) {
+		return 0;
+	}
+
+	const gap = getExpectedAmountBy(contract, now) - contract.paidAmount;
+	const dueThisCycle = gap > EPSILON ? Math.min(gap, contract.cost) : contract.cost;
+
+	return Math.round(Math.min(dueThisCycle, remaining) * 100) / 100;
+}
+
 export function isContractPaidInFull(contract: ContractLike, payments: PaymentLike[]) {
 	const { paidAmount, expectedAmount } = getContractPaymentSummary(contract, payments);
 

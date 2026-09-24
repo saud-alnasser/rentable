@@ -202,3 +202,29 @@ export function toListShortcuts(): ShortcutRegistration[] {
 		}
 	];
 }
+
+/**
+ * Where a record sits in the rows a list lays out, or nothing where the list is not showing it.
+ *
+ * What a list reads to bring a record just created into view and put the focus on it
+ * ([[rules/interface]], *Guidance*): the same position a move lands on, so the keyboard carries on
+ * from the record rather than from wherever it was before.
+ */
+export function toPositionOf<TData extends { id: string }, TGroup extends ListGroup>(
+	rows: readonly ListRow<TData, TGroup>[],
+	id: string
+): ListPosition | undefined {
+	for (const [row, laid] of rows.entries()) {
+		if (laid.kind !== 'record') {
+			continue;
+		}
+
+		const column = laid.records.findIndex((record) => record.id === id);
+
+		if (column !== -1) {
+			return { row, column };
+		}
+	}
+
+	return undefined;
+}

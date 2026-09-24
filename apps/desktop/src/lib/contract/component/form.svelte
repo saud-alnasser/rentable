@@ -132,7 +132,8 @@
 		renewsContractId,
 		prefill,
 		open,
-		onOpenChange
+		onOpenChange,
+		onCreated
 	}: {
 		/**
 		 * the contract being edited, or the details a new one starts from when duplicating —
@@ -151,6 +152,11 @@
 		prefill?: ContractPrefill;
 		open: boolean;
 		onOpenChange: (value: boolean) => void;
+		/**
+		 * a new record has been written: the host lands the reader where the next step is
+		 * ([[rules/interface]], *Guidance*).
+		 */
+		onCreated?: (created: { id: string }) => void;
 	} = $props();
 
 	const isRenewing = $derived(renewsContractId !== undefined);
@@ -288,7 +294,9 @@
 					} else if (form.data.id) {
 						await UpdateMutation.mutateAsync({ id: form.data.id, ...payload });
 					} else {
-						await CreateMutation.mutateAsync(payload);
+						const created = await CreateMutation.mutateAsync(payload);
+
+						onCreated?.(created);
 					}
 					closeContractForm();
 				} catch (e) {

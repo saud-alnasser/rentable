@@ -2,7 +2,7 @@ import { recordCard } from '#lib/block/record-card.svelte';
 import { DesignProvider, type DesignStrings } from '#lib/strings.js';
 import RecordCardHarness from '#tests/record-card-harness.svelte';
 import { suppliedStrings } from '#tests/contract-strings.js';
-import { fireEvent, render } from '@testing-library/svelte';
+import { fireEvent, render, waitFor } from '@testing-library/svelte';
 import CopyIcon from '@lucide/svelte/icons/copy';
 import SquarePenIcon from '@lucide/svelte/icons/square-pen';
 import Trash2Icon from '@lucide/svelte/icons/trash-2';
@@ -116,6 +116,50 @@ test('an act that is not marked is pressable, and the gesture fires it', async (
 	await fireEvent.click(entry!);
 
 	expect(onSelect).toHaveBeenCalledTimes(1);
+});
+
+// requirement 16 of effort 832, criterion 16(c): an act that cannot run for this record is drawn,
+// refused, and says why in one line on hover and focus. Unlike an act already running it stays
+// reachable, because a reason nobody can reach is no reason at all.
+test('an unavailable act is drawn dimmed on both routes, refuses to run, and says why in a tooltip', async () => {
+	// the tooltip is placed against its trigger, and jsdom implements no ResizeObserver.
+	window.ResizeObserver = class {
+		observe() {}
+		unobserve() {}
+		disconnect() {}
+	} as unknown as typeof ResizeObserver;
+
+	const onSelect = vi.fn();
+	const reason = 'هذا العقد مسدد بالكامل';
+
+	show({ actions: [{ ...action, unavailable: reason, onSelect }] });
+
+	for (const open of [throughTheControl, throughTheGesture]) {
+		const [entry] = await open();
+
+		expect(entry?.getAttribute('aria-disabled')).toBe('true');
+		expect(entry?.hasAttribute('data-unavailable')).toBe(true);
+		// reachable: the menu's own disabled mark is what would take it out of the keyboard's path.
+		expect(entry?.hasAttribute('data-disabled')).toBe(false);
+
+		await fireEvent.focus(entry!);
+
+		const tooltip = await waitFor(() => {
+			const drawn = document.querySelector('[data-slot=tooltip-content]');
+
+			expect(drawn).not.toBeNull();
+
+			return drawn;
+		});
+
+		expect(tooltip?.textContent).toContain(reason);
+
+		await fireEvent.click(entry!);
+
+		expect(onSelect).not.toHaveBeenCalled();
+
+		await fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+	}
 });
 
 // `attributes` is what the surface marks the entry with, the `data-*` every list here is read by,

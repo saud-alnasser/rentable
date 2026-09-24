@@ -1,4 +1,4 @@
-import { fireEvent, render } from '@testing-library/svelte';
+import { fireEvent, render, waitFor } from '@testing-library/svelte';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
 import en from '$lib/i18n/en';
@@ -135,4 +135,37 @@ test('a form standing over the set takes the key, and nothing is opened a second
 
 	await pressCreateKey();
 	expect(onCreate).toHaveBeenCalledTimes(1);
+});
+
+// requirement 16 of effort 832, criterion 16(c): a set that takes no new record right now keeps its
+// control, refused, with the reason on hover and focus in one line; the key gives the same reason.
+// A contract's ledger is the worked case: paid in full, it takes no new payment, and that line was
+// a paragraph above the ledger until the create act carried it.
+test('a set that takes no new record keeps its control, refused, and says why', async () => {
+	const onCreate = vi.fn();
+	const reason = en.contracts.payments.fullyPaidNotice;
+
+	render(CreateHarness, { sets: [{ label: 'new record', onCreate, unavailable: reason }] });
+
+	const control = document.querySelector<HTMLButtonElement>('[data-create-control]')!;
+
+	expect(control.getAttribute('aria-disabled')).toBe('true');
+	// reachable by the keyboard, so its reason can be reached too.
+	expect(control.disabled).toBe(false);
+
+	const describedBy = control.getAttribute('aria-describedby');
+
+	expect(describedBy && document.getElementById(describedBy)?.textContent).toBe(reason);
+
+	await fireEvent.focus(control);
+
+	await waitFor(() =>
+		expect(document.querySelector('[data-slot=tooltip-content]')?.textContent).toContain(reason)
+	);
+
+	await fireEvent.click(control);
+	await pressCreateKey();
+
+	expect(onCreate).not.toHaveBeenCalled();
+	expect(createKey()?.unavailable?.(i18nObject('en'))).toBe(reason);
 });

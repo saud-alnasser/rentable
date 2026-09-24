@@ -1,4 +1,6 @@
+import { hasSatisfiedContractPaymentRequirement } from '$lib/contract/contract';
 import type { RecordAct } from '$lib/design/acts';
+import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 import type { Contract, Payment } from '$lib/platform/database/schema';
 import CopyIcon from '@lucide/svelte/icons/copy';
 import FilesIcon from '@lucide/svelte/icons/files';
@@ -91,4 +93,35 @@ export function declarePaymentActs(host: PaymentHostRequests): PaymentAct[] {
 			run: host.confirmDelete
 		}
 	];
+}
+
+/** What a contract has to say about whether it takes a new payment. */
+export type PaymentCreateContract = Pick<Contract, 'status' | 'paidAmount' | 'expectedAmount'>;
+
+/**
+ * Why a contract takes no new payment, in one line, or nothing where it does: the create act's
+ * reason, shown on the ledger's create control and answered by the host wherever a payment is
+ * asked for ([[rules/interface]], *Guidance*).
+ *
+ * A terminated contract is read-only. A contract paid in full still takes corrections to what it
+ * holds, so only the new payment is refused, and it is refused until the paid total drops below
+ * what is required.
+ */
+export function toPaymentCreateUnavailable(
+	contract: PaymentCreateContract | undefined,
+	t: TranslationFunctions
+): string | undefined {
+	if (!contract) {
+		return undefined;
+	}
+
+	if (contract.status === 'terminated') {
+		return t.contracts.payments.terminatedNotice();
+	}
+
+	if (hasSatisfiedContractPaymentRequirement(contract.paidAmount, contract.expectedAmount)) {
+		return t.contracts.payments.fullyPaidNotice();
+	}
+
+	return undefined;
 }

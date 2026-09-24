@@ -25,6 +25,11 @@ export const CREATE_KEYS: ShortcutCombination = { key: 'n', command: true };
 export type CreateTarget = {
 	/** open the concept's create form, through the concept's host. */
 	create: () => void;
+	/**
+	 * why the set takes no new record right now, in one line, or nothing where it does. A set that
+	 * refuses still holds its place, so the key says its reason rather than reaching the set behind.
+	 */
+	unavailable?: () => string | undefined;
 };
 
 /**
@@ -44,12 +49,15 @@ export function toCreateShortcut(
 		scope: 'application',
 		keys: [CREATE_KEYS],
 		describe: (translations) => translations.common.actions.newRecord(),
-		unavailable: (translations) =>
-			onScreen() ? undefined : translations.common.ui.nothingToCreateHere(),
+		unavailable: (translations) => {
+			const target = onScreen();
+
+			return target ? target.unavailable?.() : translations.common.ui.nothingToCreateHere();
+		},
 		run: () => {
 			const target = onScreen();
 
-			if (!target || isCovered()) {
+			if (!target || target.unavailable?.() !== undefined || isCovered()) {
 				return;
 			}
 

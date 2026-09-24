@@ -296,8 +296,8 @@ Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], re
   **last at the end of the bar above the records**: `design/block/list-toolbar.svelte`, which the
   list shell draws and the settings directories' tray (`organization/component/directory-tray.svelte`)
   draws too. A set
-  that may not be added to right now draws no control; the workspaces tray puts its refusal in that
-  place instead.
+  that may not be added to right now keeps its control, refused, with its reason on hover and focus
+  (*Guidance*, below); the workspaces tray puts its refusal in that place instead.
 - **The key** is Ctrl or Cmd with N, an application shortcut in the registry
   (`design/create-key.ts`, registered by `layout/component/create-shortcut.svelte`). It is answered
   by the set on screen: a drawn control holds its place (`design/create-target.svelte.ts`) and the
@@ -565,6 +565,59 @@ settings area's were links, so a contract's history could not be opened from any
 tab.*
 
 Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 14.
+
+## Guidance
+
+**The interface guides by what it does, not by what it says.** Three things carry it, and none of
+them is a sentence of instructions.
+
+### A field the application can fill is filled
+
+**A form opens on the value the reader most likely wants, as a real value rather than a
+placeholder**, so the ordinary case is confirmed rather than typed and the unusual one is a
+correction. A new payment opens on today and on the amount due this cycle, capped at what the
+contract still owes (`getAmountDueThisCycle` in `contract/contract.ts`): the cycle's rent where a
+cycle or more is unpaid, the unpaid part where it is part paid, the next cycle's rent where nothing
+is due yet. A default is filled once per opening and never over what the reader has typed; an edit
+or a duplicate opens on the record it came from. `payment/tests/form.svelte.test.ts` holds it.
+
+### After an act, the reader lands where the next step is
+
+**A created record is opened, or brought into view with the focus on it.** Every create form hands
+what it wrote to its host through `onCreated`, and the host decides where the reader lands:
+
+- **a contract opens its own page**, since its units, payments and term are all read and changed
+  there (`contract/tests/landing.svelte.test.ts`);
+- **a tenant, a complex or a payment is brought into view in the set that lists it**, with the
+  focus on its card, through `design/landing.svelte.ts`. The host names the record and the list
+  block answers where it shows it: it scrolls the record into view and puts the focus on it once
+  the form has gone, through the same request an arrow key raises, so the keyboard carries on from
+  the new record. A record made while its set is not on screen waits until the set is.
+
+### An act that cannot run says why at the control
+
+**An act that does not apply to a record is hidden; an act that applies and cannot run now is
+shown, dimmed, refused, and says why in one line on hover and focus.** The reason is the act's
+`unavailable` (`design/acts.ts`), and every surface draws it from the one declaration: the card's
+two menus (`record-card.svelte`), the record page's cluster (`record-action-control.svelte`), and
+the create control (`create-control.svelte`, given the set's reason by the list's
+`createUnavailable`), whose key answers with the same reason. The command menu puts it beside the
+row, where its keys would be, because its rows are chosen from the search field and never take the
+focus a tooltip opens on; a record's act asked for there is refused by the host with the same line.
+
+The control is **never the platform's disabled**: a disabled button or menu entry leaves the
+keyboard's path and ignores the pointer, so its reason could never be reached. It is marked
+`aria-disabled`, keeps both, refuses the press, and names its reason as its description. A new
+payment on a terminated or fully paid contract is the worked case: the two paragraphs that stood
+above the ledger are the create act's reasons now (`toPaymentCreateUnavailable` in
+`payment/acts.ts`).
+
+*Why: a paragraph explaining a refusal is read once and then scrolled past, and it sits away from
+the control the reader was reaching for. Apple's Human Interface Guidelines, which the human asked
+design calls here to follow, keep an unavailable control visible and dimmed rather than removed,
+explain it in a help tag at the control, and prefill a field with the value most people want.*
+
+Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 16.
 
 ## The visual reference
 

@@ -30,17 +30,25 @@ type PaymentHostState = {
 	copying: PaymentActRecord | null;
 	/** an act asked for by a payment's identity alone, from the command menu. */
 	asked: { actId: string; paymentId: string } | null;
+	/** a new payment asked for, answered once its contract is read and found to take one. */
+	creating: PaymentPrefill | null;
 };
 
 export const paymentHostState = $state<PaymentHostState>({
 	form: { open: false, key: 0 },
 	deleting: null,
 	copying: null,
-	asked: null
+	asked: null,
+	creating: null
 });
 
 function openForm(contractId: string, value?: PaymentFormValue) {
 	paymentHostState.form = { contractId, value, open: true, key: paymentHostState.form.key + 1 };
+}
+
+/** Open the form on a new payment against a contract the host has found takes one. */
+export function openNewPaymentForm(contractId: string) {
+	openForm(contractId);
 }
 
 /** The form was dismissed: it goes, and the next opening starts on a clean draft. */
@@ -89,9 +97,12 @@ export const paymentHost = {
 	runOn(actId: string, paymentId: string) {
 		paymentHostState.asked = { actId, paymentId };
 	},
-	/** open the form on a new payment against the contract named. */
+	/**
+	 * open the form on a new payment against the contract named, where the contract takes one; the
+	 * host answers with the create act's reason where it does not.
+	 */
 	create(prefill: PaymentPrefill) {
-		openForm(prefill.contractId);
+		paymentHostState.creating = prefill;
 	}
 };
 
@@ -101,4 +112,5 @@ export function resetPaymentHost() {
 	paymentHostState.deleting = null;
 	paymentHostState.copying = null;
 	paymentHostState.asked = null;
+	paymentHostState.creating = null;
 }

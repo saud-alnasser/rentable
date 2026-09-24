@@ -280,6 +280,14 @@
 		untrack(() => void deleteAtOnce(id));
 	});
 
+	/**
+	 * A new contract opens its own page, which is where its next step is: its units, its
+	 * payments, its term ([[rules/interface]], *Guidance*).
+	 */
+	async function openCreated(id: string) {
+		await goto(resolve(`/contracts/${id}`));
+	}
+
 	// the command menu's new contract arrives as `?create` on its directory. The host that owns the
 	// form answers it, rather than the directory ([[rules/interface]], *Create*).
 	consumeCreateIntent(resolve('/contracts'), () => contractHost.create());
@@ -298,6 +306,7 @@
 		value={contractHostState.form.value}
 		renewsContractId={contractHostState.form.renewsContractId}
 		prefill={contractHostState.form.prefill}
+		onCreated={(created) => void openCreated(created.id)}
 	/>
 {/key}
 

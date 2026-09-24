@@ -116,7 +116,7 @@ export function toCardActions<T>(
 		tone: act.tone ?? 'neutral',
 		shortcut: act.shortcut,
 		group: act.group,
-		disabled: act.unavailable?.(record, t) !== undefined,
+		unavailable: act.unavailable?.(record, t),
 		attributes: { 'data-act': act.id },
 		onSelect: () => act.run(record)
 	}));

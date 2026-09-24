@@ -201,7 +201,7 @@ test('every surface runs an act by asking the host, on the record it was offered
 const { declareTenantActs } = await import('$lib/tenant/acts');
 const { declareComplexActs } = await import('$lib/complex/acts');
 const { declareUnitActs } = await import('$lib/complex/unit/acts');
-const { declarePaymentActs } = await import('$lib/payment/acts');
+const { declarePaymentActs, toPaymentCreateUnavailable } = await import('$lib/payment/acts');
 const { UnitSchema } = await import('$lib/platform/database/schema.ts');
 
 type RecordActs<T> = import('$lib/design/acts').RecordAct<T>[];
@@ -609,8 +609,9 @@ test('a member act waiting on the shell is shown and refused until it lands', ()
 			(action) => action.attributes?.['data-act'] === id
 		);
 
-	assert.equal(entry('member.makeLink')?.disabled, true);
-	assert.equal(entry('member.edit')?.disabled, false);
+	// refused with its reason, which the card's menus show beside the entry.
+	assert.equal(entry('member.makeLink')?.unavailable, translations.common.actions.working());
+	assert.equal(entry('member.edit')?.unavailable, undefined);
 });
 
 const workspaceOf = (id: string): OrganizationWorkspace => ({
@@ -734,4 +735,21 @@ test('every organization surface runs an act by asking the host, on the record i
 		'changeAccess:ws-1',
 		'confirmDelete:ws-1'
 	]);
+});
+
+// requirement 16 of effort 832: the ledger's two notices are the create act's reasons, one line
+// each, and a contract that takes a payment gives none.
+test('a new payment is refused, with its reason, on a terminated or a fully paid contract', () => {
+	const running = { status: 'active' as const, paidAmount: 1500, expectedAmount: 18000 };
+
+	assert.equal(toPaymentCreateUnavailable(running, translations), undefined);
+	assert.equal(toPaymentCreateUnavailable(undefined, translations), undefined);
+	assert.equal(
+		toPaymentCreateUnavailable({ ...running, status: 'terminated' }, translations),
+		translations.contracts.payments.terminatedNotice()
+	);
+	assert.equal(
+		toPaymentCreateUnavailable({ ...running, paidAmount: 18000 }, translations),
+		translations.contracts.payments.fullyPaidNotice()
+	);
 });

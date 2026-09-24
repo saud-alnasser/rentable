@@ -17,7 +17,7 @@
 		sets = []
 	}: {
 		/** the sets on screen, in the order they are drawn, each by what its control creates. */
-		sets?: { label: string; onCreate: () => void }[];
+		sets?: { label: string; onCreate: () => void; unavailable?: string }[];
 	} = $props();
 </script>
 
@@ -27,7 +27,7 @@
 		<LayoutCreateShortcut />
 
 		{#each sets as set (set.label)}
-			<CreateControl label={set.label} onCreate={set.onCreate} />
+			<CreateControl label={set.label} onCreate={set.onCreate} unavailable={set.unavailable} />
 		{/each}
 	</Tooltip.Provider>
 </DesignProvider>

@@ -23,6 +23,7 @@
 	import { showErrorSentence, showErrorToast, showRefusal } from '$lib/error/toast';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { writeDetailsToClipboard } from '$lib/platform/clipboard';
+	import { landing } from '$lib/design/landing.svelte';
 	import { onDestroy, untrack } from 'svelte';
 	import ComplexForm from './form.svelte';
 
@@ -232,6 +233,7 @@
 			}
 		}}
 		value={complexHostState.form.value}
+		onCreated={(created) => landing.land(created.id)}
 	/>
 {/key}
 

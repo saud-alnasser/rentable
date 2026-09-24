@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [13, 18]
 ---
 
@@ -17,16 +17,16 @@ focus, instead of a paragraph.
 Traces requirement 16 of [[efforts/832-the-interface-speaks-one-language-and-guides/spec]] and its
 criterion 16.
 
-- [ ] The payment form opens with today's date and the amount due this cycle, capped at what
-      remains. A component test asserts both.
-- [ ] Creating a contract opens its record. Creating a tenant, complex or payment brings it into
+- [x] The payment form opens with today's date and the amount due this cycle, capped at what
+      remains. A component test asserts both. Verified: `payment/tests/form.svelte.test.ts` fixes the clock and asserts today's date and the amount due (500 part-paid, 1000 at the cap); `getAmountDueThisCycle` node tests pass; desktop vitest 315 of 315 on the merged tree.
+- [x] Creating a contract opens its record. Creating a tenant, complex or payment brings it into
       view in its set and focuses it. Checked by a component test on the contract host, and by hand
-      in the walk for the rest.
-- [ ] `RecordAct.unavailable` renders as a disabled control with its reason in a tooltip, on every
+      in the walk for the rest. Verified: `contract/tests/landing.svelte.test.ts` asserts creating a contract navigates to its record; tenant, complex and payment hosts record the new id and the list scrolls to and focuses it after the dialog closes (by hand in the walk, ticket 27); `toPositionOf` node test passes.
+- [x] `RecordAct.unavailable` renders as a disabled control with its reason in a tooltip, on every
       surface. The payments ledger's `fullyPaidNotice` and `terminatedNotice` paragraphs become the
-      create act's reasons. Component test.
-- [ ] `[[rules/interface]]` gains a *Guidance* section.
-
+      create act's reasons. Component test. Verified: `unavailable` renders `aria-disabled`, focusable, with its reason in a tooltip on the card, page cluster and create control (package and app tests); the palette shows the reason inline because focus stays in its field; the ledger's notices are the create act's reasons via `toPaymentCreateUnavailable` (`acts.test.ts`).
+- [x] `[[rules/interface]]` gains a *Guidance* section.
+ Verified: `rules/interface.md` gains *Guidance*; validate.mjs no failures.
 ## Relevant areas
 
 - `apps/desktop/src/lib/payment/component/form.svelte`, `payment/component/ledger.svelte`

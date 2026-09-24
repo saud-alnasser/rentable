@@ -32,6 +32,17 @@
 			} satisfies Record<RecordActionTone, string>
 		}
 	});
+
+	/**
+	 * What an unavailable control wears over the button's own disabled look.
+	 *
+	 * The button stops taking the pointer once it is marked disabled, which is right for a control
+	 * that is simply off and wrong for one that has to say why: its reason is in the tooltip, and a
+	 * control that never takes the pointer never opens it. So it takes the pointer back, shows the
+	 * cursor that says it will not run, and stays dimmed ([[rules/interface]], *Guidance*).
+	 */
+	export const unavailableControl =
+		'aria-disabled:pointer-events-auto aria-disabled:cursor-not-allowed';
 </script>
 
 <script lang="ts">
@@ -39,6 +50,7 @@
 	import { Kbd } from '#lib/primitive/kbd/index.js';
 	import * as Tooltip from '#lib/primitive/tooltip/index.js';
 	import { toShortcutHint, usesAppleKeyboard, type ShortcutCombination } from '#lib/shortcut.js';
+	import { cn } from '#lib/tailwind.js';
 	import type { Component } from 'svelte';
 
 	/**
@@ -59,6 +71,7 @@
 		tone = 'neutral',
 		shortcut,
 		disabled = false,
+		unavailable,
 		onclick
 	}: {
 		/** What the action is, translated — the tooltip, and the control's accessible name. */
@@ -68,10 +81,19 @@
 		tone?: RecordActionTone;
 		/** The keys that also run it, printed in the tooltip beside its name. */
 		shortcut?: ShortcutCombination;
-		/** Whether it cannot be pressed for now. */
+		/** Whether it cannot be pressed for now, because it is already running. */
 		disabled?: boolean;
+		/**
+		 * Why it cannot run for this record, in one line, or nothing where it can. An unavailable
+		 * control stays where it is and stays reachable, so hovering or focusing it says why.
+		 */
+		unavailable?: string;
 		onclick: () => void;
 	} = $props();
+
+	// what names the reason to assistive technology, which hears it when the control takes focus
+	// whether or not the tooltip is drawn.
+	const reasonId = $props.id();
 </script>
 
 <Tooltip.Root>
@@ -81,13 +103,23 @@
 				{...props}
 				variant="outline"
 				size="icon-sm"
-				class={control({ tone })}
+				class={cn(control({ tone }), unavailable && unavailableControl)}
 				aria-label={label}
+				aria-disabled={unavailable ? 'true' : undefined}
+				aria-describedby={unavailable ? reasonId : undefined}
+				data-unavailable={unavailable ? '' : undefined}
 				{disabled}
-				{onclick}
+				onclick={() => {
+					if (!unavailable) {
+						onclick();
+					}
+				}}
 			>
 				<Icon class="size-4" />
 				<span class="sr-only">{label}</span>
+				{#if unavailable}
+					<span id={reasonId} class="sr-only">{unavailable}</span>
+				{/if}
 			</Button>
 		{/snippet}
 	</Tooltip.Trigger>
@@ -96,6 +128,11 @@
 		{#if shortcut}
 			<!-- a key name is not prose, so it reads left to right in both locales. -->
 			<Kbd dir="ltr">{toShortcutHint(shortcut, usesAppleKeyboard())}</Kbd>
+		{/if}
+		{#if unavailable}
+			<!-- the reason, on its own line under the name: what the control is, then why it will not
+			     run now. -->
+			<span class="block opacity-80" data-unavailable-reason>{unavailable}</span>
 		{/if}
 	</Tooltip.Content>
 </Tooltip.Root>
