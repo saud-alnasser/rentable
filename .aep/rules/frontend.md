@@ -117,8 +117,8 @@ reaching the user and everything else reading as an unexpected failure.
 Tailwind v4, configured CSS-first — there is no JS config file to edit. **The configuration is
 in two files and the split is by owner.** `packages/design/src/lib/tokens.css` is **the token
 layer**: what the product's surfaces are drawn from, and the name used for it throughout this
-rule. It holds the palette, the tone colours, the radius, the shell breakpoint, and the global
-rules any Rentable client wants.
+rule. It holds the palette, the tone colours, shape and elevation, the shell breakpoint, and the
+global rules any Rentable client wants.
 
 **There are two appearances, light and dark, and every colour token has a value in each**: light
 on `:root`, dark under `.dark`. The class on `<html>` is the only thing that chooses, and the
@@ -252,6 +252,40 @@ direction trailing the label is a state and is not the row's icon; a radio or ch
 as carrying one, because the primitive reserves the indicator's column at its start.
 `design/tests/menu-icons.svelte.test.ts` holds the shared menus to it, and the record card's test
 in the package holds both of its routes.
+
+**Every corner is a step of one radius ladder**, Tailwind's own steps and values, declared in the
+token layer with the stock set cleared, so a step not listed here builds nothing:
+
+| Step          | px | For                                                                                                 |
+| ------------- | -- | --------------------------------------------------------------------------------------------------- |
+| `rounded-xs`  | 2  | a mark: a chart swatch, a tooltip's arrow, a resize grip; the menubar's ported rows                 |
+| `rounded-sm`  | 4  | a small box: a checkbox, an item's media, a navigation link                                         |
+| `rounded-md`  | 6  | a control the registry shipped and nothing here restyled: calendar cells, textarea                  |
+| `rounded-lg`  | 8  | a label floating inside a surface: a field's error, a chart tooltip, a key, an input group's button |
+| `rounded-xl`  | 12 | a row: a menu, command, select or sidebar row, a tab, a tile on the dashboard                       |
+| `rounded-2xl` | 16 | a control or a card: a button, an input, a select trigger, a record card, a menu                    |
+| `rounded-3xl` | 24 | a panel: a dialog, a sheet, a popover, the command menu, the list's frame                           |
+
+Anything round all the way, a pill, a dot or a switch, is `rounded-full`, which is not a step.
+An element laid exactly over its parent, a record card's link or a scroll viewport, takes
+`rounded-inherit` so its corners follow whichever step the parent has.
+
+**Elevation is two heights and one inset, each with a value per appearance**, since a shadow
+tuned for a pale ground vanishes on a dark one. They are declared in both appearance blocks and
+read by the utility, so a surface names the height and the appearance chooses the value:
+
+| Utility               | For                                                                                                                                     |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `shadow-raised`       | a card resting on the page, the sidebar's inset, the slider's thumb, the way past a screen                                              |
+| `shadow-overlay`      | what floats over the page: a dialog, sheet, menu or popover, a chart's tooltip, a field's error, a record card lifted under the pointer |
+| `inset-shadow-sunken` | a form's control cut into its panel (`insetControl`)                                                                                    |
+
+A control sits flat on its surface and takes none. Tailwind's stock shadows are cleared, so
+`shadow-lg` and the rest build nothing, and `cn` is taught the named ones, so a later height or
+step replaces an earlier one. A node test in each package fails on an arbitrary radius or shadow
+(`rounded-[`, `shadow-[`): `packages/design/src/lib/tests/shape.test.ts`, which also holds the
+ladder and both appearances' values, and `apps/desktop/src/lib/design/tests/shape.test.ts`. A
+step that seems to be missing is a question about the ladder, and the answer changes this table.
 
 ## Motion
 

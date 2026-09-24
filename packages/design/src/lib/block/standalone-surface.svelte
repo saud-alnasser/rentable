@@ -108,7 +108,7 @@
 	<!-- one width for all seven. The three that disagreed did so because each chose its own. -->
 	<div
 		class={cn(
-			'w-full max-w-lg rounded-3xl bg-card text-start shadow-xl ring-1 ring-foreground/10',
+			'w-full max-w-lg rounded-3xl bg-card text-start shadow-overlay ring-1 ring-foreground/10',
 			banded ? 'overflow-hidden' : 'p-6',
 			'motion-safe:animate-in motion-safe:duration-base motion-safe:ease-enter motion-safe:zoom-in-95 motion-safe:fade-in',
 			className

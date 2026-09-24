@@ -14,7 +14,7 @@
 
 <span
 	class={cn(
-		"relative flex h-8 items-center rounded-md border border-input bg-input/30 px-3 text-sm whitespace-nowrap shadow-xs transition-[color,box-shadow] outline-none select-none hover:bg-input/50 has-focus:border-ring has-focus:ring-[3px] has-focus:ring-ring/50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-muted-foreground",
+		"relative flex h-8 items-center rounded-md border border-input bg-input/30 px-3 text-sm whitespace-nowrap transition-[color,box-shadow] outline-none select-none hover:bg-input/50 has-focus:border-ring has-focus:ring-[3px] has-focus:ring-ring/50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-muted-foreground",
 		className
 	)}
 >

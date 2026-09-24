@@ -28,9 +28,9 @@
 	 * a list from the keyboard carries no transition at all.
 	 */
 	export const recordCard = [
-		'rounded-2xl bg-card ring-1 ring-foreground/5 shadow-[0_1px_3px_rgba(0,0,0,0.18)]',
+		'rounded-2xl bg-card ring-1 ring-foreground/5 shadow-raised',
 		'motion-safe:transition-[transform,box-shadow] motion-safe:duration-quick motion-safe:ease-move',
-		'motion-safe:hover:-translate-y-[3px] hover:shadow-[0_10px_20px_rgba(0,0,0,0.16)]'
+		'motion-safe:hover:-translate-y-[3px] hover:shadow-overlay'
 	].join(' ');
 
 	/**
@@ -123,7 +123,7 @@
 		<a
 			{href}
 			aria-label={label}
-			class="absolute inset-0 rounded-[inherit] focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+			class="absolute inset-0 rounded-inherit focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
 		></a>
 
 		{@render content()}

@@ -89,7 +89,7 @@
 	<div
 		bind:this={ref}
 		class={cn(
-			'grid min-w-[9rem] items-start gap-1.5 rounded-lg border border-border/50 bg-background px-2.5 py-1.5 text-xs shadow-xl',
+			'grid min-w-[9rem] items-start gap-1.5 rounded-lg border border-border/50 bg-background px-2.5 py-1.5 text-xs shadow-overlay',
 			className
 		)}
 		{...restProps}
@@ -122,7 +122,7 @@
 						{:else if !hideIndicator}
 							<div
 								style="--color-bg: {indicatorColor}; --color-border: {indicatorColor};"
-								class={cn('shrink-0 rounded-[2px] border-(--color-border) bg-(--color-bg)', {
+								class={cn('shrink-0 rounded-xs border-(--color-border) bg-(--color-bg)', {
 									'size-2.5': indicator === 'dot',
 									'h-full w-1': indicator === 'line',
 									'w-0 border-[1.5px] border-dashed bg-transparent': indicator === 'dashed',

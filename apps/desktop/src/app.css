@@ -4,7 +4,7 @@
 
 /*
  * the product's token layer, which this application draws from rather than declares. the palette,
- * the tone vocabulary, the radius, the shell breakpoint and the global rules that are the
+ * the tone vocabulary, shape and elevation, the shell breakpoint and the global rules that are the
  * product's live in `@rentable/design` so that a second Rentable client cannot come to disagree
  * with this one about what a colour means.
  *

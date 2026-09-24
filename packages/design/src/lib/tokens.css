@@ -1,7 +1,7 @@
 /*
  * the token layer, and the whole of what the product's surfaces are drawn from. a second Rentable
- * client imports this file and inherits the palette, the tone vocabulary, the radius, the shell
- * breakpoint and the global rules that belong to the product rather than to one window.
+ * client imports this file and inherits the palette, the tone vocabulary, shape and elevation,
+ * the shell breakpoint and the global rules that belong to the product rather than to one window.
  *
  * a consumer needs three lines, and two of them fail silently if they are wrong. there is no
  * error in either case: the build succeeds and the application is simply wrong on screen.
@@ -46,11 +46,12 @@
  */
 :root {
 	/*
-	 * the radius ladder is Tailwind's own — the shadcn-style overrides that inverted it
-	 * (rounded-xl above rounded-2xl) are gone. `--radius` survives only because the
-	 * input-group primitive still derives from it; it feeds no ladder token.
+	 * the light appearance's elevation. the names are explained under *Shape and elevation*
+	 * below. a shadow on a pale ground needs little to read, so these stay soft.
 	 */
-	--radius: 0.875rem;
+	--elevation-raised: 0 1px 2px 0 oklch(0 0 0 / 6%), 0 1px 3px 0 oklch(0 0 0 / 10%);
+	--elevation-overlay: 0 12px 24px -6px oklch(0 0 0 / 16%), 0 4px 8px -4px oklch(0 0 0 / 10%);
+	--elevation-sunken: inset 0 2px 4px oklch(0 0 0 / 10%);
 	/*
 	 * the light appearance. the names are explained once, in the dark block below, and mean
 	 * the same here. the tones are darker than their dark twins so that each still reads at
@@ -100,6 +101,14 @@
  * here is the one it carried then, so dark reads exactly as it did.
  */
 .dark {
+	/*
+	 * a shadow against a dark ground reads as almost nothing at the alpha light uses, so each
+	 * is several times denser here: the same step reads as the same height in both. the sunken
+	 * well is the value it carried when dark was the only appearance.
+	 */
+	--elevation-raised: 0 1px 2px 0 oklch(0 0 0 / 40%), 0 1px 3px 0 oklch(0 0 0 / 50%);
+	--elevation-overlay: 0 12px 28px -6px oklch(0 0 0 / 60%), 0 4px 10px -4px oklch(0 0 0 / 40%);
+	--elevation-sunken: inset 0 2px 4px oklch(0 0 0 / 14%);
 	--background: oklch(0.13 0 0);
 	--foreground: oklch(0.97 0 0);
 	--card: oklch(0.17 0 0);
@@ -221,6 +230,58 @@
  */
 @theme static {
 	--breakpoint-shell: 48rem;
+}
+
+/* ===================================== */
+/* Shape and elevation                   */
+/* ===================================== */
+
+/*
+ * every corner comes from one ladder and every shadow from one of two heights. a surface names a
+ * step and never a length, and `shape.test.ts` in each package fails on an arbitrary radius or
+ * shadow anywhere it draws. [[rules/frontend]] *Styling* says which surface takes which step.
+ *
+ * the ladder is Tailwind's own steps and values, stated here so it is this file's rather than
+ * the framework's: xs for a mark, sm for a small box, md for a control the registry shipped, lg
+ * for a label floating inside a surface, xl for a row, 2xl for a control or a card, 3xl for a
+ * panel. anything round all the way is `rounded-full`, which is not a step. the stock steps are
+ * cleared first, so one the ladder does not name generates nothing.
+ *
+ * two heights, and no third: `raised` is a card resting on the page, or a control that stands
+ * off it by design (the slider's thumb, the way past a screen), and `overlay` is anything
+ * floating over it: a dialog, a sheet, a menu, a popover, a card lifted under the pointer.
+ * `sunken` is the one inset, a form's control cut into the panel. each is a value per appearance,
+ * declared in the two blocks above and read through a variable here, because a shadow tuned for
+ * a pale ground vanishes on a dark one. the stock shadows are cleared for the
+ * same reason the stock radii are, and because every one of them is black at an alpha only light
+ * can see.
+ *
+ * `rounded-inherit` is for an element laid exactly over its parent, a card's link or a scroll
+ * viewport, whose corners have to be the parent's whichever step that is.
+ */
+@theme {
+	--radius-*: initial;
+	--radius-xs: 0.125rem;
+	--radius-sm: 0.25rem;
+	--radius-md: 0.375rem;
+	--radius-lg: 0.5rem;
+	--radius-xl: 0.75rem;
+	--radius-2xl: 1rem;
+	--radius-3xl: 1.5rem;
+}
+
+@theme inline {
+	--shadow-*: initial;
+	--inset-shadow-*: initial;
+	--drop-shadow-*: initial;
+	--text-shadow-*: initial;
+	--shadow-raised: var(--elevation-raised);
+	--shadow-overlay: var(--elevation-overlay);
+	--inset-shadow-sunken: var(--elevation-sunken);
+}
+
+@utility rounded-inherit {
+	border-radius: inherit;
 }
 
 /* ===================================== */

@@ -2,7 +2,7 @@
 	import { tv, type VariantProps } from 'tailwind-variants';
 
 	const presentation = tv({
-		base: 'fixed z-50 flex flex-col gap-0 overflow-hidden bg-card shadow-xl ring-1 ring-foreground/10 data-[state=closed]:animate-out data-[state=closed]:ease-exit data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:ease-enter data-[state=open]:fade-in-0',
+		base: 'fixed z-50 flex flex-col gap-0 overflow-hidden bg-card shadow-overlay ring-1 ring-foreground/10 data-[state=closed]:animate-out data-[state=closed]:ease-exit data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:ease-enter data-[state=open]:fade-in-0',
 		variants: {
 			weight: {
 				light:
@@ -30,7 +30,7 @@
 	 * ring at all. Anything that restyles a control's border inherits this trap.
 	 */
 	export const insetControl =
-		'border-transparent bg-foreground/5 shadow-[inset_0_2px_4px_rgb(0_0_0/0.14)] hover:bg-foreground/8 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20';
+		'border-transparent bg-foreground/5 inset-shadow-sunken hover:bg-foreground/8 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20';
 </script>
 
 <script lang="ts">
