@@ -399,6 +399,7 @@
 									organization={shellState.organization?.organization ?? null}
 									isSigningIn={shellState.isSigningIn}
 									errorMessage={shellState.error}
+									errorDetail={shellState.errorDetail}
 									onSignIn={(username, password) => void startup.signIn(username, password)}
 									onDisconnect={() => startup.disconnect()}
 									onSetUpOrganization={() => void goto(resolve(THE_FIRST_RUN))}

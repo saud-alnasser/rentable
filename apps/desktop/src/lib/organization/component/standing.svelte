@@ -3,6 +3,7 @@
 	import { tauri } from '$lib/platform/tauri';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Callout } from '@rentable/design/primitive/callout/index.js';
+	import DetailDisclosure from '$lib/error/component/detail-disclosure.svelte';
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { useAccountRefusalDetail } from '$lib/organization/query';
@@ -188,11 +189,13 @@
 	     reachable; if it does not clear, there is none to collect and the owner is who to ask. -->
 	<Callout tone="warning" data-credential-refusal>{$LL.workspace.credentialRefused()}</Callout>
 {:else if status === 'needsReconnect'}
-	<!-- the fault itself, and only where there is one: the sentence the service or the replica
-	     gave, which is the half a person can act on. A callout rather than a description
-	     because it is somebody else's text and can be any length. -->
+	<!-- the fault, and only where there is one. What the service or the replica said is kept as
+	     plain words with no code to read a sentence from, so the callout says the generic one in
+	     the reader's language and the words themselves stay behind details, closed
+	     ([[rules/interface]], *Error*). -->
 	{#if fault}
-		<Callout tone="error" data-fault>{fault}</Callout>
+		<Callout tone="error" data-fault>{$LL.common.messages.unexpectedError()}</Callout>
+		<DetailDisclosure detail={fault} name="fault" />
 	{/if}
 
 	{#if needsAuthority}

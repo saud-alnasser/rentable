@@ -1,6 +1,6 @@
 import api, { forgetContext } from '$lib/api/caller';
 import { invalidateRoot } from '$lib/design/query';
-import { toErrorText } from '$lib/error/message';
+import { toErrorMessage, toErrorText } from '$lib/error/message';
 import LL from '$lib/i18n/i18n-svelte';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { baseLocale, locales } from '$lib/i18n/i18n-util';
@@ -81,9 +81,13 @@ export function browserStartupPorts(queryClient: QueryClient): StartupPorts {
 		},
 		// read at the moment of the failure rather than captured, so it is written in whatever
 		// language the reader had by then.
+		// the sentence alone: the shell's own words are the detail, drawn behind a disclosure where
+		// the surface has room and written to diagnostics on a failed start.
 		describeError: (error) =>
 			toErrorText(error, get(LL), get(LL).layout.startup.failedToStartFallback()),
-		recordFailure: (message) => recordDiagnosticError('startup.failed', { error: message }),
+		detailError: (error) => toErrorMessage(error, get(LL)).detail,
+		recordFailure: (message, detail) =>
+			recordDiagnosticError('startup.failed', { error: message, detail }),
 		reportStage: reportStartupStage,
 		reportComplete: reportStartupComplete,
 		now: () => Date.now()

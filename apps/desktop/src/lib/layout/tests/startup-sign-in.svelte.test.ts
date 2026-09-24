@@ -300,6 +300,30 @@ test('a pair that did not open is said on the wall, with the one sentence allowe
 	expect(screen.getByText('the sealed value did not open')).toBeDefined();
 });
 
+// effort 832, requirement 23: a failure nobody can act on reads as its sentence, and what the
+// shell said behind it is reachable only by asking for it.
+test('what the shell said behind a failure is behind details, closed, in arabic', async () => {
+	loadLocale('ar');
+	setLocale('ar');
+
+	const english = 'failed to read vault.json: permission denied';
+
+	card('locked', { errorMessage: ar.common.errors.io, errorDetail: english });
+
+	expect(screen.getByText(ar.common.errors.io)).toBeDefined();
+	expect(document.querySelector('[data-error-detail="sign-in"]')).not.toBeNull();
+	expect(document.body.textContent).not.toContain(english);
+
+	await fireEvent.click(screen.getByRole('button', { name: ar.common.actions.details }));
+	await tick();
+
+	expect(document.querySelector('[data-error-detail-text="sign-in"]')?.textContent?.trim()).toBe(
+		english
+	);
+
+	setLocale('en');
+});
+
 // requirement 16: both locales, and the same two fields under the same title and line.
 test('the wall renders in arabic with the same two fields', () => {
 	loadLocale('ar');

@@ -281,6 +281,7 @@ export function harness(
 			forgetContext: () => void journal.contextsForgotten++
 		},
 		describeError: (error) => (error instanceof Error ? error.message : String(error)),
+		detailError: () => null,
 		recordFailure: (message) => void journal.failures.push(message),
 		reportStage: (stage) => void journal.stages.push(stage),
 		reportComplete: () => void journal.completed++,

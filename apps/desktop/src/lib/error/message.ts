@@ -65,6 +65,10 @@ export function toErrorDetail(error: unknown): string | null {
  * message was written for a developer. anything else raised inside typescript is
  * already written in the user's language, so it is shown as it was written.
  *
+ * **The detail is never visible text.** It is the machine's English whatever the reader's
+ * language, so a surface puts it behind `error/component/detail-disclosure.svelte` or sends it to
+ * diagnostics, and never beside the title ([[rules/interface]], *Error*).
+ *
  * `fallback` replaces the generic message when there is nothing readable at all,
  * for callers that can say something more useful about where the failure was.
  */
@@ -98,8 +102,9 @@ export function toErrorMessage(
 }
 
 /**
- * `toErrorMessage` flattened onto one line, for the places that render a single
- * string and have nowhere to put a description.
+ * `toErrorMessage`'s title alone, for the places that render a single string. The detail is left
+ * out rather than joined on: it is the shell's English, and a surface with room for it reads it
+ * from `toErrorMessage` and puts it behind the details disclosure.
  */
 export function toErrorText(
 	error: unknown,
@@ -108,18 +113,13 @@ export function toErrorText(
 ): string {
 	const { title, detail } = toErrorMessage(error, translations, fallback);
 
-	if (!detail) {
-		return title;
-	}
-
 	// a title with nothing in it is a translation that is not loaded, which happens on the one
-	// screen drawn before a locale is. The detail is the whole of what is known there, and a
-	// separator in front of it reads as a sentence whose first half went missing.
-	if (!title) {
+	// screen drawn before a locale is (`layout/component/startup-unreadable.svelte`). No reader's
+	// language exists there to translate into, and the detail is the whole of what is known, so it
+	// is what that screen says, isolated for the reason `isolateDirection` states.
+	if (!title && detail) {
 		return isolateDirection(detail);
 	}
 
-	// the detail is rust's english prose whatever the locale, so it is isolated for the reason
-	// `isolateDirection` states.
-	return `${title} — ${isolateDirection(detail)}`;
+	return title;
 }

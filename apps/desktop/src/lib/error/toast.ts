@@ -2,6 +2,8 @@ import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 
 import { toErrorMessage } from '$lib/error/message';
 import { toRefusalText } from '$lib/error/refusal';
+import { toTauriErrorCode } from '$lib/error/tauri';
+import { recordDiagnosticError } from '$lib/platform/diagnostics';
 import { toRefusal } from '@rentable/design/confirmation.js';
 import { toast } from 'svelte-sonner';
 
@@ -18,8 +20,12 @@ import { toast } from 'svelte-sonner';
  */
 
 /**
- * show a thrown value as an error toast, with the sentence as the title and
- * rust's prose, where there is any, as the description.
+ * show a thrown value as an error toast: the reader's sentence, and nothing else.
+ *
+ * **What the shell said behind it goes to diagnostics, not the toast.** It is the machine's
+ * English whatever the reader's language ([[rules/interface]], *Error*), and a toast is read and
+ * gone with no room for a disclosure to open in. Nobody acts on those words; they are what a person
+ * quotes when asked what happened, and the diagnostics file is where that question is answered.
  *
  * for failures raised outside a mutation. a mutation reports through the shared
  * handlers in `$lib/design/mutation` instead.
@@ -27,7 +33,11 @@ import { toast } from 'svelte-sonner';
 export function showErrorToast(error: unknown, translations: TranslationFunctions) {
 	const { title, detail } = toErrorMessage(error, translations);
 
-	showErrorSentence(title, detail);
+	if (detail) {
+		recordDiagnosticError('toast.failed', { code: toTauriErrorCode(error), detail });
+	}
+
+	showErrorSentence(title);
 }
 
 /**
@@ -35,8 +45,8 @@ export function showErrorToast(error: unknown, translations: TranslationFunction
  *
  * for a refusal decided in the interface rather than thrown, where there is no value to decode.
  */
-export function showErrorSentence(title: string, detail?: string | null) {
-	toast.error(title, { description: detail ?? undefined });
+export function showErrorSentence(title: string) {
+	toast.error(title);
 }
 
 /**

@@ -757,7 +757,14 @@ failure** (*Not found*, under *Empty*, above).
   field (*Validation errors*).
 - **What the shell or Turso said behind a refusal is kept, closed**, under a disclosure
   (`error/component/detail-disclosure.svelte`). The sentence is the reader's, and the machine's
-  words are for whoever the reader asks about it.
+  words are for whoever the reader asks about it. So are the words behind a failure nobody can
+  act on, an I/O failure or a corrupt file, which reads as its code's generic sentence: a surface
+  with room draws them behind the disclosure (the sign-in wall, the setup walk, the connect
+  screen, the sync standing's fault, the recovery screen's update error), and one without, a field's line or a toast, says the sentence alone. A toast has no
+  room for a disclosure to open in, so `showErrorToast` writes them to diagnostics instead, and
+  `toErrorText` returns the title alone. Words that carry no code, a replica's fault or an
+  updater's error, read as `common.messages.unexpectedError`. They are never visible text beside
+  the sentence.
 - **A screen that could not be drawn takes the shared application surface** (*Application
   surfaces*), neutral in tone, since the application around it is still running
   (`layout/component/caught-error.svelte`). It offers *retry*, which draws the screen again, and

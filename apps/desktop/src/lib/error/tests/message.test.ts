@@ -82,11 +82,40 @@ test('a value carrying nothing readable falls back to the unexpected-error messa
 	});
 });
 
-test('flattening joins the title and the detail, isolating the untranslated prose', () => {
+test('flattening keeps the title alone, and the detail stays for a disclosure', () => {
 	assert.equal(
 		toErrorText({ code: 'integrity', message: 'hash mismatch' }, translations),
-		'the data does not match what was expected. — ⁨hash mismatch⁩'
+		'the data does not match what was expected.'
 	);
+});
+
+/**
+ * THE SHELL'S OWN WORDS STAY BEHIND DETAILS
+ *
+ * A failure nobody can act on, an I/O failure or a corrupt file, keeps its generic sentence, and
+ * the shell's English message is reachable only behind the details disclosure (effort 832,
+ * requirement 23). `toErrorText` is what every single-line surface renders, so it is where that
+ * holds for all of them.
+ */
+test('an io failure read in arabic is the arabic sentence, with no english in it', () => {
+	loadLocale('ar');
+
+	const arabic = i18nObject('ar');
+	const english = 'failed to read settings.json: permission denied';
+
+	for (const failure of [
+		{ code: 'io', message: english },
+		{ code: 'integrity', message: 'database disk image is malformed' },
+		// the same failure after the router wrapped it, which is how most of them arrive.
+		new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: english, cause: { code: 'io' } })
+	]) {
+		const text = toErrorText(failure, arabic);
+		const { title, detail } = toErrorMessage(failure, arabic);
+
+		assert.equal(text, title);
+		assert.ok(detail, 'the shell said something, and it is kept for the disclosure');
+		assert.doesNotMatch(text, /[A-Za-z]/, `english reached the text: ${text}`);
+	}
 });
 
 test('flattening a detail-free failure yields the title alone', () => {

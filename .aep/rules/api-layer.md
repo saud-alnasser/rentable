@@ -137,7 +137,10 @@ Rust shell's `organization/` and `sync/` is `Error::Refused { reason }`, the rea
 `host.<reason>`, whose sentence is `common.refusals.host.<reason>`. Its message is a developer's
 description; where it carries Turso's words a screen shows them behind a details disclosure and
 never inside a sentence. A failure nobody can act on keeps its own variant and its generic
-sentence. *Added 2026-09-24 by the same requirement: the shell's refusals crossed as English prose
+sentence, and its message is kept the same way: behind a disclosure where the surface has room,
+in diagnostics where it has none, and never beside the sentence (`toErrorText` returns the title
+alone). *Revised 2026-09-25 by ticket 37 of the same effort: a toast showed the message as its
+description, and `toErrorText` joined it onto the sentence.* *Added 2026-09-24 by the same requirement: the shell's refusals crossed as English prose
 the interface showed raw or matched by phrase.*
 
 ## One database client type

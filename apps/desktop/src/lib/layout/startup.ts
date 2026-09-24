@@ -51,6 +51,12 @@ export type StartupSnapshot = {
 	state: StartupState;
 	/** what went wrong, already rendered for a reader. `null` where nothing did. */
 	error: string | null;
+	/**
+	 * what the shell said behind `error`, in its own words, for a surface that has room for a
+	 * details disclosure. Never shown beside the sentence ([[rules/interface]], *Error*). It
+	 * belongs to the error it came with, so setting `error` without it clears it.
+	 */
+	errorDetail: string | null;
 	recovery: Recovery | null;
 	remoteSync: RemoteSyncState | null;
 	/** where this machine stands with organizations, which is what the wall admits on. */
@@ -177,7 +183,9 @@ export type StartupPorts = {
 	};
 	/** a thrown value as a reader should see it. The route's translations, from outside. */
 	describeError(error: unknown): string;
-	recordFailure(message: string): void;
+	/** what the shell said behind a thrown value, kept for a disclosure; `null` where nothing. */
+	detailError(error: unknown): string | null;
+	recordFailure(message: string, detail: string | null): void;
 	reportStage(stage: StartupStage): void;
 	reportComplete(): void;
 	now(): number;
@@ -186,6 +194,7 @@ export type StartupPorts = {
 const INITIAL: StartupSnapshot = {
 	state: 'loading',
 	error: null,
+	errorDetail: null,
 	recovery: null,
 	remoteSync: null,
 	organization: null,
@@ -244,11 +253,23 @@ export class Startup {
 	}
 
 	#set(changes: Partial<StartupSnapshot>) {
-		this.#snapshot = { ...this.#snapshot, ...changes };
+		// a detail left behind by an error that has since changed would be drawn under a sentence
+		// it does not belong to.
+		const detail = 'error' in changes && !('errorDetail' in changes) ? { errorDetail: null } : {};
+
+		this.#snapshot = { ...this.#snapshot, ...detail, ...changes };
 
 		for (const observer of this.#observers) {
 			observer(this.snapshot);
 		}
+	}
+
+	/** a thrown value as the snapshot holds it: the reader's sentence, and the shell's words apart. */
+	#describe(error: unknown): Pick<StartupSnapshot, 'error' | 'errorDetail'> {
+		return {
+			error: this.#ports.describeError(error),
+			errorDetail: this.#ports.detailError(error)
+		};
 	}
 
 	/**
@@ -264,14 +285,16 @@ export class Startup {
 	 */
 	async #fail(error: unknown) {
 		const message = this.#ports.describeError(error);
+		const detail = this.#ports.detailError(error);
 
 		this.#set({
 			recovery: null,
 			state: 'error',
 			error: message,
+			errorDetail: detail,
 			hasFailedUnreadable: this.#snapshot.hasFailedUnreadable || !this.#snapshot.isI18nReady
 		});
-		this.#ports.recordFailure(message);
+		this.#ports.recordFailure(message, detail);
 
 		await this.#ports.window.show();
 	}
@@ -526,7 +549,7 @@ export class Startup {
 		try {
 			this.#set({ organization: await this.#ports.organization.signIn(username, password) });
 		} catch (error) {
-			this.#set({ error: this.#ports.describeError(error), isSigningIn: false });
+			this.#set({ ...this.#describe(error), isSigningIn: false });
 
 			return;
 		}
@@ -654,7 +677,7 @@ export class Startup {
 		try {
 			this.#set({ organization: await this.#ports.organization.getState() });
 		} catch (error) {
-			this.#set({ state: before, error: this.#ports.describeError(error) });
+			this.#set({ state: before, ...this.#describe(error) });
 
 			return;
 		}
@@ -773,7 +796,7 @@ export class Startup {
 		try {
 			await this.#ports.organization.disconnect();
 		} catch (error) {
-			this.#set({ error: this.#ports.describeError(error) });
+			this.#set(this.#describe(error));
 
 			return;
 		}
