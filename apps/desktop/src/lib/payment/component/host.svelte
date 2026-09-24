@@ -1,0 +1,198 @@
+<script lang="ts">
+	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
+	import { page } from '$app/state';
+	import { back } from '@rentable/design/back.svelte.js';
+	import DeleteDialog from '@rentable/design/block/delete-dialog.svelte';
+	import { usesAppleKeyboard } from '@rentable/design/shortcut.js';
+	import { toPaletteVerbs } from '$lib/design/acts';
+	import { onMutationError, onMutationSuccess } from '$lib/design/mutation';
+	import { showErrorSentence, showErrorToast } from '$lib/error/toast';
+	import { LL, locale } from '$lib/i18n/i18n-svelte';
+	import type { PaymentActRecord } from '$lib/payment/acts';
+	import {
+		closePaymentConfirmation,
+		closePaymentForm,
+		paymentActs,
+		paymentHostState,
+		resetPaymentHost
+	} from '$lib/payment/host.svelte';
+	import { useDeletePayment, useReadPayment } from '$lib/payment/query';
+	import { writeDetailsToClipboard } from '$lib/platform/clipboard';
+	import { formatLocaleMoney } from '$lib/platform/locale';
+	import { onDestroy, untrack } from 'svelte';
+	import PaymentForm from './form.svelte';
+
+	/**
+	 * The payment form and the payment's delete confirmation, mounted once for the whole shell.
+	 *
+	 * A payment's acts are one list (`payment/acts.ts`), and every surface offering them is a
+	 * projection of it; what those acts open is here, so there is one `PaymentForm` in the tree.
+	 * `payment/host.svelte.ts` is the request the surfaces raise and this answers, the way
+	 * `contract/component/host.svelte` answers the contract's.
+	 *
+	 * **The mutation is here**, inside the providers, so it reads the query client from context the
+	 * way every other hook does. What it writes, and how it is taken back, is unchanged from when
+	 * each surface mounted its own copy.
+	 */
+
+	const deleteMutation = useDeletePayment();
+	const readPayment = useReadPayment();
+
+	const deleting = $derived(paymentHostState.deleting);
+
+	// a payment has no name, and the nearest thing to one is its amount in the reader's locale.
+	const formatMoney = (value: number) => formatLocaleMoney($locale, value);
+
+	async function deleteConfirmed() {
+		if (!deleting) {
+			return;
+		}
+
+		const { id, contractId } = deleting;
+
+		await deleteMutation.mutateAsync(id);
+		closePaymentConfirmation();
+
+		const recordPage = resolve(`/contracts/payments/${id}`);
+
+		// the payment's own page is not somewhere back can return to now that the record is gone.
+		// Where the reader is standing on it, they are taken to the contract it was made against;
+		// anywhere else, the page is only forgotten from behind them.
+		if (page.url.pathname === recordPage) {
+			back.forgetCurrent();
+			await goto(resolve(`/contracts/${contractId}`));
+
+			return;
+		}
+
+		back.forget(recordPage);
+	}
+
+	/**
+	 * A payment's stated details on the clipboard, the same from a ledger's card as from its page:
+	 * the payment is read for the tenant and the contract a ledger's row does not carry.
+	 */
+	async function copyDetails(payment: PaymentActRecord) {
+		const read = await readPayment(payment.id).catch(() => undefined);
+
+		const copied = await writeDetailsToClipboard([
+			{ label: $LL.common.labels.amount(), value: formatMoney(read?.amount ?? payment.amount) },
+			{ label: $LL.common.labels.tenant(), value: read?.tenantName ?? '' },
+			{ label: $LL.common.labels.contractNumber(), value: read?.contractGovId ?? '' }
+		]);
+
+		if (copied) {
+			onMutationSuccess({ toast: { success: () => $LL.common.messages.copied() } });
+
+			return;
+		}
+
+		onMutationError(
+			{ toast: { unexpected: () => $LL.common.messages.copyFailed() } },
+			new Error('the clipboard refused')
+		);
+	}
+
+	/**
+	 * An act named by a payment's identity: read the payment, then answer on the terms the command
+	 * menu's own projection gives for it, so an act a terminated contract's payment does not admit
+	 * is refused with a sentence rather than run.
+	 */
+	async function answerAsked(actId: string, paymentId: string) {
+		let payment: PaymentActRecord | undefined;
+
+		try {
+			payment = await readPayment(paymentId);
+		} catch (error) {
+			showErrorToast(error, $LL);
+
+			return;
+		}
+
+		if (!payment) {
+			showErrorSentence($LL.common.errors.notFound());
+
+			return;
+		}
+
+		const verb = toPaletteVerbs(paymentActs, payment, $LL, usesAppleKeyboard()).find(
+			(offered) => offered.id === actId
+		);
+
+		if (!verb) {
+			const act = paymentActs.find((declared) => declared.id === actId);
+
+			showErrorSentence(
+				$LL.common.ui.commandPaletteActDoesNotApply({
+					act: act?.label($LL) ?? actId,
+					record: formatMoney(payment.amount)
+				})
+			);
+
+			return;
+		}
+
+		if (verb.unavailable) {
+			showErrorSentence(verb.unavailable);
+
+			return;
+		}
+
+		verb.run();
+	}
+
+	// both requests are answered once and cleared first, so an answer that takes a read cannot be
+	// asked twice by the effect running again while it waits.
+	$effect(() => {
+		const payment = paymentHostState.copying;
+
+		if (!payment) {
+			return;
+		}
+
+		paymentHostState.copying = null;
+		untrack(() => void copyDetails(payment));
+	});
+
+	$effect(() => {
+		const asked = paymentHostState.asked;
+
+		if (!asked) {
+			return;
+		}
+
+		paymentHostState.asked = null;
+		untrack(() => void answerAsked(asked.actId, asked.paymentId));
+	});
+
+	onDestroy(resetPaymentHost);
+</script>
+
+<!-- mounted once a contract has been named: the form reads what that contract still has due, and
+     a form with no contract has nothing it could write to. -->
+{#if paymentHostState.form.contractId}
+	{#key paymentHostState.form.key}
+		<PaymentForm
+			contractId={paymentHostState.form.contractId}
+			value={paymentHostState.form.value}
+			open={paymentHostState.form.open}
+			onOpenChange={(isOpen) => {
+				if (!isOpen) {
+					closePaymentForm();
+				}
+			}}
+		/>
+	{/key}
+{/if}
+
+<DeleteDialog
+	open={deleting !== null}
+	onOpenChange={(isOpen) => {
+		if (!isOpen) {
+			closePaymentConfirmation();
+		}
+	}}
+	record={deleting ? formatMoney(deleting.amount) : undefined}
+	onSubmit={deleteConfirmed}
+/>

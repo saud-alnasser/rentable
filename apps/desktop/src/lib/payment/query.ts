@@ -7,7 +7,7 @@ import { workspacePrefixes } from '$lib/design/query';
 import { LL, locale } from '$lib/i18n/i18n-svelte';
 import { isRecordId } from '$lib/platform/database/identity';
 import { formatLocaleMoney, formatLocaleNumber } from '$lib/platform/locale';
-import { createQuery } from '@tanstack/svelte-query';
+import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 import { get } from 'svelte/store';
 
 export const keys = {
@@ -93,6 +93,21 @@ export function useFetchPayment(id: () => string) {
 			enabled: isRecordId(freshId)
 		};
 	});
+}
+
+/**
+ * Read one payment once, with the contract it was made against, for a caller that holds only its
+ * identity or a ledger row short of that contract: the payment host, answering an act the command
+ * menu named by id, and copying a payment's details. Under the key `useFetchPayment` reads.
+ */
+export function useReadPayment() {
+	const client = useQueryClient();
+
+	return (id: string) =>
+		client.fetchQuery({
+			queryKey: keys.get(id),
+			queryFn: () => api.contract.payments.get({ id })
+		});
 }
 
 export function useFetchContractPayments(

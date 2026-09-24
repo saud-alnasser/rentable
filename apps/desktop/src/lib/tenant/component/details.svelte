@@ -1,23 +1,15 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import DeleteDialog from '@rentable/design/block/delete-dialog.svelte';
 	import RecordSurface from '@rentable/design/block/record-surface.svelte';
 	import Specification from '@rentable/design/block/specification.svelte';
 	import * as Cell from '$lib/design/cell';
-	import { AWAITING_BLOCKERS } from '@rentable/design/confirmation.js';
 	import RecordActionControl from '@rentable/design/block/record-action-control.svelte';
+	import { toPageActions } from '$lib/design/acts';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { isRecordId } from '$lib/platform/database/identity';
-	import { useDeleteTenant, useFetchTenant } from '$lib/tenant/query';
-	import { useListContracts } from '$lib/contract/query';
-	import { isTenantDeletable } from '$lib/tenant/tenant';
-	import { back } from '@rentable/design/back.svelte.js';
-	import RecordActions from '$lib/design/block/record-actions.svelte';
-	import SquarePenIcon from '@lucide/svelte/icons/square-pen';
-	import Trash2Icon from '@lucide/svelte/icons/trash-2';
+	import { tenantActs } from '$lib/tenant/host.svelte';
+	import { useFetchTenant } from '$lib/tenant/query';
 	import TenantContracts from './contracts.svelte';
-	import TenantForm from './form.svelte';
 
 	let { tenantId }: { tenantId: string } = $props();
 
@@ -26,65 +18,24 @@
 		enabled: isRecordId(tenantId)
 	}));
 	const tenant = $derived(tenantQuery.data);
-	const deleteMutation = useDeleteTenant();
 
-	// what a deletion would be refused for, read before the question is asked rather than
-	// after the destructive control is pressed.
-	const heldContractsQuery = useListContracts(
-		() => '',
-		() => null,
-		() => ({ tenantId })
-	);
-	const tenantBlockers = $derived.by(() => {
-		if (heldContractsQuery.isPending) return AWAITING_BLOCKERS;
-
-		const held = heldContractsQuery.data ?? [];
-
-		return isTenantDeletable(held)
-			? []
-			: [$LL.common.deleteDialog.blockedContracts({ count: held.length })];
-	});
-
-	let formOpensOn = $state<NonNullable<typeof tenantQuery.data> | undefined>(undefined);
-	let isTenantFormOpen = $state(false);
-	let isDeleteDialogOpen = $state(false);
-
-	async function deleteTenant() {
-		if (!tenant) return;
-
-		await deleteMutation.mutateAsync(tenant.id);
-		// the record is gone, so the screen showing it is no longer somewhere back can return
-		// to — whatever was open before it is.
-		back.forgetCurrent();
-
-		await goto(resolve('/tenants'));
-	}
+	// the page's cluster is a projection of the one list the card and the command menu read, so it
+	// offers what they offer, in their order and under their names. What each act opens is the
+	// tenant host's, mounted once in the frame, so this page mounts no form and no dialog.
+	const pageActions = $derived(tenant ? toPageActions(tenantActs, tenant, $LL) : []);
 </script>
 
 {#snippet actions()}
-	<RecordActions
-		details={[
-			{ label: $LL.common.labels.name(), value: tenant?.name ?? '' },
-			{ label: $LL.common.labels.nationalId(), value: tenant?.nationalId ?? '' },
-			{ label: $LL.common.labels.phone(), value: tenant?.phone ?? '' }
-		]}
-	/>
-
-	<RecordActionControl
-		label={$LL.common.actions.edit()}
-		icon={SquarePenIcon}
-		onclick={() => {
-			formOpensOn = tenant;
-			isTenantFormOpen = true;
-		}}
-	/>
-
-	<RecordActionControl
-		label={$LL.common.actions.delete()}
-		icon={Trash2Icon}
-		tone="error"
-		onclick={() => (isDeleteDialogOpen = true)}
-	/>
+	{#each pageActions as act (act.id)}
+		<RecordActionControl
+			label={act.label}
+			icon={act.icon}
+			tone={act.tone}
+			shortcut={act.shortcut}
+			disabled={act.unavailable !== undefined}
+			onclick={act.run}
+		/>
+	{/each}
 {/snippet}
 
 {#snippet phone()}
@@ -119,23 +70,3 @@
 	{fields}
 	collections={[{ value: 'contracts', label: $LL.common.nav.contracts(), content: contracts }]}
 />
-
-{#if tenant}
-	<TenantForm
-		open={isTenantFormOpen}
-		onOpenChange={(isOpen) => {
-			isTenantFormOpen = isOpen;
-		}}
-		value={formOpensOn}
-	/>
-
-	<DeleteDialog
-		open={isDeleteDialogOpen}
-		onOpenChange={(isOpen) => {
-			isDeleteDialogOpen = isOpen;
-		}}
-		record={tenant.name}
-		blockers={tenantBlockers}
-		onSubmit={deleteTenant}
-	/>
-{/if}

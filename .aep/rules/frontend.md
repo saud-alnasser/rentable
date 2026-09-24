@@ -420,8 +420,9 @@ handed to `DesignProvider` once in `src/routes/+layout.svelte`. `@rentable/desig
 the contract, and it holds what enforces it and why the direction travels with the words.
 
 *Everything above is unchanged for a component that lives in this application, and after #782 that
-is every cell, every component under a concept or under `layout`, and `block/list.svelte` and
-`block/record-actions.svelte`. What #780, #781 and #782 finished is the primitive tree and
+is every cell, every component under a concept or under `layout`, and `block/list.svelte`
+(`block/record-actions.svelte` stayed too, until effort 832 made copy details a record act and
+retired it). What #780, #781 and #782 finished is the primitive tree and
 thirteen of the fifteen blocks, not the crossing. The other two stay, and the rule below is most
 of why.*
 

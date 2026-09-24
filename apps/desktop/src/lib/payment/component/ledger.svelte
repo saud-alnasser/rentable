@@ -2,10 +2,10 @@
 	import { resolve } from '$app/paths';
 	import { back } from '@rentable/design/back.svelte.js';
 	import type { Payment } from '$lib/platform/database/schema';
-	import DeleteDialog from '@rentable/design/block/delete-dialog.svelte';
 	import RecordActionControl from '@rentable/design/block/record-action-control.svelte';
-	import RecordCard, { type RecordCardAction } from '@rentable/design/block/record-card.svelte';
+	import RecordCard from '@rentable/design/block/record-card.svelte';
 	import SelectionDialog from '@rentable/design/block/selection-dialog.svelte';
+	import { toCardActions } from '$lib/design/acts';
 	import List from '$lib/design/block/list.svelte';
 	import * as Cell from '$lib/design/cell';
 	import { toNarrowedName } from '@rentable/design/csv.js';
@@ -28,9 +28,9 @@
 		paymentLedgerMonths,
 		type PaymentLedgerMonth
 	} from '$lib/payment/ledger';
+	import { paymentActs, paymentHost } from '$lib/payment/host.svelte';
 	import {
 		useDeleteManyPayments,
-		useDeletePayment,
 		useListContractPayments,
 		usePlanManyPayments,
 		type PaymentRefusalReason
@@ -39,9 +39,7 @@
 	import DirectoryImportDialog from '$lib/workspace/component/directory-import-dialog.svelte';
 	import { useImportRecords } from '$lib/workspace/query';
 	import { toTransferInput } from '$lib/workspace/workspace';
-	import SquarePenIcon from '@lucide/svelte/icons/square-pen';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
-	import PaymentForm from './form.svelte';
 
 	/** The contract whose payments this statement lists. */
 	let { contractId }: { contractId: string } = $props();
@@ -56,9 +54,6 @@
 
 	let search = $state('');
 	let filters = $state<FilterSelection>({});
-	let payment = $state<Payment | undefined>(undefined);
-	let isPaymentFormOpen = $state(false);
-	let isDeleteDialogOpen = $state(false);
 	let importDialog = $state<ReturnType<typeof DirectoryImportDialog> | undefined>(undefined);
 	// the records the reader has picked out, and the set a control was reached for with. The two
 	// are separate because the selection stays live behind the confirmation, and an action that
@@ -77,7 +72,6 @@
 
 	const contractQuery = useFetchContract(() => contractId);
 	const paymentsQuery = useListContractPayments(() => ({ contractId, search, period }));
-	const deleteMutation = useDeletePayment();
 	const deleteManyMutation = useDeleteManyPayments();
 	const importMutation = useImportRecords();
 
@@ -190,32 +184,11 @@
 		selected = [];
 	}
 
-	function openPaymentForm(record?: Payment) {
-		payment = record;
-		isPaymentFormOpen = true;
-	}
-
-	// a terminated contract's statement is read-only, and an empty list is how a card comes to
-	// carry no control and to leave the context gesture alone.
-	const cardActions = (entry: Payment): RecordCardAction[] =>
-		hasRowActions
-			? [
-					{
-						label: $LL.common.actions.edit(),
-						icon: SquarePenIcon,
-						onSelect: () => openPaymentForm(entry)
-					},
-					{
-						label: $LL.common.actions.delete(),
-						icon: Trash2Icon,
-						tone: 'error',
-						onSelect: () => {
-							payment = entry;
-							isDeleteDialogOpen = true;
-						}
-					}
-				]
-			: [];
+	// what a payment's card offers, projected from the one list its own page and the command menu
+	// read (`payment/acts.ts`). The row is handed over with its contract's status, which is what
+	// closes a terminated contract's statement to everything that writes.
+	const cardActions = (entry: Payment) =>
+		toCardActions(paymentActs, { ...entry, contractStatus: contractQuery.data?.status }, $LL);
 </script>
 
 {#snippet selectionActions(ids: readonly string[])}
@@ -282,7 +255,7 @@
 			]
 		}}
 		onImport={isAddLocked ? undefined : () => void importDialog?.choose()}
-		onCreate={isAddLocked ? undefined : () => openPaymentForm()}
+		onCreate={isAddLocked ? undefined : () => paymentHost.create({ contractId })}
 	>
 		{#snippet groupHeader(month: PaymentLedgerMonth)}
 			<!-- a card in the list rather than a marker floating over it, and a separator rather than
@@ -376,33 +349,6 @@
 		onSubmit={deleteSelected}
 	/>
 {/if}
-
-<PaymentForm
-	{contractId}
-	value={payment}
-	open={isPaymentFormOpen}
-	onOpenChange={(isOpen) => {
-		isPaymentFormOpen = isOpen;
-		if (!isOpen) payment = undefined;
-	}}
-/>
-
-<DeleteDialog
-	open={isDeleteDialogOpen}
-	onOpenChange={(isOpen) => {
-		isDeleteDialogOpen = isOpen;
-		if (!isOpen) payment = undefined;
-	}}
-	record={payment ? formatMoney(payment.amount) : undefined}
-	onSubmit={async () => {
-		if (payment) {
-			await deleteMutation.mutateAsync(payment.id);
-			// the payment's own page may be behind the reader; it is not somewhere back can
-			// return to now that the record is gone.
-			back.forget(resolve(`/contracts/payments/${payment.id}`));
-		}
-	}}
-/>
 
 <!-- a statement, coming back in. Each row names the contract it is against and that name is what
      places it, this contract included — a payment is nothing without one, and a statement read on

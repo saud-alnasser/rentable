@@ -2,14 +2,13 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import DeleteDialog from '@rentable/design/block/delete-dialog.svelte';
+	import { untrack } from 'svelte';
 	import DirectoryImportDialog from '$lib/workspace/component/directory-import-dialog.svelte';
 	import List from '$lib/design/block/list.svelte';
 	import RecordActionControl from '@rentable/design/block/record-action-control.svelte';
-	import RecordCard, { type RecordCardAction } from '@rentable/design/block/record-card.svelte';
+	import RecordCard from '@rentable/design/block/record-card.svelte';
 	import SelectionDialog from '@rentable/design/block/selection-dialog.svelte';
 	import * as Cell from '$lib/design/cell';
-	import { AWAITING_BLOCKERS } from '@rentable/design/confirmation.js';
 	import { hasCreateIntent } from '@rentable/design/create-intent.js';
 	import {
 		describeRefusals,
@@ -20,25 +19,19 @@
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import type api from '$lib/api/caller';
 	import { toNarrowedName } from '@rentable/design/csv.js';
+	import { toCardActions } from '$lib/design/acts';
+	import { tenantActs, tenantHost } from '$lib/tenant/host.svelte';
 	import {
 		useDeleteManyTenants,
-		useDeleteTenant,
 		useListTenants,
 		usePlanManyTenants,
 		type TenantRefusalReason
 	} from '$lib/tenant/query';
-	import {
-		isTenantDeletable,
-		TENANT_SORT_COLUMN_IDS,
-		type TenantSortColumnId
-	} from '$lib/tenant/tenant';
+	import { TENANT_SORT_COLUMN_IDS, type TenantSortColumnId } from '$lib/tenant/tenant';
 	import { useImportRecords } from '$lib/workspace/query';
 	import { toTransferInput } from '$lib/workspace/workspace';
-	import { useListContracts } from '$lib/contract/query';
 	import { CONTRACT_ATTENTION_ORDER } from '$lib/contract/contract';
-	import SquarePenIcon from '@lucide/svelte/icons/square-pen';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
-	import TenantForm from './form.svelte';
 
 	type TenantRecord = Awaited<ReturnType<typeof api.tenant.getMany>>[number];
 
@@ -62,11 +55,6 @@
 
 	let search = $state('');
 	let sort = $state<ListSort | null>(null);
-	let isTenantFormOpen = $state(false);
-	let formOpensOn = $state<TenantRecord | undefined>(undefined);
-	// the one record a card's menu is acting on, which is what makes a single confirmation and a
-	// single read of what blocks it enough for a whole directory.
-	let deleteOpensOn = $state<TenantRecord | null>(null);
 	let importDialog = $state<ReturnType<typeof DirectoryImportDialog> | undefined>(undefined);
 	// the records the reader has picked out, and the set a control was reached for with. The two
 	// are separate because the selection stays live behind the confirmation, and an action that
@@ -79,7 +67,6 @@
 		() => sort
 	);
 	const tenants = $derived(tenantsQuery.data ?? []);
-	const deleteMutation = useDeleteTenant();
 	const deleteManyMutation = useDeleteManyTenants();
 	const importMutation = useImportRecords();
 
@@ -110,63 +97,6 @@
 			missing: (count: number) => $LL.tenants.selection.refusedMissing({ count })
 		} satisfies Record<TenantRefusalReason, (count: number) => string>)
 	);
-
-	// what a deletion would be refused for, read for the record being acted on and only while it
-	// is being acted on — the same reading the record's own page performs before asking.
-	const heldContractsQuery = useListContracts(
-		() => '',
-		() => null,
-		() => ({ tenantId: deleteOpensOn?.id }),
-		() => deleteOpensOn !== null
-	);
-	const deleteBlockers = $derived.by(() => {
-		if (!deleteOpensOn) {
-			return [];
-		}
-
-		// the list query hands back the previous scope's rows while the new scope loads, so a
-		// second card would otherwise be judged on what the first one held.
-		if (heldContractsQuery.isPending || heldContractsQuery.isPlaceholderData) {
-			return AWAITING_BLOCKERS;
-		}
-
-		const held = heldContractsQuery.data ?? [];
-
-		return isTenantDeletable(held)
-			? []
-			: [$LL.common.deleteDialog.blockedContracts({ count: held.length })];
-	});
-
-	// what the record's own page offers, minus opening it: a tenant is identified by fields that
-	// are unique to it, so there is nothing worth duplicating, and copying its details takes the
-	// fields in the order that page reads them rather than the order a card does.
-	const cardActions = (tenant: TenantRecord): RecordCardAction[] => [
-		{
-			label: $LL.common.actions.edit(),
-			icon: SquarePenIcon,
-			onSelect: () => {
-				formOpensOn = tenant;
-				isTenantFormOpen = true;
-			}
-		},
-		{
-			label: $LL.common.actions.delete(),
-			icon: Trash2Icon,
-			tone: 'error',
-			onSelect: () => {
-				deleteOpensOn = tenant;
-			}
-		}
-	];
-
-	async function deleteTenant() {
-		if (!deleteOpensOn) {
-			return;
-		}
-
-		await deleteMutation.mutateAsync(deleteOpensOn.id);
-		deleteOpensOn = null;
-	}
 
 	/**
 	 * Delete the set the reader agreed to.
@@ -205,8 +135,9 @@
 			return;
 		}
 
-		formOpensOn = undefined;
-		isTenantFormOpen = true;
+		// the form is the host's, so the directory only asks for it, untracked: opening reads the
+		// host's render key to advance it, and an effect that reads what it writes never settles.
+		untrack(() => tenantHost.create());
 		void goto(resolve('/tenants'), { replaceState: true, noScroll: true, keepFocus: true });
 	});
 </script>
@@ -253,17 +184,14 @@
 		]
 	}}
 	onImport={() => void importDialog?.choose()}
-	onCreate={() => {
-		formOpensOn = undefined;
-		isTenantFormOpen = true;
-	}}
+	onCreate={() => tenantHost.create()}
 >
 	{#snippet record(tenant: TenantRecord)}
 		{@const counts = contractCounts(tenant)}
 		<RecordCard
 			href={resolve(`/tenants/${tenant.id}`)}
 			label={tenant.name}
-			actions={cardActions(tenant)}
+			actions={toCardActions(tenantActs, tenant, $LL)}
 			class="gap-4"
 		>
 			{#snippet content()}
@@ -311,26 +239,6 @@
 		onSubmit={deleteSelected}
 	/>
 {/if}
-
-<TenantForm
-	open={isTenantFormOpen}
-	onOpenChange={(isOpen) => {
-		isTenantFormOpen = isOpen;
-	}}
-	value={formOpensOn}
-/>
-
-<DeleteDialog
-	open={deleteOpensOn !== null}
-	onOpenChange={(isOpen) => {
-		if (!isOpen) {
-			deleteOpensOn = null;
-		}
-	}}
-	record={deleteOpensOn?.name}
-	blockers={deleteBlockers}
-	onSubmit={deleteTenant}
-/>
 
 <!-- the file the export wrote, coming back in. What a file of tenants is — which columns, what
      makes a row valid, what already exists — is declared once for the whole transfer and read

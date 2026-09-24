@@ -4,18 +4,15 @@
 	import type api from '$lib/api/caller';
 	import {
 		useDeleteManyUnits,
-		useDeleteUnit,
 		useListUnits,
 		usePlanManyUnits,
 		type UnitRefusalReason
 	} from '$lib/complex/query';
-	import { useListContracts } from '$lib/contract/query';
-	import { isUnitDeletable } from '$lib/complex/complex';
-	import DeleteDialog from '@rentable/design/block/delete-dialog.svelte';
+	import { unitActs, unitHost } from '$lib/complex/unit/host.svelte';
 	import RecordActionControl from '@rentable/design/block/record-action-control.svelte';
-	import RecordCard, { type RecordCardAction } from '@rentable/design/block/record-card.svelte';
+	import RecordCard from '@rentable/design/block/record-card.svelte';
 	import SelectionDialog from '@rentable/design/block/selection-dialog.svelte';
-	import { AWAITING_BLOCKERS } from '@rentable/design/confirmation.js';
+	import { toCardActions } from '$lib/design/acts';
 	import List from '$lib/design/block/list.svelte';
 	import { toNarrowedName } from '@rentable/design/csv.js';
 	import {
@@ -29,9 +26,7 @@
 	import { useImportRecords } from '$lib/workspace/query';
 	import { toTransferInput } from '$lib/workspace/workspace';
 	import UserIcon from '@lucide/svelte/icons/user';
-	import SquarePenIcon from '@lucide/svelte/icons/square-pen';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
-	import UnitForm from './unit-form.svelte';
 
 	type UnitRecord = Awaited<ReturnType<typeof api.complex.units.getMany>>[number];
 
@@ -46,9 +41,6 @@
 	const ROW_HEIGHT = 64;
 
 	let search = $state('');
-	let unit = $state<UnitRecord | undefined>(undefined);
-	let isUnitFormOpen = $state(false);
-	let isDeleteDialogOpen = $state(false);
 	let importDialog = $state<ReturnType<typeof DirectoryImportDialog> | undefined>(undefined);
 	// the records the reader has picked out, and the set a control was reached for with. The two
 	// are separate because the selection stays live behind the confirmation, and an action that
@@ -61,7 +53,6 @@
 		() => search
 	);
 	const units = $derived(unitsQuery.data ?? []);
-	const deleteMutation = useDeleteUnit();
 	const deleteManyMutation = useDeleteManyUnits();
 	const importMutation = useImportRecords();
 
@@ -122,46 +113,11 @@
 		selected = [];
 	}
 
-	// what a deletion would be refused for, read before the question is asked rather than
-	// after the destructive control is pressed.
-	const holdingContractsQuery = useListContracts(
-		() => '',
-		() => null,
-		() => ({ unitId: unit?.id }),
-		() => Boolean(unit)
-	);
-	const unitBlockers = $derived.by(() => {
-		if (!unit || holdingContractsQuery.isPending) return AWAITING_BLOCKERS;
-
-		const held = holdingContractsQuery.data ?? [];
-
-		return isUnitDeletable(held)
-			? []
-			: [$LL.common.deleteDialog.blockedContracts({ count: held.length })];
-	});
-
-	// the unit's own page carries neither of these, so a unit card's actions are the only place
-	// they are offered — which is why they are reachable both ways rather than by pointer alone
-	// (ADR 0034).
-	const cardActions = (record: UnitRecord): RecordCardAction[] => [
-		{
-			label: $LL.common.actions.edit(),
-			icon: SquarePenIcon,
-			onSelect: () => {
-				unit = record;
-				isUnitFormOpen = true;
-			}
-		},
-		{
-			label: $LL.common.actions.delete(),
-			icon: Trash2Icon,
-			tone: 'error',
-			onSelect: () => {
-				unit = record;
-				isDeleteDialogOpen = true;
-			}
-		}
-	];
+	// what a unit's card offers, projected from the one list its own page and the command menu read
+	// (`complex/unit/acts.ts`). The row is handed over with the complex this directory lists, which
+	// is what a unit's details name it by.
+	const cardActions = (record: UnitRecord) =>
+		toCardActions(unitActs, { ...record, complexName }, $LL);
 </script>
 
 {#snippet selectionActions(ids: readonly string[])}
@@ -199,10 +155,7 @@
 		]
 	}}
 	onImport={() => void importDialog?.choose()}
-	onCreate={() => {
-		unit = undefined;
-		isUnitFormOpen = true;
-	}}
+	onCreate={() => unitHost.create({ complexId })}
 >
 	{#snippet record(record: UnitRecord)}
 		<RecordCard
@@ -252,34 +205,6 @@
 		onSubmit={deleteSelected}
 	/>
 {/if}
-
-<UnitForm
-	open={isUnitFormOpen}
-	onOpenChange={(isOpen) => {
-		isUnitFormOpen = isOpen;
-		if (!isOpen) unit = undefined;
-	}}
-	value={unit}
-	{complexId}
-/>
-
-<DeleteDialog
-	open={isDeleteDialogOpen}
-	onOpenChange={(isOpen) => {
-		isDeleteDialogOpen = isOpen;
-		if (!isOpen) unit = undefined;
-	}}
-	record={unit?.name}
-	blockers={unitBlockers}
-	onSubmit={async () => {
-		if (unit) {
-			await deleteMutation.mutateAsync(unit.id);
-			// the unit's own page may be behind the reader; it is not somewhere back can return
-			// to now that the record is gone.
-			back.forget(resolve(`/complexes/units/${unit.id}`));
-		}
-	}}
-/>
 
 <!-- a file of units names the complex each unit is in, and that name is what decides where the
      unit lands — not this screen. The two are the same complex whenever the file came off this

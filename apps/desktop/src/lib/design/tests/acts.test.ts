@@ -190,3 +190,180 @@ test('every surface runs an act by asking the host, on the record it was offered
 		'duplicate:contract-active'
 	]);
 });
+
+/*
+ * The other record concepts: tenant, complex, unit and payment. Each declares its acts the way the
+ * contract does, and each is held to the same agreement: for a record in every state it can be in,
+ * the card, the page and the command menu offer the same acts, under the same names, with the same
+ * glyphs, in the same order.
+ */
+
+const { declareTenantActs } = await import('$lib/tenant/acts');
+const { declareComplexActs } = await import('$lib/complex/acts');
+const { declareUnitActs } = await import('$lib/complex/unit/acts');
+const { declarePaymentActs } = await import('$lib/payment/acts');
+const { UnitSchema } = await import('$lib/platform/database/schema.ts');
+
+type RecordActs<T> = import('$lib/design/acts').RecordAct<T>[];
+
+/** A host that records which request each act raised, and on which record. */
+function recordingRequests<K extends string>(requests: readonly K[]) {
+	const asked: string[] = [];
+	const host = {} as Record<K, (record: { id: string }) => void>;
+
+	for (const request of requests) {
+		host[request] = (record) => {
+			asked.push(`${request}:${record.id}`);
+		};
+	}
+
+	return { asked, host };
+}
+
+/** Assert the card, the page and the palette agree on one record, and return the ids offered. */
+function assertProjectionsAgree<T>(acts: RecordActs<T>, record: T) {
+	const card = reduce(
+		toCardActions(acts, record, translations).map((action) => ({
+			id: action.attributes?.['data-act'],
+			label: action.label,
+			icon: action.icon
+		}))
+	);
+	const page = reduce(toPageActions(acts, record, translations));
+	const palette = reduce(toPaletteVerbs(acts, record, translations, false));
+
+	assert.ok(card.length > 0, 'every record is offered something');
+	assert.ok(
+		card.every((entry) => GLYPHS.includes(entry.icon ?? '')),
+		'every entry carries its glyph'
+	);
+	assert.deepEqual(page, card);
+	assert.deepEqual(palette, card);
+	assert.deepEqual(
+		toCardActions(acts, record, translations).map(({ tone, group, shortcut }) => ({
+			tone,
+			group,
+			shortcut
+		})),
+		toPageActions(acts, record, translations).map(({ tone, group, shortcut }) => ({
+			tone,
+			group,
+			shortcut
+		}))
+	);
+
+	return page.map((entry) => entry.id);
+}
+
+/** The declaration's own invariants: destructive last, and the palette offers every act in order. */
+function assertDeclarationHolds<T>(acts: RecordActs<T>) {
+	const groups = acts.map((act) => act.group);
+
+	assert.equal(groups.at(-1), 'destructive');
+	assert.equal(groups.indexOf('destructive'), groups.length - 1);
+	assert.deepEqual(
+		toPaletteActs(acts, translations, false).map((act) => act.id),
+		acts.map((act) => act.id)
+	);
+}
+
+const TENANT = { id: 'tenant-1', name: 'Noura', nationalId: '1000000001', phone: '+966500000001' };
+
+test('a tenant is offered copy details, edit and delete alike on its card, its page and in the palette', () => {
+	const { asked, host } = recordingRequests(['copyDetails', 'edit', 'confirmDelete'] as const);
+	const acts = declareTenantActs(host);
+
+	assert.deepEqual(assertProjectionsAgree(acts, TENANT), [
+		'tenant.copyDetails',
+		'tenant.edit',
+		'tenant.delete'
+	]);
+	assertDeclarationHolds(acts);
+
+	toCardActions(acts, TENANT, translations)
+		.find((action) => action.attributes?.['data-act'] === 'tenant.delete')
+		?.onSelect();
+	toPageActions(acts, TENANT, translations)
+		.find((act) => act.id === 'tenant.copyDetails')
+		?.run();
+
+	assert.deepEqual(asked, ['confirmDelete:tenant-1', 'copyDetails:tenant-1']);
+});
+
+const COMPLEX = { id: 'complex-1', name: 'Al Nakheel', location: 'Riyadh' };
+
+test('a complex is offered copy details, edit and delete alike on its card, its page and in the palette', () => {
+	const { asked, host } = recordingRequests(['copyDetails', 'edit', 'confirmDelete'] as const);
+	const acts = declareComplexActs(host);
+
+	assert.deepEqual(assertProjectionsAgree(acts, COMPLEX), [
+		'complex.copyDetails',
+		'complex.edit',
+		'complex.delete'
+	]);
+	assertDeclarationHolds(acts);
+
+	toPaletteVerbs(acts, COMPLEX, translations, false)
+		.find((act) => act.id === 'complex.edit')
+		?.run();
+
+	assert.deepEqual(asked, ['edit:complex-1']);
+});
+
+for (const status of UnitSchema.shape.status.options) {
+	test(`a unit that is ${status} is offered edit and delete on its page as on its card`, () => {
+		const { asked, host } = recordingRequests(['copyDetails', 'edit', 'confirmDelete'] as const);
+		const acts = declareUnitActs(host);
+		const unit = { id: `unit-${status}`, name: 'A1', complexId: 'complex-1', status };
+
+		// requirement 14: a unit's page offers the acts its card offers, edit and delete included.
+		assert.deepEqual(assertProjectionsAgree(acts, unit), [
+			'unit.copyDetails',
+			'unit.edit',
+			'unit.delete'
+		]);
+		assertDeclarationHolds(acts);
+
+		toPageActions(acts, unit, translations)
+			.find((act) => act.id === 'unit.edit')
+			?.run();
+		toPageActions(acts, unit, translations)
+			.find((act) => act.id === 'unit.delete')
+			?.run();
+
+		assert.deepEqual(asked, [`edit:unit-${status}`, `confirmDelete:unit-${status}`]);
+	});
+}
+
+/** A payment against a contract in one status, or one whose contract has not been read yet. */
+function paymentAgainst(contractStatus: ContractActRecord['status'] | undefined) {
+	return {
+		id: `payment-${contractStatus ?? 'unread'}`,
+		date: Date.UTC(2026, 2, 1),
+		amount: 1500,
+		contractId: 'contract-1',
+		contractStatus
+	};
+}
+
+for (const status of [...STATUSES, undefined]) {
+	test(`a payment against a contract that is ${status ?? 'not read yet'} is offered the same acts on its card, its page and in the palette`, () => {
+		const { host } = recordingRequests([
+			'copyDetails',
+			'duplicate',
+			'edit',
+			'confirmDelete'
+		] as const);
+		const acts = declarePaymentActs(host);
+		const ids = assertProjectionsAgree(acts, paymentAgainst(status));
+
+		// a terminated contract's statement is read-only: copying is a read and stays.
+		assert.deepEqual(
+			ids,
+			status === 'terminated'
+				? ['payment.copyDetails']
+				: ['payment.copyDetails', 'payment.duplicate', 'payment.edit', 'payment.delete']
+		);
+		assertDeclarationHolds(acts);
+	});
+}

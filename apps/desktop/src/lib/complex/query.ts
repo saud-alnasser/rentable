@@ -7,7 +7,7 @@ import { workspacePrefixes } from '$lib/design/query';
 import { isRecordId } from '$lib/platform/database/identity';
 import type { ListSort } from '@rentable/design/sort.js';
 import { LL } from '$lib/i18n/i18n-svelte';
-import { createQuery } from '@tanstack/svelte-query';
+import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 import { get } from 'svelte/store';
 
 export const keys = {
@@ -220,6 +220,33 @@ export function useFetchUnit(id: () => string) {
 			enabled: isRecordId(freshId)
 		};
 	});
+}
+
+/**
+ * Read one complex once, for a caller that holds only its identity and has to act on the rest: the
+ * complex host, answering an act the command menu named by id. Under the key `useFetchComplex`
+ * reads.
+ */
+export function useReadComplex() {
+	const client = useQueryClient();
+
+	return (id: string) =>
+		client.fetchQuery({ queryKey: keys.get(id), queryFn: () => api.complex.get({ id }) });
+}
+
+/**
+ * Read one unit once, with the complex holding it, for a caller that holds only its identity or a
+ * row short of that complex: the unit host, answering an act the command menu named by id, and
+ * copying a unit's details. Under the key `useFetchUnit` reads.
+ */
+export function useReadUnit() {
+	const client = useQueryClient();
+
+	return (id: string) =>
+		client.fetchQuery({
+			queryKey: keys.units.get(id),
+			queryFn: () => api.complex.units.get({ id })
+		});
 }
 
 export function useFetchUnits(complexId: () => string, enabled: () => boolean = () => true) {

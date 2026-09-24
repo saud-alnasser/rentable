@@ -1,6 +1,10 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import ComplexHost from '$lib/complex/component/host.svelte';
+	import UnitHost from '$lib/complex/component/unit-host.svelte';
 	import ContractHost from '$lib/contract/component/host.svelte';
+	import PaymentHost from '$lib/payment/component/host.svelte';
+	import TenantHost from '$lib/tenant/component/host.svelte';
 	import { tauri } from '$lib/platform/tauri';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Kbd } from '@rentable/design/primitive/kbd/index.js';
@@ -181,10 +185,14 @@
 	{#if hasRail}
 		{#if !isSignedOut}
 			<LayoutPalette bind:open={isPaletteOpen} />
-			<!-- every contract form and confirmation, mounted once: a card, a record page, the
-			     dashboard and the palette each ask it for what an act opens, and what it opens has
-			     to outlive the palette closing and the reader moving between screens. -->
+			<!-- every record form and confirmation, mounted once per concept: a card, a record page,
+			     the dashboard and the palette each ask a host for what an act opens, and what it
+			     opens has to outlive the palette closing and the reader moving between screens. -->
+			<TenantHost />
+			<ComplexHost />
+			<UnitHost />
 			<ContractHost />
+			<PaymentHost />
 			<LayoutShortcutSheet bind:open={isShortcutSheetOpen} />
 		{/if}
 		<Sidebar.Provider class="h-full min-h-0 overflow-hidden">

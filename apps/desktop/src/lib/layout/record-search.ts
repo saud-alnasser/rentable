@@ -1,13 +1,17 @@
 import { resolve } from '$app/paths';
 import type { ResolvedPathname } from '$app/types';
 import type { RecordMatch } from '$lib/api/search';
+import { complexActs, complexHost } from '$lib/complex/host.svelte';
 import { useSearchComplexes, useSearchUnits } from '$lib/complex/query';
+import { unitActs, unitHost } from '$lib/complex/unit/host.svelte';
 import { contractActs, contractHost } from '$lib/contract/host.svelte';
 import { useSearchContracts } from '$lib/contract/query';
 import { toPaletteActs, type PaletteAct } from '$lib/design/acts';
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 import type { RecordSubject } from '$lib/layout/palette';
+import { paymentActs, paymentHost } from '$lib/payment/host.svelte';
 import { useSearchPayments } from '$lib/payment/query';
+import { tenantActs, tenantHost } from '$lib/tenant/host.svelte';
 import { useSearchTenants } from '$lib/tenant/query';
 import type { CreateQueryResult } from '@tanstack/svelte-query';
 
@@ -49,19 +53,31 @@ export const recordConcepts: RecordConcept[] = [
 		subject: 'tenant',
 		heading: (t) => t.common.nav.tenants(),
 		href: (match) => resolve(`/tenants/${match.id}`),
-		find: (term) => useSearchTenants(term, MATCH_LIMIT)
+		find: (term) => useSearchTenants(term, MATCH_LIMIT),
+		acts: {
+			offered: (t, isAppleKeyboard) => toPaletteActs(tenantActs, t, isAppleKeyboard),
+			runOn: (actId, tenantId) => tenantHost.runOn(actId, tenantId)
+		}
 	},
 	{
 		subject: 'complex',
 		heading: (t) => t.common.nav.complexes(),
 		href: (match) => resolve(`/complexes/${match.id}`),
-		find: (term) => useSearchComplexes(term, MATCH_LIMIT)
+		find: (term) => useSearchComplexes(term, MATCH_LIMIT),
+		acts: {
+			offered: (t, isAppleKeyboard) => toPaletteActs(complexActs, t, isAppleKeyboard),
+			runOn: (actId, complexId) => complexHost.runOn(actId, complexId)
+		}
 	},
 	{
 		subject: 'unit',
 		heading: (t) => t.common.nav.units(),
 		href: (match) => resolve(`/complexes/units/${match.id}`),
-		find: (term) => useSearchUnits(term, MATCH_LIMIT)
+		find: (term) => useSearchUnits(term, MATCH_LIMIT),
+		acts: {
+			offered: (t, isAppleKeyboard) => toPaletteActs(unitActs, t, isAppleKeyboard),
+			runOn: (actId, unitId) => unitHost.runOn(actId, unitId)
+		}
 	},
 	{
 		subject: 'contract',
@@ -77,6 +93,10 @@ export const recordConcepts: RecordConcept[] = [
 		subject: 'payment',
 		heading: (t) => t.common.nav.payments(),
 		href: (match) => resolve(`/contracts/payments/${match.id}`),
-		find: (term) => useSearchPayments(term, MATCH_LIMIT)
+		find: (term) => useSearchPayments(term, MATCH_LIMIT),
+		acts: {
+			offered: (t, isAppleKeyboard) => toPaletteActs(paymentActs, t, isAppleKeyboard),
+			runOn: (actId, paymentId) => paymentHost.runOn(actId, paymentId)
+		}
 	}
 ];

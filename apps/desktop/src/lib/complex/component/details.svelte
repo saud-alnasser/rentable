@@ -1,45 +1,22 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import DeleteDialog from '@rentable/design/block/delete-dialog.svelte';
 	import RecordSurface from '@rentable/design/block/record-surface.svelte';
 	import Specification from '@rentable/design/block/specification.svelte';
-	import { AWAITING_BLOCKERS } from '@rentable/design/confirmation.js';
 	import RecordActionControl from '@rentable/design/block/record-action-control.svelte';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
-	import { back } from '@rentable/design/back.svelte.js';
-	import RecordActions from '$lib/design/block/record-actions.svelte';
-	import { useDeleteComplex, useFetchComplex } from '$lib/complex/query';
-	import { useFetchUnits } from '$lib/complex/query';
+	import { complexActs } from '$lib/complex/host.svelte';
+	import { useFetchComplex, useFetchUnits } from '$lib/complex/query';
 	import { useListContracts } from '$lib/contract/query';
-	import { isComplexDeletable } from '$lib/complex/complex';
+	import { toPageActions } from '$lib/design/acts';
 	import { formatLocaleNumber } from '$lib/platform/locale';
-	import SquarePenIcon from '@lucide/svelte/icons/square-pen';
-	import Trash2Icon from '@lucide/svelte/icons/trash-2';
-	import ComplexForm from './form.svelte';
 	import UnitDirectory from './unit-directory.svelte';
 
 	let { complexId }: { complexId: string } = $props();
 
 	const complexQuery = useFetchComplex(() => complexId);
 	const complex = $derived(complexQuery.data);
-	const deleteMutation = useDeleteComplex();
-
-	// what a deletion would be refused for, read before the question is asked rather than
-	// after the destructive control is pressed.
+	// the units this complex holds, and what the field list states of them.
 	const heldUnitsQuery = useFetchUnits(() => complexId);
-	const complexBlockers = $derived.by(() => {
-		if (heldUnitsQuery.isPending) return AWAITING_BLOCKERS;
-
-		const held = heldUnitsQuery.data ?? [];
-
-		return isComplexDeletable(held)
-			? []
-			: [$LL.common.deleteDialog.blockedUnits({ count: held.length })];
-	});
-
-	// the units this complex holds, read once and answering two questions: what a deletion is
-	// refused for, and what the field list states.
 	const unitFigures = $derived.by(() => {
 		const held = heldUnitsQuery.data;
 
@@ -66,20 +43,10 @@
 	const figure = (count: number | undefined) =>
 		count === undefined ? '' : formatLocaleNumber($locale, count);
 
-	let formOpensOn = $state<NonNullable<typeof complexQuery.data> | undefined>(undefined);
-	let isComplexFormOpen = $state(false);
-	let isDeleteDialogOpen = $state(false);
-
-	async function deleteComplex() {
-		if (!complex) return;
-
-		await deleteMutation.mutateAsync(complex.id);
-		// the record is gone, so the screen showing it is no longer somewhere back can return
-		// to — whatever was open before it is.
-		back.forgetCurrent();
-
-		await goto(resolve('/complexes'));
-	}
+	// the page's cluster is a projection of the one list the card and the command menu read, so it
+	// offers what they offer, in their order and under their names. What each act opens is the
+	// complex host's, mounted once in the frame, so this page mounts no form and no dialog.
+	const pageActions = $derived(complex ? toPageActions(complexActs, complex, $LL) : []);
 </script>
 
 {#snippet identity()}
@@ -87,28 +54,16 @@
 {/snippet}
 
 {#snippet actions()}
-	<RecordActions
-		details={[
-			{ label: $LL.common.labels.name(), value: complex?.name ?? '' },
-			{ label: $LL.common.labels.location(), value: complex?.location ?? '' }
-		]}
-	/>
-
-	<RecordActionControl
-		label={$LL.common.actions.edit()}
-		icon={SquarePenIcon}
-		onclick={() => {
-			formOpensOn = complex;
-			isComplexFormOpen = true;
-		}}
-	/>
-
-	<RecordActionControl
-		label={$LL.common.actions.delete()}
-		icon={Trash2Icon}
-		tone="error"
-		onclick={() => (isDeleteDialogOpen = true)}
-	/>
+	{#each pageActions as act (act.id)}
+		<RecordActionControl
+			label={act.label}
+			icon={act.icon}
+			tone={act.tone}
+			shortcut={act.shortcut}
+			disabled={act.unavailable !== undefined}
+			onclick={act.run}
+		/>
+	{/each}
 {/snippet}
 
 <!-- location is read in the title area, so it is not read again here. Everything else the
@@ -141,23 +96,3 @@
 	{fields}
 	collections={[{ value: 'units', label: $LL.common.nav.units(), content: units }]}
 />
-
-{#if complex}
-	<ComplexForm
-		open={isComplexFormOpen}
-		onOpenChange={(isOpen) => {
-			isComplexFormOpen = isOpen;
-		}}
-		value={formOpensOn}
-	/>
-
-	<DeleteDialog
-		open={isDeleteDialogOpen}
-		onOpenChange={(isOpen) => {
-			isDeleteDialogOpen = isOpen;
-		}}
-		record={complex.name}
-		blockers={complexBlockers}
-		onSubmit={deleteComplex}
-	/>
-{/if}
