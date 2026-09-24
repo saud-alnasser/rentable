@@ -128,7 +128,7 @@ Start at [[protocol]].
 | 824-the-way-in-and-the-workspace-control-are-redesigned | implemented | [[efforts/824-the-way-in-and-the-workspace-control-are-redesigned/spec]] | 0 | 0 | 17 |
 | 826-the-organization-and-the-way-in-are-rethought | implemented | [[efforts/826-the-organization-and-the-way-in-are-rethought/spec]] | 2 | 1 | 22 |
 | 828-the-link-needs-a-code-and-the-settings-area-guides | implemented | [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]] | 5 | 0 | 29 |
-| 832-the-interface-speaks-one-language-and-guides | accepted | [[efforts/832-the-interface-speaks-one-language-and-guides/spec]] | 3 | 4 | 33 |
+| 832-the-interface-speaks-one-language-and-guides | accepted | [[efforts/832-the-interface-speaks-one-language-and-guides/spec]] | 3 | 4 | 36 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -306,3 +306,6 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/832-the-interface-speaks-one-language-and-guides/tickets/31-the-catalogue-holds-every-act]] docs(desktop): the catalogue holds every act, and every difference is resolved or excepted | 832-the-interface-speaks-one-language-and-guides | resolved | 28, 29, 30, 32 |
 | [[efforts/832-the-interface-speaks-one-language-and-guides/tickets/32-few-options-take-a-segmented-control]] feat(organization): a choice of four or fewer takes a segmented control | 832-the-interface-speaks-one-language-and-guides | resolved | — |
 | [[efforts/832-the-interface-speaks-one-language-and-guides/tickets/33-the-last-inconsistencies]] fix(desktop): the last inconsistencies the walk and the catalogue found | 832-the-interface-speaks-one-language-and-guides | resolved | — |
+| [[efforts/832-the-interface-speaks-one-language-and-guides/tickets/34-members-and-workspaces-in-the-command-menu]] feat(organization): the command menu reaches member and workspace acts | 832-the-interface-speaks-one-language-and-guides | open | — |
+| [[efforts/832-the-interface-speaks-one-language-and-guides/tickets/35-every-failure-reads-in-the-readers-language]] fix(api): every failure reads in the reader's language | 832-the-interface-speaks-one-language-and-guides | open | — |
+| [[efforts/832-the-interface-speaks-one-language-and-guides/tickets/36-every-trail-runs-through-its-parent]] fix(desktop): every record's trail runs through its parent, and the context says what is there | 832-the-interface-speaks-one-language-and-guides | open | — |
