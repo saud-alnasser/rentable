@@ -18,8 +18,8 @@
 	import { CAUGHT_ERROR_EVENT, toCaughtErrorFields } from '$lib/layout/boundary';
 	import { toBreadcrumbTrail } from '$lib/layout/navigation';
 	import { recordDiagnosticError } from '$lib/platform/diagnostics';
-	import KeyboardIcon from '@tabler/icons-svelte/icons/keyboard';
-	import SearchIcon from '@tabler/icons-svelte/icons/search';
+	import KeyboardIcon from '@lucide/svelte/icons/keyboard';
+	import SearchIcon from '@lucide/svelte/icons/search';
 	import type { Snippet } from 'svelte';
 
 	/**

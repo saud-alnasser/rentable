@@ -31,9 +31,9 @@
 		type RecordPaletteVerb
 	} from '$lib/layout/palette';
 	import { recordConcepts } from '$lib/layout/record-search';
-	import BoltIcon from '@tabler/icons-svelte/icons/bolt';
-	import FileIcon from '@tabler/icons-svelte/icons/file-description';
-	import PlusIcon from '@tabler/icons-svelte/icons/plus';
+	import ZapIcon from '@lucide/svelte/icons/zap';
+	import FileIcon from '@lucide/svelte/icons/file-text';
+	import PlusIcon from '@lucide/svelte/icons/plus';
 
 	type CreateAction = {
 		href: ResolvedPathname;
@@ -246,7 +246,7 @@
 							onSelect={() => choose(verb)}
 							class="capitalize"
 						>
-							<BoltIcon />
+							<ZapIcon />
 							<span class="min-w-0 flex-1 truncate">{verb.label}</span>
 
 							<!-- the reason sits where the keys would, because it is the answer to the same

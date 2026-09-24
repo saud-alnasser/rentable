@@ -32,7 +32,7 @@
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import UserCogIcon from '@lucide/svelte/icons/user-cog';
 	import UserMinusIcon from '@lucide/svelte/icons/user-minus';
-	import UserPenIcon from '@lucide/svelte/icons/user-pen';
+	import SquarePenIcon from '@lucide/svelte/icons/square-pen';
 	import UserPlusIcon from '@lucide/svelte/icons/user-plus';
 
 	/**
@@ -479,7 +479,7 @@
 			? [
 					{
 						label: $LL.organization.dashboard.rename(),
-						icon: UserPenIcon,
+						icon: SquarePenIcon,
 						attributes: { 'data-member-rename': member.id },
 						onSelect: () => {
 							renaming = member;

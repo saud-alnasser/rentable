@@ -37,9 +37,9 @@
 	import { toTransferInput } from '$lib/workspace/workspace';
 	import SquarePenIcon from '@lucide/svelte/icons/square-pen';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
-	import CircleDashedIcon from '@tabler/icons-svelte/icons/circle-dashed';
-	import CircleFilledIcon from '@tabler/icons-svelte/icons/circle-filled';
-	import LayoutGridIcon from '@tabler/icons-svelte/icons/layout-grid';
+	import CircleDashedIcon from '@lucide/svelte/icons/circle-dashed';
+	import DiscIcon from '$lib/design/cell/disc.svelte';
+	import LayoutGridIcon from '@lucide/svelte/icons/layout-grid';
 	import ComplexForm from './form.svelte';
 
 	type ComplexRecord = Awaited<ReturnType<typeof api.complex.getMany>>[number];
@@ -265,7 +265,7 @@
 					/>
 
 					<Cell.Count
-						icon={CircleFilledIcon}
+						icon={DiscIcon}
 						count={occupiedUnitCount}
 						label={$LL.common.labels.occupiedUnits()}
 						tone={occupiedUnitCount > 0 ? 'running' : 'settled'}

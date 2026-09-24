@@ -6,7 +6,7 @@
 	import * as Cell from '$lib/design/cell';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { formatLocaleMoney } from '$lib/platform/locale';
-	import CashIcon from '@tabler/icons-svelte/icons/cash-banknote';
+	import BanknoteIcon from '@lucide/svelte/icons/banknote';
 
 	/**
 	 * One contract, as every surface that lists contracts renders it — the directory, a
@@ -64,7 +64,7 @@
 			     same tone while meaning different things by it. Quiet at nothing, as every count on a
 			     row is — a contract with no payments has no money to report. -->
 			<Cell.Count
-				icon={CashIcon}
+				icon={BanknoteIcon}
 				count={contract.paymentCount}
 				label={$LL.common.nav.payments()}
 				tone={contract.paymentCount > 0 ? 'money' : 'settled'}

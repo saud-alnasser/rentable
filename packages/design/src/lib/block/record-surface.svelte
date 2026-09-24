@@ -157,7 +157,11 @@
 			     nothing. -->
 			<div class="flex shrink-0 flex-col gap-4">
 				<header>
-					<div class="flex items-start justify-between gap-3 rtl:flex-row-reverse">
+					<!-- a plain row: the frame's direction already puts the back control at the start
+					     edge and the actions at the end, in either reading direction. A reverse under
+					     `rtl:` would flip it back, putting the back control on the left in Arabic with
+					     its mirrored arrow pointing away from the edge it sits on. -->
+					<div class="flex items-start justify-between gap-3">
 						<BackControl fallback={backFallback} />
 
 						{#if actions}

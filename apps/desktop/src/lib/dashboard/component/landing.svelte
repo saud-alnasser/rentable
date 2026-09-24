@@ -13,9 +13,9 @@
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { formatLocaleRangeWithUnit } from '$lib/platform/locale';
 	import { Skeleton } from '@rentable/design/primitive/skeleton/index.js';
-	import CheckIcon from '@tabler/icons-svelte/icons/check';
-	import ChevronDownIcon from '@tabler/icons-svelte/icons/chevron-down';
-	import CoinIcon from '@tabler/icons-svelte/icons/coin';
+	import CheckIcon from '@lucide/svelte/icons/check';
+	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
+	import CoinsIcon from '@lucide/svelte/icons/coins';
 
 	/**
 	 * The landing screen: a band of routed figures over one section of records per attention rank
@@ -101,7 +101,7 @@
 						{#snippet child({ props })}
 							<Button {...props} variant="ghost" size="sm" class="h-6 gap-1 px-2 text-xs">
 								<span class="capitalize">{periodLabel}</span>
-								<ChevronDownIcon class="size-3" />
+								<ChevronDownIcon class="size-3.5" />
 							</Button>
 						{/snippet}
 					</DropdownMenu.Trigger>
@@ -177,7 +177,7 @@
 				<span
 					class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-destructive/10 text-destructive"
 				>
-					<CoinIcon class="size-4.5" aria-hidden="true" />
+					<CoinsIcon class="size-4" aria-hidden="true" />
 				</span>
 				<span class="truncate text-xs text-muted-foreground">
 					{$LL.dashboard.figures.outstanding()}

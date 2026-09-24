@@ -45,16 +45,16 @@
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import { tauri } from '$lib/platform/tauri';
 	import { Skeleton } from '@rentable/design/primitive/skeleton/index.js';
-	import ArrowsSortIcon from '@tabler/icons-svelte/icons/arrows-sort';
-	import CheckIcon from '@tabler/icons-svelte/icons/check';
-	import ChecklistIcon from '@tabler/icons-svelte/icons/list-check';
-	import ChevronDownIcon from '@tabler/icons-svelte/icons/chevron-down';
-	import FilterIcon from '@tabler/icons-svelte/icons/filter';
-	import TransferIcon from '@tabler/icons-svelte/icons/transfer';
-	import ChevronUpIcon from '@tabler/icons-svelte/icons/chevron-up';
-	import PlusIcon from '@tabler/icons-svelte/icons/plus';
-	import SearchIcon from '@tabler/icons-svelte/icons/search';
-	import XIcon from '@tabler/icons-svelte/icons/x';
+	import ArrowUpDownIcon from '@lucide/svelte/icons/arrow-up-down';
+	import CheckIcon from '@lucide/svelte/icons/check';
+	import ListTodoIcon from '@lucide/svelte/icons/list-todo';
+	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
+	import FunnelIcon from '@lucide/svelte/icons/funnel';
+	import ArrowLeftRightIcon from '@lucide/svelte/icons/arrow-left-right';
+	import ChevronUpIcon from '@lucide/svelte/icons/chevron-up';
+	import PlusIcon from '@lucide/svelte/icons/plus';
+	import SearchIcon from '@lucide/svelte/icons/search';
+	import XIcon from '@lucide/svelte/icons/x';
 	import { createVirtualizer } from '@tanstack/svelte-virtual';
 	import { tick, type Snippet } from 'svelte';
 	import { get } from 'svelte/store';
@@ -588,7 +588,7 @@
 									size="icon-sm"
 									aria-label={toFilterLabel(filter, filters, $LL)}
 								>
-									<FilterIcon />
+									<FunnelIcon />
 								</Button>
 							{/snippet}
 						</DropdownMenu.Trigger>
@@ -616,13 +616,15 @@
 
 							<!-- an entry of its own rather than only the toggle above it: pressing the
 							     chosen value again clears it, but nothing on the screen says so, and a
-							     reader who cannot get back to the whole list is stuck inside a subset. -->
+							     reader who cannot get back to the whole list is stuck inside a subset.
+
+							     No glyph before it: the values above it carry none, and a menu whose
+							     items carry icons carries them on every item or on none. -->
 							{#if chosen}
 								<DropdownMenu.Separator />
 								<DropdownMenu.Item
 									onSelect={() => (filters = withFilter(filters, filter.id, undefined))}
 								>
-									<XIcon class="size-3.5" />
 									<span class="flex-1">{$LL.common.actions.clearFilter()}</span>
 								</DropdownMenu.Item>
 							{/if}
@@ -649,7 +651,7 @@
 						}
 					}}
 				>
-					<ChecklistIcon />
+					<ListTodoIcon />
 				</Button>
 			{/if}
 
@@ -670,7 +672,7 @@
 									? `${$LL.common.actions.sortBy()}: ${activeSortLabel}`
 									: $LL.common.actions.sortBy()}
 							>
-								<ArrowsSortIcon />
+								<ArrowUpDownIcon />
 							</Button>
 						{/snippet}
 					</DropdownMenu.Trigger>
@@ -714,7 +716,7 @@
 								     Not mirrored in the other reading direction, unlike every directional
 								     glyph here — a pair that already points both ways is the same pair
 								     reflected, and the class would only swap which arrow is on top. -->
-								<TransferIcon />
+								<ArrowLeftRightIcon />
 							</Button>
 						{/snippet}
 					</DropdownMenu.Trigger>

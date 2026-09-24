@@ -1,8 +1,8 @@
 <script lang="ts" module>
 	import type { ContractRank } from '$lib/contract/rank';
-	import AlertTriangleIcon from '@tabler/icons-svelte/icons/alert-triangle';
-	import CalendarClockIcon from '@tabler/icons-svelte/icons/calendar-clock';
-	import ClockPlayIcon from '@tabler/icons-svelte/icons/clock-play';
+	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
+	import CalendarClockIcon from '@lucide/svelte/icons/calendar-clock';
+	import ClockIcon from '@lucide/svelte/icons/clock';
 
 	/**
 	 * The glyph each rank is read by: what is already late, what is behind, what needs renewing.
@@ -10,9 +10,9 @@
 	 * They stand beside the rank's own word rather than instead of it, so they are read as
 	 * severity rather than as vocabulary — an alert, a clock still running, and a calendar.
 	 */
-	const glyphs: Record<ContractRank, typeof AlertTriangleIcon> = {
-		overdue: AlertTriangleIcon,
-		owing: ClockPlayIcon,
+	const glyphs: Record<ContractRank, typeof TriangleAlertIcon> = {
+		overdue: TriangleAlertIcon,
+		owing: ClockIcon,
 		'ending-soon': CalendarClockIcon
 	};
 </script>

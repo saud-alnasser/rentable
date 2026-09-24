@@ -2,7 +2,7 @@
 	import * as Sidebar from '@rentable/design/primitive/sidebar/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import ChevronsUpDownIcon from '@lucide/svelte/icons/chevrons-up-down';
-	import InnerShadowTopIcon from '@tabler/icons-svelte/icons/inner-shadow-top';
+	import MarkIcon from '@lucide/svelte/icons/eclipse';
 
 	/**
 	 * The top of the rail when there is no workspace to name.
@@ -24,7 +24,7 @@
 			<div
 				class="flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground"
 			>
-				<InnerShadowTopIcon class="size-4" />
+				<MarkIcon class="size-4" />
 			</div>
 			<div class="grid flex-1 text-start text-sm leading-tight">
 				<span class="truncate font-medium">{$LL.common.nav.workspace()}</span>

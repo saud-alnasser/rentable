@@ -3,7 +3,8 @@ import { DesignProvider, type DesignStrings } from '#lib/strings.js';
 import RecordCardHarness from '#tests/record-card-harness.svelte';
 import { suppliedStrings } from '#tests/contract-strings.js';
 import { fireEvent, render } from '@testing-library/svelte';
-import PencilIcon from '@lucide/svelte/icons/pencil';
+import SquarePenIcon from '@lucide/svelte/icons/square-pen';
+import Trash2Icon from '@lucide/svelte/icons/trash-2';
 import { expect, test, vi } from 'vitest';
 
 /**
@@ -31,7 +32,7 @@ const show = (props: Record<string, unknown> = {}, strings: Partial<DesignString
 		wrapperProps: { strings: suppliedStrings(strings), direction: 'rtl' }
 	});
 
-const action = { label: 'عدل', icon: PencilIcon, onSelect: () => {} };
+const action = { label: 'عدل', icon: SquarePenIcon, onSelect: () => {} };
 
 const link = () => document.querySelector('a');
 
@@ -148,4 +149,28 @@ test('keyboard focus arriving on a card animates nothing', () => {
 	expect(
 		classes.filter((token) => /(^|:)focus[\w-]*:.*(translate|scale|shadow)/.test(token))
 	).toEqual([]);
+});
+
+// requirement 3 of effort 832, criterion 3(b): a menu's rows carry icons on every row or on none.
+// The card's type makes the icon required, so what this defends is that both routes draw it, and
+// draw it first, which is what lines the rows up down the menu.
+test('every entry on both routes leads with its icon', async () => {
+	show({
+		actions: [
+			action,
+			{ label: 'احذف', icon: Trash2Icon, variant: 'destructive', onSelect: () => {} }
+		]
+	});
+
+	const leads = (entry: Element) => entry.firstElementChild?.tagName.toLowerCase() === 'svg';
+
+	const throughControl = await throughTheControl();
+	expect(throughControl).toHaveLength(2);
+	expect(throughControl.every(leads)).toBe(true);
+
+	await fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+
+	const throughGesture = await throughTheGesture();
+	expect(throughGesture).toHaveLength(2);
+	expect(throughGesture.every(leads)).toBe(true);
 });

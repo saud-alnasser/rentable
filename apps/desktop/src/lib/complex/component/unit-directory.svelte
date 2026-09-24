@@ -28,7 +28,7 @@
 	import DirectoryImportDialog from '$lib/workspace/component/directory-import-dialog.svelte';
 	import { useImportRecords } from '$lib/workspace/query';
 	import { toTransferInput } from '$lib/workspace/workspace';
-	import UserIcon from '@tabler/icons-svelte/icons/user';
+	import UserIcon from '@lucide/svelte/icons/user';
 	import SquarePenIcon from '@lucide/svelte/icons/square-pen';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import UnitForm from './unit-form.svelte';

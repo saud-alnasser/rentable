@@ -8,7 +8,7 @@
 		startupProgressWithin,
 		startupStage
 	} from '$lib/layout/startup-stage.svelte';
-	import InnerShadowTopIcon from '@tabler/icons-svelte/icons/inner-shadow-top';
+	import MarkIcon from '@lucide/svelte/icons/eclipse';
 
 	/**
 	 * What the application shows while it is starting.
@@ -92,11 +92,12 @@
 
 <div class="flex min-h-full flex-1 flex-col items-center justify-center gap-6 p-4">
 	<!-- the mark holds still. The bar is the motion, and two moving things on an otherwise empty
-	     window compete for the same job. -->
+	     window compete for the same job. The tile and the glyph are the ones the workspace menu's
+	     header draws the mark at, so the mark has one large size wherever it appears. -->
 	<div
-		class="flex size-14 items-center justify-center rounded-2xl bg-sidebar-primary text-sidebar-primary-foreground"
+		class="flex size-10 items-center justify-center rounded-xl bg-sidebar-primary text-sidebar-primary-foreground"
 	>
-		<InnerShadowTopIcon class="size-7" />
+		<MarkIcon class="size-5" />
 	</div>
 
 	<div class="flex w-full max-w-xs flex-col gap-2.5" role="status">

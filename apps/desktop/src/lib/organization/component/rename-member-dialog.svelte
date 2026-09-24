@@ -7,7 +7,7 @@
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { usernameSchema } from '$lib/organization/username-form';
 	import UserIcon from '@lucide/svelte/icons/user';
-	import UserPenIcon from '@lucide/svelte/icons/user-pen';
+	import SquarePenIcon from '@lucide/svelte/icons/square-pen';
 	import { defaults, superForm } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';
 	import z from 'zod';
@@ -128,7 +128,7 @@
 		</Button>
 		<!-- the verb's glyph before its label, as every primary here carries one. -->
 		<Button type="submit" disabled={isRenaming}>
-			<UserPenIcon class="size-4" />
+			<SquarePenIcon class="size-4" />
 			{isRenaming ? $LL.common.actions.working() : $LL.organization.dashboard.rename()}
 		</Button>
 	{/snippet}

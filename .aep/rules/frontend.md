@@ -185,6 +185,29 @@ not on this ladder, and the packaged `primitive/` keeps the geometry it was port
 scale beside the framework's own would make every component read in a dialect, and the token
 layer is deliberately kept to what is genuinely global.
 
+**Every icon is lucide (`@lucide/svelte`), at lucide's own stroke, and sized from three steps.**
+A glyph is matched to the text beside it, so the step is read off the text rather than chosen,
+and a glyph with no text beside it takes the step of the role it plays:
+
+| Step       | Where                                                                                      |
+| ---------- | ------------------------------------------------------------------------------------------ |
+| `size-3.5` | beside `text-xs`, the title bar's window controls, and a state trailing a label (a check)  |
+| `size-4`   | the default: beside `text-sm`, in a button, a menu row, a cell, a status                   |
+| `size-5`   | the mark in its tile, and a glyph that heads a block: the summary leading a dialog's panel |
+
+A glyph inside a `primitive/` keeps the size it was ported with, for the reason spacing does
+(ADR 0007): a radio row's dot and a resize grip are the primitive's geometry, not a size chosen
+here. **A concept keeps one glyph everywhere it appears**: plus creates, `x` closes or clears,
+`chevron-down` opens, `search` searches, and `square-pen` edits, renaming included. Lucide draws
+outlines only, so the one solid mark, a disc, is `design/cell/disc.svelte`: the circle with its
+fill on.
+
+**A menu's rows carry icons on every row or on none.** A row leads with its glyph; a check or a
+direction trailing the label is a state and is not the row's icon; a radio or checkbox row counts
+as carrying one, because the primitive reserves the indicator's column at its start.
+`design/tests/menu-icons.svelte.test.ts` holds the shared menus to it, and the record card's test
+in the package holds both of its routes.
+
 ## Motion
 
 **A surface built here carries motion, and the motion always responds to something** — an
@@ -287,6 +310,25 @@ construction goes through it, the calendar primitive included, which is handed t
 locale rather than left on its `en-US` default. A search typed in Arabic-Indic digits still
 matches, because search folds them. *This is the human's decision of 2026-09-24, and it reverses
 effort 810, which formatted Arabic in Arabic-Indic digits.*
+
+**What mirrors in Arabic is this list, and nothing else.** A glyph or control mirrors when what it
+shows is a direction along the line of text:
+
+- **back and next**: `arrow-left` and `arrow-right` on a back or a forward control;
+- **sequence chevrons**: `chevron-left`/`-right` and `chevrons-left`/`-right` on pagination, a
+  calendar's months, a carousel, a sub-menu, and the breadcrumb's separator;
+- **progress**: a bar fills from the start edge, which is why `primitive/progress` sets a width
+  rather than a translate;
+- **sliders**: the slider's range fills from the start edge, which is why `primitive/slider`
+  hands bits-ui `contract.direction`.
+
+A clock, a check, the search glass, the mark (the logo) and a slash never mirror, and neither does
+anything else that is a thing rather than a direction. The `ring` cell is a clock face, so its arc
+starts at twelve and runs clockwise in both locales. A glyph turns round with `rtl:rotate-180`
+where it is symmetric top to bottom, as every arrow and chevron is, and `rtl:-scale-x-100`
+otherwise; a primitive may carry the class on the control around the glyph. A glyph that
+already points both ways, such as the list's transfer arrows, is on no list and carries neither.
+`design/tests/icons.test.ts` holds the tree to both halves of it.
 
 The type definitions and utility files are **generated**. Edit the locale files, then
 regenerate — see [[references/pnpm]]. Components read translations from the store,

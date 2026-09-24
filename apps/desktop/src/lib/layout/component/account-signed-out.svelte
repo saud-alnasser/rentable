@@ -8,8 +8,8 @@
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import ChevronsUpDownIcon from '@lucide/svelte/icons/chevrons-up-down';
 	import LogInIcon from '@lucide/svelte/icons/log-in';
-	import SettingsIcon from '@tabler/icons-svelte/icons/settings';
-	import UserIcon from '@tabler/icons-svelte/icons/user';
+	import SettingsIcon from '@lucide/svelte/icons/settings';
+	import UserIcon from '@lucide/svelte/icons/user';
 
 	/**
 	 * The account control with nobody signed in, at the foot of the rail.

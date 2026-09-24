@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { useDesignContract } from '#lib/strings.js';
 	import { cn, type WithoutChildrenOrChild } from '#lib/tailwind.js';
 	import { Slider as SliderPrimitive } from 'bits-ui';
 
@@ -9,6 +10,10 @@
 		class: className,
 		...restProps
 	}: WithoutChildrenOrChild<SliderPrimitive.RootProps> = $props();
+
+	// a slider fills from the start edge, so it takes the reading direction the contract supplies:
+	// bits-ui defaults a slider to left to right, which fills an Arabic slider from the wrong side.
+	const contract = useDesignContract();
 </script>
 
 <!--
@@ -19,6 +24,7 @@ get along, so we shut typescript up by casting `value` to `never`.
 	bind:ref
 	bind:value={value as never}
 	data-slot="slider"
+	dir={contract.direction}
 	{orientation}
 	class={cn(
 		'relative flex w-full touch-none items-center select-none data-[disabled]:opacity-50 data-[orientation=vertical]:h-full data-[orientation=vertical]:min-h-44 data-[orientation=vertical]:w-auto data-[orientation=vertical]:flex-col',

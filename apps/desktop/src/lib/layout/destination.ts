@@ -1,15 +1,16 @@
 import type { Pathname } from '$app/types';
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 import { withSection, type SettingsSectionAddress } from '$lib/settings/section';
-import type { Icon } from '@tabler/icons-svelte';
-import ContractIcon from '@tabler/icons-svelte/icons/contract';
-import Home2Icon from '@tabler/icons-svelte/icons/home-2';
-import LayoutDashboardIcon from '@tabler/icons-svelte/icons/layout-dashboard';
-import AdjustmentsIcon from '@tabler/icons-svelte/icons/adjustments';
-import BuildingIcon from '@tabler/icons-svelte/icons/building';
-import UserCircleIcon from '@tabler/icons-svelte/icons/user-circle';
-import UsersGroupIcon from '@tabler/icons-svelte/icons/users-group';
-import UserIcon from '@tabler/icons-svelte/icons/user';
+import ContractIcon from '@lucide/svelte/icons/scroll-text';
+import HouseIcon from '@lucide/svelte/icons/house';
+import LayoutDashboardIcon from '@lucide/svelte/icons/layout-dashboard';
+import SlidersHorizontalIcon from '@lucide/svelte/icons/sliders-horizontal';
+import BuildingIcon from '@lucide/svelte/icons/building';
+import CircleUserIcon from '@lucide/svelte/icons/circle-user';
+import UsersIcon from '@lucide/svelte/icons/users';
+import UserIcon from '@lucide/svelte/icons/user';
+
+type Icon = typeof UserIcon;
 
 /** A place the shell can send the user, wherever the shell offers to do so. */
 export type Destination = {
@@ -46,7 +47,7 @@ export type Destination = {
 export const primaryDestinations: Destination[] = [
 	{ url: '/', icon: LayoutDashboardIcon, label: (t) => t.common.nav.dashboard() },
 	{ url: '/tenants', icon: UserIcon, label: (t) => t.common.nav.tenants() },
-	{ url: '/complexes', icon: Home2Icon, label: (t) => t.common.nav.complexes() },
+	{ url: '/complexes', icon: HouseIcon, label: (t) => t.common.nav.complexes() },
 	{ url: '/contracts', icon: ContractIcon, label: (t) => t.common.nav.contracts() }
 ];
 
@@ -73,13 +74,13 @@ export const primaryDestinations: Destination[] = [
 export const secondaryDestinations: Destination[] = [
 	{
 		url: withSection('general'),
-		icon: AdjustmentsIcon,
+		icon: SlidersHorizontalIcon,
 		label: (t) => t.settings.section.general()
 	},
-	{ url: withSection('account'), icon: UserCircleIcon, label: (t) => t.settings.section.account() },
+	{ url: withSection('account'), icon: CircleUserIcon, label: (t) => t.settings.section.account() },
 	{
 		url: withSection('organization'),
-		icon: UsersGroupIcon,
+		icon: UsersIcon,
 		label: (t) => t.settings.section.organization()
 	},
 	{

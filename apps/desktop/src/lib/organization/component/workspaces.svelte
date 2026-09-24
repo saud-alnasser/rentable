@@ -18,11 +18,11 @@
 	import { recordOf, withSection, WORKSPACE_PARAM } from '$lib/settings/section';
 	import WorkspaceRenameForm from '$lib/workspace/component/rename-form.svelte';
 	import WorkspaceTransfer from '$lib/workspace/component/transfer.svelte';
-	import PencilIcon from '@lucide/svelte/icons/pencil';
+	import SquarePenIcon from '@lucide/svelte/icons/square-pen';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import UsersIcon from '@lucide/svelte/icons/users';
-	import CircleFilledIcon from '@tabler/icons-svelte/icons/circle-filled';
+	import DiscIcon from '$lib/design/cell/disc.svelte';
 
 	/**
 	 * The workspaces of the organization, as a directory of record cards, and the file that moves
@@ -232,7 +232,7 @@
 			? [
 					{
 						label: $LL.workspace.rename(),
-						icon: PencilIcon,
+						icon: SquarePenIcon,
 						attributes: { 'data-workspace-rename': workspace.id },
 						onSelect: () => {
 							renaming = workspace;
@@ -349,7 +349,7 @@
 													class="pointer-events-auto flex shrink-0 items-center text-primary"
 													data-workspace-open={workspace.id}
 												>
-													<CircleFilledIcon class="size-2" aria-hidden="true" />
+													<DiscIcon class="size-4" aria-hidden="true" />
 													<span class="sr-only">{$LL.layout.workspaceMenu.open()}</span>
 												</span>
 											{/snippet}

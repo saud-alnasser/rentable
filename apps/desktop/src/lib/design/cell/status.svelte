@@ -1,13 +1,13 @@
 <script lang="ts" module>
-	import CircleCheckIcon from '@tabler/icons-svelte/icons/circle-check';
-	import CircleDashedIcon from '@tabler/icons-svelte/icons/circle-dashed';
-	import CircleFilledIcon from '@tabler/icons-svelte/icons/circle-filled';
-	import ClockExclamationIcon from '@tabler/icons-svelte/icons/clock-exclamation';
-	import ClockPlayIcon from '@tabler/icons-svelte/icons/clock-play';
-	import HourglassIcon from '@tabler/icons-svelte/icons/hourglass';
-	import LockIcon from '@tabler/icons-svelte/icons/lock';
-	import ProgressAlertIcon from '@tabler/icons-svelte/icons/progress-alert';
-	import ProgressCheckIcon from '@tabler/icons-svelte/icons/progress-check';
+	import BadgeAlertIcon from '@lucide/svelte/icons/badge-alert';
+	import BadgeCheckIcon from '@lucide/svelte/icons/badge-check';
+	import CircleCheckIcon from '@lucide/svelte/icons/circle-check';
+	import CircleDashedIcon from '@lucide/svelte/icons/circle-dashed';
+	import ClockAlertIcon from '@lucide/svelte/icons/clock-alert';
+	import ClockIcon from '@lucide/svelte/icons/clock';
+	import HourglassIcon from '@lucide/svelte/icons/hourglass';
+	import LockIcon from '@lucide/svelte/icons/lock';
+	import DiscIcon from '$lib/design/cell/disc.svelte';
 	import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 	import { tv } from 'tailwind-variants';
 
@@ -20,7 +20,9 @@
 	 * readable without its words: **being paid in full reads as a check**. So `fulfilled` and
 	 * `expired` both carry one and the statuses that owe money carry a clock or an alert —
 	 * which is what separates the two pairs a reader would otherwise have to memorise, since
-	 * `active`/`fulfilled` and `defaulted`/`expired` differ by nothing else. A glyph changed
+	 * `active`/`fulfilled` and `defaulted`/`expired` differ by nothing else. The contract's own
+	 * verdict is a badge, a check or an alert on the one outline, which keeps `fulfilled` apart
+	 * from `expired`'s plain circle and `defaulted` apart from `overdue`'s clock. A glyph changed
 	 * without that rule in mind breaks the set rather than one entry.
 	 *
 	 * A unit's two statuses sit outside that rule — they turn on occupancy, not on payment —
@@ -31,14 +33,14 @@
 	 */
 	export const statusGlyphs: Record<StatusName, typeof LockIcon> = {
 		scheduled: HourglassIcon,
-		active: ClockPlayIcon,
-		fulfilled: ProgressCheckIcon,
-		defaulted: ProgressAlertIcon,
+		active: ClockIcon,
+		fulfilled: BadgeCheckIcon,
+		defaulted: BadgeAlertIcon,
 		expired: CircleCheckIcon,
 		terminated: LockIcon,
-		occupied: CircleFilledIcon,
+		occupied: DiscIcon,
 		vacant: CircleDashedIcon,
-		overdue: ClockExclamationIcon
+		overdue: ClockAlertIcon
 	};
 
 	/**
