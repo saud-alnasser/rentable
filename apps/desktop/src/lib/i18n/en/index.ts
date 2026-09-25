@@ -1112,6 +1112,8 @@ const en = {
 			renameDescription:
 				'the username they sign in with, on every machine. nothing tells them it changed; tell them yourself.',
 			username: 'username',
+			// the line under the username on the sheet that adds a member.
+			usernameDescription: 'the username they sign in with, on every machine.',
 			usernameRules:
 				'a username is three to thirty-two characters of letters, digits, dots, underscores and hyphens',
 			renamed: 'the member was renamed.',
@@ -1146,6 +1148,8 @@ const en = {
 			accessNone: 'no access',
 			accessTakenBack:
 				'taking a workspace back mints nothing, so what they already hold works until it runs out.',
+			// the line under the workspaces on the sheet that adds a member.
+			memberWorkspacesDescription: 'the workspaces they can open, and what they can do in each.',
 			accessSaved: 'the workspaces were saved.',
 			workspaceAccessTitle: 'members and access',
 			workspaceAccessDescription:

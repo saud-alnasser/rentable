@@ -4,19 +4,16 @@
 	import FieldError from '@rentable/design/block/field-error.svelte';
 	import FormSurface, { insetControl } from '@rentable/design/block/form-surface.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
-	import { Checkbox } from '@rentable/design/primitive/checkbox/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import * as Form from '@rentable/design/primitive/form/index.js';
 	import * as InputGroup from '@rentable/design/primitive/input-group/index.js';
-	import * as ToggleGroup from '@rentable/design/primitive/toggle-group/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import {
-		ADMINISTRATION_BY_ROLE,
-		EVERY_ADMINISTRATION,
-		maskOf,
-		permits,
-		type Administration
-	} from '@rentable/workspace-permission';
+	import type { AccessChoice, AccessRow } from '$lib/organization/component/access-dialog.svelte';
+	import MemberActs from '$lib/organization/component/member-acts.svelte';
+	import MemberRole from '$lib/organization/component/member-role.svelte';
+	import MemberSectionHead from '$lib/organization/component/member-section-head.svelte';
+	import MemberWorkspaces from '$lib/organization/component/member-workspaces.svelte';
+	import { ADMINISTRATION_BY_ROLE } from '@rentable/workspace-permission';
 	import UserIcon from '@lucide/svelte/icons/user';
 	import UserPlusIcon from '@lucide/svelte/icons/user-plus';
 	import { surfaceForm } from '$lib/design/form';
@@ -25,8 +22,17 @@
 	import z from 'zod';
 
 	/**
-	 * Making an account: a username, a role, what the person may do, and the workspaces they hold
-	 * with what each one is good for.
+	 * Making an account: a username, a role, what the person may do beyond it, and the workspaces
+	 * they hold with what each one is good for.
+	 *
+	 * **Laid out as the member's sheet is** (ticket 42 of effort 832). Adding a member and editing
+	 * one are one surface in two moments, so this draws the sections `member-sheet.svelte` draws,
+	 * in its order and from the same pieces: the username under its head, the role in its tray
+	 * (`member-role.svelte`), what a member may do beyond their role as a list with a picker
+	 * (`member-acts.svelte`), and a row per workspace with its three levels
+	 * (`member-workspaces.svelte`). *It drew an uppercase label, a bare role control the width of
+	 * the panel, seven checkboxes and a checkbox per workspace until the human saw the two sheets
+	 * side by side in the running build and asked for this one to read like the other.*
 	 *
 	 * **It hands over nothing** (effort 828, requirement 20). The account holds no password until
 	 * its first link is opened, and the link is its own act on the account afterwards, so this form
@@ -35,39 +41,31 @@
 	 * the link into two acts, and three places explained one link.*
 	 *
 	 * **On the shared form surface, heavy.** Making an account is a write, and every write here
-	 * takes `FormSurface` ([[rules/interface]], *Form surface*); four fieldsets are the heavy
-	 * weight, declared rather than measured, so this is the edge sheet and it fills the width below
-	 * the breakpoint without swapping components under a half-typed form. It is mounted once, in
-	 * the shell, and opened from the members section; `organization/dialogs.svelte.ts` says why
-	 * once is the number.
+	 * takes `FormSurface` ([[rules/interface]], *Form surface*); a member's sections are the heavy
+	 * weight, declared rather than measured, and the sheet that edits one takes the same. It is
+	 * mounted once, in the shell, and opened from the members section;
+	 * `organization/dialogs.svelte.ts` says why once is the number.
 	 *
 	 * **The username is the whole of the identity, under the one rule.** No address and no display
 	 * name: the member signs in with the username and nothing else names them (requirement 21 of
 	 * effort 824). The rule it is refused by is `organization/username-form.ts`, the same schema
 	 * the walk's `name` step and the member's sheet read, so a username refused here is refused
-	 * there with the same sentence.
+	 * there with the same sentence. It is the one field here a schema can refuse, so it is the one
+	 * this form's `superForm` carries, and a refused submit moves focus to it.
 	 *
-	 * **The role sets the acts; the acts are the truth** (requirement 6 of effort 826). A role is a
-	 * bundle an account is created with and the one word the directory calls it, so picking one
-	 * fills the checkboxes in and leaves them editable, exactly as `role-dialog.svelte` does on an
-	 * account that exists. Handing out an act that signs a row is the owner's, because certifying a
-	 * signer needs the organization key their vault alone yields, so for anybody else those acts
-	 * are drawn refused rather than hidden: a control that vanishes says the act does not exist.
+	 * **The role sets the acts; the acts are the truth** (requirement 6 of effort 826). Picking a
+	 * role fills in what that role is created with, and a member's list stays editable, exactly as
+	 * on the member's sheet. Who may hand out what is decided by the shared pieces and is today's:
+	 * an administrator and every act that signs a row are the owner's to give, since certifying a
+	 * signer needs the organization key their vault alone yields, and read only is the owner's to
+	 * mint.
 	 *
-	 * **A workspace is a checkbox and an access**, which is requirement 8 of effort 826: what the
-	 * account is made with is what the member's row will carry, and a grant that could only ever be
-	 * full access made the read-only half of the model unreachable from the one surface that
-	 * creates grants. Read only is minted on the owner's machine and refused by name elsewhere, so
-	 * for anybody else the choice is drawn refused rather than hidden, for the same reason.
-	 *
-	 * **The fields lead with their subject's glyph, muted.** An icon covers more surface than the
-	 * text beside it and reads as emphasised at the same colour, so the addon lowers its contrast
-	 * (*Balance weight and contrast*, Refactoring UI p.56). A validation error still marks the
-	 * field the way the rule says: the group's border from `aria-invalid`, and `FieldError` on
-	 * the label line.
+	 * **No access is what not granting a workspace is.** Every workspace the maker holds is a row
+	 * starting there, and each row that left it becomes a grant at that level: what the account
+	 * is made with is what the member's row will carry (requirement 8 of effort 826).
 	 *
 	 * **The mutation is the host's.** This component owns the `superForm` and the surface and
-	 * hands what was typed up through `onCreate`; `layout/component/organization-dialogs.svelte`
+	 * hands what was chosen up through `onCreate`; `layout/component/organization-dialogs.svelte`
 	 * runs it. That is what keeps this renderable in a test with no query client.
 	 */
 	let {
@@ -96,44 +94,40 @@
 		) => void;
 	} = $props();
 
-	/**
-	 * the one act of the seven that signs nothing: `renameWorkspace` writes the sealed workspace
-	 * name outside the signature, so an account holding it needs no certificate and anybody who
-	 * makes accounts can hand it out.
-	 */
-	const SIGNS_NOTHING: Administration = 'renameWorkspace';
-
 	// built when this component is, past the locale gate, for the reason
 	// `organization/workspace-form.ts` gives: the messages resolve against a locale.
 	const AccountSchema = z.object({
 		username: usernameSchema($LL),
-		role: z.enum(['administrator', 'member']),
-		workspaceIds: z.array(z.string())
+		role: z.enum(['administrator', 'member'])
 	});
 
 	type AccountForm = z.infer<typeof AccountSchema>;
 
-	const blank: AccountForm = { username: '', role: 'member', workspaceIds: [] };
+	const blank: AccountForm = { username: '', role: 'member' };
 
 	/**
-	 * the access chosen per workspace, held beside the form rather than in it.
+	 * the level chosen per workspace, held beside the form rather than in it.
 	 *
 	 * A superforms field carries what a schema can refuse, and this is a choice with no refusal
-	 * of its own: an unchecked workspace is not granted at all, so its access says nothing, and a
-	 * checked one is always one of two values. The checkbox is the field; this is what it is
-	 * worth.
+	 * of its own: every level is one of three fixed values, and no access is not granting it.
 	 */
-	let access = $state<Record<string, WorkspaceGrant['access']>>({});
+	let access = $state<Record<string, AccessChoice>>({});
 
 	/** the acts the new account is to carry. Same reasoning as `access`: no refusal of its own. */
 	let chosen = $state<number>(ADMINISTRATION_BY_ROLE.member);
 
-	/** the acts this reader may not hand out: every signing one, since a new account holds none. */
-	const refused: Administration[] = $derived(
-		canInviteAdministrators
-			? []
-			: EVERY_ADMINISTRATION.filter((act): act is Administration => act !== SIGNS_NOTHING)
+	/** every workspace the maker can grant, as a row that holds nothing yet. */
+	const rows: AccessRow[] = $derived(
+		workspaces.map((workspace) => ({ id: workspace.id, name: workspace.name, access: 'none' }))
 	);
+
+	/** a grant for every row that left no access, at the level it was left on. */
+	const grants = (): WorkspaceGrant[] =>
+		rows.flatMap((row) => {
+			const level = access[row.id] ?? row.access;
+
+			return level === 'none' ? [] : [{ id: row.id, access: level }];
+		});
 
 	let { form, constraints, errors, enhance, reset, ...rest } = superForm<AccountForm>(
 		defaults(blank, zod4(AccountSchema)),
@@ -143,12 +137,7 @@
 			onUpdate: ({ form }) => {
 				if (!form.valid || isCreating) return;
 
-				onCreate(
-					form.data.username.trim(),
-					form.data.role,
-					chosen,
-					form.data.workspaceIds.map((id) => ({ id, access: access[id] ?? 'full-access' }))
-				);
+				onCreate(form.data.username.trim(), form.data.role, chosen, grants());
 			}
 		}
 	);
@@ -164,47 +153,15 @@
 		}
 	});
 
-	const roleLabel = (value: string) =>
-		({
-			administrator: $LL.layout.signIn.roleAdministrator(),
-			member: $LL.layout.signIn.roleMember()
-		})[value] ?? value;
-
-	const actLabel = (act: Administration) =>
-		({
-			inviteMember: $LL.organization.dashboard.actInviteMember(),
-			removeMember: $LL.organization.dashboard.actRemoveMember(),
-			changeRole: $LL.organization.dashboard.actChangeRole(),
-			renameWorkspace: $LL.organization.dashboard.actRenameWorkspace(),
-			resetPassword: $LL.organization.dashboard.actResetPassword(),
-			renameMember: $LL.organization.dashboard.actRenameMember(),
-			grantWorkspace: $LL.organization.dashboard.actGrantWorkspace()
-		})[act];
-
-	const accessLabel = (value: WorkspaceGrant['access']) =>
-		value === 'read-only'
-			? $LL.organization.dashboard.accessReadOnly()
-			: $LL.organization.dashboard.accessFull();
-
-	const toggleAct = (act: Administration, checked: boolean) => {
-		chosen = checked ? chosen + maskOf(act) : chosen - maskOf(act);
-	};
-
-	// picking a role fills the boxes in with what that role is created with, and leaves them
-	// editable: the column is still what the person may do.
-	const pickRole = (value: string) => {
-		if (value !== 'administrator' && value !== 'member') return;
-
+	// picking a role fills the acts in with what that role is created with, and leaves a
+	// member's editable: the column is still what the person may do.
+	const pickRole = (value: 'administrator' | 'member') => {
 		$form.role = value;
 		chosen = ADMINISTRATION_BY_ROLE[value];
 	};
 
-	const toggleWorkspace = (id: string, checked: boolean) => {
-		$form.workspaceIds = checked
-			? [...new Set([...$form.workspaceIds, id])]
-			: $form.workspaceIds.filter((held) => held !== id);
-
-		if (checked && !access[id]) access[id] = 'full-access';
+	const pickAccess = (id: string, value: AccessChoice) => {
+		access[id] = value;
 	};
 </script>
 
@@ -216,132 +173,71 @@
 	title={$LL.organization.dashboard.memberTitle()}
 	description={$LL.organization.dashboard.memberDescription()}
 >
-	<div class="flex flex-col gap-4" data-account-form>
-		<Form.Field form={superform} name="username" class="group relative">
-			<Form.Control>
-				<Form.Label>{$LL.organization.dashboard.username()}</Form.Label>
-				<InputGroup.Root class={insetControl} data-disabled={isCreating || undefined}>
-					<InputGroup.Addon>
-						<UserIcon />
-					</InputGroup.Addon>
-					<InputGroup.Input
-						name="username"
-						autocomplete="off"
-						bind:value={$form.username}
-						placeholder={$LL.organization.dashboard.username()}
-						disabled={isCreating}
-						aria-invalid={$errors.username ? 'true' : undefined}
-						{...$constraints.username}
-					/>
-				</InputGroup.Root>
-			</Form.Control>
-			<FieldError />
-		</Form.Field>
-
-		<Field.Field>
-			<Field.Label id="account-role-label">{$LL.organization.dashboard.role()}</Field.Label>
-			<!-- two exclusive choices, so a toggle group rather than a menu: both are seen side by side
-			     ([[rules/interface]], *Field kinds*). Pressing the one already chosen would unset a
-			     single group, and an account always has a role, so the setter leaves that alone. -->
-			<ToggleGroup.Root
-				type="single"
-				variant="outline"
-				id="account-role"
-				aria-labelledby="account-role-label"
-				class="w-full"
-				bind:value={() => $form.role, pickRole}
-				disabled={isCreating}
+	<div class="flex flex-col gap-6" data-account-form>
+		<!-- what they are called, first: it is who the rest of the sheet is about. The refusal is the
+		     shared field error, whose mark sits on the head's line ([[rules/interface]], *Validation
+		     errors*). -->
+		<Field.Set class="gap-3" aria-labelledby="account-name-legend" data-sheet-section="name">
+			<Form.Field
+				form={superform}
+				name="username"
+				class="group relative flex flex-col gap-3 space-y-0"
 			>
-				<ToggleGroup.Item value="member" class="flex-1 capitalize">
-					{roleLabel('member')}
-				</ToggleGroup.Item>
-				<!-- an administrator carries every act, six of which sign, so for anybody but the
-				     owner the role is drawn refused rather than hidden. -->
-				<ToggleGroup.Item
-					value="administrator"
-					class="flex-1 capitalize"
-					disabled={!canInviteAdministrators}
-				>
-					{roleLabel('administrator')}
-				</ToggleGroup.Item>
-			</ToggleGroup.Root>
-			{#if !canInviteAdministrators}
-				<Field.Description
-					>{$LL.organization.dashboard.administratorsAreTheOwners()}</Field.Description
-				>
-			{/if}
-		</Field.Field>
+				<MemberSectionHead
+					id="account-name"
+					legend={$LL.organization.dashboard.username()}
+					description={$LL.organization.dashboard.usernameDescription()}
+				/>
 
-		<Field.Set>
-			<Field.Legend>{$LL.organization.dashboard.permissionsLegend()}</Field.Legend>
-			{#each EVERY_ADMINISTRATION as act (act)}
-				<Field.Field orientation="horizontal" data-act={act}>
-					<Checkbox
-						id={`account-act-${act}`}
-						checked={permits(chosen, act)}
-						onCheckedChange={(checked) => toggleAct(act, checked === true)}
-						disabled={isCreating || refused.includes(act)}
-					/>
-					<Field.Label for={`account-act-${act}`}>{actLabel(act)}</Field.Label>
-				</Field.Field>
-			{/each}
-			{#if refused.length > 0}
-				<Field.Description data-account-refusal>
-					{$LL.organization.dashboard.signingIsTheOwners()}
-				</Field.Description>
-			{/if}
+				<Form.Control>
+					<InputGroup.Root class={insetControl} data-disabled={isCreating || undefined}>
+						<InputGroup.Addon>
+							<UserIcon />
+						</InputGroup.Addon>
+						<InputGroup.Input
+							name="username"
+							autocomplete="off"
+							aria-labelledby="account-name-legend"
+							bind:value={$form.username}
+							placeholder={$LL.organization.dashboard.username()}
+							disabled={isCreating}
+							aria-invalid={$errors.username ? 'true' : undefined}
+							{...$constraints.username}
+						/>
+					</InputGroup.Root>
+				</Form.Control>
+				<FieldError />
+			</Form.Field>
 		</Field.Set>
 
-		<Field.Set>
-			<Field.Legend>{$LL.settings.section.workspaces()}</Field.Legend>
-			{#if workspaces.length === 0}
-				<Field.Description>{$LL.organization.dashboard.noWorkspaceToGrant()}</Field.Description>
-			{/if}
-			{#each workspaces as workspace (workspace.id)}
-				{@const held = $form.workspaceIds.includes(workspace.id)}
-				<Field.Field orientation="horizontal" data-invite-workspace={workspace.id}>
-					<Checkbox
-						id={`invite-workspace-${workspace.id}`}
-						name="workspaceIds"
-						checked={held}
-						onCheckedChange={(checked) => toggleWorkspace(workspace.id, checked === true)}
-						disabled={isCreating}
-					/>
-					<Field.Label for={`invite-workspace-${workspace.id}`} class="flex-1">
-						{workspace.name}
-					</Field.Label>
-					<!-- the access is the grant's own value and reads beside it; a workspace nobody
-					     granted has none to choose, so the control waits for the checkbox. -->
-					<ToggleGroup.Root
-						type="single"
-						variant="outline"
-						size="sm"
-						class="shrink-0"
-						aria-label={workspace.name}
-						data-invite-access={workspace.id}
-						bind:value={
-							() => access[workspace.id] ?? 'full-access',
-							(value) => {
-								if (value === 'full-access' || value === 'read-only') {
-									access[workspace.id] = value;
-								}
-							}
-						}
-						disabled={isCreating || !held}
-					>
-						<ToggleGroup.Item value="full-access">{accessLabel('full-access')}</ToggleGroup.Item>
-						<!-- drawn refused rather than absent: the access exists, and who mints it is
-						     the fact worth saying (requirement 5). -->
-						<ToggleGroup.Item value="read-only" disabled={!canGrantReadOnly}>
-							{accessLabel('read-only')}
-						</ToggleGroup.Item>
-					</ToggleGroup.Root>
-				</Field.Field>
-			{/each}
-			{#if !canGrantReadOnly && workspaces.length > 0}
-				<Field.Description>{$LL.organization.dashboard.readOnlyIsTheOwners()}</Field.Description>
-			{/if}
-		</Field.Set>
+		<MemberRole
+			id="account-role"
+			value={$form.role}
+			onPick={pickRole}
+			canMakeAdministrator={canInviteAdministrators}
+			disabled={isCreating}
+		/>
+
+		{#if $form.role === 'member'}
+			<MemberActs
+				id="account-acts"
+				bind:chosen
+				canGrantSigning={canInviteAdministrators}
+				disabled={isCreating}
+			/>
+		{/if}
+
+		<MemberWorkspaces
+			id="account-workspaces"
+			rowPrefix="account-access"
+			description={$LL.organization.dashboard.memberWorkspacesDescription()}
+			empty={$LL.organization.dashboard.noWorkspaceToGrant()}
+			{rows}
+			{access}
+			onPick={pickAccess}
+			{canGrantReadOnly}
+			disabled={isCreating}
+		/>
 	</div>
 
 	{#snippet actions()}

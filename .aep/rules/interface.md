@@ -551,6 +551,18 @@ form chooses other records or writes more than one record (contract, complex wit
 with its phone composite, member), and **light** otherwise (payment, unit, rename, password). So a
 complex is heavy for both create and edit, and a concept never opens on two presentations.
 
+**A member's two sheets share one layout.** The sheet that adds a member
+(`organization/component/account-form.svelte`) and the sheet that edits one (`member-sheet.svelte`)
+draw the same sections, in the same order, with the same legends and control shapes, from the same
+pieces: the username under its head, the role in its tray (`member-role.svelte`), what a member may
+do beyond their role as a list with a picker (`member-acts.svelte`), and a row per workspace with
+its three levels (`member-workspaces.svelte`), where *no access* is what not granting it is. Only
+the sentences that belong to the moment differ, and who may hand out what is decided in the shared
+pieces, so the two cannot gate differently. *Settled by ticket 42 of
+[[efforts/832-the-interface-speaks-one-language-and-guides/spec]]: the human saw the two side by
+side in the running build, the add sheet drawing an uppercase label, seven checkboxes and a checkbox
+per workspace, and asked for it to read like the edit sheet.*
+
 **A submit is labelled with its verb, and carries the verb's glyph before the label.** Every submit
 does, the domain forms' as well as the organization's and the startup screens': *create* takes the
 plus, *save* and *update* the save glyph, and an act's own verb takes the glyph its act declares

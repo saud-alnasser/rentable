@@ -16,6 +16,11 @@
 	const ctx = getToggleGroupCtx();
 </script>
 
+<!--
+	a segment is never narrower than its label and its side padding: `min-w-fit` rather than
+	`min-w-0`, which let a segment asked to share the row (`flex-1`) shrink into its own padding
+	until "administrator" met its edges on the member sheet. Ticket 42 of effort 832.
+-->
 <ToggleGroupPrimitive.Item
 	bind:ref
 	data-slot="toggle-group-item"
@@ -27,7 +32,7 @@
 			variant: ctx.variant || variant,
 			size: ctx.size || size
 		}),
-		'w-auto min-w-0 shrink-0 px-3 focus:z-10 focus-visible:z-10 data-[spacing=0]:rounded-none data-[spacing=0]:shadow-none data-[spacing=0]:first:rounded-s-md data-[spacing=0]:last:rounded-e-md data-[spacing=0]:data-[variant=outline]:border-s-0 data-[spacing=0]:data-[variant=outline]:first:border-s',
+		'w-auto min-w-fit shrink-0 px-3 focus:z-10 focus-visible:z-10 data-[spacing=0]:rounded-none data-[spacing=0]:shadow-none data-[spacing=0]:first:rounded-s-md data-[spacing=0]:last:rounded-e-md data-[spacing=0]:data-[variant=outline]:border-s-0 data-[spacing=0]:data-[variant=outline]:first:border-s',
 		className
 	)}
 	{value}

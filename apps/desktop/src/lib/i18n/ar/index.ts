@@ -1036,6 +1036,7 @@ const ar = {
 			renameDescription:
 				'اسم المستخدم الذي يسجل به الدخول على كل جهاز. لا شيء يخبره بأنه تغيّر؛ أخبره بنفسك.',
 			username: 'اسم المستخدم',
+			usernameDescription: 'اسم المستخدم الذي يسجل به الدخول على كل جهاز.',
 			usernameRules:
 				'اسم المستخدم من ثلاثة إلى اثنين وثلاثين حرفًا من الحروف والأرقام والنقاط والشرطات السفلية والشرطات',
 			renamed: 'غُيّر اسم العضو.',
@@ -1063,6 +1064,7 @@ const ar = {
 			accessReadOnly: 'قراءة فقط',
 			accessNone: 'لا وصول',
 			accessTakenBack: 'سحب مساحة عمل لا يصدر شيئًا، فما يحمله الآن يعمل حتى تنتهي صلاحيته.',
+			memberWorkspacesDescription: 'مساحات العمل التي يستطيع فتحها، وما يستطيع فعله في كل منها.',
 			accessSaved: 'حُفظت مساحات العمل.',
 			workspaceAccessTitle: 'الأعضاء والوصول',
 			workspaceAccessDescription:

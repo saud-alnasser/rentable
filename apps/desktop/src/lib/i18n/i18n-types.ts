@@ -3337,6 +3337,10 @@ type RootTranslation = {
 			 */
 			username: string
 			/**
+			 * t​h​e​ ​u​s​e​r​n​a​m​e​ ​t​h​e​y​ ​s​i​g​n​ ​i​n​ ​w​i​t​h​,​ ​o​n​ ​e​v​e​r​y​ ​m​a​c​h​i​n​e​.
+			 */
+			usernameDescription: string
+			/**
 			 * a​ ​u​s​e​r​n​a​m​e​ ​i​s​ ​t​h​r​e​e​ ​t​o​ ​t​h​i​r​t​y​-​t​w​o​ ​c​h​a​r​a​c​t​e​r​s​ ​o​f​ ​l​e​t​t​e​r​s​,​ ​d​i​g​i​t​s​,​ ​d​o​t​s​,​ ​u​n​d​e​r​s​c​o​r​e​s​ ​a​n​d​ ​h​y​p​h​e​n​s
 			 */
 			usernameRules: string
@@ -3426,6 +3430,10 @@ type RootTranslation = {
 			 * t​a​k​i​n​g​ ​a​ ​w​o​r​k​s​p​a​c​e​ ​b​a​c​k​ ​m​i​n​t​s​ ​n​o​t​h​i​n​g​,​ ​s​o​ ​w​h​a​t​ ​t​h​e​y​ ​a​l​r​e​a​d​y​ ​h​o​l​d​ ​w​o​r​k​s​ ​u​n​t​i​l​ ​i​t​ ​r​u​n​s​ ​o​u​t​.
 			 */
 			accessTakenBack: string
+			/**
+			 * t​h​e​ ​w​o​r​k​s​p​a​c​e​s​ ​t​h​e​y​ ​c​a​n​ ​o​p​e​n​,​ ​a​n​d​ ​w​h​a​t​ ​t​h​e​y​ ​c​a​n​ ​d​o​ ​i​n​ ​e​a​c​h​.
+			 */
+			memberWorkspacesDescription: string
 			/**
 			 * t​h​e​ ​w​o​r​k​s​p​a​c​e​s​ ​w​e​r​e​ ​s​a​v​e​d​.
 			 */
@@ -6959,6 +6967,10 @@ export type TranslationFunctions = {
 			 */
 			username: () => LocalizedString
 			/**
+			 * the username they sign in with, on every machine.
+			 */
+			usernameDescription: () => LocalizedString
+			/**
 			 * a username is three to thirty-two characters of letters, digits, dots, underscores and hyphens
 			 */
 			usernameRules: () => LocalizedString
@@ -7042,6 +7054,10 @@ export type TranslationFunctions = {
 			 * taking a workspace back mints nothing, so what they already hold works until it runs out.
 			 */
 			accessTakenBack: () => LocalizedString
+			/**
+			 * the workspaces they can open, and what they can do in each.
+			 */
+			memberWorkspacesDescription: () => LocalizedString
 			/**
 			 * the workspaces were saved.
 			 */
