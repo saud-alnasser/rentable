@@ -14,7 +14,7 @@
 //! (`workspace::rename_workspace` writes the sealed name outside the signature), and the refusal
 //! names the owner.
 //!
-//! **The certificate follows the permissions, in the same call** ([`keep_certificate_in_step`]).
+//! **The certificate follows the permissions, in the same call** ([`reissue`]).
 //! A member whose row signs is issued a certificate from the actor's, under a fresh id, over the
 //! `signing_public_key` their row has carried since it was written, with the row's ceiling and
 //! rank; a member whose row moved away from their certificate, or who signs nothing any more, has
@@ -80,53 +80,109 @@ pub(super) fn signs_rows(permissions: i64) -> bool {
         .any(|act| permission::permits(permissions, *act))
 }
 
-/// Keep a member's certificate in step with what their row says they may do (effort 838).
+/// Where a member stands in the chain: the one role they hold, their override, what the two give
+/// them, and the rank of the role.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct Standing<'a> {
+    pub role_id: &'a str,
+    pub override_mask: i64,
+    pub effective: i64,
+    pub rank: i64,
+}
+
+/// A member's standing for a role named by its word and the administration acts a command names
+/// (`permission::role_id_of_word`, `permission::override_for_acts`), read against the role's
+/// verified row.
 ///
-/// **A member who signs holds one live certificate, whose ceiling and rank are the row's**
-/// (`permission::ceiling_of_row`, `permission::rank_of_role`), issued down from the actor's own
-/// with `signer`'s key. Where the member already holds exactly that, nothing is written. Otherwise
-/// a fresh certificate is issued under a fresh id, and every older live one has the rows it signed
-/// re-signed under the actor and is then revoked, so retiring it bricks nothing and a row newly
-/// signed under it is refused on read. A member who no longer signs is left with none.
+/// **A bridge** for the commands that still take a word and a number (`invite`, `change_role`,
+/// the handover), until they take a role id and an override (effort 838, tickets 05 and 07).
+pub(super) async fn standing_of(
+    store: &OrganizationStore,
+    session: &MemberSession,
+    word: &str,
+    acts: i64,
+) -> Result<Standing<'static>, Error> {
+    let role_id = permission::role_id_of_word(word);
+    let (mask, rank) = store.role_standing(&session.verifying_key, role_id).await?;
+    let override_mask = permission::override_for_acts(role_id, mask, acts);
+
+    Ok(Standing {
+        role_id,
+        override_mask,
+        effective: permission::effective(mask, override_mask),
+        rank,
+    })
+}
+
+/// Whether a member whose permissions are these signs rows, and so holds a certificate: a manager
+/// always, and anybody else who carries an act that writes a signed row.
+pub(super) fn signs(role_id: &str, effective: i64) -> bool {
+    role_id == permission::MANAGER || role_id == permission::OWNER || signs_rows(effective)
+}
+
+/// Re-issue a member's certificate: issue a fresh one for their standing, and retire every older
+/// one after re-signing what it signed (effort 838). **The three in one transaction**, so a
+/// refusal or a failure part way leaves the chain as it was.
 ///
-/// *Until ticket 04 of effort 838 replaces it with the routine that does the three in one
-/// transaction and refuses a row the actor could not sign.* The acts that call it are unchanged in
-/// who may perform them: certifying a signer is still refused to anybody but the owner, by the
-/// callers, until the flows move onto the chain.
-#[allow(clippy::too_many_arguments)]
-pub(super) async fn keep_certificate_in_step(
+/// `signing` is the member's signing key and their standing, or `None` for a member who is to hold
+/// no certificate: every live one they hold is retired and none is issued. The new certificate is
+/// issued down from `signer`'s, carrying the member's effective permissions as its ceiling and
+/// their role's rank, so the issue itself refuses a standing wider or higher than the actor's
+/// (`authority::issue_certificate`). Where the member already holds exactly one live certificate
+/// naming that key, ceiling and rank, nothing is written.
+///
+/// **Refused, naming what is needed, where the actor could not sign a row the old certificate
+/// signed** (`store::re_sign_rows_of_certificate`): re-signing a grant needs `grantWorkspace`, and
+/// deleting it instead would take somebody's access away.
+pub(super) async fn reissue(
     store: &OrganizationStore,
     session: &MemberSession,
     signer: &Signer<'_>,
     member_id: &str,
-    signing_public_key: &[u8; VERIFYING_KEY_BYTES],
-    role: &str,
-    permissions: i64,
+    signing: Option<(&[u8; VERIFYING_KEY_BYTES], Standing<'_>)>,
     now: i64,
 ) -> Result<(), Error> {
-    let signs = role == permission::ADMINISTRATOR || signs_rows(permissions);
-    let ceiling = permission::ceiling_of_row(role, permissions);
-    let rank = permission::rank_of_role(role);
     let live = store
         .live_certificates(&session.verifying_key, member_id)
         .await?;
     let in_step = |certificate: &Certificate| {
-        &certificate.signing_public_key == signing_public_key
-            && certificate.ceiling == ceiling
-            && certificate.rank == rank
+        signing.is_some_and(|(key, standing)| {
+            &certificate.signing_public_key == key
+                && certificate.ceiling == standing.effective
+                && certificate.rank == standing.rank
+        })
     };
 
-    if signs && live.len() == 1 && in_step(&live[0]) {
+    if (signing.is_some() && live.len() == 1 && in_step(&live[0]))
+        || (signing.is_none() && live.is_empty())
+    {
         return Ok(());
     }
 
-    if !signs && live.is_empty() {
-        return Ok(());
-    }
+    store.begin().await?;
 
+    match reissue_within(store, session, signer, member_id, signing, &live, now).await {
+        Ok(()) => store.commit().await,
+        Err(error) => {
+            let _ = store.rollback().await;
+            Err(error)
+        }
+    }
+}
+
+/// [`reissue`]'s writes, inside the transaction it opened.
+async fn reissue_within(
+    store: &OrganizationStore,
+    session: &MemberSession,
+    signer: &Signer<'_>,
+    member_id: &str,
+    signing: Option<(&[u8; VERIFYING_KEY_BYTES], Standing<'_>)>,
+    live: &[Certificate],
+    now: i64,
+) -> Result<(), Error> {
     let issued_at = now.to_string();
 
-    if signs {
+    if let Some((signing_public_key, standing)) = signing {
         let id = unused_certificate_id(&store.certificates().await?, member_id, &issued_at);
 
         store
@@ -137,15 +193,15 @@ pub(super) async fn keep_certificate_in_step(
                     id: &id,
                     member_id,
                     signing_public_key,
-                    ceiling,
-                    rank,
+                    ceiling: standing.effective,
+                    rank: standing.rank,
                     issued_at: &issued_at,
                 },
             )?)
             .await?;
     }
 
-    for old in &live {
+    for old in live {
         store
             .re_sign_rows_of_certificate(&session.verifying_key, &old.id, signer)
             .await?;
@@ -339,7 +395,7 @@ pub async fn offer_ownership(
             )
         })?;
 
-    if member.role == permission::REMOVED {
+    if member.role_word() == permission::REMOVED {
         return Err(Error::refused(
             RefusalReason::MemberRemoved,
             "that member was removed. invite them again if they are to come back",
@@ -677,6 +733,15 @@ pub async fn accept_ownership(
                 .to_string(),
         })?;
     let issued_at = now.to_string();
+    // what the founder stands as from here on, read while the role rows still verify under the key
+    // being left: once the rows move under the new root, only the new key reads them.
+    let as_manager = standing_of(
+        store,
+        session,
+        permission::ADMINISTRATOR,
+        permission::mask_of_role(permission::ADMINISTRATOR),
+    )
+    .await?;
 
     // the new root: this person's, under the key their own vault derives (effort 838).
     let root = issue_root_certificate(
@@ -696,9 +761,16 @@ pub async fn accept_ownership(
 
     // every row the founder signed as owner moves under the new root first, read under the key
     // being left: the founder is about to rank as a manager, and a manager's certificate does not
-    // cover a row about another manager.
+    // cover a row about another manager. The two rows whose roles swap are left, because they
+    // are written afresh below, and the founder's as it stands names the owner's role, which only
+    // its own holder's root signs.
     store
-        .re_sign_rows_of_certificate(&pinned, &old_root.id, &signer)
+        .re_sign_rows_of_certificate_but(
+            &pinned,
+            &old_root.id,
+            &signer,
+            &[founder.id.as_str(), session.member_id.as_str()],
+        )
         .await?;
 
     // every certificate the founder issued directly is issued again, under the same id with the
@@ -749,11 +821,8 @@ pub async fn accept_ownership(
                 id: &old_root.id,
                 member_id: &old_root.member_id,
                 signing_public_key: &old_root.signing_public_key,
-                ceiling: permission::ceiling_of_row(
-                    permission::ADMINISTRATOR,
-                    permission::mask_of_role(permission::ADMINISTRATOR),
-                ),
-                rank: permission::rank_of_role(permission::ADMINISTRATOR),
+                ceiling: as_manager.effective,
+                rank: as_manager.rank,
                 issued_at: &old_root.issued_at,
             },
         )?)
@@ -763,8 +832,8 @@ pub async fn accept_ownership(
         .write_member(
             &signer,
             &MemberRecord {
-                role: permission::OWNER.to_string(),
-                permissions: permission::mask_of_role(permission::OWNER),
+                role_id: permission::OWNER.to_string(),
+                override_mask: 0,
                 // the seal was the offer's carrier and the offer is spent.
                 owner_seed_sealed: None,
                 updated_at: now,
@@ -776,8 +845,8 @@ pub async fn accept_ownership(
         .write_member(
             &signer,
             &MemberRecord {
-                role: permission::ADMINISTRATOR.to_string(),
-                permissions: permission::mask_of_role(permission::ADMINISTRATOR),
+                role_id: as_manager.role_id.to_string(),
+                override_mask: as_manager.override_mask,
                 owner_seed_sealed: None,
                 updated_at: now,
                 ..founder.clone()
@@ -950,14 +1019,14 @@ pub async fn change_role(
             )
         })?;
 
-    if member.role == permission::OWNER {
+    if member.role_word() == permission::OWNER {
         return Err(Error::refused(
             RefusalReason::OwnerProtected,
             "an owner's role is not changed. the organization is theirs",
         ));
     }
 
-    if member.role == permission::REMOVED {
+    if member.role_word() == permission::REMOVED {
         return Err(Error::refused(
             RefusalReason::MemberRemoved,
             "that member was removed. invite them again if they are to come back",
@@ -971,9 +1040,9 @@ pub async fn change_role(
     let widens = Administration::ALL.iter().any(|act| {
         *act != SIGNS_NOTHING
             && permission::permits(permissions, *act)
-            && !permission::permits(member.permissions, *act)
+            && !permission::permits(member.effective, *act)
     }) || (role == permission::ADMINISTRATOR
-        && member.role != permission::ADMINISTRATOR);
+        && member.role_word() != permission::ADMINISTRATOR);
 
     if widens && session.role != permission::OWNER {
         return Err(Error::refused(
@@ -989,8 +1058,9 @@ pub async fn change_role(
         key: &key,
         certificate: &certificate,
     };
-    let signed_before = signs_rows(member.permissions);
+    let signed_before = signs_rows(member.effective);
     let signs_now = signs_rows(permissions);
+    let standing = standing_of(store, session, role, permissions).await?;
 
     // their first signing act is the owner's to give, founder or transferee, refused by name where
     // the session's vault does not derive the key it has pinned (effort 828, requirement 22). A
@@ -1002,32 +1072,32 @@ pub async fn change_role(
         organization_key_of(session)?;
     }
 
+    // the certificate follows, before the row: issued over the key the row has carried since it
+    // was written, which is the key `workspace::signer_of` will derive from their own vault, and
+    // the old one retired where the row moved away from it. First, so a re-issue the actor could
+    // not complete refuses the change with nothing written (effort 838).
+    reissue(
+        store,
+        session,
+        &signer,
+        member_id,
+        signs(standing.role_id, standing.effective)
+            .then_some((&member.signing_public_key, standing)),
+        now,
+    )
+    .await?;
+
     store
         .write_member(
             &signer,
             &MemberRecord {
-                role: role.to_string(),
-                permissions,
+                role_id: standing.role_id.to_string(),
+                override_mask: standing.override_mask,
                 updated_at: now,
                 ..member.clone()
             },
         )
         .await?;
-
-    // the certificate follows: issued over the key the row has carried since it was written,
-    // which is the key `workspace::signer_of` will derive from their own vault, and the old one
-    // retired where the row moved away from it.
-    keep_certificate_in_step(
-        store,
-        session,
-        &signer,
-        member_id,
-        &member.signing_public_key,
-        role,
-        permissions,
-        now,
-    )
-    .await?;
 
     if !store.push().await {
         diagnostics::warn("organization.member.roleNotYetSent")
@@ -1336,7 +1406,10 @@ mod tests {
             .find(|member| member.id == member_id)
             .expect("the member row");
 
-        (member.role, member.permissions)
+        (
+            member.role_word().to_string(),
+            permission::acts_of(member.effective),
+        )
     }
 
     /// Whether a live certificate names this member, which is what `workspace::signer_of` looks
@@ -1437,7 +1510,7 @@ mod tests {
         assert_eq!(changed.id, invited.member_id);
         assert_eq!(changed.username, "sami.staff");
         assert_eq!(changed.role, permission::MEMBER);
-        assert_eq!(changed.permissions, widened);
+        assert_eq!(permission::acts_of(changed.permissions), widened);
         assert_eq!(
             changed
                 .workspaces
@@ -1473,7 +1546,7 @@ mod tests {
 
         assert_eq!(named.role, permission::ADMINISTRATOR);
         assert_eq!(
-            named.permissions,
+            permission::acts_of(named.permissions),
             permission::mask_of(&[Administration::RenameMember])
         );
     }
@@ -1874,6 +1947,128 @@ mod tests {
         assert!(refusal.to_string().contains("revoked"), "{refusal}");
     }
 
+    /// Effort 838, ticket 04: **a re-issue the actor could not complete is refused by name, and
+    /// nothing moves.** A member signs a grant; an administrator who may change roles and holds
+    /// nothing that signs a grant narrows them. Retiring the member's certificate would mean
+    /// re-signing the grant, which takes `grantWorkspace`: the change is refused naming it, and
+    /// the certificate, the revocations, the grant and the member's row are as they were.
+    #[tokio::test]
+    async fn a_reissue_the_actor_could_not_complete_is_refused_by_name_and_moves_nothing() {
+        let directory = scratch("reissue-refused");
+        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (sami, _) = a_member(
+            &store,
+            &owner,
+            &link,
+            "sami.staff",
+            permission::MEMBER,
+            &workspace_id,
+        )
+        .await;
+        let granting = permission::mask_of(&[Administration::GrantWorkspace]);
+
+        change_role(
+            &store,
+            &owner,
+            &sami.member_id,
+            permission::MEMBER,
+            granting,
+            NOW + 1,
+        )
+        .await
+        .expect("the widening failed");
+
+        let mut widened = sign_in(
+            &store,
+            &joined_as(&owner, &sami.member_id, permission::MEMBER),
+            &secret_of(&sami),
+            &slot(),
+        )
+        .await
+        .expect("the widened member did not sign in");
+        widened.must_change_password = false;
+
+        let (noor, _) = a_member(
+            &store,
+            &owner,
+            &link,
+            "noor.new",
+            permission::MEMBER,
+            &workspace_id,
+        )
+        .await;
+
+        grant_workspace(
+            &store,
+            &widened,
+            no_platform(),
+            &workspace_id,
+            &noor.member_id,
+            AccessLevel::FullAccess,
+        )
+        .await
+        .expect("a widened member could not grant");
+
+        // an administrator who changes roles and does nothing else.
+        let (ada, ada_session) = a_member(
+            &store,
+            &owner,
+            &link,
+            "ada.admin",
+            permission::ADMINISTRATOR,
+            &workspace_id,
+        )
+        .await;
+
+        change_role(
+            &store,
+            &owner,
+            &ada.member_id,
+            permission::ADMINISTRATOR,
+            permission::mask_of(&[Administration::ChangeRole]),
+            NOW + 2,
+        )
+        .await
+        .expect("the narrowing of the administrator failed");
+
+        let chain_before = store.chain_rows().await.expect("the chain");
+        let grants_before = store
+            .grants(&owner.verifying_key)
+            .await
+            .expect("the grants");
+
+        let refusal = change_role(
+            &store,
+            &ada_session,
+            &sami.member_id,
+            permission::MEMBER,
+            0,
+            NOW + 3,
+        )
+        .await
+        .expect_err("a narrowing that could not re-sign the grant went through");
+
+        assert!(refusal.to_string().contains("grantWorkspace"), "{refusal}");
+        assert_eq!(
+            store.chain_rows().await.expect("the chain after"),
+            chain_before,
+            "a refused re-issue wrote a certificate or a revocation"
+        );
+        assert_eq!(
+            store
+                .grants(&owner.verifying_key)
+                .await
+                .expect("the grants after"),
+            grants_before
+        );
+        assert!(certified(&store, &sami.member_id).await);
+        assert_eq!(
+            row_of(&store, &owner, &sami.member_id).await,
+            (permission::MEMBER.to_string(), granting),
+            "the refused change wrote the member's row"
+        );
+    }
+
     /// **A narrowing that leaves the certificate standing still reaches the open session.**
     ///
     /// The case the test above does not cover, and the one requirement 6 makes the control
@@ -1962,9 +2157,11 @@ mod tests {
 
         // and the act they kept is still theirs, off the same row.
         assert_eq!(
-            crate::organization::session::permissions_on_row(&store, &theirs)
-                .await
-                .expect("their row"),
+            permission::acts_of(
+                crate::organization::session::permissions_on_row(&store, &theirs)
+                    .await
+                    .expect("their row")
+            ),
             permission::mask_of(&[Administration::RemoveMember])
         );
     }
@@ -2084,7 +2281,10 @@ mod tests {
             .find(|member| member.id == member_id)
             .expect("the member row");
 
-        (member.role, member.permissions)
+        (
+            member.role_word().to_string(),
+            permission::acts_of(member.effective),
+        )
     }
 
     /// Whether the offer's seal is on a row.
@@ -2661,8 +2861,8 @@ mod tests {
             .write_member(
                 &signer,
                 &MemberRecord {
-                    role: permission::ADMINISTRATOR.to_string(),
-                    permissions: permission::mask_of_role(permission::ADMINISTRATOR),
+                    role_id: permission::MANAGER.to_string(),
+                    override_mask: 0,
                     ..row
                 },
             )
@@ -3095,7 +3295,7 @@ mod tests {
         assert_eq!(owner.verifying_key, new_key);
         assert_eq!(owner.role, permission::ADMINISTRATOR);
         assert_eq!(
-            owner.permissions,
+            permission::acts_of(owner.permissions),
             permission::mask_of_role(permission::ADMINISTRATOR)
         );
 

@@ -203,7 +203,7 @@ where
         .find(|member| member.id == row.member_id)
         .ok_or_else(|| no_longer_a_member(&link.organization_name))?;
 
-    if member.role == permission::REMOVED {
+    if member.role_word() == permission::REMOVED {
         return Err(no_longer_a_member(&link.organization_name));
     }
 

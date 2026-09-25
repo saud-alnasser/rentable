@@ -97,7 +97,7 @@ pub async fn require_administrator(
     store: &OrganizationStore,
     session: &MemberSession,
 ) -> Result<(), Error> {
-    let role = acting_row(store, session).await?.role;
+    let role = acting_row(store, session).await?.role_word().to_string();
 
     if role == permission::OWNER || role == permission::ADMINISTRATOR {
         Ok(())
@@ -343,8 +343,10 @@ mod tests {
                     .expect("sealed"),
                     vault,
                     signing_public_key,
-                    role: role.to_string(),
-                    permissions: permission::mask_of_role(role),
+                    role_id: permission::role_id_of_word(role).to_string(),
+                    override_mask: 0,
+                    removed_at: None,
+                    effective: 0,
                     must_change_password: false,
                     created_at: 1_757_000_000_000,
                     updated_at: 1_757_000_000_000,
@@ -370,11 +372,8 @@ mod tests {
                             id: &certificate_id(id, "1757000000000"),
                             member_id: id,
                             signing_public_key: &signing_public_key,
-                            ceiling: permission::ceiling_of_row(
-                                role,
-                                permission::mask_of_role(role),
-                            ),
-                            rank: permission::rank_of_role(role),
+                            ceiling: permission::MANAGER_ROLE.mask,
+                            rank: permission::MANAGER_ROLE.rank,
                             issued_at: "1757000000000",
                         },
                     )

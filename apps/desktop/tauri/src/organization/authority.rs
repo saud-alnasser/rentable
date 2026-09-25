@@ -121,10 +121,10 @@ const CERTIFICATE_DOMAIN: &[u8] = b"rentable.organization.authority.certificate.
 /// Separates a revocation's preimage from every other (effort 838).
 const REVOCATION_DOMAIN: &[u8] = b"rentable.organization.authority.revocation.v1";
 
-/// Separates a `member` row's preimage from every other row's. `v2` since effort 826 put the
-/// member's signing public key under the signature: a `v1` signature covers a preimage no row
-/// carries any more, and the label says so rather than letting the two share a name.
-const MEMBER_DOMAIN: &[u8] = b"rentable.organization.authority.member.v2";
+/// Separates a `member` row's preimage from every other row's. `v3` since effort 838 put the
+/// row's id, its role and its override under the signature in place of the role's word and the
+/// permissions column; `v2` had put the member's signing public key there (effort 826).
+const MEMBER_DOMAIN: &[u8] = b"rentable.organization.authority.member.v3";
 
 /// Separates a `role` row's preimage from every other row's (effort 838).
 const ROLE_DOMAIN: &[u8] = b"rentable.organization.authority.role.v1";
@@ -307,7 +307,7 @@ pub struct InvitationAuthority<'a> {
     pub expires_at: i64,
 }
 
-/// What a `member` row puts under signature.
+/// What a `member` row puts under signature (`member.v3`, effort 838).
 ///
 /// **`sealed_secret_key`, `kdf_salt` and `kdf_params` are deliberately absent, and
 /// their absence is load-bearing.** They are the member's own vault: rewriting
@@ -316,12 +316,13 @@ pub struct InvitationAuthority<'a> {
 /// a member may perform on a database they hold full access to. Signed, every
 /// password change would need an administrator present.
 ///
-/// **There is no `id` here either**, and the field that stands in for one is
-/// `public_key`. A member who copies another member's signed tuple onto their own
-/// row takes that member's public key with it, and the vault binds a sealed secret
-/// key to the public key it belongs to, so the row they built opens for nobody.
+/// **The id is under signature**, so no signed tuple stands in for another member's
+/// row. *Until effort 838 the public key stood in for it, which held only as long
+/// as nothing a row said depended on whose row it was; the owner's role does.*
 #[derive(Clone, Copy, Debug)]
 pub struct MemberAuthority<'a> {
+    /// Whose row this is.
+    pub id: &'a str,
     /// The public half of the member's keypair, as the column holds it. This
     /// module does not know what kind of key it is, only that these are the bytes
     /// under signature.
@@ -335,11 +336,14 @@ pub struct MemberAuthority<'a> {
     /// because an unsigned copy would let any writer name a key of their own and
     /// wait to be certified.
     pub signing_public_key: &'a [u8],
-    /// What the member is called. [`covers`] reads the rank it stands for, and
-    /// nothing else here interprets it.
-    pub role: &'a str,
-    /// What the member may administer, as the column holds it.
-    pub permissions: i64,
+    /// The one role the member holds (requirement 5): `owner`, `manager`, `member`,
+    /// or a custom role's id. [`covers`] reads the rank it stands for.
+    pub role_id: &'a str,
+    /// The flags switched for this member alone (requirement 6). Zero on the owner's.
+    pub override_mask: i64,
+    /// When the member was removed, where they were. The row stays, signed by whoever
+    /// removed them, so a machine holding a stale replica sees a verified removal.
+    pub removed_at: Option<i64>,
     /// The organization key's seed, sealed to this member's public key, on the row
     /// of an account that has been offered the organization and has not accepted
     /// yet (effort 828, requirement 22). `None` on every other row, and `None`
@@ -348,17 +352,10 @@ pub struct MemberAuthority<'a> {
     /// **It is the offer's carrier and never anybody's anchor.** The acceptance
     /// opens it only on a machine that already holds the old key by another route,
     /// and refuses unless what it opens derives the key that machine pinned, so a
-    /// seal somebody planted opens nothing that is then believed. *It was the
-    /// transferee's way back until 2026-09-16, which meant a value read out of the
-    /// database it was meant to judge.*
+    /// seal somebody planted opens nothing that is then believed.
     ///
-    /// **Under signature, and appended rather than tagged.** A writer able to put
-    /// a seal on a row of their own choosing would be naming themselves the
-    /// organization's next owner. The
-    /// preimage appends it only where it is present, so a row without it signs the
-    /// bytes it signed before the column existed and every row written before the
-    /// transfer still verifies; [`preimage`] says why that is unambiguous here
-    /// where `optional_field` is used elsewhere.
+    /// **Under signature.** A writer able to put a seal on a row of their own
+    /// choosing would be naming themselves the organization's next owner.
     pub owner_seed_sealed: Option<&'a [u8]>,
 }
 
@@ -717,15 +714,35 @@ pub fn sign(
 /// Certificates and revocations are judged by the walk, and a succession by the organization key,
 /// so neither is here. **The root is not waved through** except where the table says so: it holds
 /// every flag and outranks every rank, so it passes every row on its own terms.
-pub fn covers(certificate: &Certificate, authority: Authority<'_>) -> bool {
+///
+/// **A member row naming the owner's role is the root's, about its own holder, with no override**
+/// (requirements 3, 5 and 6): the owner's role is held by exactly one member, and nobody else signs
+/// it onto a row, the owner's own included.
+///
+/// `rank_of_role` answers for a role id: the owner's rank for the owner's, the verified role row's
+/// for any other, and `None` for a role nobody holds, which covers nothing.
+pub fn covers(
+    certificate: &Certificate,
+    authority: Authority<'_>,
+    rank_of_role: impl Fn(&str) -> Option<i64>,
+) -> bool {
     let holds = |flag: Flag| permission::permits(certificate.ceiling, flag);
     let holds_any = |flags: &[Flag]| flags.iter().any(|flag| holds(*flag));
 
     match authority {
         Authority::Member(member) => {
-            certificate.is_root()
-                || (holds_any(&MEMBER_ADMINISTRATION)
-                    && certificate.rank > permission::rank_of_role(member.role))
+            if member.role_id == permission::OWNER {
+                return certificate.is_root()
+                    && certificate.member_id == member.id
+                    && member.override_mask == 0
+                    && member.removed_at.is_none();
+            }
+
+            let Some(rank) = rank_of_role(member.role_id) else {
+                return false;
+            };
+
+            certificate.is_root() || (holds_any(&MEMBER_ADMINISTRATION) && certificate.rank > rank)
         }
         Authority::Role(role) => holds(Flag::ManageRoles) && certificate.rank > role.rank,
         Authority::Grant(grant) => {
@@ -738,6 +755,27 @@ pub fn covers(certificate: &Certificate, authority: Authority<'_>) -> bool {
         Authority::Workspace(_) => holds_any(&[Flag::RenameWorkspace, Flag::GrantWorkspace]),
         Authority::Invitation(_) => holds_any(&[Flag::InviteMember, Flag::ResetPassword]),
         Authority::Mark(_) => holds(Flag::ManageMark),
+    }
+}
+
+/// What a certificate needs to sign a row like this one, as a refusal names it: the act that is
+/// refused because the actor could not re-sign a row names this (effort 838).
+pub fn needed_for(authority: Authority<'_>) -> &'static str {
+    match authority {
+        Authority::Member(member) if member.role_id == permission::OWNER => {
+            "the owner's own certificate"
+        }
+        Authority::Member(_) => "a flag that administers members, and a rank above the member",
+        Authority::Role(_) => "manageRoles, and a rank above the role",
+        Authority::Grant(grant)
+            if AccessLevel::parse(grant.access_level) == Some(AccessLevel::FullAccess) =>
+        {
+            "grantWorkspace"
+        }
+        Authority::Grant(_) => "the owner's certificate, for a read-only grant",
+        Authority::Workspace(_) => "renameWorkspace or grantWorkspace",
+        Authority::Invitation(_) => "inviteMember or resetPassword",
+        Authority::Mark(_) => "manageMark",
     }
 }
 
@@ -754,6 +792,7 @@ pub struct Chain<'a> {
     organization_verifying_key: &'a [u8; VERIFYING_KEY_BYTES],
     certificates: HashMap<&'a str, &'a Certificate>,
     revocations: &'a [Revocation],
+    role_ranks: HashMap<String, i64>,
     walked: RefCell<HashMap<String, Result<(), String>>>,
     revoked: OnceCell<HashSet<String>>,
 }
@@ -771,9 +810,33 @@ impl<'a> Chain<'a> {
                 .map(|certificate| (certificate.id.as_str(), certificate))
                 .collect(),
             revocations,
+            role_ranks: HashMap::new(),
             walked: RefCell::new(HashMap::new()),
             revoked: OnceCell::new(),
         }
+    }
+
+    /// The same chain, knowing each role's rank: what a member row is judged by. The ranks are the
+    /// caller's to have verified, from the role rows this chain judged first; the owner's is a
+    /// constant and needs no row.
+    pub fn with_role_ranks(mut self, role_ranks: HashMap<String, i64>) -> Self {
+        self.role_ranks = role_ranks;
+        self
+    }
+
+    /// The rank of a role, where the chain knows it.
+    pub fn rank_of_role(&self, role_id: &str) -> Option<i64> {
+        if role_id == permission::OWNER {
+            Some(OWNER_ROLE.rank)
+        } else {
+            self.role_ranks.get(role_id).copied()
+        }
+    }
+
+    /// Whether a certificate may sign this row, by the row-kind table and the ranks this chain
+    /// knows ([`covers`]).
+    pub fn covers(&self, certificate: &Certificate, authority: Authority<'_>) -> bool {
+        covers(certificate, authority, |role_id| self.rank_of_role(role_id))
     }
 
     /// Verifies a row against the chain. **The only place a row's signature is checked.**
@@ -802,7 +865,7 @@ impl<'a> Chain<'a> {
 
         // 4. and that it is a certificate for this row. Last, and the only `Ok` in this
         //    function is below it.
-        if !covers(certificate, authority) {
+        if !self.covers(certificate, authority) {
             return Err(Error::Integrity {
                 message: BEYOND_ITS_CERTIFICATE.to_string(),
             });
@@ -1060,32 +1123,29 @@ fn preimage(certificate_id: &str, authority: Authority<'_>) -> Vec<u8> {
     // signed row is a compile error here instead of a field nobody signed.
     match authority {
         Authority::Member(MemberAuthority {
+            id,
             public_key,
             signing_public_key,
-            role,
-            permissions,
+            role_id,
+            override_mask,
+            removed_at,
             owner_seed_sealed,
         }) => {
             message.extend_from_slice(MEMBER_DOMAIN);
             field(&mut message, certificate_id.as_bytes());
+            field(&mut message, id.as_bytes());
             field(&mut message, public_key);
             field(&mut message, signing_public_key);
-            field(&mut message, role.as_bytes());
-            field(&mut message, &permissions.to_be_bytes());
-
-            // appended where it is present and nothing at all where it is not, so a
-            // row with no seal signs exactly the bytes it signed before the column
-            // existed. That is what lets a column be added to a signed row without
-            // re-signing the directory (effort 828, requirement 22), and it is why
-            // `optional_field` is wrong here: its absent tag is one byte, and that
-            // byte is the whole of what would have broken every row already written.
-            //
-            // **Unambiguous because it is last and length-prefixed.** Nothing
-            // follows it, so an absent seal cannot be read as a present empty one:
-            // the first ends the message and the second appends eight zero bytes.
-            if let Some(owner_seed_sealed) = owner_seed_sealed {
-                field(&mut message, owner_seed_sealed);
-            }
+            field(&mut message, role_id.as_bytes());
+            field(&mut message, &override_mask.to_be_bytes());
+            optional_field(
+                &mut message,
+                removed_at.map(i64::to_be_bytes).as_ref().map(|at| &at[..]),
+            );
+            // tagged like every other optional field. *It was appended only where present
+            // until effort 838, so that rows signed before the column kept their bytes; an
+            // organization of this format has no such rows.*
+            optional_field(&mut message, owner_seed_sealed);
         }
         Authority::Role(RoleAuthority {
             id,
@@ -1327,11 +1387,10 @@ mod tests {
     const CHECKED_IN_ACCESS_LEVEL: &str = "full-access";
     const CHECKED_IN_EXPIRES_AT: &str = "2026-09-30T00:00:00Z";
 
-    /// What `ADMINISTRATION_BY_ROLE.administrator` is in
-    /// `packages/workspace-permission`: `inviteMember`, `removeMember` and
-    /// `changeRole`, which is bits 0, 1 and 2. Written out rather than imported,
-    /// because this module signs whatever the column holds and never reads it.
-    const ADMINISTRATOR_PERMISSIONS: i64 = 7;
+    /// An override switching `inviteMember`, `removeMember` and `assignRole`, bits 0, 1 and 2.
+    /// Written out rather than imported, because this module signs whatever the column holds and
+    /// never reads it.
+    const CHECKED_IN_OVERRIDE: i64 = 7;
 
     fn checked_in_organization_key() -> OrganizationKey {
         OrganizationKey::from_bytes(&hex_array(CHECKED_IN_ORGANIZATION_SEED))
@@ -1357,12 +1416,28 @@ mod tests {
     /// what the column holds: a certificate names the key the member derives from their own
     /// vault secret, and the row carries its verifying half so there is something to certify
     /// (effort 826, requirement 6).
-    fn member_authority<'a>(public_key: &'a [u8], role: &'a str) -> Authority<'a> {
+    fn member_authority<'a>(public_key: &'a [u8], role_id: &'a str) -> Authority<'a> {
         Authority::Member(MemberAuthority {
+            id: CHECKED_IN_MEMBER_ID,
             public_key,
             signing_public_key: CHECKED_IN_MEMBER_SIGNING_PUBLIC_KEY,
-            role,
-            permissions: ADMINISTRATOR_PERMISSIONS,
+            role_id,
+            override_mask: CHECKED_IN_OVERRIDE,
+            removed_at: None,
+            owner_seed_sealed: None,
+        })
+    }
+
+    /// The owner's own row: the owner's role, no override, and the id of the member the root
+    /// names.
+    fn owner_authority<'a>(id: &'a str, public_key: &'a [u8]) -> Authority<'a> {
+        Authority::Member(MemberAuthority {
+            id,
+            public_key,
+            signing_public_key: CHECKED_IN_MEMBER_SIGNING_PUBLIC_KEY,
+            role_id: permission::OWNER,
+            override_mask: 0,
+            removed_at: None,
             owner_seed_sealed: None,
         })
     }
@@ -1370,14 +1445,16 @@ mod tests {
     /// The same row, carrying the organization seed a transfer sealed onto it.
     fn member_authority_with_seal<'a>(
         public_key: &'a [u8],
-        role: &'a str,
+        role_id: &'a str,
         owner_seed_sealed: &'a [u8],
     ) -> Authority<'a> {
         Authority::Member(MemberAuthority {
+            id: CHECKED_IN_MEMBER_ID,
             public_key,
             signing_public_key: CHECKED_IN_MEMBER_SIGNING_PUBLIC_KEY,
-            role,
-            permissions: ADMINISTRATOR_PERMISSIONS,
+            role_id,
+            override_mask: CHECKED_IN_OVERRIDE,
+            removed_at: None,
             owner_seed_sealed: Some(owner_seed_sealed),
         })
     }
@@ -1516,6 +1593,15 @@ mod tests {
         }
     }
 
+    /// The ranks of the two built-in roles that are rows, as a reader holds them once it has
+    /// verified the role rows.
+    fn built_in_ranks() -> HashMap<String, i64> {
+        HashMap::from([
+            (permission::MANAGER.to_string(), MANAGER_ROLE.rank),
+            (permission::MEMBER.to_string(), MEMBER_ROLE.rank),
+        ])
+    }
+
     /// A row's verdict against the chain these certificates and revocations make.
     fn verify(
         verifying_key: &[u8; VERIFYING_KEY_BYTES],
@@ -1525,11 +1611,9 @@ mod tests {
         authority: Authority<'_>,
         signature: &[u8],
     ) -> Result<(), Error> {
-        Chain::new(verifying_key, certificates, revocations).verify(
-            &certificate.id,
-            authority,
-            signature,
-        )
+        Chain::new(verifying_key, certificates, revocations)
+            .with_role_ranks(built_in_ranks())
+            .verify(&certificate.id, authority, signature)
     }
 
     /// The same, for a row signed under the root and nothing else in the chain.
@@ -1581,50 +1665,41 @@ mod tests {
         );
     }
 
-    /// Effort 828, requirement 22: **a member row with no owner seed signs exactly the
-    /// bytes it signed before the column existed**, so every row written before a
-    /// transfer still verifies against the unchanged organization key.
-    ///
-    /// The expectation is written out here rather than taken from the function under
-    /// test: an assertion that the preimage equals the preimage says nothing, and
-    /// what this has to pin is the layout a row already on somebody's replica was
-    /// signed under.
+    /// An absent seal and a present empty one are two rows, and so are a removed row and one that
+    /// is not: every optional field of `member.v3` is tagged (effort 838).
     #[test]
-    fn a_member_row_without_the_owner_seed_signs_the_bytes_it_signed_before_the_column() {
+    fn a_member_rows_optional_fields_are_told_apart_from_empty_ones() {
         let public_key = checked_in_member_public_key();
-        let mut before = Vec::new();
+        let absent = member_authority(&public_key, "member");
+        let empty = member_authority_with_seal(&public_key, "member", b"");
+        let removed = Authority::Member(MemberAuthority {
+            id: CHECKED_IN_MEMBER_ID,
+            public_key: &public_key,
+            signing_public_key: CHECKED_IN_MEMBER_SIGNING_PUBLIC_KEY,
+            role_id: "member",
+            override_mask: CHECKED_IN_OVERRIDE,
+            removed_at: Some(0),
+            owner_seed_sealed: None,
+        });
 
-        before.extend_from_slice(MEMBER_DOMAIN);
-        field(&mut before, b"cert-an-administrator");
-        field(&mut before, &public_key);
-        field(&mut before, CHECKED_IN_MEMBER_SIGNING_PUBLIC_KEY);
-        field(&mut before, b"member");
-        field(&mut before, &ADMINISTRATOR_PERMISSIONS.to_be_bytes());
-
-        assert_eq!(
-            preimage(
-                "cert-an-administrator",
-                member_authority(&public_key, "member")
-            ),
-            before
-        );
+        assert_ne!(preimage("cert-a", absent), preimage("cert-a", empty));
+        assert_ne!(preimage("cert-a", absent), preimage("cert-a", removed));
     }
 
-    /// And the row that carries one signs the same bytes with the seal appended, so
-    /// the two are different messages and a seal cannot be added to a row or taken
-    /// off one without the signature failing.
+    /// A row that carries the seal signs different bytes from the same row without it, so a seal
+    /// cannot be added to a row or taken off one without the signature failing.
     #[test]
     fn a_member_row_carrying_the_owner_seed_folds_it_into_what_it_signs() {
         let organization = an_organization();
         let public_key = checked_in_member_public_key();
         let seal = b"a sealed organization seed".as_slice();
-        let without = member_authority(&public_key, "owner");
-        let with = member_authority_with_seal(&public_key, "owner", seal);
-        let mut expected = preimage("cert-an-administrator", without);
+        let without = member_authority(&public_key, "member");
+        let with = member_authority_with_seal(&public_key, "member", seal);
 
-        field(&mut expected, seal);
-
-        assert_eq!(preimage("cert-an-administrator", with), expected);
+        assert_ne!(
+            preimage("cert-an-administrator", with),
+            preimage("cert-an-administrator", without)
+        );
 
         // and the signature over one is not a signature over the other, in both
         // directions: a row handed a seal it was not signed with is refused, and so
@@ -1722,7 +1797,7 @@ mod tests {
         .expect("failed to sign");
 
         // the member promotes themselves
-        let promoted = member_authority(&public_key, "administrator");
+        let promoted = member_authority(&public_key, "manager");
         assert_eq!(
             verify_under(
                 &organization.verifying_key,
@@ -1886,7 +1961,7 @@ mod tests {
         let genuine = an_organization();
         let theirs = an_organization();
         let public_key = checked_in_member_public_key();
-        let promoted = member_authority(&public_key, "owner");
+        let promoted = member_authority(&public_key, "manager");
         let their_signature =
             sign(&theirs.administrator_key, &theirs.certificate, promoted).expect("failed to sign");
 
@@ -1918,7 +1993,7 @@ mod tests {
     fn a_row_signed_under_one_certificate_does_not_verify_under_another() {
         let organization = an_organization();
         let public_key = checked_in_member_public_key();
-        let authority = member_authority(&public_key, "administrator");
+        let authority = member_authority(&public_key, "manager");
         let renamed = Certificate {
             id: "certificate-b".to_string(),
             ..organization.certificate.clone()
@@ -2542,7 +2617,7 @@ mod tests {
             // a member row below the manager, one at their rank, and one above it.
             (member_authority(&public_key, "member"), Ok(())),
             (
-                member_authority(&public_key, "administrator"),
+                member_authority(&public_key, "manager"),
                 Err(integrity(BEYOND_ITS_CERTIFICATE)),
             ),
             (
@@ -2572,9 +2647,10 @@ mod tests {
             );
         }
 
-        // and the root signs every one of them.
+        // and the root signs every one of them, the owner's own row included.
         for authority in [
-            member_authority(&public_key, "owner"),
+            member_authority(&public_key, "manager"),
+            owner_authority(&organization.certificate.member_id, &public_key),
             role_authority(&sealed, 0, MANAGER_ROLE.rank),
         ] {
             let signature = sign(
@@ -2595,6 +2671,88 @@ mod tests {
                 "{authority:?}"
             );
         }
+    }
+
+    #[test]
+    fn a_member_row_naming_the_owners_role_verifies_only_as_the_roots_about_its_holder() {
+        let organization = an_organization();
+        let public_key = checked_in_member_public_key();
+        let (manager_key, manager) = delegate(
+            &organization.administrator_key,
+            &organization.certificate,
+            "manager",
+            MANAGER_ROLE.mask,
+            MANAGER_ROLE.rank,
+        );
+        let certificates = [organization.certificate.clone(), manager.clone()];
+        let judged = |key: &AdministratorKey, certificate: &Certificate, authority| {
+            let signature = sign(key, certificate, authority).expect("failed to sign");
+
+            verify(
+                &organization.verifying_key,
+                &certificates,
+                &[],
+                certificate,
+                authority,
+                &signature,
+            )
+        };
+        let owner_id = organization.certificate.member_id.clone();
+        let with_override = Authority::Member(MemberAuthority {
+            id: &owner_id,
+            public_key: &public_key,
+            signing_public_key: CHECKED_IN_MEMBER_SIGNING_PUBLIC_KEY,
+            role_id: permission::OWNER,
+            override_mask: 1,
+            removed_at: None,
+            owner_seed_sealed: None,
+        });
+
+        // the root, about the member it names: the owner's row.
+        assert_eq!(
+            judged(
+                &organization.administrator_key,
+                &organization.certificate,
+                owner_authority(&owner_id, &public_key)
+            ),
+            Ok(())
+        );
+
+        // the root, making somebody else the owner; a manager doing it; and the owner's row with
+        // an override (requirement 6).
+        for (key, certificate, authority) in [
+            (
+                &organization.administrator_key,
+                &organization.certificate,
+                owner_authority("member-somebody-else", &public_key),
+            ),
+            (
+                &manager_key,
+                &manager,
+                owner_authority(&owner_id, &public_key),
+            ),
+            (
+                &organization.administrator_key,
+                &organization.certificate,
+                with_override,
+            ),
+        ] {
+            assert_eq!(
+                judged(key, certificate, authority),
+                Err(integrity(BEYOND_ITS_CERTIFICATE)),
+                "{authority:?}"
+            );
+        }
+
+        // and a row naming a role nobody holds is covered by nobody, the root included.
+        assert_eq!(
+            judged(
+                &organization.administrator_key,
+                &organization.certificate,
+                member_authority(&public_key, "role-nobody-holds")
+            ),
+            Err(integrity(BEYOND_ITS_CERTIFICATE))
+        );
     }
 
     #[test]
@@ -2759,35 +2917,34 @@ mod tests {
         assert_eq!(
             to_hex(&preimage(
                 CHECKED_IN_CERTIFICATE_ID,
-                member_authority(&public_key, "administrator")
+                member_authority(&public_key, "manager")
             )),
             concat!(
                 "72656e7461626c652e6f7267616e697a6174696f6e2e617574686f726974792e",
-                "6d656d6265722e7632000000000000000d63657274696669636174652d310000",
-                "0000000000200102030405060708090a0b0c0d0e0f101112131415161718191a",
-                "1b1c1d1e1f2000000000000000203d4017c3e843895a92b70aa74d1b7ebc9c98",
-                "2ccf2ec4968cc0cd55f12af4660c000000000000000d61646d696e6973747261",
-                "746f7200000000000000080000000000000007",
+                "6d656d6265722e7633000000000000000d63657274696669636174652d310000",
+                "0000000000086d656d6265722d3100000000000000200102030405060708090a",
+                "0b0c0d0e0f101112131415161718191a1b1c1d1e1f2000000000000000203d40",
+                "17c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c0000",
+                "0000000000076d616e61676572000000000000000800000000000000070000",
             ),
             "a member row covers a different set of fields"
         );
 
         // and the same row carrying the seed a transfer sealed onto it (effort 828, requirement
-        // 22): the bytes above with one more length-prefixed field appended, so the row above is
-        // still the row this crate signed before the column existed.
+        // 22): the last tag set, and the seal after it.
         assert_eq!(
             to_hex(&preimage(
                 CHECKED_IN_CERTIFICATE_ID,
-                member_authority_with_seal(&public_key, "administrator", b"a sealed seed")
+                member_authority_with_seal(&public_key, "manager", b"a sealed seed")
             )),
             concat!(
                 "72656e7461626c652e6f7267616e697a6174696f6e2e617574686f726974792e",
-                "6d656d6265722e7632000000000000000d63657274696669636174652d310000",
-                "0000000000200102030405060708090a0b0c0d0e0f101112131415161718191a",
-                "1b1c1d1e1f2000000000000000203d4017c3e843895a92b70aa74d1b7ebc9c98",
-                "2ccf2ec4968cc0cd55f12af4660c000000000000000d61646d696e6973747261",
-                "746f7200000000000000080000000000000007",
-                "000000000000000d61207365616c65642073656564",
+                "6d656d6265722e7633000000000000000d63657274696669636174652d310000",
+                "0000000000086d656d6265722d3100000000000000200102030405060708090a",
+                "0b0c0d0e0f101112131415161718191a1b1c1d1e1f2000000000000000203d40",
+                "17c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c0000",
+                "0000000000076d616e6167657200000000000000080000000000000007000100",
+                "0000000000000d61207365616c65642073656564",
             ),
             "a member row carrying an owner seed covers a different set of fields"
         );
@@ -2840,26 +2997,54 @@ mod tests {
         let signed_grant = grant_authority(&sealed_credential);
 
         let rewrites: Vec<(Authority<'_>, Authority<'_>)> = vec![
-            // member: public_key, signing_public_key, role, permissions
-            (signed_member, member_authority(&other_public_key, "member")),
-            (signed_member, member_authority(&public_key, "owner")),
+            // member: id, public_key, signing_public_key, role_id, override, removed_at
             (
                 signed_member,
                 Authority::Member(MemberAuthority {
+                    id: "member-2",
+                    public_key: &public_key,
+                    signing_public_key: CHECKED_IN_MEMBER_SIGNING_PUBLIC_KEY,
+                    role_id: "member",
+                    override_mask: CHECKED_IN_OVERRIDE,
+                    removed_at: None,
+                    owner_seed_sealed: None,
+                }),
+            ),
+            (signed_member, member_authority(&other_public_key, "member")),
+            (signed_member, member_authority(&public_key, "manager")),
+            (
+                signed_member,
+                Authority::Member(MemberAuthority {
+                    id: CHECKED_IN_MEMBER_ID,
                     public_key: &public_key,
                     signing_public_key: &other_public_key,
-                    role: "member",
-                    permissions: ADMINISTRATOR_PERMISSIONS,
+                    role_id: "member",
+                    override_mask: CHECKED_IN_OVERRIDE,
+                    removed_at: None,
                     owner_seed_sealed: None,
                 }),
             ),
             (
                 signed_member,
                 Authority::Member(MemberAuthority {
+                    id: CHECKED_IN_MEMBER_ID,
                     public_key: &public_key,
                     signing_public_key: CHECKED_IN_MEMBER_SIGNING_PUBLIC_KEY,
-                    role: "member",
-                    permissions: ADMINISTRATOR_PERMISSIONS + 1,
+                    role_id: "member",
+                    override_mask: CHECKED_IN_OVERRIDE + 1,
+                    removed_at: None,
+                    owner_seed_sealed: None,
+                }),
+            ),
+            (
+                signed_member,
+                Authority::Member(MemberAuthority {
+                    id: CHECKED_IN_MEMBER_ID,
+                    public_key: &public_key,
+                    signing_public_key: CHECKED_IN_MEMBER_SIGNING_PUBLIC_KEY,
+                    role_id: "member",
+                    override_mask: CHECKED_IN_OVERRIDE,
+                    removed_at: Some(1),
                     owner_seed_sealed: None,
                 }),
             ),
@@ -3181,7 +3366,7 @@ mod tests {
             signed,
         )
         .expect("failed to sign");
-        let read_as_a_member = member_authority("member-1".as_bytes(), "administrator");
+        let read_as_a_member = member_authority("member-1".as_bytes(), "manager");
 
         assert_eq!(
             verify_under(
@@ -3268,7 +3453,7 @@ mod tests {
         );
         let public_key = checked_in_member_public_key();
         // a member row about a manager, which a certificate of rank 1 does not cover.
-        let authority = member_authority(&public_key, "administrator");
+        let authority = member_authority(&public_key, "manager");
         let certificates = [elsewhere.certificate.clone(), member.clone()];
         let revocations = [revoke(
             &elsewhere.administrator_key,
@@ -3476,8 +3661,9 @@ mod tests {
         // every signature below was produced by OpenSSL 3.5.7's Ed25519, over
         // preimages built by a separate encoder. Ed25519 is deterministic, so this
         // pins signing as well as verification. *Regenerated by effort 838 for the
-        // v2 certificate, the revocation and the role row; the row signatures did
-        // not move, because a row signs its certificate's id and not its fields.*
+        // v2 certificate, the revocation, the role row and `member.v3`; the other
+        // rows' signatures did not move, because a row signs its certificate's id
+        // and not its fields.*
         let certificate = checked_in_certificate();
         let delegated = checked_in_delegated_certificate();
         let revocation = checked_in_revocation();
@@ -3513,14 +3699,15 @@ mod tests {
             &organization_verifying_key,
             std::slice::from_ref(&certificate),
             &[],
-        );
+        )
+        .with_role_ranks(built_in_ranks());
 
         for (authority, expected) in [
             (
-                member_authority(&public_key, "administrator"),
+                member_authority(&public_key, "manager"),
                 concat!(
-                    "845ba711012384871f66bbb040432a46cd2ea24f95626c53eb6eef8c414cace9",
-                    "628260a5e96da6b6af3f7011c63902ad15579a2928bd516bed2ed94fd783500e",
+                    "0d6579591868b611eb29691fb003258311f663d09186110cf1727bd0d0cb4450",
+                    "8894c542a788bd648399e27463caed5a9aaecf63568942f66a73f777aa7b5305",
                 ),
             ),
             (

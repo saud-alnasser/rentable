@@ -212,7 +212,7 @@ pub async fn acting_row(
             )
         })?;
 
-    if member.role == permission::REMOVED {
+    if member.role_word() == permission::REMOVED {
         return Err(Error::refused(
             RefusalReason::YouWereRemoved,
             "you were removed from this organization",
@@ -235,7 +235,7 @@ pub async fn permissions_on_row(
     store: &OrganizationStore,
     session: &MemberSession,
 ) -> Result<i64, Error> {
-    Ok(acting_row(store, session).await?.permissions)
+    Ok(acting_row(store, session).await?.effective)
 }
 
 /// One workspace as the web layer learns of it: its name opened with the content key, and where
@@ -316,7 +316,7 @@ pub async fn sign_in(
 
     // a removal is a signed row rather than an absence, and it is read before the password is
     // tried: the vault would still open, and what it opens grants nothing any more.
-    if member.role == super::permission::REMOVED {
+    if member.role_word() == super::permission::REMOVED {
         return Err(Error::refused(
             RefusalReason::YouWereRemoved,
             format!("you were removed from {}", joined.name),
@@ -423,7 +423,7 @@ pub async fn sign_in_by_username(
     // there would refuse the later of the two at the wall for as long as they share it.
     for member in members
         .iter()
-        .filter(|member| member.role != super::permission::REMOVED)
+        .filter(|member| member.role_word() != super::permission::REMOVED)
     {
         let Ok((secret, member_key)) = open_vault_with_key(password, &member.vault) else {
             continue;
@@ -614,7 +614,7 @@ async fn resumed(
 
     // as `sign_in` reads it: a removal is a signed row rather than an absence, and the vault
     // would still open onto grants that grant nothing.
-    if member.role == super::permission::REMOVED {
+    if member.role_word() == super::permission::REMOVED {
         return Err(Error::refused(
             RefusalReason::YouWereRemoved,
             format!("you were removed from {}", held.name),
@@ -669,8 +669,8 @@ pub(crate) async fn repin(
         })?;
 
     session.verifying_key = key;
-    session.role = member.role;
-    session.permissions = member.permissions;
+    session.role = member.role_word().to_string();
+    session.permissions = member.effective;
 
     Ok(())
 }
@@ -808,7 +808,7 @@ pub async fn end_member_sessions(
             )
         })?;
 
-    if member.role == permission::OWNER {
+    if member.role_word() == permission::OWNER {
         return Err(Error::refused(
             RefusalReason::OwnerProtected,
             "an owner's sessions are not ended by anybody else. the organization is theirs",
@@ -941,8 +941,8 @@ pub(crate) async fn open_session(
     Ok(MemberSession {
         organization_id: held.id.clone(),
         member_id: member.id.clone(),
-        role: member.role.clone(),
-        permissions: member.permissions,
+        role: member.role_word().to_string(),
+        permissions: member.effective,
         must_change_password: member.must_change_password,
         session_epoch: member.session_epoch,
         verifying_key,
@@ -1069,7 +1069,7 @@ pub async fn facts_of(
 
     let owner_username = match members
         .iter()
-        .find(|candidate| candidate.role == super::permission::OWNER)
+        .find(|candidate| candidate.role_word() == super::permission::OWNER)
     {
         Some(owner) => opened(
             &session.content_key,
@@ -1089,8 +1089,8 @@ pub async fn facts_of(
             "member.username_sealed",
             &member.username_sealed,
         )?,
-        role: member.role.clone(),
-        permissions: member.permissions,
+        role: member.role_word().to_string(),
+        permissions: member.effective,
         workspaces: workspace_facts,
         ownership_offered: super::role::standing_offer(store, key)
             .await?
@@ -1156,7 +1156,10 @@ mod tests {
             authority::{AdministratorKey, OrganizationKey, issue_root_certificate},
             permission,
             setup::{ADMINISTRATOR_KEY_PURPOSE, CreateOrganization, Remote, create_organization},
-            store::{GrantRecord, MemberRecord, OrganizationRecord, OrganizationStore, Signer},
+            store::{
+                GrantRecord, MemberRecord, OrganizationRecord, OrganizationStore, RoleRecord,
+                Signer,
+            },
             vault::{
                 KdfParams, MEMBER_KEY_BYTES, MemberKey, create_vault_with_secret,
                 generate_content_key, open_sealed_secret_key, open_vault, reseal_vault,
@@ -1489,6 +1492,22 @@ mod tests {
             certificate: &certificate,
         };
 
+        for built_in in [permission::MANAGER_ROLE, permission::MEMBER_ROLE] {
+            store_b
+                .write_role(
+                    &signer,
+                    &RoleRecord {
+                        id: built_in.id.to_string(),
+                        kind: built_in.id.to_string(),
+                        name_sealed: Vec::new(),
+                        mask: built_in.mask,
+                        rank: built_in.rank,
+                    },
+                )
+                .await
+                .expect("a role");
+        }
+
         store_b
             .write_member(
                 &signer,
@@ -1512,8 +1531,10 @@ mod tests {
                             .expect("the signing seed"),
                     )
                     .verifying_key(),
-                    role: "member".to_string(),
-                    permissions: 0,
+                    role_id: permission::role_id_of_word("member").to_string(),
+                    override_mask: 0,
+                    removed_at: None,
+                    effective: 0,
                     must_change_password: true,
                     created_at: 1_757_000_000_000,
                     updated_at: 1_757_000_000_000,
@@ -1819,8 +1840,10 @@ mod tests {
                             .expect("the signing seed"),
                     )
                     .verifying_key(),
-                    role: role.to_string(),
-                    permissions: permission::mask_of_role(role),
+                    role_id: permission::role_id_of_word(role).to_string(),
+                    override_mask: 0,
+                    removed_at: None,
+                    effective: 0,
                     must_change_password: false,
                     created_at: 1_757_000_000_000,
                     updated_at: 1_757_000_000_000,

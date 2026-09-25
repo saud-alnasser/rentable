@@ -385,7 +385,7 @@ pub async fn withdraw_grant(
             )
         })?;
 
-    if member.role == permission::OWNER {
+    if member.role_word() == permission::OWNER {
         return Err(Error::refused(
             RefusalReason::OwnerProtected,
             "an owner's own workspace is not withdrawn. the organization is theirs",
@@ -571,7 +571,7 @@ pub async fn renew_credentials<P: TursoPlatform>(
         .members(&session.verifying_key)
         .await?
         .into_iter()
-        .filter(|member| member.role != permission::REMOVED)
+        .filter(|member| member.role_word() != permission::REMOVED)
         .map(|member| (member.id, member.vault.public_key))
         .collect();
     let workspaces = store.workspaces(&session.verifying_key).await?;
@@ -918,8 +918,10 @@ mod tests {
                     .expect("sealed"),
                     vault,
                     signing_public_key: signing_key_of(&secret),
-                    role: permission::MEMBER.to_string(),
-                    permissions: 0,
+                    role_id: permission::role_id_of_word(permission::MEMBER).to_string(),
+                    override_mask: 0,
+                    removed_at: None,
+                    effective: 0,
                     must_change_password: false,
                     created_at: 1_757_000_000_000,
                     updated_at: 1_757_000_000_000,
@@ -977,8 +979,10 @@ mod tests {
                     .expect("sealed"),
                     vault,
                     signing_public_key: signing_key_of(&secret),
-                    role: permission::ADMINISTRATOR.to_string(),
-                    permissions: permission::mask_of_role(permission::ADMINISTRATOR),
+                    role_id: permission::role_id_of_word(permission::ADMINISTRATOR).to_string(),
+                    override_mask: 0,
+                    removed_at: None,
+                    effective: 0,
                     must_change_password: false,
                     created_at: 1_757_000_000_000,
                     updated_at: 1_757_000_000_000,
@@ -1345,7 +1349,8 @@ mod tests {
         let pipeline = applying_pipeline().await;
 
         assert_eq!(
-            administrator.permissions, 0b111_1111,
+            permission::acts_of(administrator.permissions),
+            0b111_1111,
             "the administrator does not carry all seven acts"
         );
         for act in permission::Administration::ALL {
@@ -1741,7 +1746,11 @@ mod tests {
                     certificate: &certificate,
                 },
                 &MemberRecord {
-                    permissions: narrowed,
+                    override_mask: permission::override_for_acts(
+                        &row.role_id,
+                        permission::MANAGER_ROLE.mask,
+                        narrowed,
+                    ),
                     updated_at: 1_757_000_000_002,
                     ..row
                 },
@@ -1892,7 +1901,7 @@ mod tests {
             .into_iter()
             .find(|member| member.id == "member-b")
             .expect("member-b");
-        member_b.role = permission::REMOVED.to_string();
+        member_b.removed_at = Some(1_757_000_000_000);
         store
             .write_member(&signer, &member_b)
             .await
@@ -1971,7 +1980,7 @@ mod tests {
 
         // an ordinary removal: the member row is re-signed `removed` and the grant is deleted.
         let mut removed = member_row.clone();
-        removed.role = permission::REMOVED.to_string();
+        removed.removed_at = Some(1_757_000_000_000);
         store
             .write_member(&signer, &removed)
             .await

@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [03]
 ---
 
@@ -17,16 +17,16 @@ tested, ready for 05 to 07.
 
 Traces requirements 3, 5 and 9 of [[efforts/838-permissions-are-a-role-and-an-override/spec]], and criteria 3, 5 and 9.
 
-- [ ] `member` and `role` tables, and their preimages, as [[efforts/838-permissions-are-a-role-and-an-override/plan]], *Data Model* and *Components*, give
+- [x] `member` and `role` tables, and their preimages, as [[efforts/838-permissions-are-a-role-and-an-override/plan]], *Data Model* and *Components*, give
       them; the `role` and `permissions` columns are gone; the owner role is the constant, not a row.
-- [ ] `create_organization` yields exactly the owner (root certificate, ceiling every flag), and the
+- [x] `create_organization` yields exactly the owner (root certificate, ceiling every flag), and the
       manager and member rows with `BUILT_IN`'s masks and ranks (criterion 3).
-- [ ] Every member row names exactly one role, and a member row naming the owner role verifies only
+- [x] Every member row names exactly one role, and a member row naming the owner role verifies only
       for the owner (criterion 5).
-- [ ] A member row whose signer does not outrank the role it names is refused on read.
-- [ ] `store::re_sign_rows_of_certificate` covers `mark` and `role`; a test retires the certificate
+- [x] A member row whose signer does not outrank the role it names is refused on read.
+- [x] `store::re_sign_rows_of_certificate` covers `mark` and `role`; a test retires the certificate
       that set the mark and still reads the mark.
-- [ ] The issue-revoke-re-sign routine writes the new certificate, the revocation and the re-signed
+- [x] The issue-revoke-re-sign routine writes the new certificate, the revocation and the re-signed
       rows in one transaction, and refuses, naming the flag, where the actor cannot sign a row the
       old certificate signed.
 

@@ -176,14 +176,14 @@ pub async fn remove_member<P: TursoPlatform>(
             )
         })?;
 
-    if member.role == permission::OWNER {
+    if member.role_word() == permission::OWNER {
         return Err(Error::refused(
             RefusalReason::OwnerProtected,
             "an owner is not removed. the organization is theirs",
         ));
     }
 
-    if member.role == permission::REMOVED {
+    if member.role_word() == permission::REMOVED {
         return Err(Error::refused(
             RefusalReason::MemberRemoved,
             "that member was already removed",
@@ -404,6 +404,14 @@ pub(crate) async fn retire_member(
         certificate: &certificate,
     };
 
+    // end a removed administrator's authority first, so a removal that could not be completed
+    // changes nothing. A member with no certificate has nothing to retire; an administrator's has
+    // the rows it legitimately signed re-signed under the remover, who holds authority over them,
+    // and a revocation written for it, so a row they newly sign under it is refused on read (F2)
+    // and revoking it bricks nothing (`role::reissue`, the routine reset shares). A row the
+    // remover's own certificate could not sign refuses the removal by name (effort 838).
+    super::role::reissue(store, session, &signer, member_id, None, now).await?;
+
     // the grants go, and the row is signed as removed by whoever removed them: a machine holding
     // a stale replica sees a verified removal rather than an unexplained absence.
     for grant in store
@@ -432,8 +440,11 @@ pub(crate) async fn retire_member(
         .write_member(
             &signer,
             &MemberRecord {
-                role: permission::REMOVED.to_string(),
-                permissions: 0,
+                // a removed member keeps the member's role and nothing more, and says when they
+                // went (effort 838).
+                role_id: permission::MEMBER.to_string(),
+                override_mask: 0,
+                removed_at: Some(now),
                 owner_seed_sealed: None,
                 updated_at: now,
                 ..member.clone()
@@ -456,23 +467,6 @@ pub(crate) async fn retire_member(
     }
 
     store.delete_open_machine_links_of(member_id).await?;
-
-    // end a removed administrator's authority. A member has no certificate and this does nothing;
-    // an administrator's has a revocation written for it, signed by the remover, so a row they
-    // newly sign under it is refused on read (F2, the half this ticket closes). But first the rows
-    // it legitimately signed are re-signed under the remover, who holds authority over them, so
-    // revoking it bricks nothing (`role::keep_certificate_in_step`, the routine reset shares).
-    super::role::keep_certificate_in_step(
-        store,
-        session,
-        &signer,
-        member_id,
-        &member.signing_public_key,
-        permission::REMOVED,
-        0,
-        now,
-    )
-    .await?;
 
     Ok(())
 }
@@ -811,8 +805,8 @@ mod tests {
             .find(|row| row.id == member_id)
             .expect("the removed member's row is gone rather than marked");
 
-        assert_eq!(row.role, permission::REMOVED);
-        assert_eq!(row.permissions, 0);
+        assert_eq!(row.role_word(), permission::REMOVED);
+        assert_eq!(permission::acts_of(row.effective), 0);
         assert!(
             !org.store
                 .grants(&owner.verifying_key)
@@ -1243,7 +1237,8 @@ mod tests {
         administrator.must_change_password = false;
 
         assert_eq!(
-            administrator.permissions, 0b111_1111,
+            permission::acts_of(administrator.permissions),
+            0b111_1111,
             "the administrator does not carry all seven acts"
         );
         for act in permission::Administration::ALL {
@@ -1420,8 +1415,8 @@ mod tests {
                     certificate: &ada_cert,
                 },
                 &MemberRecord {
-                    role: permission::OWNER.to_string(),
-                    permissions: 63,
+                    role_id: permission::OWNER.to_string(),
+                    override_mask: 0,
                     ..ada_row
                 },
             )
@@ -1604,7 +1599,8 @@ mod tests {
         administrator.must_change_password = false;
 
         assert_eq!(
-            administrator.permissions, 0b111_1111,
+            permission::acts_of(administrator.permissions),
+            0b111_1111,
             "the administrator does not carry all seven acts"
         );
 

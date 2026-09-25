@@ -66,7 +66,7 @@ use super::{
     invite::validate_username,
     permission,
     session::{self, CredentialSlot, MemberSession, content_key_of, remember, sign_in_by_username},
-    store::{GrantRecord, MemberRecord, OrganizationRecord, OrganizationStore, Signer},
+    store::{GrantRecord, MemberRecord, OrganizationRecord, OrganizationStore, RoleRecord, Signer},
     vault::{
         ContentKey, KdfParams, MemberSecretKey, create_vault_with_secret_and_key,
         generate_content_key, open_content, open_vault, seal_content, seal_to_public_key,
@@ -606,6 +606,23 @@ async fn finish<P: TursoPlatform>(
         certificate: &certificate,
     };
 
+    // the two built-in roles that are rows, signed by the root, before any member row names one
+    // (effort 838, requirement 3). The owner's role is a constant and is not among them.
+    for built_in in [permission::MANAGER_ROLE, permission::MEMBER_ROLE] {
+        organization_store
+            .write_role(
+                &signer,
+                &RoleRecord {
+                    id: built_in.id.to_string(),
+                    kind: built_in.id.to_string(),
+                    name_sealed: Vec::new(),
+                    mask: built_in.mask,
+                    rank: built_in.rank,
+                },
+            )
+            .await?;
+    }
+
     organization_store
         .write_member(
             &signer,
@@ -622,8 +639,10 @@ async fn finish<P: TursoPlatform>(
                 // here because this is one of the two moments a fresh vault secret is in hand
                 // (`invite::issue` is the other). It is what a widening certifies against.
                 signing_public_key: administrator_key.verifying_key(),
-                role: OWNER_ROLE.to_string(),
-                permissions: OWNER_PERMISSIONS,
+                role_id: permission::OWNER.to_string(),
+                override_mask: 0,
+                removed_at: None,
+                effective: permission::OWNER_ROLE.mask,
                 must_change_password: false,
                 created_at: now,
                 updated_at: now,
@@ -1006,7 +1025,7 @@ async fn the_owners_key(
     // one who opens first.
     for member in members
         .iter()
-        .filter(|member| member.role != permission::REMOVED)
+        .filter(|member| member.role_word() != permission::REMOVED)
     {
         let Ok(secret) = open_vault(password, &member.vault) else {
             continue;
@@ -1713,8 +1732,8 @@ mod tests {
             .expect("a row");
 
         assert_eq!(members.len(), 1);
-        assert_eq!(members[0].role, OWNER_ROLE);
-        assert_eq!(members[0].permissions, OWNER_PERMISSIONS);
+        assert_eq!(members[0].role_word(), OWNER_ROLE);
+        assert_eq!(permission::acts_of(members[0].effective), OWNER_PERMISSIONS);
         assert!(!members[0].must_change_password);
         assert_eq!(members[0].vault.kdf_params, test_cost());
         assert_eq!(grants.len(), 1);
@@ -1723,6 +1742,38 @@ mod tests {
         assert_eq!(grants[0].access_level, "full-access");
         assert_eq!(row.verifying_key, key);
         assert_eq!(row.remote_url, held.remote_url);
+        // exactly the three roles (effort 838, criterion 3): the owner is the constant, held by
+        // the one member through the root, which carries every flag; the manager and the member
+        // are rows with the masks and ranks the package gives them.
+        assert_eq!(members[0].role_id, permission::OWNER);
+        assert_eq!(members[0].override_mask, 0);
+        assert_eq!(members[0].effective, permission::OWNER_ROLE.mask);
+        assert_eq!(
+            organization
+                .roles(&key)
+                .await
+                .expect("the roles")
+                .into_iter()
+                .map(|role| (role.id, role.kind, role.mask, role.rank))
+                .collect::<Vec<_>>(),
+            [permission::MANAGER_ROLE, permission::MEMBER_ROLE]
+                .map(|built_in| (
+                    built_in.id.to_string(),
+                    built_in.id.to_string(),
+                    built_in.mask,
+                    built_in.rank
+                ))
+                .to_vec()
+        );
+
+        let certificates = organization.certificates().await.expect("the certificates");
+
+        assert_eq!(certificates.len(), 1);
+        assert!(certificates[0].is_root());
+        assert_eq!(certificates[0].member_id, members[0].id);
+        assert_eq!(certificates[0].ceiling, permission::OWNER_ROLE.mask);
+        assert_eq!(certificates[0].rank, permission::OWNER_ROLE.rank);
+
         // and the format it was made in, which is what a build of another format refuses it by
         // (effort 838, requirement 11).
         assert_eq!(
@@ -2564,7 +2615,7 @@ mod tests {
         assert_eq!(registered.len(), 1);
         assert_eq!(registered[0].0.id, held.machine_id);
         assert_eq!(
-            registered[0].1.as_ref().map(|member| member.role.as_str()),
+            registered[0].1.as_ref().map(|member| member.role_word()),
             Some(OWNER_ROLE)
         );
 

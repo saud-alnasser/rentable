@@ -446,32 +446,51 @@ pub fn mask_of_role(role: &str) -> i64 {
     }
 }
 
-/// How high a member row stands, from the role it names: what a certificate has to outrank to
-/// sign the row (`authority::covers`).
+/// The word a member's role is called by in a session and across the boundary, from the role
+/// they hold (effort 838): `owner`, `administrator` for the manager, `member` for anybody else,
+/// and `removed` for a row that says so.
 ///
-/// **Read off the word until the row carries its role's id** (effort 838, ticket 04): the owner at
-/// the owner's rank, a manager or an administrator at the manager's, and anybody else, a removed
-/// member included, at the member's.
-pub fn rank_of_role(role: &str) -> i64 {
-    match role {
-        OWNER => OWNER_ROLE.rank,
-        MANAGER | ADMINISTRATOR => MANAGER_ROLE.rank,
-        _ => MEMBER_ROLE.rank,
+/// **A bridge, not a vocabulary.** The session and the interface still speak the three words of
+/// effort 826; ticket 08 carries the role's id and name across instead, and this goes.
+pub fn word_of_role(role_id: &str, removed: bool) -> &'static str {
+    if removed {
+        return REMOVED;
+    }
+
+    match role_id {
+        OWNER => OWNER,
+        MANAGER => ADMINISTRATOR,
+        _ => MEMBER,
     }
 }
 
-/// The ceiling a certificate issued from a row carries: what the member may sign for.
+/// The role a word names, for a command that still takes one: the owner's, the manager's for an
+/// administrator, and the member's for anything else.
+pub fn role_id_of_word(word: &str) -> &'static str {
+    match word {
+        OWNER => OWNER,
+        MANAGER | ADMINISTRATOR => MANAGER,
+        _ => MEMBER,
+    }
+}
+
+/// The seven acts of effort 826 that a member's permissions carry: what a command that still names
+/// its acts as one number reads back (`invite`, `change_role`).
+pub fn acts_of(permissions: i64) -> i64 {
+    permissions & mask_of(&Administration::ALL)
+}
+
+/// The override that gives a holder of a role with this mask exactly these of the seven acts, and
+/// leaves every other flag as the role gives it. The owner carries none.
 ///
-/// **The row's own permissions, and the mark for an administrator**, until the row carries a role
-/// id and an override (effort 838, ticket 04) and the ceiling becomes the effective value. The
-/// owner's is every flag. The mark is added because setting it is an administrator's today by
-/// role rather than by a bit on the row, and a certificate without it could not sign the mark it
-/// sets.
-pub fn ceiling_of_row(role: &str, permissions: i64) -> i64 {
-    match role {
-        OWNER => OWNER_ROLE.mask,
-        ADMINISTRATOR => permissions | mask_of(&[Flag::ManageMark]),
-        _ => permissions,
+/// **A bridge** for the commands that still say what a member may administer as one number
+/// (`invite`, `change_role`), until they take an override of their own (effort 838, tickets 05
+/// and 07).
+pub fn override_for_acts(role_id: &str, role_mask: i64, acts: i64) -> i64 {
+    if role_id == OWNER {
+        0
+    } else {
+        (acts ^ role_mask) & mask_of(&Administration::ALL)
     }
 }
 

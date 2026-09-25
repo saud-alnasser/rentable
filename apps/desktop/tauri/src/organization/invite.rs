@@ -270,7 +270,7 @@ pub async fn refuse_taken_username(
         .members(&session.verifying_key)
         .await?
         .iter()
-        .filter(|member| member.role != permission::REMOVED)
+        .filter(|member| member.role_word() != permission::REMOVED)
         .filter(|member| except != Some(member.id.as_str()))
     {
         let held = opened(session, "member.username_sealed", &member.username_sealed)?;
@@ -581,11 +581,11 @@ fn writable_account<'a>(
             )
         })?;
 
-    if member.role == permission::OWNER {
+    if member.role_word() == permission::OWNER {
         return Err(Error::refused(RefusalReason::OwnerProtected, owner_refusal));
     }
 
-    if member.role == permission::REMOVED {
+    if member.role_word() == permission::REMOVED {
         return Err(Error::refused(
             RefusalReason::MemberRemoved,
             "that member was removed. make them an account again if they are to come back",
@@ -687,8 +687,8 @@ async fn reseal_account<P: TursoPlatform>(
         platform,
         member_id,
         &username,
-        &member.role,
-        member.permissions,
+        member.role_word(),
+        member.effective,
         &kept,
         kdf_params,
         now,
@@ -738,7 +738,7 @@ pub async fn members(
         .into_iter()
         // a removed member's row stays for the replicas that still hold it; the dashboard lists
         // who is in.
-        .filter(|member| member.role != permission::REMOVED)
+        .filter(|member| member.role_word() != permission::REMOVED)
         .map(|member| {
             Ok(MemberFacts {
                 username: opened(session, "member.username_sealed", &member.username_sealed)?,
@@ -757,9 +757,9 @@ pub async fn members(
                     })
                     .collect(),
                 offered_ownership: offered.as_deref() == Some(member.id.as_str()),
+                role: member.role_word().to_string(),
                 id: member.id,
-                role: member.role,
-                permissions: member.permissions,
+                permissions: member.effective,
                 created_at: member.created_at,
             })
         })
@@ -807,7 +807,7 @@ pub async fn standings(
         .into_iter()
         // the same filter [`members`] applies: a removed member's row stays for the replicas that
         // still hold it, and the directory lists who is in.
-        .filter(|member| member.role != permission::REMOVED)
+        .filter(|member| member.role_word() != permission::REMOVED)
         .map(|member| MemberStanding {
             password_set: !member.must_change_password,
             machine_signed_in: machines
@@ -865,7 +865,7 @@ pub async fn rename_member(
             )
         })?;
 
-    if member.role == permission::REMOVED {
+    if member.role_word() == permission::REMOVED {
         return Err(Error::refused(
             RefusalReason::MemberRemoved,
             "that member was removed. invite them again if they are to come back",
@@ -1129,19 +1129,22 @@ async fn write_account<P: TursoPlatform>(
         super::role::organization_key_of(session)?;
     }
 
+    // the one role the account holds and the override that gives them the acts asked for, read
+    // against the role's row (effort 838).
+    let standing = super::role::standing_of(store, session, role, permissions).await?;
+
     // the certificate follows the row, issued from the actor's own (effort 838). A reset draws a
     // fresh vault secret, so `administrator_key` differs from the one this member's old
     // certificate names: the old one has the rows it signed re-signed under the resetter, who
     // holds authority over them, and is then revoked, so the replacement bricks nothing
-    // (`role::keep_certificate_in_step`). A fresh invitation has no certificate to retire.
-    super::role::keep_certificate_in_step(
+    // (`role::reissue`). A fresh invitation has no certificate to retire.
+    super::role::reissue(
         store,
         session,
         &signer,
         member_id,
-        &administrator_key.verifying_key(),
-        role,
-        permissions,
+        super::role::signs(standing.role_id, standing.effective)
+            .then_some((&administrator_key.verifying_key(), standing)),
         now,
     )
     .await?;
@@ -1171,8 +1174,10 @@ async fn write_account<P: TursoPlatform>(
                 )?,
                 vault: vault.clone(),
                 signing_public_key: administrator_key.verifying_key(),
-                role: role.to_string(),
-                permissions,
+                role_id: standing.role_id.to_string(),
+                override_mask: standing.override_mask,
+                removed_at: None,
+                effective: standing.effective,
                 must_change_password: true,
                 created_at: now,
                 updated_at: now,
@@ -2349,7 +2354,7 @@ mod tests {
 
         assert!(member.must_change_password);
         assert_eq!(member.role, permission::MEMBER);
-        assert_eq!(member.permissions, 0);
+        assert_eq!(permission::acts_of(member.permissions), 0);
         assert!(member.workspace_credentials.contains_key(&workspace_id));
         assert_eq!(
             member.workspace_credentials[&workspace_id].token,
@@ -2585,13 +2590,15 @@ mod tests {
         .expect("the invitation failed");
 
         assert_eq!(
-            super::members(&store, &owner)
-                .await
-                .expect("the members")
-                .into_iter()
-                .find(|member| member.id == invited.member_id)
-                .expect("the member")
-                .permissions,
+            permission::acts_of(
+                super::members(&store, &owner)
+                    .await
+                    .expect("the members")
+                    .into_iter()
+                    .find(|member| member.id == invited.member_id)
+                    .expect("the member")
+                    .permissions
+            ),
             permission::mask_of_role(permission::MEMBER),
             "a fresh invitation wrote something other than the role's mask"
         );
@@ -2613,7 +2620,11 @@ mod tests {
                     certificate: &certificate,
                 },
                 &crate::organization::store::MemberRecord {
-                    permissions: widened,
+                    override_mask: permission::override_for_acts(
+                        &row.role_id,
+                        permission::MEMBER_ROLE.mask,
+                        widened,
+                    ),
                     ..row
                 },
             )
@@ -2640,7 +2651,11 @@ mod tests {
         .await
         .expect("the reset member did not sign in");
 
-        assert_eq!(after.permissions, widened, "the reset narrowed the member");
+        assert_eq!(
+            permission::acts_of(after.permissions),
+            widened,
+            "the reset narrowed the member"
+        );
         assert_eq!(after.role, permission::MEMBER);
     }
 
@@ -3069,7 +3084,7 @@ mod tests {
         .expect("the administrator did not sign in");
 
         assert_eq!(
-            ada.permissions,
+            permission::acts_of(ada.permissions),
             permission::mask_of_role(permission::ADMINISTRATOR)
         );
 
