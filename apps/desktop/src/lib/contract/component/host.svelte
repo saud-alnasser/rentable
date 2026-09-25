@@ -21,6 +21,7 @@
 		useDeleteContract,
 		useReadContract,
 		useReadContractReminder,
+		useReadContractSchedule,
 		useTerminateContract,
 		useUnterminateContract
 	} from '$lib/contract/query';
@@ -34,9 +35,11 @@
 	import { writeDetailsToClipboard } from '$lib/platform/clipboard';
 	import { tauri } from '$lib/platform/tauri';
 	import { formatRecordDateRange } from '$lib/design/date';
+	import { print } from '$lib/print/sheet.svelte';
 	import { useReadTenant } from '$lib/tenant/query';
 	import { onDestroy, untrack } from 'svelte';
 	import ContractForm from './form.svelte';
+	import PrintedSchedule, { type PrintedScheduleValue } from './printed-schedule.svelte';
 
 	/**
 	 * Every form and confirmation a contract act opens, mounted once for the whole shell.
@@ -64,6 +67,7 @@
 	const readContract = useReadContract();
 	const readReminder = useReadContractReminder();
 	const readTenant = useReadTenant();
+	const readSchedule = useReadContractSchedule();
 
 	const confirming = $derived(contractHostState.confirming);
 
@@ -207,6 +211,53 @@
 	}
 
 	/**
+	 * the schedule on the print sheet, while one is being printed. Raw, because it is only ever
+	 * replaced, and a print that finishes clears it only where it is still the one it drew.
+	 */
+	let printed = $state.raw<PrintedScheduleValue | null>(null);
+
+	/**
+	 * A contract's schedule on paper: its cycles, its tenant and its units are read afresh, drawn on
+	 * the print sheet, and handed to the system's print dialog. Nothing opens here but that dialog.
+	 */
+	async function printSchedule(contract: ContractActRecord) {
+		let value: PrintedScheduleValue;
+
+		try {
+			const [cycles, units, tenant] = await Promise.all([
+				readSchedule.cycles(contract.id),
+				readSchedule.units(contract.id),
+				readTenant(contract.tenantId).catch(() => undefined)
+			]);
+
+			value = {
+				contract,
+				tenant: {
+					name: tenant?.name?.trim() || contract.tenantName?.trim() || $LL.common.labels.tenant()
+				},
+				units,
+				cycles
+			};
+		} catch (error) {
+			showErrorToast(error, $LL);
+
+			return;
+		}
+
+		printed = value;
+
+		try {
+			await print(printedSchedule);
+		} catch {
+			showErrorSentence($LL.contracts.schedule.printFailed());
+		} finally {
+			if (printed === value) {
+				printed = null;
+			}
+		}
+	}
+
+	/**
 	 * An act named by a contract's identity: read the contract, then answer on the terms the
 	 * command menu's own projection gives for it, so an act the contract does not admit is refused
 	 * with a sentence rather than run.
@@ -278,6 +329,17 @@
 	});
 
 	$effect(() => {
+		const contract = contractHostState.printing;
+
+		if (!contract) {
+			return;
+		}
+
+		contractHostState.printing = null;
+		untrack(() => void printSchedule(contract));
+	});
+
+	$effect(() => {
 		const asked = contractHostState.asked;
 
 		if (!asked) {
@@ -314,6 +376,12 @@
 
 	onDestroy(resetContractHost);
 </script>
+
+{#snippet printedSchedule()}
+	{#if printed}
+		<PrintedSchedule value={printed} locale={$locale} />
+	{/if}
+{/snippet}
 
 {#key contractHostState.form.key}
 	<ContractForm

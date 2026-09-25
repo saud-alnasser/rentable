@@ -10,6 +10,7 @@ import CalendarPlusIcon from '@lucide/svelte/icons/calendar-plus';
 import CopyIcon from '@lucide/svelte/icons/copy';
 import FilesIcon from '@lucide/svelte/icons/files';
 import MessageCircleIcon from '@lucide/svelte/icons/message-circle';
+import PrinterIcon from '@lucide/svelte/icons/printer';
 import RotateCcwIcon from '@lucide/svelte/icons/rotate-ccw';
 import SquarePenIcon from '@lucide/svelte/icons/square-pen';
 import Trash2Icon from '@lucide/svelte/icons/trash-2';
@@ -32,6 +33,7 @@ export type ContractActRecord = SerializedContract;
 /** Every contract act, by the id the palette keys it on. */
 export type ContractActId =
 	| 'contract.copyDetails'
+	| 'contract.print'
 	| 'contract.duplicate'
 	| 'contract.renew'
 	| 'contract.remind'
@@ -50,6 +52,8 @@ export type ContractConfirmation = 'delete' | 'terminate' | 'restore';
 export type ContractHostRequests = {
 	/** put the contract's details on the clipboard. */
 	copyDetails: (contract: ContractActRecord) => void;
+	/** print the contract's schedule, every cycle of it, through the system's print dialog. */
+	print: (contract: ContractActRecord) => void;
 	/** open the form on a new contract that starts from this one. */
 	duplicate: (contract: ContractActRecord) => void;
 	/** open the form on the successor to this contract. */
@@ -79,6 +83,15 @@ export function declareContractActs(host: ContractHostRequests): ContractAct[] {
 			icon: CopyIcon,
 			group: 'primary',
 			run: host.copyDetails
+		},
+		{
+			// like copying, it takes the contract away on paper and changes nothing, so it sits
+			// beside it and every contract has one: a terminated contract's schedule still prints.
+			id: 'contract.print',
+			label: (t) => t.contracts.schedule.print(),
+			icon: PrinterIcon,
+			group: 'primary',
+			run: host.print
 		},
 		{
 			// a duplicate copies the term; a renewal continues it. Both produce a new contract, which

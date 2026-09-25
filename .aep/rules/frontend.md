@@ -122,9 +122,12 @@ rule. It holds the palette, the tone colours, shape and elevation, the shell bre
 global rules any Rentable client wants.
 
 **There are two appearances, light and dark, and every colour token has a value in each**: light
-on `:root`, dark under `.dark`. The class on `<html>` is the only thing that chooses, and the
-application sets it (`apps/desktop/src/lib/platform/appearance.ts`), following the system live
+on `:root`, dark under `.dark`. On screen the class on `<html>` is the only thing that chooses,
+and the application sets it (`apps/desktop/src/lib/platform/appearance.ts`), following the system live
 unless the reader chose light or dark in general settings, and before the window is first shown.
+**Paper is always light**: the dark block applies under `@media screen` alone, and the print rules
+in `apps/desktop/src/app.css` pin the light scheme, so a page printed from a dark window is not
+printed dark (effort 835).
 A surface never chooses: there is no `dark:` variant in use, and a utility names a token, which
 already differs by appearance. `packages/design/src/lib/tests/tokens.test.ts` refuses a token
 declared in one block and not the other, and any text or tone under WCAG AA (4.5:1) against the
@@ -436,6 +439,11 @@ already points both ways, such as the list's transfer arrows, is on no list and 
 The type definitions and utility files are **generated**. Edit the locale files, then
 regenerate — see [[references/pnpm]]. Components read translations from the store,
 never from a locale module directly.
+
+**One exception: a printed page in both languages at once.** The printed schedule and the receipt
+state each line in Arabic and in English whichever language the reader chose, so they read both
+through `i18nObject('ar')` and `i18nObject('en')`, which startup has already loaded. A page
+drawn for the screen still reads the store (effort 835).
 
 **A packaged component reads neither the store nor the locale metadata**, and this rule stops at
 the package boundary. `@rentable/design` imports nothing that names this application, so its

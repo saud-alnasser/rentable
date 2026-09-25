@@ -236,6 +236,28 @@ export function useFetchContractSchedule(
 }
 
 /**
+ * Read what a printed schedule carries besides the contract: its cycles and the units it holds.
+ * Once, for the contract host printing it, under the keys the schedule pane and the units pane
+ * read, so a contract whose record is open is not read twice.
+ */
+export function useReadContractSchedule() {
+	const client = useQueryClient();
+
+	return {
+		cycles: (id: string) =>
+			client.fetchQuery({
+				queryKey: keys.getSchedule(id),
+				queryFn: () => api.contract.schedule({ id })
+			}),
+		units: (id: string) =>
+			client.fetchQuery({
+				queryKey: keys.getUnits(id),
+				queryFn: () => api.contract.units.getMany({ contractId: id })
+			})
+	};
+}
+
+/**
  * Read one contract once, for a caller that holds only its identity and has to act on the rest:
  * the contract host, answering an act the command menu or the dashboard named by id. Through the
  * cache, under the same key the record's page reads, so a contract already on screen is not read

@@ -2848,6 +2848,18 @@ type RootTranslation = {
 			 * @param {string} covered
 			 */
 			latePart: RequiredParams<'amount' | 'covered'>
+			/**
+			 * p​r​i​n​t​ ​s​c​h​e​d​u​l​e
+			 */
+			print: string
+			/**
+			 * t​h​e​ ​s​c​h​e​d​u​l​e​ ​c​o​u​l​d​ ​n​o​t​ ​b​e​ ​p​r​i​n​t​e​d​.
+			 */
+			printFailed: string
+			/**
+			 * p​a​y​m​e​n​t​ ​s​c​h​e​d​u​l​e
+			 */
+			printTitle: string
 			stateDescriptions: {
 				/**
 				 * d​u​e​ ​t​o​d​a​y​ ​a​n​d​ ​n​o​t​ ​p​a​i​d​ ​i​n​ ​f​u​l​l
@@ -6652,6 +6664,18 @@ export type TranslationFunctions = {
 			 * late; {covered} of {amount} paid
 			 */
 			latePart: (arg: { amount: string, covered: string }) => LocalizedString
+			/**
+			 * print schedule
+			 */
+			print: () => LocalizedString
+			/**
+			 * the schedule could not be printed.
+			 */
+			printFailed: () => LocalizedString
+			/**
+			 * payment schedule
+			 */
+			printTitle: () => LocalizedString
 			stateDescriptions: {
 				/**
 				 * due today and not paid in full

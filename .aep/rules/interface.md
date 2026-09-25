@@ -53,6 +53,7 @@ exception, and nowhere else.
 | record actions | *Record card actions* |
 | bulk selection | *Bulk selection* |
 | export and import | *Export and import* |
+| print | *Print* |
 | going back | *Going back* |
 | switching sections | *Switching sections* |
 | empty | *Empty* |
@@ -529,6 +530,25 @@ the whole file.
 to be named and the other direction had nowhere to go.*
 
 Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 6.
+
+### Print
+
+**A record prints through the one print sheet and the system's print dialog, and nothing else.**
+The act is a record act in the `primary` group, drawn with the printer glyph whatever it prints,
+and it asks the concept's host. The host reads what the page states afresh, draws it as a snippet,
+and hands it to `print()` (`print/sheet.svelte.ts`), which shows the sheet alone under
+`@media print` and settles on `afterprint`. The dialog's PDF destination is how a PDF is saved; the
+application writes no file of its own.
+
+The page is paper: light whatever the window's appearance, every heading or line in Arabic and in
+English, each in its own language and direction, with Western digits. Where the dialog refuses, the
+reader is told in one sentence (`showErrorSentence`) that the page could not be printed. Today the
+contract prints its schedule and a payment its receipt.
+
+*Why one sheet in the main window: a second window runs startup again against the same replica,
+and an iframe's print does nothing on macOS
+([[efforts/835-the-rent-is-receipted-scheduled-and-chased/plan]], *Printing: the approaches
+weighed*).*
 
 ## Forms
 

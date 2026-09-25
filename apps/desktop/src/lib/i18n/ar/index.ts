@@ -887,6 +887,9 @@ const ar = {
 				state: 'الحالة'
 			},
 			latePart: 'متأخرة؛ دُفع {covered} من {amount}',
+			print: 'طباعة الجدول',
+			printFailed: 'تعذّرت طباعة الجدول.',
+			printTitle: 'جدول الدفعات',
 			stateDescriptions: {
 				due: 'تستحق اليوم ولم تُدفع بالكامل',
 				late: 'فات موعد استحقاقها ولم تُدفع بالكامل',

@@ -34,3 +34,46 @@ body {
 	overflow: hidden;
 	background-color: var(--color-background);
 }
+
+/* ===================================== */
+/* Printing                              */
+/* ===================================== */
+
+/*
+ * a printed page is the print sheet and nothing else (`print/component/sheet.svelte`). the frame's
+ * own regions hide themselves with `print:hidden`, and a test holds each of them to it; this
+ * catches what the frame does not draw, the toasts beside it and whatever a dialog or a menu
+ * portals to the body, by hiding every element that neither is the sheet, nor sits inside it, nor
+ * holds it.
+ *
+ * the window scroll lock above would cut the page off at the window's height, so paper lifts it:
+ * a schedule runs to as many pages as it has rows. and paper is light whatever the window is in,
+ * which is the token layer's `.dark` block being drawn on screen only; the colour scheme is
+ * pinned here as well, because the appearance sets it inline on the root.
+ */
+@media print {
+	@page {
+		margin: 16mm;
+	}
+
+	:root {
+		color-scheme: light !important;
+	}
+
+	html,
+	body {
+		height: auto;
+		overflow: visible;
+		background-color: var(--color-card);
+	}
+
+	body :not([data-print-sheet], [data-print-sheet] *, :has([data-print-sheet])) {
+		display: none !important;
+	}
+
+	[data-print-sheet] {
+		position: static;
+		width: 100%;
+		overflow: visible;
+	}
+}

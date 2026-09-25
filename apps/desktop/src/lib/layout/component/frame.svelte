@@ -6,6 +6,7 @@
 	import PaymentHost from '$lib/payment/component/host.svelte';
 	import TenantHost from '$lib/tenant/component/host.svelte';
 	import OrganizationHost from '$lib/organization/component/host.svelte';
+	import PrintSheet from '$lib/print/component/sheet.svelte';
 	import { tauri } from '$lib/platform/tauri';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Kbd } from '@rentable/design/primitive/kbd/index.js';
@@ -189,7 +190,13 @@
      refused with its reason, rather than left to the webview. -->
 <LayoutCreateShortcut />
 
-<div lang={$locale} dir={currentDirection} class="h-screen w-screen overflow-hidden border">
+<!-- every region of the frame carries `print:hidden`, so a printed page is the sheet alone; a
+     region added here without it fails `layout/tests/frame.svelte.test.ts`. -->
+<div
+	lang={$locale}
+	dir={currentDirection}
+	class="h-screen w-screen overflow-hidden border print:hidden"
+>
 	{#if hasRail}
 		{#if !isSignedOut}
 			<LayoutPalette bind:open={isPaletteOpen} />
@@ -224,3 +231,7 @@
 		</div>
 	{/if}
 </div>
+
+<!-- what a print hands it, and the only thing on paper: outside the root above, which clips to the
+     window, so a page that runs longer than the window still prints whole. -->
+<PrintSheet lang={$locale} dir={currentDirection} />

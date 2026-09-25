@@ -49,6 +49,8 @@ type ContractHostState = {
 	copying: ContractActRecord | null;
 	/** the contract whose tenant is being reminded, while its reminder is read and opened. */
 	reminding: ContractActRecord | null;
+	/** the contract whose schedule is on its way to the print dialog. */
+	printing: ContractActRecord | null;
 	/**
 	 * an act asked for by a contract's identity alone, from a surface that holds nothing else: the
 	 * command menu, and the dashboard's queue. The host reads the contract and answers on its terms.
@@ -61,6 +63,7 @@ export const contractHostState = $state<ContractHostState>({
 	confirming: null,
 	copying: null,
 	reminding: null,
+	printing: null,
 	asked: null
 });
 
@@ -82,6 +85,9 @@ export function closeContractConfirmation() {
 export const contractActs = declareContractActs({
 	copyDetails: (contract) => {
 		contractHostState.copying = contract;
+	},
+	print: (contract) => {
+		contractHostState.printing = contract;
 	},
 	duplicate: (contract) =>
 		// the government id is a contract's unique field, so the copy starts without it rather than
@@ -136,5 +142,6 @@ export function resetContractHost() {
 	contractHostState.confirming = null;
 	contractHostState.copying = null;
 	contractHostState.reminding = null;
+	contractHostState.printing = null;
 	contractHostState.asked = null;
 }

@@ -931,6 +931,11 @@ const en = {
 			// the name a late row's state is read by where part of it is paid, so the part is heard
 			// with the lateness rather than left for a column the reader has to find.
 			latePart: 'late; {covered:string} of {amount:string} paid',
+			// the act that prints it, and what the printed page is headed; the page carries both
+			// languages, so it reads this beside its Arabic.
+			print: 'print schedule',
+			printFailed: 'the schedule could not be printed.',
+			printTitle: 'payment schedule',
 			stateDescriptions: {
 				due: 'due today and not paid in full',
 				late: 'past its due date and not paid in full',

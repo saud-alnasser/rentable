@@ -22,6 +22,7 @@ const GLYPHS = [
 	'file-plus',
 	'files',
 	'message-circle',
+	'printer',
 	'rotate-ccw',
 	'square-pen',
 	'trash-2'
@@ -53,6 +54,7 @@ function recordingHost() {
 		asked,
 		host: {
 			copyDetails: note('copyDetails'),
+			print: note('print'),
 			duplicate: note('duplicate'),
 			renew: note('renew'),
 			remind: note('remind'),
@@ -121,6 +123,7 @@ test('the acts are offered in the declared order, and only those the status admi
 
 	assert.deepEqual(idsFor('active'), [
 		'contract.copyDetails',
+		'contract.print',
 		'contract.duplicate',
 		'contract.renew',
 		'contract.edit',
@@ -130,6 +133,7 @@ test('the acts are offered in the declared order, and only those the status admi
 	// a terminated contract is not edited or terminated again; it is restored.
 	assert.deepEqual(idsFor('terminated'), [
 		'contract.copyDetails',
+		'contract.print',
 		'contract.duplicate',
 		'contract.renew',
 		'contract.restore',
@@ -138,6 +142,7 @@ test('the acts are offered in the declared order, and only those the status admi
 	// the domain's own rule: a contract that has not started is not terminated.
 	assert.deepEqual(idsFor('scheduled'), [
 		'contract.copyDetails',
+		'contract.print',
 		'contract.duplicate',
 		'contract.renew',
 		'contract.edit',
@@ -191,6 +196,7 @@ test('the reminder sits after renew, and asks the host to remind on the record i
 		toPageActions(acts, contract, translations).map((act) => act.id),
 		[
 			'contract.copyDetails',
+			'contract.print',
 			'contract.duplicate',
 			'contract.renew',
 			'contract.remind',
@@ -279,6 +285,27 @@ test('every surface runs an act by asking the host, on the record it was offered
 		'renew:contract-active',
 		'duplicate:contract-active'
 	]);
+});
+
+// ticket 05 of effort 835: printing a schedule changes nothing, so every contract prints its own,
+// and the act only asks the host, which reads the schedule and opens the dialog.
+test('every contract, a terminated one included, offers to print its schedule and asks the host to', () => {
+	const { asked, host } = recordingHost();
+	const acts = declareContractActs(host);
+
+	for (const status of STATUSES) {
+		const print = toPageActions(acts, contractIn(status), translations).find(
+			(act) => act.id === 'contract.print'
+		);
+
+		assert.equal(print?.label, translations.contracts.schedule.print());
+		print?.run();
+	}
+
+	assert.deepEqual(
+		asked,
+		STATUSES.map((status) => `print:contract-${status}`)
+	);
 });
 
 /*

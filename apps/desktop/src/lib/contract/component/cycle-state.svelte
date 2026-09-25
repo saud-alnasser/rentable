@@ -10,8 +10,11 @@
 
 	type StateKey = keyof TranslationFunctions['contracts']['schedule']['states'];
 
-	/** where each state's name and description sit in the string contract. */
-	const stateKeys: Record<ScheduleCycleState, StateKey> = {
+	/**
+	 * where each state's name and description sit in the string contract, read by the printed
+	 * schedule too, so a state is named the same on paper as on screen.
+	 */
+	export const stateKeys: Record<ScheduleCycleState, StateKey> = {
 		paid: 'paid',
 		late: 'late',
 		due: 'due',
