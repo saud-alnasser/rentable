@@ -130,6 +130,7 @@ Start at [[protocol]].
 | 828-the-link-needs-a-code-and-the-settings-area-guides | implemented | [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]] | 5 | 0 | 29 |
 | 832-the-interface-speaks-one-language-and-guides | accepted | [[efforts/832-the-interface-speaks-one-language-and-guides/spec]] | 3 | 4 | 43 |
 | 835-the-rent-is-receipted-scheduled-and-chased | implemented | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]] | 1 | 0 | 19 |
+| 838-permissions-are-a-role-and-an-override | draft | [[efforts/838-permissions-are-a-role-and-an-override/spec]] | 0 | 0 | 0 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
