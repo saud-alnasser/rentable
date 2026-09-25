@@ -1,0 +1,308 @@
+{
+	"builtIn": {
+		"owner": {
+			"id": "owner",
+			"rank": 2000000,
+			"mask": 1099510841343
+		},
+		"manager": {
+			"id": "manager",
+			"rank": 1000000,
+			"mask": 1099510580223
+		},
+		"member": {
+			"id": "member",
+			"rank": 0,
+			"mask": 513104936960
+		}
+	},
+	"cases": [
+		{
+			"role": "owner",
+			"mask": 1099510841343,
+			"override": 0,
+			"effective": 1099510841343,
+			"readOnly": 73300967423
+		},
+		{
+			"role": "manager",
+			"mask": 1099510580223,
+			"override": 0,
+			"effective": 1099510580223,
+			"readOnly": 73300706303
+		},
+		{
+			"role": "manager",
+			"mask": 1099510580223,
+			"override": 1,
+			"effective": 1099510580222,
+			"readOnly": 73300706302
+		},
+		{
+			"role": "manager",
+			"mask": 1099510580223,
+			"override": 4,
+			"effective": 1099510580219,
+			"readOnly": 73300706299
+		},
+		{
+			"role": "manager",
+			"mask": 1099510580223,
+			"override": 549755813888,
+			"effective": 549754766335,
+			"readOnly": 73300706303
+		},
+		{
+			"role": "manager",
+			"mask": 1099510580223,
+			"override": 549756862465,
+			"effective": 549753717758,
+			"readOnly": 73299657726
+		},
+		{
+			"role": "manager",
+			"mask": 1099510580223,
+			"override": 586405642240,
+			"effective": 513104937983,
+			"readOnly": 73300706303
+		},
+		{
+			"role": "manager",
+			"mask": 1099510580223,
+			"override": 513104936960,
+			"effective": 586405643263,
+			"readOnly": 1023
+		},
+		{
+			"role": "manager",
+			"mask": 1099510580223,
+			"override": 1026209873920,
+			"effective": 73300706303,
+			"readOnly": 73300706303
+		},
+		{
+			"role": "manager",
+			"mask": 1099510580223,
+			"override": 1099510580223,
+			"effective": 0,
+			"readOnly": 0
+		},
+		{
+			"role": "manager",
+			"mask": 1099510580223,
+			"override": 1099510841343,
+			"effective": 261120,
+			"readOnly": 261120
+		},
+		{
+			"role": "member",
+			"mask": 513104936960,
+			"override": 0,
+			"effective": 513104936960,
+			"readOnly": 73300705280
+		},
+		{
+			"role": "member",
+			"mask": 513104936960,
+			"override": 1,
+			"effective": 513104936961,
+			"readOnly": 73300705281
+		},
+		{
+			"role": "member",
+			"mask": 513104936960,
+			"override": 4,
+			"effective": 513104936964,
+			"readOnly": 73300705284
+		},
+		{
+			"role": "member",
+			"mask": 513104936960,
+			"override": 549755813888,
+			"effective": 1062860750848,
+			"readOnly": 73300705280
+		},
+		{
+			"role": "member",
+			"mask": 513104936960,
+			"override": 549756862465,
+			"effective": 1062859702273,
+			"readOnly": 73299656705
+		},
+		{
+			"role": "member",
+			"mask": 513104936960,
+			"override": 586405642240,
+			"effective": 1099510579200,
+			"readOnly": 73300705280
+		},
+		{
+			"role": "member",
+			"mask": 513104936960,
+			"override": 513104936960,
+			"effective": 0,
+			"readOnly": 0
+		},
+		{
+			"role": "member",
+			"mask": 513104936960,
+			"override": 1026209873920,
+			"effective": 659706347520,
+			"readOnly": 73300705280
+		},
+		{
+			"role": "member",
+			"mask": 513104936960,
+			"override": 1099510580223,
+			"effective": 586405643263,
+			"readOnly": 1023
+		},
+		{
+			"role": "member",
+			"mask": 513104936960,
+			"override": 1099510841343,
+			"effective": 586405904383,
+			"readOnly": 262143
+		},
+		{
+			"role": "custom",
+			"mask": 206176256004,
+			"override": 0,
+			"effective": 206176256004,
+			"readOnly": 68737302532
+		},
+		{
+			"role": "custom",
+			"mask": 206176256004,
+			"override": 1,
+			"effective": 206176256005,
+			"readOnly": 68737302533
+		},
+		{
+			"role": "custom",
+			"mask": 206176256004,
+			"override": 4,
+			"effective": 206176256000,
+			"readOnly": 68737302528
+		},
+		{
+			"role": "custom",
+			"mask": 206176256004,
+			"override": 549755813888,
+			"effective": 755932069892,
+			"readOnly": 68737302532
+		},
+		{
+			"role": "custom",
+			"mask": 206176256004,
+			"override": 549756862465,
+			"effective": 755931021317,
+			"readOnly": 68736253957
+		},
+		{
+			"role": "custom",
+			"mask": 206176256004,
+			"override": 586405642240,
+			"effective": 792581898244,
+			"readOnly": 68737302532
+		},
+		{
+			"role": "custom",
+			"mask": 206176256004,
+			"override": 513104936960,
+			"effective": 306928680964,
+			"readOnly": 4563402756
+		},
+		{
+			"role": "custom",
+			"mask": 206176256004,
+			"override": 1026209873920,
+			"effective": 957508222980,
+			"readOnly": 68737302532
+		},
+		{
+			"role": "custom",
+			"mask": 206176256004,
+			"override": 1099510580223,
+			"effective": 893334324219,
+			"readOnly": 4563403771
+		},
+		{
+			"role": "custom",
+			"mask": 206176256004,
+			"override": 1099510841343,
+			"effective": 893334585339,
+			"readOnly": 4563664891
+		},
+		{
+			"role": "none",
+			"mask": 0,
+			"override": 0,
+			"effective": 0,
+			"readOnly": 0
+		},
+		{
+			"role": "none",
+			"mask": 0,
+			"override": 1,
+			"effective": 1,
+			"readOnly": 1
+		},
+		{
+			"role": "none",
+			"mask": 0,
+			"override": 4,
+			"effective": 4,
+			"readOnly": 4
+		},
+		{
+			"role": "none",
+			"mask": 0,
+			"override": 549755813888,
+			"effective": 549755813888,
+			"readOnly": 0
+		},
+		{
+			"role": "none",
+			"mask": 0,
+			"override": 549756862465,
+			"effective": 549756862465,
+			"readOnly": 1048577
+		},
+		{
+			"role": "none",
+			"mask": 0,
+			"override": 586405642240,
+			"effective": 586405642240,
+			"readOnly": 0
+		},
+		{
+			"role": "none",
+			"mask": 0,
+			"override": 513104936960,
+			"effective": 513104936960,
+			"readOnly": 73300705280
+		},
+		{
+			"role": "none",
+			"mask": 0,
+			"override": 1026209873920,
+			"effective": 1026209873920,
+			"readOnly": 0
+		},
+		{
+			"role": "none",
+			"mask": 0,
+			"override": 1099510580223,
+			"effective": 1099510580223,
+			"readOnly": 73300706303
+		},
+		{
+			"role": "none",
+			"mask": 0,
+			"override": 1099510841343,
+			"effective": 1099510841343,
+			"readOnly": 73300967423
+		}
+	]
+}
