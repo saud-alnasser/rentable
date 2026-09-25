@@ -2,7 +2,18 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-import { type Api, createApi, monthsFromNow, NOW, refusedWith } from '$lib/api/tests/testing.ts';
+import { FLAGS } from '@rentable/workspace-permission';
+
+import {
+	type Api,
+	createApi,
+	EVERY_RECORD_ACT,
+	fakeIdentity,
+	monthsFromNow,
+	NOW,
+	refusedWith
+} from '$lib/api/tests/testing.ts';
+import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
 import { toTables } from './file.ts';
 import {
 	emptyHeld,
@@ -482,6 +493,24 @@ test('what the workspace holds is reported by the names a file uses', async () =
 		['Al Nakheel', 'A1'],
 		['Al Nakheel', 'A2']
 	]);
+	assert.deepEqual(held.contracts, ['GOV-1']);
+});
+
+// effort 838, requirement 10: what an import compares a file with is open to every member, and a
+// kind they may not view is answered as holding nothing rather than refusing the directory's import.
+test('what the workspace holds leaves out a kind the member may not view', async () => {
+	const db = createMemoryDatabase();
+
+	await seedWorkspace(await createApi({ db }));
+
+	const lacking = await createApi({
+		db,
+		identity: fakeIdentity({ permissions: EVERY_RECORD_ACT - 2 ** FLAGS.viewTenant })
+	});
+	const held = await lacking.workspace.held();
+
+	assert.deepEqual(held.tenants, []);
+	assert.deepEqual(held.complexes, ['Al Nakheel']);
 	assert.deepEqual(held.contracts, ['GOV-1']);
 });
 

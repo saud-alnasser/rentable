@@ -1069,12 +1069,12 @@ test('stored unit occupancy follows assignment and removal', async () => {
 	});
 
 	const afterAssign = await api.contract.dashboard();
-	assert.equal(afterAssign.summary.occupancy.occupiedUnits, 1);
+	assert.equal(afterAssign.summary.occupancy?.occupiedUnits, 1);
 
 	await api.contract.units.set({ contractId: contract.id, unitIds: [] });
 
 	const afterRemoval = await api.contract.dashboard();
-	assert.equal(afterRemoval.summary.occupancy.occupiedUnits, 0);
+	assert.equal(afterRemoval.summary.occupancy?.occupiedUnits, 0);
 });
 
 test('a mutation on one contract keeps a shared unit occupied by the other', async () => {
@@ -1103,7 +1103,7 @@ test('a mutation on one contract keeps a shared unit occupied by the other', asy
 	assert.equal(reloadedPast.status, 'expired');
 
 	const dashboard = await api.contract.dashboard();
-	assert.equal(dashboard.summary.occupancy.occupiedUnits, 1);
+	assert.equal(dashboard.summary.occupancy?.occupiedUnits, 1);
 });
 
 // --- Payment aggregates on reads -------------------------------------------------------

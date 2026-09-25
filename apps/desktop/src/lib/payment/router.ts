@@ -173,35 +173,38 @@ export default router({
 	 * A payment is reached only through its contract, so a view of one that could not name
 	 * that contract would leave the reader with three figures and no way back.
 	 */
-	get: procedure.member.input(PaymentSchema.pick({ id: true })).query(async ({ input, ctx }) => {
-		const row = await ctx.db
-			.select({
-				payment: s.payment,
-				contractGovId: s.contract.govId,
-				contractStatus: s.contract.status,
-				contractPaidAmount: s.contract.paidAmount,
-				contractExpectedAmount: s.contract.expectedAmount,
-				tenantName: s.tenant.name
-			})
-			.from(s.payment)
-			.innerJoin(s.contract, eq(s.payment.contractId, s.contract.id))
-			.innerJoin(s.tenant, eq(s.contract.tenantId, s.tenant.id))
-			.where(eq(s.payment.id, input.id))
-			.get();
+	get: procedure
+		.permitted('viewPayment')
+		.input(PaymentSchema.pick({ id: true }))
+		.query(async ({ input, ctx }) => {
+			const row = await ctx.db
+				.select({
+					payment: s.payment,
+					contractGovId: s.contract.govId,
+					contractStatus: s.contract.status,
+					contractPaidAmount: s.contract.paidAmount,
+					contractExpectedAmount: s.contract.expectedAmount,
+					tenantName: s.tenant.name
+				})
+				.from(s.payment)
+				.innerJoin(s.contract, eq(s.payment.contractId, s.contract.id))
+				.innerJoin(s.tenant, eq(s.contract.tenantId, s.tenant.id))
+				.where(eq(s.payment.id, input.id))
+				.get();
 
-		if (!row) {
-			return undefined;
-		}
+			if (!row) {
+				return undefined;
+			}
 
-		return {
-			...serializePayment(row.payment),
-			contractGovId: row.contractGovId ?? '',
-			contractStatus: row.contractStatus,
-			contractPaidAmount: row.contractPaidAmount,
-			contractExpectedAmount: row.contractExpectedAmount,
-			tenantName: row.tenantName
-		};
-	}),
+			return {
+				...serializePayment(row.payment),
+				contractGovId: row.contractGovId ?? '',
+				contractStatus: row.contractStatus,
+				contractPaidAmount: row.contractPaidAmount,
+				contractExpectedAmount: row.contractExpectedAmount,
+				tenantName: row.tenantName
+			};
+		}),
 
 	/**
 	 * Everything a payment's receipt states, read in one go for the page that prints it: the
@@ -213,7 +216,8 @@ export default router({
 	 * read and stored nowhere, so a payment edited and printed again gives the edited receipt. It
 	 * is a read, so a terminated contract's payments have receipts too.
 	 */
-	receipt: procedure.member
+	receipt: procedure
+		.permitted('viewPayment')
 		.input(PaymentSchema.pick({ id: true }))
 		.query(async ({ input, ctx }) => {
 			const row = await ctx.db
@@ -270,7 +274,8 @@ export default router({
 	 * it is what renders that in the reader's locale — and what places it is the contract it
 	 * was made against, which is also the only way back to it.
 	 */
-	search: procedure.member
+	search: procedure
+		.permitted('viewPayment')
 		.input(RecordSearchSchema)
 		.query(async ({ input, ctx }): Promise<RecordMatch[]> => {
 			const rows = await ctx.db
@@ -304,7 +309,8 @@ export default router({
 	 * row displays: the display date is localized, and no locale's rendering of it exists in
 	 * the database to compare against. It also matches any part of the reference.
 	 */
-	getMany: procedure.member
+	getMany: procedure
+		.permitted('viewPayment')
 		.input(
 			PaymentSchema.pick({ contractId: true }).extend({
 				search: z.string().optional(),
@@ -344,7 +350,8 @@ export default router({
 	// an optional id, so undoing a deletion can put the row back with the identity it had — a
 	// page still open on that record is holding a reference to it (ADR 0026). Absent otherwise,
 	// and the engine assigns one.
-	create: procedure.member
+	create: procedure
+		.permitted('createPayment')
 		.use(autosync())
 		.input(PaymentSchema.partial({ id: true }))
 		.mutation(async ({ input, ctx }) => {
@@ -393,7 +400,8 @@ export default router({
 			return serializePayment(created);
 		}),
 
-	update: procedure.member
+	update: procedure
+		.permitted('editPayment')
 		.use(autosync())
 		// every field the payment's form sets, so the inverse an undo replays through here puts all of
 		// them back rather than the date and the amount alone.
@@ -452,7 +460,8 @@ export default router({
 			return serializePayment(updated);
 		}),
 
-	delete: procedure.member
+	delete: procedure
+		.permitted('deletePayment')
 		.use(autosync())
 		.input(PaymentSchema.pick({ id: true }))
 		.mutation(async ({ input, ctx }) => {
@@ -500,7 +509,8 @@ export default router({
 	 *
 	 * A query rather than a mutation: it reads and writes nothing.
 	 */
-	planMany: procedure.member
+	planMany: procedure
+		.permitted('createPayment')
 		.input(z.object({ ids: z.array(PaymentSchema.shape.id).min(1) }))
 		.query(async ({ input, ctx }) => {
 			const plan = await planPaymentSelection(ctx.db, input.ids);
@@ -521,7 +531,8 @@ export default router({
 	 * what is passed anyway, because the procedure is not the surface and should not depend on
 	 * where its ids came from.
 	 */
-	deleteMany: procedure.member
+	deleteMany: procedure
+		.permitted('deletePayment')
 		.use(autosync())
 		.input(z.object({ ids: z.array(PaymentSchema.shape.id).min(1) }))
 		.mutation(async ({ input, ctx }) => {
@@ -558,7 +569,8 @@ export default router({
 	 * is made of. One question, before any of them goes in: may payments be added to this
 	 * contract at all right now.
 	 */
-	createMany: procedure.member
+	createMany: procedure
+		.permitted('createPayment')
 		.use(autosync())
 		.input(z.object({ payments: z.array(PaymentSchema.partial({ id: true })).min(1) }))
 		.mutation(async ({ input, ctx }) => {

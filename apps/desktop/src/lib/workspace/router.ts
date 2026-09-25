@@ -23,6 +23,7 @@ import {
 	type WorkspaceTransfer
 } from '$lib/workspace/workspace';
 import { refuse } from '$lib/api/refusal';
+import { permits, type Flag } from '@rentable/workspace-permission';
 import { asc, eq } from 'drizzle-orm';
 import z from 'zod';
 
@@ -122,99 +123,114 @@ export default router({
 	 * here rather than in the surface that writes the file: the reference a payment carries has
 	 * to be the same string the contracts sheet carries, and two places composing it separately
 	 * is two places for them to drift apart.
+	 *
+	 * **Every kind's view flag**, because the file holds every kind and a sheet left out would be
+	 * an export that cannot be imported back whole (effort 838, requirement 10).
 	 */
-	get: procedure.member.query(async ({ ctx }): Promise<WorkspaceTransfer> => {
-		const tenants = await ctx.db
-			.select()
-			.from(s.tenant)
-			.orderBy(asc(s.tenant.name), asc(s.tenant.id));
-		const complexes = await ctx.db
-			.select()
-			.from(s.complex)
-			.orderBy(asc(s.complex.name), asc(s.complex.id));
-		const units = await ctx.db
-			.select({ name: s.unit.name, status: s.unit.status, complex: s.complex.name })
-			.from(s.unit)
-			.innerJoin(s.complex, eq(s.unit.complexId, s.complex.id))
-			.orderBy(asc(s.complex.name), asc(s.unit.name), asc(s.unit.id));
-		const contracts = await ctx.db
-			.select({
-				id: s.contract.id,
-				govId: s.contract.govId,
-				status: s.contract.status,
-				start: s.contract.start,
-				end: s.contract.end,
-				interval: s.contract.interval,
-				cost: s.contract.cost,
-				paidAmount: s.contract.paidAmount,
-				expectedAmount: s.contract.expectedAmount,
-				tenant: s.tenant.nationalId
-			})
-			.from(s.contract)
-			.innerJoin(s.tenant, eq(s.contract.tenantId, s.tenant.id))
-			.orderBy(asc(s.contract.start), asc(s.contract.id));
-		const assignments = await ctx.db
-			.select({ contractId: s.contractUnit.contractId, unit: s.unit.name, complex: s.complex.name })
-			.from(s.contractUnit)
-			.innerJoin(s.unit, eq(s.contractUnit.unitId, s.unit.id))
-			.innerJoin(s.complex, eq(s.unit.complexId, s.complex.id))
-			.orderBy(asc(s.complex.name), asc(s.unit.name));
-		const payments = await ctx.db
-			.select({ date: s.payment.date, amount: s.payment.amount, contractId: s.payment.contractId })
-			.from(s.payment)
-			.orderBy(asc(s.payment.date), asc(s.payment.id));
+	get: procedure
+		.permitted('viewComplex', 'viewUnit', 'viewTenant', 'viewContract', 'viewPayment')
+		.query(async ({ ctx }): Promise<WorkspaceTransfer> => {
+			const tenants = await ctx.db
+				.select()
+				.from(s.tenant)
+				.orderBy(asc(s.tenant.name), asc(s.tenant.id));
+			const complexes = await ctx.db
+				.select()
+				.from(s.complex)
+				.orderBy(asc(s.complex.name), asc(s.complex.id));
+			const units = await ctx.db
+				.select({ name: s.unit.name, status: s.unit.status, complex: s.complex.name })
+				.from(s.unit)
+				.innerJoin(s.complex, eq(s.unit.complexId, s.complex.id))
+				.orderBy(asc(s.complex.name), asc(s.unit.name), asc(s.unit.id));
+			const contracts = await ctx.db
+				.select({
+					id: s.contract.id,
+					govId: s.contract.govId,
+					status: s.contract.status,
+					start: s.contract.start,
+					end: s.contract.end,
+					interval: s.contract.interval,
+					cost: s.contract.cost,
+					paidAmount: s.contract.paidAmount,
+					expectedAmount: s.contract.expectedAmount,
+					tenant: s.tenant.nationalId
+				})
+				.from(s.contract)
+				.innerJoin(s.tenant, eq(s.contract.tenantId, s.tenant.id))
+				.orderBy(asc(s.contract.start), asc(s.contract.id));
+			const assignments = await ctx.db
+				.select({
+					contractId: s.contractUnit.contractId,
+					unit: s.unit.name,
+					complex: s.complex.name
+				})
+				.from(s.contractUnit)
+				.innerJoin(s.unit, eq(s.contractUnit.unitId, s.unit.id))
+				.innerJoin(s.complex, eq(s.unit.complexId, s.complex.id))
+				.orderBy(asc(s.complex.name), asc(s.unit.name));
+			const payments = await ctx.db
+				.select({
+					date: s.payment.date,
+					amount: s.payment.amount,
+					contractId: s.payment.contractId
+				})
+				.from(s.payment)
+				.orderBy(asc(s.payment.date), asc(s.payment.id));
 
-		const unitsOf = new Map<string, string[]>();
+			const unitsOf = new Map<string, string[]>();
 
-		for (const assignment of assignments) {
-			const held = unitsOf.get(assignment.contractId) ?? [];
+			for (const assignment of assignments) {
+				const held = unitsOf.get(assignment.contractId) ?? [];
 
-			held.push(toUnitReference(assignment.complex, assignment.unit));
-			unitsOf.set(assignment.contractId, held);
-		}
+				held.push(toUnitReference(assignment.complex, assignment.unit));
+				unitsOf.set(assignment.contractId, held);
+			}
 
-		const referenceOf = new Map(
-			contracts.map((contract) => [contract.id, toContractReference(contract)])
-		);
+			const referenceOf = new Map(
+				contracts.map((contract) => [contract.id, toContractReference(contract)])
+			);
 
-		return {
-			tenants: tenants.map((tenant) => ({
-				name: tenant.name,
-				nationalId: tenant.nationalId,
-				phone: tenant.phone
-			})),
-			complexes: complexes.map((complex) => ({
-				name: complex.name,
-				location: complex.location
-			})),
-			units: units.map((unit) => ({
-				complex: unit.complex,
-				name: unit.name,
-				status: unit.status
-			})),
-			contracts: contracts.map((contract) => ({
-				reference: referenceOf.get(contract.id) ?? '',
-				tenant: contract.tenant,
-				units: unitsOf.get(contract.id) ?? [],
-				start: contract.start.getTime(),
-				end: contract.end.getTime(),
-				interval: contract.interval,
-				cost: contract.cost,
-				status: contract.status,
-				paidAmount: contract.paidAmount,
-				expectedAmount: contract.expectedAmount
-			})),
-			// a payment whose contract is somehow missing is left out rather than written under an
-			// empty reference: the import refuses a whole file over a reference nothing answers to,
-			// and a workspace that could not be handed over because of a row nothing points at is
-			// the worse failure.
-			payments: payments.flatMap((payment) => {
-				const contract = referenceOf.get(payment.contractId);
+			return {
+				tenants: tenants.map((tenant) => ({
+					name: tenant.name,
+					nationalId: tenant.nationalId,
+					phone: tenant.phone
+				})),
+				complexes: complexes.map((complex) => ({
+					name: complex.name,
+					location: complex.location
+				})),
+				units: units.map((unit) => ({
+					complex: unit.complex,
+					name: unit.name,
+					status: unit.status
+				})),
+				contracts: contracts.map((contract) => ({
+					reference: referenceOf.get(contract.id) ?? '',
+					tenant: contract.tenant,
+					units: unitsOf.get(contract.id) ?? [],
+					start: contract.start.getTime(),
+					end: contract.end.getTime(),
+					interval: contract.interval,
+					cost: contract.cost,
+					status: contract.status,
+					paidAmount: contract.paidAmount,
+					expectedAmount: contract.expectedAmount
+				})),
+				// a payment whose contract is somehow missing is left out rather than written under an
+				// empty reference: the import refuses a whole file over a reference nothing answers to,
+				// and a workspace that could not be handed over because of a row nothing points at is
+				// the worse failure.
+				payments: payments.flatMap((payment) => {
+					const contract = referenceOf.get(payment.contractId);
 
-				return contract ? [{ contract, date: payment.date.getTime(), amount: payment.amount }] : [];
-			})
-		};
-	}),
+					return contract
+						? [{ contract, date: payment.date.getTime(), amount: payment.amount }]
+						: [];
+				})
+			};
+		}),
 
 	/**
 	 * What the workspace already holds, by the names a file uses.
@@ -222,8 +238,15 @@ export default router({
 	 * Read as values rather than as rows, and in one call rather than one per concept: a file of
 	 * a thousand records checked one at a time would be a thousand round trips before any of it
 	 * is written, which is the cost the tenant import already reckoned with.
+	 *
+	 * **Open to every member, and a kind they may not view is answered as holding nothing**
+	 * (effort 838, requirement 10). It serves the import of one directory as well as the whole
+	 * workspace, and a unit's import reads the complexes it names, so asking for every view flag
+	 * would refuse a member the one import they may make. What they cannot view they are not told
+	 * of; a row duplicating it is refused by the write instead of by the plan.
 	 */
 	held: procedure.member.query(async ({ ctx }): Promise<WorkspaceHeld> => {
+		const views = (flag: Flag) => permits(ctx.identity.permissions, flag);
 		const tenants = await ctx.db
 			.select({ nationalId: s.tenant.nationalId, phone: s.tenant.phone })
 			.from(s.tenant);
@@ -250,17 +273,21 @@ export default router({
 		);
 
 		return {
-			tenants: tenants.map((tenant) => [tenant.nationalId, tenant.phone]),
-			complexes: complexes.map((complex) => complex.name),
-			units: units.map((unit) => [unit.complex, unit.name]),
-			contracts: [...referenceOf.values()],
+			tenants: views('viewTenant')
+				? tenants.map((tenant) => [tenant.nationalId, tenant.phone])
+				: [],
+			complexes: views('viewComplex') ? complexes.map((complex) => complex.name) : [],
+			units: views('viewUnit') ? units.map((unit) => [unit.complex, unit.name]) : [],
+			contracts: views('viewContract') ? [...referenceOf.values()] : [],
 			// spelled as a file spells them, because that is what a row is compared against: the
 			// day rather than the instant, and the figure rather than a rendering of it.
-			payments: payments.map((payment) => [
-				referenceOf.get(payment.contractId) ?? '',
-				toIsoDay(payment.date),
-				String(payment.amount)
-			])
+			payments: views('viewPayment')
+				? payments.map((payment) => [
+						referenceOf.get(payment.contractId) ?? '',
+						toIsoDay(payment.date),
+						String(payment.amount)
+					])
+				: []
 		};
 	}),
 
@@ -281,8 +308,12 @@ export default router({
 	 * References are resolved again here rather than trusted: the plan was made against the
 	 * workspace as it was when the file was opened, and a record it named may have been deleted
 	 * by hand in between.
+	 *
+	 * **Every kind's create flag**, because a file may hold every kind and the batch writes them
+	 * all or none (effort 838, requirement 10).
 	 */
-	importWhole: procedure.member
+	importWhole: procedure
+		.permitted('createComplex', 'createUnit', 'createTenant', 'createContract', 'createPayment')
 		.use(autosync())
 		.input(WorkspaceTransferSchema)
 		.mutation(async ({ input, ctx }) => {

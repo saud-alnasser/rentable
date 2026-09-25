@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [08]
 ---
 
@@ -15,16 +15,16 @@ cannot view; and a test walks the router and fails on a procedure that names not
 
 Traces requirements 1 and 10 of [[efforts/838-permissions-are-a-role-and-an-override/spec]], and criteria 1 and 10.
 
-- [ ] `initTRPC` carries a typed `meta`; `procedure.permitted` records its flags there;
+- [x] `initTRPC` carries a typed `meta`; `procedure.permitted` records its flags there;
       `procedure.member` records that it is a member's own act.
-- [ ] Every complex, unit, tenant, contract, payment, history, dashboard and workspace procedure is
+- [x] Every complex, unit, tenant, contract, payment, history, dashboard and workspace procedure is
       gated as the plan maps it; export needs every `view*`, import every `create*`.
-- [ ] A test walks `appRouter._def.procedures` and fails on a procedure with no flag and no member
+- [x] A test walks `appRouter._def.procedures` and fails on a procedure with no flag and no member
       meta (criterion 1).
-- [ ] For each record flag, a router test calls a procedure it gates with an identity lacking it and
+- [x] For each record flag, a router test calls a procedure it gates with an identity lacking it and
       is refused naming the flag; on a read-only grant every create, edit and delete is refused
       (criterion 10).
-- [ ] `contract.dashboard` returns no payment figure to an identity lacking `viewPayment`, and no
+- [x] `contract.dashboard` returns no payment figure to an identity lacking `viewPayment`, and no
       contract figure to one lacking `viewContract`.
 
 ## Relevant areas

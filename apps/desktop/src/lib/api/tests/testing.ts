@@ -4,6 +4,8 @@
 
 import assert from 'node:assert/strict';
 
+import { FAMILIES, maskOf } from '@rentable/workspace-permission';
+
 import { readRefusal, type RefusalCode, type RefusalParams } from '$lib/api/refusal.ts';
 import { toRefusalText } from '$lib/error/refusal.ts';
 import type { Locales } from '$lib/i18n/i18n-types.ts';
@@ -21,6 +23,15 @@ import { fakeHost } from '$lib/platform/tests/testing.ts';
 import { appRouter } from '../router.ts';
 import { caller, context } from '../trpc.ts';
 
+/** Viewing, creating, editing and deleting every kind of record, and nothing else. */
+export const EVERY_RECORD_ACT = maskOf(
+	...FAMILIES.complex,
+	...FAMILIES.unit,
+	...FAMILIES.tenant,
+	...FAMILIES.contract,
+	...FAMILIES.payment
+);
+
 /**
  * The person a request is acting as.
  *
@@ -35,7 +46,11 @@ export function fakeIdentity(overrides: Partial<Identity> = {}): Identity {
 		// **Administering nothing by default**, which is what every router test wants: none of them
 		// is about a permission, and a default that carried some would make the one test that is
 		// about one pass for the wrong reason. A test that needs an act says which.
-		permissions: 0,
+		//
+		// **And every record act**, since effort 838 gates each record procedure on its flag
+		// ([[rules/api-layer]]): a router test about a contract is not about whether its caller may
+		// touch one. A test about a record flag takes one away.
+		permissions: EVERY_RECORD_ACT,
 		...overrides
 	};
 }
@@ -67,8 +82,9 @@ export type Api = Awaited<ReturnType<typeof createApi>>;
 // one would refuse every test in the suite for want of a sign-in none of them is about.
 //
 // **It administers nothing unless a test says otherwise**, which is what `identity` is for: a
-// procedure declared with `procedure.permitted` refuses this caller, so a test about one names the
-// acts it needs and every other test goes on being about what it was about.
+// procedure permitted on an organization flag refuses this caller, so a test about one names the
+// acts it needs and every other test goes on being about what it was about. It holds every record
+// act, so a test about one of those names what it takes away.
 //
 // Pass `db` to hand in the in-memory database yourself, for a test that has to watch how a
 // procedure writes to it rather than only what it issues: whether a write is one batch.

@@ -7,12 +7,11 @@ import {
 	permits,
 	type Administration,
 	type Flag,
-	type Named,
-	type NamedActs
+	type Named
 } from '@rentable/workspace-permission';
 import { TRPCError, initTRPC } from '@trpc/server';
-import { ZodError } from 'zod';
-import { context } from './context';
+import { ZodError, type z } from 'zod';
+import { context, type Identity } from './context';
 import { readRefusal } from './refusal';
 
 /**
@@ -56,25 +55,78 @@ function refused(names: readonly Named[]): string {
 }
 
 /**
+ * refuses somebody who does not hold every one of `acts`, naming the ones they lack.
+ *
+ * The flags by their own names rather than a sentence built around them: this never reaches a
+ * person, since `FORBIDDEN` reads as its own translated sentence, so it is written for whoever is
+ * reading a log, and *may not renameWorkspace* is prose neither audience wants. Only the ones
+ * missing, which is what the reader needs.
+ */
+function refuseMissing(
+	identity: Identity | null,
+	acts: readonly Named[]
+): asserts identity is Identity {
+	const missing = acts.filter((act) => !identity || !permits(identity.permissions, act));
+
+	if (!identity || missing.length > 0) {
+		throw new TRPCError({
+			code: 'FORBIDDEN',
+			message: `this account does not hold ${refused(missing)}`
+		});
+	}
+}
+
+/**
+ * One flag at least.
+ *
+ * A gate naming nothing opens for everybody, since `every` over an empty list is `true`, so an
+ * empty gate is a compile error at the place it would be written. `Acts` also takes today's
+ * aliases, which ticket 11 of effort 838 retires; what a procedure records is the flag either way.
+ */
+export type Flags = readonly [Flag, ...Flag[]];
+type Acts = readonly [Named, ...Named[]];
+
+/**
+ * What a procedure says about who may call it, read by the test that walks the router (effort 838,
+ * criterion 1). Each way of declaring a procedure below records its own entry, so a procedure
+ * declared any other way records nothing and that test names it.
+ */
+export type Meta = {
+	/** every flag the caller must hold: `procedure.permitted`'s. */
+	flags?: readonly Flag[];
+	/** the flags one of which is enough: `procedure.permittedAny`'s. */
+	anyOf?: readonly Flag[];
+	/** the flags the call may ask for, which of them read off its input: `procedure.permittedBy`'s. */
+	byInput?: Flags;
+	/** a member's own act, or one open to every member: `procedure.member`'s. */
+	member?: true;
+	/** a call with nobody to name: `procedure.public`'s. */
+	public?: true;
+};
+
+/**
  * INITIALIZER
  *
  * it holds everything related to trpc api with the configurations.
  */
-const t = initTRPC.context<typeof context>().create({
-	allowOutsideOfServer: true,
-	errorFormatter({ shape, error }) {
-		return {
-			...shape,
-			data: {
-				...shape.data,
-				zodError: error.cause instanceof ZodError ? error.cause.flatten() : null,
-				// the code and values a refusal was raised with, which is what the interface reads
-				// rather than the message ([[rules/api-layer]], under *Errors*).
-				refusal: readRefusal(error)
-			}
-		};
-	}
-});
+const t = initTRPC
+	.context<typeof context>()
+	.meta<Meta>()
+	.create({
+		allowOutsideOfServer: true,
+		errorFormatter({ shape, error }) {
+			return {
+				...shape,
+				data: {
+					...shape.data,
+					zodError: error.cause instanceof ZodError ? error.cause.flatten() : null,
+					// the code and values a refusal was raised with, which is what the interface reads
+					// rather than the message ([[rules/api-layer]], under *Errors*).
+					refusal: readRefusal(error)
+				}
+			};
+		}
+	});
 
 /**
  * ROUTES
@@ -166,24 +218,13 @@ export const middleware = {
 	 *
 	 * **It takes any flag, a record flag included**, and its refusal says *in this workspace* only
 	 * of those (effort 838, requirement 10): the identity it reads holds the permissions of the
-	 * workspace open, with a read-only grant's writes already cleared. `procedure.permitted` still
-	 * takes today's seven acts until the record procedures are given their flags.
+	 * workspace open, with a read-only grant's writes already cleared.
 	 */
-	requirePermission: (...acts: readonly [Named, ...Named[]]) =>
+	requirePermission: (...acts: Acts) =>
 		t.middleware(async ({ ctx, next }) => {
 			const identity = ctx.identity;
-			const missing = acts.filter((act) => !identity || !permits(identity.permissions, act));
 
-			if (!identity || missing.length > 0) {
-				// The flags by their own names rather than a sentence built around them: this never
-				// reaches a person, since `FORBIDDEN` reads as its own translated sentence, so it is
-				// written for whoever is reading a log, and *may not renameWorkspace* is prose
-				// neither audience wants. Only the ones missing, which is what the reader needs.
-				throw new TRPCError({
-					code: 'FORBIDDEN',
-					message: `this account does not hold ${refused(missing)}`
-				});
-			}
+			refuseMissing(identity, acts);
 
 			return next({ ctx: { identity } });
 		}),
@@ -199,7 +240,7 @@ export const middleware = {
 	 * and never the one that decides: `permission::require_any` refuses the same request against
 	 * the member's signed row.
 	 */
-	requireAnyPermission: (...acts: readonly [Named, ...Named[]]) =>
+	requireAnyPermission: (...acts: Acts) =>
 		t.middleware(async ({ ctx, next }) => {
 			const identity = ctx.identity;
 
@@ -250,6 +291,11 @@ export const autosync = () => middleware.scheduleWorkspaceSync;
  * procedure that asks one more question, and everything `requireIdentity` narrows downstream
  * survives. `public` is untouched and out of reach of this — reading what this machine has synced
  * is a fact about the machine, and asking what an account may do is the opposite question.
+ *
+ * **Every record procedure is `permitted` since effort 838**, each naming the flag its act needs
+ * (requirement 10), and `member` alone is left to what is a member's own or open to every member.
+ * Each way of declaring a procedure records itself in its `meta`, which is what lets a test walk
+ * the router and name a procedure that says nothing about who may call it.
  */
 export const procedure = {
 	/**
@@ -260,9 +306,12 @@ export const procedure = {
 	 * writes the workspace before there is an account — a property of the boundary rather than of
 	 * the order the layout happens to call things in.
 	 *
+	 * On its own it is for a member's own act, or a read open to every member whose answer leaves
+	 * out what they may not view. A record act is `permitted`, which asks this first.
+	 *
 	 * middlewares: [log, requireIdentity]
 	 */
-	member: t.procedure.use(middleware.log).use(middleware.requireIdentity),
+	member: t.procedure.meta({ member: true }).use(middleware.log).use(middleware.requireIdentity),
 	/**
 	 * public
 	 *
@@ -273,7 +322,7 @@ export const procedure = {
 	 *
 	 * middlewares: [log]
 	 */
-	public: t.procedure.use(middleware.log),
+	public: t.procedure.meta({ public: true }).use(middleware.log),
 	/**
 	 * permitted
 	 *
@@ -287,10 +336,14 @@ export const procedure = {
 	 * `@rentable/workspace-permission` is where the names live and `permission.rs` carries the
 	 * same bits under the same names, and a test on each side keeps the two from drifting.
 	 *
+	 * **A bulk procedure names the flag of the single act**, and so does an undo's inverse: deleting
+	 * a selection is deleting, and restoring what was deleted is an edit of it (requirement 1).
+	 *
 	 * middlewares: [log, requireIdentity, requirePermission(...acts)]
 	 */
-	permitted: (...acts: NamedActs) =>
+	permitted: (...acts: Acts) =>
 		t.procedure
+			.meta({ flags: acts.map(flagOf) })
 			.use(middleware.log)
 			.use(middleware.requireIdentity)
 			.use(middleware.requirePermission(...acts)),
@@ -306,9 +359,41 @@ export const procedure = {
 	 *
 	 * middlewares: [log, requireIdentity, requireAnyPermission(...acts)]
 	 */
-	permittedAny: (...acts: NamedActs) =>
+	permittedAny: (...acts: Acts) =>
 		t.procedure
+			.meta({ anyOf: acts.map(flagOf) })
 			.use(middleware.log)
 			.use(middleware.requireIdentity)
-			.use(middleware.requireAnyPermission(...acts))
+			.use(middleware.requireAnyPermission(...acts)),
+	/**
+	 * permittedBy
+	 *
+	 * a call whose flag depends on what it is about, refused where the caller does not hold the one
+	 * its input asks for.
+	 *
+	 * **For a procedure that serves every record kind**, which is the history: appending an entry
+	 * about a payment is the payment's act and one about a tenant is the tenant's, so no one flag
+	 * could be named where the procedure is declared. `possible` is every flag it may ask for,
+	 * recorded where the walk reads it; `flagsOf` is which of them this input asks for.
+	 *
+	 * The input is read before the permission, unlike `permitted`, because the permission is read
+	 * off it; a malformed call is refused as malformed either way.
+	 *
+	 * middlewares: [log, requireIdentity, input, flagsOf(input)]
+	 */
+	permittedBy: <Schema extends z.ZodType>(
+		possible: Flags,
+		schema: Schema,
+		flagsOf: (input: z.output<Schema>) => readonly Flag[]
+	) =>
+		t.procedure
+			.meta({ byInput: possible })
+			.use(middleware.log)
+			.use(middleware.requireIdentity)
+			.input(schema)
+			.use(async ({ ctx, input, next }) => {
+				refuseMissing(ctx.identity, flagsOf(input as z.output<Schema>));
+
+				return next();
+			})
 };

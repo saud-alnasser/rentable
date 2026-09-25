@@ -135,7 +135,8 @@ export default router({
 	// an optional id, so undoing a deletion can put the row back with the identity it had — a
 	// page still open on that record is holding a reference to it (ADR 0026). Absent otherwise,
 	// and the engine assigns one.
-	create: procedure.member
+	create: procedure
+		.permitted('createTenant')
 		.use(autosync())
 		.input(TenantSchema.partial({ id: true }))
 		.mutation(async ({ input, ctx }) => {
@@ -160,7 +161,8 @@ export default router({
 			return created;
 		}),
 
-	update: procedure.member
+	update: procedure
+		.permitted('editTenant')
 		.use(autosync())
 		.input(TenantSchema.partial({ name: true, nationalId: true, phone: true }))
 		.mutation(async ({ input, ctx }) => {
@@ -209,7 +211,8 @@ export default router({
 			return ensureTenantStillExists(updated);
 		}),
 
-	delete: procedure.member
+	delete: procedure
+		.permitted('deleteTenant')
 		.use(autosync())
 		.input(TenantSchema.pick({ id: true }))
 		.mutation(async ({ input, ctx }) => {
@@ -239,7 +242,8 @@ export default router({
 	 *
 	 * A query rather than a mutation: it reads and writes nothing.
 	 */
-	planMany: procedure.member
+	planMany: procedure
+		.permitted('createTenant')
 		.input(z.object({ ids: z.array(TenantSchema.shape.id).min(1) }))
 		.query(async ({ input, ctx }) => {
 			const plan = await planTenantSelection(ctx.db, input.ids);
@@ -261,7 +265,8 @@ export default router({
 	 * The rows come back whole rather than as ids, because putting a record back means putting it
 	 * back as itself, by the identity it had (ADR 0026).
 	 */
-	deleteMany: procedure.member
+	deleteMany: procedure
+		.permitted('deleteTenant')
 		.use(autosync())
 		.input(z.object({ ids: z.array(TenantSchema.shape.id).min(1) }))
 		.mutation(async ({ input, ctx }) => {
@@ -290,7 +295,8 @@ export default router({
 	 *
 	 * Every check `create` makes, asked once for the whole set rather than once per tenant.
 	 */
-	createMany: procedure.member
+	createMany: procedure
+		.permitted('createTenant')
 		.use(autosync())
 		.input(z.object({ tenants: z.array(TenantSchema.partial({ id: true })).min(1) }))
 		.mutation(async ({ input, ctx }) => {
@@ -335,36 +341,40 @@ export default router({
 			return created.map(([tenant]) => tenant);
 		}),
 
-	get: procedure.member.input(TenantSchema.partial()).query(async ({ input, ctx }) => {
-		if (input.id) {
-			return await ctx.db.select().from(s.tenant).where(eq(s.tenant.id, input.id)).get();
-		}
+	get: procedure
+		.permitted('viewTenant')
+		.input(TenantSchema.partial())
+		.query(async ({ input, ctx }) => {
+			if (input.id) {
+				return await ctx.db.select().from(s.tenant).where(eq(s.tenant.id, input.id)).get();
+			}
 
-		if (input.name) {
-			return await ctx.db
-				.select()
-				.from(s.tenant)
-				.where(like(s.tenant.name, `%${input.name}%`))
-				.get();
-		}
+			if (input.name) {
+				return await ctx.db
+					.select()
+					.from(s.tenant)
+					.where(like(s.tenant.name, `%${input.name}%`))
+					.get();
+			}
 
-		if (input.nationalId) {
-			return await ctx.db
-				.select()
-				.from(s.tenant)
-				.where(eq(s.tenant.nationalId, input.nationalId))
-				.get();
-		}
+			if (input.nationalId) {
+				return await ctx.db
+					.select()
+					.from(s.tenant)
+					.where(eq(s.tenant.nationalId, input.nationalId))
+					.get();
+			}
 
-		if (input.phone) {
-			return await ctx.db.select().from(s.tenant).where(eq(s.tenant.phone, input.phone)).get();
-		}
+			if (input.phone) {
+				return await ctx.db.select().from(s.tenant).where(eq(s.tenant.phone, input.phone)).get();
+			}
 
-		return undefined;
-	}),
+			return undefined;
+		}),
 
 	/** The tenants a palette search reaches, by name, identity or phone. */
-	search: procedure.member
+	search: procedure
+		.permitted('viewTenant')
 		.input(RecordSearchSchema)
 		.query(async ({ input, ctx }): Promise<RecordMatch[]> => {
 			const rows = await ctx.db
@@ -377,7 +387,8 @@ export default router({
 			return rows;
 		}),
 
-	getMany: procedure.member
+	getMany: procedure
+		.permitted('viewTenant')
 		.input(
 			z.object({
 				search: z.string().optional(),

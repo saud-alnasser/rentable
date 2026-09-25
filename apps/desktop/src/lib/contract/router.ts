@@ -491,7 +491,8 @@ export default router({
 	 * contract and its assignment rows are one batch, and the boundary runs a batch inside a
 	 * transaction (ADR 0027), so a refusal creates neither.
 	 */
-	create: procedure.member
+	create: procedure
+		.permitted('createContract')
 		.use(autosync())
 		.input(ContractCreateSchema)
 		.mutation(async ({ input: { unitIds: chosenUnitIds, ...input }, ctx }) => {
@@ -605,7 +606,8 @@ export default router({
 	 * the contract and every assignment row are one batch, and the boundary runs a batch inside a
 	 * transaction (ADR 0027).
 	 */
-	renew: procedure.member
+	renew: procedure
+		.permitted('editContract')
 		.use(autosync())
 		.input(ContractRenewSchema)
 		.mutation(async ({ input, ctx }) => {
@@ -698,7 +700,8 @@ export default router({
 			return serializeContract(created);
 		}),
 
-	update: procedure.member
+	update: procedure
+		.permitted('editContract')
 		.use(autosync())
 		.input(ContractUpdateSchema)
 		.mutation(async ({ input, ctx }) => {
@@ -801,7 +804,8 @@ export default router({
 			return serializeContract(updated);
 		}),
 
-	terminate: procedure.member
+	terminate: procedure
+		.permitted('editContract')
 		.use(autosync())
 		.input(ContractSchema.pick({ id: true }))
 		.mutation(async ({ input, ctx }) => {
@@ -846,7 +850,8 @@ export default router({
 	 *
 	 * A query rather than a mutation: it reads and writes nothing.
 	 */
-	planMany: procedure.member
+	planMany: procedure
+		.permitted('createContract')
 		.input(
 			z.object({
 				ids: z.array(ContractSchema.shape.id).min(1),
@@ -873,7 +878,8 @@ export default router({
 	 * be terminated by hand is a fact about that contract, not a failure of the request. Throwing
 	 * would undo the ones that were fine and tell the reader nothing about which.
 	 */
-	terminateMany: procedure.member
+	terminateMany: procedure
+		.permitted('editContract')
 		.use(autosync())
 		.input(z.object({ ids: z.array(ContractSchema.shape.id).min(1) }))
 		.mutation(async ({ input, ctx }) => {
@@ -907,7 +913,8 @@ export default router({
 	 * because they are the same act. Undoing a termination passes exactly what that call reported
 	 * it changed, so nothing it refused is put back on the way.
 	 */
-	unterminateMany: procedure.member
+	unterminateMany: procedure
+		.permitted('editContract')
 		.use(autosync())
 		.input(z.object({ ids: z.array(ContractSchema.shape.id).min(1) }))
 		.mutation(async ({ input, ctx }) => {
@@ -936,7 +943,8 @@ export default router({
 			return { unterminated: plan.eligible.map(toChangedContract), refused: plan.refused };
 		}),
 
-	unterminate: procedure.member
+	unterminate: procedure
+		.permitted('editContract')
 		.use(autosync())
 		.input(ContractSchema.pick({ id: true }))
 		.mutation(async ({ input, ctx }) => {
@@ -973,7 +981,8 @@ export default router({
 			return serializeContract(restored);
 		}),
 
-	delete: procedure.member
+	delete: procedure
+		.permitted('deleteContract')
 		.use(autosync())
 		.input(ContractSchema.pick({ id: true }))
 		.mutation(async ({ input, ctx }) => {
@@ -1022,7 +1031,8 @@ export default router({
 	 * The contracts and their assignment rows go in one batch (ADR 0027), and the units they
 	 * released are reconciled, since those units' occupancy rested on the contracts now gone.
 	 */
-	deleteMany: procedure.member
+	deleteMany: procedure
+		.permitted('deleteContract')
 		.use(autosync())
 		.input(z.object({ ids: z.array(ContractSchema.shape.id).min(1) }))
 		.mutation(async ({ input, ctx }) => {
@@ -1072,7 +1082,8 @@ export default router({
 	 * or a government id taken since, a tenant or a unit gone since. Every refusal names the
 	 * contract it is about where there is one to name.
 	 */
-	restoreMany: procedure.member
+	restoreMany: procedure
+		.permitted('editContract')
 		.use(autosync())
 		.input(z.object({ contracts: z.array(ContractRestoreSchema).min(1) }))
 		.mutation(async ({ input, ctx }) => {
@@ -1162,7 +1173,8 @@ export default router({
 		}),
 
 	/** The contracts a palette search reaches, by reference or by the tenant holding them. */
-	search: procedure.member
+	search: procedure
+		.permitted('viewContract')
 		.input(RecordSearchSchema)
 		.query(async ({ input, ctx }): Promise<RecordMatch[]> => {
 			const rows = await ctx.db
@@ -1184,7 +1196,8 @@ export default router({
 
 	// one contract, with the rank it is filed under today, so the record page's acts gate on it
 	// as a card's do.
-	get: procedure.member
+	get: procedure
+		.permitted('viewContract')
 		.input(ContractSchema.pick({ id: true, govId: true }).partial())
 		.query(async ({ input, ctx }) => {
 			const matching = input.id
@@ -1216,7 +1229,8 @@ export default router({
 	 * contract that owes nothing and has nothing falling due has nothing to remind anyone of. It
 	 * reads and writes nothing else; whether a reminder was sent is not recorded.
 	 */
-	reminder: procedure.member
+	reminder: procedure
+		.permitted('viewContract')
 		.input(ContractSchema.pick({ id: true }))
 		.query(async ({ input, ctx }): Promise<ContractReminder> => {
 			const now = ctx.clock.now();
@@ -1264,7 +1278,8 @@ export default router({
 	 * and a cycle's cover depends on every payment before it. Computed here on every read and
 	 * stored nowhere (`contract/schedule.ts`). Dates cross as timestamps, as a contract's do.
 	 */
-	schedule: procedure.member
+	schedule: procedure
+		.permitted('viewContract')
 		.input(ContractSchema.pick({ id: true }))
 		.query(async ({ input, ctx }) => {
 			const contract = await selectContract(ctx.db, input.id);
@@ -1276,7 +1291,8 @@ export default router({
 
 	// the contracts directory, in one bounded query: the whole result set for a search, in the
 	// order the sort control chose. The list renders what arrives and orders nothing itself.
-	getMany: procedure.member
+	getMany: procedure
+		.permitted('viewContract')
 		.input(
 			z.object({
 				search: z.string().optional(),
@@ -1394,9 +1410,12 @@ export default router({
 		}),
 
 	units: {
-		getMany: procedure.member.input(ContractUnitsGetManySchema).query(async ({ input, ctx }) => {
-			return await selectContractUnits(ctx.db, input.contractId, ctx.clock.now());
-		}),
+		getMany: procedure
+			.permitted('viewUnit')
+			.input(ContractUnitsGetManySchema)
+			.query(async ({ input, ctx }) => {
+				return await selectContractUnits(ctx.db, input.contractId, ctx.clock.now());
+			}),
 
 		/**
 		 * Every unit this contract may hold, whether or not it holds it — both panes of the
@@ -1408,7 +1427,8 @@ export default router({
 		 * offering them would be offering a refusal. A unit this contract holds is kept even
 		 * then, because the held pane lists what the contract holds.
 		 */
-		getAssignableMany: procedure.member
+		getAssignableMany: procedure
+			.permitted('viewUnit')
 			.input(ContractAssignableUnitsSchema)
 			.query(async ({ input, ctx }) => {
 				const contract = await selectContract(ctx.db, input.contractId);
@@ -1446,7 +1466,8 @@ export default router({
 		 * The same conflict rule, with no contract of its own to exempt: a unit a contract holds
 		 * over an overlapping term is left out, because offering it would be offering a refusal.
 		 */
-		getAssignableForTerm: procedure.member
+		getAssignableForTerm: procedure
+			.permitted('viewUnit')
 			.input(TermAssignableUnitsSchema)
 			.query(async ({ input, ctx }) => {
 				const { units, assignments, statusByUnitId } = await selectUnitsWithAssignments(
@@ -1469,7 +1490,8 @@ export default router({
 		 * of an overlapping contract; the locks on a terminated contract and one with a payment
 		 * recorded refuse the whole call, as they always did.
 		 */
-		set: procedure.member
+		set: procedure
+			.permitted('editContract')
 			.use(autosync())
 			.input(ContractUnitsSetSchema)
 			.mutation(async ({ input, ctx }) => {
