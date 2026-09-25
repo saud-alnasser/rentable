@@ -12,6 +12,8 @@
  * is not answered here. There is one implementation, and no second one is being built.
  */
 
+import type { RoleKind } from '@rentable/workspace-permission';
+
 import type { AppearanceSetting } from './appearance';
 
 export type Settings = {
@@ -275,7 +277,21 @@ export type OrganizationSession = {
 	memberId: string;
 	/** the one thing that names this member; there is no address and no display name beside it. */
 	username: string;
-	role: string;
+	/** the kind of the role this member holds. *It was the word `administrator` for a manager.* */
+	role: RoleKind;
+	/** the role their row names, by id. */
+	roleId: string;
+	/** a custom role's name; empty on the three built-in roles, which the interface names. */
+	roleName: string;
+	/** how high the role stands. */
+	rank: number;
+	/** the flags switched for this member alone. `0` on the owner's row. */
+	override: number;
+	/**
+	 * what this member may do across the organization: their role's mask with their override
+	 * switched, read off the verified row. **Not yet what they may do in a workspace**: a
+	 * read-only grant clears the writes there, which `effectiveIn` folds for the workspace open.
+	 */
 	permissions: number;
 	workspaces: OrganizationWorkspace[];
 	/** the owner's username: whom a member is told to tell when the account needs attention. */
@@ -386,7 +402,17 @@ export type OrganizationState = {
 export type OrganizationMember = {
 	id: string;
 	username: string;
-	role: string;
+	/** the kind of the role this member holds. *It was the word `administrator` for a manager.* */
+	role: RoleKind;
+	/** the role their row names, by id. */
+	roleId: string;
+	/** a custom role's name; empty on the three built-in roles, which the interface names. */
+	roleName: string;
+	/** how high the role stands. */
+	rank: number;
+	/** the flags switched for this member alone. `0` on the owner's row. */
+	override: number;
+	/** what this member may do: their role's mask with their override switched. */
 	permissions: number;
 	/** the workspaces this member holds, with the access on each. */
 	workspaces: WorkspaceGrant[];
@@ -397,6 +423,23 @@ export type OrganizationMember = {
 	 * offer* on the owner's card in place of the offer.
 	 */
 	offeredOwnership: boolean;
+};
+
+/**
+ * one role as the settings area lists it (effort 838, requirement 12): the owner's, then every
+ * role row, highest rank first. No certificate crosses with it.
+ */
+export type OrganizationRole = {
+	id: string;
+	kind: RoleKind;
+	/** a custom role's name; empty on the three built-in roles, which the interface names. */
+	name: string;
+	/** what the role carries, as one number. Never read as a number: `permits` answers for it. */
+	mask: number;
+	/** how high the role stands. A custom role stands strictly between the member and the manager. */
+	rank: number;
+	/** how many members still in hold it. */
+	holders: number;
 };
 
 /**
@@ -652,6 +695,11 @@ export type Host = {
 		 * forgets it; it never blocks sign-in, which works offline.
 		 */
 		renewDue: () => Promise<boolean>;
+		/**
+		 * every role, highest rank first, with what each carries and how many hold it. Any
+		 * signed-in member reads it; a custom role's name is opened on the other side.
+		 */
+		roles: () => Promise<OrganizationRole[]>;
 		workspace: {
 			/**
 			 * create a workspace on the account: a database, migrated, recorded, and granted to the

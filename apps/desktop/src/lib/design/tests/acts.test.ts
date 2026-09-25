@@ -4,6 +4,7 @@ import { mock, test } from 'node:test';
 import { i18nObject } from '$lib/i18n/i18n-util.ts';
 import { loadLocale } from '$lib/i18n/i18n-util.sync.ts';
 import { ContractSchema } from '$lib/platform/database/schema.ts';
+import { fakeOrganizationMember } from '$lib/platform/tests/testing.ts';
 
 /**
  * Requirement 8 of effort 832, criterion 8: a record's acts are declared once, and the card's menu
@@ -599,15 +600,8 @@ function recordingOrganizationHost() {
 	};
 }
 
-const memberOf = (id: string, role: OrganizationMember['role']): OrganizationMember => ({
-	id,
-	username: id,
-	role,
-	permissions: 0,
-	workspaces: [],
-	createdAt: 0,
-	offeredOwnership: false
-});
+const memberOf = (id: string, role: OrganizationMember['role']): OrganizationMember =>
+	fakeOrganizationMember({ id, username: id, role });
 
 const NONE_HELD = {
 	canInvite: false,
@@ -685,7 +679,7 @@ const MEMBER_READERS: Record<string, MemberActContext> = {
 
 const MEMBERS = [
 	memberOf('olivia', 'owner'),
-	memberOf('ada', 'administrator'),
+	memberOf('ada', 'manager'),
 	memberOf('sami', 'member')
 ];
 
@@ -723,7 +717,7 @@ test('a member is offered one edit, never a rename beside it, under the edit gly
 		);
 
 	// the owner reading anybody else's card: every act, in the declared order.
-	assert.deepEqual(idsFor(memberOf('ada', 'administrator'), MEMBER_READERS.owner), [
+	assert.deepEqual(idsFor(memberOf('ada', 'manager'), MEMBER_READERS.owner), [
 		'member.edit',
 		'member.makeLink',
 		'member.unsetPassword',
@@ -741,7 +735,7 @@ test('a member is offered one edit, never a rename beside it, under the edit gly
 	);
 	// an administrator meets nothing on the owner's card or their own, and no lock-out anywhere.
 	assert.deepEqual(idsFor(memberOf('olivia', 'owner'), MEMBER_READERS.administrator), []);
-	assert.deepEqual(idsFor(memberOf('ada', 'administrator'), MEMBER_READERS.administrator), []);
+	assert.deepEqual(idsFor(memberOf('ada', 'manager'), MEMBER_READERS.administrator), []);
 	assert.deepEqual(idsFor(memberOf('sami', 'member'), MEMBER_READERS.administrator), [
 		'member.edit',
 		'member.makeLink',
@@ -751,11 +745,11 @@ test('a member is offered one edit, never a rename beside it, under the edit gly
 	]);
 	// a member who may only rename meets the one edit, and nothing else.
 	assert.deepEqual(
-		idsFor(memberOf('ada', 'administrator'), MEMBER_READERS['member widened by renameMember']),
+		idsFor(memberOf('ada', 'manager'), MEMBER_READERS['member widened by renameMember']),
 		['member.edit']
 	);
 	assert.deepEqual(
-		idsFor(memberOf('ada', 'administrator'), MEMBER_READERS['member holding nothing']),
+		idsFor(memberOf('ada', 'manager'), MEMBER_READERS['member holding nothing']),
 		[]
 	);
 

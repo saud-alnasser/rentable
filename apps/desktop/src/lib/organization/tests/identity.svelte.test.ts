@@ -29,7 +29,7 @@ const inProvider = (direction: 'ltr' | 'rtl') => ({
 const block = (username: string, direction: 'ltr' | 'rtl' = 'ltr') =>
 	render(
 		Identity,
-		{ session: fakeOrganizationSession({ username, role: 'administrator' }) },
+		{ session: fakeOrganizationSession({ username, role: 'manager' }) },
 		inProvider(direction)
 	);
 

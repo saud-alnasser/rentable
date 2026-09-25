@@ -752,7 +752,20 @@ async fn reseal_account<P: TursoPlatform>(
 pub struct MemberFacts {
     pub id: String,
     pub username: String,
+    /// the kind of the role the member holds: `owner`, `manager`, `member` or `custom` (effort 838,
+    /// requirement 8). *It was the word `owner`, `administrator` or `member` until then.*
     pub role: String,
+    /// the role the member row names, by id.
+    pub role_id: String,
+    /// a custom role's name, opened with the content key; empty on the three built-in roles, whose
+    /// names the interface gives in the reader's language.
+    pub role_name: String,
+    /// how high the role stands.
+    pub rank: i64,
+    /// the flags switched for this member alone. Zero on the owner's row.
+    #[serde(rename = "override")]
+    pub override_mask: i64,
+    /// what the member may do: their role's mask exclusive-or'd with their override.
     pub permissions: i64,
     pub workspaces: Vec<WorkspaceGrant>,
     pub created_at: i64,
@@ -768,6 +781,7 @@ pub async fn members(
     session: &MemberSession,
 ) -> Result<Vec<MemberFacts>, Error> {
     let grants = store.grants(&session.verifying_key).await?;
+    let roles = store.roles(&session.verifying_key).await?;
     // read once for the whole list rather than per row: an organization has one standing offer or
     // none, and it is the same answer on every card (effort 828, requirement 22).
     let offered = super::role::standing_offer(store, &session.verifying_key)
@@ -782,6 +796,8 @@ pub async fn members(
         // who is in.
         .filter(|member| member.role_word() != permission::REMOVED)
         .map(|member| {
+            let role = super::role::held_role(session, &roles, &member.role_id)?;
+
             Ok(MemberFacts {
                 username: opened(session, "member.username_sealed", &member.username_sealed)?,
                 // the grant on the organization database itself is the directory every member
@@ -799,7 +815,11 @@ pub async fn members(
                     })
                     .collect(),
                 offered_ownership: offered.as_deref() == Some(member.id.as_str()),
-                role: member.role_word().to_string(),
+                role: role.kind,
+                role_name: role.name,
+                rank: role.rank,
+                override_mask: member.override_mask,
+                role_id: member.role_id,
                 id: member.id,
                 permissions: member.effective,
                 created_at: member.created_at,

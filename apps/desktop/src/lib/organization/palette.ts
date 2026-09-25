@@ -153,7 +153,8 @@ function offering<T>(
 const roleLabel = (role: string, translations: TranslationFunctions) =>
 	({
 		owner: translations.layout.signIn.roleOwner(),
-		administrator: translations.layout.signIn.roleAdministrator(),
+		// the manager keeps the administrator's name until ticket 11 of effort 838 renames it.
+		manager: translations.layout.signIn.roleAdministrator(),
 		member: translations.layout.signIn.roleMember()
 	})[role] ?? role;
 

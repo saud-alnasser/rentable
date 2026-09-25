@@ -32,6 +32,7 @@ import type {
 	OrganizationCreated,
 	OrganizationMark,
 	OrganizationMember,
+	OrganizationRole,
 	OrganizationState,
 	OrganizationWorkspace,
 	Recovery,
@@ -75,6 +76,7 @@ export type {
 	OrganizationCreated,
 	OrganizationMark,
 	OrganizationMember,
+	OrganizationRole,
 	OrganizationSession,
 	OrganizationState,
 	OrganizationWorkspace,
@@ -305,6 +307,7 @@ export const tauri = {
 		linkRead: (link: string) => invoke<LinkShape>('organization_link_read', { link }),
 		reconnectAuthority: () => invoke<OrganizationState>('organization_reconnect_authority'),
 		renewDue: () => invoke<boolean>('organization_renew_due'),
+		roles: () => invoke<OrganizationRole[]>('organization_roles'),
 		workspace: {
 			create: (name: string) => invoke<OrganizationWorkspace>('workspace_create', { name }),
 			open: (workspaceId: string) =>

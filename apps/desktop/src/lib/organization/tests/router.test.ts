@@ -9,6 +9,7 @@ import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
 import {
 	fakeHeldOrganization,
 	fakeHost,
+	fakeOrganizationMember,
 	fakeOrganizationState
 } from '$lib/platform/tests/testing.ts';
 import { fakeIdentity } from '$lib/api/tests/testing.ts';
@@ -184,15 +185,12 @@ test('changing a role and withdrawing a grant each need their act, and hand thei
 				changeRole: async (memberId, role, permissions) => {
 					asked.push(`changeRole:${memberId}:${role}:${permissions}`);
 
-					return {
+					return fakeOrganizationMember({
 						id: memberId,
 						username: 'sami.staff',
-						role,
-						permissions,
-						workspaces: [],
-						createdAt: 0,
-						offeredOwnership: false
-					};
+						role: role === 'administrator' ? 'manager' : 'member',
+						permissions
+					});
 				}
 			},
 			workspace: {
@@ -492,15 +490,14 @@ test('making an account is inviteMember and unsetting a password is resetPasswor
 				create: async (username, role, permissions, workspaces) => {
 					asked.push(`create:${username}:${role}:${permissions}:${workspaces.length}`);
 
-					return {
+					return fakeOrganizationMember({
 						id: 'member-9',
 						username,
-						role,
+						role: role === 'administrator' ? 'manager' : 'member',
 						permissions,
 						workspaces,
-						createdAt: 1_757_000_000_000,
-						offeredOwnership: false
-					};
+						createdAt: 1_757_000_000_000
+					});
 				},
 				unsetPassword: async (memberId) => {
 					asked.push(`unsetPassword:${memberId}`);
@@ -655,15 +652,13 @@ test('the three acts of a handover need a session, and the offer needs an accoun
 				offerOwnership: async (memberId, password) => {
 					asked.push(`offer:${memberId}:${password}`);
 
-					return {
+					return fakeOrganizationMember({
 						id: memberId,
 						username: 'ada',
-						role: 'administrator',
+						role: 'manager',
 						permissions: 127,
-						workspaces: [],
-						createdAt: 0,
 						offeredOwnership: true
-					};
+					});
 				},
 				withdrawOffer: async () => {
 					asked.push('withdraw');
@@ -737,15 +732,7 @@ test('a rename hands the trimmed username on, refuses one outside the rules firs
 				rename: async (memberId, username) => {
 					asked.push(`rename:${memberId}:${username}`);
 
-					return {
-						id: memberId,
-						username,
-						role: 'member',
-						permissions: 0,
-						workspaces: [],
-						createdAt: 0,
-						offeredOwnership: false
-					};
+					return fakeOrganizationMember({ id: memberId, username });
 				}
 			}
 		}

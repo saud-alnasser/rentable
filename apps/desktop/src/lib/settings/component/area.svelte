@@ -41,6 +41,7 @@
 		withSection,
 		type AddressableSection
 	} from '$lib/settings/section';
+	import { permits } from '@rentable/workspace-permission';
 	import CrownIcon from '@lucide/svelte/icons/crown';
 	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
 
@@ -404,9 +405,9 @@
 				<Separator />
 			{/if}
 
-			<!-- what the organization prints on its pages: everybody sees it, and the two roles that
-			     administer the organization change it (effort 835, requirement 13). -->
-			<OrganizationMark setsMark={session.role === 'owner' || session.role === 'administrator'} />
+			<!-- what the organization prints on its pages: everybody sees it, and whoever holds the
+			     flag to manage it changes it (effort 835, requirement 13; effort 838). -->
+			<OrganizationMark setsMark={permits(session.permissions, 'manageMark')} />
 
 			<Separator />
 

@@ -9,6 +9,7 @@ import type { Locales } from '$lib/i18n/i18n-types';
 import { browserAppearance } from '$lib/platform/appearance';
 import { recordDiagnosticError } from '$lib/platform/diagnostics';
 import { tauri } from '$lib/platform/tauri';
+import { keys as organizationKeys } from '$lib/organization/query';
 import { keys as settingsKeys } from '$lib/settings/query';
 import {
 	announceReceivedRows,
@@ -77,6 +78,8 @@ export function browserStartupPorts(queryClient: QueryClient): StartupPorts {
 			invalidateRemoteSync: () =>
 				queryClient.invalidateQueries({ queryKey: settingsKeys.remoteSync }),
 			invalidateAll: () => invalidateRoot(queryClient),
+			invalidateOrganization: () =>
+				queryClient.invalidateQueries({ queryKey: organizationKeys.all }),
 			forgetContext
 		},
 		// read at the moment of the failure rather than captured, so it is written in whatever

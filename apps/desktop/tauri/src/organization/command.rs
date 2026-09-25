@@ -3094,10 +3094,7 @@ mod tests {
         // the state read follows the succession, and the session is the row's.
         let state = state_of(&app_state).await.expect("the state");
 
-        assert_eq!(
-            state.session.expect("the session was lost").role,
-            "administrator"
-        );
+        assert_eq!(state.session.expect("the session was lost").role, "manager");
         assert_eq!(
             session_holds(&app_state).await,
             (new_key, "administrator".to_string())
@@ -3209,7 +3206,7 @@ mod tests {
             .expect("the launch across the handover did not resume");
 
         assert_eq!(session.member_id, member_id);
-        assert_eq!(session.role, "administrator");
+        assert_eq!(session.role, "manager");
         assert!(
             !state.signed_out_elsewhere,
             "the wall was told a sign-out that did not happen"
@@ -3274,7 +3271,7 @@ mod tests {
         // and the state read afterwards has nothing left to follow.
         let state = state_of(&app_state).await.expect("the state");
 
-        assert_eq!(state.session.expect("the session").role, "administrator");
+        assert_eq!(state.session.expect("the session").role, "manager");
         assert!(!state.signed_out_elsewhere);
     }
 

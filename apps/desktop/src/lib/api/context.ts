@@ -1,6 +1,7 @@
+import { effectiveIn, type AccessLevel } from '@rentable/workspace-permission';
 import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy';
 
-import type { Host } from '$lib/platform/host';
+import type { Host, OrganizationSession } from '$lib/platform/host';
 
 /**
  * DATABASE
@@ -135,12 +136,39 @@ async function actingIdentity(host: Host): Promise<Identity | null> {
 		session && {
 			accountId: session.memberId,
 			username: session.username,
-			// **Off the same answer, on the same read.** What this member may administer is on
-			// their verified row, and the session carries it, so what they may do costs nothing
-			// beyond what resolving who they are already cost.
-			permissions: session.permissions
+			// **Off the same answer, folded for the workspace open** (effort 838, requirement 10).
+			// What this member may do across the organization is on their verified row, and the
+			// session carries it; in the workspace this machine has open, a read-only grant clears
+			// every create, edit and delete whatever the role and the override say.
+			permissions: effectiveIn(session.permissions, await accessToOpenWorkspace(host, session))
 		}
 	);
+}
+
+/**
+ * how the acting member reaches the workspace this machine has open: the access on their grant
+ * for it.
+ *
+ * **Read-only wherever that cannot be said**: a shell that cannot say which workspace is open, a
+ * machine with none open, and a workspace the session holds no grant on. It is the safe direction,
+ * and it costs nothing a caller could want, since there are no records to write without an open
+ * workspace, and the organization's own flags are not a workspace's to clear.
+ */
+async function accessToOpenWorkspace(
+	host: Host,
+	session: OrganizationSession
+): Promise<AccessLevel> {
+	let open: string | null = null;
+
+	try {
+		open = (await host.remoteSync.getState()).workspace.remoteId;
+	} catch {
+		// said below: no workspace that can be named is read-only.
+	}
+
+	const grant = session.workspaces.find((workspace) => workspace.id === open);
+
+	return grant?.accessLevel === 'full-access' ? 'full-access' : 'read-only';
 }
 
 /**

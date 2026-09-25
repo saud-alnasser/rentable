@@ -5,7 +5,7 @@ import type {
 	OrganizationSession,
 	OrganizationWorkspace
 } from '$lib/platform/host';
-import { permits } from '@rentable/workspace-permission';
+import { permits, type RoleKind } from '@rentable/workspace-permission';
 import CrownIcon from '@lucide/svelte/icons/crown';
 import LaptopIcon from '@lucide/svelte/icons/laptop';
 import LinkIcon from '@lucide/svelte/icons/link';
@@ -376,3 +376,14 @@ export function declareWorkspaceActs(host: WorkspaceHostRequests): WorkspaceAct[
 		}
 	];
 }
+
+/**
+ * The word the member forms still pick for the role a member holds: `administrator` for the
+ * manager's role, `member` for anything else.
+ *
+ * **A bridge.** What crosses from the shell is the role's kind since ticket 08 of effort 838; the
+ * member sheet and the account form still offer the two words, and `platform/tauri` turns the one
+ * picked back into a role id. Ticket 11 gives both a role picker, and this goes with the word.
+ */
+export const formRoleOf = (kind: RoleKind): 'administrator' | 'member' =>
+	kind === 'manager' ? 'administrator' : 'member';

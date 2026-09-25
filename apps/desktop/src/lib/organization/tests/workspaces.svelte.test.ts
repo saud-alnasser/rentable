@@ -7,7 +7,7 @@ import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import Workspaces from '$lib/organization/component/workspaces.svelte';
 import { organizationDialog, resetOrganizationDialogs } from '$lib/organization/dialogs.svelte';
 import { organizationHostState, resetOrganizationHost } from '$lib/organization/host.svelte';
-import { fakeOrganizationSession } from '$lib/platform/tests/testing';
+import { fakeOrganizationMember, fakeOrganizationSession } from '$lib/platform/tests/testing';
 import type { OrganizationMember, OrganizationWorkspace } from '$lib/platform/host';
 import en from '$lib/i18n/en';
 import { toTitleCase } from '@rentable/design/title-case.js';
@@ -128,16 +128,8 @@ const workspaces: OrganizationWorkspace[] = [
 	}
 ];
 
-const member = (overrides: Partial<OrganizationMember>): OrganizationMember => ({
-	id: 'm',
-	username: 'member',
-	role: 'member',
-	permissions: 0,
-	workspaces: [],
-	createdAt: 0,
-	offeredOwnership: false,
-	...overrides
-});
+const member = (overrides: Partial<OrganizationMember>): OrganizationMember =>
+	fakeOrganizationMember(overrides);
 
 const members = [
 	member({
@@ -152,7 +144,7 @@ const members = [
 	member({
 		id: 'ada',
 		username: 'ada',
-		role: 'administrator',
+		role: 'manager',
 		workspaces: [{ id: 'ws-1', access: 'full-access' }]
 	}),
 	member({ id: 'sami', username: 'sami', workspaces: [{ id: 'ws-1', access: 'read-only' }] })

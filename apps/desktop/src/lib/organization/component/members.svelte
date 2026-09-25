@@ -156,7 +156,8 @@
 	const roleLabel = (role: string) =>
 		({
 			owner: $LL.layout.signIn.roleOwner(),
-			administrator: $LL.layout.signIn.roleAdministrator(),
+			// the manager keeps the administrator's name until ticket 11 of effort 838 renames it.
+			manager: $LL.layout.signIn.roleAdministrator(),
 			member: $LL.layout.signIn.roleMember()
 		})[role] ?? role;
 

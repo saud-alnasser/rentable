@@ -463,7 +463,7 @@ test('an administrator is offered no delete, because the act is the owners', () 
 	area({
 		section: 'organization',
 		session: fakeOrganizationSession({
-			role: 'administrator',
+			role: 'manager',
 			permissions: maskOf(...EVERY_ADMINISTRATION)
 		})
 	});

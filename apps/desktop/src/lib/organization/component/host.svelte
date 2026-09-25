@@ -6,6 +6,7 @@
 	import AccessDialog, {
 		type AccessChoice
 	} from '$lib/organization/component/access-dialog.svelte';
+	import { formRoleOf } from '$lib/organization/acts';
 	import MemberSheet, { type MemberEdit } from '$lib/organization/component/member-sheet.svelte';
 	import OfferOwnership from '$lib/organization/component/offer-ownership.svelte';
 	import { showMadeLink } from '$lib/organization/dialogs.svelte';
@@ -146,7 +147,7 @@
 
 		if (
 			context.canChangeRole &&
-			(edit.role !== saved.role || edit.permissions !== saved.permissions)
+			(edit.role !== formRoleOf(saved.role) || edit.permissions !== saved.permissions)
 		) {
 			try {
 				await changeRole.mutateAsync({
@@ -350,7 +351,7 @@
 		if (!open && !isSavingMember) organizationHostState.member.editing = null;
 	}}
 	username={member.editing?.member.username ?? ''}
-	role={member.editing?.member.role ?? 'member'}
+	role={formRoleOf(member.editing?.member.role ?? 'member')}
 	permissions={member.editing?.member.permissions ?? 0}
 	rows={memberRows}
 	canRename={member.editing?.context.canRename ?? false}

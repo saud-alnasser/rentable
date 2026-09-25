@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { toMemberDirectory, toWorkspaceDirectory } from '../directory.ts';
-import { fakeOrganizationWorkspace } from '../../platform/tests/testing.ts';
+import { fakeOrganizationMember, fakeOrganizationWorkspace } from '../../platform/tests/testing.ts';
 import type { OrganizationMember } from '../../platform/host.ts';
 
 /**
@@ -13,24 +13,18 @@ import type { OrganizationMember } from '../../platform/host.ts';
  * digits still finds what its Western spelling finds.
  */
 
-const member = (overrides: Partial<OrganizationMember>): OrganizationMember => ({
-	id: 'm',
-	username: 'member',
-	role: 'member',
-	permissions: 0,
-	workspaces: [],
-	createdAt: 0,
-	offeredOwnership: false,
-	...overrides
-});
+const member = (overrides: Partial<OrganizationMember>): OrganizationMember =>
+	fakeOrganizationMember(overrides);
 
 const members = [
 	member({ id: 'sami', username: 'sami' }),
 	member({ id: 'owner', username: 'olivia', role: 'owner' }),
-	member({ id: 'ada', username: 'ada2026', role: 'administrator' })
+	member({ id: 'ada', username: 'ada2026', role: 'manager' })
 ];
 
-const roleLabel = (role: string) => role;
+// what a role is called, as the directory's caller names it: the manager is still called the
+// administrator until ticket 11 of effort 838 renames the string.
+const roleLabel = (role: string) => (role === 'manager' ? 'administrator' : role);
 
 const ids = (records: readonly { id: string }[]) => records.map((record) => record.id);
 

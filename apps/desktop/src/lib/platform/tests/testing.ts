@@ -7,8 +7,11 @@
 // is a shape the shell never produces, and every test that wrote one out by hand wrote a
 // different one.
 
+import { BUILT_IN } from '@rentable/workspace-permission';
+
 import type {
 	HeldOrganization,
+	OrganizationMember,
 	OrganizationSession,
 	OrganizationState,
 	OrganizationWorkspace,
@@ -152,6 +155,7 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 			linkRead: refuse('organization.linkRead'),
 			reconnectAuthority: refuse('organization.reconnectAuthority'),
 			renewDue: refuse('organization.renewDue'),
+			roles: refuse('organization.roles'),
 			workspace: {
 				create: refuse('organization.workspace.create'),
 				open: refuse('organization.workspace.open'),
@@ -229,10 +233,45 @@ export function fakeOrganizationSession(
 		memberId: 'member-owner',
 		username: 'person.example',
 		role: 'owner',
+		roleId: 'owner',
+		roleName: '',
+		rank: 2_000_000,
+		override: 0,
 		permissions: 0,
 		workspaces: [fakeOrganizationWorkspace()],
 		ownerUsername: 'olivia.owner',
 		ownershipOffered: false,
+		...overrides
+	};
+}
+
+/**
+ * one member as the members list draws them: a member holding the member role, in nothing, unless
+ * a test says otherwise.
+ *
+ * **The role's id and rank follow the kind a test names**, so a test that says `role: 'manager'`
+ * gets the manager's id and rank with it rather than a member's rank under a manager's name. A
+ * custom role takes a rank between the member's and the manager's, and a test about one names its
+ * id and name.
+ */
+export function fakeOrganizationMember(
+	overrides: Partial<OrganizationMember> = {}
+): OrganizationMember {
+	const kind = overrides.role ?? 'member';
+	const builtIn = kind === 'custom' ? null : BUILT_IN[kind];
+
+	return {
+		id: 'm',
+		username: 'member',
+		role: kind,
+		roleId: builtIn?.id ?? 'custom-role',
+		roleName: '',
+		rank: builtIn?.rank ?? 500_000,
+		override: 0,
+		permissions: 0,
+		workspaces: [],
+		createdAt: 0,
+		offeredOwnership: false,
 		...overrides
 	};
 }

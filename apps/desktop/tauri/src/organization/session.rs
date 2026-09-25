@@ -329,7 +329,22 @@ pub struct SessionFacts {
     pub member_id: String,
     /// the one thing that names this member, opened with the content key.
     pub username: String,
+    /// the kind of the role this member holds: `owner`, `manager`, `member` or `custom` (effort
+    /// 838, requirement 8). *It was the word `owner`, `administrator` or `member` until then.*
     pub role: String,
+    /// the role the member row names, by id.
+    pub role_id: String,
+    /// a custom role's name, opened with the content key; empty on the three built-in roles, whose
+    /// names the interface gives in the reader's language.
+    pub role_name: String,
+    /// how high the role stands.
+    pub rank: i64,
+    /// the flags switched for this member alone. Zero on the owner's row.
+    #[serde(rename = "override")]
+    pub override_mask: i64,
+    /// what the member may do across the organization: their role's mask exclusive-or'd with their
+    /// override, read off the verified row now. What they may do in one workspace is this with a
+    /// read-only grant's writes cleared, which the web layer folds for the workspace it has open.
     pub permissions: i64,
     /// the workspaces this member holds a grant on, and only those.
     pub workspaces: Vec<WorkspaceFacts>,
@@ -1107,6 +1122,7 @@ pub async fn facts_of(
         })?;
     let grants = store.grants(key).await?;
     let workspaces = store.workspaces(key).await?;
+    let role = super::role::held_role(session, &store.roles(key).await?, &member.role_id)?;
 
     // what this member holds a grant on, with the names opened for the screen. The grant on the
     // organization database is not a workspace and is not listed.
@@ -1168,7 +1184,11 @@ pub async fn facts_of(
             "member.username_sealed",
             &member.username_sealed,
         )?,
-        role: member.role_word().to_string(),
+        role: role.kind,
+        role_id: member.role_id.clone(),
+        role_name: role.name,
+        rank: role.rank,
+        override_mask: member.override_mask,
         permissions: member.effective,
         workspaces: workspace_facts,
         ownership_offered: super::role::standing_offer(store, key)

@@ -1,5 +1,15 @@
 import { requestWorkspaceSync } from '$lib/sync/event';
-import { permits, type NamedActs } from '@rentable/workspace-permission';
+import {
+	ADMINISTRATION,
+	EVERY_FLAG,
+	FAMILIES,
+	FLAGS,
+	permits,
+	type Administration,
+	type Flag,
+	type Named,
+	type NamedActs
+} from '@rentable/workspace-permission';
 import { TRPCError, initTRPC } from '@trpc/server';
 import { ZodError } from 'zod';
 import { context } from './context';
@@ -13,6 +23,37 @@ import { readRefusal } from './refusal';
  * are unchanged.
  */
 export { context };
+
+/**
+ * The flags that are the organization's rather than a workspace's: its administration and the
+ * owner's acts. A read-only grant clears none of them, so a refusal naming one is not about the
+ * workspace open.
+ */
+const ORGANIZATION_FLAGS: readonly Flag[] = [...FAMILIES.administration, ...FAMILIES.owner];
+
+/** a name as the flag it is: one of today's aliases read as the flag on its bit. */
+function flagOf(name: Named): Flag {
+	if (name in FLAGS) {
+		return name as Flag;
+	}
+
+	const bit = ADMINISTRATION[name as Administration];
+
+	return EVERY_FLAG.find((flag) => FLAGS[flag] === bit) as Flag;
+}
+
+/**
+ * the flags a refusal names, and where: *in this workspace* only where every one of them is a
+ * record flag, since those are what a workspace's grant narrows. An organization flag is held
+ * across the organization or not at all, and saying *in this workspace* of one sends whoever reads
+ * the log to the wrong place.
+ */
+function refused(names: readonly Named[]): string {
+	const flags = [...new Set(names.map(flagOf))];
+	const where = flags.some((flag) => ORGANIZATION_FLAGS.includes(flag)) ? '' : ' in this workspace';
+
+	return `${flags.join(', ')}${where}`;
+}
 
 /**
  * INITIALIZER
@@ -122,19 +163,25 @@ export const middleware = {
 	 * **This is the second opinion and never the one that decides.** The Rust side refuses the
 	 * same request against the member's signed row whatever this says, and a client is a thing a
 	 * person can edit (requirement 6).
+	 *
+	 * **It takes any flag, a record flag included**, and its refusal says *in this workspace* only
+	 * of those (effort 838, requirement 10): the identity it reads holds the permissions of the
+	 * workspace open, with a read-only grant's writes already cleared. `procedure.permitted` still
+	 * takes today's seven acts until the record procedures are given their flags.
 	 */
-	requirePermission: (...acts: NamedActs) =>
+	requirePermission: (...acts: readonly [Named, ...Named[]]) =>
 		t.middleware(async ({ ctx, next }) => {
 			const identity = ctx.identity;
+			const missing = acts.filter((act) => !identity || !permits(identity.permissions, act));
 
-			if (!identity || !acts.every((act) => permits(identity.permissions, act))) {
-				// The acts by their own names rather than a sentence built around them: this never
+			if (!identity || missing.length > 0) {
+				// The flags by their own names rather than a sentence built around them: this never
 				// reaches a person, since `FORBIDDEN` reads as its own translated sentence, so it is
 				// written for whoever is reading a log, and *may not renameWorkspace* is prose
-				// neither audience wants.
+				// neither audience wants. Only the ones missing, which is what the reader needs.
 				throw new TRPCError({
 					code: 'FORBIDDEN',
-					message: `this account does not hold ${acts.join(', ')} in this workspace`
+					message: `this account does not hold ${refused(missing)}`
 				});
 			}
 
@@ -152,14 +199,14 @@ export const middleware = {
 	 * and never the one that decides: `permission::require_any` refuses the same request against
 	 * the member's signed row.
 	 */
-	requireAnyPermission: (...acts: NamedActs) =>
+	requireAnyPermission: (...acts: readonly [Named, ...Named[]]) =>
 		t.middleware(async ({ ctx, next }) => {
 			const identity = ctx.identity;
 
 			if (!identity || !acts.some((act) => permits(identity.permissions, act))) {
 				throw new TRPCError({
 					code: 'FORBIDDEN',
-					message: `this account holds none of ${acts.join(', ')} in this workspace`
+					message: `this account holds none of ${refused(acts)}`
 				});
 			}
 

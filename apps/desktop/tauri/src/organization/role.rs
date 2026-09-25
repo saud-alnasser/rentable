@@ -1132,6 +1132,50 @@ fn facts_of(
     })
 }
 
+/// The role a member row names, as the facts about that member carry it (effort 838, requirement
+/// 8): its kind, its name and its rank, beside the effective permissions the row already reads.
+///
+/// **Off the verified rows the caller already read**, so a list of members pays for one read of the
+/// roles rather than one per member. A role id no row carries reads as the member's, which is what
+/// [`permission::word_of_role`] has always said of one.
+pub(crate) struct HeldRole {
+    pub kind: String,
+    pub name: String,
+    pub rank: i64,
+}
+
+/// The role `role_id` names, from the verified `rows` and the owner's constant.
+pub(crate) fn held_role(
+    session: &MemberSession,
+    rows: &[RoleRecord],
+    role_id: &str,
+) -> Result<HeldRole, Error> {
+    if role_id == permission::OWNER {
+        return Ok(HeldRole {
+            kind: permission::OWNER.to_string(),
+            name: String::new(),
+            rank: permission::OWNER_ROLE.rank,
+        });
+    }
+
+    match rows.iter().find(|role| role.id == role_id) {
+        Some(role) => {
+            let facts = facts_of(session, role, 0)?;
+
+            Ok(HeldRole {
+                kind: facts.kind,
+                name: facts.name,
+                rank: facts.rank,
+            })
+        }
+        None => Ok(HeldRole {
+            kind: permission::MEMBER.to_string(),
+            name: String::new(),
+            rank: permission::MEMBER_ROLE.rank,
+        }),
+    }
+}
+
 /// The role as it reads back after an act on it.
 async fn role_facts(
     store: &OrganizationStore,
@@ -2541,6 +2585,136 @@ mod tests {
                 .ceiling,
             narrower
         );
+    }
+
+    /// Requirement 8, across the boundary: the members list and the session's own facts carry the
+    /// role's kind, id, name and rank, the override, and the effective permissions, in the names
+    /// the web layer reads; and nothing about a certificate crosses.
+    #[tokio::test]
+    async fn the_facts_carry_the_role_its_rank_the_override_and_the_effective_permissions() {
+        let directory = scratch("facts");
+        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let mask = permission::MEMBER_ROLE.mask | permission::mask_of(&[Flag::RenameMember]);
+        let bookkeeper = a_role(&store, &owner, "bookkeeper", mask, permission::MANAGER).await;
+        let held = holding_role(
+            &store,
+            &owner,
+            &link,
+            "sami.staff",
+            &bookkeeper,
+            &workspace_id,
+        )
+        .await;
+        let switched = permission::mask_of(&[Flag::RenameMember, Flag::DeletePayment]);
+
+        set_override(&store, &owner, &held.member_id, switched, NOW + 1)
+            .await
+            .expect("the override failed");
+
+        let effective = permission::effective(mask, switched);
+        let rank = crate::organization::role::roles(&store, &owner)
+            .await
+            .expect("the roles")
+            .into_iter()
+            .find(|role| role.id == bookkeeper)
+            .expect("the role is listed")
+            .rank;
+        let listed = crate::organization::invite::members(&store, &owner)
+            .await
+            .expect("the members");
+        let member = listed
+            .iter()
+            .find(|member| member.id == held.member_id)
+            .expect("the member is listed");
+
+        assert_eq!(member.role, "custom");
+        assert_eq!(member.role_id, bookkeeper);
+        assert_eq!(member.role_name, "bookkeeper");
+        assert_eq!(member.rank, rank);
+        assert_eq!(member.override_mask, switched);
+        assert_eq!(member.permissions, effective);
+
+        let founder = listed
+            .iter()
+            .find(|member| member.id == owner.member_id)
+            .expect("the owner is listed");
+
+        assert_eq!(
+            (
+                founder.role.as_str(),
+                founder.role_id.as_str(),
+                founder.role_name.as_str(),
+                founder.rank,
+                founder.override_mask,
+            ),
+            (
+                permission::OWNER,
+                permission::OWNER,
+                "",
+                permission::OWNER_ROLE.rank,
+                0
+            )
+        );
+
+        let facts = crate::organization::session::facts_of(&store, &held)
+            .await
+            .expect("the session's facts");
+
+        assert_eq!(facts.role, "custom");
+        assert_eq!(facts.role_id, bookkeeper);
+        assert_eq!(facts.role_name, "bookkeeper");
+        assert_eq!(facts.rank, rank);
+        assert_eq!(facts.override_mask, switched);
+        assert_eq!(facts.permissions, effective);
+
+        // the manager crosses as its kind, where the word used to be `administrator`.
+        assign_role(
+            &store,
+            &owner,
+            &held.member_id,
+            permission::MANAGER,
+            NOW + 2,
+        )
+        .await
+        .expect("the assignment failed");
+        let facts = crate::organization::session::facts_of(&store, &held)
+            .await
+            .expect("the session's facts");
+
+        assert_eq!(facts.role, permission::MANAGER);
+        assert_eq!(facts.role_name, "");
+        assert_eq!(facts.rank, permission::MANAGER_ROLE.rank);
+
+        // the names the web layer reads, and no certificate among them.
+        let crossed = serde_json::to_value(&facts).expect("the facts serialise");
+        let crossed_member = serde_json::to_value(member).expect("the member serialises");
+
+        for value in [&crossed, &crossed_member] {
+            let keys = value
+                .as_object()
+                .expect("an object")
+                .keys()
+                .cloned()
+                .collect::<Vec<_>>();
+
+            for key in [
+                "role",
+                "roleId",
+                "roleName",
+                "rank",
+                "override",
+                "permissions",
+            ] {
+                assert!(keys.iter().any(|name| name == key), "{key} did not cross");
+            }
+            assert!(
+                keys.iter()
+                    .all(|name| !name.to_lowercase().contains("certificate")
+                        && !name.to_lowercase().contains("key")),
+                "a certificate or a key crossed: {keys:?}"
+            );
+        }
+        assert_eq!(crossed["override"], json!(switched));
     }
 
     /// The refusals, each before anything is written: nobody changes their own row, nobody changes

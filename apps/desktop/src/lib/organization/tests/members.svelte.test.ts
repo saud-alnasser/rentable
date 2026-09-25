@@ -7,7 +7,7 @@ import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import Members from '$lib/organization/component/members.svelte';
 import { organizationDialog, resetOrganizationDialogs } from '$lib/organization/dialogs.svelte';
 import { organizationHostState, resetOrganizationHost } from '$lib/organization/host.svelte';
-import { fakeOrganizationSession } from '$lib/platform/tests/testing';
+import { fakeOrganizationMember, fakeOrganizationSession } from '$lib/platform/tests/testing';
 import type { MemberStanding, OrganizationMember, OrganizationWorkspace } from '$lib/platform/host';
 import en from '$lib/i18n/en';
 import { toTitleCase } from '@rentable/design/title-case.js';
@@ -120,23 +120,15 @@ const workspaces: OrganizationWorkspace[] = [
 	}
 ];
 
-const member = (overrides: Partial<OrganizationMember>): OrganizationMember => ({
-	id: 'm',
-	username: 'member',
-	role: 'member',
-	permissions: 0,
-	workspaces: [],
-	createdAt: 0,
-	offeredOwnership: false,
-	...overrides
-});
+const member = (overrides: Partial<OrganizationMember>): OrganizationMember =>
+	fakeOrganizationMember(overrides);
 
 const members = [
 	member({ id: 'owner', username: 'olivia', role: 'owner' }),
 	member({
 		id: 'ada',
 		username: 'ada',
-		role: 'administrator',
+		role: 'manager',
 		workspaces: [
 			{ id: 'ws-1', access: 'full-access' },
 			{ id: 'ws-2', access: 'read-only' }
@@ -304,7 +296,7 @@ test('a card says how many workspaces are held, in one line, and names none of t
 			member({
 				id: 'ada',
 				username: 'ada',
-				role: 'administrator',
+				role: 'manager',
 				workspaces: [
 					{ id: 'ws-1', access: 'full-access' },
 					{ id: 'ws-2', access: 'read-only' }
@@ -492,7 +484,7 @@ test('the owner card offers the withdrawal in the offer place while an offer sta
 	list({
 		members: [
 			member({ id: 'owner', username: 'olivia', role: 'owner' }),
-			member({ id: 'ada', username: 'ada', role: 'administrator', offeredOwnership: true }),
+			member({ id: 'ada', username: 'ada', role: 'manager', offeredOwnership: true }),
 			member({ id: 'sami', username: 'sami' })
 		]
 	});

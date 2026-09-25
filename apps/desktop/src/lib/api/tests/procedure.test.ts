@@ -12,7 +12,7 @@ import {
 	fakeSyncState
 } from '$lib/platform/tests/testing.ts';
 import { appRouter } from '../router.ts';
-import { caller, context, procedure, router } from '../trpc.ts';
+import { caller, context, middleware, procedure, router } from '../trpc.ts';
 import { fakeIdentity, NOW } from './testing.ts';
 
 /**
@@ -284,4 +284,85 @@ test('the permissions a procedure reads are the ones the shell answered with', a
 
 	assert.equal(ctx.identity?.permissions, maskOf('renameWorkspace'));
 	assert.equal(await caller(permittedRouter)(ctx).rename(), 'renamed');
+});
+
+/**
+ * WHAT A REFUSAL SAYS
+ *
+ * **It names the flag, and says *in this workspace* only of a record flag** (effort 838,
+ * requirement 10). An organization flag is held across the organization or not at all, so a log
+ * reading *in this workspace* of one sends its reader to the wrong place. A record flag is what a
+ * workspace's grant narrows, and there the phrase is the point.
+ *
+ * The message is a developer's and never reaches a person: `FORBIDDEN` reads as its own sentence.
+ */
+const refusingRouter = router({
+	assign: procedure.member.use(middleware.requirePermission('assignRole')).query(() => 'assigned'),
+	// today's alias, which names the flag on its bit.
+	change: procedure.member.use(middleware.requirePermission('changeRole')).query(() => 'changed'),
+	pay: procedure.member.use(middleware.requirePermission('createPayment')).query(() => 'paid'),
+	either: procedure.member
+		.use(middleware.requireAnyPermission('inviteMember', 'resetPassword'))
+		.query(() => 'either'),
+	record: procedure.member
+		.use(middleware.requireAnyPermission('editPayment', 'deletePayment'))
+		.query(() => 'record')
+});
+
+async function messageFrom(call: Promise<unknown>) {
+	return await call.then(
+		() => null,
+		(error: unknown) => error as { code?: string; message?: string }
+	);
+}
+
+async function refusingFor(permissions: number) {
+	const ctx = await context({
+		db: createMemoryDatabase(),
+		clock: { now: () => NOW },
+		host: fakeHost(),
+		identity: fakeIdentity({ permissions })
+	});
+
+	return caller(refusingRouter)(ctx);
+}
+
+test('a refusal of an organization flag names it and does not say in this workspace', async () => {
+	const api = await refusingFor(0);
+
+	for (const [call, flag] of [
+		[api.assign(), 'assignRole'],
+		[api.change(), 'assignRole'],
+		[api.either(), 'inviteMember, resetPassword']
+	] as const) {
+		const refusal = await messageFrom(call);
+
+		assert.equal(refusal?.code, 'FORBIDDEN');
+		assert.ok(refusal?.message?.includes(flag), `${refusal?.message} did not name ${flag}`);
+		assert.ok(
+			!refusal?.message?.includes('in this workspace'),
+			`${refusal?.message} placed an organization flag in a workspace`
+		);
+	}
+});
+
+test('a refusal of a record flag names it, in this workspace', async () => {
+	const api = await refusingFor(maskOf('assignRole'));
+
+	for (const [call, flag] of [
+		[api.pay(), 'createPayment'],
+		[api.record(), 'editPayment, deletePayment']
+	] as const) {
+		const refusal = await messageFrom(call);
+
+		assert.equal(refusal?.code, 'FORBIDDEN');
+		assert.equal(
+			refusal?.message?.endsWith(`${flag} in this workspace`),
+			true,
+			`${refusal?.message}`
+		);
+	}
+
+	// and it names only what is missing: the flag the caller does hold is not in it.
+	assert.equal(await api.assign(), 'assigned');
 });

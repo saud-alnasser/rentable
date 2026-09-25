@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [07]
 ---
 
@@ -16,15 +16,15 @@ router and the interface within one sync heartbeat.
 
 Traces requirements 8 and 10 of [[efforts/838-permissions-are-a-role-and-an-override/spec]], and criteria 8 and 10.
 
-- [ ] `SessionFacts` and `OrganizationMember` gain `roleId`, `roleName`, `rank` and `override`;
+- [x] `SessionFacts` and `OrganizationMember` gain `roleId`, `roleName`, `rank` and `override`;
       `permissions` is effective; `RoleFacts` crosses from `organization_roles`; the TS types in
       `platform/host.ts` match, and nothing about a certificate crosses.
-- [ ] `actingIdentity` sets `permissions` to `effectiveIn(session.permissions, accessLevel)` for the
+- [x] `actingIdentity` sets `permissions` to `effectiveIn(session.permissions, accessLevel)` for the
       current workspace; on a read-only grant every `WRITE_FLAGS` bit is clear (criterion 10).
-- [ ] After a heartbeat pull the organization state and the context's identity are re-read; a test
+- [x] After a heartbeat pull the organization state and the context's identity are re-read; a test
       changes the host's state across a heartbeat and the next call's permissions follow it
       (criterion 8).
-- [ ] `requirePermission`'s refusal names the flag and does not say "in this workspace" for an
+- [x] `requirePermission`'s refusal names the flag and does not say "in this workspace" for an
       organization flag.
 
 ## Relevant areas

@@ -20,9 +20,6 @@ export const MEMBER_SORTS = ['username', 'role'] as const;
 /** the orders the workspaces directory offers. */
 export const WORKSPACE_SORTS = ['name', 'members'] as const;
 
-// the order the role table and the sign-in screen read them in: the most authority first.
-const ROLE_RANK: Record<string, number> = { owner: 0, administrator: 1, member: 2 };
-
 /** the direction a sort asks for, as a factor on a comparison. */
 const factorOf = (sort: ListSort) => (sort.direction === 'asc' ? 1 : -1);
 
@@ -63,7 +60,9 @@ export function toMemberDirectory(
 
 	return [...found].sort((one, other) => {
 		if (sort.columnId === 'role') {
-			const byRole = (ROLE_RANK[one.role] ?? 99) - (ROLE_RANK[other.role] ?? 99);
+			// the most authority first: the rank the member's role stands at, which orders a custom
+			// role between the member and the manager as the roles list does.
+			const byRole = other.rank - one.rank;
 
 			if (byRole !== 0) {
 				return byRole * factor;

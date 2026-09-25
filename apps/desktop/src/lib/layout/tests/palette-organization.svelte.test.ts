@@ -12,6 +12,7 @@ import {
 } from '$lib/organization/host.svelte';
 import type { MemberStanding, OrganizationMember, OrganizationSession } from '$lib/platform/host';
 import {
+	fakeOrganizationMember,
 	fakeOrganizationSession,
 	fakeOrganizationWorkspace,
 	fakeSyncState,
@@ -73,19 +74,11 @@ vi.mock('$lib/settings/query', async (importOriginal) => ({
 	})
 }));
 
-const member = (overrides: Partial<OrganizationMember>): OrganizationMember => ({
-	id: 'm',
-	username: 'member',
-	role: 'member',
-	permissions: 0,
-	workspaces: [],
-	createdAt: 0,
-	offeredOwnership: false,
-	...overrides
-});
+const member = (overrides: Partial<OrganizationMember>): OrganizationMember =>
+	fakeOrganizationMember(overrides);
 
 const olivia = member({ id: 'owner', username: 'olivia', role: 'owner' });
-const ada = member({ id: 'ada', username: 'ada', role: 'administrator' });
+const ada = member({ id: 'ada', username: 'ada', role: 'manager' });
 const sami = member({ id: 'sami', username: 'sami' });
 
 beforeEach(() => {
@@ -120,7 +113,7 @@ const readAsAda = () => {
 	answers.session = fakeOrganizationSession({
 		memberId: 'ada',
 		username: 'ada',
-		role: 'administrator',
+		role: 'manager',
 		permissions: maskOf('resetPassword')
 	});
 };
