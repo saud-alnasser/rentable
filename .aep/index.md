@@ -129,7 +129,7 @@ Start at [[protocol]].
 | 826-the-organization-and-the-way-in-are-rethought | implemented | [[efforts/826-the-organization-and-the-way-in-are-rethought/spec]] | 2 | 1 | 22 |
 | 828-the-link-needs-a-code-and-the-settings-area-guides | implemented | [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]] | 5 | 0 | 29 |
 | 832-the-interface-speaks-one-language-and-guides | accepted | [[efforts/832-the-interface-speaks-one-language-and-guides/spec]] | 3 | 4 | 43 |
-| 835-the-rent-is-receipted-scheduled-and-chased | accepted | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]] | 1 | 0 | 8 |
+| 835-the-rent-is-receipted-scheduled-and-chased | accepted | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]] | 1 | 0 | 9 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -325,3 +325,4 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/06-every-payment-has-a-receipt]] feat(payment): every payment has a receipt | 835-the-rent-is-receipted-scheduled-and-chased | open | 01, 03, 05 |
 | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/07-what-falls-due-this-week-is-on-the-landing-screen]] feat(contract): what falls due this week is on the landing screen | 835-the-rent-is-receipted-scheduled-and-chased | resolved | 01 |
 | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/08-a-tenant-is-reminded-on-whatsapp]] feat(contract): a tenant is reminded on WhatsApp | 835-the-rent-is-receipted-scheduled-and-chased | resolved | 07 |
+| [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/09-the-contract-context-names-payment-details-and-the-reminder]] docs(desktop): the contract context names payment details and the reminder | 835-the-rent-is-receipted-scheduled-and-chased | resolved | 03, 08 |

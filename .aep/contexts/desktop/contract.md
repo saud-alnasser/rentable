@@ -19,7 +19,10 @@ cost per interval.
 
 **Payment**:
 An amount received against a contract on a date. Recorded, never derived — payments are
-the input the whole status model is computed from.
+the input the whole status model is computed from. A payment may also say how it was paid (its
+_method_: cash, bank transfer, cheque or Ejar), the transfer, cheque or SADAD number it was made
+under (its _reference_, which is what a payment is searched by), and a note; each is optional and
+reads as not recorded where it was not.
 
 **Assignment**:
 The link between a contract and a unit. A unit may be held by at most one non-terminated
@@ -54,6 +57,12 @@ payment's identity, never by a sequence, and states the cycles the payment cover
 _allocation_ and what remains of the _total cost_ after it. Read on demand from the payment as it
 stands (`contract.payments.receipt`) and never stored. It is not a tax invoice.
 _Avoid_: invoice (فاتورة), which it is not
+
+**Reminder**:
+A message to a contract's tenant about the rent, opened in WhatsApp already written, in the
+language the application is showing, naming the tenant, the amount, the date and the units.
+Offered on a contract that is _overdue_, _owing_ or _due soon_, never on a terminated one. The
+landlord reads it and sends it; the application sends nothing and records nothing about it.
 
 **Cost**:
 The amount owed _per interval_, never the contract total. Prefer the fuller reading
