@@ -43,7 +43,7 @@ import { get } from 'svelte/store';
  * again on the signed row.
  *
  * **A reader's gates are known before a record is named**, which is where these two differ from a
- * contract. So an act is offered only where it applies to somebody (an administrator without
+ * contract. So an act is offered only where it applies to somebody (a manager without
  * `removeMember` is never offered *remove*), and once one is chosen the menu lists only the records
  * it applies to (nobody is offered their own card to remove). An act that applies but is waiting on
  * a write already running is listed and refused, with the reason, as a card's menu refuses it.

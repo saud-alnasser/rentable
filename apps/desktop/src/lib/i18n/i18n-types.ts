@@ -4140,6 +4140,10 @@ type RootTranslation = {
 			 */
 			add: string
 			/**
+			 * r​a​n​k
+			 */
+			rank: string
+			/**
 			 * h​e​l​d​ ​b​y​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​m​e​m​b​e​r​|​m​e​m​b​e​r​s​}​}
 			 * @param {string | number | boolean} count
 			 */
@@ -8301,6 +8305,10 @@ export type TranslationFunctions = {
 			 * add a role
 			 */
 			add: () => LocalizedString
+			/**
+			 * rank
+			 */
+			rank: () => LocalizedString
 			/**
 			 * held by {count|number} {{member|members}}
 			 */

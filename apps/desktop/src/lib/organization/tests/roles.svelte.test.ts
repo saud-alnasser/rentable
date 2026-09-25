@@ -1,4 +1,4 @@
-import { fireEvent, render, waitFor } from '@testing-library/svelte';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { beforeEach, expect, test, vi } from 'vitest';
 
 import { setLocale } from '$lib/i18n/i18n-svelte';
@@ -8,8 +8,19 @@ import { organizationHostState, resetOrganizationHost } from '$lib/organization/
 import { fakeOrganizationRoles, fakeOrganizationSession } from '$lib/platform/tests/testing';
 import en from '$lib/i18n/en';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
+import { expectCreateControlLast } from '$lib/design/tests/create-control';
+import { BAR_CONTROL, expectBarOrder } from '$lib/design/tests/set-bar';
+import {
+	pastTheWait,
+	pressSearchKey,
+	searchField,
+	searchGlass,
+	typeSearch
+} from '$lib/design/tests/search';
 import type { RoleReader } from '$lib/organization/acts';
 import { BUILT_IN, maskOf } from '@rentable/workspace-permission';
+
+import { layOutLists } from '#tests/permission.ts';
 
 import { hostAnswers, resetHostAnswers } from './host-hooks';
 import HostProviders from './host-providers.svelte';
@@ -58,10 +69,10 @@ const OWNER: RoleReader = {
 	permissions: BUILT_IN.owner.mask
 };
 
-const block = (reader = OWNER) =>
+const block = (reader = OWNER, answersSearchKey?: boolean) =>
 	render(
 		Roles,
-		{ roles: fakeOrganizationRoles(), reader },
+		{ roles: fakeOrganizationRoles(), reader, answersSearchKey },
 		{ wrapper: HostProviders, wrapperProps: { strings, direction: 'ltr' as const } }
 	);
 
@@ -80,11 +91,7 @@ const openTo = async (id: string, act: string) => {
 
 /** the reason an unavailable entry gives, read through the tooltip it opens on focus. */
 const reasonOf = async (target: HTMLElement) => {
-	window.ResizeObserver ??= class {
-		observe() {}
-		unobserve() {}
-		disconnect() {}
-	} as unknown as typeof ResizeObserver;
+	layOutLists();
 
 	await fireEvent.focus(target);
 
@@ -369,8 +376,8 @@ test('in the editor, a flag the reader does not hold is refused on its row', asy
 	expect(document.querySelector('#role-flag-deletePayment')?.hasAttribute('disabled')).toBe(false);
 });
 
-// [[rules/interface]], *Row activation*: a card opens its record, which for a role is its editor
-// on this section's address.
+// [[rules/interface]], *Row activation*, and its noted deviation for the settings directories: a
+// card opens its record, and a role's page is its editor, on this section's address.
 test('a card opens its role on the section address', () => {
 	block();
 
@@ -387,4 +394,92 @@ test('the address naming a role opens its editor, and is cleared', async () => {
 		expect(organizationHostState.role.editing?.role.id).toBe('collector');
 	});
 	expect(address.url.searchParams.get('role')).toBeNull();
+});
+
+// --- The bar: search, order and create ([[rules/interface]], *Search*, *Sort* and *Create*) ------
+
+/** the roles the block is showing, by id, in the order it shows them. */
+const shownRoles = () =>
+	Array.from(document.querySelectorAll('[data-role]')).map((role) =>
+		role.getAttribute('data-role')
+	);
+
+/** choose one of the orders the bar's sort control offers. */
+const orderBy = async (label: string) => {
+	// named for the order it holds once one is chosen, so it is found by the words it starts with.
+	await fireEvent.click(
+		screen.getByRole('button', { name: new RegExp(`^${en.common.actions.sortBy}`) })
+	);
+
+	const item = Array.from(document.querySelectorAll('[data-slot=dropdown-menu-item]')).find(
+		(offered) => offered.textContent?.trim() === label
+	);
+
+	await fireEvent.click(item!);
+};
+
+// ticket 19 of effort 838: the block opens with the settings directories' tray, and its bar is the
+// list shell's, in the list shell's order, with the create last.
+test('the block opens with the directory bar: search, count, order, and the create last', () => {
+	block();
+
+	const tray = document.querySelector('[data-directory-tray]')!;
+
+	expect(tray.querySelector('#roles-legend')?.textContent?.trim()).toBe(
+		en.organization.roleList.title
+	);
+	expect(tray.contains(searchField())).toBe(true);
+	expect(searchGlass()).not.toBeNull();
+	expectBarOrder([BAR_CONTROL.search, BAR_CONTROL.count, BAR_CONTROL.sort, BAR_CONTROL.create]);
+	expectCreateControlLast();
+	expect(document.querySelector('[data-role-add]')?.hasAttribute('data-create-control')).toBe(true);
+});
+
+test('a role is found by its name, and a search that finds none says so', async () => {
+	block();
+
+	await typeSearch('coll');
+	await pastTheWait();
+	expect(shownRoles()).toEqual(['collector']);
+
+	// a built-in role is found by what the reader's language calls it.
+	await typeSearch(en.layout.signIn.roleManager);
+	await pastTheWait();
+	expect(shownRoles()).toEqual(['manager']);
+
+	await typeSearch('nothing-called-this');
+	await pastTheWait();
+	expect(shownRoles()).toEqual([]);
+	expect(
+		document.querySelector('[data-directory-no-match] [data-empty]')?.getAttribute('data-empty')
+	).toBe('no-match');
+});
+
+test('the order is the rank until another is chosen, and the name is the other', async () => {
+	block();
+
+	expect(shownRoles()).toEqual(['owner', 'manager', 'supervisor', 'collector', 'member']);
+
+	await orderBy(en.common.labels.name);
+	// the built-in roles are ordered by what the reader's language calls them.
+	expect(shownRoles()).toEqual(['collector', 'manager', 'member', 'owner', 'supervisor']);
+
+	await orderBy(en.organization.roleList.rank);
+	expect(shownRoles()).toEqual(['owner', 'manager', 'supervisor', 'collector', 'member']);
+
+	await orderBy(en.organization.roleList.rank);
+	expect(shownRoles()).toEqual(['member', 'collector', 'supervisor', 'manager', 'owner']);
+});
+
+// a section answers the search key once: where the members directory is drawn beside the roles,
+// the key is that directory's, and the roles field is reached by pointer or tab.
+test('the search key reaches the roles field unless the section gives it to the people', async () => {
+	block();
+	await pressSearchKey();
+	expect(document.activeElement).toBe(searchField());
+
+	cleanup();
+	block(OWNER, false);
+	await pressSearchKey();
+	expect(document.activeElement).not.toBe(searchField());
 });

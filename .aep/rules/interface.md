@@ -176,10 +176,16 @@ Recorded originally as ADR 0013, *Each list gets the presentation its data is sh
 **Every set a person can search searches one way: `design/block/search-field.svelte`.** A leading
 search glass, a wait of 250 ms after the last keystroke before the term becomes the search, and
 `/` to put the cursor in the field from anywhere on the surface. The list shell draws it, the
-contract's unit panes draw it, and the settings members and workspaces directories draw it, and a
-set added later draws it rather than an input of its own. The key is registered by the field, so
-it exists exactly where there is something to search, and it stands down while text is being
-typed.
+contract's unit panes draw it, and the settings members, roles and workspaces directories draw it,
+and a set added later draws it rather than an input of its own. The key is registered by the field,
+so it exists exactly where there is something to search, and it stands down while text is being
+typed. **A surface answers the key once**: where it draws two sets, the one a reader searches
+holds it and the other's field is reached by pointer or by tab (`answersSearchKey`). The
+organization section's members directory holds it where it is drawn, since a dozen people are
+searched and a handful of roles are read, and the roles block holds it where the members
+directory is not drawn. *The settings directories were members and workspaces, one to a section,
+until ticket 19 of [[efforts/838-permissions-are-a-role-and-an-override/spec]] gave the roles
+block the bar and put two sets on one section.*
 
 **A set drawn as a directory opens with the list shell's own bar,
 `design/block/list-toolbar.svelte`**: the field at one end, and at the other the count, what
@@ -269,12 +275,18 @@ know which surface they are on before they know what will happen.*
 Recorded originally as ADR 0025, *A row opens its record, and does nothing else*.
 
 *Noted 2026-09-17, an accepted deviation: **in the settings directories a record's page is its
-sheet.** A member and a workspace have no page of their own, so the card in the members directory
-and in the workspaces directory opens the record's edit sheet on the same address
-(`?section=organization&member=<id>`, `?section=workspaces&workspace=<id>`), and does nothing
-else; the acts are still explicit controls on the card. Requirement 23 of
+sheet.** A member, a role and a workspace have no page of their own, so the card in the members,
+roles and workspaces directories opens the record's edit sheet on the same address
+(`?section=organization&member=<id>`, `?section=organization&role=<id>`,
+`?section=workspaces&workspace=<id>`), and does nothing else; the acts are still explicit controls
+on the card. Requirement 23 of
 [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]] is the precedent, and the
 human accepted it at that effort's review round two on 2026-09-17.*
+
+*The deviation named the members and workspaces directories alone until ticket 19 of
+[[efforts/838-permissions-are-a-role-and-an-override/spec]] added the roles directory beside them,
+for the same reason: a role became a record of the organization's own with that effort, and what
+opening it means is its editor (`organization/component/roles.svelte`).*
 
 *Kept by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 8: the two
 directories declare their acts in `organization/acts.ts` like every concept (*Record card actions*,
@@ -590,8 +602,13 @@ Recorded originally as ADR 0017, *A form surface is one component that presents 
 
 **A concept's weight is decided by its create form, and holds for edit.** It is **heavy** when the
 form chooses other records or writes more than one record (contract, complex with its units, tenant
-with its phone composite, member), and **light** otherwise (payment, unit, rename, password). So a
-complex is heavy for both create and edit, and a concept never opens on two presentations.
+with its phone composite, member, role), and **light** otherwise (payment, unit, rename, password).
+So a complex is heavy for both create and edit, and a concept never opens on two presentations.
+**A role is heavy although its form holds one name and one set of flags** (`role-editor.svelte`):
+a new mask moves the permissions of everybody holding the role, so its save issues every
+holder's certificate again in the same act, and the form writes as many records as the role has
+holders. *The editor declared the weight before this paragraph named it; ticket 19 of
+[[efforts/838-permissions-are-a-role-and-an-override/spec]] wrote down why.*
 
 **A member's two sheets share one layout.** The sheet that adds a member
 (`organization/component/account-form.svelte`) and the sheet that edits one (`member-sheet.svelte`)

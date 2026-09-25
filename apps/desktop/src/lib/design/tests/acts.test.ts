@@ -4,7 +4,7 @@ import { mock, test } from 'node:test';
 import { i18nObject } from '$lib/i18n/i18n-util.ts';
 import { loadLocale } from '$lib/i18n/i18n-util.sync.ts';
 import { ContractSchema } from '$lib/platform/database/schema.ts';
-import { fakeOrganizationMember } from '$lib/platform/tests/testing.ts';
+import { fakeOrganizationMember, fakeOrganizationRoles } from '$lib/platform/tests/testing.ts';
 
 /**
  * Requirement 8 of effort 832, criterion 8: a record's acts are declared once, and the card's menu
@@ -570,7 +570,6 @@ const { declareMemberActs, declareRoleActs, declareWorkspaceActs } =
 	await import('$lib/organization/acts');
 const { BUILT_IN } = await import('@rentable/workspace-permission');
 type RoleActRecord = import('$lib/organization/acts').RoleActRecord;
-type OrganizationRole = import('$lib/platform/host').OrganizationRole;
 type MemberActRecord = import('$lib/organization/acts').MemberActRecord;
 type MemberActContext = import('$lib/organization/acts').MemberActContext;
 type WorkspaceActRecord = import('$lib/organization/acts').WorkspaceActRecord;
@@ -989,28 +988,9 @@ test('the edit on the reader own card is refused as their own, and a card at the
 	);
 });
 
-const roleOf = (overrides: Partial<OrganizationRole> & { id: string }): OrganizationRole => ({
-	kind: 'custom',
-	name: overrides.id,
-	mask: BUILT_IN.member.mask,
-	rank: 500_000,
-	holders: 0,
-	...overrides
-});
-
-const ROLES: OrganizationRole[] = [
-	roleOf({ id: 'owner', kind: 'owner', name: '', mask: BUILT_IN.owner.mask, rank: 2_000_000 }),
-	roleOf({
-		id: 'manager',
-		kind: 'manager',
-		name: '',
-		mask: BUILT_IN.manager.mask,
-		rank: 1_000_000
-	}),
-	roleOf({ id: 'supervisor', rank: 750_000 }),
-	roleOf({ id: 'collector', rank: 250_000 }),
-	roleOf({ id: 'member', kind: 'member', name: '', rank: 0 })
-];
+// the roles an organization lists, from the shared builder: the three every organization has,
+// and a supervisor and a collector it made between the manager and the member.
+const ROLES = fakeOrganizationRoles();
 
 /** A host that records what each role act asked of it. */
 function recordingRoleHost() {

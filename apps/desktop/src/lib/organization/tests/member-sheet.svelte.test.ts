@@ -187,10 +187,10 @@ test('the role chooser offers every role but the owner, and refuses one not belo
 	// the manager reading: the manager's own role is at their rank, not below it.
 	expect(roleOption('manager')?.hasAttribute('data-disabled')).toBe(true);
 	expect(roleOption('supervisor')?.hasAttribute('data-disabled')).toBe(false);
-	// and the tray says why, where every reader can read it.
-	expect(section('role')?.querySelector('[data-role-refusal]')?.textContent?.trim()).toBe(
-		en.organization.dashboard.roleOutOfReach
-	);
+	// and the tray says why, inside it and under the control, where every reader can read it.
+	expect(
+		section('role')?.querySelector('[data-sheet-tray] [data-role-refusal]')?.textContent?.trim()
+	).toBe(en.organization.dashboard.roleOutOfReach);
 });
 
 // requirement 12: role, override and result, flag by flag, for a flag the override flips each
@@ -275,7 +275,9 @@ test('a flag the reader does not hold is refused on its row, saying so', () => {
 test('a section whose flag the reader lacks is drawn, refused, naming the flag', () => {
 	sheet({ canAssignRole: false, canOverride: false });
 
-	expect(section('role')?.querySelector('[data-role-refusal]')?.textContent?.trim()).toBe(
+	expect(
+		section('role')?.querySelector('[data-sheet-tray] [data-role-refusal]')?.textContent?.trim()
+	).toBe(
 		en.organization.dashboard.lacksFlag.replace('{flag:string}', en.organization.flags.assignRole)
 	);
 	expect(roleTrigger().hasAttribute('disabled')).toBe(true);

@@ -8,6 +8,11 @@
 	 * route is handed in as a component and its props, so one fixture draws the settings area and a
 	 * record page alike. The three providers are the ones `routes/+layout.svelte` and the frame put
 	 * above every screen, nested the same way round.
+	 *
+	 * **Here rather than in `layout/tests/`** because the tests of several modules render it: the
+	 * layout's own, and every record concept's permission tests through `permission.ts`'s
+	 * `openPalette` ([[rules/testing]], *Component tests*). A test reaches it as
+	 * `#tests/palette-harness.svelte`. *It lived in `layout/tests/` until ticket 19 of effort 838.*
 	 */
 	import LayoutPalette from '$lib/layout/component/palette.svelte';
 	import LayoutShortcutListener from '$lib/layout/component/shortcut-listener.svelte';

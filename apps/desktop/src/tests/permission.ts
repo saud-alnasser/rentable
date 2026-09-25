@@ -6,7 +6,7 @@
 import { fireEvent, render, waitFor } from '@testing-library/svelte';
 import { expect } from 'vitest';
 
-import PaletteHarness from '$lib/layout/tests/palette-harness.svelte';
+import PaletteHarness from './palette-harness.svelte';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import { memberPermissions, type RecordFlag } from '$lib/workspace/permission';
 import { usesAppleKeyboard } from '@rentable/design/shortcut.js';
@@ -64,7 +64,9 @@ export const paletteRow = (value: string) =>
 
 /**
  * jsdom lays nothing out, so a list's viewport is given a size its virtualiser can fill, and what a
- * list measures itself with is filled in where it is missing.
+ * list measures itself with is filled in where it is missing. A tooltip is placed against its
+ * trigger with the same `ResizeObserver`, so a test reading a reason from one calls this too, and
+ * no test stands in one of its own.
  */
 export function layOutLists() {
 	Element.prototype.scrollIntoView ??= () => {};

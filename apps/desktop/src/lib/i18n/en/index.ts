@@ -1408,6 +1408,7 @@ const en = {
 			description:
 				"what each kind of person may do, highest first. a member's own card can change it for them alone.",
 			add: 'add a role',
+			rank: 'rank',
 			heldBy: 'held by {count|number} {{member|members}}',
 			heldByNobody: 'nobody holds it yet',
 			carriesNothing: 'nothing yet',

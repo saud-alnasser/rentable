@@ -181,7 +181,9 @@ test('a maker gives no role at or above their own, and no flag they do not hold'
 	expect(disabled('collector')).toBe(false);
 	expect(disabled('member')).toBe(false);
 	expect(
-		document.querySelector('[data-sheet-section="role"] [data-role-refusal]')?.textContent?.trim()
+		document
+			.querySelector('[data-sheet-section="role"] [data-sheet-tray] [data-role-refusal]')
+			?.textContent?.trim()
 	).toBe(en.organization.dashboard.roleOutOfReach);
 
 	expect(document.querySelector('#account-override-deletePayment')?.hasAttribute('disabled')).toBe(

@@ -8,6 +8,7 @@ import {
 	forgetReader,
 	holdEveryFlagBut,
 	holdReadOnly,
+	layOutLists,
 	openPalette,
 	paletteRow
 } from '#tests/permission.ts';
@@ -63,14 +64,9 @@ beforeEach(() => {
 	loadLocale('en');
 	setLocale('en');
 
-	window.ResizeObserver = class {
-		observe() {}
-		unobserve() {}
-		disconnect() {}
-	} as unknown as typeof ResizeObserver;
-
-	// the command list brings its first row into view as it opens, which jsdom cannot do.
-	Element.prototype.scrollIntoView = () => {};
+	// the command list brings its first row into view as it opens, and measures itself, neither of
+	// which jsdom can do.
+	layOutLists();
 });
 
 afterEach(() => {

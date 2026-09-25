@@ -17,11 +17,12 @@
 	 * other end, until effort 832 gave it the search; the name and sentence now head the section
 	 * above the bar, which is where a record page's title sits over its own.*
 	 *
-	 * **Two sections draw it**, members and workspaces, so it takes what differs as props and
-	 * nothing else: the legend, the sentence under it, the search and order the section holds, and
-	 * whatever stands at the end of the bar.
-	 * That is one concept's two surfaces rather than two concepts, which is what keeps it here
-	 * beside them rather than in the design package ([[rules/frontend]], *Components*).
+	 * **Three directories draw it**, members, roles and workspaces, so it takes what differs as props
+	 * and nothing else: the legend, the sentence under it, the search and order the section holds,
+	 * and whatever stands at the end of the bar. That is one concept's surfaces rather than three
+	 * concepts, which is what keeps it here beside them rather than in the design package
+	 * ([[rules/frontend]], *Components*). *It was two, members and workspaces, until ticket 19 of
+	 * effort 838 gave the roles block the bar.*
 	 *
 	 * **The legend is named from here and the fieldset points at it.** A rendered `legend` is
 	 * taken out of its fieldset's own layout and cannot stand on a line with anything, so it is
@@ -41,6 +42,7 @@
 		legend,
 		description,
 		search = $bindable(''),
+		answersSearchKey = true,
 		count,
 		sortOptions,
 		sort = $bindable(null),
@@ -55,6 +57,8 @@
 		description: string;
 		/** the search the directory narrows its cards by, already debounced by the field. */
 		search?: string;
+		/** whether the field answers `/`, which a section drawing two directories gives one of them. */
+		answersSearchKey?: boolean;
 		/** how many cards the directory is showing. */
 		count: number;
 		/** the orders the directory offers. */
@@ -77,7 +81,7 @@
 		<Field.Description data-directory-description>{description}</Field.Description>
 	</div>
 
-	<ListToolbar bind:search {count} {sortOptions} bind:sort {narrowing}>
+	<ListToolbar bind:search {answersSearchKey} {count} {sortOptions} bind:sort {narrowing}>
 		{@render action?.()}
 	</ListToolbar>
 </div>

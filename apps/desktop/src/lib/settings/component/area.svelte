@@ -433,8 +433,10 @@
 			{/if}
 
 			<!-- the roles, before the people who hold them: what each kind of person may do, read by
-			     everybody and changed by whoever holds the flag to (effort 838, requirement 12). -->
-			<OrganizationRoles {roles} reader={roleReaderOf(session)} />
+			     everybody and changed by whoever holds the flag to (effort 838, requirement 12). The
+			     section answers the search key once, and where the people are drawn below, it is
+			     theirs, the set a reader searches ([[rules/interface]], *Search*). -->
+			<OrganizationRoles {roles} reader={roleReaderOf(session)} answersSearchKey={!administers} />
 
 			<Separator />
 
@@ -479,8 +481,8 @@
 		<Field.Group>
 			<!-- the list owns its own legend, its rows' surfaces and the transfer beneath it; what is
 			     decided here is what this reader may do. The refusal is the rail's own sentence, and
-			     it is drawn for an owner whose machine lost the authority alone: an administrator
-			     never had a create to be refused, so a sentence saying whose it is would be
+			     it is drawn for an owner whose machine lost the authority alone: nobody else ever
+			     had a create to be refused, so a sentence saying whose it is would be
 			     announcing something missing. -->
 			<OrganizationWorkspaces
 				workspaces={session.workspaces}

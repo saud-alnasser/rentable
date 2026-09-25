@@ -21,10 +21,11 @@
 	 * owner's role is never offered: ownership moves a key and two rows, and is handed over by its
 	 * own act on the owner's own card.
 	 *
-	 * **A role the reader may not give is drawn refused, never removed, and the tray says why**:
-	 * a role at or above the reader's own rank is given by somebody above it (requirement 7). Where
-	 * the reader may not give a role at all, the whole control is refused with the reason the
-	 * caller hands in: the flag they lack, or that the card is their own.
+	 * **A role the reader may not give is drawn refused, never removed, and the tray says why**: a
+	 * role at or above the reader's own rank is given by somebody above it (requirement 7). Where the
+	 * reader may not give a role at all, the whole control is refused with the reason the caller
+	 * hands in: the flag they lack, or that the card is their own. The reason stands in the tray,
+	 * under the control it is about. *It stood under the tray until ticket 19 of effort 838.*
 	 *
 	 * **The tray is the directory's shape on a surface that is not a page** (the human's second
 	 * look, effort 828): a card-coloured bar would be wrong inside a panel that is already one, so
@@ -109,15 +110,17 @@
 		{#if chosen && roleWhoOf($LL, chosen.kind)}
 			<Field.Description data-role-who>{roleWhoOf($LL, chosen.kind)}</Field.Description>
 		{/if}
-	</div>
 
-	{#if refusal}
-		<Field.Description data-role-refusal>{refusal}</Field.Description>
-	{:else if anyOutOfReach}
-		<Field.Description data-role-refusal>
-			{$LL.organization.dashboard.roleOutOfReach()}
-		</Field.Description>
-	{/if}
+		<!-- why, in the tray beside the control it is about: the whole choice where the reader may
+		     make none, or the roles drawn refused in the list. -->
+		{#if refusal}
+			<Field.Description data-role-refusal>{refusal}</Field.Description>
+		{:else if anyOutOfReach}
+			<Field.Description data-role-refusal>
+				{$LL.organization.dashboard.roleOutOfReach()}
+			</Field.Description>
+		{/if}
+	</div>
 
 	{#if error}
 		<Field.Error data-sheet-error="role">{error}</Field.Error>

@@ -779,7 +779,7 @@ export type Host = {
 			linkMake: (memberId: string) => Promise<MadeLink>;
 			/**
 			 * unset a member's password: a fresh vault under a fresh secret, everything the
-			 * resetting administrator reaches re-sealed to it, and the requirement to choose a
+			 * resetting member reaches re-sealed to it, and the requirement to choose a
 			 * password set, so the next link asks for one. The answer names the workspaces it
 			 * could not restore, and the member's permissions are kept. The member's previous
 			 * password is not needed and not learned.
@@ -841,7 +841,7 @@ export type Host = {
 			endSessions: (memberId: string) => Promise<SessionsEnded>;
 			/**
 			 * rename a member: their row written back with the username re-sealed and signed by
-			 * whoever renamed them. The owner's or an administrator's, on any row but their own;
+			 * whoever renamed them. Open to a holder of `renameMember`, on a row below their rank;
 			 * the username is held to the rules and the uniqueness an invitation's is. What comes
 			 * back is the member as the list shows them.
 			 */

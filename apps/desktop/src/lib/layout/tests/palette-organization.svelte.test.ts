@@ -21,7 +21,7 @@ import {
 import { usesAppleKeyboard } from '@rentable/design/shortcut.js';
 import { maskOf } from '@rentable/workspace-permission';
 
-import PaletteHarness from './palette-harness.svelte';
+import PaletteHarness from '#tests/palette-harness.svelte';
 
 /**
  * A MEMBER'S AND A WORKSPACE'S ACTS, IN THE COMMAND MENU
@@ -108,7 +108,7 @@ afterEach(() => {
 	resetOrganizationHost();
 });
 
-/** ada, an administrator whose row carries the reset and nothing else. */
+/** ada, a manager whose row carries the reset and nothing else. */
 const readAsAda = () => {
 	answers.session = fakeOrganizationSession({
 		memberId: 'ada',
@@ -169,8 +169,8 @@ test('a member act the reader may not take is not offered', async () => {
 	await waitFor(() => expect(row('member.makeLink')).not.toBeNull());
 	expect(row('member.endSessions')).not.toBeNull();
 
-	// ada's row carries neither removeMember, renameMember, changeRole nor grantWorkspace, and the
-	// handover is the owner's alone.
+	// ada's row carries neither removeMember, renameMember, assignRole, overrideMember nor
+	// grantWorkspace, and the handover is the owner's alone.
 	for (const act of [
 		'member.edit',
 		'member.remove',

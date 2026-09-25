@@ -30,6 +30,8 @@ import {
 } from '$lib/design/tests/search';
 import { BUILT_IN, maskOf } from '@rentable/workspace-permission';
 
+import { layOutLists } from '#tests/permission.ts';
+
 import { hostAnswers, resetHostAnswers } from './host-hooks';
 import HostProviders from './host-providers.svelte';
 
@@ -247,14 +249,10 @@ const usernameInput = () => document.querySelector<HTMLInputElement>('input[name
 /**
  * the reason an unavailable entry gives, read the way a person reaches it: the entry takes the
  * focus and its tooltip says why. The tooltip is placed against its trigger, and jsdom implements
- * no `ResizeObserver`, so one that observes nothing stands in.
+ * no `ResizeObserver`, so the shared one that observes nothing stands in.
  */
 const reasonOf = async (entry: HTMLElement) => {
-	window.ResizeObserver ??= class {
-		observe() {}
-		unobserve() {}
-		disconnect() {}
-	} as unknown as typeof ResizeObserver;
+	layOutLists();
 
 	await fireEvent.focus(entry);
 
@@ -453,7 +451,7 @@ test('an address naming nobody opens nothing and navigates nowhere', () => {
 	expect(navigations).toEqual([]);
 });
 
-// criterion 19: each act sits behind its own act. The owner reading holds all seven, so every act
+// criterion 19: each act sits behind its own flag. The owner reading holds every flag, so every act
 // is on every card but their own.
 test('the owner sees every act on every card but their own', async () => {
 	list();
@@ -477,7 +475,7 @@ test('the owner sees every act on every card but their own', async () => {
 });
 
 // requirement 19: the owner's account is removed by nobody and edited by nobody but the owner, so
-// an administrator meets a card with no menu at all and no gesture behind it.
+// a manager meets a card with no menu at all and no gesture behind it.
 test('the owner card carries a manager nothing, and is drawn with no menu', async () => {
 	list({ isOwner: false, canLockOut: false, selfId: 'ada' });
 
@@ -531,9 +529,9 @@ test('the owner card offers the withdrawal in the offer place while an offer sta
 	expect(surface()).toBeNull();
 });
 
-// and it is the owner's: an administrator reading the owner's card still meets no menu at all,
+// and it is the owner's: a manager reading the owner's card still meets no menu at all,
 // which is the card requirement 19 leaves empty for everybody but its holder.
-test('an administrator meets no transfer on the owner card', async () => {
+test('a manager meets no transfer on the owner card', async () => {
 	list({ isOwner: false, canLockOut: false, selfId: 'ada' });
 
 	expect(control('owner')).toBeNull();

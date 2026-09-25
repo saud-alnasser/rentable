@@ -23,8 +23,10 @@
 	 * One role: what it is called and what everybody holding it may do (effort 838, requirements 4
 	 * and 12). It makes a role and edits one.
 	 *
-	 * **Heavy: the edge panel, a tray on top and the records below** ([[rules/interface]], *Form
-	 * surface*), the shape a member's sheet has. The tray is the role's name, the one fact about
+	 * **Heavy: the edge panel, a tray on top and the records below**, the shape a member's sheet
+	 * has. A role is heavy because its save writes more than the role: every holder's certificate
+	 * is issued again from the new mask, in the same act ([[rules/interface]], *Form surface*,
+	 * which names the role editor for that reason). The tray is the role's name, the one fact about
 	 * the whole role; the records are its flags, one list per family, in the order the roles list
 	 * reads them. The owner's own family is not offered: no role can carry one of its flags.
 	 *

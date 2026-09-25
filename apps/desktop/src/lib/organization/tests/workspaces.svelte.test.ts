@@ -347,7 +347,7 @@ test('an owner whose machine lost the authority reads why in the tray, and every
 	expect(tray.contains(said)).toBe(true);
 	owner.unmount();
 
-	// an administrator never had a create to be refused, so the section says nothing about one.
+	// nobody but the owner ever had a create to be refused, so the section says nothing about one.
 	list({ canCreate: false, refusal: null });
 
 	expect(document.querySelector('[data-workspace-create]')).toBeNull();

@@ -17,7 +17,7 @@ import { BUILT_IN } from '@rentable/workspace-permission';
 
 import type { Component } from 'svelte';
 
-import PaletteHarness from './palette-harness.svelte';
+import PaletteHarness from '#tests/palette-harness.svelte';
 
 /**
  * THE COMMAND MENU, OPENED FROM EVERY SCREEN

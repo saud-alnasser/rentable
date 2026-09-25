@@ -9,7 +9,7 @@ import type { ContractActRecord } from '$lib/contract/acts';
 import ContractHost from '$lib/contract/component/host.svelte';
 import { contractHost } from '$lib/contract/host.svelte';
 import QueryProviders from '#tests/query-providers.svelte';
-import { forgetReader, holdEveryFlagBut } from '#tests/permission.ts';
+import { forgetReader, holdEveryFlagBut, layOutLists } from '#tests/permission.ts';
 
 /**
  * A CONTRACT'S SCHEDULE ON PAPER, FOR A READER WHO MAY NOT VIEW EVERY KIND
@@ -65,11 +65,7 @@ const CONTRACT: ContractActRecord = {
 };
 
 beforeEach(() => {
-	window.ResizeObserver ??= class {
-		observe() {}
-		unobserve() {}
-		disconnect() {}
-	} as unknown as typeof ResizeObserver;
+	layOutLists();
 	loadLocale('en');
 	setLocale('en');
 

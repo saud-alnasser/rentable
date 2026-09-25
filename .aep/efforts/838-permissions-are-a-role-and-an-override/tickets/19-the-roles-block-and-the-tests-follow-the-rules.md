@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(desktop): the roles block and its tests follow the rules
@@ -22,20 +22,20 @@ follows the rule it breaks, or the rule says why it does not.
 
 Traces requirement 12 of [[efforts/838-permissions-are-a-role-and-an-override/spec]], and criterion 12.
 
-- [ ] The roles block draws the settings directories' bar (`directory-tray.svelte`) with the one sort
+- [x] The roles block draws the settings directories' bar (`directory-tray.svelte`) with the one sort
       control (rank, the default, and name) and the create last at its end; its search filters by
       name; component tests for the order, the sort and the create.
-- [ ] A role card opening its editor is named in `rules/interface`, *Row activation*, beside the
+- [x] A role card opening its editor is named in `rules/interface`, *Row activation*, beside the
       members and workspaces directories, for the same reason (in the settings directories a record's
       page is its sheet), with the italic history.
-- [ ] `rules/interface`, *Form surface*, names the role editor's weight and its reason, and the
+- [x] `rules/interface`, *Form surface*, names the role editor's weight and its reason, and the
       editor's comment cites it; the member card's role reason is drawn in the tray, with its test.
-- [ ] The comments and test titles in the TypeScript the effort changed that describe an
+- [x] The comments and test titles in the TypeScript the effort changed that describe an
       administrator, the seven acts or `changeRole` describe the present (a grep lists none that
       does not); `acts.test.ts` builds its roles from the shared `fakeOrganizationRole`; the palette
       harness lives in `apps/desktop/src/tests/` and is reached through `#tests/`; the new component
       tests use the shared `ResizeObserver` stub.
-- [ ] `pnpm check`, `pnpm test`, root `pnpm lint`, `index.mjs` and `validate.mjs` pass.
+- [x] `pnpm check`, `pnpm test`, root `pnpm lint`, `index.mjs` and `validate.mjs` pass.
 
 ## Relevant areas
 

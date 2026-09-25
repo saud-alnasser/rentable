@@ -11,6 +11,7 @@ import {
 } from '$lib/platform/tests/testing.ts';
 import SettingsArea from '$lib/settings/component/area.svelte';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
+import { pressSearchKey } from '$lib/design/tests/search';
 import { BUILT_IN } from '@rentable/workspace-permission';
 
 import Providers from './providers.svelte';
@@ -459,7 +460,7 @@ test('the owner is offered the delete, on a surface that says what goes and take
 
 // the delete is the owner's whichever block it sits in: it stood in the account block and stands at
 // the foot now, and the gate went with it.
-test('an administrator is offered no delete, because the act is the owners', () => {
+test('a manager is offered no delete, because the act is the owners', () => {
 	at('?section=organization');
 	area({
 		section: 'organization',
@@ -537,6 +538,30 @@ test('a plain member reads the standing and the disconnect, and no directory or 
 	expect(document.querySelector('[data-delete-organization]')).toBeNull();
 });
 
+// the organization section draws two directories, the roles and the people, and answers the search
+// key once ([[rules/interface]], *Search*): the people's field where they are drawn, since that is
+// the set a reader searches, and the roles' where they are not.
+test('the search key reaches the people where they are drawn, and the roles where they are not', async () => {
+	const fieldOf = (legendId: string) =>
+		document.querySelector(`[aria-labelledby="${legendId}"] [data-search-field] input`);
+
+	at('?section=organization');
+	const manager = area({ section: 'organization' });
+
+	await pressSearchKey();
+	expect(document.activeElement).toBe(fieldOf('members-legend'));
+	manager.unmount();
+
+	area({
+		section: 'organization',
+		session: fakeOrganizationSession({ role: 'member', permissions: 0 })
+	});
+
+	await pressSearchKey();
+	expect(fieldOf('members-legend')).toBeNull();
+	expect(document.activeElement).toBe(fieldOf('roles-legend'));
+});
+
 // criterion 16 from the area's side: the section is the list this member holds, with the rows
 // the workspaces section draws, and the transfer beneath it. What each row offers is read in
 // `workspaces.svelte.test.ts`.
@@ -582,7 +607,7 @@ test('the account section states the password and draws no field until the chang
 });
 
 // effort 828, requirement 20 and criterion 20: **the account section has no link act.** A link is made
-// by the owner or an administrator from the account it admits into, so the section a person reads
+// by a holder of `inviteMember` or `resetPassword` from the account it admits into, so the section a person reads
 // about themselves offers the identity, the password and the other machines, and nothing that
 // hands a link over. *It offered a second-machine act until requirement 20 superseded requirement
 // 3.*
