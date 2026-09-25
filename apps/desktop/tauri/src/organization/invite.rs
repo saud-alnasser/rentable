@@ -53,8 +53,13 @@
 //!
 //! **A rename is a row written back** (requirement 23). [`rename_member`] re-seals the username
 //! and writes the member's row again under the actor's own signer, the way a removal writes one;
-//! it is the owner's or an administrator's, never the member's own, and it moves nothing else on
-//! the row.
+//! it is a holder of `renameMember`'s, from above like every other act on an account, never the
+//! member's own and never the owner's, and it moves nothing else on the row.
+//!
+//! **Every account's row stands on a directory grant** (effort 838). Making an account and
+//! building one again, the reset and an invitation-kind link, write the account's grant on the
+//! organization database under the actor's certificate, and a grant is only `grantWorkspace`'s to
+//! sign, so each refuses an actor without it by name before anything is written.
 //!
 //! **The link's kind is read off the account rather than chosen** (effort 828, requirement 20).
 //! An account whose `must_change_password` is set has no password anybody knows, so its link is an
@@ -125,7 +130,7 @@ use super::{
     link::{Half, HalfKind, LinkPayload, Locator, seal_payload},
     permission::{self, Flag},
     role::{Standing, reissue},
-    session::{Actor, MemberSession, actor, permissions_on_row, rank_of},
+    session::{Actor, MemberSession, actor, rank_of},
     setup::{ADMINISTRATOR_KEY_PURPOSE, SHIPPING_KDF, credential_expiry},
     store::{
         GrantRecord, InvitationRecord, MachineLinkRecord, MemberRecord, OrganizationStore, Signer,
@@ -328,6 +333,7 @@ pub async fn create_account<P: TursoPlatform>(
     let actor = actor(store, session).await?;
 
     permission::require(actor.row.effective, Flag::InviteMember)?;
+    require_directory_grant(&actor)?;
 
     let username = username.trim();
 
@@ -659,6 +665,24 @@ async fn reseal_account<P: TursoPlatform>(
     kdf_params: KdfParams,
     now: i64,
 ) -> Result<(String, Vec<UnreachableWorkspace>), Error> {
+    // before the first grant, invitation or link below goes: the account is written again with
+    // its directory grant, which only `grantWorkspace` signs, and its row and certificate from the
+    // actor's, which carry nothing the actor does not (`write_account` asks it again).
+    require_directory_grant(actor)?;
+
+    // the role and the override the row already carries, read against the role's verified row.
+    let (_, standing) = standing_for(store, session, &member.role_id, member.override_mask).await?;
+
+    if let Some(flag) = permission::first_not_held(actor.row.effective, standing.effective) {
+        return Err(Error::refused(
+            RefusalReason::RoleLacksAct,
+            format!(
+                "that account holds {flag}, and you do not, so its certificate cannot be issued \
+                 from yours"
+            ),
+        ));
+    }
+
     let member_id = member.id.as_str();
     let username = opened(session, "member.username_sealed", &member.username_sealed)?;
 
@@ -730,8 +754,6 @@ async fn reseal_account<P: TursoPlatform>(
     // after this is it.
     store.delete_open_machine_links_of(member_id).await?;
 
-    // the role and the override the row already carries, read against the role's verified row.
-    let (_, standing) = standing_for(store, session, &member.role_id, member.override_mask).await?;
     let password = write_account(
         store, session, actor, platform, member_id, &username, standing, &kept, kdf_params, now,
     )
@@ -892,6 +914,14 @@ pub async fn standings(
 /// and changed by one, never by its holder, which is what keeps the rename an act on somebody
 /// else's row and the actor's signature meaningful as such. `except` on the uniqueness check is the
 /// member's own id, so `alice` may become `Alice` without being refused as taken by herself.
+///
+/// **From above, like every other act on an account** (effort 838, requirement 7): the owner's row
+/// is refused, and so is a member whose role does not rank below the renamer's, and one holding a
+/// flag the renamer's certificate does not carry. The rename writes the row again under the
+/// renamer's certificate, and the chain accepts that only from a certificate ranked above the
+/// member and holding every flag they hold; each is refused here by name, before anything is
+/// written. *None of the three was asked until the review of effort 838 found a manager's rename
+/// of the owner writing a row every reader refused, and the directory read by nobody.*
 pub async fn rename_member(
     store: &OrganizationStore,
     session: &MemberSession,
@@ -900,10 +930,10 @@ pub async fn rename_member(
     now: i64,
 ) -> Result<MemberFacts, Error> {
     session.settled()?;
-    permission::require(
-        permissions_on_row(store, session).await?,
-        Flag::RenameMember,
-    )?;
+
+    let actor = actor(store, session).await?;
+
+    permission::require(actor.row.effective, Flag::RenameMember)?;
 
     if member_id == session.member_id {
         return Err(Error::refused(
@@ -927,6 +957,13 @@ pub async fn rename_member(
             )
         })?;
 
+    if member.role_id == permission::OWNER {
+        return Err(Error::refused(
+            RefusalReason::OwnerProtected,
+            "an owner is not renamed. their row is signed by their own certificate alone",
+        ));
+    }
+
     if member.removed_at.is_some() {
         return Err(Error::refused(
             RefusalReason::MemberRemoved,
@@ -934,9 +971,28 @@ pub async fn rename_member(
         ));
     }
 
-    refuse_taken_username(store, session, username, Some(member_id)).await?;
+    actor.outranks(
+        rank_of(store, session, member).await?,
+        "that member's role is not below yours, so they are renamed by somebody who ranks above \
+         them",
+    )?;
 
     let (key, certificate) = signer_of(store, session).await?;
+
+    // the row is written again under the renamer's certificate, which the chain accepts only
+    // where it carries every flag the member holds (effort 838, the row-kind table).
+    if let Some(flag) = permission::first_not_held(certificate.ceiling, member.effective) {
+        return Err(Error::refused(
+            RefusalReason::RoleLacksAct,
+            format!(
+                "that member holds {flag}, and you do not, so their row cannot be signed by you. \
+                 somebody who holds it renames them"
+            ),
+        ));
+    }
+
+    refuse_taken_username(store, session, username, Some(member_id)).await?;
+
     let signer = Signer {
         key: &key,
         certificate: &certificate,
@@ -1119,6 +1175,16 @@ async fn standing_for<'a>(
     ))
 }
 
+/// Refuse, naming `grantWorkspace`, an actor who could not sign an account's directory grant: its
+/// grant on the organization database, which making an account and building one again always
+/// write under the actor's certificate, whatever workspaces the account is given (effort 838, the
+/// row-kind table). *It was asked only where the account was given a workspace until the review of
+/// effort 838 found an account made without it writing a grant every reader refused, and the
+/// grants read by nobody from then on.*
+fn require_directory_grant(actor: &Actor) -> Result<(), Error> {
+    permission::require(actor.row.effective, Flag::GrantWorkspace)
+}
+
 /// What making an account and resetting one both write: the vault, the row, the certificate, and
 /// the grants. The role and the override are written as `standing` carries them, so a reset keeps
 /// a member exactly as they stood (826, requirement 6).
@@ -1143,13 +1209,10 @@ async fn write_account<P: TursoPlatform>(
     kdf_params: KdfParams,
     now: i64,
 ) -> Result<String, Error> {
-    // a grant row is one only a certificate holding `grantWorkspace` signs (effort 838, the
-    // row-kind table), so an account written with a workspace takes that act as well as the one
-    // that brought the actor here, and the refusal names it before a row is written. Written
-    // without it, the grant would be refused on every read, and with it every grant beside it.
-    if !workspaces.is_empty() {
-        permission::require(actor.row.effective, Flag::GrantWorkspace)?;
-    }
+    // every account is written with its directory grant, so this is asked whatever workspaces the
+    // account is given. The callers ask it first, before anything of theirs is written; asked
+    // here too so that no caller reaches a grant without it.
+    require_directory_grant(actor)?;
 
     // the certificate is issued down from the actor's, so it carries nothing the actor does not:
     // a member who holds a flag the actor lacks is refused by name here, rather than by the issue
@@ -3535,8 +3598,8 @@ mod tests {
         let directory = scratch("rename");
         let (store, owner, link, workspace_id, _) = owned(&directory).await;
 
-        // an administrator invites the member, so the member's row is signed under the
-        // administrator's certificate and a rename by the owner has a signer to change.
+        // a manager invites the member, so the member's row is signed under the
+        // manager's certificate and a rename by the owner has a signer to change.
         let admin = make_account_and_link(
             &store,
             &owner,
@@ -3578,7 +3641,7 @@ mod tests {
         .await
         .expect("the member");
 
-        // signed under the administrator's live certificate, the one `signer_of` finds for them.
+        // signed under the manager's live certificate, the one `signer_of` finds for them.
         let (_, managers_certificate) = super::signer_of(&store, &ada)
             .await
             .expect("the manager's signer");
@@ -3782,6 +3845,209 @@ mod tests {
         usernames.sort_unstable();
 
         assert_eq!(usernames, vec!["bob", "olivia", "sami"]);
+    }
+
+    /// **A rename is from above, like every other act on an account** (the review of effort 838,
+    /// round one). A manager renaming the owner is refused as the owner's row, one renaming another
+    /// manager as not below them, and one renaming themselves as their own; each refusal writes
+    /// nothing and the directory still reads on every machine. Below them, the rename is made.
+    /// *A manager's rename of the owner wrote a member row every reader refused until then, and
+    /// the directory was read by nobody.*
+    #[tokio::test]
+    async fn a_rename_is_refused_of_the_owner_at_or_above_the_renamer_and_of_oneself() {
+        let directory = scratch("rename-rank");
+        let (store, owner, link, _, _) = owned(&directory).await;
+        let ada = made(&store, &owner, "ada.manager", permission::MANAGER, 0)
+            .await
+            .expect("the owner could not make a manager");
+        let bea = made(&store, &owner, "bea.manager", permission::MANAGER, 0)
+            .await
+            .expect("the owner could not make a manager");
+        let mo = made(&store, &owner, "mo.staff", permission::MEMBER, 0)
+            .await
+            .expect("the owner could not make a member");
+        let (ada_session, _) = opened_as(&store, &owner, &link, &ada.id, "ada", NOW + 1).await;
+        let certificates = store.certificates().await.expect("the certificates");
+
+        for (member_id, reason, what) in [
+            (
+                owner.member_id.as_str(),
+                RefusalReason::OwnerProtected,
+                "a manager renamed the owner",
+            ),
+            (
+                bea.id.as_str(),
+                RefusalReason::RankNotAbove,
+                "a manager renamed another manager",
+            ),
+            (
+                ada.id.as_str(),
+                RefusalReason::NotYourself,
+                "a manager renamed themselves",
+            ),
+        ] {
+            let error = rename_member(&store, &ada_session, member_id, "renamed", NOW + 2)
+                .await
+                .expect_err(what);
+
+            assert!(
+                matches!(&error, Error::Refused { reason: refused, .. } if *refused == reason),
+                "{what}: {error:?}"
+            );
+            store
+                .members(&owner.verifying_key)
+                .await
+                .unwrap_or_else(|error| {
+                    panic!("{what}, and the directory stopped reading: {error:?}")
+                });
+        }
+
+        assert_eq!(
+            store.certificates().await.expect("the certificates"),
+            certificates,
+            "a refused rename moved a certificate"
+        );
+
+        let renamed = rename_member(&store, &ada_session, &mo.id, "mo.renamed", NOW + 3)
+            .await
+            .expect("a manager could not rename a member below them");
+
+        assert_eq!(renamed.username, "mo.renamed");
+
+        let mut usernames: Vec<String> = super::members(&store, &owner)
+            .await
+            .expect("the directory reads")
+            .into_iter()
+            .map(|member| member.username)
+            .collect();
+        usernames.sort_unstable();
+
+        assert_eq!(
+            usernames,
+            vec!["ada.manager", "bea.manager", "mo.renamed", "olivia"]
+        );
+    }
+
+    /// **Making an account and building one again take `grantWorkspace`, whatever workspaces the
+    /// account is given** (the review of effort 838, round one). Each writes the account's grant
+    /// on the organization database under the actor's certificate, and a grant is only
+    /// `grantWorkspace`'s to sign. A manager whose override switches it off is refused by name
+    /// making an account with no workspace, resetting one, and making the link that builds an
+    /// unset account again; nothing is written, and the grants go on reading for everybody.
+    /// *Until then the refusal came only where a workspace was named, and an account made without
+    /// one wrote a grant every reader refused, taking the grants with it.*
+    #[tokio::test]
+    async fn making_or_resetting_an_account_without_grant_workspace_is_refused_by_name() {
+        let directory = scratch("directory-grant");
+        let (store, owner, link, _, _) = owned(&directory).await;
+        let grant_workspace = permission::mask_of(&[permission::Flag::GrantWorkspace]);
+        let nora = made(
+            &store,
+            &owner,
+            "nora.manager",
+            permission::MANAGER,
+            grant_workspace,
+        )
+        .await
+        .expect("the owner could not make a manager without grantWorkspace");
+        let mo = made(&store, &owner, "mo.staff", permission::MEMBER, 0)
+            .await
+            .expect("the owner could not make a member");
+        let (nora_session, _) = opened_as(&store, &owner, &link, &nora.id, "nora", NOW + 1).await;
+        let certificates = store.certificates().await.expect("the certificates");
+        let members = store
+            .members(&owner.verifying_key)
+            .await
+            .expect("the members");
+        let grants = store
+            .grants(&owner.verifying_key)
+            .await
+            .expect("the grants");
+        let invitations = store
+            .invitations(&owner.verifying_key)
+            .await
+            .expect("the invitations");
+
+        let refusals: [(&str, Result<(), Error>); 3] = [
+            (
+                "an account made with no workspace",
+                made(&store, &nora_session, "xavier", permission::MEMBER, 0)
+                    .await
+                    .map(|_| ()),
+            ),
+            (
+                "a reset",
+                unset_password(
+                    &store,
+                    &nora_session,
+                    no_platform(),
+                    &mo.id,
+                    test_cost(),
+                    NOW + 2,
+                )
+                .await
+                .map(|_| ()),
+            ),
+            (
+                "the link that builds an unset account again",
+                make_link(
+                    &store,
+                    &nora_session,
+                    no_platform(),
+                    &link,
+                    &mo.id,
+                    test_cost(),
+                    NOW + 2,
+                )
+                .await
+                .map(|_| ()),
+            ),
+        ];
+
+        for (what, outcome) in refusals {
+            let error = outcome.expect_err(what);
+
+            assert!(
+                matches!(
+                    &error,
+                    Error::Refused {
+                        reason: RefusalReason::RoleLacksAct,
+                        ..
+                    }
+                ),
+                "{what}: {error:?}"
+            );
+            assert!(
+                error.to_string().contains("grantWorkspace"),
+                "{what}: {error}"
+            );
+        }
+
+        assert_eq!(
+            store.certificates().await.expect("the certificates"),
+            certificates
+        );
+        assert_eq!(
+            store
+                .members(&owner.verifying_key)
+                .await
+                .expect("the members"),
+            members
+        );
+        assert_eq!(
+            store
+                .grants(&owner.verifying_key)
+                .await
+                .expect("the grants still read"),
+            grants
+        );
+        assert_eq!(
+            store
+                .invitations(&owner.verifying_key)
+                .await
+                .expect("the invitations"),
+            invitations
+        );
     }
 
     /// **A reset carries the member's session epoch through**, rather than writing the literal a

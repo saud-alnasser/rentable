@@ -153,7 +153,9 @@ pub enum RefusalReason {
     OwnerMachineOnly,
     /// the reader's role does not include the act.
     RoleLacksAct,
-    /// the reader holds no administrator certificate.
+    /// the reader holds no live certificate to sign with. *Named for the administrator, the one
+    /// member who held one until effort 838; every live member holds one since, so this is a
+    /// certificate missing or revoked rather than a role.*
     NotAdministrator,
     /// the role acted on, or the member's role, is not ranked below the reader's (effort 838,
     /// requirement 7).

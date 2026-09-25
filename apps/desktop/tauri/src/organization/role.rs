@@ -13,7 +13,8 @@
 //! actor's own row, and on every flag it changes, in a role's mask or in anybody's effective
 //! permissions, being one the actor holds; none of the owner's flags is set anywhere but on the
 //! owner. The comparison is made here, with the before and the after in hand ([`apply`]); a reader
-//! checks only that a row is one its certificate may sign.
+//! checks that a row is one its certificate may sign, which bounds what it gives by the signer's
+//! ceiling and never lets a signer's own row be theirs to sign.
 //!
 //! **The certificate follows, in the same act** ([`reissue`], requirement 9). Whoever changes a
 //! member's effective permissions or rank issues them a fresh certificate from their own, re-signs
@@ -31,8 +32,9 @@
 //! (effort 828, requirement 22). The owner offers the organization to an account whose password is
 //! set; that person accepts on a machine they are signed in on, with their own password, and the
 //! organization key becomes what their vault derives. The root is issued to them under it, and
-//! every certificate the founder issued is issued again from it with the same ids and signing
-//! keys, so nothing an administrator signed is disturbed; a `succession` row signed by the old key
+//! every certificate the founder issued to somebody else is issued again from it with the same ids
+//! and signing keys, so nothing a manager signed is disturbed, while the one the new owner held
+//! before is retired once its rows are theirs as the root; a `succession` row signed by the old key
 //! over the new is what lets every other machine follow. An owner's way
 //! back is then their password and nothing read out of the directory, founder or transferee alike.
 //! *It was one act that sealed the founder's key into the new owner's row and left the key
@@ -673,6 +675,11 @@ pub async fn withdraw_offer(
 /// manager role. A certificate issued further down names an issuer whose id and key did not move,
 /// and is not touched. The organization row carrying the key is the last row that changes.
 ///
+/// **The new owner leaves holding one live certificate, the root.** What they held before it is
+/// not issued again: the rows it signed move under the root with the founder's, what it issued is
+/// issued again from the root, and the root revokes it. *Until the review of effort 838 it was
+/// issued again with the rest, and the new owner held a manager's certificate beside the root.*
+///
 /// **What the founder revoked as owner stays revoked.** A revocation names its revoker by id, and
 /// the founder's id now names a manager's certificate: one of a certificate ranked below a manager
 /// goes on counting, and a revoked manager's certificate is not issued again, so it names as its
@@ -800,6 +807,18 @@ pub async fn accept_ownership(
             message: "the organization's root certificate does not verify under this machine's key"
                 .to_string(),
         })?;
+    // what this member signed with before the root: every certificate they hold that is live
+    // under the key being left. Their rows move under the root with the founder's, what they
+    // issued is issued again from it, and each is then revoked, so the new owner holds exactly one
+    // live certificate (effort 838). Each is issued again from the root before it is revoked, like
+    // every certificate the founder issued: left under the founder's certificate, which stands no
+    // higher than it from here on, it would stop walking, and every revocation it signed would
+    // stop counting with it, bringing back whoever this member removed or narrowed as a manager.
+    let earlier: Vec<Certificate> = before
+        .live_certificates_of(&session.member_id)
+        .into_iter()
+        .cloned()
+        .collect();
     let issued_at = now.to_string();
     // what the founder stands as from here on: the manager, with no override, as the manager
     // role's verified row gives it. Read while the role rows still verify under the key being
@@ -830,17 +849,31 @@ pub async fn accept_ownership(
 
     // every row the founder signed as owner moves under the new root first, read under the key
     // being left: the founder is about to rank as a manager, and a manager's certificate does not
-    // cover a row about another manager. The two rows whose roles swap are left, because they
-    // are written afresh below, and the founder's as it stands names the owner's role, which only
-    // its own holder's root signs.
+    // cover a row about another manager. So does every row this member signed before, since the
+    // certificate that signed them is about to be revoked. One pass over both, because every row
+    // is read under the key being left and the first row moved no longer verifies under it. The
+    // two rows whose roles swap are left, because they are written afresh below, and the
+    // founder's as it stands names the owner's role, which only its own holder's root signs.
+    let retiring: Vec<&str> = std::iter::once(old_root.id.as_str())
+        .chain(earlier.iter().map(|certificate| certificate.id.as_str()))
+        .collect();
+
     store
-        .re_sign_rows_of_certificate_but(
+        .re_sign_rows_of_certificates_but(
             &pinned,
-            &old_root.id,
+            &retiring,
             &signer,
             &[founder.id.as_str(), session.member_id.as_str()],
         )
         .await?;
+
+    // what this member's earlier certificates issued is issued again from the root, under the
+    // same ids with the same fields, before those are revoked: a revocation retires everything
+    // below the certificate it names. Read under the key being left, so before anything above
+    // them is issued again.
+    for old in &earlier {
+        reissue_what_it_issued(store, session, &signer, old).await?;
+    }
 
     // every certificate the founder issued directly is issued again, under the same id with the
     // same fields, from the new root, so every row it signed goes on verifying. Only what is live
@@ -848,7 +881,9 @@ pub async fn accept_ownership(
     // table is read raw, and a certificate no row names is checked by nothing else, so one written
     // by anybody holding the credential, with a signature nothing ever verified, would otherwise
     // leave here signed from the new root; it is left as it is rather than refusing the handover,
-    // because a planted row must not be able to hold the organization to its founder.
+    // because a planted row must not be able to hold the organization to its founder. **This
+    // member's own is issued again too**, so the revocations it signed go on walking to the key,
+    // and it is revoked below: the root is theirs now.
     for certificate in &held_certificates {
         if certificate.issuer_certificate_id.as_deref() != Some(old_root.id.as_str()) {
             continue;
@@ -896,6 +931,15 @@ pub async fn accept_ownership(
             },
         )?)
         .await?;
+
+    // and this member's earlier certificates are revoked by the root, whatever issued them, so the
+    // root is the one live certificate they hold. Its rows moved above and what it issued was
+    // issued again, so the revocation retires nothing but the certificate itself.
+    for old in &earlier {
+        store
+            .write_revocation(&revoke(&administrator_key, &root, old, &issued_at)?)
+            .await?;
+    }
 
     store
         .write_member(
@@ -1437,8 +1481,10 @@ struct Moved {
 /// **What it checks, before a row is written.** Requirement 7's "only flags you hold" over the
 /// change as a whole: every bit that differs, in a role's mask or in the effective permissions of
 /// anybody the change moves, is one the actor holds, and none of the owner's flags is set on a role
-/// or on anybody's permissions. The gates in front of it (the flag, the rank, never yourself) are
-/// each command's own.
+/// or on anybody's permissions. Then the row-kind table over what it signs: every role row it
+/// writes, and the effective permissions of every member row it rewrites, within the actor's
+/// certificate, since the chain refuses a row that gives more than its signer holds. The gates in
+/// front of it (the flag, the rank, never yourself) are each command's own.
 ///
 /// **What it writes, in one transaction.** The rows of every member it moves, re-signed under the
 /// actor with the role and the override they now name: first, so that a row whose role is
@@ -1555,6 +1601,34 @@ async fn apply(
             "this moves members, whose rows and certificates are signed again by you, and you \
              hold no flag that administers members. nothing was changed",
         ));
+    }
+
+    // and every row this signs sits inside the actor's certificate (effort 838, the row-kind
+    // table): a role row carries no flag it does not, the ones it only renames or renumbers
+    // included, and a member row gives nobody one, a removed member's included. The gates above
+    // hold the flags this changes; these are the flags it leaves where they were and signs again.
+    for role in &change.roles {
+        if let Some(flag) = permission::first_not_held(certificate.ceiling, role.mask) {
+            return Err(Error::refused(
+                RefusalReason::RoleLacksAct,
+                format!(
+                    "a role this writes carries {flag}, and you do not, so its row cannot be \
+                     signed by you. nothing was changed"
+                ),
+            ));
+        }
+    }
+
+    for moving in &moved {
+        if let Some(flag) = permission::first_not_held(certificate.ceiling, moving.effective) {
+            return Err(Error::refused(
+                RefusalReason::RoleLacksAct,
+                format!(
+                    "a member this moves would hold {flag}, and you do not, so their row cannot \
+                     be signed by you. nothing was changed"
+                ),
+            ));
+        }
     }
 
     in_one_transaction(store, async {
@@ -2126,7 +2200,7 @@ mod tests {
     };
 
     const PASSWORD: &str = "the owners password";
-    /// What the settled administrator in these tests chose when they opened their link, which is
+    /// What the settled manager in these tests chose when they opened their link, which is
     /// the password that becomes the organization's key when they accept it.
     const MANAGERS_PASSWORD: &str = "the managers password";
     /// And the second one's, for the chain of two handovers.
@@ -4407,7 +4481,7 @@ mod tests {
         Persisted::<RemoteSyncStore>::load(theirs.join("remote-sync.json")).expect("the record")
     }
 
-    /// An administrator who opened their link on a machine of their own and chose a password,
+    /// A manager who opened their link on a machine of their own and chose a password,
     /// which is the standing an offer of the organization needs: a vault of their own, that their
     /// own password opens, on a machine that pinned this organization's key.
     async fn a_settled_manager(
@@ -4763,15 +4837,19 @@ mod tests {
 
     /// **The handover on the delegated chain** (effort 838, requirement 2 and criterion 9). Before
     /// it, the founder has issued certificates as the owner: a manager's that is live, a manager's
-    /// and a member's that they revoked; a manager has issued one further down; and the founder has
-    /// set the mark.
+    /// and a member's that they revoked; a manager has issued one further down; the manager who
+    /// accepts has made an account, so their certificate signed rows and issued one; and the
+    /// founder has set the mark.
     ///
-    /// After it, every certificate that was live under the key being left is live under the new
-    /// pinned key; each the founder issued directly is issued again from the new owner's root,
-    /// under its id and signing key, and the one a manager issued keeps its issuer. The founder's
-    /// own certificate is a manager's, their row names the manager role with no override and reads
-    /// the manager's mask, and the roles and the mark verify under the new key. What the founder
-    /// revoked as the owner stays revoked, and the new owner's session carries every flag.
+    /// After it, **the new owner holds exactly one live certificate, the root** (the review of
+    /// effort 838): the one they held before is not live, the rows it signed verify under the new
+    /// key, and what it issued is issued again from the root. Every other certificate that was
+    /// live under the key being left is live under the new pinned key; each the founder issued
+    /// directly is issued again from the new owner's root, under its id and signing key, and the
+    /// one a manager issued keeps its issuer. The founder's own certificate is a manager's, their
+    /// row names the manager role with no override and reads the manager's mask, and the roles and
+    /// the mark verify under the new key. What the founder revoked as the owner stays revoked, and
+    /// the new owner's session carries every flag.
     #[tokio::test]
     async fn after_a_handover_every_certificate_walks_to_the_new_key_and_the_founder_is_a_manager()
     {
@@ -4905,6 +4983,41 @@ mod tests {
         .await
         .expect("the founder could not set the mark");
 
+        // the manager who is to accept makes an account: their certificate signs its rows and
+        // issues its certificate.
+        let (celia, _) = a_member(
+            &store,
+            &ada_session,
+            &link,
+            "celia.staff",
+            permission::MEMBER,
+            &workspace_id,
+        )
+        .await;
+        let (_, adas_before) = signer_of(&store, &ada_session).await.expect("ada's");
+
+        assert_eq!(
+            store
+                .live_certificate(
+                    &old_key,
+                    &celia.member_id,
+                    &store
+                        .members(&old_key)
+                        .await
+                        .expect("the rows")
+                        .into_iter()
+                        .find(|member| member.id == celia.member_id)
+                        .expect("celia's row")
+                        .signing_public_key,
+                )
+                .await
+                .expect("the certificates")
+                .expect("celia's certificate")
+                .issuer_certificate_id
+                .as_deref(),
+            Some(adas_before.id.as_str())
+        );
+
         let (certificates, revocations) = store.chain_rows().await.expect("the chain");
         let before = Chain::new(&old_key, &certificates, &revocations);
         let live_before: Vec<Certificate> = certificates
@@ -4944,9 +5057,25 @@ mod tests {
         assert_eq!(new_root.member_id, ada.member_id);
         assert_eq!(ada_session.permissions, permission::OWNER_ROLE.mask);
 
-        // every certificate that was live is live under the new key, and each the founder issued
-        // directly, their own among them, was issued again from the new owner's root.
-        for was in &live_before {
+        // the new owner holds one live certificate, the root: the one they signed with before is
+        // not live, and what it issued was issued again from the root.
+        assert_eq!(
+            after
+                .live_certificates_of(&ada.member_id)
+                .into_iter()
+                .map(|certificate| certificate.id.clone())
+                .collect::<Vec<_>>(),
+            vec![new_root.id.clone()]
+        );
+        assert!(after.live(&adas_before.id).is_err());
+
+        // every other certificate that was live is live under the new key; each the founder
+        // issued directly, their own among them, and each the new owner's earlier one issued, was
+        // issued again from the new owner's root.
+        for was in live_before
+            .iter()
+            .filter(|was| was.member_id != ada.member_id)
+        {
             let now = after
                 .live(&was.id)
                 .unwrap_or_else(|refusal| panic!("{} stopped verifying: {refusal:?}", was.id));
@@ -4955,6 +5084,7 @@ mod tests {
             assert_eq!(now.signing_public_key, was.signing_public_key);
 
             if was.issuer_certificate_id.as_deref() == Some(old_root.id.as_str())
+                || was.issuer_certificate_id.as_deref() == Some(adas_before.id.as_str())
                 || was.id == old_root.id
             {
                 assert_eq!(
@@ -5029,6 +5159,10 @@ mod tests {
             .grants(&new_key)
             .await
             .expect("the grants do not verify under the new key");
+        store
+            .invitations(&new_key)
+            .await
+            .expect("the invitations do not verify under the new key");
     }
 
     /// **Criterion 22, every other machine.** A second store holding the key the organization was
@@ -5322,7 +5456,7 @@ mod tests {
         };
 
         store
-            .write_member(
+            .write_member_around_the_check(
                 &signer,
                 &MemberRecord {
                     role_id: permission::MANAGER.to_string(),
@@ -5331,7 +5465,7 @@ mod tests {
                 },
             )
             .await
-            .expect("the row is written; it is the readers that refuse it");
+            .expect("the row is written around the store; it is the readers that refuse it");
         assert!(
             store.members(&new_key).await.is_err(),
             "a row signed under the planted certificate verified"
@@ -5838,5 +5972,435 @@ mod tests {
             .members(&new_key)
             .await
             .expect("every member row verifies on the other machine");
+    }
+
+    // -------------------------------------------------------------------------------------
+    // The review of effort 838, round one: a signed row never reaches wider than the
+    // certificate that signs it.
+    // -------------------------------------------------------------------------------------
+
+    /// **A member widening their own row** (criterion 9). A clerk, who renames members and so
+    /// holds a certificate, writes their own row back to the member role with an override handing
+    /// them `manageRoles`, `assignRole`, `grantWorkspace` and `deleteContract`. The store refuses
+    /// it by name and writes nothing; written around the store, as somebody holding the credential
+    /// can, every other machine refuses it on read. **And no later act reads the width back off
+    /// it**: the owner's unrelated edit of the member role's mask, which issues every holder a
+    /// fresh certificate from their row, is refused on the forged row, and the clerk's certificate
+    /// carries none of the four. *Before the correction the row verified everywhere and the edit
+    /// issued the clerk a certificate carrying all four.*
+    #[tokio::test]
+    async fn a_member_widening_their_own_row_is_refused_and_no_role_edit_reissues_the_width() {
+        let directory = scratch("own-row");
+        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let clerk = a_role(
+            &store,
+            &owner,
+            "Clerk",
+            permission::MEMBER_ROLE.mask | permission::mask_of(&[Flag::RenameMember]),
+            permission::MANAGER,
+        )
+        .await;
+        let rita = holding_role(&store, &owner, &link, "rita", &clerk, &workspace_id).await;
+        let rita_row = member_row(&store, &owner, &rita.member_id).await;
+        let (key, certificate) = signer_of(&store, &rita).await.expect("rita signs");
+        let signer = Signer {
+            key: &key,
+            certificate: &certificate,
+        };
+        let widened = permission::mask_of(&[
+            Flag::ManageRoles,
+            Flag::AssignRole,
+            Flag::GrantWorkspace,
+            Flag::DeleteContract,
+        ]);
+        let forged = MemberRecord {
+            role_id: permission::MEMBER.to_string(),
+            override_mask: widened,
+            ..rita_row.clone()
+        };
+
+        assert_eq!(certificate.ceiling & widened, 0);
+
+        // through the store: refused by name, and nothing moved.
+        let rows_before = every_row(&store).await;
+        let refused = store
+            .write_member(&signer, &forged)
+            .await
+            .expect_err("the store wrote a row wider than its signer");
+
+        assert_eq!(reason_of(&refused), RefusalReason::RoleLacksAct);
+        assert!(
+            refused
+                .to_string()
+                .contains("every flag the member ends up with"),
+            "{refused}"
+        );
+        assert_eq!(every_row(&store).await, rows_before);
+
+        // around the store: every other machine refuses the directory, naming the row.
+        store
+            .write_member_around_the_check(&signer, &forged)
+            .await
+            .expect("written around the store");
+
+        let elsewhere = another_machine(&directory, &owner.organization_id).await;
+        let read = elsewhere.members(&owner.verifying_key).await;
+
+        assert!(
+            matches!(&read, Err(Error::Integrity { message })
+                if message.contains(&rita.member_id)
+                    && message.contains("the row is not one its certificate may sign")),
+            "{read:?}"
+        );
+
+        // and the owner's later, unrelated edit of the member role does not carry the width into
+        // a certificate: it reads the forged row, and is refused on it.
+        let edited = set_role_mask(
+            &store,
+            &owner,
+            permission::MEMBER,
+            permission::MEMBER_ROLE.mask | permission::mask_of(&[Flag::DeletePayment]),
+            NOW + 1,
+        )
+        .await;
+
+        assert!(
+            matches!(&edited, Err(Error::Integrity { .. })),
+            "{edited:?}"
+        );
+
+        let live = store
+            .live_certificates(&owner.verifying_key, &rita.member_id)
+            .await
+            .expect("the certificates");
+
+        assert_eq!(live.len(), 1);
+        assert_eq!(live[0].id, certificate.id);
+        assert_eq!(live[0].ceiling & widened, 0, "the width was re-issued");
+    }
+
+    /// **A role row wider than its signer** (criterion 9). A supervisor, ranked below the manager
+    /// and holding every manager's flag but `grantWorkspace`, writes a clerk role's row carrying
+    /// `grantWorkspace` and `createWorkspace`, the second an owner's flag. The store refuses it by
+    /// name and writes nothing; written around the store, every other machine refuses it on read,
+    /// so no holder of the role reads either flag.
+    #[tokio::test]
+    async fn a_role_row_wider_than_its_signer_is_refused_by_the_store_and_on_every_other_machine() {
+        let directory = scratch("role-row");
+        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let without_grant =
+            permission::MANAGER_ROLE.mask & !permission::mask_of(&[Flag::GrantWorkspace]);
+        let supervisor = a_role(
+            &store,
+            &owner,
+            "Supervisor",
+            without_grant,
+            permission::MANAGER,
+        )
+        .await;
+        let clerk = a_role(
+            &store,
+            &owner,
+            "Clerk",
+            permission::MEMBER_ROLE.mask,
+            &supervisor,
+        )
+        .await;
+        let sue = holding_role(&store, &owner, &link, "sue", &supervisor, &workspace_id).await;
+        let (key, certificate) = signer_of(&store, &sue).await.expect("sue signs");
+        let signer = Signer {
+            key: &key,
+            certificate: &certificate,
+        };
+        let row = store
+            .roles(&owner.verifying_key)
+            .await
+            .expect("the roles verify")
+            .into_iter()
+            .find(|role| role.id == clerk)
+            .expect("the clerk role");
+        let widened = crate::organization::store::RoleRecord {
+            mask: row.mask | permission::mask_of(&[Flag::GrantWorkspace, Flag::CreateWorkspace]),
+            ..row
+        };
+
+        assert!(!permission::permits(
+            certificate.ceiling,
+            Flag::GrantWorkspace
+        ));
+
+        // through the store: refused by name, and nothing moved.
+        let rows_before = every_row(&store).await;
+        let refused = store
+            .write_role(&signer, &widened)
+            .await
+            .expect_err("the store wrote a role wider than its signer");
+
+        assert_eq!(reason_of(&refused), RefusalReason::RoleLacksAct);
+        assert!(
+            refused.to_string().contains("every flag the role carries"),
+            "{refused}"
+        );
+        assert_eq!(every_row(&store).await, rows_before);
+
+        // around the store: every other machine refuses it.
+        store
+            .write_role_around_the_check(&signer, &widened)
+            .await
+            .expect("written around the store");
+
+        let read = another_machine(&directory, &owner.organization_id)
+            .await
+            .roles(&owner.verifying_key)
+            .await;
+
+        assert!(
+            matches!(&read, Err(Error::Integrity { message })
+                if message.contains(&clerk)
+                    && message.contains("the row is not one its certificate may sign")),
+            "{read:?}"
+        );
+    }
+
+    /// **What the corrected table refuses, each act refuses first** (the ticket's constraint). The
+    /// owner widens the member role with `deleteContract` and takes it off the manager's mask, so a
+    /// manager's certificate no longer signs a member-role holder's row, nor the member role's.
+    /// Every act of the manager's that would write one is refused by name, naming the flag, before
+    /// anything is written, and the directory still reads: an override, an edit of the role, a
+    /// rename, a reset and a removal.
+    #[tokio::test]
+    async fn an_act_whose_rows_the_actor_could_not_sign_is_refused_by_name_before_it_writes() {
+        let directory = scratch("uncovered-acts");
+        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let mut manny = holding_role(
+            &store,
+            &owner,
+            &link,
+            "manny",
+            permission::MANAGER,
+            &workspace_id,
+        )
+        .await;
+        let (sami, _) = a_member(
+            &store,
+            &owner,
+            &link,
+            "sami.staff",
+            permission::MEMBER,
+            &workspace_id,
+        )
+        .await;
+        let delete_contract = permission::mask_of(&[Flag::DeleteContract]);
+        let view_complex = permission::mask_of(&[Flag::ViewComplex]);
+
+        set_role_mask(
+            &store,
+            &owner,
+            permission::MEMBER,
+            permission::MEMBER_ROLE.mask | delete_contract,
+            NOW + 1,
+        )
+        .await
+        .expect("the owner widens the member role");
+        set_role_mask(
+            &store,
+            &owner,
+            permission::MANAGER,
+            permission::MANAGER_ROLE.mask & !delete_contract,
+            NOW + 2,
+        )
+        .await
+        .expect("the owner narrows the manager role");
+
+        let rows_before = every_row(&store).await;
+        let names_the_flag = |outcome: Result<(), Error>, act: &str| {
+            let refused = outcome.expect_err(act);
+
+            assert_eq!(reason_of(&refused), RefusalReason::RoleLacksAct, "{act}");
+            assert!(
+                refused.to_string().contains("deleteContract"),
+                "{act}: {refused}"
+            );
+        };
+
+        names_the_flag(
+            set_override(&store, &manny, &sami.member_id, view_complex, NOW + 3)
+                .await
+                .map(|_| ()),
+            "an override leaving sami a flag manny lacks",
+        );
+        names_the_flag(
+            set_role_mask(
+                &store,
+                &manny,
+                permission::MEMBER,
+                (permission::MEMBER_ROLE.mask ^ view_complex) | delete_contract,
+                NOW + 3,
+            )
+            .await
+            .map(|_| ()),
+            "an edit of a role carrying a flag manny lacks",
+        );
+        names_the_flag(
+            crate::organization::invite::rename_member(
+                &store,
+                &manny,
+                &sami.member_id,
+                "sami.renamed",
+                NOW + 3,
+            )
+            .await
+            .map(|_| ()),
+            "a rename of a member holding a flag manny lacks",
+        );
+        names_the_flag(
+            crate::organization::invite::unset_password(
+                &store,
+                &manny,
+                no_platform(),
+                &sami.member_id,
+                test_cost(),
+                NOW + 3,
+            )
+            .await
+            .map(|_| ()),
+            "a reset of a member holding a flag manny lacks",
+        );
+        names_the_flag(
+            removal::remove_member(
+                &store,
+                &mut manny,
+                no_platform(),
+                "org-database",
+                &sami.member_id,
+                false,
+                NOW + 3,
+            )
+            .await
+            .map(|_| ()),
+            "a removal into a role carrying a flag manny lacks",
+        );
+
+        assert_eq!(every_row(&store).await, rows_before);
+        store
+            .members(&owner.verifying_key)
+            .await
+            .expect("the directory still reads");
+        store
+            .roles(&owner.verifying_key)
+            .await
+            .expect("the roles still read");
+    }
+
+    /// Effort 838, review round two: **what the new owner revoked as a manager stays revoked
+    /// after they accept the organization.** Their earlier certificate is issued again from the
+    /// root under its own id before it is revoked, so every revocation it signed goes on counting:
+    /// a member they removed is not live again, and a member they narrowed does not hold their old,
+    /// wider certificate beside the new one.
+    #[tokio::test]
+    async fn what_the_new_owner_revoked_as_a_manager_stays_revoked_after_the_handover() {
+        let directory = scratch("handover-revocations");
+        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (ada, mut ada_session, mut ada_machine) = a_settled_manager(
+            &directory,
+            &store,
+            &owner,
+            &link,
+            &workspace_id,
+            "ada.admin",
+            MANAGERS_PASSWORD,
+        )
+        .await;
+        let recruiter = a_role(
+            &store,
+            &owner,
+            "Recruiter",
+            permission::MEMBER_ROLE.mask
+                | permission::mask_of(&[Flag::InviteMember, Flag::GrantWorkspace]),
+            permission::MANAGER,
+        )
+        .await;
+        let rex = holding_role(&store, &owner, &link, "rex", &recruiter, &workspace_id).await;
+        let kim = holding_role(&store, &owner, &link, "kim", &recruiter, &workspace_id).await;
+        let old_key = owner.verifying_key;
+
+        removal::remove_member(
+            &store,
+            &mut ada_session,
+            no_platform(),
+            "org-database",
+            &rex.member_id,
+            false,
+            NOW + 2,
+        )
+        .await
+        .expect("ada removes rex");
+        set_override(
+            &store,
+            &ada_session,
+            &kim.member_id,
+            permission::mask_of(&[Flag::InviteMember]),
+            NOW + 3,
+        )
+        .await
+        .expect("ada narrows kim");
+
+        let kim_narrowed = store
+            .live_certificates(&old_key, &kim.member_id)
+            .await
+            .expect("kim's certificates");
+
+        assert!(
+            store
+                .live_certificates(&old_key, &rex.member_id)
+                .await
+                .expect("rex's certificates")
+                .is_empty()
+        );
+        assert_eq!(kim_narrowed.len(), 1);
+
+        offer_ownership(&store, &owner, &ada.member_id, PASSWORD, NOW + 5)
+            .await
+            .expect("the offer");
+        accept_ownership(
+            &store,
+            &mut ada_session,
+            &mut ada_machine,
+            MANAGERS_PASSWORD,
+            NOW + 6,
+        )
+        .await
+        .expect("the acceptance");
+
+        let new_key = ada_session.verifying_key;
+
+        assert!(
+            store
+                .live_certificates(&new_key, &rex.member_id)
+                .await
+                .expect("rex's certificates")
+                .is_empty(),
+            "the removed member's certificate is live again after the handover"
+        );
+        assert_eq!(
+            store
+                .live_certificates(&new_key, &kim.member_id)
+                .await
+                .expect("kim's certificates")
+                .iter()
+                .map(|certificate| certificate.id.clone())
+                .collect::<Vec<_>>(),
+            vec![kim_narrowed[0].id.clone()],
+            "the narrowed member holds their old, wider certificate again"
+        );
+        assert_eq!(
+            store
+                .live_certificates(&new_key, &ada.member_id)
+                .await
+                .expect("ada's certificates")
+                .len(),
+            1,
+            "the new owner holds more than the root"
+        );
     }
 }

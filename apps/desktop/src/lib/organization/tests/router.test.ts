@@ -577,7 +577,7 @@ test('making a link is held to inviteMember or resetPassword, and connecting wit
 // different bits, because making somebody a way in and taking one away are different things to be
 // trusted with. What each writes is Rust's; what is read here is which bit each is held to and what
 // crosses.
-test('making an account is inviteMember and unsetting a password is resetPassword', async () => {
+test('making an account is inviteMember and unsetting a password is resetPassword, each with grantWorkspace', async () => {
 	const asked: string[] = [];
 	const host = fakeHost({
 		organization: {
@@ -604,7 +604,17 @@ test('making an account is inviteMember and unsetting a password is resetPasswor
 			}
 		}
 	});
-	const inviting = await permittedApi(host, 'inviteMember');
+	// each writes the account's grant on the organization database, which is grantWorkspace's row.
+	await assert.rejects(
+		(await permittedApi(host, 'inviteMember')).app.organization.member.create({
+			username: 'sami.staff',
+			roleId: 'member',
+			override: 0,
+			workspaces: []
+		}),
+		/grantWorkspace/
+	);
+	const inviting = await permittedApi(host, 'inviteMember', 'grantWorkspace');
 	const account = await inviting.app.organization.member.create({
 		username: '  sami.staff  ',
 		roleId: 'member',
@@ -618,7 +628,13 @@ test('making an account is inviteMember and unsetting a password is resetPasswor
 	// unsetting is a different bit, so the caller who makes accounts is refused it.
 	await assert.rejects(inviting.app.organization.member.unsetPassword({ memberId: 'member-2' }));
 
-	const resetting = await permittedApi(host, 'resetPassword');
+	await assert.rejects(
+		(await permittedApi(host, 'resetPassword')).app.organization.member.unsetPassword({
+			memberId: 'member-2'
+		}),
+		/grantWorkspace/
+	);
+	const resetting = await permittedApi(host, 'resetPassword', 'grantWorkspace');
 
 	assert.deepEqual(
 		await resetting.app.organization.member.unsetPassword({ memberId: 'member-2' }),
@@ -1032,6 +1048,8 @@ function metaFor(path: string, gate: Gate): Meta {
 			return { member: true };
 		case 'AnyFlag':
 			return { anyOf: gate.flags };
+		case 'AllFlags':
+			return { flags: gate.flags };
 		case 'Flag':
 		case 'Owner':
 			assert.ok(flag && rest.length === 0, `${path}: a ${gate.kind} gate names one flag`);

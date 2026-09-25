@@ -566,8 +566,12 @@ for (const glyph of ORGANIZATION_GLYPHS.filter((declared) => !GLYPHS.includes(de
 	});
 }
 
-const { declareMemberActs, declareRoleActs, declareWorkspaceActs } =
-	await import('$lib/organization/acts');
+const {
+	declareMemberActs,
+	declareRoleActs,
+	declareWorkspaceActs,
+	lacking: lackingFlag
+} = await import('$lib/organization/acts');
 const { BUILT_IN } = await import('@rentable/workspace-permission');
 type RoleActRecord = import('$lib/organization/acts').RoleActRecord;
 type MemberActRecord = import('$lib/organization/acts').MemberActRecord;
@@ -1332,4 +1336,56 @@ test('a new payment is refused for the flag before anything the contract says', 
 		),
 		missing
 	);
+});
+
+/**
+ * Effort 838, the review's first round: a reset, and a link for an account whose password is not
+ * set, build the account again, its grant on the organization database included, which only a
+ * holder of `grantWorkspace` signs. Where the reader lacks it, both say so; a link for an account
+ * whose password is set writes no grant and stays offered.
+ */
+test('a reset and a link that builds the account again name grantWorkspace where the reader lacks it', () => {
+	const acts = declareMemberActs(recordingOrganizationHost().member);
+	const reader: MemberActContext = {
+		...MEMBER_READERS.manager,
+		canGrantWorkspace: false
+	};
+	const standingOf = (memberId: string, passwordSet: boolean) => ({
+		memberId,
+		passwordSet,
+		machineSignedIn: false
+	});
+	const unset = memberOf('sami', 'member');
+	const set = memberOf('noor', 'member');
+	const standings = new Map([
+		['sami', standingOf('sami', false)],
+		['noor', standingOf('noor', true)]
+	]);
+	const unavailable = (member: OrganizationMember, id: string) =>
+		toCardActions(
+			acts,
+			{ member, context: reader, standing: standings.get(member.id) },
+			translations
+		).find((action) => action.attributes?.['data-act'] === id)?.unavailable;
+	const missing = lackingFlag(translations, 'grantWorkspace');
+
+	assert.equal(unavailable(unset, 'member.unsetPassword'), missing);
+	assert.equal(unavailable(set, 'member.unsetPassword'), missing);
+	assert.equal(unavailable(unset, 'member.makeLink'), missing);
+	assert.equal(unavailable(set, 'member.makeLink'), undefined);
+
+	// and a reader holding it is offered both.
+	const holding = { ...reader, canGrantWorkspace: true };
+
+	for (const id of ['member.unsetPassword', 'member.makeLink']) {
+		assert.equal(
+			toCardActions(
+				acts,
+				{ member: unset, context: holding, standing: standings.get('sami') },
+				translations
+			).find((action) => action.attributes?.['data-act'] === id)?.unavailable,
+			undefined,
+			id
+		);
+	}
 });

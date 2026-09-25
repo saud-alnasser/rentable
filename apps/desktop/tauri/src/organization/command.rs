@@ -1347,8 +1347,8 @@ pub async fn member_link_make(
     .await
 }
 
-/// Unset a member's password: a fresh vault under a fresh secret, everything the resetting
-/// administrator reaches re-sealed to it, and the requirement to choose a password set, so the
+/// Unset a member's password: a fresh vault under a fresh secret, everything the resetting holder of
+/// `resetPassword` reaches re-sealed to it, and the requirement to choose a password set, so the
 /// next link asks for one. What a reset is, for a member whose password nobody knows.
 ///
 /// **It hands over nothing.** The answer names the workspaces it could not restore, and the
@@ -1699,7 +1699,8 @@ pub async fn ownership_accept(
 }
 
 /// Rename a member: their row written back with the username re-sealed and signed by whoever
-/// renamed them. The owner's or an administrator's, on any row but their own; the username is
+/// renamed them. A holder of `renameMember`'s, from above and on any row but their own and
+/// the owner's; the username is
 /// held to the same rules and the same uniqueness as an invitation's. What comes back is the
 /// member as the list shows them.
 #[tauri::command]
@@ -1773,7 +1774,8 @@ pub async fn organization_mark_clear(app_state: tauri::State<'_, AppState>) -> R
 /// is closed meets it at its next launch.
 ///
 /// **What comes back says whether the bump went out.** A push that could not go leaves the other
-/// machines open until one does, and the account section says so rather than reporting the act done.
+/// machines open until one does, and the account section says so rather than reporting the act
+/// done.
 #[tauri::command]
 pub async fn organization_session_end_elsewhere(
     app_state: tauri::State<'_, AppState>,
@@ -2912,7 +2914,7 @@ mod tests {
     // Effort 828, requirement 22: the handover holds at its seams.
     // -------------------------------------------------------------------------------------
 
-    /// What the settled administrator chose when they opened their link, which is the password
+    /// What the settled manager chose when they opened their link, which is the password
     /// that becomes the organization's key when they accept it.
     const MANAGERS_PASSWORD: &str = "the managers password";
 
@@ -2934,7 +2936,7 @@ mod tests {
         .expect("the other machine's replica")
     }
 
-    /// An administrator who opened their link on a machine of their own and chose a password:
+    /// A manager who opened their link on a machine of their own and chose a password:
     /// the standing an offer of the organization needs. *`role.rs` keeps the same fixture; one is
     /// written out per module ([[rules/testing]]).*
     async fn a_settled_manager(
@@ -2984,7 +2986,7 @@ mod tests {
     }
 
     /// The handover, made on another machine: the founder offers the organization to a settled
-    /// administrator, who accepts on a machine of their own. Answers the key the organization is
+    /// manager, who accepts on a machine of their own. Answers the key the organization is
     /// on afterwards, which the machine under test has not followed yet.
     async fn handed_over(
         directory: &std::path::Path,
@@ -3043,11 +3045,11 @@ mod tests {
         (session.verifying_key, session.role.clone())
     }
 
-    /// **Criterion 22 at its seams: the founder's open session is an administrator's after the
+    /// **Criterion 22 at its seams: the founder's open session is a manager's after the
     /// handover.** The organization is handed over on another machine while the founder's session
-    /// is open here. Before this machine has read anything, making an administrator from the
+    /// is open here. Before this machine has read anything, making a manager from the
     /// stale session is refused rather than written; the next state read follows the succession
-    /// and re-reads the founder's own row, so the session is the administrator's it now is on
+    /// and re-reads the founder's own row, so the session is the manager's it now is on
     /// every gate: deleting the organization is refused by name and making a manager by rank, a
     /// plain member is theirs to make, and the directory verifies on every machine afterwards.
     #[tokio::test]
@@ -3188,7 +3190,7 @@ mod tests {
     /// **Criterion 22 at its seams: a machine closed across the handover.** The founder's key is
     /// filed and nobody is in; the organization is handed over on another machine; the launch
     /// resumes the session, pulls, follows the succession and keeps the session, under the new
-    /// key and as the administrator the row says, with no sign-out and the remembered key kept.
+    /// key and as the manager the row says, with no sign-out and the remembered key kept.
     ///
     /// The two stores share one file, so the launch meets the re-keyed rows at its first read
     /// rather than after its pull; what the pull would bring is already there. The follow after
@@ -3233,7 +3235,7 @@ mod tests {
     /// **Criterion 22 at its seams: a machine open across the handover.** The founder is signed in
     /// here; the organization is handed over on another machine; the heartbeat that pulls the
     /// re-keyed rows follows the succession rather than swallowing the read that refused, and the
-    /// session goes on under the new key as the administrator the row says. Nothing was ended, so
+    /// session goes on under the new key as the manager the row says. Nothing was ended, so
     /// the heartbeat says so and keeps everything it holds.
     #[tokio::test]
     async fn a_machine_open_across_a_handover_follows_it_on_the_heartbeat() {
@@ -3309,6 +3311,10 @@ mod tests {
         Flag(Flag),
         /// any of the flags, off the actor's verified row.
         AnyFlag(&'static [Flag]),
+        /// every one of the flags, off the actor's verified row: an act that writes a row a second
+        /// flag signs, as making and resetting an account write its grant on the organization
+        /// database, which is `grantWorkspace`'s (effort 838).
+        AllFlags(&'static [Flag]),
         /// the owner's verified row, carrying the flag: the acts that need the Turso authority
         /// or hand the organization on (`session::Actor::require_owner`).
         Owner(Flag),
@@ -3337,12 +3343,18 @@ mod tests {
             "organization_renew_due",
             Gate::Owner(Flag::RenewCredentials),
         ),
-        ("member_create", Gate::Flag(Flag::InviteMember)),
+        (
+            "member_create",
+            Gate::AllFlags(&[Flag::InviteMember, Flag::GrantWorkspace]),
+        ),
         (
             "member_link_make",
             Gate::AnyFlag(&[Flag::InviteMember, Flag::ResetPassword]),
         ),
-        ("member_password_unset", Gate::Flag(Flag::ResetPassword)),
+        (
+            "member_password_unset",
+            Gate::AllFlags(&[Flag::ResetPassword, Flag::GrantWorkspace]),
+        ),
         ("invitation_accept", Gate::Public),
         ("machine_connect", Gate::Public),
         ("organization_roles", Gate::SignedIn),
@@ -3472,7 +3484,7 @@ mod tests {
         for (name, gate) in GATES {
             let flags: Vec<Flag> = match gate {
                 Gate::Flag(flag) | Gate::Owner(flag) => vec![*flag],
-                Gate::AnyFlag(flags) => flags.to_vec(),
+                Gate::AnyFlag(flags) | Gate::AllFlags(flags) => flags.to_vec(),
                 Gate::Public | Gate::ThisMachine | Gate::Own | Gate::SignedIn => Vec::new(),
             };
 

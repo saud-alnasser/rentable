@@ -108,13 +108,16 @@ afterEach(() => {
 	resetOrganizationHost();
 });
 
-/** ada, a manager whose row carries the reset and nothing else. */
+/**
+ * ada, a manager whose row carries the reset and what a reset writes: the account's grant on the
+ * organization database, which is `grantWorkspace`'s row (effort 838).
+ */
 const readAsAda = () => {
 	answers.session = fakeOrganizationSession({
 		memberId: 'ada',
 		username: 'ada',
 		role: 'manager',
-		permissions: maskOf('resetPassword')
+		permissions: maskOf('resetPassword', 'grantWorkspace')
 	});
 };
 
@@ -169,10 +172,9 @@ test('a member act the reader may not take is not offered', async () => {
 	await waitFor(() => expect(row('member.makeLink')).not.toBeNull());
 	expect(row('member.endSessions')).not.toBeNull();
 
-	// ada's row carries neither removeMember, renameMember, assignRole, overrideMember nor
-	// grantWorkspace, and the handover is the owner's alone.
+	// ada's row carries no removeMember, and the handover is the owner's alone. (The edit is
+	// offered: her grantWorkspace is what a member's workspaces are written with.)
 	for (const act of [
-		'member.edit',
 		'member.remove',
 		'member.lockOut',
 		'member.offerOwnership',

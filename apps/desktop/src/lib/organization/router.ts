@@ -262,10 +262,14 @@ export const organization = router({
 	/**
 	 * Accounts and their invitations, which is the members section.
 	 *
-	 * **Making an account is `permitted('inviteMember')` and making a link is that act or
-	 * `resetPassword`, and both are refused again in Rust**, on the member's verified row; this is
-	 * the earlier of the two refusals, made so a caller is turned away before
-	 * a round trip, and never the deciding one. Listing is any signed-in member's: who is in the
+	 * **Making an account is `permitted('inviteMember', 'grantWorkspace')`, a reset
+	 * `permitted('resetPassword', 'grantWorkspace')`, and making a link is `inviteMember` or
+	 * `resetPassword`, and each is refused again in Rust**, on the member's verified row; this is
+	 * the earlier of the two refusals, made so a caller is turned away before a round trip, and
+	 * never the deciding one. `grantWorkspace` is asked because each writes the account's grant on
+	 * the organization database, which is that flag's row (effort 838); a link asks it in Rust alone,
+	 * and only for an account whose password is not set, since only that link builds the account
+	 * again, which is the account's state rather than anything the call carries. Listing is any signed-in member's: who is in the
 	 * organization is not a secret from the people in it, and since effort 826 that one list
 	 * carries the pending invitations too. Whether a read-only grant can be minted
 	 * here is Rust's alone, since it turns on the owner's authority and not on a bit.
@@ -284,7 +288,7 @@ export const organization = router({
 			return ctx.host.organization.member.standings();
 		}),
 		create: procedure
-			.permitted('inviteMember')
+			.permitted('inviteMember', 'grantWorkspace')
 			.input(
 				z.object({
 					username: USERNAME,
@@ -331,7 +335,7 @@ export const organization = router({
 		 * until effort 828 made the link its own act.*
 		 */
 		unsetPassword: procedure
-			.permitted('resetPassword')
+			.permitted('resetPassword', 'grantWorkspace')
 			.input(z.object({ memberId: z.string().trim().min(1) }))
 			.mutation(async ({ input, ctx }): Promise<UnreachableWorkspace[]> => {
 				return ctx.host.organization.member.unsetPassword(input.memberId);

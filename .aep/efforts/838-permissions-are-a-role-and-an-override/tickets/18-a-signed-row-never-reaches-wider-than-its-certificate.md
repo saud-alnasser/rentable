@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(organization): a signed row never reaches wider than its certificate
@@ -22,23 +22,23 @@ command can write a row every reader refuses; and each command refuses before it
 
 Traces requirements 7 and 9 of [[efforts/838-permissions-are-a-role-and-an-override/spec]], and criteria 7 and 9.
 
-- [ ] `authority::covers` refuses a member row whose effective permissions carry a flag the signing
+- [x] `authority::covers` refuses a member row whose effective permissions carry a flag the signing
       certificate's ceiling lacks, and one signed by a delegated certificate naming the row's own
       member; and a role row whose mask carries a flag the ceiling lacks. A test per case, each
       shown failing first, reproducing the review's cases: a member widening their own override,
       the widened certificate re-issued by a later role edit, and a manager writing a role with a
       flag they lack.
-- [ ] The store's writes of a signed row refuse, naming what is needed (`authority::needed_for`),
+- [x] The store's writes of a signed row refuse, naming what is needed (`authority::needed_for`),
       a row the signer's certificate does not cover, before anything is written, with a test.
-- [ ] Making an account and resetting one refuse, naming `grantWorkspace`, an actor who does not
+- [x] Making an account and resetting one refuse, naming `grantWorkspace`, an actor who does not
       hold it, since each writes the account's directory grant; with a test that nothing is written
       and the grants still read.
-- [ ] Renaming a member is refused at or above the actor's rank, of the owner, and of oneself where
+- [x] Renaming a member is refused at or above the actor's rank, of the owner, and of oneself where
       the rules of rank say so, like every other act on an account, with a test that the directory
       still reads.
-- [ ] After a handover the new owner holds exactly one live certificate, the root; the rows their
+- [x] After a handover the new owner holds exactly one live certificate, the root; the rows their
       earlier certificate signed are re-signed under it first. The handover test asserts it.
-- [ ] The Rust comments the effort made false are corrected: `authority.rs` on who sets the mark,
+- [x] The Rust comments the effort made false are corrected: `authority.rs` on who sets the mark,
       `error.rs` on `NotAdministrator`, and any other the grep for administrator finds in a comment
       that describes the present.
 

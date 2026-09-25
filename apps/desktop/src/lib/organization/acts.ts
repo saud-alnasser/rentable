@@ -96,7 +96,16 @@ export type MemberActContext = MemberReader & {
 };
 
 /** What a member act is given: the member, and the facts its gates read. */
-export type MemberActRecord = { member: OrganizationMember; context: MemberActContext };
+/**
+ * one member's card as an act reads it: the member, who is reading, and where the account stands
+ * where the reader knows it. `standing` is what tells a link that builds the account again from one
+ * that does not; where it is absent the act is offered, and the command still refuses it by name.
+ */
+export type MemberActRecord = {
+	member: OrganizationMember;
+	context: MemberActContext;
+	standing?: MemberStanding | null;
+};
 
 /**
  * who is reading, as the member acts are gated on it, read off the session.
@@ -279,8 +288,13 @@ export function declareMemberActs(host: MemberHostRequests): MemberAct[] {
 			group: 'lifecycle',
 			appliesTo: (record) =>
 				(record.context.canInvite || record.context.canReset) && writable(record),
+			// a link for an account whose password is not set builds the account again, its grant on
+			// the organization database included, which is `grantWorkspace`'s row (effort 838).
 			unavailable: (record, t) =>
 				notBelow(record, t) ??
+				(record.standing?.passwordSet === false && !record.context.canGrantWorkspace
+					? lacking(t, 'grantWorkspace')
+					: undefined) ??
 				(record.context.pending.linking ? t.common.actions.working() : undefined),
 			run: host.makeLink
 		},
@@ -290,8 +304,11 @@ export function declareMemberActs(host: MemberHostRequests): MemberAct[] {
 			icon: RefreshCwIcon,
 			group: 'lifecycle',
 			appliesTo: (record) => record.context.canReset && writable(record),
+			// a reset builds the account again, its grant on the organization database included,
+			// which is `grantWorkspace`'s row (effort 838).
 			unavailable: (record, t) =>
 				notBelow(record, t) ??
+				(record.context.canGrantWorkspace ? undefined : lacking(t, 'grantWorkspace')) ??
 				(record.context.pending.unsetting ? t.common.actions.working() : undefined),
 			run: host.unsetPassword
 		},

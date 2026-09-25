@@ -60,7 +60,7 @@ pub const CREDENTIAL_RENEWAL_WINDOW_MS: i64 = 7 * 24 * 60 * 60 * 1000;
 /// The credential the migration itself spends, and nothing else: minted, spent, dropped.
 pub const MIGRATION_CREDENTIAL_LIFETIME: &str = "30m";
 
-/// The signer a session is, for the rows it writes: the administrator key derived from its secret
+/// The signer a session is, for the rows it writes: the signing key derived from its secret
 /// and the live certificate that authorises it under the key the session pinned.
 pub async fn signer_of(
     store: &OrganizationStore,
@@ -1870,7 +1870,7 @@ mod tests {
         );
 
         store
-            .write_grant(
+            .write_grant_around_the_check(
                 &Signer {
                     key: &manager_key,
                     certificate: &manager_certificate,
@@ -1881,7 +1881,7 @@ mod tests {
                 },
             )
             .await
-            .expect("the row is written; it is the readers that refuse it");
+            .expect("the row is written around the store; it is the readers that refuse it");
 
         assert!(
             matches!(
@@ -2614,7 +2614,7 @@ mod tests {
     /// by Turso**, not by the interface. A workspace database is provisioned through the port,
     /// migrated over the wire, and opened twice: once with a read-only credential, whose pushed row
     /// Turso refuses, and once with a full-access one, whose push lands. The database is deleted by
-    /// the same run. The other half of criterion 11, an administrator's delete refused for want of
+    /// the same run. The other half of criterion 11, a manager's delete refused for want of
     /// authority, needs no live account: the command refuses before any request, which
     /// `anybody_but_the_owner_is_refused_a_create_and_a_delete_before_any_request` performs.
     ///

@@ -373,6 +373,7 @@ pub fn effective_in(permissions: i64, access: AccessLevel) -> i64 {
     }
 }
 
+/// The mask of these acts: each flag's bit, or'd.
 pub fn mask_of<A: Act>(acts: &[A]) -> i64 {
     acts.iter()
         .fold(0, |mask, act| mask | (1_i64 << act.bit_index()))

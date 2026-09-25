@@ -14,7 +14,7 @@
 	import type { ListSort } from '@rentable/design/sort.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { accountInitials } from '$lib/sync/account';
-	import { toMemberActContext, type MemberActRecord } from '$lib/organization/acts';
+	import { lacking, toMemberActContext, type MemberActRecord } from '$lib/organization/acts';
 	import DirectoryTray from '$lib/organization/component/directory-tray.svelte';
 	import { toMemberDirectory } from '$lib/organization/directory';
 	import { memberActs, memberHost, memberPending } from '$lib/organization/host.svelte';
@@ -214,7 +214,11 @@
 		)
 	);
 
-	const recordOfMember = (member: OrganizationMember): MemberActRecord => ({ member, context });
+	const recordOfMember = (member: OrganizationMember): MemberActRecord => ({
+		member,
+		context,
+		standing: standingOf(member.id)
+	});
 
 	// the member the address names is opened and then cleared out of the address, the way a
 	// concept's host consumes a create intent: left there, a reload would reopen a surface the
@@ -261,9 +265,13 @@
 {#snippet trayActions()}
 	<!-- last in the tray, where every set offers its create ([[rules/interface]], *Create*). -->
 	{#if canInvite}
+		<!-- an account is made with its grant on the organization database, which only a holder of
+		     `grantWorkspace` signs (effort 838, the row-kind table), so the add says so where the
+		     reader lacks it. -->
 		<CreateControl
 			label={$LL.organization.dashboard.addMember()}
 			onCreate={() => memberHost.create()}
+			unavailable={canGrantWorkspace ? undefined : lacking($LL, 'grantWorkspace')}
 			data-invite-open
 		/>
 	{/if}

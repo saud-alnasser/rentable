@@ -123,13 +123,17 @@ A revocation still counts once its revoker is revoked, or removing a manager wou
 certificate they retired.
 
 **A row verifies when its certificate verifies and the row is one it may sign** (`authority::covers`):
-a member row needs a flag that administers members and a rank above the member's role, or the root,
-and a row naming the owner's role only the root about its own holder, with no override; a role row
-`manageRoles` and a rank above the role; a grant `grantWorkspace`, a read-only one the root; a
-workspace row `renameWorkspace` or `grantWorkspace`; an invitation `inviteMember` or
-`resetPassword`; the mark `manageMark`. So a member holding the credential who signs around a
-command gets no further than their certificate: rows of the kinds its ceiling names, about people
-ranked below them. Which flags inside it they may switch is the command's to refuse.
+a member row needs a flag that administers members, a rank above the member's role, every flag the
+row's effective permissions carry, and a certificate that is not the member's own, or the root, and
+a row naming the owner's role only the root about its own holder, with no override; a role row
+`manageRoles`, a rank above the role and every flag its mask carries; a grant `grantWorkspace`, a
+read-only one the root; a workspace row `renameWorkspace` or `grantWorkspace`; an invitation
+`inviteMember` or `resetPassword`; the mark `manageMark`. So a member holding the credential who
+signs around a command gets no further than their certificate: rows of the kinds its ceiling names,
+about people ranked below them, giving nobody a flag the ceiling lacks, and never their own. Which
+flags inside it they may switch is the command's to refuse. The store refuses to write a row its
+signer's certificate does not cover, naming what it needs, and every command refuses such an act by
+name before it writes, so no command of ours writes a row every reader refuses.
 
 **Every live member holds one live certificate, and a change re-issues it** (`role::reissue`): a new
 certificate from the actor's own, a revocation of the old one, and every row the old one signed
@@ -140,8 +144,9 @@ issue takes a fresh id, `cert-<member>-<issued at>`.
 
 **The key changes when the owner does.** A handover is two acts (see *Authority*). The acceptance
 issues the new owner a root under what their own vault derives, re-signs the founder's rows under
-it, and issues again from it every live certificate the founder issued, the founder's own among
-them as a manager's. **A machine follows a succession rather than being told the key**: the
+it, and issues again from it every live certificate the founder issued to somebody else, the
+founder's own among them as a manager's. The new owner's earlier certificate has its rows re-signed
+under the root and is revoked, so they hold one live certificate, the root. **A machine follows a succession rather than being told the key**: the
 `succession` row carries the key being left and the key replacing it, signed by the key being left,
 so a machine holding the old key checks the change against what it already pinned, pins the new one
 and re-reads (`role::follow_succession`).

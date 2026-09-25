@@ -19,7 +19,7 @@
 //! # Where the keys live, which this ticket decides
 //!
 //! **The organization key is derived from the owner's vault secret and stored nowhere**, and so is
-//! the owner's administrator signing key. `vault::MemberSecretKey::derive_seed` is the derivation
+//! the owner's signing key. `vault::MemberSecretKey::derive_seed` is the derivation
 //! and says why. The two homes it rejects are the ones the alternatives had: a column in the
 //! organization database, which is the database the key protects, and this machine's keyring,
 //! which fails requirement 6 the day the owner installs on a second machine. A derived key follows
@@ -814,8 +814,8 @@ const ORGANIZATION_THIS_ACCOUNT_HOLDS: &str = "the organization this turso accou
 /// against each vault until one opens carrying the username that was typed; and the secret that
 /// vault yields re-derives the organization key, exactly as [`finish`] derived it when the
 /// organization was created. Its public half has to be the organization row's `verifying_key`, and
-/// every member row has to verify against it. An administrator's password opens an administrator's
-/// vault and derives something else, so it fails both, which is what makes this the owner's alone
+/// every member row has to verify against it. A manager's password opens a manager's vault and
+/// derives something else, so it fails both, which is what makes this the owner's alone
 /// by construction rather than by a role a row claims.
 ///
 /// **Nothing the unverified read yielded reaches the session.** Past the comparison, the sign-in
@@ -1048,7 +1048,7 @@ async fn the_owners_key(
     // the password alone, and no column read (requirement 22). A founder and an account that was
     // handed the organization both derive the key their own secret yields, because the acceptance
     // re-keyed the directory under the new owner's derivation; a founder who handed over derives
-    // a key that matches nothing here and is refused as the administrator they now are. **Nothing
+    // a key that matches nothing here and is refused as the manager they now are. **Nothing
     // about who the owner is comes off a row**, which is what a way back read out of the database
     // it judges would have meant.
     let verifying_key = owner_key_from(&secret)
@@ -2641,7 +2641,7 @@ mod tests {
         );
     }
 
-    /// **The second case.** An administrator's password opens an administrator's vault, and the
+    /// **The second case.** A manager's password opens a manager's vault, and the
     /// key that vault derives is not the organization's, so the connect is refused by name and
     /// the machine is left holding nothing.
     ///
@@ -2732,7 +2732,7 @@ mod tests {
 
     /// An organization that has been handed over, on a scratch directory of its own.
     ///
-    /// The founder makes it, an administrator opens their link on a machine of their own with a
+    /// The founder makes it, a manager opens their link on a machine of their own with a
     /// password they choose, and the two acts of requirement 22 run: the owner offers with their
     /// own password, and the offered account accepts on its own machine. What comes back is the
     /// account, the founder's session as it stood before the handover, and the platform, with the
@@ -2866,11 +2866,11 @@ mod tests {
     }
 
     /// **Criterion 22, the founder afterwards.** Having handed the organization over, the founder
-    /// is refused on this path as the administrator they now are.
+    /// is refused on this path as the manager they now are.
     ///
     /// **By construction rather than by a check.** Nothing here reads a role: the key the
     /// founder's password derives is simply not what the directory is signed under any more, so
-    /// they fail the comparison exactly as any administrator fails it. That is what closes review
+    /// they fail the comparison exactly as any manager fails it. That is what closes review
     /// round one's second finding, where the founder went on connecting after a transfer because
     /// the key had not moved.
     #[tokio::test]

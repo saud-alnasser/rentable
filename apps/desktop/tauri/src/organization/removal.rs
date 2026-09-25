@@ -410,6 +410,24 @@ pub(crate) async fn retire_member(
         certificate: &certificate,
     };
 
+    // the row is signed as removed by the remover, holding the member's role and nothing more, so
+    // what it gives is the member role's mask and the remover's certificate has to carry every
+    // flag of it (effort 838, the row-kind table). Refused by name before anything is written,
+    // rather than by the store once the certificate is already retired.
+    let (member_mask, _) = store
+        .role_standing(&session.verifying_key, permission::MEMBER)
+        .await?;
+
+    if let Some(flag) = permission::first_not_held(certificate.ceiling, member_mask) {
+        return Err(Error::refused(
+            RefusalReason::RoleLacksAct,
+            format!(
+                "a removed member's row holds the member role, which carries {flag}, and you do \
+                 not, so it cannot be signed by you. nothing was changed"
+            ),
+        ));
+    }
+
     // end the removed member's authority first, so a removal that could not be completed changes
     // nothing. Every live certificate they hold has the rows it legitimately signed re-signed
     // under the remover, who outranks them, and a revocation written for it, so a row they newly
@@ -1417,7 +1435,7 @@ mod tests {
             .expect("the manager's row");
 
         org.store
-            .write_member(
+            .write_member_around_the_check(
                 &Signer {
                     key: &ada_key,
                     certificate: &ada_cert,

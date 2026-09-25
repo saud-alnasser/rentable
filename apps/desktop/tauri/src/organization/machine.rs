@@ -58,8 +58,8 @@ enum Refusal {
 /// The one sentence a machine link that no longer opens is refused with, said in the name of the
 /// organization the link names, since that is the only thing the person on the new machine has.
 ///
-/// **It points at whoever keeps the accounts.** A link is made by the owner or an administrator
-/// from the account's card (effort 828, requirement 20), so a refusal has exactly one remedy and
+/// **It points at whoever keeps the accounts.** A link is made by a holder of `inviteMember` or
+/// `resetPassword` ranked above the account, from the account's card (effort 828, requirement 20), so a refusal has exactly one remedy and
 /// it is asking them for another. *It said to make another from the you section while a member
 /// made their own; the person reading this sentence is on a machine that holds nothing and has no
 /// you section to reach.*
