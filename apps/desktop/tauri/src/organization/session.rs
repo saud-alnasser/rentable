@@ -76,7 +76,7 @@ use crate::sync::turso::platform::AccessLevel;
 use super::{
     HeldOrganization,
     authority::VERIFYING_KEY_BYTES,
-    permission::{self, Administration},
+    permission::{self, Flag},
     store::{MemberRecord, OrganizationStore},
     vault::{
         CONTENT_KEY_BYTES, ContentKey, MemberKey, MemberSecretKey, open_content,
@@ -236,6 +236,74 @@ pub async fn permissions_on_row(
     session: &MemberSession,
 ) -> Result<i64, Error> {
     Ok(acting_row(store, session).await?.effective)
+}
+
+/// Who is acting, as the chain reads them (effort 838): their verified row, which says what they
+/// may do and whether they are the owner, and the rank of the role it names.
+///
+/// **The row and never the session's snapshot.** [`MemberSession::role`] is what the vault opened
+/// onto and outlives a narrowing, a removal and a handover; a gate that asked it would let a
+/// founder's open session go on acting as the owner after they handed the organization on. Every
+/// gate an act on somebody else's account makes reads this instead.
+pub struct Actor {
+    pub row: MemberRecord,
+    /// the rank of the actor's role, off its verified row, or the owner's constant.
+    pub rank: i64,
+}
+
+impl Actor {
+    /// Refuse, with `reason` and `refusal`, unless the verified row is the owner's and carries
+    /// `flag`: the one member the root certificate names, and the one who holds the Turso
+    /// authority's acts (`permission::OWNER_ONLY`). The flag is asked as well as the role, so each
+    /// act is answered by the bit that names it. A row that says it was removed never reaches here
+    /// ([`acting_row`] refuses it first). **The one owner check**: `workspace::require_owner` is
+    /// this, for a caller that has not read the actor yet.
+    pub fn require_owner(
+        &self,
+        flag: permission::Flag,
+        reason: RefusalReason,
+        refusal: &str,
+    ) -> Result<(), Error> {
+        if self.row.role_id == permission::OWNER && permission::permits(self.row.effective, flag) {
+            Ok(())
+        } else {
+            Err(Error::refused(reason, refusal))
+        }
+    }
+
+    /// Refuse unless a role of `rank` ranks strictly below the actor's (requirement 7): a member
+    /// acts on a role, or on a member holding it, only from above.
+    pub fn outranks(&self, rank: i64, refusal: &str) -> Result<(), Error> {
+        if rank < self.rank {
+            Ok(())
+        } else {
+            Err(Error::refused(RefusalReason::RankNotAbove, refusal))
+        }
+    }
+}
+
+/// The acting member and the rank their role holds: [`acting_row`], with its three refusals in
+/// front, and the role's verified row read for its rank.
+pub async fn actor(store: &OrganizationStore, session: &MemberSession) -> Result<Actor, Error> {
+    let row = acting_row(store, session).await?;
+    let (_, rank) = store
+        .role_standing(&session.verifying_key, &row.role_id)
+        .await?;
+
+    Ok(Actor { row, rank })
+}
+
+/// The rank of the role a member's verified row names: what [`Actor::outranks`] is asked about
+/// before an act on their account.
+pub async fn rank_of(
+    store: &OrganizationStore,
+    session: &MemberSession,
+    member: &MemberRecord,
+) -> Result<i64, Error> {
+    Ok(store
+        .role_standing(&session.verifying_key, &member.role_id)
+        .await?
+        .1)
 }
 
 /// One workspace as the web layer learns of it: its name opened with the content key, and where
@@ -766,8 +834,11 @@ pub async fn end_elsewhere(
 /// that are already open, which is why this is `resetPassword`'s and not a bit of its own.
 ///
 /// Two rows are refused. The caller's own, because ending your own sessions and keeping this one
-/// is [`end_elsewhere`] and does something different; and the owner's, for anybody but the owner,
-/// which is the line `role::change_role` draws in the same words.
+/// is [`end_elsewhere`] and does something different; and the owner's, which is the line
+/// `role::change_role` draws in the same words. **Any other row is ended only from above**
+/// (effort 838, requirement 7): a member whose role does not rank below the actor's is refused by
+/// rank, the way a reset of them is, and the gate reads the actor's verified row rather than the
+/// session's snapshot of it ([`Actor`]).
 ///
 /// **The register follows the act**, because the standing the members directory draws is read off
 /// it: an account nobody is signed in on is an account a link is offered for (requirement 20), and
@@ -784,10 +855,10 @@ pub async fn end_member_sessions(
     now: i64,
 ) -> Result<bool, Error> {
     session.settled()?;
-    permission::require(
-        permissions_on_row(store, session).await?,
-        Administration::ResetPassword,
-    )?;
+
+    let actor = actor(store, session).await?;
+
+    permission::require(actor.row.effective, Flag::ResetPassword)?;
 
     if member_id == session.member_id {
         return Err(Error::refused(
@@ -814,6 +885,14 @@ pub async fn end_member_sessions(
             "an owner's sessions are not ended by anybody else. the organization is theirs",
         ));
     }
+
+    // from above only: whoever may hand an account a fresh way in may end the ways in it has, and
+    // both are held to the member's role ranking below the actor's (effort 838, requirement 7).
+    actor.outranks(
+        rank_of(store, session, member).await?,
+        "that member's role is not below yours, so their sessions are ended by somebody who ranks \
+         above them",
+    )?;
 
     store
         .set_session_epoch(member_id, member.session_epoch + 1, now)
@@ -2042,7 +2121,8 @@ mod tests {
 
     /// **Criterion 22, somebody else's row.** `resetPassword` is the act, the caller's own row is
     /// refused because that is `end_elsewhere`, and the owner's row is nobody else's to end. A
-    /// plain member holds none of it.
+    /// plain member holds none of it, and a manager ends nobody whose role is not below theirs
+    /// (effort 838, requirement 7).
     #[tokio::test]
     async fn ending_a_members_sessions_is_reset_passwords_and_never_the_owners_row() {
         let _turn = take_the_credential_store().await;
@@ -2052,13 +2132,13 @@ mod tests {
         let owner = sign_in(&store, &joined, PASSWORD, &slot())
             .await
             .expect("the owner did not sign in");
-        let administrator = a_member(
+        let manager = a_member(
             &store,
             &owner,
             &joined,
             "member-ada",
-            "ada.admin",
-            permission::ADMINISTRATOR,
+            "ada.manager",
+            permission::MANAGER,
             "a password ada chose",
         )
         .await;
@@ -2088,12 +2168,12 @@ mod tests {
         store
             .machine_seen("machine-ada", Some("member-ada"), at)
             .await
-            .expect("the administrator's machine did not register");
+            .expect("the manager's machine did not register");
 
         // the act, on somebody else's row: the epoch moves and nothing else does.
-        end_member_sessions(&store, &administrator, "member-sami", 1_757_000_000_200)
+        end_member_sessions(&store, &manager, "member-sami", 1_757_000_000_200)
             .await
-            .expect("an administrator could not end a member's sessions");
+            .expect("a manager could not end a member's sessions");
 
         assert_eq!(epoch_of(&store, &joined, "member-sami").await, 1);
         assert_eq!(epoch_of(&store, &joined, "member-ada").await, 0);
@@ -2126,9 +2206,9 @@ mod tests {
         );
 
         // their own row is the other act's.
-        let own = end_member_sessions(&store, &administrator, "member-ada", 1_757_000_000_300)
+        let own = end_member_sessions(&store, &manager, "member-ada", 1_757_000_000_300)
             .await
-            .expect_err("an administrator ended their own sessions from a row");
+            .expect_err("a manager ended their own sessions from a row");
 
         assert!(
             matches!(
@@ -2143,9 +2223,9 @@ mod tests {
         assert!(own.to_string().contains("your own sessions"), "{own}");
 
         // and the owner's row is nobody else's.
-        let theirs = end_member_sessions(&store, &administrator, &owner_id, 1_757_000_000_400)
+        let theirs = end_member_sessions(&store, &manager, &owner_id, 1_757_000_000_400)
             .await
-            .expect_err("an administrator ended the owner's sessions");
+            .expect_err("a manager ended the owner's sessions");
 
         assert!(
             matches!(
@@ -2187,6 +2267,34 @@ mod tests {
             .expect_err("a plain member ended somebody's sessions");
 
         assert!(refusal.to_string().contains("resetPassword"), "{refusal}");
+        assert_eq!(epoch_of(&store, &joined, "member-ada").await, 0);
+
+        // and a manager's sessions are not another manager's to end: the rank is read off the
+        // verified rows, and it is the same rank.
+        let bea = a_member(
+            &store,
+            &owner,
+            &joined,
+            "member-bea",
+            "bea.manager",
+            permission::MANAGER,
+            "a password bea chose",
+        )
+        .await;
+        let refusal = end_member_sessions(&store, &bea, "member-ada", 1_757_000_000_700)
+            .await
+            .expect_err("a manager ended another manager's sessions");
+
+        assert!(
+            matches!(
+                refusal,
+                crate::error::Error::Refused {
+                    reason: crate::error::RefusalReason::RankNotAbove,
+                    ..
+                }
+            ),
+            "{refusal:?}"
+        );
         assert_eq!(epoch_of(&store, &joined, "member-ada").await, 0);
     }
 

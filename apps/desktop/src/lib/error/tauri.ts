@@ -74,6 +74,7 @@ export const TAURI_REFUSAL_REASONS = [
 	'ownerMachineOnly',
 	'roleLacksAct',
 	'notAdministrator',
+	'rankNotAbove',
 	'alreadyOwner',
 	'accountNotSetUp',
 	'offerPending',

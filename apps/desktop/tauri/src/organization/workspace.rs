@@ -42,7 +42,7 @@ use super::{
     authority::AdministratorKey,
     migrate::{self, Pipeline},
     permission::{self, Flag},
-    session::{MemberSession, WorkspaceCredential, WorkspaceFacts, acting_row, permissions_on_row},
+    session::{MemberSession, WorkspaceCredential, WorkspaceFacts, permissions_on_row},
     store::{GrantRecord, MemberRecord, OrganizationStore, Signer, WorkspaceRecord},
     vault::{open_content, seal_content, seal_to_public_key},
 };
@@ -751,13 +751,11 @@ pub(super) async fn require_owner(
     flag: Flag,
     refusal: &str,
 ) -> Result<MemberRecord, Error> {
-    let row = acting_row(store, session).await?;
+    let actor = super::session::actor(store, session).await?;
 
-    if row.role_id == permission::OWNER && permission::permits(row.effective, flag) {
-        Ok(row)
-    } else {
-        Err(Error::refused(RefusalReason::OwnerOnly, refusal))
-    }
+    actor.require_owner(flag, RefusalReason::OwnerOnly, refusal)?;
+
+    Ok(actor.row)
 }
 
 fn random_id() -> Result<String, Error> {
@@ -1523,7 +1521,7 @@ mod tests {
         let pipeline = applying_pipeline().await;
 
         // the two rows, as every gate reads them.
-        let owners_row = super::acting_row(&store, &owner)
+        let owners_row = crate::organization::session::acting_row(&store, &owner)
             .await
             .expect("the owner's row");
 

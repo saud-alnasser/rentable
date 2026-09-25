@@ -324,6 +324,7 @@ const en = {
 					"this needs the Turso account, which is connected on the owner's machine. ask the owner.",
 				roleLacksAct: 'your role does not include this. ask an administrator.',
 				notAdministrator: 'only an administrator can do this.',
+				rankNotAbove: 'that role is not below your own. ask somebody who ranks above it.',
 				alreadyOwner: 'you are the owner already. choose the account that is to have it.',
 				accountNotSetUp:
 					'that account has no password of its own yet. once they open their link and choose one, offer it again.',

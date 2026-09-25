@@ -1086,6 +1086,10 @@ type RootTranslation = {
 				 */
 				notAdministrator: string
 				/**
+				 * t​h​a​t​ ​r​o​l​e​ ​i​s​ ​n​o​t​ ​b​e​l​o​w​ ​y​o​u​r​ ​o​w​n​.​ ​a​s​k​ ​s​o​m​e​b​o​d​y​ ​w​h​o​ ​r​a​n​k​s​ ​a​b​o​v​e​ ​i​t​.
+				 */
+				rankNotAbove: string
+				/**
 				 * y​o​u​ ​a​r​e​ ​t​h​e​ ​o​w​n​e​r​ ​a​l​r​e​a​d​y​.​ ​c​h​o​o​s​e​ ​t​h​e​ ​a​c​c​o​u​n​t​ ​t​h​a​t​ ​i​s​ ​t​o​ ​h​a​v​e​ ​i​t​.
 				 */
 				alreadyOwner: string
@@ -5115,6 +5119,10 @@ export type TranslationFunctions = {
 				 * only an administrator can do this.
 				 */
 				notAdministrator: () => LocalizedString
+				/**
+				 * that role is not below your own. ask somebody who ranks above it.
+				 */
+				rankNotAbove: () => LocalizedString
 				/**
 				 * you are the owner already. choose the account that is to have it.
 				 */

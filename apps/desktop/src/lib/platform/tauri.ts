@@ -6,6 +6,13 @@ import {
 	revealItemInDir as revealInFileManager
 } from '@tauri-apps/plugin-opener';
 import { check, type Update as TauriUpdate } from '@tauri-apps/plugin-updater';
+import {
+	BUILT_IN,
+	EVERY_ADMINISTRATION,
+	maskOf,
+	permits,
+	type Role
+} from '@rentable/workspace-permission';
 
 import type {
 	AvailableUpdate,
@@ -98,6 +105,30 @@ function mapUpdate(update: TauriUpdate): AvailableUpdate {
 		rawJson: update.rawJson,
 		downloadAndInstall: (onEvent) => update.downloadAndInstall(onEvent),
 		close: () => update.close()
+	};
+}
+
+/**
+ * The role and the override `member_create` takes, from the word and the seven acts the invite
+ * form still speaks (effort 838).
+ *
+ * **A bridge.** The command makes an account in one role with one override; the form picks
+ * administrator or member and the acts they carry. An administrator is the manager's role, and
+ * the override switches exactly the acts that differ from what the role carries, leaving every
+ * other flag as the role gives it. Ticket 11 of effort 838 gives the form a role picker and an
+ * override of its own, and this goes.
+ */
+function roleAndOverride(
+	role: Exclude<Role, 'owner'>,
+	permissions: number
+): { roleId: string; overrideMask: number } {
+	const { id, mask } = role === 'administrator' ? BUILT_IN.manager : BUILT_IN.member;
+
+	return {
+		roleId: id,
+		overrideMask: maskOf(
+			...EVERY_ADMINISTRATION.filter((act) => permits(permissions, act) !== permits(mask, act))
+		)
 	};
 }
 
@@ -291,7 +322,12 @@ export const tauri = {
 				role: 'administrator' | 'member',
 				permissions: number,
 				workspaces: WorkspaceGrant[]
-			) => invoke<OrganizationMember>('member_create', { username, role, permissions, workspaces }),
+			) =>
+				invoke<OrganizationMember>('member_create', {
+					username,
+					...roleAndOverride(role, permissions),
+					workspaces
+				}),
 			linkMake: (memberId: string) => invoke<MadeLink>('member_link_make', { memberId }),
 			unsetPassword: (memberId: string) =>
 				invoke<UnreachableWorkspace[]>('member_password_unset', { memberId }),

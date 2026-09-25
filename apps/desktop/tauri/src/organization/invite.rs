@@ -10,7 +10,7 @@
 //!
 //! **The application sends no mail.** We have registered with no mail service and the spec's
 //! constraints forbid registering one on the customer's behalf, so a link is one thing the
-//! administrator hands over themselves (effort 826, requirement 8). The interface says so and
+//! manager hands over themselves (effort 826, requirement 8). The interface says so and
 //! shows it with one copy control. *Effort 824 handed over three things, the link, the username
 //! and a generated password; the password is inside the link now, and the username is read off the
 //! row the link opens.*
@@ -19,17 +19,25 @@
 //! stores and `must_change_password` set; the content key sealed to the new member's public key; a
 //! grant on the organization database, which is the maker's own credential re-sealed, so the
 //! member can pull the directory once their vault is open; and a grant on each workspace named, at
-//! the access asked for, so an administrator grants what they can reach themselves and a read-only
+//! the access asked for, so a manager grants what they can reach themselves and a read-only
 //! grant is minted on the owner's machine as every read-only grant is. **No invitation row and no
-//! link**: the account holds no password anybody knows until its first link is opened. Handing
-//! somebody an act that signs rows needs the organization key to certify them, and only the
-//! owner's vault yields it, so that is refused for anybody else and says why.
+//! link**: the account holds no password anybody knows until its first link is opened.
+//!
+//! **Every account holds a certificate, issued from the maker's own** (effort 838). The account is
+//! made in one role with one override, the role ranked below the maker's and neither naming a flag
+//! the maker does not hold (requirement 7), and its certificate carries what the two compute as its
+//! ceiling and the role's rank. The maker's certificate issues it, so a manager makes a signer with
+//! the owner's machine off and nobody derives the organization key (requirement 9). *Until then
+//! only the owner could, because a certificate was signed by the organization key.*
 //!
 //! **The row carries the verifying half of the key the member will sign with.** It is derived
-//! from the vault secret drawn here, which is the one moment anybody holds that secret, and it is
-//! written whatever the role is: an owner widening the member into an act that signs rows later
-//! has a key to certify and no way to derive one themselves (effort 826, requirement 6,
-//! `role::change_role`).
+//! from the vault secret drawn here, which is the one moment anybody holds that secret, and the
+//! certificate issued beside the row names it.
+//!
+//! **Every act here on somebody else's account is from above** (effort 838, requirement 7):
+//! making an account, a link and a reset each read the maker's verified row for what they may do
+//! and how high they stand (`session::actor`), and refuse an account whose role does not rank
+//! below theirs. None of them reads the session's snapshot of the role.
 //!
 //! **The generated password is drawn, never derived, and never shown.** Twenty characters from a
 //! thirty-two character alphabet, drawn from the operating system; nothing about the username
@@ -100,7 +108,9 @@
 //! hold a full credential on themselves, mints again the read-only ones where they are the owner,
 //! and the rest are removed and named in the answer, so the member knows which workspaces they
 //! wait on somebody else for. There is no master key to do better with, and the spec accepted that
-//! deliberately. A reset keeps the member's permissions as they were widened (826, requirement 6).
+//! deliberately. A reset keeps the member's role and override as they were (826, requirement 6),
+//! and issues their fresh certificate from the resetter's; the rows the old one signed are re-signed
+//! under the resetter first, and a row the resetter could not sign refuses the reset by name.
 
 use serde::{Deserialize, Serialize};
 
@@ -113,8 +123,9 @@ use crate::{
 use super::{
     authority::AdministratorKey,
     link::{Half, HalfKind, LinkPayload, Locator, seal_payload},
-    permission::{self, Administration},
-    session::{MemberSession, permissions_on_row},
+    permission::{self, Administration, Flag},
+    role::{Standing, reissue},
+    session::{Actor, MemberSession, actor, permissions_on_row, rank_of},
     setup::{ADMINISTRATOR_KEY_PURPOSE, SHIPPING_KDF, credential_expiry},
     store::{
         GrantRecord, InvitationRecord, MachineLinkRecord, MemberRecord, OrganizationStore, Signer,
@@ -286,10 +297,16 @@ pub async fn refuse_taken_username(
 /// Make an account: the row somebody will open, and no link (effort 828, requirements 19 and 20).
 ///
 /// This is what inviting was, up to the link. The vault is sealed under a password nobody is ever
-/// shown and nothing stores, `must_change_password` is set, the certificate is written where the
-/// acts asked for sign rows, and the grants are sealed to the fresh vault. **No invitation row and
-/// no link**: an account holds no password until its first link is opened, and [`make_link`] is
-/// what draws the password the person opening it replaces.
+/// shown and nothing stores, `must_change_password` is set, the certificate is issued from the
+/// actor's own, and the grants are sealed to the fresh vault. **No invitation row and no link**: an
+/// account holds no password until its first link is opened, and [`make_link`] is what draws the
+/// password the person opening it replaces.
+///
+/// **The account is made in one role with one override** (effort 838, requirement 5), and
+/// requirement 7 bounds both before anything is written: the role ranks strictly below the actor's,
+/// neither it nor the override names a flag the actor does not hold, and the override names none of
+/// the owner's. An override that switches a flag off is still that flag changed, so it is held to
+/// the same line as one that switches it on.
 ///
 /// `platform` is the owner's machine's authority, which a read-only grant is minted with and
 /// nothing else here needs; `kdf_params` is what the member's vault is sealed at. What comes back
@@ -300,26 +317,40 @@ pub async fn create_account<P: TursoPlatform>(
     session: &MemberSession,
     platform: Option<&P>,
     username: &str,
-    role: &str,
-    permissions: i64,
+    role_id: &str,
+    override_mask: i64,
     workspaces: &[WorkspaceGrant],
     kdf_params: KdfParams,
     now: i64,
 ) -> Result<MemberFacts, Error> {
     session.settled()?;
-    permission::require(
-        permissions_on_row(store, session).await?,
-        Administration::InviteMember,
-    )?;
+
+    let actor = actor(store, session).await?;
+
+    permission::require(actor.row.effective, Flag::InviteMember)?;
 
     let username = username.trim();
 
     validate_username(username)?;
 
-    if role != permission::ADMINISTRATOR && role != permission::MEMBER {
+    let (role_mask, standing) = standing_for(store, session, role_id, override_mask).await?;
+
+    actor.outranks(
+        standing.rank,
+        "that role is not below yours, so an account is made in it by somebody who ranks above it",
+    )?;
+
+    if let Some(flag) = permission::first_owner_only(override_mask) {
         return Err(Error::refused(
-            RefusalReason::RoleUnknown,
-            "an account is made as an administrator or as a member",
+            RefusalReason::OwnerOnly,
+            format!("{flag} is the owner's alone, and no role or override carries it"),
+        ));
+    }
+
+    if let Some(flag) = permission::first_not_held(actor.row.effective, role_mask | override_mask) {
+        return Err(Error::refused(
+            RefusalReason::RoleLacksAct,
+            format!("you do not hold {flag}, so you cannot give it or take it away"),
         ));
     }
 
@@ -328,15 +359,7 @@ pub async fn create_account<P: TursoPlatform>(
     let member_id = random_id()?;
 
     write_account(
-        store,
-        session,
-        platform,
-        &member_id,
-        username,
-        role,
-        permissions,
-        workspaces,
-        kdf_params,
+        store, session, &actor, platform, &member_id, username, standing, workspaces, kdf_params,
         now,
     )
     .await?;
@@ -349,7 +372,7 @@ pub async fn create_account<P: TursoPlatform>(
 
     diagnostics::info("organization.member.created")
         .with("member", member_id.as_str())
-        .with("role", role)
+        .with("role", role_id)
         .write();
 
     members(store, session)
@@ -372,6 +395,10 @@ pub async fn create_account<P: TursoPlatform>(
 ///
 /// **It hands over nothing.** A link is [`make_link`]'s, made from the account's card afterwards;
 /// until one is, the account has no way in, which is exactly what a fresh account has.
+///
+/// **It is not the owner's alone** (effort 838). What it needs is `resetPassword`, a rank above the
+/// member's role, and a certificate to issue the member's fresh one from, which every member who
+/// holds the flag has; no organization key is derived.
 pub async fn unset_password<P: TursoPlatform>(
     store: &OrganizationStore,
     session: &MemberSession,
@@ -381,10 +408,10 @@ pub async fn unset_password<P: TursoPlatform>(
     now: i64,
 ) -> Result<Vec<UnreachableWorkspace>, Error> {
     session.settled()?;
-    permission::require(
-        permissions_on_row(store, session).await?,
-        Administration::ResetPassword,
-    )?;
+
+    let actor = actor(store, session).await?;
+
+    permission::require(actor.row.effective, Flag::ResetPassword)?;
 
     let members = store.members(&session.verifying_key).await?;
     let member = writable_account(
@@ -393,10 +420,17 @@ pub async fn unset_password<P: TursoPlatform>(
         "an owner's password is not unset. their vault is theirs alone",
     )?
     .clone();
+
+    actor.outranks(
+        rank_of(store, session, &member).await?,
+        "that member's role is not below yours, so their password is reset by somebody who ranks \
+         above them",
+    )?;
+
     // the drawn password is let go of here on purpose: nothing stores it, and the link made
     // afterwards draws its own.
     let (_, unreachable_workspaces) =
-        reseal_account(store, session, platform, &member, kdf_params, now).await?;
+        reseal_account(store, session, &actor, platform, &member, kdf_params, now).await?;
 
     if !store.push().await {
         diagnostics::warn("organization.member.passwordUnsetNotYetSent")
@@ -437,7 +471,12 @@ pub async fn unset_password<P: TursoPlatform>(
 /// [`unset_password`] took away, and that act is `resetPassword`'s. Held to the first alone, a
 /// member widened with the second and not the first could take a password away and could not hand
 /// back the link that gives one, which is a person locked out by somebody with no way to let them
-/// in. Owners and administrators hold both by role, so no default role moves.
+/// in. Owners and managers hold both by role, so no default role moves.
+///
+/// **From above only** (effort 838, requirement 7): the account's role ranks below the maker's. A
+/// link for an account with no password yet writes its row again, which only a certificate ranked
+/// above it signs, and a machine link is held to the same line so that who may hand an account a
+/// way in does not turn on which of the two it is.
 pub async fn make_link<P: TursoPlatform>(
     store: &OrganizationStore,
     session: &MemberSession,
@@ -448,9 +487,12 @@ pub async fn make_link<P: TursoPlatform>(
     now: i64,
 ) -> Result<MadeLink, Error> {
     session.settled()?;
+
+    let actor = actor(store, session).await?;
+
     permission::require_any(
-        permissions_on_row(store, session).await?,
-        &[Administration::InviteMember, Administration::ResetPassword],
+        actor.row.effective,
+        &[Flag::InviteMember, Flag::ResetPassword],
     )?;
 
     let members = store.members(&session.verifying_key).await?;
@@ -460,6 +502,12 @@ pub async fn make_link<P: TursoPlatform>(
         "an owner is handed no link. the organization is reached with their own turso account",
     )?
     .clone();
+
+    actor.outranks(
+        rank_of(store, session, &member).await?,
+        "that member's role is not below yours, so their link is made by somebody who ranks above \
+         them",
+    )?;
 
     let credential = held_credential(session)?;
     let expires_at = link_expiry(&credential, now);
@@ -473,7 +521,7 @@ pub async fn make_link<P: TursoPlatform>(
         // the person opening it replaces it with theirs. The row is written before the link so a
         // link that exists always has a row behind it.
         let (password, unreachable) =
-            reseal_account(store, session, platform, &member, kdf_params, now).await?;
+            reseal_account(store, session, &actor, platform, &member, kdf_params, now).await?;
 
         unreachable_workspaces = unreachable;
         let (key, certificate) = signer_of(store, session).await?;
@@ -597,7 +645,7 @@ fn writable_account<'a>(
 
 /// Build the account's vault again, under a freshly drawn password: what a reset and an
 /// invitation-kind link both begin with. The row keeps its id, its username, its role and its
-/// permissions; what moves is the vault and everything sealed to it.
+/// override; what moves is the vault, everything sealed to it, and the certificate.
 ///
 /// What comes back is the password it drew and the workspaces it could not carry over. The
 /// password is the caller's to seal into a link or to let go of, and it is written nowhere: a
@@ -605,6 +653,7 @@ fn writable_account<'a>(
 async fn reseal_account<P: TursoPlatform>(
     store: &OrganizationStore,
     session: &MemberSession,
+    actor: &Actor,
     platform: Option<&P>,
     member: &MemberRecord,
     kdf_params: KdfParams,
@@ -636,7 +685,7 @@ async fn reseal_account<P: TursoPlatform>(
                 .workspace_credentials
                 .get(&grant.workspace_id)
                 .is_some_and(|held| held.access == AccessLevel::FullAccess),
-            AccessLevel::ReadOnly => session.role == permission::OWNER && platform.is_some(),
+            AccessLevel::ReadOnly => actor.row.role_id == permission::OWNER && platform.is_some(),
         };
 
         if reachable {
@@ -681,17 +730,10 @@ async fn reseal_account<P: TursoPlatform>(
     // after this is it.
     store.delete_open_machine_links_of(member_id).await?;
 
+    // the role and the override the row already carries, read against the role's verified row.
+    let (_, standing) = standing_for(store, session, &member.role_id, member.override_mask).await?;
     let password = write_account(
-        store,
-        session,
-        platform,
-        member_id,
-        &username,
-        member.role_word(),
-        member.effective,
-        &kept,
-        kdf_params,
-        now,
+        store, session, actor, platform, member_id, &username, standing, &kept, kdf_params, now,
     )
     .await?;
 
@@ -979,7 +1021,7 @@ fn issuer_copy(password: &str, link_secret: &str, code: &str) -> String {
 /// under: what a link seals in place of a legible credential (effort 828, requirement 1).
 ///
 /// **Only what the issuer already holds.** Minting is the owner's machine's and nothing here
-/// mints, so an administrator's invitation and a member's own link both carry the grant their
+/// mints, so a manager's invitation and a member's own link both carry the grant their
 /// vault already unsealed, which is minted for four weeks and renewed on the owner's machine.
 pub(super) fn held_credential(session: &MemberSession) -> Result<String, Error> {
     session
@@ -1034,9 +1076,37 @@ pub(crate) fn vault_password_of(join_link: &str, code: &str, kdf_params: KdfPara
     .expect("the payload holds no vault password")
 }
 
-/// What making an account and resetting one both write: the vault, the row, the certificate where
-/// the acts asked for sign rows, and the grants. `permissions` is written as given rather than
-/// derived from the role, so a reset keeps a widened member widened (826, requirement 6).
+/// The standing a role and an override give a member (effort 838): the role's mask and rank off
+/// its verified row, or the owner's constants, and the effective permissions the two compute. The
+/// role's mask comes back beside it, for the check that bounds what an actor may give. Refused by
+/// name for a role this organization does not hold.
+async fn standing_for<'a>(
+    store: &OrganizationStore,
+    session: &MemberSession,
+    role_id: &'a str,
+    override_mask: i64,
+) -> Result<(i64, Standing<'a>), Error> {
+    let (mask, rank) = store.role_standing(&session.verifying_key, role_id).await?;
+
+    Ok((
+        mask,
+        Standing {
+            role_id,
+            override_mask,
+            effective: permission::effective(mask, override_mask),
+            rank,
+        },
+    ))
+}
+
+/// What making an account and resetting one both write: the vault, the row, the certificate, and
+/// the grants. The role and the override are written as `standing` carries them, so a reset keeps
+/// a member exactly as they stood (826, requirement 6).
+///
+/// **Every account holds a certificate, issued from the actor's** (effort 838): its ceiling is the
+/// member's effective permissions and its rank their role's, so a member widened into a signing
+/// flag later signs under one already issued, and nobody derives the organization key to make it.
+/// What the actor's own certificate could not issue is refused by name before a row is written.
 ///
 /// What comes back is the password the vault was drawn under. Nothing stores it: a fresh account
 /// lets it go, and an invitation-kind link seals it into its own text.
@@ -1044,11 +1114,11 @@ pub(crate) fn vault_password_of(join_link: &str, code: &str, kdf_params: KdfPara
 async fn write_account<P: TursoPlatform>(
     store: &OrganizationStore,
     session: &MemberSession,
+    actor: &Actor,
     platform: Option<&P>,
     member_id: &str,
     username: &str,
-    role: &str,
-    permissions: i64,
+    standing: Standing<'_>,
     workspaces: &[WorkspaceGrant],
     kdf_params: KdfParams,
     now: i64,
@@ -1058,10 +1128,20 @@ async fn write_account<P: TursoPlatform>(
     // that brought the actor here, and the refusal names it before a row is written. Written
     // without it, the grant would be refused on every read, and with it every grant beside it.
     if !workspaces.is_empty() {
-        permission::require(
-            permissions_on_row(store, session).await?,
-            Administration::GrantWorkspace,
-        )?;
+        permission::require(actor.row.effective, Flag::GrantWorkspace)?;
+    }
+
+    // the certificate is issued down from the actor's, so it carries nothing the actor does not:
+    // a member who holds a flag the actor lacks is refused by name here, rather than by the issue
+    // as a certificate that would reach wider than its issuer.
+    if let Some(flag) = permission::first_not_held(actor.row.effective, standing.effective) {
+        return Err(Error::refused(
+            RefusalReason::RoleLacksAct,
+            format!(
+                "that account holds {flag}, and you do not, so its certificate cannot be issued \
+                 from yours"
+            ),
+        ));
     }
 
     let (key, certificate) = signer_of(store, session).await?;
@@ -1071,18 +1151,18 @@ async fn write_account<P: TursoPlatform>(
     };
 
     // a read-only grant is minted, and minting is the owner's machine's: refused by name before
-    // anything is written, so an invitation never quietly grants less than it was asked to.
+    // anything is written, so an invitation never quietly grants less than it was asked to. The
+    // owner is who the verified row says, and never the session's snapshot of it.
     if workspaces
         .iter()
         .any(|workspace| workspace.access == AccessLevel::ReadOnly)
     {
-        if session.role != permission::OWNER {
-            return Err(Error::refused(
-                RefusalReason::OwnerMachineOnly,
-                "a read-only grant is minted on the owner's machine. ask the owner, or \
-                          invite with full access",
-            ));
-        }
+        actor.require_owner(
+            permission::Flag::MintReadOnly,
+            RefusalReason::OwnerMachineOnly,
+            "a read-only grant is minted on the owner's machine. ask the owner, or invite with \
+             full access",
+        )?;
 
         if platform.is_none() {
             return Err(Error::refused(
@@ -1101,50 +1181,22 @@ async fn write_account<P: TursoPlatform>(
     let generated_password = generate_password()?;
     let (vault, secret) = create_vault_with_secret(&generated_password, kdf_params)?;
 
-    // the key this member will sign rows with, derived from the secret just drawn. Its verifying
-    // half goes on the row whatever the role is, because this is the one moment the secret is in
-    // hand: an owner widening them into a signing act later has the key to certify and no way to
-    // derive it themselves (effort 826, requirement 6).
-    let administrator_key =
-        AdministratorKey::from_bytes(&secret.derive_seed(ADMINISTRATOR_KEY_PURPOSE)?);
+    // the key this member will sign rows with, derived from the secret just drawn: the one moment
+    // the secret is in hand, and the key their certificate names.
+    let signing_key = AdministratorKey::from_bytes(&secret.derive_seed(ADMINISTRATOR_KEY_PURPOSE)?);
 
-    // a certificate is what makes a signed row of theirs verify, and issuing one is the owner's
-    // until the flows move onto the delegated chain (effort 838). An administrator carries every act,
-    // six of which sign, so the role and the acts are held to one line here rather than two: a row
-    // that says administrator without a certificate behind it is a promise the chain will not
-    // keep, and a member handed a signing act with no certificate is the same promise unsaid.
-    if role == permission::ADMINISTRATOR || super::role::signs_rows(permissions) {
-        if session.role != permission::OWNER {
-            return Err(Error::refused(
-                RefusalReason::OwnerOnly,
-                "only an owner can give somebody an act that signs rows, because certifying a \
-                          signer needs the organization key. ask the owner",
-            ));
-        }
-
-        // read through `role::organization_key_of`, which derives the owner's own key, founder or
-        // transferee, and refuses it by name where it is not the key this session has pinned: a
-        // session open across a handover would otherwise certify a signer it is no longer the
-        // owner to certify (effort 828, requirement 22).
-        super::role::organization_key_of(session)?;
-    }
-
-    // the one role the account holds and the override that gives them the acts asked for, read
-    // against the role's row (effort 838).
-    let standing = super::role::standing_of(store, session, role, permissions).await?;
-
-    // the certificate follows the row, issued from the actor's own (effort 838). A reset draws a
-    // fresh vault secret, so `administrator_key` differs from the one this member's old
+    // the certificate follows, issued from the actor's own, before the row (effort 838). A reset
+    // draws a fresh vault secret, so `signing_key` differs from the one this member's old
     // certificate names: the old one has the rows it signed re-signed under the resetter, who
-    // holds authority over them, and is then revoked, so the replacement bricks nothing
-    // (`role::reissue`). A fresh invitation has no certificate to retire.
-    super::role::reissue(
+    // holds authority over them, and is then revoked, so the replacement bricks nothing. A row the
+    // resetter could not sign refuses the reset by name with nothing written (`role::reissue`). A
+    // fresh account has no certificate to retire.
+    reissue(
         store,
         session,
         &signer,
         member_id,
-        super::role::signs(standing.role_id, standing.effective)
-            .then_some((&administrator_key.verifying_key(), standing)),
+        Some((&signing_key.verifying_key(), standing)),
         now,
     )
     .await?;
@@ -1173,7 +1225,7 @@ async fn write_account<P: TursoPlatform>(
                     &session.content_key.to_bytes(),
                 )?,
                 vault: vault.clone(),
-                signing_public_key: administrator_key.verifying_key(),
+                signing_public_key: signing_key.verifying_key(),
                 role_id: standing.role_id.to_string(),
                 override_mask: standing.override_mask,
                 removed_at: None,
@@ -1362,13 +1414,15 @@ pub(crate) struct AccountAndLink {
 #[cfg(test)]
 pub(crate) struct Invitation<'a> {
     pub username: &'a str,
-    /// `packages/workspace-permission`'s vocabulary: `administrator` or `member`.
+    /// the role by the word a session still speaks (`permission::role_id_of_word`): `manager` or
+    /// its older name `administrator` for the manager's role, and `member` for the member's.
     pub role: &'a str,
     pub workspaces: &'a [WorkspaceGrant],
 }
 
-/// Make an account and the first link for it, as a test needs both. The account carries the role's
-/// own mask, which is what every invitation wrote before the permissions became a parameter.
+/// Make an account and the first link for it, as a test needs both. The account holds the role and
+/// no override, so it carries the role's own mask, which is what every invitation wrote before the
+/// override became a parameter.
 #[cfg(test)]
 pub(crate) async fn make_account_and_link<P: TursoPlatform>(
     store: &OrganizationStore,
@@ -1384,8 +1438,8 @@ pub(crate) async fn make_account_and_link<P: TursoPlatform>(
         session,
         platform,
         invitation.username,
-        invitation.role,
-        permission::mask_of_role(invitation.role),
+        permission::role_id_of_word(invitation.role),
+        0,
         invitation.workspaces,
         kdf_params,
         now,
@@ -1471,7 +1525,7 @@ mod tests {
         standings, unset_password, validate_username,
     };
     use crate::{
-        error::Error,
+        error::{Error, RefusalReason},
         organization::{
             HeldOrganization,
             link::{HalfKind, JoinLink, LinkPayload, Locator, open_payload},
@@ -1845,12 +1899,14 @@ mod tests {
     /// `unset_password` beside this act takes an account's password away and is `resetPassword`'s;
     /// a link is the only thing that gives one back. Held to `inviteMember` alone, a member widened
     /// with the second and not the first could lock somebody out and not let them in, which is what
-    /// the spec recorded under Risks and the human struck on 2026-09-16. Owners and administrators
-    /// hold both by role, so no default role moves and what is read here is a widened plain member.
+    /// the spec recorded under Risks and the human struck on 2026-09-16. Owners and managers hold
+    /// both by role, so what is read here is a manager whose override takes `inviteMember` away:
+    /// a link is made only from above (effort 838, requirement 7), and a plain member ranks above
+    /// nobody.
     ///
     /// The account the link is made for has a password and nobody signed in on it, so the link is
     /// the machine kind and the row behind it is unsigned: what is under test is the act and not
-    /// what a plain member can sign.
+    /// what the maker can sign.
     #[tokio::test]
     async fn a_link_is_made_by_a_holder_of_either_act_and_by_nobody_else() {
         let directory = scratch("link-acts");
@@ -1870,20 +1926,20 @@ mod tests {
         .expect("the account could not be made");
         let (sami, _) = opened_as(&store, &owner, &link, &subject.id, "sami", NOW).await;
 
-        // a plain member widened with `resetPassword` and nothing else.
+        // a manager holding `resetPassword` and not `inviteMember`.
         let resetter = create_account(
             &store,
             &owner,
             no_platform(),
             "rita.reset",
-            permission::MEMBER,
-            permission::mask_of(&[permission::Administration::ResetPassword]),
+            permission::MANAGER,
+            permission::mask_of(&[permission::Flag::InviteMember]),
             &[],
             test_cost(),
             NOW,
         )
         .await
-        .expect("the widened account could not be made");
+        .expect("the narrowed manager could not be made");
         let (rita, _) = opened_as(&store, &owner, &link, &resetter.id, "rita", NOW + 2).await;
 
         make_link(
@@ -1898,8 +1954,8 @@ mod tests {
         .await
         .expect("a holder of resetPassword was refused the link that restores an account");
 
-        // and a member holding neither act is refused, with both named: a caller told only the
-        // first would go looking for a bit they do not need.
+        // and a member holding neither act is refused, with both named before anything about
+        // rank: a caller told only the first would go looking for a bit they do not need.
         let refusal = make_link(
             &store,
             &sami,
@@ -2661,7 +2717,7 @@ mod tests {
 
     /// Effort 826, requirement 5 at the invitation: a read-only grant is minted, so it is the
     /// owner's with the authority in hand. The owner with a platform invites into a workspace at
-    /// read-only and the grant says so; the owner without one, and an administrator holding every
+    /// read-only and the grant says so; the owner without one, and a manager holding every
     /// act, are each refused by name before anything is written.
     #[tokio::test]
     async fn a_read_only_invitation_is_minted_on_the_owners_machine_and_refused_elsewhere() {
@@ -2724,29 +2780,29 @@ mod tests {
 
         assert!(refused.to_string().contains("authority"), "{refused}");
 
-        let admin = make_account_and_link(
+        let manager = make_account_and_link(
             &store,
             &owner,
             no_platform(),
             &link,
             Invitation {
-                username: "ada.admin",
-                role: permission::ADMINISTRATOR,
+                username: "ada.manager",
+                role: permission::MANAGER,
                 workspaces: &full(std::slice::from_ref(&workspace_id)),
             },
             test_cost(),
             3,
         )
         .await
-        .expect("the administrator");
+        .expect("the manager");
         let mut ada = sign_in(
             &store,
-            &joined_as(&owner, &admin.member_id, permission::ADMINISTRATOR),
-            &secret_of(&admin),
+            &joined_as(&owner, &manager.member_id, permission::MANAGER),
+            &secret_of(&manager),
             &slot(),
         )
         .await
-        .expect("the administrator did not sign in");
+        .expect("the manager did not sign in");
         ada.must_change_password = false;
 
         let refused = make_account_and_link(
@@ -2763,7 +2819,7 @@ mod tests {
             4,
         )
         .await
-        .expect_err("an administrator minted a read-only grant");
+        .expect_err("a manager minted a read-only grant");
 
         assert!(refused.to_string().contains("owner"), "{refused}");
 
@@ -2901,47 +2957,47 @@ mod tests {
         );
     }
 
-    /// Criterion 1: **resetting an administrator leaves every row they signed still verifiable,
-    /// and everyone can still sign in.** The owner resets an administrator who has invited a member
+    /// Criterion 1: **resetting a manager leaves every row they signed still verifiable,
+    /// and everyone can still sign in.** The owner resets a manager who has invited a member
     /// and holds a workspace; the reset draws a fresh vault secret and replaces the certificate,
     /// and without the re-signing that precedes it every row the old certificate signed would fail
-    /// verification and refuse the whole read (F1). Afterwards the owner, the reset administrator
+    /// verification and refuse the whole read (F1). Afterwards the owner, the reset manager
     /// under the new password, and the member all sign in, and members, grants and invitations all
     /// read without a refusal.
     #[tokio::test]
-    async fn resetting_an_administrator_leaves_every_row_verifiable_and_everyone_signs_in() {
-        let directory = scratch("admin-reset");
+    async fn resetting_a_manager_leaves_every_row_verifiable_and_everyone_signs_in() {
+        let directory = scratch("manager-reset-by-owner");
         let (store, owner, link, workspace_id, _) = owned(&directory).await;
 
-        let admin = make_account_and_link(
+        let manager = make_account_and_link(
             &store,
             &owner,
             no_platform(),
             &link,
             Invitation {
-                username: "ada.admin",
-                role: permission::ADMINISTRATOR,
+                username: "ada.manager",
+                role: permission::MANAGER,
                 workspaces: &full(std::slice::from_ref(&workspace_id)),
             },
             test_cost(),
             1,
         )
         .await
-        .expect("the administrator");
+        .expect("the manager");
 
-        // the administrator signs in, settles, and invites a member into the workspace: their
-        // certificate now signs a member row, grants and an invitation. The administrator's first
+        // the manager signs in, settles, and invites a member into the workspace: their
+        // certificate now signs a member row, grants and an invitation. The manager's first
         // password is read while their invitation row is still there, because the reset below
         // deletes it and the vault it opened is what the reset replaces.
-        let admins_first_password = secret_of(&admin);
+        let managers_first_password = secret_of(&manager);
         let mut ada = sign_in(
             &store,
-            &joined_as(&owner, &admin.member_id, permission::ADMINISTRATOR),
-            &admins_first_password,
+            &joined_as(&owner, &manager.member_id, permission::MANAGER),
+            &managers_first_password,
             &slot(),
         )
         .await
-        .expect("the administrator did not sign in");
+        .expect("the manager did not sign in");
         ada.must_change_password = false;
 
         let bob = make_account_and_link(
@@ -2960,37 +3016,37 @@ mod tests {
         .await
         .expect("bob");
 
-        // the owner resets the administrator: their certificate is replaced with one over a key
+        // the owner resets the manager: their certificate is replaced with one over a key
         // derived from a fresh vault secret.
         let reset = reset_account(
             &store,
             &owner,
             no_platform(),
             &link,
-            &admin.member_id,
+            &manager.member_id,
             test_cost(),
             3,
         )
         .await
         .expect("the reset failed");
 
-        assert_ne!(secret_of(&reset), admins_first_password);
+        assert_ne!(secret_of(&reset), managers_first_password);
 
         // F1: every read stands.
         assert!(
             store.members(&owner.verifying_key).await.is_ok(),
-            "resetting an administrator bricked the members read"
+            "resetting a manager bricked the members read"
         );
         assert!(
             store.grants(&owner.verifying_key).await.is_ok(),
-            "resetting an administrator bricked the grants read"
+            "resetting a manager bricked the grants read"
         );
         assert!(
             store.invitations(&owner.verifying_key).await.is_ok(),
-            "resetting an administrator bricked the invitations read"
+            "resetting a manager bricked the invitations read"
         );
 
-        // everyone signs in: the owner, the reset administrator under the new password, the member.
+        // everyone signs in: the owner, the reset manager under the new password, the member.
         let owner_again = sign_in(
             &store,
             &joined_as(&owner, &owner.member_id, permission::OWNER),
@@ -3004,17 +3060,17 @@ mod tests {
 
         let ada_again = sign_in(
             &store,
-            &joined_as(&owner, &admin.member_id, permission::ADMINISTRATOR),
+            &joined_as(&owner, &manager.member_id, permission::MANAGER),
             &secret_of(&reset),
             &slot(),
         )
         .await
-        .expect("the reset administrator did not sign in under the new password");
+        .expect("the reset manager did not sign in under the new password");
 
         assert!(ada_again.must_change_password);
         assert!(
             ada_again.workspace_credentials.contains_key(&workspace_id),
-            "the reset administrator lost the workspace they held"
+            "the reset manager lost the workspace they held"
         );
 
         let bob_again = sign_in(
@@ -3024,68 +3080,69 @@ mod tests {
             &slot(),
         )
         .await
-        .expect("the member the administrator invited can no longer sign in");
+        .expect("the member the manager invited can no longer sign in");
 
         assert!(bob_again.workspace_credentials.contains_key(&workspace_id));
 
-        // and the old password no longer opens the reset administrator's vault.
+        // and the old password no longer opens the reset manager's vault.
         assert!(
             sign_in(
                 &store,
-                &joined_as(&owner, &admin.member_id, permission::ADMINISTRATOR),
-                &admins_first_password,
+                &joined_as(&owner, &manager.member_id, permission::MANAGER),
+                &managers_first_password,
                 &slot(),
             )
             .await
             .is_err(),
-            "the old password still opens the reset administrator's vault"
+            "the old password still opens the reset manager's vault"
         );
     }
 
-    /// Who may invite whom: an owner invites an administrator, who then invites a member; an
-    /// administrator does not invite an administrator; a member invites nobody.
+    /// Who may invite whom: an owner invites a manager, who then invites a member; a manager does
+    /// not invite a manager, whose role is not below theirs (effort 838, requirement 7); a member
+    /// invites nobody.
     #[tokio::test]
-    async fn administration_is_what_the_row_carries_and_the_organization_key_is_the_owners() {
+    async fn administration_is_what_the_row_carries_and_an_account_ranks_below_its_maker() {
         let directory = scratch("roles");
         let (store, owner, link, _, _) = owned(&directory).await;
 
-        let administrator = make_account_and_link(
+        let manager = make_account_and_link(
             &store,
             &owner,
             no_platform(),
             &link,
             Invitation {
-                username: "ada.admin",
-                role: permission::ADMINISTRATOR,
+                username: "ada.manager",
+                role: permission::MANAGER,
                 workspaces: &[],
             },
             test_cost(),
             1,
         )
         .await
-        .expect("the owner could not invite an administrator");
+        .expect("the owner could not invite a manager");
 
-        // a certificate exists for them, under the organization key.
+        // a certificate exists for them, issued from the owner's.
         let certificates = store.certificates().await.expect("the certificates");
 
         assert!(
             certificates
                 .iter()
-                .any(|certificate| certificate.member_id == administrator.member_id)
+                .any(|certificate| certificate.member_id == manager.member_id)
         );
 
         let ada = sign_in(
             &store,
-            &joined_as(&owner, &administrator.member_id, permission::ADMINISTRATOR),
-            &secret_of(&administrator),
+            &joined_as(&owner, &manager.member_id, permission::MANAGER),
+            &secret_of(&manager),
             &slot(),
         )
         .await
-        .expect("the administrator did not sign in");
+        .expect("the manager did not sign in");
 
         assert_eq!(
             permission::acts_of(ada.permissions),
-            permission::mask_of_role(permission::ADMINISTRATOR)
+            permission::acts_of(permission::MANAGER_ROLE.mask)
         );
 
         let mut settled = ada;
@@ -3105,7 +3162,7 @@ mod tests {
             2,
         )
         .await
-        .expect("an administrator could not invite a member");
+        .expect("a manager could not invite a member");
 
         let refusal = make_account_and_link(
             &store,
@@ -3113,17 +3170,26 @@ mod tests {
             no_platform(),
             &link,
             Invitation {
-                username: "another.admin",
-                role: permission::ADMINISTRATOR,
+                username: "another.manager",
+                role: permission::MANAGER,
                 workspaces: &[],
             },
             test_cost(),
             3,
         )
         .await
-        .expect_err("an administrator certified an administrator");
+        .expect_err("a manager made a manager");
 
-        assert!(refusal.to_string().contains("only an owner"), "{refusal}");
+        assert!(
+            matches!(
+                refusal,
+                Error::Refused {
+                    reason: RefusalReason::RankNotAbove,
+                    ..
+                }
+            ),
+            "{refusal:?}"
+        );
 
         let mut mo = sign_in(
             &store,
@@ -3219,32 +3285,32 @@ mod tests {
     async fn a_link_made_by_somebody_who_cannot_reach_a_workspace_says_which_grant_it_dropped() {
         let directory = scratch("dropped-grant");
         let (store, owner, link, workspace_id, _) = owned(&directory).await;
-        let admin = make_account_and_link(
+        let manager = make_account_and_link(
             &store,
             &owner,
             no_platform(),
             &link,
             Invitation {
-                username: "ada.admin",
-                role: permission::ADMINISTRATOR,
+                username: "ada.manager",
+                role: permission::MANAGER,
                 workspaces: &[],
             },
             test_cost(),
             1,
         )
         .await
-        .expect("the administrator");
+        .expect("the manager");
         let mut ada = sign_in(
             &store,
-            &joined_as(&owner, &admin.member_id, permission::ADMINISTRATOR),
-            &secret_of(&admin),
+            &joined_as(&owner, &manager.member_id, permission::MANAGER),
+            &secret_of(&manager),
             &slot(),
         )
         .await
-        .expect("the administrator did not sign in");
+        .expect("the manager did not sign in");
         ada.must_change_password = false;
 
-        // the owner, who holds the workspace, makes the account into it; the administrator, who
+        // the owner, who holds the workspace, makes the account into it; the manager, who
         // does not, makes the first link.
         let account = create_account(
             &store,
@@ -3795,5 +3861,465 @@ mod tests {
             .find(|member| member.id == member_id)
             .expect("the member row")
             .session_epoch
+    }
+
+    /// An account made by `maker` in `role_id` with `override_mask`, into no workspace.
+    async fn made(
+        store: &OrganizationStore,
+        maker: &MemberSession,
+        username: &str,
+        role_id: &str,
+        override_mask: i64,
+    ) -> Result<super::MemberFacts, Error> {
+        create_account(
+            store,
+            maker,
+            no_platform(),
+            username,
+            role_id,
+            override_mask,
+            &[],
+            test_cost(),
+            NOW,
+        )
+        .await
+    }
+
+    /// Every live certificate a member holds, judged against the key the owner pinned.
+    async fn live_of(
+        store: &OrganizationStore,
+        owner: &MemberSession,
+        member_id: &str,
+    ) -> Vec<crate::organization::authority::Certificate> {
+        store
+            .live_certificates(&owner.verifying_key, member_id)
+            .await
+            .expect("the certificates")
+    }
+
+    /// Which certificate signed one grant row, read raw.
+    async fn grant_signed_by(
+        store: &OrganizationStore,
+        member_id: &str,
+        workspace_id: &str,
+    ) -> String {
+        let mut rows = store
+            .connection()
+            .query(
+                "SELECT \"certificate_id\" FROM \"grant\" WHERE \"member_id\" = ? AND \
+                 \"workspace_id\" = ?",
+                vec![
+                    turso::Value::Text(member_id.to_string()),
+                    turso::Value::Text(workspace_id.to_string()),
+                ],
+            )
+            .await
+            .expect("the row");
+        let row = rows
+            .next()
+            .await
+            .expect("a row")
+            .expect("the grant row exists");
+
+        match row.get_value(0).expect("the certificate id") {
+            turso::Value::Text(id) => id,
+            other => panic!("certificate_id is {other:?}"),
+        }
+    }
+
+    /// The refusal's reason and sentence, or a panic naming what came back instead.
+    fn refused_with(
+        result: Result<super::MemberFacts, Error>,
+        what: &str,
+    ) -> (RefusalReason, String) {
+        match result {
+            Err(Error::Refused { reason, message }) => (reason, message),
+            other => panic!("{what}: {other:?}"),
+        }
+    }
+
+    /// Effort 838, criterion 7 at the account: **an account is made in a role strictly below the
+    /// maker's, and carrying no flag the maker does not hold, switched on or off.**
+    ///
+    /// Three managers stand in for every maker: one carrying the manager's role whole, one whose
+    /// override takes `editPayment` away, and one whose override takes `deleteUnit` away. A role at
+    /// or above the maker's is refused by rank, the owner's included and by the owner too; a role
+    /// that carries a flag the maker lacks is refused naming it, and so is an override that names
+    /// one, whether it would switch the flag off (the member's `editPayment`) or on (`deleteUnit`,
+    /// which the member's role does not carry); the owner's flags are refused in any override.
+    /// None of the refusals writes a row or a certificate, and within the lines both makers make
+    /// the account they asked for.
+    #[tokio::test]
+    async fn an_account_is_made_below_the_maker_and_with_only_flags_they_hold() {
+        let directory = scratch("below");
+        let (store, owner, link, _, _) = owned(&directory).await;
+        let edit_payment = permission::mask_of(&[permission::Flag::EditPayment]);
+        let delete_unit = permission::mask_of(&[permission::Flag::DeleteUnit]);
+        let lock_out = permission::mask_of(&[permission::Flag::LockOut]);
+        let mut sessions = Vec::new();
+
+        for (username, override_mask, at) in [
+            ("ada.manager", 0, NOW + 1),
+            ("nora.manager", edit_payment, NOW + 3),
+            ("dana.manager", delete_unit, NOW + 5),
+        ] {
+            let account = made(&store, &owner, username, permission::MANAGER, override_mask)
+                .await
+                .expect("the owner could not make a manager");
+            let (session, _) = opened_as(&store, &owner, &link, &account.id, username, at).await;
+
+            sessions.push(session);
+        }
+
+        let [ada, nora, dana] = <[MemberSession; 3]>::try_from(sessions).expect("three managers");
+        let certificates = store.certificates().await.expect("the certificates").len();
+        let members = store
+            .members(&owner.verifying_key)
+            .await
+            .expect("the members")
+            .len();
+
+        // a role at or above the maker's, by rank: the manager's for a manager, and the owner's
+        // for anybody, the owner included.
+        for (maker, role_id, what) in [
+            (&ada, permission::MANAGER, "a manager made a manager"),
+            (&ada, permission::OWNER, "a manager made an owner"),
+            (&owner, permission::OWNER, "the owner made a second owner"),
+        ] {
+            let (reason, message) =
+                refused_with(made(&store, maker, "xavier", role_id, 0).await, what);
+
+            assert_eq!(reason, RefusalReason::RankNotAbove, "{what}: {message}");
+            assert!(message.contains("not below yours"), "{what}: {message}");
+        }
+
+        // a role nobody holds is not made up.
+        let (reason, _) = refused_with(
+            made(&store, &ada, "xavier", "a-role-nobody-made", 0).await,
+            "an account was made in a role that does not exist",
+        );
+
+        assert_eq!(reason, RefusalReason::RoleUnknown);
+
+        // a flag the maker lacks, carried by the role, by an override switching it off, and by an
+        // override switching it on.
+        for (maker, override_mask, flag, what) in [
+            (&nora, 0, "editPayment", "the role's editPayment was given"),
+            (
+                &nora,
+                edit_payment,
+                "editPayment",
+                "editPayment was switched off",
+            ),
+            (
+                &dana,
+                delete_unit,
+                "deleteUnit",
+                "deleteUnit was switched on",
+            ),
+        ] {
+            let (reason, message) = refused_with(
+                made(&store, maker, "xavier", permission::MEMBER, override_mask).await,
+                what,
+            );
+
+            assert_eq!(reason, RefusalReason::RoleLacksAct, "{what}: {message}");
+            assert!(message.contains(flag), "{what}: {message}");
+        }
+
+        // and the owner's flags, in anybody's override, from the owner who holds them as well.
+        for (maker, what) in [(&owner, "the owner"), (&ada, "a manager")] {
+            let (reason, message) = refused_with(
+                made(&store, maker, "xavier", permission::MEMBER, lock_out).await,
+                what,
+            );
+
+            assert_eq!(reason, RefusalReason::OwnerOnly, "{what}: {message}");
+            assert!(message.contains("lockOut"), "{what}: {message}");
+        }
+
+        assert_eq!(
+            store.certificates().await.expect("the certificates").len(),
+            certificates,
+            "a refusal issued a certificate"
+        );
+        assert_eq!(
+            store
+                .members(&owner.verifying_key)
+                .await
+                .expect("the members")
+                .len(),
+            members,
+            "a refusal wrote a member row"
+        );
+
+        // within the lines, the account is made as asked.
+        let plain = made(&store, &dana, "mo.staff", permission::MEMBER, 0)
+            .await
+            .expect("a manager lacking deleteUnit could not make a plain member");
+
+        assert_eq!(plain.permissions, permission::MEMBER_ROLE.mask);
+
+        let widened = made(
+            &store,
+            &ada,
+            "gina.staff",
+            permission::MEMBER,
+            permission::mask_of(&[permission::Flag::GrantWorkspace]),
+        )
+        .await
+        .expect("a manager could not make a member widened with a flag they hold");
+
+        assert_eq!(
+            widened.permissions,
+            permission::MEMBER_ROLE.mask | permission::mask_of(&[permission::Flag::GrantWorkspace])
+        );
+    }
+
+    /// Effort 838, requirement 9 at the account: **a manager's account is certified from the
+    /// manager's own certificate, with the ceiling and the rank of what the account may do, and
+    /// nobody derives the organization key to do it.**
+    ///
+    /// The manager's vault derives no key the organization is signed under
+    /// (`role::organization_key_of` refuses it by name), and the member they make holds one live
+    /// certificate that names the manager's as its issuer, carries the member's effective
+    /// permissions and the member's rank, and walks to the pinned key. Every live member holds
+    /// exactly one live certificate afterwards, the owner and the manager included.
+    #[tokio::test]
+    async fn a_managers_account_is_certified_from_their_own_certificate() {
+        let directory = scratch("delegated");
+        let (store, owner, link, _, _) = owned(&directory).await;
+        let manager = made(&store, &owner, "ada.manager", permission::MANAGER, 0)
+            .await
+            .expect("the manager");
+        let (ada, _) = opened_as(&store, &owner, &link, &manager.id, "ada", NOW + 1).await;
+
+        assert!(
+            crate::organization::role::organization_key_of(&ada).is_err(),
+            "a manager's vault derives the organization key"
+        );
+
+        let widened = permission::mask_of(&[permission::Flag::GrantWorkspace]);
+        let member = made(&store, &ada, "mo.staff", permission::MEMBER, widened)
+            .await
+            .expect("the manager could not make a member");
+        let row = store
+            .members(&owner.verifying_key)
+            .await
+            .expect("the members")
+            .into_iter()
+            .find(|row| row.id == member.id)
+            .expect("the member row");
+        let issuer = live_of(&store, &owner, &manager.id).await;
+        let issued = live_of(&store, &owner, &member.id).await;
+
+        assert_eq!(issuer.len(), 1, "{issuer:?}");
+        assert_eq!(issued.len(), 1, "{issued:?}");
+
+        let certificate = &issued[0];
+
+        assert_eq!(
+            certificate.issuer_certificate_id.as_deref(),
+            Some(issuer[0].id.as_str()),
+            "the member's certificate was not issued from the manager's"
+        );
+        assert_eq!(certificate.ceiling, row.effective);
+        assert_eq!(certificate.ceiling, permission::MEMBER_ROLE.mask | widened);
+        assert_eq!(certificate.rank, permission::MEMBER_ROLE.rank);
+        assert_eq!(certificate.signing_public_key, row.signing_public_key);
+
+        let (certificates, revocations) = store.chain_rows().await.expect("the chain");
+
+        assert!(
+            crate::organization::authority::Chain::new(
+                &owner.verifying_key,
+                &certificates,
+                &revocations
+            )
+            .live(&certificate.id)
+            .is_ok(),
+            "the member's certificate does not walk to the pinned key"
+        );
+
+        for row in store
+            .members(&owner.verifying_key)
+            .await
+            .expect("the members")
+        {
+            assert_eq!(
+                live_of(&store, &owner, &row.id).await.len(),
+                1,
+                "{} does not hold exactly one live certificate",
+                row.id
+            );
+        }
+    }
+
+    /// Effort 838, requirement 9 at the reset: **a manager resets a member's password with no
+    /// organization key anywhere in reach, the member's fresh certificate verifies, and the rows
+    /// their old one signed still verify.**
+    ///
+    /// The member was widened with `grantWorkspace` and granted the workspace to a colleague, so
+    /// their certificate signed a row. The manager's reset issues them a certificate from the
+    /// manager's own over the fresh vault's key, re-signs the grant under the manager and revokes
+    /// the old certificate: the grants read, the colleague still opens the workspace, and the reset
+    /// member signs in on the fresh link. A second manager is not the first's to reset.
+    #[tokio::test]
+    async fn a_manager_resets_a_member_and_every_row_their_old_certificate_signed_still_verifies() {
+        let directory = scratch("manager-reset");
+        let (store, owner, link, north, _) = owned(&directory).await;
+        let north_only = full(std::slice::from_ref(&north));
+        let manager = create_account(
+            &store,
+            &owner,
+            no_platform(),
+            "ada.manager",
+            permission::MANAGER,
+            0,
+            &north_only,
+            test_cost(),
+            NOW,
+        )
+        .await
+        .expect("the manager");
+        let other_manager = made(&store, &owner, "bea.manager", permission::MANAGER, 0)
+            .await
+            .expect("the second manager");
+        let granter = create_account(
+            &store,
+            &owner,
+            no_platform(),
+            "sami.staff",
+            permission::MEMBER,
+            permission::mask_of(&[permission::Flag::GrantWorkspace]),
+            &north_only,
+            test_cost(),
+            NOW,
+        )
+        .await
+        .expect("the widened member");
+        let colleague = made(&store, &owner, "bob.staff", permission::MEMBER, 0)
+            .await
+            .expect("the colleague");
+        let (ada, _) = opened_as(&store, &owner, &link, &manager.id, "ada", NOW + 1).await;
+        let (sami, _) = opened_as(&store, &owner, &link, &granter.id, "sami", NOW + 3).await;
+        let (_, _) = opened_as(&store, &owner, &link, &colleague.id, "bob", NOW + 5).await;
+
+        // the member's certificate signs a row: their colleague's grant on the workspace.
+        crate::organization::workspace::grant_workspace::<InMemoryPlatform>(
+            &store,
+            &sami,
+            None,
+            &north,
+            &colleague.id,
+            AccessLevel::FullAccess,
+        )
+        .await
+        .expect("the widened member could not grant the workspace");
+
+        let old = live_of(&store, &owner, &granter.id).await;
+
+        assert_eq!(old.len(), 1);
+        assert_eq!(
+            grant_signed_by(&store, &colleague.id, &north).await,
+            old[0].id
+        );
+
+        // no organization key in reach: the manager's vault does not derive it.
+        assert!(
+            crate::organization::role::organization_key_of(&ada).is_err(),
+            "a manager's vault derives the organization key"
+        );
+
+        let reset = reset_account(
+            &store,
+            &ada,
+            no_platform(),
+            &link,
+            &granter.id,
+            test_cost(),
+            NOW + 10,
+        )
+        .await
+        .expect("a manager could not reset a member");
+
+        // the fresh certificate: one, from the manager's, over the key the fresh row names, and
+        // it walks to the pinned key; the old one does not any more.
+        let managers = live_of(&store, &owner, &manager.id).await;
+        let fresh = live_of(&store, &owner, &granter.id).await;
+        let row = store
+            .members(&owner.verifying_key)
+            .await
+            .expect("the members verify after the reset")
+            .into_iter()
+            .find(|row| row.id == granter.id)
+            .expect("the reset member's row");
+
+        assert_eq!(fresh.len(), 1, "{fresh:?}");
+        assert_ne!(fresh[0].id, old[0].id);
+        assert_eq!(
+            fresh[0].issuer_certificate_id.as_deref(),
+            Some(managers[0].id.as_str())
+        );
+        assert_eq!(fresh[0].signing_public_key, row.signing_public_key);
+        assert_ne!(fresh[0].signing_public_key, old[0].signing_public_key);
+        assert_eq!(fresh[0].ceiling, row.effective);
+
+        // the row the old certificate signed verifies, under the manager now.
+        store
+            .grants(&owner.verifying_key)
+            .await
+            .expect("the rows the old certificate signed no longer verify");
+        assert_eq!(
+            grant_signed_by(&store, &colleague.id, &north).await,
+            managers[0].id
+        );
+
+        let bob = sign_in(
+            &store,
+            &joined_as(&owner, &colleague.id, permission::MEMBER),
+            CHOSEN,
+            &slot(),
+        )
+        .await
+        .expect("the colleague no longer signs in");
+
+        assert!(bob.workspace_credentials.contains_key(&north));
+
+        // and the reset member signs in on the fresh link, holding what they held.
+        let after = sign_in(
+            &store,
+            &joined_as(&owner, &granter.id, permission::MEMBER),
+            &secret_of(&reset),
+            &slot(),
+        )
+        .await
+        .expect("the reset member did not sign in");
+
+        assert!(after.must_change_password);
+        assert!(after.workspace_credentials.contains_key(&north));
+
+        // a manager's account is not a manager's to reset.
+        let refusal = unset_password(
+            &store,
+            &ada,
+            no_platform(),
+            &other_manager.id,
+            test_cost(),
+            NOW + 20,
+        )
+        .await
+        .expect_err("a manager reset another manager");
+
+        assert!(
+            matches!(
+                refusal,
+                Error::Refused {
+                    reason: RefusalReason::RankNotAbove,
+                    ..
+                }
+            ),
+            "{refusal:?}"
+        );
     }
 }

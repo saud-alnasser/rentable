@@ -540,12 +540,42 @@ pub fn require_any<A: Act>(permissions: i64, acts: &[A]) -> Result<(), Error> {
     ))
 }
 
+/// The first flag `given` carries that `held` does not, in bit order, by the package's name for
+/// it; `None` where `held` covers every bit of `given`.
+///
+/// **Requirement 7's "only flags you hold"**, as a command asks it before it gives somebody a mask
+/// (effort 838): what a member hands on is bounded by what they carry. A bit no flag sits on is
+/// never held, so it is named as what it is rather than let through.
+pub fn first_not_held(held: i64, given: i64) -> Option<&'static str> {
+    let beyond = given & !held;
+
+    if beyond == 0 {
+        return None;
+    }
+
+    Some(
+        Flag::ALL
+            .iter()
+            .find(|flag| permits(beyond, **flag))
+            .map_or("a flag this version does not name", |flag| flag.name()),
+    )
+}
+
+/// The first of the owner's flags a mask carries, by name: what no role and no override may hold
+/// (requirement 2).
+pub fn first_owner_only(mask: i64) -> Option<&'static str> {
+    OWNER_ONLY
+        .iter()
+        .find(|flag| permits(mask, **flag))
+        .map(|flag| flag.name())
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         ADMINISTRATOR, Administration, BUILT_IN, BuiltIn, Family, Flag, MANAGER_ROLE, MEMBER,
         MEMBER_ADMINISTRATION, MEMBER_ROLE, OWNER, OWNER_ONLY, OWNER_ROLE, WRITE_FLAGS, effective,
-        effective_in, mask_of, mask_of_role, permits, require,
+        effective_in, first_not_held, first_owner_only, mask_of, mask_of_role, permits, require,
     };
     use crate::sync::turso::platform::AccessLevel;
 
@@ -911,5 +941,37 @@ mod tests {
             .expect_err("a member invited");
 
         assert!(refusal.to_string().contains("inviteMember"), "{refusal}");
+    }
+
+    /// Requirement 7's "only flags you hold", as the arithmetic a command asks it with: nothing
+    /// beyond what is held names nothing, the first flag beyond it is named in bit order, a bit no
+    /// flag sits on is named as unknown, and the owner's flags are found wherever they are set.
+    #[test]
+    fn a_mask_beyond_what_is_held_names_its_first_flag() {
+        let held = MANAGER_ROLE.mask;
+
+        assert_eq!(first_not_held(held, MEMBER_ROLE.mask), None);
+        assert_eq!(first_not_held(held, 0), None);
+        assert_eq!(
+            first_not_held(held, mask_of(&[Flag::LockOut, Flag::DeleteOrganization])),
+            Some("lockOut")
+        );
+        assert_eq!(
+            first_not_held(
+                MEMBER_ROLE.mask,
+                mask_of(&[Flag::DeletePayment, Flag::InviteMember])
+            ),
+            Some("inviteMember")
+        );
+        assert_eq!(
+            first_not_held(OWNER_ROLE.mask, 1_i64 << 45),
+            Some("a flag this version does not name")
+        );
+
+        assert_eq!(first_owner_only(MANAGER_ROLE.mask), None);
+        assert_eq!(
+            first_owner_only(mask_of(&[Flag::ViewUnit, Flag::MintReadOnly])),
+            Some("mintReadOnly")
+        );
     }
 }

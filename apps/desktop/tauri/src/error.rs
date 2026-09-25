@@ -80,7 +80,7 @@ pub enum Error {
 /// The first four are a link's standing after its code was right (effort 828): an invitation is
 /// `Lapsed`, `Consumed` or `Revoked`, and a machine link is `Lapsed`, `Consumed` or `Replaced`.
 /// The connect screen routes on those four by name. Every other word was added by effort 832,
-/// but the two for the organization's format, which effort 838 added.
+/// but the two for the organization's format and the one for a rank, which effort 838 added.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum RefusalReason {
@@ -154,6 +154,9 @@ pub enum RefusalReason {
     RoleLacksAct,
     /// the reader holds no administrator certificate.
     NotAdministrator,
+    /// the role acted on, or the member's role, is not ranked below the reader's (effort 838,
+    /// requirement 7).
+    RankNotAbove,
 
     // handing the organization over.
     /// the owner offered the organization to themselves.

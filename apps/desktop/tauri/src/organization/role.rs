@@ -1794,7 +1794,8 @@ mod tests {
         )
         .await;
 
-        assert!(!certified(&store, &sami.member_id).await);
+        // certified from the moment the account was made, as every account is since effort 838.
+        assert!(certified(&store, &sami.member_id).await);
 
         // widened by the owner: their first signing act, and the certificate the owner issues over
         // the key their row has carried since it was written.
@@ -1820,12 +1821,13 @@ mod tests {
                 .expect("the signing seed"),
         )
         .verifying_key();
+        // the live one: the account's first link re-sealed its vault, so the certificate issued
+        // when the account was made names a key the vault no longer derives, and was revoked.
         let certificate = store
-            .certificates()
+            .live_certificates(&owner.verifying_key, &sami.member_id)
             .await
             .expect("the certificates")
-            .into_iter()
-            .find(|certificate| certificate.member_id == sami.member_id)
+            .pop()
             .expect("their certificate");
 
         assert_eq!(certificate.signing_public_key, theirs_to_sign_with);
@@ -1917,13 +1919,7 @@ mod tests {
         );
 
         // and a row they sign under it anyway is refused on read, by name.
-        let revoked = store
-            .certificates()
-            .await
-            .expect("the certificates")
-            .into_iter()
-            .find(|certificate| certificate.member_id == sami.member_id)
-            .expect("their certificate");
+        let revoked = certificate;
         let key = AdministratorKey::from_bytes(
             &widened
                 .secret

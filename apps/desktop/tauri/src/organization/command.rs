@@ -1276,12 +1276,16 @@ pub async fn organization_renew_due(app_state: tauri::State<'_, AppState>) -> Re
 /// Everything the account is made of stays on this side: the vault, the content key sealed to
 /// them, and the grants. A read-only grant is minted with the owner's authority, which is why the
 /// platform is handed in where this machine holds it.
+///
+/// **One role and one override** (effort 838, requirement 5): `role_id` names the role the account
+/// holds and `override_mask` the flags switched for them alone, `roleId` and `overrideMask` on the
+/// wire. The second is not spelled `override`, which Rust keeps as a word of its own.
 #[tauri::command]
 pub async fn member_create(
     app_state: tauri::State<'_, AppState>,
     username: String,
-    role: String,
-    permissions: i64,
+    role_id: String,
+    override_mask: i64,
     workspaces: Vec<WorkspaceGrant>,
 ) -> Result<MemberFacts, Error> {
     let platform = owner_platform(&app_state).await;
@@ -1294,8 +1298,8 @@ pub async fn member_create(
         member,
         platform.as_ref(),
         &username,
-        &role,
-        permissions,
+        &role_id,
+        override_mask,
         &workspaces,
         invite::INVITED_KDF,
         timestamp::now(),
@@ -2926,8 +2930,8 @@ mod tests {
     /// is open here. Before this machine has read anything, making an administrator from the
     /// stale session is refused rather than written; the next state read follows the succession
     /// and re-reads the founder's own row, so the session is the administrator's it now is on
-    /// every gate: deleting the organization and certifying a signer are refused by name, a plain
-    /// member is theirs to make, and the directory verifies on every machine afterwards.
+    /// every gate: deleting the organization is refused by name and making a manager by rank, a
+    /// plain member is theirs to make, and the directory verifies on every machine afterwards.
     #[tokio::test]
     async fn the_founders_open_session_is_an_administrators_after_a_handover_elsewhere() {
         let _turn = a_turn().await;
@@ -2961,8 +2965,8 @@ mod tests {
                 &*session,
                 None::<&InMemoryPlatform>,
                 "noor.new",
-                permission::ADMINISTRATOR,
-                permission::mask_of_role(permission::ADMINISTRATOR),
+                permission::MANAGER,
+                0,
                 &[],
                 test_cost(),
                 CREATED_AT + 3,
@@ -3002,7 +3006,8 @@ mod tests {
             "{refused:?}"
         );
 
-        // certifying a signer: refused by name, and a plain member is theirs to make.
+        // making a manager: refused by rank, as the manager the row now says they are, and a plain
+        // member is theirs to make, issued from their own certificate (effort 838).
         {
             let mut member = app_state.member.write().await;
             let organization = app_state.organization.read().await;
@@ -3012,17 +3017,23 @@ mod tests {
                 &*session,
                 None::<&InMemoryPlatform>,
                 "noor.new",
-                permission::ADMINISTRATOR,
-                permission::mask_of_role(permission::ADMINISTRATOR),
+                permission::MANAGER,
+                0,
                 &[],
                 test_cost(),
                 CREATED_AT + 4,
             )
             .await
-            .expect_err("an administrator certified a signer");
+            .expect_err("a manager made a manager");
 
             assert!(
-                matches!(refused, Error::Refused { reason: crate::error::RefusalReason::OwnerOnly, ref message } if message.contains("only an owner")),
+                matches!(
+                    refused,
+                    Error::Refused {
+                        reason: crate::error::RefusalReason::RankNotAbove,
+                        ..
+                    }
+                ),
                 "{refused:?}"
             );
 
@@ -3032,13 +3043,13 @@ mod tests {
                 None::<&InMemoryPlatform>,
                 "sami.staff",
                 permission::MEMBER,
-                permission::mask_of_role(permission::MEMBER),
+                0,
                 &[],
                 test_cost(),
                 CREATED_AT + 5,
             )
             .await
-            .expect("an administrator could not make a member");
+            .expect("a manager could not make a member");
         }
 
         // and the directory verifies under the key in force, here and on the other machine.
