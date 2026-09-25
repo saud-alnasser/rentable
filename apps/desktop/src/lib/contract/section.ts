@@ -9,8 +9,11 @@
  * `node:test` can ask without rendering a page.
  */
 
-/** The sections, in the order the page draws them. */
-export const CONTRACT_SECTIONS = ['payments', 'units', 'history'] as const;
+/**
+ * The sections, in the order the page draws them. The schedule follows the payments, because it
+ * is those payments read against the cycles they pay for.
+ */
+export const CONTRACT_SECTIONS = ['payments', 'schedule', 'units', 'history'] as const;
 
 export type ContractSection = (typeof CONTRACT_SECTIONS)[number];
 

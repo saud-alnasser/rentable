@@ -14,6 +14,7 @@
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import PaymentLedger from '$lib/payment/component/ledger.svelte';
 	import { useFetchTenant } from '$lib/tenant/query';
+	import ContractSchedule from './schedule.svelte';
 	import ContractUnits from './units.svelte';
 
 	let {
@@ -115,6 +116,10 @@
 	<PaymentLedger {contractId} />
 {/snippet}
 
+{#snippet schedule()}
+	<ContractSchedule {contractId} />
+{/snippet}
+
 {#snippet units()}
 	<ContractUnits {contractId} />
 {/snippet}
@@ -138,6 +143,7 @@
 	{section}
 	collections={[
 		{ value: 'payments', label: $LL.common.nav.payments(), content: payments },
+		{ value: 'schedule', label: $LL.contracts.schedule.title(), content: schedule },
 		{ value: 'units', label: $LL.common.nav.units(), content: units },
 		{ value: 'history', label: $LL.common.history.title(), content: history }
 	]}

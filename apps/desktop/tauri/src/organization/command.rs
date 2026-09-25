@@ -17,7 +17,7 @@ use super::{
     invite::{self, MadeLink, MemberFacts, MemberStanding, UnreachableWorkspace, WorkspaceGrant},
     join,
     link::{self, JoinLink, LinkShape},
-    machine,
+    machine, mark,
     migrate::Pipeline,
     migration::{self, MigrationPhase, PipelineLease},
     password,
@@ -1581,6 +1581,53 @@ pub async fn member_rename(
     store.pull().await;
 
     invite::rename_member(store, member, &member_id, &username, timestamp::now()).await
+}
+
+/// The organization's mark, a signature or a seal, opened for the pages it is printed on and the
+/// settings it is set in; nothing where none is set. Any signed-in member reads it, from the
+/// replica, offline included.
+#[tauri::command]
+pub async fn organization_mark_get(
+    app_state: tauri::State<'_, AppState>,
+) -> Result<Option<mark::MarkFacts>, Error> {
+    let mut member = app_state.member.write().await;
+    let store = app_state.organization.read().await;
+    let (member, store) = signed_in(&mut member, &store)?;
+
+    mark::read_mark(store, member).await
+}
+
+/// Keep the image at `path`, which the open dialog chose, as the organization's mark. It is read
+/// here rather than handed over, checked by its bytes, sealed, written and sent; the owner's or an
+/// administrator's to do.
+#[tauri::command]
+pub async fn organization_mark_set(
+    app_state: tauri::State<'_, AppState>,
+    path: String,
+) -> Result<mark::MarkFacts, Error> {
+    let unreadable = |error: std::io::Error| Error::Io {
+        message: format!("could not read {path}: {error}"),
+    };
+
+    // the size first, so a file far past the limit is refused without being read into memory.
+    mark::check_length(tokio::fs::metadata(&path).await.map_err(unreadable)?.len())?;
+
+    let image = tokio::fs::read(&path).await.map_err(unreadable)?;
+    let mut member = app_state.member.write().await;
+    let store = app_state.organization.read().await;
+    let (member, store) = signed_in(&mut member, &store)?;
+
+    mark::set_mark(store, member, &image, timestamp::now()).await
+}
+
+/// Remove the organization's mark; the owner's or an administrator's to do.
+#[tauri::command]
+pub async fn organization_mark_clear(app_state: tauri::State<'_, AppState>) -> Result<(), Error> {
+    let mut member = app_state.member.write().await;
+    let store = app_state.organization.read().await;
+    let (member, store) = signed_in(&mut member, &store)?;
+
+    mark::clear_mark(store, member).await
 }
 
 /// Sign this member out of every machine but the one they are at (effort 826, requirement 22).

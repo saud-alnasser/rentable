@@ -16,6 +16,12 @@ test('?section=history opens the history', () => {
 	assert.equal(contractSectionOf(at('?section=history')), 'history');
 });
 
+// ticket 04 of effort 835: the schedule is a section of its own, read after the payments.
+test('?section=schedule opens the schedule, which follows the payments', () => {
+	assert.equal(contractSectionOf(at('?section=schedule')), 'schedule');
+	assert.equal(CONTRACT_SECTIONS.indexOf('schedule'), CONTRACT_SECTIONS.indexOf('payments') + 1);
+});
+
 test('a contract address naming no section opens its payments', () => {
 	assert.equal(contractSectionOf(at('')), 'payments');
 });

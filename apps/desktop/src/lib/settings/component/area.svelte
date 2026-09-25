@@ -22,6 +22,7 @@
 	import OrganizationEndOtherSessions from '$lib/organization/component/end-other-sessions.svelte';
 	import OrganizationForgetAccount from '$lib/organization/component/forget-account.svelte';
 	import OrganizationIdentity from '$lib/organization/component/identity.svelte';
+	import OrganizationMark from '$lib/organization/component/mark.svelte';
 	import OrganizationMembers from '$lib/organization/component/members.svelte';
 	import OrganizationReconnectAuthority from '$lib/organization/component/reconnect-authority.svelte';
 	import OrganizationStanding from '$lib/organization/component/standing.svelte';
@@ -391,9 +392,10 @@
 		<Field.Group>
 			<!-- how this machine stands to the organization first: it is what the section is about,
 			     it is what a reader who came here worried is looking for, and it reads the same for
-			     everybody. Then the account the databases sit on, then the people, then the two acts
-			     that end something. *The directory stood first until the human read the four
-			     sections and asked for the elements in each to be ordered.* -->
+			     everybody. Then the signature or seal its pages print, then the account the databases
+			     sit on, then the people, then the two acts that end something. *The directory stood
+			     first until the human read the four sections and asked for the elements in each to be
+			     ordered.* -->
 			{#if syncState}
 				<Field.Set data-standing-block>
 					<OrganizationStanding {syncState} {session} {needsAuthority} />
@@ -401,6 +403,12 @@
 
 				<Separator />
 			{/if}
+
+			<!-- what the organization prints on its pages: everybody sees it, and the two roles that
+			     administer the organization change it (effort 835, requirement 13). -->
+			<OrganizationMark setsMark={session.role === 'owner' || session.role === 'administrator'} />
+
+			<Separator />
 
 			<!-- the Turso account, which is the owner's alone: reconnected where this machine holds
 			     no authority, and given back where it does. Both are the same subject, so they share

@@ -8,6 +8,7 @@ import type {
 	OrganizationConsentStart,
 	OrganizationCreated,
 	OrganizationMember,
+	OrganizationMark,
 	OrganizationState,
 	OrganizationWorkspace,
 	SessionsEnded,
@@ -474,6 +475,26 @@ export const organization = router({
 	session: {
 		endElsewhere: procedure.member.mutation(async ({ ctx }): Promise<SessionsEnded> => {
 			return ctx.host.organization.sessionEndElsewhere();
+		})
+	},
+	/**
+	 * The organization's signature or seal (effort 835, requirement 13). `member` for all three:
+	 * anybody signed in reads it for the pages they print, and whether they may change it is the
+	 * owner's or an administrator's role, which Rust reads off the verified row and signs under,
+	 * since no bit carries it. A path rather than the image, because the host reads the file the
+	 * dialog chose and checks it by its bytes.
+	 */
+	mark: {
+		get: procedure.member.query(async ({ ctx }): Promise<OrganizationMark | null> => {
+			return ctx.host.organization.markGet();
+		}),
+		set: procedure.member
+			.input(z.object({ path: z.string().min(1) }))
+			.mutation(async ({ input, ctx }): Promise<OrganizationMark> => {
+				return ctx.host.organization.markSet(input.path);
+			}),
+		clear: procedure.member.mutation(async ({ ctx }): Promise<void> => {
+			await ctx.host.organization.markClear();
 		})
 	},
 	/**

@@ -19,7 +19,10 @@ cost per interval.
 
 **Payment**:
 An amount received against a contract on a date. Recorded, never derived — payments are
-the input the whole status model is computed from.
+the input the whole status model is computed from. A payment may also say how it was paid (its
+_method_: cash, bank transfer, cheque or Ejar), the transfer, cheque or SADAD number it was made
+under (its _reference_, which is what a payment is searched by), and a note; each is optional and
+reads as not recorded where it was not.
 
 **Assignment**:
 The link between a contract and a unit. A unit may be held by at most one non-terminated
@@ -31,6 +34,37 @@ The billing period — monthly, quarterly, semi-annual, or annual. Fixed at crea
 **Cycle**:
 One elapsed interval within a contract's period. A twelve-month contract on a quarterly
 interval has four cycles, counted from the start date.
+
+**Schedule**:
+A contract's period laid out as its cycles, every one of them, each with its due date (the start
+date, then the first day of each following interval), its amount (the cost), the part of it the
+payments cover, and its state: _paid_, _late_, _due_, _partly paid_ or _upcoming_. Computed on
+read by `scheduleContract` in `contract/schedule.ts` and never stored. On a contract that is not
+terminated, what the late and due cycles leave uncovered is the _outstanding_, so the schedule and
+the figure are one answer; a terminated contract's schedule reads no cycle as late or due. The
+contract record shows it as its _schedule_ section, read through `contract.schedule`.
+
+**Allocation**:
+How payments are taken against the schedule: oldest first, by date and then by the order they
+were recorded, each filling the earliest cycle not yet covered before the next. A payment may
+cover several cycles, and what is paid past the total cost covers none. Always oldest first;
+nobody chooses which cycle a payment pays.
+
+**Receipt**:
+A one-page statement that a payment was received (سند قبض), in Arabic or in English as chosen in
+the print preview, printed or saved as a PDF from there. It names the payment by a _receipt number_ taken from the
+payment's identity, never by a sequence, and states the cycles the payment covers by the
+_allocation_ and what remains of the _total cost_ after it. Read on demand from the payment as it
+stands (`contract.payments.receipt`) and never stored. It is not a tax invoice.
+_Avoid_: invoice (فاتورة), which it is not
+
+**Reminder**:
+A message to a contract's tenant about the rent, naming the tenant, the amount, the date and the
+contract by its number, or *your contract* where it has none: it fits every contract, however
+many units it holds. The act, *remind tenant*, shows it first in the language the application is showing, which
+the landlord can switch to the other, and then opens WhatsApp with it written. Offered on a
+contract that is _overdue_, _owing_ or _due soon_, never on a terminated one. The landlord reads it
+and sends it; the application sends nothing and records nothing about it.
 
 **Cost**:
 The amount owed _per interval_, never the contract total. Prefer the fuller reading
@@ -78,7 +112,14 @@ A contract past its end date, not terminated, and still outstanding. Every `defa
 contract qualifies, because past the end date the amount due is the total cost — so the
 two coincide, and the word is the queue's rather than the status model's.
 
-Neither reaches a terminated contract, whatever it owes: termination locks the contract,
+**Due soon**:
+A contract owing nothing today whose next cycle, in its _schedule_, falls due within the next
+seven days and is not covered in full. Read after _owing_ and before _ending soon_, and like them a
+presentation concern rather than a status. Nothing is owed on it yet, so it adds nothing to the
+_outstanding_; a contract that owes today and has a cycle coming due is _owing_ only.
+_Avoid_: مستحق for it in Arabic, which is _owing_'s word
+
+None of these reaches a terminated contract, whatever it owes: termination locks the contract,
 so the debt is a closed matter rather than work.
 
 **Contract status**:

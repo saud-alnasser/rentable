@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { sql } from 'drizzle-orm';
+
+import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
+
 import {
 	NOW,
 	type Api,
@@ -788,5 +792,262 @@ test('the same refusal reads in English for a reader of English', async () => {
 			'en'
 		),
 		'payment amount must be greater than zero.'
+	);
+});
+
+// --- How a payment was paid ----------------------------------------------------------
+//
+// Ticket 03 of [[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]], requirements 1 to 3
+// and criteria 1, 2 and 3: a payment carries an optional method, reference and note, and its
+// reference is searched.
+
+test('a payment records how it was paid, its reference and its note, and reads them back', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api, { cost: 100000 });
+
+	const created = await api.contract.payments.create({
+		contractId: contract.id,
+		date: monthsFromNow(0),
+		amount: 500,
+		method: 'ejar',
+		reference: 'SADAD-7731',
+		note: 'paid for March\nthrough the Ejar bill'
+	});
+
+	const expected = {
+		method: 'ejar',
+		reference: 'SADAD-7731',
+		note: 'paid for March\nthrough the Ejar bill'
+	};
+
+	const read = await api.contract.payments.get({ id: created.id });
+	const [listed] = await api.contract.payments.getMany({ contractId: contract.id });
+
+	for (const payment of [created, read, listed]) {
+		assert.ok(payment);
+		assert.deepEqual(
+			{ method: payment.method, reference: payment.reference, note: payment.note },
+			expected
+		);
+	}
+});
+
+test('an edit sets the three, and an edit that clears them leaves nothing behind', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api, { cost: 100000 });
+	const payment = await seedPayment(api, contract.id, 500);
+
+	await api.contract.payments.update({
+		id: payment.id,
+		date: payment.date,
+		amount: payment.amount,
+		method: 'cheque',
+		reference: ' 000412 ',
+		note: 'post-dated'
+	});
+
+	const edited = await api.contract.payments.get({ id: payment.id });
+
+	assert.equal(edited?.method, 'cheque');
+	// what the reader wrote, without the space around it.
+	assert.equal(edited?.reference, '000412');
+	assert.equal(edited?.note, 'post-dated');
+
+	await api.contract.payments.update({
+		id: payment.id,
+		date: payment.date,
+		amount: payment.amount,
+		method: null,
+		reference: '',
+		note: '   '
+	});
+
+	const cleared = await api.contract.payments.get({ id: payment.id });
+
+	// a blank field is no value, never an empty string a record would have to tell from one.
+	assert.equal(cleared?.method, null);
+	assert.equal(cleared?.reference, null);
+	assert.equal(cleared?.note, null);
+});
+
+test('an edit that does not name the three leaves them as they were', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api, { cost: 100000 });
+	const payment = await api.contract.payments.create({
+		contractId: contract.id,
+		date: monthsFromNow(0),
+		amount: 500,
+		method: 'cash',
+		reference: 'R-1',
+		note: 'kept'
+	});
+
+	await api.contract.payments.update({ id: payment.id, date: payment.date, amount: 600 });
+
+	const edited = await api.contract.payments.get({ id: payment.id });
+
+	assert.equal(edited?.amount, 600);
+	assert.deepEqual([edited?.method, edited?.reference, edited?.note], ['cash', 'R-1', 'kept']);
+});
+
+test('a method outside the four is refused', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api, { cost: 100000 });
+
+	await assert.rejects(
+		api.contract.payments.create({
+			contractId: contract.id,
+			date: monthsFromNow(0),
+			amount: 500,
+			// @ts-expect-error: not a method the schema names, which is the point.
+			method: 'card'
+		})
+	);
+});
+
+// criterion 1(c): a row written by a build before migration 0005 names none of the three columns.
+test('a payment stored without the three reads them as nothing, and edits and saves', async () => {
+	const db = createMemoryDatabase();
+	const api = await createApi({ db });
+	const contract = await seedContract(api, { cost: 100000 });
+	const id = unusedId();
+
+	await db.run(
+		sql`insert into payment (id, date, amount, contract_id) values (${id}, ${monthsFromNow(0)}, ${500}, ${contract.id})`
+	);
+
+	const read = await api.contract.payments.get({ id });
+
+	assert.ok(read, 'the payment reads');
+	assert.deepEqual([read.method, read.reference, read.note], [null, null, null]);
+
+	// saved as the form saves it: every field sent, the three blank.
+	await api.contract.payments.update({
+		id,
+		date: read.date,
+		amount: 750,
+		method: null,
+		reference: null,
+		note: null
+	});
+
+	const saved = await api.contract.payments.get({ id });
+
+	assert.equal(saved?.amount, 750);
+	assert.deepEqual([saved?.method, saved?.reference, saved?.note], [null, null, null]);
+});
+
+// criterion 3: `SADAD-7731` is found by `7731`, and by the same four digits in Arabic-Indic.
+test('a payment is found by a part of its reference, in either spelling of its digits', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api, { cost: 100000 });
+	const matching = await api.contract.payments.create({
+		contractId: contract.id,
+		date: monthsFromNow(0),
+		amount: 500,
+		reference: 'SADAD-7731'
+	});
+	await api.contract.payments.create({
+		contractId: contract.id,
+		date: monthsFromNow(0),
+		amount: 600,
+		reference: 'SADAD-1200'
+	});
+	// one that has no reference at all, which no term about a reference reaches.
+	await seedPayment(api, contract.id, 700);
+
+	for (const term of ['7731', '٧٧٣١', 'sadad-77']) {
+		assert.deepEqual(
+			toIds(await api.contract.payments.getMany({ contractId: contract.id, search: term })),
+			[matching.id],
+			`the ledger finds it by ${term}`
+		);
+		assert.deepEqual(
+			toIds(await api.contract.payments.search({ term, limit: 10 })),
+			[matching.id],
+			`the palette finds it by ${term}`
+		);
+	}
+});
+
+// effort 835, ticket 06, requirement 9: a receipt states the payment, who paid it, what it was for,
+// the cycles it covers by the oldest-first allocation, and what remains of the total cost after it.
+test("a payment's receipt states who paid, what for, the cycles it covers and what remains", async () => {
+	const api = await createApi();
+	const tenant = await seedTenant(api);
+	const complex = await api.complex.create({ name: 'Al Nakheel', location: 'Riyadh' });
+	const second = await api.complex.units.create({ name: 'A-13', complexId: complex.id });
+	const first = await api.complex.units.create({ name: 'A-12', complexId: complex.id });
+	const contract = await api.contract.create({
+		tenantId: tenant.id,
+		govId: '20471133',
+		start: monthsFromNow(-7),
+		end: monthsFromNow(5),
+		interval: '3m',
+		cost: 3000
+	});
+
+	await api.contract.units.set({ contractId: contract.id, unitIds: [second.id, first.id] });
+	await api.contract.payments.create({
+		contractId: contract.id,
+		date: monthsFromNow(-7),
+		amount: 3000
+	});
+
+	const payment = await api.contract.payments.create({
+		contractId: contract.id,
+		date: monthsFromNow(-1),
+		amount: 4500,
+		method: 'bank-transfer',
+		reference: 'SADAD-7731'
+	});
+
+	const receipt = await api.contract.payments.receipt({ id: payment.id });
+
+	assert.match(receipt.reference, /^[0-9A-Z]{4}(-[0-9A-Z]{4}){3}$/);
+	assert.deepEqual(
+		{
+			amount: receipt.payment.amount,
+			date: receipt.payment.date,
+			method: receipt.payment.method,
+			reference: receipt.payment.reference
+		},
+		{ amount: 4500, date: monthsFromNow(-1), method: 'bank-transfer', reference: 'SADAD-7731' }
+	);
+	assert.deepEqual(receipt.tenant, { name: tenant.name, nationalId: tenant.nationalId });
+	assert.equal(receipt.contract.govId, '20471133');
+	assert.deepEqual(receipt.units, [
+		{ name: 'A-12', complexName: 'Al Nakheel' },
+		{ name: 'A-13', complexName: 'Al Nakheel' }
+	]);
+	// the rest of the second cycle and half the third: both are named (criterion 9(d)).
+	assert.deepEqual(
+		receipt.cycles.map((cycle) => [cycle.index, cycle.due]),
+		[
+			[1, monthsFromNow(-4)],
+			[2, monthsFromNow(-1)]
+		]
+	);
+	assert.equal(receipt.remaining, 12000 - 3000 - 4500);
+});
+
+test("a terminated contract's payment still has a receipt, and a missing payment has none", async () => {
+	const api = await createApi();
+	const contract = await seedContract(api, { cost: 1000 });
+	const payment = await api.contract.payments.create({
+		contractId: contract.id,
+		date: monthsFromNow(-1),
+		amount: 1000
+	});
+
+	await api.contract.terminate({ id: contract.id });
+
+	const receipt = await api.contract.payments.receipt({ id: payment.id });
+
+	assert.equal(receipt.payment.id, payment.id);
+	assert.equal(receipt.payment.method, null);
+	await assert.rejects(
+		api.contract.payments.receipt({ id: unusedId() }),
+		refusedWith('payment.missing')
 	);
 });

@@ -23,6 +23,7 @@ import type {
 	OrganizationConsentResult,
 	OrganizationConsentStart,
 	OrganizationCreated,
+	OrganizationMark,
 	OrganizationMember,
 	OrganizationState,
 	OrganizationWorkspace,
@@ -65,6 +66,7 @@ export type {
 	OrganizationConsentResult,
 	OrganizationConsentStart,
 	OrganizationCreated,
+	OrganizationMark,
 	OrganizationMember,
 	OrganizationSession,
 	OrganizationState,
@@ -116,6 +118,17 @@ export const tauri = {
 	opener: {
 		openUrl: (url: string) => openExternalUrl(url),
 		revealItemInDir: (path: string) => revealInFileManager(path)
+	},
+	print: {
+		/**
+		 * Print what the window's print sheet holds: to paper through the operating system's
+		 * dialog, or to the PDF file at `path`, which on Windows is written with no dialog at all.
+		 */
+		page: (
+			request: ({ mode: 'print' } | { mode: 'pdf'; path: string }) & {
+				page?: { head: string; lang: string; dir: string; body: string };
+			}
+		) => invoke<void>('print_page', request)
 	},
 	export: {
 		/**
@@ -179,6 +192,19 @@ export const tauri = {
 			return typeof chosen === 'string' ? chosen : null;
 		},
 		/**
+		 * Ask the user for an image, answering its path or nothing where they walked away: the
+		 * organization's mark, which the host reads from there and checks by its bytes.
+		 */
+		openImage: async () => {
+			const chosen = await openFileDialog({
+				multiple: false,
+				directory: false,
+				filters: [{ name: 'image', extensions: ['png', 'jpg', 'jpeg', 'webp'] }]
+			});
+
+			return typeof chosen === 'string' ? chosen : null;
+		},
+		/**
 		 * Ask the user where a file goes, answering its path or nothing where they walked away.
 		 *
 		 * The mirror of `openFile`, and the reason an export no longer decides for itself. The
@@ -216,6 +242,9 @@ export const tauri = {
 		set: (changeset: SettingsChangeset) => invoke<Settings>('settings_set', { changeset })
 	},
 	organization: {
+		markGet: () => invoke<OrganizationMark | null>('organization_mark_get'),
+		markSet: (path: string) => invoke<OrganizationMark>('organization_mark_set', { path }),
+		markClear: () => invoke<void>('organization_mark_clear'),
 		consentBegin: () => invoke<OrganizationConsentStart>('organization_consent_begin'),
 		consentResult: (sessionId: string) =>
 			invoke<OrganizationConsentResult>('organization_consent_result', { sessionId }),

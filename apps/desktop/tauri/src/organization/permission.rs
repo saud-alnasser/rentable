@@ -14,6 +14,12 @@
 //! They are refused by asking whether the session is the owner's, in `workspace::require_owner`
 //! and in `removal::remove_member`, and the refusal names the owner.
 //!
+//! **One act is gated by role instead, and signed.** Setting or removing the organization's mark,
+//! the signature or seal its pages print (effort 835), is the owner's or an administrator's:
+//! `mark::require_administrator` reads the role on the verified row, and the row it writes is
+//! signed under the setter's certificate. A bit here would have changed every signed row's mask
+//! for an act both roles already share.
+//!
 //! **Enforcement is by what the vault holds, and this is the arithmetic beside it.** A member's
 //! permissions are on their verified row and travel in the session; a command asks
 //! [`permits`] of that number. What a member can actually reach, a credential, is what their

@@ -14,11 +14,10 @@
 	 * click target, and a treatment painted by the list onto a wrapper would put the elevation on
 	 * something the reader cannot press.
 	 *
-	 * It carries resting elevation rather than lifting only on hover, which is the answer a
-	 * prototype gave against the real lists: a small shadow is not a per-row claim about
-	 * importance, it is what makes a row read as an object at all — and a hover that has already
-	 * been told these are objects is free to say only *this one* (_Use shadows to convey
-	 * elevation_, 180). The ring is not decoration and not the book's: it is silent on dark mode,
+	 * It carries resting elevation, which is the answer a prototype gave against the real lists: a
+	 * small shadow is not a per-row claim about importance, it is what makes a row read as an
+	 * object at all, and a hover that has already been told these are objects is free to say only
+	 * *this one* (_Use shadows to convey elevation_, 180). The ring is not decoration and not the book's: it is silent on dark mode,
 	 * where a shadow against a dark ground reads as almost nothing, and the ring is what separates
 	 * the card there.
 	 *
@@ -26,14 +25,16 @@
 	 * carries no domain imported it from the one component that does. It sits on the component
 	 * that wears it now, and the list reads it from here.*
 	 *
-	 * The lift is gated with its transition rather than left to snap: under reduced motion a hovered
-	 * card still deepens its shadow and does not move. Nothing here answers focus, so moving through
-	 * a list from the keyboard carries no transition at all.
+	 * **It says *this one* with a tint, and never by moving.** A card under the pointer, or reached
+	 * from the keyboard, takes the muted fill a list row takes on every platform, and a press deepens
+	 * it; nothing shifts, so the text a reader is aiming at stays where it was. *It lifted by three
+	 * pixels and deepened its shadow until 2026-09-25, when the human found the movement threw the
+	 * row off under the pointer (effort 835); the tint is the plain highlight Apple's lists use.*
 	 */
 	export const recordCard = [
 		'rounded-2xl bg-card ring-1 ring-foreground/5 shadow-raised',
-		'motion-safe:transition-[transform,box-shadow] motion-safe:duration-quick motion-safe:ease-move',
-		'motion-safe:hover:-translate-y-[3px] hover:shadow-overlay'
+		'transition-colors duration-quick',
+		'hover:bg-muted/70 focus-visible:bg-muted/70 active:bg-muted'
 	].join(' ');
 
 	/**

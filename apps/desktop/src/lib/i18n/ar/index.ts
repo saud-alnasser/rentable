@@ -44,6 +44,7 @@ const ar = {
 			openPayments: 'فتح المدفوعات',
 			openPreviousRelease: 'فتح الإصدار السابق',
 			proceed: 'متابعة',
+			remind: 'تذكير المستأجر',
 			remove: 'إزالة',
 			renew: 'تجديد',
 			renewing: 'جاري التجديد...',
@@ -249,6 +250,8 @@ const ar = {
 				holdsPayments: 'لهذا العقد دفعات. احذفها قبل حذفه.',
 				missing: 'لم يعد هذا العقد موجوداً في مساحة العمل. أعد التحميل لترى ما تغيّر.',
 				notTerminable: 'لا يُنهى إلا العقد الساري أو المكتمل أو المنقضي.',
+				nothingToRemind:
+					'لا مستحقات على هذا العقد ولا إيجار يحلّ هذا الأسبوع، فلا شيء يُذكَّر به المستأجر.',
 				notUnterminable: 'لا يُستعاد إلا العقد المنتهي.',
 				paidInFull: 'سُدد هذا العقد بالكامل ولا يقبل دفعات أخرى.',
 				periodOffCycle:
@@ -295,6 +298,8 @@ const ar = {
 				usernameTaken: 'اسم المستخدم هذا مأخوذ في هذه المؤسسة. اختر اسماً آخر.',
 				roleUnknown: 'اختر مديراً أو عضواً.',
 				memberMissing: 'لم يعد هذا العضو في هذه المؤسسة. أعد التحميل لترى ما تغيّر.',
+				markNotAnImage: 'اختر صورة بصيغة PNG أو JPEG أو WebP.',
+				markTooLarge: 'حجم الصورة أكبر من 512 كيلوبايت. اختر صورة أصغر.',
 				memberGone: 'لم يعد هذا الحساب في المؤسسة.',
 				memberRemoved: 'أُزيل هذا العضو. أنشئ له حساباً من جديد إن كان سيعود.',
 				notYourself: 'لا يمكنك القيام بهذا على حسابك أنت. يستطيع ذلك مدير آخر.',
@@ -832,8 +837,33 @@ const ar = {
 			emptyTitle: 'لا توجد دفعات بعد',
 			fullyPaidNotice: 'هذا العقد مسدد بالكامل',
 			fullyPaidSummary: 'تم سداد العقد بالكامل.',
+			method: 'طريقة الدفع',
+			methodNotRecorded: 'غير مسجلة',
+			methodOptional: 'طريقة الدفع (اختياري)',
+			methods: {
+				bankTransfer: 'تحويل بنكي',
+				cash: 'نقدًا',
+				cheque: 'شيك',
+				ejar: 'إيجار'
+			},
 			monthTotal: 'الإجمالي المعروض في {month}',
+			note: 'ملاحظة',
+			noteOptional: 'ملاحظة (اختياري)',
 			percentFulfilled: '{percent}% مكتمل',
+			receipt: {
+				amount: 'المبلغ المستلم',
+				covers: 'يغطي',
+				cycle: 'الدورة {index}، تستحق في {date}',
+				print: 'طباعة السند',
+				receivedFrom: 'استلمنا من',
+				receivedOn: 'تاريخ الاستلام',
+				reference: 'رقم السند',
+				remaining: 'المتبقي من إجمالي العقد',
+				title: 'سند قبض'
+			},
+			reference: 'المرجع',
+			referenceOptional: 'المرجع (اختياري)',
+			referencePlaceholder: 'رقم التحويل أو الشيك أو سداد',
 			remaining: 'متبقٍ {amount}',
 			remainingAfter: 'المتبقي بعد هذه الدفعة',
 			remainingBalance: 'الرصيد المتبقي',
@@ -845,9 +875,50 @@ const ar = {
 		},
 
 		ranks: {
+			dueSoon: 'يستحق قريبًا',
 			endingSoon: 'قريب الانتهاء',
 			overdue: 'متأخر',
 			owing: 'مستحق'
+		},
+
+		reminder: {
+			comingDue:
+				'مرحبًا {tenant}، نذكّركم بأن إيجار العقد رقم {contract} بمبلغ {amount} ريال يحلّ في {date}. شكرًا لكم.',
+			comingDueNoNumber:
+				'مرحبًا {tenant}، نذكّركم بأن إيجار عقدكم بمبلغ {amount} ريال يحلّ في {date}. شكرًا لكم.',
+			language: 'لغة الرسالة',
+			noPhone: 'لا يوجد رقم جوال للمستأجر لإرسال التذكير إليه.',
+			open: 'فتح واتساب',
+			owed: 'مرحبًا {tenant}، نذكّركم بأن إيجار العقد رقم {contract} بمبلغ {amount} ريال مستحق منذ {date}. شكرًا لكم.',
+			owedNoNumber:
+				'مرحبًا {tenant}، نذكّركم بأن إيجار عقدكم بمبلغ {amount} ريال مستحق منذ {date}. شكرًا لكم.'
+		},
+
+		schedule: {
+			columns: {
+				amount: 'المبلغ المستحق',
+				covered: 'المدفوع',
+				due: 'تاريخ الاستحقاق',
+				state: 'الحالة'
+			},
+			latePart: 'متأخرة؛ دُفع {covered} من {amount}',
+			print: 'طباعة الجدول',
+			printTitle: 'جدول الدفعات',
+			stateDescriptions: {
+				due: 'تستحق اليوم ولم تُدفع بالكامل',
+				late: 'فات موعد استحقاقها ولم تُدفع بالكامل',
+				paid: 'مدفوعة بالكامل',
+				partlyPaid: 'لم يحن موعدها؛ دُفع جزء منها',
+				upcoming: 'لم يحن موعدها؛ لم يُدفع منها شيء'
+			},
+			states: {
+				due: 'مستحقة اليوم',
+				late: 'متأخرة',
+				paid: 'مدفوعة',
+				partlyPaid: 'مدفوعة جزئياً',
+				upcoming: 'قادمة'
+			},
+			title: 'جدول الدفعات'
 		},
 
 		selection: {
@@ -892,12 +963,32 @@ const ar = {
 		}
 	},
 
+	print: {
+		failed: 'تعذّرت طباعة الصفحة.',
+		language: 'لغة الصفحة',
+		print: 'طباعة',
+		save: 'حفظ كملف PDF',
+		saved: 'تم حفظ ملف PDF'
+	},
+
 	settingsHooks: {
 		endingSoonUpdated: 'تم تحديث فترة الإشعار!',
 		workspaceUpToDate: 'كل شيء محدّث.'
 	},
 
 	organization: {
+		mark: {
+			alt: 'توقيع المؤسسة أو ختمها',
+			choose: 'اختيار صورة',
+			description: 'يُطبع أسفل كل سند قبض وجدول دفعات.',
+			none: 'لم يُضف بعد',
+			readOnly: 'يستطيع المالك أو أحد المديرين تغييره.',
+			remove: 'إزالة',
+			removed: 'أُزيل التوقيع أو الختم',
+			replace: 'استبدال الصورة',
+			saved: 'حُفظ التوقيع أو الختم',
+			title: 'التوقيع أو الختم'
+		},
 		setup: {
 			connectTitle: 'اربط حساب Turso الخاص بك',
 			connectDescription: 'تقيم مؤسستك على حساب Turso الخاص بك.',

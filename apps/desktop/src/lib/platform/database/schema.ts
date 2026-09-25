@@ -100,13 +100,28 @@ export const ContractSchema = z.object({
 
 export type Contract = z.infer<typeof ContractSchema>;
 
+/**
+ * How a payment was made: in hand, by a transfer, by a cheque, or through the Ejar platform's
+ * SADAD bill. A payment need not say, and one that does not reads as not recorded rather than as
+ * any one of these.
+ */
+export const PAYMENT_METHODS = ['cash', 'bank-transfer', 'cheque', 'ejar'] as const;
+
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+
 export const payment = sqliteTable(
 	'payment',
 	{
 		id: text('id').primaryKey().unique(),
 		date: integer('date', { mode: 'timestamp_ms' }).notNull(),
 		amount: real('amount').notNull(),
-		contractId: text('contract_id').notNull()
+		contractId: text('contract_id').notNull(),
+		// all three nullable and without a default: a payment recorded before them, or without
+		// them, holds nothing here rather than a value nobody chose.
+		method: text('method', { enum: PAYMENT_METHODS }),
+		/** a transfer, cheque or SADAD number, as the reader wrote it; searched. */
+		reference: text('reference'),
+		note: text('note')
 	},
 	/**
 	 * The one index this schema declares beyond its keys, and it is here because it was
@@ -136,7 +151,10 @@ export const PaymentSchema = z.object({
 	id: z.string(),
 	date: z.number(),
 	amount: z.number(),
-	contractId: z.string()
+	contractId: z.string(),
+	method: z.enum(PAYMENT_METHODS).nullish(),
+	reference: z.string().nullish(),
+	note: z.string().nullish()
 });
 
 export type Payment = z.infer<typeof PaymentSchema>;

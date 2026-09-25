@@ -56,7 +56,7 @@ calamine = { version = "0.36.1", features = ["dates"] }
 # choosing the file to import. Export answers where a file landed and never asks; import
 # has to ask, and a path typed into the web layer is a path the web layer chose.
 tauri-plugin-dialog = { version = "2.7.2" }
-tokio = { version = "1.53.1", features = ["macros", "rt-multi-thread", "time"] }
+tokio = { version = "1.53.1", features = ["fs", "macros", "rt-multi-thread", "time"] }
 # `sqlite-bundled` compiles SQLite into the binary, so there is no system library
 # to depend on. No TLS feature is selected because nothing here speaks to a remote
 # database — the TLS stack this crate does need is reqwest's, chosen below.
@@ -139,6 +139,13 @@ bytes = { version = "1.12.1" }
 
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
 tauri-plugin-updater = "2.10.0"
+
+# printing without the webview's browser preview (`print.rs`): WebView2's own `PrintToPdf` and the
+# system print dialog, reached through the controller Tauri hands over. The versions are the ones
+# wry already links, so nothing new is compiled.
+[target.'cfg(windows)'.dependencies]
+webview2-com = "0.38.2"
+windows = "0.61.3"
 
 # Argon2id is memory-hard on purpose, and an unoptimized build of it is several times
 # slower than the one that ships. Left alone, that difference lands in two places: a

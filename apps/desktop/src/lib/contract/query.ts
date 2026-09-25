@@ -56,6 +56,8 @@ export const keys = {
 	],
 	get: (id: string) => [...workspacePrefixes.contracts, id],
 	getUnits: (id: string) => [...workspacePrefixes.contracts, 'units', id],
+	getSchedule: (id: string) => [...workspacePrefixes.contracts, 'schedule', id],
+	getReminder: (id: string) => [...workspacePrefixes.contracts, 'reminder', id],
 	search: (term: string) => [...workspacePrefixes.contracts, 'search', term],
 	getAssignableUnits: (contractId: string, search: string) => [
 		...workspacePrefixes.contracts,
@@ -210,6 +212,51 @@ export function useFetchContract(id: () => string, enabled: () => boolean = () =
 	});
 }
 
+/** One cycle of a contract's schedule, as the procedure answers with it. */
+export type ContractScheduleCycle = Awaited<ReturnType<typeof api.contract.schedule>>[number];
+
+/**
+ * A contract's schedule, cycle by cycle, as the procedure allocates it. The pane renders what
+ * arrives and allocates nothing itself; a payment written anywhere invalidates the contracts
+ * prefix this key sits under, so the cover it shows follows the ledger.
+ */
+export function useFetchContractSchedule(
+	contractId: () => string,
+	enabled: () => boolean = () => true
+) {
+	return createQuery(() => {
+		const id = contractId();
+
+		return {
+			queryKey: keys.getSchedule(id),
+			enabled: enabled(),
+			queryFn: () => api.contract.schedule({ id })
+		};
+	});
+}
+
+/**
+ * Read what a printed schedule carries besides the contract: its cycles and the units it holds.
+ * Once, for the contract host printing it, under the keys the schedule pane and the units pane
+ * read, so a contract whose record is open is not read twice.
+ */
+export function useReadContractSchedule() {
+	const client = useQueryClient();
+
+	return {
+		cycles: (id: string) =>
+			client.fetchQuery({
+				queryKey: keys.getSchedule(id),
+				queryFn: () => api.contract.schedule({ id })
+			}),
+		units: (id: string) =>
+			client.fetchQuery({
+				queryKey: keys.getUnits(id),
+				queryFn: () => api.contract.units.getMany({ contractId: id })
+			})
+	};
+}
+
 /**
  * Read one contract once, for a caller that holds only its identity and has to act on the rest:
  * the contract host, answering an act the command menu or the dashboard named by id. Through the
@@ -221,6 +268,21 @@ export function useReadContract() {
 
 	return (id: string) =>
 		client.fetchQuery({ queryKey: keys.get(id), queryFn: () => api.contract.get({ id }) });
+}
+
+/**
+ * Read what a reminder to a contract's tenant states, once, for the contract host as it opens
+ * WhatsApp. Under the contracts prefix, so a payment or an edit anywhere makes the next reading
+ * fresh rather than stating yesterday's amount.
+ */
+export function useReadContractReminder() {
+	const client = useQueryClient();
+
+	return (id: string) =>
+		client.fetchQuery({
+			queryKey: keys.getReminder(id),
+			queryFn: () => api.contract.reminder({ id })
+		});
 }
 
 /**

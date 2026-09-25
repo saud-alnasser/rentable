@@ -18,8 +18,15 @@ import type { ChoiceFilter, FilterSelection } from '$lib/design/filter';
 export const RANK_FILTER_ID = 'rank';
 
 /** the translation key each rank reads under, which is its own name in camel case. */
-function toRankKey(rank: ContractRank): 'overdue' | 'owing' | 'endingSoon' {
-	return rank === 'ending-soon' ? 'endingSoon' : rank;
+const RANK_KEYS = {
+	overdue: 'overdue',
+	owing: 'owing',
+	'due-soon': 'dueSoon',
+	'ending-soon': 'endingSoon'
+} as const satisfies Record<ContractRank, string>;
+
+function toRankKey(rank: ContractRank) {
+	return RANK_KEYS[rank];
 }
 
 /** The rank filter, as a contracts list declares it. */

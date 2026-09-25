@@ -13,6 +13,7 @@ import {
 } from '$lib/contract/contract';
 import type { Database } from '$lib/api/context';
 import { reconcileTouched } from '$lib/contract/reconcile';
+import { allocateReceipt, toReceiptReference } from '$lib/payment/receipt';
 import {
 	ensurePaymentIsNotInTheFuture,
 	ensureValidPaymentAmount,
@@ -36,8 +37,21 @@ function serializePayment(record: typeof s.payment.$inferSelect): Payment {
 		id: record.id,
 		date: record.date.getTime(),
 		amount: record.amount,
-		contractId: record.contractId
+		contractId: record.contractId,
+		method: record.method,
+		reference: record.reference,
+		note: record.note
 	};
+}
+
+/**
+ * A reference or a note as it is stored: what the reader wrote, or nothing. A field left blank is
+ * the same absence as one never filled, so neither is kept as an empty string a record would then
+ * have to tell apart from a value. Absent from the call, it stays absent, so an edit that does not
+ * name the field leaves it as it was.
+ */
+function toStoredText(value: string | null | undefined): string | null | undefined {
+	return value === undefined ? undefined : value?.trim() || null;
 }
 
 type DbPayment = typeof s.payment.$inferSelect;
@@ -115,8 +129,14 @@ const paymentDay = sql<string>`strftime('%Y-%m-%d', ${s.payment.date} / 1000, 'u
 
 // every field the ledger can be searched by, whether or not the row shows it — a field
 // dropped from a surface is never dropped from search. The comparison itself is the shared
-// one, so a term folds and a column folds the same way here as everywhere else.
-const PAYMENT_SEARCH_COLUMNS: readonly (SQL | AnyColumn)[] = [s.payment.amount, paymentDay];
+// one, so a term folds and a column folds the same way here as everywhere else. The reference is
+// the number a bank statement or a SADAD bill names a payment by, so it is what one is looked for
+// by, and it folds: a reader may type its digits in either locale's spelling.
+const PAYMENT_SEARCH_COLUMNS: readonly (SQL | AnyColumn)[] = [
+	s.payment.amount,
+	paymentDay,
+	s.payment.reference
+];
 
 const PaymentSortSchema = z.object({
 	columnId: z.enum(PAYMENT_SORT_COLUMN_IDS),
@@ -184,7 +204,67 @@ export default router({
 	}),
 
 	/**
-	 * The payments a palette search reaches, by amount or by the day they were made.
+	 * Everything a payment's receipt states, read in one go for the page that prints it: the
+	 * payment as it stands, who paid it, the contract and the units it was for, the cycles it
+	 * covers and what remains of the contract's total cost after it.
+	 *
+	 * The cycles and the remainder come from the allocation over every payment of the contract,
+	 * because what one payment covers depends on each payment taken before it. Computed on every
+	 * read and stored nowhere, so a payment edited and printed again gives the edited receipt. It
+	 * is a read, so a terminated contract's payments have receipts too.
+	 */
+	receipt: procedure.member
+		.input(PaymentSchema.pick({ id: true }))
+		.query(async ({ input, ctx }) => {
+			const row = await ctx.db
+				.select({ payment: s.payment, contract: s.contract, tenant: s.tenant })
+				.from(s.payment)
+				.innerJoin(s.contract, eq(s.payment.contractId, s.contract.id))
+				.innerJoin(s.tenant, eq(s.contract.tenantId, s.tenant.id))
+				.where(eq(s.payment.id, input.id))
+				.get();
+
+			if (!row) {
+				throw refuse('payment.missing');
+			}
+
+			const [payments, units] = await Promise.all([
+				ctx.db.select().from(s.payment).where(eq(s.payment.contractId, row.contract.id)),
+				ctx.db
+					.select({ name: s.unit.name, complexName: s.complex.name })
+					.from(s.contractUnit)
+					.innerJoin(s.unit, eq(s.contractUnit.unitId, s.unit.id))
+					.innerJoin(s.complex, eq(s.unit.complexId, s.complex.id))
+					.where(eq(s.contractUnit.contractId, row.contract.id))
+					.orderBy(asc(s.complex.name), asc(s.unit.name), asc(s.unit.id))
+			]);
+
+			const { cycles, remaining } = allocateReceipt(
+				row.contract,
+				payments,
+				row.payment.id,
+				ctx.clock.now()
+			);
+
+			return {
+				reference: toReceiptReference(row.payment.id),
+				payment: serializePayment(row.payment),
+				tenant: { name: row.tenant.name, nationalId: row.tenant.nationalId },
+				contract: {
+					govId: row.contract.govId ?? '',
+					start: row.contract.start.getTime(),
+					end: row.contract.end.getTime()
+				},
+				units,
+				// cycles cross as timestamps, as a contract's dates do.
+				cycles: cycles.map((cycle) => ({ index: cycle.index, due: cycle.due.getTime() })),
+				remaining
+			};
+		}),
+
+	/**
+	 * The payments a palette search reaches, by amount, by the day they were made, or by a part
+	 * of their reference.
 	 *
 	 * A payment has no name, so its handle is the amount as it is stored — the surface showing
 	 * it is what renders that in the reader's locale — and what places it is the contract it
@@ -222,7 +302,7 @@ export default router({
 	 * `search` matches an amount, or the payment's calendar day written as `2026-03-20` — a
 	 * prefix of it, `2026-03`, selects a month. It is the stored day rather than the date the
 	 * row displays: the display date is localized, and no locale's rendering of it exists in
-	 * the database to compare against.
+	 * the database to compare against. It also matches any part of the reference.
 	 */
 	getMany: procedure.member
 		.input(
@@ -301,7 +381,9 @@ export default router({
 				.values({
 					...input,
 					id: input.id ?? newId(),
-					date: new Date(input.date)
+					date: new Date(input.date),
+					reference: toStoredText(input.reference),
+					note: toStoredText(input.note)
 				})
 				.returning()
 				.get();
@@ -313,7 +395,18 @@ export default router({
 
 	update: procedure.member
 		.use(autosync())
-		.input(PaymentSchema.pick({ id: true, date: true, amount: true }))
+		// every field the payment's form sets, so the inverse an undo replays through here puts all of
+		// them back rather than the date and the amount alone.
+		.input(
+			PaymentSchema.pick({
+				id: true,
+				date: true,
+				amount: true,
+				method: true,
+				reference: true,
+				note: true
+			})
+		)
 		.mutation(async ({ input, ctx }) => {
 			const now = ctx.clock.now();
 
@@ -345,7 +438,10 @@ export default router({
 				.update(s.payment)
 				.set({
 					date: new Date(input.date),
-					amount: input.amount
+					amount: input.amount,
+					method: input.method,
+					reference: toStoredText(input.reference),
+					note: toStoredText(input.note)
 				})
 				.where(eq(s.payment.id, input.id))
 				.returning()
@@ -514,7 +610,12 @@ export default router({
 			const [first, ...rest] = named.map((payment) =>
 				ctx.db
 					.insert(s.payment)
-					.values({ ...payment, date: new Date(payment.date) })
+					.values({
+						...payment,
+						date: new Date(payment.date),
+						reference: toStoredText(payment.reference),
+						note: toStoredText(payment.note)
+					})
 					.returning()
 			);
 			const created = await ctx.db.batch([first, ...rest]);

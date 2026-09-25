@@ -101,7 +101,9 @@ export const TAURI_REFUSAL_REASONS = [
 	'nothingToConnectTo',
 	'createRefused',
 	'tursoRefused',
-	'tursoAccountRefused'
+	'tursoAccountRefused',
+	'markTooLarge',
+	'markNotAnImage'
 ] as const;
 
 export type TauriRefusalReason = (typeof TAURI_REFUSAL_REASONS)[number];

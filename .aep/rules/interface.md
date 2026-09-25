@@ -53,6 +53,7 @@ exception, and nowhere else.
 | record actions | *Record card actions* |
 | bulk selection | *Bulk selection* |
 | export and import | *Export and import* |
+| print | *Print* |
 | going back | *Going back* |
 | switching sections | *Switching sections* |
 | empty | *Empty* |
@@ -530,6 +531,33 @@ to be named and the other direction had nowhere to go.*
 
 Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 6.
 
+### Print
+
+**A record prints through the application's own preview, then the one print sheet.** The act is a
+record act in the `primary` group, drawn with the printer glyph whatever it prints, and it asks the
+concept's host. The host reads what the page states afresh and opens the preview
+(`print/component/preview.svelte`): the edge panel, a language choice on top that opens on the
+application's own, the page below drawn as paper, and two acts, *save as PDF* and *print* (the
+primary). Either hands the same page to `sendPage` (`print/sheet.svelte.ts`), which closes the
+preview and waits for it to be gone before anything prints (a surface left open is laid out for
+paper and back again on every pass, and flickers), shows the sheet alone under `@media print` and
+asks the host to print it: on Windows the host prints it from a print window behind the
+application, so the application never shows its paper layout, and a PDF is written with no dialog
+and paper goes through the operating system's dialog, never the webview's browser preview;
+on macOS and Linux both open the system's print panel (`tauri/src/print.rs`).
+
+The page is paper: light whatever the window's appearance (`.paper` in the token layer), in the one
+language chosen, set out as a document with the organization that issued it at its head and its
+signature or seal at the foot where one is set (the organization's *mark*, set in its settings),
+with Western digits. Where
+the host refuses, the reader is told in one sentence (`showErrorSentence`); a saved PDF is
+confirmed in a toast. Today the contract prints its schedule and a payment its receipt.
+
+*Why one sheet in the main window: a second window runs startup again against the same replica,
+and an iframe's print does nothing on macOS
+([[efforts/835-the-rent-is-receipted-scheduled-and-chased/plan]], *Printing: the approaches
+weighed*).*
+
 ## Forms
 
 ### Form surface
@@ -686,14 +714,22 @@ it described what was rented.
 
 **A contract's attention rank is derived in the contract domain.**
 
-Overdue, behind, and ending soon are decided from a contract's status, end date, and what it
-owes today — so the rules live with the contract. The dashboard reads the rank; it never
-derives one.
+Overdue, owing, due soon, and ending soon are decided from a contract's status, end date, what it
+owes today, and its schedule, so the rules live with the contract. The dashboard reads the rank;
+it never derives one.
 
 *Why: they were rules about a contract living in a module named for the surface that happened
 to read them first, which is why the contracts list could not filter by rank.*
 
 Recorded originally as ADR 0031, *A contract's attention rank is the contract's own*.
+
+**Four ranks, read in that order, and a contract is under one.** *Due soon* holds a contract that
+owes nothing today and whose next cycle falls due within the next seven days without being covered
+in full; its landing row states that cycle's amount and due date. It is not a money rank: what falls
+due this week is not owed yet, so the landing screen's outstanding figure sums *overdue* and
+*owing* alone (`isMoneyRank` in `contract/rank.ts`), and a due-soon heading carries no total. Every
+list that filters by rank offers it. Settled by
+[[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]], requirement 11.
 
 ## Loading and feedback
 

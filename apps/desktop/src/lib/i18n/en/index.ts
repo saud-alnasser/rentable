@@ -45,6 +45,7 @@ const en = {
 			openPayments: 'open payments',
 			openPreviousRelease: 'open previous release',
 			proceed: 'proceed',
+			remind: 'remind tenant',
 			remove: 'remove',
 			renew: 'renew',
 			renewing: 'renewing...',
@@ -259,6 +260,7 @@ const en = {
 				holdsPayments: 'this contract has payments. delete them before deleting it.',
 				missing: 'this contract is no longer in the workspace. reload to see what changed.',
 				notTerminable: 'only an active, fulfilled or past contract can be terminated.',
+				nothingToRemind: 'this contract owes nothing and has nothing falling due this week.',
 				notUnterminable: 'only a terminated contract can be restored.',
 				paidInFull: 'this contract is paid in full and takes no more payments.',
 				periodOffCycle:
@@ -310,6 +312,8 @@ const en = {
 				usernameTaken: 'that username is already taken in this organization. choose another.',
 				roleUnknown: 'choose administrator or member.',
 				memberMissing: 'that member is no longer in this organization. reload to see what changed.',
+				markNotAnImage: 'choose a PNG, JPEG or WebP image.',
+				markTooLarge: 'the image is over 512 KB. choose a smaller one.',
 				memberGone: 'this account is no longer in the organization.',
 				memberRemoved:
 					'that member was removed. make them an account again if they are to come back.',
@@ -870,8 +874,35 @@ const en = {
 			fullyPaidNotice: 'this contract is paid in full',
 			fullyPaidSummary:
 				'this contract has been fully paid. you can edit or delete payments, but you cannot add more.',
+			method: 'payment method',
+			methodNotRecorded: 'not recorded',
+			methodOptional: 'payment method (optional)',
+			methods: {
+				bankTransfer: 'bank transfer',
+				cash: 'cash',
+				cheque: 'cheque',
+				ejar: 'Ejar'
+			},
 			monthTotal: 'total shown for {month}',
+			note: 'note',
+			noteOptional: 'note (optional)',
 			percentFulfilled: '{percent}% fulfilled',
+			// a payment's receipt, printed in the language chosen. It says it was received and what
+			// for; it is not a tax invoice and says nothing that reads as one.
+			receipt: {
+				amount: 'amount received',
+				covers: 'covers',
+				cycle: 'cycle {index:string}, due {date:string}',
+				print: 'print receipt',
+				receivedFrom: 'received from',
+				receivedOn: 'date received',
+				reference: 'receipt number',
+				remaining: 'remaining of the contract total',
+				title: 'receipt'
+			},
+			reference: 'reference',
+			referenceOptional: 'reference (optional)',
+			referencePlaceholder: 'transfer, cheque or SADAD number',
 			remaining: '{amount:string} remaining',
 			remainingAfter: 'remaining after this payment',
 			remainingBalance: 'remaining balance',
@@ -883,9 +914,58 @@ const en = {
 		},
 
 		ranks: {
+			dueSoon: 'due soon',
 			endingSoon: 'ending soon',
 			overdue: 'overdue',
 			owing: 'owing'
+		},
+
+		// the message a tenant is reminded with on WhatsApp. It is a letter the tenant reads rather
+		// than a label on the screen, so it opens in capitals as a letter does. `owed` is for rent
+		// already due, `comingDue` for rent falling due this week, and each has a form for a
+		// contract that holds no units.
+		reminder: {
+			comingDue:
+				'Hello {tenant}, a reminder that the rent of SAR {amount} on contract {contract} falls due on {date}. Thank you.',
+			comingDueNoNumber:
+				'Hello {tenant}, a reminder that the rent of SAR {amount} on your contract falls due on {date}. Thank you.',
+			language: 'language of the message',
+			noPhone: 'the tenant has no phone number to send a reminder to.',
+			open: 'open WhatsApp',
+			owed: 'Hello {tenant}, a reminder that the rent of SAR {amount} on contract {contract} has been due since {date}. Thank you.',
+			owedNoNumber:
+				'Hello {tenant}, a reminder that the rent of SAR {amount} on your contract has been due since {date}. Thank you.'
+		},
+
+		// a contract's cycles, one row each, with the payments allocated to them oldest first.
+		schedule: {
+			columns: {
+				amount: 'amount due',
+				covered: 'paid',
+				due: 'due date',
+				state: 'state'
+			},
+			// the name a late row's state is read by where part of it is paid, so the part is heard
+			// with the lateness rather than left for a column the reader has to find.
+			latePart: 'late; {covered:string} of {amount:string} paid',
+			// the act that prints it, and what the printed page is headed, in the language chosen.
+			print: 'print schedule',
+			printTitle: 'payment schedule',
+			stateDescriptions: {
+				due: 'due today and not paid in full',
+				late: 'past its due date and not paid in full',
+				paid: 'paid in full',
+				partlyPaid: 'not due yet; part of it is paid',
+				upcoming: 'not due yet; nothing paid toward it'
+			},
+			states: {
+				due: 'due today',
+				late: 'late',
+				paid: 'paid',
+				partlyPaid: 'partly paid',
+				upcoming: 'upcoming'
+			},
+			title: 'schedule'
 		},
 
 		selection: {
@@ -935,12 +1015,34 @@ const en = {
 		}
 	},
 
+	// the preview a page opens in before it is printed or saved, whatever the page is.
+	print: {
+		failed: 'the page could not be printed.',
+		language: 'language of the page',
+		print: 'print',
+		save: 'save as PDF',
+		saved: 'PDF saved'
+	},
+
 	settingsHooks: {
 		endingSoonUpdated: 'ending soon notice window updated successfully!',
 		workspaceUpToDate: 'everything is up to date.'
 	},
 
 	organization: {
+		// the one image the organization prints at the foot of its pages (effort 835).
+		mark: {
+			alt: "the organization's signature or seal",
+			choose: 'choose image',
+			description: 'printed at the foot of every receipt and schedule.',
+			none: 'none added yet',
+			readOnly: 'the owner or an administrator can change it.',
+			remove: 'remove',
+			removed: 'signature or seal removed',
+			replace: 'replace image',
+			saved: 'signature or seal saved',
+			title: 'signature or seal'
+		},
 		setup: {
 			connectTitle: 'connect your Turso account',
 			connectDescription: 'your organization lives on your own Turso account.',

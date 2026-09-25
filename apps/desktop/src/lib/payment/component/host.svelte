@@ -7,8 +7,14 @@
 	import { usesAppleKeyboard } from '@rentable/design/shortcut.js';
 	import { toDeleteStep, toPaletteVerbs } from '$lib/design/acts';
 	import { onMutationError, onMutationSuccess } from '$lib/design/mutation';
-	import { showErrorSentence, showErrorToast, showRefusal } from '$lib/error/toast';
+	import {
+		showErrorSentence,
+		showErrorToast,
+		showRefusal,
+		showSuccessToast
+	} from '$lib/error/toast';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
+	import { i18nObject } from '$lib/i18n/i18n-util';
 	import { toPaymentCreateUnavailable, type PaymentActRecord } from '$lib/payment/acts';
 	import {
 		closePaymentConfirmation,
@@ -19,12 +25,17 @@
 		resetPaymentHost
 	} from '$lib/payment/host.svelte';
 	import { useReadContract } from '$lib/contract/query';
-	import { useDeletePayment, useReadPayment } from '$lib/payment/query';
+	import { useDeletePayment, useReadPayment, useReadPaymentReceipt } from '$lib/payment/query';
+	import PrintPreview from '$lib/print/component/preview.svelte';
+	import { sendPage, surfacesSettled } from '$lib/print/sheet.svelte';
+	import type { Locales } from '$lib/i18n/i18n-types';
+	import { useReadOrganizationMark, useReadOrganizationName } from '$lib/organization/query';
 	import { writeDetailsToClipboard } from '$lib/platform/clipboard';
 	import { formatLocaleMoney } from '$lib/platform/locale';
 	import { landing } from '$lib/design/landing.svelte';
 	import { onDestroy, untrack } from 'svelte';
 	import PaymentForm from './form.svelte';
+	import PrintedReceipt, { type PrintedReceiptValue } from './receipt.svelte';
 
 	/**
 	 * The payment form and the payment's delete, mounted once for the whole shell. A delete runs at
@@ -44,6 +55,10 @@
 	const deleteMutation = useDeletePayment();
 	const readPayment = useReadPayment();
 	const readContract = useReadContract();
+	const readReceipt = useReadPaymentReceipt();
+	// the organization, which is who issues a receipt (effort 835, requirement 13).
+	const readOrganizationName = useReadOrganizationName();
+	const readOrganizationMark = useReadOrganizationMark();
 
 	const deleting = $derived(paymentHostState.deleting);
 
@@ -119,6 +134,74 @@
 			{ toast: { unexpected: () => $LL.common.messages.copyFailed() } },
 			new Error('the clipboard refused')
 		);
+	}
+
+	/**
+	 * the receipt being previewed, the language it is shown in, and whether it is on its way to
+	 * paper or a file. Raw, because a receipt is only ever replaced.
+	 */
+	let receipt = $state.raw<PrintedReceiptValue | null>(null);
+	let receiptOpen = $state(false);
+	let receiptLocale = $state<Locales>('en');
+	let sending = $state(false);
+
+	/**
+	 * A payment's receipt, shown first in the application's own preview: what it states is read
+	 * afresh, and the preview opens on the language the application shows.
+	 */
+	async function previewReceipt(payment: PaymentActRecord) {
+		try {
+			// a receipt is never shown without the name of who issued it.
+			const [read, issuer, mark] = await Promise.all([
+				readReceipt(payment.id),
+				readOrganizationName(),
+				// a mark that cannot be read leaves the foot empty rather than the receipt unprinted.
+				readOrganizationMark().catch(() => null)
+			]);
+
+			if (!issuer) {
+				showErrorSentence($LL.print.failed());
+
+				return;
+			}
+
+			receipt = { ...read, issuer, mark };
+			receiptLocale = $locale;
+			receiptOpen = true;
+		} catch (error) {
+			showErrorToast(error, $LL);
+		}
+	}
+
+	/** The previewed receipt, in the language chosen, to paper or to a PDF. */
+	async function sendReceipt(mode: 'print' | 'pdf') {
+		if (!receipt || sending) {
+			return;
+		}
+
+		sending = true;
+
+		try {
+			const title = i18nObject(receiptLocale).contracts.payments.receipt.title();
+			// the preview is closed, and gone, before the page is laid out for paper.
+			const outcome = await sendPage(
+				printedReceipt,
+				mode,
+				`${title} ${receipt.reference}.pdf`,
+				async () => {
+					receiptOpen = false;
+					await surfacesSettled();
+				}
+			);
+
+			if (outcome === 'saved') {
+				showSuccessToast($LL.print.saved());
+			}
+		} catch {
+			showErrorSentence($LL.print.failed());
+		} finally {
+			sending = false;
+		}
 	}
 
 	/**
@@ -216,6 +299,17 @@
 	});
 
 	$effect(() => {
+		const payment = paymentHostState.printing;
+
+		if (!payment) {
+			return;
+		}
+
+		paymentHostState.printing = null;
+		untrack(() => void previewReceipt(payment));
+	});
+
+	$effect(() => {
 		const creating = paymentHostState.creating;
 
 		if (!creating) {
@@ -251,6 +345,31 @@
 
 	onDestroy(resetPaymentHost);
 </script>
+
+{#snippet printedReceipt()}
+	{#if receipt}
+		<PrintedReceipt value={receipt} locale={receiptLocale} />
+	{/if}
+{/snippet}
+
+{#snippet receiptPage(pageLocale: Locales)}
+	{#if receipt}
+		<PrintedReceipt value={receipt} locale={pageLocale} />
+	{/if}
+{/snippet}
+
+<PrintPreview
+	open={receiptOpen}
+	onOpenChange={(isOpen) => {
+		if (!isOpen) receiptOpen = false;
+	}}
+	title={$LL.contracts.payments.receipt.print()}
+	bind:locale={receiptLocale}
+	page={receiptPage}
+	busy={sending}
+	onSave={() => void sendReceipt('pdf')}
+	onPrint={() => void sendReceipt('print')}
+/>
 
 <!-- mounted once a contract has been named: the form reads what that contract still has due, and
      a form with no contract has nothing it could write to. -->

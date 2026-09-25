@@ -14,6 +14,7 @@ import { get } from 'svelte/store';
 
 export const keys = {
 	get: (id: string) => [...workspacePrefixes.payments, 'one', id],
+	receipt: (id: string) => [...workspacePrefixes.payments, 'receipt', id],
 	getMany: (contractId: string) => [...workspacePrefixes.payments, contractId],
 	// the period is part of the key because it is part of the question: two periods are two
 	// result sets, and sharing a key would serve one of them under the other's name.
@@ -118,6 +119,24 @@ export function useReadPayment() {
 		});
 }
 
+/**
+ * Read what a payment's receipt states, once, for the payment host printing it. Under the payments
+ * prefix, so any payment written anywhere leaves it stale and the next receipt is read afresh: what
+ * one payment covers depends on every payment of its contract.
+ */
+export function useReadPaymentReceipt() {
+	const client = useQueryClient();
+
+	return (id: string) =>
+		client.fetchQuery({
+			queryKey: keys.receipt(id),
+			queryFn: () => api.contract.payments.receipt({ id })
+		});
+}
+
+/** What a payment's receipt states, as `contract.payments.receipt` answers. */
+export type PaymentReceipt = Awaited<ReturnType<typeof api.contract.payments.receipt>>;
+
 export function useFetchContractPayments(
 	contractId: () => string,
 	enabled: () => boolean = () => true
@@ -194,8 +213,11 @@ export const useCreatePayment = declareMutation({
 	inverse: ({ result }) => ({
 		describe: (t) => t.common.undo.created({ record: t.common.labels.payment() }),
 		undo: () => api.contract.payments.delete({ id: result.id }),
-		redo: () => api.contract.payments.create(result)
+		redo: () => api.contract.payments.create(result),
+		records: (direction) =>
+			toPaymentHistoryEntry(result, direction === 'undo' ? 'deleted' : 'created')
 	}),
+	records: ({ result }) => toPaymentHistoryEntry(result, 'created'),
 	toast: {
 		success: () => get(LL).contracts.hooks.createPaymentSuccess(),
 		error: false,
@@ -212,8 +234,14 @@ export const useUpdatePayment = declareMutation({
 		captured && {
 			describe: (t) => t.common.undo.edited({ record: t.common.labels.payment() }),
 			undo: () => api.contract.payments.update(captured),
-			redo: () => api.contract.payments.update(variables)
+			redo: () => api.contract.payments.update(variables),
+			// both directions are an edit, as a contract's are. The amount named is the one the
+			// payment holds once that direction has run, since the amount is what names a payment
+			// and an edit is often a change to exactly that.
+			records: (direction) =>
+				toPaymentHistoryEntry(direction === 'undo' ? captured : variables, 'edited')
 		},
+	records: ({ variables }) => toPaymentHistoryEntry(variables, 'edited'),
 	toast: {
 		success: () => get(LL).contracts.hooks.updatePaymentSuccess(),
 		error: false,
@@ -283,8 +311,13 @@ export const useDeletePayment = declareMutation({
 		result && {
 			describe: (t) => t.common.undo.deleted({ record: t.common.labels.payment() }),
 			undo: () => api.contract.payments.create(result),
-			redo: () => api.contract.payments.delete({ id: result.id })
+			redo: () => api.contract.payments.delete({ id: result.id }),
+			records: (direction) =>
+				toPaymentHistoryEntry(result, direction === 'undo' ? 'created' : 'deleted')
 		},
+	// the amount is frozen here for the reason the whole entry is: a moment later the record is
+	// gone, and an account that could only name what still exists could not report a deletion.
+	records: ({ result }) => result && toPaymentHistoryEntry(result, 'deleted'),
 	toast: {
 		success: () => get(LL).contracts.hooks.deletePaymentSuccess(),
 		// no dialog asked first, so the announcement says how long it can be taken back.

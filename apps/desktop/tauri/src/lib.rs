@@ -10,6 +10,7 @@ mod import;
 mod keyring;
 pub mod organization;
 pub mod persisted;
+pub mod print;
 pub mod settings;
 pub mod state;
 pub mod sync;
@@ -259,6 +260,9 @@ pub fn run() {
             organization::member_withdraw_offer,
             organization::ownership_accept,
             organization::member_rename,
+            organization::organization_mark_get,
+            organization::organization_mark_set,
+            organization::organization_mark_clear,
             organization::member_remove,
             organization::member_lock_out_cost,
             organization::member_end_sessions,
@@ -274,6 +278,7 @@ pub fn run() {
             organization::organization_reconnect_authority,
             export::export_write,
             export::export_write_workbook,
+            print::print_page,
             import::import_read,
             import::import_read_book,
             update::update_prepare,

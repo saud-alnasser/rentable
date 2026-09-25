@@ -35,12 +35,15 @@ import {
 	compareContractsByRank,
 	getContractRank,
 	getContractRankBounds,
+	getDueSoonCycle,
 	type ContractRankBounds,
 	type ContractRankOrder
 } from '$lib/contract/rank';
+import { getReminderFigures, isReminderRank, type ContractReminder } from '$lib/contract/reminder';
 import { ensureRenewalFollowsPredecessor } from '$lib/contract/renewal';
 import { reconcileTouched } from '$lib/contract/reconcile';
-import { serializeContract } from '$lib/contract/serialize';
+import { scheduleContract } from '$lib/contract/schedule';
+import { serializeContract, type SerializedContract } from '$lib/contract/serialize';
 import dashboard from '$lib/dashboard/router';
 import { groupPaymentsByContractId } from '$lib/payment/payment';
 import payment from '$lib/payment/router';
@@ -392,6 +395,21 @@ async function planContractSelection(
 	}
 
 	return { eligible, refused, paymentsByContractId, assignmentsByContractId };
+}
+
+/**
+ * A serialized contract with the rank it is filed under today, where it has one: what its acts
+ * gate on, so a read that hands a contract to its acts carries it. Left off rather than written as
+ * `undefined` on a contract in no rank, as the serialized shape leaves off what it does not know.
+ */
+function withRank<T extends SerializedContract>(
+	contract: T,
+	now: number,
+	endingSoonNoticeDays: number
+): T {
+	const rank = getContractRank(contract, contract.paidAmount, now, endingSoonNoticeDays);
+
+	return rank ? { ...contract, rank } : contract;
 }
 
 /** A contract a multi-record action changed, named the way its own history names it. */
@@ -1164,30 +1182,96 @@ export default router({
 			}));
 		}),
 
+	// one contract, with the rank it is filed under today, so the record page's acts gate on it
+	// as a card's do.
 	get: procedure.member
 		.input(ContractSchema.pick({ id: true, govId: true }).partial())
 		.query(async ({ input, ctx }) => {
-			if (input.id) {
-				const contract = await ctx.db
-					.select()
-					.from(s.contract)
-					.where(eq(s.contract.id, input.id))
-					.get();
+			const matching = input.id
+				? eq(s.contract.id, input.id)
+				: input.govId
+					? eq(s.contract.govId, input.govId)
+					: undefined;
 
-				return contract ? serializeContract(contract) : undefined;
+			if (!matching) {
+				return undefined;
 			}
 
-			if (input.govId) {
-				const contract = await ctx.db
-					.select()
-					.from(s.contract)
-					.where(eq(s.contract.govId, input.govId))
-					.get();
+			const contract = await ctx.db.select().from(s.contract).where(matching).get();
 
-				return contract ? serializeContract(contract) : undefined;
+			if (!contract) {
+				return undefined;
 			}
 
-			return undefined;
+			const { endingSoonNoticeDays } = await ctx.host.settings.get();
+
+			return withRank(serializeContract(contract), ctx.clock.now(), endingSoonNoticeDays);
+		}),
+
+	/**
+	 * What a WhatsApp reminder to the contract's tenant states: the tenant's name and phone, the
+	 * units, the amount and the date (`contract/reminder.ts`).
+	 *
+	 * Offered on a contract that is overdue, owing or due soon, and refused on any other: a
+	 * contract that owes nothing and has nothing falling due has nothing to remind anyone of. It
+	 * reads and writes nothing else; whether a reminder was sent is not recorded.
+	 */
+	reminder: procedure.member
+		.input(ContractSchema.pick({ id: true }))
+		.query(async ({ input, ctx }): Promise<ContractReminder> => {
+			const now = ctx.clock.now();
+			const contract = await selectContract(ctx.db, input.id);
+			const { endingSoonNoticeDays } = await ctx.host.settings.get();
+			const rank = getContractRank(contract, contract.paidAmount, now, endingSoonNoticeDays);
+
+			if (!isReminderRank(rank)) {
+				throw refuse('contract.nothingToRemind');
+			}
+
+			const payments = await selectPaymentsForContract(ctx.db, contract.id);
+			const figures = getReminderFigures(contract, payments, rank, now);
+
+			// the rank was decided on the same fields at the same instant, so a figure is always
+			// there; the refusal stands in for a disagreement the rank rules out.
+			if (!figures) {
+				throw refuse('contract.nothingToRemind');
+			}
+
+			const tenant = await ctx.db
+				.select({ name: s.tenant.name, phone: s.tenant.phone })
+				.from(s.tenant)
+				.where(eq(s.tenant.id, contract.tenantId))
+				.get();
+
+			if (!tenant) {
+				throw refuse('contract.tenantMissing');
+			}
+
+			return {
+				rank,
+				tenantName: tenant.name,
+				tenantPhone: tenant.phone,
+				contractNumber: contract.govId?.trim() ?? '',
+				...figures
+			};
+		}),
+
+	/**
+	 * A contract's schedule: one entry per cycle across its whole period, each with the day it
+	 * falls due, what it costs, how much of that the payments cover, and its state today.
+	 *
+	 * Every payment against the contract is read, because the allocation takes them oldest first
+	 * and a cycle's cover depends on every payment before it. Computed here on every read and
+	 * stored nowhere (`contract/schedule.ts`). Dates cross as timestamps, as a contract's do.
+	 */
+	schedule: procedure.member
+		.input(ContractSchema.pick({ id: true }))
+		.query(async ({ input, ctx }) => {
+			const contract = await selectContract(ctx.db, input.id);
+			const payments = await selectPaymentsForContract(ctx.db, contract.id);
+			const { cycles } = scheduleContract(contract, payments, ctx.clock.now());
+
+			return cycles.map((cycle) => ({ ...cycle, due: cycle.due.getTime() }));
 		}),
 
 	// the contracts directory, in one bounded query: the whole result set for a search, in the
@@ -1200,7 +1284,8 @@ export default router({
 				// narrows the list to one attention rank, so a surface that ranked a contract has
 				// somewhere to send the reader that still knows the rank (ADR 0031). It is not a
 				// plain `where`: a rank is decided from what the contract owes *today*, which is
-				// expected-by-now minus the materialized paid amount, and no column holds that.
+				// expected-by-now minus the materialized paid amount, and from the cycle it has
+				// coming due, and no column holds either.
 				// What the rank *implies* about the stored columns is a `where`, and the query
 				// narrows on that before the rank itself decides what is left.
 				rank: z.enum(CONTRACT_RANKS).optional(),
@@ -1226,9 +1311,9 @@ export default router({
 			// whose rank turns over at a UTC day boundary can be read under one day and judged
 			// under the next, and then it is missing from both lists.
 			const now = ctx.clock.now();
-			const endingSoonNoticeDays = input.rank
-				? (await ctx.host.settings.get()).endingSoonNoticeDays
-				: undefined;
+			// read whether or not a rank was asked for: every row carries the rank it is filed
+			// under, which its acts gate on.
+			const { endingSoonNoticeDays } = await ctx.host.settings.get();
 			const rankBounds = input.rank
 				? getContractRankBounds(input.rank, now, endingSoonNoticeDays)
 				: undefined;
@@ -1253,10 +1338,13 @@ export default router({
 				)
 				.orderBy(...contractOrderBy(input.sort));
 
-			const listed = contracts.map(({ contract, tenantName, tenantPhone, paymentCount }) => ({
-				...serializeContract(contract, tenantName, tenantPhone),
-				paymentCount
-			}));
+			const listed = contracts.map(({ contract, tenantName, tenantPhone, paymentCount }) =>
+				withRank(
+					{ ...serializeContract(contract, tenantName, tenantPhone), paymentCount },
+					now,
+					endingSoonNoticeDays
+				)
+			);
 
 			if (!input.rank) {
 				return listed;
@@ -1274,13 +1362,7 @@ export default router({
 					getExpectedAmountBy(contract, now) - contract.paidAmount,
 					0
 				);
-				const rank = getContractRank(
-					contract.status,
-					contract.end,
-					outstandingAmount,
-					now,
-					endingSoonNoticeDays
-				);
+				const rank = contract.rank;
 
 				if (rank !== wantedRank) {
 					return [];
@@ -1292,7 +1374,11 @@ export default router({
 					contractEnd: contract.end,
 					// the list joins its tenant, so the name is always there; the serialized shape
 					// is the one that admits it might not be.
-					tenantName: contract.tenantName ?? ''
+					tenantName: contract.tenantName ?? '',
+					nextDue:
+						rank === 'due-soon'
+							? getDueSoonCycle(contract, contract.paidAmount, now)?.due.getTime()
+							: undefined
 				};
 
 				return [{ contract, order }];

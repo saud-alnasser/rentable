@@ -4423,6 +4423,8 @@ dependencies = [
  "tokio",
  "turso",
  "url",
+ "webview2-com",
+ "windows",
  "x25519-dalek",
 ]
 

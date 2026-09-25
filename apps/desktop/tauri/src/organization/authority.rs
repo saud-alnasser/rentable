@@ -118,6 +118,9 @@ const FORGED_SUCCESSION: &str = "the succession is not signed by the key it says
 /// share a name.
 const INVITATION_DOMAIN: &[u8] = b"rentable.organization.authority.invitation.v2";
 
+/// Domain separation for the `mark` row: the organization's signature or seal (effort 835).
+const MARK_DOMAIN: &[u8] = b"rentable.organization.authority.mark.v1";
+
 /// The first check's refusal: the row does not carry the signature the
 /// certificate it names would have produced.
 const FORGED_ROW: &str = "the row is not signed by the certificate it names";
@@ -179,6 +182,20 @@ pub enum Authority<'a> {
     Grant(GrantAuthority<'a>),
     /// An `invitation` row.
     Invitation(InvitationAuthority<'a>),
+    /// The `mark` row: the organization's signature or seal.
+    Mark(MarkAuthority<'a>),
+}
+
+/// What the `mark` row puts under signature: the image as sealed, what kind it is, and who set
+/// it when. Signed so that the image printed as the organization's signature or seal is one an
+/// owner or an administrator set, and not one any member holding the database's credential wrote
+/// (effort 835, requirement 13).
+#[derive(Clone, Copy, Debug)]
+pub struct MarkAuthority<'a> {
+    pub image_sealed: &'a [u8],
+    pub media_type: &'a str,
+    pub updated_by: &'a str,
+    pub updated_at: i64,
 }
 
 /// What an `invitation` row puts under signature: which invitation it is, whose
@@ -638,6 +655,19 @@ fn preimage(certificate_id: &str, authority: Authority<'_>) -> Vec<u8> {
             field(&mut message, id.as_bytes());
             field(&mut message, member_id.as_bytes());
             field(&mut message, &expires_at.to_be_bytes());
+        }
+        Authority::Mark(MarkAuthority {
+            image_sealed,
+            media_type,
+            updated_by,
+            updated_at,
+        }) => {
+            message.extend_from_slice(MARK_DOMAIN);
+            field(&mut message, certificate_id.as_bytes());
+            field(&mut message, image_sealed);
+            field(&mut message, media_type.as_bytes());
+            field(&mut message, updated_by.as_bytes());
+            field(&mut message, &updated_at.to_be_bytes());
         }
     }
 

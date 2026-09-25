@@ -12,7 +12,7 @@ import { refuse } from '$lib/api/refusal';
  * everything that weighs payments against a contract is here.
  */
 
-type ContractLike = Omit<
+export type ContractLike = Omit<
 	Pick<Contract, 'status' | 'start' | 'end' | 'interval' | 'cost'>,
 	'start' | 'end'
 > & {
@@ -36,7 +36,8 @@ export type ContractAssignment = UnitAssignmentLike & {
 	cost: Contract['cost'];
 };
 
-const EPSILON = 0.0001;
+/** the tolerance every comparison of money in this domain allows, so float dust is never a debt. */
+export const EPSILON = 0.0001;
 const UTC_DAY_MS = 24 * 60 * 60 * 1000;
 
 export const CONTRACT_END_DATE_TOLERANCE_DAYS = 5;
@@ -504,6 +505,7 @@ export type ContractRefusalCode =
 	| 'contract.terminatedLocked'
 	| 'contract.notTerminable'
 	| 'contract.notUnterminable'
+	| 'contract.nothingToRemind'
 	| 'contract.unitsLockedByPayments'
 	| 'contract.paidInFull'
 	| 'contract.holdsPayments'

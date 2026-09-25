@@ -51,7 +51,8 @@ function ruleFor(css: string, selector: string) {
 function appearance(selector: string) {
 	const source = readFileSync(TOKENS, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
 	const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-	const body = new RegExp(`^${escaped}\\s*\\{([^}]*)\\}`, 'm').exec(source)?.[1];
+	// indented where the block sits inside a media query, as the dark one does (screen only).
+	const body = new RegExp(`^[\\t ]*${escaped}\\s*\\{([^}]*)\\}`, 'm').exec(source)?.[1];
 
 	assert.ok(body, `tokens.css declares a ${selector} block`);
 

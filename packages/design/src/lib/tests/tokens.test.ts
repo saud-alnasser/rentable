@@ -22,7 +22,8 @@ type Oklch = { l: number; c: number; h: number; alpha: number };
 
 function block(selector: string): Map<string, Oklch> {
 	const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-	const match = new RegExp(`^${escaped}\\s*\\{([^}]*)\\}`, 'm').exec(source);
+	// indented where the block sits inside a media query, as the dark one does (screen only).
+	const match = new RegExp(`^[\\t ]*${escaped}\\s*\\{([^}]*)\\}`, 'm').exec(source);
 
 	assert.ok(match, `tokens.css declares a ${selector} block`);
 

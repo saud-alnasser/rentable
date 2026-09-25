@@ -95,6 +95,9 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 			openUrl: refuse('opener.openUrl'),
 			revealItemInDir: refuse('opener.revealItemInDir')
 		},
+		print: {
+			page: refuse('print.page')
+		},
 		export: {
 			write: refuse('export.write'),
 			writeWorkbook: refuse('export.writeWorkbook')
@@ -105,6 +108,7 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 		},
 		dialog: {
 			openFile: refuse('dialog.openFile'),
+			openImage: refuse('dialog.openImage'),
 			saveFile: refuse('dialog.saveFile')
 		},
 		diagnostics: {
@@ -127,6 +131,9 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 			}
 		},
 		organization: {
+			markGet: refuse('organization.markGet'),
+			markSet: refuse('organization.markSet'),
+			markClear: refuse('organization.markClear'),
 			consentBegin: refuse('organization.consentBegin'),
 			consentResult: refuse('organization.consentResult'),
 			consentDisconnect: refuse('organization.consentDisconnect'),

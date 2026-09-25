@@ -173,6 +173,83 @@ test('each rank states its contract count and its money total', async () => {
 	]);
 });
 
+// --- Due soon, criterion 11 of effort 835 ----------------------------------------------
+
+/**
+ * A contract whose first cycle falls due `inDays` from today, with nothing paid. The first cycle
+ * falls due on the start date, so a contract about to start is the plainest cycle coming due, and
+ * one that stays right whatever day of the month the suite runs on.
+ */
+async function seedStartingIn(api: Api, govId: string, inDays: number, cost: number) {
+	const tenant = await seedTenant(api);
+
+	return api.contract.create({
+		govId,
+		cost,
+		start: monthsFromNow(0, inDays),
+		end: monthsFromNow(12, inDays - 1),
+		interval: '12m',
+		tenantId: tenant.id
+	});
+}
+
+test('a contract with a cycle falling due this week is under due soon, stating that cycle', async () => {
+	const api = await createApi();
+	await seedPortfolio(api);
+	await seedStartingIn(api, 'GOV-K', 3, 1200);
+
+	const { queue } = await api.contract.dashboard();
+	const dueSoon = queueEntry(queue, 'GOV-K');
+
+	assert.ok(dueSoon, 'GOV-K is in the queue');
+	assert.equal(dueSoon.rank, 'due-soon');
+	assert.equal(dueSoon.outstandingAmount, 0);
+	assert.deepEqual(dueSoon.comingDue, { due: monthsFromNow(0, 3), amount: 1200 });
+
+	// read after owing and before ending soon
+	assert.deepEqual(
+		queue.map(({ rank }) => rank),
+		['overdue', 'owing', 'owing', 'owing', 'owing', 'due-soon', 'ending-soon']
+	);
+
+	// a contract in any other rank states no cycle coming due
+	assert.ok(queue.filter(({ rank }) => rank !== 'due-soon').every((entry) => !entry.comingDue));
+});
+
+test('the due-soon rank is read soonest due first', async () => {
+	const api = await createApi();
+	await seedStartingIn(api, 'GOV-FIVE', 5, 1000);
+	await seedStartingIn(api, 'GOV-TWO', 2, 1000);
+	await seedStartingIn(api, 'GOV-EIGHT', 8, 1000);
+
+	const { queue } = await api.contract.dashboard();
+
+	assert.deepEqual(
+		queue.map(({ govId }) => govId),
+		['GOV-TWO', 'GOV-FIVE']
+	);
+});
+
+// what falls due this week is not owed yet, so the money ranks' totals are what they were and
+// the due-soon rank carries none.
+test('a contract coming due leaves the money ranks as they were', async () => {
+	const api = await createApi();
+	await seedPortfolio(api);
+	const before = (await api.contract.dashboard()).ranks;
+
+	await seedStartingIn(api, 'GOV-K', 3, 1200);
+	const { ranks } = await api.contract.dashboard();
+
+	assert.deepEqual(
+		ranks.filter(({ rank }) => rank !== 'due-soon'),
+		before
+	);
+	assert.deepEqual(
+		ranks.find(({ rank }) => rank === 'due-soon'),
+		{ rank: 'due-soon', contractCount: 1, totalAmount: 0 }
+	);
+});
+
 test('with nothing outstanding and nothing ending, the queue is empty rather than ranked', async () => {
 	const api = await createApi();
 	const tenant = await seedTenant(api);

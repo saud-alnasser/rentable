@@ -1,0 +1,49 @@
+<!doctype html>
+<!--
+	The page a printed receipt or schedule is written from, in a window nobody sees (effort 835,
+	requirement 10).
+
+	Printing lays the window out for paper, and the main window printing itself showed that layout
+	on screen for a moment: light, and the page alone. So on Windows the page is copied here, with
+	the stylesheets it is drawn with, and printed from this window instead. It is plain HTML rather
+	than a route, so none of the application starts in it, and it holds no capability: the host
+	writes into it through the webview and reads back two flags, nothing more.
+-->
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<title>print</title>
+	</head>
+	<body>
+		<script>
+			window.__rentablePrinted = false;
+			addEventListener('afterprint', () => {
+				window.__rentablePrinted = true;
+			});
+
+			/** draw the page with the stylesheets it came with, and answer once it is ready to print. */
+			window.__rentableDraw = (head, lang, dir, body) => {
+				window.__rentableReady = false;
+				document.head.insertAdjacentHTML('beforeend', head);
+				document.documentElement.lang = lang;
+				document.documentElement.dir = dir;
+				document.body.innerHTML = body;
+
+				const sheets = [...document.querySelectorAll('link[rel="stylesheet"]')].map((link) =>
+					link.sheet
+						? Promise.resolve()
+						: new Promise((resolve) => {
+								link.addEventListener('load', resolve);
+								link.addEventListener('error', resolve);
+							})
+				);
+
+				Promise.all(sheets)
+					.then(() => document.fonts.ready)
+					.then(() => {
+						window.__rentableReady = true;
+					});
+			};
+		</script>
+	</body>
+</html>

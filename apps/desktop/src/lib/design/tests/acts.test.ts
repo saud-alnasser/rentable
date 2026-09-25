@@ -21,6 +21,8 @@ const GLYPHS = [
 	'copy',
 	'file-plus',
 	'files',
+	'message-circle',
+	'printer',
 	'rotate-ccw',
 	'square-pen',
 	'trash-2'
@@ -52,8 +54,10 @@ function recordingHost() {
 		asked,
 		host: {
 			copyDetails: note('copyDetails'),
+			print: note('print'),
 			duplicate: note('duplicate'),
 			renew: note('renew'),
+			remind: note('remind'),
 			edit: note('edit'),
 			confirm: (kind: ContractConfirmation, contract: ContractActRecord) =>
 				asked.push(`confirm.${kind}:${contract.id}`)
@@ -119,6 +123,7 @@ test('the acts are offered in the declared order, and only those the status admi
 
 	assert.deepEqual(idsFor('active'), [
 		'contract.copyDetails',
+		'contract.print',
 		'contract.duplicate',
 		'contract.renew',
 		'contract.edit',
@@ -128,6 +133,7 @@ test('the acts are offered in the declared order, and only those the status admi
 	// a terminated contract is not edited or terminated again; it is restored.
 	assert.deepEqual(idsFor('terminated'), [
 		'contract.copyDetails',
+		'contract.print',
 		'contract.duplicate',
 		'contract.renew',
 		'contract.restore',
@@ -136,11 +142,92 @@ test('the acts are offered in the declared order, and only those the status admi
 	// the domain's own rule: a contract that has not started is not terminated.
 	assert.deepEqual(idsFor('scheduled'), [
 		'contract.copyDetails',
+		'contract.print',
 		'contract.duplicate',
 		'contract.renew',
 		'contract.edit',
 		'contract.delete'
 	]);
+});
+
+// criterion 12(c) of effort 835: the reminder is offered on the three ranks that owe or fall due,
+// on the card, the page and in the palette alike, and on no contract in another rank or in none.
+test('the reminder is offered on an overdue, owing or due-soon contract, and on no other', () => {
+	const acts = declareContractActs(recordingHost().host);
+	const offersReminder = (contract: ContractActRecord) => {
+		const page = toPageActions(acts, contract, translations).some(
+			(act) => act.id === 'contract.remind'
+		);
+
+		assert.equal(
+			toCardActions(acts, contract, translations).some(
+				(action) => action.attributes?.['data-act'] === 'contract.remind'
+			),
+			page
+		);
+		assert.equal(
+			toPaletteVerbs(acts, contract, translations, false).some(
+				(act) => act.id === 'contract.remind'
+			),
+			page
+		);
+
+		return page;
+	};
+
+	for (const rank of ['overdue', 'owing', 'due-soon'] as const) {
+		assert.equal(offersReminder({ ...contractIn('active'), rank }), true, rank);
+	}
+
+	assert.equal(offersReminder({ ...contractIn('active'), rank: 'ending-soon' }), false);
+	// in no rank: the read left the rank off.
+	assert.equal(offersReminder(contractIn('active')), false);
+	// terminated: no rank admits one, and the act is not offered even on a stale rank.
+	assert.equal(offersReminder(contractIn('terminated')), false);
+	assert.equal(offersReminder({ ...contractIn('terminated'), rank: 'overdue' }), false);
+});
+
+test('the reminder sits beside printing, and asks the host to remind on the record it was offered for', () => {
+	const { asked, host } = recordingHost();
+	const acts = declareContractActs(host);
+	const contract: ContractActRecord = { ...contractIn('active'), rank: 'owing' };
+
+	assert.deepEqual(
+		toPageActions(acts, contract, translations).map((act) => act.id),
+		[
+			'contract.copyDetails',
+			'contract.print',
+			'contract.remind',
+			'contract.duplicate',
+			'contract.renew',
+			'contract.edit',
+			'contract.terminate',
+			'contract.delete'
+		]
+	);
+
+	toPageActions(acts, contract, translations)
+		.find((act) => act.id === 'contract.remind')
+		?.run();
+
+	assert.deepEqual(asked, ['remind:contract-active']);
+});
+
+test('a reminder to a tenant known to have no phone is shown and refused, with the reason', () => {
+	const acts = declareContractActs(recordingHost().host);
+	const reminder = (contract: ContractActRecord) =>
+		toPageActions(acts, contract, translations).find((act) => act.id === 'contract.remind');
+
+	assert.equal(
+		reminder({ ...contractIn('active'), rank: 'owing', tenantPhone: '' })?.unavailable,
+		translations.contracts.reminder.noPhone()
+	);
+	// a read that does not carry the phone does not refuse on it: the host reads the tenant.
+	assert.equal(reminder({ ...contractIn('active'), rank: 'owing' })?.unavailable, undefined);
+	assert.equal(
+		reminder({ ...contractIn('active'), rank: 'owing', tenantPhone: '+966551234567' })?.unavailable,
+		undefined
+	);
 });
 
 test('the tones, groups and shortcuts are the same on the card as on the page', () => {
@@ -198,6 +285,27 @@ test('every surface runs an act by asking the host, on the record it was offered
 		'renew:contract-active',
 		'duplicate:contract-active'
 	]);
+});
+
+// ticket 05 of effort 835: printing a schedule changes nothing, so every contract prints its own,
+// and the act only asks the host, which reads the schedule and opens the dialog.
+test('every contract, a terminated one included, offers to print its schedule and asks the host to', () => {
+	const { asked, host } = recordingHost();
+	const acts = declareContractActs(host);
+
+	for (const status of STATUSES) {
+		const print = toPageActions(acts, contractIn(status), translations).find(
+			(act) => act.id === 'contract.print'
+		);
+
+		assert.equal(print?.label, translations.contracts.schedule.print());
+		print?.run();
+	}
+
+	assert.deepEqual(
+		asked,
+		STATUSES.map((status) => `print:contract-${status}`)
+	);
 });
 
 /*
@@ -385,8 +493,9 @@ function paymentAgainst(contractStatus: ContractActRecord['status'] | undefined)
 
 for (const status of [...STATUSES, undefined]) {
 	test(`a payment against a contract that is ${status ?? 'not read yet'} is offered the same acts on its card, its page and in the palette`, () => {
-		const { host } = recordingRequests([
+		const { asked, host } = recordingRequests([
 			'copyDetails',
+			'receipt',
 			'duplicate',
 			'edit',
 			'confirmDelete'
@@ -397,13 +506,15 @@ for (const status of [...STATUSES, undefined]) {
 		// every act applies to a payment, whatever its contract.
 		assert.deepEqual(ids, [
 			'payment.copyDetails',
+			'payment.receipt',
 			'payment.duplicate',
 			'payment.edit',
 			'payment.delete'
 		]);
 
-		// a terminated contract's statement is read-only: copying is a read and runs, and what writes
-		// is shown refused with the contract's state as its reason (ticket 33).
+		// a terminated contract's statement is read-only: copying and the receipt are reads and run,
+		// and what writes is shown refused with the contract's state as its reason (ticket 33). Every
+		// payment has a receipt (effort 835, criterion 8), so it is never refused.
 		const refused = toPageActions(acts, paymentAgainst(status), translations)
 			.filter((act) => act.unavailable)
 			.map((act) => [act.id, act.unavailable]);
@@ -417,6 +528,12 @@ for (const status of [...STATUSES, undefined]) {
 					])
 				: []
 		);
+
+		toPageActions(acts, paymentAgainst(status), translations)
+			.find((act) => act.id === 'payment.receipt')
+			?.run();
+		assert.equal(asked.length, 1);
+		assert.match(asked[0], /^receipt:/);
 		assertDeclarationHolds(acts);
 	});
 }
@@ -812,7 +929,8 @@ test('a new payment is refused, with its reason, on a terminated or a fully paid
 // still open, and a surface that has not read the amounts refuses no more than it did.
 test('duplicating a payment is refused on a fully paid contract, as creating one is', () => {
 	const acts = declarePaymentActs(
-		recordingRequests(['copyDetails', 'duplicate', 'edit', 'confirmDelete'] as const).host
+		recordingRequests(['copyDetails', 'receipt', 'duplicate', 'edit', 'confirmDelete'] as const)
+			.host
 	);
 	const refusedOn = (amounts: { contractPaidAmount?: number; contractExpectedAmount?: number }) =>
 		toPageActions(acts, { ...paymentAgainst('fulfilled'), ...amounts }, translations)

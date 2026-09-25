@@ -37,15 +37,15 @@ use crate::{
 
 use super::{
     authority::{
-        Authority, Certificate, GrantAuthority, InvitationAuthority, MemberAuthority,
-        VERIFYING_KEY_BYTES, WorkspaceAuthority, sign, verify,
+        Authority, Certificate, GrantAuthority, InvitationAuthority, MarkAuthority,
+        MemberAuthority, VERIFYING_KEY_BYTES, WorkspaceAuthority, sign, verify,
     },
     vault::{KDF_SALT_BYTES, KdfParams, PUBLIC_KEY_BYTES, Vault},
 };
 
-/// The ten tables, in the order the schema creates them. A test pins this list against what
+/// The eleven tables, in the order the schema creates them. A test pins this list against what
 /// the database reports, so a table added anywhere is added here or fails there.
-pub const TABLES: [&str; 10] = [
+pub const TABLES: [&str; 11] = [
     "organization",
     "member",
     "administrator_certificate",
@@ -56,6 +56,7 @@ pub const TABLES: [&str; 10] = [
     "machine_link",
     "machine",
     "succession",
+    "mark",
 ];
 
 /// How long a machine counts as connected after it was last seen: seven days (effort 828,
@@ -78,7 +79,7 @@ pub const MACHINE_PRESENCE_WINDOW: i64 = 7 * 24 * 60 * 60 * 1000;
 ///
 /// `grant` is quoted everywhere because it is a keyword in most dialects, and a statement that
 /// works in SQLite and fails elsewhere is a statement worth spelling defensively once.
-const SCHEMA: [&str; 10] = [
+const SCHEMA: [&str; 11] = [
     "CREATE TABLE IF NOT EXISTS \"organization\" (\
         \"id\" TEXT PRIMARY KEY NOT NULL, \
         \"name_sealed\" BLOB NOT NULL, \
@@ -163,7 +164,34 @@ const SCHEMA: [&str; 10] = [
         \"new_verifying_key\" BLOB, \
         \"accepted_at\" INTEGER, \
         \"signature\" BLOB NOT NULL)",
+    // the one image an organization prints on its pages, a signature or a seal (effort 835,
+    // requirement 13). Sealed under the content key like a name, and signed by the owner or the
+    // administrator who set it, so an image any member could write straight into the database is
+    // never printed as the organization's. *A build during the effort kept it unsigned in
+    // `organization_mark`; a replica that ran that build keeps that table, empty or not, and
+    // nothing reads it.*
+    "CREATE TABLE IF NOT EXISTS \"mark\" (\
+        \"id\" TEXT PRIMARY KEY NOT NULL, \
+        \"image_sealed\" BLOB NOT NULL, \
+        \"media_type\" TEXT NOT NULL, \
+        \"updated_by\" TEXT NOT NULL, \
+        \"updated_at\" INTEGER NOT NULL, \
+        \"certificate_id\" TEXT NOT NULL, \
+        \"signature\" BLOB NOT NULL)",
 ];
+
+/// The key of the one `mark` row: an organization keeps one mark.
+const MARK_ID: &str = "mark";
+
+/// The organization's mark as it is stored: the image sealed, what kind of image it is, and who
+/// set it when.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MarkRecord {
+    pub image_sealed: Vec<u8>,
+    pub media_type: String,
+    pub updated_by: String,
+    pub updated_at: i64,
+}
 
 /// The one `organization` row.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -601,6 +629,101 @@ impl OrganizationStore {
             remote_url: text(&row, 3)?,
             created_at: integer(&row, 4)?,
         }))
+    }
+
+    // the mark
+
+    /// The organization's mark, verified, or nothing where none is set. A row whose signature does
+    /// not verify against a certificate the organization issued is refused as an integrity error,
+    /// which the caller treats as no mark: it is never printed.
+    pub async fn mark(
+        &self,
+        organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
+    ) -> Result<Option<MarkRecord>, Error> {
+        let certificates = self.certificates().await?;
+        let mut rows = self
+            .connection
+            .query(
+                "SELECT \"image_sealed\", \"media_type\", \"updated_by\", \"updated_at\", \
+                        \"certificate_id\", \"signature\" \
+                 FROM \"mark\" WHERE \"id\" = ?",
+                vec![turso::Value::Text(MARK_ID.to_string())],
+            )
+            .await?;
+
+        let Some(row) = rows.next().await? else {
+            return Ok(None);
+        };
+
+        let mark = MarkRecord {
+            image_sealed: blob(&row, 0)?,
+            media_type: text(&row, 1)?,
+            updated_by: text(&row, 2)?,
+            updated_at: integer(&row, 3)?,
+        };
+
+        verified(
+            organization_verifying_key,
+            &certificates,
+            "mark",
+            MARK_ID,
+            &text(&row, 4)?,
+            Authority::Mark(MarkAuthority {
+                image_sealed: &mark.image_sealed,
+                media_type: &mark.media_type,
+                updated_by: &mark.updated_by,
+                updated_at: mark.updated_at,
+            }),
+            &blob(&row, 5)?,
+        )?;
+
+        Ok(Some(mark))
+    }
+
+    /// Set the mark, signed by whoever set it, replacing whatever was there.
+    pub async fn write_mark(&self, signer: &Signer<'_>, mark: &MarkRecord) -> Result<(), Error> {
+        let signature = sign(
+            signer.key,
+            signer.certificate,
+            Authority::Mark(MarkAuthority {
+                image_sealed: &mark.image_sealed,
+                media_type: &mark.media_type,
+                updated_by: &mark.updated_by,
+                updated_at: mark.updated_at,
+            }),
+        )?;
+
+        self.connection
+            .execute(
+                "INSERT OR REPLACE INTO \"mark\" \
+                 (\"id\", \"image_sealed\", \"media_type\", \"updated_by\", \"updated_at\", \
+                  \"certificate_id\", \"signature\") \
+                 VALUES (?, ?, ?, ?, ?, ?, ?)",
+                vec![
+                    turso::Value::Text(MARK_ID.to_string()),
+                    turso::Value::Blob(mark.image_sealed.clone()),
+                    turso::Value::Text(mark.media_type.clone()),
+                    turso::Value::Text(mark.updated_by.clone()),
+                    turso::Value::Integer(mark.updated_at),
+                    turso::Value::Text(signer.certificate.id.clone()),
+                    turso::Value::Blob(signature),
+                ],
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// Remove the mark; a page printed after it has none.
+    pub async fn clear_mark(&self) -> Result<(), Error> {
+        self.connection
+            .execute(
+                "DELETE FROM \"mark\" WHERE \"id\" = ?",
+                vec![turso::Value::Text(MARK_ID.to_string())],
+            )
+            .await?;
+
+        Ok(())
     }
 
     // certificates
@@ -2256,8 +2379,9 @@ mod tests {
 
     #[tokio::test]
     async fn a_replica_lacking_a_table_the_schema_names_gains_it_and_says_so() {
-        // an organization made by a build that knew nine tables: every statement but the last.
+        // an organization made by a build that knew one table fewer: every statement but the last.
         let directory = scratch("schema-completes");
+        let newest = super::TABLES[super::TABLES.len() - 1];
         let store = OrganizationStore::open(&directory.join("org-x.db"), None, || async {
             Ok::<String, turso::Error>(String::new())
         })
@@ -2277,8 +2401,8 @@ mod tests {
                 .await
                 .expect("the tables")
                 .iter()
-                .any(|t| t == "succession"),
-            "the fixture already held the tenth table"
+                .any(|t| t == newest),
+            "the fixture already held the newest table"
         );
 
         assert!(
@@ -2291,8 +2415,8 @@ mod tests {
                 .await
                 .expect("the tables")
                 .iter()
-                .any(|t| t == "succession"),
-            "the tenth table was not created"
+                .any(|t| t == newest),
+            "the newest table was not created"
         );
         assert!(
             !store

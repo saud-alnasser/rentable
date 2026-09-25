@@ -175,6 +175,10 @@ type RootTranslation = {
 			 */
 			proceed: string
 			/**
+			 * r​e​m​i​n​d​ ​t​e​n​a​n​t
+			 */
+			remind: string
+			/**
 			 * r​e​m​o​v​e
 			 */
 			remove: string
@@ -884,6 +888,10 @@ type RootTranslation = {
 				 */
 				notTerminable: string
 				/**
+				 * t​h​i​s​ ​c​o​n​t​r​a​c​t​ ​o​w​e​s​ ​n​o​t​h​i​n​g​ ​a​n​d​ ​h​a​s​ ​n​o​t​h​i​n​g​ ​f​a​l​l​i​n​g​ ​d​u​e​ ​t​h​i​s​ ​w​e​e​k​.
+				 */
+				nothingToRemind: string
+				/**
 				 * o​n​l​y​ ​a​ ​t​e​r​m​i​n​a​t​e​d​ ​c​o​n​t​r​a​c​t​ ​c​a​n​ ​b​e​ ​r​e​s​t​o​r​e​d​.
 				 */
 				notUnterminable: string
@@ -1037,6 +1045,14 @@ type RootTranslation = {
 				 * t​h​a​t​ ​m​e​m​b​e​r​ ​i​s​ ​n​o​ ​l​o​n​g​e​r​ ​i​n​ ​t​h​i​s​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​r​e​l​o​a​d​ ​t​o​ ​s​e​e​ ​w​h​a​t​ ​c​h​a​n​g​e​d​.
 				 */
 				memberMissing: string
+				/**
+				 * c​h​o​o​s​e​ ​a​ ​P​N​G​,​ ​J​P​E​G​ ​o​r​ ​W​e​b​P​ ​i​m​a​g​e​.
+				 */
+				markNotAnImage: string
+				/**
+				 * t​h​e​ ​i​m​a​g​e​ ​i​s​ ​o​v​e​r​ ​5​1​2​ ​K​B​.​ ​c​h​o​o​s​e​ ​a​ ​s​m​a​l​l​e​r​ ​o​n​e​.
+				 */
+				markTooLarge: string
 				/**
 				 * t​h​i​s​ ​a​c​c​o​u​n​t​ ​i​s​ ​n​o​ ​l​o​n​g​e​r​ ​i​n​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.
 				 */
@@ -2667,15 +2683,105 @@ type RootTranslation = {
 			 */
 			fullyPaidSummary: string
 			/**
+			 * p​a​y​m​e​n​t​ ​m​e​t​h​o​d
+			 */
+			method: string
+			/**
+			 * n​o​t​ ​r​e​c​o​r​d​e​d
+			 */
+			methodNotRecorded: string
+			/**
+			 * p​a​y​m​e​n​t​ ​m​e​t​h​o​d​ ​(​o​p​t​i​o​n​a​l​)
+			 */
+			methodOptional: string
+			methods: {
+				/**
+				 * b​a​n​k​ ​t​r​a​n​s​f​e​r
+				 */
+				bankTransfer: string
+				/**
+				 * c​a​s​h
+				 */
+				cash: string
+				/**
+				 * c​h​e​q​u​e
+				 */
+				cheque: string
+				/**
+				 * E​j​a​r
+				 */
+				ejar: string
+			}
+			/**
 			 * t​o​t​a​l​ ​s​h​o​w​n​ ​f​o​r​ ​{​m​o​n​t​h​}
 			 * @param {unknown} month
 			 */
 			monthTotal: RequiredParams<'month'>
 			/**
+			 * n​o​t​e
+			 */
+			note: string
+			/**
+			 * n​o​t​e​ ​(​o​p​t​i​o​n​a​l​)
+			 */
+			noteOptional: string
+			/**
 			 * {​p​e​r​c​e​n​t​}​%​ ​f​u​l​f​i​l​l​e​d
 			 * @param {unknown} percent
 			 */
 			percentFulfilled: RequiredParams<'percent'>
+			receipt: {
+				/**
+				 * a​m​o​u​n​t​ ​r​e​c​e​i​v​e​d
+				 */
+				amount: string
+				/**
+				 * c​o​v​e​r​s
+				 */
+				covers: string
+				/**
+				 * c​y​c​l​e​ ​{​i​n​d​e​x​}​,​ ​d​u​e​ ​{​d​a​t​e​}
+				 * @param {string} date
+				 * @param {string} index
+				 */
+				cycle: RequiredParams<'date' | 'index'>
+				/**
+				 * p​r​i​n​t​ ​r​e​c​e​i​p​t
+				 */
+				print: string
+				/**
+				 * r​e​c​e​i​v​e​d​ ​f​r​o​m
+				 */
+				receivedFrom: string
+				/**
+				 * d​a​t​e​ ​r​e​c​e​i​v​e​d
+				 */
+				receivedOn: string
+				/**
+				 * r​e​c​e​i​p​t​ ​n​u​m​b​e​r
+				 */
+				reference: string
+				/**
+				 * r​e​m​a​i​n​i​n​g​ ​o​f​ ​t​h​e​ ​c​o​n​t​r​a​c​t​ ​t​o​t​a​l
+				 */
+				remaining: string
+				/**
+				 * r​e​c​e​i​p​t
+				 */
+				title: string
+			}
+			/**
+			 * r​e​f​e​r​e​n​c​e
+			 */
+			reference: string
+			/**
+			 * r​e​f​e​r​e​n​c​e​ ​(​o​p​t​i​o​n​a​l​)
+			 */
+			referenceOptional: string
+			/**
+			 * t​r​a​n​s​f​e​r​,​ ​c​h​e​q​u​e​ ​o​r​ ​S​A​D​A​D​ ​n​u​m​b​e​r
+			 */
+			referencePlaceholder: string
 			/**
 			 * {​a​m​o​u​n​t​}​ ​r​e​m​a​i​n​i​n​g
 			 * @param {string} amount
@@ -2713,6 +2819,10 @@ type RootTranslation = {
 		}
 		ranks: {
 			/**
+			 * d​u​e​ ​s​o​o​n
+			 */
+			dueSoon: string
+			/**
 			 * e​n​d​i​n​g​ ​s​o​o​n
 			 */
 			endingSoon: string
@@ -2724,6 +2834,132 @@ type RootTranslation = {
 			 * o​w​i​n​g
 			 */
 			owing: string
+		}
+		reminder: {
+			/**
+			 * H​e​l​l​o​ ​{​t​e​n​a​n​t​}​,​ ​a​ ​r​e​m​i​n​d​e​r​ ​t​h​a​t​ ​t​h​e​ ​r​e​n​t​ ​o​f​ ​S​A​R​ ​{​a​m​o​u​n​t​}​ ​o​n​ ​c​o​n​t​r​a​c​t​ ​{​c​o​n​t​r​a​c​t​}​ ​f​a​l​l​s​ ​d​u​e​ ​o​n​ ​{​d​a​t​e​}​.​ ​T​h​a​n​k​ ​y​o​u​.
+			 * @param {unknown} amount
+			 * @param {unknown} contract
+			 * @param {unknown} date
+			 * @param {unknown} tenant
+			 */
+			comingDue: RequiredParams<'amount' | 'contract' | 'date' | 'tenant'>
+			/**
+			 * H​e​l​l​o​ ​{​t​e​n​a​n​t​}​,​ ​a​ ​r​e​m​i​n​d​e​r​ ​t​h​a​t​ ​t​h​e​ ​r​e​n​t​ ​o​f​ ​S​A​R​ ​{​a​m​o​u​n​t​}​ ​o​n​ ​y​o​u​r​ ​c​o​n​t​r​a​c​t​ ​f​a​l​l​s​ ​d​u​e​ ​o​n​ ​{​d​a​t​e​}​.​ ​T​h​a​n​k​ ​y​o​u​.
+			 * @param {unknown} amount
+			 * @param {unknown} date
+			 * @param {unknown} tenant
+			 */
+			comingDueNoNumber: RequiredParams<'amount' | 'date' | 'tenant'>
+			/**
+			 * l​a​n​g​u​a​g​e​ ​o​f​ ​t​h​e​ ​m​e​s​s​a​g​e
+			 */
+			language: string
+			/**
+			 * t​h​e​ ​t​e​n​a​n​t​ ​h​a​s​ ​n​o​ ​p​h​o​n​e​ ​n​u​m​b​e​r​ ​t​o​ ​s​e​n​d​ ​a​ ​r​e​m​i​n​d​e​r​ ​t​o​.
+			 */
+			noPhone: string
+			/**
+			 * o​p​e​n​ ​W​h​a​t​s​A​p​p
+			 */
+			open: string
+			/**
+			 * H​e​l​l​o​ ​{​t​e​n​a​n​t​}​,​ ​a​ ​r​e​m​i​n​d​e​r​ ​t​h​a​t​ ​t​h​e​ ​r​e​n​t​ ​o​f​ ​S​A​R​ ​{​a​m​o​u​n​t​}​ ​o​n​ ​c​o​n​t​r​a​c​t​ ​{​c​o​n​t​r​a​c​t​}​ ​h​a​s​ ​b​e​e​n​ ​d​u​e​ ​s​i​n​c​e​ ​{​d​a​t​e​}​.​ ​T​h​a​n​k​ ​y​o​u​.
+			 * @param {unknown} amount
+			 * @param {unknown} contract
+			 * @param {unknown} date
+			 * @param {unknown} tenant
+			 */
+			owed: RequiredParams<'amount' | 'contract' | 'date' | 'tenant'>
+			/**
+			 * H​e​l​l​o​ ​{​t​e​n​a​n​t​}​,​ ​a​ ​r​e​m​i​n​d​e​r​ ​t​h​a​t​ ​t​h​e​ ​r​e​n​t​ ​o​f​ ​S​A​R​ ​{​a​m​o​u​n​t​}​ ​o​n​ ​y​o​u​r​ ​c​o​n​t​r​a​c​t​ ​h​a​s​ ​b​e​e​n​ ​d​u​e​ ​s​i​n​c​e​ ​{​d​a​t​e​}​.​ ​T​h​a​n​k​ ​y​o​u​.
+			 * @param {unknown} amount
+			 * @param {unknown} date
+			 * @param {unknown} tenant
+			 */
+			owedNoNumber: RequiredParams<'amount' | 'date' | 'tenant'>
+		}
+		schedule: {
+			columns: {
+				/**
+				 * a​m​o​u​n​t​ ​d​u​e
+				 */
+				amount: string
+				/**
+				 * p​a​i​d
+				 */
+				covered: string
+				/**
+				 * d​u​e​ ​d​a​t​e
+				 */
+				due: string
+				/**
+				 * s​t​a​t​e
+				 */
+				state: string
+			}
+			/**
+			 * l​a​t​e​;​ ​{​c​o​v​e​r​e​d​}​ ​o​f​ ​{​a​m​o​u​n​t​}​ ​p​a​i​d
+			 * @param {string} amount
+			 * @param {string} covered
+			 */
+			latePart: RequiredParams<'amount' | 'covered'>
+			/**
+			 * p​r​i​n​t​ ​s​c​h​e​d​u​l​e
+			 */
+			print: string
+			/**
+			 * p​a​y​m​e​n​t​ ​s​c​h​e​d​u​l​e
+			 */
+			printTitle: string
+			stateDescriptions: {
+				/**
+				 * d​u​e​ ​t​o​d​a​y​ ​a​n​d​ ​n​o​t​ ​p​a​i​d​ ​i​n​ ​f​u​l​l
+				 */
+				due: string
+				/**
+				 * p​a​s​t​ ​i​t​s​ ​d​u​e​ ​d​a​t​e​ ​a​n​d​ ​n​o​t​ ​p​a​i​d​ ​i​n​ ​f​u​l​l
+				 */
+				late: string
+				/**
+				 * p​a​i​d​ ​i​n​ ​f​u​l​l
+				 */
+				paid: string
+				/**
+				 * n​o​t​ ​d​u​e​ ​y​e​t​;​ ​p​a​r​t​ ​o​f​ ​i​t​ ​i​s​ ​p​a​i​d
+				 */
+				partlyPaid: string
+				/**
+				 * n​o​t​ ​d​u​e​ ​y​e​t​;​ ​n​o​t​h​i​n​g​ ​p​a​i​d​ ​t​o​w​a​r​d​ ​i​t
+				 */
+				upcoming: string
+			}
+			states: {
+				/**
+				 * d​u​e​ ​t​o​d​a​y
+				 */
+				due: string
+				/**
+				 * l​a​t​e
+				 */
+				late: string
+				/**
+				 * p​a​i​d
+				 */
+				paid: string
+				/**
+				 * p​a​r​t​l​y​ ​p​a​i​d
+				 */
+				partlyPaid: string
+				/**
+				 * u​p​c​o​m​i​n​g
+				 */
+				upcoming: string
+			}
+			/**
+			 * s​c​h​e​d​u​l​e
+			 */
+			title: string
 		}
 		selection: {
 			/**
@@ -2855,6 +3091,28 @@ type RootTranslation = {
 			noAvailableUnits: string
 		}
 	}
+	print: {
+		/**
+		 * t​h​e​ ​p​a​g​e​ ​c​o​u​l​d​ ​n​o​t​ ​b​e​ ​p​r​i​n​t​e​d​.
+		 */
+		failed: string
+		/**
+		 * l​a​n​g​u​a​g​e​ ​o​f​ ​t​h​e​ ​p​a​g​e
+		 */
+		language: string
+		/**
+		 * p​r​i​n​t
+		 */
+		print: string
+		/**
+		 * s​a​v​e​ ​a​s​ ​P​D​F
+		 */
+		save: string
+		/**
+		 * P​D​F​ ​s​a​v​e​d
+		 */
+		saved: string
+	}
 	settingsHooks: {
 		/**
 		 * e​n​d​i​n​g​ ​s​o​o​n​ ​n​o​t​i​c​e​ ​w​i​n​d​o​w​ ​u​p​d​a​t​e​d​ ​s​u​c​c​e​s​s​f​u​l​l​y​!
@@ -2866,6 +3124,48 @@ type RootTranslation = {
 		workspaceUpToDate: string
 	}
 	organization: {
+		mark: {
+			/**
+			 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​s​i​g​n​a​t​u​r​e​ ​o​r​ ​s​e​a​l
+			 */
+			alt: string
+			/**
+			 * c​h​o​o​s​e​ ​i​m​a​g​e
+			 */
+			choose: string
+			/**
+			 * p​r​i​n​t​e​d​ ​a​t​ ​t​h​e​ ​f​o​o​t​ ​o​f​ ​e​v​e​r​y​ ​r​e​c​e​i​p​t​ ​a​n​d​ ​s​c​h​e​d​u​l​e​.
+			 */
+			description: string
+			/**
+			 * n​o​n​e​ ​a​d​d​e​d​ ​y​e​t
+			 */
+			none: string
+			/**
+			 * t​h​e​ ​o​w​n​e​r​ ​o​r​ ​a​n​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​ ​c​a​n​ ​c​h​a​n​g​e​ ​i​t​.
+			 */
+			readOnly: string
+			/**
+			 * r​e​m​o​v​e
+			 */
+			remove: string
+			/**
+			 * s​i​g​n​a​t​u​r​e​ ​o​r​ ​s​e​a​l​ ​r​e​m​o​v​e​d
+			 */
+			removed: string
+			/**
+			 * r​e​p​l​a​c​e​ ​i​m​a​g​e
+			 */
+			replace: string
+			/**
+			 * s​i​g​n​a​t​u​r​e​ ​o​r​ ​s​e​a​l​ ​s​a​v​e​d
+			 */
+			saved: string
+			/**
+			 * s​i​g​n​a​t​u​r​e​ ​o​r​ ​s​e​a​l
+			 */
+			title: string
+		}
 		setup: {
 			/**
 			 * c​o​n​n​e​c​t​ ​y​o​u​r​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t
@@ -3933,6 +4233,10 @@ export type TranslationFunctions = {
 			 */
 			proceed: () => LocalizedString
 			/**
+			 * remind tenant
+			 */
+			remind: () => LocalizedString
+			/**
 			 * remove
 			 */
 			remove: () => LocalizedString
@@ -4610,6 +4914,10 @@ export type TranslationFunctions = {
 				 */
 				notTerminable: () => LocalizedString
 				/**
+				 * this contract owes nothing and has nothing falling due this week.
+				 */
+				nothingToRemind: () => LocalizedString
+				/**
 				 * only a terminated contract can be restored.
 				 */
 				notUnterminable: () => LocalizedString
@@ -4759,6 +5067,14 @@ export type TranslationFunctions = {
 				 * that member is no longer in this organization. reload to see what changed.
 				 */
 				memberMissing: () => LocalizedString
+				/**
+				 * choose a PNG, JPEG or WebP image.
+				 */
+				markNotAnImage: () => LocalizedString
+				/**
+				 * the image is over 512 KB. choose a smaller one.
+				 */
+				markTooLarge: () => LocalizedString
 				/**
 				 * this account is no longer in the organization.
 				 */
@@ -6319,13 +6635,101 @@ export type TranslationFunctions = {
 			 */
 			fullyPaidSummary: () => LocalizedString
 			/**
+			 * payment method
+			 */
+			method: () => LocalizedString
+			/**
+			 * not recorded
+			 */
+			methodNotRecorded: () => LocalizedString
+			/**
+			 * payment method (optional)
+			 */
+			methodOptional: () => LocalizedString
+			methods: {
+				/**
+				 * bank transfer
+				 */
+				bankTransfer: () => LocalizedString
+				/**
+				 * cash
+				 */
+				cash: () => LocalizedString
+				/**
+				 * cheque
+				 */
+				cheque: () => LocalizedString
+				/**
+				 * Ejar
+				 */
+				ejar: () => LocalizedString
+			}
+			/**
 			 * total shown for {month}
 			 */
 			monthTotal: (arg: { month: unknown }) => LocalizedString
 			/**
+			 * note
+			 */
+			note: () => LocalizedString
+			/**
+			 * note (optional)
+			 */
+			noteOptional: () => LocalizedString
+			/**
 			 * {percent}% fulfilled
 			 */
 			percentFulfilled: (arg: { percent: unknown }) => LocalizedString
+			receipt: {
+				/**
+				 * amount received
+				 */
+				amount: () => LocalizedString
+				/**
+				 * covers
+				 */
+				covers: () => LocalizedString
+				/**
+				 * cycle {index}, due {date}
+				 */
+				cycle: (arg: { date: string, index: string }) => LocalizedString
+				/**
+				 * print receipt
+				 */
+				print: () => LocalizedString
+				/**
+				 * received from
+				 */
+				receivedFrom: () => LocalizedString
+				/**
+				 * date received
+				 */
+				receivedOn: () => LocalizedString
+				/**
+				 * receipt number
+				 */
+				reference: () => LocalizedString
+				/**
+				 * remaining of the contract total
+				 */
+				remaining: () => LocalizedString
+				/**
+				 * receipt
+				 */
+				title: () => LocalizedString
+			}
+			/**
+			 * reference
+			 */
+			reference: () => LocalizedString
+			/**
+			 * reference (optional)
+			 */
+			referenceOptional: () => LocalizedString
+			/**
+			 * transfer, cheque or SADAD number
+			 */
+			referencePlaceholder: () => LocalizedString
 			/**
 			 * {amount} remaining
 			 */
@@ -6361,6 +6765,10 @@ export type TranslationFunctions = {
 		}
 		ranks: {
 			/**
+			 * due soon
+			 */
+			dueSoon: () => LocalizedString
+			/**
 			 * ending soon
 			 */
 			endingSoon: () => LocalizedString
@@ -6372,6 +6780,116 @@ export type TranslationFunctions = {
 			 * owing
 			 */
 			owing: () => LocalizedString
+		}
+		reminder: {
+			/**
+			 * Hello {tenant}, a reminder that the rent of SAR {amount} on contract {contract} falls due on {date}. Thank you.
+			 */
+			comingDue: (arg: { amount: unknown, contract: unknown, date: unknown, tenant: unknown }) => LocalizedString
+			/**
+			 * Hello {tenant}, a reminder that the rent of SAR {amount} on your contract falls due on {date}. Thank you.
+			 */
+			comingDueNoNumber: (arg: { amount: unknown, date: unknown, tenant: unknown }) => LocalizedString
+			/**
+			 * language of the message
+			 */
+			language: () => LocalizedString
+			/**
+			 * the tenant has no phone number to send a reminder to.
+			 */
+			noPhone: () => LocalizedString
+			/**
+			 * open WhatsApp
+			 */
+			open: () => LocalizedString
+			/**
+			 * Hello {tenant}, a reminder that the rent of SAR {amount} on contract {contract} has been due since {date}. Thank you.
+			 */
+			owed: (arg: { amount: unknown, contract: unknown, date: unknown, tenant: unknown }) => LocalizedString
+			/**
+			 * Hello {tenant}, a reminder that the rent of SAR {amount} on your contract has been due since {date}. Thank you.
+			 */
+			owedNoNumber: (arg: { amount: unknown, date: unknown, tenant: unknown }) => LocalizedString
+		}
+		schedule: {
+			columns: {
+				/**
+				 * amount due
+				 */
+				amount: () => LocalizedString
+				/**
+				 * paid
+				 */
+				covered: () => LocalizedString
+				/**
+				 * due date
+				 */
+				due: () => LocalizedString
+				/**
+				 * state
+				 */
+				state: () => LocalizedString
+			}
+			/**
+			 * late; {covered} of {amount} paid
+			 */
+			latePart: (arg: { amount: string, covered: string }) => LocalizedString
+			/**
+			 * print schedule
+			 */
+			print: () => LocalizedString
+			/**
+			 * payment schedule
+			 */
+			printTitle: () => LocalizedString
+			stateDescriptions: {
+				/**
+				 * due today and not paid in full
+				 */
+				due: () => LocalizedString
+				/**
+				 * past its due date and not paid in full
+				 */
+				late: () => LocalizedString
+				/**
+				 * paid in full
+				 */
+				paid: () => LocalizedString
+				/**
+				 * not due yet; part of it is paid
+				 */
+				partlyPaid: () => LocalizedString
+				/**
+				 * not due yet; nothing paid toward it
+				 */
+				upcoming: () => LocalizedString
+			}
+			states: {
+				/**
+				 * due today
+				 */
+				due: () => LocalizedString
+				/**
+				 * late
+				 */
+				late: () => LocalizedString
+				/**
+				 * paid
+				 */
+				paid: () => LocalizedString
+				/**
+				 * partly paid
+				 */
+				partlyPaid: () => LocalizedString
+				/**
+				 * upcoming
+				 */
+				upcoming: () => LocalizedString
+			}
+			/**
+			 * schedule
+			 */
+			title: () => LocalizedString
 		}
 		selection: {
 			/**
@@ -6492,6 +7010,28 @@ export type TranslationFunctions = {
 			noAvailableUnits: () => LocalizedString
 		}
 	}
+	print: {
+		/**
+		 * the page could not be printed.
+		 */
+		failed: () => LocalizedString
+		/**
+		 * language of the page
+		 */
+		language: () => LocalizedString
+		/**
+		 * print
+		 */
+		print: () => LocalizedString
+		/**
+		 * save as PDF
+		 */
+		save: () => LocalizedString
+		/**
+		 * PDF saved
+		 */
+		saved: () => LocalizedString
+	}
 	settingsHooks: {
 		/**
 		 * ending soon notice window updated successfully!
@@ -6503,6 +7043,48 @@ export type TranslationFunctions = {
 		workspaceUpToDate: () => LocalizedString
 	}
 	organization: {
+		mark: {
+			/**
+			 * the organization's signature or seal
+			 */
+			alt: () => LocalizedString
+			/**
+			 * choose image
+			 */
+			choose: () => LocalizedString
+			/**
+			 * printed at the foot of every receipt and schedule.
+			 */
+			description: () => LocalizedString
+			/**
+			 * none added yet
+			 */
+			none: () => LocalizedString
+			/**
+			 * the owner or an administrator can change it.
+			 */
+			readOnly: () => LocalizedString
+			/**
+			 * remove
+			 */
+			remove: () => LocalizedString
+			/**
+			 * signature or seal removed
+			 */
+			removed: () => LocalizedString
+			/**
+			 * replace image
+			 */
+			replace: () => LocalizedString
+			/**
+			 * signature or seal saved
+			 */
+			saved: () => LocalizedString
+			/**
+			 * signature or seal
+			 */
+			title: () => LocalizedString
+		}
 		setup: {
 			/**
 			 * connect your Turso account
