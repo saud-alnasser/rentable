@@ -95,6 +95,9 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 			openUrl: refuse('opener.openUrl'),
 			revealItemInDir: refuse('opener.revealItemInDir')
 		},
+		print: {
+			page: refuse('print.page')
+		},
 		export: {
 			write: refuse('export.write'),
 			writeWorkbook: refuse('export.writeWorkbook')

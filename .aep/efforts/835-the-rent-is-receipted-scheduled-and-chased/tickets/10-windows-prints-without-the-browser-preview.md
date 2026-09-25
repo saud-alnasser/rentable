@@ -16,14 +16,14 @@ preview; on macOS and Linux it opens the system print panel.
 Traces requirement 10 of [[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]], as
 revised on 2026-09-25.
 
-- [ ] `print_page({ mode: 'pdf', path })` on Windows writes the file through `PrintToPdf`, with
+- [x] `print_page({ mode: 'pdf', path })` on Windows writes the file through `PrintToPdf`, with
       backgrounds printed and no header or footer, and answers once it is written (criterion 10(b),
       `cargo check` and a Rust test of the settings it builds).
-- [ ] `print_page({ mode: 'print' })` on Windows opens `ShowPrintUI` with the system dialog kind;
+- [x] `print_page({ mode: 'print' })` on Windows opens `ShowPrintUI` with the system dialog kind;
       on macOS and Linux either mode calls `Webview::print()` (criteria 10(b), 10(c)).
-- [ ] The command is registered and the capability allows it; `webview2-com` and `windows` are
+- [x] The command is registered and the capability allows it; `webview2-com` and `windows` are
       `cfg(windows)` dependencies at the lockfile's versions.
-- [ ] `print()` in `print/sheet.svelte.ts` takes the mode and, for `pdf`, a path, and settles on the
+- [x] `print()` in `print/sheet.svelte.ts` takes the mode and, for `pdf`, a path, and settles on the
       command's answer (sheet test).
 - [ ] By hand on Windows: *save as PDF* writes the file with no dialog, and *print* shows the OS
       dialog, not the browser preview (criteria 10(b), 10(c)). Held for the close of the run.

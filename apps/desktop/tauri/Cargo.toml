@@ -140,6 +140,13 @@ bytes = { version = "1.12.1" }
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
 tauri-plugin-updater = "2.10.0"
 
+# printing without the webview's browser preview (`print.rs`): WebView2's own `PrintToPdf` and the
+# system print dialog, reached through the controller Tauri hands over. The versions are the ones
+# wry already links, so nothing new is compiled.
+[target.'cfg(windows)'.dependencies]
+webview2-com = "0.38.2"
+windows = "0.61.3"
+
 # Argon2id is memory-hard on purpose, and an unoptimized build of it is several times
 # slower than the one that ships. Left alone, that difference lands in two places: a
 # developer waits seconds at every sign-in against a debug build, and the test that

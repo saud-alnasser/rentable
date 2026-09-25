@@ -468,6 +468,13 @@ export type Host = {
 		openUrl: (url: string) => Promise<void>;
 		revealItemInDir: (path: string) => Promise<void>;
 	};
+	print: {
+		/**
+		 * Print what the window's print sheet holds: to paper through the operating system's dialog,
+		 * or to the PDF file at `path`, written with no dialog on Windows (`tauri/src/print.rs`).
+		 */
+		page: (request: { mode: 'print' } | { mode: 'pdf'; path: string }) => Promise<void>;
+	};
 	export: {
 		/**
 		 * Write text to the path the user chose, and answer with where it landed.
