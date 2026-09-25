@@ -3,324 +3,233 @@ paths:
   - apps/desktop/tauri/src/organization/**
   - apps/desktop/src/lib/organization/**
   - apps/desktop/src/lib/layout/startup.ts
-use-when: "the request touches an organization, its members, their vaults, or the account it lives on"
+use-when: "the request touches an organization, its members, their roles and permissions, their vaults, or the account it lives on"
 ---
 
 # Organization
 
 An organization is a Turso account's worth of workspaces and the people who may open them, and it
 lives on the customer's own account. Built by [[efforts/819-an-organization-hosts-its-own-workspaces/spec]]
-across 2026-08-30 to 2026-09-12; the spec and its plan are where every design choice here is argued,
-and this file is the vocabulary and the boundaries a change has to keep.
+across 2026-08-30 to 2026-09-12, rethought by 826 and 828, and given roles and a delegated chain by
+[[efforts/838-permissions-are-a-role-and-an-override/spec]] on 2026-09-25. The specs and their plans
+are where every design choice here is argued; this file is the vocabulary and the boundaries a change
+has to keep.
+
+*Rewritten 2026-09-25 by effort 838 rather than corrected in place: the chain, the roles and the
+permissions it described before (an organization key certifying every administrator, seven acts on
+a member's row, a revocation as an unsigned column) no longer exist, and a correction under each
+sentence would have left a reader to assemble the present from the past. The entries that did not
+change, the link and the Turso account, keep their history.*
 
 ## Language
 
 **Organization**:
-One database on the owner's Turso account, `org-<id>`, holding nine tables: the organization,
-its members, its workspaces, the grants, the certificates, the invitations, the migration lease,
-the machine links a member makes for their own next machine, and the register of the machines
-that hold the organization. Every username in it is sealed under the content key; every authority field is
-signed along a chain rooted at a key the join link pins. Every member's machine keeps a replica.
+One database on the owner's Turso account, `org-<id>`, holding fourteen tables (`store::TABLES`):
+its format, the organization, the roles, the members, the certificates, the revocations, the
+workspaces, the grants, the invitations, the migration lease, the machine links, the register of
+the machines that hold it, the successions a handover writes, and its mark. Every username and name
+in it is sealed under the content key; every authority field is signed along a chain rooted at a
+key the member's machine pinned. Every member's machine keeps a replica.
 _Avoid_: "the control plane" and "the account" for it. There is no service of ours, and the
 account is Turso's.
 
-*Corrected 2026-09-16 ([[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]],
-requirement 20): **no member makes a machine link.** There are still nine tables and `machine_link`
-is still one of them, but it is not "the machine links a member makes for their own next machine".
-The one act that makes a link of either kind is `invite::make_link`, held to `inviteMember` and
-refused on the owner's own row, so the owner or an administrator makes every link from an account's
-card and a member makes none. The member's own act this sentence described was built inside effort
-828 and retired inside it. The ninth table, `machine`, is requirement 15's register of the machines
-that hold the organization, and that half of the sentence stands.*
+**Format**:
+The one `format` row, version 2, written when an organization is made. A build meeting an
+organization with no format row, or with a newer one, reads nothing from it and writes nothing to
+it, and says what to do: an older organization is exported workspace by workspace, deleted, and
+made again here; a newer one needs the application updated (838, requirement 11). There is no
+in-place migration. The number is unsigned: rewriting it only makes the organization refuse to
+open, which the credential already allows by deleting rows.
 
-*Corrected 2026-09-17 ([[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]],
-requirements 20 and 22): **ten tables, and the link act follows two permissions.** The entry and
-the correction above both count nine; `store::TABLES` lists ten, the tenth being `succession`,
-the row a handover writes when ownership is offered and completes when it is accepted (the *Chain*
-entry says how it is signed and followed). And `invite::make_link` is held to `inviteMember` or
-`resetPassword` (`permission::require_any`), not to `inviteMember` alone: the human's call at
-converge was that whoever may take a password away may hand back the link that gives one, and the
-router and the card gate the act the same way. Refused on the owner's own row still.*
+**Flag**:
+One act the application performs for a member, on one bit of one mask. The vocabulary lives in
+`packages/workspace-permission` (`FLAGS`, grouped by `FAMILIES`) and is mirrored in
+`organization/permission.rs`, held equal by a test that reads the package source: the
+organization's administration on bits 0 to 9 (`inviteMember`, `removeMember`, `assignRole`,
+`renameWorkspace`, `resetPassword`, `renameMember`, `grantWorkspace`, `manageRoles`,
+`overrideMember`, `manageMark`), the owner's acts on 10 to 17 (`createWorkspace`,
+`deleteWorkspace`, `mintReadOnly`, `lockOut`, `renewCredentials`, `tursoAccount`,
+`transferOwnership`, `deleteOrganization`, together `OWNER_ONLY`), and viewing, creating, editing
+and deleting each record kind on 20 to 39. Arithmetic, never `&` or `^` in TypeScript: bitwise
+operators keep 32 bits and bit 39 is past them.
+_Avoid_: "act" for the flag and "permission" for the mask in the same sentence as each other.
 
-*Corrected 2026-09-20 ([[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]],
-requirements 14, 15 and 20, on the human's look at the closed build): **the `machine` table gates
-nothing.** It is still requirement 15's register of the machines that hold the organization, and it
-is read in one place: the standing line each card in the members directory carries (requirement
-19). It shut the Turso way in while an owner's or an administrator's machine was connected, and it
-refused a link while a machine was signed in on the account; both gates are gone, because an
-account is held on as many machines as its holder signs in on. A machine still registers when it
-connects, names its member at sign-in, drops them at sign-out, refreshes on every launch and leaves
-on disconnect.*
+**Role**:
+A named mask of flags with a rank, and every member holds exactly one. **Owner** carries every flag,
+is held by the owner alone, is a constant and never a row, and its mask is not edited. **Manager**
+carries every flag but the owner's, **member** carries viewing every record kind and creating and
+editing records; both are rows written with the organization and signed by the owner's root, and
+their masks are editable. **Custom** roles rank strictly between member (0) and manager
+(1,000,000), strictly ordered among themselves, and are made, renamed, re-masked, moved and deleted
+from the settings area's organization section. Deleting one moves its holders to member
+(`role.rs`, 838 requirements 3 and 4).
+_Avoid_: "administrator", which the manager replaced.
 
-*Corrected 2026-09-25 ([[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]], requirement
-13): **eleven tables.** The eleventh is `mark`, the organization's _mark_ (below). A build during
-the effort kept it unsigned as `organization_mark`; a replica that ran that build keeps that table,
-and nothing reads it.*
+**Override**:
+One mask on one member's row, empty by default, switching flags of their role for them alone: a
+member's **effective permissions** are their role's mask exclusive-or'd with their override
+(`permission::effective`, and `effective` in the package, one routine per language held equal by
+a shared table of cases). The owner carries none. Set from the member's card by a holder of
+`overrideMember`.
+
+**Rank**:
+How high a role stands: the owner 2,000,000, the manager 1,000,000, the custom roles between, the
+member 0. **Nobody acts on a role or a member at or above their own rank, nobody changes their own
+role or override, and nobody changes a flag they do not hold** (838, requirement 7): every bit that
+differs between the before and the after, in a role's mask or in anybody's effective permissions,
+is one the actor holds, and no `OWNER_ONLY` bit is set anywhere but the owner. Checked at the
+command, where the before and the after are both in hand.
 
 **Mark**:
 The one image an organization prints at the foot of its receipts and schedules: a signature or a
 seal, PNG, JPEG or WebP, up to 512 KB. One row of `mark`, the image sealed under the content key
-like a name and signed under the setter's administrator certificate. The owner or an administrator
-sets, replaces or removes it, gated on the role their verified row carries rather than on a
-permission bit (`organization/mark.rs`); every member reads it from the replica, offline included,
-and a row whose signature does not verify, written around the gate by anybody holding the
-database's credential, is read as no mark and never printed. Checked by its
-first bytes, never its file name, and read from the path the open dialog chose, so the image does
-not cross IPC on its way in.
+like a name and signed under the certificate of whoever set it, which must carry `manageMark`.
+Every member reads it from the replica, offline included, and a row whose signature does not
+verify, written around the command by anybody holding the database's credential, is read as no
+mark and never printed. Checked by its first bytes, never its file name, and read from the path the
+open dialog chose, so the image does not cross IPC on its way in.
 _Avoid_: "logo" or "letterhead", which the organization does not keep.
 
 **Vault**:
 A member's X25519 keypair, sealed under a key Argon2id derives from their password, on their own
 row. The password opens it on any machine, with or without a network; what it unseals is the
-content key and every credential the member was granted. There is no escrow, no master key, and no
-key that opens a vault its holder did not build, and a test tries every key an administrator holds
-against every other vault to keep it so.
+content key and every credential the member was granted, and the secret it holds derives the key
+the member signs rows with. There is no escrow, no master key, and no key that opens a vault its
+holder did not build.
 
 **Grant**:
 A credential for one workspace, sealed to one member's public key. Full access is the granter's own
-credential re-sealed, so an administrator grants only what they reach; read-only is minted, which
-is the owner's. A grant is what says a member is in a workspace, and removing it is what says they
-are not.
+credential re-sealed, so whoever grants gives only what they reach; read-only is minted, which is
+the owner's. A grant is what says a member is in a workspace, and removing it is what says they are
+not. On a read-only grant a member holds no create, edit or delete flag in that workspace, whatever
+their role says (`effectiveIn`).
 
 **Chain**:
-The organization key, derived from the current owner's secret and stored nowhere, certifies the
-owner and each administrator; their keys sign the rows. A row is verified against the key the link pinned,
-never against one read out of the database it judges. **A certificate is retired two ways, and both
-re-sign its rows first.** A reset draws a fresh vault secret, so the administrator's derived signing
-key changes and their reissued certificate carries a new key; a removal writes the certificate back
-with `revoked_at` set. Either way `verify` would then refuse every row the certificate ever signed,
-so before it is retired the rows it signed are re-signed under the acting administrator, who already
-holds authority over them: the resetting owner, or the removing owner or administrator. Reset,
-removal and any future revocation share one routine for this (`store::re_sign_rows_of_certificate`)
-so they cannot drift, and its limit is that a revocation re-signs the revoked certificate's rows
-before it revokes. Nothing seals one member's key to another; the actor re-signs with their own.
-*Corrected 2026-09-16 ([[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]],
-requirement 22): **the key is the current owner's derivation, and it changes when the owner
-does.** A handover is two acts (see *Authority*), and the acceptance re-keys the directory under
-what the new owner's own vault derives: every certificate is re-issued under the new key with the
-same id, the same member and the same signing key, so every row an administrator signed goes on
-verifying and only the two rows whose roles swap are re-signed. **A machine follows a succession
-rather than being told the key.** The `succession` row (`store::SuccessionRecord`) carries the key
-being left and the key replacing it, and its completion is signed by the key being left, so a
-machine holding the old key checks the change against what it already pinned, pins the new key in
-its own record, and re-reads; a chain of handovers is a chain of such signatures and is walked link
-by link (`role::follow_succession`, called from `command::state_of` when a read refuses, from the
-sign-in and from the launch's resume). A machine that pinned neither end follows nothing and
-refuses the rows as it refuses any it cannot verify. Nothing is read out of the database to decide
-which key to trust: the offer's seal is opened only on a machine that already holds the old key,
-and the succession is verified under a key the reader pinned.*
+*Built by effort 838 ([[efforts/838-permissions-are-a-role-and-an-override/spec]], requirement 9;
+[[efforts/838-permissions-are-a-role-and-an-override/plan]], Architecture, "The chain").* A
+**certificate** names a member's signing key, the certificate that issued it, a **ceiling** (the
+flags its holder may sign for: their effective permissions when it was issued) and a **rank** (their
+role's), all under its issuer's signature. **Only the owner's certificate is a root**, signed by the
+organization key, which the current owner's vault derives and nothing stores. Every other one is
+signed by its issuer's key, so a manager certifies a member without the owner's machine. A reader
+walks from a row's certificate to the key it pinned, and at each link refuses one its issuer did not
+sign, one reaching wider than its issuer, one not ranked below it, and one whose issuer holds no
+flag that administers members; a cycle and a walk past sixteen are refused (`authority::Chain`).
+Nothing reads a key out of the database it judges.
 
-*Corrected 2026-09-14 ([[efforts/826-the-organization-and-the-way-in-are-rethought/spec]],
-requirements 4, 6 and 7): what a member may do is one of seven acts (`inviteMember`,
-`removeMember`, `changeRole`, `renameWorkspace`, `resetPassword`, `renameMember`,
-`grantWorkspace`) carried on their signed row; the owner and an administrator hold all seven
-by default and a member none. Six of them sign a row, and a member holding one signs under a
-certificate the owner issues: the row carries `signing_public_key` (domain `member.v2`), the
-verifying half of the key the member's own vault derives, so the owner certifies a member
-widened into a signing act without ever holding their secret. Only the owner's vault derives
-the organization key, so only the owner gives a signing act; a holder of `changeRole` who is
-not the owner narrows anybody and widens only with `renameWorkspace`. `member_change_role`
-keeps the certificate in step, issuing one on the first signing act and revoking it, rows
-re-signed first, on the last.*
+A **revocation** is a signed row: a certificate is revoked when a revocation its revoker signed
+names it or any certificate above it, and the revoker must be the root or outrank what it revokes.
+A revocation still counts once its revoker is revoked, or removing a manager would reinstate every
+certificate they retired.
+
+**A row verifies when its certificate verifies and the row is one it may sign** (`authority::covers`):
+a member row needs a flag that administers members and a rank above the member's role, or the root,
+and a row naming the owner's role only the root about its own holder, with no override; a role row
+`manageRoles` and a rank above the role; a grant `grantWorkspace`, a read-only one the root; a
+workspace row `renameWorkspace` or `grantWorkspace`; an invitation `inviteMember` or
+`resetPassword`; the mark `manageMark`. So a member holding the credential who signs around a
+command gets no further than their certificate: rows of the kinds its ceiling names, about people
+ranked below them. Which flags inside it they may switch is the command's to refuse.
+
+**Every live member holds one live certificate, and a change re-issues it** (`role::reissue`): a new
+certificate from the actor's own, a revocation of the old one, and every row the old one signed
+re-signed under the actor, the mark and roles included, in one transaction. Where the actor could
+not sign one of those rows the act is refused, naming what it needs, and nothing is written. An
+assignment, an override, a role's new mask or rank, a reset and a removal all go through it. Every
+issue takes a fresh id, `cert-<member>-<issued at>`.
+
+**The key changes when the owner does.** A handover is two acts (see *Authority*). The acceptance
+issues the new owner a root under what their own vault derives, re-signs the founder's rows under
+it, and issues again from it every live certificate the founder issued, the founder's own among
+them as a manager's. **A machine follows a succession rather than being told the key**: the
+`succession` row carries the key being left and the key replacing it, signed by the key being left,
+so a machine holding the old key checks the change against what it already pinned, pins the new one
+and re-reads (`role::follow_succession`).
 
 **Link**:
-`rentable://join/...`, the organization's locator: its id, name, remote, verifying key and a
-read-only credential over sealed rows. It never expires. There is one link, the organization's
-own: it connects a machine, and a username and password admit a person at the wall; an
-invitation is the username and a generated password handed over beside it, and the invitation
-row is what expires. *Until effort 824 a link made for an invitation also carried the
-invitation's half of a secret, which with the password opened a sealed payload naming the
-member's row.*
-
-*Corrected 2026-09-14 ([[efforts/826-the-organization-and-the-way-in-are-rethought/spec]],
-requirements 8, 9 and 23): there are two links, and no password is handed over. The
-**organization link** is the locator above; it never expires, it connects a machine, and a
-username and password sign a person in at the wall. An **invitation link** is the same locator
-with an invitation half, `{ id, secret }`: opened on a machine holding no organization it
-connects the machine, names the organization and asks the person to choose a password, and on
-choosing it they are signed in. The link's secret is one half of what opens the invited vault
-and a six-character code the issuer reads out, lapsing ninety seconds after it is made, is
-the other, so a link alone names the organization and opens nothing. It admits whoever opens
-it first, once, and lapses after seven days; only the issuer copies it again or makes a fresh
-code, and a reset is a fresh invitation link. `connect` and `disconnect` are a machine and the
-organization; `sign in` and `sign out` are the member.*
-
-*Corrected 2026-09-15 ([[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]],
-requirements 1, 2 and 4): **no link but the organization's own carries a legible credential**, and
-that entry's "read-only credential, it never expires" is now true of the organization link alone.
-A link is five clear fields and one of two credentials: `credential: { clear }`, which is the
-organization's own and carries no half, or `credential: { sealed }`, which carries a
-`half: { kind, id, secret, expiresAt }` naming what stands behind it. What a sealed link holds is
-the issuer's own four-week grant on the organization database and, where it opens a vault, that
-vault's generated password, sealed under a key Argon2id derives from the code and the half's
-secret together. The ninety-second code and the fresh-code control are gone: the seal rides in the
-link's own text, because nothing reads a row before the credential is out, so one code lives as
-long as its link and a fresh code would be a fresh link to re-send. A link lapses at the earlier of
-seven days and its credential's own death. The previous shape is refused as a link that is not
-one.*
-
-*Corrected 2026-09-16 ([[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]],
-requirement 16, which supersedes requirement 4): **the organization link is gone, and the entry
-above reads for the two links that are left.** No never-expiring credential is minted, stored,
-shown or accepted; `organization.link_credential_sealed` is not a column, and a replica that still
-carries it opens and is never written to it again. A link is four clear fields, a sealed credential
-and a required `half`, so a text with no half is refused as a text that is not a link, which is
-what the organization's own shape now meets. `invite::organization_link` is `invite::locator`, the
-four clear fields an invitation, a reset and a machine link seal a payload onto, and
-`connect::connect` takes that locator with the credential its caller unsealed rather than reading
-one off a link. What recovers an organization whose every machine is gone is the owner's Turso
-account and their password (requirement 14), so the sync section shows no link at all.*
-*Corrected 2026-09-17 (828, requirement 24): there is no sync section; the settings area has four
-sections, and the block that held the link sits at the top of the organization section and shows
-no link either.*
+`rentable://join/...`, the organization's locator: its id, name, remote and verifying key, a sealed
+credential, and a required `half` naming what stands behind it, an invitation or a machine link.
+What a link holds is the issuer's own four-week grant on the organization database and, where it
+opens a vault, that vault's generated password, sealed under a key Argon2id derives from a
+six-character code and the half's secret together; the code is read out beside the link. It admits
+whoever opens it first, once, and lapses at the earlier of seven days and its credential's own
+death. `connect` and `disconnect` are a machine and the organization; `sign in` and `sign out` are
+the member. *There was an organization link carrying a never-expiring read-only credential until
+828's requirement 16 retired it; what recovers an organization whose every machine is gone is the
+owner's Turso account and their password.*
 
 **Authority**:
 The Platform API token a consent produced, in the keyring on the owner's machine and nowhere else.
-Creating a workspace, minting, rotating and deleting need it; an owner restored on a new machine
-repeats the consent for it, because no row holds it.
+Creating and deleting a workspace, minting a read-only grant, locking out, renewing credentials and
+the Turso account need it, and they are `OWNER_ONLY` flags besides, checked on the owner's verified
+row rather than the session's snapshot (`session::Actor::require_owner`). An owner restored on a new
+machine repeats the consent for it, because no row holds it. The authority follows the account that
+consented and not the ownership, so an owner who was handed the organization holds none until they
+grant the consent on their own machine.
 
-*Corrected 2026-09-16 ([[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]],
-requirement 22): **the authority follows the account that consented and not the ownership**, so an
-owner who was handed the organization holds none until they grant the consent on their own machine,
-and until they do the acts that mint run on the founder's machine or not at all; the sync section
-says so beside the reconnect.* *Corrected 2026-09-17 (828, requirement 24): the sync section is
-gone; the Turso account block that says so, with the reconnect, is in the organization section.*
-
-*Corrected again 2026-09-16, at review round one: **a handover is two acts, and the organization
-key becomes the new owner's own derivation.** The owner offers from the account's card with their
-own password (`role::offer_ownership`), which seals the outgoing key's seed to the offered member's
-public key in `member.owner_seed_sealed` and writes a `succession` row signed by the key in force;
-nothing else moves, and `role::withdraw_offer` takes both back. The offered member accepts from
-their you section (*the account section since 828's requirement 24; corrected 2026-09-17*) on a
-machine they are signed in on, with their own password
-(`role::accept_ownership`): that password derives the new organization key exactly as the
-founder's derived theirs, the seal is opened and **refused unless what it yields is the key this
-machine pinned**, and the directory is re-keyed as the *Chain* entry describes. So an owner's way
-back is their password and nothing read out of the directory, founder and transferee alike
-(`setup::owner_key_from` is now one derivation and has no seal branch), and a founder who handed
-over is refused as the administrator they are. The seal is the offer's carrier and nobody's
-anchor; an offer refuses an account whose password is not set, because such an account has no
-vault of its own to derive from. The first shape sealed the founder's seed onto the new owner's
-row and left the key unchanged; a way back resting on that seal rests on the database it is meant
-to judge, and a member with a full-access grant could replace it.*
+**A handover is two acts, and the organization key becomes the new owner's own derivation.** The
+owner offers from the account's card with their own password (`role::offer_ownership`), which seals
+the outgoing key's seed to the offered member's public key and writes a `succession` row signed by
+the key in force; `role::withdraw_offer` takes both back. The offered member accepts on a machine
+they are signed in on, with their own password (`role::accept_ownership`): the seal is opened and
+refused unless what it yields is the key this machine pinned, and the directory is re-keyed as the
+*Chain* entry says. A founder who handed over is a manager from then on.
 
 ## Boundaries
 
 - **The password and the keys never cross the IPC boundary.** Every command takes a password in
   and hands facts back; the vault, the content key, the credentials and the Turso authority stay
-  in Rust ([[rules/credentials]], *Client boundary*). What the web layer holds is what a screen
-  draws.
-- **What stands between a found link and the directory is a code, on every link there is.**
-  *Corrected 2026-09-16 (requirement 16, superseding requirement 4): the exception below retired
-  with the link that was it. No never-expiring credential is minted, stored, shown or accepted, so
-  every sentence here about "every link but one" is now about every link, and a link with no code
-  beside it reaches nothing at all. The owner's way back to an organization whose every machine is
-  gone is the Turso account and their password (requirement 14), which is what the recovery copy
-  stood in for. The claim below that a leak "exposes the directory until a lock-out rotates the
-  database" was wrong when it was written and is corrected here as well:
-  [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/evidence/research/what-a-consent-alone-can-recover]],
-  finding 5, read the repository and found that **nothing rotates the organization database**. A
-  lock-out rotates the workspace databases the removed member held and deliberately not the
-  organization's, because the organization's rows are what a remaining member reads their re-sealed
-  grant from (`organization/removal.rs`). So nothing retired that credential at all, which is the
-  strongest reason the link could not stay.* *Added 2026-09-15
-  ([[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]], requirements 1, 2, 4
-  and 5.)* Every link but one carries the credential that reads the organization database sealed
-  under a six-character code and the link's own thirty-two byte secret together, so a link found in
-  a chat weeks later names an organization and reads nothing: what a guesser meets is thirty-two to
-  the sixth Argon2id passes, and the credential inside is a four-week grant that is dead by then
-  regardless. Reading a link is a decode, with no network and no row read, and where the row behind
-  it stands is judged by the act that takes the code. **The organization's own link is the
-  exception and the standing risk**: it carries the never-expiring read-only credential in the
-  clear, because it is what recovers the organization when every machine is gone and there is
-  nobody left to read a code out. It is the owner's alone, it is handed to nobody, and a leak of it
-  exposes the directory until a lock-out rotates the database. [[rules/credentials]] says the same
-  thing where a credential is the subject.
-- **What a member may do is what their signed row carries.** The interface draws controls from
-  the session's permissions and every command refuses again on the row, through
-  `MemberSession::settled` and `permission::require`; a member on a handed password reaches
-  nothing else until they have chosen their own. *Corrected 2026-09-14: no password is handed
-  over any more; the person chooses theirs on opening the invitation link, and the wall no
-  longer knows a forced change.* *Corrected 2026-09-15: the gate is the row on this machine's
-  replica and not the session opened at sign-in, so a narrowing reaches an open session within
-  one heartbeat, which is how long the row takes to arrive. The session still carries the
-  permissions it opened under, because that is what the interface draws from.*
-- **The owner's machine is the only one with the Turso authority**, and the acts that need it,
-  creating and deleting workspaces, minting read-only grants, renewing and rotating credentials,
-  locking out, are refused for everybody else at the command with a sentence saying to ask the
-  owner. There is no request queue. *2026-09-14: so are giving somebody a signing act, granting
-  read only, deleting a workspace, and ending the owner's own sessions; every other act is a
-  bit on the row, and the owner's row is written by nobody but the owner.*
-- **A remembered key opens the vault on the next launch, and Rust alone reads it.** *Added
-  2026-09-14 (requirements 12 and 22).* A sign-in files the member's derived key in the keyring
-  (`rentable.member-key`, account `<organization id>:<member id>`, value
-  `<session epoch>:<key>`), so the next launch resumes without a password; nothing under the
-  data directory holds it, and a Rust test reads `remote-sync.json` and every replica for the
-  bytes. Sign-out, disconnect and forgetting the organization delete the entry. The row's
-  `session_epoch` moving past the filed one, which is a member ending their other sessions or
-  a holder of `resetPassword` ending theirs, forgets the entry at the next launch and ends an
-  open session at the next sync heartbeat, with the wall saying it was signed out from another
-  machine. One username may be signed in on many machines; the epoch is the one thing they
-  share. *The epoch is outside the row's signature, and that is an accepted limit (the human,
-  2026-09-15): a member holding the organization credential can write another member's epoch
-  and force them to the wall, which is availability rather than authority, and the same
-  credential already lets them delete the row; the chain was never what stood between a member
-  and that. An epoch of its own, signed and merged by maximum, is the shape that would close it.*
-- **One Turso group holds one organization, and a group that holds one is connected to.** *Added
-  2026-09-14 (requirement 21); corrected 2026-09-16 (effort 828, requirement 14).* The walk asks
-  the group what it holds before it asks for a name: a group holding an `org-` database sends it to
-  a step where the owner types the username and password they already have, and this machine joins
-  the organization that is there, signed in, with every grant renewed. **Only the owner can**,
-  because only their password re-derives the organization key, and that derived key is what the
-  rows are judged against; the key the organization row carries is compared with it and never
-  trusted. *Corrected 2026-09-16 (effort 828, requirement 22): "re-derives" is true of the founder
-  alone. An owner who was handed the organization opens the same key from the seed the transfer
-  sealed into their vault, because `setup::owner_key_from` reads `member.owner_seed_sealed` first
-  and derives only where there is none; what their password reaches is the founder's key either
-  way, which is why only the owner can. The **Authority** entry above writes it out.* *Corrected
-  2026-09-17 (828, requirement 22, as reopened at review round one): the sentence before this one
-  describes the first shape and contradicts the **Authority** entry it points at. `setup::owner_key_from`
-  is one derivation over the secret the password unseals and reads no seal; the seal branch went
-  with the reopening, and "re-derives" is true of a founder and a transferee alike, because the
-  acceptance re-keyed the directory under the new owner's own derivation. Only the owner can, for
-  one reason on both.* The way is
-  open only while no owner's or administrator's machine has been seen in the
-  last seven days, since such a machine can hand out a link, and the refusal says so and abandons
-  the consent. *Corrected 2026-09-20 (828, requirements 14 and 20, on the human's look at the
-  closed build): the sentence before this one is gone with the gate it describes. The way is open,
-  full stop; the register is not read here and no machine shuts it. The owner is handed no link, so
-  a refusal pointing at the link another machine could make left the owner outside their own
-  organization with nowhere to go, and an account is held on as many machines as its holder signs in
-  on. Only the owner can, still, and for the reason above.* *Nothing creates in a held group:* the
-  refusal requirement 21 added stands for a create arriving by any other route. A second machine
-  reconnecting by link is neither of these and succeeds as before.
-- **Credentials renew on the owner's machine before they lapse, and only there.** A grant is
-  minted for four weeks, and the owner's machine, the only one holding the Turso authority, renews
-  every grant within a week of its expiry, best effort, after it signs in. It never blocks a
-  sign-in, which works offline. An organization whose owner does not launch the application for a
-  month lets its credentials lapse and stops syncing until the owner returns and reconnects, which
-  is the inherent cost of having no server and is stated here rather than hidden. A renewal seals
-  nothing to a member whose row reads `removed`, so a grant row replayed on its own earns nothing.
-  A member who also replays their own `role=member` row flips the filter and is re-credentialed;
-  that this is not closed inside the ordinary path is requirement 14's documented limitation, for
-  which lock-out is the answer (F-A, ticket 28). *Corrected 2026-09-20 (828, requirement 14 as
-  corrected): the owner's machines, plural. The owner connects as many machines as they sign in on,
-  each holding the Turso authority through its own consent, and each renews best effort; two
-  renewals that cross leave two credentials in force until they lapse, the later re-seal of the
-  grant rows standing, and nothing breaks.*
-- **Removal ends synchronisation and reaches into nothing.** An ordinary removal stops renewing
-  and disturbs nobody; a lock-out rotates the workspaces the member held and says beforehand how
-  many others stop syncing until their application collects a fresh credential, which it does
-  on its own. The replica on the removed member's disk stays readable, and a test pins it.
-  **A removed administrator's certificate is revoked**, so a row they newly sign under it is refused
-  by every other client on read; the rows they legitimately signed are re-signed under the remover
-  first (see *Chain*), so the revocation bricks nothing. Revocation ends a removed administrator's
-  authority to sign anything new, and the renewal filter ticket 24 adds to
-  `workspace::renew_credentials` skips a member whose row reads `removed`. Neither stops a removed
-  member replaying their own old, still-validly-signed member and grant rows: an ordinary removal
-  deliberately does not rotate the credential, so a determined member who kept it can flip
-  themselves back, which requirement 14 records as the limit of the ordinary path and answers with
-  lock-out (F-A, ticket 28).
+  in Rust ([[rules/credentials]], *Client boundary*). What crosses about a member is their role's
+  kind, id, name and rank, their override and their effective permissions; nothing about a
+  certificate crosses.
+- **What stands between a found link and the directory is a code, on every link there is.** A link
+  found in a chat weeks later names an organization and reads nothing: what a guesser meets is
+  thirty-two to the sixth Argon2id passes, and the credential inside is a four-week grant that is
+  dead by then regardless. Nothing rotates the organization database itself; a lock-out rotates the
+  workspace databases the removed member held.
+- **A member's permissions are read from their verified row, at every gate.** Every Rust command
+  re-reads the acting row and its role, and refuses naming the flag, the rank, or the member
+  themselves; every tRPC procedure names its flag in its meta and refuses an identity lacking it, a
+  test walking the router failing on one that names none; the interface offers a control only where
+  the flag is held and says why where it is not. The context's permissions are the row's for the
+  open workspace, with a read-only grant's writes cleared, and the organization state is re-read on
+  every sync heartbeat, so a change to a role or an override reaches an open session within one.
+- **Record flags are enforced at the procedure, not by the chain.** Records live in workspace
+  databases the whole-database credential reaches, so a member who holds it can read or write
+  around the router; what the flags guarantee is what the application offers and performs. Hiding
+  data at rest is not a thing this application does (838, *Out of Scope*).
+- **The owner's machine is the only one with the Turso authority**, and the owner is the only
+  member whose row names the owner's role; the `OWNER_ONLY` acts are refused for everybody else at
+  the command with a sentence saying to ask the owner. There is no request queue.
+- **A remembered key opens the vault on the next launch, and Rust alone reads it.** A sign-in files
+  the member's derived key in the keyring (`rentable.member-key`, account
+  `<organization id>:<member id>`, value `<session epoch>:<key>`), so the next launch resumes
+  without a password; nothing under the data directory holds it. Sign-out, disconnect and
+  forgetting the organization delete the entry. The row's `session_epoch` moving past the filed one
+  forgets the entry at the next launch and ends an open session at the next sync heartbeat. *The
+  epoch is outside the row's signature, and that is an accepted limit (the human, 2026-09-15): a
+  member holding the organization credential can write another member's epoch and force them to the
+  wall, which is availability rather than authority.*
+- **One Turso group holds one organization, and a group that holds one is connected to.** A group
+  holding an `org-` database sends the walk to a step where the owner types their username and
+  password, and this machine joins the organization that is there. **Only the owner can**, because
+  only their password derives the organization key the rows are judged against; the key the
+  organization row carries is compared with it and never trusted. Nothing creates in a held group.
+- **Credentials renew on the owner's machines before they lapse, and only there.** A grant is minted
+  for four weeks and renewed within a week of its expiry, best effort, after the owner signs in; it
+  never blocks a sign-in. An organization whose owner does not launch the application for a month
+  lets its credentials lapse and stops syncing until the owner returns, which is the inherent cost
+  of having no server. A renewal seals nothing to a removed member.
+- **Removal ends a member's authority and reaches into nothing else.** Their certificate is revoked
+  through the re-issue, so a row they newly sign under it is refused by every other client, and the
+  rows it signed are re-signed under the remover first; a removal whose departing certificate signed
+  a row the remover could not sign is refused by name. An ordinary removal stops renewing and
+  disturbs nobody; a lock-out, the owner's, rotates the workspaces the member held. The replica on
+  the removed member's disk stays readable, and neither stops a removed member replaying their own
+  old, still validly signed rows over a credential they kept, which lock-out answers.
+- **What deleting does is the limit of every signature.** A member who can write the database can
+  delete rows they cannot forge, a revocation included, which reinstates what it revoked; the answer
+  is Turso's point-in-time restore, on the customer's account.
 - **A migration reaches a workspace under a lease taken at the primary**, by whichever member
   opens it, and an older build refuses a newer workspace before reading anything.
 - **Live tests reach the human's account only when asked**, each creating and removing its own
@@ -339,3 +248,7 @@ group-scoped token the consent produces, so a plain member may not be able to si
 The application ships for people who pay nothing but their own usage, and a design that needs a
 paid seat on the owner's side is the shape it exists to avoid. Declined by the human on
 2026-09-13. Asked once, at the rethink that followed effort 824.
+
+**Many roles per member, or permissions per workspace.** One role and one override per member,
+across the whole organization, by the human's call at 838's specify: less flexible than Discord's
+roles on purpose, because this is not a chat application.

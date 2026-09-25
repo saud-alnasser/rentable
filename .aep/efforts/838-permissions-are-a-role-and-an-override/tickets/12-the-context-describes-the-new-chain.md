@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [10, 11]
 ---
 
@@ -16,13 +16,13 @@ breaking and says how an organization made by an earlier version crosses over.
 
 Traces requirements 9 and 11 of [[efforts/838-permissions-are-a-role-and-an-override/spec]], and criterion 11.
 
-- [ ] The *Chain*, *Authority* and *Boundaries* entries describe this effort's chain and cite the
+- [x] The *Chain*, *Authority* and *Boundaries* entries describe this effort's chain and cite the
       spec and the plan; no sentence describes `revoked_at` as a revocation, an administrator, or
       the seven acts as the whole vocabulary.
-- [ ] The *Client boundary* sentence in `rules/credentials` names what `OrganizationSession` carries.
-- [ ] A minor changeset says the organization format changed, that an older one is refused, and the
+- [x] The *Client boundary* sentence in `rules/credentials` names what `OrganizationSession` carries.
+- [x] A minor changeset says the organization format changed, that an older one is refused, and the
       export, delete, create and import steps.
-- [ ] `node .aep/scripts/index.mjs` and `validate.mjs` pass.
+- [x] `node .aep/scripts/index.mjs` and `validate.mjs` pass.
 
 ## Relevant areas
 

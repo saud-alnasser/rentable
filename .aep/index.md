@@ -36,7 +36,7 @@ Start at [[protocol]].
 | Artifact | Load when | Paths | Owner |
 | --- | --- | --- | --- |
 | [[contexts/desktop/contract]] | the request touches contracts, payments, unit assignments, or any derived status | apps/desktop/src/lib/contract/**, apps/desktop/src/lib/payment/** | — |
-| [[contexts/desktop/organization]] | the request touches an organization, its members, their vaults, or the account it lives on | apps/desktop/tauri/src/organization/**, apps/desktop/src/lib/organization/**, apps/desktop/src/lib/layout/startup.ts | — |
+| [[contexts/desktop/organization]] | the request touches an organization, its members, their roles and permissions, their vaults, or the account it lives on | apps/desktop/tauri/src/organization/**, apps/desktop/src/lib/organization/**, apps/desktop/src/lib/layout/startup.ts | — |
 | [[contexts/desktop/persistence]] | the request touches the schema, migrations, or how queries reach SQLite | apps/desktop/src/lib/platform/database/**, apps/desktop/tauri/src/database/**, apps/desktop/tauri/migrations/** | — |
 | [[contexts/desktop/property]] | the request touches complexes or units | apps/desktop/src/lib/complex/** | — |
 | [[contexts/desktop/remote-sync]] | the request touches signing in, or the credential a workspace replicates under | apps/desktop/tauri/src/sync/**, apps/desktop/tauri/src/http.rs, apps/desktop/src/lib/sync/** | — |
@@ -348,4 +348,4 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/838-permissions-are-a-role-and-an-override/tickets/09-every-record-procedure-names-its-flag]] feat(desktop): every record procedure names its flag | 838-permissions-are-a-role-and-an-override | resolved | 08 |
 | [[efforts/838-permissions-are-a-role-and-an-override/tickets/10-the-interface-offers-only-permitted-record-acts]] feat(desktop): the interface offers only the record acts a member may perform | 838-permissions-are-a-role-and-an-override | resolved | 09 |
 | [[efforts/838-permissions-are-a-role-and-an-override/tickets/11-roles-are-defined-in-settings-and-set-on-a-card]] feat(organization): roles are defined in settings and set on a member's card | 838-permissions-are-a-role-and-an-override | resolved | 08 |
-| [[efforts/838-permissions-are-a-role-and-an-override/tickets/12-the-context-describes-the-new-chain]] docs(organization): the context describes the new chain, and the changeset says it breaks | 838-permissions-are-a-role-and-an-override | open | 10, 11 |
+| [[efforts/838-permissions-are-a-role-and-an-override/tickets/12-the-context-describes-the-new-chain]] docs(organization): the context describes the new chain, and the changeset says it breaks | 838-permissions-are-a-role-and-an-override | resolved | 10, 11 |
