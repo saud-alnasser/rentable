@@ -926,15 +926,15 @@ const en = {
 		// contract that holds no units.
 		reminder: {
 			comingDue:
-				'Hello {tenant:string}, the rent of SAR {amount:string} for {units:string} falls due on {date:string}. Thank you.',
-			comingDueNoUnits:
-				'Hello {tenant:string}, the rent of SAR {amount:string} falls due on {date:string}. Thank you.',
+				'Hello {tenant}, a reminder that the rent of SAR {amount} on contract {contract} falls due on {date}. Thank you.',
+			comingDueNoNumber:
+				'Hello {tenant}, a reminder that the rent of SAR {amount} on your contract falls due on {date}. Thank you.',
 			language: 'language of the message',
 			noPhone: 'the tenant has no phone number to send a reminder to.',
 			open: 'open WhatsApp',
-			owed: 'Hello {tenant:string}, the rent of SAR {amount:string} for {units:string} has been due since {date:string}. Thank you.',
-			owedNoUnits:
-				'Hello {tenant:string}, the rent of SAR {amount:string} has been due since {date:string}. Thank you.'
+			owed: 'Hello {tenant}, a reminder that the rent of SAR {amount} on contract {contract} has been due since {date}. Thank you.',
+			owedNoNumber:
+				'Hello {tenant}, a reminder that the rent of SAR {amount} on your contract has been due since {date}. Thank you.'
 		},
 
 		// a contract's cycles, one row each, with the payments allocated to them oldest first.

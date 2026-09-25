@@ -883,15 +883,15 @@ const ar = {
 
 		reminder: {
 			comingDue:
-				'مرحبًا {tenant}، نذكّركم بأن إيجار {units} بمبلغ {amount} ريال يحلّ في {date}. شكرًا لكم.',
-			comingDueNoUnits:
-				'مرحبًا {tenant}، نذكّركم بأن الإيجار بمبلغ {amount} ريال يحلّ في {date}. شكرًا لكم.',
+				'مرحبًا {tenant}، نذكّركم بأن إيجار العقد رقم {contract} بمبلغ {amount} ريال يحلّ في {date}. شكرًا لكم.',
+			comingDueNoNumber:
+				'مرحبًا {tenant}، نذكّركم بأن إيجار عقدكم بمبلغ {amount} ريال يحلّ في {date}. شكرًا لكم.',
 			language: 'لغة الرسالة',
 			noPhone: 'لا يوجد رقم جوال للمستأجر لإرسال التذكير إليه.',
 			open: 'فتح واتساب',
-			owed: 'مرحبًا {tenant}، نذكّركم بأن إيجار {units} بمبلغ {amount} ريال مستحق منذ {date}. شكرًا لكم.',
-			owedNoUnits:
-				'مرحبًا {tenant}، نذكّركم بأن الإيجار بمبلغ {amount} ريال مستحق منذ {date}. شكرًا لكم.'
+			owed: 'مرحبًا {tenant}، نذكّركم بأن إيجار العقد رقم {contract} بمبلغ {amount} ريال مستحق منذ {date}. شكرًا لكم.',
+			owedNoNumber:
+				'مرحبًا {tenant}، نذكّركم بأن إيجار عقدكم بمبلغ {amount} ريال مستحق منذ {date}. شكرًا لكم.'
 		},
 
 		schedule: {

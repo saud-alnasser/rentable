@@ -1247,18 +1247,11 @@ export default router({
 				throw refuse('contract.tenantMissing');
 			}
 
-			const units = await ctx.db
-				.select({ name: s.unit.name })
-				.from(s.contractUnit)
-				.innerJoin(s.unit, eq(s.contractUnit.unitId, s.unit.id))
-				.where(eq(s.contractUnit.contractId, contract.id))
-				.orderBy(asc(s.unit.name));
-
 			return {
 				rank,
 				tenantName: tenant.name,
 				tenantPhone: tenant.phone,
-				unitNames: units.map((unit) => unit.name),
+				contractNumber: contract.govId?.trim() ?? '',
 				...figures
 			};
 		}),

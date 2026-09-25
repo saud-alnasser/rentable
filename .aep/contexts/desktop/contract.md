@@ -60,7 +60,8 @@ _Avoid_: invoice (فاتورة), which it is not
 
 **Reminder**:
 A message to a contract's tenant about the rent, naming the tenant, the amount, the date and the
-units. The act, *remind tenant*, shows it first in the language the application is showing, which
+contract by its number, or *your contract* where it has none: it fits every contract, however
+many units it holds. The act, *remind tenant*, shows it first in the language the application is showing, which
 the landlord can switch to the other, and then opens WhatsApp with it written. Offered on a
 contract that is _overdue_, _owing_ or _due soon_, never on a terminated one. The landlord reads it
 and sends it; the application sends nothing and records nothing about it.

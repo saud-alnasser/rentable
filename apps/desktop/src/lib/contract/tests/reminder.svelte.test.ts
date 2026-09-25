@@ -61,7 +61,7 @@ const REMINDER: ContractReminder = {
 	rank: 'owing',
 	tenantName: 'Noura',
 	tenantPhone: '+966551234567',
-	unitNames: ['A-101'],
+	contractNumber: '4471',
 	amount: 1500,
 	due: Date.UTC(2026, 2, 1)
 };
@@ -114,7 +114,7 @@ async function send() {
 }
 
 const ENGLISH =
-	'Hello Noura, the rent of SAR 1,500 for A-101 has been due since 1 Mar 2026. Thank you.';
+	'Hello Noura, a reminder that the rent of SAR 1,500 on contract 4471 has been due since 1 Mar 2026. Thank you.';
 
 test('the reminder shows its message first, then opens WhatsApp addressed to the tenant with it', async () => {
 	setLocale('en');

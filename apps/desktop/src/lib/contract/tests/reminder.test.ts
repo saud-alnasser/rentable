@@ -20,12 +20,12 @@ loadLocale('ar');
 const english = i18nObject('en');
 const arabic = i18nObject('ar');
 
-/** a tenant owing two cycles of an overdue contract over two units, since the first of March. */
+/** a tenant owing two cycles of an overdue contract, numbered 20471133, since the first of March. */
 const OWED: ContractReminder = {
 	rank: 'owing',
 	tenantName: 'Noura Al-Qahtani',
 	tenantPhone: '+966551234567',
-	unitNames: ['A-101', 'A-102'],
+	contractNumber: '20471133',
 	amount: 4500,
 	due: Date.UTC(2026, 2, 1)
 };
@@ -57,22 +57,22 @@ test('an Arabic message survives the address whole', () => {
 });
 
 // criterion 12(b) of effort 835, in English
-test('in English, the message names the tenant, the amount, the date and the units', () => {
+test('in English, the message names the tenant, the amount, the date and the contract', () => {
 	const message = composeReminderMessage(OWED, english, 'en');
 
 	assert.equal(
 		message,
-		'Hello Noura Al-Qahtani, the rent of SAR 4,500 for A-101 and A-102 has been due since 1 Mar 2026. Thank you.'
+		'Hello Noura Al-Qahtani, a reminder that the rent of SAR 4,500 on contract 20471133 has been due since 1 Mar 2026. Thank you.'
 	);
 });
 
 // criterion 12(b) of effort 835, in Arabic
-test('in Arabic, the message names the tenant, the amount, the date and the units', () => {
+test('in Arabic, the message names the tenant, the amount, the date and the contract', () => {
 	const message = composeReminderMessage(OWED, arabic, 'ar');
 
 	assert.ok(message.startsWith('مرحبًا Noura Al-Qahtani،'), message);
 	assert.ok(message.includes('4,500 ريال'), message);
-	assert.ok(message.includes('A-101 وA-102'), message);
+	assert.ok(message.includes('العقد رقم 20471133'), message);
 	assert.ok(message.includes('مستحق منذ'), message);
 	// the date as the application writes one in Arabic, in Western digits.
 	assert.ok(message.includes(`مستحق منذ ${formatRecordDate('ar', OWED.due)}`), message);
@@ -83,7 +83,7 @@ test('in Arabic, the message names the tenant, the amount, the date and the unit
 test('rent falling due this week is said to fall due, not to be owed, in both languages', () => {
 	assert.equal(
 		composeReminderMessage(COMING_DUE, english, 'en'),
-		'Hello Noura Al-Qahtani, the rent of SAR 1,500 for A-101 and A-102 falls due on 1 Mar 2026. Thank you.'
+		'Hello Noura Al-Qahtani, a reminder that the rent of SAR 1,500 on contract 20471133 falls due on 1 Mar 2026. Thank you.'
 	);
 
 	const arabicMessage = composeReminderMessage(COMING_DUE, arabic, 'ar');
@@ -95,14 +95,16 @@ test('rent falling due this week is said to fall due, not to be owed, in both la
 	assert.ok(!arabicMessage.includes('مستحق منذ'), arabicMessage);
 });
 
-test('a contract holding no units is reminded without naming any', () => {
-	const unitless = { ...OWED, unitNames: [] };
+// the human, 2026-09-25: the message fits every contract, so it names the contract rather than
+// its units, and one saved without a number is the tenant's contract.
+test('a contract with no number is reminded of as the tenant’s contract', () => {
+	const unnumbered = { ...OWED, contractNumber: '' };
 
 	assert.equal(
-		composeReminderMessage(unitless, english, 'en'),
-		'Hello Noura Al-Qahtani, the rent of SAR 4,500 has been due since 1 Mar 2026. Thank you.'
+		composeReminderMessage(unnumbered, english, 'en'),
+		'Hello Noura Al-Qahtani, a reminder that the rent of SAR 4,500 on your contract has been due since 1 Mar 2026. Thank you.'
 	);
-	assert.ok(!composeReminderMessage(unitless, arabic, 'ar').includes(' عن '));
+	assert.ok(composeReminderMessage(unnumbered, arabic, 'ar').includes('إيجار عقدكم'));
 });
 
 test('a reminder is offered on overdue, owing and due soon, and on no other rank or none', () => {

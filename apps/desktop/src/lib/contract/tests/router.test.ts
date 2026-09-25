@@ -1438,7 +1438,7 @@ test('an overdue contract’s reminder states everything it owes, since its firs
 		rank: 'overdue',
 		tenantName: tenant.name,
 		tenantPhone: tenant.phone,
-		unitNames: ['Unit Remind-A', 'Unit Remind-B'],
+		contractNumber: contract.govId ?? '',
 		amount: 4000,
 		due: contract.start
 	});
@@ -1465,7 +1465,7 @@ test('an owing contract’s reminder states what its late and due cycles lack, s
 		rank: 'owing',
 		tenantName: tenant.name,
 		tenantPhone: tenant.phone,
-		unitNames: ['Unit Remind-A', 'Unit Remind-B'],
+		contractNumber: contract.govId ?? '',
 		amount: 2500,
 		due: firstOfMonthFromNow(-2)
 	});
@@ -1484,7 +1484,7 @@ test('a due-soon contract’s reminder states the cycle coming due and the day i
 		rank: 'due-soon',
 		tenantName: tenant.name,
 		tenantPhone: tenant.phone,
-		unitNames: ['Unit Remind-A', 'Unit Remind-B'],
+		contractNumber: contract.govId ?? '',
 		amount: 1500,
 		due: contract.start
 	});

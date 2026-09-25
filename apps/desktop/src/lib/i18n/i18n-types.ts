@@ -2837,20 +2837,20 @@ type RootTranslation = {
 		}
 		reminder: {
 			/**
-			 * H​e​l​l​o​ ​{​t​e​n​a​n​t​}​,​ ​t​h​e​ ​r​e​n​t​ ​o​f​ ​S​A​R​ ​{​a​m​o​u​n​t​}​ ​f​o​r​ ​{​u​n​i​t​s​}​ ​f​a​l​l​s​ ​d​u​e​ ​o​n​ ​{​d​a​t​e​}​.​ ​T​h​a​n​k​ ​y​o​u​.
-			 * @param {string} amount
-			 * @param {string} date
-			 * @param {string} tenant
-			 * @param {string} units
+			 * H​e​l​l​o​ ​{​t​e​n​a​n​t​}​,​ ​a​ ​r​e​m​i​n​d​e​r​ ​t​h​a​t​ ​t​h​e​ ​r​e​n​t​ ​o​f​ ​S​A​R​ ​{​a​m​o​u​n​t​}​ ​o​n​ ​c​o​n​t​r​a​c​t​ ​{​c​o​n​t​r​a​c​t​}​ ​f​a​l​l​s​ ​d​u​e​ ​o​n​ ​{​d​a​t​e​}​.​ ​T​h​a​n​k​ ​y​o​u​.
+			 * @param {unknown} amount
+			 * @param {unknown} contract
+			 * @param {unknown} date
+			 * @param {unknown} tenant
 			 */
-			comingDue: RequiredParams<'amount' | 'date' | 'tenant' | 'units'>
+			comingDue: RequiredParams<'amount' | 'contract' | 'date' | 'tenant'>
 			/**
-			 * H​e​l​l​o​ ​{​t​e​n​a​n​t​}​,​ ​t​h​e​ ​r​e​n​t​ ​o​f​ ​S​A​R​ ​{​a​m​o​u​n​t​}​ ​f​a​l​l​s​ ​d​u​e​ ​o​n​ ​{​d​a​t​e​}​.​ ​T​h​a​n​k​ ​y​o​u​.
-			 * @param {string} amount
-			 * @param {string} date
-			 * @param {string} tenant
+			 * H​e​l​l​o​ ​{​t​e​n​a​n​t​}​,​ ​a​ ​r​e​m​i​n​d​e​r​ ​t​h​a​t​ ​t​h​e​ ​r​e​n​t​ ​o​f​ ​S​A​R​ ​{​a​m​o​u​n​t​}​ ​o​n​ ​y​o​u​r​ ​c​o​n​t​r​a​c​t​ ​f​a​l​l​s​ ​d​u​e​ ​o​n​ ​{​d​a​t​e​}​.​ ​T​h​a​n​k​ ​y​o​u​.
+			 * @param {unknown} amount
+			 * @param {unknown} date
+			 * @param {unknown} tenant
 			 */
-			comingDueNoUnits: RequiredParams<'amount' | 'date' | 'tenant'>
+			comingDueNoNumber: RequiredParams<'amount' | 'date' | 'tenant'>
 			/**
 			 * l​a​n​g​u​a​g​e​ ​o​f​ ​t​h​e​ ​m​e​s​s​a​g​e
 			 */
@@ -2864,20 +2864,20 @@ type RootTranslation = {
 			 */
 			open: string
 			/**
-			 * H​e​l​l​o​ ​{​t​e​n​a​n​t​}​,​ ​t​h​e​ ​r​e​n​t​ ​o​f​ ​S​A​R​ ​{​a​m​o​u​n​t​}​ ​f​o​r​ ​{​u​n​i​t​s​}​ ​h​a​s​ ​b​e​e​n​ ​d​u​e​ ​s​i​n​c​e​ ​{​d​a​t​e​}​.​ ​T​h​a​n​k​ ​y​o​u​.
-			 * @param {string} amount
-			 * @param {string} date
-			 * @param {string} tenant
-			 * @param {string} units
+			 * H​e​l​l​o​ ​{​t​e​n​a​n​t​}​,​ ​a​ ​r​e​m​i​n​d​e​r​ ​t​h​a​t​ ​t​h​e​ ​r​e​n​t​ ​o​f​ ​S​A​R​ ​{​a​m​o​u​n​t​}​ ​o​n​ ​c​o​n​t​r​a​c​t​ ​{​c​o​n​t​r​a​c​t​}​ ​h​a​s​ ​b​e​e​n​ ​d​u​e​ ​s​i​n​c​e​ ​{​d​a​t​e​}​.​ ​T​h​a​n​k​ ​y​o​u​.
+			 * @param {unknown} amount
+			 * @param {unknown} contract
+			 * @param {unknown} date
+			 * @param {unknown} tenant
 			 */
-			owed: RequiredParams<'amount' | 'date' | 'tenant' | 'units'>
+			owed: RequiredParams<'amount' | 'contract' | 'date' | 'tenant'>
 			/**
-			 * H​e​l​l​o​ ​{​t​e​n​a​n​t​}​,​ ​t​h​e​ ​r​e​n​t​ ​o​f​ ​S​A​R​ ​{​a​m​o​u​n​t​}​ ​h​a​s​ ​b​e​e​n​ ​d​u​e​ ​s​i​n​c​e​ ​{​d​a​t​e​}​.​ ​T​h​a​n​k​ ​y​o​u​.
-			 * @param {string} amount
-			 * @param {string} date
-			 * @param {string} tenant
+			 * H​e​l​l​o​ ​{​t​e​n​a​n​t​}​,​ ​a​ ​r​e​m​i​n​d​e​r​ ​t​h​a​t​ ​t​h​e​ ​r​e​n​t​ ​o​f​ ​S​A​R​ ​{​a​m​o​u​n​t​}​ ​o​n​ ​y​o​u​r​ ​c​o​n​t​r​a​c​t​ ​h​a​s​ ​b​e​e​n​ ​d​u​e​ ​s​i​n​c​e​ ​{​d​a​t​e​}​.​ ​T​h​a​n​k​ ​y​o​u​.
+			 * @param {unknown} amount
+			 * @param {unknown} date
+			 * @param {unknown} tenant
 			 */
-			owedNoUnits: RequiredParams<'amount' | 'date' | 'tenant'>
+			owedNoNumber: RequiredParams<'amount' | 'date' | 'tenant'>
 		}
 		schedule: {
 			columns: {
@@ -6783,13 +6783,13 @@ export type TranslationFunctions = {
 		}
 		reminder: {
 			/**
-			 * Hello {tenant}, the rent of SAR {amount} for {units} falls due on {date}. Thank you.
+			 * Hello {tenant}, a reminder that the rent of SAR {amount} on contract {contract} falls due on {date}. Thank you.
 			 */
-			comingDue: (arg: { amount: string, date: string, tenant: string, units: string }) => LocalizedString
+			comingDue: (arg: { amount: unknown, contract: unknown, date: unknown, tenant: unknown }) => LocalizedString
 			/**
-			 * Hello {tenant}, the rent of SAR {amount} falls due on {date}. Thank you.
+			 * Hello {tenant}, a reminder that the rent of SAR {amount} on your contract falls due on {date}. Thank you.
 			 */
-			comingDueNoUnits: (arg: { amount: string, date: string, tenant: string }) => LocalizedString
+			comingDueNoNumber: (arg: { amount: unknown, date: unknown, tenant: unknown }) => LocalizedString
 			/**
 			 * language of the message
 			 */
@@ -6803,13 +6803,13 @@ export type TranslationFunctions = {
 			 */
 			open: () => LocalizedString
 			/**
-			 * Hello {tenant}, the rent of SAR {amount} for {units} has been due since {date}. Thank you.
+			 * Hello {tenant}, a reminder that the rent of SAR {amount} on contract {contract} has been due since {date}. Thank you.
 			 */
-			owed: (arg: { amount: string, date: string, tenant: string, units: string }) => LocalizedString
+			owed: (arg: { amount: unknown, contract: unknown, date: unknown, tenant: unknown }) => LocalizedString
 			/**
-			 * Hello {tenant}, the rent of SAR {amount} has been due since {date}. Thank you.
+			 * Hello {tenant}, a reminder that the rent of SAR {amount} on your contract has been due since {date}. Thank you.
 			 */
-			owedNoUnits: (arg: { amount: string, date: string, tenant: string }) => LocalizedString
+			owedNoNumber: (arg: { amount: unknown, date: unknown, tenant: unknown }) => LocalizedString
 		}
 		schedule: {
 			columns: {

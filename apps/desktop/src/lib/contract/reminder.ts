@@ -3,7 +3,7 @@ import { getDueSoonCycle, type ContractRank } from '$lib/contract/rank';
 import { scheduleContract, type SchedulePaymentLike } from '$lib/contract/schedule';
 import { formatRecordDate } from '$lib/design/date';
 import type { Locales, TranslationFunctions } from '$lib/i18n/i18n-types';
-import { formatLocaleNumber, getIntlLocale } from '$lib/platform/locale';
+import { formatLocaleNumber } from '$lib/platform/locale';
 
 /**
  * REMINDER
@@ -47,8 +47,8 @@ export type ContractReminder = {
 	tenantName: string;
 	/** a machine string, `+9665XXXXXXXX`, as a tenant's phone is stored. */
 	tenantPhone: string;
-	/** the names of the units the contract holds, in the order the message lists them. */
-	unitNames: string[];
+	/** the contract's number, which the message names it by; empty where it has none. */
+	contractNumber: string;
 	amount: number;
 	/** a UTC day, as every date in the contract domain crosses. */
 	due: number;
@@ -89,11 +89,14 @@ export function getReminderFigures(
 }
 
 /**
- * The reminder written out in one locale: the tenant by name, the amount, the date, and the units.
+ * The reminder written out in one locale: the tenant by name, the amount, the date, and the
+ * contract.
  *
  * A money rank says since when the rent has been due and a due-soon contract says when it falls
- * due, so a tenant who owes is not told the rent is coming. A contract holding no units has no
- * units to name, and its sentence leaves the phrase out rather than naming nothing.
+ * due, so a tenant who owes is not told the rent is coming. The contract is named by its number,
+ * which the tenant holds on their own copy and which fits any contract, however many units it
+ * holds or however they are named; one with no number is *your contract*. *It listed the units
+ * until the human asked, on 2026-09-25, for a message that fits every contract.*
  *
  * The amount is written in Western digits with the currency as a word, not the riyal sign the
  * screen draws: the message is read in whatever WhatsApp shows it in, and a sign that font has
@@ -108,15 +111,13 @@ export function composeReminderMessage(
 		tenant: reminder.tenantName.trim(),
 		amount: formatLocaleNumber(locale, reminder.amount),
 		date: formatRecordDate(locale, reminder.due),
-		units: new Intl.ListFormat(getIntlLocale(locale), { type: 'conjunction' }).format(
-			reminder.unitNames
-		)
+		contract: reminder.contractNumber.trim()
 	};
 	const messages = t.contracts.reminder;
 	const isComingDue = reminder.rank === 'due-soon';
 
-	if (reminder.unitNames.length === 0) {
-		return isComingDue ? messages.comingDueNoUnits(values) : messages.owedNoUnits(values);
+	if (!values.contract) {
+		return isComingDue ? messages.comingDueNoNumber(values) : messages.owedNoNumber(values);
 	}
 
 	return isComingDue ? messages.comingDue(values) : messages.owed(values);

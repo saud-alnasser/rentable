@@ -163,11 +163,12 @@ on notifying ([[rules/interface]], *Notifying is these two and nothing else*) is
     the other act that hands something to the tenant, *print*. It shows the message first, with a
     choice of Arabic or English (starting on the language the application shows), and opens
     WhatsApp addressed to the tenant's phone with that message written: it names the tenant, the
-    amount, the date it is or was due, and the units. The landlord reads it and sends it; the
-    application sends nothing.
+    amount, the date it is or was due, and the contract by its number (*your contract* where it has
+    none). The landlord reads it and sends it; the application sends nothing.
 
     *Revised by the human on 2026-09-25, after trying the first build:* the message's language is
-    chosen each time, and the act's name was too long.
+    chosen each time, and the act's name was too long. *And again the same day:* the message names
+    the contract rather than listing its units, so it fits every contract.
 
 # Acceptance Criteria
 
@@ -212,7 +213,8 @@ on notifying ([[rules/interface]], *Notifying is these two and nothing else*) is
     in eight days.
 12. (a) The act opens `https://wa.me/<number>?text=<message>`, where the number is the tenant's
     phone without its `+`, and the message is URL-encoded. (b) The message names the tenant, the
-    amount, the date and the units, in the language chosen, which starts on the language the
+    amount, the date and the contract's number, or *your contract* where it has none, in the
+    language chosen, which starts on the language the
     application shows. (c) The act is not offered on a contract in no rank or on a terminated
     one.
 13. (a) A receipt and a schedule name the organization at their head, and never the workspace.
