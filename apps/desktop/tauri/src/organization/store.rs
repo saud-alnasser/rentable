@@ -37,19 +37,20 @@ use crate::{
 
 use super::{
     authority::{
-        Authority, Certificate, GrantAuthority, InvitationAuthority, MarkAuthority,
-        MemberAuthority, VERIFYING_KEY_BYTES, WorkspaceAuthority, sign, verify,
+        Authority, Certificate, Chain, GrantAuthority, InvitationAuthority, MarkAuthority,
+        MemberAuthority, Revocation, VERIFYING_KEY_BYTES, WorkspaceAuthority, sign,
     },
     vault::{KDF_SALT_BYTES, KdfParams, PUBLIC_KEY_BYTES, Vault},
 };
 
-/// The twelve tables, in the order the schema creates them. A test pins this list against what
+/// The thirteen tables, in the order the schema creates them. A test pins this list against what
 /// the database reports, so a table added anywhere is added here or fails there.
-pub const TABLES: [&str; 12] = [
+pub const TABLES: [&str; 13] = [
     "format",
     "organization",
     "member",
-    "administrator_certificate",
+    "certificate",
+    "revocation",
     "workspace",
     "grant",
     "invitation",
@@ -94,7 +95,7 @@ pub const FORMAT_VERSION: i64 = 2;
 ///
 /// `grant` is quoted everywhere because it is a keyword in most dialects, and a statement that
 /// works in SQLite and fails elsewhere is a statement worth spelling defensively once.
-const SCHEMA: [&str; 12] = [
+const SCHEMA: [&str; 13] = [
     // one row, the organization format (see [`FORMAT_VERSION`]).
     "CREATE TABLE IF NOT EXISTS \"format\" (\
         \"id\" TEXT PRIMARY KEY NOT NULL, \
@@ -123,13 +124,28 @@ const SCHEMA: [&str; 12] = [
         \"updated_at\" INTEGER NOT NULL, \
         \"session_epoch\" INTEGER NOT NULL DEFAULT 0, \
         \"owner_seed_sealed\" BLOB)",
-    "CREATE TABLE IF NOT EXISTS \"administrator_certificate\" (\
+    // a delegated certificate (effort 838): signed by its issuer, or by the organization key where
+    // `issuer_certificate_id` is null, which is the owner's alone. *It was
+    // `administrator_certificate`, signed by the organization key every time and revoked by an
+    // unsigned `revoked_at`, until effort 838.*
+    "CREATE TABLE IF NOT EXISTS \"certificate\" (\
         \"id\" TEXT PRIMARY KEY NOT NULL, \
         \"member_id\" TEXT NOT NULL, \
         \"signing_public_key\" BLOB NOT NULL, \
-        \"signature_by_organization_key\" BLOB NOT NULL, \
+        \"issuer_certificate_id\" TEXT, \
+        \"ceiling\" INTEGER NOT NULL, \
+        \"rank\" INTEGER NOT NULL, \
         \"issued_at\" TEXT NOT NULL, \
-        \"revoked_at\" TEXT)",
+        \"signature\" BLOB NOT NULL)",
+    // a signed revocation (effort 838). Keyed on the pair, so a second revoker's row sits beside
+    // the first rather than replacing it: one that does not verify then cannot overwrite one that
+    // does.
+    "CREATE TABLE IF NOT EXISTS \"revocation\" (\
+        \"certificate_id\" TEXT NOT NULL, \
+        \"revoker_certificate_id\" TEXT NOT NULL, \
+        \"revoked_at\" TEXT NOT NULL, \
+        \"signature\" BLOB NOT NULL, \
+        PRIMARY KEY (\"certificate_id\", \"revoker_certificate_id\"))",
     "CREATE TABLE IF NOT EXISTS \"workspace\" (\
         \"id\" TEXT PRIMARY KEY NOT NULL, \
         \"name_sealed\" BLOB NOT NULL, \
@@ -754,7 +770,8 @@ impl OrganizationStore {
         &self,
         organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
     ) -> Result<Option<MarkRecord>, Error> {
-        let certificates = self.certificates().await?;
+        let (certificates, revocations) = self.chain_rows().await?;
+        let chain = Chain::new(organization_verifying_key, &certificates, &revocations);
         let mut rows = self
             .connection
             .query(
@@ -777,8 +794,7 @@ impl OrganizationStore {
         };
 
         verified(
-            organization_verifying_key,
-            &certificates,
+            &chain,
             "mark",
             MARK_ID,
             &text(&row, 4)?,
@@ -842,23 +858,26 @@ impl OrganizationStore {
 
     // certificates
 
-    /// Write a certificate as issued or as revoked. The signature it carries is the organization
-    /// key's and was made when it was issued; this module checks it on every read of a row it
-    /// authorises, and never makes one.
+    /// Write a certificate as issued. The signature it carries is its issuer's and was made when
+    /// it was issued; this module checks it on every read of a row it authorises, and never makes
+    /// one. **A certificate is not written again once issued**: a change in what somebody may do
+    /// is a fresh certificate under a fresh id and a revocation of the old one.
     pub async fn write_certificate(&self, certificate: &Certificate) -> Result<(), Error> {
         self.connection
             .execute(
-                "INSERT OR REPLACE INTO \"administrator_certificate\" \
-                 (\"id\", \"member_id\", \"signing_public_key\", \"signature_by_organization_key\", \
-                  \"issued_at\", \"revoked_at\") \
-                 VALUES (?, ?, ?, ?, ?, ?)",
+                "INSERT OR REPLACE INTO \"certificate\" \
+                 (\"id\", \"member_id\", \"signing_public_key\", \"issuer_certificate_id\", \
+                  \"ceiling\", \"rank\", \"issued_at\", \"signature\") \
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 vec![
                     turso::Value::Text(certificate.id.clone()),
                     turso::Value::Text(certificate.member_id.clone()),
                     turso::Value::Blob(certificate.signing_public_key.to_vec()),
-                    turso::Value::Blob(certificate.signature_by_organization_key.clone()),
+                    optional_text(certificate.issuer_certificate_id.as_deref()),
+                    turso::Value::Integer(certificate.ceiling),
+                    turso::Value::Integer(certificate.rank),
                     turso::Value::Text(certificate.issued_at.clone()),
-                    optional_text(certificate.revoked_at.as_deref()),
+                    turso::Value::Blob(certificate.signature.clone()),
                 ],
             )
             .await?;
@@ -866,15 +885,17 @@ impl OrganizationStore {
         Ok(())
     }
 
-    /// Every certificate, revoked ones included: a revoked certificate is still what a row names,
-    /// and `verify` is what says the row is refused for it.
+    /// Every certificate, revoked ones included, with nothing checked: a revoked certificate is
+    /// still what a row names, and the chain is what says the row is refused for it. Judge these
+    /// through [`Chain`], never by reading a field.
     pub async fn certificates(&self) -> Result<Vec<Certificate>, Error> {
         let mut rows = self
             .connection
             .query(
                 "SELECT \"id\", \"member_id\", \"signing_public_key\", \
-                        \"signature_by_organization_key\", \"issued_at\", \"revoked_at\" \
-                 FROM \"administrator_certificate\" ORDER BY \"id\"",
+                        \"issuer_certificate_id\", \"ceiling\", \"rank\", \"issued_at\", \
+                        \"signature\" \
+                 FROM \"certificate\" ORDER BY \"id\"",
                 (),
             )
             .await?;
@@ -885,13 +906,102 @@ impl OrganizationStore {
                 id: text(&row, 0)?,
                 member_id: text(&row, 1)?,
                 signing_public_key: fixed::<VERIFYING_KEY_BYTES>(&row, 2, "signing_public_key")?,
-                signature_by_organization_key: blob(&row, 3)?,
-                issued_at: text(&row, 4)?,
-                revoked_at: nullable_text(&row, 5)?,
+                issuer_certificate_id: nullable_text(&row, 3)?,
+                ceiling: integer(&row, 4)?,
+                rank: integer(&row, 5)?,
+                issued_at: text(&row, 6)?,
+                signature: blob(&row, 7)?,
             });
         }
 
         Ok(certificates)
+    }
+
+    /// Write a revocation. Its signature is the revoker's, made by the caller; the chain decides
+    /// whether it counts.
+    pub async fn write_revocation(&self, revocation: &Revocation) -> Result<(), Error> {
+        self.connection
+            .execute(
+                "INSERT OR REPLACE INTO \"revocation\" \
+                 (\"certificate_id\", \"revoker_certificate_id\", \"revoked_at\", \"signature\") \
+                 VALUES (?, ?, ?, ?)",
+                vec![
+                    turso::Value::Text(revocation.certificate_id.clone()),
+                    turso::Value::Text(revocation.revoker_certificate_id.clone()),
+                    turso::Value::Text(revocation.revoked_at.clone()),
+                    turso::Value::Blob(revocation.signature.clone()),
+                ],
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// Every revocation, with nothing checked, for the chain to judge.
+    pub async fn revocations(&self) -> Result<Vec<Revocation>, Error> {
+        let mut rows = self
+            .connection
+            .query(
+                "SELECT \"certificate_id\", \"revoker_certificate_id\", \"revoked_at\", \
+                        \"signature\" \
+                 FROM \"revocation\" ORDER BY \"certificate_id\", \"revoker_certificate_id\"",
+                (),
+            )
+            .await?;
+        let mut revocations = Vec::new();
+
+        while let Some(row) = rows.next().await? {
+            revocations.push(Revocation {
+                certificate_id: text(&row, 0)?,
+                revoker_certificate_id: text(&row, 1)?,
+                revoked_at: text(&row, 2)?,
+                signature: blob(&row, 3)?,
+            });
+        }
+
+        Ok(revocations)
+    }
+
+    /// What one read judges its rows by: every certificate and every revocation, read once and
+    /// handed to a [`Chain`] the read builds and drops. That is the per-read cache: a walk is made
+    /// once per certificate however many rows name it, and no verdict outlives the read.
+    pub async fn chain_rows(&self) -> Result<(Vec<Certificate>, Vec<Revocation>), Error> {
+        Ok((self.certificates().await?, self.revocations().await?))
+    }
+
+    /// The certificate a member signs with under the key the caller pinned: live, naming the key
+    /// given, and the newest where two are. `None` where the member holds none.
+    pub async fn live_certificate(
+        &self,
+        organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
+        member_id: &str,
+        signing_public_key: &[u8; VERIFYING_KEY_BYTES],
+    ) -> Result<Option<Certificate>, Error> {
+        let (certificates, revocations) = self.chain_rows().await?;
+
+        Ok(
+            Chain::new(organization_verifying_key, &certificates, &revocations)
+                .live_certificate_of(member_id, signing_public_key)
+                .cloned(),
+        )
+    }
+
+    /// Every live certificate a member holds under the key the caller pinned, whatever key each
+    /// names: what a removal or a narrowing revokes.
+    pub async fn live_certificates(
+        &self,
+        organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
+        member_id: &str,
+    ) -> Result<Vec<Certificate>, Error> {
+        let (certificates, revocations) = self.chain_rows().await?;
+
+        Ok(
+            Chain::new(organization_verifying_key, &certificates, &revocations)
+                .live_certificates_of(member_id)
+                .into_iter()
+                .cloned()
+                .collect(),
+        )
     }
 
     // members
@@ -1164,10 +1274,12 @@ impl OrganizationStore {
         organization_verifying_key: Option<&[u8; VERIFYING_KEY_BYTES]>,
         member_id: Option<&str>,
     ) -> Result<Vec<(String, MemberRecord)>, Error> {
-        let certificates = match organization_verifying_key {
-            Some(_) => self.certificates().await?,
-            None => Vec::new(),
+        let (certificates, revocations) = match organization_verifying_key {
+            Some(_) => self.chain_rows().await?,
+            None => (Vec::new(), Vec::new()),
         };
+        let chain = organization_verifying_key
+            .map(|pinned| Chain::new(pinned, &certificates, &revocations));
         let (filter, params) = match member_id {
             Some(id) => (
                 " WHERE \"id\" = ?",
@@ -1201,10 +1313,9 @@ impl OrganizationStore {
             let signature = blob(&row, 12)?;
             let owner_seed_sealed = nullable_blob(&row, 16)?;
 
-            if let Some(organization_verifying_key) = organization_verifying_key {
+            if let Some(chain) = &chain {
                 verified(
-                    organization_verifying_key,
-                    &certificates,
+                    chain,
                     "member",
                     &id,
                     &certificate_id,
@@ -1304,7 +1415,8 @@ impl OrganizationStore {
         &self,
         organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
     ) -> Result<Vec<(String, WorkspaceRecord)>, Error> {
-        let certificates = self.certificates().await?;
+        let (certificates, revocations) = self.chain_rows().await?;
+        let chain = Chain::new(organization_verifying_key, &certificates, &revocations);
         let mut rows = self
             .connection
             .query(
@@ -1325,8 +1437,7 @@ impl OrganizationStore {
             let signature = blob(&row, 6)?;
 
             verified(
-                organization_verifying_key,
-                &certificates,
+                &chain,
                 "workspace",
                 &id,
                 &certificate_id,
@@ -1408,7 +1519,8 @@ impl OrganizationStore {
         &self,
         organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
     ) -> Result<Vec<(String, GrantRecord)>, Error> {
-        let certificates = self.certificates().await?;
+        let (certificates, revocations) = self.chain_rows().await?;
+        let chain = Chain::new(organization_verifying_key, &certificates, &revocations);
         let mut rows = self
             .connection
             .query(
@@ -1432,8 +1544,7 @@ impl OrganizationStore {
             let signature = blob(&row, 6)?;
 
             verified(
-                organization_verifying_key,
-                &certificates,
+                &chain,
                 "grant",
                 &format!("{}/{}", grant.member_id, grant.workspace_id),
                 &certificate_id,
@@ -1513,7 +1624,8 @@ impl OrganizationStore {
         &self,
         organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
     ) -> Result<Vec<(String, InvitationRecord)>, Error> {
-        let certificates = self.certificates().await?;
+        let (certificates, revocations) = self.chain_rows().await?;
+        let chain = Chain::new(organization_verifying_key, &certificates, &revocations);
         let mut rows = self
             .connection
             .query(
@@ -1533,8 +1645,7 @@ impl OrganizationStore {
             let signature = blob(&row, 7)?;
 
             verified(
-                organization_verifying_key,
-                &certificates,
+                &chain,
                 "invitation",
                 &id,
                 &certificate_id,
@@ -2182,38 +2293,23 @@ impl OrganizationStore {
     }
 }
 
-/// One row's verdict, through the only verifier there is.
+/// One row's verdict, through the only verifier there is ([`Chain::verify`]).
 ///
-/// A row naming a certificate that does not exist fails here as well: an unknown certificate is
+/// A row naming a certificate that does not exist fails there as well: an unknown certificate is
 /// an authority nobody issued, which is the same thing as a forged one from where a reader stands.
 fn verified(
-    organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
-    certificates: &[Certificate],
+    chain: &Chain<'_>,
     table: &str,
     id: &str,
     certificate_id: &str,
     authority: Authority<'_>,
     signature: &[u8],
 ) -> Result<(), Error> {
-    let certificate = certificates
-        .iter()
-        .find(|certificate| certificate.id == certificate_id)
-        .ok_or_else(|| Error::Integrity {
-            message: format!(
-                "the {table} row {id} names a certificate nobody issued ({certificate_id}), \
-                 and is refused"
-            ),
-        })?;
-
-    verify(
-        organization_verifying_key,
-        certificate,
-        authority,
-        signature,
-    )
-    .map_err(|error| Error::Integrity {
-        message: format!("the {table} row {id} is refused: {error}"),
-    })
+    chain
+        .verify(certificate_id, authority, signature)
+        .map_err(|error| Error::Integrity {
+            message: format!("the {table} row {id} is refused: {error}"),
+        })
 }
 
 fn text(row: &turso::Row, index: usize) -> Result<String, Error> {
@@ -2309,7 +2405,11 @@ mod tests {
     };
     use crate::error::{Error, RefusalReason};
     use crate::organization::{
-        authority::{AdministratorKey, Certificate, OrganizationKey, issue_certificate},
+        authority::{
+            AdministratorKey, Certificate, Issue, OrganizationKey, issue_certificate,
+            issue_root_certificate, revoke,
+        },
+        permission::MANAGER_ROLE,
         vault::{
             ContentKey, KdfParams, create_vault_with_secret, generate_content_key, open_content,
             seal_content, seal_to_public_key,
@@ -2349,7 +2449,7 @@ mod tests {
         fn new() -> Self {
             let organization_key = OrganizationKey::generate().expect("an organization key");
             let administrator_key = AdministratorKey::generate().expect("an administrator key");
-            let certificate = issue_certificate(
+            let certificate = issue_root_certificate(
                 &organization_key,
                 "cert-owner",
                 "member-owner",
@@ -3319,9 +3419,17 @@ mod tests {
 
         populated(&store, &chain).await;
 
-        // revocation is a row: the same certificate, written back with `revoked_at` set.
+        // revocation is a row: signed, here by the root revoking itself.
         store
-            .write_certificate(&chain.certificate.revoked("1757100000000"))
+            .write_revocation(
+                &revoke(
+                    &chain.administrator_key,
+                    &chain.certificate,
+                    &chain.certificate,
+                    "1757100000000",
+                )
+                .expect("the revocation"),
+            )
             .await
             .expect("the revocation");
 
@@ -3347,7 +3455,10 @@ mod tests {
             .await
             .expect_err("a workspace under an unknown certificate was read");
 
-        assert!(refusal.to_string().contains("nobody issued"), "{refusal}");
+        assert!(
+            refusal.to_string().contains("issued by nobody"),
+            "{refusal}"
+        );
         assert!(refusal.to_string().contains("north"), "{refusal}");
     }
 
@@ -3407,16 +3518,29 @@ mod tests {
             .await
             .expect("the owner member");
 
-        // an administrator certified under the same organization key, who signs one of every kind
-        // of row: a member, a workspace, a grant and an invitation.
+        // a manager certified by the owner's root, who signs one of every kind of row: a member,
+        // a workspace, a grant and an invitation.
         let admin_key = AdministratorKey::generate().expect("an administrator key");
         let admin_certificate = issue_certificate(
-            &chain.organization_key,
-            "cert-admin",
-            "member-admin",
-            &admin_key.verifying_key(),
-            "1757000000000",
-        );
+            &chain.administrator_key,
+            &chain.certificate,
+            Issue {
+                id: "cert-admin",
+                member_id: "member-admin",
+                signing_public_key: &admin_key.verifying_key(),
+                ceiling: MANAGER_ROLE.mask,
+                rank: MANAGER_ROLE.rank,
+                issued_at: "1757000000000",
+            },
+        )
+        .expect("the administrator certificate");
+        let revocation = revoke(
+            &chain.administrator_key,
+            &chain.certificate,
+            &admin_certificate,
+            "1757100000000",
+        )
+        .expect("the revocation");
 
         store
             .write_certificate(&admin_certificate)
@@ -3479,7 +3603,7 @@ mod tests {
 
         // F3: revoked without re-signing first, every read that finds one of its rows is refused.
         store
-            .write_certificate(&admin_certificate.revoked("1757100000000"))
+            .write_revocation(&revocation)
             .await
             .expect("the revocation");
 
@@ -3494,7 +3618,8 @@ mod tests {
         // restore the certificate, re-sign its rows under the owner, then revoke: nothing bricks,
         // and one of every kind of row moved.
         store
-            .write_certificate(&admin_certificate)
+            .connection()
+            .execute("DELETE FROM \"revocation\"", ())
             .await
             .expect("un-revoke");
 
@@ -3506,7 +3631,7 @@ mod tests {
         assert_eq!(moved, 4, "one of every kind of row was re-signed");
 
         store
-            .write_certificate(&admin_certificate.revoked("1757100000000"))
+            .write_revocation(&revocation)
             .await
             .expect("the revocation, again");
 
@@ -3535,7 +3660,7 @@ mod tests {
             .write_member(
                 &Signer {
                     key: &admin_key,
-                    certificate: &admin_certificate.revoked("1757100000000"),
+                    certificate: &admin_certificate,
                 },
                 &chain.member("member-y", "member-y", "member"),
             )

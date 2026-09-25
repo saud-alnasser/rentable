@@ -53,7 +53,7 @@ pub const CREDENTIAL_RENEWAL_WINDOW_MS: i64 = 7 * 24 * 60 * 60 * 1000;
 pub const MIGRATION_CREDENTIAL_LIFETIME: &str = "30m";
 
 /// The signer a session is, for the rows it writes: the administrator key derived from its secret
-/// and the certificate that authorises it, read off the replica.
+/// and the live certificate that authorises it under the key the session pinned.
 pub async fn signer_of(
     store: &OrganizationStore,
     session: &MemberSession,
@@ -64,14 +64,12 @@ pub async fn signer_of(
             .derive_seed(super::setup::ADMINISTRATOR_KEY_PURPOSE)?,
     );
     let certificate = store
-        .certificates()
+        .live_certificate(
+            &session.verifying_key,
+            &session.member_id,
+            &key.verifying_key(),
+        )
         .await?
-        .into_iter()
-        .find(|certificate| {
-            certificate.member_id == session.member_id
-                && certificate.signing_public_key == key.verifying_key()
-                && certificate.revoked_at.is_none()
-        })
         .ok_or_else(|| {
             Error::refused(
                 RefusalReason::NotAdministrator,

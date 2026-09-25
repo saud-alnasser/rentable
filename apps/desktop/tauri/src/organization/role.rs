@@ -6,23 +6,22 @@
 //! before it acts is the number on the verified row, so widening and narrowing are writes to that
 //! number and the role travels with them as the label.
 //!
-//! **Giving somebody an act that signs rows is the owner's alone.** Six of the seven acts write a
-//! signed row, and a row is only accepted from a member a certificate names; only the owner's
-//! vault derives the organization key that issues one. So a holder of `changeRole` who is not the
-//! owner narrows anybody and widens only with `renameWorkspace`, the one act that signs nothing
+//! **Giving somebody an act that signs rows is the owner's alone, still.** Six of the seven acts
+//! write a signed row, and a row is only accepted from a member a certificate names. The chain is
+//! delegated since effort 838, so a manager's certificate could issue one, but the flows move onto
+//! it in the tickets after the chain's: until then a holder of `changeRole` who is not the owner
+//! narrows anybody and widens only with `renameWorkspace`, the one act that signs nothing
 //! (`workspace::rename_workspace` writes the sealed name outside the signature), and the refusal
-//! names the owner. *Rejected in the plan: sealing the organization key into every
-//! administrator's vault, which is a second master secret that a removal cannot rotate off the
-//! replica already on somebody's disk.*
+//! names the owner.
 //!
-//! **The certificate follows the permissions, in the same call.** A member gaining their first
-//! signing act is issued `cert-<member id>` over the `signing_public_key` their row has carried
-//! since it was written; a member losing their last has the rows their certificate signed
-//! re-signed under the actor and the certificate written back revoked, which is the pair
-//! `removal::retire_member` performs and this reuses rather than repeats
-//! (`store::re_sign_rows_of_certificate`, `Certificate::revoked`). `workspace::signer_of` is
-//! untouched: a widened member signs because a certificate names their key, never because
-//! something read their role.
+//! **The certificate follows the permissions, in the same call** ([`keep_certificate_in_step`]).
+//! A member whose row signs is issued a certificate from the actor's, under a fresh id, over the
+//! `signing_public_key` their row has carried since it was written, with the row's ceiling and
+//! rank; a member whose row moved away from their certificate, or who signs nothing any more, has
+//! the rows it signed re-signed under the actor and a revocation written for it, the pair
+//! `removal::retire_member` performs too (`store::re_sign_rows_of_certificate`,
+//! `authority::revoke`). `workspace::signer_of` is untouched: a widened member signs because a
+//! certificate names their key, never because something read their role.
 //!
 //! **Nobody changes their own row and nobody changes the owner's.** The first keeps the act an act
 //! on somebody else, so an administrator cannot grant themselves what they were not given; the
@@ -31,9 +30,10 @@
 //! **Which leaves one way for the owner's row to change, and it is two acts on two machines**
 //! (effort 828, requirement 22). The owner offers the organization to an account whose password is
 //! set; that person accepts on a machine they are signed in on, with their own password, and the
-//! organization key becomes what their vault derives. Every certificate is re-issued under it with
-//! the same ids and signing keys, so nothing an administrator signed is disturbed; a `succession`
-//! row signed by the old key over the new is what lets every other machine follow. An owner's way
+//! organization key becomes what their vault derives. The root is issued to them under it, and
+//! every certificate the founder issued is issued again from it with the same ids and signing
+//! keys, so nothing an administrator signed is disturbed; a `succession` row signed by the old key
+//! over the new is what lets every other machine follow. An owner's way
 //! back is then their password and nothing read out of the directory, founder or transferee alike.
 //! *It was one act that sealed the founder's key into the new owner's row and left the key
 //! unchanged, until review round one found that a way back resting on that seal rests on the
@@ -51,8 +51,9 @@ use crate::{
 use super::{
     HeldOrganization,
     authority::{
-        AdministratorKey, OrganizationKey, SuccessionAuthority, VERIFYING_KEY_BYTES,
-        issue_certificate, sign_succession, verify_certificate, verify_succession,
+        AdministratorKey, Certificate, Chain, Issue, OrganizationKey, SuccessionAuthority,
+        VERIFYING_KEY_BYTES, issue_certificate, issue_root_certificate, revoke, sign_succession,
+        unused_certificate_id, verify_succession,
     },
     invite::{MemberFacts, members, random_id},
     permission::{self, Administration},
@@ -77,6 +78,83 @@ pub(super) fn signs_rows(permissions: i64) -> bool {
         .iter()
         .filter(|act| **act != SIGNS_NOTHING)
         .any(|act| permission::permits(permissions, *act))
+}
+
+/// Keep a member's certificate in step with what their row says they may do (effort 838).
+///
+/// **A member who signs holds one live certificate, whose ceiling and rank are the row's**
+/// (`permission::ceiling_of_row`, `permission::rank_of_role`), issued down from the actor's own
+/// with `signer`'s key. Where the member already holds exactly that, nothing is written. Otherwise
+/// a fresh certificate is issued under a fresh id, and every older live one has the rows it signed
+/// re-signed under the actor and is then revoked, so retiring it bricks nothing and a row newly
+/// signed under it is refused on read. A member who no longer signs is left with none.
+///
+/// *Until ticket 04 of effort 838 replaces it with the routine that does the three in one
+/// transaction and refuses a row the actor could not sign.* The acts that call it are unchanged in
+/// who may perform them: certifying a signer is still refused to anybody but the owner, by the
+/// callers, until the flows move onto the chain.
+#[allow(clippy::too_many_arguments)]
+pub(super) async fn keep_certificate_in_step(
+    store: &OrganizationStore,
+    session: &MemberSession,
+    signer: &Signer<'_>,
+    member_id: &str,
+    signing_public_key: &[u8; VERIFYING_KEY_BYTES],
+    role: &str,
+    permissions: i64,
+    now: i64,
+) -> Result<(), Error> {
+    let signs = role == permission::ADMINISTRATOR || signs_rows(permissions);
+    let ceiling = permission::ceiling_of_row(role, permissions);
+    let rank = permission::rank_of_role(role);
+    let live = store
+        .live_certificates(&session.verifying_key, member_id)
+        .await?;
+    let in_step = |certificate: &Certificate| {
+        &certificate.signing_public_key == signing_public_key
+            && certificate.ceiling == ceiling
+            && certificate.rank == rank
+    };
+
+    if signs && live.len() == 1 && in_step(&live[0]) {
+        return Ok(());
+    }
+
+    if !signs && live.is_empty() {
+        return Ok(());
+    }
+
+    let issued_at = now.to_string();
+
+    if signs {
+        let id = unused_certificate_id(&store.certificates().await?, member_id, &issued_at);
+
+        store
+            .write_certificate(&issue_certificate(
+                signer.key,
+                signer.certificate,
+                Issue {
+                    id: &id,
+                    member_id,
+                    signing_public_key,
+                    ceiling,
+                    rank,
+                    issued_at: &issued_at,
+                },
+            )?)
+            .await?;
+    }
+
+    for old in &live {
+        store
+            .re_sign_rows_of_certificate(&session.verifying_key, &old.id, signer)
+            .await?;
+        store
+            .write_revocation(&revoke(signer.key, signer.certificate, old, &issued_at)?)
+            .await?;
+    }
+
+    Ok(())
 }
 
 /// What somebody who is not the owner is told when they ask for the organization to be handed on.
@@ -467,13 +545,14 @@ pub async fn withdraw_offer(
 /// act reads its own (`session::acting_row`): a member removed, or signed out everywhere, since
 /// the offer was made is refused by name rather than handed the organization.
 ///
-/// **What the re-key touches, and what it deliberately does not.** Every certificate is re-issued
-/// under the new key with the same id, the same member and the same signing key, so every row an
-/// administrator signed goes on verifying and nothing is re-signed for the sake of it. There is no
-/// row in this schema signed by the organization key itself: the owner signs rows through an
-/// ordinary certificate like every other administrator, which is what makes re-issuing the
-/// certificates sufficient and is why the set of rows this act re-signs is the two whose roles
-/// swap. The third row that changes is the organization row carrying the key.
+/// **What the re-key touches, and what it deliberately does not** (effort 838). The new owner is
+/// issued the root under the new key. The rows the founder signed as owner are re-signed under it,
+/// because the founder now ranks as a manager and a manager's certificate does not cover a row
+/// about another manager. Every live certificate the founder issued directly is issued again from
+/// the new root with the same id, the same fields and the same signing key, so every row its
+/// holder signed goes on verifying; the founder's own is issued again the same way, as a
+/// manager's. A certificate issued further down names an issuer whose id and key did not move, and
+/// is not touched. The organization row carrying the key is the last row that changes.
 ///
 /// **The succession is completed under the old key**, not the new one, and that is the one
 /// signature the whole design rests on: a machine that pinned the old key has nothing else it can
@@ -585,23 +664,56 @@ pub async fn accept_ownership(
 
     // **from here on the directory is being re-keyed**, and every refusal above has already been
     // made.
-    let held_certificates = store.certificates().await?;
-    let mine_certificate_id = format!("cert-{}", session.member_id);
-    let mut reissued = Vec::new();
+    let (held_certificates, held_revocations) = store.chain_rows().await?;
+    let before = Chain::new(&pinned, &held_certificates, &held_revocations);
+    // the root the key being left signed, which is the founder's: what signed every row the owner
+    // wrote, and what issued every certificate the owner gave.
+    let old_root = held_certificates
+        .iter()
+        .find(|certificate| certificate.is_root() && before.live(&certificate.id).is_ok())
+        .cloned()
+        .ok_or_else(|| Error::Integrity {
+            message: "the organization's root certificate does not verify under this machine's key"
+                .to_string(),
+        })?;
+    let issued_at = now.to_string();
 
+    // the new root: this person's, under the key their own vault derives (effort 838).
+    let root = issue_root_certificate(
+        &new_key,
+        &unused_certificate_id(&held_certificates, &session.member_id, &issued_at),
+        &session.member_id,
+        &mine.signing_public_key,
+        &issued_at,
+    );
+
+    store.write_certificate(&root).await?;
+
+    let signer = Signer {
+        key: &administrator_key,
+        certificate: &root,
+    };
+
+    // every row the founder signed as owner moves under the new root first, read under the key
+    // being left: the founder is about to rank as a manager, and a manager's certificate does not
+    // cover a row about another manager.
+    store
+        .re_sign_rows_of_certificate(&pinned, &old_root.id, &signer)
+        .await?;
+
+    // every certificate the founder issued directly is issued again, under the same id with the
+    // same fields, from the new root, so every row it signed goes on verifying. Only what is live
+    // under the key being left: a revoked one stays where it was, and nothing re-issues it. The
+    // table is read raw, and a certificate no row names is checked by nothing else, so one written
+    // by anybody holding the credential, with a signature nothing ever verified, would otherwise
+    // leave here signed from the new root; it is left as it is rather than refusing the handover,
+    // because a planted row must not be able to hold the organization to its founder.
     for certificate in &held_certificates {
-        if certificate.id == mine_certificate_id {
+        if certificate.issuer_certificate_id.as_deref() != Some(old_root.id.as_str()) {
             continue;
         }
 
-        // only what the key being left issued is re-issued under the key replacing it. The table
-        // is read raw, and a certificate no row names is checked by nothing else, so one written
-        // by anybody holding the organization credential, with a signature nothing ever verified,
-        // would otherwise leave here signed by the organization key and authorise every row its
-        // holder signs from then on. It is left as it is, refused under the new key as it was
-        // under the old, rather than refusing the handover: a planted row must not be able to
-        // hold the organization to its founder.
-        if let Err(refusal) = verify_certificate(&pinned, certificate) {
+        if let Err(refusal) = before.live(&certificate.id) {
             diagnostics::warn("organization.succession.certificateNotReissued")
                 .with("certificate", certificate.id.as_str())
                 .with("member", certificate.member_id.as_str())
@@ -611,53 +723,41 @@ pub async fn accept_ownership(
             continue;
         }
 
-        // the same id, the same member and the same signing key, which is what lets every row
-        // that names this certificate stay exactly as it was signed. `revoked_at` is carried over
-        // because it was never under the issue signature and a re-issue is not a reinstatement.
-        let issued = issue_certificate(
-            &new_key,
-            &certificate.id,
-            &certificate.member_id,
-            &certificate.signing_public_key,
-            &certificate.issued_at,
-        );
-
-        reissued.push(match &certificate.revoked_at {
-            Some(at) => issued.revoked(at),
-            None => issued,
-        });
+        store
+            .write_certificate(&issue_certificate(
+                &administrator_key,
+                &root,
+                Issue {
+                    id: &certificate.id,
+                    member_id: &certificate.member_id,
+                    signing_public_key: &certificate.signing_public_key,
+                    ceiling: certificate.ceiling,
+                    rank: certificate.rank,
+                    issued_at: &certificate.issued_at,
+                },
+            )?)
+            .await?;
     }
 
-    // and the new owner's own, which is what signs the two rows below. A member who was never an
-    // administrator holds none and is issued one here; one who held a revoked certificate has it
-    // back, because they are the owner now and every act is theirs.
-    let issued_at = held_certificates
-        .iter()
-        .find(|certificate| certificate.id == mine_certificate_id)
-        .map_or_else(
-            || now.to_string(),
-            |certificate| certificate.issued_at.clone(),
-        );
-
-    reissued.push(issue_certificate(
-        &new_key,
-        &mine_certificate_id,
-        &session.member_id,
-        &mine.signing_public_key,
-        &issued_at,
-    ));
-
-    for certificate in &reissued {
-        store.write_certificate(certificate).await?;
-    }
-
-    let certificate = reissued.last().cloned().ok_or_else(|| Error::Integrity {
-        message: "the new owner's certificate was not issued".to_string(),
-    })?;
-    let signer = Signer {
-        key: &administrator_key,
-        certificate: &certificate,
-    };
+    // and the founder's own, under its id and key, as a manager's: what they sign with from now
+    // on, and what the revocations they signed as owner go on naming.
+    store
+        .write_certificate(&issue_certificate(
+            &administrator_key,
+            &root,
+            Issue {
+                id: &old_root.id,
+                member_id: &old_root.member_id,
+                signing_public_key: &old_root.signing_public_key,
+                ceiling: permission::ceiling_of_row(
+                    permission::ADMINISTRATOR,
+                    permission::mask_of_role(permission::ADMINISTRATOR),
+                ),
+                rank: permission::rank_of_role(permission::ADMINISTRATOR),
+                issued_at: &old_root.issued_at,
+            },
+        )?)
+        .await?;
 
     store
         .write_member(
@@ -892,15 +992,15 @@ pub async fn change_role(
     let signed_before = signs_rows(member.permissions);
     let signs_now = signs_rows(permissions);
 
-    // their first signing act needs the organization key, and it is derived before the row is
-    // written: the owner's own, founder or transferee, refused by name where it is not the key
-    // this session has pinned (effort 828, requirement 22). A row written as a signer with no
-    // certificate to follow is the promise the chain will not keep, so the refusal comes first.
-    let organization_key = if signs_now && !signed_before {
-        Some(organization_key_of(session)?)
-    } else {
-        None
-    };
+    // their first signing act is the owner's to give, founder or transferee, refused by name where
+    // the session's vault does not derive the key it has pinned (effort 828, requirement 22). A
+    // row written as a signer with no certificate to follow is the promise the chain will not
+    // keep, so the refusal comes first. *The key signed the certificate itself until effort 838;
+    // the owner's certificate issues it now, and the check stands until the flows move onto the
+    // delegated chain.*
+    if signs_now && !signed_before {
+        organization_key_of(session)?;
+    }
 
     store
         .write_member(
@@ -914,35 +1014,20 @@ pub async fn change_role(
         )
         .await?;
 
-    if let Some(organization_key) = organization_key {
-        // the owner certifies the key the row has carried since it was written, which is the key
-        // `workspace::signer_of` will derive from their own vault.
-        store
-            .write_certificate(&issue_certificate(
-                &organization_key,
-                &format!("cert-{member_id}"),
-                member_id,
-                &member.signing_public_key,
-                &now.to_string(),
-            ))
-            .await?;
-    }
-
-    if signed_before && !signs_now {
-        // their last one: the rows their certificate signed move under the actor, who holds
-        // authority over them, before it is written back revoked, so retiring it bricks nothing.
-        // A row they newly sign under it afterwards is refused on read as revoked.
-        if let Some(theirs) = store.certificates().await?.into_iter().find(|certificate| {
-            certificate.member_id == member_id && certificate.revoked_at.is_none()
-        }) {
-            store
-                .re_sign_rows_of_certificate(&session.verifying_key, &theirs.id, &signer)
-                .await?;
-            store
-                .write_certificate(&theirs.revoked(&now.to_string()))
-                .await?;
-        }
-    }
+    // the certificate follows: issued over the key the row has carried since it was written,
+    // which is the key `workspace::signer_of` will derive from their own vault, and the old one
+    // retired where the row moved away from it.
+    keep_certificate_in_step(
+        store,
+        session,
+        &signer,
+        member_id,
+        &member.signing_public_key,
+        role,
+        permissions,
+        now,
+    )
+    .await?;
 
     if !store.push().await {
         diagnostics::warn("organization.member.roleNotYetSent")
@@ -983,8 +1068,7 @@ mod tests {
         organization::{
             HeldOrganization,
             authority::{
-                AdministratorKey, Certificate, OrganizationKey, VERIFYING_KEY_BYTES,
-                verify_certificate,
+                AdministratorKey, Certificate, Chain, OrganizationKey, VERIFYING_KEY_BYTES,
             },
             invite::{AccountAndLink, Invitation, WorkspaceGrant, locator, make_account_and_link},
             join::accept,
@@ -997,9 +1081,9 @@ mod tests {
                 ADMINISTRATOR_KEY_PURPOSE, CreateOrganization, Remote, create_organization,
                 owner_key_from,
             },
-            store::{MemberRecord, OrganizationStore, Signer, TABLES},
+            store::{GrantRecord, MemberRecord, OrganizationStore, Signer, TABLES},
             vault::{KdfParams, seal_to_public_key},
-            workspace::{create_workspace, signer_of},
+            workspace::{create_workspace, grant_workspace, signer_of},
         },
         persisted::Persisted,
         sync::{
@@ -1257,15 +1341,22 @@ mod tests {
 
     /// Whether a live certificate names this member, which is what `workspace::signer_of` looks
     /// for and the whole of what lets them sign a row.
+    ///
+    /// Judged under the key the organization row carries, which a test may read and a reader
+    /// never does.
     async fn certified(store: &OrganizationStore, member_id: &str) -> bool {
-        store
-            .certificates()
+        let pinned = store
+            .organization()
+            .await
+            .expect("the organization row")
+            .expect("an organization")
+            .verifying_key;
+
+        !store
+            .live_certificates(&pinned, member_id)
             .await
             .expect("the certificates")
-            .into_iter()
-            .any(|certificate| {
-                certificate.member_id == member_id && certificate.revoked_at.is_none()
-            })
+            .is_empty()
     }
 
     /// A copy of the replica as another machine would hold it, opened as a second store. Every
@@ -1600,8 +1691,12 @@ mod tests {
         );
     }
 
-    /// Criterion 7: a member widened with `inviteMember` can invite, and the invited row verifies
-    /// on every other client; narrowed back, a row they newly sign is refused.
+    /// Criterion 7: a member widened into an act that signs signs a row, and it verifies on every
+    /// other client; narrowed back, a row they newly sign is refused.
+    ///
+    /// *The act was `inviteMember` and the row a member row until effort 838: a member row is
+    /// signed only by a certificate that outranks the member it is about, and a member does not
+    /// outrank a member. The act is `grantWorkspace` now, whose row is about no rank.*
     #[tokio::test]
     async fn a_first_signing_act_is_certified_and_the_last_one_lost_retires_the_certificate() {
         let directory = scratch("certificate");
@@ -1625,7 +1720,7 @@ mod tests {
             &owner,
             &sami.member_id,
             permission::MEMBER,
-            permission::mask_of(&[Administration::InviteMember]),
+            permission::mask_of(&[Administration::GrantWorkspace]),
             NOW + 1,
         )
         .await
@@ -1663,8 +1758,9 @@ mod tests {
             theirs_to_sign_with
         );
 
-        // and they invite, which is a row signed under that certificate. Their session is opened
-        // after the widening, because what a session may do is what the row said when it opened.
+        // and they grant, which is a row signed under that certificate: the workspace they hold,
+        // given to another member from their own credential. Their session is opened after the
+        // widening, because what a session may do is what the row said when it opened.
         let mut widened = sign_in(
             &store,
             &joined_as(&owner, &sami.member_id, permission::MEMBER),
@@ -1675,33 +1771,41 @@ mod tests {
         .expect("the widened member did not sign in");
         widened.must_change_password = false;
 
-        let workspaces = full(&[workspace_id.clone()]);
-        let theirs = make_account_and_link(
+        let (noor, _) = a_member(
+            &store,
+            &owner,
+            &link,
+            "noor.new",
+            permission::MEMBER,
+            &workspace_id,
+        )
+        .await;
+
+        grant_workspace(
             &store,
             &widened,
             no_platform(),
-            &link,
-            Invitation {
-                username: "noor.new",
-                role: permission::MEMBER,
-                workspaces: &workspaces,
-            },
-            test_cost(),
-            NOW + 2,
+            &workspace_id,
+            &noor.member_id,
+            AccessLevel::FullAccess,
         )
         .await
-        .expect("a widened member could not invite");
+        .expect("a widened member could not grant");
+
+        let is_theirs = |grant: &GrantRecord| {
+            grant.member_id == noor.member_id && grant.workspace_id == workspace_id
+        };
 
         // on a second machine, verified against the key the link pinned.
         let elsewhere = another_machine(&directory, &owner.organization_id).await;
-        let rows = elsewhere
-            .members(&owner.verifying_key)
+        let grants = elsewhere
+            .grants(&owner.verifying_key)
             .await
-            .expect("the invited row does not verify on another machine");
+            .expect("the grant does not verify on another machine");
 
         assert!(
-            rows.iter().any(|member| member.id == theirs.member_id),
-            "the row a widened member signed is not on the other machine"
+            grants.iter().any(is_theirs),
+            "the grant a widened member signed is not on the other machine"
         );
 
         drop(elsewhere);
@@ -1721,7 +1825,7 @@ mod tests {
 
         assert!(!certified(&store, &sami.member_id).await);
         assert!(
-            store.members(&owner.verifying_key).await.is_ok(),
+            store.grants(&owner.verifying_key).await.is_ok(),
             "retiring the certificate bricked the rows it had signed"
         );
         assert!(
@@ -1743,27 +1847,27 @@ mod tests {
                 .derive_seed(ADMINISTRATOR_KEY_PURPOSE)
                 .expect("the signing seed"),
         );
-        let row = store
-            .members(&owner.verifying_key)
+        let grant = store
+            .grants(&owner.verifying_key)
             .await
-            .expect("the rows")
+            .expect("the grants")
             .into_iter()
-            .find(|member| member.id == theirs.member_id)
-            .expect("the row they had signed");
+            .find(is_theirs)
+            .expect("the grant they had signed");
 
         store
-            .write_member(
+            .write_grant(
                 &Signer {
                     key: &key,
                     certificate: &revoked,
                 },
-                &row,
+                &grant,
             )
             .await
             .expect("the write itself is not what refuses");
 
         let refusal = store
-            .members(&owner.verifying_key)
+            .grants(&owner.verifying_key)
             .await
             .expect_err("a row signed under a revoked certificate was accepted");
 
@@ -2472,20 +2576,36 @@ mod tests {
                 .derive_seed(ADMINISTRATOR_KEY_PURPOSE)
                 .expect("the seed"),
         );
+        // named as issued by the founder's root, which is the set the handover issues again.
+        let root = store
+            .certificates()
+            .await
+            .expect("the certificates")
+            .into_iter()
+            .find(Certificate::is_root)
+            .expect("the founder's root");
         let planted = Certificate {
             id: format!("cert-{}", bilal.member_id),
             member_id: bilal.member_id.clone(),
             signing_public_key: planted_key.verifying_key(),
-            signature_by_organization_key: vec![7; 64],
+            issuer_certificate_id: Some(root.id.clone()),
+            ceiling: permission::MANAGER_ROLE.mask,
+            rank: 1,
             issued_at: NOW.to_string(),
-            revoked_at: None,
+            signature: vec![7; 64],
+        };
+        let judged = |key: &[u8; VERIFYING_KEY_BYTES], certificates: &[Certificate]| {
+            Chain::new(key, certificates, &[]).live(&planted.id).is_ok()
         };
 
         store
             .write_certificate(&planted)
             .await
             .expect("the planted certificate");
-        assert!(verify_certificate(&old_key, &planted).is_err());
+        assert!(!judged(
+            &old_key,
+            &store.certificates().await.expect("the certificates")
+        ));
 
         offer_ownership(&store, &owner, &ada.member_id, PASSWORD, NOW + 1)
             .await
@@ -2515,8 +2635,11 @@ mod tests {
             .find(|certificate| certificate.id == planted.id)
             .expect("the planted certificate is still there");
 
-        assert_eq!(after.signature_by_organization_key, vec![7; 64]);
-        assert!(verify_certificate(&new_key, &after).is_err());
+        assert_eq!(after.signature, vec![7; 64]);
+        assert!(!judged(
+            &new_key,
+            &store.certificates().await.expect("the certificates")
+        ));
 
         let rows = store
             .members(&new_key)

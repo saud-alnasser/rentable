@@ -58,7 +58,10 @@ use crate::{
 
 use super::{
     HeldOrganization,
-    authority::{AdministratorKey, OrganizationKey, VERIFYING_KEY_BYTES, issue_certificate},
+    authority::{
+        AdministratorKey, OrganizationKey, VERIFYING_KEY_BYTES, certificate_id,
+        issue_root_certificate,
+    },
     connect::{self, OrganizationFacts},
     invite::validate_username,
     permission,
@@ -565,9 +568,11 @@ async fn finish<P: TursoPlatform>(
         AdministratorKey::from_bytes(&secret.derive_seed(ADMINISTRATOR_KEY_PURPOSE)?);
     let verifying_key = organization_key.verifying_key();
     let member_id = random_id()?;
-    let certificate = issue_certificate(
+    // the root: the one certificate the organization key signs, the owner's, carrying every flag
+    // (effort 838). Every other certificate is issued down from it.
+    let certificate = issue_root_certificate(
         &organization_key,
-        &format!("cert-{member_id}"),
+        &certificate_id(&member_id, &now.to_string()),
         &member_id,
         &administrator_key.verifying_key(),
         &now.to_string(),

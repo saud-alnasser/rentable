@@ -458,22 +458,21 @@ pub(crate) async fn retire_member(
     store.delete_open_machine_links_of(member_id).await?;
 
     // end a removed administrator's authority. A member has no certificate and this does nothing;
-    // an administrator's certificate is written back revoked, so a row they newly sign under it is
-    // refused on read (F2, the half this ticket closes). But first the rows it legitimately signed
-    // are re-signed under the remover, who holds authority over them, so revoking it bricks nothing
-    // (`store::re_sign_rows_of_certificate`, the routine reset shares).
-    if let Some(their_certificate) =
-        store.certificates().await?.into_iter().find(|certificate| {
-            certificate.member_id == member_id && certificate.revoked_at.is_none()
-        })
-    {
-        store
-            .re_sign_rows_of_certificate(&session.verifying_key, &their_certificate.id, &signer)
-            .await?;
-        store
-            .write_certificate(&their_certificate.revoked(&now.to_string()))
-            .await?;
-    }
+    // an administrator's has a revocation written for it, signed by the remover, so a row they
+    // newly sign under it is refused on read (F2, the half this ticket closes). But first the rows
+    // it legitimately signed are re-signed under the remover, who holds authority over them, so
+    // revoking it bricks nothing (`role::keep_certificate_in_step`, the routine reset shares).
+    super::role::keep_certificate_in_step(
+        store,
+        session,
+        &signer,
+        member_id,
+        &member.signing_public_key,
+        permission::REMOVED,
+        0,
+        now,
+    )
+    .await?;
 
     Ok(())
 }
@@ -490,6 +489,7 @@ mod tests {
         error::Error,
         organization::{
             HeldOrganization,
+            authority::Chain,
             invite::{
                 AccountAndLink, Invitation, WorkspaceGrant, locator, make_account_and_link, members,
             },
@@ -1337,11 +1337,10 @@ mod tests {
 
         let ada_cert_id = org
             .store
-            .certificates()
+            .live_certificates(&owner.verifying_key, &admin_id)
             .await
             .expect("the certificates")
-            .into_iter()
-            .find(|certificate| certificate.member_id == admin_id)
+            .pop()
             .expect("the administrator's certificate")
             .id;
 
@@ -1362,18 +1361,19 @@ mod tests {
         .await
         .expect("the removal failed");
 
-        // their certificate is revoked (F2).
-        let ada_cert = org
-            .store
-            .certificates()
-            .await
-            .expect("the certificates")
-            .into_iter()
+        // their certificate is revoked (F2): still there, and named by a revocation that counts.
+        let (certificates, revocations) = org.store.chain_rows().await.expect("the chain");
+
+        let ada_cert = certificates
+            .iter()
             .find(|certificate| certificate.id == ada_cert_id)
+            .cloned()
             .expect("the certificate is gone rather than revoked");
 
         assert!(
-            ada_cert.revoked_at.is_some(),
+            Chain::new(&owner.verifying_key, &certificates, &revocations)
+                .live(&ada_cert_id)
+                .is_err(),
             "the removed administrator's certificate was not revoked"
         );
 

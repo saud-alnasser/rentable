@@ -1153,7 +1153,7 @@ mod tests {
         keyring::{self, refuse_the_next_store, take_the_credential_store},
         organization::{
             HeldOrganization,
-            authority::{AdministratorKey, OrganizationKey, issue_certificate},
+            authority::{AdministratorKey, OrganizationKey, issue_root_certificate},
             permission,
             setup::{ADMINISTRATOR_KEY_PURPOSE, CreateOrganization, Remote, create_organization},
             store::{GrantRecord, MemberRecord, OrganizationRecord, OrganizationStore, Signer},
@@ -1450,7 +1450,7 @@ mod tests {
         // the second organization, made elsewhere: its owner's chain, and this person as a member.
         let organization_key = OrganizationKey::generate().expect("a key");
         let administrator_key = AdministratorKey::generate().expect("a key");
-        let certificate = issue_certificate(
+        let certificate = issue_root_certificate(
             &organization_key,
             "cert-their-owner",
             "their-owner",

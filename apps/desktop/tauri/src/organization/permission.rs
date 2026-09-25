@@ -446,6 +446,35 @@ pub fn mask_of_role(role: &str) -> i64 {
     }
 }
 
+/// How high a member row stands, from the role it names: what a certificate has to outrank to
+/// sign the row (`authority::covers`).
+///
+/// **Read off the word until the row carries its role's id** (effort 838, ticket 04): the owner at
+/// the owner's rank, a manager or an administrator at the manager's, and anybody else, a removed
+/// member included, at the member's.
+pub fn rank_of_role(role: &str) -> i64 {
+    match role {
+        OWNER => OWNER_ROLE.rank,
+        MANAGER | ADMINISTRATOR => MANAGER_ROLE.rank,
+        _ => MEMBER_ROLE.rank,
+    }
+}
+
+/// The ceiling a certificate issued from a row carries: what the member may sign for.
+///
+/// **The row's own permissions, and the mark for an administrator**, until the row carries a role
+/// id and an override (effort 838, ticket 04) and the ceiling becomes the effective value. The
+/// owner's is every flag. The mark is added because setting it is an administrator's today by
+/// role rather than by a bit on the row, and a certificate without it could not sign the mark it
+/// sets.
+pub fn ceiling_of_row(role: &str, permissions: i64) -> i64 {
+    match role {
+        OWNER => OWNER_ROLE.mask,
+        ADMINISTRATOR => permissions | mask_of(&[Flag::ManageMark]),
+        _ => permissions,
+    }
+}
+
 pub fn mask_of<A: Act>(acts: &[A]) -> i64 {
     acts.iter()
         .fold(0, |mask, act| mask | (1_i64 << act.bit_index()))

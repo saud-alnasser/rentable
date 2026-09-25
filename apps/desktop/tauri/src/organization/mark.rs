@@ -203,8 +203,7 @@ mod tests {
     use crate::{
         organization::{
             HeldOrganization,
-            authority::{AdministratorKey, issue_certificate},
-            role::organization_key_of,
+            authority::{AdministratorKey, Issue, certificate_id, issue_certificate},
             session::{CredentialSlot, sign_in},
             setup::{CreateOrganization, Remote, create_organization},
             store::MemberRecord,
@@ -357,14 +356,30 @@ mod tests {
             .expect("the member");
 
         if role == permission::ADMINISTRATOR {
+            let (owner_key, owner_certificate) =
+                crate::organization::workspace::signer_of(store, owner)
+                    .await
+                    .expect("the owner's signer");
+
             store
-                .write_certificate(&issue_certificate(
-                    &organization_key_of(owner).expect("the organization key"),
-                    &format!("cert-{id}"),
-                    id,
-                    &signing_public_key,
-                    "1757000000000",
-                ))
+                .write_certificate(
+                    &issue_certificate(
+                        &owner_key,
+                        &owner_certificate,
+                        Issue {
+                            id: &certificate_id(id, "1757000000000"),
+                            member_id: id,
+                            signing_public_key: &signing_public_key,
+                            ceiling: permission::ceiling_of_row(
+                                role,
+                                permission::mask_of_role(role),
+                            ),
+                            rank: permission::rank_of_role(role),
+                            issued_at: "1757000000000",
+                        },
+                    )
+                    .expect("the certificate"),
+                )
                 .await
                 .expect("the certificate");
         }

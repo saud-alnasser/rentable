@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [01, 02]
 ---
 
@@ -16,16 +16,16 @@ readers; the flows that write rows move onto it in 04 to 06.
 
 Traces requirement 9 of [[efforts/838-permissions-are-a-role-and-an-override/spec]], and criterion 9.
 
-- [ ] `certificate.v2` and `revocation.v1` preimages as [[efforts/838-permissions-are-a-role-and-an-override/plan]], *Architecture*, gives them; the old
+- [x] `certificate.v2` and `revocation.v1` preimages as [[efforts/838-permissions-are-a-role-and-an-override/plan]], *Architecture*, gives them; the old
       certificate preimage and `revoked_at` are no longer read.
-- [ ] The walk: issuer signature (the pinned key at a root), issuer not revoked, ceiling within the
+- [x] The walk: issuer signature (the pinned key at a root), issuer not revoked, ceiling within the
       issuer's, rank below the issuer's, issuer holding a `MEMBER_ADMINISTRATION` flag; a cycle and
       a depth past 16 refused. One test per check, each shown failing before it passes.
-- [ ] A revocation verifies only when its revoker's certificate verifies and outranks the revoked
+- [x] A revocation verifies only when its revoker's certificate verifies and outranks the revoked
       one, or is the root; a certificate below a revoked one reads as revoked.
-- [ ] The row-kind table in `authority.rs` is exactly the plan's; a test per row kind signs it under
+- [x] The row-kind table in `authority.rs` is exactly the plan's; a test per row kind signs it under
       a certificate lacking the flag, and under one not outranking the subject, and both are refused.
-- [ ] The verified readers in `store.rs` verify through the walk, with a per-read certificate cache.
+- [x] The verified readers in `store.rs` verify through the walk, with a per-read certificate cache.
 
 ## Relevant areas
 

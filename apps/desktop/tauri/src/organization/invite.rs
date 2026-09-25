@@ -111,7 +111,7 @@ use crate::{
 };
 
 use super::{
-    authority::{AdministratorKey, issue_certificate},
+    authority::AdministratorKey,
     link::{Half, HalfKind, LinkPayload, Locator, seal_payload},
     permission::{self, Administration},
     session::{MemberSession, permissions_on_row},
@@ -1053,6 +1053,17 @@ async fn write_account<P: TursoPlatform>(
     kdf_params: KdfParams,
     now: i64,
 ) -> Result<String, Error> {
+    // a grant row is one only a certificate holding `grantWorkspace` signs (effort 838, the
+    // row-kind table), so an account written with a workspace takes that act as well as the one
+    // that brought the actor here, and the refusal names it before a row is written. Written
+    // without it, the grant would be refused on every read, and with it every grant beside it.
+    if !workspaces.is_empty() {
+        permission::require(
+            permissions_on_row(store, session).await?,
+            Administration::GrantWorkspace,
+        )?;
+    }
+
     let (key, certificate) = signer_of(store, session).await?;
     let signer = Signer {
         key: &key,
@@ -1097,8 +1108,8 @@ async fn write_account<P: TursoPlatform>(
     let administrator_key =
         AdministratorKey::from_bytes(&secret.derive_seed(ADMINISTRATOR_KEY_PURPOSE)?);
 
-    // a certificate is what makes a signed row of theirs verify, and issuing one needs the
-    // organization key, which only the owner's vault yields. An administrator carries every act,
+    // a certificate is what makes a signed row of theirs verify, and issuing one is the owner's
+    // until the flows move onto the delegated chain (effort 838). An administrator carries every act,
     // six of which sign, so the role and the acts are held to one line here rather than two: a row
     // that says administrator without a certificate behind it is a promise the chain will not
     // keep, and a member handed a signing act with no certificate is the same promise unsaid.
@@ -1113,34 +1124,27 @@ async fn write_account<P: TursoPlatform>(
 
         // read through `role::organization_key_of`, which derives the owner's own key, founder or
         // transferee, and refuses it by name where it is not the key this session has pinned: a
-        // session open across a handover would otherwise certify under the key that was handed
-        // over (effort 828, requirement 22).
-        let organization_key = super::role::organization_key_of(session)?;
-
-        // a reset draws a fresh vault secret, so `administrator_key` differs from the one this
-        // member's old certificate names, and the certificate about to replace it carries the new
-        // key. Every row the old certificate signed would then fail verification. Re-sign them
-        // first, under the resetter (an owner, who holds authority over all of them), so the
-        // replacement bricks nothing (`store::re_sign_rows_of_certificate`). A fresh invitation of
-        // a new administrator has no rows under this id and this moves nothing.
-        store
-            .re_sign_rows_of_certificate(
-                &session.verifying_key,
-                &format!("cert-{member_id}"),
-                &signer,
-            )
-            .await?;
-
-        store
-            .write_certificate(&issue_certificate(
-                &organization_key,
-                &format!("cert-{member_id}"),
-                member_id,
-                &administrator_key.verifying_key(),
-                &now.to_string(),
-            ))
-            .await?;
+        // session open across a handover would otherwise certify a signer it is no longer the
+        // owner to certify (effort 828, requirement 22).
+        super::role::organization_key_of(session)?;
     }
+
+    // the certificate follows the row, issued from the actor's own (effort 838). A reset draws a
+    // fresh vault secret, so `administrator_key` differs from the one this member's old
+    // certificate names: the old one has the rows it signed re-signed under the resetter, who
+    // holds authority over them, and is then revoked, so the replacement bricks nothing
+    // (`role::keep_certificate_in_step`). A fresh invitation has no certificate to retire.
+    super::role::keep_certificate_in_step(
+        store,
+        session,
+        &signer,
+        member_id,
+        &administrator_key.verifying_key(),
+        role,
+        permissions,
+        now,
+    )
+    .await?;
 
     // which run of this member's sessions is current, off the row rather than assumed. A fresh
     // invitation has no row to read and starts at the first.
@@ -3483,9 +3487,14 @@ mod tests {
         .await
         .expect("the member");
 
+        // signed under the administrator's live certificate, the one `signer_of` finds for them.
+        let (_, administrators_certificate) = super::signer_of(&store, &ada)
+            .await
+            .expect("the administrator's signer");
+
         assert_eq!(
             signed_by(&store, &sami.member_id).await,
-            format!("cert-{}", admin.member_id)
+            administrators_certificate.id
         );
 
         let renamed = rename_member(&store, &owner, &sami.member_id, " Sami.Staff ", 3)
