@@ -45,6 +45,7 @@ const en = {
 			openPayments: 'open payments',
 			openPreviousRelease: 'open previous release',
 			proceed: 'proceed',
+			remind: 'remind on WhatsApp',
 			remove: 'remove',
 			renew: 'renew',
 			renewing: 'renewing...',
@@ -259,6 +260,7 @@ const en = {
 				holdsPayments: 'this contract has payments. delete them before deleting it.',
 				missing: 'this contract is no longer in the workspace. reload to see what changed.',
 				notTerminable: 'only an active, fulfilled or past contract can be terminated.',
+				nothingToRemind: 'this contract owes nothing and has nothing falling due this week.',
 				notUnterminable: 'only a terminated contract can be restored.',
 				paidInFull: 'this contract is paid in full and takes no more payments.',
 				periodOffCycle:
@@ -901,6 +903,21 @@ const en = {
 			endingSoon: 'ending soon',
 			overdue: 'overdue',
 			owing: 'owing'
+		},
+
+		// the message a tenant is reminded with on WhatsApp. It is a letter the tenant reads rather
+		// than a label on the screen, so it opens in capitals as a letter does. `owed` is for rent
+		// already due, `comingDue` for rent falling due this week, and each has a form for a
+		// contract that holds no units.
+		reminder: {
+			comingDue:
+				'Hello {tenant:string}, the rent of SAR {amount:string} for {units:string} falls due on {date:string}. Thank you.',
+			comingDueNoUnits:
+				'Hello {tenant:string}, the rent of SAR {amount:string} falls due on {date:string}. Thank you.',
+			noPhone: 'the tenant has no phone number to send a reminder to.',
+			owed: 'Hello {tenant:string}, the rent of SAR {amount:string} for {units:string} has been due since {date:string}. Thank you.',
+			owedNoUnits:
+				'Hello {tenant:string}, the rent of SAR {amount:string} has been due since {date:string}. Thank you.'
 		},
 
 		// a contract's cycles, one row each, with the payments allocated to them oldest first.

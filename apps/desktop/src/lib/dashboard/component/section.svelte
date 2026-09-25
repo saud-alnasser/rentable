@@ -29,6 +29,7 @@
 	import RecordActionControl from '@rentable/design/block/record-action-control.svelte';
 	import { contractActs, contractHost } from '$lib/contract/host.svelte';
 	import { isMoneyRank } from '$lib/contract/rank';
+	import { isReminderRank } from '$lib/contract/reminder';
 	import { withContractRank } from '$lib/contract/rank-filter';
 	import type { DashboardSection } from '$lib/dashboard/dashboard';
 	import { LL } from '$lib/i18n/i18n-svelte';
@@ -55,21 +56,26 @@
 	});
 
 	/**
-	 * Whether this rank is the renewals one, and so offers the action that answers it.
+	 * The act that answers this rank, which each of its rows offers: the renewals rank is answered
+	 * by renewing, and the ranks about money, owed or coming due, by reminding the tenant. A rank's
+	 * rows offer what its rank is for, and nothing else.
 	 *
-	 * The other ranks are about money, owed or coming due, and renewing settles none of it: a
-	 * rank's rows offer what its rank is for.
+	 * The act as the contract declares it, so the row offers it under the name and glyph the card,
+	 * the page and the command menu do.
 	 */
-	const offersRenewal = $derived(rank === 'ending-soon');
+	const answer = $derived(
+		rank === 'ending-soon'
+			? contractActs.find((act) => act.id === 'contract.renew')
+			: isReminderRank(rank)
+				? contractActs.find((act) => act.id === 'contract.remind')
+				: undefined
+	);
 
-	// the act as the contract declares it, so the row offers it under the name and glyph the card,
-	// the page and the command menu do.
-	const renewal = contractActs.find((act) => act.id === 'contract.renew')!;
-
-	// a queue row carries an identity and the figures the row shows, so the renewal is asked of the
-	// contract host by identity: it reads the contract, and the form reads everything a renewal
-	// needs off it. The form is the host's, mounted once in the frame, as every contract form is.
-	const openRenewal = (id: string) => contractHost.runOn(renewal.id, id);
+	// a queue row carries an identity and the figures the row shows, so the act is asked of the
+	// contract host by identity: it reads the contract and answers on its terms, the renewal's form
+	// or the reminder's chat. The form is the host's, mounted once in the frame, as every contract
+	// form is.
+	const runAnswer = (actId: string, id: string) => contractHost.runOn(actId, id);
 </script>
 
 <section class="shrink-0 rounded-2xl bg-card">
@@ -144,16 +150,16 @@
 				<!-- the row's own control, sitting above the link that covers the row: a row opens
 				     its record and never does a second thing, so acting on one is always an
 				     explicit control on it. -->
-				{#if offersRenewal}
-					<!-- the contract's own renew act, drawn as every record act's control is: its
-					     glyph, its name in the tooltip, and the same everywhere it is offered. -->
+				{#if answer}
+					<!-- the contract's own act, drawn as every record act's control is: its glyph,
+					     its name in the tooltip, and the same everywhere it is offered. -->
 					<span class="relative shrink-0">
 						<RecordActionControl
-							label={renewal.label($LL)}
-							icon={renewal.icon}
-							tone={renewal.tone}
-							shortcut={renewal.shortcut}
-							onclick={() => openRenewal(entry.id)}
+							label={answer.label($LL)}
+							icon={answer.icon}
+							tone={answer.tone}
+							shortcut={answer.shortcut}
+							onclick={() => runAnswer(answer.id, entry.id)}
 						/>
 					</span>
 				{/if}

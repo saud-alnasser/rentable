@@ -3,11 +3,13 @@ import {
 	canManuallyTerminateContractStatus,
 	canUnterminateContractStatus
 } from '$lib/contract/contract';
+import { isReminderRank } from '$lib/contract/reminder';
 import type { RecordAct } from '$lib/design/acts';
 import BanIcon from '@lucide/svelte/icons/ban';
 import CalendarPlusIcon from '@lucide/svelte/icons/calendar-plus';
 import CopyIcon from '@lucide/svelte/icons/copy';
 import FilesIcon from '@lucide/svelte/icons/files';
+import MessageCircleIcon from '@lucide/svelte/icons/message-circle';
 import RotateCcwIcon from '@lucide/svelte/icons/rotate-ccw';
 import SquarePenIcon from '@lucide/svelte/icons/square-pen';
 import Trash2Icon from '@lucide/svelte/icons/trash-2';
@@ -32,6 +34,7 @@ export type ContractActId =
 	| 'contract.copyDetails'
 	| 'contract.duplicate'
 	| 'contract.renew'
+	| 'contract.remind'
 	| 'contract.edit'
 	| 'contract.terminate'
 	| 'contract.restore'
@@ -51,6 +54,8 @@ export type ContractHostRequests = {
 	duplicate: (contract: ContractActRecord) => void;
 	/** open the form on the successor to this contract. */
 	renew: (contract: ContractActRecord) => void;
+	/** open WhatsApp on a chat with the tenant, the reminder already written. */
+	remind: (contract: ContractActRecord) => void;
 	/** open the form on this contract. */
 	edit: (contract: ContractActRecord) => void;
 	/** ask before doing something the reader should see coming. */
@@ -90,6 +95,21 @@ export function declareContractActs(host: ContractHostRequests): ContractAct[] {
 			icon: CalendarPlusIcon,
 			group: 'primary',
 			run: host.renew
+		},
+		{
+			// the rent is asked for on the ranks that owe it or have it falling due this week. A
+			// contract in no rank, a terminated one among them, owes nobody a reminder, and one up
+			// for renewal is answered by renewing it.
+			id: 'contract.remind',
+			label: (t) => t.common.actions.remind(),
+			icon: MessageCircleIcon,
+			group: 'primary',
+			appliesTo: (contract) => contract.status !== 'terminated' && isReminderRank(contract.rank),
+			// every tenant has a phone today; a read that knows the tenant has none says so here
+			// rather than opening a chat addressed to nobody.
+			unavailable: (contract, t) =>
+				contract.tenantPhone?.trim() === '' ? t.contracts.reminder.noPhone() : undefined,
+			run: host.remind
 		},
 		{
 			id: 'contract.edit',

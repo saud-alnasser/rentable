@@ -1405,6 +1405,148 @@ test('the schedule of a contract that is not in the workspace is refused', async
 	);
 });
 
+// --- Reminder -------------------------------------------------------------------------
+//
+// what a WhatsApp reminder states, for each of the three ranks it is offered on (effort 835,
+// requirement 12). The message itself is composed and tested in `reminder.test.ts`.
+
+// a unit named out of alphabetical order with its sibling, so the units are read in name order
+// rather than in the order they were assigned.
+async function seedRemindedContract(api: Api, fields: Omit<ContractInput, 'tenantId' | 'unitIds'>) {
+	const tenant = await seedTenant(api);
+	const { complex, unit: second } = await seedComplexWithUnit(api, 'Remind-B');
+	const first = await api.complex.units.create({ name: 'Unit Remind-A', complexId: complex.id });
+	const contract = await api.contract.create({
+		...fields,
+		tenantId: tenant.id,
+		unitIds: [second.id, first.id]
+	});
+
+	return { tenant, contract };
+}
+
+test('an overdue contract’s reminder states everything it owes, since its first unpaid cycle', async () => {
+	const api = await createApi();
+	const { tenant, contract } = await seedRemindedContract(api, {
+		start: monthsFromNow(-13),
+		end: monthsFromNow(-1),
+		interval: '12m',
+		cost: 4000
+	});
+
+	assert.deepEqual(await api.contract.reminder({ id: contract.id }), {
+		rank: 'overdue',
+		tenantName: tenant.name,
+		tenantPhone: tenant.phone,
+		unitNames: ['Unit Remind-A', 'Unit Remind-B'],
+		amount: 4000,
+		due: contract.start
+	});
+});
+
+test('an owing contract’s reminder states what its late and due cycles lack, since the earliest of them', async () => {
+	const api = await createApi();
+	const { tenant, contract } = await seedRemindedContract(api, {
+		start: firstOfMonthFromNow(-3),
+		end: firstOfMonthFromNow(9) - UTC_DAY_MS,
+		interval: '1m',
+		cost: 1000
+	});
+
+	// covers the first cycle and half the second, so the four cycles due by now lack 2,500 and
+	// the rent has been owed since the second.
+	await api.contract.payments.create({
+		contractId: contract.id,
+		date: firstOfMonthFromNow(-3),
+		amount: 1500
+	});
+
+	assert.deepEqual(await api.contract.reminder({ id: contract.id }), {
+		rank: 'owing',
+		tenantName: tenant.name,
+		tenantPhone: tenant.phone,
+		unitNames: ['Unit Remind-A', 'Unit Remind-B'],
+		amount: 2500,
+		due: firstOfMonthFromNow(-2)
+	});
+});
+
+test('a due-soon contract’s reminder states the cycle coming due and the day it falls due', async () => {
+	const api = await createApi();
+	const { tenant, contract } = await seedRemindedContract(api, {
+		start: monthsFromNow(0, 3),
+		end: monthsFromNow(12, 2),
+		interval: '12m',
+		cost: 1500
+	});
+
+	assert.deepEqual(await api.contract.reminder({ id: contract.id }), {
+		rank: 'due-soon',
+		tenantName: tenant.name,
+		tenantPhone: tenant.phone,
+		unitNames: ['Unit Remind-A', 'Unit Remind-B'],
+		amount: 1500,
+		due: contract.start
+	});
+});
+
+test('a contract in no rank, or terminated, has nothing to be reminded of', async () => {
+	const api = await createApi();
+	const unranked = await seedContract(api, { start: monthsFromNow(2), end: monthsFromNow(14) });
+	const terminated = await seedContract(api, {
+		start: monthsFromNow(-6),
+		end: monthsFromNow(6),
+		cost: 2000
+	});
+
+	await api.contract.terminate({ id: terminated.id });
+
+	await assert.rejects(
+		() => api.contract.reminder({ id: unranked.id }),
+		refusedWith('contract.nothingToRemind')
+	);
+	await assert.rejects(
+		() => api.contract.reminder({ id: terminated.id }),
+		refusedWith('contract.nothingToRemind')
+	);
+	await assert.rejects(
+		() => api.contract.reminder({ id: unusedId() }),
+		refusedWith('contract.missing')
+	);
+});
+
+// criterion 12(c) of effort 835: the record page gates the act on the rank its read carries.
+test('a contract is read with the rank it is filed under, and with none where it has none', async () => {
+	const api = await createApi();
+	const owing = await seedContract(api, {
+		start: monthsFromNow(-6),
+		end: monthsFromNow(6),
+		cost: 2000
+	});
+	const unranked = await seedContract(api, { start: monthsFromNow(2), end: monthsFromNow(14) });
+
+	assert.equal((await api.contract.get({ id: owing.id }))?.rank, 'owing');
+	assert.equal((await api.contract.get({ govId: undefined, id: unranked.id }))?.rank, undefined);
+	assert.ok(!('rank' in ((await api.contract.get({ id: unranked.id })) ?? {})));
+});
+
+test('every row of the contracts list carries its rank, asked for one or not', async () => {
+	const api = await createApi();
+	await seedRankedPortfolio(api);
+
+	const ranks = Object.fromEntries(
+		(await api.contract.getMany({})).map((contract) => [contract.govId, contract.rank])
+	);
+
+	assert.deepEqual(ranks, {
+		'RANK-OVERDUE': 'overdue',
+		'RANK-OWING': 'owing',
+		'RANK-ENDING': 'ending-soon',
+		'RANK-DUE-SOON': 'due-soon',
+		'RANK-NONE': undefined
+	});
+});
+
 // --- The directory ----------------------------------------------------------------------
 //
 // `getMany` answers the contracts list, which opens as a directory rather than a queue: the

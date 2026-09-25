@@ -47,6 +47,8 @@ type ContractHostState = {
 	confirming: { kind: ContractConfirmation; contract: ContractActRecord } | null;
 	/** the contract whose details are on their way to the clipboard. */
 	copying: ContractActRecord | null;
+	/** the contract whose tenant is being reminded, while its reminder is read and opened. */
+	reminding: ContractActRecord | null;
 	/**
 	 * an act asked for by a contract's identity alone, from a surface that holds nothing else: the
 	 * command menu, and the dashboard's queue. The host reads the contract and answers on its terms.
@@ -58,6 +60,7 @@ export const contractHostState = $state<ContractHostState>({
 	form: { open: false, key: 0 },
 	confirming: null,
 	copying: null,
+	reminding: null,
 	asked: null
 });
 
@@ -86,6 +89,9 @@ export const contractActs = declareContractActs({
 		openForm({ value: { ...contract, id: undefined, govId: '' } }),
 	// a renewal is opened on an identity and reads everything else off the predecessor.
 	renew: (contract) => openForm({ renewsContractId: contract.id }),
+	remind: (contract) => {
+		contractHostState.reminding = contract;
+	},
 	edit: (contract) => openForm({ value: contract }),
 	confirm: (kind, contract) => {
 		contractHostState.confirming = { kind, contract };
@@ -129,5 +135,6 @@ export function resetContractHost() {
 	closeContractForm();
 	contractHostState.confirming = null;
 	contractHostState.copying = null;
+	contractHostState.reminding = null;
 	contractHostState.asked = null;
 }

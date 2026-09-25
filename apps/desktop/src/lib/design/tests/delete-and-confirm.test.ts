@@ -80,6 +80,7 @@ for (const glyph of [
 	'laptop',
 	'link',
 	'lock',
+	'message-circle',
 	'refresh-cw',
 	'rotate-ccw',
 	'square-pen',

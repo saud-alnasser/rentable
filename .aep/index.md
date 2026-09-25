@@ -324,4 +324,4 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/05-the-schedule-prints]] feat(desktop): the schedule prints | 835-the-rent-is-receipted-scheduled-and-chased | open | 04 |
 | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/06-every-payment-has-a-receipt]] feat(payment): every payment has a receipt | 835-the-rent-is-receipted-scheduled-and-chased | open | 01, 03, 05 |
 | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/07-what-falls-due-this-week-is-on-the-landing-screen]] feat(contract): what falls due this week is on the landing screen | 835-the-rent-is-receipted-scheduled-and-chased | resolved | 01 |
-| [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/08-a-tenant-is-reminded-on-whatsapp]] feat(contract): a tenant is reminded on WhatsApp | 835-the-rent-is-receipted-scheduled-and-chased | open | 07 |
+| [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/08-a-tenant-is-reminded-on-whatsapp]] feat(contract): a tenant is reminded on WhatsApp | 835-the-rent-is-receipted-scheduled-and-chased | resolved | 07 |

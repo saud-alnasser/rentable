@@ -57,6 +57,7 @@ export const keys = {
 	get: (id: string) => [...workspacePrefixes.contracts, id],
 	getUnits: (id: string) => [...workspacePrefixes.contracts, 'units', id],
 	getSchedule: (id: string) => [...workspacePrefixes.contracts, 'schedule', id],
+	getReminder: (id: string) => [...workspacePrefixes.contracts, 'reminder', id],
 	search: (term: string) => [...workspacePrefixes.contracts, 'search', term],
 	getAssignableUnits: (contractId: string, search: string) => [
 		...workspacePrefixes.contracts,
@@ -245,6 +246,21 @@ export function useReadContract() {
 
 	return (id: string) =>
 		client.fetchQuery({ queryKey: keys.get(id), queryFn: () => api.contract.get({ id }) });
+}
+
+/**
+ * Read what a reminder to a contract's tenant states, once, for the contract host as it opens
+ * WhatsApp. Under the contracts prefix, so a payment or an edit anywhere makes the next reading
+ * fresh rather than stating yesterday's amount.
+ */
+export function useReadContractReminder() {
+	const client = useQueryClient();
+
+	return (id: string) =>
+		client.fetchQuery({
+			queryKey: keys.getReminder(id),
+			queryFn: () => api.contract.reminder({ id })
+		});
 }
 
 /**

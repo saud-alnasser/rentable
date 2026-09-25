@@ -337,8 +337,12 @@ describe('undoing a record change', () => {
 
 		await inverseStack.undo();
 		assert.equal(await caller.contract.get({ id: successor.id }), undefined);
-		// the contract that was renewed is untouched by the renewal and by taking it back.
-		assert.deepEqual(await caller.contract.get({ id: contract.id }), contract);
+		// the contract that was renewed is untouched by the renewal and by taking it back. Its read
+		// also carries the rank it is filed under today: begun a month ago and unpaid, it owes.
+		assert.deepEqual(await caller.contract.get({ id: contract.id }), {
+			...contract,
+			rank: 'owing'
+		});
 		assert.deepEqual(
 			(await caller.contract.units.getMany({ contractId: contract.id })).map((held) => held.id),
 			[unit.id]
@@ -372,7 +376,11 @@ describe('undoing a record change', () => {
 		assert.deepEqual(await caller.contract.getMany({ unitId: unit.id }), []);
 
 		await inverseStack.redo();
-		assert.deepEqual(await caller.contract.get({ id: contract.id }), contract);
+		// read with the rank it is filed under today: begun a month ago and unpaid, it owes.
+		assert.deepEqual(await caller.contract.get({ id: contract.id }), {
+			...contract,
+			rank: 'owing'
+		});
 		assert.deepEqual(
 			(await caller.contract.units.getMany({ contractId: contract.id })).map((held) => held.id),
 			[unit.id]

@@ -175,6 +175,10 @@ type RootTranslation = {
 			 */
 			proceed: string
 			/**
+			 * r​e​m​i​n​d​ ​o​n​ ​W​h​a​t​s​A​p​p
+			 */
+			remind: string
+			/**
 			 * r​e​m​o​v​e
 			 */
 			remove: string
@@ -883,6 +887,10 @@ type RootTranslation = {
 				 * o​n​l​y​ ​a​n​ ​a​c​t​i​v​e​,​ ​f​u​l​f​i​l​l​e​d​ ​o​r​ ​p​a​s​t​ ​c​o​n​t​r​a​c​t​ ​c​a​n​ ​b​e​ ​t​e​r​m​i​n​a​t​e​d​.
 				 */
 				notTerminable: string
+				/**
+				 * t​h​i​s​ ​c​o​n​t​r​a​c​t​ ​o​w​e​s​ ​n​o​t​h​i​n​g​ ​a​n​d​ ​h​a​s​ ​n​o​t​h​i​n​g​ ​f​a​l​l​i​n​g​ ​d​u​e​ ​t​h​i​s​ ​w​e​e​k​.
+				 */
+				nothingToRemind: string
 				/**
 				 * o​n​l​y​ ​a​ ​t​e​r​m​i​n​a​t​e​d​ ​c​o​n​t​r​a​c​t​ ​c​a​n​ ​b​e​ ​r​e​s​t​o​r​e​d​.
 				 */
@@ -2779,6 +2787,42 @@ type RootTranslation = {
 			 */
 			owing: string
 		}
+		reminder: {
+			/**
+			 * H​e​l​l​o​ ​{​t​e​n​a​n​t​}​,​ ​t​h​e​ ​r​e​n​t​ ​o​f​ ​S​A​R​ ​{​a​m​o​u​n​t​}​ ​f​o​r​ ​{​u​n​i​t​s​}​ ​f​a​l​l​s​ ​d​u​e​ ​o​n​ ​{​d​a​t​e​}​.​ ​T​h​a​n​k​ ​y​o​u​.
+			 * @param {string} amount
+			 * @param {string} date
+			 * @param {string} tenant
+			 * @param {string} units
+			 */
+			comingDue: RequiredParams<'amount' | 'date' | 'tenant' | 'units'>
+			/**
+			 * H​e​l​l​o​ ​{​t​e​n​a​n​t​}​,​ ​t​h​e​ ​r​e​n​t​ ​o​f​ ​S​A​R​ ​{​a​m​o​u​n​t​}​ ​f​a​l​l​s​ ​d​u​e​ ​o​n​ ​{​d​a​t​e​}​.​ ​T​h​a​n​k​ ​y​o​u​.
+			 * @param {string} amount
+			 * @param {string} date
+			 * @param {string} tenant
+			 */
+			comingDueNoUnits: RequiredParams<'amount' | 'date' | 'tenant'>
+			/**
+			 * t​h​e​ ​t​e​n​a​n​t​ ​h​a​s​ ​n​o​ ​p​h​o​n​e​ ​n​u​m​b​e​r​ ​t​o​ ​s​e​n​d​ ​a​ ​r​e​m​i​n​d​e​r​ ​t​o​.
+			 */
+			noPhone: string
+			/**
+			 * H​e​l​l​o​ ​{​t​e​n​a​n​t​}​,​ ​t​h​e​ ​r​e​n​t​ ​o​f​ ​S​A​R​ ​{​a​m​o​u​n​t​}​ ​f​o​r​ ​{​u​n​i​t​s​}​ ​h​a​s​ ​b​e​e​n​ ​d​u​e​ ​s​i​n​c​e​ ​{​d​a​t​e​}​.​ ​T​h​a​n​k​ ​y​o​u​.
+			 * @param {string} amount
+			 * @param {string} date
+			 * @param {string} tenant
+			 * @param {string} units
+			 */
+			owed: RequiredParams<'amount' | 'date' | 'tenant' | 'units'>
+			/**
+			 * H​e​l​l​o​ ​{​t​e​n​a​n​t​}​,​ ​t​h​e​ ​r​e​n​t​ ​o​f​ ​S​A​R​ ​{​a​m​o​u​n​t​}​ ​h​a​s​ ​b​e​e​n​ ​d​u​e​ ​s​i​n​c​e​ ​{​d​a​t​e​}​.​ ​T​h​a​n​k​ ​y​o​u​.
+			 * @param {string} amount
+			 * @param {string} date
+			 * @param {string} tenant
+			 */
+			owedNoUnits: RequiredParams<'amount' | 'date' | 'tenant'>
+		}
 		schedule: {
 			columns: {
 				/**
@@ -4061,6 +4105,10 @@ export type TranslationFunctions = {
 			 */
 			proceed: () => LocalizedString
 			/**
+			 * remind on WhatsApp
+			 */
+			remind: () => LocalizedString
+			/**
 			 * remove
 			 */
 			remove: () => LocalizedString
@@ -4737,6 +4785,10 @@ export type TranslationFunctions = {
 				 * only an active, fulfilled or past contract can be terminated.
 				 */
 				notTerminable: () => LocalizedString
+				/**
+				 * this contract owes nothing and has nothing falling due this week.
+				 */
+				nothingToRemind: () => LocalizedString
 				/**
 				 * only a terminated contract can be restored.
 				 */
@@ -6554,6 +6606,28 @@ export type TranslationFunctions = {
 			 * owing
 			 */
 			owing: () => LocalizedString
+		}
+		reminder: {
+			/**
+			 * Hello {tenant}, the rent of SAR {amount} for {units} falls due on {date}. Thank you.
+			 */
+			comingDue: (arg: { amount: string, date: string, tenant: string, units: string }) => LocalizedString
+			/**
+			 * Hello {tenant}, the rent of SAR {amount} falls due on {date}. Thank you.
+			 */
+			comingDueNoUnits: (arg: { amount: string, date: string, tenant: string }) => LocalizedString
+			/**
+			 * the tenant has no phone number to send a reminder to.
+			 */
+			noPhone: () => LocalizedString
+			/**
+			 * Hello {tenant}, the rent of SAR {amount} for {units} has been due since {date}. Thank you.
+			 */
+			owed: (arg: { amount: string, date: string, tenant: string, units: string }) => LocalizedString
+			/**
+			 * Hello {tenant}, the rent of SAR {amount} has been due since {date}. Thank you.
+			 */
+			owedNoUnits: (arg: { amount: string, date: string, tenant: string }) => LocalizedString
 		}
 		schedule: {
 			columns: {

@@ -402,6 +402,10 @@ every surface, because raising only its first letter would leave its second sent
 beside it. *Turso* is a product's name and is written *Turso* in both locales, wherever it falls
 in the sentence. `i18n/tests/casing.test.ts` holds both.
 
+**One exception: a message written to someone.** The WhatsApp reminder (`contracts.reminder`) is a
+letter the tenant reads in their own chat, not a label on the application's screen, so it is
+written as a letter is, opening with a capital and ending with a full stop (effort 835).
+
 **Figures use Western digits in both locales.** Money, counts, dates and relative times read
 `1,500`, not `١٬٥٠٠`, in Arabic as in English. `getIntlLocale` in `platform/locale.ts` is where
 that is decided: it maps `ar` to `ar-SA-u-nu-latn`, and every `Intl` and `DateFormatter`

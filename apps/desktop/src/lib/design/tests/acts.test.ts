@@ -21,6 +21,7 @@ const GLYPHS = [
 	'copy',
 	'file-plus',
 	'files',
+	'message-circle',
 	'rotate-ccw',
 	'square-pen',
 	'trash-2'
@@ -54,6 +55,7 @@ function recordingHost() {
 			copyDetails: note('copyDetails'),
 			duplicate: note('duplicate'),
 			renew: note('renew'),
+			remind: note('remind'),
 			edit: note('edit'),
 			confirm: (kind: ContractConfirmation, contract: ContractActRecord) =>
 				asked.push(`confirm.${kind}:${contract.id}`)
@@ -141,6 +143,85 @@ test('the acts are offered in the declared order, and only those the status admi
 		'contract.edit',
 		'contract.delete'
 	]);
+});
+
+// criterion 12(c) of effort 835: the reminder is offered on the three ranks that owe or fall due,
+// on the card, the page and in the palette alike, and on no contract in another rank or in none.
+test('the reminder is offered on an overdue, owing or due-soon contract, and on no other', () => {
+	const acts = declareContractActs(recordingHost().host);
+	const offersReminder = (contract: ContractActRecord) => {
+		const page = toPageActions(acts, contract, translations).some(
+			(act) => act.id === 'contract.remind'
+		);
+
+		assert.equal(
+			toCardActions(acts, contract, translations).some(
+				(action) => action.attributes?.['data-act'] === 'contract.remind'
+			),
+			page
+		);
+		assert.equal(
+			toPaletteVerbs(acts, contract, translations, false).some(
+				(act) => act.id === 'contract.remind'
+			),
+			page
+		);
+
+		return page;
+	};
+
+	for (const rank of ['overdue', 'owing', 'due-soon'] as const) {
+		assert.equal(offersReminder({ ...contractIn('active'), rank }), true, rank);
+	}
+
+	assert.equal(offersReminder({ ...contractIn('active'), rank: 'ending-soon' }), false);
+	// in no rank: the read left the rank off.
+	assert.equal(offersReminder(contractIn('active')), false);
+	// terminated: no rank admits one, and the act is not offered even on a stale rank.
+	assert.equal(offersReminder(contractIn('terminated')), false);
+	assert.equal(offersReminder({ ...contractIn('terminated'), rank: 'overdue' }), false);
+});
+
+test('the reminder sits after renew, and asks the host to remind on the record it was offered for', () => {
+	const { asked, host } = recordingHost();
+	const acts = declareContractActs(host);
+	const contract: ContractActRecord = { ...contractIn('active'), rank: 'owing' };
+
+	assert.deepEqual(
+		toPageActions(acts, contract, translations).map((act) => act.id),
+		[
+			'contract.copyDetails',
+			'contract.duplicate',
+			'contract.renew',
+			'contract.remind',
+			'contract.edit',
+			'contract.terminate',
+			'contract.delete'
+		]
+	);
+
+	toPageActions(acts, contract, translations)
+		.find((act) => act.id === 'contract.remind')
+		?.run();
+
+	assert.deepEqual(asked, ['remind:contract-active']);
+});
+
+test('a reminder to a tenant known to have no phone is shown and refused, with the reason', () => {
+	const acts = declareContractActs(recordingHost().host);
+	const reminder = (contract: ContractActRecord) =>
+		toPageActions(acts, contract, translations).find((act) => act.id === 'contract.remind');
+
+	assert.equal(
+		reminder({ ...contractIn('active'), rank: 'owing', tenantPhone: '' })?.unavailable,
+		translations.contracts.reminder.noPhone()
+	);
+	// a read that does not carry the phone does not refuse on it: the host reads the tenant.
+	assert.equal(reminder({ ...contractIn('active'), rank: 'owing' })?.unavailable, undefined);
+	assert.equal(
+		reminder({ ...contractIn('active'), rank: 'owing', tenantPhone: '+966551234567' })?.unavailable,
+		undefined
+	);
 });
 
 test('the tones, groups and shortcuts are the same on the card as on the page', () => {

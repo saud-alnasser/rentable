@@ -20,9 +20,11 @@
 	import {
 		useDeleteContract,
 		useReadContract,
+		useReadContractReminder,
 		useTerminateContract,
 		useUnterminateContract
 	} from '$lib/contract/query';
+	import { composeReminderMessage, toWhatsAppUrl } from '$lib/contract/reminder';
 	import { toDeleteStep, toPaletteVerbs } from '$lib/design/acts';
 	import { consumeCreateIntent } from '$lib/design/create-intent.svelte';
 	import { onMutationError, onMutationSuccess } from '$lib/design/mutation';
@@ -30,6 +32,7 @@
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { useFetchContractPayments } from '$lib/payment/query';
 	import { writeDetailsToClipboard } from '$lib/platform/clipboard';
+	import { tauri } from '$lib/platform/tauri';
 	import { formatRecordDateRange } from '$lib/design/date';
 	import { useReadTenant } from '$lib/tenant/query';
 	import { onDestroy, untrack } from 'svelte';
@@ -59,6 +62,7 @@
 	const terminateMutation = useTerminateContract();
 	const unterminateMutation = useUnterminateContract();
 	const readContract = useReadContract();
+	const readReminder = useReadContractReminder();
 	const readTenant = useReadTenant();
 
 	const confirming = $derived(contractHostState.confirming);
@@ -187,6 +191,22 @@
 	}
 
 	/**
+	 * Open WhatsApp on a chat with the contract's tenant, the reminder written in the language the
+	 * application is showing. The facts are read fresh, so the amount is today's; the landlord reads
+	 * the message and sends it, and nothing here records that a reminder went.
+	 */
+	async function remind(contract: ContractActRecord) {
+		try {
+			const reminder = await readReminder(contract.id);
+			const message = composeReminderMessage(reminder, $LL, $locale);
+
+			await tauri.opener.openUrl(toWhatsAppUrl(reminder.tenantPhone, message));
+		} catch (error) {
+			showErrorToast(error, $LL);
+		}
+	}
+
+	/**
 	 * An act named by a contract's identity: read the contract, then answer on the terms the
 	 * command menu's own projection gives for it, so an act the contract does not admit is refused
 	 * with a sentence rather than run.
@@ -244,6 +264,17 @@
 
 		contractHostState.copying = null;
 		untrack(() => void copyDetails(contract));
+	});
+
+	$effect(() => {
+		const contract = contractHostState.reminding;
+
+		if (!contract) {
+			return;
+		}
+
+		contractHostState.reminding = null;
+		untrack(() => void remind(contract));
 	});
 
 	$effect(() => {

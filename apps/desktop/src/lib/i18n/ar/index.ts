@@ -44,6 +44,7 @@ const ar = {
 			openPayments: 'فتح المدفوعات',
 			openPreviousRelease: 'فتح الإصدار السابق',
 			proceed: 'متابعة',
+			remind: 'تذكير عبر واتساب',
 			remove: 'إزالة',
 			renew: 'تجديد',
 			renewing: 'جاري التجديد...',
@@ -249,6 +250,8 @@ const ar = {
 				holdsPayments: 'لهذا العقد دفعات. احذفها قبل حذفه.',
 				missing: 'لم يعد هذا العقد موجوداً في مساحة العمل. أعد التحميل لترى ما تغيّر.',
 				notTerminable: 'لا يُنهى إلا العقد الساري أو المكتمل أو المنقضي.',
+				nothingToRemind:
+					'لا مستحقات على هذا العقد ولا إيجار يحلّ هذا الأسبوع، فلا شيء يُذكَّر به المستأجر.',
 				notUnterminable: 'لا يُستعاد إلا العقد المنتهي.',
 				paidInFull: 'سُدد هذا العقد بالكامل ولا يقبل دفعات أخرى.',
 				periodOffCycle:
@@ -863,6 +866,17 @@ const ar = {
 			endingSoon: 'قريب الانتهاء',
 			overdue: 'متأخر',
 			owing: 'مستحق'
+		},
+
+		reminder: {
+			comingDue:
+				'مرحبًا {tenant}، نذكّركم بأن إيجار {units} بمبلغ {amount} ريال يحلّ في {date}. شكرًا لكم.',
+			comingDueNoUnits:
+				'مرحبًا {tenant}، نذكّركم بأن الإيجار بمبلغ {amount} ريال يحلّ في {date}. شكرًا لكم.',
+			noPhone: 'لا يوجد رقم جوال للمستأجر لإرسال التذكير إليه.',
+			owed: 'مرحبًا {tenant}، نذكّركم بأن إيجار {units} بمبلغ {amount} ريال مستحق منذ {date}. شكرًا لكم.',
+			owedNoUnits:
+				'مرحبًا {tenant}، نذكّركم بأن الإيجار بمبلغ {amount} ريال مستحق منذ {date}. شكرًا لكم.'
 		},
 
 		schedule: {

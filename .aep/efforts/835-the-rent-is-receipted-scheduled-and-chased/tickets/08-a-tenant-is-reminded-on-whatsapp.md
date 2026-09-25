@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [07]
 ---
 
@@ -16,15 +16,15 @@ the application is showing.
 Traces requirement 12 of [[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]], and its
 criterion 12.
 
-- [ ] `contract.reminder({ id })` returns the name, phone, units, amount and date
+- [x] `contract.reminder({ id })` returns the name, phone, units, amount and date
       ([[efforts/835-the-rent-is-receipted-scheduled-and-chased/plan]], *Components*,
       `contract/router.ts`), with a router test for each of the three ranks.
-- [ ] `toWhatsAppUrl` builds `https://wa.me/<number>?text=<message>` with the `+` stripped and the
+- [x] `toWhatsAppUrl` builds `https://wa.me/<number>?text=<message>` with the `+` stripped and the
       message URL-encoded, and the message names tenant, amount, date and units in Arabic and in
       English (criteria 12(a) and 12(b), `contract/tests/reminder.test.ts`).
-- [ ] `contract.get` returns `rank`. The act applies only to the three ranks, and is absent on a
+- [x] `contract.get` returns `rank`. The act applies only to the three ranks, and is absent on a
       contract in no rank or a terminated one (criterion 12(c), acts test).
-- [ ] The landing row carries the act as it carries renew, and the host opens the URL through the
+- [x] The landing row carries the act as it carries renew, and the host opens the URL through the
       opener.
 
 ## Relevant areas

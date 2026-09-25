@@ -1,3 +1,4 @@
+import type { ContractRank } from '$lib/contract/rank';
 import * as s from '$lib/platform/database/schema';
 import { type Contract } from '$lib/platform/database/schema';
 
@@ -17,6 +18,12 @@ export type SerializedContract = Omit<Contract, 'govId'> & {
 	govId: string;
 	tenantName?: string;
 	tenantPhone?: string;
+	/**
+	 * the attention rank the contract is filed under today, where the read ranked it: a contract's
+	 * acts gate on it (the reminder is offered only on the ranks that owe or fall due), so a read
+	 * that hands a contract to its acts carries it. Absent on a contract in no rank.
+	 */
+	rank?: ContractRank;
 };
 
 export function serializeContract(

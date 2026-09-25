@@ -505,6 +505,7 @@ export type ContractRefusalCode =
 	| 'contract.terminatedLocked'
 	| 'contract.notTerminable'
 	| 'contract.notUnterminable'
+	| 'contract.nothingToRemind'
 	| 'contract.unitsLockedByPayments'
 	| 'contract.paidInFull'
 	| 'contract.holdsPayments'
