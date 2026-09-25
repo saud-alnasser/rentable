@@ -130,7 +130,7 @@ Start at [[protocol]].
 | 828-the-link-needs-a-code-and-the-settings-area-guides | implemented | [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]] | 5 | 0 | 29 |
 | 832-the-interface-speaks-one-language-and-guides | accepted | [[efforts/832-the-interface-speaks-one-language-and-guides/spec]] | 3 | 4 | 43 |
 | 835-the-rent-is-receipted-scheduled-and-chased | implemented | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]] | 1 | 0 | 19 |
-| 838-permissions-are-a-role-and-an-override | accepted | [[efforts/838-permissions-are-a-role-and-an-override/spec]] | 0 | 0 | 12 |
+| 838-permissions-are-a-role-and-an-override | accepted | [[efforts/838-permissions-are-a-role-and-an-override/spec]] | 0 | 0 | 16 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -349,3 +349,7 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/838-permissions-are-a-role-and-an-override/tickets/10-the-interface-offers-only-permitted-record-acts]] feat(desktop): the interface offers only the record acts a member may perform | 838-permissions-are-a-role-and-an-override | resolved | 09 |
 | [[efforts/838-permissions-are-a-role-and-an-override/tickets/11-roles-are-defined-in-settings-and-set-on-a-card]] feat(organization): roles are defined in settings and set on a member's card | 838-permissions-are-a-role-and-an-override | resolved | 08 |
 | [[efforts/838-permissions-are-a-role-and-an-override/tickets/12-the-context-describes-the-new-chain]] docs(organization): the context describes the new chain, and the changeset says it breaks | 838-permissions-are-a-role-and-an-override | resolved | 10, 11 |
+| [[efforts/838-permissions-are-a-role-and-an-override/tickets/13-a-kind-not-viewable-is-absent-from-every-other-kinds-results]] feat(desktop): a record kind the member cannot view is absent from every other kind's results | 838-permissions-are-a-role-and-an-override | open | — |
+| [[efforts/838-permissions-are-a-role-and-an-override/tickets/14-a-role-and-an-override-are-set-as-one-act]] fix(organization): a role and an override set together are one act | 838-permissions-are-a-role-and-an-override | open | — |
+| [[efforts/838-permissions-are-a-role-and-an-override/tickets/15-the-old-role-word-retires]] refactor(organization): the old role word retires | 838-permissions-are-a-role-and-an-override | open | 14 |
+| [[efforts/838-permissions-are-a-role-and-an-override/tickets/16-the-rules-and-comments-follow-the-flags]] docs(desktop): the rules and the comments follow the flags | 838-permissions-are-a-role-and-an-override | open | 13, 14, 15 |
