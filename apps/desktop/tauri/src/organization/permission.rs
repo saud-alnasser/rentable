@@ -433,7 +433,7 @@ pub fn effective_in(permissions: i64, access: AccessLevel) -> i64 {
     }
 }
 
-/// The mask a role is created with, as `ADMINISTRATION_BY_ROLE` gives it. The role is what a
+/// The mask a role is created with, as the package gave it before effort 838. The role is what a
 /// member is called; the column is what they may do, and a row may carry more or less.
 ///
 /// **The owner and the administrator read alike**, because every act that separates them is one
@@ -642,30 +642,11 @@ mod tests {
         );
     }
 
-    /// Today's seven names, each on the bit of the flag it is. `changeRole` is `assignRole`.
+    /// Today's seven acts, each on the bit of the flag it is. `ChangeRole` is `AssignRole`. *The
+    /// package kept the seven under these names until ticket 11 of effort 838 retired them there;
+    /// this crate keeps its own until its callers move.*
     #[test]
-    fn each_of_todays_acts_is_the_flag_the_package_aliases_it_to() {
-        let source = package_source();
-        let declared: Vec<(&str, &str)> =
-            block(&source, "export const ADMINISTRATION = {", "} as const;")
-                .lines()
-                .filter_map(|line| {
-                    let (name, flag) = line.trim().trim_end_matches(',').split_once(':')?;
-
-                    Some((name.trim(), flag.trim().strip_prefix("FLAGS.")?))
-                })
-                .collect();
-
-        let ours: Vec<(&str, &str)> = Administration::ALL
-            .iter()
-            .map(|act| (act.name(), act.flag().name()))
-            .collect();
-
-        assert_eq!(
-            ours, declared,
-            "the package and this crate disagree about today's acts"
-        );
-
+    fn each_of_todays_acts_is_the_flag_it_stands_for() {
         for act in Administration::ALL {
             assert_eq!(act as i64, act.flag() as i64, "{} moved", act.name());
         }
@@ -889,22 +870,7 @@ mod tests {
     }
 
     #[test]
-    fn each_role_carries_the_acts_the_package_gives_it() {
-        let source = package_source();
-
-        assert!(
-            source.contains("owner: maskOf(...EVERY_ADMINISTRATION)"),
-            "the owner no longer carries every act in the package"
-        );
-        assert!(
-            source.contains("administrator: maskOf(...EVERY_ADMINISTRATION)"),
-            "the administrator no longer carries every grantable act in the package"
-        );
-        assert!(
-            source.contains("member: 0"),
-            "a member carries something in the package"
-        );
-
+    fn each_role_carries_the_acts_it_is_made_with() {
         assert_eq!(mask_of_role(OWNER), 0b111_1111);
         assert_eq!(mask_of_role(ADMINISTRATOR), 0b111_1111);
         assert_eq!(mask_of_role(MEMBER), 0);

@@ -2,10 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
-	ADMINISTRATION,
-	ADMINISTRATION_BY_ROLE,
 	BUILT_IN,
-	EVERY_ADMINISTRATION,
 	EVERY_FLAG,
 	FAMILIES,
 	FLAGS,
@@ -47,7 +44,6 @@ const guard = (table: Readonly<Record<string, number>>): void => {
 // file rather than the last.
 test('no flag reaches bit 53, and each has a bit of its own', () => {
 	guard(FLAGS);
-	guard(ADMINISTRATION);
 });
 
 test('the guard fails a flag at bit 53, and at a bit two flags share', () => {
@@ -111,36 +107,6 @@ test('every flag sits on the bit the plan gives it, and bits 18, 19 and 40 up ar
 		[...EVERY_FLAG.map((flag) => FLAGS[flag])].sort((left, right) => left - right),
 		'EVERY_FLAG is in bit order'
 	);
-});
-
-/**
- * Today's seven acts, under today's names, on the same bits as the flags they are.
- *
- * *Bits 4 and 5 carried two acts effort 826 retired, and nothing that shipped stored them; the
- * table below is what every importer reads until ticket 11 of effort 838 moves them onto `FLAGS`.*
- */
-test("today's names stay on their bits, and changeRole is assignRole", () => {
-	assert.deepEqual(ADMINISTRATION, {
-		inviteMember: 0,
-		removeMember: 1,
-		changeRole: 2,
-		renameWorkspace: 3,
-		resetPassword: 4,
-		renameMember: 5,
-		grantWorkspace: 6
-	});
-	assert.equal(EVERY_ADMINISTRATION.length, 7);
-	assert.equal(ADMINISTRATION.changeRole, FLAGS.assignRole);
-
-	for (const name of EVERY_ADMINISTRATION) {
-		if (name !== 'changeRole') {
-			assert.equal(ADMINISTRATION[name], FLAGS[name], `${name} moved`);
-		}
-	}
-
-	assert.equal(maskOf('changeRole'), maskOf('assignRole'));
-	assert.equal(maskOf('changeRole', 'assignRole'), 2 ** FLAGS.assignRole, 'an alias counted twice');
-	assert.equal(permits(maskOf('assignRole'), 'changeRole'), true);
 });
 
 test('the families partition the flags, each record kind in the order view, create, edit, delete', () => {
@@ -299,53 +265,27 @@ test('a read-only grant clears every write flag and nothing else', () => {
 });
 
 test('a plain member administers nothing', () => {
-	assert.equal(ADMINISTRATION_BY_ROLE.member, 0);
-
-	for (const name of EVERY_ADMINISTRATION) {
-		assert.equal(permits(ADMINISTRATION_BY_ROLE.member, name), false, `member may ${name}`);
+	for (const name of FAMILIES.administration) {
+		assert.equal(permits(BUILT_IN.member.mask, name), false, `member may ${name}`);
 	}
-});
-
-/**
- * **Both of today's roles carry every act, and what separates them is not in this table.**
- *
- * Requirement 5 of effort 826 keeps six acts out of the table today, because each of them needs the
- * Turso authority and the authority lives on the owner's machine rather than in a row. So the owner
- * and the administrator read alike here, and Rust refuses the owner's acts by asking who the
- * session is. `BUILT_IN` is where the owner's flags are named instead.
- */
-test('an owner and an administrator both administer every grantable act', () => {
-	for (const name of EVERY_ADMINISTRATION) {
-		assert.equal(permits(ADMINISTRATION_BY_ROLE.owner, name), true, `owner may not ${name}`);
-		assert.equal(
-			permits(ADMINISTRATION_BY_ROLE.administrator, name),
-			true,
-			`administrator may not ${name}`
-		);
-	}
-
-	assert.equal(ADMINISTRATION_BY_ROLE.owner, ADMINISTRATION_BY_ROLE.administrator);
 });
 
 // **The acts are named rather than a total asserted**, and the difference is what the test
-// catches: `assert.equal(ADMINISTRATION_BY_ROLE.administrator, 127)` would pass just as well if
-// a flag were renamed underneath it, and would have to be edited by whoever added the next
-// one. Naming the act is the same thing every caller does.
+// catches: a total would pass just as well if a flag were renamed underneath it, and would have to
+// be edited by whoever added the next one. Naming the act is the same thing every caller does.
 test('an act is read by name, and a narrowed row carries only what it was given', () => {
-	assert.equal(permits(ADMINISTRATION_BY_ROLE.administrator, 'renameWorkspace'), true);
-	assert.equal(permits(ADMINISTRATION_BY_ROLE.administrator, 'grantWorkspace'), true);
+	assert.equal(permits(BUILT_IN.manager.mask, 'renameWorkspace'), true);
+	assert.equal(permits(BUILT_IN.manager.mask, 'grantWorkspace'), true);
 
-	// the column is still the truth, which is the whole reason a default may change without a
-	// migration: a member narrowed to one act carries that one and no other.
 	assert.equal(permits(maskOf('renameWorkspace'), 'renameWorkspace'), true);
 	assert.equal(permits(maskOf('renameWorkspace'), 'grantWorkspace'), false);
 });
 
 test('a name given twice is a name given once', () => {
-	assert.equal(maskOf('changeRole', 'changeRole'), maskOf('changeRole'));
-	assert.equal(permits(maskOf('changeRole', 'changeRole'), 'changeRole'), true);
+	assert.equal(maskOf('assignRole', 'assignRole'), maskOf('assignRole'));
+	assert.equal(permits(maskOf('assignRole', 'assignRole'), 'assignRole'), true);
 	assert.equal(
-		permits(maskOf('changeRole', 'changeRole'), 'renameWorkspace'),
+		permits(maskOf('assignRole', 'assignRole'), 'renameWorkspace'),
 		false,
 		'two of one flag summed into the bit above it'
 	);

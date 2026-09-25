@@ -4,6 +4,7 @@
 	import type {
 		MemberStanding,
 		OrganizationMember,
+		OrganizationRole,
 		OrganizationSession,
 		RemoteSyncState
 	} from '$lib/platform/host';
@@ -25,9 +26,10 @@
 	import OrganizationMark from '$lib/organization/component/mark.svelte';
 	import OrganizationMembers from '$lib/organization/component/members.svelte';
 	import OrganizationReconnectAuthority from '$lib/organization/component/reconnect-authority.svelte';
+	import OrganizationRoles from '$lib/organization/component/roles.svelte';
 	import OrganizationStanding from '$lib/organization/component/standing.svelte';
 	import OrganizationWorkspaces from '$lib/organization/component/workspaces.svelte';
-	import { memberReaderOf, workspaceContextOf } from '$lib/organization/acts';
+	import { memberReaderOf, roleReaderOf, workspaceContextOf } from '$lib/organization/acts';
 	import SettingsAppearance from '$lib/settings/component/appearance.svelte';
 	import SettingsDiagnostics from '$lib/settings/component/diagnostics.svelte';
 	import SettingsEndingSoon from '$lib/settings/component/ending-soon.svelte';
@@ -95,6 +97,7 @@
 		syncState,
 		members,
 		standings,
+		roles,
 		isChangingPassword,
 		isAcceptingOwnership,
 		isDeletingOrganization,
@@ -122,6 +125,8 @@
 		members: OrganizationMember[];
 		/** where each account stands, as the members section draws it in a line. */
 		standings: MemberStanding[];
+		/** every role the organization has, which the organization section lists. */
+		roles: OrganizationRole[];
 		isChangingPassword: boolean;
 		/** the organization is being accepted, which re-keys the whole directory and pushes it. */
 		isAcceptingOwnership: boolean;
@@ -426,6 +431,12 @@
 
 				<Separator />
 			{/if}
+
+			<!-- the roles, before the people who hold them: what each kind of person may do, read by
+			     everybody and changed by whoever holds the flag to (effort 838, requirement 12). -->
+			<OrganizationRoles {roles} reader={roleReaderOf(session)} />
+
+			<Separator />
 
 			<!-- the people. The directory owns its own legend, the sentence under it, the cards and
 			     the add at its foot; what is decided here is what this reader may do, and a member

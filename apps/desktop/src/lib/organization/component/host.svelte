@@ -6,8 +6,9 @@
 	import AccessDialog, {
 		type AccessChoice
 	} from '$lib/organization/component/access-dialog.svelte';
-	import { formRoleOf } from '$lib/organization/acts';
 	import MemberSheet, { type MemberEdit } from '$lib/organization/component/member-sheet.svelte';
+	import RoleEditor, { type RoleEdit } from '$lib/organization/component/role-editor.svelte';
+	import { newRolePlace, roleNameOf } from '$lib/organization/role';
 	import OfferOwnership from '$lib/organization/component/offer-ownership.svelte';
 	import { showMadeLink } from '$lib/organization/dialogs.svelte';
 	import {
@@ -16,12 +17,19 @@
 		type MemberPress
 	} from '$lib/organization/host.svelte';
 	import {
+		useAssignRole,
 		useChangeAccess,
-		useChangeRole,
+		useCreateRole,
+		useDeleteRole,
 		useDeleteWorkspace,
 		useEndMemberSessions,
 		useFetchMembers,
 		useFetchOrganizationState,
+		useFetchRoles,
+		useMoveRole,
+		useRenameRole,
+		useSetOverride,
+		useSetRoleMask,
 		useLockOutCost,
 		useMakeMemberLink,
 		useOfferOwnership,
@@ -57,15 +65,28 @@
 
 	const member = $derived(organizationHostState.member);
 	const workspace = $derived(organizationHostState.workspace);
+	const role = $derived(organizationHostState.role);
 
 	const session = $derived(stateQuery.data?.session ?? null);
 
 	// the members are read only while the one surface that lists them is open: the settings route
 	// reads them already, so this is the same cache rather than a second request.
 	const membersQuery = useFetchMembers(() => workspace.changingAccess !== null);
+	// the roles, read while a surface that chooses or edits one is open: the settings route reads
+	// them already, so this is the same cache.
+	const rolesQuery = useFetchRoles(
+		() => member.editing !== null || role.editing !== null || role.creating
+	);
+	const roles = $derived(rolesQuery.data ?? []);
 
 	const renameMember = useRenameMember();
-	const changeRole = useChangeRole();
+	const assignRole = useAssignRole();
+	const setOverride = useSetOverride();
+	const createRole = useCreateRole();
+	const renameRole = useRenameRole();
+	const setRoleMask = useSetRoleMask();
+	const moveRole = useMoveRole();
+	const deleteRole = useDeleteRole();
 	const changeAccess = useChangeAccess();
 	const offerOwnership = useOfferOwnership();
 	const withdrawOffer = useWithdrawOffer();
@@ -80,10 +101,13 @@
 	/** what each act refused the last save with, marked on the section that asked for it. */
 	let nameRefusal = $state<string | null>(null);
 	let roleRefusal = $state<string | null>(null);
+	let overrideRefusal = $state<string | null>(null);
 	let workspacesRefusal = $state<string | null>(null);
 	let isRenaming = $state(false);
 
-	const isSavingMember = $derived(isRenaming || changeRole.isPending || changeAccess.isPending);
+	const isSavingMember = $derived(
+		isRenaming || assignRole.isPending || setOverride.isPending || changeAccess.isPending
+	);
 
 	const openedOn = $derived(member.editing);
 
@@ -93,6 +117,7 @@
 			untrack(() => {
 				nameRefusal = null;
 				roleRefusal = null;
+				overrideRefusal = null;
 				workspacesRefusal = null;
 			});
 		}
@@ -114,8 +139,9 @@
 	 * one save, and the acts that exist behind it.
 	 *
 	 * **Each act is asked for only where something changed**, and each refuses on its own: the name
-	 * is one write, the role act writes the role and the column together, and the grants write one
-	 * workspace each. So a save refused one of them leaves the others written, which is what the
+	 * is one write, the role another, the override a third, and the grants write one workspace
+	 * each. The role goes before the override, so the override is written against the role it is
+	 * read with, and a role refused leaves the override unasked. So a save refused one of them leaves the others written, which is what the
 	 * acts do on their own and what the sentence on the section then says.
 	 *
 	 * **A refusal keeps the sheet open and marks its section** ([[rules/interface]], *Validation
@@ -131,6 +157,7 @@
 
 		nameRefusal = null;
 		roleRefusal = null;
+		overrideRefusal = null;
 		workspacesRefusal = null;
 
 		if (context.canRename && edit.username !== saved.username) {
@@ -145,18 +172,19 @@
 			}
 		}
 
-		if (
-			context.canChangeRole &&
-			(edit.role !== formRoleOf(saved.role) || edit.permissions !== saved.permissions)
-		) {
+		if (context.canAssignRole && edit.roleId !== saved.roleId) {
 			try {
-				await changeRole.mutateAsync({
-					memberId: saved.id,
-					role: edit.role,
-					permissions: edit.permissions
-				});
+				await assignRole.mutateAsync({ memberId: saved.id, roleId: edit.roleId });
 			} catch (error) {
 				roleRefusal = toErrorText(error, $LL);
+			}
+		}
+
+		if (context.canOverride && !roleRefusal && edit.override !== saved.override) {
+			try {
+				await setOverride.mutateAsync({ memberId: saved.id, override: edit.override });
+			} catch (error) {
+				overrideRefusal = toErrorText(error, $LL);
 			}
 		}
 
@@ -174,7 +202,7 @@
 			}
 		}
 
-		if (!nameRefusal && !roleRefusal && !workspacesRefusal) {
+		if (!nameRefusal && !roleRefusal && !overrideRefusal && !workspacesRefusal) {
 			organizationHostState.member.editing = null;
 		}
 	};
@@ -342,6 +370,105 @@
 		await stateQuery.refetch();
 	};
 
+	// ----- the roles
+
+	/** what the shell refused the last save of the role editor with, on the part that asked. */
+	let roleNameRefusal = $state<string | null>(null);
+	let roleFlagsRefusal = $state<string | null>(null);
+
+	const roleEditorOpen = $derived(role.editing !== null || role.creating);
+	const isSavingRole = $derived(
+		createRole.isPending || renameRole.isPending || setRoleMask.isPending
+	);
+
+	// a fresh editor starts with nothing marked from the last one.
+	$effect(() => {
+		if (roleEditorOpen) {
+			untrack(() => {
+				roleNameRefusal = null;
+				roleFlagsRefusal = null;
+			});
+		}
+	});
+
+	const closeRoleEditor = () => {
+		organizationHostState.role.editing = null;
+		organizationHostState.role.creating = false;
+	};
+
+	/**
+	 * one save of the role editor. A new role is one write, placed just above the member; an
+	 * existing one is its name and its mask, each asked for only where it changed, and each refused
+	 * on its own part of the surface.
+	 */
+	const saveRole = async (edit: RoleEdit) => {
+		const editing = role.editing?.role ?? null;
+
+		roleNameRefusal = null;
+		roleFlagsRefusal = null;
+
+		if (!editing) {
+			try {
+				await createRole.mutateAsync({
+					name: edit.name,
+					mask: edit.mask,
+					afterRoleId: newRolePlace(roles)
+				});
+				closeRoleEditor();
+			} catch (error) {
+				roleFlagsRefusal = toErrorText(error, $LL);
+			}
+
+			return;
+		}
+
+		if (editing.kind === 'custom' && edit.name !== editing.name) {
+			try {
+				await renameRole.mutateAsync({ roleId: editing.id, name: edit.name });
+			} catch (error) {
+				roleNameRefusal = toErrorText(error, $LL);
+			}
+		}
+
+		if (edit.mask !== editing.mask) {
+			try {
+				await setRoleMask.mutateAsync({ roleId: editing.id, mask: edit.mask });
+			} catch (error) {
+				roleFlagsRefusal = toErrorText(error, $LL);
+			}
+		}
+
+		if (!roleNameRefusal && !roleFlagsRefusal) closeRoleEditor();
+	};
+
+	// a move asked for on the press runs here, once, the way the member writes above do.
+	$effect(() => {
+		const moving = organizationHostState.role.moving;
+
+		if (!moving) return;
+
+		organizationHostState.role.moving = null;
+		untrack(() => {
+			organizationHostState.role.pending.moving = true;
+			moveRole
+				.mutateAsync(moving)
+				.catch(() => {
+					// said by the shared handler.
+				})
+				.finally(() => {
+					organizationHostState.role.pending.moving = false;
+				});
+		});
+	});
+
+	const confirmRoleDelete = async () => {
+		const deleting = role.deleting;
+
+		if (!deleting) return;
+
+		await deleteRole.mutateAsync({ roleId: deleting.role.id });
+	};
+
 	onDestroy(resetOrganizationHost);
 </script>
 
@@ -351,17 +478,21 @@
 		if (!open && !isSavingMember) organizationHostState.member.editing = null;
 	}}
 	username={member.editing?.member.username ?? ''}
-	role={formRoleOf(member.editing?.member.role ?? 'member')}
-	permissions={member.editing?.member.permissions ?? 0}
+	roleId={member.editing?.member.roleId ?? ''}
+	override={member.editing?.member.override ?? 0}
+	{roles}
 	rows={memberRows}
+	readerRank={member.editing?.context.rank ?? 0}
+	readerPermissions={member.editing?.context.permissions ?? 0}
 	canRename={member.editing?.context.canRename ?? false}
-	canChangeRole={member.editing?.context.canChangeRole ?? false}
+	canAssignRole={member.editing?.context.canAssignRole ?? false}
+	canOverride={member.editing?.context.canOverride ?? false}
 	canGrantWorkspace={member.editing?.context.canGrantWorkspace ?? false}
-	canGrantSigning={member.editing?.context.isOwner ?? false}
 	canGrantReadOnly={member.editing?.context.isOwner ?? false}
 	isSaving={isSavingMember}
 	{nameRefusal}
 	{roleRefusal}
+	{overrideRefusal}
 	{workspacesRefusal}
 	onSave={(edit) => void saveMember(edit)}
 />
@@ -444,5 +575,33 @@
 	title={$LL.organization.dashboard.deleteWorkspace()}
 	description={$LL.organization.dashboard.deleteWorkspaceDescription()}
 	confirmLabel={$LL.organization.dashboard.deleteWorkspace()}
+	confirmLoadingLabel={$LL.common.actions.working()}
+/>
+
+<RoleEditor
+	open={roleEditorOpen}
+	onOpenChange={(open) => {
+		if (!open && !isSavingRole) closeRoleEditor();
+	}}
+	role={role.editing?.role ?? null}
+	readerPermissions={session?.permissions ?? 0}
+	isSaving={isSavingRole}
+	nameRefusal={roleNameRefusal}
+	flagsRefusal={roleFlagsRefusal}
+	onSave={(edit) => void saveRole(edit)}
+/>
+
+<!-- deleting a role moves its holders to the member role, and no organization act is undone, so
+     it asks first and says what happens to them. -->
+<DeleteDialog
+	open={role.deleting !== null}
+	onOpenChange={(value) => {
+		if (!value) organizationHostState.role.deleting = null;
+	}}
+	onSubmit={confirmRoleDelete}
+	record={role.deleting ? roleNameOf($LL, role.deleting.role) : ''}
+	title={$LL.organization.roleList.deleteTitle()}
+	description={$LL.organization.roleList.deleteDescription()}
+	confirmLabel={$LL.organization.roleList.deleteTitle()}
 	confirmLoadingLabel={$LL.common.actions.working()}
 />

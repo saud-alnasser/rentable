@@ -13,6 +13,7 @@ import {
 	type WorkspaceActRecord
 } from '$lib/organization/acts';
 import { toMemberDirectory, toWorkspaceDirectory } from '$lib/organization/directory';
+import { memberRoleName } from '$lib/organization/role';
 import {
 	memberActs,
 	memberHost,
@@ -149,15 +150,6 @@ function offering<T>(
 	};
 }
 
-/** what a role is called in the reader's language, as the members directory calls it. */
-const roleLabel = (role: string, translations: TranslationFunctions) =>
-	({
-		owner: translations.layout.signIn.roleOwner(),
-		// the manager keeps the administrator's name until ticket 11 of effort 838 renames it.
-		manager: translations.layout.signIn.roleAdministrator(),
-		member: translations.layout.signIn.roleMember()
-	})[role] ?? role;
-
 /**
  * The member and workspace acts, as the command menu offers them.
  *
@@ -207,13 +199,13 @@ export function useOrganizationOfferings(enabled: () => boolean) {
 		member: offering(memberActs, memberRecords, {
 			idOf: ({ member }) => member.id,
 			labelOf: ({ member }) => member.username,
-			hintOf: ({ member }, translations) => roleLabel(member.role, translations),
+			hintOf: ({ member }, translations) => memberRoleName(translations, member),
 			search: (records, term, translations) => {
 				const found = toMemberDirectory(
 					records.map(({ member }) => member),
 					term,
 					null,
-					(role) => roleLabel(role, translations)
+					(member) => memberRoleName(translations, member)
 				);
 
 				return records.filter((record) => found.includes(record.member));

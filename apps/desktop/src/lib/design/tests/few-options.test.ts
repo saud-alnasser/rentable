@@ -60,6 +60,11 @@ const DRAWN_ALLOWED = [
 		why: 'another record: every account the organization could be handed to'
 	},
 	{
+		label: 'lib/organization/component/member-role.svelte',
+		drawnFrom: 'offered',
+		why: 'another record: the roles the organization has, which it adds to itself'
+	},
+	{
 		label: 'lib/tenant/component/form.svelte',
 		drawnFrom: 'PHONE_COUNTRY_OPTIONS',
 		why: 'a phone: the map gives its country half a select'

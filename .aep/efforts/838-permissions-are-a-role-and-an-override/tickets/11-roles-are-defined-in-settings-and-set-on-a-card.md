@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [08]
 ---
 
@@ -17,18 +17,18 @@ are removed.
 
 Traces requirements 3 and 12 of [[efforts/838-permissions-are-a-role-and-an-override/spec]], and criterion 12.
 
-- [ ] A roles block in the organization section, and the role editor as an edge panel, per
+- [x] A roles block in the organization section, and the role editor as an edge panel, per
       [[rules/interface]]; component tests for the order, the grouping, and each write calling its
       command.
-- [ ] The member sheet's role picker and override editor replace the segmented control and
+- [x] The member sheet's role picker and override editor replace the segmented control and
       `member-acts.svelte`; a component test shows role, override and result for a flag the override
       flips each way.
-- [ ] A control the viewer may not use is disabled with its reason (rank, self, or the flag), with a
+- [x] A control the viewer may not use is disabled with its reason (rank, self, or the flag), with a
       component test for each reason.
-- [ ] `role-table.svelte` is removed; "administrator" appears in no `i18n/en` or `i18n/ar` value;
+- [x] `role-table.svelte` is removed; "administrator" appears in no `i18n/en` or `i18n/ar` value;
       `ADMINISTRATION`, `ADMINISTRATION_BY_ROLE`, `EVERY_ADMINISTRATION` and `changeRole` have no
       importer and are deleted.
-- [ ] Criterion 12 is handed to the human at the close, on the running application.
+- [x] Criterion 12 is handed to the human at the close, on the running application.
 
 ## Relevant areas
 

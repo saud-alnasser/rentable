@@ -542,10 +542,12 @@ for (const status of [...STATUSES, undefined]) {
 /**
  * The members and workspaces directories in settings, held to the same criterion (effort 832,
  * ticket 11). What a member or a workspace admits is read off the reader as much as the record,
- * so the states a record is in here are the readers it can be read by: the owner, an
- * administrator, a member widened by one act, and a member holding none, on each kind of card.
+ * so the states a record is in here are the readers it can be read by: the owner, a manager, a
+ * member widened by one act, and a member holding none, on each kind of card.
  */
 const ORGANIZATION_GLYPHS = [
+	'arrow-down',
+	'arrow-up',
 	'crown',
 	'laptop',
 	'link',
@@ -564,7 +566,11 @@ for (const glyph of ORGANIZATION_GLYPHS.filter((declared) => !GLYPHS.includes(de
 	});
 }
 
-const { declareMemberActs, declareWorkspaceActs } = await import('$lib/organization/acts');
+const { declareMemberActs, declareRoleActs, declareWorkspaceActs } =
+	await import('$lib/organization/acts');
+const { BUILT_IN } = await import('@rentable/workspace-permission');
+type RoleActRecord = import('$lib/organization/acts').RoleActRecord;
+type OrganizationRole = import('$lib/platform/host').OrganizationRole;
 type MemberActRecord = import('$lib/organization/acts').MemberActRecord;
 type MemberActContext = import('$lib/organization/acts').MemberActContext;
 type WorkspaceActRecord = import('$lib/organization/acts').WorkspaceActRecord;
@@ -609,7 +615,8 @@ const NONE_HELD = {
 	canRemove: false,
 	canLockOut: false,
 	canRename: false,
-	canChangeRole: false,
+	canAssignRole: false,
+	canOverride: false,
 	canGrantWorkspace: false
 };
 
@@ -619,7 +626,8 @@ const EVERY_HELD = {
 	canRemove: true,
 	canLockOut: true,
 	canRename: true,
-	canChangeRole: true,
+	canAssignRole: true,
+	canOverride: true,
 	canGrantWorkspace: true
 };
 
@@ -636,6 +644,8 @@ const MEMBER_READERS: Record<string, MemberActContext> = {
 	owner: {
 		selfId: 'olivia',
 		isOwner: true,
+		rank: BUILT_IN.owner.rank,
+		permissions: BUILT_IN.owner.mask,
 		...EVERY_HELD,
 		offerStands: false,
 		offerable: [{ id: 'ada', username: 'ada' }],
@@ -644,14 +654,18 @@ const MEMBER_READERS: Record<string, MemberActContext> = {
 	'owner with an offer standing': {
 		selfId: 'olivia',
 		isOwner: true,
+		rank: BUILT_IN.owner.rank,
+		permissions: BUILT_IN.owner.mask,
 		...EVERY_HELD,
 		offerStands: true,
 		offerable: [{ id: 'ada', username: 'ada' }],
 		pending: IDLE
 	},
-	administrator: {
+	manager: {
 		selfId: 'ada',
 		isOwner: false,
+		rank: BUILT_IN.manager.rank,
+		permissions: BUILT_IN.manager.mask,
 		...EVERY_HELD,
 		canLockOut: false,
 		offerStands: false,
@@ -661,6 +675,8 @@ const MEMBER_READERS: Record<string, MemberActContext> = {
 	'member widened by renameMember': {
 		selfId: 'sami',
 		isOwner: false,
+		rank: BUILT_IN.member.rank,
+		permissions: BUILT_IN.member.mask,
 		...NONE_HELD,
 		canRename: true,
 		offerStands: false,
@@ -670,6 +686,8 @@ const MEMBER_READERS: Record<string, MemberActContext> = {
 	'member holding nothing': {
 		selfId: 'sami',
 		isOwner: false,
+		rank: BUILT_IN.member.rank,
+		permissions: BUILT_IN.member.mask,
 		...NONE_HELD,
 		offerStands: false,
 		offerable: [],
@@ -733,10 +751,11 @@ test('a member is offered one edit, never a rename beside it, under the edit gly
 		idsFor(memberOf('olivia', 'owner'), MEMBER_READERS['owner with an offer standing']),
 		['member.withdrawOffer']
 	);
-	// an administrator meets nothing on the owner's card or their own, and no lock-out anywhere.
-	assert.deepEqual(idsFor(memberOf('olivia', 'owner'), MEMBER_READERS.administrator), []);
-	assert.deepEqual(idsFor(memberOf('ada', 'manager'), MEMBER_READERS.administrator), []);
-	assert.deepEqual(idsFor(memberOf('sami', 'member'), MEMBER_READERS.administrator), [
+	// a manager meets nothing on the owner's card, the edit alone on their own (refused, below), and
+	// no lock-out anywhere.
+	assert.deepEqual(idsFor(memberOf('olivia', 'owner'), MEMBER_READERS.manager), []);
+	assert.deepEqual(idsFor(memberOf('ada', 'manager'), MEMBER_READERS.manager), ['member.edit']);
+	assert.deepEqual(idsFor(memberOf('sami', 'member'), MEMBER_READERS.manager), [
 		'member.edit',
 		'member.makeLink',
 		'member.unsetPassword',
@@ -936,4 +955,207 @@ test('duplicating a payment is refused on a fully paid contract, as creating one
 	]);
 	assert.deepEqual(refusedOn({ contractPaidAmount: 1500, contractExpectedAmount: 18000 }), []);
 	assert.deepEqual(refusedOn({}), []);
+});
+
+/**
+ * Effort 838, requirement 12 and criterion 12: a control the reader may not use says why. On a
+ * member's card the reasons are the reader's own card, and a member at or above the reader's rank;
+ * each is the refusal Rust would make, said at the control.
+ */
+test('the edit on the reader own card is refused as their own, and a card at their rank as not below them', () => {
+	const acts = declareMemberActs(recordingOrganizationHost().member);
+	const entry = (member: OrganizationMember, context: MemberActContext, id: string) =>
+		toCardActions(acts, { member, context }, translations).find(
+			(action) => action.attributes?.['data-act'] === id
+		);
+
+	// self: the manager on their own card.
+	assert.equal(
+		entry(memberOf('ada', 'manager'), MEMBER_READERS.manager, 'member.edit')?.unavailable,
+		translations.organization.dashboard.yourOwn()
+	);
+	// rank: another manager, who ranks with the reader rather than below them.
+	for (const id of ['member.edit', 'member.makeLink', 'member.unsetPassword', 'member.remove']) {
+		assert.equal(
+			entry(memberOf('ben', 'manager'), MEMBER_READERS.manager, id)?.unavailable,
+			translations.organization.dashboard.notBelowYou(),
+			id
+		);
+	}
+	// and a member below them is theirs to write.
+	assert.equal(
+		entry(memberOf('sami', 'member'), MEMBER_READERS.manager, 'member.edit')?.unavailable,
+		undefined
+	);
+});
+
+const roleOf = (overrides: Partial<OrganizationRole> & { id: string }): OrganizationRole => ({
+	kind: 'custom',
+	name: overrides.id,
+	mask: BUILT_IN.member.mask,
+	rank: 500_000,
+	holders: 0,
+	...overrides
+});
+
+const ROLES: OrganizationRole[] = [
+	roleOf({ id: 'owner', kind: 'owner', name: '', mask: BUILT_IN.owner.mask, rank: 2_000_000 }),
+	roleOf({
+		id: 'manager',
+		kind: 'manager',
+		name: '',
+		mask: BUILT_IN.manager.mask,
+		rank: 1_000_000
+	}),
+	roleOf({ id: 'supervisor', rank: 750_000 }),
+	roleOf({ id: 'collector', rank: 250_000 }),
+	roleOf({ id: 'member', kind: 'member', name: '', rank: 0 })
+];
+
+/** A host that records what each role act asked of it. */
+function recordingRoleHost() {
+	const asked: string[] = [];
+
+	return {
+		asked,
+		host: {
+			edit: (record: RoleActRecord) => asked.push(`edit:${record.role.id}`),
+			move: (record: RoleActRecord, afterRoleId: string) =>
+				asked.push(`move:${record.role.id}:${afterRoleId}`),
+			confirmDelete: (record: RoleActRecord) => asked.push(`confirmDelete:${record.role.id}`)
+		}
+	};
+}
+
+const ROLE_READERS = {
+	owner: { rank: BUILT_IN.owner.rank, canManageRoles: true, permissions: BUILT_IN.owner.mask },
+	manager: {
+		rank: BUILT_IN.manager.rank,
+		canManageRoles: true,
+		permissions: BUILT_IN.manager.mask
+	},
+	supervisor: { rank: 750_000, canManageRoles: true, permissions: BUILT_IN.manager.mask },
+	member: { rank: 0, canManageRoles: false, permissions: BUILT_IN.member.mask }
+};
+
+const roleRecord = (id: string, reader: keyof typeof ROLE_READERS): RoleActRecord => ({
+	role: ROLES.find((role) => role.id === id)!,
+	roles: ROLES,
+	reader: ROLE_READERS[reader],
+	pending: { moving: false }
+});
+
+for (const reader of Object.keys(ROLE_READERS) as (keyof typeof ROLE_READERS)[]) {
+	for (const role of ROLES) {
+		test(`the card of the ${role.id} role, read by the ${reader}, offers the same acts on the card, the page and the palette`, () => {
+			const acts = declareRoleActs(recordingRoleHost().host);
+			const record = roleRecord(role.id, reader);
+
+			const card = reduce(
+				toCardActions(acts, record, translations).map((action) => ({
+					id: action.attributes?.['data-act'],
+					label: action.label,
+					icon: action.icon
+				}))
+			);
+
+			assert.ok(card.every((entry) => ORGANIZATION_GLYPHS.includes(entry.icon ?? '')));
+			assert.deepEqual(reduce(toPageActions(acts, record, translations)), card);
+			assert.deepEqual(reduce(toPaletteVerbs(acts, record, translations, false)), card);
+		});
+	}
+}
+
+test('the owner role has no act, a built-in role is edited only, and a custom role takes all four', () => {
+	const acts = declareRoleActs(recordingRoleHost().host);
+	const idsFor = (id: string) =>
+		toCardActions(acts, roleRecord(id, 'owner'), translations).map(
+			(action) => action.attributes?.['data-act']
+		);
+
+	assert.deepEqual(idsFor('owner'), []);
+	assert.deepEqual(idsFor('manager'), ['role.edit']);
+	assert.deepEqual(idsFor('member'), ['role.edit']);
+	assert.deepEqual(idsFor('supervisor'), [
+		'role.edit',
+		'role.moveUp',
+		'role.moveDown',
+		'role.delete'
+	]);
+
+	const groups: (string | undefined)[] = acts.map((act) => act.group);
+
+	assert.equal(groups.at(-1), 'destructive');
+	assert.equal(acts.at(-1)?.confirmation, 'irreversible');
+});
+
+test('a role act the reader may not take says why: the flag they lack, or a role not below them', () => {
+	const acts = declareRoleActs(recordingRoleHost().host);
+	const reason = (id: string, reader: keyof typeof ROLE_READERS, act: string) =>
+		toCardActions(acts, roleRecord(id, reader), translations).find(
+			(action) => action.attributes?.['data-act'] === act
+		)?.unavailable;
+
+	// the flag: a member lacks manageRoles, and every act says so by the flag's name.
+	for (const act of ['role.edit', 'role.moveUp', 'role.moveDown', 'role.delete']) {
+		assert.equal(
+			reason('collector', 'member', act),
+			translations.organization.dashboard.lacksFlag({
+				flag: translations.organization.flags.manageRoles()
+			}),
+			act
+		);
+	}
+
+	// the rank: the manager's own role, and a supervisor's own.
+	assert.equal(
+		reason('manager', 'manager', 'role.edit'),
+		translations.organization.roleList.notBelowYou()
+	);
+	assert.equal(
+		reason('supervisor', 'supervisor', 'role.delete'),
+		translations.organization.roleList.notBelowYou()
+	);
+	// and moving the collector up past the supervisor, which is the supervisor's own place.
+	assert.equal(
+		reason('collector', 'supervisor', 'role.moveUp'),
+		translations.organization.roleList.notBelowYou()
+	);
+
+	// where nothing stands in the way, nothing is said.
+	assert.equal(reason('member', 'owner', 'role.edit'), undefined);
+	assert.equal(reason('supervisor', 'manager', 'role.delete'), undefined);
+});
+
+test('a move is placed directly below the role it passes, and the edges say why they stop', () => {
+	const { asked, host } = recordingRoleHost();
+	const acts = declareRoleActs(host);
+	const run = (id: string, act: string) => {
+		const offered = toCardActions(acts, roleRecord(id, 'owner'), translations).find(
+			(action) => action.attributes?.['data-act'] === act
+		)!;
+
+		offered.onSelect();
+
+		return offered.unavailable;
+	};
+
+	// the collector up passes the supervisor: it goes directly below the manager.
+	assert.equal(run('collector', 'role.moveUp'), undefined);
+	// the supervisor down passes the collector: it goes directly below the collector.
+	assert.equal(run('supervisor', 'role.moveDown'), undefined);
+	assert.deepEqual(asked, ['move:collector:manager', 'move:supervisor:collector']);
+
+	assert.equal(
+		toCardActions(acts, roleRecord('supervisor', 'owner'), translations).find(
+			(action) => action.attributes?.['data-act'] === 'role.moveUp'
+		)?.unavailable,
+		translations.organization.roleList.highest()
+	);
+	assert.equal(
+		toCardActions(acts, roleRecord('collector', 'owner'), translations).find(
+			(action) => action.attributes?.['data-act'] === 'role.moveDown'
+		)?.unavailable,
+		translations.organization.roleList.lowest()
+	);
 });

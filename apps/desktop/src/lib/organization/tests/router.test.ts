@@ -13,7 +13,7 @@ import {
 	fakeOrganizationState
 } from '$lib/platform/tests/testing.ts';
 import { fakeIdentity } from '$lib/api/tests/testing.ts';
-import { maskOf, type Administration } from '@rentable/workspace-permission';
+import { maskOf, type Flag } from '@rentable/workspace-permission';
 import type { Host } from '$lib/platform/host.ts';
 
 /**
@@ -172,25 +172,25 @@ test('an empty name, a username outside the rules, a password under the floor or
 	assert.deepEqual(asked, []);
 });
 
-// effort 826, requirements 6 and 7: a change of role and a withdrawal each reach the host behind
-// their own act, and a caller whose row carries neither is refused before the round trip. What is
-// refused on the row itself, the caller's own and the owner's, is Rust's.
-test('changing a role and withdrawing a grant each need their act, and hand their input on', async () => {
+// effort 838, requirements 5 and 6: a role, an override and a withdrawal each reach the host behind
+// their own flag, and a caller whose row carries none of them is refused before the round trip.
+// What is refused on the rows themselves (rank, the caller's own row, flags not held) is Rust's.
+test('assigning a role, setting an override and withdrawing a grant each need their flag', async () => {
 	const asked: string[] = [];
 	const host = fakeHost({
 		organization: {
 			...fakeHost().organization,
 			member: {
 				...fakeHost().organization.member,
-				changeRole: async (memberId, role, permissions) => {
-					asked.push(`changeRole:${memberId}:${role}:${permissions}`);
+				assignRole: async (memberId, roleId) => {
+					asked.push(`assignRole:${memberId}:${roleId}`);
 
-					return fakeOrganizationMember({
-						id: memberId,
-						username: 'sami.staff',
-						role: role === 'administrator' ? 'manager' : 'member',
-						permissions
-					});
+					return fakeOrganizationMember({ id: memberId, roleId });
+				},
+				setOverride: async (memberId, override) => {
+					asked.push(`setOverride:${memberId}:${override}`);
+
+					return fakeOrganizationMember({ id: memberId, override });
 				}
 			},
 			workspace: {
@@ -202,39 +202,118 @@ test('changing a role and withdrawing a grant each need their act, and hand thei
 		}
 	});
 
-	const changing = await permittedApi(host, 'changeRole');
-	const changed = await changing.app.organization.member.changeRole({
-		memberId: 'member-2',
-		role: 'member',
-		permissions: 8
-	});
-
-	assert.equal(changed.permissions, 8);
-
+	const assigning = await permittedApi(host, 'assignRole');
+	const overriding = await permittedApi(host, 'overrideMember');
 	const granting = await permittedApi(host, 'grantWorkspace');
 
+	await assigning.app.organization.member.assignRole({ memberId: 'member-2', roleId: 'role-7' });
+	await overriding.app.organization.member.setOverride({ memberId: 'member-2', override: 8 });
 	await granting.app.organization.workspace.withdraw({
 		workspaceId: 'workspace-1',
 		memberId: 'member-2'
 	});
 
-	assert.deepEqual(asked, ['changeRole:member-2:member:8', 'withdraw:workspace-1:member-2']);
+	const done = [
+		'assignRole:member-2:role-7',
+		'setOverride:member-2:8',
+		'withdraw:workspace-1:member-2'
+	];
 
-	// and neither act stands in for the other.
+	assert.deepEqual(asked, done);
+
+	// and no flag stands in for another.
 	await assert.rejects(
-		granting.app.organization.member.changeRole({
-			memberId: 'member-2',
-			role: 'member',
-			permissions: 8
-		})
+		overriding.app.organization.member.assignRole({ memberId: 'member-2', roleId: 'role-7' })
 	);
 	await assert.rejects(
-		changing.app.organization.workspace.withdraw({
+		assigning.app.organization.member.setOverride({ memberId: 'member-2', override: 8 })
+	);
+	await assert.rejects(
+		assigning.app.organization.workspace.withdraw({
 			workspaceId: 'workspace-1',
 			memberId: 'member-2'
 		})
 	);
-	assert.deepEqual(asked, ['changeRole:member-2:member:8', 'withdraw:workspace-1:member-2']);
+	assert.deepEqual(asked, done);
+});
+
+// effort 838, requirement 4: every write to a role is `manageRoles`'s, and listing them is any
+// signed-in member's. What each write refuses on the rows (rank, a built-in role, flags not held)
+// is Rust's.
+test('the roles are listed to anybody signed in, and every write to one needs manageRoles', async () => {
+	const asked: string[] = [];
+	const role = {
+		id: 'role-7',
+		kind: 'custom' as const,
+		name: 'collector',
+		mask: 0,
+		rank: 500_000,
+		holders: 0
+	};
+	const host = fakeHost({
+		organization: {
+			...fakeHost().organization,
+			roles: async () => [role],
+			role: {
+				create: async (name, mask, afterRoleId) => {
+					asked.push(`create:${name}:${mask}:${afterRoleId}`);
+
+					return role;
+				},
+				rename: async (roleId, name) => {
+					asked.push(`rename:${roleId}:${name}`);
+
+					return role;
+				},
+				setMask: async (roleId, mask) => {
+					asked.push(`setMask:${roleId}:${mask}`);
+
+					return role;
+				},
+				move: async (roleId, afterRoleId) => {
+					asked.push(`move:${roleId}:${afterRoleId}`);
+
+					return role;
+				},
+				remove: async (roleId) => {
+					asked.push(`remove:${roleId}`);
+				}
+			}
+		}
+	});
+
+	const nobody = await permittedApi(host);
+
+	assert.deepEqual(await nobody.app.organization.role.list(), [role]);
+	await assert.rejects(nobody.app.organization.role.delete({ roleId: 'role-7' }));
+	await assert.rejects(
+		nobody.app.organization.role.create({ name: 'collector', mask: 0, afterRoleId: 'manager' })
+	);
+
+	const managing = await permittedApi(host, 'manageRoles');
+
+	await managing.app.organization.role.create({
+		name: ' collector ',
+		mask: 0,
+		afterRoleId: 'manager'
+	});
+	await managing.app.organization.role.rename({ roleId: 'role-7', name: 'collector' });
+	await managing.app.organization.role.setMask({ roleId: 'role-7', mask: 8 });
+	await managing.app.organization.role.move({ roleId: 'role-7', afterRoleId: 'manager' });
+	await managing.app.organization.role.delete({ roleId: 'role-7' });
+
+	// a blank name is refused before the round trip.
+	await assert.rejects(
+		managing.app.organization.role.create({ name: '  ', mask: 0, afterRoleId: 'manager' })
+	);
+
+	assert.deepEqual(asked, [
+		'create:collector:0:manager',
+		'rename:role-7:collector',
+		'setMask:role-7:8',
+		'move:role-7:manager',
+		'remove:role-7'
+	]);
 });
 
 // requirement 22, from this side: no procedure lists organizations, because a group-scoped token
@@ -257,7 +336,7 @@ test('nothing here asks the host to list organizations', () => {
 		'mark.clear',
 		'mark.get',
 		'mark.set',
-		'member.changeRole',
+		'member.assignRole',
 		'member.create',
 		'member.endSessions',
 		'member.linkMake',
@@ -266,11 +345,18 @@ test('nothing here asks the host to list organizations', () => {
 		'member.offerOwnership',
 		'member.remove',
 		'member.rename',
+		'member.setOverride',
 		'member.standings',
 		'member.unsetPassword',
 		'member.withdrawOffer',
 		'ownershipAccept',
 		'password.change',
+		'role.create',
+		'role.delete',
+		'role.list',
+		'role.move',
+		'role.rename',
+		'role.setMask',
 		'session.endElsewhere',
 		'workspace.create',
 		'workspace.grant',
@@ -487,14 +573,14 @@ test('making an account is inviteMember and unsetting a password is resetPasswor
 			...fakeHost().organization,
 			member: {
 				...fakeHost().organization.member,
-				create: async (username, role, permissions, workspaces) => {
-					asked.push(`create:${username}:${role}:${permissions}:${workspaces.length}`);
+				create: async (username, roleId, override, workspaces) => {
+					asked.push(`create:${username}:${roleId}:${override}:${workspaces.length}`);
 
 					return fakeOrganizationMember({
 						id: 'member-9',
 						username,
-						role: role === 'administrator' ? 'manager' : 'member',
-						permissions,
+						roleId,
+						override,
 						workspaces,
 						createdAt: 1_757_000_000_000
 					});
@@ -510,8 +596,8 @@ test('making an account is inviteMember and unsetting a password is resetPasswor
 	const inviting = await permittedApi(host, 'inviteMember');
 	const account = await inviting.app.organization.member.create({
 		username: '  sami.staff  ',
-		role: 'member',
-		permissions: 0,
+		roleId: 'member',
+		override: 0,
 		workspaces: [{ id: 'workspace-1', access: 'full-access' }]
 	});
 
@@ -531,8 +617,8 @@ test('making an account is inviteMember and unsetting a password is resetPasswor
 	await assert.rejects(
 		resetting.app.organization.member.create({
 			username: 'sami.staff',
-			role: 'member',
-			permissions: 0,
+			roleId: 'member',
+			override: 0,
 			workspaces: []
 		})
 	);
@@ -543,7 +629,7 @@ test('making an account is inviteMember and unsetting a password is resetPasswor
  * a caller whose row carries the acts named, the way `api/tests/procedure.test.ts` builds one:
  * the real context with an identity in it, and the host above recording what reached it.
  */
-async function permittedApi(host: Host, ...acts: Administration[]) {
+async function permittedApi(host: Host, ...acts: Flag[]) {
 	const ctx = await context({
 		db: createMemoryDatabase(),
 		clock: { now: () => 0 },

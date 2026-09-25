@@ -149,30 +149,6 @@ export const WRITE_FLAGS: readonly Flag[] = [
 ];
 
 /**
- * Today's seven acts of administration, under today's names, on the bits `FLAGS` gives them.
- *
- * **Kept so no importer moves while the vocabulary does.** `changeRole` is `assignRole` under the
- * name every caller still spells, on the same bit. Ticket 11 of effort 838 retires this table and
- * the two below it once nothing reads them.
- */
-export const ADMINISTRATION = {
-	inviteMember: FLAGS.inviteMember,
-	removeMember: FLAGS.removeMember,
-	changeRole: FLAGS.assignRole,
-	renameWorkspace: FLAGS.renameWorkspace,
-	resetPassword: FLAGS.resetPassword,
-	renameMember: FLAGS.renameMember,
-	grantWorkspace: FLAGS.grantWorkspace
-} as const;
-
-export type Administration = keyof typeof ADMINISTRATION;
-
-/** Anything a gate or a mask may name: a flag, or one of today's names for it. */
-export type Named = Flag | Administration;
-
-const BIT: Record<Named, number> = { ...FLAGS, ...ADMINISTRATION };
-
-/**
  * One act at least.
  *
  * **A gate that names no acts is a caller mistake, not a gate that lets everybody through.**
@@ -185,7 +161,7 @@ const BIT: Record<Named, number> = { ...FLAGS, ...ADMINISTRATION };
  * nothing* and is a real value on real rows. Naming nothing is meaningful there and meaningless
  * in a gate, and the difference is why the shape is not simply pushed onto everything here.
  */
-export type NamedActs = readonly [Administration, ...Administration[]];
+export type NamedActs = readonly [Flag, ...Flag[]];
 
 /**
  * The highest bit a flag may occupy.
@@ -194,8 +170,6 @@ export type NamedActs = readonly [Administration, ...Administration[]];
  * 53 flags, and their combined value is 2^53 - 1, the last integer JavaScript holds exactly.
  */
 export const HIGHEST_USABLE_BIT = 52;
-
-export const EVERY_ADMINISTRATION = Object.keys(ADMINISTRATION) as Administration[];
 
 const isSet = (value: number, bit: number): boolean => Math.floor(value / 2 ** bit) % 2 === 1;
 
@@ -206,14 +180,14 @@ const isSet = (value: number, bit: number): boolean => Math.floor(value / 2 ** b
  * what an OR of them would produce, without the coercion.
  *
  * A name given twice is counted once, which `|` would have given for free and addition does
- * not: `2 + 2` is `4`, so a repeated flag would set the bit above the one asked for. The same
- * holds for a flag named once by its own name and once by its alias.
+ * not: `2 + 2` is `4`, so a repeated flag would set the bit above the one asked for.
  */
-export const maskOf = (...names: readonly Named[]): number =>
-	[...new Set(names.map((name) => BIT[name]))].reduce((mask, bit) => mask + 2 ** bit, 0);
+export const maskOf = (...names: readonly Flag[]): number =>
+	[...new Set(names.map((name): number => FLAGS[name]))].reduce((mask, bit) => mask + 2 ** bit, 0);
 
 /** Whether a stored permission value carries one flag. Arithmetic, for the reason `maskOf` is. */
-export const permits = (permissions: number, name: Named): boolean => isSet(permissions, BIT[name]);
+export const permits = (permissions: number, name: Flag): boolean =>
+	isSet(permissions, FLAGS[name]);
 
 /**
  * The exclusive-or of two masks, bit by bit up to [`HIGHEST_USABLE_BIT`].
@@ -255,23 +229,6 @@ export const effectiveIn = (permissions: number, accessLevel: AccessLevel): numb
 				permissions
 			)
 		: permissions;
-
-/**
- * What a membership row can be called, today.
- *
- * **Declared here rather than imported, and that is the one thing this package could not bring
- * with it.** It was `Membership['role']`, derived from the control plane's own schema, which is
- * where the column actually is. A package both applications depend on cannot depend on either of
- * them, so the union is written out and the schema is held to it by a type-level assertion in
- * `database/schema.ts` — a role added to the column and not to this line fails a typecheck rather
- * than a test.
- *
- * *Two declarations of one union is the drift this package exists to remove, in the one place it
- * cannot reach. The assertion is the whole of the mitigation, and it is not optional.*
- *
- * [`RoleKind`] is what it becomes once the roles are rows; it stays until the callers move.
- */
-export type Role = 'owner' | 'administrator' | 'member';
 
 /** The kind of a role: one of the three every organization has, or one it made itself. */
 export type RoleKind = 'owner' | 'manager' | 'member' | 'custom';
@@ -323,30 +280,3 @@ export const BUILT_IN = {
 		)
 	}
 } as const satisfies Record<Exclude<RoleKind, 'custom'>, BuiltInRole>;
-
-/**
- * What each of today's roles administers by default.
- *
- * The role is what a person is called; the column is what they may do. Both are stored,
- * because an organization may want an administrator who cannot rename a member, and a role that
- * computed its own permissions on read could not express that.
- *
- * **The owner and the administrator carry every act here, and the difference between them is not
- * in this table.** *Requirement 5 of effort 826.* What separates them is the acts nobody can be
- * given: creating and deleting a workspace, minting a read-only credential, locking a member out,
- * renewing credentials, the Turso account and the organization's own link. Those need the Turso
- * authority, which lives on one machine and in no row, so they are refused in Rust by an owner
- * check rather than named here. A table that listed them would be offering a flag that granting
- * cannot deliver.
- *
- * **The column is still the truth.** A member's row is widened or narrowed one act at a time by a
- * holder of `changeRole`, so what this table gives is what a person is created with rather than
- * what they may do ever after.
- *
- * *Kept for today's importers; [`BUILT_IN`] is what replaces it.*
- */
-export const ADMINISTRATION_BY_ROLE: Record<Role, number> = {
-	owner: maskOf(...EVERY_ADMINISTRATION),
-	administrator: maskOf(...EVERY_ADMINISTRATION),
-	member: 0
-};

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { ADMINISTRATION_BY_ROLE, maskOf } from '@rentable/workspace-permission';
+import { BUILT_IN, maskOf } from '@rentable/workspace-permission';
 
 import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
 import type { Host, OrganizationSession } from '$lib/platform/host.ts';
@@ -214,7 +214,7 @@ test('a member the workspace permits to take an act reaches the procedure that n
 });
 
 test('and one whose membership does not carry it is refused', async () => {
-	const api = await apiFor(ADMINISTRATION_BY_ROLE.member);
+	const api = await apiFor(BUILT_IN.member.mask);
 
 	const refusal = await refusalFrom(api.rename());
 
@@ -298,8 +298,6 @@ test('the permissions a procedure reads are the ones the shell answered with', a
  */
 const refusingRouter = router({
 	assign: procedure.member.use(middleware.requirePermission('assignRole')).query(() => 'assigned'),
-	// today's alias, which names the flag on its bit.
-	change: procedure.member.use(middleware.requirePermission('changeRole')).query(() => 'changed'),
 	pay: procedure.member.use(middleware.requirePermission('createPayment')).query(() => 'paid'),
 	either: procedure.member
 		.use(middleware.requireAnyPermission('inviteMember', 'resetPassword'))
@@ -332,7 +330,6 @@ test('a refusal of an organization flag names it and does not say in this worksp
 
 	for (const [call, flag] of [
 		[api.assign(), 'assignRole'],
-		[api.change(), 'assignRole'],
 		[api.either(), 'inviteMember, resetPassword']
 	] as const) {
 		const refusal = await messageFrom(call);

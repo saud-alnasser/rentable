@@ -12,7 +12,8 @@
 	import {
 		useCreateAccount,
 		useCreateWorkspace,
-		useFetchOrganizationState
+		useFetchOrganizationState,
+		useFetchRoles
 	} from '$lib/organization/query';
 	import { onDestroy } from 'svelte';
 	import { locale } from '$lib/i18n/i18n-svelte';
@@ -42,6 +43,8 @@
 	const createWorkspace = useCreateWorkspace();
 
 	const session = $derived(stateQuery.data?.session ?? null);
+	// the roles an account can be made in, read while the form that makes one is open.
+	const rolesQuery = useFetchRoles(() => organizationDialog.open === 'account');
 	const isOwner = $derived(session?.role === 'owner');
 
 	// the form names each workspace with the access it is granted at, which is what the command
@@ -49,12 +52,12 @@
 	// and making one is its own act on the account.
 	const create = async (
 		username: string,
-		role: 'administrator' | 'member',
-		permissions: number,
+		roleId: string,
+		override: number,
 		workspaces: WorkspaceGrant[]
 	) => {
 		try {
-			await createAccount.mutateAsync({ username, role, permissions, workspaces });
+			await createAccount.mutateAsync({ username, roleId, override, workspaces });
 		} catch {
 			// said by the shared handler; the form keeps what was typed.
 			return;
@@ -90,11 +93,13 @@
 				if (!open) closeOrganizationDialog();
 			}}
 			workspaces={session.workspaces}
-			canInviteAdministrators={isOwner}
+			roles={rolesQuery.data ?? []}
+			readerRank={session.rank}
+			readerPermissions={session.permissions}
 			canGrantReadOnly={isOwner}
 			isCreating={createAccount.isPending}
-			onCreate={(username, role, permissions, workspaces) =>
-				void create(username, role, permissions, workspaces)}
+			onCreate={(username, roleId, override, workspaces) =>
+				void create(username, roleId, override, workspaces)}
 		/>
 
 		<OrganizationWorkspaceDialog

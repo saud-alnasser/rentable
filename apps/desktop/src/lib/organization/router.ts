@@ -9,6 +9,7 @@ import type {
 	OrganizationCreated,
 	OrganizationMember,
 	OrganizationMark,
+	OrganizationRole,
 	OrganizationState,
 	OrganizationWorkspace,
 	SessionsEnded,
@@ -29,6 +30,18 @@ import { USERNAME_MAX, USERNAME_MIN, USERNAME_PATTERN } from './username-form';
  * sealed and only an open vault can compare them.
  */
 const USERNAME = z.string().trim().min(USERNAME_MIN).max(USERNAME_MAX).regex(USERNAME_PATTERN);
+
+/** a role, by the id its row carries or the owner's constant. */
+const ROLE_ID = z.string().trim().min(1);
+
+/**
+ * a role's name. Whether it is taken is Rust's alone, since a custom role's name is sealed and only
+ * an open vault can compare them; this is the earlier refusal of a blank one.
+ */
+const ROLE_NAME = z.string().trim().min(1);
+
+/** a set of flags as the one number a row stores, which never reaches bit 53. */
+const MASK = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 
 /**
  * ORGANIZATION ROUTER
@@ -266,8 +279,8 @@ export const organization = router({
 			.input(
 				z.object({
 					username: USERNAME,
-					role: z.enum(['administrator', 'member']),
-					permissions: z.number().int().min(0),
+					roleId: ROLE_ID,
+					override: MASK,
 					workspaces: z.array(
 						z.object({
 							id: z.string().trim().min(1),
@@ -279,8 +292,8 @@ export const organization = router({
 			.mutation(async ({ input, ctx }): Promise<OrganizationMember> => {
 				return ctx.host.organization.member.create(
 					input.username,
-					input.role,
-					input.permissions,
+					input.roleId,
+					input.override,
 					input.workspaces
 				);
 			}),
@@ -344,26 +357,27 @@ export const organization = router({
 				return ctx.host.organization.member.rename(input.memberId, input.username);
 			}),
 		/**
-		 * A role and the acts that go with it, written together. This side refuses a caller whose
-		 * row does not carry `changeRole`; whether the row is the caller's own or the owner's, whether
-		 * it ranks below the caller, and whether every flag the change moves is one the caller holds,
-		 * are Rust's, because each turns on verified rows this side does not read.
+		 * The role a member holds (effort 838, requirement 5). This side refuses a caller whose row
+		 * does not carry `assignRole`; whether the row is the caller's own or the owner's, whether
+		 * the member and the role rank below the caller, and whether every flag the change moves is
+		 * one the caller holds, are Rust's, because each turns on verified rows this side does not
+		 * read. *It was `changeRole`, which wrote a word and seven acts together, until effort 838.*
 		 */
-		changeRole: procedure
-			.permitted('changeRole')
-			.input(
-				z.object({
-					memberId: z.string().trim().min(1),
-					role: z.enum(['administrator', 'member']),
-					permissions: z.number().int().min(0)
-				})
-			)
+		assignRole: procedure
+			.permitted('assignRole')
+			.input(z.object({ memberId: z.string().trim().min(1), roleId: ROLE_ID }))
 			.mutation(async ({ input, ctx }): Promise<OrganizationMember> => {
-				return ctx.host.organization.member.changeRole(
-					input.memberId,
-					input.role,
-					input.permissions
-				);
+				return ctx.host.organization.member.assignRole(input.memberId, input.roleId);
+			}),
+		/**
+		 * The flags switched for one member alone (requirement 6), held to `overrideMember` here and
+		 * to the rest of requirement 7 in Rust, as `assignRole` is.
+		 */
+		setOverride: procedure
+			.permitted('overrideMember')
+			.input(z.object({ memberId: z.string().trim().min(1), override: MASK }))
+			.mutation(async ({ input, ctx }): Promise<OrganizationMember> => {
+				return ctx.host.organization.member.setOverride(input.memberId, input.override);
 			}),
 		/**
 		 * Offer the organization to another account: the first of the two acts a handover is
@@ -411,6 +425,51 @@ export const organization = router({
 			.input(z.object({ memberId: z.string().trim().min(1) }))
 			.mutation(async ({ input, ctx }): Promise<SessionsEnded> => {
 				return ctx.host.organization.member.endSessions(input.memberId);
+			})
+	},
+	/**
+	 * The organization's roles (effort 838, requirements 3 and 4), which the organization section
+	 * of the settings area lists and edits.
+	 *
+	 * **Reading them is any signed-in member's**, as the members list is: what the roles are is not
+	 * a secret from the people who hold them. **Every write is `manageRoles`'s here and again in
+	 * Rust**, where the rest of requirement 7 is decided on verified rows: the role ranks below the
+	 * caller, a built-in role is not renamed, moved or deleted, and a mask carries only flags the
+	 * caller holds and none of the owner's.
+	 */
+	role: {
+		list: procedure.member.query(async ({ ctx }): Promise<OrganizationRole[]> => {
+			return ctx.host.organization.roles();
+		}),
+		create: procedure
+			.permitted('manageRoles')
+			.input(z.object({ name: ROLE_NAME, mask: MASK, afterRoleId: ROLE_ID }))
+			.mutation(async ({ input, ctx }): Promise<OrganizationRole> => {
+				return ctx.host.organization.role.create(input.name, input.mask, input.afterRoleId);
+			}),
+		rename: procedure
+			.permitted('manageRoles')
+			.input(z.object({ roleId: ROLE_ID, name: ROLE_NAME }))
+			.mutation(async ({ input, ctx }): Promise<OrganizationRole> => {
+				return ctx.host.organization.role.rename(input.roleId, input.name);
+			}),
+		setMask: procedure
+			.permitted('manageRoles')
+			.input(z.object({ roleId: ROLE_ID, mask: MASK }))
+			.mutation(async ({ input, ctx }): Promise<OrganizationRole> => {
+				return ctx.host.organization.role.setMask(input.roleId, input.mask);
+			}),
+		move: procedure
+			.permitted('manageRoles')
+			.input(z.object({ roleId: ROLE_ID, afterRoleId: ROLE_ID }))
+			.mutation(async ({ input, ctx }): Promise<OrganizationRole> => {
+				return ctx.host.organization.role.move(input.roleId, input.afterRoleId);
+			}),
+		delete: procedure
+			.permitted('manageRoles')
+			.input(z.object({ roleId: ROLE_ID }))
+			.mutation(async ({ input, ctx }): Promise<void> => {
+				return ctx.host.organization.role.remove(input.roleId);
 			})
 	},
 	/**
@@ -479,9 +538,9 @@ export const organization = router({
 	},
 	/**
 	 * The organization's signature or seal (effort 835, requirement 13). `member` for all three:
-	 * anybody signed in reads it for the pages they print, and whether they may change it is the
-	 * owner's or an administrator's role, which Rust reads off the verified row and signs under,
-	 * since no bit carries it. A path rather than the image, because the host reads the file the
+	 * anybody signed in reads it for the pages they print, and whether they may change it is
+	 * `manageMark`, which Rust reads off the verified row and signs under. A path rather than the
+	 * image, because the host reads the file the
 	 * dialog chose and checks it by its bytes.
 	 */
 	mark: {

@@ -1,4 +1,4 @@
-import { permits, type Administration } from '@rentable/workspace-permission';
+import { permits, type Flag } from '@rentable/workspace-permission';
 
 /**
  * WHAT A GATED SUBTREE DRAWS
@@ -34,7 +34,7 @@ export type PermittedBranch = 'children' | 'unavailable' | 'nothing';
  * The acts are named. Nothing here reads a bit index, a mask or a role: `permits` is
  * `@rentable/workspace-permission`'s and `permission::require` in Rust answers from the same bits.
  */
-export const holdsEvery = (permissions: number, acts: readonly Administration[]): boolean =>
+export const holdsEvery = (permissions: number, acts: readonly Flag[]): boolean =>
 	acts.every((act) => permits(permissions, act));
 
 /**
@@ -46,7 +46,7 @@ export const holdsEvery = (permissions: number, acts: readonly Administration[])
  */
 export const permittedBranch = (
 	permissions: number,
-	acts: readonly Administration[],
+	acts: readonly Flag[],
 	otherwise: Otherwise
 ): PermittedBranch => {
 	if (holdsEvery(permissions, acts)) {

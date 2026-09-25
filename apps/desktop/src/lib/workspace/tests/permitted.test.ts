@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { ADMINISTRATION_BY_ROLE, maskOf, type NamedActs } from '@rentable/workspace-permission';
+import { BUILT_IN, maskOf, type NamedActs } from '@rentable/workspace-permission';
 import { holdsEvery, permittedBranch } from '$lib/workspace/permitted';
 
 /**
@@ -20,15 +20,12 @@ test('a member who holds the act sees the subtree, whichever branch the caller a
 // default: the member is the same and the act is the same, and what a reader sees is the caller's
 // decision about what absence would cost them.
 test('a member who does not is absent where the caller asked for absent', () => {
-	assert.equal(
-		permittedBranch(ADMINISTRATION_BY_ROLE.member, ['renameWorkspace'], 'absent'),
-		'nothing'
-	);
+	assert.equal(permittedBranch(BUILT_IN.member.mask, ['renameWorkspace'], 'absent'), 'nothing');
 });
 
 test('and present-and-unavailable where the caller asked for that', () => {
 	assert.equal(
-		permittedBranch(ADMINISTRATION_BY_ROLE.member, ['renameWorkspace'], 'unavailable'),
+		permittedBranch(BUILT_IN.member.mask, ['renameWorkspace'], 'unavailable'),
 		'unavailable'
 	);
 });

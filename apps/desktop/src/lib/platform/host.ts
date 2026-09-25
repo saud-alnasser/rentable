@@ -251,7 +251,10 @@ export type HeldOrganization = {
 	name: string;
 	/** this person's member row, once a sign-in has found it; `null` until then. */
 	memberId: string | null;
-	/** their role there, as last read. A display fact: what a member may do is what their vault holds. */
+	/**
+	 * their role there, as last read: `owner`, `manager` for the manager's role, `member` for any
+	 * other, or `removed`. A display fact: what a member may do is what their vault holds.
+	 */
 	role: string | null;
 	joinedAt: number;
 };
@@ -700,6 +703,23 @@ export type Host = {
 		 * signed-in member reads it; a custom role's name is opened on the other side.
 		 */
 		roles: () => Promise<OrganizationRole[]>;
+		/**
+		 * the organization's own roles (effort 838, requirement 4). Each is `manageRoles`'s, on a role
+		 * ranked below the caller's, and a mask may carry only flags the caller holds and none of the
+		 * owner's; Rust refuses each by name. What comes back is the role as the list reads it.
+		 */
+		role: {
+			/** make a custom role, named and carrying `mask`, directly below `afterRoleId`. */
+			create: (name: string, mask: number, afterRoleId: string) => Promise<OrganizationRole>;
+			/** rename a custom role; the three every organization has keep their names. */
+			rename: (roleId: string, name: string) => Promise<OrganizationRole>;
+			/** change what a role carries: the manager's, the member's or a custom one, never the owner's. */
+			setMask: (roleId: string, mask: number) => Promise<OrganizationRole>;
+			/** move a custom role to directly below `afterRoleId`, the manager or another custom role. */
+			move: (roleId: string, afterRoleId: string) => Promise<OrganizationRole>;
+			/** delete a custom role; everybody who held it holds the member role from here on. */
+			remove: (roleId: string) => Promise<void>;
+		};
 		workspace: {
 			/**
 			 * create a workspace on the account: a database, migrated, recorded, and granted to the
@@ -745,8 +765,8 @@ export type Host = {
 			 */
 			create: (
 				username: string,
-				role: 'administrator' | 'member',
-				permissions: number,
+				roleId: string,
+				override: number,
 				workspaces: WorkspaceGrant[]
 			) => Promise<OrganizationMember>;
 			/**
@@ -775,16 +795,17 @@ export type Host = {
 			/** what locking a member out would cost, before it is done. */
 			lockOutCost: (memberId: string) => Promise<LockOutCost>;
 			/**
-			 * change what a member is called and what they may do: the role their row names and
-			 * their override, each re-signed, and their certificate issued again from the caller's to
-			 * match. Nobody changes their own row or the owner's, nor one ranked at or above their
-			 * own, nor a flag they do not hold.
+			 * give a member a role: their row names it, re-signed, and their certificate is issued
+			 * again from the caller's to match. `assignRole`, on a member and a role both ranked below
+			 * the caller, never their own row, and only where every flag the change moves is one the
+			 * caller holds. The owner's role is never assigned; it is handed over.
 			 */
-			changeRole: (
-				memberId: string,
-				role: 'administrator' | 'member',
-				permissions: number
-			) => Promise<OrganizationMember>;
+			assignRole: (memberId: string, roleId: string) => Promise<OrganizationMember>;
+			/**
+			 * set a member's override: the flags switched for them alone, against their role's mask.
+			 * `overrideMember`, on the same lines as `assignRole`; the owner carries none.
+			 */
+			setOverride: (memberId: string, override: number) => Promise<OrganizationMember>;
 			/**
 			 * offer the organization to another account: the first of the two acts a handover is
 			 * (effort 828, requirement 22). Nothing about the organization moves, and the owner can

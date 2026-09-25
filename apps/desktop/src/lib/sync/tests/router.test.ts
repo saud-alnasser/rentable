@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { ADMINISTRATION_BY_ROLE, maskOf } from '@rentable/workspace-permission';
+import { BUILT_IN, maskOf } from '@rentable/workspace-permission';
 
 import { createApi, fakeIdentity } from '$lib/api/tests/testing.ts';
 import { fakeHost, fakeSyncState, fakeWorkspace } from '$lib/platform/tests/testing.ts';
@@ -121,7 +121,7 @@ test('a member the workspace does not permit to rename it is refused, and the ho
 	const asked: string[] = [];
 	const api = await createApi({
 		host: hostRecordingRenames(asked),
-		identity: fakeIdentity({ permissions: ADMINISTRATION_BY_ROLE.member })
+		identity: fakeIdentity({ permissions: BUILT_IN.member.mask })
 	});
 
 	const refusal = await api.app.remoteSync.rename({ name: 'not theirs to change' }).then(
@@ -146,7 +146,7 @@ test('and so is a member holding every act except that one', async () => {
 			permissions: maskOf(
 				'inviteMember',
 				'removeMember',
-				'changeRole',
+				'assignRole',
 				'resetPassword',
 				'renameMember',
 				'grantWorkspace'

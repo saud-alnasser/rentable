@@ -1,14 +1,5 @@
 import { requestWorkspaceSync } from '$lib/sync/event';
-import {
-	ADMINISTRATION,
-	EVERY_FLAG,
-	FAMILIES,
-	FLAGS,
-	permits,
-	type Administration,
-	type Flag,
-	type Named
-} from '@rentable/workspace-permission';
+import { FAMILIES, permits, type Flag } from '@rentable/workspace-permission';
 import { TRPCError, initTRPC } from '@trpc/server';
 import { ZodError, type z } from 'zod';
 import { context, type Identity } from './context';
@@ -30,25 +21,14 @@ export { context };
  */
 const ORGANIZATION_FLAGS: readonly Flag[] = [...FAMILIES.administration, ...FAMILIES.owner];
 
-/** a name as the flag it is: one of today's aliases read as the flag on its bit. */
-function flagOf(name: Named): Flag {
-	if (name in FLAGS) {
-		return name as Flag;
-	}
-
-	const bit = ADMINISTRATION[name as Administration];
-
-	return EVERY_FLAG.find((flag) => FLAGS[flag] === bit) as Flag;
-}
-
 /**
  * the flags a refusal names, and where: *in this workspace* only where every one of them is a
  * record flag, since those are what a workspace's grant narrows. An organization flag is held
  * across the organization or not at all, and saying *in this workspace* of one sends whoever reads
  * the log to the wrong place.
  */
-function refused(names: readonly Named[]): string {
-	const flags = [...new Set(names.map(flagOf))];
+function refused(names: readonly Flag[]): string {
+	const flags = [...new Set(names)];
 	const where = flags.some((flag) => ORGANIZATION_FLAGS.includes(flag)) ? '' : ' in this workspace';
 
 	return `${flags.join(', ')}${where}`;
@@ -64,7 +44,7 @@ function refused(names: readonly Named[]): string {
  */
 function refuseMissing(
 	identity: Identity | null,
-	acts: readonly Named[]
+	acts: readonly Flag[]
 ): asserts identity is Identity {
 	const missing = acts.filter((act) => !identity || !permits(identity.permissions, act));
 
@@ -80,11 +60,10 @@ function refuseMissing(
  * One flag at least.
  *
  * A gate naming nothing opens for everybody, since `every` over an empty list is `true`, so an
- * empty gate is a compile error at the place it would be written. `Acts` also takes today's
- * aliases, which ticket 11 of effort 838 retires; what a procedure records is the flag either way.
+ * empty gate is a compile error at the place it would be written.
  */
 export type Flags = readonly [Flag, ...Flag[]];
-type Acts = readonly [Named, ...Named[]];
+type Acts = Flags;
 
 /**
  * What a procedure says about who may call it, read by the test that walks the router (effort 838,
@@ -343,7 +322,7 @@ export const procedure = {
 	 */
 	permitted: (...acts: Acts) =>
 		t.procedure
-			.meta({ flags: acts.map(flagOf) })
+			.meta({ flags: [...acts] })
 			.use(middleware.log)
 			.use(middleware.requireIdentity)
 			.use(middleware.requirePermission(...acts)),
@@ -361,7 +340,7 @@ export const procedure = {
 	 */
 	permittedAny: (...acts: Acts) =>
 		t.procedure
-			.meta({ anyOf: acts.map(flagOf) })
+			.meta({ anyOf: [...acts] })
 			.use(middleware.log)
 			.use(middleware.requireIdentity)
 			.use(middleware.requireAnyPermission(...acts)),

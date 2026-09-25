@@ -5,6 +5,7 @@
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
+	import { memberRoleName } from '$lib/organization/role';
 	import { accountInitials } from '$lib/sync/account';
 	import { requestSignOut } from '$lib/sync/sign-out';
 	import LogOutIcon from '@lucide/svelte/icons/log-out';
@@ -25,13 +26,7 @@
 	 */
 	let { session }: { session: OrganizationSession } = $props();
 
-	const roleLabel = (role: string) =>
-		({
-			owner: $LL.layout.signIn.roleOwner(),
-			// the manager keeps the administrator's name until ticket 11 of effort 838 renames it.
-			manager: $LL.layout.signIn.roleAdministrator(),
-			member: $LL.layout.signIn.roleMember()
-		})[role] ?? role;
+	const roleLabel = $derived(memberRoleName($LL, session));
 </script>
 
 <Field.Field orientation="responsive" data-identity={session.memberId}>
@@ -45,7 +40,7 @@
 			<div class="grid min-w-0 gap-1">
 				<div class="flex min-w-0 flex-wrap items-center gap-2">
 					<p class="truncate text-sm font-medium" data-identity-username>{session.username}</p>
-					<Badge variant="secondary">{roleLabel(session.role)}</Badge>
+					<Badge variant="secondary"><bdi>{roleLabel}</bdi></Badge>
 				</div>
 				<p class="truncate text-sm text-muted-foreground">{session.organizationName}</p>
 			</div>

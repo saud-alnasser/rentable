@@ -37,19 +37,19 @@ function compareText(one: string, other: string) {
 /**
  * The members a directory shows: those the term finds, in the order chosen.
  *
- * A member is found by their username or by what their role is called, so typing *admin* finds
- * every administrator. With no order chosen the set keeps the order it arrived in.
+ * A member is found by their username or by what their role is called, so typing *manag* finds
+ * every manager. With no order chosen the set keeps the order it arrived in.
  *
- * @param roleLabel what a role is called in the reader's language.
+ * @param roleLabel what a member's role is called in the reader's language.
  */
 export function toMemberDirectory(
 	members: readonly OrganizationMember[],
 	term: string,
 	sort: ListSort | null,
-	roleLabel: (role: string) => string
+	roleLabel: (member: OrganizationMember) => string
 ): OrganizationMember[] {
 	const found = members.filter(
-		(member) => matchesTerm(member.username, term) || matchesTerm(roleLabel(member.role), term)
+		(member) => matchesTerm(member.username, term) || matchesTerm(roleLabel(member), term)
 	);
 
 	if (!sort) {

@@ -43,7 +43,7 @@ test('the block names the person by the username, the role and the organization,
 	expect(identity.querySelector('[data-identity-username]')?.textContent?.trim()).toBe(
 		'sami.staff'
 	);
-	expect(screen.getByText(en.layout.signIn.roleAdministrator)).toBeDefined();
+	expect(screen.getByText(en.layout.signIn.roleManager)).toBeDefined();
 	expect(screen.getByText('Acme Rentals')).toBeDefined();
 	expect(identity.textContent).not.toContain('@');
 	expect(identity.querySelectorAll('[data-identity-username]')).toHaveLength(1);
@@ -57,7 +57,7 @@ test('and in arabic, the same username under the role in its own words', () => {
 	block('lina_h', 'rtl');
 
 	expect(document.querySelector('[data-identity-username]')?.textContent?.trim()).toBe('lina_h');
-	expect(screen.getByText(ar.layout.signIn.roleAdministrator)).toBeDefined();
+	expect(screen.getByText(ar.layout.signIn.roleManager)).toBeDefined();
 	expect(document.querySelector('[data-slot="avatar-fallback"]')?.textContent?.trim()).toBe('LI');
 	expect(screen.getByRole('button', { name: ar.common.actions.signOut })).toBeDefined();
 

@@ -296,13 +296,13 @@ const ar = {
 				usernameInvalid:
 					'يتكوّن اسم المستخدم من 3 إلى 32 من الحروف أو الأرقام أو النقاط أو الشرطات السفلية أو الشرطات، دون مسافات.',
 				usernameTaken: 'اسم المستخدم هذا مأخوذ في هذه المؤسسة. اختر اسماً آخر.',
-				roleUnknown: 'اختر مديراً أو عضواً.',
+				roleUnknown: 'اختر دورًا من أدوار المؤسسة.',
 				memberMissing: 'لم يعد هذا العضو في هذه المؤسسة. أعد التحميل لترى ما تغيّر.',
 				markNotAnImage: 'اختر صورة بصيغة PNG أو JPEG أو WebP.',
 				markTooLarge: 'حجم الصورة أكبر من 512 كيلوبايت. اختر صورة أصغر.',
 				memberGone: 'لم يعد هذا الحساب في المؤسسة.',
 				memberRemoved: 'أُزيل هذا العضو. أنشئ له حساباً من جديد إن كان سيعود.',
-				notYourself: 'لا يمكنك القيام بهذا على حسابك أنت. يستطيع ذلك مدير آخر.',
+				notYourself: 'لا يمكنك القيام بهذا على حسابك أنت. يستطيع ذلك من هو أعلى منك رتبة.',
 				ownerProtected: 'لا يُغيَّر حساب المالك بهذه الطريقة، فالمؤسسة ملكه.',
 				ownerOnly: 'لا يقوم بهذا إلا المالك. اطلبه منه.',
 				ownerMachineOnly: 'يحتاج هذا إلى حساب Turso المتصل بجهاز المالك. اطلبه من المالك.',
@@ -557,7 +557,7 @@ const ar = {
 			password: 'كلمة المرور',
 			unlocking: 'يجري تسجيل دخولك. يستغرق هذا لحظة عن قصد.',
 			roleOwner: 'مالك',
-			roleAdministrator: 'مدير',
+			roleManager: 'مدير',
 			roleMember: 'عضو',
 			setUp: 'استعمل حساب Turso الخاص بك',
 			setUpDescription: 'أنت مالك المؤسسة.',
@@ -993,7 +993,7 @@ const ar = {
 			choose: 'اختيار صورة',
 			description: 'يُطبع أسفل كل سند قبض وجدول دفعات.',
 			none: 'لم يُضف بعد',
-			readOnly: 'يستطيع المالك أو أحد المديرين تغييره.',
+			readOnly: 'يستطيع تغييره من يُسمح له بتغيير التوقيع.',
 			remove: 'إزالة',
 			removed: 'أُزيل التوقيع أو الختم',
 			replace: 'استبدال الصورة',
@@ -1100,7 +1100,6 @@ const ar = {
 			memberDescription:
 				'اسم المستخدم والدور ومساحات العمل التي يحملها. لا كلمة مرور له حتى يفتح رابطًا تصنعه له.',
 			role: 'الدور',
-			administratorsAreTheOwners: 'المالك وحده يستطيع جعل أحد مديرًا.',
 			noWorkspaceToGrant: 'لا مساحة عمل لمنحها بعد. يمكن منحهم واحدة لاحقًا.',
 			addMember: 'أضف عضوًا',
 			cannotSend:
@@ -1179,22 +1178,13 @@ const ar = {
 			forgetAccount: 'انسَ حساب Turso',
 			readOnlyIsTheOwners: 'المالك وحده يمنح وصول القراءة فقط، من جهازه هو.',
 			memberSheetDescription: 'ما يستطيع {username} فعله في هذه المؤسسة.',
-			beyondRole: 'خارج دوره',
-			beyondRoleDescription: 'ما يستطيع هذا العضو فعله مما لا يستطيعه العضو عادة.',
-			beyondRoleNone: 'لا شيء خارج دوره.',
-			beyondRoleAdd: 'اسمح له بشيء آخر',
-			allowActs: 'اسمح',
-			administratorAllowedEvery: 'المدير يستطيع كل ذلك أصلًا.',
-			permissionsLegend: 'ما يستطيع فعله',
-			actInviteMember: 'دعوة الأعضاء',
-			actRemoveMember: 'إزالة الأعضاء',
-			actChangeRole: 'تغيير الأدوار والصلاحيات',
-			actRenameWorkspace: 'تغيير أسماء مساحات العمل',
-			actResetPassword: 'إصدار روابط جديدة',
-			actRenameMember: 'تغيير أسماء الأعضاء',
-			actGrantWorkspace: 'منح مساحات العمل',
-			signingIsTheOwners: 'المالك وحده يمنح أحدًا فعلًا يكتب في صف عضو آخر. أما سحب فعل فهو لك.',
-			roleChanged: 'حُفظ الدور والصلاحيات.',
+			roleChanged: 'حُفظ الدور.',
+			overrideSaved: 'حُفظ ما يستطيع فعله.',
+			notBelowYou: 'ليس أدنى منك رتبة، فيفعل هذا من هو أعلى منه.',
+			yourOwn: 'هذا أنت: يغيّر دورك وصلاحياتك من هو أعلى منك رتبة.',
+			lacksFlag: 'لا يحق لك {flag}.',
+			notHeld: 'لا تملك هذا أنت نفسك.',
+			roleOutOfReach: 'الدور الذي في رتبتك أو فوقها يمنحه من هو أعلى منه.',
 			leavingTitle: 'المغادرة',
 			disconnectForgets: 'يسجّل خروجك ويحذف نسخة المؤسسة من هذا الجهاز. لا يتغير شيء على Turso.',
 			disconnect: 'افصل',
@@ -1217,7 +1207,7 @@ const ar = {
 			owner: {
 				who: 'يملك حساب Turso ويستطيع فعل أي شيء. المالك واحد، ولا يسلّم الملكية غيره.'
 			},
-			administrator: {
+			manager: {
 				who: 'يضيف الأعضاء ويصنع الروابط ويمنح مساحات العمل. أما حساب Turso فيبقى للمالك.'
 			},
 			member: {
@@ -1225,36 +1215,88 @@ const ar = {
 			}
 		},
 
-		acts: {
-			inviteMember: { does: 'يستطيع دعوة الأعضاء' },
-			removeMember: { does: 'يستطيع إزالة الأعضاء' },
-			changeRole: { does: 'يستطيع تغيير ما يفعله عضو آخر' },
-			renameWorkspace: { does: 'يستطيع تغيير اسم مساحة عمل' },
-			resetPassword: { does: 'يستطيع إعادة تعيين كلمة مرور عضو' },
-			renameMember: { does: 'يستطيع تغيير أسماء الأعضاء' },
-			grantWorkspace: { does: 'يستطيع منح عضو مساحة عمل' }
+		families: {
+			administration: 'المؤسسة',
+			owner: 'للمالك وحده',
+			complex: 'المجمعات',
+			unit: 'الوحدات',
+			tenant: 'المستأجرون',
+			contract: 'العقود',
+			payment: 'المدفوعات'
+		},
+		flagVerbs: {
+			view: 'عرض',
+			create: 'إنشاء',
+			edit: 'تعديل',
+			delete: 'حذف'
+		},
+		flags: {
+			inviteMember: 'دعوة الأعضاء',
+			removeMember: 'إزالة الأعضاء',
+			assignRole: 'منح الأعضاء أدوارهم',
+			renameWorkspace: 'تغيير أسماء مساحات العمل',
+			resetPassword: 'إعادة تعيين كلمات المرور',
+			renameMember: 'تغيير أسماء الأعضاء',
+			grantWorkspace: 'منح مساحات العمل',
+			manageRoles: 'إدارة الأدوار',
+			overrideMember: 'تغيير صلاحيات عضو بعينه',
+			manageMark: 'تغيير توقيع المؤسسة أو ختمها',
+			createWorkspace: 'إنشاء مساحات العمل',
+			deleteWorkspace: 'حذف مساحات العمل',
+			mintReadOnly: 'منح وصول القراءة فقط',
+			lockOut: 'حظر الأعضاء',
+			renewCredentials: 'تجديد الاعتمادات',
+			tursoAccount: 'وصل حساب Turso',
+			transferOwnership: 'تسليم المؤسسة',
+			deleteOrganization: 'حذف المؤسسة'
+		},
+
+		roleList: {
+			title: 'الأدوار',
+			description: 'ما يستطيع كل صنف من الناس فعله، من الأعلى رتبة. وبطاقة العضو تغيّره له وحده.',
+			add: 'أضف دورًا',
+			heldBy: 'يحمله {count|number} {{عضو|أعضاء}}',
+			heldByNobody: 'لا يحمله أحد بعد',
+			carriesNothing: 'لا شيء بعد',
+			moveUp: 'انقله أعلى',
+			moveDown: 'انقله أدنى',
+			highest: 'هو أصلًا أدنى من المدير مباشرة.',
+			lowest: 'هو أصلًا أعلى من العضو مباشرة.',
+			notBelowYou: 'هذا الدور ليس أدنى من دورك.',
+			newTitle: 'دور جديد',
+			newDescription:
+				'اسم، وما يستطيع كل من يُمنحه فعله. يبدأ أعلى من العضو مباشرة، ويُنقل من بطاقته.',
+			editDescription: 'ما يستطيع كل من يحمل دور {role} فعله.',
+			name: 'الاسم',
+			nameDescription: 'ما يُسمّى به الدور على كل بطاقة.',
+			builtInName: 'لكل مؤسسة هذا الدور، فيبقى اسمه كما هو.',
+			flagsTitle: 'ما يستطيع فعله',
+			flagsDescription: 'ما عُلّم عليه متاح لكل من يحمل الدور.',
+			create: 'أضف الدور',
+			deleteTitle: 'احذف الدور',
+			deleteDescription: 'يحمل كل من كان يحمله دور العضو بدلًا منه، ويبقى له ما غُيّر له وحده.',
+			created: 'أُضيف الدور.',
+			saved: 'حُفظ الدور.',
+			moved: 'نُقل الدور.',
+			deleted: 'حُذف الدور.'
+		},
+
+		override: {
+			legend: 'ما يستطيع فعله',
+			description:
+				'العمود الأول ما يمنحه دوره. غيّر صلاحية له وحده، والعمود الأخير هو ما يستطيع فعله.',
+			role: 'الدور',
+			changed: 'مغيَّر',
+			result: 'يستطيع',
+			yes: 'نعم',
+			no: 'لا',
+			change: 'غيّر {flag} له وحده'
 		},
 
 		levels: {
 			full: { does: 'يقرأ كل ما فيها ويكتب.' },
 			readOnly: { does: 'يقرأها ولا يكتب فيها شيئًا.' },
 			none: { does: 'لا يصل إليها أصلًا.' }
-		},
-
-		roleTable: {
-			title: 'ما يستطيع كل دور فعله',
-			description: 'الدور هو ما يُسمّى به المرء وما يبدأ به. وما عدا ذلك يُسمح به في صفحته هو.',
-			given: 'ما يمكنك منحه لأحد',
-			memberNote: 'العضو لا يبدأ بشيء من هذه، ويُسمح له بها في صفحته هو.',
-			ownerAlone: 'للمالك وحده',
-			ownerAloneReason: 'هذه تجري على حساب Turso الذي وصله المالك، فلا تُمنح لأحد.',
-			allowed: 'نعم',
-			notAllowed: 'لا',
-			createWorkspace: 'ينشئ مساحة عمل جديدة.',
-			deleteWorkspace: 'يحذف مساحة عمل وكل ما فيها.',
-			lockOut: 'يقطع أحدهم عن كل مساحات العمل دفعة واحدة.',
-			renew: 'يجدّد الاعتمادات التي تبقي الجميع على المزامنة.',
-			tursoAccount: 'يصل حساب Turso، وينساه.'
 		}
 	},
 

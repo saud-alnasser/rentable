@@ -9,11 +9,12 @@
 	import * as InputGroup from '@rentable/design/primitive/input-group/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import type { AccessChoice, AccessRow } from '$lib/organization/component/access-dialog.svelte';
-	import MemberActs from '$lib/organization/component/member-acts.svelte';
+	import MemberOverride from '$lib/organization/component/member-override.svelte';
 	import MemberRole from '$lib/organization/component/member-role.svelte';
 	import MemberSectionHead from '$lib/organization/component/member-section-head.svelte';
 	import MemberWorkspaces from '$lib/organization/component/member-workspaces.svelte';
-	import { ADMINISTRATION_BY_ROLE } from '@rentable/workspace-permission';
+	import type { OrganizationRole } from '$lib/platform/host';
+	import { BUILT_IN } from '@rentable/workspace-permission';
 	import UserIcon from '@lucide/svelte/icons/user';
 	import UserPlusIcon from '@lucide/svelte/icons/user-plus';
 	import { surfaceForm } from '$lib/design/form';
@@ -22,14 +23,14 @@
 	import z from 'zod';
 
 	/**
-	 * Making an account: a username, a role, what the person may do beyond it, and the workspaces
-	 * they hold with what each one is good for.
+	 * Making an account: a username, a role, what is changed for the person alone, and the
+	 * workspaces they hold with what each one is good for.
 	 *
 	 * **Laid out as the member's sheet is** (ticket 42 of effort 832). Adding a member and editing
 	 * one are one surface in two moments, so this draws the sections `member-sheet.svelte` draws,
 	 * in its order and from the same pieces: the username under its head, the role in its tray
-	 * (`member-role.svelte`), what a member may do beyond their role as a list with a picker
-	 * (`member-acts.svelte`), and a row per workspace with its three levels
+	 * (`member-role.svelte`), what they may do flag by flag (`member-override.svelte`), and a row
+	 * per workspace with its three levels
 	 * (`member-workspaces.svelte`). *It drew an uppercase label, a bare role control the width of
 	 * the panel, seven checkboxes and a checkbox per workspace until the human saw the two sheets
 	 * side by side in the running build and asked for this one to read like the other.*
@@ -53,12 +54,10 @@
 	 * there with the same sentence. It is the one field here a schema can refuse, so it is the one
 	 * this form's `superForm` carries, and a refused submit moves focus to it.
 	 *
-	 * **The role sets the acts; the acts are the truth** (requirement 6 of effort 826). Picking a
-	 * role fills in what that role is created with, and a member's list stays editable, exactly as
-	 * on the member's sheet. Who may hand out what is decided by the shared pieces and is today's:
-	 * an administrator and every act that signs a row are the owner's to give, since certifying a
-	 * signer needs the organization key their vault alone yields, and read only is the owner's to
-	 * mint.
+	 * **An account is made in one role with one override** (effort 838, requirement 5), and opens
+	 * on the member role with nothing changed, which is what most people are made as. Who may hand
+	 * out what is decided by the shared pieces, as on the member's sheet: a role below the maker's
+	 * rank, a flag the maker holds (requirement 7), and read only is the owner's to mint.
 	 *
 	 * **No access is what not granting a workspace is.** Every workspace the maker holds is a row
 	 * starting there, and each row that left it becomes a grant at that level: what the account
@@ -72,7 +71,9 @@
 		open,
 		onOpenChange,
 		workspaces,
-		canInviteAdministrators,
+		roles,
+		readerRank,
+		readerPermissions,
 		canGrantReadOnly,
 		isCreating,
 		onCreate
@@ -81,15 +82,19 @@
 		onOpenChange: (value: boolean) => void;
 		/** the workspaces the maker can grant, which is what they hold themselves. */
 		workspaces: OrganizationWorkspace[];
-		/** whether the reader is the owner, which is who may hand out an act that signs a row. */
-		canInviteAdministrators: boolean;
+		/** every role the organization has, which is what the tray chooses among. */
+		roles: readonly OrganizationRole[];
+		/** how high the maker's role stands: a role at or above it is not theirs to give. */
+		readerRank: number;
+		/** what the maker may do: a flag outside it is not theirs to switch. */
+		readerPermissions: number;
 		/** whether this machine holds the Turso authority, which is what mints a read-only credential. */
 		canGrantReadOnly: boolean;
 		isCreating: boolean;
 		onCreate: (
 			username: string,
-			role: 'administrator' | 'member',
-			permissions: number,
+			roleId: string,
+			override: number,
 			workspaces: WorkspaceGrant[]
 		) => void;
 	} = $props();
@@ -97,13 +102,12 @@
 	// built when this component is, past the locale gate, for the reason
 	// `organization/workspace-form.ts` gives: the messages resolve against a locale.
 	const AccountSchema = z.object({
-		username: usernameSchema($LL),
-		role: z.enum(['administrator', 'member'])
+		username: usernameSchema($LL)
 	});
 
 	type AccountForm = z.infer<typeof AccountSchema>;
 
-	const blank: AccountForm = { username: '', role: 'member' };
+	const blank: AccountForm = { username: '' };
 
 	/**
 	 * the level chosen per workspace, held beside the form rather than in it.
@@ -113,8 +117,11 @@
 	 */
 	let access = $state<Record<string, AccessChoice>>({});
 
-	/** the acts the new account is to carry. Same reasoning as `access`: no refusal of its own. */
-	let chosen = $state<number>(ADMINISTRATION_BY_ROLE.member);
+	/** the role and the override the account is made in. Same reasoning as `access`. */
+	let chosenRole = $state<string>(BUILT_IN.member.id);
+	let chosenOverride = $state(0);
+
+	const roleMask = $derived(roles.find((role) => role.id === chosenRole)?.mask ?? 0);
 
 	/** every workspace the maker can grant, as a row that holds nothing yet. */
 	const rows: AccessRow[] = $derived(
@@ -137,7 +144,7 @@
 			onUpdate: ({ form }) => {
 				if (!form.valid || isCreating) return;
 
-				onCreate(form.data.username.trim(), form.data.role, chosen, grants());
+				onCreate(form.data.username.trim(), chosenRole, chosenOverride, grants());
 			}
 		}
 	);
@@ -149,16 +156,10 @@
 		if (open) {
 			reset({ data: blank });
 			access = {};
-			chosen = ADMINISTRATION_BY_ROLE.member;
+			chosenRole = BUILT_IN.member.id;
+			chosenOverride = 0;
 		}
 	});
-
-	// picking a role fills the acts in with what that role is created with, and leaves a
-	// member's editable: the column is still what the person may do.
-	const pickRole = (value: 'administrator' | 'member') => {
-		$form.role = value;
-		chosen = ADMINISTRATION_BY_ROLE[value];
-	};
 
 	const pickAccess = (id: string, value: AccessChoice) => {
 		access[id] = value;
@@ -212,20 +213,22 @@
 
 		<MemberRole
 			id="account-role"
-			value={$form.role}
-			onPick={pickRole}
-			canMakeAdministrator={canInviteAdministrators}
+			{roles}
+			value={chosenRole}
+			onPick={(next) => {
+				chosenRole = next;
+			}}
+			{readerRank}
 			disabled={isCreating}
 		/>
 
-		{#if $form.role === 'member'}
-			<MemberActs
-				id="account-acts"
-				bind:chosen
-				canGrantSigning={canInviteAdministrators}
-				disabled={isCreating}
-			/>
-		{/if}
+		<MemberOverride
+			id="account-override"
+			{roleMask}
+			bind:override={chosenOverride}
+			held={readerPermissions}
+			disabled={isCreating}
+		/>
 
 		<MemberWorkspaces
 			id="account-workspaces"

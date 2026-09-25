@@ -22,9 +22,8 @@ const members = [
 	member({ id: 'ada', username: 'ada2026', role: 'manager' })
 ];
 
-// what a role is called, as the directory's caller names it: the manager is still called the
-// administrator until ticket 11 of effort 838 renames the string.
-const roleLabel = (role: string) => (role === 'manager' ? 'administrator' : role);
+// what a member's role is called, as the directory's caller names it.
+const roleLabel = (member: { role: string }) => member.role;
 
 const ids = (records: readonly { id: string }[]) => records.map((record) => record.id);
 
@@ -34,7 +33,7 @@ test('an empty term keeps every member, in the order they arrived', () => {
 
 test('a member is found by their username or by what their role is called', () => {
 	assert.deepEqual(ids(toMemberDirectory(members, 'OLI', null, roleLabel)), ['owner']);
-	assert.deepEqual(ids(toMemberDirectory(members, 'admin', null, roleLabel)), ['ada']);
+	assert.deepEqual(ids(toMemberDirectory(members, 'manag', null, roleLabel)), ['ada']);
 });
 
 test('a term typed in Arabic-Indic digits finds a username written in Western ones', () => {

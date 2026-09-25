@@ -11,7 +11,7 @@ import {
 } from '$lib/platform/tests/testing.ts';
 import SettingsArea from '$lib/settings/component/area.svelte';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
-import { maskOf, EVERY_ADMINISTRATION } from '@rentable/workspace-permission';
+import { BUILT_IN } from '@rentable/workspace-permission';
 
 import Providers from './providers.svelte';
 
@@ -62,11 +62,12 @@ const area = (overrides: Partial<Parameters<typeof render<typeof SettingsArea>>[
 		{
 			section: 'general',
 			settings: fakeSettings(),
-			session: fakeOrganizationSession({ permissions: maskOf(...EVERY_ADMINISTRATION) }),
+			session: fakeOrganizationSession({ permissions: BUILT_IN.manager.mask }),
 			holdsTursoAuthority: true,
 			syncState: fakeSyncState(),
 			members: [],
 			standings: [],
+			roles: [],
 			isChangingPassword: false,
 			isAcceptingOwnership: false,
 			isDeletingOrganization: false,
@@ -464,7 +465,7 @@ test('an administrator is offered no delete, because the act is the owners', () 
 		section: 'organization',
 		session: fakeOrganizationSession({
 			role: 'manager',
-			permissions: maskOf(...EVERY_ADMINISTRATION)
+			permissions: BUILT_IN.manager.mask
 		})
 	});
 
