@@ -541,8 +541,9 @@ application's own, the page below drawn as paper, and two acts, *save as PDF* an
 primary). Either hands the same page to `sendPage` (`print/sheet.svelte.ts`), which closes the
 preview and waits for it to be gone before anything prints (a surface left open is laid out for
 paper and back again on every pass, and flickers), shows the sheet alone under `@media print` and
-asks the host to print it: on Windows a PDF is written with no
-dialog and paper goes through the operating system's dialog, never the webview's browser preview;
+asks the host to print it: on Windows the host prints it from a print window behind the
+application, so the application never shows its paper layout, and a PDF is written with no dialog
+and paper goes through the operating system's dialog, never the webview's browser preview;
 on macOS and Linux both open the system's print panel (`tauri/src/print.rs`).
 
 The page is paper: light whatever the window's appearance (`.paper` in the token layer), in the one

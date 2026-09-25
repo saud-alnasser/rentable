@@ -52,15 +52,33 @@ const PDF_PAGE: PdfPage = PdfPage {
     header_and_footer: false,
 };
 
+/// The page itself, as the web layer drew it on its print sheet: the stylesheets it is drawn
+/// with, its language and direction, and the sheet's markup.
+#[derive(Debug, Clone, Deserialize)]
+#[cfg_attr(not(windows), allow(dead_code))]
+pub struct PrintedPage {
+    head: String,
+    lang: String,
+    dir: String,
+    body: String,
+}
+
 /// Print the page on the sheet, or write it to `path` as a PDF.
 ///
-/// Answers once the file is written, for a PDF, and once the dialog has been asked to open, for
-/// paper: the dialog itself belongs to the operating system from there.
+/// **On Windows, from a window nobody sees**, where `page` is given: printing lays a window out for
+/// paper, and the main window printing itself showed that for a moment, light and the page alone
+/// (effort 835, requirement 10). The page is drawn in a print window behind the application and
+/// printed from there, so the application never changes on screen.
+///
+/// Answers once the file is written, for a PDF, and once the dialog is done with the page, for
+/// paper.
 #[tauri::command]
 pub async fn print_page<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
     webview: tauri::Webview<R>,
     mode: PrintMode,
     path: Option<String>,
+    page: Option<PrintedPage>,
 ) -> Result<(), Error> {
     if mode == PrintMode::Pdf && path.as_deref().is_none_or(|path| path.trim().is_empty()) {
         return Err(Error::InvalidInput {
@@ -68,7 +86,7 @@ pub async fn print_page<R: tauri::Runtime>(
         });
     }
 
-    platform::print(webview, mode, path).await
+    platform::print(app, webview, mode, path, page).await
 }
 
 #[cfg(windows)]
@@ -82,8 +100,32 @@ mod platform {
     use webview2_com::PrintToPdfCompletedHandler;
     use windows::core::{HSTRING, Interface};
 
-    use super::{PDF_PAGE, PrintMode};
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::time::Duration;
+
+    use tauri::webview::PlatformWebview;
+    use webview2_com::ExecuteScriptCompletedHandler;
+
+    use super::{PDF_PAGE, PrintMode, PrintedPage};
     use crate::error::Error;
+
+    /// what the print window loads: a blank page that draws what it is handed (`static/print.html`).
+    const PRINT_PAGE: &str = "print.html";
+
+    /// how long the print window is given to load and draw the page before it is given up on.
+    const READY_WITHIN: Duration = Duration::from_secs(15);
+
+    /// how long a print dialog may stay open before the window behind it is closed anyway.
+    const PRINTED_WITHIN: Duration = Duration::from_secs(30 * 60);
+
+    /// how often the print window is asked whether it is there yet.
+    const POLL: Duration = Duration::from_millis(50);
+
+    static PRINT_WINDOWS: AtomicU64 = AtomicU64::new(0);
+
+    /// what reaches a WebView2 on its own thread: the application's webview, or a print window's.
+    type Dispatch<'a> =
+        Box<dyn FnOnce(Box<dyn FnOnce(PlatformWebview) + Send>) -> tauri::Result<()> + Send + 'a>;
 
     type Answer = Result<(), String>;
 
@@ -101,7 +143,176 @@ mod platform {
     }
 
     pub async fn print<R: tauri::Runtime>(
+        app: tauri::AppHandle<R>,
         webview: tauri::Webview<R>,
+        mode: PrintMode,
+        path: Option<String>,
+        page: Option<PrintedPage>,
+    ) -> Result<(), Error> {
+        match page {
+            Some(page) => print_elsewhere(&app, &webview, mode, path, page).await,
+            None => print_on(Box::new(|run| webview.with_webview(run)), mode, path).await,
+        }
+    }
+
+    /// Draw the page in a print window behind the application, print it from there, and close it.
+    ///
+    /// **Behind the application, where it stands**, rather than off screen or hidden: the
+    /// operating system's print dialog opens over the window that asked for it, so it has to be
+    /// where the reader is looking, and a webview that is not shown may lay nothing out. It takes
+    /// no focus, no taskbar entry and no frame, and sits below every other window.
+    async fn print_elsewhere<R: tauri::Runtime>(
+        app: &tauri::AppHandle<R>,
+        webview: &tauri::Webview<R>,
+        mode: PrintMode,
+        path: Option<String>,
+        page: PrintedPage,
+    ) -> Result<(), Error> {
+        let main = webview.window();
+        let position = main
+            .outer_position()
+            .map_err(|error| failed(error.to_string()))?;
+        let size = main
+            .outer_size()
+            .map_err(|error| failed(error.to_string()))?;
+        let label = format!("print-{}", PRINT_WINDOWS.fetch_add(1, Ordering::Relaxed));
+        let window = tauri::WebviewWindowBuilder::new(
+            app,
+            &label,
+            tauri::WebviewUrl::App(PRINT_PAGE.into()),
+        )
+        .visible(false)
+        .focused(false)
+        .decorations(false)
+        .skip_taskbar(true)
+        .always_on_bottom(true)
+        .resizable(false)
+        .build()
+        .map_err(|error| failed(error.to_string()))?;
+
+        let printed = async {
+            window
+                .set_position(position)
+                .and_then(|_| window.set_size(size))
+                .and_then(|_| window.show())
+                .map_err(|error| failed(error.to_string()))?;
+
+            wait_for(
+                &window,
+                "typeof window.__rentableDraw === 'function'",
+                READY_WITHIN,
+            )
+            .await?;
+
+            let draw = format!(
+                "window.__rentableDraw({}, {}, {}, {})",
+                json(&page.head),
+                json(&page.lang),
+                json(&page.dir),
+                json(&page.body)
+            );
+
+            evaluate(&window, draw).await?;
+            wait_for(&window, "window.__rentableReady === true", READY_WITHIN).await?;
+            print_on(Box::new(|run| window.with_webview(run)), mode, path).await?;
+
+            // paper is done when the dialog is; a file already was when the host answered.
+            if mode == PrintMode::Print {
+                let _ =
+                    wait_for(&window, "window.__rentablePrinted === true", PRINTED_WITHIN).await;
+            }
+
+            Ok(())
+        }
+        .await;
+
+        let _ = window.close();
+
+        printed
+    }
+
+    /// Ask until `condition` holds in the window, or give up after `within`.
+    async fn wait_for<R: tauri::Runtime>(
+        window: &tauri::WebviewWindow<R>,
+        condition: &str,
+        within: Duration,
+    ) -> Result<(), Error> {
+        let deadline = tokio::time::Instant::now() + within;
+
+        loop {
+            if evaluate(window, condition.to_string()).await? == "true" {
+                return Ok(());
+            }
+
+            if tokio::time::Instant::now() >= deadline {
+                return Err(failed(format!(
+                    "the print window never answered {condition}"
+                )));
+            }
+
+            tokio::time::sleep(POLL).await;
+        }
+    }
+
+    /// Run `script` in the window and answer with what it evaluated to, as JSON.
+    async fn evaluate<R: tauri::Runtime>(
+        window: &tauri::WebviewWindow<R>,
+        script: String,
+    ) -> Result<String, Error> {
+        type Answered = Arc<Mutex<Option<tokio::sync::oneshot::Sender<Result<String, String>>>>>;
+
+        let (sender, receiver) = tokio::sync::oneshot::channel::<Result<String, String>>();
+        let sender: Answered = Arc::new(Mutex::new(Some(sender)));
+        let on_webview = Arc::clone(&sender);
+
+        window
+            .with_webview(move |platform| {
+                let answer = |slot: &Answered, result: Result<String, String>| {
+                    if let Some(sender) = slot.lock().ok().and_then(|mut slot| slot.take()) {
+                        let _ = sender.send(result);
+                    }
+                };
+                let answered = Arc::clone(&on_webview);
+                // SAFETY: COM calls on the WebView2 thread, which this closure runs on.
+                let started = unsafe {
+                    platform.controller().CoreWebView2().and_then(|core| {
+                        core.ExecuteScript(
+                            &HSTRING::from(script),
+                            &ExecuteScriptCompletedHandler::create(Box::new(
+                                move |result, value| {
+                                    answer(
+                                        &answered,
+                                        result.map(|_| value).map_err(|e| e.message()),
+                                    );
+
+                                    Ok(())
+                                },
+                            )),
+                        )
+                    })
+                };
+
+                if let Err(error) = started {
+                    answer(&on_webview, Err(error.message()));
+                }
+            })
+            .map_err(|error| failed(error.to_string()))?;
+
+        drop(sender);
+
+        receiver
+            .await
+            .map_err(|_| failed("the print window did not answer".into()))?
+            .map_err(failed)
+    }
+
+    fn json(text: &str) -> String {
+        serde_json::to_string(text).unwrap_or_else(|_| String::from("\"\""))
+    }
+
+    /// Print what the webview `dispatch` reaches holds, on its own thread.
+    async fn print_on(
+        dispatch: Dispatch<'_>,
         mode: PrintMode,
         path: Option<String>,
     ) -> Result<(), Error> {
@@ -109,17 +320,16 @@ mod platform {
         let reply = Reply(Arc::new(Mutex::new(Some(sender))));
         let on_webview = reply.clone();
 
-        webview
-            .with_webview(move |platform| {
-                // SAFETY: WebView2 is asked on the thread that owns it, which is the thread this
-                // closure runs on, and the controller is the live one Tauri hands over.
-                let started = unsafe { start(platform.controller(), mode, path, &on_webview) };
+        dispatch(Box::new(move |platform| {
+            // SAFETY: WebView2 is asked on the thread that owns it, which is the thread this
+            // closure runs on, and the controller is the live one Tauri hands over.
+            let started = unsafe { start(platform.controller(), mode, path, &on_webview) };
 
-                if let Err(error) = started {
-                    on_webview.send(Err(error.message()));
-                }
-            })
-            .map_err(|error| failed(error.to_string()))?;
+            if let Err(error) = started {
+                on_webview.send(Err(error.message()));
+            }
+        }))
+        .map_err(|error| failed(error.to_string()))?;
 
         // the webview's copies are the only senders left, so a webview torn down before it answers
         // closes the channel rather than leaving this waiting.
@@ -199,9 +409,11 @@ mod platform {
     use crate::error::Error;
 
     pub async fn print<R: tauri::Runtime>(
+        _app: tauri::AppHandle<R>,
         webview: tauri::Webview<R>,
         _mode: PrintMode,
         _path: Option<String>,
+        _page: Option<super::PrintedPage>,
     ) -> Result<(), Error> {
         webview.print().map_err(|error| Error::Internal {
             message: error.to_string(),

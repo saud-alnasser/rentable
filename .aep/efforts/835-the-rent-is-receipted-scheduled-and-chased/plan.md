@@ -74,6 +74,27 @@ and the page.
   panel with the same toggle and one act, *open WhatsApp*. The act is labelled *remind tenant* and
   moves beside *print* in the contract's acts, both being what is handed to the tenant.
 
+## Corrected 2026-09-25: on Windows the page prints from a window of its own
+
+The human saw the application turn light for a moment whenever a page was saved or printed, and
+the preview open and close again with it. Printing lays the printing window out for paper, and
+the main window printing itself showed that layout on screen: light, the page alone, and every
+surface put back after, its entry animation replayed. A, one sheet in the main window, stays the
+way a page is drawn and previewed; on Windows it is no longer the window that prints.
+
+- `print()` hands the host the page whole (`PrintedPage`: every stylesheet of the document, the
+  sheet's markup, its language and direction), and `print_page` draws it in a print window made
+  for the job (`static/print.html`, plain HTML, so nothing of the application starts there and it
+  holds no capability), then prints or writes the PDF from that window and closes it.
+- The window stands exactly behind the application, below every other window, with no frame,
+  focus or taskbar entry: the system print dialog opens over the window that asked, so it has to
+  be where the reader is, and a webview never shown may lay nothing out. The host polls the page's
+  two flags (drawn and fonts ready; `afterprint`) through `ExecuteScript`.
+- B, weighed and rejected above, was a second window running the application's own route; this is
+  a window running nothing but the page, which is what made B expensive.
+- macOS and Linux keep the system panel over the main window; the flash there is unknown and is
+  one of the hand checks.
+
 ## Added 2026-09-25: the organization and its mark on the page
 
 Requirement 13, from the human's second look.

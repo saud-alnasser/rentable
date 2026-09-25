@@ -476,7 +476,11 @@ export type Host = {
 		 * Print what the window's print sheet holds: to paper through the operating system's dialog,
 		 * or to the PDF file at `path`, written with no dialog on Windows (`tauri/src/print.rs`).
 		 */
-		page: (request: { mode: 'print' } | { mode: 'pdf'; path: string }) => Promise<void>;
+		page: (
+			request: ({ mode: 'print' } | { mode: 'pdf'; path: string }) & {
+				page?: { head: string; lang: string; dir: string; body: string };
+			}
+		) => Promise<void>;
 	};
 	export: {
 		/**

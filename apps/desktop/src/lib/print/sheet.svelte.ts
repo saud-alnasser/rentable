@@ -29,6 +29,9 @@ import { tick, type Snippet } from 'svelte';
 /** Where a page goes: to paper, or to the PDF file at `path`. */
 export type PrintRequest = { mode: 'print' } | { mode: 'pdf'; path: string };
 
+/** The page itself, for a host that prints it from a window of its own. */
+export type PrintedPage = { head: string; lang: string; dir: string; body: string };
+
 export const printSheet = $state<{
 	/** what the sheet draws while a print is open, and nothing between prints. */
 	content: Snippet | null;
@@ -70,9 +73,12 @@ export function print(content: Snippet, request: PrintRequest = { mode: 'print' 
 
 		finishOpen = finishThis;
 
-		// a file is written by the host, which may raise print events of its own while it does, so
-		// only paper listens for the dialog closing.
-		if (request.mode === 'print') {
+		// where the host prints from a window of its own, this one never prints, and the host
+		// answers once the page is done with; otherwise a file is written by the host, which may
+		// raise print events of its own while it does, so only paper listens for the dialog.
+		const elsewhere = writesPdfSilently();
+
+		if (request.mode === 'print' && !elsewhere) {
 			window.addEventListener('afterprint', onAfterPrint);
 		}
 
@@ -87,10 +93,10 @@ export function print(content: Snippet, request: PrintRequest = { mode: 'print' 
 					return;
 				}
 
-				await tauri.print.page(request);
+				await tauri.print.page(elsewhere ? { ...request, page: pageOnSheet() } : request);
 
-				// a file is done when it is written; paper is done when the dialog says so.
-				if (request.mode === 'pdf') {
+				// a file is done when it is written; paper here is done when the dialog says so.
+				if (request.mode === 'pdf' || elsewhere) {
 					finishThis();
 				}
 			} catch (error) {
@@ -101,8 +107,27 @@ export function print(content: Snippet, request: PrintRequest = { mode: 'print' 
 }
 
 /**
- * Whether the host writes a PDF itself, with no dialog. Only WebView2 can (`tauri/src/print.rs`);
- * on macOS and Linux the system's print panel is how a PDF is saved.
+ * The page as it stands on the sheet, for a host that prints it from a window of its own: every
+ * stylesheet this document is drawn with, and the sheet's markup with its language and direction.
+ * The sheet is copied whole, so what that window lays out for paper is what this one would have.
+ */
+function pageOnSheet(): PrintedPage {
+	const sheet = document.querySelector<HTMLElement>('[data-print-sheet]');
+
+	return {
+		head: [...document.querySelectorAll('style, link[rel="stylesheet"]')]
+			.map((node) => node.outerHTML)
+			.join(''),
+		lang: sheet?.getAttribute('lang') ?? document.documentElement.lang,
+		dir: sheet?.getAttribute('dir') ?? document.documentElement.dir,
+		body: sheet?.outerHTML ?? ''
+	};
+}
+
+/**
+ * Whether the host writes a PDF itself, with no dialog, and prints from a window of its own. Only
+ * WebView2 can (`tauri/src/print.rs`); on macOS and Linux the system's print panel, over this
+ * window, is how a page is printed and a PDF saved.
  */
 export const writesPdfSilently = () =>
 	typeof navigator !== 'undefined' && /Windows/.test(navigator.userAgent);

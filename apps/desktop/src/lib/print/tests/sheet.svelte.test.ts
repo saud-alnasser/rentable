@@ -167,10 +167,31 @@ test('on Windows, saving as PDF asks where the file goes first, and writes it th
 	);
 
 	expect(dialog.saveFile).toHaveBeenCalledExactlyOnceWith('receipt 01K5.pdf');
-	expect(host.page).toHaveBeenCalledExactlyOnceWith({
-		mode: 'pdf',
-		path: 'C:/receipts/receipt.pdf'
-	});
+	expect(host.page).toHaveBeenCalledExactlyOnceWith(
+		expect.objectContaining({ mode: 'pdf', path: 'C:/receipts/receipt.pdf' })
+	);
+});
+
+// the human, 2026-09-25: the window showed its paper layout for a moment, light and the page
+// alone, whenever it printed. On Windows the page is handed to the host, which prints it from a
+// window of its own, so this one never lays itself out for paper.
+test('on Windows, the page is handed to the host whole, and paper is done when the host answers', async () => {
+	sheet();
+	runningOn('Mozilla/5.0 (Windows NT 10.0; Win64; x64) Edg/140.0');
+
+	await print(page('the schedule'), { mode: 'print' });
+
+	const [request] = host.page.mock.calls[0] as [
+		{ mode: string; page: { head: string; lang: string; dir: string; body: string } }
+	];
+
+	expect(request.mode).toBe('print');
+	expect(request.page.body).toContain('data-print-sheet');
+	expect(request.page.body).toContain('the schedule');
+	expect(request.page).toMatchObject({ lang: 'en', dir: 'ltr' });
+
+	flushSync();
+	expect(drawn()).toBeUndefined();
 });
 
 test('walking away from the save dialog prints nothing and is not a failure', async () => {
