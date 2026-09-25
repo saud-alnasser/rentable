@@ -290,7 +290,7 @@ read by the utility, so a surface names the height and the appearance chooses th
 | Utility               | For                                                                                                                                     |
 | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
 | `shadow-raised`       | a card resting on the page, the sidebar's inset, the slider's thumb, the way past a screen                                              |
-| `shadow-overlay`      | what floats over the page: a dialog, sheet, menu or popover, a chart's tooltip, a field's error, a record card lifted under the pointer |
+| `shadow-overlay`      | what floats over the page: a dialog, sheet, menu or popover, a chart's tooltip, a field's error |
 | `inset-shadow-sunken` | a form's control cut into its panel (`insetControl`)                                                                                    |
 
 A control sits flat on its surface and takes none. Tailwind's stock shadows are cleared, so
@@ -363,8 +363,9 @@ unfinished.** Tailwind's `motion-safe:` gates CSS motion; `prefersReducedMotion`
 The token layer carries the three cases a surface cannot reach for itself: every CSS transition,
 the keyframe animation on anything bits-ui marks with `data-state` or `data-motion`, and every
 `::view-transition-*` pseudo-element. A keyframe animation on an element carrying none of those is
-still the surface's own to gate, and so is a transform a pointer applies, such as a hover lift:
-collapsing its transition makes it jump rather than stop. That covers anything composed here, and
+still the surface's own to gate, and so is a transform a pointer applies: collapsing its
+transition makes it jump rather than stop. A record card has none; it answers the pointer with a
+tint (`block/record-card.svelte`). That covers anything composed here, and
 the looping indicators (spinner, skeleton, caret), left running deliberately.
 
 **Motion is bidirectional, like everything else here.** A transform that assumes LTR breaks in

@@ -143,6 +143,13 @@ on notifying ([[rules/interface]], *Notifying is these two and nothing else*) is
     *Added by the human on 2026-09-25, after trying the first build:* the workspace's name was the
     wrong issuer, and a printed receipt needs the landlord's signature or seal to be handed over.
 
+## A record in a list, under the pointer
+
+14. **A record card says it is the one under the pointer with a tint, and does not move.** A card
+    in any list takes a muted fill under the pointer and under keyboard focus, and a deeper one
+    while pressed; it no longer lifts. *Asked by the human on 2026-09-25, while trying the build:
+    the lift threw the row off under the pointer.*
+
 ## Reminders
 
 11. **The landing screen shows what falls due in the next seven days**: a contract whose next
@@ -215,6 +222,9 @@ on notifying ([[rules/interface]], *Notifying is these two and nothing else*) is
     after it pulls. (d) An image over 512 KB, or not PNG, JPEG or WebP, is refused with a sentence
     saying why. (e) With a mark set, it is printed at the foot of every receipt and schedule; with
     none, the foot is empty.
+
+14. A record card under the pointer, focused from the keyboard, or pressed changes its fill and
+    nothing else: no transform, no change of shadow.
 
 # Constraints
 
