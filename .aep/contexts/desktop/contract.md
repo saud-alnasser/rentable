@@ -47,6 +47,14 @@ were recorded, each filling the earliest cycle not yet covered before the next. 
 cover several cycles, and what is paid past the total cost covers none. Always oldest first;
 nobody chooses which cycle a payment pays.
 
+**Receipt**:
+A one-page statement that a payment was received (سند قبض), in Arabic and in English, printed
+through the system's print dialog. It names the payment by a _receipt number_ taken from the
+payment's identity, never by a sequence, and states the cycles the payment covers by the
+_allocation_ and what remains of the _total cost_ after it. Read on demand from the payment as it
+stands (`contract.payments.receipt`) and never stored. It is not a tax invoice.
+_Avoid_: invoice (فاتورة), which it is not
+
 **Cost**:
 The amount owed _per interval_, never the contract total. Prefer the fuller reading
 whenever the bare word could be taken either way.

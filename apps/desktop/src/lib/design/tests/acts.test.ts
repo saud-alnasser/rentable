@@ -493,8 +493,9 @@ function paymentAgainst(contractStatus: ContractActRecord['status'] | undefined)
 
 for (const status of [...STATUSES, undefined]) {
 	test(`a payment against a contract that is ${status ?? 'not read yet'} is offered the same acts on its card, its page and in the palette`, () => {
-		const { host } = recordingRequests([
+		const { asked, host } = recordingRequests([
 			'copyDetails',
+			'receipt',
 			'duplicate',
 			'edit',
 			'confirmDelete'
@@ -505,13 +506,15 @@ for (const status of [...STATUSES, undefined]) {
 		// every act applies to a payment, whatever its contract.
 		assert.deepEqual(ids, [
 			'payment.copyDetails',
+			'payment.receipt',
 			'payment.duplicate',
 			'payment.edit',
 			'payment.delete'
 		]);
 
-		// a terminated contract's statement is read-only: copying is a read and runs, and what writes
-		// is shown refused with the contract's state as its reason (ticket 33).
+		// a terminated contract's statement is read-only: copying and the receipt are reads and run,
+		// and what writes is shown refused with the contract's state as its reason (ticket 33). Every
+		// payment has a receipt (effort 835, criterion 8), so it is never refused.
 		const refused = toPageActions(acts, paymentAgainst(status), translations)
 			.filter((act) => act.unavailable)
 			.map((act) => [act.id, act.unavailable]);
@@ -525,6 +528,12 @@ for (const status of [...STATUSES, undefined]) {
 					])
 				: []
 		);
+
+		toPageActions(acts, paymentAgainst(status), translations)
+			.find((act) => act.id === 'payment.receipt')
+			?.run();
+		assert.equal(asked.length, 1);
+		assert.match(asked[0], /^receipt:/);
 		assertDeclarationHolds(acts);
 	});
 }
@@ -920,7 +929,8 @@ test('a new payment is refused, with its reason, on a terminated or a fully paid
 // still open, and a surface that has not read the amounts refuses no more than it did.
 test('duplicating a payment is refused on a fully paid contract, as creating one is', () => {
 	const acts = declarePaymentActs(
-		recordingRequests(['copyDetails', 'duplicate', 'edit', 'confirmDelete'] as const).host
+		recordingRequests(['copyDetails', 'receipt', 'duplicate', 'edit', 'confirmDelete'] as const)
+			.host
 	);
 	const refusedOn = (amounts: { contractPaidAmount?: number; contractExpectedAmount?: number }) =>
 		toPageActions(acts, { ...paymentAgainst('fulfilled'), ...amounts }, translations)

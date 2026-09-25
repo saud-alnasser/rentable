@@ -969,3 +969,85 @@ test('a payment is found by a part of its reference, in either spelling of its d
 		);
 	}
 });
+
+// effort 835, ticket 06, requirement 9: a receipt states the payment, who paid it, what it was for,
+// the cycles it covers by the oldest-first allocation, and what remains of the total cost after it.
+test("a payment's receipt states who paid, what for, the cycles it covers and what remains", async () => {
+	const api = await createApi();
+	const tenant = await seedTenant(api);
+	const complex = await api.complex.create({ name: 'Al Nakheel', location: 'Riyadh' });
+	const second = await api.complex.units.create({ name: 'A-13', complexId: complex.id });
+	const first = await api.complex.units.create({ name: 'A-12', complexId: complex.id });
+	const contract = await api.contract.create({
+		tenantId: tenant.id,
+		govId: '20471133',
+		start: monthsFromNow(-7),
+		end: monthsFromNow(5),
+		interval: '3m',
+		cost: 3000
+	});
+
+	await api.contract.units.set({ contractId: contract.id, unitIds: [second.id, first.id] });
+	await api.contract.payments.create({
+		contractId: contract.id,
+		date: monthsFromNow(-7),
+		amount: 3000
+	});
+
+	const payment = await api.contract.payments.create({
+		contractId: contract.id,
+		date: monthsFromNow(-1),
+		amount: 4500,
+		method: 'bank-transfer',
+		reference: 'SADAD-7731'
+	});
+
+	const receipt = await api.contract.payments.receipt({ id: payment.id });
+
+	assert.match(receipt.reference, /^[0-9A-Z]{4}(-[0-9A-Z]{4}){3}$/);
+	assert.deepEqual(
+		{
+			amount: receipt.payment.amount,
+			date: receipt.payment.date,
+			method: receipt.payment.method,
+			reference: receipt.payment.reference
+		},
+		{ amount: 4500, date: monthsFromNow(-1), method: 'bank-transfer', reference: 'SADAD-7731' }
+	);
+	assert.deepEqual(receipt.tenant, { name: tenant.name, nationalId: tenant.nationalId });
+	assert.equal(receipt.contract.govId, '20471133');
+	assert.deepEqual(receipt.units, [
+		{ name: 'A-12', complexName: 'Al Nakheel' },
+		{ name: 'A-13', complexName: 'Al Nakheel' }
+	]);
+	// the rest of the second cycle and half the third: both are named (criterion 9(d)).
+	assert.deepEqual(
+		receipt.cycles.map((cycle) => [cycle.index, cycle.due]),
+		[
+			[1, monthsFromNow(-4)],
+			[2, monthsFromNow(-1)]
+		]
+	);
+	assert.equal(receipt.remaining, 12000 - 3000 - 4500);
+});
+
+test("a terminated contract's payment still has a receipt, and a missing payment has none", async () => {
+	const api = await createApi();
+	const contract = await seedContract(api, { cost: 1000 });
+	const payment = await api.contract.payments.create({
+		contractId: contract.id,
+		date: monthsFromNow(-1),
+		amount: 1000
+	});
+
+	await api.contract.terminate({ id: contract.id });
+
+	const receipt = await api.contract.payments.receipt({ id: payment.id });
+
+	assert.equal(receipt.payment.id, payment.id);
+	assert.equal(receipt.payment.method, null);
+	await assert.rejects(
+		api.contract.payments.receipt({ id: unusedId() }),
+		refusedWith('payment.missing')
+	);
+});

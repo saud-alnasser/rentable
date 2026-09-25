@@ -13,6 +13,7 @@ import {
 } from '$lib/contract/contract';
 import type { Database } from '$lib/api/context';
 import { reconcileTouched } from '$lib/contract/reconcile';
+import { allocateReceipt, toReceiptReference } from '$lib/payment/receipt';
 import {
 	ensurePaymentIsNotInTheFuture,
 	ensureValidPaymentAmount,
@@ -201,6 +202,65 @@ export default router({
 			tenantName: row.tenantName
 		};
 	}),
+
+	/**
+	 * Everything a payment's receipt states, read in one go for the page that prints it: the
+	 * payment as it stands, who paid it, the contract and the units it was for, the cycles it
+	 * covers and what remains of the contract's total cost after it.
+	 *
+	 * The cycles and the remainder come from the allocation over every payment of the contract,
+	 * because what one payment covers depends on each payment taken before it. Computed on every
+	 * read and stored nowhere, so a payment edited and printed again gives the edited receipt. It
+	 * is a read, so a terminated contract's payments have receipts too.
+	 */
+	receipt: procedure.member
+		.input(PaymentSchema.pick({ id: true }))
+		.query(async ({ input, ctx }) => {
+			const row = await ctx.db
+				.select({ payment: s.payment, contract: s.contract, tenant: s.tenant })
+				.from(s.payment)
+				.innerJoin(s.contract, eq(s.payment.contractId, s.contract.id))
+				.innerJoin(s.tenant, eq(s.contract.tenantId, s.tenant.id))
+				.where(eq(s.payment.id, input.id))
+				.get();
+
+			if (!row) {
+				throw refuse('payment.missing');
+			}
+
+			const [payments, units] = await Promise.all([
+				ctx.db.select().from(s.payment).where(eq(s.payment.contractId, row.contract.id)),
+				ctx.db
+					.select({ name: s.unit.name, complexName: s.complex.name })
+					.from(s.contractUnit)
+					.innerJoin(s.unit, eq(s.contractUnit.unitId, s.unit.id))
+					.innerJoin(s.complex, eq(s.unit.complexId, s.complex.id))
+					.where(eq(s.contractUnit.contractId, row.contract.id))
+					.orderBy(asc(s.complex.name), asc(s.unit.name), asc(s.unit.id))
+			]);
+
+			const { cycles, remaining } = allocateReceipt(
+				row.contract,
+				payments,
+				row.payment.id,
+				ctx.clock.now()
+			);
+
+			return {
+				reference: toReceiptReference(row.payment.id),
+				payment: serializePayment(row.payment),
+				tenant: { name: row.tenant.name, nationalId: row.tenant.nationalId },
+				contract: {
+					govId: row.contract.govId ?? '',
+					start: row.contract.start.getTime(),
+					end: row.contract.end.getTime()
+				},
+				units,
+				// cycles cross as timestamps, as a contract's dates do.
+				cycles: cycles.map((cycle) => ({ index: cycle.index, due: cycle.due.getTime() })),
+				remaining
+			};
+		}),
 
 	/**
 	 * The payments a palette search reaches, by amount, by the day they were made, or by a part

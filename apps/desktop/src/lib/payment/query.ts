@@ -14,6 +14,7 @@ import { get } from 'svelte/store';
 
 export const keys = {
 	get: (id: string) => [...workspacePrefixes.payments, 'one', id],
+	receipt: (id: string) => [...workspacePrefixes.payments, 'receipt', id],
 	getMany: (contractId: string) => [...workspacePrefixes.payments, contractId],
 	// the period is part of the key because it is part of the question: two periods are two
 	// result sets, and sharing a key would serve one of them under the other's name.
@@ -117,6 +118,24 @@ export function useReadPayment() {
 			queryFn: () => api.contract.payments.get({ id })
 		});
 }
+
+/**
+ * Read what a payment's receipt states, once, for the payment host printing it. Under the payments
+ * prefix, so any payment written anywhere leaves it stale and the next receipt is read afresh: what
+ * one payment covers depends on every payment of its contract.
+ */
+export function useReadPaymentReceipt() {
+	const client = useQueryClient();
+
+	return (id: string) =>
+		client.fetchQuery({
+			queryKey: keys.receipt(id),
+			queryFn: () => api.contract.payments.receipt({ id })
+		});
+}
+
+/** What a payment's receipt states, as `contract.payments.receipt` answers. */
+export type PaymentReceipt = Awaited<ReturnType<typeof api.contract.payments.receipt>>;
 
 export function useFetchContractPayments(
 	contractId: () => string,

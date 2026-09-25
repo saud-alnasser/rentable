@@ -4,6 +4,7 @@ import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 import type { Contract, Payment } from '$lib/platform/database/schema';
 import CopyIcon from '@lucide/svelte/icons/copy';
 import FilesIcon from '@lucide/svelte/icons/files';
+import PrinterIcon from '@lucide/svelte/icons/printer';
 import SquarePenIcon from '@lucide/svelte/icons/square-pen';
 import Trash2Icon from '@lucide/svelte/icons/trash-2';
 
@@ -15,10 +16,10 @@ import Trash2Icon from '@lucide/svelte/icons/trash-2';
  * those is a projection of this list (`design/acts.ts`), so none of them can offer an act another
  * does not.
  *
- * **A terminated contract's payments are read-only.** Copying is a read, so it stands outside that
- * lock; everything that writes is shown refused, with the contract's state as its reason, because
- * it applies to a payment and cannot run now ([[rules/interface]], *Guidance*). The refusal itself
- * is the procedure's; this only decides what the surfaces offer.
+ * **A terminated contract's payments are read-only.** Copying and printing a receipt are reads, so
+ * they stand outside that lock; everything that writes is shown refused, with the contract's state
+ * as its reason, because it applies to a payment and cannot run now ([[rules/interface]],
+ * *Guidance*). The refusal itself is the procedure's; this only decides what the surfaces offer.
  */
 
 /**
@@ -34,7 +35,11 @@ export type PaymentActRecord = Payment & {
 
 /** Every payment act, by the id the palette keys it on. */
 export type PaymentActId =
-	'payment.copyDetails' | 'payment.duplicate' | 'payment.edit' | 'payment.delete';
+	| 'payment.copyDetails'
+	| 'payment.receipt'
+	| 'payment.duplicate'
+	| 'payment.edit'
+	| 'payment.delete';
 
 /**
  * What the acts ask of the payment host. Each one opens something the host owns, and none of them
@@ -43,6 +48,8 @@ export type PaymentActId =
 export type PaymentHostRequests = {
 	/** put the payment's details on the clipboard. */
 	copyDetails: (payment: PaymentActRecord) => void;
+	/** print the payment's receipt through the system's print dialog. */
+	receipt: (payment: PaymentActRecord) => void;
 	/** open the form on a new payment that starts from this one. */
 	duplicate: (payment: PaymentActRecord) => void;
 	/** open the form on this payment. */
@@ -93,6 +100,15 @@ export function declarePaymentActs(host: PaymentHostRequests): PaymentAct[] {
 			icon: CopyIcon,
 			group: 'primary',
 			run: host.copyDetails
+		},
+		{
+			// a read: every payment has a receipt, a terminated contract's included.
+			id: 'payment.receipt',
+			label: (t) => t.contracts.payments.receipt.print(),
+			// the glyph every printing act draws, as the schedule's does.
+			icon: PrinterIcon,
+			group: 'primary',
+			run: host.receipt
 		},
 		{
 			id: 'payment.duplicate',

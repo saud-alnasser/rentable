@@ -57,7 +57,7 @@ export type ContractSchedule = {
  * Ids are UUIDv7, whose timestamp and counter make id order recording order
  * (`platform/database/identity.ts`), so two payments on one day are taken as they were entered.
  */
-function compareByAllocationOrder(a: SchedulePaymentLike, b: SchedulePaymentLike) {
+export function compareByAllocationOrder(a: SchedulePaymentLike, b: SchedulePaymentLike) {
 	const byDay = toUtcDay(a.date).getTime() - toUtcDay(b.date).getTime();
 
 	if (byDay !== 0) {

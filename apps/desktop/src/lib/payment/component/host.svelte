@@ -19,12 +19,15 @@
 		resetPaymentHost
 	} from '$lib/payment/host.svelte';
 	import { useReadContract } from '$lib/contract/query';
-	import { useDeletePayment, useReadPayment } from '$lib/payment/query';
+	import { useDeletePayment, useReadPayment, useReadPaymentReceipt } from '$lib/payment/query';
+	import { print } from '$lib/print/sheet.svelte';
+	import { useFetchRemoteSyncState } from '$lib/settings/query';
 	import { writeDetailsToClipboard } from '$lib/platform/clipboard';
 	import { formatLocaleMoney } from '$lib/platform/locale';
 	import { landing } from '$lib/design/landing.svelte';
 	import { onDestroy, untrack } from 'svelte';
 	import PaymentForm from './form.svelte';
+	import PrintedReceipt, { type PrintedReceiptValue } from './receipt.svelte';
 
 	/**
 	 * The payment form and the payment's delete, mounted once for the whole shell. A delete runs at
@@ -44,6 +47,10 @@
 	const deleteMutation = useDeletePayment();
 	const readPayment = useReadPayment();
 	const readContract = useReadContract();
+	const readReceipt = useReadPaymentReceipt();
+	// the workspace the shell names, which is who issues a receipt. The one query the rail's header
+	// reads, so the receipt and the header cannot name it differently.
+	const remoteSyncQuery = useFetchRemoteSyncState();
 
 	const deleting = $derived(paymentHostState.deleting);
 
@@ -119,6 +126,55 @@
 			{ toast: { unexpected: () => $LL.common.messages.copyFailed() } },
 			new Error('the clipboard refused')
 		);
+	}
+
+	/**
+	 * the receipt on the print sheet, while one is being printed. Raw, because it is only ever
+	 * replaced, and a print that finishes clears it only where it is still the one it drew.
+	 */
+	let printed = $state.raw<PrintedReceiptValue | null>(null);
+
+	/**
+	 * A payment's receipt on paper: what it states is read afresh, drawn on the print sheet, and
+	 * handed to the system's print dialog. Nothing opens here but that dialog.
+	 */
+	async function printReceipt(payment: PaymentActRecord) {
+		let value: PrintedReceiptValue;
+
+		try {
+			// the rail's header has almost always read it already; where it has not, it is read now,
+			// so a receipt is never printed without the name of who issued it.
+			const [receipt, workspace] = await Promise.all([
+				readReceipt(payment.id),
+				remoteSyncQuery.data?.workspace ??
+					remoteSyncQuery.refetch().then((read) => read.data?.workspace)
+			]);
+			const issuer = workspace?.name?.trim();
+
+			if (!issuer) {
+				showErrorSentence($LL.contracts.payments.receipt.printFailed());
+
+				return;
+			}
+
+			value = { ...receipt, issuer };
+		} catch (error) {
+			showErrorToast(error, $LL);
+
+			return;
+		}
+
+		printed = value;
+
+		try {
+			await print(printedReceipt);
+		} catch {
+			showErrorSentence($LL.contracts.payments.receipt.printFailed());
+		} finally {
+			if (printed === value) {
+				printed = null;
+			}
+		}
 	}
 
 	/**
@@ -216,6 +272,17 @@
 	});
 
 	$effect(() => {
+		const payment = paymentHostState.printing;
+
+		if (!payment) {
+			return;
+		}
+
+		paymentHostState.printing = null;
+		untrack(() => void printReceipt(payment));
+	});
+
+	$effect(() => {
 		const creating = paymentHostState.creating;
 
 		if (!creating) {
@@ -251,6 +318,12 @@
 
 	onDestroy(resetPaymentHost);
 </script>
+
+{#snippet printedReceipt()}
+	{#if printed}
+		<PrintedReceipt value={printed} />
+	{/if}
+{/snippet}
 
 <!-- mounted once a contract has been named: the form reads what that contract still has due, and
      a form with no contract has nothing it could write to. -->

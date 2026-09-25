@@ -885,6 +885,21 @@ const en = {
 			note: 'note',
 			noteOptional: 'note (optional)',
 			percentFulfilled: '{percent}% fulfilled',
+			// a payment's receipt, printed with each line in Arabic and English beside it. It says it
+			// was received and what for; it is not a tax invoice and says nothing that reads as one.
+			receipt: {
+				amount: 'amount received',
+				covers: 'covers',
+				cycle: 'cycle {index:string}, due {date:string}',
+				issuedBy: 'issued by',
+				print: 'print receipt',
+				printFailed: 'the receipt could not be printed.',
+				receivedFrom: 'received from',
+				receivedOn: 'date received',
+				reference: 'receipt number',
+				remaining: 'remaining of the contract total',
+				title: 'receipt'
+			},
 			reference: 'reference',
 			referenceOptional: 'reference (optional)',
 			referencePlaceholder: 'transfer, cheque or SADAD number',

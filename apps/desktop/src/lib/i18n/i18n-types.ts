@@ -2722,6 +2722,54 @@ type RootTranslation = {
 			 * @param {unknown} percent
 			 */
 			percentFulfilled: RequiredParams<'percent'>
+			receipt: {
+				/**
+				 * a​m​o​u​n​t​ ​r​e​c​e​i​v​e​d
+				 */
+				amount: string
+				/**
+				 * c​o​v​e​r​s
+				 */
+				covers: string
+				/**
+				 * c​y​c​l​e​ ​{​i​n​d​e​x​}​,​ ​d​u​e​ ​{​d​a​t​e​}
+				 * @param {string} date
+				 * @param {string} index
+				 */
+				cycle: RequiredParams<'date' | 'index'>
+				/**
+				 * i​s​s​u​e​d​ ​b​y
+				 */
+				issuedBy: string
+				/**
+				 * p​r​i​n​t​ ​r​e​c​e​i​p​t
+				 */
+				print: string
+				/**
+				 * t​h​e​ ​r​e​c​e​i​p​t​ ​c​o​u​l​d​ ​n​o​t​ ​b​e​ ​p​r​i​n​t​e​d​.
+				 */
+				printFailed: string
+				/**
+				 * r​e​c​e​i​v​e​d​ ​f​r​o​m
+				 */
+				receivedFrom: string
+				/**
+				 * d​a​t​e​ ​r​e​c​e​i​v​e​d
+				 */
+				receivedOn: string
+				/**
+				 * r​e​c​e​i​p​t​ ​n​u​m​b​e​r
+				 */
+				reference: string
+				/**
+				 * r​e​m​a​i​n​i​n​g​ ​o​f​ ​t​h​e​ ​c​o​n​t​r​a​c​t​ ​t​o​t​a​l
+				 */
+				remaining: string
+				/**
+				 * r​e​c​e​i​p​t
+				 */
+				title: string
+			}
 			/**
 			 * r​e​f​e​r​e​n​c​e
 			 */
@@ -6556,6 +6604,52 @@ export type TranslationFunctions = {
 			 * {percent}% fulfilled
 			 */
 			percentFulfilled: (arg: { percent: unknown }) => LocalizedString
+			receipt: {
+				/**
+				 * amount received
+				 */
+				amount: () => LocalizedString
+				/**
+				 * covers
+				 */
+				covers: () => LocalizedString
+				/**
+				 * cycle {index}, due {date}
+				 */
+				cycle: (arg: { date: string, index: string }) => LocalizedString
+				/**
+				 * issued by
+				 */
+				issuedBy: () => LocalizedString
+				/**
+				 * print receipt
+				 */
+				print: () => LocalizedString
+				/**
+				 * the receipt could not be printed.
+				 */
+				printFailed: () => LocalizedString
+				/**
+				 * received from
+				 */
+				receivedFrom: () => LocalizedString
+				/**
+				 * date received
+				 */
+				receivedOn: () => LocalizedString
+				/**
+				 * receipt number
+				 */
+				reference: () => LocalizedString
+				/**
+				 * remaining of the contract total
+				 */
+				remaining: () => LocalizedString
+				/**
+				 * receipt
+				 */
+				title: () => LocalizedString
+			}
 			/**
 			 * reference
 			 */

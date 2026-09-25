@@ -29,6 +29,8 @@ type PaymentHostState = {
 	deleting: PaymentActRecord | null;
 	/** the payment whose details are on their way to the clipboard. */
 	copying: PaymentActRecord | null;
+	/** the payment whose receipt is on its way to the print dialog. */
+	printing: PaymentActRecord | null;
 	/** an act asked for by a payment's identity alone, from the command menu. */
 	asked: { actId: string; paymentId: string } | null;
 	/** a new payment asked for, answered once its contract is read and found to take one. */
@@ -39,6 +41,7 @@ export const paymentHostState = $state<PaymentHostState>({
 	form: { open: false, key: 0 },
 	deleting: null,
 	copying: null,
+	printing: null,
 	asked: null,
 	creating: null
 });
@@ -70,6 +73,9 @@ export function closePaymentConfirmation() {
 export const paymentActs = declarePaymentActs({
 	copyDetails: (payment) => {
 		paymentHostState.copying = payment;
+	},
+	receipt: (payment) => {
+		paymentHostState.printing = payment;
 	},
 	// a reference names one transfer or cheque and a note is about one payment, so a duplicate
 	// starts without either rather than claiming the original's; how it was paid carries over.
@@ -115,6 +121,7 @@ export function resetPaymentHost() {
 	paymentHostState.form = { open: false, key: paymentHostState.form.key + 1 };
 	paymentHostState.deleting = null;
 	paymentHostState.copying = null;
+	paymentHostState.printing = null;
 	paymentHostState.asked = null;
 	paymentHostState.creating = null;
 }
