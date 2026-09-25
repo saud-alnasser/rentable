@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [04]
 ---
 
@@ -16,13 +16,13 @@ every certificate the previous owner issued directly.
 
 Traces requirements 2 and 9 of [[efforts/838-permissions-are-a-role-and-an-override/spec]], and criteria 2 and 9.
 
-- [ ] `mark::require_administrator` is gone; setting and clearing the mark require `manageMark`.
-- [ ] `require_owner` and every `session.role == OWNER` check in these files read the verified row.
-- [ ] For each `OWNER_ONLY` act, a manager holding every other flag is refused and the owner
+- [x] `mark::require_administrator` is gone; setting and clearing the mark require `manageMark`.
+- [x] `require_owner` and every `session.role == OWNER` check in these files read the verified row.
+- [x] For each `OWNER_ONLY` act, a manager holding every other flag is refused and the owner
       succeeds; the owner's effective permissions equal every flag (criterion 2).
-- [ ] After a handover, every certificate verifies under the new pinned key, the previous owner reads
+- [x] After a handover, every certificate verifies under the new pinned key, the previous owner reads
       as a manager, and a certificate they issued as owner is re-issued under the new owner.
-- [ ] A grant made by a manager verifies on a third store; a read-only grant signed by a non-root is
+- [x] A grant made by a manager verifies on a third store; a read-only grant signed by a non-root is
       refused on read.
 
 ## Relevant areas

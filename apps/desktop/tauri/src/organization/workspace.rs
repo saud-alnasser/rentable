@@ -3,16 +3,24 @@
 //!
 //! **Only an owner creates or destroys one, and that is forced rather than chosen.** Creating a
 //! workspace creates a database, which needs the Turso authority requirement 5 keeps on the
-//! owner's machine and out of every database; an administrator has nothing to create a database
-//! with. The refusal is at the command, before any request, and it says to ask the owner.
+//! owner's machine and out of every database; a manager has nothing to create a database with.
+//! The refusal is at the command, before any request, and it says to ask the owner.
+//!
+//! **The owner's acts are asked of the owner's verified row** ([`require_owner`], effort 838,
+//! requirement 2): creating and deleting a workspace, a read-only grant, renewing credentials, and
+//! the handover and the account beside them. The row is read under the pinned key every time, so
+//! a session opened as the owner that has since handed the organization over is refused on the
+//! row it now has, and the flags are the owner's alone: no role and no override carries one.
 //!
 //! **A grant is a credential sealed to the member's X25519 public key**, which is the property the
-//! whole asymmetric design exists for: an administrator grants a workspace to a member whose
-//! password they do not know, by sealing to a public half, and a member can be added to a second
-//! workspace long after they joined. A full-access grant is made from the granter's own
-//! credential, re-sealed, so an administrator grants what they can reach themselves and nothing
-//! more (requirement 13's limit, at the grant); a read-only grant is a credential Turso mints at
-//! that level, which needs the platform authority and is therefore the owner's to make.
+//! whole asymmetric design exists for: a manager grants a workspace to a member whose password
+//! they do not know, by sealing to a public half, and a member can be added to a second workspace
+//! long after they joined. A full-access grant is made from the granter's own credential,
+//! re-sealed, so a manager grants what they can reach themselves and nothing more (requirement
+//! 13's limit, at the grant), and signs it under their own delegated certificate, which every
+//! machine verifies without the owner. A read-only grant is a credential Turso mints at that
+//! level, which needs the platform authority and is therefore the owner's to make, and it is
+//! signed under the root: a read-only grant any other certificate signed is refused on read.
 //!
 //! **A credential has an expiry, and renewal is the owner's machine minting fresh ones and
 //! re-sealing them to every member who still holds a grant.** Removal is what stops renewing,
@@ -33,9 +41,9 @@ use crate::{
 use super::{
     authority::AdministratorKey,
     migrate::{self, Pipeline},
-    permission::{self, Administration},
-    session::{MemberSession, WorkspaceCredential, WorkspaceFacts, permissions_on_row},
-    store::{GrantRecord, OrganizationStore, Signer, WorkspaceRecord},
+    permission::{self, Flag},
+    session::{MemberSession, WorkspaceCredential, WorkspaceFacts, acting_row, permissions_on_row},
+    store::{GrantRecord, MemberRecord, OrganizationStore, Signer, WorkspaceRecord},
     vault::{open_content, seal_content, seal_to_public_key},
 };
 
@@ -94,7 +102,13 @@ pub async fn create_workspace<P: TursoPlatform>(
     now: i64,
 ) -> Result<WorkspaceFacts, Error> {
     session.settled()?;
-    require_owner(session, "create a workspace")?;
+    require_owner(
+        store,
+        session,
+        Flag::CreateWorkspace,
+        "only an owner can create a workspace. ask the owner",
+    )
+    .await?;
 
     let name = name.trim();
 
@@ -245,15 +259,16 @@ async fn finish_workspace<P: TursoPlatform>(
 /// Grant a workspace to a member, at `access`.
 ///
 /// **Full access is the granter's own credential re-sealed to the member**, so a granter hands out
-/// what they can reach and nothing more. **Read-only is minted**, which needs the platform
-/// authority, so `platform` is `Some` on the owner's machine and `None` anywhere else, and a
-/// read-only grant from anywhere else is refused for want of authority rather than for want of a
-/// button.
+/// what they can reach and nothing more, and the row is signed under their own certificate, which
+/// covers a full-access grant wherever it carries `grantWorkspace` (effort 838). **Read-only is
+/// minted**, which needs the platform authority, and is [`Flag::MintReadOnly`], the owner's: it is
+/// asked of the owner's verified row first, and then `platform` has to be `Some`, as it is on the
+/// owner's machine and nowhere else. The row it writes is signed under the root, the one
+/// certificate that covers a read-only grant.
 ///
-/// The act is [`Administration::GrantWorkspace`], which requirement 4 of effort 826 separated from
-/// inviting: giving somebody a workspace they can already sign in to is a different thing from
-/// making the account, and an organization may want an administrator who does one and not the
-/// other.
+/// The act is [`Flag::GrantWorkspace`], which requirement 4 of effort 826 separated from inviting:
+/// giving somebody a workspace they can already sign in to is a different thing from making the
+/// account, and an organization may want a manager who does one and not the other.
 pub async fn grant_workspace<P: TursoPlatform>(
     store: &OrganizationStore,
     session: &MemberSession,
@@ -265,8 +280,19 @@ pub async fn grant_workspace<P: TursoPlatform>(
     session.settled()?;
     permission::require(
         permissions_on_row(store, session).await?,
-        Administration::GrantWorkspace,
+        Flag::GrantWorkspace,
     )?;
+
+    if access == AccessLevel::ReadOnly {
+        require_owner(
+            store,
+            session,
+            Flag::MintReadOnly,
+            "only an owner can grant a workspace read-only, because the credential is minted \
+             on their turso account. ask the owner",
+        )
+        .await?;
+    }
 
     let (key, certificate) = signer_of(store, session).await?;
     let members = store.members(&session.verifying_key).await?;
@@ -359,9 +385,9 @@ pub async fn grant_workspace<P: TursoPlatform>(
 /// (`removal::remove_member`). A withdrawal that quietly rotated would cost every other member of
 /// the workspace a reconnect nobody asked for.
 ///
-/// The act is [`Administration::GrantWorkspace`], the same one that gives, and the owner's own
-/// grant is refused: the organization is theirs, and a workspace they cannot reach is one nobody
-/// can create in or renew.
+/// The act is [`Flag::GrantWorkspace`], the same one that gives, and the owner's own grant is
+/// refused: the organization is theirs, and a workspace they cannot reach is one nobody can
+/// create in or renew.
 pub async fn withdraw_grant(
     store: &OrganizationStore,
     session: &MemberSession,
@@ -371,7 +397,7 @@ pub async fn withdraw_grant(
     session.settled()?;
     permission::require(
         permissions_on_row(store, session).await?,
-        Administration::GrantWorkspace,
+        Flag::GrantWorkspace,
     )?;
 
     let members = store.members(&session.verifying_key).await?;
@@ -385,7 +411,7 @@ pub async fn withdraw_grant(
             )
         })?;
 
-    if member.role_word() == permission::OWNER {
+    if member.role_id == permission::OWNER {
         return Err(Error::refused(
             RefusalReason::OwnerProtected,
             "an owner's own workspace is not withdrawn. the organization is theirs",
@@ -430,7 +456,13 @@ pub async fn delete_workspace<P: TursoPlatform>(
     workspace_id: &str,
 ) -> Result<(), Error> {
     session.settled()?;
-    require_owner(session, "delete a workspace")?;
+    require_owner(
+        store,
+        session,
+        Flag::DeleteWorkspace,
+        "only an owner can delete a workspace. ask the owner",
+    )
+    .await?;
 
     let workspaces = store.workspaces(&session.verifying_key).await?;
     let workspace = workspaces
@@ -461,8 +493,8 @@ pub async fn delete_workspace<P: TursoPlatform>(
     Ok(())
 }
 
-/// Rename a workspace, for whoever carries `renameWorkspace` on their row: the owner, by the
-/// package's default masks, and anybody a row was widened for. The name is sealed under the
+/// Rename a workspace, for whoever carries `renameWorkspace` on their row: the owner and the
+/// manager, by the package's default masks, and anybody whose role or override gives it. The name is sealed under the
 /// content key and written outside the signature, as the plan keeps it, so every replica reads
 /// it on its next pull and nothing has to be re-signed.
 pub async fn rename_workspace(
@@ -475,7 +507,7 @@ pub async fn rename_workspace(
     session.settled()?;
     permission::require(
         permissions_on_row(store, session).await?,
-        Administration::RenameWorkspace,
+        Flag::RenameWorkspace,
     )?;
 
     let name = name.trim();
@@ -555,23 +587,29 @@ pub async fn renew_credentials<P: TursoPlatform>(
     organization_database: &str,
 ) -> Result<usize, Error> {
     session.settled()?;
-    require_owner(session, "renew credentials")?;
+    require_owner(
+        store,
+        session,
+        Flag::RenewCredentials,
+        "only an owner can renew credentials. ask the owner",
+    )
+    .await?;
 
     let (key, certificate) = signer_of(store, session).await?;
     let signer = Signer {
         key: &key,
         certificate: &certificate,
     };
-    // a removed member is not renewed: their row stands as `removed` and their grant was deleted,
-    // but a grant row replayed onto the database by a member who still holds the organization
-    // credential would otherwise be re-sealed a fresh credential here. Skipping them by role is
-    // what closes that half of F2; ticket 23 revokes a removed administrator's certificate for the
+    // a removed member is not renewed: their row stands signed as removed and their grant was
+    // deleted, but a grant row replayed onto the database by a member who still holds the
+    // organization credential would otherwise be re-sealed a fresh credential here. Skipping them
+    // by their row is what closes that half of F2; the revocation of their certificate is the
     // other half.
     let members: HashMap<String, [u8; 32]> = store
         .members(&session.verifying_key)
         .await?
         .into_iter()
-        .filter(|member| member.role_word() != permission::REMOVED)
+        .filter(|member| member.removed_at.is_none())
         .map(|member| (member.id, member.vault.public_key))
         .collect();
     let workspaces = store.workspaces(&session.verifying_key).await?;
@@ -692,14 +730,33 @@ pub fn openable(
     )))
 }
 
-fn require_owner(session: &MemberSession, what: &str) -> Result<(), Error> {
-    if session.role == permission::OWNER {
-        Ok(())
+/// The refusal anybody but the owner meets for one of the owner's acts, asked of the acting
+/// member's verified row rather than of the session (effort 838, requirement 2). Answers that row.
+///
+/// **The row, and not the snapshot the session opened with.** A handover rewrites the founder's
+/// row from another machine, and a session opened as the owner that read its role once went on
+/// passing every gate that asked for the word. [`acting_row`] reads the row under the key the
+/// session pinned, with its three refusals in front, so a session behind a handover is refused
+/// here as the manager it now is, or cannot read its row at all.
+///
+/// **The owner's role, and the flag on it.** The flags in `permission::OWNER_ONLY` are the owner's
+/// alone and no role or override carries one; what makes that hold on a read is the row naming the
+/// owner's role, which only the root signs about its own holder (`authority::covers`). The flag is
+/// asked as well, so the owner's row answers each act by the bit that names it, and a refusal is
+/// the owner's whatever the row's permissions say. `refusal` is the sentence the caller's
+/// interface shows, naming the act and who can do it.
+pub(super) async fn require_owner(
+    store: &OrganizationStore,
+    session: &MemberSession,
+    flag: Flag,
+    refusal: &str,
+) -> Result<MemberRecord, Error> {
+    let row = acting_row(store, session).await?;
+
+    if row.role_id == permission::OWNER && permission::permits(row.effective, flag) {
+        Ok(row)
     } else {
-        Err(Error::refused(
-            RefusalReason::OwnerOnly,
-            format!("only an owner can {what}. ask the owner"),
-        ))
+        Err(Error::refused(RefusalReason::OwnerOnly, refusal))
     }
 }
 
@@ -722,15 +779,16 @@ mod tests {
     use super::{
         MIGRATION_CREDENTIAL_LIFETIME, WORKSPACE_CREDENTIAL_LIFETIME, create_workspace,
         credentials_due, delete_workspace, grant_workspace, openable, rename_workspace,
-        renew_credentials, withdraw_grant,
+        renew_credentials, require_owner, withdraw_grant,
     };
     use crate::{
         error::Error,
         organization::{
             HeldOrganization,
-            authority::AdministratorKey,
+            authority::{AdministratorKey, Issue, certificate_id, issue_certificate},
             migrate::Pipeline,
-            permission,
+            permission::{self, Flag},
+            role,
             session::{CredentialSlot, MemberSession, sign_in},
             setup::{CreateOrganization, Remote, create_organization},
             store::{GrantRecord, MemberRecord, OrganizationStore, Signer, TABLES},
@@ -1438,6 +1496,412 @@ mod tests {
         assert_eq!(platform.databases().len(), databases, "a database was made");
         assert!(platform.deleted().is_empty(), "a database was deleted");
         assert_eq!(platform.minted().len(), minted, "a credential was minted");
+    }
+
+    /// **Criterion 2 of effort 838, and requirement 2: the owner's acts are the owner's.** A
+    /// manager carries every flag but the owner's, which is asserted first so every refusal below
+    /// is read as the owner check answering rather than as a bit they happened not to hold; the
+    /// owner's own row carries every flag.
+    ///
+    /// Then, for each flag in `OWNER_ONLY`, the gate on the verified row refuses the manager and
+    /// passes the owner, and each act that lives here is refused to the manager end to end with
+    /// nothing written and nothing asked of the account, even with the authority on the machine,
+    /// and done by the owner: creating and deleting a workspace, a read-only grant, renewing
+    /// credentials, and offering and withdrawing the organization. A manager session that says it
+    /// is the owner's is refused as well, because the gate reads the row and not the session.
+    /// *Locking out and deleting the organization are `removal`'s acts and tested there.*
+    #[tokio::test]
+    async fn every_owner_only_act_refuses_a_manager_holding_every_other_flag_and_the_owner_does_it()
+    {
+        let directory = scratch("owner-only");
+        let (_, store, _, mut owner, platform) = owned(&directory).await;
+        let joined = an_administrator(&store, &owner).await;
+        let _ = second_member(&store, &owner).await;
+        let mut manager = sign_in(&store, &joined, OTHER_PASSWORD, &slot())
+            .await
+            .expect("the manager did not sign in");
+        let pipeline = applying_pipeline().await;
+
+        // the two rows, as every gate reads them.
+        let owners_row = super::acting_row(&store, &owner)
+            .await
+            .expect("the owner's row");
+
+        assert_eq!(owners_row.effective, permission::mask_of(&Flag::ALL));
+        assert_eq!(owners_row.effective, permission::OWNER_ROLE.mask);
+        assert_eq!(manager.permissions, permission::MANAGER_ROLE.mask);
+
+        for flag in Flag::ALL {
+            assert_eq!(
+                permission::permits(manager.permissions, flag),
+                !permission::OWNER_ONLY.contains(&flag),
+                "{}",
+                flag.name()
+            );
+        }
+
+        // the gate itself, flag by flag.
+        for flag in permission::OWNER_ONLY {
+            let refused = require_owner(&store, &manager, flag, "the owner's")
+                .await
+                .expect_err(flag.name());
+
+            assert!(
+                matches!(
+                    refused,
+                    Error::Refused {
+                        reason: crate::error::RefusalReason::OwnerOnly,
+                        ..
+                    }
+                ),
+                "{}: {refused:?}",
+                flag.name()
+            );
+            require_owner(&store, &owner, flag, "the owner's")
+                .await
+                .unwrap_or_else(|refusal| panic!("{}: {refusal:?}", flag.name()));
+        }
+
+        let existing = create_workspace(
+            &store,
+            &mut owner,
+            &platform,
+            |_| Pipeline::at(&pipeline.url("")),
+            "Ours",
+            1,
+        )
+        .await
+        .expect("the owner's create failed");
+
+        grant_workspace(
+            &store,
+            &owner,
+            Some(platform.as_ref()),
+            &existing.id,
+            "member-admin",
+            AccessLevel::FullAccess,
+        )
+        .await
+        .expect("the owner could not grant the manager the workspace");
+
+        let before = every_row(&store).await;
+        let databases = platform.databases().len();
+        let minted = platform.minted().len();
+        let owner_only = |refusal: Error| {
+            assert!(
+                matches!(
+                    refusal,
+                    Error::Refused {
+                        reason: crate::error::RefusalReason::OwnerOnly,
+                        ..
+                    }
+                ),
+                "{refusal:?}"
+            );
+        };
+
+        // a session that says it is the owner's reads its row first, and the row is a manager's.
+        let mut claiming = sign_in(&store, &joined, OTHER_PASSWORD, &slot())
+            .await
+            .expect("the manager did not sign in");
+
+        claiming.role = permission::OWNER.to_string();
+        claiming.permissions = permission::OWNER_ROLE.mask;
+
+        for session in [&mut manager, &mut claiming] {
+            owner_only(
+                create_workspace(
+                    &store,
+                    session,
+                    &platform,
+                    |_| Pipeline::at(&pipeline.url("")),
+                    "Theirs",
+                    2,
+                )
+                .await
+                .map(|_| ())
+                .expect_err("a manager created a workspace"),
+            );
+            owner_only(
+                delete_workspace(&store, session, &platform, &existing.id)
+                    .await
+                    .expect_err("a manager deleted a workspace"),
+            );
+            owner_only(
+                grant_workspace(
+                    &store,
+                    session,
+                    Some(platform.as_ref()),
+                    &existing.id,
+                    "member-b",
+                    AccessLevel::ReadOnly,
+                )
+                .await
+                .expect_err("a manager minted a read-only grant"),
+            );
+            owner_only(
+                renew_credentials(
+                    &store,
+                    session,
+                    &platform,
+                    &format!("org-{}", owner.organization_id),
+                )
+                .await
+                .expect_err("a manager renewed the credentials"),
+            );
+            owner_only(
+                role::offer_ownership(&store, session, "member-b", OTHER_PASSWORD, 3)
+                    .await
+                    .map(|_| ())
+                    .expect_err("a manager offered the organization"),
+            );
+            owner_only(
+                role::withdraw_offer(&store, session, 3)
+                    .await
+                    .expect_err("a manager withdrew an offer"),
+            );
+        }
+
+        assert_eq!(every_row(&store).await, before, "a refused act wrote a row");
+        assert_eq!(platform.databases().len(), databases, "a database was made");
+        assert!(platform.deleted().is_empty(), "a database was deleted");
+        assert_eq!(platform.minted().len(), minted, "a credential was minted");
+
+        // and the owner does every one of them.
+        let second_pipeline = applying_pipeline().await;
+        let made = create_workspace(
+            &store,
+            &mut owner,
+            &platform,
+            |_| Pipeline::at(&second_pipeline.url("")),
+            "Also ours",
+            4,
+        )
+        .await
+        .expect("the owner could not create a workspace");
+
+        grant_workspace(
+            &store,
+            &owner,
+            Some(platform.as_ref()),
+            &made.id,
+            "member-b",
+            AccessLevel::ReadOnly,
+        )
+        .await
+        .expect("the owner could not grant read-only");
+        let organization_database = format!("org-{}", owner.organization_id);
+
+        renew_credentials(&store, &mut owner, &platform, &organization_database)
+            .await
+            .expect("the owner could not renew the credentials");
+        role::offer_ownership(&store, &owner, "member-b", PASSWORD, 5)
+            .await
+            .expect("the owner could not offer the organization");
+        role::withdraw_offer(&store, &owner, 6)
+            .await
+            .expect("the owner could not withdraw the offer");
+        delete_workspace(&store, &mut owner, &platform, &made.id)
+            .await
+            .expect("the owner could not delete a workspace");
+
+        store
+            .grants(&owner.verifying_key)
+            .await
+            .expect("every grant the owner wrote verifies");
+    }
+
+    /// **Requirement 9 of effort 838, at the grant.** A manager grants a workspace they hold to a
+    /// member with no owner in the room, under their own delegated certificate, and the grant
+    /// verifies on a third machine's replica, where the member signs in and holds the credential.
+    ///
+    /// **A read-only grant is the root's.** The manager is refused one at the command, with the
+    /// authority on the machine and nothing minted, and a read-only grant row they sign around the
+    /// command, straight into the database, is refused by every reader.
+    #[tokio::test]
+    async fn a_managers_grant_verifies_on_a_third_store_and_a_read_only_one_they_sign_does_not() {
+        let directory = scratch("manager-grant");
+        let (_, store, joined_owner, mut owner, platform) = owned(&directory).await;
+        let pipeline = applying_pipeline().await;
+        let workspace = create_workspace(
+            &store,
+            &mut owner,
+            &platform,
+            |_| Pipeline::at(&pipeline.url("")),
+            "North",
+            1,
+        )
+        .await
+        .expect("the create failed");
+        let joined_manager = an_administrator(&store, &owner).await;
+        let joined_b = second_member(&store, &owner).await;
+
+        grant_workspace(
+            &store,
+            &owner,
+            None::<&InMemoryPlatform>,
+            &workspace.id,
+            "member-admin",
+            AccessLevel::FullAccess,
+        )
+        .await
+        .expect("the owner could not grant the manager the workspace");
+
+        let manager = sign_in(&store, &joined_manager, OTHER_PASSWORD, &slot())
+            .await
+            .expect("the manager did not sign in");
+        let (owner_key, owner_certificate) =
+            super::signer_of(&store, &owner).await.expect("the root");
+        let manager_certificate = issue_certificate(
+            &owner_key,
+            &owner_certificate,
+            Issue {
+                id: &certificate_id("member-admin", "2"),
+                member_id: "member-admin",
+                signing_public_key: &signing_key_of(&manager.secret),
+                ceiling: permission::MANAGER_ROLE.mask,
+                rank: permission::MANAGER_ROLE.rank,
+                issued_at: "2",
+            },
+        )
+        .expect("the manager's certificate");
+
+        store
+            .write_certificate(&manager_certificate)
+            .await
+            .expect("the manager's certificate");
+
+        // the owner's machine is off from here on: nothing below is signed by the root.
+        grant_workspace(
+            &store,
+            &manager,
+            None::<&InMemoryPlatform>,
+            &workspace.id,
+            "member-b",
+            AccessLevel::FullAccess,
+        )
+        .await
+        .expect("the manager's grant failed");
+
+        // another machine's replica, as a pull leaves it.
+        let elsewhere = scratch("manager-grant-third");
+
+        for entry in std::fs::read_dir(&directory).expect("the directory") {
+            let path = entry.expect("an entry").path();
+            let name = path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or_default()
+                .to_string();
+
+            if name.starts_with("org-") {
+                std::fs::copy(&path, elsewhere.join(&name)).expect("the copy");
+            }
+        }
+
+        let third = OrganizationStore::open(
+            &OrganizationStore::replica_path(&elsewhere.join("app.db"), &joined_owner.id),
+            None,
+            || async { Err(turso::Error::Misuse("no remote".into())) },
+        )
+        .await
+        .expect("the third replica did not open");
+        let grant = third
+            .grants(&owner.verifying_key)
+            .await
+            .expect("the grants do not verify on the third machine")
+            .into_iter()
+            .find(|grant| grant.member_id == "member-b" && grant.workspace_id == workspace.id)
+            .expect("the manager's grant did not arrive");
+
+        assert_eq!(grant.access_level, AccessLevel::FullAccess.as_str());
+
+        let mut rows = third
+            .connection()
+            .query(
+                "SELECT \"certificate_id\" FROM \"grant\" WHERE \"member_id\" = 'member-b'",
+                (),
+            )
+            .await
+            .expect("the row");
+        let signed_by = match rows
+            .next()
+            .await
+            .expect("a row")
+            .expect("a row")
+            .get_value(0)
+            .expect("the certificate id")
+        {
+            turso::Value::Text(id) => id,
+            other => panic!("{other:?}"),
+        };
+
+        assert_eq!(signed_by, manager_certificate.id);
+
+        let member = sign_in(&third, &joined_b, OTHER_PASSWORD, &slot())
+            .await
+            .expect("the member did not sign in on the third machine");
+
+        assert_eq!(
+            member.workspace_credentials[&workspace.id].token,
+            manager.workspace_credentials[&workspace.id].token,
+            "the member does not hold the credential the manager granted"
+        );
+
+        // a read-only grant, through the command: the owner's, whatever this machine holds.
+        let minted = platform.minted().len();
+        let refused = grant_workspace(
+            &store,
+            &manager,
+            Some(platform.as_ref()),
+            &workspace.id,
+            "member-b",
+            AccessLevel::ReadOnly,
+        )
+        .await
+        .expect_err("a manager minted a read-only grant");
+
+        assert!(
+            matches!(
+                refused,
+                Error::Refused {
+                    reason: crate::error::RefusalReason::OwnerOnly,
+                    ..
+                }
+            ),
+            "{refused:?}"
+        );
+        assert_eq!(platform.minted().len(), minted, "a credential was minted");
+
+        // and around it: the row is written, and every reader refuses it.
+        let manager_key = AdministratorKey::from_bytes(
+            &manager
+                .secret
+                .derive_seed(crate::organization::setup::ADMINISTRATOR_KEY_PURPOSE)
+                .expect("the signing seed"),
+        );
+
+        store
+            .write_grant(
+                &Signer {
+                    key: &manager_key,
+                    certificate: &manager_certificate,
+                },
+                &GrantRecord {
+                    access_level: AccessLevel::ReadOnly.as_str().to_string(),
+                    ..grant
+                },
+            )
+            .await
+            .expect("the row is written; it is the readers that refuse it");
+
+        assert!(
+            matches!(
+                store.grants(&owner.verifying_key).await,
+                Err(Error::Integrity { .. })
+            ),
+            "a read-only grant a manager signed verified"
+        );
     }
 
     /// **The property the asymmetric design exists for.** A member is added to a second workspace

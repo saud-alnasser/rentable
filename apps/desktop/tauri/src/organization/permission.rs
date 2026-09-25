@@ -12,14 +12,14 @@
 //!
 //! **Today's seven acts keep their own type while the callers move.** [`Administration`] is the
 //! seven under today's names, `ChangeRole` included, on the same bits as the [`Flag`]s they are;
-//! every routine here takes either through [`Act`]. Until the owner's flags are read from a row,
-//! they are refused by asking whether the session is the owner's, in `workspace::require_owner`
-//! and in `removal::remove_member`, and the refusal names the owner.
+//! every routine here takes either through [`Act`]. The owner's flags are asked of the owner's
+//! verified row, by `workspace::require_owner` for the workspace acts, the handover and the
+//! account, and the refusal names the owner.
 //!
-//! **One act is gated by role instead, and signed.** Setting or removing the organization's mark,
-//! the signature or seal its pages print (effort 835), is the owner's or an administrator's:
-//! `mark::require_administrator` reads the role on the verified row, and the row it writes is
-//! signed under the setter's certificate. [`Flag::ManageMark`] is the bit that replaces it.
+//! **The organization's mark is [`Flag::ManageMark`]**, the signature or seal its pages print
+//! (effort 835): `mark::set_mark` and `mark::clear_mark` ask it of the verified row, and the row
+//! the first writes is signed under the setter's certificate, which covers it only where its
+//! ceiling carries the flag.
 //!
 //! **Enforcement is by what the vault holds, and this is the arithmetic beside it.** A member's
 //! permissions are on their verified row and travel in the session; a command asks

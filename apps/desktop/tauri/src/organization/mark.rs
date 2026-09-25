@@ -6,12 +6,16 @@
 //! content key as a workspace's name is, so every member's machine reads it after its pull,
 //! offline included, and nobody outside the organization reads it at all.
 //!
-//! **The owner or an administrator sets it, and signs it.** The gate reads the role on the
-//! verified row first, so a member is refused with a sentence naming who can; then the row is
-//! signed under the setter's administrator certificate like every row that carries authority, and
-//! read back only where the signature verifies. A member holds the database's credential and could
-//! write the row directly, and an image printed as the organization's signature is worth forging:
-//! a row nobody with a certificate signed is treated as no mark at all.
+//! **Whoever carries `manageMark` sets it, and signs it** (effort 838, requirement 1). The gate
+//! asks the flag of the verified row first, so a member without it is refused with a sentence
+//! naming it; then the row is signed under the setter's certificate like every row that carries
+//! authority, and read back only where the signature verifies and the certificate carries
+//! `manageMark` (`authority::covers`). A member holds the database's credential and could write
+//! the row directly, and an image printed as the organization's signature is worth forging: a row
+//! no certificate carrying the flag signed is treated as no mark at all.
+//!
+//! *It was the owner's or an administrator's by the role word until effort 838, which made it a
+//! flag the owner and the manager carry by default and any role or override may give.*
 //!
 //! **What is stored is checked by its bytes, not its name.** The file the open dialog chose is read
 //! by the command, so an image never crosses the IPC boundary on its way in; anything over 512 KB,
@@ -24,8 +28,8 @@ use base64::Engine;
 use crate::error::{Error, RefusalReason};
 
 use super::{
-    permission,
-    session::{MemberSession, acting_row},
+    permission::{self, Flag},
+    session::{MemberSession, permissions_on_row},
     store::{MarkRecord, OrganizationStore, Signer},
     vault::{open_content, seal_content},
     workspace::signer_of,
@@ -90,25 +94,6 @@ pub fn check_image(bytes: &[u8]) -> Result<&'static str, Error> {
     })
 }
 
-/// The refusal a member who administers nothing meets: the mark is the owner's or an
-/// administrator's to change. Read off the verified row, so a role changed since the session
-/// opened is the role that answers.
-pub async fn require_administrator(
-    store: &OrganizationStore,
-    session: &MemberSession,
-) -> Result<(), Error> {
-    let role = acting_row(store, session).await?.role_word().to_string();
-
-    if role == permission::OWNER || role == permission::ADMINISTRATOR {
-        Ok(())
-    } else {
-        Err(Error::refused(
-            RefusalReason::RoleLacksAct,
-            "only the owner or an administrator can change the organization's mark",
-        ))
-    }
-}
-
 /// The organization's mark, opened, or nothing where none is set. Any signed-in member reads it.
 ///
 /// **A row that does not verify is no mark.** It is never printed as the organization's, and the
@@ -149,7 +134,7 @@ pub async fn set_mark(
     now: i64,
 ) -> Result<MarkFacts, Error> {
     session.settled()?;
-    require_administrator(store, session).await?;
+    permission::require(permissions_on_row(store, session).await?, Flag::ManageMark)?;
 
     let media_type = check_image(image)?;
     let (key, certificate) = signer_of(store, session).await?;
@@ -182,7 +167,7 @@ pub async fn set_mark(
 /// Remove the organization's mark, and send that.
 pub async fn clear_mark(store: &OrganizationStore, session: &MemberSession) -> Result<(), Error> {
     session.settled()?;
-    require_administrator(store, session).await?;
+    permission::require(permissions_on_row(store, session).await?, Flag::ManageMark)?;
 
     store.clear_mark().await?;
 
@@ -309,13 +294,16 @@ mod tests {
         (organization, joined, session)
     }
 
-    /// Another account in the organization under `role`, written by the owner, and signed in. An
-    /// administrator is certified as a promotion certifies one, so the rows they sign verify.
+    /// Another account in the organization under `role`, written by the owner, and signed in.
+    /// **Everybody is certified**, as the delegated chain certifies every live member: a
+    /// certificate issued from the owner's, carrying what the role and the override give them and
+    /// the role's rank, so the rows they sign verify where it covers them and nowhere else.
     async fn another(
         store: &OrganizationStore,
         owner: &MemberSession,
         id: &str,
         role: &str,
+        override_mask: i64,
     ) -> MemberSession {
         let (key, certificate) = signer_of(store, owner).await.expect("the signer");
         let (vault, secret) =
@@ -344,7 +332,7 @@ mod tests {
                     vault,
                     signing_public_key,
                     role_id: permission::role_id_of_word(role).to_string(),
-                    override_mask: 0,
+                    override_mask,
                     removed_at: None,
                     effective: 0,
                     must_change_password: false,
@@ -357,31 +345,29 @@ mod tests {
             .await
             .expect("the member");
 
-        if role == permission::ADMINISTRATOR {
-            let (owner_key, owner_certificate) =
-                crate::organization::workspace::signer_of(store, owner)
-                    .await
-                    .expect("the owner's signer");
+        let (mask, rank) = store
+            .role_standing(&owner.verifying_key, permission::role_id_of_word(role))
+            .await
+            .expect("the role");
 
-            store
-                .write_certificate(
-                    &issue_certificate(
-                        &owner_key,
-                        &owner_certificate,
-                        Issue {
-                            id: &certificate_id(id, "1757000000000"),
-                            member_id: id,
-                            signing_public_key: &signing_public_key,
-                            ceiling: permission::MANAGER_ROLE.mask,
-                            rank: permission::MANAGER_ROLE.rank,
-                            issued_at: "1757000000000",
-                        },
-                    )
-                    .expect("the certificate"),
+        store
+            .write_certificate(
+                &issue_certificate(
+                    &key,
+                    &certificate,
+                    Issue {
+                        id: &certificate_id(id, "1757000000000"),
+                        member_id: id,
+                        signing_public_key: &signing_public_key,
+                        ceiling: permission::effective(mask, override_mask),
+                        rank,
+                        issued_at: "1757000000000",
+                    },
                 )
-                .await
-                .expect("the certificate");
-        }
+                .expect("the certificate"),
+            )
+            .await
+            .expect("the certificate");
 
         let held = HeldOrganization {
             id: owner.organization_id.clone(),
@@ -448,7 +434,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn the_owner_and_an_administrator_set_and_clear_the_mark_sealed_and_signed() {
+    async fn the_owner_and_a_manager_set_and_clear_the_mark_sealed_and_signed() {
         let directory = scratch("roles");
         let (store, _, owner) = owned(&directory).await;
 
@@ -476,17 +462,16 @@ mod tests {
         );
         assert_eq!(stored.updated_by, owner.member_id);
 
-        let administrator =
-            another(&store, &owner, "member-admin", permission::ADMINISTRATOR).await;
+        let manager = another(&store, &owner, "member-admin", permission::ADMINISTRATOR, 0).await;
 
         set_mark(
             &store,
-            &administrator,
+            &manager,
             &[0xFF, 0xD8, 0xFF, 0xE0],
             1_757_000_000_002,
         )
         .await
-        .expect("an administrator could not replace the mark");
+        .expect("a manager could not replace the mark");
         assert_eq!(
             read_mark(&store, &owner)
                 .await
@@ -496,9 +481,9 @@ mod tests {
             "image/jpeg"
         );
 
-        clear_mark(&store, &administrator)
+        clear_mark(&store, &manager)
             .await
-            .expect("an administrator could not remove the mark");
+            .expect("a manager could not remove the mark");
         assert_eq!(read_mark(&store, &owner).await.expect("the read"), None);
     }
 
@@ -509,7 +494,7 @@ mod tests {
         let set = set_mark(&store, &owner, PNG, 1_757_000_000_001)
             .await
             .expect("the owner could not set the mark");
-        let member = another(&store, &owner, "member-b", permission::MEMBER).await;
+        let member = another(&store, &owner, "member-b", permission::MEMBER, 0).await;
 
         assert_eq!(
             read_mark(&store, &member).await.expect("the read"),
@@ -540,6 +525,67 @@ mod tests {
         assert!(read_mark(&store, &owner).await.expect("the read").is_some());
     }
 
+    /// **The mark is `manageMark`, not a role** (effort 838). A manager whose override switches the
+    /// flag off is refused setting and clearing it, naming the flag, and a member whose override
+    /// switches it on sets and clears it, the row they sign verifying on read because their
+    /// certificate carries the flag.
+    #[tokio::test]
+    async fn setting_and_clearing_the_mark_follow_manage_mark_and_not_the_role() {
+        let directory = scratch("flag");
+        let (store, _, owner) = owned(&directory).await;
+        let manage_mark = permission::mask_of(&[Flag::ManageMark]);
+        let narrowed = another(
+            &store,
+            &owner,
+            "member-admin",
+            permission::ADMINISTRATOR,
+            manage_mark,
+        )
+        .await;
+        let widened = another(&store, &owner, "member-b", permission::MEMBER, manage_mark).await;
+
+        assert!(!permission::permits(narrowed.permissions, Flag::ManageMark));
+        assert!(permission::permits(widened.permissions, Flag::ManageMark));
+
+        for refusal in [
+            set_mark(&store, &narrowed, PNG, 1_757_000_000_001)
+                .await
+                .map(|_| ())
+                .expect_err("a manager without manageMark set the mark"),
+            clear_mark(&store, &narrowed)
+                .await
+                .expect_err("a manager without manageMark removed the mark"),
+        ] {
+            assert!(
+                matches!(
+                    refusal,
+                    Error::Refused {
+                        reason: RefusalReason::RoleLacksAct,
+                        ref message,
+                    } if message.contains("manageMark")
+                ),
+                "{refusal:?}"
+            );
+        }
+
+        assert_eq!(read_mark(&store, &owner).await.expect("the read"), None);
+
+        let set = set_mark(&store, &widened, PNG, 1_757_000_000_002)
+            .await
+            .expect("a member holding manageMark could not set the mark");
+
+        assert_eq!(
+            read_mark(&store, &owner).await.expect("the read"),
+            Some(set),
+            "the mark a holder of manageMark signed did not verify"
+        );
+
+        clear_mark(&store, &widened)
+            .await
+            .expect("a member holding manageMark could not remove the mark");
+        assert_eq!(read_mark(&store, &owner).await.expect("the read"), None);
+    }
+
     /// The finding that made the mark a signed row: a member holds the database's credential and
     /// the content key, so they can write the row straight into the database. What they write is
     /// signed by nobody with a certificate, and it is read as no mark rather than printed.
@@ -547,7 +593,7 @@ mod tests {
     async fn a_mark_written_around_the_gate_is_never_read_as_the_organizations() {
         let directory = scratch("forged");
         let (store, _, owner) = owned(&directory).await;
-        let member = another(&store, &owner, "member-b", permission::MEMBER).await;
+        let member = another(&store, &owner, "member-b", permission::MEMBER, 0).await;
         let forged = seal_content(&member.content_key, COLUMN, PNG).expect("sealed");
 
         store

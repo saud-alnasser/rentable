@@ -1605,8 +1605,8 @@ pub async fn organization_mark_get(
 }
 
 /// Keep the image at `path`, which the open dialog chose, as the organization's mark. It is read
-/// here rather than handed over, checked by its bytes, sealed, written and sent; the owner's or an
-/// administrator's to do.
+/// here rather than handed over, checked by its bytes, sealed, written and sent; whoever carries
+/// `manageMark` does it.
 #[tauri::command]
 pub async fn organization_mark_set(
     app_state: tauri::State<'_, AppState>,
@@ -1627,7 +1627,7 @@ pub async fn organization_mark_set(
     mark::set_mark(store, member, &image, timestamp::now()).await
 }
 
-/// Remove the organization's mark; the owner's or an administrator's to do.
+/// Remove the organization's mark; whoever carries `manageMark` does it.
 #[tauri::command]
 pub async fn organization_mark_clear(app_state: tauri::State<'_, AppState>) -> Result<(), Error> {
     let mut member = app_state.member.write().await;
@@ -1842,13 +1842,30 @@ pub(crate) async fn rename_current_workspace(
 /// A member who is not the owner is answered with nothing rather than refused, because the
 /// screen they see says the account needs attention and whom to tell, and that is the whole of
 /// what requirement 25 lets them see.
+///
+/// **The owner is the owner's verified row**, asked for `tursoAccount` (effort 838, requirement
+/// 2), and not the role the session opened with: a founder whose session is still open after
+/// handing the organization over is a manager, and reads nothing here.
 #[tauri::command]
 pub async fn organization_account_refusal_detail(
     app_state: tauri::State<'_, AppState>,
 ) -> Result<Option<String>, Error> {
     let member = app_state.member.read().await;
+    let organization = app_state.organization.read().await;
 
-    if member.as_ref().map(|member| member.role.as_str()) != Some(super::permission::OWNER) {
+    let (Some(member), Some(store)) = (member.as_ref(), organization.as_ref()) else {
+        return Ok(None);
+    };
+
+    if workspace::require_owner(
+        store,
+        member,
+        super::permission::Flag::TursoAccount,
+        "only the owner reads what turso said about the account",
+    )
+    .await
+    .is_err()
+    {
         return Ok(None);
     }
 
