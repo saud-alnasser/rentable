@@ -267,6 +267,61 @@ test('a creation with units is undone leaving neither, and redone with both', as
 	);
 });
 
+// ticket 38, criterion 11(a): a contract without payments deletes at once whatever units it holds.
+// They go in the same batch, the units read vacant again, and the deletion answers with them, so
+// the inverse `useDeleteContract` records, creating the row again, puts back both.
+test('a contract with units is deleted with them, and undone holding the same units', async () => {
+	const api = await createApi();
+	const first = await seedComplexWithUnit(api, 'Delete-Undo-1');
+	const second = await seedComplexWithUnit(api, 'Delete-Undo-2');
+	const unitIds = [first.unit.id, second.unit.id];
+	const created = await seedContract(api, { unitIds });
+
+	const deleted = await api.contract.delete({ id: created.id });
+
+	assert.ok(deleted);
+	assert.deepEqual([...deleted.unitIds].sort(), [...unitIds].sort());
+	assert.equal(await api.contract.get({ id: created.id }), undefined);
+	assert.deepEqual(await api.contract.units.getMany({ contractId: created.id }), []);
+
+	for (const unitId of unitIds) {
+		assert.equal((await api.complex.units.get({ id: unitId }))?.status, 'vacant');
+	}
+
+	const undone = await api.contract.create(deleted);
+
+	assert.equal(undone.id, created.id);
+	assert.deepEqual(
+		(await api.contract.units.getMany({ contractId: created.id })).map((held) => held.id).sort(),
+		[...unitIds].sort()
+	);
+
+	for (const unitId of unitIds) {
+		assert.equal((await api.complex.units.get({ id: unitId }))?.status, 'occupied');
+	}
+});
+
+test('a contract carrying a payment is still refused deletion, and keeps its units', async () => {
+	const api = await createApi();
+	const { unit } = await seedComplexWithUnit(api, 'Delete-Paid');
+	const created = await seedContract(api, { unitIds: [unit.id] });
+
+	await api.contract.payments.create({
+		contractId: created.id,
+		date: monthsFromNow(0),
+		amount: 100
+	});
+
+	await assert.rejects(
+		() => api.contract.delete({ id: created.id }),
+		refusedWith('contract.holdsPayments')
+	);
+	assert.deepEqual(
+		(await api.contract.units.getMany({ contractId: created.id })).map((held) => held.id),
+		[unit.id]
+	);
+});
+
 test('the units free for a term leave out those an overlapping contract holds', async () => {
 	const api = await createApi();
 	const free = await seedComplexWithUnit(api, 'Term-Free');
@@ -740,7 +795,7 @@ test('the assignable set offers every unit no overlapping contract holds', async
 	assert.equal(byId.has(taken.unit.id), false, 'a unit an overlapping contract holds was offered');
 });
 
-test('the held pane lists a unit an overlapping contract also holds, so a delete refusal counts what it shows', async () => {
+test('the held pane lists a unit an overlapping contract also holds, as the contract’s own units do', async () => {
 	const api = await createApi();
 	const shared = await seedComplexWithUnit(api, 'S');
 	const theirs = await seedComplexWithUnit(api, 'T');
@@ -769,13 +824,6 @@ test('the held pane lists a unit an overlapping contract also holds, so a delete
 		'a unit only the overlapping contract holds was offered'
 	);
 	assert.equal(heldPane.length, heldUnits.length);
-
-	// the delete dialog counts its unit blocker from `units.getMany`, and the procedure refuses
-	// for the same reason, so the count a refusal reports is the held pane's length.
-	await assert.rejects(
-		() => api.contract.delete({ id: contract.id }),
-		refusedWith('contract.holdsUnits')
-	);
 	assert.equal(heldUnits.length, 1);
 });
 
@@ -1989,9 +2037,9 @@ test('a plan says which of a selection would go through and which would not', as
 	);
 });
 
-// the criterion this ticket exists for on the read side: a contract row carries its status and
-// how many payments it has, and neither of those answers what a deletion is refused for. A row
-// could not have said this, which is why the confirmation asks instead of reading the list.
+// the criterion this ticket exists for on the read side: the confirmation asks the workspace what
+// a deletion is refused for instead of reading the list. The units a contract holds go with it
+// (ticket 38), so only its payments refuse it.
 test('a plan answers for a rule no row on the list carries', async () => {
 	const api = await createApi();
 	const holdingUnits = await seedContractHoldingAUnit(api, 'S1');
@@ -2003,13 +2051,10 @@ test('a plan answers for a rule no row on the list carries', async () => {
 		action: 'delete'
 	});
 
-	assert.deepEqual(plan.eligible, [free.id]);
+	assert.deepEqual(plan.eligible, [holdingUnits.id, free.id]);
 	assert.deepEqual(
 		plan.refused.map((refusal) => ({ id: refusal.id, reason: refusal.reason })),
-		[
-			{ id: holdingUnits.id, reason: 'holds-units' },
-			{ id: carryingPayments.id, reason: 'holds-payments' }
-		]
+		[{ id: carryingPayments.id, reason: 'holds-payments' }]
 	);
 });
 
@@ -2115,19 +2160,19 @@ test('several contracts are deleted by one action, and the rest are named', asyn
 	const api = await createApi();
 	const first = await seedContract(api);
 	const second = await seedContract(api, { govId: 'CT-DEL-2' });
-	const holdingUnits = await seedContractHoldingAUnit(api, 'S4');
+	const carryingPayments = await seedContractCarryingAPayment(api);
 
 	const result = await api.contract.deleteMany({
-		ids: [first.id, second.id, holdingUnits.id]
+		ids: [first.id, second.id, carryingPayments.id]
 	});
 
 	assert.deepEqual(toIds(result.deleted).sort(), [first.id, second.id].sort());
 	assert.deepEqual(
 		result.refused.map((refusal) => ({ id: refusal.id, reason: refusal.reason })),
-		[{ id: holdingUnits.id, reason: 'holds-units' }]
+		[{ id: carryingPayments.id, reason: 'holds-payments' }]
 	);
 	assert.equal(await api.contract.get({ id: first.id }), undefined);
-	assert.ok(await api.contract.get({ id: holdingUnits.id }));
+	assert.ok(await api.contract.get({ id: carryingPayments.id }));
 	// the government id comes back with the row, which is what names the record afterwards.
 	assert.ok(result.deleted.some((contract) => contract.govId === 'CT-DEL-2'));
 });
@@ -2203,6 +2248,49 @@ test('deleting many issues one delete rather than one per record', async () => {
 });
 
 // --- Putting a deleted selection back ------------------------------------------------
+
+// ticket 38: a selection deletes its contracts with their units in one batch, and putting it back
+// restores each holding what it held.
+test('a deleted selection takes its units with it, and is put back holding them', async () => {
+	const api = await createApi();
+	const holding = await seedContractHoldingAUnit(api, 'Many-Units');
+	const free = await seedContract(api);
+	const [unit] = await api.contract.units.getMany({ contractId: holding.id });
+
+	const deleted = await api.contract.deleteMany({ ids: [holding.id, free.id] });
+
+	assert.deepEqual(toIds(deleted.deleted).sort(), [holding.id, free.id].sort());
+	assert.deepEqual(deleted.refused, []);
+	assert.equal((await api.complex.units.get({ id: unit.id }))?.status, 'vacant');
+
+	await api.contract.createMany({ contracts: deleted.deleted });
+
+	assert.deepEqual(
+		(await api.contract.units.getMany({ contractId: holding.id })).map((held) => held.id),
+		[unit.id]
+	);
+	assert.deepEqual(await api.contract.units.getMany({ contractId: free.id }), []);
+	assert.equal((await api.complex.units.get({ id: unit.id }))?.status, 'occupied');
+});
+
+test('a deleted selection is refused whole where one of its units was taken since', async () => {
+	const api = await createApi();
+	const holding = await seedContractHoldingAUnit(api, 'Many-Taken');
+	const free = await seedContract(api);
+	const [unit] = await api.contract.units.getMany({ contractId: holding.id });
+
+	const deleted = await api.contract.deleteMany({ ids: [holding.id, free.id] });
+
+	// another contract takes the released unit over the same term.
+	await seedContract(api, { unitIds: [unit.id] });
+
+	await assert.rejects(
+		() => api.contract.createMany({ contracts: deleted.deleted }),
+		refusedWith('contract.unitsTaken')
+	);
+	assert.equal(await api.contract.get({ id: holding.id }), undefined);
+	assert.equal(await api.contract.get({ id: free.id }), undefined);
+});
 
 test('a deleted selection is put back whole, each contract with the identity it had', async () => {
 	const api = await createApi();

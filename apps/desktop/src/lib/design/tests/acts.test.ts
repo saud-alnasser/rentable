@@ -806,3 +806,22 @@ test('a new payment is refused, with its reason, on a terminated or a fully paid
 		translations.contracts.payments.fullyPaidNotice()
 	);
 });
+
+// ticket 38: a duplicate is a new payment, so a contract paid in full refuses it with the reason it
+// refuses creating one. Only the duplicate: correcting or removing what the contract holds is
+// still open, and a surface that has not read the amounts refuses no more than it did.
+test('duplicating a payment is refused on a fully paid contract, as creating one is', () => {
+	const acts = declarePaymentActs(
+		recordingRequests(['copyDetails', 'duplicate', 'edit', 'confirmDelete'] as const).host
+	);
+	const refusedOn = (amounts: { contractPaidAmount?: number; contractExpectedAmount?: number }) =>
+		toPageActions(acts, { ...paymentAgainst('fulfilled'), ...amounts }, translations)
+			.filter((act) => act.unavailable)
+			.map((act) => [act.id, act.unavailable]);
+
+	assert.deepEqual(refusedOn({ contractPaidAmount: 18000, contractExpectedAmount: 18000 }), [
+		['payment.duplicate', translations.contracts.payments.fullyPaidNotice()]
+	]);
+	assert.deepEqual(refusedOn({ contractPaidAmount: 1500, contractExpectedAmount: 18000 }), []);
+	assert.deepEqual(refusedOn({}), []);
+});

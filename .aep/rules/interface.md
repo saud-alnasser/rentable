@@ -349,7 +349,9 @@ Each act declares which, as its `confirmation` in `design/acts.ts`: `none`, `cas
 `irreversible`, and every act in the `destructive` group declares one
 (`design/tests/delete-and-confirm.test.ts` holds each concept to it). The host reads it through
 `toDeleteStep` and opens `packages/design/src/lib/block/delete-dialog.svelte` only when the policy
-asks. Today the tenant, complex, unit, payment and contract deletes are `none`; deleting a
+asks. A record's own parts are the record: a contract's unit assignments go with it and come back
+with its undo, so releasing its units is not a cascade. Today the tenant, complex, unit, payment
+and contract deletes are `none`; deleting a
 workspace, removing a member and locking one out are `irreversible`, which keeps the organization
 host's deletes in the delete dialog. The delete dialog's button names the verb (*delete*, *remove*),
 never *confirm* or *OK*.

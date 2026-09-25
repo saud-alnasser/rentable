@@ -189,9 +189,19 @@
 
 	// what a payment's card offers, projected from the one list its own page and the command menu
 	// read (`payment/acts.ts`). The row is handed over with its contract's status, which is what
-	// closes a terminated contract's statement to everything that writes.
+	// closes a terminated contract's statement to everything that writes, and with what the
+	// contract is paid and requires, which is what refuses a duplicate on one paid in full.
 	const cardActions = (entry: Payment) =>
-		toCardActions(paymentActs, { ...entry, contractStatus: contractQuery.data?.status }, $LL);
+		toCardActions(
+			paymentActs,
+			{
+				...entry,
+				contractStatus: contractQuery.data?.status,
+				contractPaidAmount: contractQuery.data?.paidAmount,
+				contractExpectedAmount: contractQuery.data?.expectedAmount
+			},
+			$LL
+		);
 </script>
 
 {#snippet selectionActions(ids: readonly string[])}

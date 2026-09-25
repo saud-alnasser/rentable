@@ -377,8 +377,14 @@ export function onMutationError(opts: MutationOptions, e: Error) {
 
 		const translations = get(LL);
 		const sentence = toKnownFailureText(e, translations);
+		const permission = toRouterFailureText(e, translations);
 
-		if (errorToast === true && sentence) {
+		if (permission) {
+			// a permission failure is not the generic failure a declaration turns off with
+			// `error: false`: that setting is about refusals a form places itself, and a caller
+			// the middlewares turned away has a sentence of its own to be told.
+			toast.error(permission);
+		} else if (errorToast === true && sentence) {
 			toast.error(sentence);
 		} else if (typeof errorToast === 'string') {
 			toast.error(errorToast);
@@ -406,6 +412,11 @@ function toKnownFailureText(e: Error, translations: TranslationFunctions): strin
  *
  * The inverse issues an ordinary procedure, so the workspace has moved by the time it resolves
  * and the cache is as stale as it would be after any other mutation.
+ *
+ * **It refreshes when the inverse fails, too.** An inverse can be more than one call, as a
+ * contract creation's is, and one failing after another has landed leaves the workspace moved
+ * part of the way. The entry stays on the stack to be pressed again, and the screen shows what
+ * was written rather than what was there before.
  */
 async function applyInverse(client: QueryClient, direction: OfferDirection) {
 	try {
@@ -438,6 +449,9 @@ async function applyInverse(client: QueryClient, direction: OfferDirection) {
 			{ client, change: applied, direction: direction === 'undo' ? 'redo' : 'undo' }
 		);
 	} catch (failure) {
+		// first, as on success: what landed before the failure is on screen before it is spoken of.
+		await invalidateWorkspaceData(client);
+
 		onMutationError(
 			{ toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() } },
 			failure as Error

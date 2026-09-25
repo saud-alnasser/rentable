@@ -229,6 +229,37 @@ describe('a declared mutation', () => {
 		]);
 	});
 
+	// ticket 38: `error: false` hands a declaration's refusals to the form that places them. A caller
+	// the middlewares turned away is not one of those, and reads as its own sentence either way.
+	it('says a permission failure in its own sentence whether or not the declaration shows errors', () => {
+		for (const error of [false, true]) {
+			const { mutation } = bind({
+				mutate: async () => undefined,
+				touches: ['payments'],
+				toast: { error, unexpected: () => 'something went wrong' }
+			});
+
+			mutation.onError(
+				new TRPCError({
+					code: 'FORBIDDEN',
+					message: 'this account does not hold createPayment in this workspace'
+				})
+			);
+			mutation.onError(
+				new TRPCError({ code: 'UNAUTHORIZED', message: 'no account is signed in on this machine' })
+			);
+
+			assert.deepEqual(
+				raised,
+				[
+					{ level: 'error', message: 'your role does not allow this in this workspace.' },
+					{ level: 'error', message: 'sign in to do this.' }
+				],
+				`with error: ${error}`
+			);
+		}
+	});
+
 	it('falls back to the declared sentence when the failure was not the user’s', () => {
 		const { mutation } = bind({
 			mutate: async () => undefined,

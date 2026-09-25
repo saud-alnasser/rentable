@@ -5,6 +5,7 @@
 	import FormSurface, { insetControl } from '@rentable/design/block/form-surface.svelte';
 	import * as Form from '@rentable/design/primitive/form/index.js';
 	import { Input } from '@rentable/design/primitive/input/index.js';
+	import { onMutationError } from '$lib/design/mutation';
 	import { fieldOfFailure, toRefusalText } from '$lib/error/refusal';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { useCreateComplex, useUpdateComplex } from '$lib/complex/query';
@@ -101,6 +102,9 @@
 							unitError = toRefusalText(e, $LL);
 						} else if (field === 'name') {
 							setError(form, 'name', toRefusalText(e, $LL));
+						} else {
+							// what no field here holds is still said, through the shared handler, in the reader's words.
+							onMutationError({ toast: { error: true } }, e);
 						}
 					}
 				}

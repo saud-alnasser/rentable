@@ -19,6 +19,7 @@
 	import { cn } from '@rentable/design/tailwind.js';
 	import { getAmountDueThisCycle, getRemainingContractBalance } from '$lib/contract/contract';
 	import { useFetchContract } from '$lib/contract/query';
+	import { onMutationError } from '$lib/design/mutation';
 	import { fieldOfFailure, toRefusalText } from '$lib/error/refusal';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { useCreatePayment, useUpdatePayment } from '$lib/payment/query';
@@ -133,6 +134,9 @@
 					if (e instanceof TRPCError && e.code === 'BAD_REQUEST') {
 						if (fieldOfFailure(e) === 'amount') {
 							setError(form, 'amount', toRefusalText(e, $LL));
+						} else {
+							// what no field here holds is still said, through the shared handler, in the reader's words.
+							onMutationError({ toast: { error: true } }, e);
 						}
 					}
 				}

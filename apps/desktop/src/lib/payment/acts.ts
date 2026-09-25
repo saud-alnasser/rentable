@@ -23,10 +23,14 @@ import Trash2Icon from '@lucide/svelte/icons/trash-2';
 
 /**
  * What an act is given: a payment as any surface holds one, with the status of the contract it
- * was made against where the surface knows it. A ledger knows it once its contract is read, and a
- * payment's page reads it with the payment.
+ * was made against where the surface knows it, and what that contract has been paid and requires.
+ * A ledger knows them once its contract is read, and a payment's page reads them with the payment.
  */
-export type PaymentActRecord = Payment & { contractStatus?: Contract['status'] };
+export type PaymentActRecord = Payment & {
+	contractStatus?: Contract['status'];
+	contractPaidAmount?: number;
+	contractExpectedAmount?: number;
+};
 
 /** Every payment act, by the id the palette keys it on. */
 export type PaymentActId =
@@ -58,6 +62,26 @@ const toWriteUnavailable = (payment: PaymentActRecord, t: TranslationFunctions) 
 	payment.contractStatus === 'terminated' ? t.contracts.payments.terminatedNotice() : undefined;
 
 /**
+ * Why the payment cannot be duplicated now, or nothing where it can. A duplicate is a new payment,
+ * so it is refused for what refuses creating one ({@link toPaymentCreateUnavailable}): a contract
+ * paid in full takes no new payment either way it is asked for. Where the surface has not read
+ * what the contract is paid, only its status can refuse.
+ */
+function toDuplicateUnavailable(payment: PaymentActRecord, t: TranslationFunctions) {
+	const {
+		contractStatus: status,
+		contractPaidAmount: paidAmount,
+		contractExpectedAmount: expectedAmount
+	} = payment;
+
+	if (status === undefined || paidAmount === undefined || expectedAmount === undefined) {
+		return toWriteUnavailable(payment, t);
+	}
+
+	return toPaymentCreateUnavailable({ status, paidAmount, expectedAmount }, t);
+}
+
+/**
  * The payment's acts, bound to the host that carries them out: a function of the host so the list
  * can be read, and run, without the host being mounted.
  */
@@ -75,7 +99,7 @@ export function declarePaymentActs(host: PaymentHostRequests): PaymentAct[] {
 			label: (t) => t.common.actions.duplicate(),
 			icon: FilesIcon,
 			group: 'primary',
-			unavailable: toWriteUnavailable,
+			unavailable: toDuplicateUnavailable,
 			run: host.duplicate
 		},
 		{

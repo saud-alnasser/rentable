@@ -342,7 +342,8 @@ async function planContractSelection(
 	const payments = await db.select().from(s.payment).where(inArray(s.payment.contractId, named));
 	const paymentsByContractId = groupPaymentsByContractId(payments);
 
-	// only a deletion weighs assignments, and only a deletion pays to read them.
+	// only a deletion reads assignments: the units a deleted contract held go with it, and are
+	// what putting it back has to restore.
 	const assignments =
 		action === 'delete'
 			? await db.select().from(s.contractUnit).where(inArray(s.contractUnit.contractId, named))
@@ -374,7 +375,6 @@ async function planContractSelection(
 			action,
 			contract,
 			paymentsByContractId.get(id) ?? [],
-			assignmentsByContractId.get(id) ?? [],
 			now
 		);
 
@@ -385,7 +385,7 @@ async function planContractSelection(
 		}
 	}
 
-	return { eligible, refused, paymentsByContractId };
+	return { eligible, refused, paymentsByContractId, assignmentsByContractId };
 }
 
 /** A contract a multi-record action changed, named the way its own history names it. */
@@ -963,33 +963,40 @@ export default router({
 				return undefined;
 			}
 
-			const units = await ctx.db
-				.select()
-				.from(s.contractUnit)
-				.where(eq(s.contractUnit.contractId, input.id));
 			const payments = await selectPaymentsForContract(ctx.db, input.id);
 
-			ensureContractDeletable(units, payments);
+			ensureContractDeletable(payments);
 
-			const deleted = await ctx.db
-				.delete(s.contract)
-				.where(eq(s.contract.id, input.id))
-				.returning()
-				.get();
+			const units = await ctx.db
+				.select({ unitId: s.contractUnit.unitId })
+				.from(s.contractUnit)
+				.where(eq(s.contractUnit.contractId, input.id));
+			const unitIds = units.map((unit) => unit.unitId);
 
-			return deleted ? serializeContract(deleted) : deleted;
+			// the units it held go with it, in one batch with the contract (ADR 0027): a contract
+			// gone and its assignment rows left behind would hold units for nobody.
+			const [, [deleted]] = await ctx.db.batch([
+				ctx.db.delete(s.contractUnit).where(eq(s.contractUnit.contractId, input.id)),
+				ctx.db.delete(s.contract).where(eq(s.contract.id, input.id)).returning()
+			]);
+
+			// the contract is gone, so what is left to reconcile is the units it released.
+			await reconcileTouched(ctx.db, ctx.clock.now(), { contractIds: [], unitIds });
+
+			// the units it held come back with the row, because undoing the deletion creates the
+			// contract again holding them.
+			return deleted ? { ...serializeContract(deleted), unitIds } : deleted;
 		}),
 
 	/**
 	 * Delete every contract in the selection that nothing depends on, and name the rest.
 	 *
-	 * The deleted rows come back whole rather than as ids, because that is what putting them back
-	 * needs: an undo restores each record as itself, by its own identity (ADR 0026), and once the
-	 * rows are gone there is nothing left to read them from.
+	 * The deleted rows come back whole rather than as ids, each with the units it held, because
+	 * that is what putting them back needs: an undo restores each record as itself, by its own
+	 * identity (ADR 0026), and once the rows are gone there is nothing left to read them from.
 	 *
-	 * **No reconcile pass.** A contract that may be deleted at all holds no unit and carries no
-	 * payment, so nothing derived was resting on it — which is the same reason the single-record
-	 * deletion beside it runs none.
+	 * The contracts and their assignment rows go in one batch (ADR 0027), and the units they
+	 * released are reconciled, since those units' occupancy rested on the contracts now gone.
 	 */
 	deleteMany: procedure.member
 		.use(autosync())
@@ -997,13 +1004,26 @@ export default router({
 		.mutation(async ({ input, ctx }) => {
 			const plan = await planContractSelection(ctx.db, ctx.clock.now(), input.ids, 'delete');
 			const deletableIds = plan.eligible.map((contract) => contract.id);
+			const unitIdsOf = (contractId: string) =>
+				(plan.assignmentsByContractId.get(contractId) ?? []).map((held) => held.unitId);
+			const released = [...new Set(deletableIds.flatMap(unitIdsOf))];
 
 			if (deletableIds.length) {
-				await ctx.db.delete(s.contract).where(inArray(s.contract.id, deletableIds));
+				await ctx.db.batch([
+					ctx.db.delete(s.contractUnit).where(inArray(s.contractUnit.contractId, deletableIds)),
+					ctx.db.delete(s.contract).where(inArray(s.contract.id, deletableIds))
+				]);
+			}
+
+			if (released.length) {
+				await reconcileTouched(ctx.db, ctx.clock.now(), { contractIds: [], unitIds: released });
 			}
 
 			return {
-				deleted: plan.eligible.map((contract) => serializeContract(contract)),
+				deleted: plan.eligible.map((contract) => ({
+					...serializeContract(contract),
+					unitIds: unitIdsOf(contract.id)
+				})),
 				refused: plan.refused
 			};
 		}),
@@ -1021,11 +1041,14 @@ export default router({
 	 * it and press undo again. Every refusal names the contract it is about, because *one of them
 	 * could not be put back* is not something a reader can act on.
 	 *
-	 * Every check `create` makes, asked once for the whole set rather than once per contract.
+	 * Every check `create` makes, asked once for the whole set rather than once per contract,
+	 * including the units each is put back holding: a deleted contract takes its units with it,
+	 * so undoing the deletion restores them, and a unit another contract has taken since refuses
+	 * the whole set.
 	 */
 	createMany: procedure.member
 		.use(autosync())
-		.input(z.object({ contracts: z.array(ContractFieldsSchema).min(1) }))
+		.input(z.object({ contracts: z.array(ContractCreateSchema).min(1) }))
 		.mutation(async ({ input, ctx }) => {
 			const now = ctx.clock.now();
 
@@ -1033,11 +1056,15 @@ export default router({
 				ensureValidContractInput(contract);
 			}
 
-			const named = input.contracts.map((contract) => ({
-				...contract,
-				id: contract.id ?? newId(),
-				govId: contract.govId?.trim() || null
-			}));
+			// what each is put back holding, by the identity it is given here.
+			const heldBy = new Map<string, string[]>();
+			const named = input.contracts.map(({ unitIds, ...contract }) => {
+				const id = contract.id ?? newId();
+
+				heldBy.set(id, [...new Set(unitIds)]);
+
+				return { ...contract, id, govId: contract.govId?.trim() || null };
+			});
 			const ids = named.map((contract) => contract.id);
 			const govIds = named.map((contract) => contract.govId).filter((govId) => govId !== null);
 
@@ -1075,6 +1102,36 @@ export default router({
 
 			ensureGovIdAvailable(taken[0], taken[0]?.govId ?? undefined);
 
+			const unitIds = [...new Set([...heldBy.values()].flat())];
+
+			if (unitIds.length) {
+				const units = await ctx.db
+					.select({ id: s.unit.id })
+					.from(s.unit)
+					.where(inArray(s.unit.id, unitIds));
+
+				if (units.length !== unitIds.length) {
+					throw refuse('contract.unitsMissing');
+				}
+
+				const assignments = await selectAssignmentsForUnits(ctx.db, unitIds);
+
+				// none of these contracts exists yet, so no assignment is one of theirs to be exempt
+				// from.
+				for (const contract of named) {
+					const held = heldBy.get(contract.id) ?? [];
+
+					if (held.length) {
+						ensureUnitsAssignable(
+							assignments.filter((assignment) => held.includes(assignment.unitId)),
+							{ start: contract.start, end: contract.end },
+							'',
+							'contract.unitsTaken'
+						);
+					}
+				}
+			}
+
 			// annotated rather than inferred: a derived status is a union of string literals, and an
 			// object literal built without something expecting that union widens the property to
 			// `string`. The single-record creation is spared it by handing its literal straight to
@@ -1104,11 +1161,20 @@ export default router({
 			const [first, ...rest] = values.map((value) =>
 				ctx.db.insert(s.contract).values(value).returning()
 			);
-			const created = await ctx.db.batch([first, ...rest]);
+			// the assignment rows name contracts whose identities are minted above, so they go down
+			// in the same batch that creates them.
+			const assignments = [...heldBy].flatMap(([contractId, held]) =>
+				held.map((unitId) =>
+					ctx.db.insert(s.contractUnit).values({ contractId, unitId }).returning()
+				)
+			);
+			const created = await ctx.db.batch([first, ...rest, ...assignments]);
 
-			await reconcileTouched(ctx.db, now, { contractIds: ids });
+			await reconcileTouched(ctx.db, now, { contractIds: ids, unitIds });
 
-			return created.map(([contract]) => serializeContract(contract));
+			return (created.slice(0, values.length) as DbContract[][]).map(([contract]) =>
+				serializeContract(contract)
+			);
 		}),
 
 	/** The contracts a palette search reaches, by reference or by the tenant holding them. */

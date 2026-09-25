@@ -159,6 +159,8 @@ export default router({
 				payment: s.payment,
 				contractGovId: s.contract.govId,
 				contractStatus: s.contract.status,
+				contractPaidAmount: s.contract.paidAmount,
+				contractExpectedAmount: s.contract.expectedAmount,
 				tenantName: s.tenant.name
 			})
 			.from(s.payment)
@@ -175,6 +177,8 @@ export default router({
 			...serializePayment(row.payment),
 			contractGovId: row.contractGovId ?? '',
 			contractStatus: row.contractStatus,
+			contractPaidAmount: row.contractPaidAmount,
+			contractExpectedAmount: row.contractExpectedAmount,
 			tenantName: row.tenantName
 		};
 	}),

@@ -206,6 +206,34 @@ describe('an ordinary delete runs at once and offers undo', () => {
 		assert.equal((await caller.contract.get({ id: contract.id }))?.id, contract.id);
 	});
 
+	// ticket 38: a contract is created holding its units, so a rule refusing one for holding them
+	// left criterion 11(a) out of reach for nearly every contract that had taken no money.
+	it('puts back a contract created with its units, holding them again', async () => {
+		const tenant = await seedTenant(caller);
+		const complex = await run(useCreateComplex, { name: 'Tower', location: 'Riyadh' });
+		const unit = await run(useCreateUnit, { name: 'A1', complexId: complex.id });
+		const contract = await run(useCreateContract, {
+			tenantId: tenant.id,
+			start: monthsFromNow(-1),
+			end: monthsFromNow(11),
+			interval: '12m',
+			cost: 1000,
+			unitIds: [unit.id]
+		});
+
+		await run(useDeleteContract, contract.id);
+		assert.equal(await caller.contract.get({ id: contract.id }), undefined);
+		assert.equal((await caller.complex.units.get({ id: unit.id }))?.status, 'vacant');
+
+		await pressUndo(deleteAnnouncement());
+		assert.equal((await caller.contract.get({ id: contract.id }))?.id, contract.id);
+		assert.deepEqual(
+			(await caller.contract.units.getMany({ contractId: contract.id })).map((held) => held.id),
+			[unit.id]
+		);
+		assert.equal((await caller.complex.units.get({ id: unit.id }))?.status, 'occupied');
+	});
+
 	it('still refuses a tenant with contracts, and deletes nothing', async () => {
 		const tenant = await seedTenant(caller);
 

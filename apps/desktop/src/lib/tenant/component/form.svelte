@@ -8,6 +8,7 @@
 	import { Input } from '@rentable/design/primitive/input/index.js';
 	import * as Select from '@rentable/design/primitive/select/index.js';
 	import { cn } from '@rentable/design/tailwind.js';
+	import { onMutationError } from '$lib/design/mutation';
 	import { fieldOfFailure, toRefusalText } from '$lib/error/refusal';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { useCreateTenant, useUpdateTenant } from '$lib/tenant/query';
@@ -155,6 +156,9 @@
 
 						if (field === 'nationalId' || field === 'phoneNumber') {
 							setError(form, field, toRefusalText(e, $LL));
+						} else {
+							// what no field here holds is still said, through the shared handler, in the reader's words.
+							onMutationError({ toast: { error: true } }, e);
 						}
 					}
 				}

@@ -28,9 +28,16 @@ mock.module('$lib/api/caller', {
 	}
 });
 
+/** the query keys the client was asked to refresh, newest last. */
+const refreshed: (readonly unknown[] | undefined)[] = [];
+
 mock.module('@tanstack/svelte-query', {
 	exports: {
-		useQueryClient: () => ({ invalidateQueries: async () => {} }),
+		useQueryClient: () => ({
+			invalidateQueries: async (filters?: { queryKey?: readonly unknown[] }) => {
+				refreshed.push(filters?.queryKey);
+			}
+		}),
 		createMutation: (options: () => unknown) => options(),
 		createQuery: () => ({})
 	}
@@ -49,12 +56,17 @@ mock.module('$lib/platform/tauri', {
 		tauri: {
 			remoteSync: {
 				getState: async () => remoteState.state
-			}
+			},
+			// a failed undo is recorded for diagnostics; what it records is not asserted here.
+			diagnostics: { write: async () => {} }
 		}
 	}
 });
 
 const { inverseStack } = await import('$lib/design/inverse');
+const { applyUndo } = await import('$lib/design/mutation');
+const { workspacePrefixes } = await import('$lib/design/query');
+const { useQueryClient } = await import('@tanstack/svelte-query');
 const { useCreateTenant, useUpdateTenant, useDeleteTenant } = await import('$lib/tenant/query');
 const {
 	useCreateComplex,
@@ -364,6 +376,63 @@ describe('undoing a record change', () => {
 			(await caller.contract.units.getMany({ contractId: contract.id })).map((held) => held.id),
 			[unit.id]
 		);
+	});
+
+	// ticket 38: the inverse is two calls, and the second failing leaves the units released and the
+	// contract standing. The screen has to show that, so the undo path refreshes on failure too, and
+	// the entry stays to be pressed again.
+	it('refreshes what a contract creation’s undo touched when its second call fails', async () => {
+		const tenant = await seedTenant(caller);
+		const complex = await caller.complex.create({ name: 'Halfway Tower', location: 'Riyadh' });
+		const unit = await caller.complex.units.create({ name: 'H1', complexId: complex.id });
+		const contract = await run(useCreateContract, {
+			tenantId: tenant.id,
+			start: monthsFromNow(-1),
+			end: monthsFromNow(11),
+			interval: '12m',
+			cost: 1000,
+			unitIds: [unit.id]
+		});
+		const entry = inverseStack.undoable;
+		const real = caller;
+
+		// the deletion fails after the units were released, as a lost connection would fail it.
+		caller = new Proxy(real, {
+			get: (target, concept) =>
+				concept === 'contract'
+					? new Proxy(target.contract, {
+							get: (procedures, name) =>
+								name === 'delete'
+									? async () => {
+											throw new Error('the connection was lost');
+										}
+									: Reflect.get(procedures, name)
+						})
+					: Reflect.get(target, concept)
+		});
+		refreshed.length = 0;
+
+		try {
+			await applyUndo(useQueryClient());
+		} finally {
+			caller = real;
+		}
+
+		// the units and the contracts both, by their own prefixes: a history entry refreshing its
+		// own key in the background is not what is being asked about.
+		for (const prefix of [workspacePrefixes.contracts, workspacePrefixes.units]) {
+			assert.ok(
+				refreshed.some((key) => JSON.stringify(key) === JSON.stringify(prefix)),
+				`${JSON.stringify(prefix)} was not refreshed after the undo failed halfway`
+			);
+		}
+		assert.equal(inverseStack.undoable, entry);
+		assert.ok(await caller.contract.get({ id: contract.id }));
+		assert.deepEqual(await caller.contract.units.getMany({ contractId: contract.id }), []);
+
+		// pressed again, it finishes what it started.
+		await applyUndo(useQueryClient());
+		assert.equal(await caller.contract.get({ id: contract.id }), undefined);
 	});
 
 	it('reinstates a terminated contract through the procedure that exists for it', async () => {

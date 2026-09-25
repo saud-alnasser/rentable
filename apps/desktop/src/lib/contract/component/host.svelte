@@ -19,7 +19,6 @@
 	} from '$lib/contract/host.svelte';
 	import {
 		useDeleteContract,
-		useFetchContractUnits,
 		useReadContract,
 		useTerminateContract,
 		useUnterminateContract
@@ -65,12 +64,8 @@
 	const confirming = $derived(contractHostState.confirming);
 
 	// what a deletion would be refused for, read for the record being acted on and only while a
-	// deletion is what it is being asked. Both reads, because the rule weighs both.
+	// deletion is what it is being asked. Its payments alone: the units it holds go with it.
 	const isDeleting = $derived(confirming?.kind === 'delete');
-	const heldUnitsQuery = useFetchContractUnits(
-		() => confirming?.contract.id ?? '',
-		() => isDeleting
-	);
 	const heldPaymentsQuery = useFetchContractPayments(
 		() => confirming?.contract.id ?? '',
 		() => isDeleting
@@ -80,21 +75,17 @@
 			return [];
 		}
 
-		if (heldUnitsQuery.isPending || heldPaymentsQuery.isPending) {
+		if (heldPaymentsQuery.isPending) {
 			return AWAITING_BLOCKERS;
 		}
 
-		const units = heldUnitsQuery.data ?? [];
 		const payments = heldPaymentsQuery.data ?? [];
 
-		if (isContractDeletable(units, payments)) {
+		if (isContractDeletable(payments)) {
 			return [];
 		}
 
-		return [
-			units.length ? $LL.common.deleteDialog.blockedUnits({ count: units.length }) : null,
-			payments.length ? $LL.common.deleteDialog.blockedPayments({ count: payments.length }) : null
-		].filter((blocker) => blocker !== null);
+		return [$LL.common.deleteDialog.blockedPayments({ count: payments.length })];
 	});
 
 	// what the confirmation names the record as, the way its own page names it.

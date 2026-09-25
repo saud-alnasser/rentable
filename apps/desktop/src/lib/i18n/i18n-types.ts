@@ -876,10 +876,6 @@ type RootTranslation = {
 				 */
 				holdsPayments: string
 				/**
-				 * t​h​i​s​ ​c​o​n​t​r​a​c​t​ ​s​t​i​l​l​ ​h​o​l​d​s​ ​u​n​i​t​s​.​ ​r​e​m​o​v​e​ ​t​h​e​m​ ​b​e​f​o​r​e​ ​d​e​l​e​t​i​n​g​ ​i​t​.
-				 */
-				holdsUnits: string
-				/**
 				 * t​h​i​s​ ​c​o​n​t​r​a​c​t​ ​i​s​ ​n​o​ ​l​o​n​g​e​r​ ​i​n​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e​.​ ​r​e​l​o​a​d​ ​t​o​ ​s​e​e​ ​w​h​a​t​ ​c​h​a​n​g​e​d​.
 				 */
 				missing: string
@@ -2764,11 +2760,6 @@ type RootTranslation = {
 			 */
 			refusedHoldsPayments: RequiredParams<'count|number'>
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​s​t​i​l​l​ ​h​o​l​d​ ​u​n​i​t​s
-			 * @param {unknown} count
-			 */
-			refusedHoldsUnits: RequiredParams<'count|number'>
-			/**
 			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​a​r​e​ ​n​o​ ​l​o​n​g​e​r​ ​i​n​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e
 			 * @param {unknown} count
 			 */
@@ -4603,10 +4594,6 @@ export type TranslationFunctions = {
 				 */
 				holdsPayments: () => LocalizedString
 				/**
-				 * this contract still holds units. remove them before deleting it.
-				 */
-				holdsUnits: () => LocalizedString
-				/**
 				 * this contract is no longer in the workspace. reload to see what changed.
 				 */
 				missing: () => LocalizedString
@@ -6407,10 +6394,6 @@ export type TranslationFunctions = {
 			 * {count|number} still carry payments
 			 */
 			refusedHoldsPayments: (arg: { count: unknown }) => LocalizedString
-			/**
-			 * {count|number} still hold units
-			 */
-			refusedHoldsUnits: (arg: { count: unknown }) => LocalizedString
 			/**
 			 * {count|number} are no longer in the workspace
 			 */

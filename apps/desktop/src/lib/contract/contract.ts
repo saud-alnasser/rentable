@@ -506,7 +506,6 @@ export type ContractRefusalCode =
 	| 'contract.notUnterminable'
 	| 'contract.unitsLockedByPayments'
 	| 'contract.paidInFull'
-	| 'contract.holdsUnits'
 	| 'contract.holdsPayments'
 	| 'contract.periodOverlapsUnits'
 	| 'contract.unitsUnavailable'
@@ -582,16 +581,16 @@ export function ensureContractPaymentsCreatable(contract: ContractLike, payments
 /**
  * What stops a contract being deleted, or `undefined` where nothing does.
  *
- * The rule itself, and the only rendering of it: a contract may hold no unit and carry no
- * payment. It answers with *which* of the two rather than with a yes or a no, because a
- * selection of contracts is turned away for both reasons at once and a reader who is only told
- * that some of them cannot go has nothing to act on.
+ * The rule itself, and the only rendering of it: a contract may carry no payment. It answers with
+ * *what* stops it rather than with a yes or a no, because a selection of contracts is turned away
+ * by reason and a reader who is only told that some of them cannot go has nothing to act on.
+ *
+ * **The units it holds do not stop it.** They go with it, in the same batch, and undoing the
+ * deletion puts them back with it, as undoing a creation already takes them away (effort 832,
+ * criterion 11(a)). A contract is created holding its units, so a rule refusing one for holding
+ * them refused nearly every contract that had taken no money.
  */
-export function whatBlocksContractDeletion(units: unknown[], payments: unknown[]) {
-	if (units.length > 0) {
-		return 'holds-units' as const;
-	}
-
+export function whatBlocksContractDeletion(payments: unknown[]) {
 	return payments.length > 0 ? ('holds-payments' as const) : undefined;
 }
 
@@ -603,17 +602,11 @@ export type ContractDeletionBlocker = NonNullable<ReturnType<typeof whatBlocksCo
  *
  * Exported beside the rule that enforces it for the reason `isTenantDeletable` states.
  */
-export const isContractDeletable = (units: unknown[], payments: unknown[]) =>
-	whatBlocksContractDeletion(units, payments) === undefined;
+export const isContractDeletable = (payments: unknown[]) =>
+	whatBlocksContractDeletion(payments) === undefined;
 
-export function ensureContractDeletable(units: unknown[], payments: unknown[]) {
-	const blocker = whatBlocksContractDeletion(units, payments);
-
-	if (blocker === 'holds-units') {
-		throw refuse('contract.holdsUnits');
-	}
-
-	if (blocker === 'holds-payments') {
+export function ensureContractDeletable(payments: unknown[]) {
+	if (whatBlocksContractDeletion(payments) === 'holds-payments') {
 		throw refuse('contract.holdsPayments');
 	}
 }
@@ -643,7 +636,6 @@ export function whatRefusesContractAction(
 	action: ContractSelectionAction,
 	contract: ContractLike,
 	payments: PaymentLike[],
-	assignments: unknown[],
 	now: DateLike
 ): ContractRefusalReason | undefined {
 	switch (action) {
@@ -657,7 +649,7 @@ export function whatRefusesContractAction(
 		case 'restore':
 			return canUnterminateContractStatus(contract.status) ? undefined : 'not-restorable';
 		case 'delete':
-			return whatBlocksContractDeletion(assignments, payments);
+			return whatBlocksContractDeletion(payments);
 	}
 }
 
