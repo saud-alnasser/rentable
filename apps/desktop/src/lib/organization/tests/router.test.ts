@@ -182,8 +182,8 @@ test('assigning a role, setting an override and withdrawing a grant each need th
 			...fakeHost().organization,
 			member: {
 				...fakeHost().organization.member,
-				assignRole: async (memberId, roleId) => {
-					asked.push(`assignRole:${memberId}:${roleId}`);
+				assignRole: async (memberId, roleId, override) => {
+					asked.push(`assignRole:${memberId}:${roleId}:${override}`);
 
 					return fakeOrganizationMember({ id: memberId, roleId });
 				},
@@ -207,6 +207,12 @@ test('assigning a role, setting an override and withdrawing a grant each need th
 	const granting = await permittedApi(host, 'grantWorkspace');
 
 	await assigning.app.organization.member.assignRole({ memberId: 'member-2', roleId: 'role-7' });
+	// and an override riding with the role reaches the host with it, as one act.
+	await assigning.app.organization.member.assignRole({
+		memberId: 'member-2',
+		roleId: 'role-7',
+		override: 8
+	});
 	await overriding.app.organization.member.setOverride({ memberId: 'member-2', override: 8 });
 	await granting.app.organization.workspace.withdraw({
 		workspaceId: 'workspace-1',
@@ -214,7 +220,8 @@ test('assigning a role, setting an override and withdrawing a grant each need th
 	});
 
 	const done = [
-		'assignRole:member-2:role-7',
+		'assignRole:member-2:role-7:undefined',
+		'assignRole:member-2:role-7:8',
 		'setOverride:member-2:8',
 		'withdraw:workspace-1:member-2'
 	];

@@ -316,8 +316,12 @@ export const tauri = {
 			lockOutCost: (memberId: string) => invoke<LockOutCost>('member_lock_out_cost', { memberId }),
 			rename: (memberId: string, username: string) =>
 				invoke<OrganizationMember>('member_rename', { memberId, username }),
-			assignRole: (memberId: string, roleId: string) =>
-				invoke<OrganizationMember>('member_assign_role', { memberId, roleId }),
+			assignRole: (memberId: string, roleId: string, override?: number) =>
+				invoke<OrganizationMember>('member_assign_role', {
+					memberId,
+					roleId,
+					overrideMask: override ?? null
+				}),
 			setOverride: (memberId: string, override: number) =>
 				invoke<OrganizationMember>('member_set_override', { memberId, overrideMask: override }),
 			offerOwnership: (memberId: string, password: string) =>

@@ -7,7 +7,11 @@ import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import Members from '$lib/organization/component/members.svelte';
 import { organizationDialog, resetOrganizationDialogs } from '$lib/organization/dialogs.svelte';
 import { organizationHostState, resetOrganizationHost } from '$lib/organization/host.svelte';
-import { fakeOrganizationMember, fakeOrganizationSession } from '$lib/platform/tests/testing';
+import {
+	fakeOrganizationMember,
+	fakeOrganizationRoles,
+	fakeOrganizationSession
+} from '$lib/platform/tests/testing';
 import type { MemberStanding, OrganizationMember, OrganizationWorkspace } from '$lib/platform/host';
 import en from '$lib/i18n/en';
 import { toTitleCase } from '@rentable/design/title-case.js';
@@ -968,6 +972,56 @@ test('one save writes the override and the grants through the acts that exist', 
 	await waitFor(() => {
 		expect(surface()).toBeNull();
 	});
+});
+
+// ticket 14 of effort 838: a role and an override changed on one save are one act, so the flags
+// the reader must hold are the ones the two move together, and neither is written alone.
+test('a changed role and a changed override are saved in one call', async () => {
+	hostAnswers.roles = fakeOrganizationRoles();
+	list();
+
+	await press('sami', 'edit');
+
+	await openSelect(document.querySelector<HTMLElement>('#member-role')!);
+	await chooseOption(
+		document.querySelector<HTMLElement>('[data-slot=select-item][data-role="supervisor"]')!
+	);
+	await fireEvent.click(document.querySelector<HTMLElement>('#member-override-renameMember')!);
+	await fireEvent.submit(document.querySelector('form')!);
+
+	await waitFor(() => {
+		expect(written('useAssignRole')).toEqual([
+			{ memberId: 'sami', roleId: 'supervisor', override: maskOf('renameMember') }
+		]);
+	});
+	expect(written('useSetOverride')).toEqual([]);
+	await waitFor(() => {
+		expect(surface()).toBeNull();
+	});
+});
+
+// and the one act refused marks both the sections it was asked from, having written neither.
+test('the one act refused marks the role and the override', async () => {
+	hostAnswers.roles = fakeOrganizationRoles();
+	hostAnswers.refusals.useAssignRole = new Error('you do not hold deletePayment');
+	list();
+
+	await press('sami', 'edit');
+
+	await openSelect(document.querySelector<HTMLElement>('#member-role')!);
+	await chooseOption(
+		document.querySelector<HTMLElement>('[data-slot=select-item][data-role="supervisor"]')!
+	);
+	await fireEvent.click(document.querySelector<HTMLElement>('#member-override-renameMember')!);
+	await fireEvent.submit(document.querySelector('form')!);
+
+	await waitFor(() => {
+		expect(document.querySelector('[data-sheet-error="role"]')).not.toBeNull();
+	});
+	expect(document.querySelector('[data-sheet-error="override"]')).not.toBeNull();
+	expect(written('useAssignRole')).toHaveLength(1);
+	expect(written('useSetOverride')).toEqual([]);
+	expect(surface()).not.toBeNull();
 });
 
 // [[rules/interface]], *Validation errors*: what an act refuses is said on the section that asked

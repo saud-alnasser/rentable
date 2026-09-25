@@ -362,12 +362,27 @@ export const organization = router({
 		 * the member and the role rank below the caller, and whether every flag the change moves is
 		 * one the caller holds, are Rust's, because each turns on verified rows this side does not
 		 * read. *It was `changeRole`, which wrote a word and seven acts together, until effort 838.*
+		 *
+		 * **An override may ride with the role**, and then the two are one act, so the flags held
+		 * are asked of both together (ticket 14 of effort 838). Whether it changes the override the
+		 * member carries, and so whether `overrideMember` is asked too, is Rust's for the same
+		 * reason.
 		 */
 		assignRole: procedure
 			.permitted('assignRole')
-			.input(z.object({ memberId: z.string().trim().min(1), roleId: ROLE_ID }))
+			.input(
+				z.object({
+					memberId: z.string().trim().min(1),
+					roleId: ROLE_ID,
+					override: MASK.optional()
+				})
+			)
 			.mutation(async ({ input, ctx }): Promise<OrganizationMember> => {
-				return ctx.host.organization.member.assignRole(input.memberId, input.roleId);
+				return ctx.host.organization.member.assignRole(
+					input.memberId,
+					input.roleId,
+					input.override
+				);
 			}),
 		/**
 		 * The flags switched for one member alone (requirement 6), held to `overrideMember` here and

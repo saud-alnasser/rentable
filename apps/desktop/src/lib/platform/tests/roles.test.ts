@@ -7,7 +7,8 @@ import { mock, test } from 'node:test';
  * Effort 838, requirements 4 to 6: each write the roles block, the role editor and a member's card
  * make reaches the one Tauri command that performs it, with the arguments Rust names. The shell is
  * not here, so `invoke` is stood in for and what it was asked is read back. The override crosses as
- * `overrideMask`, since Rust keeps `override` as a word of its own.
+ * `overrideMask`, since Rust keeps `override` as a word of its own; with a role it crosses as `null`
+ * where none rides along, which Rust reads as the override the member carries.
  *
  * *`member_assign_role` and `member_set_override` were reached through one bridge that ran both
  * and could half-apply, until ticket 11 of effort 838 gave each write its own call.*
@@ -45,6 +46,7 @@ test('each role write reaches its own command, with the arguments Rust names', a
 	await tauri.organization.role.move('role-7', 'role-3');
 	await tauri.organization.role.remove('role-7');
 	await tauri.organization.member.assignRole('member-2', 'role-7');
+	await tauri.organization.member.assignRole('member-2', 'role-7', 0);
 	await tauri.organization.member.setOverride('member-2', 32);
 	await tauri.organization.member.create('sami', 'role-7', 64, []);
 
@@ -58,7 +60,14 @@ test('each role write reaches its own command, with the arguments Rust names', a
 		{ command: 'role_set_mask', args: { roleId: 'role-7', mask: 16 } },
 		{ command: 'role_move', args: { roleId: 'role-7', afterRoleId: 'role-3' } },
 		{ command: 'role_delete', args: { roleId: 'role-7' } },
-		{ command: 'member_assign_role', args: { memberId: 'member-2', roleId: 'role-7' } },
+		{
+			command: 'member_assign_role',
+			args: { memberId: 'member-2', roleId: 'role-7', overrideMask: null }
+		},
+		{
+			command: 'member_assign_role',
+			args: { memberId: 'member-2', roleId: 'role-7', overrideMask: 0 }
+		},
 		{ command: 'member_set_override', args: { memberId: 'member-2', overrideMask: 32 } },
 		{
 			command: 'member_create',

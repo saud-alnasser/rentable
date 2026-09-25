@@ -1919,11 +1919,17 @@ fn acted_on<'a>(
     Ok(member)
 }
 
-/// Give a member a role (requirement 5). The override they carry stays, and is read against the
-/// new role's mask from here on (the spec's *Risks*).
+/// Give a member a role (requirement 5), and with it, where `override_mask` is given, their
+/// override (requirement 6). With none, the override they carry stays, and is read against the new
+/// role's mask from here on (the spec's *Risks*).
 ///
 /// **`assignRole`, the rank of the member and of the role, never yourself, and only flags you
-/// hold** (requirement 7). The owner's role is not assigned: it moves by the handover, which is the
+/// hold** (requirement 7); and **`overrideMember` too, where the override given is not the one they
+/// carry**. The role and the override are one act, so "flags held" is asked of the member's
+/// effective permissions before and after both together: a role whose mask carries a flag the actor
+/// lacks, given with an override switching it back, moves nothing the actor does not hold, where
+/// the two asked one after the other would each be refused on the state between them (converge,
+/// round 1, ticket 14). The owner's role is not assigned: it moves by the handover, which is the
 /// owner's. Their certificate is issued again from the actor's in the same act, with the role's
 /// rank and their new effective permissions, so a flag that signs rows is in force on the next sync
 /// without the owner (requirement 9).
@@ -1932,6 +1938,7 @@ pub async fn assign_role(
     session: &MemberSession,
     member_id: &str,
     role_id: &str,
+    override_mask: Option<i64>,
     now: i64,
 ) -> Result<MemberFacts, Error> {
     session.settled()?;
@@ -1947,6 +1954,12 @@ pub async fn assign_role(
         member_id,
         "the owner's role is not changed. the organization is theirs",
     )?;
+
+    let override_mask = override_mask.unwrap_or(member.override_mask);
+
+    if override_mask != member.override_mask {
+        permission::require(actor.row.effective, Flag::OverrideMember)?;
+    }
 
     actor.outranks(
         rank_of(store, session, member).await?,
@@ -1973,7 +1986,7 @@ pub async fn assign_role(
         session,
         &actor,
         Change {
-            members: vec![(member.id.clone(), role_id.to_string(), member.override_mask)],
+            members: vec![(member.id.clone(), role_id.to_string(), override_mask)],
             ..Change::default()
         },
         now,
@@ -2503,7 +2516,7 @@ mod tests {
         .await;
 
         if role_id != permission::MEMBER {
-            assign_role(store, owner, &session.member_id, role_id, NOW)
+            assign_role(store, owner, &session.member_id, role_id, None, NOW)
                 .await
                 .unwrap_or_else(|error| panic!("{username} was not given {role_id}: {error:?}"));
         }
@@ -2532,6 +2545,7 @@ mod tests {
             &owner,
             &invited.member_id,
             permission::MANAGER,
+            None,
             NOW + 1,
         )
         .await
@@ -2673,6 +2687,7 @@ mod tests {
             &owner,
             &held.member_id,
             permission::MANAGER,
+            None,
             NOW + 2,
         )
         .await
@@ -2753,10 +2768,10 @@ mod tests {
         assert!(own.to_string().contains("your own"), "{own}");
 
         for refused in [
-            assign_role(&store, &ada, &owner_id, permission::MEMBER, NOW + 1)
+            assign_role(&store, &ada, &owner_id, permission::MEMBER, None, NOW + 1)
                 .await
                 .expect_err("a manager changed the owner's role"),
-            assign_role(&store, &owner, &owner_id, permission::MEMBER, NOW + 1)
+            assign_role(&store, &owner, &owner_id, permission::MEMBER, None, NOW + 1)
                 .await
                 .expect_err("the owner changed their own role"),
         ] {
@@ -2772,6 +2787,7 @@ mod tests {
             &sami,
             &invited.member_id,
             permission::MEMBER,
+            None,
             NOW + 1,
         )
         .await
@@ -2779,9 +2795,16 @@ mod tests {
 
         assert!(without.to_string().contains("assignRole"), "{without}");
 
-        let unknown = assign_role(&store, &owner, &invited.member_id, "superuser", NOW + 1)
-            .await
-            .expect_err("a role this organization does not hold was assigned");
+        let unknown = assign_role(
+            &store,
+            &owner,
+            &invited.member_id,
+            "superuser",
+            None,
+            NOW + 1,
+        )
+        .await
+        .expect_err("a role this organization does not hold was assigned");
 
         assert_eq!(
             reason_of(&unknown),
@@ -2789,7 +2812,7 @@ mod tests {
             "{unknown:?}"
         );
 
-        let missing = assign_role(&store, &owner, "nobody", permission::MEMBER, NOW + 1)
+        let missing = assign_role(&store, &owner, "nobody", permission::MEMBER, None, NOW + 1)
             .await
             .expect_err("a member who is not here was changed");
 
@@ -3512,9 +3535,16 @@ mod tests {
             .expect("the override failed");
 
         for asking in [&owner, &ada] {
-            let refused = assign_role(&store, asking, &sami.member_id, permission::OWNER, NOW + 2)
-                .await
-                .expect_err("the owner's role was assigned");
+            let refused = assign_role(
+                &store,
+                asking,
+                &sami.member_id,
+                permission::OWNER,
+                None,
+                NOW + 2,
+            )
+            .await
+            .expect_err("the owner's role was assigned");
 
             assert_eq!(
                 reason_of(&refused),
@@ -3531,7 +3561,7 @@ mod tests {
                 .find(|row| row.id == role)
                 .expect("the role")
                 .mask;
-            let facts = assign_role(&store, &owner, &sami.member_id, role, NOW + 3)
+            let facts = assign_role(&store, &owner, &sami.member_id, role, None, NOW + 3)
                 .await
                 .unwrap_or_else(|error| panic!("{role} was not assigned: {error:?}"));
 
@@ -3689,7 +3719,7 @@ mod tests {
 
             // and the acts on members, which are other flags'.
             for refusal in [
-                assign_role(&r.store, &r.actor, &r.lina, &r.spare_low, NOW)
+                assign_role(&r.store, &r.actor, &r.lina, &r.spare_low, None, NOW)
                     .await
                     .expect_err("a holder of manageRoles assigned a role"),
                 set_override(&r.store, &r.actor, &r.lina, edit_payment, NOW)
@@ -3741,7 +3771,7 @@ mod tests {
 
                 async move {
                     if flag == Flag::AssignRole {
-                        assign_role(&r.store, &r.actor, &member, &r.spare_low, NOW).await
+                        assign_role(&r.store, &r.actor, &member, &r.spare_low, None, NOW).await
                     } else {
                         set_override(&r.store, &r.actor, &member, edit_payment, NOW).await
                     }
@@ -3773,7 +3803,7 @@ mod tests {
             if flag == Flag::AssignRole {
                 // the role given is held to the rank as well as the member.
                 for role in [&r.spare_high, &r.mine] {
-                    let refusal = assign_role(&r.store, &r.actor, &r.lina, role, NOW)
+                    let refusal = assign_role(&r.store, &r.actor, &r.lina, role, None, NOW)
                         .await
                         .expect_err("a role not below the actor was given");
 
@@ -3851,7 +3881,7 @@ mod tests {
             set_override(&store, &actor, &lina.member_id, deleting, NOW)
                 .await
                 .err(),
-            assign_role(&store, &actor, &lina.member_id, &auditor, NOW)
+            assign_role(&store, &actor, &lina.member_id, &auditor, None, NOW)
                 .await
                 .err(),
             // off, in an override.
@@ -3887,6 +3917,167 @@ mod tests {
         set_override(&store, &actor, &lina.member_id, 0, NOW)
             .await
             .expect("a held flag on again, in an override");
+    }
+
+    /// **Criterion 7, flags held over a role and an override given together** (converge, round 1,
+    /// ticket 14). The auditor's mask differs from the clerk's in `editPayment`, which the deputy
+    /// holds, and in `deletePayment`, which they do not; an override of `deletePayment` switches
+    /// that back. So moving a clerk onto the auditor with that override moves only `editPayment`.
+    ///
+    /// Asked as two acts, either order passes through a state that switches `deletePayment`, and
+    /// each is refused. Asked as one, it goes. A role and an override that together do switch
+    /// `deletePayment` are refused whole, and the row and the certificate stay as they were. An
+    /// override that changes is asked of `overrideMember` as well as `assignRole`, and one given as
+    /// it stands is not.
+    #[tokio::test]
+    async fn a_role_and_an_override_given_together_are_held_to_the_flags_they_move_together() {
+        let directory = scratch("one-act");
+        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let deleting = permission::mask_of(&[Flag::DeletePayment]);
+        let editing = permission::mask_of(&[Flag::EditPayment]);
+        let members = permission::MEMBER_ROLE.mask;
+        let deputy = a_role(
+            &store,
+            &owner,
+            "deputy",
+            permission::MANAGER_ROLE.mask & !deleting,
+            permission::MANAGER,
+        )
+        .await;
+        let clerk = a_role(&store, &owner, "clerk", members, &deputy).await;
+        let auditor = a_role(
+            &store,
+            &owner,
+            "auditor",
+            (members ^ editing) | deleting,
+            &clerk,
+        )
+        .await;
+        let reviewer = a_role(&store, &owner, "reviewer", members ^ editing, &auditor).await;
+        let actor = holding_role(&store, &owner, &link, "the.deputy", &deputy, &workspace_id).await;
+        let lina = holding_role(&store, &owner, &link, "lina", &clerk, &workspace_id).await;
+        let noor = holding_role(&store, &owner, &link, "noor", &clerk, &workspace_id).await;
+        let before = every_row(&store).await;
+
+        // two steps: the role alone switches deletePayment on, and so does the override alone.
+        for refusal in [
+            assign_role(&store, &actor, &lina.member_id, &auditor, None, NOW)
+                .await
+                .expect_err("the role alone went"),
+            set_override(&store, &actor, &lina.member_id, deleting, NOW)
+                .await
+                .expect_err("the override alone went"),
+        ] {
+            assert_eq!(
+                reason_of(&refusal),
+                RefusalReason::RoleLacksAct,
+                "{refusal:?}"
+            );
+            assert!(refusal.to_string().contains("deletePayment"), "{refusal}");
+        }
+
+        assert_eq!(every_row(&store).await, before, "a refusal wrote something");
+
+        // one act: only editPayment moves, and it goes.
+        let given = assign_role(
+            &store,
+            &actor,
+            &lina.member_id,
+            &auditor,
+            Some(deleting),
+            NOW + 1,
+        )
+        .await
+        .expect("the role and the override together");
+
+        assert_eq!(given.permissions, members ^ editing);
+
+        let row = member_row(&store, &owner, &lina.member_id).await;
+
+        assert_eq!(row.role_id, auditor);
+        assert_eq!(row.override_mask, deleting);
+        assert_eq!(row.effective, members ^ editing);
+        assert_eq!(
+            the_certificate(&store, &owner, &lina.member_id)
+                .await
+                .ceiling,
+            members ^ editing
+        );
+
+        // a combination that does switch deletePayment on is refused whole.
+        let row_before = member_row(&store, &owner, &noor.member_id).await;
+        let certificate_before = the_certificate(&store, &owner, &noor.member_id).await;
+        let before = every_row(&store).await;
+        let refusal = assign_role(&store, &actor, &noor.member_id, &auditor, Some(0), NOW + 2)
+            .await
+            .expect_err("a role and an override moving deletePayment went");
+
+        assert_eq!(
+            reason_of(&refusal),
+            RefusalReason::RoleLacksAct,
+            "{refusal:?}"
+        );
+        assert!(refusal.to_string().contains("deletePayment"), "{refusal}");
+        assert_eq!(
+            member_row(&store, &owner, &noor.member_id).await,
+            row_before
+        );
+        assert_eq!(
+            the_certificate(&store, &owner, &noor.member_id).await.id,
+            certificate_before.id
+        );
+        assert_eq!(
+            every_row(&store).await,
+            before,
+            "the refusal wrote something"
+        );
+
+        // without overrideMember: an override that changes is refused by that flag's name, and one
+        // given as it stands is only an assignment.
+        set_role_mask(
+            &store,
+            &owner,
+            &deputy,
+            permission::MANAGER_ROLE.mask
+                & !deleting
+                & !permission::mask_of(&[Flag::OverrideMember]),
+            NOW + 3,
+        )
+        .await
+        .expect("the owner narrowed the deputy");
+
+        let before = every_row(&store).await;
+        let refusal = assign_role(
+            &store,
+            &actor,
+            &noor.member_id,
+            &auditor,
+            Some(deleting),
+            NOW + 4,
+        )
+        .await
+        .expect_err("an override was changed without overrideMember");
+
+        assert_eq!(
+            reason_of(&refusal),
+            RefusalReason::RoleLacksAct,
+            "{refusal:?}"
+        );
+        assert!(refusal.to_string().contains("overrideMember"), "{refusal}");
+        assert_eq!(
+            every_row(&store).await,
+            before,
+            "the refusal wrote something"
+        );
+
+        assign_role(&store, &actor, &noor.member_id, &reviewer, Some(0), NOW + 5)
+            .await
+            .expect("an override given as it stands is not asked of overrideMember");
+
+        assert_eq!(
+            member_row(&store, &owner, &noor.member_id).await.role_id,
+            reviewer
+        );
     }
 
     /// **Requirement 2 at these acts.** None of the owner's flags goes into the manager's mask, a
@@ -4065,7 +4256,7 @@ mod tests {
             .count();
 
         // the manager, on their store, gives sami the role.
-        assign_role(&managers, &ada, &sami.member_id, &recruiter, NOW + 1)
+        assign_role(&managers, &ada, &sami.member_id, &recruiter, None, NOW + 1)
             .await
             .expect("the manager could not give the role");
 
@@ -4118,7 +4309,7 @@ mod tests {
         );
 
         // editing the role's mask issues every holder's certificate again.
-        assign_role(&managers, &ada, &bilal.member_id, &recruiter, NOW + 3)
+        assign_role(&managers, &ada, &bilal.member_id, &recruiter, None, NOW + 3)
             .await
             .expect("the manager could not give the role a second time");
 
@@ -5589,6 +5780,7 @@ mod tests {
             &owner,
             &sami.member_id,
             permission::MANAGER,
+            None,
             NOW + 3,
         )
         .await

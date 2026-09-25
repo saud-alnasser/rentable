@@ -714,9 +714,10 @@ async function rolesAndMembersChanged(client: QueryClient) {
 }
 
 /**
- * give a member a role (effort 838, requirement 5). The refusals a person can act on (the member or
- * the role ranking at or above the reader, a flag the reader does not hold) arrive as the shell's
- * refusals and read as their sentences.
+ * give a member a role (effort 838, requirement 5), and the override with it where one is given,
+ * as one act (ticket 14). The refusals a person can act on (the member or the role ranking at or
+ * above the reader, a flag the reader does not hold) arrive as the shell's refusals and read as
+ * their sentences.
  */
 export function useAssignRole(
 	opts: MutationOptions = {
@@ -730,8 +731,15 @@ export function useAssignRole(
 	const client = useQueryClient();
 
 	return createMutation(() => ({
-		mutationFn: ({ memberId, roleId }: { memberId: string; roleId: string }) =>
-			api.app.organization.member.assignRole({ memberId, roleId }),
+		mutationFn: ({
+			memberId,
+			roleId,
+			override
+		}: {
+			memberId: string;
+			roleId: string;
+			override?: number;
+		}) => api.app.organization.member.assignRole({ memberId, roleId, override }),
 		onSuccess: async () => {
 			await rolesAndMembersChanged(client);
 			onMutationSuccess(opts);

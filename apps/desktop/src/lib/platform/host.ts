@@ -799,8 +799,17 @@ export type Host = {
 			 * again from the caller's to match. `assignRole`, on a member and a role both ranked below
 			 * the caller, never their own row, and only where every flag the change moves is one the
 			 * caller holds. The owner's role is never assigned; it is handed over.
+			 *
+			 * `override`, where given, is set in the same act, so the flags the change moves are the
+			 * ones the role and the override move together rather than each on its own; one that is
+			 * not the override the member carries is held to `overrideMember` as well. Left out, the
+			 * override they carry stays.
 			 */
-			assignRole: (memberId: string, roleId: string) => Promise<OrganizationMember>;
+			assignRole: (
+				memberId: string,
+				roleId: string,
+				override?: number
+			) => Promise<OrganizationMember>;
 			/**
 			 * set a member's override: the flags switched for them alone, against their role's mask.
 			 * `overrideMember`, on the same lines as `assignRole`; the owner carries none.

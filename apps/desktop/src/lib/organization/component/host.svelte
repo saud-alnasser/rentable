@@ -139,10 +139,14 @@
 	 * one save, and the acts that exist behind it.
 	 *
 	 * **Each act is asked for only where something changed**, and each refuses on its own: the name
-	 * is one write, the role another, the override a third, and the grants write one workspace
-	 * each. The role goes before the override, so the override is written against the role it is
-	 * read with, and a role refused leaves the override unasked. So a save refused one of them leaves the others written, which is what the
-	 * acts do on their own and what the sentence on the section then says.
+	 * is one write, the role and the override another, and the grants write one workspace each. So
+	 * a save refused one of them leaves the others written, which is what the acts do on their own
+	 * and what the sentence on the section then says.
+	 *
+	 * **A role and an override changed together are one act** (ticket 14 of effort 838): the
+	 * override rides with the role, so the flags the reader must hold are the ones the two move
+	 * together, and neither is written without the other. A refusal of it marks both sections. An
+	 * override changed alone, or by a reader who may not give roles, is its own write.
 	 *
 	 * **A refusal keeps the sheet open and marks its section** ([[rules/interface]], *Validation
 	 * errors*), rather than reaching the reader as a toast over a surface that has already closed.
@@ -172,15 +176,21 @@
 			}
 		}
 
-		if (context.canAssignRole && edit.roleId !== saved.roleId) {
+		const roleChanged = context.canAssignRole && edit.roleId !== saved.roleId;
+		const overrideChanged = context.canOverride && edit.override !== saved.override;
+
+		if (roleChanged) {
 			try {
-				await assignRole.mutateAsync({ memberId: saved.id, roleId: edit.roleId });
+				await assignRole.mutateAsync({
+					memberId: saved.id,
+					roleId: edit.roleId,
+					override: overrideChanged ? edit.override : undefined
+				});
 			} catch (error) {
 				roleRefusal = toErrorText(error, $LL);
+				overrideRefusal = overrideChanged ? roleRefusal : null;
 			}
-		}
-
-		if (context.canOverride && !roleRefusal && edit.override !== saved.override) {
+		} else if (overrideChanged) {
 			try {
 				await setOverride.mutateAsync({ memberId: saved.id, override: edit.override });
 			} catch (error) {

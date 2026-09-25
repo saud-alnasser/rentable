@@ -58,7 +58,8 @@
 	 * Rust's alone, and that refusal marks the name the way the others mark their sections.
 	 *
 	 * **One save runs the acts that exist**, each only where something changed, and each refuses on
-	 * its own section ([[rules/interface]], *Validation errors*).
+	 * its own section ([[rules/interface]], *Validation errors*); a role and an override changed
+	 * together are one act, and its refusal marks both.
 	 *
 	 * **Its sections are the ones the sheet that adds a member draws** (ticket 42 of effort 832):
 	 * `member-role.svelte`, `member-override.svelte` and `member-workspaces.svelte`, so adding a

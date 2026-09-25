@@ -1561,12 +1561,18 @@ pub async fn role_delete(
 /// force on the next sync with the owner's machine off (requirement 9). `assignRole`, the member
 /// and the role both below the actor's rank, never the actor's own row, only flags the actor
 /// holds; the owner's role is not assigned. What comes back is the member as the list shows them.
+///
+/// `overrideMask`, where given, is the override they carry from here on, set in the same act
+/// (requirement 6), so "flags held" is asked of the role and the override together rather than of
+/// the state between two commands; `overrideMember` as well, where it is not the override they
+/// carry already. Left out, their override stays.
 /// *It was `member_change_role`, which wrote a role's word and seven acts, until effort 838.*
 #[tauri::command]
 pub async fn member_assign_role(
     app_state: tauri::State<'_, AppState>,
     member_id: String,
     role_id: String,
+    override_mask: Option<i64>,
 ) -> Result<MemberFacts, Error> {
     let mut member = app_state.member.write().await;
     let store = app_state.organization.read().await;
@@ -1575,7 +1581,15 @@ pub async fn member_assign_role(
     // rather than off this machine's last sight of it (effort 826, requirement 22).
     store.pull().await;
 
-    role::assign_role(store, member, &member_id, &role_id, timestamp::now()).await
+    role::assign_role(
+        store,
+        member,
+        &member_id,
+        &role_id,
+        override_mask,
+        timestamp::now(),
+    )
+    .await
 }
 
 /// Set a member's override, the flags switched for them alone (effort 838, requirement 6);
@@ -3343,6 +3357,8 @@ mod tests {
         ("role_set_mask", Gate::Flag(Flag::ManageRoles)),
         ("role_move", Gate::Flag(Flag::ManageRoles)),
         ("role_delete", Gate::Flag(Flag::ManageRoles)),
+        // and `overrideMember` too, where the override given with the role is not the one the
+        // member carries (`role::assign_role`).
         ("member_assign_role", Gate::Flag(Flag::AssignRole)),
         ("member_set_override", Gate::Flag(Flag::OverrideMember)),
         (
