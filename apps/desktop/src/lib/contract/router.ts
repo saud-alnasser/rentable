@@ -75,6 +75,12 @@ const ContractFieldsSchema = ContractSchema.omit({
 const ContractCreateSchema = ContractFieldsSchema.extend({
 	unitIds: z.array(z.string()).default([])
 });
+// a deleted contract as its deletion answered with it: the row whole, status and aggregates
+// included, with the units it held. What undoing a deletion puts back, and only that
+// ([[rules/data]], under *Undo*).
+const ContractRestoreSchema = ContractSchema.extend({
+	unitIds: z.array(z.string()).default([])
+});
 const ContractUpdateSchema = ContractSchema.omit({
 	status: true,
 	paidAmount: true,
@@ -983,8 +989,8 @@ export default router({
 			// the contract is gone, so what is left to reconcile is the units it released.
 			await reconcileTouched(ctx.db, ctx.clock.now(), { contractIds: [], unitIds });
 
-			// the units it held come back with the row, because undoing the deletion creates the
-			// contract again holding them.
+			// the units it held come back with the row, because undoing the deletion restores the
+			// contract holding them.
 			return deleted ? { ...serializeContract(deleted), unitIds } : deleted;
 		}),
 
@@ -1029,41 +1035,37 @@ export default router({
 		}),
 
 	/**
-	 * Put a set of contracts back, all of them or none.
+	 * Put a set of deleted contracts back, all of them or none, as they were.
 	 *
-	 * What undoing {@link deleteMany} calls, and the reason it is all or nothing: a set half
-	 * restored leaves the workspace in a shape neither the deletion nor the undo describes. One
-	 * batch, and the boundary runs a batch inside one transaction (ADR 0027), so a refusal
-	 * anywhere in the set creates nothing.
+	 * What undoing {@link delete} and {@link deleteMany} calls. **It restores rows rather than
+	 * creating contracts** ([[rules/data]], under *Undo*): each contract goes back with the status it
+	 * held and the units it held, and neither is asked of the workspace again. A create would derive
+	 * the status afresh, bringing a terminated contract back active, and would ask whether its units
+	 * are free today, refusing one another contract took after the deletion. Neither is what taking a
+	 * deletion back means. Reconcile runs afterwards over what was restored, as for any other write.
+	 *
+	 * All or nothing, because a set half restored leaves the workspace in a shape neither the
+	 * deletion nor the undo describes. One batch, and the boundary runs a batch inside one
+	 * transaction (ADR 0027), so a refusal anywhere in the set restores nothing.
 	 *
 	 * **It throws rather than reporting**, which is what leaves the entry on the undo stack: an
 	 * inverse that threw did not move the workspace, so the reader can deal with whatever refused
-	 * it and press undo again. Every refusal names the contract it is about, because *one of them
-	 * could not be put back* is not something a reader can act on.
-	 *
-	 * Every check `create` makes, asked once for the whole set rather than once per contract,
-	 * including the units each is put back holding: a deleted contract takes its units with it,
-	 * so undoing the deletion restores them, and a unit another contract has taken since refuses
-	 * the whole set.
+	 * it and press undo again. What it still refuses is what the schema could not hold: an identity
+	 * or a government id taken since, a tenant or a unit gone since. Every refusal names the
+	 * contract it is about where there is one to name.
 	 */
-	createMany: procedure.member
+	restoreMany: procedure.member
 		.use(autosync())
-		.input(z.object({ contracts: z.array(ContractCreateSchema).min(1) }))
+		.input(z.object({ contracts: z.array(ContractRestoreSchema).min(1) }))
 		.mutation(async ({ input, ctx }) => {
 			const now = ctx.clock.now();
 
-			for (const contract of input.contracts) {
-				ensureValidContractInput(contract);
-			}
-
-			// what each is put back holding, by the identity it is given here.
+			// what each is put back holding, by the identity it had.
 			const heldBy = new Map<string, string[]>();
 			const named = input.contracts.map(({ unitIds, ...contract }) => {
-				const id = contract.id ?? newId();
+				heldBy.set(contract.id, [...new Set(unitIds)]);
 
-				heldBy.set(id, [...new Set(unitIds)]);
-
-				return { ...contract, id, govId: contract.govId?.trim() || null };
+				return { ...contract, govId: contract.govId?.trim() || null };
 			});
 			const ids = named.map((contract) => contract.id);
 			const govIds = named.map((contract) => contract.govId).filter((govId) => govId !== null);
@@ -1113,66 +1115,30 @@ export default router({
 				if (units.length !== unitIds.length) {
 					throw refuse('contract.unitsMissing');
 				}
-
-				const assignments = await selectAssignmentsForUnits(ctx.db, unitIds);
-
-				// none of these contracts exists yet, so no assignment is one of theirs to be exempt
-				// from.
-				for (const contract of named) {
-					const held = heldBy.get(contract.id) ?? [];
-
-					if (held.length) {
-						ensureUnitsAssignable(
-							assignments.filter((assignment) => held.includes(assignment.unitId)),
-							{ start: contract.start, end: contract.end },
-							'',
-							'contract.unitsTaken'
-						);
-					}
-				}
 			}
 
-			// annotated rather than inferred: a derived status is a union of string literals, and an
-			// object literal built without something expecting that union widens the property to
-			// `string`. The single-record creation is spared it by handing its literal straight to
-			// `values`, which is the expectation this restores.
-			const values: (typeof s.contract.$inferInsert)[] = named.map((contract) => {
-				const shape = {
-					status: 'active' as const,
-					start: new Date(contract.start),
-					end: new Date(contract.end),
-					interval: contract.interval,
-					cost: contract.cost
-				};
-				const { paidAmount, expectedAmount } = getContractPaymentSummary(shape, []);
-				const status = deriveContractStatus(shape, [], now);
-
-				return {
-					...contract,
-					govId: contract.govId,
-					status,
-					paidAmount,
-					expectedAmount,
-					start: shape.start,
-					end: shape.end
-				};
-			});
+			// the row as it was, status and aggregates included: reconcile below is what brings any
+			// derived column forward to today, exactly as it would for a row that never left.
+			const values: (typeof s.contract.$inferInsert)[] = named.map((contract) => ({
+				...contract,
+				start: new Date(contract.start),
+				end: new Date(contract.end)
+			}));
 
 			const [first, ...rest] = values.map((value) =>
 				ctx.db.insert(s.contract).values(value).returning()
 			);
-			// the assignment rows name contracts whose identities are minted above, so they go down
-			// in the same batch that creates them.
+			// the assignment rows go down in the same batch as the contracts they name.
 			const assignments = [...heldBy].flatMap(([contractId, held]) =>
 				held.map((unitId) =>
 					ctx.db.insert(s.contractUnit).values({ contractId, unitId }).returning()
 				)
 			);
-			const created = await ctx.db.batch([first, ...rest, ...assignments]);
+			const restored = await ctx.db.batch([first, ...rest, ...assignments]);
 
 			await reconcileTouched(ctx.db, now, { contractIds: ids, unitIds });
 
-			return (created.slice(0, values.length) as DbContract[][]).map(([contract]) =>
+			return (restored.slice(0, values.length) as DbContract[][]).map(([contract]) =>
 				serializeContract(contract)
 			);
 		}),

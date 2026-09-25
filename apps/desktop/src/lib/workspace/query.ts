@@ -39,7 +39,9 @@ export const useImportRecords = declareMutation({
 	touches: ['tenants', 'complexes', 'units', 'contracts', 'payments'],
 	toast: {
 		success: () => get(LL).settings.transferImportSuccess(),
-		error: false,
-		unexpected: () => get(LL).common.messages.unexpectedError()
+		// every failure is said by the dialog that asked for the import, which catches the
+		// rejection and raises it once, as it does for a file that could not be read. The handler
+		// saying it too was a second toast for one failure, a permission failure included.
+		error: () => null
 	}
 });

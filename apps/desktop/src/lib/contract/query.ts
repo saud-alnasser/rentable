@@ -234,17 +234,9 @@ export const useCreateContract = declareMutation({
 	touches: ['contracts', 'units'],
 	inverse: ({ variables, result }) => ({
 		describe: (t) => t.common.undo.created({ record: t.common.labels.contract() }),
-		// the units go first, as a renewal's do, through the procedure that releases them. A
-		// contract created holding none is deleted alone. Two calls, so a failure in the second
-		// leaves the units released and the contract standing, and the undo path refreshes on
-		// failure for exactly that (`design/mutation.ts`, `applyInverse`).
-		undo: async () => {
-			if (variables.unitIds?.length) {
-				await api.contract.units.set({ contractId: result.id, unitIds: [] });
-			}
-
-			await api.contract.delete({ id: result.id });
-		},
+		// one call: the deletion releases the units in the same batch, so the undo lands whole or
+		// not at all, and a contract holding units is never left standing without them.
+		undo: () => api.contract.delete({ id: result.id }),
 		// created again as itself, holding the units it was created with.
 		redo: () => api.contract.create({ ...result, unitIds: variables.unitIds }),
 		records: (direction) => ({
@@ -279,11 +271,8 @@ export const useRenewContract = declareMutation({
 	touches: ['contracts', 'units'],
 	inverse: ({ variables, result }) => ({
 		describe: (t) => t.common.undo.renewed({ record: t.common.labels.contract() }),
-		// the units go first, through the procedure that releases them, as a creation's do.
-		undo: async () => {
-			await api.contract.units.set({ contractId: result.id, unitIds: [] });
-			await api.contract.delete({ id: result.id });
-		},
+		// one delete, as a creation's undo is: it releases the successor's units in the same batch.
+		undo: () => api.contract.delete({ id: result.id }),
 		// renewed again with the identity it had, so a page still open on the successor is holding
 		// a reference to the record rather than to a copy of it.
 		redo: () => api.contract.renew({ ...variables, id: result.id })
@@ -332,8 +321,10 @@ export const useDeleteContract = declareMutation({
 	inverse: ({ result }) =>
 		result && {
 			describe: (t) => t.common.undo.deleted({ record: t.common.labels.contract() }),
-			// created again as itself, holding the units it held, which the deletion answered with.
-			undo: () => api.contract.create(result),
+			// restored as it was, status included, holding the units it held, which the deletion
+			// answered with. A restore rather than a create ([[rules/data]], under *Undo*): a create
+			// would derive the status again and ask whether the units are free today.
+			undo: () => api.contract.restoreMany({ contracts: [result] }),
 			redo: () => api.contract.delete({ id: result.id }),
 			records: (direction) => ({
 				concept: 'contract',
@@ -472,7 +463,7 @@ export const useRestoreManyContracts = declareMutation({
 /**
  * Delete every contract in the selection that nothing depends on, as one change.
  *
- * **Taking it back is all or nothing.** The inverse creates the whole set in one batch and throws
+ * **Taking it back is all or nothing.** The inverse restores the whole set in one batch and throws
  * where any one of them cannot be put back, rather than restoring what it can and naming the
  * rest — which would leave the workspace in a shape neither the deletion nor the undo describes.
  * An inverse that throws stays on the stack, so the reader can deal with whatever refused it and
@@ -490,7 +481,7 @@ export const useDeleteManyContracts = declareMutation({
 			? undefined
 			: {
 					describe: (t) => t.common.undo.deletedMany({ count: result.deleted.length }),
-					undo: () => api.contract.createMany({ contracts: result.deleted }),
+					undo: () => api.contract.restoreMany({ contracts: result.deleted }),
 					redo: () => api.contract.deleteMany({ ids: toContractIds(result.deleted) }),
 					records: (direction) =>
 						result.deleted.map((contract) =>
