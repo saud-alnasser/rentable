@@ -15,10 +15,11 @@ import QueryProviders from '#tests/query-providers.svelte';
 /**
  * A TENANT IS REMINDED ON WHATSAPP
  *
- * Requirement 12 of effort 835: the reminder act, asked of the contract host the frame mounts,
- * reads what the reminder states and opens WhatsApp through the opener, addressed to the tenant
- * and written in the language the application is showing; and the landing screen's rows offer it
- * as they offer renew.
+ * Requirement 12 of effort 835, as revised on 2026-09-25: the reminder act, asked of the contract
+ * host the frame mounts, reads what the reminder states and shows it first, in the language the
+ * application is showing and switchable to the other; *open WhatsApp* then opens it through the
+ * opener, addressed to the tenant, in the language chosen. The landing screen's rows offer it as
+ * they offer renew.
  *
  * **What reaches Rust is stood in for** at `tauri` (`opened` notes each address the opener was
  * handed), and **the reminder read is stood in for** at the caller, since what it states is the
@@ -99,35 +100,65 @@ const renderHost = () =>
 /** the message a WhatsApp address carries, decoded as WhatsApp decodes it. */
 const textOf = (url: string) => new URL(url).searchParams.get('text');
 
-test('the reminder opens WhatsApp addressed to the tenant, with the message written in English', async () => {
+const shown = () => document.querySelector('[data-reminder-message]')?.textContent?.trim();
+
+async function send() {
+	const button = await waitFor(() =>
+		document.querySelector<HTMLButtonElement>('[data-reminder-send]')!
+	);
+
+	await fireEvent.submit(button.form!);
+	await waitFor(() => expect(hooks.opened).toHaveLength(1));
+
+	return hooks.opened[0];
+}
+
+const ENGLISH =
+	'Hello Noura, the rent of SAR 1,500 for A-101 has been due since 1 Mar 2026. Thank you.';
+
+test('the reminder shows its message first, then opens WhatsApp addressed to the tenant with it', async () => {
 	setLocale('en');
 	renderHost();
 
 	expect(contractHost.run('contract.remind', OWING)).toBe(true);
 
-	await waitFor(() => expect(hooks.opened).toHaveLength(1));
-
-	const [url] = hooks.opened;
-
+	await waitFor(() => expect(shown()).toBe(ENGLISH));
+	expect(hooks.opened).toHaveLength(0);
 	expect(hooks.reminder).toHaveBeenCalledWith({ id: 'contract-1' });
+
+	const url = await send();
+
 	expect(url.startsWith('https://wa.me/966551234567?text=')).toBe(true);
-	expect(textOf(url)).toBe(
-		'Hello Noura, the rent of SAR 1,500 for A-101 has been due since 1 Mar 2026. Thank you.'
-	);
+	expect(textOf(url)).toBe(ENGLISH);
 });
 
-test('the reminder is written in Arabic when the application shows Arabic', async () => {
+test('the reminder opens in Arabic when the application shows Arabic', async () => {
 	setLocale('ar');
 	renderHost();
 
 	contractHost.run('contract.remind', OWING);
 
-	await waitFor(() => expect(hooks.opened).toHaveLength(1));
+	await waitFor(() => expect(shown()?.startsWith('مرحبًا Noura،')).toBe(true));
 
-	const text = textOf(hooks.opened[0]) ?? '';
+	const text = textOf(await send()) ?? '';
 
 	expect(text.startsWith('مرحبًا Noura،')).toBe(true);
 	expect(text).toContain('1,500 ريال');
+});
+
+test('the message can be switched to the other language before it is sent', async () => {
+	setLocale('en');
+	renderHost();
+
+	contractHost.run('contract.remind', OWING);
+
+	await waitFor(() => expect(shown()).toBe(ENGLISH));
+	await fireEvent.click(
+		document.querySelector<HTMLElement>('[data-language-choice] [data-locale="ar"]')!
+	);
+	await waitFor(() => expect(shown()?.startsWith('مرحبًا Noura،')).toBe(true));
+
+	expect(textOf(await send())?.startsWith('مرحبًا Noura،')).toBe(true);
 });
 
 test('the reminder is not run on a contract in no rank', () => {

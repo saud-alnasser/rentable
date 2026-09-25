@@ -44,7 +44,7 @@ const ar = {
 			openPayments: 'فتح المدفوعات',
 			openPreviousRelease: 'فتح الإصدار السابق',
 			proceed: 'متابعة',
-			remind: 'تذكير عبر واتساب',
+			remind: 'تذكير المستأجر',
 			remove: 'إزالة',
 			renew: 'تجديد',
 			renewing: 'جاري التجديد...',
@@ -884,7 +884,9 @@ const ar = {
 				'مرحبًا {tenant}، نذكّركم بأن إيجار {units} بمبلغ {amount} ريال يحلّ في {date}. شكرًا لكم.',
 			comingDueNoUnits:
 				'مرحبًا {tenant}، نذكّركم بأن الإيجار بمبلغ {amount} ريال يحلّ في {date}. شكرًا لكم.',
+			language: 'لغة الرسالة',
 			noPhone: 'لا يوجد رقم جوال للمستأجر لإرسال التذكير إليه.',
+			open: 'فتح واتساب',
 			owed: 'مرحبًا {tenant}، نذكّركم بأن إيجار {units} بمبلغ {amount} ريال مستحق منذ {date}. شكرًا لكم.',
 			owedNoUnits:
 				'مرحبًا {tenant}، نذكّركم بأن الإيجار بمبلغ {amount} ريال مستحق منذ {date}. شكرًا لكم.'

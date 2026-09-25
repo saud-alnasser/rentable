@@ -25,7 +25,7 @@
 		useTerminateContract,
 		useUnterminateContract
 	} from '$lib/contract/query';
-	import { composeReminderMessage, toWhatsAppUrl } from '$lib/contract/reminder';
+	import { toWhatsAppUrl, type ContractReminder } from '$lib/contract/reminder';
 	import { toDeleteStep, toPaletteVerbs } from '$lib/design/acts';
 	import { consumeCreateIntent } from '$lib/design/create-intent.svelte';
 	import { onMutationError, onMutationSuccess } from '$lib/design/mutation';
@@ -49,6 +49,7 @@
 	import { onDestroy, untrack } from 'svelte';
 	import ContractForm from './form.svelte';
 	import PrintedSchedule, { type PrintedScheduleValue } from './printed-schedule.svelte';
+	import ReminderPreview from './reminder-preview.svelte';
 
 	/**
 	 * Every form and confirmation a contract act opens, mounted once for the whole shell.
@@ -206,17 +207,37 @@
 		);
 	}
 
+	/** the reminder being shown before it goes to WhatsApp, and the language it is written in. */
+	let reminder = $state.raw<ContractReminder | null>(null);
+	let reminderOpen = $state(false);
+	let reminderLocale = $state<Locales>('en');
+
 	/**
-	 * Open WhatsApp on a chat with the contract's tenant, the reminder written in the language the
-	 * application is showing. The facts are read fresh, so the amount is today's; the landlord reads
-	 * the message and sends it, and nothing here records that a reminder went.
+	 * A reminder to the contract's tenant, shown first with its language, which opens on the
+	 * application's own. The facts are read fresh, so the amount is today's.
 	 */
 	async function remind(contract: ContractActRecord) {
 		try {
-			const reminder = await readReminder(contract.id);
-			const message = composeReminderMessage(reminder, $LL, $locale);
+			reminder = await readReminder(contract.id);
+			reminderLocale = $locale;
+			reminderOpen = true;
+		} catch (error) {
+			showErrorToast(error, $LL);
+		}
+	}
 
+	/**
+	 * Open WhatsApp on a chat with the tenant, the message written. The landlord reads it and sends
+	 * it there, and nothing here records that a reminder went.
+	 */
+	async function sendReminder(message: string) {
+		if (!reminder) {
+			return;
+		}
+
+		try {
 			await tauri.opener.openUrl(toWhatsAppUrl(reminder.tenantPhone, message));
+			reminderOpen = false;
 		} catch (error) {
 			showErrorToast(error, $LL);
 		}
@@ -424,6 +445,18 @@
 		<PrintedSchedule value={schedule} locale={pageLocale} />
 	{/if}
 {/snippet}
+
+{#if reminder}
+	<ReminderPreview
+		open={reminderOpen}
+		onOpenChange={(isOpen) => {
+			if (!isOpen) reminderOpen = false;
+		}}
+		{reminder}
+		bind:locale={reminderLocale}
+		onSend={(message) => void sendReminder(message)}
+	/>
+{/if}
 
 <PrintPreview
 	open={scheduleOpen}

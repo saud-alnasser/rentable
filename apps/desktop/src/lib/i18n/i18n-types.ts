@@ -175,7 +175,7 @@ type RootTranslation = {
 			 */
 			proceed: string
 			/**
-			 * r​e​m​i​n​d​ ​o​n​ ​W​h​a​t​s​A​p​p
+			 * r​e​m​i​n​d​ ​t​e​n​a​n​t
 			 */
 			remind: string
 			/**
@@ -2844,9 +2844,17 @@ type RootTranslation = {
 			 */
 			comingDueNoUnits: RequiredParams<'amount' | 'date' | 'tenant'>
 			/**
+			 * l​a​n​g​u​a​g​e​ ​o​f​ ​t​h​e​ ​m​e​s​s​a​g​e
+			 */
+			language: string
+			/**
 			 * t​h​e​ ​t​e​n​a​n​t​ ​h​a​s​ ​n​o​ ​p​h​o​n​e​ ​n​u​m​b​e​r​ ​t​o​ ​s​e​n​d​ ​a​ ​r​e​m​i​n​d​e​r​ ​t​o​.
 			 */
 			noPhone: string
+			/**
+			 * o​p​e​n​ ​W​h​a​t​s​A​p​p
+			 */
+			open: string
 			/**
 			 * H​e​l​l​o​ ​{​t​e​n​a​n​t​}​,​ ​t​h​e​ ​r​e​n​t​ ​o​f​ ​S​A​R​ ​{​a​m​o​u​n​t​}​ ​f​o​r​ ​{​u​n​i​t​s​}​ ​h​a​s​ ​b​e​e​n​ ​d​u​e​ ​s​i​n​c​e​ ​{​d​a​t​e​}​.​ ​T​h​a​n​k​ ​y​o​u​.
 			 * @param {string} amount
@@ -4175,7 +4183,7 @@ export type TranslationFunctions = {
 			 */
 			proceed: () => LocalizedString
 			/**
-			 * remind on WhatsApp
+			 * remind tenant
 			 */
 			remind: () => LocalizedString
 			/**
@@ -6725,9 +6733,17 @@ export type TranslationFunctions = {
 			 */
 			comingDueNoUnits: (arg: { amount: string, date: string, tenant: string }) => LocalizedString
 			/**
+			 * language of the message
+			 */
+			language: () => LocalizedString
+			/**
 			 * the tenant has no phone number to send a reminder to.
 			 */
 			noPhone: () => LocalizedString
+			/**
+			 * open WhatsApp
+			 */
+			open: () => LocalizedString
 			/**
 			 * Hello {tenant}, the rent of SAR {amount} for {units} has been due since {date}. Thank you.
 			 */

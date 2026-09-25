@@ -45,7 +45,7 @@ const en = {
 			openPayments: 'open payments',
 			openPreviousRelease: 'open previous release',
 			proceed: 'proceed',
-			remind: 'remind on WhatsApp',
+			remind: 'remind tenant',
 			remove: 'remove',
 			renew: 'renew',
 			renewing: 'renewing...',
@@ -927,7 +927,9 @@ const en = {
 				'Hello {tenant:string}, the rent of SAR {amount:string} for {units:string} falls due on {date:string}. Thank you.',
 			comingDueNoUnits:
 				'Hello {tenant:string}, the rent of SAR {amount:string} falls due on {date:string}. Thank you.',
+			language: 'language of the message',
 			noPhone: 'the tenant has no phone number to send a reminder to.',
+			open: 'open WhatsApp',
 			owed: 'Hello {tenant:string}, the rent of SAR {amount:string} for {units:string} has been due since {date:string}. Thank you.',
 			owedNoUnits:
 				'Hello {tenant:string}, the rent of SAR {amount:string} has been due since {date:string}. Thank you.'

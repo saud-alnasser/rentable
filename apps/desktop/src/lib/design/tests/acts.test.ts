@@ -187,7 +187,7 @@ test('the reminder is offered on an overdue, owing or due-soon contract, and on 
 	assert.equal(offersReminder({ ...contractIn('terminated'), rank: 'overdue' }), false);
 });
 
-test('the reminder sits after renew, and asks the host to remind on the record it was offered for', () => {
+test('the reminder sits beside printing, and asks the host to remind on the record it was offered for', () => {
 	const { asked, host } = recordingHost();
 	const acts = declareContractActs(host);
 	const contract: ContractActRecord = { ...contractIn('active'), rank: 'owing' };
@@ -197,9 +197,9 @@ test('the reminder sits after renew, and asks the host to remind on the record i
 		[
 			'contract.copyDetails',
 			'contract.print',
+			'contract.remind',
 			'contract.duplicate',
 			'contract.renew',
-			'contract.remind',
 			'contract.edit',
 			'contract.terminate',
 			'contract.delete'

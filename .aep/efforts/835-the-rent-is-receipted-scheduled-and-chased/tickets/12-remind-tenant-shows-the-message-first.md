@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [11]
 ---
 
@@ -16,9 +16,9 @@ WhatsApp*.
 Traces requirement 12 of [[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]], as
 revised on 2026-09-25, and criterion 12.
 
-- [ ] The act is labelled *remind tenant* in English and its Arabic equivalent, and sits right after
+- [x] The act is labelled *remind tenant* in English and its Arabic equivalent, and sits right after
       *print* in every projection (criterion 12(c), acts test).
-- [ ] The panel shows the message in the application's language; switching redraws it in the other;
+- [x] The panel shows the message in the application's language; switching redraws it in the other;
       *open WhatsApp* opens the address with the message in the chosen language (criteria 12(a),
       12(b), component test).
-- [ ] The landing row still carries the act.
+- [x] The landing row still carries the act.

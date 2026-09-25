@@ -51,18 +51,19 @@ cover several cycles, and what is paid past the total cost covers none. Always o
 nobody chooses which cycle a payment pays.
 
 **Receipt**:
-A one-page statement that a payment was received (سند قبض), in Arabic and in English, printed
-through the system's print dialog. It names the payment by a _receipt number_ taken from the
+A one-page statement that a payment was received (سند قبض), in Arabic or in English as chosen in
+the print preview, printed or saved as a PDF from there. It names the payment by a _receipt number_ taken from the
 payment's identity, never by a sequence, and states the cycles the payment covers by the
 _allocation_ and what remains of the _total cost_ after it. Read on demand from the payment as it
 stands (`contract.payments.receipt`) and never stored. It is not a tax invoice.
 _Avoid_: invoice (فاتورة), which it is not
 
 **Reminder**:
-A message to a contract's tenant about the rent, opened in WhatsApp already written, in the
-language the application is showing, naming the tenant, the amount, the date and the units.
-Offered on a contract that is _overdue_, _owing_ or _due soon_, never on a terminated one. The
-landlord reads it and sends it; the application sends nothing and records nothing about it.
+A message to a contract's tenant about the rent, naming the tenant, the amount, the date and the
+units. The act, *remind tenant*, shows it first in the language the application is showing, which
+the landlord can switch to the other, and then opens WhatsApp with it written. Offered on a
+contract that is _overdue_, _owing_ or _due soon_, never on a terminated one. The landlord reads it
+and sends it; the application sends nothing and records nothing about it.
 
 **Cost**:
 The amount owed _per interval_, never the contract total. Prefer the fuller reading
