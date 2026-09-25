@@ -130,7 +130,7 @@ Start at [[protocol]].
 | 828-the-link-needs-a-code-and-the-settings-area-guides | implemented | [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]] | 5 | 0 | 29 |
 | 832-the-interface-speaks-one-language-and-guides | accepted | [[efforts/832-the-interface-speaks-one-language-and-guides/spec]] | 3 | 4 | 43 |
 | 835-the-rent-is-receipted-scheduled-and-chased | implemented | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]] | 1 | 0 | 19 |
-| 838-permissions-are-a-role-and-an-override | accepted | [[efforts/838-permissions-are-a-role-and-an-override/spec]] | 0 | 0 | 16 |
+| 838-permissions-are-a-role-and-an-override | accepted | [[efforts/838-permissions-are-a-role-and-an-override/spec]] | 0 | 0 | 17 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -353,3 +353,4 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/838-permissions-are-a-role-and-an-override/tickets/14-a-role-and-an-override-are-set-as-one-act]] fix(organization): a role and an override set together are one act | 838-permissions-are-a-role-and-an-override | resolved | — |
 | [[efforts/838-permissions-are-a-role-and-an-override/tickets/15-the-old-role-word-retires]] refactor(organization): the old role word retires | 838-permissions-are-a-role-and-an-override | resolved | 14 |
 | [[efforts/838-permissions-are-a-role-and-an-override/tickets/16-the-rules-and-comments-follow-the-flags]] docs(desktop): the rules and the comments follow the flags | 838-permissions-are-a-role-and-an-override | resolved | 13, 14, 15 |
+| [[efforts/838-permissions-are-a-role-and-an-override/tickets/17-every-organization-mutation-names-its-flag]] fix(desktop): every organization mutation names its flag | 838-permissions-are-a-role-and-an-override | open | — |
