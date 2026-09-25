@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [04]
 ---
 
@@ -23,9 +23,6 @@ its criteria 7 and 10.
 - [x] `core:webview:allow-print` is in `capabilities/default.json`.
 - [x] A *print* act on the contract prints the schedule: every row, headings in both languages,
       Western digits (criterion 7, component test on the snippet).
-- [ ] By hand, on Windows, macOS and Linux: the dialog opens, the page shows no sidebar, titlebar or
-      page address, and the dialog's PDF destination saves it (criteria 10(a) and 10(c), for the
-      schedule). Held for the close of the run.
 
 ## Relevant areas
 
@@ -40,3 +37,9 @@ its criteria 7 and 10.
 - Light tokens on paper, whatever the appearance.
 - The act follows [[rules/interface]], *Record card actions*: it asks the host and never opens
   anything itself.
+
+## Revised
+
+The hand check of criterion 10 left this ticket on 2026-09-25, when the human revised requirement
+10 after trying the first build: printing now goes through the application's own preview, and the
+check is ticket 11's and ticket 10's.

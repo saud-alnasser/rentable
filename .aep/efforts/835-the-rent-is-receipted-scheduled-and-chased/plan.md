@@ -38,7 +38,43 @@ Four pieces, each placed where the repository already keeps its kind of thing. P
 The system dialog already previews on all three platforms (the research's F1.1, F1.4, F3.1).
 Iframe printing is out: it does nothing on macOS (F1.6).
 
-## Where the receipt is offered after recording
+## Revised 2026-09-25: the preview is the application's own
+
+The human tried the first build and found the two-language page cluttered and plain, and the
+system's print preview foreign to the application (spec, requirements 7, 9, 10 and 12, revised).
+A stays: one print sheet in the main window is still what paper sees. What changes is the way in
+and the page.
+
+- **A preview panel before anything prints** (`print/component/preview.svelte`), the application's
+  own surface: a centred panel whose header carries the title and an Arabic/English toggle group
+  (two options, [[rules/interface]], toggle group), whose body shows the page as paper (white, A4
+  proportion, scaled to fit), and whose footer holds *save as PDF* and *print*. It opens on the
+  language the application shows. The page is the same snippet the sheet prints, drawn with the
+  chosen locale, so what is previewed is what prints.
+- **Pages in one language, drawn as documents.** `printed-schedule.svelte` and `receipt.svelte`
+  take a `locale` and read that locale's strings through `i18nObject(locale)`: a head with the
+  issuer (the workspace's name) at the start and the document's title, number and date at the end,
+  a rule, then the facts, then the table or the amount set apart. `lang` and `dir` are the chosen
+  locale's on the page's root.
+- **A `print_page` command** (`tauri/src/print.rs`), `{ mode: 'print' | 'pdf', path? }`, run after
+  the sheet has drawn:
+  - Windows: `pdf` calls `ICoreWebView2_7::PrintToPdf` with backgrounds on and the header and
+    footer off, and settles when the file is written; `print` calls
+    `ICoreWebView2_16::ShowPrintUI(COREWEBVIEW2_PRINT_DIALOG_KIND_SYSTEM)`, the OS dialog rather
+    than the browser preview. Reached through `Webview::with_webview`, the controller and a cast
+    (research F3.1), with `webview2-com` and `windows` as `cfg(windows)` dependencies at the
+    versions the lockfile already holds (0.38.2, 0.61.3).
+  - macOS and Linux: both modes call Tauri's `Webview::print()`, the system panel, whose PDF
+    option saves the file. Silent PDF there is out (F3.2 would be uncompiled here, F3.3 is
+    unreliable).
+  The web side asks for the path through the existing save dialog (`platform/tauri.ts`) before
+  `pdf`, and `print()` in `print/sheet.svelte.ts` settles on the command's answer for `pdf` and on
+  `afterprint` (or the command's answer) for `print`.
+- **The reminder shows its message first** (`contract/component/reminder-preview.svelte`), a light
+  panel with the same toggle and one act, *open WhatsApp*. The act is labelled *remind tenant* and
+  moves beside *print* in the contract's acts, both being what is handed to the tenant.
+
+
 
 The draft spec offered it in the success toast beside undo. The toast carries one offer
 (`design/mutation.ts:239-276`; [[rules/interface]], *Undo*), so this was put to the human as two

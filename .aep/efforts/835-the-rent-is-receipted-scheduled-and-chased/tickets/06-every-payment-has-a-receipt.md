@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [01, 03, 05]
 ---
 
@@ -27,8 +27,6 @@ and its criteria 8, 9 and 10.
       Method and reference are omitted, labels included, where not recorded. The issuer is the
       workspace's name (criteria 9(a) and 9(c), component test).
 - [x] A payment covering the second cycle and part of the third names both (criterion 9(d)).
-- [ ] By hand, on Windows, macOS and Linux: the receipt prints, and the saved PDF's Arabic is shaped,
-      right to left and selectable (criterion 10(b)). Held for the close of the run.
 
 ## Relevant areas
 
@@ -41,3 +39,9 @@ and its criteria 8, 9 and 10.
 
 - No offer in the success toast (spec, *Out of Scope*).
 - A receipt is not a tax invoice and says nothing that reads as one.
+
+## Revised
+
+The hand check of criterion 10 left this ticket on 2026-09-25, when the human revised requirement
+10 after trying the first build: printing now goes through the application's own preview, and the
+check is ticket 11's and ticket 10's.

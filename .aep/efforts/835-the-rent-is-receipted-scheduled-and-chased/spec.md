@@ -91,7 +91,7 @@ on notifying ([[rules/interface]], *Notifying is these two and nothing else*) is
    A terminated contract's schedule shows no cycle as late or due: termination makes the debt a
    closed matter ([[contexts/desktop/contract]], *Owing*).
 7. **The schedule can be printed**, carrying the contract, its tenant, its units, and every row,
-   with headings in Arabic and English.
+   in Arabic or in English, as the person printing chooses (requirement 10).
 
 ## Receipt
 
@@ -100,7 +100,8 @@ on notifying ([[rules/interface]], *Notifying is these two and nothing else*) is
 
    *Decided by the human on 2026-09-25, at the plan:* the draft also offered it in the confirmation
    after recording; that confirmation carries one offer, undo, and the human chose to keep it so.
-9. **A receipt states**, on one page, in Arabic and in English:
+9. **A receipt states**, on one page, in Arabic or in English as the person printing chooses
+   (requirement 10):
    - that it is a receipt (سند قبض), and a reference that identifies this payment and no other;
    - who issued it: the workspace the payment was recorded in;
    - the date received and the amount, in riyals;
@@ -110,11 +111,23 @@ on notifying ([[rules/interface]], *Notifying is these two and nothing else*) is
      complex, and the cycles this payment covers, by the order of requirement 6;
    - what remains of the contract's total cost after this payment, counting the payments the
      allocation takes before it and this one.
-10. **A receipt can be printed, and saved as a PDF, through the system's print dialog** on every
-    platform the application ships on. The dialog is the one path that works on all three
-    ([[efforts/835-the-rent-is-receipted-scheduled-and-chased/evidence/research/printing-a-page-from-the-webview]]);
-    its PDF destination is how a PDF is saved. The printed page is the receipt alone, never the
-    application around it.
+10. **A receipt or a schedule is shown first inside the application, then printed or saved as a
+    PDF.** The print act opens a preview in the application's own surface: the page as it will be
+    on paper, a choice of Arabic or English (starting on the language the application shows), and
+    two acts, *save as PDF* and *print*. The page is in the chosen language alone, and it looks
+    like a document: who issued it at the head, then what it states, set out for paper.
+    - *Save as PDF* asks where to save and writes the file without a print dialog on Windows. On
+      macOS and Linux it opens the operating system's print panel, whose PDF option (*Save as
+      PDF*, *Print to File*) saves one: that panel is already the system's own, and writing the
+      file silently there needs native code this effort cannot compile or check off a Mac.
+    - *Print* opens the operating system's own print dialog, never the webview's browser-style
+      print preview (the one Windows showed).
+    The page is the receipt or the schedule alone, never the application around it
+    ([[efforts/835-the-rent-is-receipted-scheduled-and-chased/evidence/research/printing-a-page-from-the-webview]]).
+
+    *Revised by the human on 2026-09-25, after trying the first build:* the two-language page was
+    cluttered and plain, and the system's print preview did not feel part of the application; each
+    page is now in one chosen language, and the preview is the application's own.
 
 ## Reminders
 
@@ -122,13 +135,18 @@ on notifying ([[rules/interface]], *Notifying is these two and nothing else*) is
     cycle's due date is within the next seven days and which that cycle is not already covered
     in full. It is a rank, *due soon*, read after *owing* and before *ending soon*, and a contract
     in a money rank stays in that rank, as a contract is in one rank only today.
-12. **A tenant can be reminded on WhatsApp in one act**, on a contract in *overdue*, *owing* or
-    *due soon*, wherever a contract's acts are offered: the landing screen, the contract's record,
-    the contracts directory, and the palette ([[rules/interface]], *Record card actions*: an act
-    offered on one of them is offered on all). The act opens WhatsApp
-    addressed to the tenant's phone, with a message already written that names the tenant, the
-    amount, the date it is or was due, and the units, in the language the application is showing.
-    The landlord reads it and sends it; the application sends nothing.
+12. **A tenant can be reminded on WhatsApp**, on a contract in *overdue*, *owing* or *due soon*,
+    wherever a contract's acts are offered: the landing screen, the contract's record, the
+    contracts directory, and the palette ([[rules/interface]], *Record card actions*: an act
+    offered on one of them is offered on all). The act is named *remind tenant* and sits beside
+    the other act that hands something to the tenant, *print*. It shows the message first, with a
+    choice of Arabic or English (starting on the language the application shows), and opens
+    WhatsApp addressed to the tenant's phone with that message written: it names the tenant, the
+    amount, the date it is or was due, and the units. The landlord reads it and sends it; the
+    application sends nothing.
+
+    *Revised by the human on 2026-09-25, after trying the first build:* the message's language is
+    chosen each time, and the act's name was too long.
 
 # Acceptance Criteria
 
@@ -153,27 +171,28 @@ on notifying ([[rules/interface]], *Notifying is these two and nothing else*) is
    contract shows no late and no due row. (d) The allocation is computed on read and nothing it
    produces is stored.
 7. Printing the schedule from a contract's record produces a page carrying every row of
-   criterion 5's contract, with Arabic and English headings, in both appearances of the
+   criterion 5's contract, entirely in the language chosen, in both appearances of the
    application.
 8. The receipt act is offered on every payment's record, on its ledger card, and in the palette,
    and is not refused on a terminated contract's payments (a receipt changes nothing).
 9. (a) A receipt carries every item of requirement 9, and omits method and reference, not their
    labels only, where they are not recorded. (b) Two different payments never produce the same
-   receipt reference. (c) The Arabic reads right to left and the English left to right on the same
-   page. (d) A payment covering the second cycle and part of the third names both.
-10. (a) On Windows, macOS and Linux builds, the print act opens the system print dialog; on macOS
-    this is the case that fails today, because the application does not hold the webview's print
-    permission. (b) Choosing the dialog's PDF destination saves a PDF whose Arabic is shaped,
-    reads right to left, and is selectable. (c) The page carries no sidebar, titlebar, or address
-    of the application's own page.
+   receipt reference. (c) A page chosen in Arabic reads right to left throughout and carries no
+   English; a page chosen in English reads left to right and carries no Arabic. (d) A payment covering the second cycle and part of the third names both.
+10. (a) The print act opens the preview inside the application, on the language the application
+    shows, and switching the language redraws the page. (b) On Windows, *save as PDF* writes the
+    file chosen without any print dialog; on macOS and Linux it opens the system print panel. The
+    PDF's Arabic is shaped, reads right to left, and is selectable. (c) *Print* opens the
+    operating system's print dialog on Windows, macOS and Linux, not the webview's print preview.
+    (d) The page carries no sidebar, titlebar, header, footer, or address of the application's own.
 11. (a) A contract whose next cycle is due in three days and is not covered is under *due soon*.
     (b) The same contract with that cycle prepaid is not. (c) A contract that owes today and has a
     cycle due in three days is under *owing* only. (d) Nothing is under *due soon* for a cycle due
     in eight days.
 12. (a) The act opens `https://wa.me/<number>?text=<message>`, where the number is the tenant's
     phone without its `+`, and the message is URL-encoded. (b) The message names the tenant, the
-    amount, the date and the units, in Arabic when the application shows Arabic and in English
-    when it shows English. (c) The act is not offered on a contract in no rank or on a terminated
+    amount, the date and the units, in the language chosen, which starts on the language the
+    application shows. (c) The act is not offered on a contract in no rank or on a terminated
     one.
 
 # Constraints

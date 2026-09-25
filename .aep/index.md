@@ -129,7 +129,7 @@ Start at [[protocol]].
 | 826-the-organization-and-the-way-in-are-rethought | implemented | [[efforts/826-the-organization-and-the-way-in-are-rethought/spec]] | 2 | 1 | 22 |
 | 828-the-link-needs-a-code-and-the-settings-area-guides | implemented | [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]] | 5 | 0 | 29 |
 | 832-the-interface-speaks-one-language-and-guides | accepted | [[efforts/832-the-interface-speaks-one-language-and-guides/spec]] | 3 | 4 | 43 |
-| 835-the-rent-is-receipted-scheduled-and-chased | accepted | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]] | 1 | 0 | 9 |
+| 835-the-rent-is-receipted-scheduled-and-chased | accepted | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]] | 1 | 0 | 12 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -321,8 +321,11 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/02-a-payment-keeps-a-history]] feat(payment): a payment keeps a history | 835-the-rent-is-receipted-scheduled-and-chased | resolved | — |
 | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/03-a-payment-says-how-it-was-paid]] feat(payment): a payment says how it was paid | 835-the-rent-is-receipted-scheduled-and-chased | resolved | 02 |
 | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/04-a-contract-shows-its-schedule]] feat(contract): a contract shows its schedule | 835-the-rent-is-receipted-scheduled-and-chased | resolved | 01 |
-| [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/05-the-schedule-prints]] feat(desktop): the schedule prints | 835-the-rent-is-receipted-scheduled-and-chased | open | 04 |
-| [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/06-every-payment-has-a-receipt]] feat(payment): every payment has a receipt | 835-the-rent-is-receipted-scheduled-and-chased | open | 01, 03, 05 |
+| [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/05-the-schedule-prints]] feat(desktop): the schedule prints | 835-the-rent-is-receipted-scheduled-and-chased | resolved | 04 |
+| [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/06-every-payment-has-a-receipt]] feat(payment): every payment has a receipt | 835-the-rent-is-receipted-scheduled-and-chased | resolved | 01, 03, 05 |
 | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/07-what-falls-due-this-week-is-on-the-landing-screen]] feat(contract): what falls due this week is on the landing screen | 835-the-rent-is-receipted-scheduled-and-chased | resolved | 01 |
 | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/08-a-tenant-is-reminded-on-whatsapp]] feat(contract): a tenant is reminded on WhatsApp | 835-the-rent-is-receipted-scheduled-and-chased | resolved | 07 |
 | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/09-the-contract-context-names-payment-details-and-the-reminder]] docs(desktop): the contract context names payment details and the reminder | 835-the-rent-is-receipted-scheduled-and-chased | resolved | 03, 08 |
+| [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/10-windows-prints-without-the-browser-preview]] feat(desktop): Windows prints and saves a PDF without the browser preview | 835-the-rent-is-receipted-scheduled-and-chased | open | 06 |
+| [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/11-printing-opens-the-applications-own-preview]] feat(desktop): printing opens the application's own preview | 835-the-rent-is-receipted-scheduled-and-chased | open | 10 |
+| [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/12-remind-tenant-shows-the-message-first]] feat(contract): remind tenant shows the message first | 835-the-rent-is-receipted-scheduled-and-chased | open | 11 |
