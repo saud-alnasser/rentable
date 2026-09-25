@@ -475,7 +475,7 @@ pub fn role_id_of_word(word: &str) -> &'static str {
 }
 
 /// The seven acts of effort 826 that a member's permissions carry: what a command that still names
-/// its acts as one number reads back (`invite`, `change_role`).
+/// its acts as one number reads back (`invite`'s tests, and the interface's bridge until ticket 11).
 pub fn acts_of(permissions: i64) -> i64 {
     permissions & mask_of(&Administration::ALL)
 }
@@ -484,8 +484,8 @@ pub fn acts_of(permissions: i64) -> i64 {
 /// leaves every other flag as the role gives it. The owner carries none.
 ///
 /// **A bridge** for the commands that still say what a member may administer as one number
-/// (`invite`, `change_role`), until they take an override of their own (effort 838, tickets 05
-/// and 07).
+/// (`invite`'s tests), until they take an override of their own (effort 838). *`change_role` was
+/// the other until ticket 07 replaced it with `role::assign_role` and `role::set_override`.*
 pub fn override_for_acts(role_id: &str, role_mask: i64, acts: i64) -> i64 {
     if role_id == OWNER {
         0

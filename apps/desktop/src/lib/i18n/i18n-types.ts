@@ -1090,6 +1090,30 @@ type RootTranslation = {
 				 */
 				rankNotAbove: string
 				/**
+				 * e​v​e​r​y​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​h​a​s​ ​t​h​i​s​ ​r​o​l​e​,​ ​s​o​ ​i​t​ ​i​s​ ​n​o​t​ ​r​e​n​a​m​e​d​,​ ​m​o​v​e​d​ ​o​r​ ​d​e​l​e​t​e​d​.​ ​t​h​e​ ​o​w​n​e​r​'​s​ ​r​o​l​e​ ​a​l​w​a​y​s​ ​c​a​r​r​i​e​s​ ​e​v​e​r​y​t​h​i​n​g​.
+				 */
+				roleBuiltIn: string
+				/**
+				 * g​i​v​e​ ​t​h​e​ ​r​o​l​e​ ​a​ ​n​a​m​e​.
+				 */
+				roleNameMissing: string
+				/**
+				 * a​n​o​t​h​e​r​ ​r​o​l​e​ ​h​a​s​ ​t​h​a​t​ ​n​a​m​e​.​ ​c​h​o​o​s​e​ ​a​ ​d​i​f​f​e​r​e​n​t​ ​o​n​e​.
+				 */
+				roleNameTaken: string
+				/**
+				 * a​ ​r​o​l​e​ ​g​o​e​s​ ​b​e​l​o​w​ ​t​h​e​ ​m​a​n​a​g​e​r​ ​a​n​d​ ​a​b​o​v​e​ ​t​h​e​ ​m​e​m​b​e​r​.
+				 */
+				roleOutOfPlace: string
+				/**
+				 * t​h​e​r​e​ ​i​s​ ​n​o​ ​r​o​o​m​ ​l​e​f​t​ ​b​e​l​o​w​ ​y​o​u​r​ ​r​o​l​e​.​ ​a​s​k​ ​s​o​m​e​b​o​d​y​ ​w​h​o​ ​r​a​n​k​s​ ​a​b​o​v​e​ ​y​o​u​.
+				 */
+				noRankBelow: string
+				/**
+				 * t​h​e​ ​o​w​n​e​r​'​s​ ​r​o​l​e​ ​m​o​v​e​s​ ​o​n​l​y​ ​w​h​e​n​ ​t​h​e​ ​o​w​n​e​r​ ​h​a​n​d​s​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​o​v​e​r​.
+				 */
+				ownerRoleNotAssigned: string
+				/**
 				 * y​o​u​ ​a​r​e​ ​t​h​e​ ​o​w​n​e​r​ ​a​l​r​e​a​d​y​.​ ​c​h​o​o​s​e​ ​t​h​e​ ​a​c​c​o​u​n​t​ ​t​h​a​t​ ​i​s​ ​t​o​ ​h​a​v​e​ ​i​t​.
 				 */
 				alreadyOwner: string
@@ -5123,6 +5147,30 @@ export type TranslationFunctions = {
 				 * that role is not below your own. ask somebody who ranks above it.
 				 */
 				rankNotAbove: () => LocalizedString
+				/**
+				 * every organization has this role, so it is not renamed, moved or deleted. the owner's role always carries everything.
+				 */
+				roleBuiltIn: () => LocalizedString
+				/**
+				 * give the role a name.
+				 */
+				roleNameMissing: () => LocalizedString
+				/**
+				 * another role has that name. choose a different one.
+				 */
+				roleNameTaken: () => LocalizedString
+				/**
+				 * a role goes below the manager and above the member.
+				 */
+				roleOutOfPlace: () => LocalizedString
+				/**
+				 * there is no room left below your role. ask somebody who ranks above you.
+				 */
+				noRankBelow: () => LocalizedString
+				/**
+				 * the owner's role moves only when the owner hands the organization over.
+				 */
+				ownerRoleNotAssigned: () => LocalizedString
 				/**
 				 * you are the owner already. choose the account that is to have it.
 				 */

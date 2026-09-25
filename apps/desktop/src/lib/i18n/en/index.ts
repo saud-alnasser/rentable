@@ -325,6 +325,14 @@ const en = {
 				roleLacksAct: 'your role does not include this. ask an administrator.',
 				notAdministrator: 'only an administrator can do this.',
 				rankNotAbove: 'that role is not below your own. ask somebody who ranks above it.',
+				roleBuiltIn:
+					"every organization has this role, so it is not renamed, moved or deleted. the owner's role always carries everything.",
+				roleNameMissing: 'give the role a name.',
+				roleNameTaken: 'another role has that name. choose a different one.',
+				roleOutOfPlace: 'a role goes below the manager and above the member.',
+				noRankBelow: 'there is no room left below your role. ask somebody who ranks above you.',
+				ownerRoleNotAssigned:
+					"the owner's role moves only when the owner hands the organization over.",
 				alreadyOwner: 'you are the owner already. choose the account that is to have it.',
 				accountNotSetUp:
 					'that account has no password of its own yet. once they open their link and choose one, offer it again.',

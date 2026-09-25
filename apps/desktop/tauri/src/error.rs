@@ -80,7 +80,8 @@ pub enum Error {
 /// The first four are a link's standing after its code was right (effort 828): an invitation is
 /// `Lapsed`, `Consumed` or `Revoked`, and a machine link is `Lapsed`, `Consumed` or `Replaced`.
 /// The connect screen routes on those four by name. Every other word was added by effort 832,
-/// but the two for the organization's format and the one for a rank, which effort 838 added.
+/// but the two for the organization's format, the one for a rank and the six for roles, which
+/// effort 838 added.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum RefusalReason {
@@ -134,7 +135,7 @@ pub enum RefusalReason {
     UsernameInvalid,
     /// the username is taken in this organization.
     UsernameTaken,
-    /// a role that is neither administrator nor member.
+    /// a role this organization does not hold.
     RoleUnknown,
     /// the member acted on is not in this organization.
     MemberMissing,
@@ -157,6 +158,22 @@ pub enum RefusalReason {
     /// the role acted on, or the member's role, is not ranked below the reader's (effort 838,
     /// requirement 7).
     RankNotAbove,
+
+    // roles (effort 838, requirements 3, 4 and 5).
+    /// one of the three roles every organization has, which is not renamed, moved or deleted, and
+    /// the owner's, whose mask is not edited.
+    RoleBuiltIn,
+    /// a role was given no name.
+    RoleNameMissing,
+    /// another role is called that.
+    RoleNameTaken,
+    /// a custom role goes below the manager and above the member, and below another role than
+    /// itself.
+    RoleOutOfPlace,
+    /// no rank is left below the reader's role for another.
+    NoRankBelow,
+    /// the owner's role is not assigned; the owner hands the organization over.
+    OwnerRoleNotAssigned,
 
     // handing the organization over.
     /// the owner offered the organization to themselves.

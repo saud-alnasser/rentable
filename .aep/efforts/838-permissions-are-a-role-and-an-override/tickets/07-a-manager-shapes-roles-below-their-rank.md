@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [05, 06]
 ---
 
@@ -16,23 +16,23 @@ machine off, and it verifies on the next sync.
 
 Traces requirements 3, 4, 5, 6, 7 and 9 of [[efforts/838-permissions-are-a-role-and-an-override/spec]], and criteria 1, 3, 4, 5, 6, 7 and 9.
 
-- [ ] `organization_roles`, `role_create`, `role_rename`, `role_set_mask`, `role_move`,
+- [x] `organization_roles`, `role_create`, `role_rename`, `role_set_mask`, `role_move`,
       `role_delete`, `member_assign_role` (replacing `member_change_role`) and `member_set_override`
       exist with the signatures and gates in [[efforts/838-permissions-are-a-role-and-an-override/plan]], *Interfaces*.
-- [ ] Deleting or renaming a built-in role, or editing the owner's mask, is refused; the owner edits
+- [x] Deleting or renaming a built-in role, or editing the owner's mask, is refused; the owner edits
       the manager's and the member's masks (criterion 3).
-- [ ] The role lifecycle: custom ranks stay strictly between member and manager after every move,
+- [x] The role lifecycle: custom ranks stay strictly between member and manager after every move,
       a renumbering included; deleting a role moves its holders to member, reading the member mask
       XOR their override (criterion 4).
-- [ ] Assigning the owner role is refused (criterion 5); the owner's row refuses an override
+- [x] Assigning the owner role is refused (criterion 5); the owner's row refuses an override
       (criterion 6).
-- [ ] The rank matrix: for each management flag and each of above, equal, below and self, every act;
+- [x] The rank matrix: for each management flag and each of above, equal, below and self, every act;
       only strictly below succeeds. A holder of every management flag lacking one record flag
       switches it in a role and in an override, on and off, and is refused both ways (criterion 7).
-- [ ] Three stores on one database, no organization key derivable: a manager assigns a role holding
+- [x] Three stores on one database, no organization key derivable: a manager assigns a role holding
       `inviteMember` to a member, and after a sync that member's invitation row verifies on the
       third store; editing a role's mask re-issues every holder's certificate (criterion 9).
-- [ ] A Rust test lists every organization command with its gate and fails on one with none
+- [x] A Rust test lists every organization command with its gate and fails on one with none
       (criterion 1, the Rust half).
 
 ## Relevant areas

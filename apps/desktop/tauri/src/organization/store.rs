@@ -1235,7 +1235,7 @@ impl OrganizationStore {
     ///
     /// **`session_epoch` never comes down here.** It is outside the preimage and inside a
     /// whole-row replace, and the three callers that rewrite a row from one they read
-    /// (`invite::rename_member`, `role::change_role`, `removal::retire_member`) read it off this
+    /// (`invite::rename_member`, `role::apply`, `removal::retire_member`) read it off this
     /// machine's replica. A replica that has not pulled since somebody else ended a member's
     /// sessions still carries the number from before, and writing that back would re-admit every
     /// machine the sign-out locked out. So the row keeps the greater of what it holds and what
@@ -3659,7 +3659,7 @@ mod tests {
     /// The interleaving this stands for: somebody ends a member's sessions, the row goes to 1
     /// and is pushed; an administrator whose replica has not pulled since fixes a typo in that
     /// member's username, and `invite::rename_member` writes the row back whole from the record
-    /// it read, which still carries 0. `role::change_role` and `removal::retire_member` write
+    /// it read, which still carries 0. `role::apply` and `removal::retire_member` write
     /// the same shape, `..member.clone()` with two fields moved, so the three are one case.
     /// Without the guard the row lands back at 0 and every machine the sign-out locked out opens
     /// again on its remembered key.

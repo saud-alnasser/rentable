@@ -345,9 +345,9 @@ export const organization = router({
 			}),
 		/**
 		 * A role and the acts that go with it, written together. This side refuses a caller whose
-		 * row does not carry `changeRole`; whether the row is the caller's own or the owner's, and
-		 * whether the change hands out an act that signs rows, are Rust's, because the second of
-		 * those turns on the organization key rather than on a bit.
+		 * row does not carry `changeRole`; whether the row is the caller's own or the owner's, whether
+		 * it ranks below the caller, and whether every flag the change moves is one the caller holds,
+		 * are Rust's, because each turns on verified rows this side does not read.
 		 */
 		changeRole: procedure
 			.permitted('changeRole')

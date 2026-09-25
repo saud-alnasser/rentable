@@ -835,7 +835,7 @@ pub async fn end_elsewhere(
 ///
 /// Two rows are refused. The caller's own, because ending your own sessions and keeping this one
 /// is [`end_elsewhere`] and does something different; and the owner's, which is the line
-/// `role::change_role` draws in the same words. **Any other row is ended only from above**
+/// `role::assign_role` and `role::set_override` draw too. **Any other row is ended only from above**
 /// (effort 838, requirement 7): a member whose role does not rank below the actor's is refused by
 /// rank, the way a reset of them is, and the gate reads the actor's verified row rather than the
 /// session's snapshot of it ([`Actor`]).

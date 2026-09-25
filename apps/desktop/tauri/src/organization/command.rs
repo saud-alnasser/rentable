@@ -22,7 +22,7 @@ use super::{
     migration::{self, MigrationPhase, PipelineLease},
     password,
     removal::{self, LockOutCost, Removed},
-    role,
+    role::{self, RoleFacts},
     session::{
         self, CredentialSlot, MemberSession, Resumption, SessionFacts, SessionsEnded,
         WorkspaceFacts,
@@ -1457,16 +1457,116 @@ pub async fn machine_connect(
     state_of(&app_state).await
 }
 
-/// Change what a member is called and what they may do: both written on their row, re-signed, and
-/// their certificate issued or revoked to match. Nobody changes their own row or the owner's, and
-/// giving somebody an act that signs rows is the owner's, because certifying a signer needs the
-/// organization key only their vault yields. What comes back is the member as the list shows them.
+/// Every role, highest rank first: the owner's, the manager's, the custom roles in order, and the
+/// member's, each with what it carries and how many members hold it (effort 838, requirement 12).
+/// Any signed-in member reads it, off the replica; a custom role's name is opened with the content
+/// key the session holds, and nothing about a certificate crosses.
 #[tauri::command]
-pub async fn member_change_role(
+pub async fn organization_roles(
+    app_state: tauri::State<'_, AppState>,
+) -> Result<Vec<RoleFacts>, Error> {
+    let mut member = app_state.member.write().await;
+    let store = app_state.organization.read().await;
+    let (member, store) = signed_in(&mut member, &store)?;
+
+    role::roles(store, member).await
+}
+
+/// Make a custom role, named and carrying `mask`, directly below `after_role_id` (effort 838,
+/// requirement 4). `manageRoles`, below the actor's rank, and only flags the actor holds.
+#[tauri::command]
+pub async fn role_create(
+    app_state: tauri::State<'_, AppState>,
+    name: String,
+    mask: i64,
+    after_role_id: String,
+) -> Result<RoleFacts, Error> {
+    let mut member = app_state.member.write().await;
+    let store = app_state.organization.read().await;
+    let (member, store) = signed_in(&mut member, &store)?;
+    // making room can renumber roles somebody holds, whose rows are written back whole and carry
+    // the session epoch, so they are read after a pull (effort 826, requirement 22).
+    store.pull().await;
+
+    role::create_role(store, member, &name, mask, &after_role_id, timestamp::now()).await
+}
+
+/// Rename a custom role. `manageRoles`, below the actor's rank; a built-in role is refused.
+#[tauri::command]
+pub async fn role_rename(
+    app_state: tauri::State<'_, AppState>,
+    role_id: String,
+    name: String,
+) -> Result<RoleFacts, Error> {
+    let mut member = app_state.member.write().await;
+    let store = app_state.organization.read().await;
+    let (member, store) = signed_in(&mut member, &store)?;
+    store.pull().await;
+
+    role::rename_role(store, member, &role_id, &name, timestamp::now()).await
+}
+
+/// Change what a role carries: the manager's, the member's or a custom role's, never the owner's.
+/// `manageRoles`, below the actor's rank, and only flags the actor holds; every holder's
+/// certificate is issued again in the same act.
+#[tauri::command]
+pub async fn role_set_mask(
+    app_state: tauri::State<'_, AppState>,
+    role_id: String,
+    mask: i64,
+) -> Result<RoleFacts, Error> {
+    let mut member = app_state.member.write().await;
+    let store = app_state.organization.read().await;
+    let (member, store) = signed_in(&mut member, &store)?;
+    // every holder's row is written back whole, and it carries the session epoch.
+    store.pull().await;
+
+    role::set_role_mask(store, member, &role_id, mask, timestamp::now()).await
+}
+
+/// Move a custom role to directly below `after_role_id`. `manageRoles`, and both the role and the
+/// place it moves to below the actor's rank; every holder of a role whose rank moved is issued a
+/// certificate carrying the new one.
+#[tauri::command]
+pub async fn role_move(
+    app_state: tauri::State<'_, AppState>,
+    role_id: String,
+    after_role_id: String,
+) -> Result<RoleFacts, Error> {
+    let mut member = app_state.member.write().await;
+    let store = app_state.organization.read().await;
+    let (member, store) = signed_in(&mut member, &store)?;
+    store.pull().await;
+
+    role::move_role(store, member, &role_id, &after_role_id, timestamp::now()).await
+}
+
+/// Delete a custom role; everybody who held it holds the member role from here on. `manageRoles`,
+/// below the actor's rank, and only flags the actor holds, over what moving the holders changes.
+#[tauri::command]
+pub async fn role_delete(
+    app_state: tauri::State<'_, AppState>,
+    role_id: String,
+) -> Result<(), Error> {
+    let mut member = app_state.member.write().await;
+    let store = app_state.organization.read().await;
+    let (member, store) = signed_in(&mut member, &store)?;
+    store.pull().await;
+
+    role::delete_role(store, member, &role_id, timestamp::now()).await
+}
+
+/// Give a member a role (effort 838, requirement 5): their row names it, re-signed, and their
+/// certificate is issued again from the actor's in the same act, so a flag that signs rows is in
+/// force on the next sync with the owner's machine off (requirement 9). `assignRole`, the member
+/// and the role both below the actor's rank, never the actor's own row, only flags the actor
+/// holds; the owner's role is not assigned. What comes back is the member as the list shows them.
+/// *It was `member_change_role`, which wrote a role's word and seven acts, until effort 838.*
+#[tauri::command]
+pub async fn member_assign_role(
     app_state: tauri::State<'_, AppState>,
     member_id: String,
-    role: String,
-    permissions: i64,
+    role_id: String,
 ) -> Result<MemberFacts, Error> {
     let mut member = app_state.member.write().await;
     let store = app_state.organization.read().await;
@@ -1475,15 +1575,25 @@ pub async fn member_change_role(
     // rather than off this machine's last sight of it (effort 826, requirement 22).
     store.pull().await;
 
-    role::change_role(
-        store,
-        member,
-        &member_id,
-        &role,
-        permissions,
-        timestamp::now(),
-    )
-    .await
+    role::assign_role(store, member, &member_id, &role_id, timestamp::now()).await
+}
+
+/// Set a member's override, the flags switched for them alone (effort 838, requirement 6);
+/// `overrideMask` on the wire, for the reason `member_create` gives. `overrideMember`, the member
+/// below the actor's rank, never the actor's own row, only flags the actor holds; the owner's row
+/// carries none.
+#[tauri::command]
+pub async fn member_set_override(
+    app_state: tauri::State<'_, AppState>,
+    member_id: String,
+    override_mask: i64,
+) -> Result<MemberFacts, Error> {
+    let mut member = app_state.member.write().await;
+    let store = app_state.organization.read().await;
+    let (member, store) = signed_in(&mut member, &store)?;
+    store.pull().await;
+
+    role::set_override(store, member, &member_id, override_mask, timestamp::now()).await
 }
 
 /// Offer the organization to another account: the first of the two acts a handover is (effort
@@ -3166,5 +3276,218 @@ mod tests {
 
         assert_eq!(state.session.expect("the session").role, "administrator");
         assert!(!state.signed_out_elsewhere);
+    }
+
+    // -------------------------------------------------------------------------------------
+    // Effort 838, criterion 1: every organization command names its gate.
+    // -------------------------------------------------------------------------------------
+
+    use crate::organization::permission::Flag;
+
+    /// What stands in front of an organization command before it does anything.
+    ///
+    /// **The flag is asked of the verified row by the act behind the command**, and never of the
+    /// session's snapshot; this table is the list of which, so a command added without one is a
+    /// test that fails rather than an act anybody may perform.
+    #[derive(Clone, Copy, Debug)]
+    enum Gate {
+        /// before there is anybody to act as: the first run, a connect, a link, the wall.
+        Public,
+        /// this machine's own hold on the organization, which is its to let go of: a sign-out,
+        /// a disconnect, the Turso consent it holds.
+        ThisMachine,
+        /// the signed-in member's own session or row, and nobody else's.
+        Own,
+        /// what every signed-in member reads.
+        SignedIn,
+        /// the flag, off the actor's verified row.
+        Flag(Flag),
+        /// any of the flags, off the actor's verified row.
+        AnyFlag(&'static [Flag]),
+        /// the owner's verified row, carrying the flag: the acts that need the Turso authority
+        /// or hand the organization on (`session::Actor::require_owner`).
+        Owner(Flag),
+    }
+
+    /// Every command `command.rs` declares, with its gate.
+    const GATES: &[(&str, Gate)] = &[
+        ("organization_create", Gate::Public),
+        ("organization_group_inspect", Gate::Public),
+        ("organization_connect_existing", Gate::Public),
+        ("organization_state_get", Gate::Public),
+        ("organization_disconnect", Gate::ThisMachine),
+        ("organization_delete", Gate::Owner(Flag::DeleteOrganization)),
+        ("organization_sign_in", Gate::Public),
+        ("organization_sign_out", Gate::ThisMachine),
+        ("workspace_create", Gate::Owner(Flag::CreateWorkspace)),
+        ("workspace_grant", Gate::Flag(Flag::GrantWorkspace)),
+        ("workspace_grant_withdraw", Gate::Flag(Flag::GrantWorkspace)),
+        ("workspace_delete", Gate::Owner(Flag::DeleteWorkspace)),
+        ("workspace_open", Gate::Own),
+        (
+            "organization_renew_credentials",
+            Gate::Owner(Flag::RenewCredentials),
+        ),
+        (
+            "organization_renew_due",
+            Gate::Owner(Flag::RenewCredentials),
+        ),
+        ("member_create", Gate::Flag(Flag::InviteMember)),
+        (
+            "member_link_make",
+            Gate::AnyFlag(&[Flag::InviteMember, Flag::ResetPassword]),
+        ),
+        ("member_password_unset", Gate::Flag(Flag::ResetPassword)),
+        ("invitation_accept", Gate::Public),
+        ("machine_connect", Gate::Public),
+        ("organization_roles", Gate::SignedIn),
+        ("role_create", Gate::Flag(Flag::ManageRoles)),
+        ("role_rename", Gate::Flag(Flag::ManageRoles)),
+        ("role_set_mask", Gate::Flag(Flag::ManageRoles)),
+        ("role_move", Gate::Flag(Flag::ManageRoles)),
+        ("role_delete", Gate::Flag(Flag::ManageRoles)),
+        ("member_assign_role", Gate::Flag(Flag::AssignRole)),
+        ("member_set_override", Gate::Flag(Flag::OverrideMember)),
+        (
+            "member_offer_ownership",
+            Gate::Owner(Flag::TransferOwnership),
+        ),
+        (
+            "member_withdraw_offer",
+            Gate::Owner(Flag::TransferOwnership),
+        ),
+        ("ownership_accept", Gate::Own),
+        ("member_rename", Gate::Flag(Flag::RenameMember)),
+        ("organization_mark_get", Gate::SignedIn),
+        ("organization_mark_set", Gate::Flag(Flag::ManageMark)),
+        ("organization_mark_clear", Gate::Flag(Flag::ManageMark)),
+        ("organization_session_end_elsewhere", Gate::Own),
+        ("member_end_sessions", Gate::Flag(Flag::ResetPassword)),
+        ("member_lock_out_cost", Gate::Flag(Flag::RemoveMember)),
+        ("member_remove", Gate::Flag(Flag::RemoveMember)),
+        (
+            "organization_account_refusal_detail",
+            Gate::Owner(Flag::TursoAccount),
+        ),
+        ("organization_change_password", Gate::Own),
+        ("organization_members", Gate::SignedIn),
+        ("organization_member_standings", Gate::SignedIn),
+        ("organization_link_take", Gate::Public),
+        ("organization_link_read", Gate::Public),
+        ("organization_reconnect_authority", Gate::ThisMachine),
+    ];
+
+    /// The name of every `#[tauri::command]` in a source file, in order.
+    fn declared_commands(source: &str) -> Vec<String> {
+        let lines: Vec<&str> = source.lines().collect();
+
+        lines
+            .iter()
+            .enumerate()
+            .filter(|(_, line)| line.trim() == "#[tauri::command]")
+            .filter_map(|(index, _)| {
+                let signature = lines.get(index + 1)?.trim();
+                let name = signature
+                    .strip_prefix("pub async fn ")
+                    .or_else(|| signature.strip_prefix("pub fn "))?;
+
+                Some(name.split('(').next()?.to_string())
+            })
+            .collect()
+    }
+
+    /// Every command of this module the application registers: each `organization::<name>` in
+    /// `lib.rs`'s handler list.
+    fn registered_commands(source: &str) -> Vec<String> {
+        let handlers = source
+            .split("tauri::generate_handler![")
+            .nth(1)
+            .and_then(|rest| rest.split(']').next())
+            .expect("lib.rs registers no handlers");
+
+        handlers
+            .split(',')
+            .filter_map(|entry| entry.trim().strip_prefix("organization::"))
+            .map(str::to_string)
+            .collect()
+    }
+
+    /// The commands that name no gate, and the gates that name no command.
+    fn ungated(declared: &[String], gates: &[(&str, Gate)]) -> (Vec<String>, Vec<String>) {
+        let named: Vec<&str> = gates.iter().map(|(name, _)| *name).collect();
+
+        (
+            declared
+                .iter()
+                .filter(|command| !named.contains(&command.as_str()))
+                .cloned()
+                .collect(),
+            named
+                .iter()
+                .filter(|name| !declared.iter().any(|command| command == *name))
+                .map(|name| name.to_string())
+                .collect(),
+        )
+    }
+
+    /// **Criterion 1, the Rust half.** Every command this module declares, and every one the
+    /// application registers from it, names its gate here; a command with none fails, naming it,
+    /// and so does a gate for a command that is gone. The flags named are the vocabulary's own,
+    /// so each is a bit a refusal names.
+    #[test]
+    fn every_organization_command_names_its_gate() {
+        let declared = declared_commands(include_str!("command.rs"));
+        let registered = registered_commands(include_str!("../lib.rs"));
+
+        assert!(
+            declared.len() > 40,
+            "the declarations were not read: {declared:?}"
+        );
+        assert_eq!(
+            {
+                let mut sorted = registered.clone();
+                sorted.sort();
+                sorted
+            },
+            {
+                let mut sorted = declared.clone();
+                sorted.sort();
+                sorted
+            },
+            "lib.rs registers a different set of organization commands than command.rs declares"
+        );
+
+        let (without, stale) = ungated(&declared, GATES);
+
+        assert!(without.is_empty(), "commands with no gate: {without:?}");
+        assert!(stale.is_empty(), "gates naming no command: {stale:?}");
+
+        for (name, gate) in GATES {
+            let flags: Vec<Flag> = match gate {
+                Gate::Flag(flag) | Gate::Owner(flag) => vec![*flag],
+                Gate::AnyFlag(flags) => flags.to_vec(),
+                Gate::Public | Gate::ThisMachine | Gate::Own | Gate::SignedIn => Vec::new(),
+            };
+
+            for flag in flags {
+                assert!(Flag::ALL.contains(&flag), "{name} names {}", flag.name());
+            }
+
+            if let Gate::Owner(flag) = gate {
+                assert!(
+                    crate::organization::permission::OWNER_ONLY.contains(flag),
+                    "{name} is the owner's under {}, which is not one of the owner's flags",
+                    flag.name()
+                );
+            }
+        }
+
+        // and the check itself: a command declared with no gate is named.
+        let (without, _) = ungated(
+            &["member_widen_everything".to_string()],
+            &[("organization_members", Gate::SignedIn)],
+        );
+
+        assert_eq!(without, vec!["member_widen_everything".to_string()]);
     }
 }

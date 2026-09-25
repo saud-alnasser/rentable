@@ -727,9 +727,10 @@ export type Host = {
 			/** what locking a member out would cost, before it is done. */
 			lockOutCost: (memberId: string) => Promise<LockOutCost>;
 			/**
-			 * change what a member is called and what they may do: both written on their row,
-			 * re-signed, and their certificate issued or revoked to match. Nobody changes their own
-			 * row or the owner's, and giving somebody an act that signs rows is the owner's.
+			 * change what a member is called and what they may do: the role their row names and
+			 * their override, each re-signed, and their certificate issued again from the caller's to
+			 * match. Nobody changes their own row or the owner's, nor one ranked at or above their
+			 * own, nor a flag they do not hold.
 			 */
 			changeRole: (
 				memberId: string,

@@ -109,14 +109,16 @@ function mapUpdate(update: TauriUpdate): AvailableUpdate {
 }
 
 /**
- * The role and the override `member_create` takes, from the word and the seven acts the invite
- * form still speaks (effort 838).
+ * The role and the override `member_create` takes, and `member_assign_role` and
+ * `member_set_override` write, from the word and the seven acts the member forms still speak
+ * (effort 838).
  *
- * **A bridge.** The command makes an account in one role with one override; the form picks
- * administrator or member and the acts they carry. An administrator is the manager's role, and
- * the override switches exactly the acts that differ from what the role carries, leaving every
- * other flag as the role gives it. Ticket 11 of effort 838 gives the form a role picker and an
- * override of its own, and this goes.
+ * **A bridge.** The commands take one role and one override; the forms pick administrator or
+ * member and the acts they carry. An administrator is the manager's role, and the override
+ * switches exactly the acts that differ from what the role carries, leaving every other flag as
+ * the role gives it. A change is the role first and the override after it, two acts Rust holds
+ * each to its own gate. Ticket 11 of effort 838 gives the forms a role picker and an override of
+ * their own, and this goes.
  */
 function roleAndOverride(
 	role: Exclude<Role, 'owner'>,
@@ -336,8 +338,17 @@ export const tauri = {
 			lockOutCost: (memberId: string) => invoke<LockOutCost>('member_lock_out_cost', { memberId }),
 			rename: (memberId: string, username: string) =>
 				invoke<OrganizationMember>('member_rename', { memberId, username }),
-			changeRole: (memberId: string, role: 'administrator' | 'member', permissions: number) =>
-				invoke<OrganizationMember>('member_change_role', { memberId, role, permissions }),
+			changeRole: async (
+				memberId: string,
+				role: 'administrator' | 'member',
+				permissions: number
+			) => {
+				const { roleId, overrideMask } = roleAndOverride(role, permissions);
+
+				await invoke<OrganizationMember>('member_assign_role', { memberId, roleId });
+
+				return invoke<OrganizationMember>('member_set_override', { memberId, overrideMask });
+			},
 			offerOwnership: (memberId: string, password: string) =>
 				invoke<OrganizationMember>('member_offer_ownership', { memberId, password }),
 			withdrawOffer: () => invoke<void>('member_withdraw_offer'),
