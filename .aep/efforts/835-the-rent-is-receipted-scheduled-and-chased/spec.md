@@ -1,5 +1,5 @@
 ---
-status: draft
+status: accepted
 ---
 
 # Problem
@@ -65,8 +65,15 @@ on notifying ([[rules/interface]], *Notifying is these two and nothing else*) is
    or SADAD number); the note is free text. Both optional, both set on the payment form, both
    shown on the payment's record.
 3. **The reference is searchable.** Typing a payment's reference into the payments search finds it.
-4. **The new fields behave like every other payment field**: an edit to them is undone by undo,
-   and recorded in history, exactly as an edit to the date or amount is ([[rules/data]], *Undo*).
+4. **A payment keeps a history, and the new fields are part of it.** Recording, editing and
+   deleting a single payment each write an entry, as deleting several already does
+   (`useDeleteManyPayments` is the only payment write that records one today), and a payment's
+   record shows its history as a contract's does. An edit to the new fields is undone by undo,
+   exactly as an edit to the date or amount is ([[rules/data]], *Undo*).
+
+   *Decided by the human on 2026-09-25, at the plan:* the draft said an edit is "recorded in
+   history, exactly as an edit to the date or amount is"; reading the code showed neither is, and
+   the human chose to record payment history rather than drop the clause.
 
 ## Schedule
 
@@ -88,8 +95,11 @@ on notifying ([[rules/interface]], *Notifying is these two and nothing else*) is
 
 ## Receipt
 
-8. **Every payment has a receipt**, reached from the payment's record, from its row in a
-   contract's ledger, and offered right after the payment is recorded.
+8. **Every payment has a receipt**, reached wherever a payment's acts are offered: its record,
+   its card in a contract's ledger, and the palette.
+
+   *Decided by the human on 2026-09-25, at the plan:* the draft also offered it in the confirmation
+   after recording; that confirmation carries one offer, undo, and the human chose to keep it so.
 9. **A receipt states**, on one page, in Arabic and in English:
    - that it is a receipt (سند قبض), and a reference that identifies this payment and no other;
    - who issued it: the workspace the payment was recorded in;
@@ -98,7 +108,8 @@ on notifying ([[rules/interface]], *Notifying is these two and nothing else*) is
    - how it was paid, and its reference, where recorded;
    - what it was for: the contract (with its Ejar number where recorded), its units and their
      complex, and the cycles this payment covers, by the order of requirement 6;
-   - what the contract still owes after this payment.
+   - what remains of the contract's total cost after this payment, counting the payments the
+     allocation takes before it and this one.
 10. **A receipt can be printed, and saved as a PDF, through the system's print dialog** on every
     platform the application ships on. The dialog is the one path that works on all three
     ([[efforts/835-the-rent-is-receipted-scheduled-and-chased/evidence/research/printing-a-page-from-the-webview]]);
@@ -111,8 +122,10 @@ on notifying ([[rules/interface]], *Notifying is these two and nothing else*) is
     cycle's due date is within the next seven days and which that cycle is not already covered
     in full. It is a rank, *due soon*, read after *owing* and before *ending soon*, and a contract
     in a money rank stays in that rank, as a contract is in one rank only today.
-12. **A tenant can be reminded on WhatsApp in one act**, from a contract in *overdue*, *owing* or
-    *due soon*, on the landing screen and on the contract's record. The act opens WhatsApp
+12. **A tenant can be reminded on WhatsApp in one act**, on a contract in *overdue*, *owing* or
+    *due soon*, wherever a contract's acts are offered: the landing screen, the contract's record,
+    the contracts directory, and the palette ([[rules/interface]], *Record card actions*: an act
+    offered on one of them is offered on all). The act opens WhatsApp
     addressed to the tenant's phone, with a message already written that names the tenant, the
     amount, the date it is or was due, and the units, in the language the application is showing.
     The landlord reads it and sends it; the application sends nothing.
@@ -127,7 +140,9 @@ on notifying ([[rules/interface]], *Notifying is these two and nothing else*) is
 3. A payment whose reference is `SADAD-7731` is found by searching `7731` in the payments search,
    in both locales.
 4. (a) Editing a payment's method, reference or note and pressing undo restores the old values.
-   (b) The edit is an entry in the payment's history.
+   (b) Recording a payment, editing it, and undoing the edit each add an entry, and the payment's
+   record lists them, newest first. (c) Deleting a single payment writes an entry, as deleting
+   several does.
 5. A twelve-month contract on a quarterly interval shows four rows, due on the start date and on
    the first day of each following quarter, each due the contract's cost.
 6. (a) On any contract that is not terminated, the sum of what is not covered across every late
@@ -140,8 +155,8 @@ on notifying ([[rules/interface]], *Notifying is these two and nothing else*) is
 7. Printing the schedule from a contract's record produces a page carrying every row of
    criterion 5's contract, with Arabic and English headings, in both appearances of the
    application.
-8. (a) The receipt is reachable from a payment's record and from its ledger row. (b) Recording a
-   payment offers its receipt in the confirmation that follows, beside undo.
+8. The receipt act is offered on every payment's record, on its ledger card, and in the palette,
+   and is not refused on a terminated contract's payments (a receipt changes nothing).
 9. (a) A receipt carries every item of requirement 9, and omits method and reference, not their
    labels only, where they are not recorded. (b) Two different payments never produce the same
    receipt reference. (c) The Arabic reads right to left and the English left to right on the same
@@ -203,6 +218,11 @@ on notifying ([[rules/interface]], *Notifying is these two and nothing else*) is
 - **Freezing a receipt.** A receipt is produced from the payment as it stands; editing the payment
   and printing again gives the edited receipt.
 - **Attachments** (a scan of the cheque or the transfer).
+- **Offering the receipt in the confirmation after recording.** It carries undo alone
+  ([[rules/interface]], *Undo*).
+- **A contract's history listing its payments' entries.** A payment's entries are read on the
+  payment's record; a deleted payment's entries are recorded and have no record to be read on,
+  as is already true of a bulk deletion.
 - **Writing a PDF without the print dialog.** Possible on Windows and macOS only through native
   webview code, and not dependable on Linux (WebKit bug 212814), so it would be a platform-shaped
   feature; the dialog's PDF destination serves all three.
