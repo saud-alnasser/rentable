@@ -897,6 +897,7 @@ const en = {
 		},
 
 		ranks: {
+			dueSoon: 'due soon',
 			endingSoon: 'ending soon',
 			overdue: 'overdue',
 			owing: 'owing'

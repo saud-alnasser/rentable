@@ -93,7 +93,14 @@ A contract past its end date, not terminated, and still outstanding. Every `defa
 contract qualifies, because past the end date the amount due is the total cost — so the
 two coincide, and the word is the queue's rather than the status model's.
 
-Neither reaches a terminated contract, whatever it owes: termination locks the contract,
+**Due soon**:
+A contract owing nothing today whose next cycle, in its _schedule_, falls due within the next
+seven days and is not covered in full. Read after _owing_ and before _ending soon_, and like them a
+presentation concern rather than a status. Nothing is owed on it yet, so it adds nothing to the
+_outstanding_; a contract that owes today and has a cycle coming due is _owing_ only.
+_Avoid_: مستحق for it in Arabic, which is _owing_'s word
+
+None of these reaches a terminated contract, whatever it owes: termination locks the contract,
 so the debt is a closed matter rather than work.
 
 **Contract status**:

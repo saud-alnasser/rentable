@@ -2763,6 +2763,10 @@ type RootTranslation = {
 		}
 		ranks: {
 			/**
+			 * d​u​e​ ​s​o​o​n
+			 */
+			dueSoon: string
+			/**
 			 * e​n​d​i​n​g​ ​s​o​o​n
 			 */
 			endingSoon: string
@@ -6534,6 +6538,10 @@ export type TranslationFunctions = {
 			trackSummary: () => LocalizedString
 		}
 		ranks: {
+			/**
+			 * due soon
+			 */
+			dueSoon: () => LocalizedString
 			/**
 			 * ending soon
 			 */

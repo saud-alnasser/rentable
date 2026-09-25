@@ -859,6 +859,7 @@ const ar = {
 		},
 
 		ranks: {
+			dueSoon: 'يستحق قريبًا',
 			endingSoon: 'قريب الانتهاء',
 			overdue: 'متأخر',
 			owing: 'مستحق'

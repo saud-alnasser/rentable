@@ -12,6 +12,7 @@ import {
 import {
 	compareContractsByRank,
 	getContractRank,
+	getDueSoonCycle,
 	isContractEndingSoon,
 	summarizeContractRanks,
 	type ContractRank,
@@ -49,6 +50,11 @@ type DashboardQueueEntry = {
 	contractEnd: number;
 	/** Set on a contract filed under the money that also ends inside the notice window. */
 	isEndingSoon: boolean;
+	/**
+	 * On a due-soon contract, the cycle coming due: the day it falls due and what of it is unpaid.
+	 * A due-soon contract owes nothing today, so this is the amount its row states in place of one.
+	 */
+	comingDue?: { due: number; amount: number };
 };
 
 /** The portfolio figures the screen's band carries, and nothing else. */
@@ -108,9 +114,8 @@ export default procedure.member
 					0
 				);
 				const rank = getContractRank(
-					serializedContract.status,
-					contract.end,
-					outstandingAmount,
+					contract,
+					serializedContract.paidAmount,
 					now,
 					settings.endingSoonNoticeDays
 				);
@@ -118,6 +123,11 @@ export default procedure.member
 				if (!rank) {
 					return [];
 				}
+
+				const comingDue =
+					rank === 'due-soon'
+						? getDueSoonCycle(contract, serializedContract.paidAmount, now)
+						: undefined;
 
 				return [
 					{
@@ -134,11 +144,19 @@ export default procedure.member
 							contract.end,
 							now,
 							settings.endingSoonNoticeDays
-						)
+						),
+						...(comingDue
+							? { comingDue: { due: comingDue.due.getTime(), amount: comingDue.amount } }
+							: {})
 					}
 				];
 			})
-			.sort(compareContractsByRank);
+			.sort((left, right) =>
+				compareContractsByRank(
+					{ ...left, nextDue: left.comingDue?.due },
+					{ ...right, nextDue: right.comingDue?.due }
+				)
+			);
 
 		// summarized before the entries are capped, so a rank's count and total describe every
 		// contract under it. They are what the screen's way through to the rest is figured from.

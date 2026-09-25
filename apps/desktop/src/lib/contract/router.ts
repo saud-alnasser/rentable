@@ -35,6 +35,7 @@ import {
 	compareContractsByRank,
 	getContractRank,
 	getContractRankBounds,
+	getDueSoonCycle,
 	type ContractRankBounds,
 	type ContractRankOrder
 } from '$lib/contract/rank';
@@ -1219,7 +1220,8 @@ export default router({
 				// narrows the list to one attention rank, so a surface that ranked a contract has
 				// somewhere to send the reader that still knows the rank (ADR 0031). It is not a
 				// plain `where`: a rank is decided from what the contract owes *today*, which is
-				// expected-by-now minus the materialized paid amount, and no column holds that.
+				// expected-by-now minus the materialized paid amount, and from the cycle it has
+				// coming due, and no column holds either.
 				// What the rank *implies* about the stored columns is a `where`, and the query
 				// narrows on that before the rank itself decides what is left.
 				rank: z.enum(CONTRACT_RANKS).optional(),
@@ -1293,13 +1295,7 @@ export default router({
 					getExpectedAmountBy(contract, now) - contract.paidAmount,
 					0
 				);
-				const rank = getContractRank(
-					contract.status,
-					contract.end,
-					outstandingAmount,
-					now,
-					endingSoonNoticeDays
-				);
+				const rank = getContractRank(contract, contract.paidAmount, now, endingSoonNoticeDays);
 
 				if (rank !== wantedRank) {
 					return [];
@@ -1311,7 +1307,11 @@ export default router({
 					contractEnd: contract.end,
 					// the list joins its tenant, so the name is always there; the serialized shape
 					// is the one that admits it might not be.
-					tenantName: contract.tenantName ?? ''
+					tenantName: contract.tenantName ?? '',
+					nextDue:
+						rank === 'due-soon'
+							? getDueSoonCycle(contract, contract.paidAmount, now)?.due.getTime()
+							: undefined
 				};
 
 				return [{ contract, order }];

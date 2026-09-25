@@ -7,6 +7,7 @@
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as DropdownMenu from '@rentable/design/primitive/dropdown-menu/index.js';
 	import Empty from '@rentable/design/block/empty.svelte';
+	import { isMoneyRank } from '$lib/contract/rank';
 	import { toDashboardSections } from '$lib/dashboard/dashboard';
 	import { useFetchContractWorkQueue } from '$lib/dashboard/query';
 	import DashboardSectionCard from '$lib/dashboard/component/section.svelte';
@@ -47,9 +48,13 @@
 
 	const sections = $derived(toDashboardSections(ranks, workQueue?.queue ?? []));
 
-	// the debt across every rank that carries one. A renewals rank totals zero by construction,
-	// so summing all three states the portfolio's outstanding rather than a subset of it.
-	const outstanding = $derived(ranks.reduce((sum, rank) => sum + rank.totalAmount, 0));
+	// the debt across every rank that carries one, which is the money ranks: what falls due this
+	// week is not owed yet, so it is not outstanding, whatever a rank beside them totals.
+	const outstanding = $derived(
+		ranks
+			.filter((summary) => isMoneyRank(summary.rank))
+			.reduce((sum, summary) => sum + summary.totalAmount, 0)
+	);
 
 	// through the range formatter rather than a message with two placeholders: bare numbers are
 	// Latin digits whatever the locale, and two of those either side of a slash are reordered by

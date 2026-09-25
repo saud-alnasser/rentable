@@ -3,16 +3,20 @@
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 	import CalendarClockIcon from '@lucide/svelte/icons/calendar-clock';
 	import ClockIcon from '@lucide/svelte/icons/clock';
+	import HourglassIcon from '@lucide/svelte/icons/hourglass';
 
 	/**
-	 * The glyph each rank is read by: what is already late, what is behind, what needs renewing.
+	 * The glyph each rank is read by: what is already late, what is behind, what falls due this
+	 * week, what needs renewing.
 	 *
 	 * They stand beside the rank's own word rather than instead of it, so they are read as
-	 * severity rather than as vocabulary — an alert, a clock still running, and a calendar.
+	 * severity rather than as vocabulary: an alert, a clock still running, an hourglass running
+	 * out, and a calendar.
 	 */
 	const glyphs: Record<ContractRank, typeof TriangleAlertIcon> = {
 		overdue: TriangleAlertIcon,
 		owing: ClockIcon,
+		'due-soon': HourglassIcon,
 		'ending-soon': CalendarClockIcon
 	};
 </script>
@@ -46,16 +50,17 @@
 	const rankLabels = $derived<Record<ContractRank, string>>({
 		overdue: $LL.contracts.ranks.overdue(),
 		owing: $LL.contracts.ranks.owing(),
+		'due-soon': $LL.contracts.ranks.dueSoon(),
 		'ending-soon': $LL.contracts.ranks.endingSoon()
 	});
 
 	/**
 	 * Whether this rank is the renewals one, and so offers the action that answers it.
 	 *
-	 * The other two ranks are about money and renewing one settles nothing, which is the same
-	 * split {@link isMoneyRank} already names — a rank's rows offer what its rank is for.
+	 * The other ranks are about money, owed or coming due, and renewing settles none of it: a
+	 * rank's rows offer what its rank is for.
 	 */
-	const offersRenewal = $derived(!isMoneyRank(rank));
+	const offersRenewal = $derived(rank === 'ending-soon');
 
 	// the act as the contract declares it, so the row offers it under the name and glyph the card,
 	// the page and the command menu do.
@@ -69,7 +74,7 @@
 
 <section class="shrink-0 rounded-2xl bg-card">
 	<header class="flex items-center gap-3 border-b px-4 py-3">
-		<!-- only the late rank is coloured. Two of three ranks marked as trouble is a screen with
+		<!-- only the late rank is coloured. Several of four ranks marked as trouble is a screen with
 		     no emphasis left to spend, and overdue is the one that is already costing money. -->
 		<span
 			class="flex size-8 shrink-0 items-center justify-center rounded-lg {rank === 'overdue'
@@ -84,8 +89,8 @@
 			{$LL.dashboard.sections.contractCount({ count: section.summary.contractCount })}
 		</span>
 
-		<!-- only the money ranks carry a total. a renewals contract owes nothing by definition,
-		     so the figure there would always read zero and say nothing. -->
+		<!-- only the money ranks carry a total. a due-soon or renewals contract owes nothing today
+		     by definition, so the figure there would always read zero and say nothing. -->
 		{#if isMoneyRank(rank)}
 			<span class="ms-auto text-sm font-medium tabular-nums">
 				<Cell.Money amount={section.summary.totalAmount} />
@@ -113,7 +118,9 @@
 						{/if}
 					</span>
 					<span class="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-						<Cell.Date value={entry.contractEnd} />
+						<!-- a due-soon row dates the cycle coming due, which is what the rank is about;
+						     every other row dates the contract's end. -->
+						<Cell.Date value={entry.comingDue?.due ?? entry.contractEnd} />
 						<span aria-hidden="true">&middot;</span>
 						<span class="pointer-events-auto truncate select-text">
 							<Cell.Phone phone={entry.tenantPhone} />
@@ -121,11 +128,16 @@
 					</span>
 				</span>
 
-				<!-- a renewals contract owes nothing by construction, so the amount position is empty
-				     rather than reading zero — the same reason its heading carries no total. -->
+				<!-- a money row states what is owed today and a due-soon row what is coming due. A
+				     renewals contract owes nothing by construction, so the amount position is empty
+				     rather than reading zero, the same reason its heading carries no total. -->
 				{#if isMoneyRank(entry.rank)}
 					<span class="pointer-events-none relative shrink-0 text-sm font-medium tabular-nums">
 						<Cell.Money amount={entry.outstandingAmount} />
+					</span>
+				{:else if entry.comingDue}
+					<span class="pointer-events-none relative shrink-0 text-sm font-medium tabular-nums">
+						<Cell.Money amount={entry.comingDue.amount} />
 					</span>
 				{/if}
 

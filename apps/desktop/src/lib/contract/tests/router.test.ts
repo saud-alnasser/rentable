@@ -1755,6 +1755,16 @@ async function seedRankedPortfolio(api: Api) {
 		date: monthsFromNow(-2)
 	});
 
+	// starts in three days, so its first cycle falls due inside the week and nothing covers it.
+	await api.contract.create({
+		govId: 'RANK-DUE-SOON',
+		cost: 1500,
+		start: monthsFromNow(0, 3),
+		end: monthsFromNow(12, 2),
+		interval: '12m',
+		tenantId: tenant.id
+	});
+
 	// starts in two months and owes nothing yet — in no rank at all.
 	await contract('RANK-NONE', 3000, 2, 14);
 }
@@ -1768,6 +1778,7 @@ test('the contracts list narrows to one attention rank', async () => {
 
 	assert.deepEqual(await govIds('overdue'), ['RANK-OVERDUE']);
 	assert.deepEqual(await govIds('owing'), ['RANK-OWING']);
+	assert.deepEqual(await govIds('due-soon'), ['RANK-DUE-SOON']);
 	assert.deepEqual(await govIds('ending-soon'), ['RANK-ENDING']);
 });
 
@@ -1777,7 +1788,7 @@ test('asking for no rank answers with every contract, ranked or not', async () =
 
 	const all = await api.contract.getMany({});
 
-	assert.equal(all.length, 4);
+	assert.equal(all.length, 5);
 	assert.ok(all.some((contract) => contract.govId === 'RANK-NONE'));
 });
 
@@ -1815,6 +1826,31 @@ test('a rank with no chosen sort answers in the rank’s own order', async () =>
 	assert.deepEqual(
 		(await api.contract.getMany({ rank: 'owing' })).map((c) => c.govId),
 		['LARGE', 'MIDDLE', 'SMALL']
+	);
+});
+
+// inside due soon the rank's own order is the soonest due first, whatever order they were made in.
+test('the due-soon rank answers soonest due first', async () => {
+	const api = await createApi();
+	const tenant = await seedTenant(api);
+
+	const contract = (govId: string, inDays: number) =>
+		api.contract.create({
+			govId,
+			cost: 1000,
+			start: monthsFromNow(0, inDays),
+			end: monthsFromNow(12, inDays - 1),
+			interval: '12m',
+			tenantId: tenant.id
+		});
+
+	await contract('IN-FIVE-DAYS', 5);
+	await contract('IN-TWO-DAYS', 2);
+	await contract('IN-NINE-DAYS', 9);
+
+	assert.deepEqual(
+		(await api.contract.getMany({ rank: 'due-soon' })).map((c) => c.govId),
+		['IN-TWO-DAYS', 'IN-FIVE-DAYS']
 	);
 });
 

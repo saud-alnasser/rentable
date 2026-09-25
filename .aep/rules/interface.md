@@ -686,14 +686,22 @@ it described what was rented.
 
 **A contract's attention rank is derived in the contract domain.**
 
-Overdue, behind, and ending soon are decided from a contract's status, end date, and what it
-owes today — so the rules live with the contract. The dashboard reads the rank; it never
-derives one.
+Overdue, owing, due soon, and ending soon are decided from a contract's status, end date, what it
+owes today, and its schedule, so the rules live with the contract. The dashboard reads the rank;
+it never derives one.
 
 *Why: they were rules about a contract living in a module named for the surface that happened
 to read them first, which is why the contracts list could not filter by rank.*
 
 Recorded originally as ADR 0031, *A contract's attention rank is the contract's own*.
+
+**Four ranks, read in that order, and a contract is under one.** *Due soon* holds a contract that
+owes nothing today and whose next cycle falls due within the next seven days without being covered
+in full; its landing row states that cycle's amount and due date. It is not a money rank: what falls
+due this week is not owed yet, so the landing screen's outstanding figure sums *overdue* and
+*owing* alone (`isMoneyRank` in `contract/rank.ts`), and a due-soon heading carries no total. Every
+list that filters by rank offers it. Settled by
+[[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]], requirement 11.
 
 ## Loading and feedback
 

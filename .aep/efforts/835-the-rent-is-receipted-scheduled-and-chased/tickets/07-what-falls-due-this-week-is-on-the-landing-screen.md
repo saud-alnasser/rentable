@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [01]
 ---
 
@@ -16,16 +16,16 @@ and filterable wherever ranks filter.
 Traces requirement 11 of [[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]], and its
 criterion 11.
 
-- [ ] `CONTRACT_RANKS` holds four ranks in that order; `isMoneyRank` is the explicit set of
+- [x] `CONTRACT_RANKS` holds four ranks in that order; `isMoneyRank` is the explicit set of
       `overdue` and `owing`; `getContractRank` takes the contract and its paid amount
       ([[efforts/835-the-rent-is-receipted-scheduled-and-chased/plan]], *Components*,
       `contract/rank.ts`).
-- [ ] Cases 11(a) to 11(d) pass in `contract/tests/rank.test.ts`, and the bounds soundness sweep
+- [x] Cases 11(a) to 11(d) pass in `contract/tests/rank.test.ts`, and the bounds soundness sweep
       covers four ranks.
-- [ ] The landing screen shows a due-soon section whose rows state the cycle's amount and due date,
+- [x] The landing screen shows a due-soon section whose rows state the cycle's amount and due date,
       and the outstanding figure does not change because of it (dashboard router and component tests).
-- [ ] `rank-filter.ts` offers *due soon* in the contracts, tenant and unit lists.
-- [ ] Labels exist in both locales, and the Arabic label is not مستحق.
+- [x] `rank-filter.ts` offers *due soon* in the contracts, tenant and unit lists.
+- [x] Labels exist in both locales, and the Arabic label is not مستحق.
 
 ## Relevant areas
 

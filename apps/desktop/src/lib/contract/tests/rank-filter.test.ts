@@ -1,9 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import type { ContractRank } from '../rank.ts';
+import { i18nObject } from '$lib/i18n/i18n-util.ts';
+import { loadLocale } from '$lib/i18n/i18n-util.sync.ts';
+
+import { CONTRACT_RANKS } from '../rank.ts';
 import {
 	CONTRACT_RANK_PARAM,
+	RANK_FILTER,
 	RANK_FILTER_ID,
 	readContractRank,
 	toChosenRank,
@@ -19,7 +23,7 @@ test('the contracts list path carries the rank as a search parameter', () => {
 });
 
 test('a link built for a rank is read back as that rank', () => {
-	for (const rank of ['overdue', 'owing', 'ending-soon'] satisfies ContractRank[]) {
+	for (const rank of CONTRACT_RANKS) {
 		const url = new URL(withContractRank('/contracts', rank), 'http://localhost');
 
 		assert.equal(readContractRank(url), rank);
@@ -48,7 +52,7 @@ test('a rank outside the vocabulary asks for no rank', () => {
  */
 
 test('a list opened for a rank opens narrowed to it', () => {
-	for (const rank of ['overdue', 'owing', 'ending-soon'] satisfies ContractRank[]) {
+	for (const rank of CONTRACT_RANKS) {
 		const url = new URL(withContractRank('/contracts', rank), 'http://localhost');
 		const selection = toRankArrivalSelection(url);
 
@@ -72,4 +76,32 @@ test('a list opened for a rank outside the vocabulary opens showing everything',
 		{}
 	);
 	assert.deepEqual(toRankArrivalSelection(new URL('http://localhost/contracts?rank=')), {});
+});
+
+// the contracts directory, a tenant's contracts and a unit's all declare this one filter, so what
+// it offers is what all three offer.
+test('the rank filter offers every rank, due soon among them, each under its own word', () => {
+	loadLocale('en');
+	const translations = i18nObject('en');
+
+	assert.deepEqual(
+		RANK_FILTER.options.map((option) => [option.id, option.label(translations)]),
+		[
+			['overdue', 'overdue'],
+			['owing', 'owing'],
+			['due-soon', 'due soon'],
+			['ending-soon', 'ending soon']
+		]
+	);
+});
+
+// مستحق is already owing's word in Arabic, and two ranks under one word are one rank to a reader.
+test('in Arabic, due soon has a word of its own and not owing’s', () => {
+	loadLocale('ar');
+	const translations = i18nObject('ar');
+	const labels = RANK_FILTER.options.map((option) => option.label(translations));
+
+	assert.equal(new Set(labels).size, labels.length);
+	assert.notEqual(translations.contracts.ranks.dueSoon(), 'مستحق');
+	assert.equal(translations.contracts.ranks.owing(), 'مستحق');
 });
