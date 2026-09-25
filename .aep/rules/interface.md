@@ -538,8 +538,10 @@ record act in the `primary` group, drawn with the printer glyph whatever it prin
 concept's host. The host reads what the page states afresh and opens the preview
 (`print/component/preview.svelte`): the edge panel, a language choice on top that opens on the
 application's own, the page below drawn as paper, and two acts, *save as PDF* and *print* (the
-primary). Either hands the same page to `sendPage` (`print/sheet.svelte.ts`), which shows the sheet
-alone under `@media print` and asks the host to print it: on Windows a PDF is written with no
+primary). Either hands the same page to `sendPage` (`print/sheet.svelte.ts`), which closes the
+preview and waits for it to be gone before anything prints (a surface left open is laid out for
+paper and back again on every pass, and flickers), shows the sheet alone under `@media print` and
+asks the host to print it: on Windows a PDF is written with no
 dialog and paper goes through the operating system's dialog, never the webview's browser preview;
 on macOS and Linux both open the system's print panel (`tauri/src/print.rs`).
 

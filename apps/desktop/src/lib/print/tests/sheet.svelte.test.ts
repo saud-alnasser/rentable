@@ -31,6 +31,7 @@ let answer: () => Promise<void> = () => Promise.resolve();
 
 beforeEach(() => {
 	seen = [];
+	cleared.length = 0;
 	answer = () => Promise.resolve();
 	host.page.mockReset();
 	host.page.mockImplementation(() => {
@@ -146,6 +147,12 @@ test('a PDF is written from the page on the sheet, and is finished when the host
 	expect(drawn()).toBeUndefined();
 });
 
+/** what a preview asks for before a page prints: here, a note that it was asked, in order. */
+const cleared: string[] = [];
+const clearScreen = async () => {
+	cleared.push(`cleared before ${host.page.mock.calls.length} prints`);
+};
+
 /** the platform the webview reports: only Windows writes a PDF with no dialog. */
 const runningOn = (userAgent: string) =>
 	vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(userAgent);
@@ -155,7 +162,9 @@ test('on Windows, saving as PDF asks where the file goes first, and writes it th
 	runningOn('Mozilla/5.0 (Windows NT 10.0; Win64; x64) Edg/140.0');
 	dialog.saveFile.mockResolvedValueOnce('C:/receipts/receipt.pdf');
 
-	await expect(sendPage(page('the receipt'), 'pdf', 'receipt 01K5.pdf')).resolves.toBe('saved');
+	await expect(sendPage(page('the receipt'), 'pdf', 'receipt 01K5.pdf', clearScreen)).resolves.toBe(
+		'saved'
+	);
 
 	expect(dialog.saveFile).toHaveBeenCalledExactlyOnceWith('receipt 01K5.pdf');
 	expect(host.page).toHaveBeenCalledExactlyOnceWith({
@@ -169,7 +178,9 @@ test('walking away from the save dialog prints nothing and is not a failure', as
 	runningOn('Mozilla/5.0 (Windows NT 10.0; Win64; x64) Edg/140.0');
 	dialog.saveFile.mockResolvedValueOnce(null);
 
-	await expect(sendPage(page('the receipt'), 'pdf', 'receipt.pdf')).resolves.toBe('cancelled');
+	await expect(sendPage(page('the receipt'), 'pdf', 'receipt.pdf', clearScreen)).resolves.toBe(
+		'cancelled'
+	);
 
 	expect(host.page).not.toHaveBeenCalled();
 	expect(printSheet.content).toBeNull();
@@ -179,9 +190,9 @@ test('a refusal from the host rejects, for the preview to say so', async () => {
 	sheet();
 	answer = () => Promise.reject(new Error('the printer is gone'));
 
-	await expect(sendPage(page('the schedule'), 'print', 'schedule.pdf')).rejects.toThrow(
-		'the printer is gone'
-	);
+	await expect(
+		sendPage(page('the schedule'), 'print', 'schedule.pdf', clearScreen)
+	).rejects.toThrow('the printer is gone');
 });
 
 test('off Windows, saving as PDF goes the way paper does, through the system panel', async () => {
@@ -189,11 +200,13 @@ test('off Windows, saving as PDF goes the way paper does, through the system pan
 	runningOn('Mozilla/5.0 (Macintosh; Intel Mac OS X 15_0) AppleWebKit/605.1.15');
 
 	let finished = false;
-	const saving = sendPage(page('the schedule'), 'pdf', 'schedule.pdf').then((outcome) => {
-		finished = true;
+	const saving = sendPage(page('the schedule'), 'pdf', 'schedule.pdf', clearScreen).then(
+		(outcome) => {
+			finished = true;
 
-		return outcome;
-	});
+			return outcome;
+		}
+	);
 
 	await settle();
 
@@ -210,4 +223,20 @@ test('off Windows, saving as PDF goes the way paper does, through the system pan
 
 test('a file name keeps nothing a save dialog would read as a folder', () => {
 	expect(toFileName('schedule 12/2026\\A:1.pdf')).toBe('schedule 12-2026-A-1.pdf');
+});
+
+// the human, 2026-09-25: the preview flickered, opening and closing once per print pass. The
+// screen is cleared once nothing can be cancelled any more, and before anything prints.
+test('the screen is cleared before the page prints, and not where the save was walked away from', async () => {
+	sheet();
+	runningOn('Mozilla/5.0 (Windows NT 10.0; Win64; x64) Edg/140.0');
+	dialog.saveFile.mockResolvedValueOnce(null);
+
+	await sendPage(page('the receipt'), 'pdf', 'receipt.pdf', clearScreen);
+	expect(cleared).toEqual([]);
+
+	dialog.saveFile.mockResolvedValueOnce('C:/receipt.pdf');
+	await sendPage(page('the receipt'), 'pdf', 'receipt.pdf', clearScreen);
+	expect(cleared).toEqual(['cleared before 0 prints']);
+	expect(host.page).toHaveBeenCalledOnce();
 });

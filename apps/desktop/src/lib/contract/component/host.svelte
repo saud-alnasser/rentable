@@ -41,7 +41,7 @@
 	import { tauri } from '$lib/platform/tauri';
 	import { formatRecordDateRange } from '$lib/design/date';
 	import PrintPreview from '$lib/print/component/preview.svelte';
-	import { sendPage } from '$lib/print/sheet.svelte';
+	import { sendPage, surfacesSettled } from '$lib/print/sheet.svelte';
 	import { useReadOrganizationMark, useReadOrganizationName } from '$lib/organization/query';
 	import type { Locales } from '$lib/i18n/i18n-types';
 	import { i18nObject } from '$lib/i18n/i18n-util';
@@ -296,18 +296,19 @@
 		try {
 			const title = i18nObject(scheduleLocale).contracts.schedule.printTitle();
 			const name = schedule.contract.govId.trim();
+			// the preview is closed, and gone, before the page is laid out for paper.
 			const outcome = await sendPage(
 				printedSchedule,
 				mode,
-				`${title}${name ? ` ${name}` : ''}.pdf`
+				`${title}${name ? ` ${name}` : ''}.pdf`,
+				async () => {
+					scheduleOpen = false;
+					await surfacesSettled();
+				}
 			);
 
-			if (outcome !== 'cancelled') {
-				scheduleOpen = false;
-
-				if (outcome === 'saved') {
-					showSuccessToast($LL.print.saved());
-				}
+			if (outcome === 'saved') {
+				showSuccessToast($LL.print.saved());
 			}
 		} catch {
 			showErrorSentence($LL.print.failed());

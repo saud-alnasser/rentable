@@ -27,7 +27,7 @@
 	import { useReadContract } from '$lib/contract/query';
 	import { useDeletePayment, useReadPayment, useReadPaymentReceipt } from '$lib/payment/query';
 	import PrintPreview from '$lib/print/component/preview.svelte';
-	import { sendPage } from '$lib/print/sheet.svelte';
+	import { sendPage, surfacesSettled } from '$lib/print/sheet.svelte';
 	import type { Locales } from '$lib/i18n/i18n-types';
 	import { useReadOrganizationMark, useReadOrganizationName } from '$lib/organization/query';
 	import { writeDetailsToClipboard } from '$lib/platform/clipboard';
@@ -183,14 +183,19 @@
 
 		try {
 			const title = i18nObject(receiptLocale).contracts.payments.receipt.title();
-			const outcome = await sendPage(printedReceipt, mode, `${title} ${receipt.reference}.pdf`);
-
-			if (outcome !== 'cancelled') {
-				receiptOpen = false;
-
-				if (outcome === 'saved') {
-					showSuccessToast($LL.print.saved());
+			// the preview is closed, and gone, before the page is laid out for paper.
+			const outcome = await sendPage(
+				printedReceipt,
+				mode,
+				`${title} ${receipt.reference}.pdf`,
+				async () => {
+					receiptOpen = false;
+					await surfacesSettled();
 				}
+			);
+
+			if (outcome === 'saved') {
+				showSuccessToast($LL.print.saved());
 			}
 		} catch {
 			showErrorSentence($LL.print.failed());

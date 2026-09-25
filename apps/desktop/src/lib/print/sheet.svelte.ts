@@ -116,13 +116,21 @@ export const writesPdfSilently = () =>
  * before the panel has drawn it, were both wrong. `cancelled` is the reader walking away from the
  * save dialog, which is not a failure and says nothing; a refusal from the host rejects, for the
  * caller to say so in a sentence.
+ *
+ * **`clearScreen` runs once nothing can be cancelled any more, and before anything prints**: the
+ * caller closes its preview there and waits for it to be gone. While a page prints, the webview
+ * lays the whole window out for paper, where every region but the sheet is taken off, and puts it
+ * back after; a panel still open is taken off and put back each time, and its entry animation
+ * plays again with it, so it opened and closed on screen once per pass.
  */
 export async function sendPage(
 	content: Snippet,
 	mode: PrintRequest['mode'],
-	fileName: string
+	fileName: string,
+	clearScreen: () => Promise<void>
 ): Promise<'saved' | 'printed' | 'cancelled'> {
 	if (mode === 'print' || !writesPdfSilently()) {
+		await clearScreen();
 		await print(content, { mode: 'print' });
 
 		return 'printed';
@@ -134,9 +142,27 @@ export async function sendPage(
 		return 'cancelled';
 	}
 
+	await clearScreen();
 	await print(content, { mode, path });
 
 	return 'saved';
+}
+
+/**
+ * Resolves once every form surface on the page has finished animating out: what a caller that has
+ * just closed its preview waits on before printing. A surface with nothing left to animate, under
+ * reduced motion or already gone, resolves at once.
+ */
+export async function surfacesSettled(): Promise<void> {
+	await tick();
+	// the closing animation starts on the frame after the state flips.
+	await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+
+	const animations = [...document.querySelectorAll('[data-slot="form-surface"]')].flatMap(
+		(surface) => surface.getAnimations?.() ?? []
+	);
+
+	await Promise.all(animations.map((animation) => animation.finished.catch(() => undefined)));
 }
 
 /** A name a save dialog can open on: whatever a free-text part carried that reads as a folder. */
