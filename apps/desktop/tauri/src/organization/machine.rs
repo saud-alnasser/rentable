@@ -167,6 +167,10 @@ where
     let reached = store_for(credential).await?;
     let store = reached.borrow();
 
+    // an organization another version made is refused before its link's row is read (effort 838,
+    // requirement 11).
+    store.refuse_another_format().await?;
+
     let row = store
         .machine_link(&half.id)
         .await?

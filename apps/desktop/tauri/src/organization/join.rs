@@ -200,6 +200,10 @@ where
     let reached = store_for(Arc::clone(&credential)).await?;
     let store = reached.borrow();
 
+    // an organization another version made is refused before any row of it is read (effort 838,
+    // requirement 11).
+    store.refuse_another_format().await?;
+
     let held = match machine.organization.clone() {
         Some(held) if held.id == link.organization_id => held,
         Some(held) => {

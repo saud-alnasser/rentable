@@ -584,6 +584,7 @@ async fn finish<P: TursoPlatform>(
     .await?;
 
     organization_store.install_schema().await?;
+    organization_store.write_format().await?;
     organization_store
         .write_organization(&OrganizationRecord {
             id: organization_id.to_string(),
@@ -897,6 +898,10 @@ where
                     .to_string(),
             });
         }
+
+        // an organization another version made is refused before its row is read or any
+        // credential renewed in it (effort 838, requirement 11).
+        replica.refuse_another_format().await?;
 
         let row = replica
             .organization()
@@ -1713,6 +1718,12 @@ mod tests {
         assert_eq!(grants[0].access_level, "full-access");
         assert_eq!(row.verifying_key, key);
         assert_eq!(row.remote_url, held.remote_url);
+        // and the format it was made in, which is what a build of another format refuses it by
+        // (effort 838, requirement 11).
+        assert_eq!(
+            organization.format().await.expect("the format"),
+            Some(crate::organization::store::FORMAT_VERSION)
+        );
 
         // the organization key follows from the owner's password and from nothing stored: the
         // vault opens, the seed is derived, and its verifying key is the one the link pinned.

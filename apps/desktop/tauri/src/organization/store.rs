@@ -43,9 +43,10 @@ use super::{
     vault::{KDF_SALT_BYTES, KdfParams, PUBLIC_KEY_BYTES, Vault},
 };
 
-/// The eleven tables, in the order the schema creates them. A test pins this list against what
+/// The twelve tables, in the order the schema creates them. A test pins this list against what
 /// the database reports, so a table added anywhere is added here or fails there.
-pub const TABLES: [&str; 11] = [
+pub const TABLES: [&str; 12] = [
+    "format",
     "organization",
     "member",
     "administrator_certificate",
@@ -70,6 +71,20 @@ pub const TABLES: [&str; 11] = [
 /// the Turso way in open until 2026-09-20; that gate is gone (requirement 14 as corrected).*
 pub const MACHINE_PRESENCE_WINDOW: i64 = 7 * 24 * 60 * 60 * 1000;
 
+/// The organization format this build reads and writes (effort 838, requirement 11).
+///
+/// **A break, not a migration.** An organization this build creates carries this number in its
+/// one `format` row, and one with no row, or with a number other than this, is read no further
+/// and written to not at all: [`OrganizationStore::refuse_another_format`] says which, and the
+/// person is told what to do. Every organization made before effort 838 has no `format` table,
+/// which is what version 1 was, so nothing is ever written with it. That absence is how an older
+/// organization is told apart, and it is why [`OrganizationStore::complete_schema`] never
+/// creates the table in one.
+///
+/// **Unsigned.** Rewriting the number achieves nothing the credential does not already allow: a
+/// holder who changes it makes the organization refuse to open, as deleting its rows would.
+pub const FORMAT_VERSION: i64 = 2;
+
 /// The schema, as the plan's data model gives it.
 ///
 /// **No foreign keys and no `UNIQUE` on an owner.** The first for the reason the workspace schema
@@ -79,7 +94,11 @@ pub const MACHINE_PRESENCE_WINDOW: i64 = 7 * 24 * 60 * 60 * 1000;
 ///
 /// `grant` is quoted everywhere because it is a keyword in most dialects, and a statement that
 /// works in SQLite and fails elsewhere is a statement worth spelling defensively once.
-const SCHEMA: [&str; 11] = [
+const SCHEMA: [&str; 12] = [
+    // one row, the organization format (see [`FORMAT_VERSION`]).
+    "CREATE TABLE IF NOT EXISTS \"format\" (\
+        \"id\" TEXT PRIMARY KEY NOT NULL, \
+        \"version\" INTEGER NOT NULL)",
     "CREATE TABLE IF NOT EXISTS \"organization\" (\
         \"id\" TEXT PRIMARY KEY NOT NULL, \
         \"name_sealed\" BLOB NOT NULL, \
@@ -182,6 +201,9 @@ const SCHEMA: [&str; 11] = [
 
 /// The key of the one `mark` row: an organization keeps one mark.
 const MARK_ID: &str = "mark";
+
+/// The key of the one `format` row.
+const FORMAT_ID: &str = "format";
 
 /// The organization's mark as it is stored: the image sealed, what kind of image it is, and who
 /// set it when.
@@ -549,7 +571,22 @@ impl OrganizationStore {
     /// Read against the database rather than assumed, so a replica that already holds every
     /// table costs one query and no write. The statements are `CREATE TABLE IF NOT EXISTS`, so a
     /// second machine racing the first on the same table finds it there.
+    ///
+    /// **Only an organization of this build's format is completed** (effort 838, requirement 11).
+    /// One of another format is written to not at all, so this creates nothing in it and answers
+    /// that nothing was created; the reader that follows is what refuses it. Above all it never
+    /// creates `format` in an older organization, whose missing table is the only thing that
+    /// tells it apart.
     pub async fn complete_schema(&self) -> Result<bool, turso::Error> {
+        let format = self
+            .format()
+            .await
+            .map_err(|error| turso::Error::Error(error.to_string()))?;
+
+        if format != Some(FORMAT_VERSION) {
+            return Ok(false);
+        }
+
         let present = self
             .tables()
             .await
@@ -585,6 +622,83 @@ impl OrganizationStore {
         }
 
         Ok(names)
+    }
+
+    // the format
+
+    /// Record that this organization is of this build's format: written once, by the first run,
+    /// beside the schema that creates the table.
+    pub async fn write_format(&self) -> Result<(), Error> {
+        self.connection
+            .execute(
+                "INSERT OR REPLACE INTO \"format\" (\"id\", \"version\") VALUES (?, ?)",
+                vec![
+                    turso::Value::Text(FORMAT_ID.to_string()),
+                    turso::Value::Integer(FORMAT_VERSION),
+                ],
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// The organization's format version, or `None` where it has none: no `format` table, which
+    /// is every organization made before effort 838, or a table with no row in it.
+    ///
+    /// Read against the tables the database reports before the row is asked for, so an older
+    /// organization answers `None` rather than failing on a table it never had.
+    pub async fn format(&self) -> Result<Option<i64>, Error> {
+        if !self.tables().await?.iter().any(|table| table == "format") {
+            return Ok(None);
+        }
+
+        let mut rows = self
+            .connection
+            .query(
+                "SELECT \"version\" FROM \"format\" WHERE \"id\" = ? LIMIT 1",
+                vec![turso::Value::Text(FORMAT_ID.to_string())],
+            )
+            .await?;
+
+        match rows.next().await? {
+            Some(row) => Ok(Some(integer(&row, 0)?)),
+            None => Ok(None),
+        }
+    }
+
+    /// Refuse an organization of another format, by name, before anything else is read from it
+    /// or written to it (effort 838, requirement 11).
+    ///
+    /// **Two refusals, because the person does two different things.** An organization with no
+    /// format, or an earlier one, was made by an earlier version of the application: its
+    /// workspaces are exported there, it is deleted, and it is made again here, where each
+    /// workspace is imported. There is no migration in place, by the human's call at the plan. One
+    /// with a later format was made by a newer version, and this application is updated.
+    ///
+    /// Reads the format and nothing else, and writes nothing, so a refused organization is left
+    /// exactly as it was found.
+    pub async fn refuse_another_format(&self) -> Result<(), Error> {
+        match self.format().await? {
+            Some(FORMAT_VERSION) => Ok(()),
+            Some(version) if version > FORMAT_VERSION => Err(Error::refused(
+                RefusalReason::OrganizationNewer,
+                format!(
+                    "the organization is of format {version}, made by a newer version of \
+                     rentable, and this version reads format {FORMAT_VERSION}"
+                ),
+            )),
+            found => Err(Error::refused(
+                RefusalReason::OrganizationOlder,
+                format!(
+                    "the organization carries {}, made by an earlier version of rentable, and \
+                     this version reads format {FORMAT_VERSION}; export each workspace there, \
+                     delete the organization, and make it again here",
+                    found.map_or("no format".to_string(), |version| format!(
+                        "format {version}"
+                    ))
+                ),
+            )),
+        }
     }
 
     // the organization row
@@ -2190,10 +2304,10 @@ mod tests {
     use std::path::PathBuf;
 
     use super::{
-        GrantRecord, MemberRecord, OrganizationRecord, OrganizationStore, Signer, TABLES,
-        WorkspaceRecord,
+        FORMAT_VERSION, GrantRecord, MemberRecord, OrganizationRecord, OrganizationStore, Signer,
+        TABLES, WorkspaceRecord,
     };
-    use crate::error::Error;
+    use crate::error::{Error, RefusalReason};
     use crate::organization::{
         authority::{AdministratorKey, Certificate, OrganizationKey, issue_certificate},
         vault::{
@@ -2379,7 +2493,8 @@ mod tests {
 
     #[tokio::test]
     async fn a_replica_lacking_a_table_the_schema_names_gains_it_and_says_so() {
-        // an organization made by a build that knew one table fewer: every statement but the last.
+        // an organization of this format made by a build that knew one table fewer: every
+        // statement but the last, and the format row the first run writes.
         let directory = scratch("schema-completes");
         let newest = super::TABLES[super::TABLES.len() - 1];
         let store = OrganizationStore::open(&directory.join("org-x.db"), None, || async {
@@ -2395,6 +2510,7 @@ mod tests {
                 .await
                 .expect("the older schema");
         }
+        store.write_format().await.expect("the format row");
         assert!(
             !store
                 .tables()
@@ -2424,6 +2540,139 @@ mod tests {
                 .await
                 .expect("the second completion"),
             "a complete schema was reported as completed again"
+        );
+    }
+
+    /// Every table in the schema but `format`, created as every build before effort 838 created
+    /// them: an organization of today's shape, before the format break.
+    async fn without_format(directory: &std::path::Path) -> OrganizationStore {
+        let store = OrganizationStore::open(&directory.join("org-old.db"), None, || async {
+            Ok::<String, turso::Error>(String::new())
+        })
+        .await
+        .expect("the store");
+
+        for (table, statement) in TABLES.iter().zip(super::SCHEMA.iter()) {
+            if *table != "format" {
+                store
+                    .connection
+                    .execute(statement, ())
+                    .await
+                    .expect("the schema before the format");
+            }
+        }
+
+        store
+    }
+
+    /// Effort 838, requirement 11: the format is read, and an organization of another format is
+    /// refused by name. No `format` table and a table with no row are both an earlier version's
+    /// organization; a number above this build's is a newer one's; this build's own is let through.
+    #[tokio::test]
+    async fn an_organization_of_another_format_is_refused_by_name() {
+        let directory = scratch("format");
+        let older = without_format(&directory).await;
+
+        assert_eq!(older.format().await.expect("the format"), None);
+        assert!(matches!(
+            older.refuse_another_format().await,
+            Err(Error::Refused {
+                reason: RefusalReason::OrganizationOlder,
+                ..
+            })
+        ));
+
+        let store = open(&scratch("format-current")).await;
+
+        // the table with no row in it: a format row somebody deleted.
+        assert_eq!(store.format().await.expect("the format"), None);
+        assert!(matches!(
+            store.refuse_another_format().await,
+            Err(Error::Refused {
+                reason: RefusalReason::OrganizationOlder,
+                ..
+            })
+        ));
+
+        store.write_format().await.expect("the format row");
+
+        assert_eq!(
+            store.format().await.expect("the format"),
+            Some(FORMAT_VERSION)
+        );
+        store
+            .refuse_another_format()
+            .await
+            .expect("this build's own format was refused");
+
+        store
+            .connection
+            .execute("UPDATE \"format\" SET \"version\" = 3", ())
+            .await
+            .expect("a newer format");
+
+        assert_eq!(store.format().await.expect("the format"), Some(3));
+        assert!(matches!(
+            store.refuse_another_format().await,
+            Err(Error::Refused {
+                reason: RefusalReason::OrganizationNewer,
+                ..
+            })
+        ));
+    }
+
+    /// Effort 838, requirement 11: the completion that runs after every pull writes nothing into an
+    /// organization of another format. Above all it does not create `format` in an older one,
+    /// whose missing table is the only thing that tells it apart, and it does not create the
+    /// tables this build names that an older one lacks.
+    #[tokio::test]
+    async fn an_organization_of_another_format_is_not_completed() {
+        let directory = scratch("format-not-completed");
+        let older = without_format(&directory).await;
+
+        older
+            .connection
+            .execute("DROP TABLE \"mark\"", ())
+            .await
+            .expect("a table the older organization lacks");
+
+        let before = older.tables().await.expect("the tables");
+
+        assert!(
+            !older.complete_schema().await.expect("the completion"),
+            "an older organization was completed"
+        );
+        assert_eq!(older.tables().await.expect("the tables"), before);
+        assert!(
+            !before
+                .iter()
+                .any(|table| table == "format" || table == "mark")
+        );
+
+        let newer = open(&scratch("format-newer")).await;
+
+        newer
+            .connection
+            .execute("INSERT INTO \"format\" VALUES ('format', 3)", ())
+            .await
+            .expect("a newer format");
+        newer
+            .connection
+            .execute("DROP TABLE \"mark\"", ())
+            .await
+            .expect("a table the newer organization dropped");
+
+        assert!(
+            !newer.complete_schema().await.expect("the completion"),
+            "a newer organization was completed"
+        );
+        assert!(
+            !newer
+                .tables()
+                .await
+                .expect("the tables")
+                .iter()
+                .any(|table| table == "mark")
         );
     }
 

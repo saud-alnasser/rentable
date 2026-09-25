@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # feat(organization): an organization carries a format, and one from another version is refused by name
@@ -15,15 +15,15 @@ deleted, and made again; a newer one needs the application updated.
 
 Traces requirement 11 of [[efforts/838-permissions-are-a-role-and-an-override/spec]], and criterion 11.
 
-- [ ] `store::TABLES` and `SCHEMA` carry `format (id, version)`; organization creation writes
+- [x] `store::TABLES` and `SCHEMA` carry `format (id, version)`; organization creation writes
       version 2.
-- [ ] A Rust test opens an organization database in today's schema (no `format`), and one with
+- [x] A Rust test opens an organization database in today's schema (no `format`), and one with
       version 3, through connect and through a held replica at launch: each is refused with its own
       `RefusalReason` and sentence, and a table listing before and after shows nothing written.
-- [ ] A local replica in today's shape is forgotten on launch by the `forget::forget_old_shape`
+- [x] A local replica in today's shape is forgotten on launch by the `forget::forget_old_shape`
       pattern, so it never meets the new reader.
-- [ ] Both refusals have `i18n/en` and `i18n/ar` text and reach the wall or the connect step.
-- [ ] A TS test imports an export fixture written by today's build (`workspace.get`'s shape) whole
+- [x] Both refusals have `i18n/en` and `i18n/ar` text and reach the wall or the connect step.
+- [x] A TS test imports an export fixture written by today's build (`workspace.get`'s shape) whole
       through `importWhole` into an empty workspace (criterion 11).
 
 ## Relevant areas

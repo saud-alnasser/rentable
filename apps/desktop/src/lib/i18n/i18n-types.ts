@@ -1154,6 +1154,14 @@ type RootTranslation = {
 				 */
 				databaseRefused: string
 				/**
+				 * a​n​ ​o​l​d​e​r​ ​v​e​r​s​i​o​n​ ​m​a​d​e​ ​t​h​i​s​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​e​x​p​o​r​t​ ​e​a​c​h​ ​w​o​r​k​s​p​a​c​e​ ​t​h​e​r​e​,​ ​d​e​l​e​t​e​ ​i​t​,​ ​m​a​k​e​ ​i​t​ ​a​g​a​i​n​ ​h​e​r​e​ ​a​n​d​ ​i​m​p​o​r​t​ ​t​h​e​m​.
+				 */
+				organizationOlder: string
+				/**
+				 * a​ ​n​e​w​e​r​ ​v​e​r​s​i​o​n​ ​o​f​ ​r​e​n​t​a​b​l​e​ ​m​a​d​e​ ​t​h​i​s​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​u​p​d​a​t​e​ ​r​e​n​t​a​b​l​e​ ​t​o​ ​o​p​e​n​ ​i​t​.
+				 */
+				organizationNewer: string
+				/**
 				 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​i​s​ ​n​o​t​ ​c​o​n​n​e​c​t​e​d​ ​t​o​ ​t​h​e​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​.​ ​c​o​n​n​e​c​t​ ​i​t​ ​a​n​d​ ​t​r​y​ ​a​g​a​i​n​.
 				 */
 				tursoNotConnected: string
@@ -5175,6 +5183,14 @@ export type TranslationFunctions = {
 				 * the database refused the request, and nothing was changed. try again later.
 				 */
 				databaseRefused: () => LocalizedString
+				/**
+				 * an older version made this organization. export each workspace there, delete it, make it again here and import them.
+				 */
+				organizationOlder: () => LocalizedString
+				/**
+				 * a newer version of rentable made this organization. update rentable to open it.
+				 */
+				organizationNewer: () => LocalizedString
 				/**
 				 * this machine is not connected to the Turso account. connect it and try again.
 				 */

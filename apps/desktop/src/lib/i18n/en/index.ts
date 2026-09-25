@@ -349,6 +349,10 @@ const en = {
 					'this workspace needs upgrading, and read-only access cannot do it. ask a member with full access to open it once.',
 				databaseRefused:
 					'the database refused the request, and nothing was changed. try again later.',
+				organizationOlder:
+					'an older version made this organization. export each workspace there, delete it, make it again here and import them.',
+				organizationNewer:
+					'a newer version of rentable made this organization. update rentable to open it.',
 				tursoNotConnected:
 					'this machine is not connected to the Turso account. connect it and try again.',
 				consentNeededAgain:

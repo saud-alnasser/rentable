@@ -79,7 +79,8 @@ pub enum Error {
 ///
 /// The first four are a link's standing after its code was right (effort 828): an invitation is
 /// `Lapsed`, `Consumed` or `Revoked`, and a machine link is `Lapsed`, `Consumed` or `Replaced`.
-/// The connect screen routes on those four by name. Every other word was added by effort 832.
+/// The connect screen routes on those four by name. Every other word was added by effort 832,
+/// but the two for the organization's format, which effort 838 added.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum RefusalReason {
@@ -191,6 +192,13 @@ pub enum RefusalReason {
     WorkspaceBehind,
     /// the database refused a schema or a lease, and nothing was changed.
     DatabaseRefused,
+
+    // the organization's format (effort 838, requirement 11).
+    /// the organization was made by an earlier version of rentable, and is exported there, deleted
+    /// and made again here.
+    OrganizationOlder,
+    /// the organization was made by a newer version of rentable, which this one is updated to.
+    OrganizationNewer,
 
     // Turso: the consent, the group and the account.
     /// this machine holds no Turso authority.

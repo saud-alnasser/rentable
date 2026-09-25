@@ -816,6 +816,11 @@ pub(crate) async fn ended_elsewhere(app_state: &AppState) -> bool {
 /// Built through the same call as every replica, so it opens whether or not the remote is
 /// reachable; the token function answers from the slot, which is empty until a vault is open and
 /// is what stops an open replica reaching the remote before anybody is in.
+///
+/// **A replica of another format is refused here, and let go of** (effort 838, requirement 11).
+/// This is where a sign-in and a launch's resume both reach what the machine holds, so an
+/// organization an earlier or a newer version of the application made is refused by name before
+/// either reads a row of it, and neither writes to it: no registry row, no pull, no push.
 async fn open_replica(
     app_state: &AppState,
     held: &HeldOrganization,
@@ -842,6 +847,8 @@ async fn open_replica(
         },
     )
     .await?;
+
+    store.refuse_another_format().await?;
 
     Ok((store, credential))
 }
@@ -2227,6 +2234,161 @@ mod tests {
         assert!(
             app_state.organization.read().await.is_some(),
             "the replica was not held open"
+        );
+    }
+
+    /// Everything the replica on disk holds, table by table and row by row, read through a store
+    /// opened on the file with no remote and let go of again: a write anywhere changes it.
+    async fn contents(path: &std::path::Path) -> Vec<(String, Vec<Vec<turso::Value>>)> {
+        let store = OrganizationStore::open(path, None, || async {
+            Ok::<String, turso::Error>(String::new())
+        })
+        .await
+        .expect("the replica");
+        let mut contents = Vec::new();
+
+        for table in store.tables().await.expect("the tables") {
+            let mut rows = store
+                .connection()
+                .query(&format!("SELECT * FROM \"{table}\" ORDER BY rowid"), ())
+                .await
+                .expect("the rows");
+            let mut values = Vec::new();
+
+            while let Some(row) = rows.next().await.expect("a row") {
+                values.push(
+                    (0..row.column_count())
+                        .map(|index| row.get_value(index).expect("a value"))
+                        .collect(),
+                );
+            }
+
+            contents.push((table, values));
+        }
+
+        contents
+    }
+
+    /// Effort 838, requirement 11 and criterion 11, at the launch: **a held replica of another
+    /// format is refused by name, and nothing is written to it.**
+    ///
+    /// The machine ran the first run and stayed signed in, so the launch would resume; then the
+    /// organization's format moved under it. A newer format is format 3. An older one is the
+    /// `format` row gone from a table that is still there, which is the one way this build's own
+    /// organization comes to read as an earlier version's; a replica with no `format` table at all
+    /// is today's shape, which the launch forgets before anything opens it (`forget.rs`, and the
+    /// last case here).
+    ///
+    /// Each of the first two: the launch leaves the wall up with no session and the organization
+    /// still held, the replica the resume and the sign-in both open through refuses with its own
+    /// reason, and the replica holds exactly what it held before, no registry row and no table
+    /// gained.
+    #[tokio::test]
+    async fn a_held_replica_of_another_format_is_refused_at_the_launch_and_nothing_is_written() {
+        let _turn = a_turn().await;
+
+        for (name, change, reason) in [
+            (
+                "older",
+                "DELETE FROM \"format\"",
+                crate::error::RefusalReason::OrganizationOlder,
+            ),
+            (
+                "newer",
+                "UPDATE \"format\" SET \"version\" = 3",
+                crate::error::RefusalReason::OrganizationNewer,
+            ),
+        ] {
+            let directory = scratch(&format!("format-{name}"));
+            let app_state = first_run(&directory).await;
+            let (organization_id, _) = recorded(&app_state).await;
+            let replica = OrganizationStore::replica_path(
+                &directory.join(Database::FILENAME),
+                &organization_id,
+            );
+
+            {
+                let store = OrganizationStore::open(&replica, None, || async {
+                    Ok::<String, turso::Error>(String::new())
+                })
+                .await
+                .expect("the replica");
+
+                store
+                    .connection()
+                    .execute(change, ())
+                    .await
+                    .expect("the organization of another format");
+            }
+
+            let before = contents(&replica).await;
+            let state = state_of(&app_state).await.expect("the state");
+
+            assert!(
+                state.session.is_none(),
+                "{name}: the launch resumed into an organization of another format"
+            );
+            assert_eq!(
+                state.organization.map(|held| held.id),
+                Some(organization_id.clone()),
+                "{name}: the launch forgot an organization it should refuse"
+            );
+            assert!(app_state.organization.read().await.is_none());
+
+            let held = {
+                let mut remote_sync = app_state.remote_sync.write().await;
+
+                remote_sync
+                    .store_mut()
+                    .organization
+                    .clone()
+                    .expect("the record")
+            };
+            let refused = open_replica(&app_state, &held).await.map(|_| ());
+
+            assert!(
+                matches!(refused, Err(Error::Refused { reason: refusal, .. }) if refusal == reason),
+                "{name}: {refused:?}"
+            );
+            assert_eq!(
+                contents(&replica).await,
+                before,
+                "{name}: the launch wrote to the organization"
+            );
+        }
+
+        // today's shape, no `format` table at all: the launch forgets it before anything opens it,
+        // so it never meets the reader above. The connect that follows is where the person is told.
+        let directory = scratch("format-today");
+        let app_state = first_run(&directory).await;
+        let (organization_id, _) = recorded(&app_state).await;
+        let replica =
+            OrganizationStore::replica_path(&directory.join(Database::FILENAME), &organization_id);
+
+        {
+            let store = OrganizationStore::open(&replica, None, || async {
+                Ok::<String, turso::Error>(String::new())
+            })
+            .await
+            .expect("the replica");
+
+            store
+                .connection()
+                .execute("DROP TABLE \"format\"", ())
+                .await
+                .expect("today's shape");
+        }
+
+        let state = state_of(&app_state).await.expect("the state");
+
+        assert!(state.session.is_none());
+        assert!(
+            state.organization.is_none(),
+            "a replica of today's shape was not forgotten"
+        );
+        assert!(
+            !replica.exists(),
+            "the replica of today's shape is still on disk"
         );
     }
 
