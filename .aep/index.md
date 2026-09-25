@@ -130,7 +130,7 @@ Start at [[protocol]].
 | 828-the-link-needs-a-code-and-the-settings-area-guides | implemented | [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]] | 5 | 0 | 29 |
 | 832-the-interface-speaks-one-language-and-guides | accepted | [[efforts/832-the-interface-speaks-one-language-and-guides/spec]] | 3 | 4 | 43 |
 | 835-the-rent-is-receipted-scheduled-and-chased | implemented | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]] | 1 | 0 | 19 |
-| 838-permissions-are-a-role-and-an-override | accepted | [[efforts/838-permissions-are-a-role-and-an-override/spec]] | 0 | 0 | 0 |
+| 838-permissions-are-a-role-and-an-override | accepted | [[efforts/838-permissions-are-a-role-and-an-override/spec]] | 0 | 0 | 12 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -337,3 +337,15 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/17-the-reminder-names-the-contract]] feat(contract): the reminder names the contract | 835-the-rent-is-receipted-scheduled-and-chased | resolved | — |
 | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/18-the-preview-closes-before-the-page-prints]] fix(desktop): the preview closes before the page prints | 835-the-rent-is-receipted-scheduled-and-chased | resolved | — |
 | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/19-windows-prints-from-a-window-of-its-own]] fix(desktop): Windows prints from a window of its own | 835-the-rent-is-receipted-scheduled-and-chased | resolved | 18 |
+| [[efforts/838-permissions-are-a-role-and-an-override/tickets/01-one-vocabulary-of-flags-and-roles]] feat(organization): one vocabulary of flags, roles and the effective computation | 838-permissions-are-a-role-and-an-override | open | — |
+| [[efforts/838-permissions-are-a-role-and-an-override/tickets/02-an-old-organization-is-refused-by-name]] feat(organization): an organization carries a format, and one from another version is refused by name | 838-permissions-are-a-role-and-an-override | open | — |
+| [[efforts/838-permissions-are-a-role-and-an-override/tickets/03-certificates-are-delegated]] feat(organization): certificates are delegated and carry a ceiling and a rank | 838-permissions-are-a-role-and-an-override | open | 01, 02 |
+| [[efforts/838-permissions-are-a-role-and-an-override/tickets/04-members-and-roles-are-rows-the-chain-signs]] feat(organization): members and roles are rows the chain signs | 838-permissions-are-a-role-and-an-override | open | 03 |
+| [[efforts/838-permissions-are-a-role-and-an-override/tickets/05-invitation-reset-and-removal-run-on-the-chain]] refactor(organization): invitation, reset and removal run on the delegated chain | 838-permissions-are-a-role-and-an-override | open | 04 |
+| [[efforts/838-permissions-are-a-role-and-an-override/tickets/06-grants-workspaces-mark-and-handover-run-on-the-chain]] refactor(organization): grants, workspaces, the mark and the handover run on the delegated chain | 838-permissions-are-a-role-and-an-override | open | 04 |
+| [[efforts/838-permissions-are-a-role-and-an-override/tickets/07-a-manager-shapes-roles-below-their-rank]] feat(organization): a manager shapes roles and assigns them below their rank | 838-permissions-are-a-role-and-an-override | open | 05, 06 |
+| [[efforts/838-permissions-are-a-role-and-an-override/tickets/08-effective-permissions-cross-the-boundary]] feat(desktop): effective permissions and roles cross the boundary | 838-permissions-are-a-role-and-an-override | open | 07 |
+| [[efforts/838-permissions-are-a-role-and-an-override/tickets/09-every-record-procedure-names-its-flag]] feat(desktop): every record procedure names its flag | 838-permissions-are-a-role-and-an-override | open | 08 |
+| [[efforts/838-permissions-are-a-role-and-an-override/tickets/10-the-interface-offers-only-permitted-record-acts]] feat(desktop): the interface offers only the record acts a member may perform | 838-permissions-are-a-role-and-an-override | open | 09 |
+| [[efforts/838-permissions-are-a-role-and-an-override/tickets/11-roles-are-defined-in-settings-and-set-on-a-card]] feat(organization): roles are defined in settings and set on a member's card | 838-permissions-are-a-role-and-an-override | open | 08 |
+| [[efforts/838-permissions-are-a-role-and-an-override/tickets/12-the-context-describes-the-new-chain]] docs(organization): the context describes the new chain, and the changeset says it breaks | 838-permissions-are-a-role-and-an-override | open | 10, 11 |
