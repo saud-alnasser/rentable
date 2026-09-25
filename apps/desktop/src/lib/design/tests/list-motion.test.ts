@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-import { hasSameOrder, toClipPath, toTransitionName } from '../list-motion.ts';
+import { createMoveQueue, hasSameOrder, toClipPath, toTransitionName } from '../list-motion.ts';
 
 // what CSS accepts as a `<custom-ident>` written without escapes, and a leading letter.
 const IDENTIFIER = /^[A-Za-z][A-Za-z0-9_-]*$/;
@@ -89,4 +89,48 @@ test('only a record leaving or arriving fades, on its own curve', () => {
 
 test('a record changing place travels on the move curve', () => {
 	assert.match(declarations('::view-transition-group(*)'), /var\(--ease-move\)/);
+});
+
+// ticket 39 of effort 832: a document runs one view transition at a time, so a second list's move
+// waits for the first to end rather than skipping it.
+test('a move starts only once the one before it has finished', async () => {
+	const queue = createMoveQueue();
+	const events: string[] = [];
+	let finishFirst = () => {};
+
+	const first = queue(() => {
+		events.push('first starts');
+
+		return new Promise<void>((resolve) => {
+			finishFirst = () => {
+				events.push('first ends');
+				resolve();
+			};
+		});
+	});
+	const second = queue(async () => {
+		events.push('second starts');
+	});
+
+	await new Promise((resolve) => setTimeout(resolve));
+	assert.deepEqual(events, ['first starts']);
+
+	finishFirst();
+	await Promise.all([first, second]);
+
+	assert.deepEqual(events, ['first starts', 'first ends', 'second starts']);
+});
+
+test('a move that fails does not hold up the one behind it', async () => {
+	const queue = createMoveQueue();
+	let hasRun = false;
+
+	await queue(async () => {
+		throw new Error('the transition was refused');
+	});
+	await queue(async () => {
+		hasRun = true;
+	});
+
+	assert.equal(hasRun, true);
 });

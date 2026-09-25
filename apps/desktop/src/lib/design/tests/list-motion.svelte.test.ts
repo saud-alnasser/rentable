@@ -5,6 +5,7 @@ import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 
 import ListMotionHarness from './list-motion-harness.svelte';
+import ListMotionPairHarness from './list-motion-pair-harness.svelte';
 
 /**
  * A DIRECTORY MOVES WHEN ITS RESULT SET CHANGES, EXCEPT UNDER ITS OWN SEARCH
@@ -184,4 +185,71 @@ test('a re-sorted record travels under the same name before and after, and nothi
 		height.mockRestore();
 		width.mockRestore();
 	}
+});
+
+// ticket 39 of effort 832, from review round one: the mark and the clip sit on the document root,
+// one of each, and a document runs one view transition at a time. Two lists changing in one
+// moment had the second start its transition while the first ran, which skips the first, and the
+// first's cleanup then took the mark and the clip off while the second was still running.
+test('two lists changing at once move in turn, each under its own mark and clip', async () => {
+	// the transition in flight, which a second one started now would skip.
+	let running = 0;
+	const asked: { runningAlready: number; marked: boolean; clip: string }[] = [];
+	// the document as the browser draws the new state: whether the mark and clip were still on.
+	const drawn: { marked: boolean; clip: string }[] = [];
+
+	const start = vi.fn((update: () => Promise<void> | void) => {
+		const root = document.documentElement;
+
+		asked.push({
+			runningAlready: running,
+			marked: root.hasAttribute('data-list-motion'),
+			clip: root.style.getPropertyValue('--list-motion-clip')
+		});
+		running += 1;
+
+		const updated = new Promise((resolve) => setTimeout(resolve)).then(async () => {
+			await update();
+			drawn.push({
+				marked: root.hasAttribute('data-list-motion'),
+				clip: root.style.getPropertyValue('--list-motion-clip')
+			});
+		});
+		// the animation runs on after the update, long enough for the other list to ask for its own.
+		const finished = updated
+			.then(() => new Promise((resolve) => setTimeout(resolve, 30)))
+			.then(() => {
+				running -= 1;
+			});
+
+		return { updateCallbackDone: updated, ready: updated, finished, skipTransition: () => {} };
+	});
+
+	Object.defineProperty(document, 'startViewTransition', { value: start, configurable: true });
+
+	const { rerender } = render(ListMotionPairHarness, {
+		first: records('one', 'two'),
+		second: records('a', 'b')
+	});
+
+	await rerender({ first: records('one', 'two', 'three'), second: records('a', 'b', 'c') });
+
+	await waitFor(() => expect(start).toHaveBeenCalledTimes(2));
+	await waitFor(() => expect(drawn).toHaveLength(2));
+
+	// neither list's transition started while the other's ran, so neither skipped the other.
+	expect(asked.map((call) => call.runningAlready)).toEqual([0, 0]);
+	// each was marked and clipped when it was captured and still was when it drew.
+	for (const state of [...asked, ...drawn]) {
+		expect(state.marked).toBe(true);
+		expect(state.clip).toMatch(/^inset\(/);
+	}
+	// both lists drew their new set.
+	expect(screen.getAllByText('3 results')).toHaveLength(2);
+
+	// and once both are over, nothing is left on the document.
+	await waitFor(() =>
+		expect(document.documentElement.hasAttribute('data-list-motion')).toBe(false)
+	);
+	expect(document.documentElement.style.getPropertyValue('--list-motion-clip')).toBe('');
 });

@@ -771,8 +771,8 @@ failure** (*Not found*, under *Empty*, above).
   *go home* where the frame around it still works; where the frame itself failed, retry alone,
   since every screen would draw the same broken frame. A route that failed to load draws the same
   surface from the routes' `+error.svelte` and offers the same two: *retry*, which loads the route
-  again, and *go home*. Both show the status or the thrown
-  message beneath the sentence, for whoever is asked what happened.
+  again, and *go home*. Both keep the thrown message behind the disclosure, for whoever is asked
+  what happened, and the route's shows its status beneath the sentence.
 
 *Why: a refusal reached the reader in whatever language its author wrote, Turso's English
 included, and an address that led nowhere was drawn as a screen that failed, which sent the
@@ -875,7 +875,9 @@ what it wrote to its host through `onCreated`, and the host decides where the re
   focus on its card, through `design/landing.svelte.ts`. The host names the record and the list
   block answers where it shows it: it scrolls the record into view and puts the focus on it once
   the form has gone, through the same request an arrow key raises, so the keyboard carries on from
-  the new record. A record made while its set is not on screen waits until the set is.
+  the new record. Each list on screen answers the request once, from the set it holds, and the next
+  navigation drops it, so a set opened later or a filter cleared later never moves the focus
+  (`design/tests/landing.svelte.test.ts`).
 
 ### An act that cannot run says why at the control
 

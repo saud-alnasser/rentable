@@ -6,6 +6,7 @@
 	import { listenForSessionEnded } from '$lib/sync/event';
 	import { listenForSignOut } from '$lib/sync/sign-out';
 	import { trustWorkspaceData } from '$lib/design/query';
+	import { dropLandingOnNavigation } from '$lib/design/landing.svelte';
 	import { TooltipProvider } from '@rentable/design/primitive/tooltip/index.js';
 	import SonnerProvider from '$lib/design/provider/sonner.svelte';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
@@ -66,6 +67,10 @@
 	const startup = createStartup(browserStartupPorts(queryClient));
 
 	provideStartup(startup);
+
+	// a create's request to be brought into view belongs to the screen it was made on, so the
+	// next navigation drops it ([[rules/interface]], *Guidance*).
+	dropLandingOnNavigation();
 
 	// the one reactive thing. The unit is a plain object with observers, because a runes file
 	// cannot be imported by a `node:test` at all, and being testable is the point of it.

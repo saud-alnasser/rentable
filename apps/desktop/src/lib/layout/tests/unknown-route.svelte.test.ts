@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/svelte';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
+import ar from '$lib/i18n/ar';
 import en from '$lib/i18n/en';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
@@ -24,7 +25,7 @@ import ErrorPage from '../../../routes/+error.svelte';
  */
 
 const { address, navigations } = vi.hoisted(() => ({
-	address: { status: 404 },
+	address: { status: 404, message: 'Not Found' },
 	navigations: [] as string[]
 }));
 
@@ -33,7 +34,9 @@ vi.mock('$app/state', () => ({
 		get status() {
 			return address.status;
 		},
-		error: { message: 'Not Found' }
+		get error() {
+			return { message: address.message };
+		}
 	}
 }));
 
@@ -50,6 +53,7 @@ beforeEach(() => {
 	loadLocale('en');
 	setLocale('en');
 	address.status = 404;
+	address.message = 'Not Found';
 	navigations.length = 0;
 });
 
@@ -113,4 +117,30 @@ test('a route that failed to load offers retry beside the way home, and retry lo
 	await fireEvent.click(retry);
 
 	expect(navigations).toEqual(['invalidateAll']);
+});
+
+// ticket 39 of effort 832, from review round one: a load that threw unexpectedly reaches this page
+// with SvelteKit's own "Internal Error" as its message, and the page drew it beside the sentence in
+// both locales. The sentence is the reader's; the message is kept closed behind the details
+// disclosure ([[rules/interface]], *Error*; requirement 23).
+test("in Arabic, a route that failed to load keeps SvelteKit's English behind the details", async () => {
+	loadLocale('ar');
+	setLocale('ar');
+	address.status = 500;
+	address.message = 'Internal Error';
+
+	render(ErrorPage, {}, { wrapper: Providers, wrapperProps: { strings, direction: 'rtl' } });
+
+	expect(document.body.textContent).toContain(ar.layout.error.title);
+	expect(document.body.textContent).toContain(ar.layout.error.description);
+	// the status is a number and reads the same in either language.
+	expect(document.querySelector('[data-error-status]')?.textContent?.trim()).toBe('500');
+	// the message is nowhere a reader sees it until they ask.
+	expect(document.body.textContent).not.toContain('Internal Error');
+
+	await fireEvent.click(screen.getByRole('button', { name: ar.common.actions.details }));
+
+	expect(document.querySelector('[data-error-detail-text="route"]')?.textContent?.trim()).toBe(
+		'Internal Error'
+	);
 });

@@ -57,8 +57,13 @@
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import XIcon from '@lucide/svelte/icons/x';
 	import { createVirtualizer } from '@tanstack/svelte-virtual';
-	import { hasSameOrder, toClipPath, toTransitionName } from '$lib/design/list-motion';
-	import { landing, whenSurfacesClose } from '$lib/design/landing.svelte';
+	import {
+		hasSameOrder,
+		queueListMove,
+		toClipPath,
+		toTransitionName
+	} from '$lib/design/list-motion';
+	import { landing, whenSurfacesClose, type LandingRequest } from '$lib/design/landing.svelte';
 	import { tick, untrack, type Snippet } from 'svelte';
 	import { get } from 'svelte/store';
 
@@ -326,8 +331,11 @@
 	 * to this one's frame.
 	 */
 	let isMoving = $state(false);
-	/** Which transition is the current one, so one that was overtaken does not clear what it set. */
-	let currentMove: object | null = null;
+	/**
+	 * Whether this list has a move waiting its turn. The waiting move draws whatever was committed
+	 * last when it starts, so a change arriving meanwhile needs no move of its own.
+	 */
+	let isQueued = false;
 	// what scopes this list's names, so two lists on one screen can show the same record.
 	const listId = $props.id();
 	// what names the empty state's refused create to assistive technology, whether or not its
@@ -365,10 +373,31 @@
 			return;
 		}
 
-		const root = document.documentElement;
-		const move = {};
+		if (isQueued) {
+			return;
+		}
 
-		currentMove = move;
+		// in turn with every other list's moves, since the document holds one transition and one
+		// mark at a time (`queueListMove`).
+		isQueued = true;
+		void queueListMove(() => {
+			isQueued = false;
+
+			return move();
+		});
+	}
+
+	/** Start this list's transition, now that no other is running, and settle once it ends. */
+	async function move() {
+		// the frame left while the move waited, or a direct commit drew the latest set meanwhile.
+		if (!frame?.isConnected || displayed === committing) {
+			displayed = committing;
+
+			return;
+		}
+
+		const root = document.documentElement;
+
 		isMoving = true;
 		root.style.setProperty(
 			'--list-motion-clip',
@@ -376,23 +405,20 @@
 		);
 		root.dataset.listMotion = '';
 
-		// the old state is captured at the next frame, after the microtask that draws `isMoving`, so
-		// the names are on the records by then.
-		const transition = document.startViewTransition(async () => {
-			displayed = committing;
-			await tick();
-		});
+		try {
+			// the old state is captured at the next frame, after the microtask that draws
+			// `isMoving`, so the names are on the records by then.
+			const transition = document.startViewTransition(async () => {
+				displayed = committing;
+				await tick();
+			});
 
-		void transition.finished.finally(() => {
-			if (currentMove !== move) {
-				return;
-			}
-
-			currentMove = null;
+			await transition.finished;
+		} finally {
 			isMoving = false;
 			delete root.dataset.listMotion;
 			root.style.removeProperty('--list-motion-clip');
-		});
+		}
 	}
 
 	// every change to `data` passes through here, and only a change that moves something moves.
@@ -638,14 +664,56 @@
 		awaitingFocus = null;
 	});
 
-	// a record just created lands here where this list is showing it: brought into view, and the
-	// focus put on it once the form that made it has gone, through the same standing request a move
-	// raises ([[rules/interface]], *Guidance*). Taken at once, so a second list showing the same
-	// record does not answer it too.
+	/**
+	 * The landing request this list has answered, so it answers each one once. Plain rather than
+	 * state: it is read and written inside the answer and nothing draws it.
+	 */
+	let answeredLanding: LandingRequest | null = null;
+	/** A record this list took, waiting for its row to be drawn. */
+	let arriving = $state<string | null>(null);
+
+	// a record just created is answered for here, once, from the set this list holds
+	// ([[rules/interface]], *Guidance*). Holding it, the list takes it at once, so a second list
+	// showing the same record does not answer too. Not holding it, the list is done with it: a
+	// later change bringing the record in, a filter cleared say, is not the create it answers.
 	$effect(() => {
-		const id = landing.pending;
+		const request = landing.pending;
+
+		// a set still loading has nothing to answer from yet.
+		if (!request || isLoading) {
+			return;
+		}
+
+		const isHeld = data.some((item) => item.id === request.id);
+
+		untrack(() => {
+			if (answeredLanding === request) {
+				return;
+			}
+
+			answeredLanding = request;
+
+			if (isHeld) {
+				landing.take(request);
+				arriving = request.id;
+			}
+		});
+	});
+
+	// the record taken, brought into view once its row is drawn, and the focus put on it once the
+	// form that made it has gone, through the same standing request a move raises. The row can be a
+	// transition behind the result set, which is why this waits on `rows` rather than on `data`.
+	$effect(() => {
+		const id = arriving;
 
 		if (!id) {
+			return;
+		}
+
+		// gone again before it was drawn, so there is nothing to land on.
+		if (!data.some((item) => item.id === id)) {
+			arriving = null;
+
 			return;
 		}
 
@@ -656,7 +724,7 @@
 		}
 
 		untrack(() => {
-			landing.take(id);
+			arriving = null;
 			get(virtualizer).scrollToIndex(position.row, { align: 'center' });
 
 			void whenSurfacesClose().then(() => {

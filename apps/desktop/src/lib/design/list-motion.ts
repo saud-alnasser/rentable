@@ -70,3 +70,33 @@ export function toClipPath(box: ClipBox, radius: string) {
 		`${box.left}px${round})`
 	);
 }
+
+/**
+ * Run each move after the one before it has finished, whoever asked for it.
+ *
+ * A document runs one view transition at a time: starting a second skips the first to its end.
+ * And the mark a list moves under and the clip its snapshots are cut to sit on the document root,
+ * where there is one of each. So two lists moving at once, the ledger and a record's history after
+ * a payment say, would have the second skip the first and then have its own mark and clip taken
+ * off by the first's cleanup while it ran. In turn, each list moves inside its own frame, and one
+ * list alone moves exactly as it did.
+ *
+ * A move that fails does not hold up the ones behind it.
+ */
+export function createMoveQueue() {
+	let last: Promise<void> = Promise.resolve();
+
+	return (move: () => Promise<unknown>): Promise<void> => {
+		const turn = last.then(move).then(
+			() => undefined,
+			() => undefined
+		);
+
+		last = turn;
+
+		return turn;
+	};
+}
+
+/** The document's one queue, which every list's moves share. */
+export const queueListMove = createMoveQueue();
