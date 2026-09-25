@@ -433,6 +433,24 @@ export function useFetchOrganizationState() {
 }
 
 /**
+ * Read the organization's name once, for a page that names who issued it: a printed receipt or
+ * schedule. Under the key `useFetchOrganizationState` reads, so the rail's own read is reused.
+ * Every signed-in member holds it, opened from the replica, offline included.
+ */
+export function useReadOrganizationName() {
+	const client = useQueryClient();
+
+	return async () => {
+		const state = await client.fetchQuery({
+			queryKey: keys.state,
+			queryFn: () => tauri.organization.getState()
+		});
+
+		return state.session?.organizationName?.trim() ?? '';
+	};
+}
+
+/**
  * make an account. It hands over nothing: the account holds no password until a link is made for
  * it, so this only refreshes the list it changed.
  */

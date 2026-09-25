@@ -6,7 +6,7 @@
 	 * issued it.
 	 */
 	export type PrintedReceiptValue = PaymentReceipt & {
-		/** the workspace the payment was recorded in, by the name the shell shows for it. */
+		/** the organization the payment was recorded for, by its name. */
 		issuer: string;
 	};
 </script>

@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [11]
 ---
 
@@ -14,7 +14,7 @@ of the workspace's.
 
 Traces requirement 13 of [[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]].
 
-- [ ] Both hosts take the issuer from the session's organization name, never the workspace's
+- [x] Both hosts take the issuer from the session's organization name, never the workspace's
       (criterion 13(a), host tests on the preview opening with it).
-- [ ] The preview opens on the application's language, and a refusal from the host is one sentence
+- [x] The preview opens on the application's language, and a refusal from the host is one sentence
       (host test, carrying ticket 11's fourth criterion).

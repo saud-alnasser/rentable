@@ -29,7 +29,7 @@
 	import PrintPreview from '$lib/print/component/preview.svelte';
 	import { sendPage } from '$lib/print/sheet.svelte';
 	import type { Locales } from '$lib/i18n/i18n-types';
-	import { useFetchRemoteSyncState } from '$lib/settings/query';
+	import { useReadOrganizationName } from '$lib/organization/query';
 	import { writeDetailsToClipboard } from '$lib/platform/clipboard';
 	import { formatLocaleMoney } from '$lib/platform/locale';
 	import { landing } from '$lib/design/landing.svelte';
@@ -56,9 +56,8 @@
 	const readPayment = useReadPayment();
 	const readContract = useReadContract();
 	const readReceipt = useReadPaymentReceipt();
-	// the workspace the shell names, which is who issues a receipt. The one query the rail's header
-	// reads, so the receipt and the header cannot name it differently.
-	const remoteSyncQuery = useFetchRemoteSyncState();
+	// the organization, which is who issues a receipt (effort 835, requirement 13).
+	const readOrganizationName = useReadOrganizationName();
 
 	const deleting = $derived(paymentHostState.deleting);
 
@@ -151,14 +150,8 @@
 	 */
 	async function previewReceipt(payment: PaymentActRecord) {
 		try {
-			// the rail's header has almost always read it already; where it has not, it is read now,
-			// so a receipt is never shown without the name of who issued it.
-			const [read, workspace] = await Promise.all([
-				readReceipt(payment.id),
-				remoteSyncQuery.data?.workspace ??
-					remoteSyncQuery.refetch().then((answer) => answer.data?.workspace)
-			]);
-			const issuer = workspace?.name?.trim();
+			// a receipt is never shown without the name of who issued it.
+			const [read, issuer] = await Promise.all([readReceipt(payment.id), readOrganizationName()]);
 
 			if (!issuer) {
 				showErrorSentence($LL.print.failed());

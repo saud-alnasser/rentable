@@ -42,7 +42,7 @@
 	import { formatRecordDateRange } from '$lib/design/date';
 	import PrintPreview from '$lib/print/component/preview.svelte';
 	import { sendPage } from '$lib/print/sheet.svelte';
-	import { useFetchRemoteSyncState } from '$lib/settings/query';
+	import { useReadOrganizationName } from '$lib/organization/query';
 	import type { Locales } from '$lib/i18n/i18n-types';
 	import { i18nObject } from '$lib/i18n/i18n-util';
 	import { useReadTenant } from '$lib/tenant/query';
@@ -78,9 +78,8 @@
 	const readReminder = useReadContractReminder();
 	const readTenant = useReadTenant();
 	const readSchedule = useReadContractSchedule();
-	// the workspace the shell names, which is who keeps the schedule; the one query the rail's header
-	// reads, so the page and the header cannot name it differently.
-	const remoteSyncQuery = useFetchRemoteSyncState();
+	// the organization, which is who keeps the schedule (effort 835, requirement 13).
+	const readOrganizationName = useReadOrganizationName();
 
 	const confirming = $derived(contractHostState.confirming);
 
@@ -259,16 +258,15 @@
 	 */
 	async function previewSchedule(contract: ContractActRecord) {
 		try {
-			const [cycles, units, tenant, workspace] = await Promise.all([
+			const [cycles, units, tenant, issuer] = await Promise.all([
 				readSchedule.cycles(contract.id),
 				readSchedule.units(contract.id),
 				readTenant(contract.tenantId).catch(() => undefined),
-				remoteSyncQuery.data?.workspace ??
-					remoteSyncQuery.refetch().then((answer) => answer.data?.workspace)
+				readOrganizationName()
 			]);
 
 			schedule = {
-				issuer: workspace?.name?.trim() ?? '',
+				issuer,
 				contract,
 				tenant: {
 					name: tenant?.name?.trim() || contract.tenantName?.trim() || $LL.common.labels.tenant()

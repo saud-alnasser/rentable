@@ -3,7 +3,7 @@
 
 	/** Everything a printed schedule carries, read by the host before it is previewed. */
 	export type PrintedScheduleValue = {
-		/** the workspace the contract is kept in, by the name the shell shows for it. */
+		/** the organization the contract is kept by, by its name. */
 		issuer: string;
 		contract: { govId: string; start: number; end: number };
 		tenant: { name: string };
