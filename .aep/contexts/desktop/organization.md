@@ -122,18 +122,37 @@ names it or any certificate above it, and the revoker must be the root or outran
 A revocation still counts once its revoker is revoked, or removing a manager would reinstate every
 certificate they retired.
 
-**A row verifies when its certificate verifies and the row is one it may sign** (`authority::covers`):
-a member row needs a flag that administers members, a rank above the member's role, every flag the
-row's effective permissions carry, and a certificate that is not the member's own, or the root, and
-a row naming the owner's role only the root about its own holder, with no override; a role row
-`manageRoles`, a rank above the role and every flag its mask carries; a grant `grantWorkspace`, a
-read-only one the root; a workspace row `renameWorkspace` or `grantWorkspace`; an invitation
-`inviteMember` or `resetPassword`; the mark `manageMark`. So a member holding the credential who
-signs around a command gets no further than their certificate: rows of the kinds its ceiling names,
-about people ranked below them, giving nobody a flag the ceiling lacks, and never their own. Which
-flags inside it they may switch is the command's to refuse. The store refuses to write a row its
-signer's certificate does not cover, naming what it needs, and every command refuses such an act by
-name before it writes, so no command of ours writes a row every reader refuses.
+**A row verifies when its certificate verifies and the row is one it may sign**
+(`authority::covers`): a member row needs a flag that administers members, a rank above both the
+role it names and every live certificate the member holds, every flag the row's override switches,
+and a certificate that is not the member's own, or the root, and a row naming the owner's role only
+the root about its own holder, with no override; a role row `manageRoles`, a rank above the role and
+every flag its mask carries; a grant `grantWorkspace`, a read-only one the root; a workspace row
+`renameWorkspace` or `grantWorkspace`; an invitation `inviteMember` or `resetPassword`; the mark
+`manageMark`. So a member holding the credential who signs around a command gets no further than
+their certificate: rows of the kinds its ceiling names, about people ranked below them, switching
+for nobody a flag the ceiling lacks, and never their own. Which flags inside it they may switch, and
+which role they may give, is the command's to refuse. A member row's signer chooses its role and its
+override, and the role's mask is vouched for by the role row's own signer, so a member row is not
+judged by that mask: two machines acting offline together, one widening a role while the other gives
+it, leave a row every reader accepts. **A genuine member row its certificate no longer covers**,
+because the role it names moved to or above the signer's rank or went on another machine, or the
+member stands certified at or above the signer, **grants nothing** rather than refusing the
+directory (`Chain::read_member`) and keeps its removal, and **it is never saved, only removed**: it
+is content anybody holding the credential may have written, and nothing the directory holds says
+which of its fields are genuine. Every act on the member but their removal, an assignment included,
+is refused by name (`session::refuse_unsettled`), and so is retiring a certificate that signed such
+a row until that member is removed; the removal is made by somebody ranked above the member as
+certified, and the person is made an account again. A row whose signature or chain does not verify
+still refuses the read. **A removed member's row grants nothing**, so nothing the member role
+carries refuses a removal. **The owner's own row is the owner's machine's to repair**: where it
+reads as anything but the owner's role, demoted or removed from below, the machine whose vault
+derives the pinned key writes it again under the root at sign-in, at resume and on the heartbeat
+(`role::repair_owner_row`), taking the signing key and the vault's public half from what the owner's
+own secret derives and opens, never from the row; no other machine writes anything. The store
+refuses to write a row its signer's certificate does not cover, naming what it needs, and every
+command refuses such an act by name before it writes, so no command of ours writes a row every
+reader refuses.
 
 **Every live member holds one live certificate, and a change re-issues it** (`role::reissue`): a new
 certificate from the actor's own, a revocation of the old one, and every row the old one signed

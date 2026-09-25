@@ -771,6 +771,12 @@ pub(crate) async fn ended_elsewhere(app_state: &AppState) -> bool {
         // made one.
         store.push().await;
 
+        // and the owner's own row, where somebody below them demoted or removed it around the
+        // command: the owner's machine holds the root and writes it again, with nobody acting
+        // (effort 838, the human's decision after review round two). Every other machine writes
+        // nothing here.
+        session::repair_own_row(store, session).await;
+
         let standing = match session::ended_elsewhere(store, session).await {
             Ok(ended) => Ok(ended),
             Err(refusal) => {
@@ -3508,5 +3514,129 @@ mod tests {
         );
 
         assert_eq!(without, vec!["member_widen_everything".to_string()]);
+    }
+
+    /// **The owner's machine repairs a forged demotion of the owner's row on the heartbeat**
+    /// (effort 838, the human's decision after review round two). A lead's certificate, issued
+    /// from the owner's root, signs the owner's row naming the member role around the store, on
+    /// another machine sharing the replica; that machine reads the owner with no permissions. One
+    /// heartbeat on the owner's machine, signed in all along, writes the row again under the root,
+    /// and every machine reads the owner as the owner with every flag.
+    #[tokio::test]
+    async fn the_owners_machine_repairs_a_forged_demotion_of_the_owners_row_on_the_heartbeat() {
+        use crate::organization::{
+            authority::{AdministratorKey, Issue, issue_certificate},
+            permission::Flag,
+            store::{MemberRecord, Signer},
+            workspace::signer_of,
+        };
+
+        let _turn = a_turn().await;
+        let directory = scratch("owner-repair-heartbeat");
+        let app_state = first_run(&directory).await;
+        let (organization_id, member_id) = recorded(&app_state).await;
+
+        assert!(
+            state_of(&app_state)
+                .await
+                .expect("the state")
+                .session
+                .is_some()
+        );
+
+        let held = {
+            let mut remote_sync = app_state.remote_sync.write().await;
+
+            remote_sync
+                .store_mut()
+                .organization
+                .clone()
+                .expect("the record names no organization")
+        };
+        let key = verifying_key_of(&held).expect("the pinned key");
+        let elsewhere = OrganizationStore::open(
+            &OrganizationStore::replica_path(&directory.join(Database::FILENAME), &organization_id),
+            None,
+            || async { Ok::<String, turso::Error>(String::new()) },
+        )
+        .await
+        .expect("the other machine's replica");
+
+        // a lead's certificate, and the owner's row signed by it naming the member role.
+        {
+            let member = app_state.member.read().await;
+            let owner = member.as_ref().expect("the owner's session");
+            let (root_key, root) = signer_of(&elsewhere, owner).await.expect("the root");
+            let lead_key = AdministratorKey::generate().expect("a key");
+            let lead = issue_certificate(
+                &root_key,
+                &root,
+                Issue {
+                    id: "cert-lead",
+                    member_id: "member-lead",
+                    signing_public_key: &lead_key.verifying_key(),
+                    ceiling: permission::MEMBER_ROLE.mask
+                        | permission::mask_of(&[Flag::InviteMember]),
+                    rank: 500_000,
+                    issued_at: "1",
+                },
+            )
+            .expect("the lead's certificate");
+
+            elsewhere
+                .write_certificate(&lead)
+                .await
+                .expect("the certificate");
+
+            let row = elsewhere
+                .member(&key, &member_id)
+                .await
+                .expect("the row reads")
+                .expect("the owner's row");
+
+            elsewhere
+                .write_member_around_the_check(
+                    &Signer {
+                        key: &lead_key,
+                        certificate: &lead,
+                    },
+                    &MemberRecord {
+                        role_id: permission::MEMBER.to_string(),
+                        ..row
+                    },
+                )
+                .await
+                .expect("written around the store");
+        }
+
+        let demoted = elsewhere
+            .member(&key, &member_id)
+            .await
+            .expect("the row reads")
+            .expect("the owner's row");
+
+        assert_eq!(demoted.effective, 0);
+
+        // one heartbeat on the owner's machine.
+        assert!(!super::ended_elsewhere(&app_state).await);
+
+        let repaired = elsewhere
+            .member(&key, &member_id)
+            .await
+            .expect("the row reads")
+            .expect("the owner's row");
+
+        assert_eq!(repaired.role_id, permission::OWNER);
+        assert_eq!(repaired.effective, permission::OWNER_ROLE.mask);
+        assert_eq!(
+            app_state
+                .member
+                .read()
+                .await
+                .as_ref()
+                .expect("still signed in")
+                .permissions,
+            permission::OWNER_ROLE.mask
+        );
     }
 }

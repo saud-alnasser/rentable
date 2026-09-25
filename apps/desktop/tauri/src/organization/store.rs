@@ -41,8 +41,8 @@ use crate::{
 use super::{
     authority::{
         Authority, Certificate, Chain, GrantAuthority, InvitationAuthority, MarkAuthority,
-        MemberAuthority, Revocation, RoleAuthority, VERIFYING_KEY_BYTES, WorkspaceAuthority,
-        covers, needed_for, sign,
+        MemberAuthority, Reading, Revocation, RoleAuthority, VERIFYING_KEY_BYTES,
+        WorkspaceAuthority, covers, needed_for, sign,
     },
     permission::{self, OWNER_ROLE},
     vault::{KDF_SALT_BYTES, KdfParams, PUBLIC_KEY_BYTES, Vault},
@@ -299,11 +299,21 @@ pub struct MemberRecord {
     pub removed_at: Option<i64>,
     /// **what the member may do: their role's mask exclusive-or'd with their override**
     /// (requirement 8), computed by the read from the verified role row, and never stored.
+    /// **Nothing on a removed member's row**, and nothing on a row its certificate stopped
+    /// covering (`Chain::read_member`): what an act's gate and a certificate's re-issue read, so
+    /// neither reaches past a row somebody covering it wrote.
     ///
     /// **A write does not read it.** What changes a member's permissions is their role and their
     /// override; a record handed to [`OrganizationStore::write_member`] with this changed and
     /// neither of those writes exactly what it wrote before.
     pub effective: i64,
+    /// **whether the row's certificate covers it** (`Chain::read_member`), as the read found it.
+    /// `false` on a genuine row somebody below the member wrote, or one a role moved or went
+    /// under on another machine: it grants nothing, its content is never carried forward as
+    /// authority, and it is never saved, only removed (effort 838, the re-check of ticket 20).
+    /// `true` on every row the unverified read returns, which judges nothing. Like
+    /// `effective`, computed by the read and never stored, and a write does not read it.
+    pub covered: bool,
     pub must_change_password: bool,
     pub created_at: i64,
     pub updated_at: i64,
@@ -945,20 +955,39 @@ impl OrganizationStore {
     /// **The role rows are read unverified**, because what is being judged is our own write and
     /// not somebody else's row: the replica's roles as they stand are the ones a reader will judge
     /// this row by, and verifying them again on every write would buy nothing a read does not
-    /// already refuse. Neither the walk nor the revocations are asked, for the same reason.
+    /// already refuse. The signer's own walk and revocations are not asked, for the same reason.
+    /// **The member's live certificates are**, since a member row's signer has to outrank them
+    /// ([`covers`]), and they are judged under the key the `organization` row carries: our own
+    /// write asks what a reader holding that key will make of it, and a replica with no
+    /// organization row yet has nobody certified to outrank.
     async fn refuse_uncovered(
         &self,
         signer: &Signer<'_>,
         authority: Authority<'_>,
     ) -> Result<(), Error> {
-        let roles = match authority {
-            Authority::Member(_) => standings(&self.roles_unverified().await?),
-            _ => HashMap::new(),
+        let (roles, certified_rank) = match authority {
+            Authority::Member(member) => {
+                let certified_rank = match self.organization().await? {
+                    Some(organization) => {
+                        let (certificates, revocations) = self.chain_rows().await?;
+
+                        Chain::new(&organization.verifying_key, &certificates, &revocations)
+                            .certified_rank_of(member.id)
+                    }
+                    None => None,
+                };
+
+                (standings(&self.roles_unverified().await?), certified_rank)
+            }
+            _ => (HashMap::new(), None),
         };
 
-        if covers(signer.certificate, authority, |role_id| {
-            roles.get(role_id).copied()
-        }) {
+        if covers(
+            signer.certificate,
+            authority,
+            |role_id| roles.get(role_id).copied(),
+            |_| certified_rank,
+        ) {
             return Ok(());
         }
 
@@ -1296,8 +1325,9 @@ impl OrganizationStore {
     /// number only ever moves forward.
     ///
     /// **Refused, with nothing written, where the signer's certificate does not cover the row**
-    /// ([`OrganizationStore::refuse_uncovered`]): a member ranked at or above it, a flag the row
-    /// gives that the certificate does not carry, or the certificate's own holder's row.
+    /// ([`OrganizationStore::refuse_uncovered`]): a member ranked at or above it, a flag the row's
+    /// override switches that the certificate does not carry, or the certificate's own holder's
+    /// row.
     pub async fn write_member(
         &self,
         signer: &Signer<'_>,
@@ -1557,17 +1587,20 @@ impl OrganizationStore {
     ///
     /// **`organization_verifying_key` is `None` for the unverified read and for nothing else.**
     /// Where it is `Some`, every row is checked against the chain before it is returned and a row
-    /// that does not check refuses the whole read by name; where it is `None`, the certificates
-    /// are not even fetched, because a caller that is not going to judge the rows has no use for
-    /// the authorities behind them. [`OrganizationStore::members_unverified`] says which caller
-    /// that is and why it is alone.
+    /// that does not check refuses the whole read by name, but for one: a genuine row its
+    /// certificate stopped covering because the role it names moved or went on another machine
+    /// (`Chain::read_member`), which is returned granting nothing. A removed member's row grants
+    /// nothing either, however it reads (effort 838, the human's decision after review round
+    /// two). Where it is `None`, the certificates are not even fetched, because a caller that is
+    /// not going to judge the rows has no use for the authorities behind them.
+    /// [`OrganizationStore::members_unverified`] says which caller that is and why it is alone.
     async fn signed_members_where(
         &self,
         organization_verifying_key: Option<&[u8; VERIFYING_KEY_BYTES]>,
         member_id: Option<&str>,
     ) -> Result<Vec<(String, MemberRecord)>, Error> {
         // the roles first, verified where the rows are: a member row is judged by the rank of the
-        // role it names and by what it gives, which is that role's mask with the override applied. The
+        // role it names, and what it gives is that role's mask with the override applied. The
         // unverified read reads them unverified too, and uses them for nothing but the number.
         let roles = match organization_verifying_key {
             Some(pinned) => self.roles(pinned).await?,
@@ -1608,7 +1641,7 @@ impl OrganizationStore {
             let override_mask = integer(&row, 9)?;
             let certificate_id = text(&row, 12)?;
             let signature = blob(&row, 13)?;
-            let member = MemberRecord {
+            let mut member = MemberRecord {
                 id: text(&row, 0)?,
                 username_sealed: blob(&row, 1)?,
                 vault: Vault {
@@ -1619,7 +1652,8 @@ impl OrganizationStore {
                 },
                 signing_public_key: fixed::<VERIFYING_KEY_BYTES>(&row, 3, "signing_public_key")?,
                 sealed_content_key: blob(&row, 5)?,
-                effective: effective_of(&role_id, override_mask, &roles).unwrap_or(0),
+                effective: 0,
+                covered: true,
                 role_id,
                 override_mask,
                 removed_at: nullable_integer(&row, 10)?,
@@ -1629,16 +1663,24 @@ impl OrganizationStore {
                 session_epoch: integer(&row, 16)?,
                 owner_seed_sealed: nullable_blob(&row, 17)?,
             };
+            let reading = match &chain {
+                Some(chain) => chain
+                    .read_member(&certificate_id, member_of(&member), &signature)
+                    .map_err(|error| Error::Integrity {
+                        message: format!("the member row {} is refused: {error}", member.id),
+                    })?,
+                None => Reading::Covered,
+            };
 
-            if let Some(chain) = &chain {
-                verified(
-                    chain,
-                    "member",
-                    &member.id,
-                    &certificate_id,
-                    member_authority(&member),
-                    &signature,
-                )?;
+            // a removed member's row grants nothing, and neither does a genuine one its
+            // certificate stopped covering (effort 838, the human's decision after review round
+            // two): it stays in the directory, removal and all, until somebody above the member
+            // removes it.
+            member.covered = reading == Reading::Covered;
+
+            if member.covered && member.removed_at.is_none() {
+                member.effective =
+                    effective_of(&member.role_id, member.override_mask, &roles).unwrap_or(0);
             }
 
             members.push((certificate_id, member));
@@ -2424,7 +2466,10 @@ impl OrganizationStore {
     /// rows** (effort 838): re-signing a grant takes `grantWorkspace`, a member row a rank above the
     /// member, and so on (`authority::needed_for`). The rows are read and every one is judged before
     /// the first is written, so a refusal leaves nothing half moved. Deleting the row instead is
-    /// not offered: it would take something away from somebody who did nothing.
+    /// not offered: it would take something away from somebody who did nothing. **A member row
+    /// the certificate signed that it no longer covers refuses the act too**, by name, since
+    /// signing it again under the actor would carry its content forward as authority; the member
+    /// is removed first, which the refusal says (effort 838, the re-check of ticket 20).
     ///
     /// The rows are read through the verified readers, so a row that does not verify under the
     /// still-live old certificate refuses the whole operation rather than being re-signed blind;
@@ -2510,6 +2555,19 @@ impl OrganizationStore {
             .await?
             .filter(|(signed_by, _)| of(signed_by))
             .map(|(_, mark)| mark);
+
+        // a member row its certificate no longer covers is not signed again under anybody: that
+        // would make the role somebody below the member named real under a signer who covers it
+        // (effort 838, the re-check of ticket 20). The member is removed first, which writes
+        // their row under the remover, and the act is refused by name until they have been.
+        if members.iter().any(|member| !member.covered) {
+            return Err(Error::refused(
+                RefusalReason::RoleUnsettled,
+                "a row this certificate signed was written for a member it could not write it \
+                 for. somebody ranked above that member removes them first, and makes them an \
+                 account again. nothing was changed",
+            ));
+        }
 
         // every row judged before the first is written. The masks and the ranks are every role's
         // as it stands, so a member row is judged by the role it names.
@@ -2696,7 +2754,12 @@ impl OrganizationStore {
 
 /// What a member row puts under signature, from the record.
 fn member_authority(member: &MemberRecord) -> Authority<'_> {
-    Authority::Member(MemberAuthority {
+    Authority::Member(member_of(member))
+}
+
+/// The same, as the member read hands it to [`Chain::read_member`].
+fn member_of(member: &MemberRecord) -> MemberAuthority<'_> {
+    MemberAuthority {
         id: &member.id,
         public_key: &member.vault.public_key,
         signing_public_key: &member.signing_public_key,
@@ -2704,7 +2767,7 @@ fn member_authority(member: &MemberRecord) -> Authority<'_> {
         override_mask: member.override_mask,
         removed_at: member.removed_at,
         owner_seed_sealed: member.owner_seed_sealed.as_deref(),
-    })
+    }
 }
 
 /// What a workspace row puts under signature, from the record.
@@ -3006,6 +3069,7 @@ mod tests {
                 override_mask: 0,
                 removed_at: None,
                 effective: 0,
+                covered: true,
                 must_change_password: role != "owner",
                 created_at: 1_757_000_000_000,
                 updated_at: 1_757_000_000_000,
@@ -4430,9 +4494,9 @@ mod tests {
     /// certificate does not cover, naming what it needs, and writes nothing.** One narrow
     /// certificate, holding `assignRole` and the member role's flags at a rank above the member,
     /// tries a row of every kind it may not sign: a grant, a role, a workspace, an invitation and
-    /// the mark for want of their flags, a member row giving a flag it lacks, and its own member's
-    /// row. Each is refused with `authority::needed_for`'s words and not a cell moves; a member row
-    /// inside the certificate, about somebody else, is written.
+    /// the mark for want of their flags, a member row switching a flag it lacks, and its own
+    /// member's row. Each is refused with `authority::needed_for`'s words and not a cell moves; a
+    /// member row inside the certificate, about somebody else, is written.
     #[tokio::test]
     async fn a_row_its_signers_certificate_does_not_cover_is_refused_by_name_and_not_written() {
         let directory = scratch("uncovered-write");
@@ -4532,7 +4596,7 @@ mod tests {
                     .await,
             ),
             (
-                "every flag the member ends up with",
+                "every flag their override switches",
                 store.write_member(&signer, &widened).await,
             ),
             (
@@ -4628,10 +4692,15 @@ mod tests {
         assert_eq!(revocations, vec![revocation]);
     }
 
-    /// Effort 838, ticket 04: **a member row whose signer does not outrank the role it names is
-    /// refused on read.** A manager writes a row making somebody a manager, around every command.
+    /// Effort 838, ticket 04: **a member row whose signer does not outrank the role it names
+    /// grants nothing.** A manager writes a row making somebody a manager, around every command.
+    /// The directory still reads and the row grants nothing: a reader cannot tell it from a row a
+    /// role's rank moved under on another machine, which is genuine, and a row whose only failure
+    /// is its role's standing is read that way rather than refusing everybody the directory
+    /// (review round two). Saved by the root, which covers it, it grants its role's mask.
+    /// *Refused on read, and the directory with it, until then.*
     #[tokio::test]
-    async fn a_member_row_signed_by_one_not_outranking_its_role_is_refused_on_read() {
+    async fn a_member_row_signed_by_one_not_outranking_its_role_grants_nothing_until_saved() {
         let directory = scratch("outranked");
         let store = open(&directory).await;
         let chain = Chain::new();
@@ -4661,24 +4730,36 @@ mod tests {
                 },
                 &MemberRecord {
                     role_id: MANAGER_ROLE.id.to_string(),
-                    ..staff
+                    ..staff.clone()
                 },
             )
             .await
             .expect("written around the store, which is not what refuses");
 
-        let refusal = store
-            .members(&key)
+        let read = store
+            .member(&key, "member-staff")
             .await
-            .expect_err("a manager made somebody a manager");
+            .expect("the row reads")
+            .expect("member-staff");
 
-        assert!(
-            refusal
-                .to_string()
-                .contains("not one its certificate may sign"),
-            "{refusal}"
+        assert_eq!(read.role_id, MANAGER_ROLE.id);
+        assert_eq!(read.effective, 0, "a manager made somebody a manager");
+        assert_eq!(store.members(&key).await.expect("the directory").len(), 2);
+
+        store
+            .write_member(&chain.signer(), &read)
+            .await
+            .expect("the root saves the row");
+
+        assert_eq!(
+            store
+                .member(&key, "member-staff")
+                .await
+                .expect("the row reads")
+                .expect("member-staff")
+                .effective,
+            MANAGER_ROLE.mask
         );
-        assert!(refusal.to_string().contains("member-staff"), "{refusal}");
     }
 
     #[test]

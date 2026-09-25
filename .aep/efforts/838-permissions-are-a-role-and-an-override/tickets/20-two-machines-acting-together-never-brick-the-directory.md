@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(organization): two machines acting together never brick the directory
@@ -22,22 +22,28 @@ nothing and is never refused for what the member role carries.
 
 Traces requirements 7 and 9 of [[efforts/838-permissions-are-a-role-and-an-override/spec]], and criteria 7 and 9.
 
-- [ ] `authority::covers` bounds a member row by the ceiling in the flags its override switches, not
+- [x] `authority::covers` bounds a member row by the ceiling in the flags its override switches, not
       its whole effective permissions; it still refuses a delegated certificate signing its own
       member's row, an override switching a flag the ceiling lacks, and a role row whose mask the
       ceiling does not hold. The review's own-row, override and role-row cases still fail on read.
-- [ ] The review's race (a lead invites on one replica while the owner widens the member role on
+- [x] The review's race (a lead invites on one replica while the owner widens the member role on
       another, merged) reads the whole directory on every machine, with the new member holding the
       widened member role's permissions; a test, shown failing before the change.
-- [ ] A member row whose signature and chain verify but which its certificate no longer covers (a
-      concurrent rank move leaves one) is read with no permissions rather than refusing the read,
-      and reads as covered again once a member who covers it saves the member; a test for each.
-- [ ] A removed member's row grants nothing, and a removal is not refused for any flag the member
+- [x] A member row whose signature and chain verify but which its certificate no longer covers (a
+      concurrent rank move leaves one) is read with no permissions rather than refusing the read;
+      a test.
+- [x] A removed member's row grants nothing, and a removal is not refused for any flag the member
       role carries; the check ticket 18 added for it is gone, and a test removes a member below a
       manager who lacks a flag the member role carries.
-- [ ] Every command that judged a member row by its effective permissions against a ceiling
+- [x] Every command that judged a member row by its effective permissions against a ceiling
       (`role::apply`, the store's write guard, the re-sign pre-check) judges it by the corrected
       table, and the organization context's *Chain* entry says so.
+- [x] An uncovered row's content is never carried forward as authority: every act on an uncovered
+      row is refused by name but its removal by an actor outranking the member's certified rank; the
+      owner's machine repairs the owner's own row from what the owner's secret opens and derives,
+      never from the row. Tests for the review's probes: a forged promotion laundered by a rename, a
+      covered removal reversed by a re-signed row, a forger's signing key certified by a saving
+      assignment, a row naming a gone role; each refused, and each removable.
 
 ## Relevant areas
 
@@ -49,3 +55,16 @@ Traces requirements 7 and 9 of [[efforts/838-permissions-are-a-role-and-an-overr
 
 - A row whose signature or chain does not verify still refuses the read: only a genuine row its
   certificate has stopped covering grants nothing instead.
+
+## Accepted
+
+Two costs of the rule that an uncovered member row is never saved, accepted by the human on
+2026-09-26, in the question put at the close:
+
+- A member holding the organization database's credential can force a manager out by forging
+  their row; the manager is then removed and made an account again. Recoverable, where the failure
+  this replaced made the directory unreadable, and of a kind with deleting a row, which the chain
+  already says it cannot stop.
+- Removing a lead who forged a member's row waits for that member's removal, because retiring the
+  lead's certificate would otherwise re-sign the forged row under the remover. The refusal names
+  the member to remove first.

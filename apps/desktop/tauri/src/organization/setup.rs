@@ -637,6 +637,7 @@ async fn finish<P: TursoPlatform>(
                 override_mask: 0,
                 removed_at: None,
                 effective: permission::OWNER_ROLE.mask,
+                covered: true,
                 must_change_password: false,
                 created_at: now,
                 updated_at: now,

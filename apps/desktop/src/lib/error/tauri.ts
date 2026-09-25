@@ -75,6 +75,7 @@ export const TAURI_REFUSAL_REASONS = [
 	'roleLacksAct',
 	'notAdministrator',
 	'rankNotAbove',
+	'roleUnsettled',
 	'roleBuiltIn',
 	'roleNameMissing',
 	'roleNameTaken',

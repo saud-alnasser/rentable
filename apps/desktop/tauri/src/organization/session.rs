@@ -68,7 +68,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     diagnostics,
     error::{Error, RefusalReason},
-    keyring,
+    keyring, timestamp,
 };
 
 use crate::sync::turso::platform::AccessLevel;
@@ -299,16 +299,54 @@ pub async fn actor(store: &OrganizationStore, session: &MemberSession) -> Result
 
 /// The rank of the role a member's verified row names: what [`Actor::outranks`] is asked about
 /// before an act on their account.
+///
+/// **On a row its certificate no longer covers, the rank they are certified at** (effort 838, the
+/// focused review of ticket 20): the role such a row names is content nobody covering it wrote,
+/// and it may be above them, below them or gone. What stands is the highest of their live
+/// certificates, or the member's rank where they hold none, so the removal that is the one act on
+/// such a row is made by somebody above the member as they stand.
 pub async fn rank_of(
     store: &OrganizationStore,
     session: &MemberSession,
     member: &MemberRecord,
 ) -> Result<i64, Error> {
+    if !member.covered {
+        return Ok(store
+            .live_certificates(&session.verifying_key, &member.id)
+            .await?
+            .iter()
+            .map(|certificate| certificate.rank)
+            .max()
+            .unwrap_or(permission::MEMBER_ROLE.rank));
+    }
+
     Ok(store
         .role_standing(&session.verifying_key, &member.role_id)
         .await?
         .1)
 }
+
+/// Refuse an act on a member whose row its certificate no longer covers, naming what is to be
+/// done instead: the member removed, and made an account again, by somebody ranked above them
+/// (effort 838, the re-check of ticket 20). **An uncovered row is never saved**: it is content
+/// anybody holding the credential may have written, and nothing the directory holds says which of
+/// its fields are genuine, so every act on it would carry a forger's content forward as
+/// authority. A rename or a reset writes the row back as it stands, an assignment would lift a
+/// removal the forger re-signed and certify a signing key the forger put on it, and an override,
+/// a link, a grant or ending sessions builds on it. A removal is the one act asked of it, and it
+/// is not asked here. *An assignment saved such a row until the re-check.*
+pub fn refuse_unsettled(member: &MemberRecord) -> Result<(), Error> {
+    if member.covered {
+        return Ok(());
+    }
+
+    Err(Error::refused(RefusalReason::RoleUnsettled, UNSETTLED))
+}
+
+/// What an act on a member whose row is uncovered meets, and what it says to do instead.
+pub const UNSETTLED: &str = "this member's row was written by somebody who could not write it, so \
+     nothing is done for them but their removal. somebody ranked above them removes them and \
+     makes them an account again. nothing was changed";
 
 /// One workspace as the web layer learns of it: its name opened with the content key, and where
 /// its database is. No credential.
@@ -401,17 +439,30 @@ pub async fn sign_in(
             )
         })?;
 
-    // a removal is a signed row rather than an absence, and it is read before the password is
-    // tried: the vault would still open, and what it opens grants nothing any more.
-    if member.removed_at.is_some() {
-        return Err(Error::refused(
+    let removed = || {
+        Error::refused(
             RefusalReason::YouWereRemoved,
             format!("you were removed from {}", joined.name),
-        ));
+        )
+    };
+
+    // the one place a password can fail, and it says only that the value did not open. A removal
+    // is a signed row rather than an absence, and the vault would still open onto grants that
+    // grant nothing: on a removed row a value that does not open says the removal and not the
+    // password, and one that opens says it too, unless it is the owner's own vault meeting a
+    // removal written from below, which their machine repairs (`owner_row_repaired`).
+    let secret = match open_vault(password, &member.vault) {
+        Ok(secret) => secret,
+        Err(_) if member.removed_at.is_some() => return Err(removed()),
+        Err(refusal) => return Err(refusal),
+    };
+    let repaired = owner_row_repaired(store, &verifying_key, member, &secret).await;
+    let member = repaired.as_ref().unwrap_or(member);
+
+    if member.removed_at.is_some() {
+        return Err(removed());
     }
 
-    // the one place a password can fail, and it says only that the value did not open.
-    let secret = open_vault(password, &member.vault)?;
     let content_key = content_key_of(member, &secret)?;
 
     open_session(
@@ -424,6 +475,56 @@ pub async fn sign_in(
         credential,
     )
     .await
+}
+
+/// The owner's own row read again after their machine repaired it (`role::repair_owner_row`), or
+/// `None` where nothing was written: a sign-in or a resume that has just opened `member`'s vault
+/// asks it before it reads anything off the row, so an owner whose row somebody below them
+/// demoted or removed is signed in as the owner. Anybody else's machine writes nothing here.
+///
+/// **A repair that could not be made is a diagnostic and never a refusal**: the sign-in goes on
+/// with the row as it reads, which is what it did before, and the next heartbeat asks again.
+async fn owner_row_repaired(
+    store: &OrganizationStore,
+    verifying_key: &[u8; VERIFYING_KEY_BYTES],
+    member: &MemberRecord,
+    secret: &MemberSecretKey,
+) -> Option<MemberRecord> {
+    match super::role::repair_owner_row(store, verifying_key, &member.id, secret, timestamp::now())
+        .await
+    {
+        Ok(true) => store.member(verifying_key, &member.id).await.ok().flatten(),
+        Ok(false) => None,
+        Err(refusal) => {
+            diagnostics::warn("organization.owner.rowNotRepaired")
+                .with("reason", refusal.to_string())
+                .write();
+
+            None
+        }
+    }
+}
+
+/// The heartbeat's repair of the owner's own row (`role::repair_owner_row`), on the session this
+/// machine holds open, taking what the row says once it is written. On every machine but the
+/// owner's it writes nothing. **Nothing comes back**, since the heartbeat has nothing to do with
+/// the answer and this module answers no question with a yes or a no.
+pub(crate) async fn repair_own_row(store: &OrganizationStore, session: &mut MemberSession) {
+    let Some(row) = store
+        .member(&session.verifying_key, &session.member_id)
+        .await
+        .ok()
+        .flatten()
+    else {
+        return;
+    };
+
+    if let Some(repaired) =
+        owner_row_repaired(store, &session.verifying_key, &row, &session.secret).await
+    {
+        session.role = permission::OWNER.to_string();
+        session.permissions = repaired.effective;
+    }
 }
 
 /// Write this machine into the organization's registry, naming whoever is signed in on it
@@ -508,7 +609,10 @@ pub async fn sign_in_by_username(
     // is somebody else's. Two members who chose the same password each open under it, since a
     // vault is its own salt, and the one that opens first is whoever joined first: stopping
     // there would refuse the later of the two at the wall for as long as they share it.
-    for member in members.iter().filter(|member| member.removed_at.is_none()) {
+    //
+    // a removed row is asked too, and passed over unless it is the owner's own meeting a removal
+    // written from below, which their machine repairs here (`owner_row_repaired`).
+    for member in &members {
         let Ok((secret, member_key)) = open_vault_with_key(password, &member.vault) else {
             continue;
         };
@@ -520,6 +624,14 @@ pub async fn sign_in_by_username(
         )?;
 
         if carried.trim().to_lowercase() == wanted {
+            let member = owner_row_repaired(store, &verifying_key, member, &secret)
+                .await
+                .unwrap_or_else(|| member.clone());
+
+            if member.removed_at.is_some() {
+                continue;
+            }
+
             found = Some((member, secret, member_key, content_key));
             break;
         }
@@ -541,7 +653,7 @@ pub async fn sign_in_by_username(
         store,
         held,
         verifying_key,
-        member,
+        &member,
         secret,
         content_key,
         credential,
@@ -696,14 +808,12 @@ async fn resumed(
             )
         })?;
 
-    // as `sign_in` reads it: a removal is a signed row rather than an absence, and the vault
-    // would still open onto grants that grant nothing.
-    if member.removed_at.is_some() {
-        return Err(Error::refused(
+    let removed = || {
+        Error::refused(
             RefusalReason::YouWereRemoved,
             format!("you were removed from {}", held.name),
-        ));
-    }
+        )
+    };
 
     // before the key is spent: the rows this machine already holds may say the sessions ended,
     // which is every machine whose heartbeat saw the bump before it was closed.
@@ -711,7 +821,21 @@ async fn resumed(
         return Ok(Resumption::SignedOutElsewhere);
     }
 
-    let secret = open_sealed_secret_key(&member_key, &member.vault)?;
+    // as `sign_in` reads it: a removal is a signed row rather than an absence, and the vault
+    // would still open onto grants that grant nothing, unless it is the owner's own vault meeting
+    // a removal written from below, which their machine repairs (`owner_row_repaired`).
+    let secret = match open_sealed_secret_key(&member_key, &member.vault) {
+        Ok(secret) => secret,
+        Err(_) if member.removed_at.is_some() => return Err(removed()),
+        Err(refusal) => return Err(refusal),
+    };
+    let repaired = owner_row_repaired(store, &verifying_key, member, &secret).await;
+    let member = repaired.as_ref().unwrap_or(member);
+
+    if member.removed_at.is_some() {
+        return Err(removed());
+    }
+
     let content_key = content_key_of(member, &secret)?;
     let session = open_session(
         store,
@@ -903,6 +1027,8 @@ pub async fn end_member_sessions(
             "an owner's sessions are not ended by anybody else. the organization is theirs",
         ));
     }
+
+    refuse_unsettled(member)?;
 
     // from above only: whoever may hand an account a fresh way in may end the ways in it has, and
     // both are held to the member's role ranking below the actor's (effort 838, requirement 7).
@@ -1639,6 +1765,7 @@ mod tests {
                     override_mask: 0,
                     removed_at: None,
                     effective: 0,
+                    covered: true,
                     must_change_password: true,
                     created_at: 1_757_000_000_000,
                     updated_at: 1_757_000_000_000,
@@ -1948,6 +2075,7 @@ mod tests {
                     override_mask: 0,
                     removed_at: None,
                     effective: 0,
+                    covered: true,
                     must_change_password: false,
                     created_at: 1_757_000_000_000,
                     updated_at: 1_757_000_000_000,

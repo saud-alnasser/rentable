@@ -1178,6 +1178,10 @@ type RootTranslation = {
 				 */
 				rankNotAbove: string
 				/**
+				 * s​o​m​e​b​o​d​y​ ​n​o​t​ ​a​l​l​o​w​e​d​ ​t​o​ ​c​h​a​n​g​e​d​ ​t​h​i​s​ ​m​e​m​b​e​r​'​s​ ​r​e​c​o​r​d​.​ ​s​o​m​e​b​o​d​y​ ​a​b​o​v​e​ ​t​h​e​m​ ​r​e​m​o​v​e​s​ ​t​h​e​m​ ​a​n​d​ ​m​a​k​e​s​ ​t​h​e​m​ ​a​n​ ​a​c​c​o​u​n​t​ ​a​g​a​i​n​.
+				 */
+				roleUnsettled: string
+				/**
 				 * e​v​e​r​y​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​h​a​s​ ​t​h​i​s​ ​r​o​l​e​,​ ​s​o​ ​i​t​ ​i​s​ ​n​o​t​ ​r​e​n​a​m​e​d​,​ ​m​o​v​e​d​ ​o​r​ ​d​e​l​e​t​e​d​.​ ​t​h​e​ ​o​w​n​e​r​'​s​ ​r​o​l​e​ ​a​l​w​a​y​s​ ​c​a​r​r​i​e​s​ ​e​v​e​r​y​t​h​i​n​g​.
 				 */
 				roleBuiltIn: string
@@ -5464,6 +5468,10 @@ export type TranslationFunctions = {
 				 * that role is not below your own. ask somebody who ranks above it.
 				 */
 				rankNotAbove: () => LocalizedString
+				/**
+				 * somebody not allowed to changed this member's record. somebody above them removes them and makes them an account again.
+				 */
+				roleUnsettled: () => LocalizedString
 				/**
 				 * every organization has this role, so it is not renamed, moved or deleted. the owner's role always carries everything.
 				 */

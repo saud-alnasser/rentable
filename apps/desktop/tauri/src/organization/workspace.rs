@@ -305,6 +305,11 @@ pub async fn grant_workspace<P: TursoPlatform>(
                 "that member is not in this organization",
             )
         })?;
+
+    // a grant builds on the member as their row reads, and a row its certificate no longer
+    // covers is never saved, only removed (effort 838).
+    super::session::refuse_unsettled(member)?;
+
     let workspaces = store.workspaces(&session.verifying_key).await?;
     let workspace = workspaces
         .iter()
@@ -978,6 +983,7 @@ mod tests {
                     override_mask: 0,
                     removed_at: None,
                     effective: 0,
+                    covered: true,
                     must_change_password: false,
                     created_at: 1_757_000_000_000,
                     updated_at: 1_757_000_000_000,
@@ -1036,6 +1042,7 @@ mod tests {
                     override_mask: 0,
                     removed_at: None,
                     effective: 0,
+                    covered: true,
                     must_change_password: false,
                     created_at: 1_757_000_000_000,
                     updated_at: 1_757_000_000_000,

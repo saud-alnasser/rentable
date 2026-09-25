@@ -13,8 +13,8 @@
 //! actor's own row, and on every flag it changes, in a role's mask or in anybody's effective
 //! permissions, being one the actor holds; none of the owner's flags is set anywhere but on the
 //! owner. The comparison is made here, with the before and the after in hand ([`apply`]); a reader
-//! checks that a row is one its certificate may sign, which bounds what it gives by the signer's
-//! ceiling and never lets a signer's own row be theirs to sign.
+//! checks that a row is one its certificate may sign, which bounds a role's mask and a member's
+//! override by the signer's ceiling and never lets a signer's own row be theirs to sign.
 //!
 //! **The certificate follows, in the same act** ([`reissue`], requirement 9). Whoever changes a
 //! member's effective permissions or rank issues them a fresh certificate from their own, re-signs
@@ -66,8 +66,8 @@ use super::{
         MemberRecord, OrganizationRecord, OrganizationStore, RoleRecord, Signer, SuccessionRecord,
     },
     vault::{
-        SECRET_KEY_BYTES, open_content, open_vault, seal_content, seal_to_public_key,
-        unseal_with_secret_key,
+        MemberSecretKey, SECRET_KEY_BYTES, Vault, open_content, open_vault, seal_content,
+        seal_to_public_key, unseal_with_secret_key,
     },
     workspace::{require_owner, signer_of},
 };
@@ -453,6 +453,8 @@ pub async fn offer_ownership(
                 "that member is not in this organization",
             )
         })?;
+
+    super::session::refuse_unsettled(member)?;
 
     if member.removed_at.is_some() {
         return Err(Error::refused(
@@ -1021,6 +1023,102 @@ pub async fn accept_ownership(
     Ok(())
 }
 
+/// Sign the owner's own row again under the root where it does not read as the owner's: what the
+/// owner's machine does, with nobody acting, when a sign-in, a resume or a heartbeat finds it so
+/// (effort 838, the human's decision after review round two). Answers whether it wrote.
+///
+/// **A demotion written around the command reads as granting nothing, and only the root undoes
+/// it.** A member holding the credential who signs the owner's row naming a lower role, or
+/// removed, fails on rank alone and reads uncovered, so the owner would hold no permissions and
+/// no command of theirs would run to write the row again. The one machine that holds the root is
+/// the owner's, so that machine repairs it the moment it reads it: the row is written again as the
+/// owner's role, with no override, no removal and no offer's seal, and pushed. **The keys are the
+/// owner's own**, the signing key their secret derives and the vault's public half their secret
+/// opens, never the row's, which somebody below them wrote (the re-check of ticket 20); every other
+/// column stands as it is (the sealed vault, the session epoch, the username).
+///
+/// **Only for the machine whose vault derives the key the organization is pinned to, and only
+/// for its own row.** `secret` derives the organization key (`setup::owner_key_from`); where it is
+/// not `verifying_key`, the caller is not the owner, founder or transferee, and nothing is read or
+/// written. A manager's machine meeting their own demoted row therefore writes nothing: an
+/// uncovered row is never saved (`session::refuse_unsettled`), and the owner removes the manager
+/// and makes them an account again. A row that is gone is a deletion,
+/// which the chain says it cannot stop (`authority.rs`): there is no vault left to keep, so nothing
+/// is written and the point-in-time restore is the answer.
+pub(super) async fn repair_owner_row(
+    store: &OrganizationStore,
+    verifying_key: &[u8; VERIFYING_KEY_BYTES],
+    member_id: &str,
+    secret: &MemberSecretKey,
+    now: i64,
+) -> Result<bool, Error> {
+    if owner_key_from(secret)?.verifying_key() != *verifying_key {
+        return Ok(false);
+    }
+
+    let Some(row) = store.member(verifying_key, member_id).await? else {
+        return Ok(false);
+    };
+
+    if row.role_id == permission::OWNER
+        && row.override_mask == 0
+        && row.removed_at.is_none()
+        && row.effective == permission::OWNER_ROLE.mask
+    {
+        return Ok(false);
+    }
+
+    let key = AdministratorKey::from_bytes(&secret.derive_seed(ADMINISTRATOR_KEY_PURPOSE)?);
+    let Some(root) = store
+        .live_certificates(verifying_key, member_id)
+        .await?
+        .into_iter()
+        .find(|certificate| {
+            certificate.is_root() && certificate.signing_public_key == key.verifying_key()
+        })
+    else {
+        return Ok(false);
+    };
+
+    store
+        .write_member(
+            &Signer {
+                key: &key,
+                certificate: &root,
+            },
+            // the keys come from what the owner's own secret derives and opens, never from the
+            // row, which somebody below them wrote: a forged signing key re-signed under the root
+            // would be the forger's at the owner's rank. The seal of an offer goes too.
+            &MemberRecord {
+                role_id: permission::OWNER.to_string(),
+                override_mask: 0,
+                removed_at: None,
+                signing_public_key: key.verifying_key(),
+                vault: Vault {
+                    public_key: secret.public_key(),
+                    ..row.vault.clone()
+                },
+                owner_seed_sealed: None,
+                updated_at: now,
+                ..row
+            },
+        )
+        .await?;
+
+    sent(
+        store,
+        "organization.owner.repairNotYetSent",
+        "member",
+        member_id,
+    )
+    .await;
+    diagnostics::warn("organization.owner.rowRepaired")
+        .with("member", member_id)
+        .write();
+
+    Ok(true)
+}
+
 /// Follow the organization's successions from the key this machine pinned to the key it should be
 /// holding now, and pin that one (effort 828, requirement 22).
 ///
@@ -1481,10 +1579,11 @@ struct Moved {
 /// **What it checks, before a row is written.** Requirement 7's "only flags you hold" over the
 /// change as a whole: every bit that differs, in a role's mask or in the effective permissions of
 /// anybody the change moves, is one the actor holds, and none of the owner's flags is set on a role
-/// or on anybody's permissions. Then the row-kind table over what it signs: every role row it
-/// writes, and the effective permissions of every member row it rewrites, within the actor's
-/// certificate, since the chain refuses a row that gives more than its signer holds. The gates in
-/// front of it (the flag, the rank, never yourself) are each command's own.
+/// or on anybody's permissions. Then the row-kind table over what it signs: every role row's mask
+/// it writes, and the override of every member row it rewrites, within the actor's certificate,
+/// since the chain refuses a row that switches more than its signer holds; the certificate each
+/// holder is issued holds their whole effective permissions to the actor's. The gates in front of
+/// it (the flag, the rank, never yourself) are each command's own.
 ///
 /// **What it writes, in one transaction.** The rows of every member it moves, re-signed under the
 /// actor with the role and the override they now name: first, so that a row whose role is
@@ -1494,8 +1593,17 @@ struct Moved {
 /// certificate the actor could not issue, or whose old one signed or issued something the actor
 /// could not, refuses the whole act by name and nothing moves.
 ///
-/// A member row is rewritten wherever its role, its override, its effective permissions or its
-/// rank moves; a removed member's row is re-signed and holds no certificate to follow.
+/// A member row the change names, or whose role it writes or deletes, is rewritten wherever its
+/// role, its override, what it grants or its rank moves. A removed member's row grants nothing
+/// before and after, is re-signed where its role or its rank moves, and holds no certificate to
+/// follow.
+///
+/// **A row its certificate no longer covers is never saved** (effort 838, the re-check of ticket
+/// 20): nothing the directory holds says which of its fields are genuine, so its content is never
+/// carried forward as authority. The commands refuse an act naming it, and an edit of the role it
+/// names, or a deletion, leaves it as it stands. *An assignment saved one until the re-check found
+/// it lifting a covered removal a forger had re-signed and certifying a signing key the forger had
+/// put on the row.*
 async fn apply(
     store: &OrganizationStore,
     session: &MemberSession,
@@ -1533,6 +1641,29 @@ async fn apply(
     let mut moved = Vec::new();
 
     for row in store.members(&session.verifying_key).await? {
+        // a row the change does not name, whose role it neither writes nor deletes, stands as it
+        // was.
+        if !change
+            .members
+            .iter()
+            .any(|(member_id, _, _)| *member_id == row.id)
+            && !change.roles.iter().any(|role| role.id == row.role_id)
+            && !change.deleted.contains(&row.role_id)
+        {
+            continue;
+        }
+
+        let unknown = || Error::Integrity {
+            message: "a member's role is not among the organization's roles".to_string(),
+        };
+
+        // a row its certificate no longer covers is never saved (the re-check of ticket 20): the
+        // commands refuse an act naming it, and an edit of the role it names leaves it as it
+        // stands.
+        if !row.covered {
+            continue;
+        }
+
         let (role_id, override_mask) = change
             .members
             .iter()
@@ -1545,13 +1676,16 @@ async fn apply(
                     (row.role_id.clone(), row.override_mask)
                 }
             });
-        let unknown = || Error::Integrity {
-            message: "a member's role is not among the organization's roles".to_string(),
-        };
-        let (mask_before, rank_before) = standing_in(&before, &row.role_id).ok_or_else(unknown)?;
+        let (_, rank_before) = standing_in(&before, &row.role_id).ok_or_else(unknown)?;
         let (mask_after, rank_after) = standing_in(&after, &role_id).ok_or_else(unknown)?;
-        let effective_before = permission::effective(mask_before, row.override_mask);
-        let effective_after = permission::effective(mask_after, override_mask);
+        // what the row grants as it reads, which is nothing on a removed member's row, and what it
+        // will grant once this signs it.
+        let effective_before = row.effective;
+        let effective_after = if row.removed_at.is_some() {
+            0
+        } else {
+            permission::effective(mask_after, override_mask)
+        };
 
         if role_id == row.role_id
             && override_mask == row.override_mask
@@ -1605,8 +1739,10 @@ async fn apply(
 
     // and every row this signs sits inside the actor's certificate (effort 838, the row-kind
     // table): a role row carries no flag it does not, the ones it only renames or renumbers
-    // included, and a member row gives nobody one, a removed member's included. The gates above
-    // hold the flags this changes; these are the flags it leaves where they were and signs again.
+    // included, and a member row's override switches none for anybody, a removed member's
+    // included. The gates above hold the flags this changes; these are the flags it leaves where
+    // they were and signs again. The role's own mask a member row names is its role row's to
+    // vouch for, and the certificate each holder is issued below is what holds it to the actor's.
     for role in &change.roles {
         if let Some(flag) = permission::first_not_held(certificate.ceiling, role.mask) {
             return Err(Error::refused(
@@ -1620,12 +1756,12 @@ async fn apply(
     }
 
     for moving in &moved {
-        if let Some(flag) = permission::first_not_held(certificate.ceiling, moving.effective) {
+        if let Some(flag) = permission::first_not_held(certificate.ceiling, moving.override_mask) {
             return Err(Error::refused(
                 RefusalReason::RoleLacksAct,
                 format!(
-                    "a member this moves would hold {flag}, and you do not, so their row cannot \
-                     be signed by you. nothing was changed"
+                    "a member this moves has {flag} switched for them, and you do not hold it, so \
+                     their row cannot be signed by you. nothing was changed"
                 ),
             ));
         }
@@ -1982,6 +2118,9 @@ fn acted_on<'a>(
                 "that member is not in this organization",
             )
         })?;
+
+    // an uncovered row is never saved, an assignment's included (the re-check of ticket 20).
+    super::session::refuse_unsettled(member)?;
 
     if member.removed_at.is_some() {
         return Err(Error::refused(
@@ -4007,10 +4146,14 @@ mod tests {
     /// that back. So moving a clerk onto the auditor with that override moves only `editPayment`.
     ///
     /// Asked as two acts, either order passes through a state that switches `deletePayment`, and
-    /// each is refused. Asked as one, it goes. A role and an override that together do switch
-    /// `deletePayment` are refused whole, and the row and the certificate stay as they were. An
-    /// override that changes is asked of `overrideMember` as well as `assignRole`, and one given as
-    /// it stands is not.
+    /// each is refused. Asked as one, it is refused too, and by the override: the row it writes
+    /// switches `deletePayment`, which the deputy's certificate does not carry, and the chain
+    /// refuses such a row on read (review round two bounded a member row by its override). The
+    /// owner, who holds it, gives the role and the override as one act. A role and an override that
+    /// together do switch `deletePayment` are refused whole, and the row and the certificate stay
+    /// as they were. An override that changes is asked of `overrideMember` as well as
+    /// `assignRole`, and one given as it stands is not. *Until review round two the deputy's one
+    /// act went, as ticket 14 asked.*
     #[tokio::test]
     async fn a_role_and_an_override_given_together_are_held_to_the_flags_they_move_together() {
         let directory = scratch("one-act");
@@ -4060,10 +4203,35 @@ mod tests {
 
         assert_eq!(every_row(&store).await, before, "a refusal wrote something");
 
-        // one act: only editPayment moves, and it goes.
-        let given = assign_role(
+        // one act: only editPayment moves, and the deputy still cannot sign the override.
+        let refusal = assign_role(
             &store,
             &actor,
+            &lina.member_id,
+            &auditor,
+            Some(deleting),
+            NOW + 1,
+        )
+        .await
+        .expect_err("the deputy signed an override switching a flag they lack");
+
+        assert_eq!(
+            reason_of(&refusal),
+            RefusalReason::RoleLacksAct,
+            "{refusal:?}"
+        );
+        assert!(
+            refusal
+                .to_string()
+                .contains("has deletePayment switched for them"),
+            "{refusal}"
+        );
+        assert_eq!(every_row(&store).await, before, "a refusal wrote something");
+
+        // the owner gives the role and the override as one act.
+        let given = assign_role(
+            &store,
+            &owner,
             &lina.member_id,
             &auditor,
             Some(deleting),
@@ -6032,7 +6200,7 @@ mod tests {
         assert!(
             refused
                 .to_string()
-                .contains("every flag the member ends up with"),
+                .contains("every flag their override switches"),
             "{refused}"
         );
         assert_eq!(every_row(&store).await, rows_before);
@@ -6164,15 +6332,17 @@ mod tests {
 
     /// **What the corrected table refuses, each act refuses first** (the ticket's constraint). The
     /// owner widens the member role with `deleteContract` and takes it off the manager's mask, so a
-    /// manager's certificate no longer signs a member-role holder's row, nor the member role's.
-    /// Every act of the manager's that would write one is refused by name, naming the flag, before
-    /// anything is written, and the directory still reads: an override, an edit of the role, a
-    /// rename, a reset and a removal.
+    /// manager's certificate no longer signs the member role's row, nor issues a member-role
+    /// holder's certificate. Every act of the manager's that would write one is refused by name,
+    /// naming the flag, before anything is written, and the directory still reads: an override, an
+    /// edit of the role and a reset. A rename, which writes the holder's row alone, is not: the
+    /// row is bounded by its override, and the role's mask is its role row's to vouch for (review
+    /// round two). *A rename and a removal were refused here too until then.*
     #[tokio::test]
     async fn an_act_whose_rows_the_actor_could_not_sign_is_refused_by_name_before_it_writes() {
         let directory = scratch("uncovered-acts");
         let (store, owner, link, workspace_id) = owned(&directory).await;
-        let mut manny = holding_role(
+        let manny = holding_role(
             &store,
             &owner,
             &link,
@@ -6242,18 +6412,6 @@ mod tests {
             "an edit of a role carrying a flag manny lacks",
         );
         names_the_flag(
-            crate::organization::invite::rename_member(
-                &store,
-                &manny,
-                &sami.member_id,
-                "sami.renamed",
-                NOW + 3,
-            )
-            .await
-            .map(|_| ()),
-            "a rename of a member holding a flag manny lacks",
-        );
-        names_the_flag(
             crate::organization::invite::unset_password(
                 &store,
                 &manny,
@@ -6266,22 +6424,24 @@ mod tests {
             .map(|_| ()),
             "a reset of a member holding a flag manny lacks",
         );
-        names_the_flag(
-            removal::remove_member(
-                &store,
-                &mut manny,
-                no_platform(),
-                "org-database",
-                &sami.member_id,
-                false,
-                NOW + 3,
-            )
-            .await
-            .map(|_| ()),
-            "a removal into a role carrying a flag manny lacks",
-        );
 
         assert_eq!(every_row(&store).await, rows_before);
+
+        // and what writes sami's row alone, switching nothing and issuing nothing, is manny's to
+        // write: a rename, since the member role's mask is its role row's to vouch for.
+        crate::organization::invite::rename_member(
+            &store,
+            &manny,
+            &sami.member_id,
+            "sami.renamed",
+            NOW + 4,
+        )
+        .await
+        .expect("a rename of a member whose role carries a flag manny lacks");
+        assert_eq!(
+            member_row(&store, &owner, &sami.member_id).await.effective,
+            permission::MEMBER_ROLE.mask | delete_contract
+        );
         store
             .members(&owner.verifying_key)
             .await
@@ -6402,5 +6562,1530 @@ mod tests {
             1,
             "the new owner holds more than the root"
         );
+    }
+
+    // -------------------------------------------------------------------------------------
+    // Effort 838, review round two: two machines acting together never brick the directory.
+    // -------------------------------------------------------------------------------------
+
+    /// A role's row as the owner's replica wrote it, merged into this one: signed by the owner's
+    /// root with the mask and the rank given, and nothing else of the owner's act, which is what
+    /// the other replica holds of it before either has pulled the other's.
+    async fn merged_role_row(
+        store: &OrganizationStore,
+        owner: &MemberSession,
+        role_id: &str,
+        mask: i64,
+        rank: i64,
+    ) {
+        let row = store
+            .roles(&owner.verifying_key)
+            .await
+            .expect("the roles verify")
+            .into_iter()
+            .find(|role| role.id == role_id)
+            .expect("the role");
+        let (key, certificate) = signer_of(store, owner).await.expect("the owner signs");
+
+        store
+            .write_role(
+                &Signer {
+                    key: &key,
+                    certificate: &certificate,
+                },
+                &crate::organization::store::RoleRecord { mask, rank, ..row },
+            )
+            .await
+            .expect("the owner's role row");
+    }
+
+    /// **The review's race** (finding B). A lead, holding the member role's flags with
+    /// `inviteMember` and `grantWorkspace`, invites sami on one machine while the owner adds
+    /// `deletePayment` to the member role on another. Merged, sami's row names the widened role,
+    /// wider than the lead's ceiling, and the directory reads on every machine with sami holding
+    /// the widened role's permissions: the role's mask is vouched for by the role row's signer,
+    /// and the lead signed only sami's role and override. *Before the correction every member read
+    /// refused sami's row, and nothing in the application could repair it.*
+    #[tokio::test]
+    async fn a_lead_inviting_while_the_owner_widens_the_member_role_leaves_the_directory_readable()
+    {
+        let directory = scratch("race-widen");
+        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let lead = a_role(
+            &store,
+            &owner,
+            "Lead",
+            permission::MEMBER_ROLE.mask
+                | permission::mask_of(&[Flag::InviteMember, Flag::GrantWorkspace]),
+            permission::MANAGER,
+        )
+        .await;
+        let lena = holding_role(&store, &owner, &link, "lena", &lead, &workspace_id).await;
+        let (sami, _) = a_member(
+            &store,
+            &lena,
+            &link,
+            "sami",
+            permission::MEMBER,
+            &workspace_id,
+        )
+        .await;
+        let widened = permission::MEMBER_ROLE.mask | permission::mask_of(&[Flag::DeletePayment]);
+
+        merged_role_row(
+            &store,
+            &owner,
+            permission::MEMBER,
+            widened,
+            permission::MEMBER_ROLE.rank,
+        )
+        .await;
+
+        assert!(!permission::permits(
+            the_certificate(&store, &owner, &lena.member_id)
+                .await
+                .ceiling,
+            Flag::DeletePayment
+        ));
+
+        for machine in [
+            &store,
+            &another_machine(&directory, &owner.organization_id).await,
+        ] {
+            let members = machine
+                .members(&owner.verifying_key)
+                .await
+                .expect("the directory reads after the merge");
+            let row = members
+                .iter()
+                .find(|member| member.id == sami.member_id)
+                .expect("sami's row");
+
+            assert_eq!(row.effective, widened);
+        }
+    }
+
+    /// **A row its certificate stopped covering grants nothing, and the directory still reads.**
+    /// A lead invites sami into a clerk role below them on one machine while the owner moves the
+    /// clerk role above the lead on another. Merged, sami's row is genuine, signed by a live
+    /// certificate that no longer outranks the role it names: it reads on every machine with no
+    /// permissions and its removal as it was, and the lead's own acts on sami are refused. Sami's
+    /// certificate stands as the lead issued it, re-issued from nothing. The row is never saved:
+    /// the owner's assignment of the clerk role is refused by name, and the owner removes sami,
+    /// which every machine then reads.
+    #[tokio::test]
+    async fn a_member_row_a_rank_move_left_uncovered_grants_nothing_and_is_removed_rather_than_saved()
+     {
+        let directory = scratch("race-rank");
+        let (store, mut owner, link, workspace_id) = owned(&directory).await;
+        let lead = a_role(
+            &store,
+            &owner,
+            "Lead",
+            permission::MEMBER_ROLE.mask
+                | permission::mask_of(&[
+                    Flag::InviteMember,
+                    Flag::GrantWorkspace,
+                    Flag::RenameMember,
+                ]),
+            permission::MANAGER,
+        )
+        .await;
+        let clerk = a_role(&store, &owner, "Clerk", permission::MEMBER_ROLE.mask, &lead).await;
+        let lena = holding_role(&store, &owner, &link, "lena", &lead, &workspace_id).await;
+        let (sami, sami_session) =
+            a_member(&store, &lena, &link, "sami", &clerk, &workspace_id).await;
+        let issued = the_certificate(&store, &owner, &sami.member_id).await;
+        let lead_rank = the_certificate(&store, &owner, &lena.member_id).await.rank;
+
+        merged_role_row(
+            &store,
+            &owner,
+            &clerk,
+            permission::MEMBER_ROLE.mask,
+            (lead_rank + permission::MANAGER_ROLE.rank) / 2,
+        )
+        .await;
+
+        for machine in [
+            &store,
+            &another_machine(&directory, &owner.organization_id).await,
+        ] {
+            let row = machine
+                .members(&owner.verifying_key)
+                .await
+                .expect("the directory reads after the merge")
+                .into_iter()
+                .find(|member| member.id == sami.member_id)
+                .expect("sami's row");
+
+            assert_eq!(row.effective, 0, "an uncovered row grants something");
+            assert_eq!(row.role_id, clerk);
+            assert_eq!(row.removed_at, None);
+        }
+
+        // sami acts with nothing, and the lead no longer acts on sami.
+        assert_eq!(
+            crate::organization::session::permissions_on_row(&store, &sami_session)
+                .await
+                .expect("sami's own row reads"),
+            0
+        );
+
+        let rows_before = every_row(&store).await;
+        let refused = crate::organization::invite::rename_member(
+            &store,
+            &lena,
+            &sami.member_id,
+            "sami.renamed",
+            NOW + 2,
+        )
+        .await
+        .expect_err("the lead renamed a member whose row is uncovered");
+
+        assert_eq!(reason_of(&refused), RefusalReason::RoleUnsettled);
+        assert_eq!(every_row(&store).await, rows_before);
+
+        // and the certificate the lead issued stands as it was: nothing re-issued it from the row.
+        let still = the_certificate(&store, &owner, &sami.member_id).await;
+
+        assert_eq!(still.id, issued.id);
+        assert_eq!(still.ceiling, issued.ceiling);
+
+        // the owner's assignment does not save it, and the owner's removal is what stands.
+        assert_eq!(
+            reason_of(
+                &assign_role(&store, &owner, &sami.member_id, &clerk, None, NOW + 3)
+                    .await
+                    .expect_err("an assignment saved an uncovered row")
+            ),
+            RefusalReason::RoleUnsettled
+        );
+        removal::remove_member(
+            &store,
+            &mut owner,
+            no_platform(),
+            "org-database",
+            &sami.member_id,
+            false,
+            NOW + 4,
+        )
+        .await
+        .expect("the owner removes sami");
+
+        for machine in [
+            &store,
+            &another_machine(&directory, &owner.organization_id).await,
+        ] {
+            let row = member_row(machine, &owner, &sami.member_id).await;
+
+            assert!(row.removed_at.is_some());
+            assert!(row.covered);
+            assert_eq!(row.effective, 0);
+        }
+    }
+
+    /// **A removed member's row grants nothing, and a removal is never refused for what the
+    /// member role carries** (finding C). The owner adds `deleteContract` to the member role and
+    /// takes it off the manager's, and a manager still removes a member below them: the removed
+    /// row holds the member role with no override, which the manager's certificate covers, and
+    /// reads on every machine as removed and granting nothing.
+    #[tokio::test]
+    async fn a_removal_is_not_refused_for_a_flag_the_member_role_carries_and_the_removed_row_grants_nothing()
+     {
+        let directory = scratch("removal-member-role");
+        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let mut manny = holding_role(
+            &store,
+            &owner,
+            &link,
+            "manny",
+            permission::MANAGER,
+            &workspace_id,
+        )
+        .await;
+        let (sami, _) = a_member(
+            &store,
+            &owner,
+            &link,
+            "sami.staff",
+            permission::MEMBER,
+            &workspace_id,
+        )
+        .await;
+        let delete_contract = permission::mask_of(&[Flag::DeleteContract]);
+
+        set_role_mask(
+            &store,
+            &owner,
+            permission::MEMBER,
+            permission::MEMBER_ROLE.mask | delete_contract,
+            NOW + 1,
+        )
+        .await
+        .expect("the owner widens the member role");
+        set_role_mask(
+            &store,
+            &owner,
+            permission::MANAGER,
+            permission::MANAGER_ROLE.mask & !delete_contract,
+            NOW + 2,
+        )
+        .await
+        .expect("the owner narrows the manager role");
+
+        assert!(!permission::permits(
+            the_certificate(&store, &owner, &manny.member_id)
+                .await
+                .ceiling,
+            Flag::DeleteContract
+        ));
+
+        removal::remove_member(
+            &store,
+            &mut manny,
+            no_platform(),
+            "org-database",
+            &sami.member_id,
+            false,
+            NOW + 3,
+        )
+        .await
+        .expect("the manager removes a member below them");
+
+        for machine in [
+            &store,
+            &another_machine(&directory, &owner.organization_id).await,
+        ] {
+            let row = machine
+                .members(&owner.verifying_key)
+                .await
+                .expect("the directory reads")
+                .into_iter()
+                .find(|member| member.id == sami.member_id)
+                .expect("sami's row");
+
+            assert!(row.removed_at.is_some());
+            assert_eq!(row.effective, 0, "a removed member's row grants something");
+        }
+    }
+
+    /// **A manager with the default mask does every act below them** (the review of effort 838,
+    /// round two): a role made, given, overridden, re-masked, renamed, moved and deleted, the
+    /// member role widened, a member renamed, reset and removed, and the directory, the roles and
+    /// the grants read on another machine after them, and again after the owner widens the member
+    /// role.
+    #[tokio::test]
+    async fn a_manager_does_every_act_below_them_and_every_machine_reads_the_result() {
+        let directory = scratch("manager-acts");
+        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let mut manny = holding_role(
+            &store,
+            &owner,
+            &link,
+            "manny",
+            permission::MANAGER,
+            &workspace_id,
+        )
+        .await;
+        let clerk = create_role(
+            &store,
+            &manny,
+            "Clerk",
+            permission::MEMBER_ROLE.mask
+                | permission::mask_of(&[
+                    Flag::DeletePayment,
+                    Flag::InviteMember,
+                    Flag::GrantWorkspace,
+                ]),
+            permission::MANAGER,
+            NOW + 1,
+        )
+        .await
+        .expect("the manager makes a role");
+        let (sami, _) = a_member(
+            &store,
+            &manny,
+            &link,
+            "sami",
+            permission::MEMBER,
+            &workspace_id,
+        )
+        .await;
+
+        assign_role(&store, &manny, &sami.member_id, &clerk.id, None, NOW + 2)
+            .await
+            .expect("the manager gives the role");
+        set_override(
+            &store,
+            &manny,
+            &sami.member_id,
+            permission::mask_of(&[Flag::DeletePayment]),
+            NOW + 3,
+        )
+        .await
+        .expect("the manager sets an override");
+        set_role_mask(
+            &store,
+            &manny,
+            &clerk.id,
+            clerk.mask | permission::mask_of(&[Flag::DeleteTenant]),
+            NOW + 4,
+        )
+        .await
+        .expect("the manager re-masks the role");
+        set_role_mask(
+            &store,
+            &manny,
+            permission::MEMBER,
+            permission::MEMBER_ROLE.mask | permission::mask_of(&[Flag::DeleteComplex]),
+            NOW + 4,
+        )
+        .await
+        .expect("the manager widens the member role");
+        rename_role(&store, &manny, &clerk.id, "Clerk II", NOW + 5)
+            .await
+            .expect("the manager renames the role");
+
+        let other = create_role(
+            &store,
+            &manny,
+            "Other",
+            permission::MEMBER_ROLE.mask,
+            permission::MANAGER,
+            NOW + 5,
+        )
+        .await
+        .expect("a second role");
+
+        move_role(&store, &manny, &clerk.id, &other.id, NOW + 6)
+            .await
+            .expect("the manager moves the role");
+        crate::organization::invite::rename_member(
+            &store,
+            &manny,
+            &sami.member_id,
+            "sami.renamed",
+            NOW + 6,
+        )
+        .await
+        .expect("the manager renames the member");
+        crate::organization::invite::unset_password(
+            &store,
+            &manny,
+            no_platform(),
+            &sami.member_id,
+            test_cost(),
+            NOW + 7,
+        )
+        .await
+        .expect("the manager resets the member");
+        delete_role(&store, &manny, &other.id, NOW + 8)
+            .await
+            .expect("the manager deletes a role");
+        removal::remove_member(
+            &store,
+            &mut manny,
+            no_platform(),
+            "org-database",
+            &sami.member_id,
+            false,
+            NOW + 9,
+        )
+        .await
+        .expect("the manager removes the member");
+
+        let elsewhere = another_machine(&directory, &owner.organization_id).await;
+
+        elsewhere
+            .members(&owner.verifying_key)
+            .await
+            .expect("the members read elsewhere");
+        elsewhere
+            .roles(&owner.verifying_key)
+            .await
+            .expect("the roles read elsewhere");
+        elsewhere
+            .grants(&owner.verifying_key)
+            .await
+            .expect("the grants read elsewhere");
+
+        set_role_mask(
+            &store,
+            &owner,
+            permission::MEMBER,
+            permission::MEMBER_ROLE.mask
+                | permission::mask_of(&[Flag::DeleteComplex, Flag::DeleteUnit]),
+            NOW + 10,
+        )
+        .await
+        .expect("the owner widens the member role");
+        another_machine(&directory, &owner.organization_id)
+            .await
+            .members(&owner.verifying_key)
+            .await
+            .expect("the members read after it");
+    }
+
+    /// **A custom role holding the member-administration flags does what they say** (the review
+    /// of effort 838, round two): a lead invites a member, sets their override, renames, resets
+    /// and removes them, and the directory reads on another machine.
+    #[tokio::test]
+    async fn a_custom_role_holding_the_member_administration_flags_does_what_they_say() {
+        let directory = scratch("lead-acts");
+        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let lead = a_role(
+            &store,
+            &owner,
+            "Lead",
+            permission::MEMBER_ROLE.mask
+                | permission::mask_of(&[
+                    Flag::InviteMember,
+                    Flag::GrantWorkspace,
+                    Flag::AssignRole,
+                    Flag::OverrideMember,
+                    Flag::RemoveMember,
+                    Flag::RenameMember,
+                    Flag::ResetPassword,
+                ]),
+            permission::MANAGER,
+        )
+        .await;
+        let mut lena = holding_role(&store, &owner, &link, "lena", &lead, &workspace_id).await;
+        let (sami, _) = a_member(
+            &store,
+            &lena,
+            &link,
+            "sami",
+            permission::MEMBER,
+            &workspace_id,
+        )
+        .await;
+
+        set_override(
+            &store,
+            &lena,
+            &sami.member_id,
+            permission::mask_of(&[Flag::EditPayment]),
+            NOW + 2,
+        )
+        .await
+        .expect("the lead sets an override");
+        crate::organization::invite::rename_member(
+            &store,
+            &lena,
+            &sami.member_id,
+            "sami.renamed",
+            NOW + 3,
+        )
+        .await
+        .expect("the lead renames the member");
+        crate::organization::invite::unset_password(
+            &store,
+            &lena,
+            no_platform(),
+            &sami.member_id,
+            test_cost(),
+            NOW + 4,
+        )
+        .await
+        .expect("the lead resets the member");
+        removal::remove_member(
+            &store,
+            &mut lena,
+            no_platform(),
+            "org-database",
+            &sami.member_id,
+            false,
+            NOW + 5,
+        )
+        .await
+        .expect("the lead removes the member");
+
+        another_machine(&directory, &owner.organization_id)
+            .await
+            .members(&owner.verifying_key)
+            .await
+            .expect("the members read elsewhere");
+    }
+
+    /// **A demotion written around the command never reads as the role it names** (criterion 9).
+    /// A lead holding a member-administration flag, and a manager, each sign the owner's row and a
+    /// manager's row naming the member role, around every command. A member row's signer must
+    /// outrank the member as certified as well as the role the row names, so the store refuses to
+    /// write either, and written around it, every other machine reads the demoted member with no
+    /// permissions rather than as a member: the row is the only record of their role, and it is
+    /// not one its signer could write. *Until then each read back as a member with the member
+    /// role's mask.*
+    #[tokio::test]
+    async fn a_demotion_signed_by_one_who_does_not_outrank_the_member_never_reads_as_the_named_role()
+     {
+        let directory = scratch("demotion");
+        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let lead = a_role(
+            &store,
+            &owner,
+            "Lead",
+            permission::MEMBER_ROLE.mask
+                | permission::mask_of(&[Flag::InviteMember, Flag::GrantWorkspace]),
+            permission::MANAGER,
+        )
+        .await;
+        let lena = holding_role(&store, &owner, &link, "lena", &lead, &workspace_id).await;
+        let manny = holding_role(
+            &store,
+            &owner,
+            &link,
+            "manny",
+            permission::MANAGER,
+            &workspace_id,
+        )
+        .await;
+        let mona = holding_role(
+            &store,
+            &owner,
+            &link,
+            "mona",
+            permission::MANAGER,
+            &workspace_id,
+        )
+        .await;
+
+        for (signer_session, victims) in
+            [(&lena, vec![&owner, &manny]), (&manny, vec![&owner, &mona])]
+        {
+            let (key, certificate) = signer_of(&store, signer_session)
+                .await
+                .expect("the signer signs");
+            let signer = Signer {
+                key: &key,
+                certificate: &certificate,
+            };
+
+            for victim in victims {
+                let demoted = MemberRecord {
+                    role_id: permission::MEMBER.to_string(),
+                    override_mask: 0,
+                    ..member_row(&store, &owner, &victim.member_id).await
+                };
+                let rows_before = every_row(&store).await;
+
+                store
+                    .write_member(&signer, &demoted)
+                    .await
+                    .expect_err("the store wrote a demotion from below");
+                assert_eq!(every_row(&store).await, rows_before);
+
+                store
+                    .write_member_around_the_check(&signer, &demoted)
+                    .await
+                    .expect("written around the store");
+
+                let read = another_machine(&directory, &owner.organization_id)
+                    .await
+                    .members(&owner.verifying_key)
+                    .await;
+
+                if let Ok(members) = read {
+                    let row = members
+                        .into_iter()
+                        .find(|member| member.id == victim.member_id)
+                        .expect("the demoted row");
+
+                    assert_eq!(
+                        row.effective, 0,
+                        "{} read as the role a demotion from below named",
+                        victim.member_id
+                    );
+                }
+            }
+        }
+    }
+
+    /// Sign `victim`'s row again under `forger`'s certificate, around the store, as the role given
+    /// and removed where asked: a demotion written by somebody holding the credential.
+    async fn demoted_around_the_store(
+        store: &OrganizationStore,
+        owner: &MemberSession,
+        forger: &MemberSession,
+        victim_id: &str,
+        role_id: &str,
+        removed_at: Option<i64>,
+    ) {
+        let (key, certificate) = signer_of(store, forger).await.expect("the forger signs");
+
+        store
+            .write_member_around_the_check(
+                &Signer {
+                    key: &key,
+                    certificate: &certificate,
+                },
+                &MemberRecord {
+                    role_id: role_id.to_string(),
+                    override_mask: 0,
+                    removed_at,
+                    ..member_row(store, owner, victim_id).await
+                },
+            )
+            .await
+            .expect("written around the store");
+    }
+
+    /// **The owner's machine repairs a forged demotion of the owner's row at sign-in, with nobody
+    /// acting.** A lead signs the owner's row naming the member role, and then removed, around the
+    /// store; every other machine reads the owner with no permissions. The owner signs in on their
+    /// own machine, which holds the root, and afterwards every machine reads the owner as the
+    /// owner with every flag, the vault and the username as they were.
+    #[tokio::test]
+    async fn the_owners_machine_repairs_a_forged_demotion_of_the_owners_row_at_sign_in() {
+        let directory = scratch("owner-repair");
+        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let lead = a_role(
+            &store,
+            &owner,
+            "Lead",
+            permission::MEMBER_ROLE.mask
+                | permission::mask_of(&[Flag::InviteMember, Flag::GrantWorkspace]),
+            permission::MANAGER,
+        )
+        .await;
+        let lena = holding_role(&store, &owner, &link, "lena", &lead, &workspace_id).await;
+        let before = member_row(&store, &owner, &owner.member_id).await;
+
+        for removed_at in [None, Some(NOW + 1)] {
+            demoted_around_the_store(
+                &store,
+                &owner,
+                &lena,
+                &owner.member_id,
+                permission::MEMBER,
+                removed_at,
+            )
+            .await;
+
+            assert_eq!(
+                member_row(
+                    &another_machine(&directory, &owner.organization_id).await,
+                    &owner,
+                    &owner.member_id
+                )
+                .await
+                .effective,
+                0
+            );
+
+            let signed_in = sign_in(
+                &store,
+                &joined_as(&owner, &owner.member_id, permission::OWNER),
+                PASSWORD,
+                &slot(),
+            )
+            .await
+            .expect("the owner signs in");
+
+            assert_eq!(signed_in.permissions, permission::OWNER_ROLE.mask);
+
+            for machine in [
+                &store,
+                &another_machine(&directory, &owner.organization_id).await,
+            ] {
+                let row = member_row(machine, &owner, &owner.member_id).await;
+
+                assert_eq!(row.role_id, permission::OWNER);
+                assert_eq!(row.removed_at, None);
+                assert_eq!(row.effective, permission::OWNER_ROLE.mask);
+                assert_eq!(row.vault, before.vault);
+                assert_eq!(row.username_sealed, before.username_sealed);
+                assert_eq!(row.session_epoch, before.session_epoch);
+            }
+        }
+    }
+
+    /// **A non-owner's machine repairs nothing.** A lead signs a manager's own row naming the
+    /// member role around the store. The manager signs in on their machine and still reads with
+    /// no permissions: their vault does not derive the organization key, so their machine does not
+    /// and cannot write the row, and the repair routine answers that it wrote nothing. The owner
+    /// does not save it either, an assignment included, and removes the manager instead.
+    #[tokio::test]
+    async fn a_managers_machine_does_not_repair_their_own_demoted_row_and_the_owner_removes_them() {
+        let directory = scratch("manager-no-repair");
+        let (store, mut owner, link, workspace_id) = owned(&directory).await;
+        let lead = a_role(
+            &store,
+            &owner,
+            "Lead",
+            permission::MEMBER_ROLE.mask
+                | permission::mask_of(&[Flag::InviteMember, Flag::GrantWorkspace]),
+            permission::MANAGER,
+        )
+        .await;
+        let lena = holding_role(&store, &owner, &link, "lena", &lead, &workspace_id).await;
+        let (invited, manny) = a_member(
+            &store,
+            &owner,
+            &link,
+            "manny",
+            permission::MEMBER,
+            &workspace_id,
+        )
+        .await;
+
+        assign_role(
+            &store,
+            &owner,
+            &manny.member_id,
+            permission::MANAGER,
+            None,
+            NOW,
+        )
+        .await
+        .expect("manny is a manager");
+        demoted_around_the_store(
+            &store,
+            &owner,
+            &lena,
+            &manny.member_id,
+            permission::MEMBER,
+            None,
+        )
+        .await;
+
+        let rows_before = every_row(&store).await;
+        let signed_in = sign_in(
+            &store,
+            &joined_as(&owner, &manny.member_id, permission::MANAGER),
+            &secret_of(&invited),
+            &slot(),
+        )
+        .await
+        .expect("manny signs in");
+
+        assert_eq!(signed_in.permissions, 0);
+        assert!(
+            !super::repair_owner_row(
+                &store,
+                &owner.verifying_key,
+                &manny.member_id,
+                &signed_in.secret,
+                NOW + 1,
+            )
+            .await
+            .expect("the repair answers")
+        );
+        assert_eq!(
+            every_row(&store).await,
+            rows_before,
+            "a manager's machine wrote"
+        );
+        assert_eq!(
+            member_row(&store, &owner, &manny.member_id).await.effective,
+            0
+        );
+
+        assert_eq!(
+            reason_of(
+                &assign_role(
+                    &store,
+                    &owner,
+                    &manny.member_id,
+                    permission::MANAGER,
+                    None,
+                    NOW + 2,
+                )
+                .await
+                .expect_err("the owner saved an uncovered row")
+            ),
+            RefusalReason::RoleUnsettled
+        );
+        removal::remove_member(
+            &store,
+            &mut owner,
+            no_platform(),
+            "org-database",
+            &manny.member_id,
+            false,
+            NOW + 3,
+        )
+        .await
+        .expect("the owner removes manny");
+
+        let row = member_row(
+            &another_machine(&directory, &owner.organization_id).await,
+            &owner,
+            &manny.member_id,
+        )
+        .await;
+
+        assert!(row.removed_at.is_some());
+        assert_eq!(row.effective, 0);
+    }
+
+    // -------------------------------------------------------------------------------------
+    // Effort 838, the re-check of ticket 20: an uncovered member row is never saved, only removed.
+    // -------------------------------------------------------------------------------------
+
+    /// The refusal an act on a member whose row is uncovered meets, or a panic naming what came
+    /// back instead.
+    fn unsettled<T: std::fmt::Debug>(outcome: Result<T, Error>, act: &str) {
+        let refusal = outcome.expect_err(act);
+
+        assert_eq!(
+            reason_of(&refusal),
+            RefusalReason::RoleUnsettled,
+            "{act}: {refusal:?}"
+        );
+    }
+
+    /// The owner removes a member, the ordinary removal.
+    async fn removed_by(store: &OrganizationStore, remover: &mut MemberSession, member_id: &str) {
+        removal::remove_member(
+            store,
+            remover,
+            no_platform(),
+            "org-database",
+            member_id,
+            false,
+            NOW + 50,
+        )
+        .await
+        .unwrap_or_else(|error| panic!("{member_id} was not removed: {error:?}"));
+    }
+
+    /// A member's row as every machine reads it once they are removed: removed, covered, granting
+    /// nothing.
+    async fn reads_removed(directory: &std::path::Path, owner: &MemberSession, member_id: &str) {
+        let row = member_row(
+            &another_machine(directory, &owner.organization_id).await,
+            owner,
+            member_id,
+        )
+        .await;
+
+        assert!(row.removed_at.is_some(), "{member_id} is not removed");
+        assert!(row.covered, "{member_id}'s removal is not covered");
+        assert_eq!(row.effective, 0);
+    }
+
+    /// A lead: the member role's flags with `inviteMember` and `grantWorkspace`, below the
+    /// manager, signed in.
+    async fn a_lead(
+        store: &OrganizationStore,
+        owner: &MemberSession,
+        link: &Locator,
+        workspace_id: &str,
+    ) -> MemberSession {
+        let lead = a_role(
+            store,
+            owner,
+            "Lead",
+            permission::MEMBER_ROLE.mask
+                | permission::mask_of(&[Flag::InviteMember, Flag::GrantWorkspace]),
+            permission::MANAGER,
+        )
+        .await;
+
+        holding_role(store, owner, link, "lena", &lead, workspace_id).await
+    }
+
+    /// **A forged promotion is not laundered, by a rename or an assignment** (the review's first
+    /// probe). A lead signs sami's row naming Senior, a role above the lead carrying
+    /// `deleteContract`, around the store; it reads uncovered. A manager lacking the flag renames
+    /// sami, and assigns them Senior or the member role, and the owner assigns them the member
+    /// role: every one is refused by name and writes nothing, so sami never holds the flag. The
+    /// owner's rename of a lead's forged "manager" row is refused the same way. Each is removed.
+    #[tokio::test]
+    async fn a_forged_promotion_is_never_saved_by_any_act_and_is_removed() {
+        let directory = scratch("launder");
+        let (store, mut owner, link, workspace_id) = owned(&directory).await;
+        let delete_contract = permission::mask_of(&[Flag::DeleteContract]);
+
+        set_role_mask(
+            &store,
+            &owner,
+            permission::MANAGER,
+            permission::MANAGER_ROLE.mask & !delete_contract,
+            NOW,
+        )
+        .await
+        .expect("the owner narrows the manager");
+
+        // the lead first, so Senior, made after it directly below the manager, ranks above it.
+        let lena = a_lead(&store, &owner, &link, &workspace_id).await;
+        let senior = a_role(
+            &store,
+            &owner,
+            "Senior",
+            permission::MEMBER_ROLE.mask | delete_contract,
+            permission::MANAGER,
+        )
+        .await;
+        let manny = holding_role(
+            &store,
+            &owner,
+            &link,
+            "manny",
+            permission::MANAGER,
+            &workspace_id,
+        )
+        .await;
+        let (sami, _) = a_member(
+            &store,
+            &owner,
+            &link,
+            "sami",
+            permission::MEMBER,
+            &workspace_id,
+        )
+        .await;
+        let (tess, _) = a_member(
+            &store,
+            &owner,
+            &link,
+            "tess",
+            permission::MEMBER,
+            &workspace_id,
+        )
+        .await;
+
+        demoted_around_the_store(&store, &owner, &lena, &sami.member_id, &senior, None).await;
+        demoted_around_the_store(
+            &store,
+            &owner,
+            &lena,
+            &tess.member_id,
+            permission::MANAGER,
+            None,
+        )
+        .await;
+        assert!(!member_row(&store, &owner, &sami.member_id).await.covered);
+        assert!(!member_row(&store, &owner, &tess.member_id).await.covered);
+
+        let rows_before = every_row(&store).await;
+
+        unsettled(
+            crate::organization::invite::rename_member(
+                &store,
+                &manny,
+                &sami.member_id,
+                "sami.renamed",
+                NOW + 2,
+            )
+            .await,
+            "a manager's rename of a forged promotion",
+        );
+        unsettled(
+            assign_role(&store, &manny, &sami.member_id, &senior, None, NOW + 2).await,
+            "a manager's assignment of the forged role",
+        );
+        unsettled(
+            assign_role(
+                &store,
+                &manny,
+                &sami.member_id,
+                permission::MEMBER,
+                None,
+                NOW + 2,
+            )
+            .await,
+            "a manager's assignment of the member role",
+        );
+        unsettled(
+            assign_role(
+                &store,
+                &owner,
+                &sami.member_id,
+                permission::MEMBER,
+                None,
+                NOW + 2,
+            )
+            .await,
+            "the owner's assignment",
+        );
+        unsettled(
+            crate::organization::invite::rename_member(
+                &store,
+                &owner,
+                &tess.member_id,
+                "tess.renamed",
+                NOW + 2,
+            )
+            .await,
+            "the owner's rename of a forged manager row",
+        );
+        assert_eq!(every_row(&store).await, rows_before, "a refusal wrote");
+        assert!(!permission::permits(
+            member_row(
+                &another_machine(&directory, &owner.organization_id).await,
+                &owner,
+                &sami.member_id
+            )
+            .await
+            .effective,
+            Flag::DeleteContract
+        ));
+
+        removed_by(&store, &mut owner, &sami.member_id).await;
+        removed_by(&store, &mut owner, &tess.member_id).await;
+        reads_removed(&directory, &owner, &sami.member_id).await;
+        reads_removed(&directory, &owner, &tess.member_id).await;
+    }
+
+    /// **A row naming a role that is gone is refused every act and removed** (the review's second
+    /// probe). The owner deletes Clerk on one machine while a lead's row giving sami Clerk merges
+    /// in from another; the row reads uncovered. A rename and an assignment are refused by name,
+    /// and the owner removes sami.
+    #[tokio::test]
+    async fn a_row_naming_a_role_that_is_gone_is_refused_every_act_and_removed() {
+        let directory = scratch("gone-role");
+        let (store, mut owner, link, workspace_id) = owned(&directory).await;
+        let lead = a_role(
+            &store,
+            &owner,
+            "Lead",
+            permission::MEMBER_ROLE.mask
+                | permission::mask_of(&[
+                    Flag::InviteMember,
+                    Flag::GrantWorkspace,
+                    Flag::AssignRole,
+                ]),
+            permission::MANAGER,
+        )
+        .await;
+        let clerk = a_role(&store, &owner, "Clerk", permission::MEMBER_ROLE.mask, &lead).await;
+        let lena = holding_role(&store, &owner, &link, "lena", &lead, &workspace_id).await;
+        let (sami, _) = a_member(&store, &lena, &link, "sami", &clerk, &workspace_id).await;
+        let lenas_row = member_row(&store, &owner, &sami.member_id).await;
+
+        delete_role(&store, &owner, &clerk, NOW + 1)
+            .await
+            .expect("the owner deletes the clerk role");
+
+        let (key, certificate) = signer_of(&store, &lena).await.expect("lena signs");
+
+        store
+            .write_member_around_the_check(
+                &Signer {
+                    key: &key,
+                    certificate: &certificate,
+                },
+                &MemberRecord {
+                    updated_at: NOW + 5,
+                    ..lenas_row
+                },
+            )
+            .await
+            .expect("the lead's row merges in");
+        assert!(!member_row(&store, &owner, &sami.member_id).await.covered);
+
+        unsettled(
+            crate::organization::invite::rename_member(
+                &store,
+                &owner,
+                &sami.member_id,
+                "sami.renamed",
+                NOW + 6,
+            )
+            .await,
+            "the owner's rename of a row naming a role that is gone",
+        );
+        unsettled(
+            assign_role(
+                &store,
+                &owner,
+                &sami.member_id,
+                permission::MEMBER,
+                None,
+                NOW + 7,
+            )
+            .await,
+            "the owner's assignment over a role that is gone",
+        );
+
+        removed_by(&store, &mut owner, &sami.member_id).await;
+        reads_removed(&directory, &owner, &sami.member_id).await;
+    }
+
+    /// **A removal written from below reads as removed and is not lifted** (the review's third
+    /// probe). A lead signs a manager's row as removed around the store: it reads uncovered and
+    /// removed, fail-safe, so the manager is refused at sign-in. The owner's assignment of the
+    /// manager role is refused by name, and the owner removes the manager, which stands as a
+    /// removal the owner wrote.
+    #[tokio::test]
+    async fn a_removal_written_from_below_reads_as_removed_and_is_not_lifted() {
+        let directory = scratch("removal-from-below");
+        let (store, mut owner, link, workspace_id) = owned(&directory).await;
+        let lena = a_lead(&store, &owner, &link, &workspace_id).await;
+        let (invited, manny) = a_member(
+            &store,
+            &owner,
+            &link,
+            "manny",
+            permission::MEMBER,
+            &workspace_id,
+        )
+        .await;
+
+        assign_role(
+            &store,
+            &owner,
+            &manny.member_id,
+            permission::MANAGER,
+            None,
+            NOW,
+        )
+        .await
+        .expect("manny is a manager");
+        demoted_around_the_store(
+            &store,
+            &owner,
+            &lena,
+            &manny.member_id,
+            permission::MANAGER,
+            Some(NOW + 1),
+        )
+        .await;
+
+        let row = member_row(&store, &owner, &manny.member_id).await;
+
+        assert!(row.removed_at.is_some() && !row.covered);
+        assert_eq!(row.effective, 0);
+
+        let joined = joined_as(&owner, &manny.member_id, permission::MANAGER);
+
+        assert_eq!(
+            reason_of(
+                &sign_in(&store, &joined, &secret_of(&invited), &slot())
+                    .await
+                    .expect_err("a member removed from below signed in")
+            ),
+            RefusalReason::YouWereRemoved
+        );
+        unsettled(
+            assign_role(
+                &store,
+                &owner,
+                &manny.member_id,
+                permission::MANAGER,
+                None,
+                NOW + 2,
+            )
+            .await,
+            "the owner's assignment over a removal from below",
+        );
+
+        removed_by(&store, &mut owner, &manny.member_id).await;
+        reads_removed(&directory, &owner, &manny.member_id).await;
+    }
+
+    /// **A covered removal a forger re-signs is not lifted** (the re-check's fourth probe). The
+    /// owner removes sami; a lead signs sami's row again naming the manager role and keeping the
+    /// removal, around the store. It reads uncovered and removed; the owner's assignment is
+    /// refused by name, sami still cannot sign in, and the owner removes sami again, which stands.
+    #[tokio::test]
+    async fn a_covered_removal_a_forger_re_signs_is_not_lifted() {
+        let directory = scratch("removal-re-signed");
+        let (store, mut owner, link, workspace_id) = owned(&directory).await;
+        let lena = a_lead(&store, &owner, &link, &workspace_id).await;
+        let (invited, sami) = a_member(
+            &store,
+            &owner,
+            &link,
+            "sami",
+            permission::MEMBER,
+            &workspace_id,
+        )
+        .await;
+
+        removed_by(&store, &mut owner, &sami.member_id).await;
+
+        let removed_at = member_row(&store, &owner, &sami.member_id).await.removed_at;
+
+        demoted_around_the_store(
+            &store,
+            &owner,
+            &lena,
+            &sami.member_id,
+            permission::MANAGER,
+            removed_at,
+        )
+        .await;
+
+        let row = member_row(&store, &owner, &sami.member_id).await;
+
+        assert!(row.removed_at.is_some() && !row.covered);
+
+        unsettled(
+            assign_role(
+                &store,
+                &owner,
+                &sami.member_id,
+                permission::MEMBER,
+                None,
+                NOW + 2,
+            )
+            .await,
+            "the owner's assignment over a re-signed removal",
+        );
+
+        let joined = joined_as(&owner, &sami.member_id, permission::MEMBER);
+
+        assert_eq!(
+            reason_of(
+                &sign_in(&store, &joined, &secret_of(&invited), &slot())
+                    .await
+                    .expect_err("a removed member signed in")
+            ),
+            RefusalReason::YouWereRemoved
+        );
+
+        removed_by(&store, &mut owner, &sami.member_id).await;
+        reads_removed(&directory, &owner, &sami.member_id).await;
+    }
+
+    /// **A signing key a forger puts on a row is never certified** (the re-check's fifth probe). A
+    /// lead signs a manager's row naming the member role with a signing key the lead generated,
+    /// around the store. The owner's assignment of the manager role is refused by name, so no
+    /// certificate names the forger's key; the owner removes the manager, whose certificates are
+    /// revoked, and none that lives names it either.
+    #[tokio::test]
+    async fn a_signing_key_a_forger_puts_on_a_row_is_never_certified() {
+        let directory = scratch("forged-key");
+        let (store, mut owner, link, workspace_id) = owned(&directory).await;
+        let lena = a_lead(&store, &owner, &link, &workspace_id).await;
+        let manny = holding_role(
+            &store,
+            &owner,
+            &link,
+            "manny",
+            permission::MANAGER,
+            &workspace_id,
+        )
+        .await;
+        let forger = AdministratorKey::generate().expect("a key");
+        let (key, certificate) = signer_of(&store, &lena).await.expect("lena signs");
+
+        store
+            .write_member_around_the_check(
+                &Signer {
+                    key: &key,
+                    certificate: &certificate,
+                },
+                &MemberRecord {
+                    role_id: permission::MEMBER.to_string(),
+                    override_mask: 0,
+                    signing_public_key: forger.verifying_key(),
+                    ..member_row(&store, &owner, &manny.member_id).await
+                },
+            )
+            .await
+            .expect("written around the store");
+
+        unsettled(
+            assign_role(
+                &store,
+                &owner,
+                &manny.member_id,
+                permission::MANAGER,
+                None,
+                NOW + 2,
+            )
+            .await,
+            "the owner's assignment over a forged signing key",
+        );
+
+        let names_the_forger = |certificates: Vec<Certificate>| {
+            certificates
+                .iter()
+                .any(|certificate| certificate.signing_public_key == forger.verifying_key())
+        };
+
+        assert!(!names_the_forger(
+            store
+                .live_certificates(&owner.verifying_key, &manny.member_id)
+                .await
+                .expect("the certificates")
+        ));
+
+        removed_by(&store, &mut owner, &manny.member_id).await;
+        reads_removed(&directory, &owner, &manny.member_id).await;
+        assert!(
+            store
+                .live_certificates(&owner.verifying_key, &manny.member_id)
+                .await
+                .expect("the certificates")
+                .is_empty()
+        );
+        assert!(!names_the_forger(
+            store.certificates().await.expect("every certificate")
+        ));
+    }
+
+    /// **A covered removal is not undone by an assignment, and an uncovered row can be removed.**
+    /// The owner removes sami, and assigning sami a role is refused as a removed member; a row a
+    /// lead's forged promotion left uncovered is removed by the owner, who outranks the member as
+    /// certified, and reads removed on every machine.
+    #[tokio::test]
+    async fn a_covered_removal_is_not_undone_by_an_assignment_and_an_uncovered_row_can_be_removed()
+    {
+        let directory = scratch("covered-removal");
+        let (store, mut owner, link, workspace_id) = owned(&directory).await;
+        let lena = a_lead(&store, &owner, &link, &workspace_id).await;
+        let (sami, _) = a_member(
+            &store,
+            &owner,
+            &link,
+            "sami",
+            permission::MEMBER,
+            &workspace_id,
+        )
+        .await;
+        let (tess, _) = a_member(
+            &store,
+            &owner,
+            &link,
+            "tess",
+            permission::MEMBER,
+            &workspace_id,
+        )
+        .await;
+
+        removed_by(&store, &mut owner, &sami.member_id).await;
+
+        let refusal = assign_role(
+            &store,
+            &owner,
+            &sami.member_id,
+            permission::MEMBER,
+            None,
+            NOW + 2,
+        )
+        .await
+        .expect_err("an assignment undid a removal");
+
+        assert_eq!(reason_of(&refusal), RefusalReason::MemberRemoved);
+
+        demoted_around_the_store(
+            &store,
+            &owner,
+            &lena,
+            &tess.member_id,
+            permission::MANAGER,
+            None,
+        )
+        .await;
+        removed_by(&store, &mut owner, &tess.member_id).await;
+        reads_removed(&directory, &owner, &tess.member_id).await;
+    }
+
+    /// **Retiring a certificate that signed an uncovered row waits for that member's removal.** A
+    /// lead signs sami's row naming a role above the lead, around the store; the owner's removal of
+    /// the lead, which would sign the lead's rows again under the owner's root, is refused by
+    /// name, saying to remove sami first, and writes nothing, since the root covers every role and
+    /// would make the forged one real. Once the owner removes sami, the lead's removal goes.
+    #[tokio::test]
+    async fn retiring_a_certificate_that_signed_an_uncovered_row_waits_for_that_members_removal() {
+        let directory = scratch("resign-uncovered");
+        let (store, mut owner, link, workspace_id) = owned(&directory).await;
+        let lena = a_lead(&store, &owner, &link, &workspace_id).await;
+        let senior = a_role(
+            &store,
+            &owner,
+            "Senior",
+            permission::MEMBER_ROLE.mask | permission::mask_of(&[Flag::DeleteContract]),
+            permission::MANAGER,
+        )
+        .await;
+        let (sami, _) = a_member(
+            &store,
+            &owner,
+            &link,
+            "sami",
+            permission::MEMBER,
+            &workspace_id,
+        )
+        .await;
+
+        demoted_around_the_store(&store, &owner, &lena, &sami.member_id, &senior, None).await;
+        assert!(!member_row(&store, &owner, &sami.member_id).await.covered);
+
+        let rows_before = every_row(&store).await;
+        let refusal = removal::remove_member(
+            &store,
+            &mut owner,
+            no_platform(),
+            "org-database",
+            &lena.member_id,
+            false,
+            NOW + 2,
+        )
+        .await
+        .expect_err("a removal re-signed an uncovered row");
+
+        assert_eq!(reason_of(&refusal), RefusalReason::RoleUnsettled);
+        assert!(
+            refusal.to_string().contains("removes them first"),
+            "{refusal}"
+        );
+        assert_eq!(every_row(&store).await, rows_before, "a refusal wrote");
+
+        removed_by(&store, &mut owner, &sami.member_id).await;
+        removed_by(&store, &mut owner, &lena.member_id).await;
+        reads_removed(&directory, &owner, &sami.member_id).await;
+        reads_removed(&directory, &owner, &lena.member_id).await;
+    }
+
+    /// **The owner's repair takes the owner's own keys, never the row's** (the re-check of ticket
+    /// 20). A lead signs the owner's row naming the member role with a signing key the lead
+    /// generated and an offer's seal, around the store. The owner signs in, and the repaired row,
+    /// on every machine, names the key the owner's root certificate names, the vault's public half
+    /// the owner's secret opens, and no seal.
+    #[tokio::test]
+    async fn the_owners_repair_takes_the_owners_own_keys_and_never_the_rows() {
+        let directory = scratch("owner-repair-keys");
+        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let lena = a_lead(&store, &owner, &link, &workspace_id).await;
+        let root = the_certificate(&store, &owner, &owner.member_id).await;
+        let forger = AdministratorKey::generate().expect("a key");
+        let (key, certificate) = signer_of(&store, &lena).await.expect("lena signs");
+
+        assert!(root.is_root());
+
+        store
+            .write_member_around_the_check(
+                &Signer {
+                    key: &key,
+                    certificate: &certificate,
+                },
+                &MemberRecord {
+                    role_id: permission::MEMBER.to_string(),
+                    signing_public_key: forger.verifying_key(),
+                    owner_seed_sealed: Some(b"a seal of the forger's".to_vec()),
+                    ..member_row(&store, &owner, &owner.member_id).await
+                },
+            )
+            .await
+            .expect("written around the store");
+
+        let signed_in = sign_in(
+            &store,
+            &joined_as(&owner, &owner.member_id, permission::OWNER),
+            PASSWORD,
+            &slot(),
+        )
+        .await
+        .expect("the owner signs in");
+
+        for machine in [
+            &store,
+            &another_machine(&directory, &owner.organization_id).await,
+        ] {
+            let row = member_row(machine, &owner, &owner.member_id).await;
+
+            assert_eq!(row.role_id, permission::OWNER);
+            assert_eq!(row.signing_public_key, root.signing_public_key);
+            assert_ne!(row.signing_public_key, forger.verifying_key());
+            assert_eq!(row.vault.public_key, signed_in.secret.public_key());
+            assert_eq!(row.owner_seed_sealed, None);
+        }
     }
 }

@@ -335,6 +335,7 @@ mod tests {
                     override_mask,
                     removed_at: None,
                     effective: 0,
+                    covered: true,
                     must_change_password: false,
                     created_at: 1_757_000_000_000,
                     updated_at: 1_757_000_000_000,

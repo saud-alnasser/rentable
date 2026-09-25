@@ -353,6 +353,8 @@ const en = {
 				roleLacksAct: 'your role does not include this. ask a manager.',
 				notAdministrator: 'only a manager can do this.',
 				rankNotAbove: 'that role is not below your own. ask somebody who ranks above it.',
+				roleUnsettled:
+					"somebody not allowed to changed this member's record. somebody above them removes them and makes them an account again.",
 				roleBuiltIn:
 					"every organization has this role, so it is not renamed, moved or deleted. the owner's role always carries everything.",
 				roleNameMissing: 'give the role a name.',

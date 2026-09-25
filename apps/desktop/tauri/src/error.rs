@@ -160,6 +160,11 @@ pub enum RefusalReason {
     /// the role acted on, or the member's role, is not ranked below the reader's (effort 838,
     /// requirement 7).
     RankNotAbove,
+    /// the member acted on holds a row its certificate no longer covers, written by somebody
+    /// below them or before a role moved on another machine: nothing is done for them but their
+    /// removal, by somebody ranked above them, who then makes them an account again (effort 838,
+    /// the re-check of ticket 20).
+    RoleUnsettled,
 
     // roles (effort 838, requirements 3, 4 and 5).
     /// one of the three roles every organization has, which is not renamed, moved or deleted, and

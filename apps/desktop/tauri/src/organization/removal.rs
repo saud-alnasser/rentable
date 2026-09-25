@@ -150,6 +150,11 @@ pub async fn lock_out_cost(
 /// remover's before it is revoked, so a row the remover could not sign refuses the removal by name
 /// with nothing written. Every gate reads the remover's verified row, the lock-out's owner check
 /// included, and never the session's snapshot of the role.
+///
+/// **The one act on a member whose row its certificate no longer covers** (the re-check of
+/// ticket 20): such a row is never saved, so it is removed, by somebody ranked above the member as
+/// certified (`session::rank_of`), and a removal a forger re-signed is removed again, so it stands
+/// on a row the remover wrote.
 pub async fn remove_member<P: TursoPlatform>(
     store: &OrganizationStore,
     session: &mut MemberSession,
@@ -190,7 +195,10 @@ pub async fn remove_member<P: TursoPlatform>(
         ));
     }
 
-    if member.removed_at.is_some() {
+    // a removal somebody below the member re-signed reads uncovered, and is written again as a
+    // removal by whoever outranks them, so it stands on a row somebody covering it wrote (effort
+    // 838, the re-check of ticket 20).
+    if member.removed_at.is_some() && member.covered {
         return Err(Error::refused(
             RefusalReason::MemberRemoved,
             "that member was already removed",
@@ -410,24 +418,6 @@ pub(crate) async fn retire_member(
         certificate: &certificate,
     };
 
-    // the row is signed as removed by the remover, holding the member's role and nothing more, so
-    // what it gives is the member role's mask and the remover's certificate has to carry every
-    // flag of it (effort 838, the row-kind table). Refused by name before anything is written,
-    // rather than by the store once the certificate is already retired.
-    let (member_mask, _) = store
-        .role_standing(&session.verifying_key, permission::MEMBER)
-        .await?;
-
-    if let Some(flag) = permission::first_not_held(certificate.ceiling, member_mask) {
-        return Err(Error::refused(
-            RefusalReason::RoleLacksAct,
-            format!(
-                "a removed member's row holds the member role, which carries {flag}, and you do \
-                 not, so it cannot be signed by you. nothing was changed"
-            ),
-        ));
-    }
-
     // end the removed member's authority first, so a removal that could not be completed changes
     // nothing. Every live certificate they hold has the rows it legitimately signed re-signed
     // under the remover, who outranks them, and a revocation written for it, so a row they newly
@@ -465,7 +455,17 @@ pub(crate) async fn retire_member(
             &signer,
             &MemberRecord {
                 // a removed member keeps the member's role and nothing more, and says when they
-                // went (effort 838).
+                // went (effort 838). The row grants nothing, and the remover's certificate needs
+                // no flag of the member role to sign it, so nothing the member role carries
+                // refuses a removal (the human's decision after review round two). *Ticket 18
+                // refused one where the member role carried a flag the remover lacked, while the
+                // table bounded a member row by all it gave.*
+                //
+                // On a row its certificate no longer covers, the rest is carried over as it stands
+                // and trusted for nothing: a removed row is terminal, every act refuses a removed
+                // member, sign-in included, and a person made an account again is a fresh row
+                // with a fresh vault and key. So a key or a vault a forger put on the row is
+                // signed here beside the removal and certifies nobody (the re-check of ticket 20).
                 role_id: permission::MEMBER.to_string(),
                 override_mask: 0,
                 removed_at: Some(now),
@@ -836,7 +836,7 @@ mod tests {
 
         assert!(row.removed_at.is_some(), "the row does not say removed");
         assert_eq!(row.role_id, permission::MEMBER);
-        assert_eq!(row.effective, permission::MEMBER_ROLE.mask);
+        assert_eq!(row.effective, 0, "a removed member's row grants something");
         assert!(
             !org.store
                 .grants(&owner.verifying_key)

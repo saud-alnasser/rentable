@@ -35,16 +35,23 @@
 //! A signature proves who wrote a row; [`covers`] says whether they may have. It
 //! is a table from the kind of row to the flag the certificate must carry, and for
 //! a row about a person or a role, the rank it must stand above and the flags it
-//! may give. That is the bound the chain puts on a member who holds the database's
-//! credential and signs around a command: rows of the kinds their ceiling names,
-//! about people ranked below them, giving nobody a flag the ceiling does not carry,
-//! and never their own row. Which flags inside it they may switch, where the before
-//! and the after are both in hand, is the command's to refuse.
+//! may give: a member row's override and a role row's mask. That is the bound the
+//! chain puts on a member who holds the database's credential and signs around a
+//! command: rows of the kinds their ceiling names, about people ranked below them,
+//! switching for nobody a flag the ceiling does not carry, and never their own row.
+//! Which flags inside it they may switch, and which role they may give, where the
+//! before and the after are both in hand, is the command's to refuse.
+//!
+//! A member row whose only failure is the standing of the role it names, which
+//! another machine moved or deleted while this one wrote the row, is read as
+//! granting nothing rather than refused ([`Chain::read_member`]), so two machines
+//! acting offline together never refuse the directory to everybody.
 //!
 //! # Verification has one implementation
 //!
-//! [`Chain::verify`] is the only function here that returns a row's verdict, and
-//! the checks it makes are not separately callable. That is deliberate. The
+//! [`Chain::verify`] and [`Chain::read_member`] are the only functions here that
+//! return a row's verdict, both from one private judgement, and the checks it makes
+//! are not separately callable. That is deliberate. The
 //! failure this design has is named in the plan: **a client that verifies the row
 //! and forgets the certificate accepts a revoked certificate**, and it arrives
 //! as a second verifier written at a call site for convenience, not as a bug in
@@ -340,7 +347,7 @@ pub struct MemberAuthority<'a> {
     /// wait to be certified.
     pub signing_public_key: &'a [u8],
     /// The one role the member holds (requirement 5): `owner`, `manager`, `member`,
-    /// or a custom role's id. [`covers`] reads the mask and the rank it stands for.
+    /// or a custom role's id. [`covers`] reads the rank it stands at.
     pub role_id: &'a str,
     /// The flags switched for this member alone (requirement 6). Zero on the owner's.
     pub override_mask: i64,
@@ -416,6 +423,18 @@ pub struct GrantAuthority<'a> {
     pub access_level: &'a str,
     /// When the credential stops working, where it does.
     pub credential_expires_at: Option<&'a str>,
+}
+
+/// What a reader makes of a member row whose signature and chain verify ([`Chain::read_member`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Reading {
+    /// Its certificate covers it: it grants what its role and its override give.
+    Covered,
+    /// Its certificate may sign rows like it and no longer covers this one, because the role it
+    /// names has moved to or above the certificate's rank or stands no more, or the member it is
+    /// about is certified at or above it: it grants nothing, its content is never carried forward
+    /// as authority, and it is removed rather than saved.
+    Uncovered,
 }
 
 impl OrganizationKey {
@@ -703,11 +722,11 @@ pub fn sign(
 }
 
 /// Whether a certificate may sign a row of this kind: the row-kind table (effort 838, the plan's
-/// *Architecture*, as corrected at the review).
+/// *Architecture*, as corrected at the review and again on the human's decision after it).
 ///
 /// | Row | The signing certificate must |
 /// | --- | --- |
-/// | `member` | hold a flag that administers members, outrank the member's role, hold every flag the row's effective permissions carry, and not be the row's own member's; or be the root |
+/// | `member` | hold a flag that administers members, outrank the role the row names and every live certificate the member holds, hold every flag the row's override switches, and not be the row's own member's; or be the root |
 /// | `role` | hold `manageRoles`, outrank the role, and hold every flag its mask carries |
 /// | `grant` | hold `grantWorkspace`; a read-only grant, be the root |
 /// | `workspace` | hold `renameWorkspace` or `grantWorkspace` |
@@ -718,50 +737,59 @@ pub fn sign(
 /// so neither is here. **The root is not waved through** except where the table says so: it holds
 /// every flag and outranks every rank, so it passes every row on its own terms.
 ///
-/// **A row gives nobody more than the certificate that signs it holds.** A member row's effective
-/// permissions (its role's mask exclusive-or'd with its override) and a role row's mask sit inside
-/// the signer's ceiling, so a member holding the database's credential cannot sign a wider
-/// override onto anybody, and a manager cannot sign a role carrying a flag they lack. **And a
-/// delegated certificate never signs its own member's row**, so nobody widens themselves, and no
-/// later re-issue reads a width back off a row its holder wrote (requirement 7, criterion 9). *The
-/// table left both to the command until the review of effort 838 proved what that let through.*
+/// **A row gives nobody more than its signer chose within their ceiling.** A member row's signer
+/// chooses two things, the role and the override, and the role's mask is vouched for by the role
+/// row's own signer and bounded by theirs; so the override sits inside the member row's signer's
+/// ceiling, and a role row's mask inside its signer's. A member holding the database's credential
+/// cannot sign a wider override onto anybody, and a manager cannot sign a role carrying a flag
+/// they lack. **And a delegated certificate never signs its own member's row**, so nobody widens
+/// themselves, and no later re-issue reads a width back off a row its holder wrote (requirement
+/// 7, criterion 9). Giving somebody a role wider than oneself is refused at the command, where
+/// requirement 7's "only flags you hold" is asked. *The table bounded a member row by its whole
+/// effective permissions until review round two found that it judged the row by the role's mask
+/// as it stands now, so the owner widening the member role on one machine while a lead invited on
+/// another refused every member read on both.*
 ///
 /// **A member row naming the owner's role is the root's, about its own holder, with no override**
 /// (requirements 3, 5 and 6): the owner's role is held by exactly one member, and nobody else signs
 /// it onto a row, the owner's own included.
 ///
+/// **Outranking the member is outranking them as they are certified, too.** The rank a member
+/// row's signer stands above is the higher of the role the row names and every live certificate
+/// the member holds, so nobody below a member writes them a lower role: a lead holding the
+/// credential who signs the owner's row, or a manager's, naming the member role is refused, where
+/// judging the named role alone read the demotion back as a member. A member holding no live
+/// certificate, removed or not yet certified, is judged by the named role alone. *The review of
+/// effort 838, round two, found the named role alone was all a reader asked.*
+///
 /// `standing_of_role` answers for a role id with its `(mask, rank)`: the verified role row's for
-/// any role but the owner's, and `None` for a role nobody holds, which covers nothing.
+/// any role but the owner's, and `None` for a role nobody holds, which covers nothing. Only the
+/// rank is read. `certified_rank_of` answers for a member id with the highest rank of the live
+/// certificates they hold, and `None` for a member who holds none.
 pub fn covers(
     certificate: &Certificate,
     authority: Authority<'_>,
     standing_of_role: impl Fn(&str) -> Option<(i64, i64)>,
+    certified_rank_of: impl Fn(&str) -> Option<i64>,
 ) -> bool {
     let holds = |flag: Flag| permission::permits(certificate.ceiling, flag);
     let holds_any = |flags: &[Flag]| flags.iter().any(|flag| holds(*flag));
-    let holds_all = |mask: i64| mask & !certificate.ceiling == 0;
 
     match authority {
         Authority::Member(member) => {
-            if member.role_id == permission::OWNER {
-                return certificate.is_root()
-                    && certificate.member_id == member.id
-                    && member.override_mask == 0
-                    && member.removed_at.is_none();
-            }
-
-            let Some((mask, rank)) = standing_of_role(member.role_id) else {
-                return false;
-            };
-
-            certificate.is_root()
-                || (holds_any(&MEMBER_ADMINISTRATION)
-                    && certificate.rank > rank
-                    && holds_all(permission::effective(mask, member.override_mask))
-                    && certificate.member_id != member.id)
+            covers_whatever_its_role_stands_at(certificate, member)
+                && (member.role_id == permission::OWNER
+                    || standing_of_role(member.role_id).is_some_and(|(_, rank)| {
+                        certificate.is_root()
+                            || (certificate.rank > rank
+                                && certified_rank_of(member.id)
+                                    .is_none_or(|certified| certificate.rank > certified))
+                    }))
         }
         Authority::Role(role) => {
-            holds(Flag::ManageRoles) && certificate.rank > role.rank && holds_all(role.mask)
+            holds(Flag::ManageRoles)
+                && certificate.rank > role.rank
+                && role.mask & !certificate.ceiling == 0
         }
         Authority::Grant(grant) => {
             if AccessLevel::parse(grant.access_level) == Some(AccessLevel::FullAccess) {
@@ -776,6 +804,36 @@ pub fn covers(
     }
 }
 
+/// The half of [`covers`] for a member row that the row and the certificate settle between them,
+/// whatever the role it names stands at now: the owner's role the root's about its holder with no
+/// override, and any other a flag that administers members, every flag the override switches, and
+/// not the certificate's own member's row; or the root.
+///
+/// **What a row fails here it fails for good**, since nothing another machine does changes it; a
+/// row that passes here and fails [`covers`] fails on rank alone: the role it names moved above
+/// its signer or went, or the member it is about stands certified at or above the signer, which
+/// a role moved or a certificate re-issued on another machine changes under it. That is the row a
+/// reader grants nothing rather than refusing ([`Chain::read_member`]), and never grants the role
+/// it names.
+fn covers_whatever_its_role_stands_at(
+    certificate: &Certificate,
+    member: MemberAuthority<'_>,
+) -> bool {
+    if member.role_id == permission::OWNER {
+        return certificate.is_root()
+            && certificate.member_id == member.id
+            && member.override_mask == 0
+            && member.removed_at.is_none();
+    }
+
+    certificate.is_root()
+        || (MEMBER_ADMINISTRATION
+            .iter()
+            .any(|flag| permission::permits(certificate.ceiling, *flag))
+            && member.override_mask & !certificate.ceiling == 0
+            && certificate.member_id != member.id)
+}
+
 /// What a certificate needs to sign a row like this one, as a refusal names it: the act that is
 /// refused because the actor could not sign or re-sign a row names this (effort 838).
 pub fn needed_for(authority: Authority<'_>) -> &'static str {
@@ -784,8 +842,8 @@ pub fn needed_for(authority: Authority<'_>) -> &'static str {
             "the owner's own certificate"
         }
         Authority::Member(_) => {
-            "a flag that administers members, a rank above the member, every flag the member \
-             ends up with, and not to be the member's own"
+            "a flag that administers members, a rank above the member, every flag their override \
+             switches, and not to be the member's own"
         }
         Authority::Role(_) => "manageRoles, a rank above the role, and every flag the role carries",
         Authority::Grant(grant)
@@ -840,10 +898,11 @@ impl<'a> Chain<'a> {
     }
 
     /// The same chain, knowing each role's mask and rank, as `(mask, rank)` by id: what a member
-    /// row is judged by, since what the row gives is its role's mask exclusive-or'd with its
-    /// override, and whom it is about stands at its role's rank. The standings are the caller's to
-    /// have verified, from the role rows this chain judged first; the owner's is a constant and
-    /// needs no row.
+    /// row is judged by, since whom it is about stands at its role's rank, and a row naming a role
+    /// that does not stand is covered by nobody. The mask judges no member row (its role row's
+    /// signer vouched for it), and is here beside the rank because it is what a reader holds of a
+    /// role. The standings are the caller's to have verified, from the role rows this chain judged
+    /// first; the owner's is a constant and needs no row.
     pub fn with_roles(mut self, roles: HashMap<String, (i64, i64)>) -> Self {
         self.roles = roles;
         self
@@ -858,25 +917,79 @@ impl<'a> Chain<'a> {
         }
     }
 
-    /// Whether a certificate may sign this row, by the row-kind table and the roles this chain
-    /// knows ([`covers`]).
+    /// Whether a certificate may sign this row, by the row-kind table, the roles this chain knows
+    /// and the live certificates it holds ([`covers`]).
     pub fn covers(&self, certificate: &Certificate, authority: Authority<'_>) -> bool {
-        covers(certificate, authority, |role_id| {
-            self.standing_of_role(role_id)
-        })
+        covers(
+            certificate,
+            authority,
+            |role_id| self.standing_of_role(role_id),
+            |member_id| self.certified_rank_of(member_id),
+        )
     }
 
-    /// Verifies a row against the chain. **The only place a row's signature is checked.**
-    ///
-    /// Four checks, in this order and with no path to `Ok` that misses one: the row's own
-    /// signature, the walk from its certificate to the pinned key, that nothing on that walk has
-    /// been revoked, and that the certificate may sign a row of this kind ([`covers`]).
+    /// The highest rank a member stands at as certified: of every live certificate they hold, and
+    /// `None` where they hold none.
+    pub fn certified_rank_of(&self, member_id: &str) -> Option<i64> {
+        self.live_certificates_of(member_id)
+            .iter()
+            .map(|certificate| certificate.rank)
+            .max()
+    }
+
+    /// Verifies a row against the chain: `Ok` where [`Chain::judge`] finds it covered, and a
+    /// refusal for anything else.
     pub fn verify(
         &self,
         certificate_id: &str,
         authority: Authority<'_>,
         signature: &[u8],
     ) -> Result<(), Error> {
+        match self.judge(certificate_id, authority, signature)? {
+            Reading::Covered => Ok(()),
+            Reading::Uncovered => Err(Error::Integrity {
+                message: BEYOND_ITS_CERTIFICATE.to_string(),
+            }),
+        }
+    }
+
+    /// Reads a member row against the chain: [`Reading::Covered`] where [`Chain::verify`] would
+    /// accept it, [`Reading::Uncovered`] for a genuine row its certificate stopped covering, and a
+    /// refusal for anything else (effort 838, the human's decision after review round two).
+    ///
+    /// **A member row alone reads uncovered**, because it alone is judged by rows another machine
+    /// changes: the rank of the role it names, and whether that role still stands. A role moved
+    /// above the row's signer, or deleted, on another machine while this one wrote the row leaves
+    /// a genuine row nobody forged, and refusing it would refuse the directory to everybody with
+    /// no act in the application able to repair it. So the reader grants it nothing instead, and
+    /// the commands refuse every act on the member but their removal
+    /// (`session::refuse_unsettled`), since nothing says which of its fields are genuine.
+    /// Everything the row and
+    /// its certificate settle between them is asked as [`Chain::verify`] asks it: a forged row, a
+    /// broken or revoked walk, an override wider than the ceiling, the certificate's own member's
+    /// row and the owner's role signed by anybody but the root about its holder are refused.
+    pub fn read_member(
+        &self,
+        certificate_id: &str,
+        member: MemberAuthority<'_>,
+        signature: &[u8],
+    ) -> Result<Reading, Error> {
+        self.judge(certificate_id, Authority::Member(member), signature)
+    }
+
+    /// Judges a row against the chain. **The only place a row's signature is checked.**
+    ///
+    /// Four checks, in this order and with no path to a reading that misses one: the row's own
+    /// signature, the walk from its certificate to the pinned key, that nothing on that walk has
+    /// been revoked, and that the certificate may sign a row of this kind ([`covers`]). The last
+    /// reads [`Reading::Uncovered`] for a member row whose only failure is its role's standing
+    /// ([`Chain::read_member`]) and refuses every other row that fails it.
+    fn judge(
+        &self,
+        certificate_id: &str,
+        authority: Authority<'_>,
+        signature: &[u8],
+    ) -> Result<Reading, Error> {
         let certificate = self.find(certificate_id)?;
 
         // 1. the row, against the key its certificate names.
@@ -890,15 +1003,22 @@ impl<'a> Chain<'a> {
         // 2 and 3. that certificate, walked to the pinned key, and unrevoked all the way up.
         self.live(certificate_id)?;
 
-        // 4. and that it is a certificate for this row. Last, and the only `Ok` in this
-        //    function is below it.
-        if !self.covers(certificate, authority) {
-            return Err(Error::Integrity {
-                message: BEYOND_ITS_CERTIFICATE.to_string(),
-            });
+        // 4. and that it is a certificate for this row. Last, and the only readings in this
+        //    function are below it.
+        if self.covers(certificate, authority) {
+            return Ok(Reading::Covered);
         }
 
-        Ok(())
+        match authority {
+            Authority::Member(member)
+                if covers_whatever_its_role_stands_at(certificate, member) =>
+            {
+                Ok(Reading::Uncovered)
+            }
+            _ => Err(Error::Integrity {
+                message: BEYOND_ITS_CERTIFICATE.to_string(),
+            }),
+        }
     }
 
     /// A certificate that walks to the pinned key and that nothing has revoked: what a row is
@@ -2879,9 +2999,10 @@ mod tests {
     }
 
     #[test]
-    fn a_member_row_giving_a_flag_its_signers_ceiling_lacks_is_refused_whatever_gives_it() {
+    fn a_member_row_is_bounded_by_the_flags_its_override_switches_and_not_by_its_roles_mask() {
         // a manager whose ceiling lacks deleteContract, signing rows about members below them:
-        // the flag given by the override, by the role's own mask, or not at all.
+        // the flag switched on by the override, carried by the role's own mask, switched off by
+        // the override, or not there at all (the human's decision after review round two).
         let organization = an_organization();
         let public_key = checked_in_member_public_key();
         let ceiling = MANAGER_ROLE.mask & !mask_of(&[Flag::DeleteContract]);
@@ -2908,14 +3029,12 @@ mod tests {
                 member_row("member-b", &public_key, permission::MEMBER, delete_contract),
                 Err(integrity(BEYOND_ITS_CERTIFICATE)),
             ),
-            (
-                member_row("member-b", &public_key, "deleters", 0),
-                Err(integrity(BEYOND_ITS_CERTIFICATE)),
-            ),
-            // the override switching the role's flag off gives nothing beyond the ceiling.
+            // the role's mask is its role row's signer's to vouch for, not the member row's.
+            (member_row("member-b", &public_key, "deleters", 0), Ok(())),
+            // switching a flag off is switching it, and the ceiling does not carry it.
             (
                 member_row("member-b", &public_key, "deleters", delete_contract),
-                Ok(()),
+                Err(integrity(BEYOND_ITS_CERTIFICATE)),
             ),
             (
                 member_row("member-b", &public_key, permission::MEMBER, 0),
@@ -2930,6 +3049,120 @@ mod tests {
                 "{authority:?}"
             );
         }
+    }
+
+    /// The member part of a row's authority, which [`Chain::read_member`] takes.
+    fn member_of(authority: Authority<'_>) -> MemberAuthority<'_> {
+        match authority {
+            Authority::Member(member) => member,
+            other => panic!("not a member row: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_member_row_failing_only_its_roles_standing_reads_uncovered_and_any_other_failure_refuses()
+    {
+        // a lead's certificate at rank 500,000, holding the member role's flags and inviteMember,
+        // reading rows it signed after another machine moved or deleted the role they name, beside
+        // the rows whose failure no other machine could have caused.
+        let organization = an_organization();
+        let public_key = checked_in_member_public_key();
+        let ceiling = MEMBER_ROLE.mask | mask_of(&[Flag::InviteMember]);
+        let (lead_key, lead) = delegate(
+            &organization.administrator_key,
+            &organization.certificate,
+            "lead",
+            ceiling,
+            500_000,
+        );
+        let certificates = [organization.certificate.clone(), lead.clone()];
+        let mut roles = built_in_roles();
+
+        roles.insert("clerk".to_string(), (MEMBER_ROLE.mask, 400_000));
+        roles.insert("moved".to_string(), (MEMBER_ROLE.mask, 600_000));
+
+        let chain = Chain::new(&organization.verifying_key, &certificates, &[]).with_roles(roles);
+        let owner_id = organization.certificate.member_id.clone();
+        let manage_roles = mask_of(&[Flag::ManageRoles]);
+
+        for (authority, expected) in [
+            (
+                member_row("member-b", &public_key, "clerk", 0),
+                Ok(Reading::Covered),
+            ),
+            // the role moved above the lead, and the role deleted: genuine rows nobody forged.
+            (
+                member_row("member-b", &public_key, "moved", 0),
+                Ok(Reading::Uncovered),
+            ),
+            (
+                member_row("member-b", &public_key, "role-nobody-holds", 0),
+                Ok(Reading::Uncovered),
+            ),
+            // and every failure the row and the certificate settle between them still refuses,
+            // whatever the role stands at: the lead's own row, an override the ceiling lacks, and
+            // the owner's role signed by anybody but the root.
+            (
+                member_row(&lead.member_id, &public_key, "clerk", 0),
+                Err(integrity(BEYOND_ITS_CERTIFICATE)),
+            ),
+            (
+                member_row(&lead.member_id, &public_key, "moved", 0),
+                Err(integrity(BEYOND_ITS_CERTIFICATE)),
+            ),
+            (
+                member_row("member-b", &public_key, "clerk", manage_roles),
+                Err(integrity(BEYOND_ITS_CERTIFICATE)),
+            ),
+            (
+                member_row("member-b", &public_key, "moved", manage_roles),
+                Err(integrity(BEYOND_ITS_CERTIFICATE)),
+            ),
+            (
+                owner_authority(&owner_id, &public_key),
+                Err(integrity(BEYOND_ITS_CERTIFICATE)),
+            ),
+        ] {
+            let signature = sign(&lead_key, &lead, authority).expect("failed to sign");
+
+            assert_eq!(
+                chain.read_member(&lead.id, member_of(authority), &signature),
+                expected,
+                "{authority:?}"
+            );
+        }
+
+        // a row the lead did not sign as it stands, and one signed under a revoked certificate,
+        // still refuse; and verify, which every other read goes through, refuses the uncovered
+        // row.
+        let authority = member_row("member-b", &public_key, "moved", 0);
+        let signature = sign(&lead_key, &lead, authority).expect("failed to sign");
+        let revoked = [revoke(
+            &organization.administrator_key,
+            &organization.certificate,
+            &lead,
+            "2026-08-30T12:00:00Z",
+        )
+        .expect("failed to revoke")];
+
+        assert_eq!(
+            chain.read_member(
+                &lead.id,
+                member_of(member_row("member-c", &public_key, "moved", 0)),
+                &signature
+            ),
+            Err(integrity(FORGED_ROW))
+        );
+        assert_eq!(
+            Chain::new(&organization.verifying_key, &certificates, &revoked)
+                .with_roles(built_in_roles())
+                .read_member(&lead.id, member_of(authority), &signature),
+            Err(integrity(REVOKED_CERTIFICATE))
+        );
+        assert_eq!(
+            chain.verify(&lead.id, authority, &signature),
+            Err(integrity(BEYOND_ITS_CERTIFICATE))
+        );
     }
 
     #[test]

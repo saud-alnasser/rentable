@@ -130,7 +130,7 @@ use super::{
     link::{Half, HalfKind, LinkPayload, Locator, seal_payload},
     permission::{self, Flag},
     role::{Standing, reissue},
-    session::{Actor, MemberSession, actor, rank_of},
+    session::{Actor, MemberSession, actor, rank_of, refuse_unsettled},
     setup::{ADMINISTRATOR_KEY_PURPOSE, SHIPPING_KDF, credential_expiry},
     store::{
         GrantRecord, InvitationRecord, MachineLinkRecord, MemberRecord, OrganizationStore, Signer,
@@ -639,6 +639,11 @@ fn writable_account<'a>(
         return Err(Error::refused(RefusalReason::OwnerProtected, owner_refusal));
     }
 
+    // a reset and a link write the row back as it reads, which on a row its certificate no
+    // longer covers is somebody else's content made authority (effort 838). Before the removal
+    // check, so a removal a forger re-signed says what is to be done about it.
+    refuse_unsettled(member)?;
+
     if member.removed_at.is_some() {
         return Err(Error::refused(
             RefusalReason::MemberRemoved,
@@ -916,12 +921,21 @@ pub async fn standings(
 /// member's own id, so `alice` may become `Alice` without being refused as taken by herself.
 ///
 /// **From above, like every other act on an account** (effort 838, requirement 7): the owner's row
-/// is refused, and so is a member whose role does not rank below the renamer's, and one holding a
-/// flag the renamer's certificate does not carry. The rename writes the row again under the
-/// renamer's certificate, and the chain accepts that only from a certificate ranked above the
-/// member and holding every flag they hold; each is refused here by name, before anything is
-/// written. *None of the three was asked until the review of effort 838 found a manager's rename
-/// of the owner writing a row every reader refused, and the directory read by nobody.*
+/// is refused, and so is a member whose role does not rank below the renamer's, and one whose
+/// override switches a flag the renamer's certificate does not carry. The rename writes the row
+/// again under the renamer's certificate, and the chain accepts that only from a certificate
+/// ranked above the member and holding every flag their override switches; each is refused here
+/// by name, before anything is written. The role's own mask is not the renamer's to hold: its
+/// role row's signer vouched for it. *None of the three was asked until the review of effort 838
+/// found a manager's rename of the owner writing a row every reader refused, and the directory
+/// read by nobody; the third asked for every flag the member held until review round two bounded
+/// a member row by its override.*
+///
+/// **A row its certificate no longer covers is not renamed** (`session::refuse_unsettled`): the
+/// rename keeps every field but the username, so it would make the role somebody below the member
+/// named real under the renamer's signature. The member is removed and made an account again. *A
+/// rename saved such a row until the focused review of ticket 20 found it laundering a forged
+/// promotion.*
 pub async fn rename_member(
     store: &OrganizationStore,
     session: &MemberSession,
@@ -964,6 +978,11 @@ pub async fn rename_member(
         ));
     }
 
+    // a rename signs the row again with every other field kept, which on a row its certificate
+    // no longer covers would make the role somebody below the member named real (the focused
+    // review of ticket 20).
+    refuse_unsettled(member)?;
+
     if member.removed_at.is_some() {
         return Err(Error::refused(
             RefusalReason::MemberRemoved,
@@ -980,13 +999,13 @@ pub async fn rename_member(
     let (key, certificate) = signer_of(store, session).await?;
 
     // the row is written again under the renamer's certificate, which the chain accepts only
-    // where it carries every flag the member holds (effort 838, the row-kind table).
-    if let Some(flag) = permission::first_not_held(certificate.ceiling, member.effective) {
+    // where it carries every flag the member's override switches (effort 838, the row-kind table).
+    if let Some(flag) = permission::first_not_held(certificate.ceiling, member.override_mask) {
         return Err(Error::refused(
             RefusalReason::RoleLacksAct,
             format!(
-                "that member holds {flag}, and you do not, so their row cannot be signed by you. \
-                 somebody who holds it renames them"
+                "that member has {flag} switched for them, and you do not hold it, so their row \
+                 cannot be signed by you. somebody who holds it renames them"
             ),
         ));
     }
@@ -1313,6 +1332,7 @@ async fn write_account<P: TursoPlatform>(
                 override_mask: standing.override_mask,
                 removed_at: None,
                 effective: standing.effective,
+                covered: true,
                 must_change_password: true,
                 created_at: now,
                 updated_at: now,
