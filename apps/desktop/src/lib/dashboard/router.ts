@@ -45,8 +45,12 @@ type DashboardQueueEntry = {
 	govId: string;
 	status: Contract['status'];
 	rank: ContractRank;
-	tenantName: string;
-	tenantPhone: string;
+	/**
+	 * who holds the contract, absent for a member who may not view tenants (effort 838,
+	 * requirement 10).
+	 */
+	tenantName?: string;
+	tenantPhone?: string;
 	outstandingAmount: number;
 	contractEnd: number;
 	/** Set on a contract filed under the money that also ends inside the notice window. */
@@ -102,7 +106,8 @@ const DashboardInputSchema = z
  * The landing screen is where everybody arrives, so refusing it for want of one kind would refuse
  * the application. A member without `viewContract` is answered with no queue, no ranks and no
  * figure due; one without `viewPayment` with no figure collected; one without `viewUnit` with no
- * occupancy. What is left out is not read.
+ * occupancy; and one without `viewTenant` with a queue that names nobody. What is left out is not
+ * returned.
  */
 export default procedure.member
 	.input(DashboardInputSchema)
@@ -152,8 +157,7 @@ export default procedure.member
 						govId: serializedContract.govId,
 						status: serializedContract.status,
 						rank,
-						tenantName,
-						tenantPhone,
+						...(views('viewTenant') ? { tenantName, tenantPhone } : {}),
 						outstandingAmount,
 						contractEnd: serializedContract.end,
 						isEndingSoon: isContractEndingSoon(
@@ -170,8 +174,8 @@ export default procedure.member
 			})
 			.sort((left, right) =>
 				compareContractsByRank(
-					{ ...left, nextDue: left.comingDue?.due },
-					{ ...right, nextDue: right.comingDue?.due }
+					{ ...left, tenantName: left.tenantName ?? '', nextDue: left.comingDue?.due },
+					{ ...right, tenantName: right.tenantName ?? '', nextDue: right.comingDue?.due }
 				)
 			);
 

@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # feat(desktop): a record kind the member cannot view is absent from every other kind's results
@@ -19,16 +19,16 @@ view flag.
 
 Traces requirement 10 of [[efforts/838-permissions-are-a-role-and-an-override/spec]], and criterion 10.
 
-- [ ] A router test per record router shows every field of another kind left out of its results
+- [x] A router test per record router shows every field of another kind left out of its results
       for an identity lacking that kind's view flag: the contract's rows, queue, ranks and reminder
       without `viewTenant` carry no tenant name or phone, a payment without `viewContract` carries
       no contract reference, a tenant's row without `viewContract` carries no contract count, and
       any unit or complex field without its view flag likewise.
-- [ ] The contract's printed page and the receipt and schedule leave out the fields of a kind the
+- [x] The contract's printed page and the receipt and schedule leave out the fields of a kind the
       member cannot view, with a test for each printout.
-- [ ] The export control is unavailable, with the reason naming the missing view flag, unless every
+- [x] The export control is unavailable, with the reason naming the missing view flag, unless every
       `view*` flag is held, with a component test.
-- [ ] The interface draws a row whose other-kind field is left out without a broken cell: a test per
+- [x] The interface draws a row whose other-kind field is left out without a broken cell: a test per
       directory shows the column absent or the cell empty with nothing named.
 
 ## Relevant areas

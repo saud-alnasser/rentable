@@ -5,6 +5,7 @@ import {
 } from '$lib/contract/contract';
 import { isReminderRank } from '$lib/contract/reminder';
 import type { RecordAct } from '$lib/design/acts';
+import { memberPermissions } from '$lib/workspace/permission';
 import BanIcon from '@lucide/svelte/icons/ban';
 import CalendarPlusIcon from '@lucide/svelte/icons/calendar-plus';
 import CopyIcon from '@lucide/svelte/icons/copy';
@@ -106,10 +107,13 @@ export function declareContractActs(host: ContractHostRequests): ContractAct[] {
 			group: 'primary',
 			flag: 'viewContract',
 			appliesTo: (contract) => contract.status !== 'terminated' && isReminderRank(contract.rank),
-			// every tenant has a phone today; a read that knows the tenant has none says so here
+			// a reminder is addressed to the tenant by name and phone, which a member who may not view
+			// tenants is not shown (effort 838, requirement 10), so it is refused naming that flag.
+			// Every tenant has a phone today; a read that knows the tenant has none says so here
 			// rather than opening a chat addressed to nobody.
 			unavailable: (contract, t) =>
-				contract.tenantPhone?.trim() === '' ? t.contracts.reminder.noPhone() : undefined,
+				memberPermissions.refusal('viewTenant', t) ??
+				(contract.tenantPhone?.trim() === '' ? t.contracts.reminder.noPhone() : undefined),
 			run: host.remind
 		},
 		{

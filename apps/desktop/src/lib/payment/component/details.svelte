@@ -90,7 +90,7 @@
      glyph names the contract's state and says nothing about the number it stood beside. Drawn as
      every status is, and as the unit page draws its own. -->
 {#snippet contractStatus()}
-	{#if payment}
+	{#if payment?.contractStatus}
 		<Cell.Status status={payment.contractStatus} />
 	{/if}
 {/snippet}
@@ -103,14 +103,22 @@
 {/snippet}
 
 {#snippet fields()}
+	<!-- the tenant and the contract are each left out, label and all, where the reader may not view
+	     their kind: the read answers without them (effort 838, requirement 10). -->
 	<Specification
 		entries={[
-			{ label: $LL.common.labels.tenant(), value: payment?.tenantName ?? '' },
-			{
-				label: $LL.common.labels.contractNumber(),
-				value: payment?.contractGovId || $LL.common.messages.unknown()
-			},
-			{ label: $LL.common.labels.contractStatus(), value: contractStatus },
+			...(payment?.tenantName !== undefined
+				? [{ label: $LL.common.labels.tenant(), value: payment?.tenantName ?? '' }]
+				: []),
+			...(payment?.contractStatus !== undefined
+				? [
+						{
+							label: $LL.common.labels.contractNumber(),
+							value: payment?.contractGovId || $LL.common.messages.unknown()
+						},
+						{ label: $LL.common.labels.contractStatus(), value: contractStatus }
+					]
+				: []),
 			...details
 		]}
 	/>

@@ -22,6 +22,7 @@ import {
 	whatRefusesPaymentDeletion,
 	type PaymentRefusalReason
 } from '$lib/payment/payment';
+import { permits, type Flag } from '@rentable/workspace-permission';
 import { and, asc, desc, eq, inArray, sql, type AnyColumn, type SQL } from 'drizzle-orm';
 import z from 'zod';
 
@@ -171,7 +172,10 @@ export default router({
 	 * One payment, carrying the contract it was made against and whose tenant holds it.
 	 *
 	 * A payment is reached only through its contract, so a view of one that could not name
-	 * that contract would leave the reader with three figures and no way back.
+	 * that contract would leave the reader with three figures and no way back. The contract's
+	 * fields are left out for a member who may not view contracts, and the tenant's for one who
+	 * may not view tenants (effort 838, requirement 10); the id stays, since it is the payment's
+	 * own column.
 	 */
 	get: procedure
 		.permitted('viewPayment')
@@ -198,11 +202,15 @@ export default router({
 
 			return {
 				...serializePayment(row.payment),
-				contractGovId: row.contractGovId ?? '',
-				contractStatus: row.contractStatus,
-				contractPaidAmount: row.contractPaidAmount,
-				contractExpectedAmount: row.contractExpectedAmount,
-				tenantName: row.tenantName
+				...(permits(ctx.identity.permissions, 'viewContract')
+					? {
+							contractGovId: row.contractGovId ?? '',
+							contractStatus: row.contractStatus,
+							contractPaidAmount: row.contractPaidAmount,
+							contractExpectedAmount: row.contractExpectedAmount
+						}
+					: {}),
+				...(permits(ctx.identity.permissions, 'viewTenant') ? { tenantName: row.tenantName } : {})
 			};
 		}),
 
@@ -215,6 +223,11 @@ export default router({
 	 * because what one payment covers depends on each payment taken before it. Computed on every
 	 * read and stored nowhere, so a payment edited and printed again gives the edited receipt. It
 	 * is a read, so a terminated contract's payments have receipts too.
+	 *
+	 * **What the member may not view is left off the receipt** (effort 838, requirement 10): who
+	 * paid without `viewTenant`, the contract and what remains of it without `viewContract`, the
+	 * units without `viewUnit`, and the complex holding each without `viewComplex`. The cycles are
+	 * the payment's, what it covers, and stay.
 	 */
 	receipt: procedure
 		.permitted('viewPayment')
@@ -232,15 +245,19 @@ export default router({
 				throw refuse('payment.missing');
 			}
 
+			const views = (flag: Flag) => permits(ctx.identity.permissions, flag);
+
 			const [payments, units] = await Promise.all([
 				ctx.db.select().from(s.payment).where(eq(s.payment.contractId, row.contract.id)),
-				ctx.db
-					.select({ name: s.unit.name, complexName: s.complex.name })
-					.from(s.contractUnit)
-					.innerJoin(s.unit, eq(s.contractUnit.unitId, s.unit.id))
-					.innerJoin(s.complex, eq(s.unit.complexId, s.complex.id))
-					.where(eq(s.contractUnit.contractId, row.contract.id))
-					.orderBy(asc(s.complex.name), asc(s.unit.name), asc(s.unit.id))
+				!views('viewUnit')
+					? undefined
+					: ctx.db
+							.select({ name: s.unit.name, complexName: s.complex.name })
+							.from(s.contractUnit)
+							.innerJoin(s.unit, eq(s.contractUnit.unitId, s.unit.id))
+							.innerJoin(s.complex, eq(s.unit.complexId, s.complex.id))
+							.where(eq(s.contractUnit.contractId, row.contract.id))
+							.orderBy(asc(s.complex.name), asc(s.unit.name), asc(s.unit.id))
 			]);
 
 			const { cycles, remaining } = allocateReceipt(
@@ -253,16 +270,28 @@ export default router({
 			return {
 				reference: toReceiptReference(row.payment.id),
 				payment: serializePayment(row.payment),
-				tenant: { name: row.tenant.name, nationalId: row.tenant.nationalId },
-				contract: {
-					govId: row.contract.govId ?? '',
-					start: row.contract.start.getTime(),
-					end: row.contract.end.getTime()
-				},
-				units,
+				...(views('viewTenant')
+					? { tenant: { name: row.tenant.name, nationalId: row.tenant.nationalId } }
+					: {}),
+				...(views('viewContract')
+					? {
+							contract: {
+								govId: row.contract.govId ?? '',
+								start: row.contract.start.getTime(),
+								end: row.contract.end.getTime()
+							},
+							remaining
+						}
+					: {}),
+				...(units
+					? {
+							units: units.map(({ name, complexName }) =>
+								views('viewComplex') ? { name, complexName } : { name }
+							)
+						}
+					: {}),
 				// cycles cross as timestamps, as a contract's dates do.
-				cycles: cycles.map((cycle) => ({ index: cycle.index, due: cycle.due.getTime() })),
-				remaining
+				cycles: cycles.map((cycle) => ({ index: cycle.index, due: cycle.due.getTime() }))
 			};
 		}),
 
@@ -272,7 +301,8 @@ export default router({
 	 *
 	 * A payment has no name, so its handle is the amount as it is stored — the surface showing
 	 * it is what renders that in the reader's locale — and what places it is the contract it
-	 * was made against, which is also the only way back to it.
+	 * was made against, which is also the only way back to it. The contract's reference and its
+	 * tenant are each shown only to a member who may view their kind (effort 838, requirement 10).
 	 */
 	search: procedure
 		.permitted('viewPayment')
@@ -292,10 +322,13 @@ export default router({
 				.orderBy(desc(s.payment.date), desc(s.payment.id))
 				.limit(input.limit);
 
+			const viewsContract = permits(ctx.identity.permissions, 'viewContract');
+			const viewsTenant = permits(ctx.identity.permissions, 'viewTenant');
+
 			return rows.map((row) => ({
 				id: row.id,
 				label: String(row.amount),
-				hint: row.contractGovId ?? row.tenantName
+				hint: (viewsContract ? row.contractGovId : null) ?? (viewsTenant ? row.tenantName : '')
 			}));
 		}),
 

@@ -45,6 +45,7 @@ import { reconcileTouched } from '$lib/contract/reconcile';
 import { scheduleContract } from '$lib/contract/schedule';
 import { serializeContract, type SerializedContract } from '$lib/contract/serialize';
 import dashboard from '$lib/dashboard/router';
+import { permits } from '@rentable/workspace-permission';
 import { groupPaymentsByContractId } from '$lib/payment/payment';
 import payment from '$lib/payment/router';
 import {
@@ -144,10 +145,15 @@ async function selectAssignmentsForUnits(db: Database, unitIds: string[]) {
  * units hold and each one's derived status: what both assignable reads start from before they
  * apply the conflict rule.
  */
-async function selectUnitsWithAssignments(db: Database, search: string | undefined, now: number) {
+async function selectUnitsWithAssignments(
+	db: Database,
+	search: string | undefined,
+	now: number,
+	viewsComplex: boolean
+) {
 	const term = search?.trim();
 
-	const units = await db
+	const rows = await db
 		.select({
 			id: s.unit.id,
 			name: s.unit.name,
@@ -156,8 +162,13 @@ async function selectUnitsWithAssignments(db: Database, search: string | undefin
 		})
 		.from(s.unit)
 		.innerJoin(s.complex, eq(s.unit.complexId, s.complex.id))
-		.where(term ? matchesAnySearch([s.unit.name, s.complex.name], term) : undefined)
+		.where(
+			term
+				? matchesAnySearch(viewsComplex ? [s.unit.name, s.complex.name] : [s.unit.name], term)
+				: undefined
+		)
 		.orderBy(asc(s.complex.name), asc(s.unit.name), asc(s.unit.id));
+	const units = rows.map((unit) => withComplexName(unit, viewsComplex));
 
 	const unitIds = units.map((unit) => unit.id);
 	const assignments = await selectAssignmentsForUnits(db, unitIds);
@@ -192,10 +203,26 @@ async function selectContract(db: Database, contractId: string) {
 	return contract;
 }
 
+/**
+ * A unit as a contract's reads answer with it: the complex holding it is named only to a member who
+ * may view complexes (effort 838, requirement 10), and left off, rather than blank, otherwise.
+ */
+function withComplexName<T extends { complexName: string }>(
+	{ complexName, ...unit }: T,
+	viewsComplex: boolean
+): Omit<T, 'complexName'> & { complexName?: string } {
+	return viewsComplex ? { ...unit, complexName } : unit;
+}
+
 // the units a contract holds, each carrying the complex holding it and its derived status —
 // the shape both the directory that reads them and the surface that writes them answer with.
-async function selectContractUnits(db: Database, contractId: string, now: number) {
-	const units = await db
+async function selectContractUnits(
+	db: Database,
+	contractId: string,
+	now: number,
+	viewsComplex: boolean
+) {
+	const rows = await db
 		.select({
 			id: s.unit.id,
 			name: s.unit.name,
@@ -207,6 +234,7 @@ async function selectContractUnits(db: Database, contractId: string, now: number
 		.innerJoin(s.unit, eq(s.contractUnit.unitId, s.unit.id))
 		.innerJoin(s.complex, eq(s.unit.complexId, s.complex.id))
 		.where(eq(s.contractUnit.contractId, contractId));
+	const units = rows.map((unit) => withComplexName(unit, viewsComplex));
 
 	const unitIds = [...new Set(units.map((unit) => unit.id))];
 
@@ -453,9 +481,19 @@ const CONTRACT_DIRECTORY_ORDER: readonly { columnId?: ContractSortColumnId; term
  * the id is last because nothing above it is unique — without a total order two renders of
  * the same query may disagree.
  */
-function contractOrderBy(sort: z.infer<typeof ContractSortSchema> | undefined): SQL[] {
+function contractOrderBy(
+	chosenSort: z.infer<typeof ContractSortSchema> | undefined,
+	viewsTenant: boolean
+): SQL[] {
+	// a member who may not view tenants is not ordered by them either, since an order by a name
+	// they are not shown is that name told another way (effort 838, requirement 10).
+	const order = viewsTenant
+		? CONTRACT_DIRECTORY_ORDER
+		: CONTRACT_DIRECTORY_ORDER.filter(({ columnId }) => columnId !== 'tenantName');
+	const sort = chosenSort?.columnId === 'tenantName' && !viewsTenant ? undefined : chosenSort;
+
 	if (!sort) {
-		return CONTRACT_DIRECTORY_ORDER.map(({ term }) => term);
+		return order.map(({ term }) => term);
 	}
 
 	const column = CONTRACT_SORT_COLUMNS[sort.columnId];
@@ -463,9 +501,7 @@ function contractOrderBy(sort: z.infer<typeof ContractSortSchema> | undefined): 
 
 	return [
 		chosen,
-		...CONTRACT_DIRECTORY_ORDER.filter(({ columnId }) => columnId !== sort.columnId).map(
-			({ term }) => term
-		)
+		...order.filter(({ columnId }) => columnId !== sort.columnId).map(({ term }) => term)
 	];
 }
 
@@ -481,6 +517,15 @@ const CONTRACT_SEARCH_COLUMNS: readonly (SQL | AnyColumn)[] = [
 	s.contract.interval,
 	s.contract.cost
 ];
+
+// the same, less the tenant's fields, for a member who may not view tenants (effort 838,
+// requirement 10): a contract found by a name they are not shown would tell them whose it is.
+const TENANT_SEARCH_COLUMNS: readonly (SQL | AnyColumn)[] = [s.tenant.name, s.tenant.phone];
+
+const contractSearchColumns = (viewsTenant: boolean) =>
+	viewsTenant
+		? CONTRACT_SEARCH_COLUMNS
+		: CONTRACT_SEARCH_COLUMNS.filter((column) => !TENANT_SEARCH_COLUMNS.includes(column));
 
 export default router({
 	/**
@@ -1177,20 +1222,29 @@ export default router({
 		.permitted('viewContract')
 		.input(RecordSearchSchema)
 		.query(async ({ input, ctx }): Promise<RecordMatch[]> => {
+			// a member who may not view tenants reaches a contract by its reference alone, and is
+			// shown no tenant beside it (effort 838, requirement 10).
+			const viewsTenant = permits(ctx.identity.permissions, 'viewTenant');
 			const rows = await ctx.db
 				.select({ id: s.contract.id, govId: s.contract.govId, tenantName: s.tenant.name })
 				.from(s.contract)
 				.innerJoin(s.tenant, eq(s.contract.tenantId, s.tenant.id))
-				.where(matchesAnySearch([s.contract.govId, s.tenant.name], input.term))
+				.where(
+					matchesAnySearch(
+						viewsTenant ? [s.contract.govId, s.tenant.name] : [s.contract.govId],
+						input.term
+					)
+				)
 				.orderBy(desc(s.contract.id))
 				.limit(input.limit);
 
 			// a contract's reference is optional, so the tenant holding it is the handle whenever
-			// there is no reference to show.
+			// there is no reference to show. Without the tenant, the match was made on the
+			// reference, so there is one.
 			return rows.map((row) => ({
 				id: row.id,
-				label: row.govId ?? row.tenantName,
-				hint: row.tenantName
+				label: row.govId ?? (viewsTenant ? row.tenantName : ''),
+				hint: viewsTenant ? row.tenantName : ''
 			}));
 		}),
 
@@ -1251,6 +1305,14 @@ export default router({
 				throw refuse('contract.nothingToRemind');
 			}
 
+			const reminder = { rank, contractNumber: contract.govId?.trim() ?? '', ...figures };
+
+			// the tenant is named only to a member who may view tenants (effort 838, requirement 10),
+			// and the interface does not offer a reminder to anyone else.
+			if (!permits(ctx.identity.permissions, 'viewTenant')) {
+				return reminder;
+			}
+
 			const tenant = await ctx.db
 				.select({ name: s.tenant.name, phone: s.tenant.phone })
 				.from(s.tenant)
@@ -1261,13 +1323,7 @@ export default router({
 				throw refuse('contract.tenantMissing');
 			}
 
-			return {
-				rank,
-				tenantName: tenant.name,
-				tenantPhone: tenant.phone,
-				contractNumber: contract.govId?.trim() ?? '',
-				...figures
-			};
+			return { ...reminder, tenantName: tenant.name, tenantPhone: tenant.phone };
 		}),
 
 	/**
@@ -1333,6 +1389,10 @@ export default router({
 			const rankBounds = input.rank
 				? getContractRankBounds(input.rank, now, endingSoonNoticeDays)
 				: undefined;
+			// a row carries its tenant only to a member who may view tenants, and its count of
+			// payments only to one who may view payments (effort 838, requirement 10).
+			const viewsTenant = permits(ctx.identity.permissions, 'viewTenant');
+			const viewsPayment = permits(ctx.identity.permissions, 'viewPayment');
 
 			const contracts = await ctx.db
 				.select({
@@ -1348,15 +1408,20 @@ export default router({
 						input.tenantId !== undefined ? eq(s.contract.tenantId, input.tenantId) : undefined,
 						input.unitId !== undefined ? contractHoldsUnit(input.unitId) : undefined,
 						input.complexId !== undefined ? contractHoldsUnitInComplex(input.complexId) : undefined,
-						search ? matchesAnySearch(CONTRACT_SEARCH_COLUMNS, search) : undefined,
+						search ? matchesAnySearch(contractSearchColumns(viewsTenant), search) : undefined,
 						rankBounds ? matchesRankBounds(rankBounds) : undefined
 					)
 				)
-				.orderBy(...contractOrderBy(input.sort));
+				.orderBy(...contractOrderBy(input.sort, viewsTenant));
 
 			const listed = contracts.map(({ contract, tenantName, tenantPhone, paymentCount }) =>
 				withRank(
-					{ ...serializeContract(contract, tenantName, tenantPhone), paymentCount },
+					{
+						...(viewsTenant
+							? serializeContract(contract, tenantName, tenantPhone)
+							: serializeContract(contract)),
+						...(viewsPayment ? { paymentCount } : {})
+					},
 					now,
 					endingSoonNoticeDays
 				)
@@ -1388,8 +1453,8 @@ export default router({
 					rank,
 					outstandingAmount,
 					contractEnd: contract.end,
-					// the list joins its tenant, so the name is always there; the serialized shape
-					// is the one that admits it might not be.
+					// the list joins its tenant, so the name is there wherever the member may view
+					// tenants; without it the rank's order falls through to what is left.
 					tenantName: contract.tenantName ?? '',
 					nextDue:
 						rank === 'due-soon'
@@ -1414,7 +1479,12 @@ export default router({
 			.permitted('viewUnit')
 			.input(ContractUnitsGetManySchema)
 			.query(async ({ input, ctx }) => {
-				return await selectContractUnits(ctx.db, input.contractId, ctx.clock.now());
+				return await selectContractUnits(
+					ctx.db,
+					input.contractId,
+					ctx.clock.now(),
+					permits(ctx.identity.permissions, 'viewComplex')
+				);
 			}),
 
 		/**
@@ -1435,7 +1505,8 @@ export default router({
 				const { units, assignments, statusByUnitId } = await selectUnitsWithAssignments(
 					ctx.db,
 					input.search,
-					ctx.clock.now()
+					ctx.clock.now(),
+					permits(ctx.identity.permissions, 'viewComplex')
 				);
 				const conflictingUnitIds = getConflictingAssignedUnitIds(
 					assignments,
@@ -1473,7 +1544,8 @@ export default router({
 				const { units, assignments, statusByUnitId } = await selectUnitsWithAssignments(
 					ctx.db,
 					input.search,
-					ctx.clock.now()
+					ctx.clock.now(),
+					permits(ctx.identity.permissions, 'viewComplex')
 				);
 				const conflictingUnitIds = getConflictingAssignedUnitIds(assignments, input, '');
 
@@ -1550,7 +1622,12 @@ export default router({
 					unitIds: [...new Set([...nextUnitIds, ...removed])]
 				});
 
-				return await selectContractUnits(ctx.db, input.contractId, now);
+				return await selectContractUnits(
+					ctx.db,
+					input.contractId,
+					now,
+					permits(ctx.identity.permissions, 'viewComplex')
+				);
 			})
 	},
 

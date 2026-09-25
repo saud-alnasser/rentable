@@ -5,6 +5,7 @@ import {
 	type Api,
 	countMatching,
 	createApi,
+	identityWithout,
 	monthsFromNow,
 	NOW,
 	seedTenant,
@@ -2787,5 +2788,118 @@ test('a refusal naming a value keeps the value whole inside the Arabic sentence'
 	assert.equal(
 		await refusalReadIn(() => api.contract.restoreMany({ contracts: deleted.deleted })),
 		'المعرف الحكومي \u2068GOV-B\u2069 مرتبط بعقد آخر.'
+	);
+});
+
+// --- What a member may not view ------------------------------------------------------------
+//
+// Effort 838, requirement 10: a contract's reads leave out every field of a kind the member may
+// not view. The same workspace is read by a member holding every record act and by one lacking a
+// single view flag.
+
+test('without viewing tenants, a contract row, its rank, its search and its reminder name no tenant', async () => {
+	const db = createMemoryDatabase();
+	const api = await createApi({ db });
+	const { tenant, contract } = await seedRemindedContract(api, {
+		govId: 'GOV-OWED',
+		start: monthsFromNow(-13),
+		end: monthsFromNow(-1),
+		interval: '12m',
+		cost: 4000
+	});
+	const lacking = await createApi({ db, identity: identityWithout('viewTenant') });
+
+	const [everything] = await api.contract.getMany({});
+	assert.equal(everything?.tenantName, tenant.name, 'the row named no tenant to leave out');
+
+	for (const rows of [
+		await lacking.contract.getMany({}),
+		await lacking.contract.getMany({ rank: 'overdue' })
+	]) {
+		assert.deepEqual(
+			rows.map((row) => row.id),
+			[contract.id]
+		);
+		assert.equal('tenantName' in rows[0]!, false);
+		assert.equal('tenantPhone' in rows[0]!, false);
+	}
+
+	// nor is a contract found, or ordered, by a tenant the member is not shown.
+	assert.equal((await api.contract.getMany({ search: tenant.name })).length, 1);
+	assert.deepEqual(await lacking.contract.getMany({ search: tenant.name }), []);
+	assert.deepEqual(await lacking.contract.search({ term: tenant.name }), []);
+	assert.deepEqual(await lacking.contract.search({ term: 'GOV-OWED' }), [
+		{ id: contract.id, label: 'GOV-OWED', hint: '' }
+	]);
+
+	assert.deepEqual(await lacking.contract.reminder({ id: contract.id }), {
+		rank: 'overdue',
+		contractNumber: 'GOV-OWED',
+		amount: 4000,
+		due: contract.start
+	});
+});
+
+test('without viewing payments, a contract row counts no payments', async () => {
+	const db = createMemoryDatabase();
+	const api = await createApi({ db });
+	const contract = await seedContract(api);
+
+	await api.contract.payments.create({ contractId: contract.id, date: NOW, amount: 100 });
+
+	const [everything] = await api.contract.getMany({});
+	const [lacking] = await (
+		await createApi({ db, identity: identityWithout('viewPayment') })
+	).contract.getMany({});
+
+	assert.equal(everything?.paymentCount, 1);
+	assert.equal(lacking?.id, contract.id);
+	assert.equal('paymentCount' in lacking!, false);
+	// the contract's own figures are still the contract's to show.
+	assert.equal(lacking?.paidAmount, 100);
+});
+
+test('without viewing complexes, the units a contract holds and may hold name no complex', async () => {
+	const db = createMemoryDatabase();
+	const api = await createApi({ db });
+	const { complex, unit } = await seedComplexWithUnit(api, 'Unnamed');
+	const contract = await seedContract(api, { unitIds: [unit.id] });
+	const lacking = await createApi({ db, identity: identityWithout('viewComplex') });
+
+	assert.equal(
+		(await api.contract.units.getMany({ contractId: contract.id }))[0]?.complexName,
+		complex.name
+	);
+
+	const reads = [
+		await lacking.contract.units.getMany({ contractId: contract.id }),
+		await lacking.contract.units.getAssignableMany({ contractId: contract.id }),
+		await lacking.contract.units.getAssignableForTerm({
+			start: monthsFromNow(24),
+			end: monthsFromNow(36)
+		}),
+		await lacking.contract.units.set({ contractId: contract.id, unitIds: [unit.id] })
+	];
+
+	for (const units of reads) {
+		assert.deepEqual(
+			units.map((held) => held.id),
+			[unit.id]
+		);
+		assert.equal('complexName' in units[0]!, false);
+	}
+
+	// nor is a unit found by the complex holding it.
+	assert.equal(
+		(await api.contract.units.getAssignableMany({ contractId: contract.id, search: complex.name }))
+			.length,
+		1
+	);
+	assert.deepEqual(
+		await lacking.contract.units.getAssignableMany({
+			contractId: contract.id,
+			search: complex.name
+		}),
+		[]
 	);
 });

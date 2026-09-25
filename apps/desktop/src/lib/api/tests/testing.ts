@@ -23,14 +23,20 @@ import { fakeHost } from '$lib/platform/tests/testing.ts';
 import { appRouter } from '../router.ts';
 import { caller, context } from '../trpc.ts';
 
-/** Viewing, creating, editing and deleting every kind of record, and nothing else. */
-export const EVERY_RECORD_ACT = maskOf(
+/** Every record flag, of every kind. */
+const RECORD_FLAGS = [
 	...FAMILIES.complex,
 	...FAMILIES.unit,
 	...FAMILIES.tenant,
 	...FAMILIES.contract,
 	...FAMILIES.payment
-);
+];
+
+/** A record flag, as a test names the one it takes away. */
+type RecordFlag = (typeof RECORD_FLAGS)[number];
+
+/** Viewing, creating, editing and deleting every kind of record, and nothing else. */
+export const EVERY_RECORD_ACT = maskOf(...RECORD_FLAGS);
 
 /**
  * The person a request is acting as.
@@ -53,6 +59,16 @@ export function fakeIdentity(overrides: Partial<Identity> = {}): Identity {
 		permissions: EVERY_RECORD_ACT,
 		...overrides
 	};
+}
+
+/**
+ * A member holding every record act but the flags named: what a test about a kind the member may
+ * not view reads the workspace as (effort 838, requirement 10).
+ */
+export function identityWithout(...lacking: RecordFlag[]): Identity {
+	return fakeIdentity({
+		permissions: maskOf(...RECORD_FLAGS.filter((flag) => !lacking.includes(flag)))
+	});
 }
 
 // A fixed instant — the real "now" — so status derivation is pinned identically whether a

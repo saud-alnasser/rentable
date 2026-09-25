@@ -31,6 +31,7 @@
 	import { isMoneyRank } from '$lib/contract/rank';
 	import { isReminderRank } from '$lib/contract/reminder';
 	import { withContractRank } from '$lib/contract/rank-filter';
+	import { toContractName } from '$lib/contract/contract';
 	import type { DashboardSection } from '$lib/dashboard/dashboard';
 	import { LL } from '$lib/i18n/i18n-svelte';
 
@@ -46,6 +47,26 @@
 	let { section }: { section: DashboardSection<QueueEntry> } = $props();
 
 	const rank = $derived(section.summary.rank);
+
+	/**
+	 * What a row leads with and what its link is called: the tenant where the reader may view
+	 * tenants, and the contract's own reference otherwise, since a row naming a tenant the reader is
+	 * not shown would be naming it anyway (effort 838, requirement 10).
+	 */
+	const rowName = (entry: QueueEntry) =>
+		entry.tenantName ?? toContractName(entry, $LL.common.labels.contract());
+
+	const rowLink = (entry: QueueEntry) => {
+		if (entry.tenantName !== undefined) {
+			return $LL.dashboard.sections.openContract({ tenant: entry.tenantName });
+		}
+
+		const number = entry.govId.trim();
+
+		return number
+			? $LL.dashboard.sections.openContractNumbered({ number })
+			: $LL.dashboard.sections.openThisContract();
+	};
 	const Icon = $derived(glyphs[rank]);
 
 	const rankLabels = $derived<Record<ContractRank, string>>({
@@ -112,12 +133,12 @@
 				<a
 					href={resolve(`/contracts/${entry.id}`)}
 					class="absolute inset-0 rounded-xl transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-					aria-label={$LL.dashboard.sections.openContract({ tenant: entry.tenantName })}
+					aria-label={rowLink(entry)}
 				></a>
 
 				<span class="pointer-events-none relative flex min-w-0 flex-1 flex-col gap-1">
 					<span class="flex min-w-0 items-center gap-2">
-						<Cell.Text class="truncate text-sm font-medium" text={entry.tenantName} />
+						<Cell.Text class="truncate text-sm font-medium" text={rowName(entry)} />
 						<Cell.Status status={entry.status} />
 						{#if entry.isEndingSoon && isMoneyRank(entry.rank)}
 							<Badge variant="outline">{$LL.dashboard.sections.alsoEnding()}</Badge>
@@ -127,10 +148,12 @@
 						<!-- a due-soon row dates the cycle coming due, which is what the rank is about;
 						     every other row dates the contract's end. -->
 						<Cell.Date value={entry.comingDue?.due ?? entry.contractEnd} />
-						<span aria-hidden="true">&middot;</span>
-						<span class="pointer-events-auto truncate select-text">
-							<Cell.Phone phone={entry.tenantPhone} />
-						</span>
+						{#if entry.tenantPhone !== undefined}
+							<span aria-hidden="true">&middot;</span>
+							<span class="pointer-events-auto truncate select-text">
+								<Cell.Phone phone={entry.tenantPhone} />
+							</span>
+						{/if}
 					</span>
 				</span>
 

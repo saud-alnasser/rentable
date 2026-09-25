@@ -2124,6 +2124,15 @@ type RootTranslation = {
 			 */
 			openContract: RequiredParams<'tenant'>
 			/**
+			 * o​p​e​n​ ​c​o​n​t​r​a​c​t​ ​{​n​u​m​b​e​r​}
+			 * @param {unknown} number
+			 */
+			openContractNumbered: RequiredParams<'number'>
+			/**
+			 * o​p​e​n​ ​t​h​e​ ​c​o​n​t​r​a​c​t
+			 */
+			openThisContract: string
+			/**
 			 * s​e​e​ ​a​l​l​ ​(​{​c​o​u​n​t​|​n​u​m​b​e​r​}​)
 			 * @param {unknown} count
 			 */
@@ -6352,6 +6361,14 @@ export type TranslationFunctions = {
 			 * open the contract for {tenant}
 			 */
 			openContract: (arg: { tenant: unknown }) => LocalizedString
+			/**
+			 * open contract {number}
+			 */
+			openContractNumbered: (arg: { number: unknown }) => LocalizedString
+			/**
+			 * open the contract
+			 */
+			openThisContract: () => LocalizedString
 			/**
 			 * see all ({count|number})
 			 */

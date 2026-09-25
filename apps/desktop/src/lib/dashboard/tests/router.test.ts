@@ -528,3 +528,24 @@ test('a member who may not view units is told no occupancy', async () => {
 	assert.ok(everything.summary.occupancy, 'the portfolio had no occupancy to leave out');
 	assert.equal('occupancy' in lacking.summary, false);
 });
+
+test('a member who may not view tenants is shown a queue that names nobody', async () => {
+	const { everything, lacking } = await portfolioReadWithout('viewTenant');
+
+	assert.ok(
+		everything.queue.some((entry) => entry.tenantName),
+		'the queue named no tenant'
+	);
+	assert.deepEqual(
+		lacking.queue.map((entry) => entry.id),
+		everything.queue.map((entry) => entry.id)
+	);
+
+	for (const entry of lacking.queue) {
+		assert.equal('tenantName' in entry, false);
+		assert.equal('tenantPhone' in entry, false);
+	}
+
+	// the ranks count and total what they did: nothing in them was the tenant's.
+	assert.deepEqual(lacking.ranks, everything.ranks);
+});

@@ -11,7 +11,7 @@
 	import { tauri } from '$lib/platform/tauri';
 	import WorkspaceImportDialog from '$lib/workspace/component/import-dialog.svelte';
 	import { useImportRecords } from '$lib/workspace/query';
-	import { IMPORT_FLAGS, memberPermissions } from '$lib/workspace/permission';
+	import { EXPORT_FLAGS, IMPORT_FLAGS, memberPermissions } from '$lib/workspace/permission';
 	import {
 		TRANSFER_COLUMNS,
 		TRANSFER_CONCEPTS,
@@ -41,7 +41,13 @@
 	// why the reader may not bring a file in here, or nothing where they may: every kind's create,
 	// as the procedure asks, since a workspace file holds every kind (effort 838, requirement 10).
 	const importUnavailable = $derived(memberPermissions.refusalOfEvery(IMPORT_FLAGS, $LL));
-	const importReasonId = $props.id();
+	// and why the reader may not take the workspace out, naming the first view flag they lack: the
+	// file holds every kind, so `workspace.get` asks for every kind's view.
+	const exportUnavailable = $derived(memberPermissions.refusalOfEvery(EXPORT_FLAGS, $LL));
+	// one id for the row, and one reason under it per control.
+	const reasonId = $props.id();
+	const importReasonId = `${reasonId}-import`;
+	const exportReasonId = `${reasonId}-export`;
 
 	/** Every sheet of the file, in the order the reader has to read them back in. */
 	function toSheets(transfer: WorkspaceTransfer) {
@@ -58,7 +64,7 @@
 	}
 
 	async function exportWorkspace() {
-		if (isExporting) {
+		if (isExporting || exportUnavailable) {
 			return;
 		}
 
@@ -102,9 +108,33 @@
 	<!-- two controls rather than a menu: this is not a list's toolbar with four icons competing
 	     for one corner, and the two directions are the whole of what the row offers. -->
 	<div class="flex shrink-0 items-center gap-2">
-		<Button variant="outline" size="sm" disabled={isExporting} onclick={exportWorkspace}>
-			{isExporting ? $LL.common.actions.working() : $LL.common.actions.export()}
-		</Button>
+		<!-- refused rather than taken away where the reader may not view every kind, and saying which
+		     flag they lack, as the import beside it does. -->
+		<Tooltip.Root disabled={!exportUnavailable}>
+			<Tooltip.Trigger>
+				{#snippet child({ props })}
+					<Button
+						{...props}
+						variant="outline"
+						size="sm"
+						disabled={isExporting}
+						class={exportUnavailable ? unavailableControl : undefined}
+						data-unavailable={exportUnavailable ? '' : undefined}
+						aria-disabled={exportUnavailable ? 'true' : undefined}
+						aria-describedby={exportUnavailable ? exportReasonId : undefined}
+						onclick={exportWorkspace}
+					>
+						{isExporting ? $LL.common.actions.working() : $LL.common.actions.export()}
+						{#if exportUnavailable}
+							<span id={exportReasonId} class="sr-only">{exportUnavailable}</span>
+						{/if}
+					</Button>
+				{/snippet}
+			</Tooltip.Trigger>
+			<Tooltip.Content side="top" sideOffset={8}>
+				<span data-unavailable-reason>{exportUnavailable}</span>
+			</Tooltip.Content>
+		</Tooltip.Root>
 		<!-- refused rather than taken away where the reader may not import, and saying why on hover
 		     and focus, as a list's import does ([[rules/interface]], *Guidance*). -->
 		<Tooltip.Root disabled={!importUnavailable}>

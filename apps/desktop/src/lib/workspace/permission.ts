@@ -41,6 +41,18 @@ export const VIEW_FLAG = {
 } as const satisfies Record<RecordKind, RecordFlag>;
 
 /**
+ * What an export reads, and so what it asks for: every kind's view, as `workspace.get` does, since
+ * the file holds every kind and a member who may not view one is not handed it in a file.
+ */
+export const EXPORT_FLAGS = [
+	'viewComplex',
+	'viewUnit',
+	'viewTenant',
+	'viewContract',
+	'viewPayment'
+] as const satisfies readonly RecordFlag[];
+
+/**
  * What an import writes, and so what it asks for: every kind's create, as `workspace.importWhole`
  * does, since one procedure takes a file of any kind and writes it all or none.
  */

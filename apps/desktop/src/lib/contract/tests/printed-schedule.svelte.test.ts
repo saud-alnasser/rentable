@@ -166,3 +166,34 @@ test('a schedule prints the organization’s mark at its foot, and an empty foot
 
 	expect(page().querySelector('[data-printed-mark]')).toBeNull();
 });
+
+// effort 838, requirement 10: what the reader may not view is not on the page, label and all.
+test('a schedule answered without its tenant, its units or their complex prints none of them', () => {
+	const { issuer, mark, contract, cycles } = VALUE;
+
+	render(PrintedSchedule, { value: { issuer, mark, contract, cycles }, locale: 'en' });
+
+	const terms = [...page().querySelectorAll('dt')].map((term) => term.textContent?.trim());
+
+	expect(page().querySelector('[data-printed-tenant]')).toBeNull();
+	expect(page().querySelector('[data-printed-units]')).toBeNull();
+	expect(terms).not.toContain(en.common.labels.tenant);
+	expect(terms).not.toContain(en.common.labels.units);
+	expect(text(page())).not.toContain('Noura');
+	// the contract and its cycles are still the page.
+	expect(terms).toContain(en.common.labels.contractPeriod);
+	expect(rows()).toHaveLength(4);
+
+	document.body.innerHTML = '';
+	render(PrintedSchedule, {
+		value: { ...VALUE, units: VALUE.units?.map(({ name }) => ({ name })) },
+		locale: 'en'
+	});
+
+	// the units, one to a line, with no complex beside either.
+	expect(
+		[...document.querySelectorAll('[data-printed-units] > span')].map((unit) =>
+			unit.textContent?.trim()
+		)
+	).toEqual(['A-12', 'A-13']);
+});

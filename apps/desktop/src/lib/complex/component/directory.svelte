@@ -102,6 +102,10 @@
 		selected = [];
 	}
 
+	// the unit figures are offered as orders and columns of the file only to a reader who may view
+	// units: the list answers anyone else with none (effort 838, requirement 10).
+	const viewsUnit = $derived(memberPermissions.views('unit'));
+
 	// built from the ids the procedure orders by, so the control cannot come to offer a key
 	// the query would reject. The record type is what makes a missing label a type error.
 	const sortOptions = $derived.by(() => {
@@ -112,7 +116,9 @@
 			vacantUnitCount: $LL.common.labels.vacantUnits()
 		};
 
-		return COMPLEX_SORT_COLUMN_IDS.map((id) => ({ id, label: labels[id] }));
+		return COMPLEX_SORT_COLUMN_IDS.filter(
+			(id) => viewsUnit || (id !== 'unitCount' && id !== 'vacantUnitCount')
+		).map((id) => ({ id, label: labels[id] }));
 	});
 </script>
 
@@ -144,15 +150,26 @@
 		columns: [
 			{ header: $LL.common.labels.name(), value: (complex) => complex.name },
 			{ header: $LL.common.labels.location(), value: (complex) => complex.location },
-			{ header: $LL.common.labels.units(), value: (complex) => complex.unitCount },
 			// the three figures the row shows, in the order it shows them. Occupancy is not on the
 			// query — a unit is occupied or vacant, so the third figure is the other two — which is
 			// why it has to be derived here as well rather than read off the record.
-			{
-				header: $LL.common.labels.occupiedUnits(),
-				value: (complex) => complex.unitCount - complex.vacantUnitCount
-			},
-			{ header: $LL.common.labels.vacantUnits(), value: (complex) => complex.vacantUnitCount }
+			...(viewsUnit
+				? [
+						{
+							header: $LL.common.labels.units(),
+							value: (complex: ComplexRecord) => complex.unitCount ?? 0
+						},
+						{
+							header: $LL.common.labels.occupiedUnits(),
+							value: (complex: ComplexRecord) =>
+								(complex.unitCount ?? 0) - (complex.vacantUnitCount ?? 0)
+						},
+						{
+							header: $LL.common.labels.vacantUnits(),
+							value: (complex: ComplexRecord) => complex.vacantUnitCount ?? 0
+						}
+					]
+				: [])
 		]
 	}}
 	onImport={() => void importDialog?.choose()}
@@ -166,7 +183,7 @@
 	{#snippet record(complex: ComplexRecord)}
 		<!-- occupancy is not on the query: a unit is occupied or vacant, so the third figure is
 		     the other two. -->
-		{@const occupiedUnitCount = complex.unitCount - complex.vacantUnitCount}
+		{@const occupiedUnitCount = (complex.unitCount ?? 0) - (complex.vacantUnitCount ?? 0)}
 		<RecordCard
 			href={resolve(`/complexes/${complex.id}`)}
 			label={complex.name}
@@ -179,26 +196,30 @@
 					<Cell.Text class="truncate text-xs text-muted-foreground" text={complex.location} />
 				</span>
 
-				<span class="pointer-events-none relative flex shrink-0 items-center gap-4">
-					<Cell.Count
-						icon={LayoutGridIcon}
-						count={complex.unitCount}
-						label={$LL.common.labels.units()}
-					/>
+				<!-- a reader who may not view units is answered with no figures, and the row draws
+				     none rather than three zeroes (effort 838, requirement 10). -->
+				{#if complex.unitCount !== undefined && complex.vacantUnitCount !== undefined}
+					<span class="pointer-events-none relative flex shrink-0 items-center gap-4">
+						<Cell.Count
+							icon={LayoutGridIcon}
+							count={complex.unitCount}
+							label={$LL.common.labels.units()}
+						/>
 
-					<Cell.Count
-						icon={statusGlyphs.occupied}
-						count={occupiedUnitCount}
-						label={$LL.common.labels.occupiedUnits()}
-						tone={occupiedUnitCount > 0 ? 'running' : 'settled'}
-					/>
+						<Cell.Count
+							icon={statusGlyphs.occupied}
+							count={occupiedUnitCount}
+							label={$LL.common.labels.occupiedUnits()}
+							tone={occupiedUnitCount > 0 ? 'running' : 'settled'}
+						/>
 
-					<Cell.Count
-						icon={statusGlyphs.vacant}
-						count={complex.vacantUnitCount}
-						label={$LL.common.labels.vacantUnits()}
-					/>
-				</span>
+						<Cell.Count
+							icon={statusGlyphs.vacant}
+							count={complex.vacantUnitCount}
+							label={$LL.common.labels.vacantUnits()}
+						/>
+					</span>
+				{/if}
 			{/snippet}
 		</RecordCard>
 	{/snippet}

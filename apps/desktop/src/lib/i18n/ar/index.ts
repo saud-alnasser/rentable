@@ -634,6 +634,8 @@ const ar = {
 			alsoEnding: 'ينتهي أيضاً',
 			contractCount: '{count|number} عقد',
 			openContract: 'افتح عقد {tenant}',
+			openContractNumbered: 'افتح العقد {number}',
+			openThisContract: 'افتح العقد',
 			seeAll: 'عرض الكل ({count|number})'
 		},
 

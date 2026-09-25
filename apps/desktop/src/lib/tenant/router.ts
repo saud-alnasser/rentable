@@ -17,6 +17,7 @@ import {
 	whatRefusesTenantDeletion,
 	type TenantSortColumnId
 } from '$lib/tenant/tenant';
+import { permits } from '@rentable/workspace-permission';
 import { asc, desc, eq, inArray, like, sql, type AnyColumn, type SQL } from 'drizzle-orm';
 import z from 'zod';
 
@@ -118,8 +119,15 @@ const TenantSortSchema = z.object({
  * which reads as no order at all. The id is still last because a name is not unique, and
  * without a total order two renders of the same query may disagree.
  */
-function tenantOrderBy(sort: z.infer<typeof TenantSortSchema> | undefined): SQL[] {
+function tenantOrderBy(
+	chosenSort: z.infer<typeof TenantSortSchema> | undefined,
+	viewsContract: boolean
+): SQL[] {
 	const directoryOrder = [asc(s.tenant.name), asc(s.tenant.id)];
+	// a member who may not view contracts is not ordered by how many a tenant holds, which would be
+	// the count told another way (effort 838, requirement 10).
+	const sort =
+		chosenSort?.columnId === 'activeContractCount' && !viewsContract ? undefined : chosenSort;
 
 	if (!sort) {
 		return directoryOrder;
@@ -387,6 +395,10 @@ export default router({
 			return rows;
 		}),
 
+	/**
+	 * The tenants directory, each row with a count of the tenant's contracts in every status. The
+	 * counts are left out for a member who may not view contracts (effort 838, requirement 10).
+	 */
 	getMany: procedure
 		.permitted('viewTenant')
 		.input(
@@ -398,6 +410,7 @@ export default router({
 		)
 		.query(async ({ input, ctx }) => {
 			const search = input.search?.trim();
+			const viewsContract = permits(ctx.identity.permissions, 'viewContract');
 
 			const query = ctx.db
 				.select({
@@ -411,8 +424,32 @@ export default router({
 				.leftJoin(s.contract, eq(s.contract.tenantId, s.tenant.id))
 				.where(search ? matchesAnySearch(TENANT_SEARCH_COLUMNS, search) : undefined)
 				.groupBy(s.tenant.id)
-				.orderBy(...tenantOrderBy(input.sort));
+				.orderBy(...tenantOrderBy(input.sort, viewsContract));
 
-			return input.limit ? await query.limit(input.limit) : await query;
+			const tenants = input.limit ? await query.limit(input.limit) : await query;
+
+			return tenants.map(
+				({
+					contractsScheduled,
+					contractsActive,
+					contractsFulfilled,
+					contractsDefaulted,
+					contractsExpired,
+					contractsTerminated,
+					...tenant
+				}) => ({
+					...tenant,
+					...(viewsContract
+						? {
+								contractsScheduled,
+								contractsActive,
+								contractsFulfilled,
+								contractsDefaulted,
+								contractsExpired,
+								contractsTerminated
+							}
+						: {})
+				})
+			);
 		})
 });

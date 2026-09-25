@@ -668,6 +668,8 @@ const en = {
 			alsoEnding: 'also ending',
 			contractCount: '{count|number} {{contract|contracts}}',
 			openContract: 'open the contract for {tenant}',
+			openContractNumbered: 'open contract {number}',
+			openThisContract: 'open the contract',
 			seeAll: 'see all ({count|number})'
 		},
 

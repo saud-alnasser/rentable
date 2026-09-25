@@ -120,8 +120,14 @@
 
 		const copied = await writeDetailsToClipboard([
 			{ label: $LL.common.labels.amount(), value: formatMoney(read?.amount ?? payment.amount) },
-			{ label: $LL.common.labels.tenant(), value: read?.tenantName ?? '' },
-			{ label: $LL.common.labels.contractNumber(), value: read?.contractGovId ?? '' }
+			// the tenant and the contract only where the read answered with them, which it does for a
+			// reader who may view their kind (effort 838, requirement 10).
+			...(read?.tenantName !== undefined
+				? [{ label: $LL.common.labels.tenant(), value: read.tenantName }]
+				: []),
+			...(read?.contractGovId !== undefined
+				? [{ label: $LL.common.labels.contractNumber(), value: read.contractGovId }]
+				: [])
 		]);
 
 		if (copied) {

@@ -67,8 +67,17 @@
 			status: $LL.common.labels.status()
 		};
 
-		return CONTRACT_SORT_COLUMN_IDS.map((id) => ({ id, label: labels[id] }));
+		// a reader who may not view tenants is not offered an order by them: the list answers
+		// them with no tenant to order by (effort 838, requirement 10).
+		return CONTRACT_SORT_COLUMN_IDS.filter(
+			(id) => id !== 'tenantName' || memberPermissions.views('tenant')
+		).map((id) => ({ id, label: labels[id] }));
 	});
+
+	// the file carries the tenant and the count of payments only where the rows do (effort 838,
+	// requirement 10): a column of blanks would be a column naming what the reader may not see.
+	const viewsTenant = $derived(memberPermissions.views('tenant'));
+	const viewsPayment = $derived(memberPermissions.views('payment'));
 
 	// the rank the list opened on is then cleared from the URL, so a reload does not put back a
 	// narrowing the reader has since cleared, the way the contract host consumes and clears a create
@@ -103,10 +112,15 @@
 					toChosenLabel(RANK_FILTER, filters, $LL) ?? ''
 				]),
 				columns: [
-					{
-						header: $LL.common.labels.tenant(),
-						value: (contract) => contract.tenantName?.trim() || $LL.common.labels.tenant()
-					},
+					...(viewsTenant
+						? [
+								{
+									header: $LL.common.labels.tenant(),
+									value: (contract: ContractRow) =>
+										contract.tenantName?.trim() || $LL.common.labels.tenant()
+								}
+							]
+						: []),
 					{
 						header: $LL.common.labels.governmentId(),
 						value: (contract) => contract.govId.trim()
@@ -121,7 +135,14 @@
 						header: $LL.common.labels.end(),
 						value: (contract) => ({ kind: 'date' as const, value: new Date(contract.end) })
 					},
-					{ header: $LL.common.nav.payments(), value: (contract) => contract.paymentCount },
+					...(viewsPayment
+						? [
+								{
+									header: $LL.common.nav.payments(),
+									value: (contract: ContractRow) => contract.paymentCount ?? 0
+								}
+							]
+						: []),
 					{
 						header: $LL.common.labels.status(),
 						value: (contract) => $LL.common.status[contract.status]()

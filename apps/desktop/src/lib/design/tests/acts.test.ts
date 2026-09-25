@@ -1275,6 +1275,22 @@ test('an act whose flag the reader lacks is refused on the card, the page and th
 	}
 });
 
+// effort 838, requirement 10: a reminder is addressed to the tenant by name and phone, which a
+// reader who may not view tenants is not shown, so it is refused naming that flag.
+test('a reminder is refused, naming the flag, to a reader who may not view tenants', (context) => {
+	context.after(() => memberPermissions.hold(null));
+	memberPermissions.hold(lacking('viewTenant'));
+
+	const acts = declareContractActs(recordingHost().host);
+	const reminder = toPageActions(
+		acts,
+		{ ...contractIn('active'), rank: 'owing' },
+		translations
+	).find((act) => act.id === 'contract.remind');
+
+	assert.equal(reminder?.unavailable, translations.common.permission.missing.viewTenant());
+});
+
 test('a reader holding every flag is refused nothing and offered every act', (context) => {
 	context.after(() => memberPermissions.hold(null));
 	memberPermissions.hold({ permissions: EVERY_FLAG_HELD, accessLevel: 'full-access' });

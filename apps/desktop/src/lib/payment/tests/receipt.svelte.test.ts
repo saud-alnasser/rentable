@@ -21,6 +21,9 @@ import PrintedReceipt, { type PrintedReceiptValue } from '$lib/payment/component
 
 const day = (value: string) => Date.parse(`${value}T00:00:00.000Z`);
 
+const TENANT = { name: 'Noura Al-Qahtani', nationalId: '1012345678' };
+const CONTRACT = { govId: '20471133', start: day('2026-01-01'), end: day('2026-12-31') };
+
 const VALUE: PrintedReceiptValue = {
 	reference: '01K5-Z3QW-8M2T-4HBC',
 	issuer: 'Al Nakheel Properties',
@@ -34,8 +37,8 @@ const VALUE: PrintedReceiptValue = {
 		reference: 'SADAD-7731',
 		note: 'paid at the office'
 	},
-	tenant: { name: 'Noura Al-Qahtani', nationalId: '1012345678' },
-	contract: { govId: '20471133', start: day('2026-01-01'), end: day('2026-12-31') },
+	tenant: TENANT,
+	contract: CONTRACT,
 	units: [
 		{ name: 'A-12', complexName: 'Al Nakheel' },
 		{ name: 'A-13', complexName: 'Al Nakheel' }
@@ -99,15 +102,15 @@ test('the page carries every fact of requirement 9, headed by the workspace that
 		for (const fact of [
 			VALUE.reference,
 			formatRecordDate(locale, VALUE.payment.date),
-			VALUE.tenant.name,
-			VALUE.tenant.nationalId,
+			TENANT.name,
+			TENANT.nationalId,
 			(locale === 'ar' ? ar : en).contracts.payments.methods.bankTransfer,
 			'SADAD-7731',
 			'20471133',
 			'A-12',
 			'A-13',
 			'Al Nakheel',
-			formatRecordDateRange(locale, VALUE.contract.start, VALUE.contract.end)
+			formatRecordDateRange(locale, CONTRACT.start, CONTRACT.end)
 		]) {
 			expect(said, `${locale} states ${fact}`).toContain(fact);
 		}
@@ -160,4 +163,33 @@ test('a receipt prints the organization’s mark at its foot, and an empty foot 
 	printed('en');
 
 	expect(page().querySelector('[data-printed-mark]')).toBeNull();
+});
+
+// effort 838, requirement 10: what the reader may not view is not on the page, label and all.
+test('a receipt answered without who paid, the contract, the units or their complex prints none of them', () => {
+	const { reference, issuer, mark, payment, cycles } = VALUE;
+
+	printed('en', { reference, issuer, mark, payment, cycles });
+
+	for (const name of ['tenant', 'nationalId', 'contractNumber', 'period', 'units']) {
+		expect(page().querySelector(`[data-receipt-label="${name}"]`), name).toBeNull();
+	}
+
+	expect(page().querySelector('[data-receipt-remaining]')).toBeNull();
+	expect(text(page())).not.toContain(TENANT.name);
+	expect(text(page())).not.toContain(CONTRACT.govId);
+	expect(text(page())).not.toContain(en.contracts.payments.receipt.remaining);
+	// the payment, and what it covers, are still the receipt.
+	expect(written('data-receipt-amount')).toBe(formatLocaleMoney('en', 4500));
+	expect(page().querySelectorAll('[data-receipt-cycle]')).toHaveLength(2);
+
+	document.body.innerHTML = '';
+	printed('en', { ...VALUE, units: VALUE.units?.map(({ name }) => ({ name })) });
+
+	// the units, one to a line, with no complex beside either.
+	expect(
+		[...page().querySelectorAll('[data-receipt-label="units"] + dd > span')].map((unit) =>
+			unit.textContent?.trim()
+		)
+	).toEqual(['A-12', 'A-13']);
 });
