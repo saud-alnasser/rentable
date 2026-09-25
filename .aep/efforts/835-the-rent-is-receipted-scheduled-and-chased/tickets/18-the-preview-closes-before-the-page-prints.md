@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(desktop): the preview closes before the page prints
@@ -20,5 +20,5 @@ revised on 2026-09-25, criterion 10(a): the preview is the application's own, an
       with the host test).
 - [x] Both hosts close their preview and wait for it to finish animating out
       (`surfacesSettled`) as that step.
-- [ ] By hand: *save as PDF* and *print* close the preview once, with no flicker. Held for the
-      close of the run.
+- [x] By hand: *save as PDF* and *print* close the preview once, with no flicker.
+      Confirmed by the human on 2026-09-25 ("everything good"), on Windows.

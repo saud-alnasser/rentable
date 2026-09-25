@@ -129,7 +129,7 @@ Start at [[protocol]].
 | 826-the-organization-and-the-way-in-are-rethought | implemented | [[efforts/826-the-organization-and-the-way-in-are-rethought/spec]] | 2 | 1 | 22 |
 | 828-the-link-needs-a-code-and-the-settings-area-guides | implemented | [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]] | 5 | 0 | 29 |
 | 832-the-interface-speaks-one-language-and-guides | accepted | [[efforts/832-the-interface-speaks-one-language-and-guides/spec]] | 3 | 4 | 43 |
-| 835-the-rent-is-receipted-scheduled-and-chased | accepted | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]] | 1 | 0 | 19 |
+| 835-the-rent-is-receipted-scheduled-and-chased | implemented | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]] | 1 | 0 | 19 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -326,13 +326,13 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/07-what-falls-due-this-week-is-on-the-landing-screen]] feat(contract): what falls due this week is on the landing screen | 835-the-rent-is-receipted-scheduled-and-chased | resolved | 01 |
 | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/08-a-tenant-is-reminded-on-whatsapp]] feat(contract): a tenant is reminded on WhatsApp | 835-the-rent-is-receipted-scheduled-and-chased | resolved | 07 |
 | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/09-the-contract-context-names-payment-details-and-the-reminder]] docs(desktop): the contract context names payment details and the reminder | 835-the-rent-is-receipted-scheduled-and-chased | resolved | 03, 08 |
-| [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/10-windows-prints-without-the-browser-preview]] feat(desktop): Windows prints and saves a PDF without the browser preview | 835-the-rent-is-receipted-scheduled-and-chased | open | 06 |
-| [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/11-printing-opens-the-applications-own-preview]] feat(desktop): printing opens the application's own preview | 835-the-rent-is-receipted-scheduled-and-chased | open | 10 |
+| [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/10-windows-prints-without-the-browser-preview]] feat(desktop): Windows prints and saves a PDF without the browser preview | 835-the-rent-is-receipted-scheduled-and-chased | resolved | 06 |
+| [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/11-printing-opens-the-applications-own-preview]] feat(desktop): printing opens the application's own preview | 835-the-rent-is-receipted-scheduled-and-chased | resolved | 10 |
 | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/12-remind-tenant-shows-the-message-first]] feat(contract): remind tenant shows the message first | 835-the-rent-is-receipted-scheduled-and-chased | resolved | 11 |
 | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/13-the-organization-heads-its-pages]] feat(desktop): the organization heads its printed pages | 835-the-rent-is-receipted-scheduled-and-chased | resolved | 11 |
 | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/14-an-organization-keeps-one-mark]] feat(organization): an organization keeps one mark | 835-the-rent-is-receipted-scheduled-and-chased | resolved | 13 |
-| [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/15-the-mark-is-set-in-settings-and-printed]] feat(desktop): the mark is set in settings and printed | 835-the-rent-is-receipted-scheduled-and-chased | open | 14 |
+| [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/15-the-mark-is-set-in-settings-and-printed]] feat(desktop): the mark is set in settings and printed | 835-the-rent-is-receipted-scheduled-and-chased | resolved | 14 |
 | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/16-a-record-card-is-tinted-not-lifted]] fix(design): a record card is tinted under the pointer, not lifted | 835-the-rent-is-receipted-scheduled-and-chased | resolved | — |
 | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/17-the-reminder-names-the-contract]] feat(contract): the reminder names the contract | 835-the-rent-is-receipted-scheduled-and-chased | resolved | — |
-| [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/18-the-preview-closes-before-the-page-prints]] fix(desktop): the preview closes before the page prints | 835-the-rent-is-receipted-scheduled-and-chased | open | — |
-| [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/19-windows-prints-from-a-window-of-its-own]] fix(desktop): Windows prints from a window of its own | 835-the-rent-is-receipted-scheduled-and-chased | open | 18 |
+| [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/18-the-preview-closes-before-the-page-prints]] fix(desktop): the preview closes before the page prints | 835-the-rent-is-receipted-scheduled-and-chased | resolved | — |
+| [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/19-windows-prints-from-a-window-of-its-own]] fix(desktop): Windows prints from a window of its own | 835-the-rent-is-receipted-scheduled-and-chased | resolved | 18 |

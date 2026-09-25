@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [06]
 ---
 
@@ -25,8 +25,9 @@ revised on 2026-09-25.
       `cfg(windows)` dependencies at the lockfile's versions.
 - [x] `print()` in `print/sheet.svelte.ts` takes the mode and, for `pdf`, a path, and settles on the
       command's answer (sheet test).
-- [ ] By hand on Windows: *save as PDF* writes the file with no dialog, and *print* shows the OS
-      dialog, not the browser preview (criteria 10(b), 10(c)). Held for the close of the run.
+- [x] By hand on Windows: *save as PDF* writes the file with no dialog, and *print* shows the OS
+      dialog, not the browser preview (criteria 10(b), 10(c)).
+      Confirmed by the human on 2026-09-25 ("everything good"), on Windows.
 
 ## Relevant areas
 

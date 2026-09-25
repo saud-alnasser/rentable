@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [14]
 ---
 
@@ -20,5 +20,6 @@ Traces requirement 13 of [[efforts/835-the-rent-is-receipted-scheduled-and-chase
 - [x] With a mark, the receipt and the schedule draw it at the foot; with none, the foot is empty
       (criterion 13(e), component tests).
 - [x] Labels in both locales; the i18n suites pass.
-- [ ] By hand: a mark chosen on one machine prints on a receipt from another member's machine
-      (criterion 13(c)). Held for the close of the run.
+- [x] By hand: a mark chosen on one machine prints on a receipt from another member's machine
+      (criterion 13(c)).
+      Confirmed by the human on 2026-09-25 ("everything good"); the second-replica read is also pinned by `mark::tests`.

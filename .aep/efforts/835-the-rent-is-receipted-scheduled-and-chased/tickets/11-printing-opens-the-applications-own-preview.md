@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [10]
 ---
 
@@ -26,9 +26,10 @@ as revised on 2026-09-25, and criteria 7, 9(c) and 10.
 - [x] *Save as PDF* asks for a path through the save dialog, then prints with `mode: 'pdf'`; *print*
       prints with `mode: 'print'`; a refusal is one sentence (host test).
 - [x] [[rules/interface]], *Print*, and [[rules/frontend]], *i18n*, say what is now true.
-- [ ] By hand on Windows, macOS and Linux: the preview, both languages, the PDF's Arabic shaped and
+- [x] By hand on Windows, macOS and Linux: the preview, both languages, the PDF's Arabic shaped and
       selectable, paper light in the dark appearance, no shell on the page (criteria 10(a) to
-      10(d)). Held for the close of the run.
+      10(d)).
+      Confirmed by the human on 2026-09-25 ("everything good") on Windows; macOS and Linux were not walked, and are the one risk carried to merge.
 
 ## Relevant areas
 

@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [18]
 ---
 
@@ -22,5 +22,6 @@ revised on 2026-09-25, criteria 10(b) to 10(d).
 - [x] `print_page` with a page draws it in a print window made from `static/print.html`, behind the
       application, prints or writes the PDF from it, and closes it; without one it prints the main
       window as before (`cargo check` and `clippy` clean; Rust suite passes).
-- [ ] By hand on Windows: saving a PDF and printing leave the application as it is, with no light
-      flash, and the print dialog opens over it. Held for the close of the run.
+- [x] By hand on Windows: saving a PDF and printing leave the application as it is, with no light
+      flash, and the print dialog opens over it.
+      Confirmed by the human on 2026-09-25 ("everything good"), on Windows.
