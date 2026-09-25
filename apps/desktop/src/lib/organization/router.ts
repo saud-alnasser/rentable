@@ -49,11 +49,12 @@ const MASK = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
  * an organization on a Turso account the customer owns, mounted by the app router at
  * `app.organization`.
  *
- * **`public`, all of it, and for the same reason the sync router's state read is.** Everything
- * here happens before there is anybody to act as: the consent and the first run are how a person
- * comes to have an identity in an organization at all, so a procedure that required one would be
- * answerable only after the thing it exists to do. Each reaches `ctx.host` and never `ctx.db`,
- * which is the test for `public` [[rules/api-layer]] states.
+ * **The consent and the first run are `public`**, for the same reason the sync router's state read
+ * is: they are how a person comes to have an identity in an organization at all, so a procedure
+ * that required one would be answerable only after the thing it exists to do. **Every procedure
+ * after them is a member's own act or names the flag its Rust command checks** (effort 838).
+ * Each reaches `ctx.host` and never `ctx.db`, which is the test for `public` [[rules/api-layer]]
+ * states. *It was `public`, all of it, until the organization's acts were given their callers.*
  *
  * **What crosses is outcomes.** The consent yields an address to open and a status to poll; the
  * first run yields an id and a link. The token, the keys and the password stay on the other side
@@ -92,11 +93,11 @@ export const organization = router({
 	 * Accept the organization that was offered to this reader: the second of the two acts a
 	 * handover is (effort 828, requirement 22).
 	 *
-	 * **`member`, and every judgement is Rust's.** Whether an offer stands for this reader,
-	 * whether the password opens their vault, and whether what was sealed onto their row is the
-	 * key this machine holds are all answered where the keys are. What this side can say is that
-	 * somebody is signed in and that a password was typed, which is the shape `organization.delete`
-	 * has and for the same reason.
+	 * **`member`, because it is the reader's own act**: the offer was made to them, and no flag
+	 * is asked for accepting it, here or in Rust. Every judgement is Rust's. Whether an offer
+	 * stands for this reader, whether the password opens their vault, and whether what was sealed
+	 * onto their row is the key this machine holds are all answered where the keys are. What this
+	 * side can say is that somebody is signed in and that a password was typed.
 	 *
 	 * The floor is not applied, as it is not on a current password anywhere else here. What comes
 	 * back is the whole state, because this reader is the owner from here on and every section the
@@ -112,20 +113,21 @@ export const organization = router({
 	 * from the owner's Turso account, and this machine forgets what it held (effort 828,
 	 * requirement 18).
 	 *
-	 * **`member`, and the owner check is Rust's**, which is the shape `workspace.create` and
-	 * `workspace.remove` already have and for the same reason: there is no act in
-	 * `packages/workspace-permission` a role could be given for this, because it needs the
-	 * platform authority only the owner's machine holds. What this side can say is that somebody
-	 * is signed in and that a password was typed; whether it opens the owner's vault is Rust's
-	 * alone, and the password crosses in and nothing about it crosses back ([[rules/credentials]],
-	 * *Client boundary*).
+	 * **`deleteOrganization`, the flag `organization_delete` asks of the owner's verified row.**
+	 * It is one of the owner's flags, which no role and no override carries, because it needs the
+	 * platform authority only the owner's machine holds; this is the earlier refusal, and Rust's
+	 * is the one that decides. Whether the password opens the owner's vault is Rust's alone, and
+	 * the password crosses in and nothing about it crosses back ([[rules/credentials]], *Client
+	 * boundary*). *It was `member` until ticket 17 of effort 838, when the package had no act for
+	 * it.*
 	 *
 	 * The floor is not applied here. The password is being checked against a vault rather than
 	 * chosen, and an organization sealed before the floor moved would be undeletable by its own
 	 * owner if this refused it, which is the same reading `password.change` takes of the current
 	 * password.
 	 */
-	delete: procedure.member
+	delete: procedure
+		.permitted('deleteOrganization')
 		.input(z.object({ password: z.string().min(1) }))
 		.mutation(async ({ input, ctx }): Promise<OrganizationState> => {
 			return ctx.host.organization.delete(input.password);
@@ -190,16 +192,20 @@ export const organization = router({
 	 * A workspace: created by the owner, opened by whoever holds a grant, granted and removed by
 	 * whoever's row carries the act.
 	 *
-	 * **`member` for creating and for removing, and the owner check is Rust's.** There is no
-	 * `createWorkspace` and no `deleteWorkspace` act in `packages/workspace-permission`, because
-	 * neither was ever an act a role could be given: each needs the platform authority only the
-	 * owner's machine holds, and the shell refuses anybody else before any request, with a sentence
-	 * naming the owner. What this side can say is that somebody is signed in. *Removing was
-	 * `permitted('deleteWorkspace')` until effort 826 took the act out of the table, where it had
-	 * been a flag that granting could not deliver.*
+	 * **Creating, removing and renewing credentials are the owner's flags**, `createWorkspace`,
+	 * `deleteWorkspace` and `renewCredentials` in `packages/workspace-permission`, which no role
+	 * and no override carries: each needs the platform authority only the owner's machine holds.
+	 * Rust asks the same flag of the owner's verified row and refuses anybody else before any
+	 * request, with a sentence naming the owner; this is the earlier refusal. Opening is `member`,
+	 * because it is the reader's own act on a workspace they hold a grant on, and whether they do
+	 * is Rust's. *Creating and removing were `member` until ticket 17 of effort 838, on the reading
+	 * that the package had no act for either: effort 826 took `deleteWorkspace` out of the table,
+	 * where it had been a flag that granting could not deliver, and effort 838 put both back as
+	 * the owner's.*
 	 */
 	workspace: {
-		create: procedure.member
+		create: procedure
+			.permitted('createWorkspace')
 			.input(z.object({ name: z.string().trim().min(1).max(ORGANIZATION_NAME_LIMIT) }))
 			.mutation(async ({ input, ctx }): Promise<OrganizationWorkspace> => {
 				return ctx.host.organization.workspace.create(input.name);
@@ -241,14 +247,17 @@ export const organization = router({
 			.mutation(async ({ input, ctx }): Promise<void> => {
 				return ctx.host.organization.workspace.withdraw(input.workspaceId, input.memberId);
 			}),
-		remove: procedure.member
+		remove: procedure
+			.permitted('deleteWorkspace')
 			.input(z.object({ workspaceId: z.string().trim().min(1) }))
 			.mutation(async ({ input, ctx }): Promise<void> => {
 				return ctx.host.organization.workspace.remove(input.workspaceId);
 			}),
-		renewCredentials: procedure.member.mutation(async ({ ctx }): Promise<number> => {
-			return ctx.host.organization.workspace.renewCredentials();
-		})
+		renewCredentials: procedure
+			.permitted('renewCredentials')
+			.mutation(async ({ ctx }): Promise<number> => {
+				return ctx.host.organization.workspace.renewCredentials();
+			})
 	},
 	/**
 	 * Accounts and their invitations, which is the members section.
@@ -330,10 +339,17 @@ export const organization = router({
 		/**
 		 * Removal, at one of two speeds. **`lockOut` defaults to false here as well as in Rust**,
 		 * so the destructive path is chosen rather than fallen into by any caller.
+		 *
+		 * **`removeMember`, and the owner's `lockOut` as well where the removal locks out**, read
+		 * off the input as Rust reads it (`removal.rs`): rotating the credentials the member held
+		 * needs the platform authority only the owner's machine holds.
 		 */
 		remove: procedure
-			.permitted('removeMember')
-			.input(z.object({ memberId: z.string().trim().min(1), lockOut: z.boolean().default(false) }))
+			.permittedBy(
+				['removeMember', 'lockOut'],
+				z.object({ memberId: z.string().trim().min(1), lockOut: z.boolean().default(false) }),
+				({ lockOut }) => (lockOut ? ['removeMember', 'lockOut'] : ['removeMember'])
+			)
 			.mutation(async ({ input, ctx }): Promise<MemberRemoved> => {
 				return ctx.host.organization.member.remove(input.memberId, input.lockOut);
 			}),
@@ -398,31 +414,34 @@ export const organization = router({
 		 * Offer the organization to another account: the first of the two acts a handover is
 		 * (effort 828, requirement 22).
 		 *
-		 * **The owner's, and this side cannot tell.** There is no owner procedure here and there
-		 * should not be one: being the owner is what a password opened rather than a bit on a row,
-		 * so this asks only that somebody is signed in and that a password and an account were
-		 * given. Whether the caller is the owner, whether the password opens their vault, and
-		 * whether the account named has a password of its own are Rust's alone, exactly as
-		 * `organization.delete` leaves them.
+		 * **`transferOwnership`, the owner's flag**, which no role and no override carries, and
+		 * which Rust asks of the owner's verified row; this is the earlier refusal. Whether the
+		 * password opens the owner's vault and whether the account named has a password of its own
+		 * are Rust's alone, exactly as `organization.delete` leaves them. *It was `member` until
+		 * ticket 17 of effort 838, on the reading that being the owner was what a password opened
+		 * rather than a bit on a row.*
 		 *
 		 * The password crosses in and nothing about it crosses back ([[rules/credentials]],
 		 * *Client boundary*). The floor is not applied: it is being checked against a vault rather
 		 * than chosen, which is the reading `organization.delete` and `password.change` take of a
 		 * current password.
 		 */
-		offerOwnership: procedure.member
+		offerOwnership: procedure
+			.permitted('transferOwnership')
 			.input(z.object({ memberId: z.string().trim().min(1), password: z.string().min(1) }))
 			.mutation(async ({ input, ctx }): Promise<OrganizationMember> => {
 				return ctx.host.organization.member.offerOwnership(input.memberId, input.password);
 			}),
 		/**
-		 * Take the offer back. The owner's on the same reading, and it takes nothing: nothing is
-		 * unsealed and there is one standing offer or none, so naming which would be naming
-		 * something this side would have to have read.
+		 * Take the offer back, under the same flag, and it takes nothing: nothing is unsealed and
+		 * there is one standing offer or none, so naming which would be naming something this side
+		 * would have to have read.
 		 */
-		withdrawOffer: procedure.member.mutation(async ({ ctx }): Promise<void> => {
-			return ctx.host.organization.member.withdrawOffer();
-		}),
+		withdrawOffer: procedure
+			.permitted('transferOwnership')
+			.mutation(async ({ ctx }): Promise<void> => {
+				return ctx.host.organization.member.withdrawOffer();
+			}),
 		/**
 		 * Sign a member out of every machine (effort 826, requirement 22).
 		 *
@@ -552,22 +571,23 @@ export const organization = router({
 		})
 	},
 	/**
-	 * The organization's signature or seal (effort 835, requirement 13). `member` for all three:
-	 * anybody signed in reads it for the pages they print, and whether they may change it is
-	 * `manageMark`, which Rust reads off the verified row and signs under. A path rather than the
-	 * image, because the host reads the file the
-	 * dialog chose and checks it by its bytes.
+	 * The organization's signature or seal (effort 835, requirement 13). Reading it is `member`:
+	 * anybody signed in reads it for the pages they print. Setting and clearing it are
+	 * `manageMark`, here and again in Rust, which reads it off the verified row and signs under it.
+	 * A path rather than the image, because the host reads the file the dialog chose and checks it
+	 * by its bytes.
 	 */
 	mark: {
 		get: procedure.member.query(async ({ ctx }): Promise<OrganizationMark | null> => {
 			return ctx.host.organization.markGet();
 		}),
-		set: procedure.member
+		set: procedure
+			.permitted('manageMark')
 			.input(z.object({ path: z.string().min(1) }))
 			.mutation(async ({ input, ctx }): Promise<OrganizationMark> => {
 				return ctx.host.organization.markSet(input.path);
 			}),
-		clear: procedure.member.mutation(async ({ ctx }): Promise<void> => {
+		clear: procedure.permitted('manageMark').mutation(async ({ ctx }): Promise<void> => {
 			await ctx.host.organization.markClear();
 		})
 	},

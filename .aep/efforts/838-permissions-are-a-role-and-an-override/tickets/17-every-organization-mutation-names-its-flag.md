@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(desktop): every organization mutation names its flag
@@ -18,16 +18,16 @@ router's stale sentence about the owner's acts is corrected.
 
 Traces requirements 1 and 10 of [[efforts/838-permissions-are-a-role-and-an-override/spec]], and criterion 1.
 
-- [ ] Every organization-router mutation whose Rust command checks a flag names that flag in its
+- [x] Every organization-router mutation whose Rust command checks a flag names that flag in its
       meta (`deleteOrganization`, `createWorkspace`, `removeMember`, and `lockOut` where the removal
       locks out, `renewCredentials`, `transferOwnership`, `manageMark`), matching the Rust `GATES`
       table; a member's own acts (their password, their sessions elsewhere, accepting an offer made
       to them, opening a workspace they hold) stay `member` and say so.
-- [ ] A test pairs each organization-router mutation with the Rust command it calls and fails where
+- [x] A test pairs each organization-router mutation with the Rust command it calls and fails where
       the router names a different flag from the command's gate, or none where the command has one.
-- [ ] For each of those mutations, an identity lacking its flag is refused by the router, naming it,
+- [x] For each of those mutations, an identity lacking its flag is refused by the router, naming it,
       and the owner's own path is unchanged.
-- [ ] The organization router's sentence that the permission package has no `createWorkspace` or
+- [x] The organization router's sentence that the permission package has no `createWorkspace` or
       `deleteWorkspace` act is corrected.
 
 ## Relevant areas

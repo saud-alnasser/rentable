@@ -31,7 +31,7 @@ vi.mock('$lib/platform/tauri', () => ({
 	tauri: { dialog: { openImage: host.openImage } }
 }));
 
-// the mark goes through the router's `member` procedures, which hand it to the host.
+// the mark goes through the router's procedures gated on `manageMark`, which hand it to the host.
 vi.mock('$lib/api/caller', () => ({
 	default: {
 		app: {

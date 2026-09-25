@@ -277,9 +277,9 @@ export const procedure = {
 	 * writes the workspace before there is an account — a property of the boundary rather than of
 	 * the order the layout happens to call things in.
 	 *
-	 * On its own it is for a member's own act, a read open to every member whose answer leaves out
-	 * what they may not view, or an act Rust alone decides who may take: the owner's, and the mark's.
-	 * An act with a flag the router can ask for is `permitted`, which asks this first.
+	 * On its own it is for a member's own act, or a read open to every member whose answer leaves out
+	 * what they may not view. An act with a flag is `permitted`, which asks this first; the owner's
+	 * acts and the mark's name theirs since effort 838's ticket 17.
 	 *
 	 * middlewares: [log, requireIdentity]
 	 */

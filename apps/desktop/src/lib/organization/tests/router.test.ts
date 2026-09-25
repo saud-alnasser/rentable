@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { appRouter } from '$lib/api/router.ts';
-import { caller, context } from '$lib/api/trpc.ts';
+import { caller, context, type Meta } from '$lib/api/trpc.ts';
 import { organization } from '$lib/organization/router.ts';
 import { PASSWORD_FLOOR } from '$lib/organization/setup.ts';
 import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
@@ -13,14 +13,18 @@ import {
 	fakeOrganizationState
 } from '$lib/platform/tests/testing.ts';
 import { fakeIdentity } from '$lib/api/tests/testing.ts';
-import { maskOf, type Flag } from '@rentable/workspace-permission';
+import { EVERY_FLAG, maskOf, type Flag } from '@rentable/workspace-permission';
 import type { Host } from '$lib/platform/host.ts';
+import type { AnyProcedure } from '@trpc/server';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 /**
  * THE ORGANIZATION ROUTER
  *
- * Every procedure here is `public` and reaches `ctx.host` alone, because all of it happens before
- * there is anybody to act as. What is worth pinning is what the router refuses before the host is
+ * The router's procedures reach `ctx.host` alone: the consent and the first run are `public`, and
+ * everything after is a member's own act or names its flag. What is worth pinning is what the router
+ * refuses before the host is
  * reached, and that what it hands on is exactly what it was given: the host is the credential
  * boundary, and a router that reshaped a call on its way there would be the place that drift
  * hides.
@@ -699,11 +703,11 @@ test('ending sessions reaches the host behind reset password, and ending your ow
 });
 
 // effort 828, requirement 18: deleting the organization needs somebody signed in and a password,
-// and it hands both on as given. It is `member` here rather than an act, because there is no act a
-// role could be given for it: it needs the platform authority only the owner's machine holds, and
-// the owner check is Rust's, on the role the password opened. A caller with nobody signed in is
-// refused before the host is reached, and so is an empty password.
-test('deleting the organization needs a session and a password, and reaches the host with it', async () => {
+// and it hands both on as given. It is the owner's `deleteOrganization` here as it is in Rust
+// (ticket 17 of effort 838), and whether the password opens the owner's vault is Rust's. A caller
+// with nobody signed in is refused before the host is reached, and so are a caller without the
+// flag and an empty password.
+test('deleting the organization needs deleteOrganization and a password, and reaches the host with it', async () => {
 	const asked: string[] = [];
 	const host = fakeHost({
 		organization: {
@@ -716,13 +720,17 @@ test('deleting the organization needs a session and a password, and reaches the 
 		}
 	});
 
-	const member = await permittedApi(host);
-	const deleted = await member.app.organization.delete({ password: 'the owners password' });
+	const owner = await permittedApi(host, 'deleteOrganization');
+	const deleted = await owner.app.organization.delete({ password: 'the owners password' });
 
 	assert.equal(deleted.organization, null);
 	assert.deepEqual(asked, ['delete:the owners password']);
 
-	await assert.rejects(member.app.organization.delete({ password: '' }));
+	await assert.rejects(owner.app.organization.delete({ password: '' }));
+
+	const member = await permittedApi(host);
+
+	await assert.rejects(member.app.organization.delete({ password: 'the owners password' }));
 
 	const signedOut = await signedOutApi(host);
 
@@ -730,12 +738,12 @@ test('deleting the organization needs a session and a password, and reaches the 
 	assert.deepEqual(asked, ['delete:the owners password']);
 });
 
-// effort 828, requirement 22: a handover is three procedures, and each of the three is `member`
-// here rather than an act, for the reason deleting the organization is: being the owner is what a
-// password opened rather than a bit on a row, so the owner check and the password are Rust's. A
-// caller with nobody signed in is refused before the host is reached, and so is an empty password
-// or an empty account.
-test('the three acts of a handover need a session, and the offer needs an account and a password', async () => {
+// effort 828, requirement 22: a handover is three procedures. Offering and withdrawing are the
+// owner's `transferOwnership` here as they are in Rust (ticket 17 of effort 838), and accepting is
+// the reader's own act, so `member`; the password is Rust's throughout. A caller with nobody
+// signed in is refused before the host is reached, and so is an empty password or an empty
+// account.
+test('the three acts of a handover need a session, the offer and its withdrawal transferOwnership, and the offer an account and a password', async () => {
 	const asked: string[] = [];
 	const host = fakeHost({
 		organization: {
@@ -765,15 +773,17 @@ test('the three acts of a handover need a session, and the offer needs an accoun
 		}
 	});
 
+	const owner = await permittedApi(host, 'transferOwnership');
 	const member = await permittedApi(host);
-	const offered = await member.app.organization.member.offerOwnership({
+	const offered = await owner.app.organization.member.offerOwnership({
 		memberId: 'member-2',
 		password: 'the owners password'
 	});
 
 	assert.equal(offered.offeredOwnership, true);
 
-	await member.app.organization.member.withdrawOffer();
+	await owner.app.organization.member.withdrawOffer();
+	// accepting asks for no flag: the member accepts an offer made to them.
 	await member.app.organization.ownershipAccept({ password: 'their own password' });
 
 	assert.deepEqual(asked, [
@@ -783,15 +793,22 @@ test('the three acts of a handover need a session, and the offer needs an accoun
 	]);
 
 	await assert.rejects(
-		member.app.organization.member.offerOwnership({ memberId: 'member-2', password: '' })
+		owner.app.organization.member.offerOwnership({ memberId: 'member-2', password: '' })
 	);
 	await assert.rejects(
-		member.app.organization.member.offerOwnership({
+		owner.app.organization.member.offerOwnership({
 			memberId: ' ',
 			password: 'the owners password'
 		})
 	);
 	await assert.rejects(member.app.organization.ownershipAccept({ password: '' }));
+	await assert.rejects(
+		member.app.organization.member.offerOwnership({
+			memberId: 'member-2',
+			password: 'the owners password'
+		})
+	);
+	await assert.rejects(member.app.organization.member.withdrawOffer());
 
 	const signedOut = await signedOutApi(host);
 
@@ -898,4 +915,276 @@ test('a username outside the rules or a password under the floor never reaches t
 	}
 
 	assert.deepEqual(asked, []);
+});
+
+/**
+ * EVERY ORGANIZATION MUTATION NAMES THE FLAG ITS RUST COMMAND CHECKS
+ *
+ * Ticket 17 of effort 838, requirements 1 and 10: the Rust command is the gate that decides, and
+ * the router's flag is the refusal in front of it, so the two name the same flag. The Rust side is
+ * read as text, off the `GATES` table its own test holds every organization command to, the way
+ * `permission.rs` reads the permission package. Which command each procedure calls is written out
+ * here, off `platform/tauri.ts`, because the router reaches the command through the host and
+ * nothing on this side can follow the call.
+ */
+const COMMAND_SOURCE = readFileSync(
+	fileURLToPath(new URL('../../../../tauri/src/organization/command.rs', import.meta.url)),
+	'utf8'
+);
+
+type Gate = { kind: string; flags: Flag[] };
+
+/** `DeleteOrganization`, as Rust spells a flag, to `deleteOrganization`, as this side does. */
+function flagNamed(rust: string): Flag {
+	const name = `${rust[0].toLowerCase()}${rust.slice(1)}`;
+	const flag = EVERY_FLAG.find((known) => known === name);
+
+	assert.ok(flag, `GATES names ${rust}, which is no flag here`);
+
+	return flag;
+}
+
+/** Every command in `GATES`, with the gate it names and the flags that gate asks for. */
+function gatesInRust(source: string): Map<string, Gate> {
+	const start = source.indexOf('const GATES: &[(&str, Gate)] = &[');
+	const table = source.slice(start, source.indexOf('];', start));
+	const gates = new Map<string, Gate>();
+
+	for (const [, command, kind, inner] of table.matchAll(
+		/\(\s*"(\w+)",\s*Gate::(\w+)(?:\(([^()]*)\))?,?\s*\)/g
+	)) {
+		gates.set(command, {
+			kind,
+			flags: [...(inner ?? '').matchAll(/Flag::(\w+)/g)].map(([, rust]) => flagNamed(rust))
+		});
+	}
+
+	assert.ok(start >= 0 && gates.size > 40, `read ${gates.size} gates off command.rs`);
+
+	return gates;
+}
+
+/** Each organization mutation and the Tauri command its host call invokes. */
+const COMMAND_OF: Record<string, string> = {
+	connectExisting: 'organization_connect_existing',
+	create: 'organization_create',
+	delete: 'organization_delete',
+	disconnect: 'organization_disconnect',
+	groupInspect: 'organization_group_inspect',
+	'invitation.accept': 'invitation_accept',
+	'machine.connect': 'machine_connect',
+	'mark.clear': 'organization_mark_clear',
+	'mark.set': 'organization_mark_set',
+	'member.assignRole': 'member_assign_role',
+	'member.create': 'member_create',
+	'member.endSessions': 'member_end_sessions',
+	'member.linkMake': 'member_link_make',
+	'member.offerOwnership': 'member_offer_ownership',
+	'member.remove': 'member_remove',
+	'member.rename': 'member_rename',
+	'member.setOverride': 'member_set_override',
+	'member.unsetPassword': 'member_password_unset',
+	'member.withdrawOffer': 'member_withdraw_offer',
+	ownershipAccept: 'ownership_accept',
+	'password.change': 'organization_change_password',
+	'role.create': 'role_create',
+	'role.delete': 'role_delete',
+	'role.move': 'role_move',
+	'role.rename': 'role_rename',
+	'role.setMask': 'role_set_mask',
+	'session.endElsewhere': 'organization_session_end_elsewhere',
+	'workspace.create': 'workspace_create',
+	'workspace.grant': 'workspace_grant',
+	'workspace.open': 'workspace_open',
+	'workspace.remove': 'workspace_delete',
+	'workspace.renewCredentials': 'organization_renew_credentials',
+	'workspace.withdraw': 'workspace_grant_withdraw'
+};
+
+/**
+ * The consent's two mutations, whose commands are the sync module's and stand outside `GATES`:
+ * both come before there is anybody to act as, so the router holds them `public`.
+ */
+const CONSENT_COMMAND_OF: Record<string, string> = {
+	'consent.begin': 'organization_consent_begin',
+	'consent.disconnect': 'organization_consent_disconnect'
+};
+
+/**
+ * A flag Rust asks inside the command, on what the input asks for, beyond the one `GATES` names:
+ * a removal that locks the member out is the owner's `lockOut` as well (`removal.rs`), and the
+ * router reads it off the same input with `permittedBy`.
+ */
+const ALSO_ON_INPUT: Record<string, readonly Flag[]> = {
+	'member.remove': ['lockOut']
+};
+
+/** What the router's meta should say, given the command's gate. */
+function metaFor(path: string, gate: Gate): Meta {
+	const [flag, ...rest] = gate.flags;
+
+	switch (gate.kind) {
+		case 'Public':
+		case 'ThisMachine':
+			return { public: true };
+		case 'Own':
+		case 'SignedIn':
+			return { member: true };
+		case 'AnyFlag':
+			return { anyOf: gate.flags };
+		case 'Flag':
+		case 'Owner':
+			assert.ok(flag && rest.length === 0, `${path}: a ${gate.kind} gate names one flag`);
+
+			return ALSO_ON_INPUT[path] ? { byInput: [flag, ...ALSO_ON_INPUT[path]] } : { flags: [flag] };
+		default:
+			throw new Error(`${path}: a gate this test does not know, ${gate.kind}`);
+	}
+}
+
+/** Only what a meta says about who may call, so the two sides compare field for field. */
+function whoMayCall({ flags, anyOf, byInput, member, public: open }: Meta): Meta {
+	return Object.fromEntries(
+		Object.entries({ flags, anyOf, byInput, member, public: open }).filter(
+			([, value]) => value !== undefined
+		)
+	);
+}
+
+const organizationProcedures: object = organization._def.procedures;
+const organizationMutations = Object.entries(organizationProcedures)
+	.filter(([, procedure]: [string, AnyProcedure]) => procedure._def.type === 'mutation')
+	.map(([path, procedure]: [string, AnyProcedure]) => ({
+		path,
+		meta: whoMayCall((procedure._def.meta ?? {}) as Meta)
+	}));
+
+test('every organization mutation names the flag its Rust command is gated on', () => {
+	const gates = gatesInRust(COMMAND_SOURCE);
+
+	assert.deepEqual(
+		organizationMutations.map(({ path }) => path).sort(),
+		[...Object.keys(COMMAND_OF), ...Object.keys(CONSENT_COMMAND_OF)].sort(),
+		'the mutations paired with a command are not the ones the router holds'
+	);
+
+	const named = Object.fromEntries(
+		organizationMutations
+			.filter(({ path }) => path in COMMAND_OF)
+			.map(({ path, meta }) => [path, meta])
+	);
+	const gated = Object.fromEntries(
+		Object.entries(COMMAND_OF).map(([path, command]) => {
+			const gate = gates.get(command);
+
+			assert.ok(gate, `${path} calls ${command}, which GATES does not hold`);
+
+			return [path, metaFor(path, gate)];
+		})
+	);
+
+	assert.deepEqual(named, gated);
+
+	for (const [path, command] of Object.entries(CONSENT_COMMAND_OF)) {
+		assert.ok(!gates.has(command), `${command} is in GATES now; pair ${path} with it there`);
+		assert.deepEqual(
+			organizationMutations.find((mutation) => mutation.path === path)?.meta,
+			{ public: true },
+			path
+		);
+	}
+});
+
+/**
+ * Each mutation whose flag is the owner's or the mark's, with an input it takes and every flag it
+ * asks for. The removal is here twice, because only the one that locks out asks for `lockOut`.
+ */
+const OWNERS_AND_MARKS: ReadonlyArray<{ path: string; input?: unknown; flags: Flag[] }> = [
+	{ path: 'delete', input: { password: 'the owners password' }, flags: ['deleteOrganization'] },
+	{ path: 'workspace.create', input: { name: 'north' }, flags: ['createWorkspace'] },
+	{ path: 'workspace.remove', input: { workspaceId: 'north' }, flags: ['deleteWorkspace'] },
+	{ path: 'workspace.renewCredentials', flags: ['renewCredentials'] },
+	{
+		path: 'member.remove',
+		input: { memberId: 'member-2', lockOut: true },
+		flags: ['removeMember', 'lockOut']
+	},
+	{ path: 'member.remove', input: { memberId: 'member-2' }, flags: ['removeMember'] },
+	{
+		path: 'member.offerOwnership',
+		input: { memberId: 'member-2', password: 'the owners password' },
+		flags: ['transferOwnership']
+	},
+	{ path: 'member.withdrawOffer', flags: ['transferOwnership'] },
+	{ path: 'mark.set', input: { path: 'C:/seal.png' }, flags: ['manageMark'] },
+	{ path: 'mark.clear', flags: ['manageMark'] }
+];
+
+/** A host whose every organization call is recorded by its path and answers nothing. */
+function organizationRecording(asked: string[]): Host {
+	const recording = (node: object, at: string): object =>
+		Object.fromEntries(
+			Object.entries(node).map(([key, value]) => [
+				key,
+				typeof value === 'function'
+					? async () => {
+							asked.push(`${at}${key}`);
+						}
+					: recording(value as object, `${at}${key}.`)
+			])
+		);
+
+	return fakeHost({
+		organization: recording(fakeHost().organization, '') as Host['organization']
+	});
+}
+
+/** A procedure of the organization router, reached by its dotted path. */
+function organizationAt(api: Awaited<ReturnType<typeof permittedApi>>, path: string) {
+	const call = path
+		.split('.')
+		.reduce<unknown>((node, key) => (node as Record<string, unknown>)[key], api.app.organization);
+
+	return call as (input?: unknown) => Promise<unknown>;
+}
+
+test('an owner act or a change of the mark is refused, by name, to a caller lacking its flag, and the owner reaches the host', async () => {
+	for (const { path, input, flags } of OWNERS_AND_MARKS) {
+		for (const flag of flags) {
+			const asked: string[] = [];
+			const lacking = await permittedApi(
+				organizationRecording(asked),
+				...EVERY_FLAG.filter((held) => held !== flag)
+			);
+			const refusal = await organizationAt(
+				lacking,
+				path
+			)(input).then(
+				() => null,
+				(error: unknown) => error as { code?: string; message?: string }
+			);
+
+			assert.equal(refusal?.code, 'FORBIDDEN', `${path} without ${flag}`);
+			assert.equal(refusal?.message, `this account does not hold ${flag}`, path);
+			assert.deepEqual(asked, [], `${path} reached the host without ${flag}`);
+		}
+
+		// the owner holds every flag, and each of these reaches the host once, as before.
+		const asked: string[] = [];
+		const owner = await permittedApi(organizationRecording(asked), ...EVERY_FLAG);
+
+		await organizationAt(owner, path)(input);
+
+		assert.equal(asked.length, 1, `the owner's ${path} reached the host ${asked.length} times`);
+	}
+
+	// and a removal that does not lock out asks nothing of the owner's.
+	const asked: string[] = [];
+	const remover = await permittedApi(organizationRecording(asked), 'removeMember');
+
+	await remover.app.organization.member.remove({ memberId: 'member-2' });
+	await assert.rejects(
+		remover.app.organization.member.remove({ memberId: 'member-2', lockOut: true })
+	);
+	assert.deepEqual(asked, ['member.remove']);
 });

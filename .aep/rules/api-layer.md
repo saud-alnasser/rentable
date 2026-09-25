@@ -53,8 +53,10 @@ use-when: "adding or changing a router, a domain module, a database client or tr
     authority over the same thing. There is one: `member.linkMake`, which is `inviteMember`'s or
     `resetPassword`'s.
   - `procedure.permittedBy(possible, schema, flagsOf)` reads the flag off its input, for a
-    procedure that serves every record kind. There are two, `history.append` and
-    `history.getMany`: an entry about a payment is the payment's act.
+    procedure that serves every record kind, or whose input decides whether a second flag is
+    asked. There are three: `history.append` and `history.getMany`, where an entry about a
+    payment is the payment's act, and `organization.member.remove`, which asks the owner's
+    `lockOut` beside `removeMember` where the removal locks out.
   - `procedure.member` asks only that somebody is signed in, and refuses a machine nobody is.
   - `procedure.public` asks nothing.
 
@@ -73,21 +75,23 @@ use-when: "adding or changing a router, a domain module, a database client or tr
   procedure declared any other way records nothing, so the walk names it.
 - **A flag where there is one, and `member` only where there is none.** Every record procedure
   names its flag but two reads open to every member, `contract.dashboard` and `workspace.held`,
-  whose answers leave out a kind the member may not view. What else is `member` is one of three
+  whose answers leave out a kind the member may not view. What else is `member` is one of two
   things. A member's own act: their password, their other sessions, accepting an ownership offer
   made to them, opening a workspace they hold a grant on, and this machine's bootstrap and
-  reconcile. A read open to every member: the member list and its standings, the roles, and the
-  mark. And an act whose check is Rust's alone: the owner's acts (deleting the organization,
-  creating and removing a workspace, offering ownership and withdrawing the offer, renewing
-  credentials), whose flags only the owner's row carries and which Rust checks against the root
-  certificate, and setting and clearing the mark, which Rust holds to `manageMark` off the
-  verified row. Of the ways to write a procedure that needs somebody, `member` is still the one to
-  reach for by habit over `public`: a procedure written without thinking about who calls it
-  should be the safe one.
+  reconcile. And a read open to every member: the member list and its standings, the roles, and
+  the mark. The owner's acts and the mark's writes name the flag their Rust command checks, which
+  `organization/tests/router.test.ts` holds each organization mutation to by reading the `GATES`
+  table in `tauri/src/organization/command.rs`. Of the ways to write a procedure that needs
+  somebody, `member` is still the one to reach for by habit over `public`: a procedure written
+  without thinking about who calls it should be the safe one.
 
   **Counted 2026-09-25 the way the walk counts:** every entry of `appRouter._def.procedures`,
-  sorted by its `meta`. There are 112: 75 `permitted`, 1 `permittedAny`, 2 `permittedBy`, 20
-  `member` and 14 `public`, so 98 need somebody signed in and 78 of those name a flag.
+  sorted by its `meta`. There are 112: 82 `permitted`, 1 `permittedAny`, 3 `permittedBy`, 12
+  `member` and 14 `public`, so 98 need somebody signed in and 86 of those name a flag. *It was 75,
+  1, 2, 20 and 14, and a third kind of `member` stood above, an act whose check was Rust's alone:
+  the owner's acts and setting and clearing the mark. Ticket 17 of
+  [[efforts/838-permissions-are-a-role-and-an-override/spec]] gave each the flag its Rust command
+  checks.*
 
   *This read "**Two procedure kinds, and `member` is the default.** `procedure.member` refuses a
   machine nobody is signed in on; `procedure.public` does not", and nothing counted the member
