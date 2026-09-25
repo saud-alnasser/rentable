@@ -130,7 +130,7 @@ Start at [[protocol]].
 | 828-the-link-needs-a-code-and-the-settings-area-guides | implemented | [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]] | 5 | 0 | 29 |
 | 832-the-interface-speaks-one-language-and-guides | accepted | [[efforts/832-the-interface-speaks-one-language-and-guides/spec]] | 3 | 4 | 43 |
 | 835-the-rent-is-receipted-scheduled-and-chased | implemented | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]] | 1 | 0 | 19 |
-| 838-permissions-are-a-role-and-an-override | accepted | [[efforts/838-permissions-are-a-role-and-an-override/spec]] | 0 | 0 | 19 |
+| 838-permissions-are-a-role-and-an-override | accepted | [[efforts/838-permissions-are-a-role-and-an-override/spec]] | 0 | 0 | 21 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -356,3 +356,5 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/838-permissions-are-a-role-and-an-override/tickets/17-every-organization-mutation-names-its-flag]] fix(desktop): every organization mutation names its flag | 838-permissions-are-a-role-and-an-override | resolved | — |
 | [[efforts/838-permissions-are-a-role-and-an-override/tickets/18-a-signed-row-never-reaches-wider-than-its-certificate]] fix(organization): a signed row never reaches wider than its certificate | 838-permissions-are-a-role-and-an-override | resolved | — |
 | [[efforts/838-permissions-are-a-role-and-an-override/tickets/19-the-roles-block-and-the-tests-follow-the-rules]] fix(desktop): the roles block and its tests follow the rules | 838-permissions-are-a-role-and-an-override | resolved | — |
+| [[efforts/838-permissions-are-a-role-and-an-override/tickets/20-two-machines-acting-together-never-brick-the-directory]] fix(organization): two machines acting together never brick the directory | 838-permissions-are-a-role-and-an-override | open | — |
+| [[efforts/838-permissions-are-a-role-and-an-override/tickets/21-the-unused-workspace-gate-is-deleted]] refactor(desktop): the unused workspace gate is deleted | 838-permissions-are-a-role-and-an-override | open | — |

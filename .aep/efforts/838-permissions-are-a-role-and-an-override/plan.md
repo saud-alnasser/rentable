@@ -53,7 +53,7 @@ After this effort:
 
   | Row | The signing certificate must |
   | --- | --- |
-  | `member` | hold any of `inviteMember`, `removeMember`, `assignRole`, `overrideMember`, `renameMember`, `resetPassword`, outrank the member's role, hold every flag the row's effective permissions carry, and not be the row's own member's; or be the root |
+  | `member` | hold any of `inviteMember`, `removeMember`, `assignRole`, `overrideMember`, `renameMember`, `resetPassword`, outrank the member's role, hold every flag the row's override switches, and not be the row's own member's; or be the root |
   | `role` | hold `manageRoles`, outrank the role's rank, and hold every flag its mask carries; the manager role is therefore the root's alone |
   | `certificate`, `revocation` | the walk above |
   | `grant` | hold `grantWorkspace`; a read-only grant, the root |
@@ -64,8 +64,8 @@ After this effort:
 
   So a member holding the organization database's credential who signs around a command gets no
   further than their certificate: rows of the kinds its ceiling names, about people ranked below
-  them, giving nobody a flag the ceiling does not carry, and never their own row. That is the
-  cryptographic bound. Which flags inside it they may switch, where the before and the after are
+  them, switching for nobody a flag the ceiling does not carry, and never their own row. That is
+  the cryptographic bound. Which flags inside it they may switch, where the before and the after are
   both in hand, is the command's.
 
   *Corrected 2026-09-25 at /implement's review, round one (return to plan, the row-kind table
@@ -78,6 +78,20 @@ After this effort:
   around the command be refused on read, which the table as written could not do. The member row is
   now bounded by the ceiling in what it gives and refused to its own member's certificate, and the
   role row by the ceiling in its mask.*
+
+  *Corrected again 2026-09-25, on the human's decision after review round two (the row-kind table
+  only). Bounding a member row by its whole effective permissions judged it by the role's mask as
+  it stands now, so two machines acting offline together bricked the directory: the owner widened
+  the member role on one while a lead invited on the other, and the lead's row for the new member
+  was then wider than the lead's ceiling on every reader. A member row's signer chooses two things,
+  the role and the override; the role's mask is vouched for by the role row's signer and bounded by
+  theirs. So a member row is bounded by the ceiling in the flags its override switches, and still
+  refused to its own member's certificate; assigning a role wider than oneself is refused at the
+  command, as requirement 7 puts it, and criterion 9's cases (an override, a role row, one's own
+  row, written around the command) are still refused on read. A member row a certificate no longer
+  covers, as a concurrent rank move leaves one, grants nothing on read rather than refusing the
+  directory, and reads as covered again once a member who covers it saves it. A removed member's
+  row grants nothing, so a removal is never refused for what the member role carries.*
 - **Order is well-founded and not circular.** Certificates verify from the pinned key alone; role
   rows verify from certificates; member rows verify from certificates and the role rows they
   name. No row authorizes its own signer.
