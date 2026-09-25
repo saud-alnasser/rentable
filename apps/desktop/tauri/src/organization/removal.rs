@@ -183,14 +183,14 @@ pub async fn remove_member<P: TursoPlatform>(
             )
         })?;
 
-    if member.role_word() == permission::OWNER {
+    if member.role_id == permission::OWNER {
         return Err(Error::refused(
             RefusalReason::OwnerProtected,
             "an owner is not removed. the organization is theirs",
         ));
     }
 
-    if member.role_word() == permission::REMOVED {
+    if member.removed_at.is_some() {
         return Err(Error::refused(
             RefusalReason::MemberRemoved,
             "that member was already removed",
@@ -816,8 +816,9 @@ mod tests {
             .find(|row| row.id == member_id)
             .expect("the removed member's row is gone rather than marked");
 
-        assert_eq!(row.role_word(), permission::REMOVED);
-        assert_eq!(permission::acts_of(row.effective), 0);
+        assert!(row.removed_at.is_some(), "the row does not say removed");
+        assert_eq!(row.role_id, permission::MEMBER);
+        assert_eq!(row.effective, permission::MEMBER_ROLE.mask);
         assert!(
             !org.store
                 .grants(&owner.verifying_key)
@@ -1221,8 +1222,8 @@ mod tests {
     }
 
     /// Requirement 5 of effort 826, and criterion 5: locking a member out is the owner's, and no
-    /// permission grants it. A manager carrying **every** one of the seven grantable acts is
-    /// refused with the sentence naming the owner, and nothing is rotated.
+    /// permission grants it. A manager carrying **every** flag but the owner's is refused with the
+    /// sentence naming the owner, and nothing is rotated.
     ///
     /// **The permissions are asserted first**, so that the refusal is read as the owner check
     /// answering rather than as a bit the manager happened not to hold. The refusal itself is
@@ -1233,7 +1234,7 @@ mod tests {
     /// it is the owner's, the way a founder's session open across a handover still says so, and
     /// the lock-out is refused all the same, because the gate reads the row.
     #[tokio::test]
-    async fn a_manager_holding_all_seven_acts_is_refused_a_lock_out() {
+    async fn a_manager_holding_every_flag_but_the_owners_is_refused_a_lock_out() {
         let directory = scratch("lock-out-authority");
         let org = organization(&directory).await;
         let (member_id, _) = org.member.clone();
@@ -1248,17 +1249,10 @@ mod tests {
         manager.must_change_password = false;
 
         assert_eq!(
-            permission::acts_of(manager.permissions),
-            0b111_1111,
-            "the manager does not carry all seven acts"
+            manager.permissions,
+            permission::MANAGER_ROLE.mask,
+            "the manager does not carry every flag but the owner's"
         );
-        for act in permission::Administration::ALL {
-            assert!(
-                permission::permits(manager.permissions, act),
-                "{}",
-                act.name()
-            );
-        }
 
         // the snapshot says owner; the row does not.
         manager.role = permission::OWNER.to_string();
@@ -1615,9 +1609,9 @@ mod tests {
         manager.role = permission::OWNER.to_string();
 
         assert_eq!(
-            permission::acts_of(manager.permissions),
-            0b111_1111,
-            "the manager does not carry all seven acts"
+            manager.permissions,
+            permission::MANAGER_ROLE.mask,
+            "the manager does not carry every flag but the owner's"
         );
 
         let managers_password = org.manager.1.clone();

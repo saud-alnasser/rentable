@@ -809,7 +809,7 @@ const workspaceOf = (id: string): OrganizationWorkspace => ({
 /** the readers a workspace's card is read by; ws-1 is the one open on this machine. */
 const WORKSPACE_READERS: Record<string, WorkspaceActContext> = {
 	owner: { openWorkspaceId: 'ws-1', canRename: true, canGrantWorkspace: true, canDelete: true },
-	administrator: {
+	manager: {
 		openWorkspaceId: 'ws-1',
 		canRename: true,
 		canGrantWorkspace: true,
@@ -870,7 +870,7 @@ test('a workspace is edited only where it is open, and the owner alone deletes o
 		'workspace.delete'
 	]);
 	assert.deepEqual(idsFor('ws-2', 'owner'), ['workspace.members', 'workspace.delete']);
-	assert.deepEqual(idsFor('ws-1', 'administrator'), ['workspace.edit', 'workspace.members']);
+	assert.deepEqual(idsFor('ws-1', 'manager'), ['workspace.edit', 'workspace.members']);
 	assert.deepEqual(idsFor('ws-1', 'member widened by renameWorkspace'), ['workspace.edit']);
 	assert.deepEqual(idsFor('ws-2', 'member widened by renameWorkspace'), []);
 	assert.deepEqual(idsFor('ws-1', 'member holding nothing'), []);

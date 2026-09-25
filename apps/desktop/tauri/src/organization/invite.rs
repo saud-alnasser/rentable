@@ -123,7 +123,7 @@ use crate::{
 use super::{
     authority::AdministratorKey,
     link::{Half, HalfKind, LinkPayload, Locator, seal_payload},
-    permission::{self, Administration, Flag},
+    permission::{self, Flag},
     role::{Standing, reissue},
     session::{Actor, MemberSession, actor, permissions_on_row, rank_of},
     setup::{ADMINISTRATOR_KEY_PURPOSE, SHIPPING_KDF, credential_expiry},
@@ -281,7 +281,7 @@ pub async fn refuse_taken_username(
         .members(&session.verifying_key)
         .await?
         .iter()
-        .filter(|member| member.role_word() != permission::REMOVED)
+        .filter(|member| member.removed_at.is_none())
         .filter(|member| except != Some(member.id.as_str()))
     {
         let held = opened(session, "member.username_sealed", &member.username_sealed)?;
@@ -629,11 +629,11 @@ fn writable_account<'a>(
             )
         })?;
 
-    if member.role_word() == permission::OWNER {
+    if member.role_id == permission::OWNER {
         return Err(Error::refused(RefusalReason::OwnerProtected, owner_refusal));
     }
 
-    if member.role_word() == permission::REMOVED {
+    if member.removed_at.is_some() {
         return Err(Error::refused(
             RefusalReason::MemberRemoved,
             "that member was removed. make them an account again if they are to come back",
@@ -794,7 +794,7 @@ pub async fn members(
         .into_iter()
         // a removed member's row stays for the replicas that still hold it; the dashboard lists
         // who is in.
-        .filter(|member| member.role_word() != permission::REMOVED)
+        .filter(|member| member.removed_at.is_none())
         .map(|member| {
             let role = super::role::held_role(session, &roles, &member.role_id)?;
 
@@ -869,7 +869,7 @@ pub async fn standings(
         .into_iter()
         // the same filter [`members`] applies: a removed member's row stays for the replicas that
         // still hold it, and the directory lists who is in.
-        .filter(|member| member.role_word() != permission::REMOVED)
+        .filter(|member| member.removed_at.is_none())
         .map(|member| MemberStanding {
             password_set: !member.must_change_password,
             machine_signed_in: machines
@@ -882,15 +882,15 @@ pub async fn standings(
 
 /// Rename a member: their row written back with the username re-sealed under the content key,
 /// signed by whoever renamed them, and pushed like every other write (effort 824, requirement
-/// 23). The act is [`Administration::RenameMember`], which requirement 4 of effort 826 gave a bit
+/// 23). The act is [`Flag::RenameMember`], which requirement 4 of effort 826 gave a bit
 /// of its own: it was held to inviting while the two were one decision, and an organization may
 /// want somebody who corrects a spelling without being able to make an account. Nothing else on
 /// the row moves: the vault, the role, the grants and the certificate are exactly as they were, so
 /// a member renamed while signed in elsewhere goes on working under their own password.
 ///
-/// A session renaming its own row is refused: an account's name is given by an administrator and
-/// changed by one, never by its holder, which is what keeps the rename an act on somebody else's
-/// row and the actor's signature meaningful as such. `except` on the uniqueness check is the
+/// A session renaming its own row is refused: an account's name is given by a holder of the flag
+/// and changed by one, never by its holder, which is what keeps the rename an act on somebody
+/// else's row and the actor's signature meaningful as such. `except` on the uniqueness check is the
 /// member's own id, so `alice` may become `Alice` without being refused as taken by herself.
 pub async fn rename_member(
     store: &OrganizationStore,
@@ -902,13 +902,13 @@ pub async fn rename_member(
     session.settled()?;
     permission::require(
         permissions_on_row(store, session).await?,
-        Administration::RenameMember,
+        Flag::RenameMember,
     )?;
 
     if member_id == session.member_id {
         return Err(Error::refused(
             RefusalReason::NotYourself,
-            "you cannot rename yourself. another administrator can",
+            "you cannot rename yourself. somebody else who renames members can",
         ));
     }
 
@@ -927,7 +927,7 @@ pub async fn rename_member(
             )
         })?;
 
-    if member.role_word() == permission::REMOVED {
+    if member.removed_at.is_some() {
         return Err(Error::refused(
             RefusalReason::MemberRemoved,
             "that member was removed. invite them again if they are to come back",
@@ -1434,8 +1434,7 @@ pub(crate) struct AccountAndLink {
 #[cfg(test)]
 pub(crate) struct Invitation<'a> {
     pub username: &'a str,
-    /// the role by the word a session still speaks (`permission::role_id_of_word`): `manager` or
-    /// its older name `administrator` for the manager's role, and `member` for the member's.
+    /// the role the account holds, by id: `manager` or `member`, or a custom role's.
     pub role: &'a str,
     pub workspaces: &'a [WorkspaceGrant],
 }
@@ -1458,7 +1457,7 @@ pub(crate) async fn make_account_and_link<P: TursoPlatform>(
         session,
         platform,
         invitation.username,
-        permission::role_id_of_word(invitation.role),
+        invitation.role,
         0,
         invitation.workspaces,
         kdf_params,
@@ -2430,7 +2429,7 @@ mod tests {
 
         assert!(member.must_change_password);
         assert_eq!(member.role, permission::MEMBER);
-        assert_eq!(permission::acts_of(member.permissions), 0);
+        assert_eq!(member.permissions, permission::MEMBER_ROLE.mask);
         assert!(member.workspace_credentials.contains_key(&workspace_id));
         assert_eq!(
             member.workspace_credentials[&workspace_id].token,
@@ -2666,21 +2665,19 @@ mod tests {
         .expect("the invitation failed");
 
         assert_eq!(
-            permission::acts_of(
-                super::members(&store, &owner)
-                    .await
-                    .expect("the members")
-                    .into_iter()
-                    .find(|member| member.id == invited.member_id)
-                    .expect("the member")
-                    .permissions
-            ),
-            permission::mask_of_role(permission::MEMBER),
+            super::members(&store, &owner)
+                .await
+                .expect("the members")
+                .into_iter()
+                .find(|member| member.id == invited.member_id)
+                .expect("the member")
+                .permissions,
+            permission::MEMBER_ROLE.mask,
             "a fresh invitation wrote something other than the role's mask"
         );
 
-        // widened by hand, the way the change-role act will widen a row: one act past the role.
-        let widened = permission::mask_of(&[permission::Administration::RenameWorkspace]);
+        // widened by hand, the way an override widens a row: one flag past the role.
+        let widened = permission::mask_of(&[permission::Flag::RenameWorkspace]);
         let (key, certificate) = super::signer_of(&store, &owner).await.expect("the signer");
         let row = store
             .members(&owner.verifying_key)
@@ -2696,11 +2693,7 @@ mod tests {
                     certificate: &certificate,
                 },
                 &crate::organization::store::MemberRecord {
-                    override_mask: permission::override_for_acts(
-                        &row.role_id,
-                        permission::MEMBER_ROLE.mask,
-                        widened,
-                    ),
+                    override_mask: widened,
                     ..row
                 },
             )
@@ -2728,8 +2721,8 @@ mod tests {
         .expect("the reset member did not sign in");
 
         assert_eq!(
-            permission::acts_of(after.permissions),
-            widened,
+            after.permissions,
+            permission::effective(permission::MEMBER_ROLE.mask, widened),
             "the reset narrowed the member"
         );
         assert_eq!(after.role, permission::MEMBER);
@@ -3160,10 +3153,7 @@ mod tests {
         .await
         .expect("the manager did not sign in");
 
-        assert_eq!(
-            permission::acts_of(ada.permissions),
-            permission::acts_of(permission::MANAGER_ROLE.mask)
-        );
+        assert_eq!(ada.permissions, permission::MANAGER_ROLE.mask);
 
         let mut settled = ada;
         settled.must_change_password = false;
@@ -3554,22 +3544,22 @@ mod tests {
             &link,
             Invitation {
                 username: "ada.admin",
-                role: permission::ADMINISTRATOR,
+                role: permission::MANAGER,
                 workspaces: &full(std::slice::from_ref(&workspace_id)),
             },
             test_cost(),
             1,
         )
         .await
-        .expect("the administrator");
+        .expect("the manager");
         let mut ada = sign_in(
             &store,
-            &joined_as(&owner, &admin.member_id, permission::ADMINISTRATOR),
+            &joined_as(&owner, &admin.member_id, permission::MANAGER),
             &secret_of(&admin),
             &slot(),
         )
         .await
-        .expect("the administrator did not sign in");
+        .expect("the manager did not sign in");
         ada.must_change_password = false;
 
         let sami = make_account_and_link(
@@ -3589,13 +3579,13 @@ mod tests {
         .expect("the member");
 
         // signed under the administrator's live certificate, the one `signer_of` finds for them.
-        let (_, administrators_certificate) = super::signer_of(&store, &ada)
+        let (_, managers_certificate) = super::signer_of(&store, &ada)
             .await
-            .expect("the administrator's signer");
+            .expect("the manager's signer");
 
         assert_eq!(
             signed_by(&store, &sami.member_id).await,
-            administrators_certificate.id
+            managers_certificate.id
         );
 
         let renamed = rename_member(&store, &owner, &sami.member_id, " Sami.Staff ", 3)

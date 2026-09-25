@@ -1697,8 +1697,8 @@ mod tests {
         let with = member_authority_with_seal(&public_key, "member", seal);
 
         assert_ne!(
-            preimage("cert-an-administrator", with),
-            preimage("cert-an-administrator", without)
+            preimage("cert-a-manager", with),
+            preimage("cert-a-manager", without)
         );
 
         // and the signature over one is not a signature over the other, in both
@@ -3247,7 +3247,7 @@ mod tests {
     }
 
     #[test]
-    fn a_members_vault_is_not_under_signature_so_a_password_change_needs_no_administrator() {
+    fn a_members_vault_is_not_under_signature_so_a_password_change_needs_no_signer() {
         // `sealed_secret_key`, `kdf_salt` and `kdf_params` are deliberately not
         // signed, and this is what that buys. A member changes their password on a
         // database they hold full access to, rewrites the three columns a change
@@ -3357,9 +3357,9 @@ mod tests {
     #[test]
     fn a_signature_over_one_kind_of_row_does_not_verify_as_another() {
         // the domain in front of every preimage is what stops a workspace record
-        // being read as the member row that makes somebody an administrator.
+        // being read as the member row that makes somebody a manager.
         let organization = an_organization();
-        let signed = workspace_authority("member-1", "administrator");
+        let signed = workspace_authority("member-1", "manager");
         let signature = sign(
             &organization.administrator_key,
             &organization.certificate,

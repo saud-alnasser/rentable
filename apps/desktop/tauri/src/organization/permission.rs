@@ -10,11 +10,10 @@
 //! a second reads the table of cases the package's own test reads, which is the only thing that
 //! holds two copies of one vocabulary together.
 //!
-//! **Today's seven acts keep their own type while the callers move.** [`Administration`] is the
-//! seven under today's names, `ChangeRole` included, on the same bits as the [`Flag`]s they are;
-//! every routine here takes either through [`Act`]. The owner's flags are asked of the owner's
-//! verified row, by `workspace::require_owner` for the workspace acts, the handover and the
-//! account, and the refusal names the owner.
+//! **The owner's flags are asked of the owner's verified row**, by `workspace::require_owner` for
+//! the workspace acts, the handover and the account, and the refusal names the owner. *The seven
+//! acts of effort 826 kept a type of their own, `Administration`, and the role kept its word
+//! `administrator` for the manager, until ticket 15 of effort 838 retired both.*
 //!
 //! **The organization's mark is [`Flag::ManageMark`]**, the signature or seal its pages print
 //! (effort 835): `mark::set_mark` and `mark::clear_mark` ask it of the verified row, and the row
@@ -31,7 +30,7 @@ use crate::{
     sync::turso::platform::AccessLevel,
 };
 
-/// Anything a gate or a mask may name: a [`Flag`], or one of today's names for one.
+/// Anything a gate or a mask may name, which is a [`Flag`].
 pub trait Act: Copy {
     /// The bit the act sits on.
     fn bit_index(self) -> u32;
@@ -282,78 +281,19 @@ pub const WRITE_FLAGS: [Flag; 15] = [
     Flag::DeletePayment,
 ];
 
-/// One act of administration under today's name, on the bit the package gives it.
-///
-/// **Kept so no caller moves while the vocabulary does.** `ChangeRole` is
-/// [`Flag::AssignRole`] under the name the callers and their refusals still spell.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Administration {
-    InviteMember = 0,
-    RemoveMember = 1,
-    ChangeRole = 2,
-    RenameWorkspace = 3,
-    ResetPassword = 4,
-    RenameMember = 5,
-    GrantWorkspace = 6,
-}
-
-impl Administration {
-    /// Every act, in bit order.
-    pub const ALL: [Self; 7] = [
-        Self::InviteMember,
-        Self::RemoveMember,
-        Self::ChangeRole,
-        Self::RenameWorkspace,
-        Self::ResetPassword,
-        Self::RenameMember,
-        Self::GrantWorkspace,
-    ];
-
-    /// The package's own spelling of the act, which is what a refusal names.
-    pub fn name(self) -> &'static str {
-        match self {
-            Self::InviteMember => "inviteMember",
-            Self::RemoveMember => "removeMember",
-            Self::ChangeRole => "changeRole",
-            Self::RenameWorkspace => "renameWorkspace",
-            Self::ResetPassword => "resetPassword",
-            Self::RenameMember => "renameMember",
-            Self::GrantWorkspace => "grantWorkspace",
-        }
-    }
-
-    /// The flag the act is.
-    pub fn flag(self) -> Flag {
-        match self {
-            Self::InviteMember => Flag::InviteMember,
-            Self::RemoveMember => Flag::RemoveMember,
-            Self::ChangeRole => Flag::AssignRole,
-            Self::RenameWorkspace => Flag::RenameWorkspace,
-            Self::ResetPassword => Flag::ResetPassword,
-            Self::RenameMember => Flag::RenameMember,
-            Self::GrantWorkspace => Flag::GrantWorkspace,
-        }
-    }
-}
-
-impl Act for Administration {
-    fn bit_index(self) -> u32 {
-        self.flag() as u32
-    }
-
-    fn name(self) -> &'static str {
-        Administration::name(self)
-    }
-}
-
+/// The owner's role, by id and by kind: the one role that is a constant rather than a row.
 pub const OWNER: &str = "owner";
+/// The manager's role, by id and by kind.
 pub const MANAGER: &str = "manager";
-pub const ADMINISTRATOR: &str = "administrator";
+/// The member's role, by id and by kind, which every member holds until given another.
 pub const MEMBER: &str = "member";
-/// A member who was removed. The row stays, signed by whoever removed them, so a machine holding
-/// a stale replica sees a verified removal rather than an unexplained absence; it administers
-/// nothing, signs in to nothing, and the dashboard does not list it.
-pub const REMOVED: &str = "removed";
+/// The kind every role an organization adds carries; its id is drawn when it is made.
+pub const CUSTOM: &str = "custom";
+
+/// The four kinds a role is of, which is what a session and the machine's record call the role a
+/// member holds (effort 838, the plan's *Interfaces*). A removed member is known by their row's
+/// `removed_at`, never by a kind.
+pub const KINDS: [&str; 4] = [OWNER, MANAGER, MEMBER, CUSTOM];
 
 /// One of the three roles every organization has, as the package's `BUILT_IN` gives it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -430,67 +370,6 @@ pub fn effective_in(permissions: i64, access: AccessLevel) -> i64 {
     match access {
         AccessLevel::FullAccess => permissions,
         AccessLevel::ReadOnly => permissions & !mask_of(&WRITE_FLAGS),
-    }
-}
-
-/// The mask a role is created with, as the package gave it before effort 838. The role is what a
-/// member is called; the column is what they may do, and a row may carry more or less.
-///
-/// **The owner and the administrator read alike**, because every act that separates them is one
-/// [`Administration`] does not hold. What refuses an administrator a create, a delete, a mint, a
-/// lock-out or a renewal is the owner check beside the command, never a bit missing here.
-pub fn mask_of_role(role: &str) -> i64 {
-    match role {
-        OWNER | ADMINISTRATOR => mask_of(&Administration::ALL),
-        _ => 0,
-    }
-}
-
-/// The word a member's role is called by in a session and across the boundary, from the role
-/// they hold (effort 838): `owner`, `administrator` for the manager, `member` for anybody else,
-/// and `removed` for a row that says so.
-///
-/// **A bridge, not a vocabulary.** The session and the interface still speak the three words of
-/// effort 826; ticket 08 carries the role's id and name across instead, and this goes.
-pub fn word_of_role(role_id: &str, removed: bool) -> &'static str {
-    if removed {
-        return REMOVED;
-    }
-
-    match role_id {
-        OWNER => OWNER,
-        MANAGER => ADMINISTRATOR,
-        _ => MEMBER,
-    }
-}
-
-/// The role a word names, for a command that still takes one: the owner's, the manager's for an
-/// administrator, and the member's for anything else.
-pub fn role_id_of_word(word: &str) -> &'static str {
-    match word {
-        OWNER => OWNER,
-        MANAGER | ADMINISTRATOR => MANAGER,
-        _ => MEMBER,
-    }
-}
-
-/// The seven acts of effort 826 that a member's permissions carry: what a command that still names
-/// its acts as one number reads back (`invite`'s tests, and the interface's bridge until ticket 11).
-pub fn acts_of(permissions: i64) -> i64 {
-    permissions & mask_of(&Administration::ALL)
-}
-
-/// The override that gives a holder of a role with this mask exactly these of the seven acts, and
-/// leaves every other flag as the role gives it. The owner carries none.
-///
-/// **A bridge** for the commands that still say what a member may administer as one number
-/// (`invite`'s tests), until they take an override of their own (effort 838). *`change_role` was
-/// the other until ticket 07 replaced it with `role::assign_role` and `role::set_override`.*
-pub fn override_for_acts(role_id: &str, role_mask: i64, acts: i64) -> i64 {
-    if role_id == OWNER {
-        0
-    } else {
-        (acts ^ role_mask) & mask_of(&Administration::ALL)
     }
 }
 
@@ -573,9 +452,9 @@ pub fn first_owner_only(mask: i64) -> Option<&'static str> {
 #[cfg(test)]
 mod tests {
     use super::{
-        ADMINISTRATOR, Administration, BUILT_IN, BuiltIn, Family, Flag, MANAGER_ROLE, MEMBER,
-        MEMBER_ADMINISTRATION, MEMBER_ROLE, OWNER, OWNER_ONLY, OWNER_ROLE, WRITE_FLAGS, effective,
-        effective_in, first_not_held, first_owner_only, mask_of, mask_of_role, permits, require,
+        BUILT_IN, BuiltIn, Family, Flag, MANAGER, MANAGER_ROLE, MEMBER_ADMINISTRATION, MEMBER_ROLE,
+        OWNER, OWNER_ONLY, OWNER_ROLE, WRITE_FLAGS, effective, effective_in, first_not_held,
+        first_owner_only, mask_of, permits, require,
     };
     use crate::sync::turso::platform::AccessLevel;
 
@@ -639,21 +518,6 @@ mod tests {
         assert!(
             Flag::ALL.iter().all(|flag| (*flag as i64) < 53),
             "a flag at bit 53 or above rounds the low-order bits away in the package"
-        );
-    }
-
-    /// Today's seven acts, each on the bit of the flag it is. `ChangeRole` is `AssignRole`. *The
-    /// package kept the seven under these names until ticket 11 of effort 838 retired them there;
-    /// this crate keeps its own until its callers move.*
-    #[test]
-    fn each_of_todays_acts_is_the_flag_it_stands_for() {
-        for act in Administration::ALL {
-            assert_eq!(act as i64, act.flag() as i64, "{} moved", act.name());
-        }
-
-        assert_eq!(
-            mask_of(&[Administration::ChangeRole]),
-            mask_of(&[Flag::AssignRole])
         );
     }
 
@@ -869,41 +733,42 @@ mod tests {
         assert!(refusal.to_string().contains("deletePayment"), "{refusal}");
     }
 
-    #[test]
-    fn each_role_carries_the_acts_it_is_made_with() {
-        assert_eq!(mask_of_role(OWNER), 0b111_1111);
-        assert_eq!(mask_of_role(ADMINISTRATOR), 0b111_1111);
-        assert_eq!(mask_of_role(MEMBER), 0);
-        assert_eq!(mask_of_role("a role this build has never heard of"), 0);
-    }
-
-    /// Criterion 12 of effort 826: every act against every role, iterating this crate's list of
-    /// acts, which the tests above hold to the package's.
+    /// Criterion 12 of effort 826, on effective permissions: every flag against every built-in
+    /// role holding no override, iterating this crate's list of flags, which the tests above hold
+    /// to the package's.
     ///
-    /// **A member is the only role this table withholds anything from.** The acts an administrator
-    /// may not perform are the ones requirement 5 keeps out of the table, and they are refused by
-    /// the owner check rather than here, which is what the tests in `workspace.rs` and `removal.rs`
-    /// cover with an administrator holding all seven bits.
+    /// **The owner is the only role holding the owner's flags.** The manager carries every other
+    /// flag and the member no administration and no delete; what refuses the manager an owner's act
+    /// is the flag missing here and, beside it, the owner check the tests in `workspace.rs` and
+    /// `removal.rs` cover.
     #[test]
-    fn every_act_is_granted_or_withheld_by_role() {
-        let expected = |role: &str, _act: Administration| matches!(role, OWNER | ADMINISTRATOR);
+    fn every_flag_is_granted_or_withheld_by_role() {
+        let expected = |role: &str, flag: Flag| match role {
+            OWNER => true,
+            MANAGER => !OWNER_ONLY.contains(&flag),
+            _ => {
+                flag.family() != Family::Administration
+                    && flag.family() != Family::Owner
+                    && !flag.name().starts_with("delete")
+            }
+        };
 
-        for role in [OWNER, ADMINISTRATOR, MEMBER] {
-            for act in Administration::ALL {
+        for role in BUILT_IN {
+            let permissions = effective(role.mask, 0);
+
+            for flag in Flag::ALL {
                 assert_eq!(
-                    permits(mask_of_role(role), act),
-                    expected(role, act),
-                    "{role} and {}",
-                    act.name()
+                    permits(permissions, flag),
+                    expected(role.id, flag),
+                    "{} and {}",
+                    role.id,
+                    flag.name()
                 );
-                assert_eq!(
-                    require(mask_of_role(role), act).is_ok(),
-                    expected(role, act)
-                );
+                assert_eq!(require(permissions, flag).is_ok(), expected(role.id, flag));
             }
         }
 
-        let refusal = require(mask_of_role(MEMBER), Administration::InviteMember)
+        let refusal = require(effective(MEMBER_ROLE.mask, 0), Flag::InviteMember)
             .expect_err("a member invited");
 
         assert!(refusal.to_string().contains("inviteMember"), "{refusal}");

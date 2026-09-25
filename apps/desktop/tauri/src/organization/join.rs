@@ -67,7 +67,6 @@ use super::{
     HeldOrganization, connect,
     invite::InvitationStanding,
     link::{HalfKind, JoinLink, open_payload},
-    permission,
     session::{
         CredentialSlot, MemberSession, content_key_of, machine_seen, open_session, refused_by_name,
         remember, sign_in_by_username,
@@ -241,7 +240,7 @@ where
         .find(|member| member.id == invitation.member_id)
         .ok_or_else(|| invitation_refused(&held.name, Refusal::Revoked))?;
 
-    if member.role_word() == permission::REMOVED {
+    if member.removed_at.is_some() {
         return Err(invitation_refused(&held.name, Refusal::Revoked));
     }
 
@@ -801,7 +800,7 @@ mod tests {
         assert_eq!(their_held.joined_at, ISSUED_AT + 3);
 
         assert_eq!(member.role, permission::MEMBER);
-        assert_eq!(permission::acts_of(member.permissions), 0);
+        assert_eq!(member.permissions, permission::MEMBER_ROLE.mask);
         assert!(
             !member.must_change_password,
             "opening the link left the member with a password to change"

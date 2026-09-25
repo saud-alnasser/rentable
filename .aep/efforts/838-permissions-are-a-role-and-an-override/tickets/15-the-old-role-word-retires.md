@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [14]
 ---
 
@@ -19,13 +19,13 @@ the machine's `HeldOrganization.role` the words owner, administrator, member and
 
 Traces requirement 3 of [[efforts/838-permissions-are-a-role-and-an-override/spec]], and criterion 3.
 
-- [ ] `MemberSession.role` and `HeldOrganization.role` hold the role's kind (owner, manager, member
+- [x] `MemberSession.role` and `HeldOrganization.role` hold the role's kind (owner, manager, member
       or custom), and a removed member is known by `removed_at`; a machine record written by an
       earlier build of this effort is read or forgotten by the existing startup pattern.
-- [ ] `word_of_role`, `MemberRecord::role_word`, `role_id_of_word`, `override_for_acts` and `acts_of`
+- [x] `word_of_role`, `MemberRecord::role_word`, `role_id_of_word`, `override_for_acts` and `acts_of`
       have no caller and are deleted; the tests that compared the seven acts compare effective
       permissions instead.
-- [ ] A grep of the Rust and TypeScript sources finds the word administrator in no role value, no
+- [x] A grep of the Rust and TypeScript sources finds the word administrator in no role value, no
       role constant and no user-facing string; what is left is named in the commit (the signing
       key's type and derivation purpose, whose value is fixed by every vault).
 

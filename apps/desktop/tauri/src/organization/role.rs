@@ -57,7 +57,7 @@ use super::{
         unused_certificate_id, verify_succession,
     },
     invite::{MemberFacts, members, random_id},
-    permission::{self, Flag},
+    permission::{self, CUSTOM, Flag},
     session::{Actor, MemberSession, acting_row, actor, rank_of, verifying_key_of},
     setup::{ADMINISTRATOR_KEY_PURPOSE, ORGANIZATION_KEY_PURPOSE, owner_key_from},
     store::{
@@ -1067,9 +1067,6 @@ pub struct RoleFacts {
     pub holders: usize,
 }
 
-/// The kind a custom role's row carries.
-const CUSTOM: &str = "custom";
-
 /// The column a custom role's name is sealed under.
 const ROLE_NAME_COLUMN: &str = "role.name_sealed";
 
@@ -1136,12 +1133,26 @@ fn facts_of(
 /// 8): its kind, its name and its rank, beside the effective permissions the row already reads.
 ///
 /// **Off the verified rows the caller already read**, so a list of members pays for one read of the
-/// roles rather than one per member. A role id no row carries reads as the member's, which is what
-/// [`permission::word_of_role`] has always said of one.
+/// roles rather than one per member. A role id no row carries reads as the member's, as
+/// [`kind_of`] reads it.
 pub(crate) struct HeldRole {
     pub kind: String,
     pub name: String,
     pub rank: i64,
+}
+
+/// The kind of the role `role_id` names, from the verified `rows` and the owner's constant: what
+/// a session and the machine's record call the role a member holds (effort 838, the plan's
+/// *Interfaces*). A role id no row carries reads as the member's, the role a deleted one's holders
+/// move to.
+pub(crate) fn kind_of(rows: &[RoleRecord], role_id: &str) -> String {
+    if role_id == permission::OWNER {
+        return permission::OWNER.to_string();
+    }
+
+    rows.iter()
+        .find(|role| role.id == role_id)
+        .map_or_else(|| permission::MEMBER.to_string(), |role| role.kind.clone())
 }
 
 /// The role `role_id` names, from the verified `rows` and the owner's constant.
@@ -2117,7 +2128,7 @@ mod tests {
     const PASSWORD: &str = "the owners password";
     /// What the settled administrator in these tests chose when they opened their link, which is
     /// the password that becomes the organization's key when they accept it.
-    const ADMINISTRATORS_PASSWORD: &str = "the administrators password";
+    const MANAGERS_PASSWORD: &str = "the managers password";
     /// And the second one's, for the chain of two handovers.
     const BILALS_PASSWORD: &str = "bilals own long password";
     const NOW: i64 = 1_757_000_000_000;
@@ -2354,10 +2365,7 @@ mod tests {
             .find(|member| member.id == member_id)
             .expect("the member row");
 
-        (
-            member.role_word().to_string(),
-            permission::acts_of(member.effective),
-        )
+        (member.role_id, member.effective)
     }
 
     /// Whether a live certificate names this member, which is what `workspace::signer_of` looks
@@ -2753,7 +2761,7 @@ mod tests {
             &owner,
             &link,
             "ada.admin",
-            permission::ADMINISTRATOR,
+            permission::MANAGER,
             &workspace_id,
         )
         .await;
@@ -3005,7 +3013,7 @@ mod tests {
             &owner,
             &link,
             "ada.admin",
-            permission::ADMINISTRATOR,
+            permission::MANAGER,
             &workspace_id,
         )
         .await;
@@ -3045,7 +3053,7 @@ mod tests {
             &owner,
             &link,
             "sami.staff",
-            permission::ADMINISTRATOR,
+            permission::MANAGER,
             &workspace_id,
         )
         .await;
@@ -3113,7 +3121,7 @@ mod tests {
             &owner,
             &link,
             "ada.admin",
-            permission::ADMINISTRATOR,
+            permission::MANAGER,
             &workspace_id,
         )
         .await;
@@ -4402,7 +4410,7 @@ mod tests {
     /// An administrator who opened their link on a machine of their own and chose a password,
     /// which is the standing an offer of the organization needs: a vault of their own, that their
     /// own password opens, on a machine that pinned this organization's key.
-    async fn a_settled_administrator(
+    async fn a_settled_manager(
         directory: &std::path::Path,
         store: &OrganizationStore,
         owner: &MemberSession,
@@ -4416,7 +4424,7 @@ mod tests {
             owner,
             link,
             username,
-            permission::ADMINISTRATOR,
+            permission::MANAGER,
             workspace_id,
         )
         .await;
@@ -4473,10 +4481,7 @@ mod tests {
             .find(|member| member.id == member_id)
             .expect("the member row");
 
-        (
-            member.role_word().to_string(),
-            permission::acts_of(member.effective),
-        )
+        (member.role_id, member.effective)
     }
 
     /// Whether the offer's seal is on a row.
@@ -4508,14 +4513,14 @@ mod tests {
     async fn the_offer_is_refused_for_an_unset_account_a_removed_one_the_owner_and_a_non_owner() {
         let directory = scratch("offer-refusals");
         let (store, owner, link, workspace_id) = owned(&directory).await;
-        let (ada, ada_session, _) = a_settled_administrator(
+        let (ada, ada_session, _) = a_settled_manager(
             &directory,
             &store,
             &owner,
             &link,
             &workspace_id,
             "ada.admin",
-            ADMINISTRATORS_PASSWORD,
+            MANAGERS_PASSWORD,
         )
         .await;
         let unset = an_unset_account(
@@ -4523,7 +4528,7 @@ mod tests {
             &owner,
             &link,
             "noor.new",
-            permission::ADMINISTRATOR,
+            permission::MANAGER,
             &workspace_id,
         )
         .await;
@@ -4598,11 +4603,11 @@ mod tests {
             &store,
             &ada_session,
             &unset.member_id,
-            ADMINISTRATORS_PASSWORD,
+            MANAGERS_PASSWORD,
             NOW + 2,
         )
         .await
-        .expect_err("an administrator offered the organization");
+        .expect_err("a manager offered the organization");
 
         assert!(
             matches!(not_the_owner, Error::Refused { reason: crate::error::RefusalReason::OwnerOnly, ref message } if message == ONLY_THE_OWNER_TRANSFERS),
@@ -4640,14 +4645,14 @@ mod tests {
     async fn the_acceptance_re_keys_and_every_row_and_certificate_verifies_under_the_new_key() {
         let directory = scratch("accept");
         let (store, owner, link, workspace_id) = owned(&directory).await;
-        let (ada, mut ada_session, mut ada_machine) = a_settled_administrator(
+        let (ada, mut ada_session, mut ada_machine) = a_settled_manager(
             &directory,
             &store,
             &owner,
             &link,
             &workspace_id,
             "ada.admin",
-            ADMINISTRATORS_PASSWORD,
+            MANAGERS_PASSWORD,
         )
         .await;
         let old_key = owner.verifying_key;
@@ -4660,8 +4665,8 @@ mod tests {
         assert_eq!(
             row_of(&store, &owner, &ada.member_id).await,
             (
-                permission::ADMINISTRATOR.to_string(),
-                permission::mask_of_role(permission::ADMINISTRATOR)
+                permission::MANAGER.to_string(),
+                permission::MANAGER_ROLE.mask
             )
         );
 
@@ -4669,7 +4674,7 @@ mod tests {
             &store,
             &mut ada_session,
             &mut ada_machine,
-            ADMINISTRATORS_PASSWORD,
+            MANAGERS_PASSWORD,
             NOW + 2,
         )
         .await
@@ -4736,16 +4741,13 @@ mod tests {
         // the roles are swapped and the seal the offer wrote is gone from both rows.
         assert_eq!(
             row_of_under(&store, &new_key, &ada.member_id).await,
-            (
-                permission::OWNER.to_string(),
-                permission::mask_of_role(permission::OWNER)
-            )
+            (permission::OWNER.to_string(), permission::OWNER_ROLE.mask)
         );
         assert_eq!(
             row_of_under(&store, &new_key, &owner.member_id).await,
             (
-                permission::ADMINISTRATOR.to_string(),
-                permission::mask_of_role(permission::ADMINISTRATOR)
+                permission::MANAGER.to_string(),
+                permission::MANAGER_ROLE.mask
             )
         );
         assert!(
@@ -4775,17 +4777,17 @@ mod tests {
     {
         let directory = scratch("handover-chain");
         let (store, owner, link, workspace_id) = owned(&directory).await;
-        let (ada, mut ada_session, mut ada_machine) = a_settled_administrator(
+        let (ada, mut ada_session, mut ada_machine) = a_settled_manager(
             &directory,
             &store,
             &owner,
             &link,
             &workspace_id,
             "ada.admin",
-            ADMINISTRATORS_PASSWORD,
+            MANAGERS_PASSWORD,
         )
         .await;
-        let (bilal, bilal_session, _) = a_settled_administrator(
+        let (bilal, bilal_session, _) = a_settled_manager(
             &directory,
             &store,
             &owner,
@@ -4925,7 +4927,7 @@ mod tests {
             &store,
             &mut ada_session,
             &mut ada_machine,
-            ADMINISTRATORS_PASSWORD,
+            MANAGERS_PASSWORD,
             NOW + 6,
         )
         .await
@@ -5040,14 +5042,14 @@ mod tests {
     async fn a_second_store_holding_the_old_key_follows_the_succession_and_verifies_every_row() {
         let directory = scratch("follow");
         let (store, owner, link, workspace_id) = owned(&directory).await;
-        let (ada, mut ada_session, mut ada_machine) = a_settled_administrator(
+        let (ada, mut ada_session, mut ada_machine) = a_settled_manager(
             &directory,
             &store,
             &owner,
             &link,
             &workspace_id,
             "ada.admin",
-            ADMINISTRATORS_PASSWORD,
+            MANAGERS_PASSWORD,
         )
         .await;
         let old_key = owner.verifying_key;
@@ -5059,7 +5061,7 @@ mod tests {
             &store,
             &mut ada_session,
             &mut ada_machine,
-            ADMINISTRATORS_PASSWORD,
+            MANAGERS_PASSWORD,
             NOW + 2,
         )
         .await
@@ -5128,14 +5130,14 @@ mod tests {
     async fn a_planted_seal_opens_nothing_and_the_acceptance_refuses() {
         let directory = scratch("planted-seal");
         let (store, owner, link, workspace_id) = owned(&directory).await;
-        let (ada, mut ada_session, mut ada_machine) = a_settled_administrator(
+        let (ada, mut ada_session, mut ada_machine) = a_settled_manager(
             &directory,
             &store,
             &owner,
             &link,
             &workspace_id,
             "ada.admin",
-            ADMINISTRATORS_PASSWORD,
+            MANAGERS_PASSWORD,
         )
         .await;
 
@@ -5178,7 +5180,7 @@ mod tests {
             &store,
             &mut ada_session,
             &mut ada_machine,
-            ADMINISTRATORS_PASSWORD,
+            MANAGERS_PASSWORD,
             NOW + 2,
         )
         .await
@@ -5196,7 +5198,7 @@ mod tests {
             .members(&owner.verifying_key)
             .await
             .expect("the directory is still signed under the key it was");
-        assert_eq!(ada_session.role, permission::ADMINISTRATOR);
+        assert_eq!(ada_session.role, permission::MANAGER);
     }
 
     /// **Criterion 22, a planted certificate.** The certificate table is read raw, and a
@@ -5208,14 +5210,14 @@ mod tests {
     async fn a_planted_certificate_is_not_reissued_by_the_handover() {
         let directory = scratch("planted-certificate");
         let (store, owner, link, workspace_id) = owned(&directory).await;
-        let (ada, mut ada_session, mut ada_machine) = a_settled_administrator(
+        let (ada, mut ada_session, mut ada_machine) = a_settled_manager(
             &directory,
             &store,
             &owner,
             &link,
             &workspace_id,
             "ada.admin",
-            ADMINISTRATORS_PASSWORD,
+            MANAGERS_PASSWORD,
         )
         .await;
         let (bilal, bilal_session) = a_member(
@@ -5276,7 +5278,7 @@ mod tests {
             &store,
             &mut ada_session,
             &mut ada_machine,
-            ADMINISTRATORS_PASSWORD,
+            MANAGERS_PASSWORD,
             NOW + 2,
         )
         .await
@@ -5343,14 +5345,14 @@ mod tests {
     async fn the_withdrawal_clears_the_offer_and_the_seal() {
         let directory = scratch("withdraw");
         let (store, owner, link, workspace_id) = owned(&directory).await;
-        let (ada, mut ada_session, mut ada_machine) = a_settled_administrator(
+        let (ada, mut ada_session, mut ada_machine) = a_settled_manager(
             &directory,
             &store,
             &owner,
             &link,
             &workspace_id,
             "ada.admin",
-            ADMINISTRATORS_PASSWORD,
+            MANAGERS_PASSWORD,
         )
         .await;
 
@@ -5383,7 +5385,7 @@ mod tests {
             &store,
             &mut ada_session,
             &mut ada_machine,
-            ADMINISTRATORS_PASSWORD,
+            MANAGERS_PASSWORD,
             NOW + 3,
         )
         .await
@@ -5412,17 +5414,17 @@ mod tests {
     async fn two_successions_in_a_row_are_followed_by_a_machine_that_pinned_the_first_key() {
         let directory = scratch("two-successions");
         let (store, owner, link, workspace_id) = owned(&directory).await;
-        let (ada, mut ada_session, mut ada_machine) = a_settled_administrator(
+        let (ada, mut ada_session, mut ada_machine) = a_settled_manager(
             &directory,
             &store,
             &owner,
             &link,
             &workspace_id,
             "ada.admin",
-            ADMINISTRATORS_PASSWORD,
+            MANAGERS_PASSWORD,
         )
         .await;
-        let (bilal, mut bilal_session, mut bilal_machine) = a_settled_administrator(
+        let (bilal, mut bilal_session, mut bilal_machine) = a_settled_manager(
             &directory,
             &store,
             &owner,
@@ -5442,7 +5444,7 @@ mod tests {
             &store,
             &mut ada_session,
             &mut ada_machine,
-            ADMINISTRATORS_PASSWORD,
+            MANAGERS_PASSWORD,
             NOW + 2,
         )
         .await
@@ -5465,7 +5467,7 @@ mod tests {
             &store,
             &ada_session,
             &bilal.member_id,
-            ADMINISTRATORS_PASSWORD,
+            MANAGERS_PASSWORD,
             NOW + 3,
         )
         .await
@@ -5512,17 +5514,17 @@ mod tests {
     async fn a_removed_or_signed_out_everywhere_account_cannot_accept_the_offer() {
         let directory = scratch("accept-refused-on-the-row");
         let (store, owner, link, workspace_id) = owned(&directory).await;
-        let (ada, mut ada_session, mut ada_machine) = a_settled_administrator(
+        let (ada, mut ada_session, mut ada_machine) = a_settled_manager(
             &directory,
             &store,
             &owner,
             &link,
             &workspace_id,
             "ada.admin",
-            ADMINISTRATORS_PASSWORD,
+            MANAGERS_PASSWORD,
         )
         .await;
-        let (bilal, mut bilal_session, mut bilal_machine) = a_settled_administrator(
+        let (bilal, mut bilal_session, mut bilal_machine) = a_settled_manager(
             &directory,
             &store,
             &owner,
@@ -5569,7 +5571,7 @@ mod tests {
             &store,
             &mut ada_session,
             &mut ada_machine,
-            ADMINISTRATORS_PASSWORD,
+            MANAGERS_PASSWORD,
             NOW + 3,
         )
         .await
@@ -5619,12 +5621,9 @@ mod tests {
         // the founder is the owner throughout, under the key they always held.
         assert_eq!(
             row_of(&store, &owner, &owner.member_id).await,
-            (
-                permission::OWNER.to_string(),
-                permission::mask_of_role(permission::OWNER)
-            )
+            (permission::OWNER.to_string(), permission::OWNER_ROLE.mask)
         );
-        assert_eq!(bilal_session.role, permission::ADMINISTRATOR);
+        assert_eq!(bilal_session.role, permission::MANAGER);
     }
 
     /// **Criterion 22 at its seams: a withdrawal that finds the offer accepted is refused by
@@ -5636,14 +5635,14 @@ mod tests {
     async fn a_withdrawal_that_finds_the_offer_accepted_is_refused_by_name() {
         let directory = scratch("withdraw-after-acceptance");
         let (store, owner, link, workspace_id) = owned(&directory).await;
-        let (ada, mut ada_session, mut ada_machine) = a_settled_administrator(
+        let (ada, mut ada_session, mut ada_machine) = a_settled_manager(
             &directory,
             &store,
             &owner,
             &link,
             &workspace_id,
             "ada.admin",
-            ADMINISTRATORS_PASSWORD,
+            MANAGERS_PASSWORD,
         )
         .await;
 
@@ -5654,7 +5653,7 @@ mod tests {
             &store,
             &mut ada_session,
             &mut ada_machine,
-            ADMINISTRATORS_PASSWORD,
+            MANAGERS_PASSWORD,
             NOW + 2,
         )
         .await
@@ -5689,10 +5688,7 @@ mod tests {
         );
         assert_eq!(
             row_of_under(&store, &new_key, &ada.member_id).await,
-            (
-                permission::OWNER.to_string(),
-                permission::mask_of_role(permission::OWNER)
-            )
+            (permission::OWNER.to_string(), permission::OWNER_ROLE.mask)
         );
     }
 
@@ -5706,14 +5702,14 @@ mod tests {
     async fn a_session_whose_vault_does_not_derive_the_pinned_key_certifies_nobody() {
         let directory = scratch("certify-under-the-pinned-key");
         let (store, mut owner, link, workspace_id) = owned(&directory).await;
-        let (ada, mut ada_session, mut ada_machine) = a_settled_administrator(
+        let (ada, mut ada_session, mut ada_machine) = a_settled_manager(
             &directory,
             &store,
             &owner,
             &link,
             &workspace_id,
             "ada.admin",
-            ADMINISTRATORS_PASSWORD,
+            MANAGERS_PASSWORD,
         )
         .await;
         let (sami, _) = a_member(
@@ -5741,7 +5737,7 @@ mod tests {
             &store,
             &mut ada_session,
             &mut ada_machine,
-            ADMINISTRATORS_PASSWORD,
+            MANAGERS_PASSWORD,
             NOW + 2,
         )
         .await
@@ -5756,11 +5752,8 @@ mod tests {
             .expect("the founder's session did not re-pin");
 
         assert_eq!(owner.verifying_key, new_key);
-        assert_eq!(owner.role, permission::ADMINISTRATOR);
-        assert_eq!(
-            permission::acts_of(owner.permissions),
-            permission::mask_of_role(permission::ADMINISTRATOR)
-        );
+        assert_eq!(owner.role, permission::MANAGER);
+        assert_eq!(owner.permissions, permission::MANAGER_ROLE.mask);
 
         // and it is refused the key by name.
         let refused = organization_key_of(&owner).expect_err("the founder's vault certified");

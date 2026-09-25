@@ -330,14 +330,6 @@ pub struct MemberRecord {
     pub owner_seed_sealed: Option<Vec<u8>>,
 }
 
-impl MemberRecord {
-    /// The word the member's role is called by in a session and across the boundary
-    /// (`permission::word_of_role`), `removed` for a removed row.
-    pub fn role_word(&self) -> &'static str {
-        permission::word_of_role(&self.role_id, self.removed_at.is_some())
-    }
-}
-
 /// A `role` row (effort 838): the whole of it is under signature.
 ///
 /// The manager's and the member's are written with the organization and keep the built-in ids;
@@ -2909,7 +2901,7 @@ mod tests {
                 vault,
                 signing_public_key,
                 sealed_content_key,
-                role_id: crate::organization::permission::role_id_of_word(role).to_string(),
+                role_id: role.to_string(),
                 override_mask: 0,
                 removed_at: None,
                 effective: 0,
@@ -3561,9 +3553,9 @@ mod tests {
             .expect("an organization row");
 
         assert_eq!(members[0].id, "member-owner");
-        assert_eq!(members[0].role_word().to_string(), "owner");
+        assert_eq!(members[0].role_id, "owner");
         assert!(!members[0].must_change_password);
-        assert_eq!(members[1].role_word().to_string(), "member");
+        assert_eq!(members[1].role_id, "member");
         assert!(members[1].must_change_password);
         assert_eq!(members[1].vault.kdf_params, test_cost());
         assert_eq!(grants.len(), 2);
@@ -3812,7 +3804,7 @@ mod tests {
             .expect("the owner's row would not read")
             .expect("the owner is not a member");
 
-        assert_eq!(owner.role_word().to_string(), "owner");
+        assert_eq!(owner.role_id, "owner");
         assert!(
             store
                 .member(&chain.verifying_key(), "member-staff")
@@ -3956,7 +3948,7 @@ mod tests {
                 issued_at: "1757000000000",
             },
         )
-        .expect("the administrator certificate");
+        .expect("the manager's certificate");
         let revocation = revoke(
             &chain.administrator_key,
             &chain.certificate,
@@ -3968,7 +3960,7 @@ mod tests {
         store
             .write_certificate(&admin_certificate)
             .await
-            .expect("the administrator certificate");
+            .expect("the manager's certificate");
 
         let admin_signer = Signer {
             key: &admin_key,
@@ -4485,7 +4477,7 @@ mod tests {
 
         assert_eq!(recent.seen_at, now - 6 * day);
         assert_eq!(
-            its_member.as_ref().map(|member| member.role_word()),
+            its_member.as_ref().map(|member| member.role_id.as_str()),
             Some("owner"),
             "the member row beside a machine is not the one it names"
         );

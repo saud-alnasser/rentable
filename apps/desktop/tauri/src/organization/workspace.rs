@@ -81,7 +81,7 @@ pub async fn signer_of(
         .ok_or_else(|| {
             Error::refused(
                 RefusalReason::NotAdministrator,
-                "you hold no administrator certificate in this organization",
+                "you hold no signing certificate in this organization",
             )
         })?;
 
@@ -974,7 +974,7 @@ mod tests {
                     .expect("sealed"),
                     vault,
                     signing_public_key: signing_key_of(&secret),
-                    role_id: permission::role_id_of_word(permission::MEMBER).to_string(),
+                    role_id: permission::MEMBER.to_string(),
                     override_mask: 0,
                     removed_at: None,
                     effective: 0,
@@ -1003,13 +1003,10 @@ mod tests {
         }
     }
 
-    /// An administrator of this organization, carrying every one of the seven grantable acts, and
-    /// the record their machine would hold. Written directly rather than invited, because what is
+    /// A manager of this organization, carrying every flag but the owner's, and the record their
+    /// machine would hold. Written directly rather than invited, because what is
     /// under test is the owner check and an invitation would only reach it the long way round.
-    async fn an_administrator(
-        store: &OrganizationStore,
-        owner: &MemberSession,
-    ) -> HeldOrganization {
+    async fn a_manager(store: &OrganizationStore, owner: &MemberSession) -> HeldOrganization {
         let (key, certificate) = super::signer_of(store, owner).await.expect("the signer");
         let (vault, secret) =
             create_vault_with_secret(OTHER_PASSWORD, test_cost()).expect("a vault");
@@ -1035,7 +1032,7 @@ mod tests {
                     .expect("sealed"),
                     vault,
                     signing_public_key: signing_key_of(&secret),
-                    role_id: permission::role_id_of_word(permission::ADMINISTRATOR).to_string(),
+                    role_id: permission::MANAGER.to_string(),
                     override_mask: 0,
                     removed_at: None,
                     effective: 0,
@@ -1047,7 +1044,7 @@ mod tests {
                 },
             )
             .await
-            .expect("the administrator");
+            .expect("the manager");
 
         HeldOrganization {
             id: owner.organization_id.clone(),
@@ -1059,7 +1056,7 @@ mod tests {
             remote_url: String::new(),
             machine_id: "machine-one".to_string(),
             member_id: Some("member-admin".to_string()),
-            role: Some(permission::ADMINISTRATOR.to_string()),
+            role: Some(permission::MANAGER.to_string()),
             joined_at: 1_757_000_000_002,
         }
     }
@@ -1388,34 +1385,27 @@ mod tests {
     }
 
     /// Requirement 5 of effort 826, and criterion 5: the acts that need the Turso authority are
-    /// the owner's and cannot be granted. An administrator carrying **every** one of the seven
-    /// grantable acts is still refused a create, a delete and a renewal, each with the sentence
-    /// naming the owner, and nothing reaches the account.
+    /// the owner's and cannot be granted. A manager carrying **every** flag but the owner's is
+    /// still refused a create, a delete and a renewal, each with the sentence naming the owner, and
+    /// nothing reaches the account.
     ///
     /// **The permissions are asserted first**, so that a refusal is read as the owner check
-    /// answering rather than as a bit the administrator happened not to hold.
+    /// answering rather than as a bit the manager happened not to hold.
     #[tokio::test]
-    async fn an_administrator_holding_all_seven_acts_is_refused_the_acts_that_need_the_authority() {
+    async fn a_manager_holding_every_flag_but_the_owners_is_refused_what_needs_the_authority() {
         let directory = scratch("authority");
         let (_, store, _, mut owner, platform) = owned(&directory).await;
-        let joined = an_administrator(&store, &owner).await;
-        let mut administrator = sign_in(&store, &joined, OTHER_PASSWORD, &slot())
+        let joined = a_manager(&store, &owner).await;
+        let mut manager = sign_in(&store, &joined, OTHER_PASSWORD, &slot())
             .await
-            .expect("the administrator did not sign in");
+            .expect("the manager did not sign in");
         let pipeline = applying_pipeline().await;
 
         assert_eq!(
-            permission::acts_of(administrator.permissions),
-            0b111_1111,
-            "the administrator does not carry all seven acts"
+            manager.permissions,
+            permission::MANAGER_ROLE.mask,
+            "the manager does not carry every flag but the owner's"
         );
-        for act in permission::Administration::ALL {
-            assert!(
-                permission::permits(administrator.permissions, act),
-                "{}",
-                act.name()
-            );
-        }
 
         let existing = create_workspace(
             &store,
@@ -1432,14 +1422,14 @@ mod tests {
 
         let refusal = create_workspace(
             &store,
-            &mut administrator,
+            &mut manager,
             &platform,
             |_| Pipeline::at(&pipeline.url("")),
             "Theirs",
             2,
         )
         .await
-        .expect_err("an administrator created a workspace");
+        .expect_err("a manager created a workspace");
 
         assert!(
             matches!(
@@ -1453,9 +1443,9 @@ mod tests {
         );
         assert!(refusal.to_string().contains("ask the owner"), "{refusal}");
 
-        let refusal = delete_workspace(&store, &mut administrator, &platform, &existing.id)
+        let refusal = delete_workspace(&store, &mut manager, &platform, &existing.id)
             .await
-            .expect_err("an administrator deleted a workspace");
+            .expect_err("a manager deleted a workspace");
 
         assert!(
             matches!(
@@ -1471,12 +1461,12 @@ mod tests {
 
         let refusal = renew_credentials(
             &store,
-            &mut administrator,
+            &mut manager,
             &platform,
             &format!("org-{}", owner.organization_id),
         )
         .await
-        .expect_err("an administrator renewed the credentials");
+        .expect_err("a manager renewed the credentials");
 
         assert!(
             matches!(
@@ -1513,7 +1503,7 @@ mod tests {
     {
         let directory = scratch("owner-only");
         let (_, store, _, mut owner, platform) = owned(&directory).await;
-        let joined = an_administrator(&store, &owner).await;
+        let joined = a_manager(&store, &owner).await;
         let _ = second_member(&store, &owner).await;
         let mut manager = sign_in(&store, &joined, OTHER_PASSWORD, &slot())
             .await
@@ -1731,7 +1721,7 @@ mod tests {
         )
         .await
         .expect("the create failed");
-        let joined_manager = an_administrator(&store, &owner).await;
+        let joined_manager = a_manager(&store, &owner).await;
         let joined_b = second_member(&store, &owner).await;
 
         grant_workspace(
@@ -2157,7 +2147,7 @@ mod tests {
     async fn a_member_narrowed_out_of_renaming_is_refused_on_their_open_session() {
         let directory = scratch("rename-narrowed");
         let (_, store, _, mut owner, platform) = owned(&directory).await;
-        let joined = an_administrator(&store, &owner).await;
+        let joined = a_manager(&store, &owner).await;
         let pipeline = applying_pipeline().await;
         let facts = create_workspace(
             &store,
@@ -2169,30 +2159,24 @@ mod tests {
         )
         .await
         .expect("the create failed");
-        let administrator = sign_in(&store, &joined, OTHER_PASSWORD, &slot())
+        let manager = sign_in(&store, &joined, OTHER_PASSWORD, &slot())
             .await
-            .expect("the administrator");
+            .expect("the manager");
 
         // their session opened on a row carrying every act, and the act is theirs.
         rename_workspace(
             &store,
-            &administrator,
+            &manager,
             &facts.id,
             "North Properties",
             1_757_000_000_001,
         )
         .await
-        .expect("an administrator carrying the act could not rename");
+        .expect("a manager carrying the act could not rename");
 
         // the owner takes renaming off and leaves everything else, so nothing is retired and the
         // open session goes on holding the bit.
         let (key, certificate) = super::signer_of(&store, &owner).await.expect("the signer");
-        let narrowed: i64 = permission::mask_of(
-            &permission::Administration::ALL
-                .into_iter()
-                .filter(|act| *act != permission::Administration::RenameWorkspace)
-                .collect::<Vec<_>>(),
-        );
         let row = store
             .members(&owner.verifying_key)
             .await
@@ -2208,11 +2192,7 @@ mod tests {
                     certificate: &certificate,
                 },
                 &MemberRecord {
-                    override_mask: permission::override_for_acts(
-                        &row.role_id,
-                        permission::MANAGER_ROLE.mask,
-                        narrowed,
-                    ),
+                    override_mask: permission::mask_of(&[permission::Flag::RenameWorkspace]),
                     updated_at: 1_757_000_000_002,
                     ..row
                 },
@@ -2221,16 +2201,13 @@ mod tests {
             .expect("the narrowing");
 
         assert!(
-            permission::permits(
-                administrator.permissions,
-                permission::Administration::RenameWorkspace
-            ),
+            permission::permits(manager.permissions, permission::Flag::RenameWorkspace),
             "the session stopped carrying the act on its own, and there is nothing left to refuse"
         );
 
         let refusal = rename_workspace(
             &store,
-            &administrator,
+            &manager,
             &facts.id,
             "South Properties",
             1_757_000_000_003,

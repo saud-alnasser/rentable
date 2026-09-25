@@ -45,7 +45,7 @@ pub struct HeldOrganizationFacts {
     /// this person's member row, once a sign-in has found it; `None` on a machine that connected
     /// by link and has not signed in yet.
     pub member_id: Option<String>,
-    /// their role, as last read. A display fact; `None` with `member_id`.
+    /// the kind of their role, as last read. A display fact; `None` with `member_id`.
     pub role: Option<String>,
     pub joined_at: i64,
 }
@@ -1835,7 +1835,7 @@ pub async fn member_lock_out_cost(
     member.settled()?;
     crate::organization::permission::require(
         session::permissions_on_row(store, member).await?,
-        crate::organization::permission::Administration::RemoveMember,
+        crate::organization::permission::Flag::RemoveMember,
     )?;
 
     removal::lock_out_cost(store, member, &member_id).await
@@ -2914,7 +2914,7 @@ mod tests {
 
     /// What the settled administrator chose when they opened their link, which is the password
     /// that becomes the organization's key when they accept it.
-    const ADMINISTRATORS_PASSWORD: &str = "the administrators password";
+    const MANAGERS_PASSWORD: &str = "the managers password";
 
     /// A verifying key as a machine's record spells it.
     fn encoded(key: [u8; VERIFYING_KEY_BYTES]) -> String {
@@ -2937,7 +2937,7 @@ mod tests {
     /// An administrator who opened their link on a machine of their own and chose a password:
     /// the standing an offer of the organization needs. *`role.rs` keeps the same fixture; one is
     /// written out per module ([[rules/testing]]).*
-    async fn a_settled_administrator(
+    async fn a_settled_manager(
         directory: &std::path::Path,
         store: &OrganizationStore,
         owner: &session::MemberSession,
@@ -2954,7 +2954,7 @@ mod tests {
             &link,
             invite::Invitation {
                 username,
-                role: permission::ADMINISTRATOR,
+                role: permission::MANAGER,
                 workspaces: &[],
             },
             test_cost(),
@@ -3003,14 +3003,8 @@ mod tests {
         let founder = session::sign_in(&theirs, &held, PASSWORD, &slot())
             .await
             .expect("the founder did not sign in on the other machine");
-        let (ada, mut ada_session, mut ada_machine) = a_settled_administrator(
-            directory,
-            &theirs,
-            &founder,
-            "ada.admin",
-            ADMINISTRATORS_PASSWORD,
-        )
-        .await;
+        let (ada, mut ada_session, mut ada_machine) =
+            a_settled_manager(directory, &theirs, &founder, "ada.admin", MANAGERS_PASSWORD).await;
 
         role::offer_ownership(&theirs, &founder, &ada, PASSWORD, CREATED_AT + 1)
             .await
@@ -3019,7 +3013,7 @@ mod tests {
             &theirs,
             &mut ada_session,
             &mut ada_machine,
-            ADMINISTRATORS_PASSWORD,
+            MANAGERS_PASSWORD,
             CREATED_AT + 2,
         )
         .await
@@ -3057,7 +3051,7 @@ mod tests {
     /// every gate: deleting the organization is refused by name and making a manager by rank, a
     /// plain member is theirs to make, and the directory verifies on every machine afterwards.
     #[tokio::test]
-    async fn the_founders_open_session_is_an_administrators_after_a_handover_elsewhere() {
+    async fn the_founders_open_session_is_a_managers_after_a_handover_elsewhere() {
         let _turn = a_turn().await;
         let directory = scratch("founder-after-handover");
         let app_state = first_run(&directory).await;
@@ -3096,7 +3090,7 @@ mod tests {
                 CREATED_AT + 3,
             )
             .await
-            .expect_err("a stale session made an administrator");
+            .expect_err("a stale session made a manager");
 
             assert_eq!(
                 store.certificates().await.expect("the certificates").len(),
@@ -3111,7 +3105,7 @@ mod tests {
         assert_eq!(state.session.expect("the session was lost").role, "manager");
         assert_eq!(
             session_holds(&app_state).await,
-            (new_key, "administrator".to_string())
+            (new_key, "manager".to_string())
         );
         assert_eq!(pinned(&app_state).await, encoded(new_key));
 
@@ -3231,7 +3225,7 @@ mod tests {
         );
         assert_eq!(
             session_holds(&app_state).await,
-            (new_key, "administrator".to_string())
+            (new_key, "manager".to_string())
         );
         assert_eq!(pinned(&app_state).await, encoded(new_key));
     }
@@ -3269,7 +3263,7 @@ mod tests {
         );
         assert_eq!(
             session_holds(&app_state).await,
-            (new_key, "administrator".to_string()),
+            (new_key, "manager".to_string()),
             "the heartbeat did not follow the succession"
         );
         assert_eq!(pinned(&app_state).await, encoded(new_key));

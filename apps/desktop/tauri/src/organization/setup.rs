@@ -86,12 +86,6 @@ pub const OWNER_ROLE: &str = "owner";
 /// into the `format!` below and again into a refusal that has to recognise it.
 pub const ORGANIZATION_DATABASE_PREFIX: &str = "org-";
 
-/// Every grantable act, as `packages/workspace-permission` masks them: seven flags, seven bits.
-/// The package is the vocabulary and this is its value for the role that holds all of it. What
-/// else an owner may do is not in this number, because requirement 5 keeps the acts that need the
-/// Turso authority out of the table altogether.
-pub const OWNER_PERMISSIONS: i64 = 0b111_1111;
-
 /// What Turso calls the group a new organization is made with, and the second name a first
 /// create tries. It is Turso's word rather than this application's, and it is never shown to
 /// anybody: what it buys is one more account that nobody has to be asked anything on.
@@ -1023,10 +1017,7 @@ async fn the_owners_key(
     // past any vault the password opens that is somebody else's, as the wall walks them: two
     // members who chose the same password each open under it, and the owner is not always the
     // one who opens first.
-    for member in members
-        .iter()
-        .filter(|member| member.role_word() != permission::REMOVED)
-    {
+    for member in members.iter().filter(|member| member.removed_at.is_none()) {
         let Ok(secret) = open_vault(password, &member.vault) else {
             continue;
         };
@@ -1266,8 +1257,8 @@ mod tests {
     use super::{
         BASE64URL, CreateOrganization, GroupState, MINIMUM_PASSWORD_LENGTH,
         ONLY_THE_OWNER_CONNECTS, ORGANIZATION_CREDENTIAL_LIFETIME, ORGANIZATION_DATABASE_PREFIX,
-        ORGANIZATION_KEY_PURPOSE, ORGANIZATION_THIS_ACCOUNT_HOLDS, OWNER_PERMISSIONS, OWNER_ROLE,
-        Remote, SHIPPING_KDF, connect_existing, create_organization, credential_expiry,
+        ORGANIZATION_KEY_PURPOSE, ORGANIZATION_THIS_ACCOUNT_HOLDS, OWNER_ROLE, Remote,
+        SHIPPING_KDF, connect_existing, create_organization, credential_expiry,
         draw_these_ids_next, group_inspect,
     };
     use crate::{
@@ -1732,8 +1723,7 @@ mod tests {
             .expect("a row");
 
         assert_eq!(members.len(), 1);
-        assert_eq!(members[0].role_word(), OWNER_ROLE);
-        assert_eq!(permission::acts_of(members[0].effective), OWNER_PERMISSIONS);
+        assert_eq!(members[0].role_id, OWNER_ROLE);
         assert!(!members[0].must_change_password);
         assert_eq!(members[0].vault.kdf_params, test_cost());
         assert_eq!(grants.len(), 1);
@@ -2433,7 +2423,7 @@ mod tests {
     const FOUR_WEEKS_MS: i64 = 28 * 24 * 60 * 60 * 1000;
     const SIX_DAYS_MS: i64 = 6 * 24 * 60 * 60 * 1000;
     const ISSUED_AT: i64 = 1_757_000_000_000;
-    const ADMINISTRATORS_PASSWORD: &str = "a password adam chose";
+    const MANAGERS_PASSWORD: &str = "a password adam chose";
 
     fn slot() -> CredentialSlot {
         Arc::new(Mutex::new(None))
@@ -2615,7 +2605,10 @@ mod tests {
         assert_eq!(registered.len(), 1);
         assert_eq!(registered[0].0.id, held.machine_id);
         assert_eq!(
-            registered[0].1.as_ref().map(|member| member.role_word()),
+            registered[0]
+                .1
+                .as_ref()
+                .map(|member| member.role_id.as_str()),
             Some(OWNER_ROLE)
         );
 
@@ -2655,12 +2648,12 @@ mod tests {
     /// This is the whole of what makes the way in the owner's: nothing here reads a role off a
     /// row and believes it.
     #[tokio::test]
-    async fn an_administrators_password_is_refused_and_the_machine_holds_nothing() {
+    async fn a_managers_password_is_refused_and_the_machine_holds_nothing() {
         let _turn = take_the_credential_store().await;
 
         store_platform_token(TOKEN).expect("the test credential store would not take the token");
 
-        let directory = scratch("connect-existing-administrator");
+        let directory = scratch("connect-existing-manager");
         let (platform, replica, owners_machine) = an_organization(&directory).await;
         let owner = sign_in(
             &replica,
@@ -2680,7 +2673,7 @@ mod tests {
             &locator,
             Invitation {
                 username: "adam.admin",
-                role: permission::ADMINISTRATOR,
+                role: permission::MANAGER,
                 workspaces: &[],
             },
             test_cost(),
@@ -2690,7 +2683,7 @@ mod tests {
         .expect("the invitation failed");
         let theirs = directory.join("adam");
 
-        std::fs::create_dir_all(&theirs).expect("the administrator's directory");
+        std::fs::create_dir_all(&theirs).expect("the manager's directory");
 
         let mut their_machine = fresh_machine(&theirs, "remote-sync");
 
@@ -2699,12 +2692,12 @@ mod tests {
             &mut their_machine,
             &JoinLink::decode(&invited.join_link).expect("the invitation link"),
             &invited.code,
-            ADMINISTRATORS_PASSWORD,
+            MANAGERS_PASSWORD,
             test_cost(),
             ISSUED_AT + 1,
         )
         .await
-        .expect("the administrator could not open their link");
+        .expect("the manager could not open their link");
 
         drop(replica);
 
@@ -2721,11 +2714,11 @@ mod tests {
             Remote::none(),
             &directory.join("app.db"),
             "adam.admin",
-            ADMINISTRATORS_PASSWORD,
+            MANAGERS_PASSWORD,
             now,
         )
         .await
-        .expect_err("an administrator connected on the owner's account");
+        .expect_err("a manager connected on the owner's account");
 
         assert!(
             matches!(refused, Error::Refused { reason: crate::error::RefusalReason::OwnerOnly, ref message } if message == ONLY_THE_OWNER_CONNECTS),
@@ -2762,7 +2755,7 @@ mod tests {
             &locator,
             Invitation {
                 username: "adam.admin",
-                role: permission::ADMINISTRATOR,
+                role: permission::MANAGER,
                 workspaces: &[],
             },
             test_cost(),
@@ -2772,7 +2765,7 @@ mod tests {
         .expect("the invitation failed");
         let theirs = directory.join("adam");
 
-        std::fs::create_dir_all(&theirs).expect("the administrator's directory");
+        std::fs::create_dir_all(&theirs).expect("the manager's directory");
 
         let mut their_machine = fresh_machine(&theirs, "remote-sync");
         let (_, mut their_session) = join::accept(
@@ -2780,12 +2773,12 @@ mod tests {
             &mut their_machine,
             &JoinLink::decode(&invited.join_link).expect("the invitation link"),
             &invited.code,
-            ADMINISTRATORS_PASSWORD,
+            MANAGERS_PASSWORD,
             test_cost(),
             ISSUED_AT + 1,
         )
         .await
-        .expect("the administrator could not open their link");
+        .expect("the manager could not open their link");
 
         crate::organization::role::offer_ownership(
             &replica,
@@ -2800,7 +2793,7 @@ mod tests {
             &replica,
             &mut their_session,
             &mut their_machine,
-            ADMINISTRATORS_PASSWORD,
+            MANAGERS_PASSWORD,
             ISSUED_AT + 3,
         )
         .await
@@ -2841,7 +2834,7 @@ mod tests {
             Remote::none(),
             &directory.join("app.db"),
             "adam.admin",
-            ADMINISTRATORS_PASSWORD,
+            MANAGERS_PASSWORD,
             now,
         )
         .await
@@ -2881,7 +2874,7 @@ mod tests {
     /// round one's second finding, where the founder went on connecting after a transfer because
     /// the key had not moved.
     #[tokio::test]
-    async fn the_founder_is_refused_as_an_administrator_after_handing_the_organization_over() {
+    async fn the_founder_is_refused_as_a_manager_after_handing_the_organization_over() {
         let _turn = take_the_credential_store().await;
 
         store_platform_token(TOKEN).expect("the test credential store would not take the token");

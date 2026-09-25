@@ -535,7 +535,10 @@ mod tests {
             Some(session.member_id.as_str())
         );
         assert_eq!(
-            after_sign_in[0].1.as_ref().map(|member| member.role_word()),
+            after_sign_in[0]
+                .1
+                .as_ref()
+                .map(|member| member.role_id.as_str()),
             Some(permission::OWNER),
             "the member row beside the machine is not the one who signed in"
         );

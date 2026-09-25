@@ -101,6 +101,10 @@ pub type CredentialSlot = Arc<Mutex<Option<String>>>;
 pub struct MemberSession {
     pub organization_id: String,
     pub member_id: String,
+    /// the kind of the role the member holds: `owner`, `manager`, `member` or `custom` (effort
+    /// 838). A display fact, as the vault opened onto it; a gate reads the verified row
+    /// ([`acting_row`]). *It was the word `administrator` for a manager, and `removed`, until
+    /// ticket 15 retired the word.*
     pub role: String,
     pub permissions: i64,
     pub must_change_password: bool,
@@ -212,7 +216,7 @@ pub async fn acting_row(
             )
         })?;
 
-    if member.role_word() == permission::REMOVED {
+    if member.removed_at.is_some() {
         return Err(Error::refused(
             RefusalReason::YouWereRemoved,
             "you were removed from this organization",
@@ -399,7 +403,7 @@ pub async fn sign_in(
 
     // a removal is a signed row rather than an absence, and it is read before the password is
     // tried: the vault would still open, and what it opens grants nothing any more.
-    if member.role_word() == super::permission::REMOVED {
+    if member.removed_at.is_some() {
         return Err(Error::refused(
             RefusalReason::YouWereRemoved,
             format!("you were removed from {}", joined.name),
@@ -504,10 +508,7 @@ pub async fn sign_in_by_username(
     // is somebody else's. Two members who chose the same password each open under it, since a
     // vault is its own salt, and the one that opens first is whoever joined first: stopping
     // there would refuse the later of the two at the wall for as long as they share it.
-    for member in members
-        .iter()
-        .filter(|member| member.role_word() != super::permission::REMOVED)
-    {
+    for member in members.iter().filter(|member| member.removed_at.is_none()) {
         let Ok((secret, member_key)) = open_vault_with_key(password, &member.vault) else {
             continue;
         };
@@ -697,7 +698,7 @@ async fn resumed(
 
     // as `sign_in` reads it: a removal is a signed row rather than an absence, and the vault
     // would still open onto grants that grant nothing.
-    if member.role_word() == super::permission::REMOVED {
+    if member.removed_at.is_some() {
         return Err(Error::refused(
             RefusalReason::YouWereRemoved,
             format!("you were removed from {}", held.name),
@@ -731,8 +732,8 @@ async fn resumed(
 ///
 /// **The role and the permissions are re-read rather than carried**, because a handover is the
 /// one act that changes them under a session that is open somewhere else: the founder who handed
-/// over is an administrator now, and a session that kept `owner` would pass every gate that
-/// reads the word and sign a certificate under a key that certifies nothing. The row is read
+/// over is a manager now, and a session that kept `owner` would pass every gate that
+/// reads it and sign a certificate under a key that certifies nothing. The row is read
 /// before anything on the session moves, so a row the new key does not find leaves the session as
 /// it was and the caller says so; the other snapshot fields stay, since the epoch is compared
 /// against the row on every act and the password standing is the vault's.
@@ -751,8 +752,10 @@ pub(crate) async fn repin(
             )
         })?;
 
+    let role = super::role::kind_of(&store.roles(&key).await?, &member.role_id);
+
     session.verifying_key = key;
-    session.role = member.role_word().to_string();
+    session.role = role;
     session.permissions = member.effective;
 
     Ok(())
@@ -894,7 +897,7 @@ pub async fn end_member_sessions(
             )
         })?;
 
-    if member.role_word() == permission::OWNER {
+    if member.role_id == permission::OWNER {
         return Err(Error::refused(
             RefusalReason::OwnerProtected,
             "an owner's sessions are not ended by anybody else. the organization is theirs",
@@ -1032,10 +1035,12 @@ pub(crate) async fn open_session(
         }
     }
 
+    let role = super::role::kind_of(&store.roles(&verifying_key).await?, &member.role_id);
+
     Ok(MemberSession {
         organization_id: held.id.clone(),
         member_id: member.id.clone(),
-        role: member.role_word().to_string(),
+        role,
         permissions: member.effective,
         must_change_password: member.must_change_password,
         session_epoch: member.session_epoch,
@@ -1164,7 +1169,7 @@ pub async fn facts_of(
 
     let owner_username = match members
         .iter()
-        .find(|candidate| candidate.role_word() == super::permission::OWNER)
+        .find(|candidate| candidate.role_id == super::permission::OWNER)
     {
         Some(owner) => opened(
             &session.content_key,
@@ -1630,7 +1635,7 @@ mod tests {
                             .expect("the signing seed"),
                     )
                     .verifying_key(),
-                    role_id: permission::role_id_of_word("member").to_string(),
+                    role_id: permission::MEMBER.to_string(),
                     override_mask: 0,
                     removed_at: None,
                     effective: 0,
@@ -1939,7 +1944,7 @@ mod tests {
                             .expect("the signing seed"),
                     )
                     .verifying_key(),
-                    role_id: permission::role_id_of_word(role).to_string(),
+                    role_id: role.to_string(),
                     override_mask: 0,
                     removed_at: None,
                     effective: 0,

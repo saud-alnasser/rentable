@@ -83,7 +83,7 @@ describe('a choice of four or fewer', () => {
 				<Select.Trigger>{label}</Select.Trigger>
 				<Select.Content>
 					<Select.Item value="member" label="member">member</Select.Item>
-					<Select.Item value="administrator" label="administrator">administrator</Select.Item>
+					<Select.Item value="manager" label="manager">manager</Select.Item>
 				</Select.Content>
 			</Select.Root>`;
 		const five = two.replace(

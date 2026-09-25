@@ -252,10 +252,11 @@ export type HeldOrganization = {
 	/** this person's member row, once a sign-in has found it; `null` until then. */
 	memberId: string | null;
 	/**
-	 * their role there, as last read: `owner`, `manager` for the manager's role, `member` for any
-	 * other, or `removed`. A display fact: what a member may do is what their vault holds.
+	 * the kind of their role there, as last read. A display fact: what a member may do is what
+	 * their vault holds. `null` until a sign-in records it. *It was a word, `administrator` for a
+	 * manager and `removed` for a removed member, until ticket 15 of effort 838.*
 	 */
-	role: string | null;
+	role: RoleKind | null;
 	joinedAt: number;
 };
 

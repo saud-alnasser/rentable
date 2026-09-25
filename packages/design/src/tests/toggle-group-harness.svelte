@@ -13,5 +13,5 @@
 
 <ToggleGroup.Root type="single" variant="outline" value="member">
 	<ToggleGroup.Item value="member" class={className}>member</ToggleGroup.Item>
-	<ToggleGroup.Item value="administrator" class={className}>administrator</ToggleGroup.Item>
+	<ToggleGroup.Item value="manager" class={className}>manager</ToggleGroup.Item>
 </ToggleGroup.Root>

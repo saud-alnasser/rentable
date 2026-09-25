@@ -331,7 +331,7 @@ mod tests {
                     .expect("sealed"),
                     vault,
                     signing_public_key,
-                    role_id: permission::role_id_of_word(role).to_string(),
+                    role_id: role.to_string(),
                     override_mask,
                     removed_at: None,
                     effective: 0,
@@ -346,7 +346,7 @@ mod tests {
             .expect("the member");
 
         let (mask, rank) = store
-            .role_standing(&owner.verifying_key, permission::role_id_of_word(role))
+            .role_standing(&owner.verifying_key, role)
             .await
             .expect("the role");
 
@@ -462,7 +462,7 @@ mod tests {
         );
         assert_eq!(stored.updated_by, owner.member_id);
 
-        let manager = another(&store, &owner, "member-admin", permission::ADMINISTRATOR, 0).await;
+        let manager = another(&store, &owner, "member-admin", permission::MANAGER, 0).await;
 
         set_mark(
             &store,
@@ -538,7 +538,7 @@ mod tests {
             &store,
             &owner,
             "member-admin",
-            permission::ADMINISTRATOR,
+            permission::MANAGER,
             manage_mark,
         )
         .await;
