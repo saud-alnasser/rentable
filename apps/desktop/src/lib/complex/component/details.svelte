@@ -10,7 +10,7 @@
 	import { toPageActions } from '$lib/design/acts';
 	import * as Cell from '$lib/design/cell';
 	import { formatLocaleNumber } from '$lib/platform/locale';
-	import UnitDirectory from './unit-directory.svelte';
+	import UnitDirectory from '$lib/complex/unit/component/directory.svelte';
 
 	let { complexId }: { complexId: string } = $props();
 

@@ -9,8 +9,8 @@
 	import { fieldOfFailure, toRefusalText } from '$lib/error/refusal';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { useCreateComplex, useUpdateComplex } from '$lib/complex/query';
-	import type { DraftUnit } from '$lib/complex/unit-name';
-	import UnitEntry from './unit-entry.svelte';
+	import type { DraftUnit } from '$lib/complex/unit/name';
+	import UnitEntry from '$lib/complex/unit/component/entry.svelte';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import SaveIcon from '@lucide/svelte/icons/save';
 	import { TRPCError } from '@trpc/server';

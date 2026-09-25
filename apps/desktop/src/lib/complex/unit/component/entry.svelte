@@ -9,7 +9,7 @@
 		UNIT_RUN_LIMIT,
 		type DraftUnit,
 		type UnitRunRefusal
-	} from '$lib/complex/unit-name';
+	} from '$lib/complex/unit/name';
 	import MinusIcon from '@lucide/svelte/icons/minus';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 

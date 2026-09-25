@@ -5,14 +5,17 @@ import { dirname } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { compile } from 'tailwindcss';
+import { sourceFiles } from '#tests/source.ts';
 
 /**
  * The motion vocabulary, as Tailwind builds it from the token layer.
  *
  * Compiled rather than read as text, because what a surface depends on is the utility and not
  * the declaration: a token stated in the file and missing from the build is a class that renders
- * nothing, and it renders nothing silently. The application's own guard, `motion.test.ts` beside
- * its design module, is the other half: it fails on a number wherever a surface is written.
+ * nothing, and it renders nothing silently. The scan at the foot of this file is the other half:
+ * it fails on a number wherever one of this package's surfaces is written, and
+ * `apps/desktop/src/lib/design/tests/motion.test.ts` holds the application to the same rule. Each
+ * package scans its own tree and neither reaches across.
  */
 const TOKENS = fileURLToPath(new URL('../tokens.css', import.meta.url));
 const require = createRequire(import.meta.url);
@@ -102,4 +105,47 @@ test('reduced motion stops the animation of every view transition pseudo-element
 	}
 
 	assert.match(block, /::view-transition-new\(\*\)\s*\{\s*animation: none !important;/);
+});
+
+/** the files a surface is written in. */
+const DRAWN = /\.(svelte|ts|js|css)$/;
+
+/**
+ * What a surface may not write, each with the word the vocabulary has for it instead. The token
+ * layer is the one file that may state a value, since the value has to be stated somewhere, and
+ * the tests above are what check it.
+ */
+const RAW_MOTION: { pattern: RegExp; instead: string }[] = [
+	{ pattern: /(?<![\w-])duration-\d/, instead: 'duration-quick, -base or -slow' },
+	{ pattern: /(?<![\w-])duration-\[/, instead: 'duration-quick, -base or -slow' },
+	{ pattern: /(?<![\w-])animation-duration-/, instead: 'duration-quick, -base or -slow' },
+	{
+		pattern: /(?<![\w-])ease-(?:in-out|in|out|linear)(?![\w-])/,
+		instead: 'ease-enter, -exit or -move'
+	},
+	{ pattern: /(?<![\w-])ease-\[/, instead: 'ease-enter, -exit or -move' },
+	{ pattern: /cubic-bezier\(/, instead: 'ease-enter, -exit or -move' }
+];
+
+function drawnFiles() {
+	return sourceFiles(DRAWN).filter(({ file }) => file !== TOKENS);
+}
+
+test('the package is read, so a pass is not a pass over nothing', () => {
+	assert.ok(drawnFiles().some(({ label }) => label.endsWith('sheet-content.svelte')));
+});
+
+test('no surface in the package writes a duration or an easing of its own', () => {
+	const offences = drawnFiles().flatMap(({ file, label }) =>
+		readFileSync(file, 'utf8')
+			.split('\n')
+			.flatMap((line, index) =>
+				RAW_MOTION.filter(({ pattern }) => pattern.test(line)).map(
+					({ pattern, instead }) =>
+						`${label}:${index + 1} ${line.match(pattern)?.[0]}, use ${instead}`
+				)
+			)
+	);
+
+	assert.deepEqual(offences, []);
 });

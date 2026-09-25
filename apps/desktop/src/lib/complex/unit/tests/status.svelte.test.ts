@@ -1,8 +1,8 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { beforeEach, expect, test, vi } from 'vitest';
 
-import UnitDetails from '$lib/complex/component/unit-details.svelte';
-import unitDirectory from '$lib/complex/component/unit-directory.svelte?raw';
+import UnitDetails from '$lib/complex/unit/component/details.svelte';
+import unitDirectory from '$lib/complex/unit/component/directory.svelte?raw';
 import * as Cell from '$lib/design/cell/index.ts';
 import Providers from '$lib/design/cell/tests/providers.svelte';
 import { setLocale } from '$lib/i18n/i18n-svelte';
@@ -41,7 +41,7 @@ vi.mock('$lib/complex/query', async (importOriginal) => ({
 
 // the unit's contracts are a directory of their own, with a query client and a selection of
 // their own; none of it is what is asked here.
-vi.mock('$lib/complex/component/unit-contracts.svelte', () => ({ default: () => {} }));
+vi.mock('$lib/complex/unit/component/contracts.svelte', () => ({ default: () => {} }));
 
 beforeEach(() => {
 	loadLocale('en');

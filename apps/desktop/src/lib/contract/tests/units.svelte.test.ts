@@ -15,7 +15,7 @@ import {
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import en from '$lib/i18n/en';
-import QueryProviders from '$lib/organization/tests/query-providers.svelte';
+import QueryProviders from '#tests/query-providers.svelte';
 
 /**
  * THE CONTRACT'S UNIT PANES, SEARCHED

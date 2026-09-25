@@ -7,30 +7,9 @@
 // ladder and heights themselves. Each package scans its own tree and neither reaches across.
 
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
-import { join, relative, sep } from 'node:path';
+import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
-import { fileURLToPath } from 'node:url';
-
-const SRC_ROOT = fileURLToPath(new URL('../../..', import.meta.url));
-
-const SOURCE = /\.(svelte|ts|js|css|html)$/;
-
-function toPosix(path: string) {
-	return path.split(sep).join('/');
-}
-
-// every source file under `src/`, labelled from there. A `tests/` directory is left out: it
-// covers these rules rather than obeying them, and this file names the very patterns it forbids.
-function sourceFiles() {
-	return readdirSync(SRC_ROOT, { recursive: true, withFileTypes: true })
-		.filter((entry) => entry.isFile() && SOURCE.test(entry.name))
-		.map((entry) => {
-			const file = join(entry.parentPath, entry.name);
-			return { file, label: toPosix(relative(SRC_ROOT, file)) };
-		})
-		.filter(({ label }) => !label.split('/').includes('tests'));
-}
+import { sourceFiles } from '#tests/source.ts';
 
 function occurrences(pattern: RegExp) {
 	return sourceFiles().flatMap(({ file, label }) =>

@@ -2,7 +2,7 @@ import { render, waitFor } from '@testing-library/svelte';
 import { beforeEach, expect, test, vi } from 'vitest';
 
 import ComplexHost from '$lib/complex/component/host.svelte';
-import UnitHost from '$lib/complex/component/unit-host.svelte';
+import UnitHost from '$lib/complex/unit/component/host.svelte';
 import { complexHost } from '$lib/complex/host.svelte';
 import { unitHost } from '$lib/complex/unit/host.svelte';
 import ContractHost from '$lib/contract/component/host.svelte';
@@ -11,7 +11,7 @@ import type { ContractActRecord } from '$lib/contract/acts';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
-import QueryProviders from '$lib/organization/tests/query-providers.svelte';
+import QueryProviders from '#tests/query-providers.svelte';
 import PaymentHost from '$lib/payment/component/host.svelte';
 import { paymentHost } from '$lib/payment/host.svelte';
 import TenantHost from '$lib/tenant/component/host.svelte';

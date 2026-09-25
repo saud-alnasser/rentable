@@ -9,6 +9,7 @@
 		"#tests/*": "./src/tests/*"
 	},
 	"exports": {
+		"./font/*": null,
 		"./*": {
 			"svelte": "./src/lib/*",
 			"types": "./src/lib/*",

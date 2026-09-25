@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import ComplexHost from '$lib/complex/component/host.svelte';
-	import UnitHost from '$lib/complex/component/unit-host.svelte';
+	import UnitHost from '$lib/complex/unit/component/host.svelte';
 	import ContractHost from '$lib/contract/component/host.svelte';
 	import PaymentHost from '$lib/payment/component/host.svelte';
 	import TenantHost from '$lib/tenant/component/host.svelte';

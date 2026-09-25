@@ -6,7 +6,7 @@ import { contractHost } from '$lib/contract/host.svelte';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
-import QueryProviders from '$lib/organization/tests/query-providers.svelte';
+import QueryProviders from '#tests/query-providers.svelte';
 
 /**
  * WHERE A NEW CONTRACT LANDS

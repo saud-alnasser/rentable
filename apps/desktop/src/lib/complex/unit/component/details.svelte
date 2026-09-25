@@ -8,7 +8,7 @@
 	import { unitActs } from '$lib/complex/unit/host.svelte';
 	import { toPageActions } from '$lib/design/acts';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import UnitContracts from './unit-contracts.svelte';
+	import UnitContracts from './contracts.svelte';
 
 	let { unitId }: { unitId: string } = $props();
 

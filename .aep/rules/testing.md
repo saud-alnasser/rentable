@@ -150,6 +150,17 @@ Three things bind a component test, and each of them is a way of passing while m
   fixture lives in the package; that was true while the package held the only rendered tests,
   and effort 824 wrote the desktop's first.*
 
+  **A fixture the tests of several modules render under lives in `apps/desktop/src/tests/`**,
+  the application's shared `tests/` directory, and no module keeps a copy of it.
+  `query-providers.svelte` is this: complex, contract, design, layout, organization, payment and
+  tenant tests all render under it. A test reaches it through `#tests/<name>`, the same
+  `imports` entry the package declares, since a relative path from four directories down reads
+  as badly here as it did there. The lint tests' source scanner, `source.ts`, sits beside it for
+  the same reason, and the package keeps its own in `packages/design/src/tests/`: each package's
+  lint tests scan their own tree through their own scanner. *Added by ticket 40 of effort 832,
+  when `query-providers.svelte` had grown seven modules of callers from `organization/tests/`
+  and `tenant/tests/` had copied it.*
+
   The package's directory is outside `src/lib/`, which is what keeps its fixtures out of the package: the
   `exports` map sends `./*` to `./src/lib/*`, so a fixture under the library directory is a
   component every consumer can import, and one of these throws unless something above it renders

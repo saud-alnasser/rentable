@@ -6,7 +6,7 @@ import { declareUnitActs, type UnitActId, type UnitActRecord } from '$lib/comple
  * THE UNIT HOST, ASKED FOR ANYWHERE AND DRAWN ONCE
  *
  * The unit form and the unit's delete confirmation are mounted once, in the frame, by
- * `complex/component/unit-host.svelte`, and asked for from places that share no parent: a card in
+ * `complex/unit/component/host.svelte`, and asked for from places that share no parent: a card in
  * a complex's unit directory, the unit's own page and the command menu. What they share is this
  * module-level rune state, the shape `contract/host.svelte.ts` set: a request is raised here and
  * the host answers it.

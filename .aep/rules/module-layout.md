@@ -36,7 +36,8 @@ this rule's.
 
 **`apps/desktop/src/tests/` arrived on 2026-08-27 with #811**, and it is that same second
 directory rather than a new idea: the application got a component runner of its own, and a runner
-needs a setup file that is scaffolding rather than a test. It holds what belongs to the runner.
+needs a setup file that is scaffolding rather than a test. It holds what belongs to the runner,
+and the scaffolding more than one module's tests share.
 **A test still goes in a `tests/` directory under the thing it covers** — `src/lib/design/cell/
 tests/` for a cell, `src/lib/layout/tests/` for a layout component — and that is unchanged.
 [[rules/testing]] is the answer for which of the two, here as in the package.

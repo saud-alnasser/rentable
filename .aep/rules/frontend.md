@@ -189,10 +189,13 @@ layer is deliberately kept to what is genuinely global.
 
 **Both locales render in Readex Pro**, one variable family drawn for Latin and Arabic together,
 chosen by prototype in effort 832. The files are committed under
-`packages/design/src/lib/fonts/` with their licence, `@font-face` in the token layer loads them
+`packages/design/src/lib/font/` with their licence, `@font-face` in the token layer loads them
 with `font-display: block`, and `--font-sans` names it first and `system-ui` after it. Nothing is
-fetched from a network, and no fontsource package stands in for the files. `fonts/README.md` has
-the source and the command that rebuilds them.
+fetched from a network, and no fontsource package stands in for the files. `font/README.md` has
+the source and the command that rebuilds them. **Nothing under `font/` is the package's
+interface**: `exports` maps `./font/*` to `null`, so the README, the licence and `patch-tnum.py`
+cannot be imported by a consumer, while the token layer still reaches the two files by relative
+`url()`, which resolves on disk and never through the export map.
 
 **Every text size and weight comes from one scale**, and it is Tailwind's own steps, a subset
 of them:
@@ -220,7 +223,7 @@ question about the scale, and the answer changes this table rather than one clas
 
 **Money, counts and any figure compared down a column carry `tabular-nums`.** The cells in
 `design/cell/` already do, and a component test holds them to it. *Readex Pro ships no `tnum`
-feature, so the bundled Latin file is patched to carry one; `fonts/README.md` has how, and a node
+feature, so the bundled Latin file is patched to carry one; `font/README.md` has how, and a node
 test fails if the feature goes missing.*
 
 **No letter spacing on a reader's text.** `tracking-*` pulls Arabic letters apart where they are
@@ -316,8 +319,9 @@ Tailwind's stock easings are cleared, so `ease-in` and its siblings build nothin
 the variables `tw-animate-css` reads, so one pair drives a transition and an `animate-in` alike.
 In CSS, name the token: `var(--duration-base)`. Where a mechanism takes a number rather than a
 class (Svelte's `in:`, `out:`, `animate:` and `svelte/motion`), the number is read from the token
-rather than restated. `motion.test.ts` in `apps/desktop/src/lib/design/tests/` fails on a raw
-duration or easing in either tree.
+rather than restated. A `motion.test.ts` in each package fails on a raw duration or easing in
+that package's tree, `apps/desktop/src/lib/design/tests/` for the application and
+`packages/design/src/lib/tests/` for the package, and neither reaches across.
 
 **Nothing animates on a path used many times a day from the keyboard**: moving through a list
 with the arrow keys, and the command palette. Both answer at once. The dialog primitive's
@@ -435,12 +439,21 @@ words and its reading direction are supplied from outside: one typed object and 
 handed to `DesignProvider` once in `src/routes/+layout.svelte`. `@rentable/design/strings.js` is
 the contract, and it holds what enforces it and why the direction travels with the words.
 
-*Everything above is unchanged for a component that lives in this application, and after #782 that
-is every cell, every component under a concept or under `layout`, and `block/list.svelte`
-(`block/record-actions.svelte` stayed too, until effort 832 made copy details a record act and
-retired it). What #780, #781 and #782 finished is the primitive tree and
-thirteen of the fifteen blocks, not the crossing. The other two stay, and the rule below is most
-of why.*
+*Everything above is unchanged for a component that lives in this application, and that is every
+cell, every component under a concept or under `layout`, and the four blocks under `design/block/`:
+`list.svelte`, and the three that effort 832 added around it, `create-control.svelte`,
+`list-toolbar.svelte` and `search-field.svelte`. **They stay because each reads a module of this
+application, not a contract the package could be handed.** `create-control` reads the create key
+(`design/create-key.ts`) and registers with what answers it (`design/create-target.svelte.ts`),
+which is what makes it the one control [[rules/interface]] *Create* says draws a create and the one
+the key finds. `search-field` registers the list's search shortcut (`design/list-keyboard.ts`) in
+this application's shortcut registry, which reaches `$lib/platform` to record a collision, and
+`list-toolbar` draws `search-field`, so both are on the application's side of the reach test under
+*Components* above. `$lib` names nothing inside the package, so none of the three could move without
+the create key, its targets and the list's keyboard moving with it. (`block/record-actions.svelte`
+stayed too, until effort 832 made copy details a record act and retired it.) What #780, #781 and
+#782 finished is the primitive tree and thirteen of the fifteen blocks they started from, not the
+crossing, and the rule below is most of why the rest stay.*
 
 **A packaged component that needs a reading direction reads `contract.direction` and never
 derives one.** #779 moved ten families whose only locale read was

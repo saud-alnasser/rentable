@@ -7,7 +7,7 @@ import en from '$lib/i18n/en';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import TenantForm from '$lib/tenant/component/form.svelte';
-import Providers from './providers.svelte';
+import QueryProviders from '#tests/query-providers.svelte';
 
 /**
  * THE TENANT FORM, REFUSED
@@ -72,7 +72,7 @@ async function submitEdit() {
 			onOpenChange: () => {},
 			value: { id: 'tenant-1', name: 'Sara', nationalId: '1234567890', phone: '+966551234567' }
 		},
-		{ wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } }
+		{ wrapper: QueryProviders, wrapperProps: { strings, direction: 'ltr' } }
 	);
 
 	const name = screen.getByPlaceholderText(en.common.labels.name);

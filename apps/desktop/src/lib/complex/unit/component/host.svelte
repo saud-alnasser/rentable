@@ -23,7 +23,7 @@
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { writeDetailsToClipboard } from '$lib/platform/clipboard';
 	import { onDestroy, untrack } from 'svelte';
-	import UnitForm from './unit-form.svelte';
+	import UnitForm from './form.svelte';
 
 	/**
 	 * The unit form and the unit's delete, mounted once for the whole shell. A delete runs at once

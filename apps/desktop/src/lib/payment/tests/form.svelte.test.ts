@@ -4,7 +4,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
-import QueryProviders from '$lib/organization/tests/query-providers.svelte';
+import QueryProviders from '#tests/query-providers.svelte';
 import PaymentForm from '$lib/payment/component/form.svelte';
 
 /**

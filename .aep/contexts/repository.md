@@ -141,7 +141,7 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
   the shortcut registry and what builds the list's registrations, the list's motion
   (`list-motion`), the create key and what it answers (`create-key`, `create-target`,
   `create-intent`), where a create lands (`landing`), and the filter, date and import helpers.
-  *It holds 77 files, counted on 2026-09-25. It held 459 until 2026-08-23 and 34 just after,
+  *It holds 80 files, counted on 2026-09-25. It held 459 until 2026-08-23 and 34 just after,
   and the count read 34 until 2026-09-25 while the home grew. The 425 that left are 387
   primitives, thirteen of the fifteen composites, fifteen root modules with the class merging and `csv.ts`
   among them, and the ten tests that moved with those; all of them are in `@rentable/design` now,

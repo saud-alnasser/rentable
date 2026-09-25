@@ -8,36 +8,18 @@
 // the application, and neither reaches across.
 
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { dirname, join, relative, sep } from 'node:path';
+import { dirname, join } from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { compile } from 'tailwindcss';
+import { sourceFiles } from '#tests/source.ts';
 import { cn } from '../tailwind.ts';
 
 const LIB_ROOT = fileURLToPath(new URL('..', import.meta.url));
-const SRC_ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const TOKENS = join(LIB_ROOT, 'tokens.css');
 const require = createRequire(import.meta.url);
-
-const SOURCE = /\.(svelte|ts|js|css|html)$/;
-
-function toPosix(path: string) {
-	return path.split(sep).join('/');
-}
-
-// every source file under `src/`, labelled from there. A `tests/` directory is left out: it
-// covers these rules rather than obeying them, and this file names the very patterns it forbids.
-function sourceFiles() {
-	return readdirSync(SRC_ROOT, { recursive: true, withFileTypes: true })
-		.filter((entry) => entry.isFile() && SOURCE.test(entry.name))
-		.map((entry) => {
-			const file = join(entry.parentPath, entry.name);
-			return { file, label: toPosix(relative(SRC_ROOT, file)) };
-		})
-		.filter(({ label }) => !label.split('/').includes('tests'));
-}
 
 function occurrences(pattern: RegExp) {
 	return sourceFiles().flatMap(({ file, label }) =>

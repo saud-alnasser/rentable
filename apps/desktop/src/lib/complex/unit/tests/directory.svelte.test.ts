@@ -1,12 +1,12 @@
 import { fireEvent, render } from '@testing-library/svelte';
 import { afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest';
 
-import UnitDirectory from '$lib/complex/component/unit-directory.svelte';
+import UnitDirectory from '$lib/complex/unit/component/directory.svelte';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import en from '$lib/i18n/en';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
-import QueryProviders from '$lib/organization/tests/query-providers.svelte';
+import QueryProviders from '#tests/query-providers.svelte';
 import type { ListSort } from '@rentable/design/sort.js';
 
 /**

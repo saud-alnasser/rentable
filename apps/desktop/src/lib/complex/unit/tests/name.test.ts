@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { firstTakenName, parseUnitRun, UNIT_RUN_LIMIT } from '$lib/complex/unit-name.ts';
+import { firstTakenName, parseUnitRun, UNIT_RUN_LIMIT } from '$lib/complex/unit/name.ts';
 
 // --- The run notation ----------------------------------------------------------------
 

@@ -161,7 +161,7 @@
 			     rather than to the list (_Avoid ambiguous spacing_).
 
 			     no panel behind any of it. Four treatments were prototyped and every one that put the
-			     record on the page background beat the one that kept a filled slab — the slab spent a
+			     record on the page background beat the one that kept a filled slab, since the slab spent a
 			     third of the window on a name and left the fields reading as though they belonged to
 			     nothing. -->
 			<div class="flex shrink-0 flex-col gap-4">

@@ -1,9 +1,8 @@
 import { DateFormatter, parseDate } from '@internationalized/date';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
-import { join, relative, sep } from 'node:path';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { sourceFiles } from '#tests/source.ts';
 
 import {
 	formatCalendarDate,
@@ -57,19 +56,16 @@ test('a period is written with an en dash between its ends', () => {
 });
 
 test('no surface joins the two ends of a period itself', () => {
-	const lib = fileURLToPath(new URL('../..', import.meta.url));
 	// a dash between two interpolations or two elements: `${a} – ${b}`, `/> – <`.
 	const joined = /[}>]\s*[–—]\s*[$<{]/;
-	const offenders = readdirSync(lib, { recursive: true, withFileTypes: true })
-		.filter((entry) => entry.isFile() && /\.(svelte|ts)$/.test(entry.name))
-		.map((entry) => join(entry.parentPath, entry.name))
-		.map((file) => relative(lib, file).split(sep).join('/'))
-		.filter((label) => !label.split('/').includes('tests') && label !== 'design/date.ts')
-		.filter((label) =>
-			readFileSync(join(lib, label), 'utf8')
+	const offenders = sourceFiles(/\.(svelte|ts)$/)
+		.filter(({ label }) => label.startsWith('lib/') && label !== 'lib/design/date.ts')
+		.filter(({ file }) =>
+			readFileSync(file, 'utf8')
 				.split('\n')
 				.some((line) => joined.test(line) && /date|start|end|period/i.test(line))
-		);
+		)
+		.map(({ label }) => label);
 
 	assert.deepEqual(offenders, [], 'join a period with joinDateRange in design/date.ts');
 });

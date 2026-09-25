@@ -35,7 +35,7 @@ export default defineConfig({
 		// 4. the design package's font files are fetched by url from its token layer, and SvelteKit's
 		// allow list covers only this package's own folders, so the dev server refused them
 		fs: {
-			allow: ['../../packages/design/src/lib/fonts']
+			allow: ['../../packages/design/src/lib/font']
 		}
 	}
 });

@@ -9,7 +9,7 @@ import Standing from '$lib/organization/component/standing.svelte';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import { fakeOrganizationSession, fakeSyncState, fakeWorkspace } from '$lib/platform/tests/testing';
 
-import QueryProviders from './query-providers.svelte';
+import QueryProviders from '#tests/query-providers.svelte';
 
 /**
  * THE STANDING BLOCK, RENDERED

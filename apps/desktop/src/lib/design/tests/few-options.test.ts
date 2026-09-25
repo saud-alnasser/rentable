@@ -3,12 +3,9 @@
 // segmented control, and never a select that hides all but one of them behind a press.
 
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
-import { join, relative, sep } from 'node:path';
+import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
-import { fileURLToPath } from 'node:url';
-
-const SRC_ROOT = fileURLToPath(new URL('../../..', import.meta.url));
+import { sourceFiles } from '#tests/source.ts';
 
 /** the most options a choice may have and still be a toggle group rather than a select. */
 const FEW = 4;
@@ -69,20 +66,9 @@ const DRAWN_ALLOWED = [
 	}
 ];
 
-function toPosix(path: string) {
-	return path.split(sep).join('/');
-}
-
-// every component under `src/`, labelled from there. A `tests/` directory is left out: it covers
-// the rule rather than obeying it.
+// every component under `src/`, labelled from there, and none from a `tests/` directory.
 function components() {
-	return readdirSync(SRC_ROOT, { recursive: true, withFileTypes: true })
-		.filter((entry) => entry.isFile() && entry.name.endsWith('.svelte'))
-		.map((entry) => {
-			const file = join(entry.parentPath, entry.name);
-			return { file, label: toPosix(relative(SRC_ROOT, file)) };
-		})
-		.filter(({ label }) => !label.split('/').includes('tests'));
+	return sourceFiles(/\.svelte$/);
 }
 
 describe('a choice of four or fewer', () => {

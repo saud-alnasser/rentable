@@ -4,6 +4,9 @@
 	"version": "0.14.0",
 	"description": "a rents payment tracker",
 	"type": "module",
+	"imports": {
+		"#tests/*": "./src/tests/*"
+	},
 	"scripts": {
 		"dev": "node ./scripts/tauri-with-env.mjs dev",
 		"dev:web": "vite dev",

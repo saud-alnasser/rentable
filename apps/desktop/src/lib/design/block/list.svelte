@@ -1162,7 +1162,7 @@
 								     clip used to make a card that outgrew its declared height visible where it
 								     was caused, and a card that lifts on hover has to leave its row. The two
 								     cannot both hold, so an outgrown card now overlaps the one below instead of
-								     being cut — still visible, and still fixed by raising `recordHeight`. -->
+								     being cut: still visible, and still fixed by raising `recordHeight`. -->
 								<div
 									data-index={virtualRow.index}
 									class={cn(ROW_INSET, 'absolute start-0 top-0 w-full')}

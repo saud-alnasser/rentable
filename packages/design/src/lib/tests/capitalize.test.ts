@@ -9,14 +9,10 @@
 // Each package scans its own tree and neither reaches across.
 
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { join, relative, sep } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, it } from 'node:test';
-import { fileURLToPath } from 'node:url';
-
-const SRC_ROOT = fileURLToPath(new URL('../..', import.meta.url));
-
-const SOURCE = /\.(svelte|ts|js|css|html)$/;
+import { SRC_ROOT, sourceFiles } from '#tests/source.ts';
 
 /** the class itself, and not `autocapitalize` or a word that merely contains it. */
 const CAPITALIZE = /(?<![\w-])capitalize(?![\w-])/g;
@@ -30,28 +26,12 @@ const ALLOWED: readonly { label: string; most: number; reason: string }[] = [
 	}
 ];
 
-function toPosix(path: string) {
-	return path.split(sep).join('/');
-}
-
 /** the source with its comments taken out: a comment may name the class it explains. */
 function withoutComments(text: string) {
 	return text
 		.replace(/<!--[\s\S]*?-->/g, '')
 		.replace(/\/\*[\s\S]*?\*\//g, '')
 		.replace(/^\s*\/\/.*$/gm, '');
-}
-
-// every source file under `src/`, labelled from there. A `tests/` directory is left out: it
-// covers the rule rather than obeying it, and this file names the class it forbids.
-function sourceFiles() {
-	return readdirSync(SRC_ROOT, { recursive: true, withFileTypes: true })
-		.filter((entry) => entry.isFile() && SOURCE.test(entry.name))
-		.map((entry) => {
-			const file = join(entry.parentPath, entry.name);
-			return { file, label: toPosix(relative(SRC_ROOT, file)) };
-		})
-		.filter(({ label }) => !label.split('/').includes('tests'));
 }
 
 describe('capitalize', () => {

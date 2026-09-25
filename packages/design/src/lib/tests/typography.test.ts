@@ -7,33 +7,15 @@
 // application; each package scans its own tree and neither reaches across.
 
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { join, relative, resolve, sep } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { brotliDecompressSync } from 'node:zlib';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { sourceFiles } from '#tests/source.ts';
 
 const LIB_ROOT = fileURLToPath(new URL('..', import.meta.url));
-const SRC_ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const TOKENS = join(LIB_ROOT, 'tokens.css');
-
-const SOURCE = /\.(svelte|ts|js|css|html)$/;
-
-function toPosix(path: string) {
-	return path.split(sep).join('/');
-}
-
-// every source file under `src/`, labelled from there. A `tests/` directory is left out: it
-// covers these rules rather than obeying them, and this file names the very patterns it forbids.
-function sourceFiles() {
-	return readdirSync(SRC_ROOT, { recursive: true, withFileTypes: true })
-		.filter((entry) => entry.isFile() && SOURCE.test(entry.name))
-		.map((entry) => {
-			const file = join(entry.parentPath, entry.name);
-			return { file, label: toPosix(relative(SRC_ROOT, file)) };
-		})
-		.filter(({ label }) => !label.split('/').includes('tests'));
-}
 
 function occurrences(pattern: RegExp) {
 	return sourceFiles().flatMap(({ file, label }) =>
@@ -74,7 +56,7 @@ describe('the typeface', () => {
 	});
 
 	it('ships its licence beside the files', () => {
-		assert.ok(existsSync(join(LIB_ROOT, 'fonts', 'OFL.txt')));
+		assert.ok(existsSync(join(LIB_ROOT, 'font', 'OFL.txt')));
 	});
 
 	it('blocks rather than swapping, since the files are local', () => {
@@ -167,14 +149,14 @@ function gsubFeatures(gsub: Buffer) {
 describe('the tabular figures', () => {
 	// the one subset carrying the digits 0-9. Readex Pro ships none, so `patch-tnum.py` adds them,
 	// and without it `tabular-nums` on a money or count cell has nothing to switch on.
-	const latin = join(LIB_ROOT, 'fonts', 'readex-pro-latin.woff2');
+	const latin = join(LIB_ROOT, 'font', 'readex-pro-latin.woff2');
 
 	it('are a tnum feature the Latin subset carries', () => {
 		const gsub = woff2Table(latin, 'GSUB');
 		assert.ok(gsub, 'the Latin subset has no GSUB table');
 
 		const tnum = gsubFeatures(gsub).get('tnum');
-		assert.ok(tnum, 'the Latin subset has no tnum feature: run fonts/patch-tnum.py');
+		assert.ok(tnum, 'the Latin subset has no tnum feature: run font/patch-tnum.py');
 		assert.deepEqual(tnum, [1], 'tnum is one single substitution');
 	});
 });

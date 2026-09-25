@@ -1,13 +1,13 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import { afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest';
 
-import UnitDetails from '$lib/complex/component/unit-details.svelte';
+import UnitDetails from '$lib/complex/unit/component/details.svelte';
 import ContractHost from '$lib/contract/component/host.svelte';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import en from '$lib/i18n/en';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
-import QueryProviders from '$lib/organization/tests/query-providers.svelte';
+import QueryProviders from '#tests/query-providers.svelte';
 import { newId } from '$lib/platform/database/identity';
 import TenantDetails from '$lib/tenant/component/details.svelte';
 
