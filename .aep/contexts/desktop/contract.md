@@ -32,6 +32,20 @@ The billing period — monthly, quarterly, semi-annual, or annual. Fixed at crea
 One elapsed interval within a contract's period. A twelve-month contract on a quarterly
 interval has four cycles, counted from the start date.
 
+**Schedule**:
+A contract's period laid out as its cycles, every one of them, each with its due date (the start
+date, then the first day of each following interval), its amount (the cost), the part of it the
+payments cover, and its state: _paid_, _late_, _due_, _partly paid_ or _upcoming_. Computed on
+read by `scheduleContract` in `contract/schedule.ts` and never stored. On a contract that is not
+terminated, what the late and due cycles leave uncovered is the _outstanding_, so the schedule and
+the figure are one answer; a terminated contract's schedule reads no cycle as late or due.
+
+**Allocation**:
+How payments are taken against the schedule: oldest first, by date and then by the order they
+were recorded, each filling the earliest cycle not yet covered before the next. A payment may
+cover several cycles, and what is paid past the total cost covers none. Always oldest first;
+nobody chooses which cycle a payment pays.
+
 **Cost**:
 The amount owed _per interval_, never the contract total. Prefer the fuller reading
 whenever the bare word could be taken either way.

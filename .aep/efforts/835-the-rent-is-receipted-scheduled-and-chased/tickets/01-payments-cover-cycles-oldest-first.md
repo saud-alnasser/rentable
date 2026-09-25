@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # feat(contract): payments cover cycles oldest first
@@ -15,16 +15,16 @@ which cycles each payment covers. Nothing renders it yet; every later ticket rea
 Traces requirement 6 of [[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]], and its
 criteria 5 and 6.
 
-- [ ] `scheduleContract(contract, payments, now)` in `contract/schedule.ts` returns one cycle per
+- [x] `scheduleContract(contract, payments, now)` in `contract/schedule.ts` returns one cycle per
       cycle of the period, due on the start date and on the first day of each following interval
       (criterion 5, pure test on a twelve-month quarterly contract).
-- [ ] States follow requirement 6, and both cases of criterion 6(b) pass as written.
-- [ ] A terminated contract yields no `late` and no `due` cycle (criterion 6(c)).
-- [ ] A sweep over generated contracts and payments finds the uncovered sum of `late` and `due`
+- [x] States follow requirement 6, and both cases of criterion 6(b) pass as written.
+- [x] A terminated contract yields no `late` and no `due` cycle (criterion 6(c)).
+- [x] A sweep over generated contracts and payments finds the uncovered sum of `late` and `due`
       cycles equal to `getOutstandingExpectedAmount` for every non-terminated contract, to the
       domain's tolerance (criterion 6(a)).
-- [ ] For a payment spanning two cycles, the coverage names both (feeds criterion 9(d)).
-- [ ] Nothing it produces is stored: this commit makes no schema change (criterion 6(d)).
+- [x] For a payment spanning two cycles, the coverage names both (feeds criterion 9(d)).
+- [x] Nothing it produces is stored: this commit makes no schema change (criterion 6(d)).
 
 ## Relevant areas
 
