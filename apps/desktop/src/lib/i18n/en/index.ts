@@ -312,6 +312,8 @@ const en = {
 				usernameTaken: 'that username is already taken in this organization. choose another.',
 				roleUnknown: 'choose administrator or member.',
 				memberMissing: 'that member is no longer in this organization. reload to see what changed.',
+				markNotAnImage: 'choose a PNG, JPEG or WebP image.',
+				markTooLarge: 'the image is over 512 KB. choose a smaller one.',
 				memberGone: 'this account is no longer in the organization.',
 				memberRemoved:
 					'that member was removed. make them an account again if they are to come back.',

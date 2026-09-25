@@ -27,6 +27,7 @@ pub mod invite;
 pub mod join;
 pub mod link;
 pub mod machine;
+pub mod mark;
 pub mod migrate;
 pub mod migration;
 pub mod password;

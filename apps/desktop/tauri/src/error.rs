@@ -215,6 +215,12 @@ pub enum RefusalReason {
     TursoRefused,
     /// Turso refused a request over the account itself: its plan, its standing or its limits.
     TursoAccountRefused,
+
+    // the organization's mark.
+    /// the image is over the size a mark may be.
+    MarkTooLarge,
+    /// the file is not a PNG, JPEG or WebP image.
+    MarkNotAnImage,
 }
 
 impl Error {

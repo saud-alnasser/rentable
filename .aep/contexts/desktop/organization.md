@@ -52,6 +52,23 @@ account is held on as many machines as its holder signs in on. A machine still r
 connects, names its member at sign-in, drops them at sign-out, refreshes on every launch and leaves
 on disconnect.*
 
+*Corrected 2026-09-25 ([[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]], requirement
+13): **eleven tables.** The eleventh is `mark`, the organization's _mark_ (below). A build during
+the effort kept it unsigned as `organization_mark`; a replica that ran that build keeps that table,
+and nothing reads it.*
+
+**Mark**:
+The one image an organization prints at the foot of its receipts and schedules: a signature or a
+seal, PNG, JPEG or WebP, up to 512 KB. One row of `mark`, the image sealed under the content key
+like a name and signed under the setter's administrator certificate. The owner or an administrator
+sets, replaces or removes it, gated on the role their verified row carries rather than on a
+permission bit (`organization/mark.rs`); every member reads it from the replica, offline included,
+and a row whose signature does not verify, written around the gate by anybody holding the
+database's credential, is read as no mark and never printed. Checked by its
+first bytes, never its file name, and read from the path the open dialog chose, so the image does
+not cross IPC on its way in.
+_Avoid_: "logo" or "letterhead", which the organization does not keep.
+
 **Vault**:
 A member's X25519 keypair, sealed under a key Argon2id derives from their password, on their own
 row. The password opens it on any machine, with or without a network; what it unseals is the

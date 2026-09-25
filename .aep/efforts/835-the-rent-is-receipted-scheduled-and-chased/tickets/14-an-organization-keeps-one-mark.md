@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [13]
 ---
 
@@ -15,15 +15,15 @@ reads after it pulls.
 
 Traces requirement 13 of [[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]].
 
-- [ ] `organization_mark` is the eleventh table, created by `CREATE TABLE IF NOT EXISTS`, and an
+- [x] `organization_mark` is the eleventh table, created by `CREATE TABLE IF NOT EXISTS`, and an
       older replica gains it on pull (store test).
-- [ ] Setting, replacing and clearing the mark as the owner or an administrator round-trips the
+- [x] Setting, replacing and clearing the mark as the owner or an administrator round-trips the
       image sealed; as a member it is refused (criterion 13(b), Rust tests).
-- [ ] An image over 512 KB, or whose first bytes are not PNG, JPEG or WebP, is refused with a
+- [x] An image over 512 KB, or whose first bytes are not PNG, JPEG or WebP, is refused with a
       sentence (criterion 13(d), Rust tests).
-- [ ] A mark written through one store is read through another after a push and a pull (criterion
+- [x] A mark written through one store is read through another after a push and a pull (criterion
       13(c), Rust test over two replicas, as the store's own sync tests do).
-- [ ] [[contexts/desktop/organization]] names the mark and counts eleven tables.
+- [x] [[contexts/desktop/organization]] names the mark and counts eleven tables.
 
 ## Constraints
 

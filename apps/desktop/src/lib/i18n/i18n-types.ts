@@ -1046,6 +1046,14 @@ type RootTranslation = {
 				 */
 				memberMissing: string
 				/**
+				 * c​h​o​o​s​e​ ​a​ ​P​N​G​,​ ​J​P​E​G​ ​o​r​ ​W​e​b​P​ ​i​m​a​g​e​.
+				 */
+				markNotAnImage: string
+				/**
+				 * t​h​e​ ​i​m​a​g​e​ ​i​s​ ​o​v​e​r​ ​5​1​2​ ​K​B​.​ ​c​h​o​o​s​e​ ​a​ ​s​m​a​l​l​e​r​ ​o​n​e​.
+				 */
+				markTooLarge: string
+				/**
 				 * t​h​i​s​ ​a​c​c​o​u​n​t​ ​i​s​ ​n​o​ ​l​o​n​g​e​r​ ​i​n​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.
 				 */
 				memberGone: string
@@ -5017,6 +5025,14 @@ export type TranslationFunctions = {
 				 * that member is no longer in this organization. reload to see what changed.
 				 */
 				memberMissing: () => LocalizedString
+				/**
+				 * choose a PNG, JPEG or WebP image.
+				 */
+				markNotAnImage: () => LocalizedString
+				/**
+				 * the image is over 512 KB. choose a smaller one.
+				 */
+				markTooLarge: () => LocalizedString
 				/**
 				 * this account is no longer in the organization.
 				 */
