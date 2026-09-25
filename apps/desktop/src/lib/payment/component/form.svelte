@@ -1,12 +1,15 @@
 <script lang="ts">
-	import type { Payment } from '$lib/platform/database/schema';
+	import { PAYMENT_METHODS, type Payment, type PaymentMethod } from '$lib/platform/database/schema';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Calendar from '@rentable/design/primitive/calendar/index.js';
 	import FieldError from '@rentable/design/block/field-error.svelte';
 	import FormSurface, { insetControl } from '@rentable/design/block/form-surface.svelte';
 	import * as Form from '@rentable/design/primitive/form/index.js';
+	import { Input } from '@rentable/design/primitive/input/index.js';
 	import * as InputGroup from '@rentable/design/primitive/input-group/index.js';
 	import * as Popover from '@rentable/design/primitive/popover/index.js';
+	import { Textarea } from '@rentable/design/primitive/textarea/index.js';
+	import * as ToggleGroup from '@rentable/design/primitive/toggle-group/index.js';
 	import {
 		formatCalendarDate,
 		formatDateInput,
@@ -45,7 +48,12 @@
 			})
 			.refine(isWholeHalalas, {
 				message: $LL.contracts.form.paymentAmountDecimalPlaces()
-			})
+			}),
+		// none of the three is required: a payment recorded without them says so on its record.
+		// The method is empty until one is chosen, and empty again once the chosen one is pressed.
+		method: z.enum([...PAYMENT_METHODS, '']),
+		reference: z.string(),
+		note: z.string()
 	});
 
 	type PaymentForm = z.infer<typeof PaymentFormSchema>;
@@ -72,17 +80,32 @@
 		onCreated?: (created: { id: string }) => void;
 	} = $props();
 
+	// the four ways a payment is made, in the order a reader meets them: in hand, by the bank, by a
+	// cheque, through Ejar's SADAD bill.
+	const methods: { value: PaymentMethod; label: () => string }[] = [
+		{ value: 'cash', label: () => $LL.contracts.payments.methods.cash() },
+		{ value: 'bank-transfer', label: () => $LL.contracts.payments.methods.bankTransfer() },
+		{ value: 'cheque', label: () => $LL.contracts.payments.methods.cheque() },
+		{ value: 'ejar', label: () => $LL.contracts.payments.methods.ejar() }
+	];
+
 	let dateFormatter = $derived(new DateFormatter(getIntlLocale($locale), { dateStyle: 'medium' }));
 
 	const getInitialForm = (payment?: typeof value): PaymentForm =>
 		payment
 			? {
 					date: formatDateInput(payment.date),
-					amount: String(payment.amount)
+					amount: String(payment.amount),
+					method: payment.method ?? '',
+					reference: payment.reference ?? '',
+					note: payment.note ?? ''
 				}
 			: {
 					date: formatDateInput(Date.now()),
-					amount: ''
+					amount: '',
+					method: '',
+					reference: '',
+					note: ''
 				};
 
 	let paymentDateValue = $state<CalendarDate | undefined>(undefined);
@@ -102,7 +125,11 @@
 
 				const payload = {
 					date: parseDateInput(form.data.date),
-					amount: Number(form.data.amount)
+					amount: Number(form.data.amount),
+					// what was left blank is sent as nothing, so an edit that clears a field clears it.
+					method: form.data.method || null,
+					reference: form.data.reference.trim() || null,
+					note: form.data.note.trim() || null
 				};
 
 				submittedRemaining = projectedRemaining;
@@ -334,6 +361,61 @@
 						{...$constraints.amount}
 					/>
 				</InputGroup.Root>
+			</Form.Control>
+			<FieldError />
+		</Form.Field>
+
+		<Form.Field form={superform} name="method" class="group relative">
+			<Form.Control>
+				<Form.Label>{$LL.contracts.payments.methodOptional()}</Form.Label>
+				<!-- four exclusive choices, so a toggle group rather than a menu ([[rules/interface]],
+				     *Field kinds*). None is pressed until the reader says, and pressing the one chosen
+				     lets it go again: a payment need not say how it was made. -->
+				<ToggleGroup.Root
+					type="single"
+					variant="outline"
+					size="sm"
+					class="w-full"
+					aria-label={$LL.contracts.payments.method()}
+					value={$form.method}
+					onValueChange={(next) => {
+						$form.method = (next ?? '') as PaymentMethod | '';
+					}}
+				>
+					{#each methods as method (method.value)}
+						<ToggleGroup.Item value={method.value} class="flex-1">
+							{method.label()}
+						</ToggleGroup.Item>
+					{/each}
+				</ToggleGroup.Root>
+			</Form.Control>
+			<FieldError />
+		</Form.Field>
+
+		<Form.Field form={superform} name="reference" class="group relative">
+			<Form.Control>
+				<Form.Label>{$LL.contracts.payments.referenceOptional()}</Form.Label>
+				<Input
+					bind:value={$form.reference}
+					autocomplete="off"
+					placeholder={$LL.contracts.payments.referencePlaceholder()}
+					class={insetControl}
+					aria-invalid={$errors.reference ? 'true' : undefined}
+					{...$constraints.reference}
+				/>
+			</Form.Control>
+			<FieldError />
+		</Form.Field>
+
+		<Form.Field form={superform} name="note" class="group relative">
+			<Form.Control>
+				<Form.Label>{$LL.contracts.payments.noteOptional()}</Form.Label>
+				<Textarea
+					bind:value={$form.note}
+					class={insetControl}
+					aria-invalid={$errors.note ? 'true' : undefined}
+					{...$constraints.note}
+				/>
 			</Form.Control>
 			<FieldError />
 		</Form.Field>

@@ -71,7 +71,10 @@ export const paymentActs = declarePaymentActs({
 	copyDetails: (payment) => {
 		paymentHostState.copying = payment;
 	},
-	duplicate: (payment) => openForm(payment.contractId, { ...payment, id: undefined }),
+	// a reference names one transfer or cheque and a note is about one payment, so a duplicate
+	// starts without either rather than claiming the original's; how it was paid carries over.
+	duplicate: (payment) =>
+		openForm(payment.contractId, { ...payment, id: undefined, reference: null, note: null }),
 	edit: (payment) => openForm(payment.contractId, payment),
 	confirmDelete: (payment) => {
 		paymentHostState.deleting = payment;

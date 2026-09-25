@@ -61,7 +61,10 @@ const { payment, history } = vi.hoisted(() => ({
 		contractId: 'contract-1',
 		contractGovId: '1001',
 		contractStatus: 'terminated' as 'terminated' | 'active',
-		tenantName: 'Noura Alharbi'
+		tenantName: 'Noura Alharbi',
+		method: null as 'cash' | 'bank-transfer' | 'cheque' | 'ejar' | null,
+		reference: null as string | null,
+		note: null as string | null
 	}
 }));
 
@@ -98,6 +101,9 @@ beforeEach(() => {
 	loadLocale('en');
 	setLocale('en');
 	payment.contractStatus = 'terminated';
+	payment.method = null;
+	payment.reference = null;
+	payment.note = null;
 	history.asked.length = 0;
 });
 
@@ -220,4 +226,43 @@ test("the payment's record shows its history, newest first", async () => {
 		en.common.history.actions.edited,
 		en.common.history.actions.created
 	]);
+});
+
+// --- How it was paid ------------------------------------------------------------------
+//
+// Ticket 03 of [[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]], criteria 1(b),
+// 1(c), 2(a) and 2(b): the record states the method, as not recorded where nobody said, and shows a
+// reference and a note only where they were written.
+
+/** the record's fields, as (label, value) pairs in the order they are read. */
+const fields = () =>
+	[...document.querySelectorAll('dt')].map((label) => [
+		label.textContent?.trim().toLowerCase(),
+		label.nextElementSibling?.textContent?.trim()
+	]);
+
+const valueOf = (label: string) => fields().find(([name]) => name === label)?.[1];
+
+test('a payment saved with a method, a reference and a note shows all three', () => {
+	payment.method = 'ejar';
+	payment.reference = 'SADAD-7731';
+	payment.note = 'paid for March';
+
+	page();
+
+	expect(valueOf(en.contracts.payments.method)).toBe(en.contracts.payments.methods.ejar);
+	expect(valueOf(en.contracts.payments.reference)).toBe('SADAD-7731');
+	expect(valueOf(en.contracts.payments.note)).toBe('paid for March');
+});
+
+test('a payment that holds none of them says the method is not recorded, and nothing more', () => {
+	page();
+
+	expect(valueOf(en.contracts.payments.method)).toBe(en.contracts.payments.methodNotRecorded);
+
+	const labels = fields().map(([label]) => label);
+
+	// no empty line stands in for what was never written: the label is not there either.
+	expect(labels).not.toContain(en.contracts.payments.reference);
+	expect(labels).not.toContain(en.contracts.payments.note);
 });

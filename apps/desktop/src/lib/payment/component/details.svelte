@@ -10,6 +10,8 @@
 	import { useFetchPayment } from '$lib/payment/query';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { formatLocaleMoney } from '$lib/platform/locale';
+	import type { PaymentMethod } from '$lib/platform/database/schema';
+	import type { SpecificationEntry } from '@rentable/design/block/specification.svelte';
 
 	let { paymentId }: { paymentId: string } = $props();
 
@@ -17,6 +19,35 @@
 	const payment = $derived(paymentQuery.data);
 
 	const formatMoney = (value: number) => formatLocaleMoney($locale, value);
+
+	const methodLabel = (method: PaymentMethod) =>
+		({
+			cash: $LL.contracts.payments.methods.cash,
+			'bank-transfer': $LL.contracts.payments.methods.bankTransfer,
+			cheque: $LL.contracts.payments.methods.cheque,
+			ejar: $LL.contracts.payments.methods.ejar
+		})[method]();
+
+	// how the payment was made, and what was written about it. The method is always stated, as not
+	// recorded where nobody said, since its absence is itself something a reader matching a
+	// statement needs to know; a reference or a note that was never written is left out whole,
+	// label and all, rather than stood in for by an empty line.
+	const details = $derived.by((): SpecificationEntry[] => {
+		if (!payment) return [];
+
+		return [
+			{
+				label: $LL.contracts.payments.method(),
+				value: payment.method
+					? methodLabel(payment.method)
+					: $LL.contracts.payments.methodNotRecorded()
+			},
+			...(payment.reference
+				? [{ label: $LL.contracts.payments.reference(), value: payment.reference }]
+				: []),
+			...(payment.note ? [{ label: $LL.contracts.payments.note(), value: note }] : [])
+		];
+	});
 
 	// the page's cluster is a projection of the one list the ledger's card and the command menu read,
 	// so it offers what they offer, in their order and under their names: copying on every payment,
@@ -64,6 +95,13 @@
 	{/if}
 {/snippet}
 
+<!-- a note keeps the lines it was written in. -->
+{#snippet note()}
+	{#if payment?.note}
+		<bdi class="whitespace-pre-line">{payment.note}</bdi>
+	{/if}
+{/snippet}
+
 {#snippet fields()}
 	<Specification
 		entries={[
@@ -72,7 +110,8 @@
 				label: $LL.common.labels.contractNumber(),
 				value: payment?.contractGovId || $LL.common.messages.unknown()
 			},
-			{ label: $LL.common.labels.contractStatus(), value: contractStatus }
+			{ label: $LL.common.labels.contractStatus(), value: contractStatus },
+			...details
 		]}
 	/>
 {/snippet}

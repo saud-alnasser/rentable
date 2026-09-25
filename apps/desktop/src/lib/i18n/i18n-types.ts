@@ -2667,15 +2667,65 @@ type RootTranslation = {
 			 */
 			fullyPaidSummary: string
 			/**
+			 * p​a​y​m​e​n​t​ ​m​e​t​h​o​d
+			 */
+			method: string
+			/**
+			 * n​o​t​ ​r​e​c​o​r​d​e​d
+			 */
+			methodNotRecorded: string
+			/**
+			 * p​a​y​m​e​n​t​ ​m​e​t​h​o​d​ ​(​o​p​t​i​o​n​a​l​)
+			 */
+			methodOptional: string
+			methods: {
+				/**
+				 * b​a​n​k​ ​t​r​a​n​s​f​e​r
+				 */
+				bankTransfer: string
+				/**
+				 * c​a​s​h
+				 */
+				cash: string
+				/**
+				 * c​h​e​q​u​e
+				 */
+				cheque: string
+				/**
+				 * E​j​a​r
+				 */
+				ejar: string
+			}
+			/**
 			 * t​o​t​a​l​ ​s​h​o​w​n​ ​f​o​r​ ​{​m​o​n​t​h​}
 			 * @param {unknown} month
 			 */
 			monthTotal: RequiredParams<'month'>
 			/**
+			 * n​o​t​e
+			 */
+			note: string
+			/**
+			 * n​o​t​e​ ​(​o​p​t​i​o​n​a​l​)
+			 */
+			noteOptional: string
+			/**
 			 * {​p​e​r​c​e​n​t​}​%​ ​f​u​l​f​i​l​l​e​d
 			 * @param {unknown} percent
 			 */
 			percentFulfilled: RequiredParams<'percent'>
+			/**
+			 * r​e​f​e​r​e​n​c​e
+			 */
+			reference: string
+			/**
+			 * r​e​f​e​r​e​n​c​e​ ​(​o​p​t​i​o​n​a​l​)
+			 */
+			referenceOptional: string
+			/**
+			 * t​r​a​n​s​f​e​r​,​ ​c​h​e​q​u​e​ ​o​r​ ​S​A​D​A​D​ ​n​u​m​b​e​r
+			 */
+			referencePlaceholder: string
 			/**
 			 * {​a​m​o​u​n​t​}​ ​r​e​m​a​i​n​i​n​g
 			 * @param {string} amount
@@ -6393,13 +6443,63 @@ export type TranslationFunctions = {
 			 */
 			fullyPaidSummary: () => LocalizedString
 			/**
+			 * payment method
+			 */
+			method: () => LocalizedString
+			/**
+			 * not recorded
+			 */
+			methodNotRecorded: () => LocalizedString
+			/**
+			 * payment method (optional)
+			 */
+			methodOptional: () => LocalizedString
+			methods: {
+				/**
+				 * bank transfer
+				 */
+				bankTransfer: () => LocalizedString
+				/**
+				 * cash
+				 */
+				cash: () => LocalizedString
+				/**
+				 * cheque
+				 */
+				cheque: () => LocalizedString
+				/**
+				 * Ejar
+				 */
+				ejar: () => LocalizedString
+			}
+			/**
 			 * total shown for {month}
 			 */
 			monthTotal: (arg: { month: unknown }) => LocalizedString
 			/**
+			 * note
+			 */
+			note: () => LocalizedString
+			/**
+			 * note (optional)
+			 */
+			noteOptional: () => LocalizedString
+			/**
 			 * {percent}% fulfilled
 			 */
 			percentFulfilled: (arg: { percent: unknown }) => LocalizedString
+			/**
+			 * reference
+			 */
+			reference: () => LocalizedString
+			/**
+			 * reference (optional)
+			 */
+			referenceOptional: () => LocalizedString
+			/**
+			 * transfer, cheque or SADAD number
+			 */
+			referencePlaceholder: () => LocalizedString
 			/**
 			 * {amount} remaining
 			 */

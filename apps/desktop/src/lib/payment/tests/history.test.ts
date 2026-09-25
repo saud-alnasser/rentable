@@ -159,6 +159,69 @@ describe("a payment's history", () => {
 		]);
 	});
 
+	// ticket 03, criterion 4(a): how a payment was paid is undone as its date and amount are, and
+	// the edit is on its account through the same declaration.
+	it('takes back an edit to the method, the reference and the note', async () => {
+		const contract = await seedContract();
+		const payment = await caller.contract.payments.create({
+			contractId: contract.id,
+			date: monthsFromNow(0),
+			amount: 1000,
+			method: 'cash',
+			reference: 'R-1',
+			note: 'first'
+		});
+
+		await run(useUpdatePayment, {
+			id: payment.id,
+			date: payment.date,
+			amount: payment.amount,
+			method: 'bank-transfer',
+			reference: 'TRF-9',
+			note: 'second'
+		});
+
+		const fields = async () => {
+			const read = await caller.contract.payments.get({ id: payment.id });
+
+			return [read?.method, read?.reference, read?.note];
+		};
+
+		assert.deepEqual(await fields(), ['bank-transfer', 'TRF-9', 'second']);
+		assert.deepEqual(await settled(), [[['payment', payment.id, 'edited', '1,000']]]);
+
+		await applyUndo(useQueryClient());
+
+		assert.deepEqual(await fields(), ['cash', 'R-1', 'first']);
+		assert.deepEqual(await settled(), [
+			[['payment', payment.id, 'edited', '1,000']],
+			[['payment', payment.id, 'edited', '1,000']]
+		]);
+	});
+
+	it('takes back filling in the three on a payment that had none', async () => {
+		const contract = await seedContract();
+		const payment = await caller.contract.payments.create({
+			contractId: contract.id,
+			date: monthsFromNow(0),
+			amount: 1000
+		});
+
+		await run(useUpdatePayment, {
+			id: payment.id,
+			date: payment.date,
+			amount: payment.amount,
+			method: 'ejar',
+			reference: 'SADAD-7731',
+			note: 'through Ejar'
+		});
+		await applyUndo(useQueryClient());
+
+		const read = await caller.contract.payments.get({ id: payment.id });
+
+		assert.deepEqual([read?.method, read?.reference, read?.note], [null, null, null]);
+	});
+
 	// criterion 4(c): one payment deleted is one entry, and one append.
 	it('records deleting one payment as exactly one entry', async () => {
 		const contract = await seedContract();

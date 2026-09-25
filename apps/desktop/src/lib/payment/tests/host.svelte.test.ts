@@ -38,3 +38,24 @@ test('the same act on a contract still running is run', () => {
 	expect(paymentHost.run('payment.edit', { ...payment, contractStatus: 'active' })).toBe(true);
 	expect(paymentHostState.form.open).toBe(true);
 });
+
+// effort 835: a reference names one transfer or cheque, and a note is about one payment, so a
+// duplicate starts without either; how the payment was made carries over.
+test('a duplicate keeps the method and starts without the reference and the note', () => {
+	expect(
+		paymentHost.run('payment.duplicate', {
+			...payment,
+			contractStatus: 'active',
+			method: 'bank-transfer',
+			reference: 'SADAD-7731',
+			note: 'paid at the office'
+		})
+	).toBe(true);
+	expect(paymentHostState.form.value).toMatchObject({
+		id: undefined,
+		amount: 2377,
+		method: 'bank-transfer',
+		reference: null,
+		note: null
+	});
+});

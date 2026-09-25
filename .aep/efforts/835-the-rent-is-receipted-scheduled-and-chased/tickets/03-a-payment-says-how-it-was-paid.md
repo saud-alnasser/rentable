@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [02]
 ---
 
@@ -15,19 +15,19 @@ shown on the record; the reference is searchable; and undo carries all three.
 Traces requirements 1, 2, 3 and 4 of [[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]],
 and its criteria 1, 2, 3 and 4(a).
 
-- [ ] The schema and migration `0005` add the three nullable columns
+- [x] The schema and migration `0005` add the three nullable columns
       ([[efforts/835-the-rent-is-receipted-scheduled-and-chased/plan]], *Data Model*), generated
       and hand-finished per [[contexts/desktop/persistence]]; the `memory.ts` router tests pass on it.
-- [ ] The form offers the four methods as a toggle group with none chosen and a chosen one
+- [x] The form offers the four methods as a toggle group with none chosen and a chosen one
       clearable, plus a reference input and a note textarea (criterion 1(a), component test).
-- [ ] Create and update round-trip all three through the real caller. A payment inserted without
+- [x] Create and update round-trip all three through the real caller. A payment inserted without
       them reads null, opens, edits and saves, and its record says the method is not recorded
       (criteria 1(b), 1(c), 2(a), 2(b)).
-- [ ] `getMany` and `search` find a payment by a fragment of its reference, in both locales'
+- [x] `getMany` and `search` find a payment by a fragment of its reference, in both locales'
       foldings (criterion 3).
-- [ ] Editing the three and undoing restores them (criterion 4(a)); the edit enters history through
+- [x] Editing the three and undoing restores them (criterion 4(a)); the edit enters history through
       ticket 02's declaration.
-- [ ] Labels exist in both locales; the i18n suites pass.
+- [x] Labels exist in both locales; the i18n suites pass.
 
 ## Relevant areas
 

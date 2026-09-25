@@ -870,8 +870,22 @@ const en = {
 			fullyPaidNotice: 'this contract is paid in full',
 			fullyPaidSummary:
 				'this contract has been fully paid. you can edit or delete payments, but you cannot add more.',
+			method: 'payment method',
+			methodNotRecorded: 'not recorded',
+			methodOptional: 'payment method (optional)',
+			methods: {
+				bankTransfer: 'bank transfer',
+				cash: 'cash',
+				cheque: 'cheque',
+				ejar: 'Ejar'
+			},
 			monthTotal: 'total shown for {month}',
+			note: 'note',
+			noteOptional: 'note (optional)',
 			percentFulfilled: '{percent}% fulfilled',
+			reference: 'reference',
+			referenceOptional: 'reference (optional)',
+			referencePlaceholder: 'transfer, cheque or SADAD number',
 			remaining: '{amount:string} remaining',
 			remainingAfter: 'remaining after this payment',
 			remainingBalance: 'remaining balance',
