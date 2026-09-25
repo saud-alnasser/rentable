@@ -146,20 +146,22 @@
 
 		<a
 			href={resolve('/complexes')}
-			class="flex items-center justify-around gap-4 rounded-2xl bg-card p-4 transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:p-5"
+			class="flex flex-col gap-2 rounded-2xl bg-card p-4 transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:p-5"
 		>
-			<span class="flex flex-col items-center gap-2">
+			<!-- the label heads the card as the money card's does, on a row as tall as its period
+			     control, so the two rings sit on one line across the band. -->
+			<span class="flex h-6 items-center truncate text-xs text-muted-foreground">
+				{$LL.dashboard.figures.occupiedUnits()}
+			</span>
+			<span class="-m-1 flex items-center justify-around gap-4 p-1" data-occupancy-figure>
 				<Cell.Ring
 					size="hero"
 					value={occupancy?.occupiedUnits ?? 0}
 					total={occupancy?.totalUnits ?? 0}
 				/>
-				<span class="text-center text-xs text-muted-foreground">
-					{$LL.dashboard.figures.occupiedUnits()}
+				<span class="flex min-w-0 flex-col gap-1 text-start">
+					<span class="truncate text-sm font-semibold tabular-nums">{occupiedOfTotal}</span>
 				</span>
-			</span>
-			<span class="flex min-w-0 flex-col gap-1 text-start">
-				<span class="truncate text-sm font-semibold tabular-nums">{occupiedOfTotal}</span>
 			</span>
 		</a>
 
