@@ -7,7 +7,7 @@
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import { withSection } from '$lib/settings/section';
-	import InnerShadowTopIcon from '@tabler/icons-svelte/icons/inner-shadow-top';
+	import MarkIcon from '@lucide/svelte/icons/eclipse';
 	import BuildingIcon from '@lucide/svelte/icons/building';
 	import ChevronsUpDownIcon from '@lucide/svelte/icons/chevrons-up-down';
 
@@ -99,10 +99,10 @@
 						<div
 							class="flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground"
 						>
-							<InnerShadowTopIcon class="size-4" />
+							<MarkIcon class="size-4" />
 						</div>
 						<div class="grid flex-1 text-start text-sm leading-tight">
-							<span class="truncate font-medium">{workspace.name}</span>
+							<span class="truncate font-medium"><bdi>{workspace.name}</bdi></span>
 							<!-- the second line tells this row from the account row under it, which carries
 							     the same name on an account whose workspace is named after them. It says
 							     something true about the workspace rather than repeating what it is
@@ -127,10 +127,10 @@
 						<div
 							class="flex aspect-square size-10 shrink-0 items-center justify-center rounded-xl bg-sidebar-primary text-sidebar-primary-foreground"
 						>
-							<InnerShadowTopIcon class="size-5" />
+							<MarkIcon class="size-5" />
 						</div>
 						<div class="grid min-w-0 flex-1 leading-tight">
-							<span class="truncate font-medium">{workspace.name}</span>
+							<span class="truncate font-medium"><bdi>{workspace.name}</bdi></span>
 							<span class="truncate text-xs text-muted-foreground">
 								{$LL.layout.workspaceMenu.members({ count: memberCount })}
 							</span>
@@ -158,7 +158,7 @@
 					{#each workspaces as held (held.id)}
 						<DropdownMenu.RadioItem value={held.id}>
 							{#snippet children({ checked })}
-								<span class="truncate">{held.name}</span>
+								<span class="truncate"><bdi>{held.name}</bdi></span>
 								{#if checked}
 									<span class="sr-only">{$LL.layout.workspaceMenu.open()}</span>
 								{/if}

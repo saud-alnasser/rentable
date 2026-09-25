@@ -8,9 +8,12 @@ import {
 	monthsFromNow,
 	seedTenant,
 	unusedId,
-	withStatementLog
+	withStatementLog,
+	refusedWith,
+	refusalReadIn
 } from '$lib/api/tests/testing.ts';
 import { isRecordId } from '$lib/platform/database/identity.ts';
+import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
 import type { ContractSortColumnId } from '$lib/contract/contract.ts';
 import type { ContractRank } from '$lib/contract/rank.ts';
 import { getContractRenewalTerm } from '$lib/contract/renewal.ts';
@@ -78,7 +81,7 @@ test('creation rejects an end date before the start date', async () => {
 				interval: '12m',
 				cost: 1000
 			}),
-		/end date must be after start date/
+		refusedWith('contract.endBeforeStart')
 	);
 });
 
@@ -95,7 +98,7 @@ test('creation rejects a non-positive cost', async () => {
 				interval: '12m',
 				cost: 0
 			}),
-		/cost per payment must be greater than zero/
+		refusedWith('contract.costNotPositive')
 	);
 });
 
@@ -112,7 +115,7 @@ test('creation rejects a period that is not a whole number of interval cycles', 
 				interval: '12m',
 				cost: 1000
 			}),
-		/contract period must stay within/
+		refusedWith('contract.periodOffCycle')
 	);
 });
 
@@ -128,7 +131,7 @@ test('creation rejects a tenant that does not exist', async () => {
 				interval: '12m',
 				cost: 1000
 			}),
-		/tenant does not exist/
+		refusedWith('contract.tenantMissing')
 	);
 });
 
@@ -136,7 +139,291 @@ test('creation rejects a government id already used by another contract', async 
 	const api = await createApi();
 	await seedContract(api, { govId: 'DUP-1' });
 
-	await assert.rejects(() => seedContract(api, { govId: 'DUP-1' }), /government id is associated/);
+	await assert.rejects(
+		() => seedContract(api, { govId: 'DUP-1' }),
+		refusedWith('contract.govIdTaken')
+	);
+});
+
+// --- Creation with units -----------------------------------------------------------------
+//
+// effort 832, requirement 20: the contract form chooses the units, and one submission creates the
+// contract and assigns them in one write (ADR 0027), as a renewal already does.
+
+test('a contract is created holding the units chosen for it, in one batch', async () => {
+	const statements: string[] = [];
+	const db = createMemoryDatabase((sql) => statements.push(sql));
+	const batches: string[][] = [];
+	const batch = db.batch.bind(db);
+
+	// every batch the procedure issues, with the statements that ran inside it.
+	db.batch = (async (queries: Parameters<typeof db.batch>[0]) => {
+		const from = statements.length;
+		const result = await batch(queries);
+
+		batches.push(statements.slice(from));
+
+		return result;
+	}) as unknown as typeof db.batch;
+
+	const api = await createApi({ db });
+	const tenant = await seedTenant(api);
+	const first = await seedComplexWithUnit(api, 'Create-1');
+	const second = await seedComplexWithUnit(api, 'Create-2');
+
+	batches.length = 0;
+
+	const contract = await api.contract.create({
+		tenantId: tenant.id,
+		start: monthsFromNow(-1),
+		end: monthsFromNow(11),
+		interval: '12m',
+		cost: 1000,
+		unitIds: [first.unit.id, second.unit.id]
+	});
+
+	assert.equal(batches.length, 1, 'the contract and its units were not written as one batch');
+	assert.equal(countMatching(batches[0], /^\s*insert into "contract" /i), 1);
+	assert.equal(countMatching(batches[0], /^\s*insert into "contract_unit"/i), 2);
+	assert.deepEqual(
+		(await api.contract.units.getMany({ contractId: contract.id })).map((unit) => unit.id).sort(),
+		[first.unit.id, second.unit.id].sort()
+	);
+});
+
+test('a contract created with units occupies them', async () => {
+	const api = await createApi();
+	const { complex, unit } = await seedComplexWithUnit(api, 'Create-Occupied');
+
+	await seedContract(api, { unitIds: [unit.id] });
+
+	const units = await api.complex.units.getMany({ complexId: complex.id });
+
+	assert.equal(units.find((held) => held.id === unit.id)?.status, 'occupied');
+});
+
+test('creation is refused a unit another contract holds over its term, and writes nothing', async () => {
+	const api = await createApi();
+	const { unit } = await seedComplexWithUnit(api, 'Create-Contested');
+
+	await seedContract(api, { unitIds: [unit.id] });
+
+	const before = await api.contract.getMany({});
+
+	await assert.rejects(
+		() => seedContract(api, { unitIds: [unit.id] }),
+		refusedWith('contract.unitsTaken')
+	);
+	assert.deepEqual(await api.contract.getMany({}), before);
+});
+
+test('creation takes a unit whose other contract runs over a different term', async () => {
+	const api = await createApi();
+	const { unit } = await seedComplexWithUnit(api, 'Create-Later');
+
+	await seedContract(api, { unitIds: [unit.id] });
+
+	const later = await seedContract(api, {
+		start: monthsFromNow(12),
+		end: monthsFromNow(24),
+		unitIds: [unit.id]
+	});
+
+	assert.deepEqual(
+		(await api.contract.units.getMany({ contractId: later.id })).map((held) => held.id),
+		[unit.id]
+	);
+});
+
+test('creation is refused a unit that is not in the workspace', async () => {
+	const api = await createApi();
+
+	await assert.rejects(
+		() => seedContract(api, { unitIds: [unusedId()] }),
+		refusedWith('contract.unitsMissing')
+	);
+});
+
+// the inverse `useCreateContract` records: one deletion, which releases the units in the same
+// batch. Redo creates it again with the identity and the units it had.
+test('a creation with units is undone leaving neither, and redone with both', async () => {
+	const api = await createApi();
+	const { unit } = await seedComplexWithUnit(api, 'Create-Undo');
+	const variables = { unitIds: [unit.id] };
+	const created = await seedContract(api, variables);
+
+	await api.contract.delete({ id: created.id });
+
+	assert.equal(await api.contract.get({ id: created.id }), undefined);
+	assert.deepEqual(await api.contract.getMany({ unitId: unit.id }), []);
+
+	const redone = await api.contract.create({ ...created, ...variables });
+
+	assert.equal(redone.id, created.id);
+	assert.deepEqual(
+		(await api.contract.units.getMany({ contractId: redone.id })).map((held) => held.id),
+		[unit.id]
+	);
+});
+
+// ticket 38, criterion 11(a): a contract without payments deletes at once whatever units it holds.
+// They go in the same batch, the units read vacant again, and the deletion answers with them, so
+// the inverse `useDeleteContract` records, restoring the row, puts back both.
+test('a contract with units is deleted with them, and undone holding the same units', async () => {
+	const api = await createApi();
+	const first = await seedComplexWithUnit(api, 'Delete-Undo-1');
+	const second = await seedComplexWithUnit(api, 'Delete-Undo-2');
+	const unitIds = [first.unit.id, second.unit.id];
+	const created = await seedContract(api, { unitIds });
+
+	const deleted = await api.contract.delete({ id: created.id });
+
+	assert.ok(deleted);
+	assert.deepEqual([...deleted.unitIds].sort(), [...unitIds].sort());
+	assert.equal(await api.contract.get({ id: created.id }), undefined);
+	assert.deepEqual(await api.contract.units.getMany({ contractId: created.id }), []);
+
+	for (const unitId of unitIds) {
+		assert.equal((await api.complex.units.get({ id: unitId }))?.status, 'vacant');
+	}
+
+	const [undone] = await api.contract.restoreMany({ contracts: [deleted] });
+
+	assert.equal(undone.id, created.id);
+	assert.deepEqual(
+		(await api.contract.units.getMany({ contractId: created.id })).map((held) => held.id).sort(),
+		[...unitIds].sort()
+	);
+
+	for (const unitId of unitIds) {
+		assert.equal((await api.complex.units.get({ id: unitId }))?.status, 'occupied');
+	}
+});
+
+test('a contract carrying a payment is still refused deletion, and keeps its units', async () => {
+	const api = await createApi();
+	const { unit } = await seedComplexWithUnit(api, 'Delete-Paid');
+	const created = await seedContract(api, { unitIds: [unit.id] });
+
+	await api.contract.payments.create({
+		contractId: created.id,
+		date: monthsFromNow(0),
+		amount: 100
+	});
+
+	await assert.rejects(
+		() => api.contract.delete({ id: created.id }),
+		refusedWith('contract.holdsPayments')
+	);
+	assert.deepEqual(
+		(await api.contract.units.getMany({ contractId: created.id })).map((held) => held.id),
+		[unit.id]
+	);
+});
+
+// ticket 41: undoing a deletion puts the rows back as they were. A terminated contract comes back
+// terminated, holding its unit, and the unit reads as it did before the deletion rather than
+// occupied by a contract a create would have made active again.
+test('a terminated contract holding a unit is deleted and undone as it was', async () => {
+	const api = await createApi();
+	const { unit } = await seedComplexWithUnit(api, 'Restore-Terminated');
+	const created = await seedContract(api, { unitIds: [unit.id] });
+
+	await api.contract.terminate({ id: created.id });
+
+	const before = (await api.complex.units.get({ id: unit.id }))?.status;
+	const deleted = await api.contract.delete({ id: created.id });
+
+	assert.ok(deleted);
+
+	await api.contract.restoreMany({ contracts: [deleted] });
+
+	assert.equal((await api.contract.get({ id: created.id }))?.status, 'terminated');
+	assert.deepEqual(
+		(await api.contract.units.getMany({ contractId: created.id })).map((held) => held.id),
+		[unit.id]
+	);
+	assert.equal((await api.complex.units.get({ id: unit.id }))?.status, before);
+});
+
+// the same, after another contract took the released unit over an overlapping term. The undo
+// restores rows rather than asking whether the unit is free today, and the other hold stays.
+test('a deleted contract is undone holding its unit after another contract took it', async () => {
+	const api = await createApi();
+	const { unit } = await seedComplexWithUnit(api, 'Restore-Taken');
+	const created = await seedContract(api, { unitIds: [unit.id] });
+
+	await api.contract.terminate({ id: created.id });
+
+	const deleted = await api.contract.delete({ id: created.id });
+
+	assert.ok(deleted);
+
+	const other = await seedContract(api, { unitIds: [unit.id] });
+
+	await api.contract.restoreMany({ contracts: [deleted] });
+
+	assert.equal((await api.contract.get({ id: created.id }))?.status, 'terminated');
+	assert.deepEqual(
+		(await api.contract.units.getMany({ contractId: created.id })).map((held) => held.id),
+		[unit.id]
+	);
+	assert.deepEqual(
+		(await api.contract.units.getMany({ contractId: other.id })).map((held) => held.id),
+		[unit.id]
+	);
+	assert.equal((await api.complex.units.get({ id: unit.id }))?.status, 'occupied');
+});
+
+test('the units free for a term leave out those an overlapping contract holds', async () => {
+	const api = await createApi();
+	const free = await seedComplexWithUnit(api, 'Term-Free');
+	const taken = await seedComplexWithUnit(api, 'Term-Taken');
+	const later = await seedComplexWithUnit(api, 'Term-Later');
+	const released = await seedComplexWithUnit(api, 'Term-Released');
+
+	await seedContract(api, { unitIds: [taken.unit.id] });
+	await seedContract(api, {
+		start: monthsFromNow(12),
+		end: monthsFromNow(24),
+		unitIds: [later.unit.id]
+	});
+
+	const terminated = await seedContract(api, { unitIds: [released.unit.id] });
+
+	await api.contract.terminate({ id: terminated.id });
+
+	const offered = await api.contract.units.getAssignableForTerm({
+		start: monthsFromNow(-1),
+		end: monthsFromNow(11)
+	});
+	const offeredIds = new Set(offered.map((unit) => unit.id));
+
+	assert.equal(offeredIds.has(free.unit.id), true);
+	assert.equal(offeredIds.has(later.unit.id), true, 'a unit held over another term was left out');
+	assert.equal(offeredIds.has(released.unit.id), true, 'a terminated contract still held a unit');
+	assert.equal(offeredIds.has(taken.unit.id), false, 'a unit held over the term was offered');
+});
+
+test('the units free for a term narrow on the unit name and on the complex holding it', async () => {
+	const api = await createApi();
+	const palm = await seedComplexWithUnit(api, 'Palm');
+	await seedComplexWithUnit(api, 'Coral');
+
+	const term = { start: monthsFromNow(-1), end: monthsFromNow(11) };
+
+	assert.deepEqual(
+		(await api.contract.units.getAssignableForTerm({ ...term, search: 'palm' })).map(
+			(unit) => unit.id
+		),
+		[palm.unit.id]
+	);
+	assert.deepEqual(
+		(await api.contract.units.getAssignableForTerm({ ...term, search: 'Unit Palm' })).map(
+			(unit) => unit.id
+		),
+		[palm.unit.id]
+	);
 });
 
 // --- Update --------------------------------------------------------------------------
@@ -171,7 +458,7 @@ test('updating a contract that does not exist is rejected', async () => {
 				interval: '12m',
 				cost: 1000
 			}),
-		/contract does not exist/
+		refusedWith('contract.missing')
 	);
 });
 
@@ -190,7 +477,7 @@ test('a terminated contract is locked against updates', async () => {
 				interval: '12m',
 				cost: 3000
 			}),
-		/terminated contracts are locked/
+		refusedWith('contract.terminatedLocked')
 	);
 });
 
@@ -208,7 +495,7 @@ test('updating with an invalid cost is rejected', async () => {
 				interval: '12m',
 				cost: 0
 			}),
-		/cost per payment must be greater than zero/
+		refusedWith('contract.costNotPositive')
 	);
 });
 
@@ -323,7 +610,7 @@ test('the successor is refused a government id another contract already holds', 
 
 	await assert.rejects(
 		() => renew(api, contract, { govId: 'GOV-TAKEN' }),
-		/government id is associated/
+		refusedWith('contract.govIdTaken')
 	);
 });
 
@@ -344,7 +631,7 @@ test('renewal is refused where the original’s units are held over the new term
 
 	await api.contract.units.set({ contractId: rival.id, unitIds: [unit.id] });
 
-	await assert.rejects(() => renew(api, contract), /already assigned to an overlapping contract/);
+	await assert.rejects(() => renew(api, contract), refusedWith('contract.unitsUnavailable'));
 });
 
 test('a refused renewal writes nothing at all', async () => {
@@ -381,7 +668,7 @@ test('renewal is refused a term that starts before the original ends', async () 
 				start: contract.start,
 				end: contract.end
 			}),
-		/a renewal must start after the contract it renews ends/
+		refusedWith('contract.renewalBeforeEnd')
 	);
 });
 
@@ -396,7 +683,7 @@ test('renewal is refused a term that starts on the day the original ends', async
 				start: contract.end,
 				end: monthsFromNow(23)
 			}),
-		/a renewal must start after the contract it renews ends/
+		refusedWith('contract.renewalBeforeEnd')
 	);
 });
 
@@ -411,7 +698,7 @@ test('renewal is refused a term that is not a whole number of the original’s c
 				start: contract.end + 24 * 60 * 60 * 1000,
 				end: monthsFromNow(16)
 			}),
-		/contract period must stay within/
+		refusedWith('contract.periodOffCycle')
 	);
 });
 
@@ -425,7 +712,7 @@ test('renewal is refused for a contract that does not exist', async () => {
 				start: monthsFromNow(12),
 				end: monthsFromNow(23)
 			}),
-		/contract does not exist/
+		refusedWith('contract.missing')
 	);
 });
 
@@ -473,7 +760,7 @@ test('renewal is refused an identity another contract already holds', async () =
 
 	await assert.rejects(
 		() => renew(api, contract, { id: contract.id }),
-		/another record already holds that id/
+		refusedWith('record.idTaken')
 	);
 });
 
@@ -561,6 +848,38 @@ test('the assignable set offers every unit no overlapping contract holds', async
 	assert.equal(byId.has(taken.unit.id), false, 'a unit an overlapping contract holds was offered');
 });
 
+test('the held pane lists a unit an overlapping contract also holds, as the contract’s own units do', async () => {
+	const api = await createApi();
+	const shared = await seedComplexWithUnit(api, 'S');
+	const theirs = await seedComplexWithUnit(api, 'T');
+	const contract = await seedContract(api);
+	const other = await seedContract(api);
+
+	// two overlapping contracts come to hold one unit: the first holds it and is terminated,
+	// which frees the unit for the second, and restoring the first does not give it back.
+	await api.contract.units.set({ contractId: contract.id, unitIds: [shared.unit.id] });
+	await api.contract.terminate({ id: contract.id });
+	await api.contract.units.set({
+		contractId: other.id,
+		unitIds: [shared.unit.id, theirs.unit.id]
+	});
+	await api.contract.unterminate({ id: contract.id });
+
+	const assignable = await api.contract.units.getAssignableMany({ contractId: contract.id });
+	const byId = new Map(assignable.map((unit) => [unit.id, unit]));
+	const heldPane = assignable.filter((unit) => unit.isAssigned);
+	const heldUnits = await api.contract.units.getMany({ contractId: contract.id });
+
+	assert.equal(byId.get(shared.unit.id)?.isAssigned, true, 'a unit the contract holds was dropped');
+	assert.equal(
+		byId.has(theirs.unit.id),
+		false,
+		'a unit only the overlapping contract holds was offered'
+	);
+	assert.equal(heldPane.length, heldUnits.length);
+	assert.equal(heldUnits.length, 1);
+});
+
 test('the assignable search narrows on the unit name and on the complex holding it', async () => {
 	const api = await createApi();
 	const contract = await seedContract(api);
@@ -606,7 +925,7 @@ test('assigning a unit already held by an overlapping contract is rejected', asy
 				contractId: second.id,
 				unitIds: [unit.id]
 			}),
-		/overlapping contract/
+		refusedWith('contract.unitsUnavailable')
 	);
 });
 
@@ -616,7 +935,7 @@ test('a set naming a unit that does not exist is rejected', async () => {
 
 	await assert.rejects(
 		() => api.contract.units.set({ contractId: contract.id, unitIds: [unusedId()] }),
-		/one or more units could not be found/
+		refusedWith('contract.unitsMissing')
 	);
 });
 
@@ -637,7 +956,7 @@ test('a unit cannot be assigned once the contract has payments', async () => {
 				contractId: contract.id,
 				unitIds: [unit.id]
 			}),
-		/cannot change contract units after payments have been registered/
+		refusedWith('contract.unitsLockedByPayments')
 	);
 });
 
@@ -658,7 +977,7 @@ test('a unit cannot be removed once the contract has payments', async () => {
 
 	await assert.rejects(
 		() => api.contract.units.set({ contractId: contract.id, unitIds: [] }),
-		/cannot change contract units after payments have been registered/
+		refusedWith('contract.unitsLockedByPayments')
 	);
 });
 
@@ -1771,9 +2090,9 @@ test('a plan says which of a selection would go through and which would not', as
 	);
 });
 
-// the criterion this ticket exists for on the read side: a contract row carries its status and
-// how many payments it has, and neither of those answers what a deletion is refused for. A row
-// could not have said this, which is why the confirmation asks instead of reading the list.
+// the criterion this ticket exists for on the read side: the confirmation asks the workspace what
+// a deletion is refused for instead of reading the list. The units a contract holds go with it
+// (ticket 38), so only its payments refuse it.
 test('a plan answers for a rule no row on the list carries', async () => {
 	const api = await createApi();
 	const holdingUnits = await seedContractHoldingAUnit(api, 'S1');
@@ -1785,13 +2104,10 @@ test('a plan answers for a rule no row on the list carries', async () => {
 		action: 'delete'
 	});
 
-	assert.deepEqual(plan.eligible, [free.id]);
+	assert.deepEqual(plan.eligible, [holdingUnits.id, free.id]);
 	assert.deepEqual(
 		plan.refused.map((refusal) => ({ id: refusal.id, reason: refusal.reason })),
-		[
-			{ id: holdingUnits.id, reason: 'holds-units' },
-			{ id: carryingPayments.id, reason: 'holds-payments' }
-		]
+		[{ id: carryingPayments.id, reason: 'holds-payments' }]
 	);
 });
 
@@ -1897,19 +2213,19 @@ test('several contracts are deleted by one action, and the rest are named', asyn
 	const api = await createApi();
 	const first = await seedContract(api);
 	const second = await seedContract(api, { govId: 'CT-DEL-2' });
-	const holdingUnits = await seedContractHoldingAUnit(api, 'S4');
+	const carryingPayments = await seedContractCarryingAPayment(api);
 
 	const result = await api.contract.deleteMany({
-		ids: [first.id, second.id, holdingUnits.id]
+		ids: [first.id, second.id, carryingPayments.id]
 	});
 
 	assert.deepEqual(toIds(result.deleted).sort(), [first.id, second.id].sort());
 	assert.deepEqual(
 		result.refused.map((refusal) => ({ id: refusal.id, reason: refusal.reason })),
-		[{ id: holdingUnits.id, reason: 'holds-units' }]
+		[{ id: carryingPayments.id, reason: 'holds-payments' }]
 	);
 	assert.equal(await api.contract.get({ id: first.id }), undefined);
-	assert.ok(await api.contract.get({ id: holdingUnits.id }));
+	assert.ok(await api.contract.get({ id: carryingPayments.id }));
 	// the government id comes back with the row, which is what names the record afterwards.
 	assert.ok(result.deleted.some((contract) => contract.govId === 'CT-DEL-2'));
 });
@@ -1986,13 +2302,68 @@ test('deleting many issues one delete rather than one per record', async () => {
 
 // --- Putting a deleted selection back ------------------------------------------------
 
+// ticket 38: a selection deletes its contracts with their units in one batch, and putting it back
+// restores each holding what it held.
+test('a deleted selection takes its units with it, and is put back holding them', async () => {
+	const api = await createApi();
+	const holding = await seedContractHoldingAUnit(api, 'Many-Units');
+	const free = await seedContract(api);
+	const [unit] = await api.contract.units.getMany({ contractId: holding.id });
+
+	const deleted = await api.contract.deleteMany({ ids: [holding.id, free.id] });
+
+	assert.deepEqual(toIds(deleted.deleted).sort(), [holding.id, free.id].sort());
+	assert.deepEqual(deleted.refused, []);
+	assert.equal((await api.complex.units.get({ id: unit.id }))?.status, 'vacant');
+
+	await api.contract.restoreMany({ contracts: deleted.deleted });
+
+	assert.deepEqual(
+		(await api.contract.units.getMany({ contractId: holding.id })).map((held) => held.id),
+		[unit.id]
+	);
+	assert.deepEqual(await api.contract.units.getMany({ contractId: free.id }), []);
+	assert.equal((await api.complex.units.get({ id: unit.id }))?.status, 'occupied');
+});
+
+// ticket 41: a selection is put back as it was, not created again. A terminated contract in it
+// comes back terminated, and a unit another contract took since the deletion is held by both
+// rather than refusing the undo.
+test('a deleted selection is put back as it was, even where one of its units was taken since', async () => {
+	const api = await createApi();
+	const holding = await seedContractHoldingAUnit(api, 'Many-Taken');
+	const free = await seedContract(api);
+	const [unit] = await api.contract.units.getMany({ contractId: holding.id });
+
+	await api.contract.terminate({ id: holding.id });
+
+	const deleted = await api.contract.deleteMany({ ids: [holding.id, free.id] });
+
+	// another contract takes the released unit over the same term.
+	const other = await seedContract(api, { unitIds: [unit.id] });
+
+	await api.contract.restoreMany({ contracts: deleted.deleted });
+
+	assert.equal((await api.contract.get({ id: holding.id }))?.status, 'terminated');
+	assert.equal((await api.contract.get({ id: free.id }))?.status, free.status);
+	assert.deepEqual(
+		(await api.contract.units.getMany({ contractId: holding.id })).map((held) => held.id),
+		[unit.id]
+	);
+	assert.deepEqual(
+		(await api.contract.units.getMany({ contractId: other.id })).map((held) => held.id),
+		[unit.id]
+	);
+	assert.equal((await api.complex.units.get({ id: unit.id }))?.status, 'occupied');
+});
+
 test('a deleted selection is put back whole, each contract with the identity it had', async () => {
 	const api = await createApi();
 	const first = await seedContract(api, { govId: 'CT-BACK-1' });
 	const second = await seedContract(api, { govId: 'CT-BACK-2' });
 
 	const deleted = await api.contract.deleteMany({ ids: [first.id, second.id] });
-	const restored = await api.contract.createMany({ contracts: deleted.deleted });
+	const restored = await api.contract.restoreMany({ contracts: deleted.deleted });
 
 	assert.deepEqual(toIds(restored).sort(), [first.id, second.id].sort());
 
@@ -2019,8 +2390,8 @@ test('and where one of them cannot be put back, none is', async () => {
 	await seedContract(api, { govId: 'CT-BLOCK-2' });
 
 	await assert.rejects(
-		() => api.contract.createMany({ contracts: deleted.deleted }),
-		/CT-BLOCK-2/,
+		() => api.contract.restoreMany({ contracts: deleted.deleted }),
+		refusedWith('contract.govIdTakenNamed', { named: 'CT-BLOCK-2' }),
 		'the refusal names the contract that blocked it'
 	);
 
@@ -2036,7 +2407,10 @@ test('and a set claiming one government id twice is refused before anything is w
 	const deleted = await api.contract.deleteMany({ ids: [first.id, second.id] });
 	const collided = deleted.deleted.map((contract) => ({ ...contract, govId: 'CT-TWICE' }));
 
-	await assert.rejects(() => api.contract.createMany({ contracts: collided }), /CT-TWICE/);
+	await assert.rejects(
+		() => api.contract.restoreMany({ contracts: collided }),
+		refusedWith('contract.repeatedInSet', { value: 'CT-TWICE' })
+	);
 
 	assert.equal(await api.contract.get({ id: first.id }), undefined);
 	assert.equal(await api.contract.get({ id: second.id }), undefined);
@@ -2054,7 +2428,7 @@ test('putting a selection back is one batch and one reconcile pass', async () =>
 
 		drain();
 
-		await api.contract.createMany({ contracts: deleted.deleted });
+		await api.contract.restoreMany({ contracts: deleted.deleted });
 	});
 
 	// three rows, and the reconcile that follows reads them once rather than three times.
@@ -2062,5 +2436,93 @@ test('putting a selection back is one batch and one reconcile pass', async () =>
 	assert.ok(
 		countMatching(statements, /select .* from "contract" where/i) <= 3,
 		`one pass over the set, not one per row: ${statements.filter((sql) => /select .* from "contract" where/i.test(sql)).length}`
+	);
+});
+
+// --- Refusals, as a reader of Arabic meets them ----------------------------------------
+//
+// effort 832, requirement 23: a refusal crosses as a code, and the interface words it in the
+// reader's language. These read the contract refusals a form places under a field through the
+// same function the form calls, in Arabic, which is where an English sentence used to surface.
+
+test('the contract refusals a form shows read in Arabic', async () => {
+	const api = await createApi();
+	const tenant = await seedTenant(api);
+	const create = (overrides: Partial<ContractInput>) =>
+		api.contract.create({
+			tenantId: tenant.id,
+			start: monthsFromNow(-1),
+			end: monthsFromNow(11),
+			interval: '12m',
+			cost: 1000,
+			...overrides
+		});
+
+	assert.equal(
+		await refusalReadIn(() => create({ start: monthsFromNow(11), end: monthsFromNow(-1) })),
+		'يجب أن يكون تاريخ النهاية بعد تاريخ البداية.'
+	);
+	assert.equal(
+		await refusalReadIn(() => create({ cost: 0 })),
+		'يجب أن تكون تكلفة الدفعة أكبر من صفر.'
+	);
+	// the cycle crosses as its stored key and is read back as the reader's word for it.
+	assert.equal(
+		await refusalReadIn(() => create({ end: monthsFromNow(4) })),
+		'يجب أن يبقى تاريخ النهاية ضمن 5 أيام قبل أو بعد تاريخ نهاية دورة سنوي المحسوب.'
+	);
+	assert.equal(
+		await refusalReadIn(() => create({ tenantId: unusedId() })),
+		'لم يعد المستأجر المختار موجوداً في مساحة العمل. اختر مستأجراً آخر.'
+	);
+
+	await seedContract(api, { govId: 'DUP-1' });
+
+	assert.equal(
+		await refusalReadIn(() => create({ govId: 'DUP-1' })),
+		'المعرف الحكومي مرتبط بعقد آخر.'
+	);
+
+	const { unit } = await seedComplexWithUnit(api, 'Arabic-Taken');
+
+	await create({ unitIds: [unit.id] });
+
+	assert.equal(
+		await refusalReadIn(() => create({ unitIds: [unit.id] })),
+		'يحتفظ عقد آخر بواحدة أو أكثر من الوحدات المختارة خلال هذه المدة. اختر وحدات أخرى أو مدة أخرى.'
+	);
+});
+
+test('a renewal refused for its term reads in Arabic', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api);
+
+	assert.equal(
+		await refusalReadIn(() =>
+			api.contract.renew({ contractId: contract.id, start: contract.start, end: contract.end })
+		),
+		'يجب أن يبدأ التجديد بعد انتهاء العقد الذي يجدده.'
+	);
+	assert.equal(
+		await refusalReadIn(() =>
+			api.contract.renew({ contractId: unusedId(), start: contract.start, end: contract.end })
+		),
+		'لم يعد هذا العقد موجوداً في مساحة العمل. أعد التحميل لترى ما تغيّر.'
+	);
+});
+
+test('a refusal naming a value keeps the value whole inside the Arabic sentence', async () => {
+	const api = await createApi();
+	const first = await seedContract(api, { govId: 'GOV-A' });
+	const second = await seedContract(api, { govId: 'GOV-B' });
+
+	const deleted = await api.contract.deleteMany({ ids: [first.id, second.id] });
+	await seedContract(api, { govId: 'GOV-B' });
+
+	// the id runs left to right whatever the sentence around it does, so it is isolated rather
+	// than left for the bidirectional algorithm to reorder.
+	assert.equal(
+		await refusalReadIn(() => api.contract.restoreMany({ contracts: deleted.deleted })),
+		'المعرف الحكومي \u2068GOV-B\u2069 مرتبط بعقد آخر.'
 	);
 });

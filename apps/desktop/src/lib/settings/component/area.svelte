@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import type api from '$lib/api/caller';
 	import type {
 		MemberStanding,
@@ -8,6 +9,7 @@
 	} from '$lib/platform/host';
 	import type { Locales } from '$lib/i18n/i18n-types';
 	import PageFrame from '@rentable/design/block/page-frame.svelte';
+	import SectionSwitch from '@rentable/design/block/section-switch.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import { Separator } from '@rentable/design/primitive/separator/index.js';
@@ -24,19 +26,20 @@
 	import OrganizationReconnectAuthority from '$lib/organization/component/reconnect-authority.svelte';
 	import OrganizationStanding from '$lib/organization/component/standing.svelte';
 	import OrganizationWorkspaces from '$lib/organization/component/workspaces.svelte';
+	import { memberReaderOf, workspaceContextOf } from '$lib/organization/acts';
+	import SettingsAppearance from '$lib/settings/component/appearance.svelte';
 	import SettingsDiagnostics from '$lib/settings/component/diagnostics.svelte';
 	import SettingsEndingSoon from '$lib/settings/component/ending-soon.svelte';
 	import SettingsLocale from '$lib/settings/component/locale.svelte';
-	import SettingsRail from '$lib/settings/component/rail.svelte';
 	import SettingsUpdates from '$lib/settings/component/updates.svelte';
 	import {
 		administersMembers,
 		holdingSection,
 		sectionsFor,
 		shownSection,
+		withSection,
 		type AddressableSection
 	} from '$lib/settings/section';
-	import { permits } from '@rentable/workspace-permission';
 	import CrownIcon from '@lucide/svelte/icons/crown';
 	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
 
@@ -67,7 +70,9 @@
 	 *
 	 * **It owns no query**, which is what makes requirement 14's gating readable without a shell:
 	 * the route reads the four queries the four pages read, and this is handed their answers and
-	 * a callback per act. So its test renders it with one session and then another and reads the
+	 * a callback per act of its own. A member's or a workspace's acts are not among them: the
+	 * directories project them from `organization/acts.ts`, and the organization host in the frame
+	 * runs them (effort 832, requirement 8). So its test renders it with one session and then another and reads the
 	 * rail, which no test of a route could do.
 	 *
 	 * **What a section shows is the session's, and a section with nothing to show is absent**:
@@ -75,7 +80,7 @@
 	 * each block. Rust refuses every one of them again.
 	 *
 	 * **Each block is one component, and this composes rather than draws.** The members list, the
-	 * workspaces list and the standing block each own their rows, their dialogs and their gates;
+	 * workspaces list and the standing block each own their rows and their gates;
 	 * what is here is which of them a reader is offered and what they are handed. *The workspaces
 	 * and sync blocks were the retired pages' components stood side by side until ticket 11 rebuilt
 	 * them; the sync block became the standing block with ticket 26 of effort 828.*
@@ -88,33 +93,14 @@
 		syncState,
 		members,
 		standings,
-		makingLink,
-		unsetting,
-		endingSessions,
 		isChangingPassword,
-		isChangingRole,
-		isChangingAccess,
-		isOffering,
-		isWithdrawing,
 		isAcceptingOwnership,
 		isDeletingOrganization,
 		onChangeLocale,
 		onRevealDiagnostics,
 		onChangePassword,
 		onEndOtherSessions,
-		onEndSessions,
-		onMakeLink,
-		onUnsetPassword,
-		onRemove,
-		onLockOut,
-		onRename,
-		onChangeRole,
-		onChangeAccess,
-		onOfferOwnership,
-		onWithdrawOffer,
 		onAcceptOwnership,
-		onChangeWorkspaceAccess,
-		onDeleteWorkspace,
 		onAuthorityReconnected,
 		onDeleteOrganization,
 		onDisconnect
@@ -134,19 +120,7 @@
 		members: OrganizationMember[];
 		/** where each account stands, as the members section draws it in a line. */
 		standings: MemberStanding[];
-		/** the account a link is being made for, while it is. */
-		makingLink: string | null;
-		/** the account whose password is being unset, while it is. */
-		unsetting: string | null;
-		/** the member whose sessions are being ended, while they are. */
-		endingSessions: string | null;
 		isChangingPassword: boolean;
-		isChangingRole: boolean;
-		isChangingAccess: boolean;
-		/** the offer is being written, which is a signed row, a succession row and a push. */
-		isOffering: boolean;
-		/** the offer is being taken back. */
-		isWithdrawing: boolean;
 		/** the organization is being accepted, which re-keys the whole directory and pushes it. */
 		isAcceptingOwnership: boolean;
 		/** the organization is being deleted, which is several requests and a sweep of the disk. */
@@ -159,45 +133,11 @@
 		 * sign the reader out of their other machines; rejects so the confirm stays open on it.
 		 */
 		onEndOtherSessions: () => Promise<void>;
-		/** sign a member out of every machine, from their row. */
-		onEndSessions: (memberId: string) => void;
-		/** make the one link that admits a machine to an account (effort 828, requirement 20). */
-		onMakeLink: (memberId: string) => void;
-		/** unset an account's password, so the next link made for it asks for a new one. */
-		onUnsetPassword: (memberId: string) => void;
-		/** ask to remove a member: the route raises the confirm that names what it costs. */
-		onRemove: (memberId: string) => void;
-		onLockOut: (memberId: string) => void;
-		onRename: (memberId: string, username: string) => Promise<void>;
-		onChangeRole: (
-			memberId: string,
-			role: 'administrator' | 'member',
-			permissions: number
-		) => Promise<void>;
-		onChangeAccess: (
-			memberId: string,
-			changes: { id: string; access: 'none' | 'full-access' | 'read-only' }[]
-		) => Promise<void>;
-		/**
-		 * offer the organization to another account, with the owner's own password (effort 828,
-		 * requirement 22). Rejects with what the shared handler has said, which the members
-		 * section puts on the password.
-		 */
-		onOfferOwnership: (memberId: string, password: string) => Promise<void>;
-		/** take that offer back, which leaves the organization where it was. */
-		onWithdrawOffer: () => void;
 		/**
 		 * accept the organization offered to this reader, with their own password. Rejects with
 		 * what the shared handler has said, which the account section puts on the password.
 		 */
 		onAcceptOwnership: (password: string) => Promise<void>;
-		/** the same grants read the other way round: one workspace, and the members that changed. */
-		onChangeWorkspaceAccess: (
-			workspaceId: string,
-			changes: { memberId: string; access: 'none' | 'full-access' | 'read-only' }[]
-		) => Promise<void>;
-		/** delete a workspace and its database; rejects so the confirm stays open on the refusal. */
-		onDeleteWorkspace: (workspaceId: string) => Promise<void>;
 		onAuthorityReconnected: () => void;
 		/**
 		 * delete the organization with the owner's password: every workspace database and the
@@ -212,12 +152,21 @@
 	const sections = $derived(sectionsFor(session, holdsTursoAuthority));
 	const shown = $derived(shownSection(holdingSection(section), sections));
 
+	// every section is addressable, so the switch is a row of links to the addresses a menu row,
+	// the command palette and a bookmark open too. The mark follows `shown`, so an address naming
+	// a section this reader is not offered marks the section that is drawn.
+	const switchable = $derived(
+		sections.map((value) => ({
+			value,
+			label: $LL.settings.section[value](),
+			href: resolve(withSection(value))
+		}))
+	);
+
 	const isOwner = $derived(session?.role === 'owner');
 	// an owner restored on this machine holds no Turso authority until they repeat the consent.
 	const needsAuthority = $derived(isOwner && !holdsTursoAuthority);
 	const canCreateWorkspace = $derived(isOwner && holdsTursoAuthority);
-	const canInvite = $derived(permits(session?.permissions ?? 0, 'inviteMember'));
-	const canRemove = $derived(permits(session?.permissions ?? 0, 'removeMember'));
 	// the directory is the organization section's own gate: it was a section of its own, and what
 	// admitted a reader to that section now decides whether the block is drawn.
 	const administers = $derived(administersMembers(session));
@@ -243,30 +192,6 @@
 			changingPassword = false;
 		} catch (error) {
 			passwordRefusal = toErrorText(error, $LL);
-		}
-	};
-
-	/** what the shell refused the last offer with, marked on the surface's password field. */
-	let offerRefusal = $state<string | null>(null);
-
-	/**
-	 * the organization, offered to another account from the members directory.
-	 *
-	 * The same shape the password change and the delete have, and for the same reason: the surface
-	 * that went through closes and empties, and a refusal keeps it open and puts the sentence on
-	 * the password, because the password is what the shell refuses this with ([[rules/interface]],
-	 * *Validation errors*). Nothing about what the owner sees changes on an offer: they are still
-	 * the owner until the other person accepts, and their card carries the withdrawal instead.
-	 */
-	const offerOwnership = async (memberId: string, password: string) => {
-		offerRefusal = null;
-
-		try {
-			await onOfferOwnership(memberId, password);
-		} catch (error) {
-			offerRefusal = toErrorText(error, $LL);
-
-			throw error;
 		}
 	};
 
@@ -320,9 +245,9 @@
 <PageFrame>
 	<!-- the title alone, as the settings page has carried it: the rail below names the sections,
 	     so a sentence here would list what the tabs already list. -->
-	<h1 class="text-3xl font-semibold tracking-tight capitalize">{$LL.settings.title()}</h1>
+	<h1 class="text-3xl font-semibold first-letter:uppercase">{$LL.settings.title()}</h1>
 
-	<SettingsRail {sections} />
+	<SectionSwitch sections={switchable} current={shown} label={$LL.settings.title()} />
 
 	{#if shown === 'general'}
 		<Field.Group>
@@ -331,6 +256,8 @@
 			     below carry one each, because they are things of their own under that name. -->
 			<Field.Set data-general>
 				<SettingsLocale currentLocale={$locale} onChange={onChangeLocale} />
+				<Field.Separator />
+				<SettingsAppearance stored={settings.appearance} />
 				<Field.Separator />
 				<SettingsEndingSoon {settings} />
 			</Field.Set>
@@ -495,38 +422,8 @@
 			     the add at its foot; what is decided here is what this reader may do, and a member
 			     who changes nobody's row meets no directory at all. -->
 			{#if administers}
-				<OrganizationMembers
-					{members}
-					{standings}
-					workspaces={session.workspaces}
-					{canInvite}
-					{canRemove}
-					canLockOut={isOwner}
-					canRename={permits(session.permissions, 'renameMember')}
-					canReset={permits(session.permissions, 'resetPassword')}
-					canChangeRole={permits(session.permissions, 'changeRole')}
-					canGrantWorkspace={permits(session.permissions, 'grantWorkspace')}
-					{isOwner}
-					selfId={session.memberId}
-					{makingLink}
-					{unsetting}
-					{endingSessions}
-					{isChangingRole}
-					{isChangingAccess}
-					{isOffering}
-					{isWithdrawing}
-					{offerRefusal}
-					{onEndSessions}
-					{onMakeLink}
-					{onUnsetPassword}
-					{onRemove}
-					{onLockOut}
-					{onRename}
-					{onChangeRole}
-					{onChangeAccess}
-					{onWithdrawOffer}
-					onOfferOwnership={offerOwnership}
-				/>
+				<!-- the reader's gates, read by the one builder the command menu reads them by. -->
+				<OrganizationMembers {members} {standings} {...memberReaderOf(session)} />
 
 				<Separator />
 			{/if}
@@ -568,17 +465,9 @@
 			<OrganizationWorkspaces
 				workspaces={session.workspaces}
 				{members}
-				openWorkspaceId={syncState?.workspace.remoteId ?? null}
+				{...workspaceContextOf(session, syncState?.workspace.remoteId ?? null)}
 				canCreate={canCreateWorkspace}
-				canDelete={isOwner}
-				canRename={permits(session.permissions, 'renameWorkspace')}
-				canGrantWorkspace={permits(session.permissions, 'grantWorkspace')}
-				{isOwner}
-				selfId={session.memberId}
-				{isChangingAccess}
 				refusal={needsAuthority ? $LL.layout.workspaceMenu.workspaceRefusedAuthority() : null}
-				onChangeAccess={onChangeWorkspaceAccess}
-				onDelete={onDeleteWorkspace}
 			/>
 		</Field.Group>
 	{/if}

@@ -24,12 +24,16 @@ import { getContext } from 'svelte';
  * The eleven the blocks added at #781 are the other kind, and are read aloud by nothing: they are
  * the sentences and control words on a composed surface, which are the surface's own rather than
  * its caller's. #782 added six more of that kind, when the export dialog and the record card
- * crossed: five of them the dialog's, and `openMenu` the card's.
+ * crossed: five of them the dialog's, and `openMenu` the card's. Effort 832 gave the record
+ * surface's not-found three of that kind, `recordNotFound`, `recordNotFoundDescription` and
+ * `goBack`, in place of the `noResults` it borrowed from the lists.
  *
- * **One key is a function and every other one is a string.** `moreRecords` counts the records a
+ * **Two keys are functions and every other one is a string.** `moreRecords` counts the records a
  * selection dialog decided not to name, which is arithmetic over a plan the consumer handed in
  * and therefore a number no consumer could have resolved the phrase against. When a key belongs
- * here at all is [[rules/frontend]]'s, and it turns on which side knows the number.
+ * here at all is [[rules/frontend]]'s, and it turns on which side knows the number. `refusal`
+ * words the refusal a confirmation earned, which crosses as a code the consumer alone can read
+ * (effort 832, requirement 23).
  *
  * The type is the first enforcement and not the only one. A consumer whose object is missing a
  * key fails `svelte-check` at the place it renders the provider, and the message names the key;
@@ -57,6 +61,9 @@ export type DesignStrings = {
 	deleteDescription: string;
 	/** the word that replaces {@link DesignStrings.delete} while the deletion is in flight. */
 	deleting: string;
+	/** the labelled way back a record surface offers where the record does not exist. It goes
+	 * where the back control goes. */
+	goBack: string;
 	/** the word on the control that writes the list out, and the export dialog's own title. */
 	export: string;
 	/** what the export dialog asks, which is which of the two files this should become. */
@@ -69,10 +76,13 @@ export type DesignStrings = {
 	goToNextPage: string;
 	/** the accessible name of a pagination control that goes back a page. */
 	goToPreviousPage: string;
-	/** the accessible name of a spinner, which is a `role="status"` with nothing else to read. */
+	/**
+	 * the accessible name of a spinner or a loading skeleton, each a `role="status"` with nothing
+	 * else to read.
+	 */
 	loading: string;
 	/**
-	 * what a record surface says beneath its spinner while the record is still being read.
+	 * what a record surface's skeleton says to a screen reader while the record is still being read.
 	 *
 	 * **A sentence about the record, not about the application.** This block is shared by every
 	 * concept, so it cannot name which kind of record is on its way, and a consumer that supplies
@@ -93,8 +103,6 @@ export type DesignStrings = {
 	next: string;
 	/** the accessible name of a carousel control that advances a slide. */
 	nextSlide: string;
-	/** what a record surface says in place of the record where there is no such record. */
-	noResults: string;
 	/** what a selection dialog says where the plan it was handed turned every record away. */
 	nothingToDo: string;
 	/** the accessible name of the quiet control that opens a record card's own actions. */
@@ -106,6 +114,14 @@ export type DesignStrings = {
 	previous: string;
 	/** the accessible name of a carousel control that goes back a slide. */
 	previousSlide: string;
+	/** what a record surface says in place of the record where there is no such record: that it
+	 * does not exist, never that a search found nothing. */
+	recordNotFound: string;
+	/** the line under {@link DesignStrings.recordNotFound}, saying how a record comes to be gone. */
+	recordNotFoundDescription: string;
+	/** what a confirmation says for the refusal its action earned, in the reader's words. The
+	 * second key that is a function; the docstring above has why. */
+	refusal: (failure: unknown) => string;
 	/** what the sidebar's drawer presentation is titled, for a reader who cannot see it. */
 	sidebar: string;
 	/** the accessible name of both controls that fold and unfold the sidebar. */

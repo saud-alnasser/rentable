@@ -1,8 +1,16 @@
 import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 import type { Locales } from '$lib/i18n/i18n-types';
 
+/**
+ * The `Intl` locale each of this application's locales formats in.
+ *
+ * Arabic carries `-u-nu-latn`, so a figure reads in Western digits in both locales: an amount,
+ * a count, a date and a relative time look the same whichever language surrounds them. That is
+ * the human's decision of 2026-09-24, which reverses effort 810's use of Arabic-Indic digits.
+ * A search typed in Arabic-Indic digits still matches, because search folds them to Western.
+ */
 const intlLocaleMap: Record<Locales, string> = {
-	ar: 'ar-SA',
+	ar: 'ar-SA-u-nu-latn',
 	en: 'en-GB'
 };
 

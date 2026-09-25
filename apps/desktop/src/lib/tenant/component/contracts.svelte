@@ -2,12 +2,12 @@
 	import type api from '$lib/api/caller';
 	import List from '$lib/design/block/list.svelte';
 	import type { ListSort } from '@rentable/design/sort.js';
-	import ContractActions from '$lib/contract/component/actions.svelte';
 	import ContractRecord from '$lib/contract/component/record.svelte';
 	import ContractSelectionActions from '$lib/contract/component/selection-actions.svelte';
 	import { CONTRACT_SORT_COLUMN_IDS, type ContractSortColumnId } from '$lib/contract/contract';
 	import { RANK_FILTER, toChosenRank } from '$lib/contract/rank-filter';
 	import { useListContracts } from '$lib/contract/query';
+	import { contractHost } from '$lib/contract/host.svelte';
 	import type { FilterSelection } from '$lib/design/filter';
 	import { LL } from '$lib/i18n/i18n-svelte';
 
@@ -54,30 +54,28 @@
 	});
 </script>
 
-<ContractActions>
-	{#snippet children(contractActions)}
-		<ContractSelectionActions onActed={() => (selected = [])}>
-			{#snippet children(selectionActions)}
-				<List
-					data={contracts}
-					bind:search
-					bind:sort
-					{sortOptions}
-					bind:filters
-					filterOptions={[RANK_FILTER]}
-					bind:selected
-					{selectionActions}
-					isLoading={contractsQuery.isLoading}
-					isFetching={contractsQuery.isFetching}
-					recordHeight={ROW_HEIGHT}
-					emptyTitle={$LL.tenants.contracts.emptyTitle()}
-					emptyDescription={$LL.tenants.contracts.emptyDescription()}
-				>
-					{#snippet record(contract: ContractRow)}
-						<ContractRecord {contract} actions={contractActions.of(contract)} />
-					{/snippet}
-				</List>
+<ContractSelectionActions onActed={() => (selected = [])}>
+	{#snippet children(selectionActions)}
+		<List
+			data={contracts}
+			bind:search
+			bind:sort
+			{sortOptions}
+			bind:filters
+			filterOptions={[RANK_FILTER]}
+			bind:selected
+			{selectionActions}
+			isLoading={contractsQuery.isLoading}
+			isFetching={contractsQuery.isFetching}
+			recordHeight={ROW_HEIGHT}
+			onCreate={() => contractHost.create({ tenantId })}
+			createLabel={$LL.common.actions.newContract()}
+			emptyTitle={$LL.tenants.contracts.emptyTitle()}
+			emptyDescription={$LL.tenants.contracts.emptyDescription()}
+		>
+			{#snippet record(contract: ContractRow)}
+				<ContractRecord {contract} />
 			{/snippet}
-		</ContractSelectionActions>
+		</List>
 	{/snippet}
-</ContractActions>
+</ContractSelectionActions>

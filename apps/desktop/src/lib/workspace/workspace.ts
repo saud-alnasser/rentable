@@ -14,6 +14,18 @@ import { hasValidPaymentAmount, isPaymentInTheFuture } from '$lib/payment/paymen
 import { identity as nationalIdPattern, phone as phonePattern } from '$lib/tenant/tenant';
 
 /**
+ * Every refusal an import raises, by code. An `unknown...` names a record the file refers to and
+ * does not hold, by the name the file wrote. The sentences are the interface's, under
+ * `common.refusals.workspace`; see `$lib/api/refusal`.
+ */
+export type WorkspaceRefusalCode =
+	| 'workspace.unknownComplex'
+	| 'workspace.unknownContract'
+	| 'workspace.unknownTenant'
+	| 'workspace.unknownUnit'
+	| 'workspace.nothingToImport';
+
+/**
  * How long a workspace's name may be.
  *
  * **The organization store is the authority and this is a copy of its number**, which is worth stating
@@ -293,7 +305,7 @@ type PaymentRow = { contract: string; date: string; amount: string };
 
 const TENANT_FIELDS: readonly ImportField<TenantRow>[] = [
 	{ id: 'name', headers: ['Name', 'الاسم'], required: true },
-	{ id: 'nationalId', headers: ['National Id', 'الهوية الوطنية'], required: true, identity: true },
+	{ id: 'nationalId', headers: ['National ID', 'الهوية الوطنية'], required: true, identity: true },
 	{ id: 'phone', headers: ['Phone', 'الهاتف'], required: true, identity: true }
 ];
 
@@ -312,12 +324,12 @@ const UNIT_FIELDS: readonly ImportField<UnitRow>[] = [
 ];
 
 const CONTRACT_FIELDS: readonly ImportField<ContractRow>[] = [
-	// `Government Id` is what the contracts directory calls the same column: a contract's
+	// `Government ID` is what the contracts directory calls the same column: a contract's
 	// reference *is* its government number wherever it has one, and a directory of contracts
 	// shows the number rather than the fallback.
 	{
 		id: 'reference',
-		headers: ['Contract', 'العقد', 'Government Id', 'المعرف الحكومي'],
+		headers: ['Contract', 'العقد', 'Government ID', 'المعرف الحكومي'],
 		required: true,
 		identity: true
 	},
@@ -364,7 +376,7 @@ export const TRANSFER_COLUMNS: {
 } = {
 	tenants: [
 		{ header: 'Name', value: (tenant) => tenant.name },
-		{ header: 'National Id', value: (tenant) => tenant.nationalId },
+		{ header: 'National ID', value: (tenant) => tenant.nationalId },
 		{ header: 'Phone', value: (tenant) => tenant.phone }
 	],
 	complexes: [

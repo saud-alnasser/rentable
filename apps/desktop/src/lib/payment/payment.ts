@@ -1,6 +1,6 @@
 import type { Contract, Payment } from '$lib/platform/database/schema';
 import { toUtcDay, type DateLike } from '$lib/api/date';
-import { TRPCError } from '@trpc/server';
+import { refuse } from '$lib/api/refusal';
 
 /**
  * PAYMENT
@@ -50,6 +50,20 @@ export function groupPaymentsByContractId<P extends { contractId: string }>(paym
 export type PaymentRefusalReason = 'contract-terminated' | 'missing';
 
 /**
+ * The keys a contract's ledger may be ordered by: the day a payment was made and its amount,
+ * which is all a ledger row shows. The router orders on this list and the ledger's sort control
+ * is built from it, so the control cannot offer an order the query cannot answer.
+ */
+export const PAYMENT_SORT_COLUMN_IDS = ['date', 'amount'] as const;
+
+export type PaymentSortColumnId = (typeof PAYMENT_SORT_COLUMN_IDS)[number];
+
+/** Whether `columnId` is one the ledger may be ordered by. */
+export function isPaymentSortColumnId(columnId: string): columnId is PaymentSortColumnId {
+	return (PAYMENT_SORT_COLUMN_IDS as readonly string[]).includes(columnId);
+}
+
+/**
  * Why deleting this payment would be refused, or `undefined` where it would go through.
  *
  * It asks about the contract rather than the payment, because everything that locks a payment is
@@ -57,6 +71,17 @@ export type PaymentRefusalReason = 'contract-terminated' | 'missing';
  */
 export const whatRefusesPaymentDeletion = (status: Contract['status']) =>
 	status === 'terminated' ? ('contract-terminated' as const) : undefined;
+
+/**
+ * Every refusal a payment rule or procedure raises, by code. The sentences are the interface's,
+ * under `common.refusals.payment`; see `$lib/api/refusal`. A payment against a contract that is
+ * not there is refused as `contract.missing`, since it is the contract that is missing.
+ */
+export type PaymentRefusalCode =
+	| 'payment.amountNotPositive'
+	| 'payment.datedInFuture'
+	| 'payment.missing'
+	| 'payment.repeatedInSet';
 
 /**
  * Whether an amount is one a payment may be for.
@@ -75,10 +100,7 @@ export function hasValidPaymentAmount(amount: number) {
 
 export function ensureValidPaymentAmount(amount: number) {
 	if (!hasValidPaymentAmount(amount)) {
-		throw new TRPCError({
-			code: 'BAD_REQUEST',
-			message: 'payment amount must be greater than zero'
-		});
+		throw refuse('payment.amountNotPositive');
 	}
 }
 
@@ -106,9 +128,6 @@ export function isPaymentInTheFuture(date: DateLike, now: DateLike) {
  */
 export function ensurePaymentIsNotInTheFuture(date: DateLike, now: DateLike) {
 	if (isPaymentInTheFuture(date, now)) {
-		throw new TRPCError({
-			code: 'BAD_REQUEST',
-			message: 'a payment cannot be dated in the future'
-		});
+		throw refuse('payment.datedInFuture');
 	}
 }

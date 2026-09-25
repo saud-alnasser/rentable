@@ -9,7 +9,7 @@ import Standing from '$lib/organization/component/standing.svelte';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import { fakeOrganizationSession, fakeSyncState, fakeWorkspace } from '$lib/platform/tests/testing';
 
-import QueryProviders from './query-providers.svelte';
+import QueryProviders from '#tests/query-providers.svelte';
 
 /**
  * THE STANDING BLOCK, RENDERED
@@ -99,6 +99,10 @@ const shape = (locale: 'en' | 'ar' = 'en') => {
 	expect(document.querySelector('[data-standing-purpose]')?.textContent?.trim()).toBe(
 		words.organization.standing.purpose
 	);
+	// a description, muted like every other block's (effort 832, ticket 30).
+	expect(document.querySelector('[data-standing-purpose]')?.className).toContain(
+		'text-muted-foreground'
+	);
 	expect(sentences()).toHaveLength(1);
 	expect(checkNow()).not.toBeNull();
 	expect(document.querySelector('[data-slot="badge"]')).toBeNull();
@@ -133,7 +137,7 @@ test('up to date with a moment within the day says it relative, in the words of 
 	block({ syncState: fakeSyncState({ lastReachedAt: Date.now() - 3 * 60 * MINUTE }) }, 'ar');
 
 	expect(sentences().at(-1)).toBe(
-		ar.organization.standing.upToDateChecked.replace('{moment}', 'قبل ٣ ساعات')
+		ar.organization.standing.upToDateChecked.replace('{moment}', 'قبل 3 ساعات')
 	);
 });
 
@@ -197,14 +201,17 @@ test("this machine's access refused: what needs doing, and the credential's sent
 	expect(document.querySelector('[data-account-refusal]')).toBeNull();
 });
 
-test('a fault on the replica: this machine needs reconnecting, and the fault in its own words', () => {
+test('a fault on the replica: this machine needs reconnecting, and the fault behind details', () => {
 	block({
 		syncState: fakeSyncState({ workspace: fakeWorkspace({ lastError: 'the replica refused' }) })
 	});
 
 	expect(sentence()).toBe(en.organization.standing.needsReconnecting);
 	shape();
-	expect(document.querySelector('[data-fault]')?.textContent?.trim()).toBe('the replica refused');
+	expect(document.querySelector('[data-fault]')?.textContent?.trim()).toBe(
+		en.common.messages.unexpectedError
+	);
+	expect(document.querySelector('[data-error-detail="fault"]')).not.toBeNull();
 	// the reconnect is the Turso account block's, and nothing points at it while the machine
 	// holds the authority.
 	expect(document.querySelector('[data-reconnect-below]')).toBeNull();
@@ -277,5 +284,28 @@ test('each standing reads in arabic, and none of it says sync', () => {
 		expect(textOutsideTheControl()).not.toContain('مزامن');
 
 		unmount();
+	});
+});
+
+// effort 832, requirement 23: what the replica said is English whatever the reader's language, so
+// it is reachable only by asking for it.
+test('in arabic, a fault reads as the arabic sentence and the english is behind details', async () => {
+	const english = 'the replica refused: database disk image is malformed';
+
+	block({ syncState: fakeSyncState({ workspace: fakeWorkspace({ lastError: english }) }) }, 'ar');
+
+	expect(document.querySelector('[data-fault]')?.textContent?.trim()).toBe(
+		ar.common.messages.unexpectedError
+	);
+	expect(document.body.textContent).not.toContain(english);
+
+	await fireEvent.click(
+		document.querySelector<HTMLButtonElement>('[data-error-detail="fault"] button')!
+	);
+
+	await waitFor(() => {
+		expect(document.querySelector('[data-error-detail-text="fault"]')?.textContent?.trim()).toBe(
+			english
+		);
 	});
 });

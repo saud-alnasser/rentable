@@ -11,7 +11,7 @@ import { workspacePrefixes } from '$lib/design/query';
 import type { ContractRank } from '$lib/contract/rank';
 import type { ListSort } from '@rentable/design/sort.js';
 import { LL } from '$lib/i18n/i18n-svelte';
-import { createQuery } from '@tanstack/svelte-query';
+import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 import { get } from 'svelte/store';
 
 /**
@@ -62,6 +62,14 @@ export const keys = {
 		'units',
 		'assignable',
 		contractId,
+		search
+	],
+	getAssignableUnitsForTerm: (start: number, end: number, search: string) => [
+		...workspacePrefixes.contracts,
+		'units',
+		'assignable-for-term',
+		start,
+		end,
 		search
 	]
 } as const;
@@ -163,8 +171,8 @@ export function useSearchContracts(term: () => string, limit: number) {
 /**
  * What one of the three selection actions would do to the contracts named, before it is done.
  *
- * Asked of the workspace rather than read off the rows: a contract row carries its status and a
- * payment count, and a deletion is refused for holding units, which no row knows.
+ * Asked of the workspace rather than read off the rows, so the confirmation shows what the
+ * mutation is about to decide rather than a second opinion about it.
  */
 export function usePlanManyContracts(
 	ids: () => readonly string[],
@@ -202,13 +210,35 @@ export function useFetchContract(id: () => string, enabled: () => boolean = () =
 	});
 }
 
+/**
+ * Read one contract once, for a caller that holds only its identity and has to act on the rest:
+ * the contract host, answering an act the command menu or the dashboard named by id. Through the
+ * cache, under the same key the record's page reads, so a contract already on screen is not read
+ * twice.
+ */
+export function useReadContract() {
+	const client = useQueryClient();
+
+	return (id: string) =>
+		client.fetchQuery({ queryKey: keys.get(id), queryFn: () => api.contract.get({ id }) });
+}
+
+/**
+ * Creating a contract, with the units it is created holding.
+ *
+ * It touches units as well as contracts because the assignment rows go down in the same write, so
+ * the occupancy the units query answers with has moved by the time this resolves.
+ */
 export const useCreateContract = declareMutation({
 	mutate: (data: Parameters<typeof api.contract.create>[0]) => api.contract.create(data),
-	touches: ['contracts'],
-	inverse: ({ result }) => ({
+	touches: ['contracts', 'units'],
+	inverse: ({ variables, result }) => ({
 		describe: (t) => t.common.undo.created({ record: t.common.labels.contract() }),
+		// one call: the deletion releases the units in the same batch, so the undo lands whole or
+		// not at all, and a contract holding units is never left standing without them.
 		undo: () => api.contract.delete({ id: result.id }),
-		redo: () => api.contract.create(result),
+		// created again as itself, holding the units it was created with.
+		redo: () => api.contract.create({ ...result, unitIds: variables.unitIds }),
 		records: (direction) => ({
 			concept: 'contract',
 			recordId: result.id,
@@ -241,12 +271,8 @@ export const useRenewContract = declareMutation({
 	touches: ['contracts', 'units'],
 	inverse: ({ variables, result }) => ({
 		describe: (t) => t.common.undo.renewed({ record: t.common.labels.contract() }),
-		// the units go first: a contract still holding units refuses to be deleted, which is the
-		// rule that lets an ordinary creation's inverse be a single call.
-		undo: async () => {
-			await api.contract.units.set({ contractId: result.id, unitIds: [] });
-			await api.contract.delete({ id: result.id });
-		},
+		// one delete, as a creation's undo is: it releases the successor's units in the same batch.
+		undo: () => api.contract.delete({ id: result.id }),
 		// renewed again with the identity it had, so a page still open on the successor is holding
 		// a reference to the record rather than to a copy of it.
 		redo: () => api.contract.renew({ ...variables, id: result.id })
@@ -290,11 +316,15 @@ export const useUpdateContract = declareMutation({
 
 export const useDeleteContract = declareMutation({
 	mutate: (id: string) => api.contract.delete({ id }),
-	touches: ['contracts'],
+	// units as well: the units it held are released in the same write.
+	touches: ['contracts', 'units'],
 	inverse: ({ result }) =>
 		result && {
 			describe: (t) => t.common.undo.deleted({ record: t.common.labels.contract() }),
-			undo: () => api.contract.create(result),
+			// restored as it was, status included, holding the units it held, which the deletion
+			// answered with. A restore rather than a create ([[rules/data]], under *Undo*): a create
+			// would derive the status again and ask whether the units are free today.
+			undo: () => api.contract.restoreMany({ contracts: [result] }),
 			redo: () => api.contract.delete({ id: result.id }),
 			records: (direction) => ({
 				concept: 'contract',
@@ -314,6 +344,8 @@ export const useDeleteContract = declareMutation({
 		},
 	toast: {
 		success: () => get(LL).contracts.hooks.deleteSuccess(),
+		// no dialog asked first, so the announcement says how long it can be taken back.
+		detail: () => get(LL).common.undo.lasts(),
 		error: false,
 		unexpected: () => get(LL).common.messages.unexpectedError()
 	}
@@ -431,24 +463,25 @@ export const useRestoreManyContracts = declareMutation({
 /**
  * Delete every contract in the selection that nothing depends on, as one change.
  *
- * **Taking it back is all or nothing.** The inverse creates the whole set in one batch and throws
+ * **Taking it back is all or nothing.** The inverse restores the whole set in one batch and throws
  * where any one of them cannot be put back, rather than restoring what it can and naming the
  * rest — which would leave the workspace in a shape neither the deletion nor the undo describes.
  * An inverse that throws stays on the stack, so the reader can deal with whatever refused it and
  * press undo again.
  *
- * The rows themselves are what the procedure answers with, because putting a record back means
- * putting it back as itself, by the identity it had (ADR 0026).
+ * The rows themselves are what the procedure answers with, each with the units it held, because
+ * putting a record back means putting it back as itself, by the identity it had (ADR 0026), and
+ * holding what it held.
  */
 export const useDeleteManyContracts = declareMutation({
 	mutate: ({ ids }: SelectionCall) => api.contract.deleteMany({ ids }),
-	touches: ['contracts'],
+	touches: ['contracts', 'units'],
 	inverse: ({ result }) =>
 		result.deleted.length === 0
 			? undefined
 			: {
 					describe: (t) => t.common.undo.deletedMany({ count: result.deleted.length }),
-					undo: () => api.contract.createMany({ contracts: result.deleted }),
+					undo: () => api.contract.restoreMany({ contracts: result.deleted }),
 					redo: () => api.contract.deleteMany({ ids: toContractIds(result.deleted) }),
 					records: (direction) =>
 						result.deleted.map((contract) =>
@@ -532,6 +565,33 @@ export function useFetchAssignableContractUnits(
 			queryFn: () =>
 				api.contract.units.getAssignableMany({
 					contractId,
+					search: trimmedSearch || undefined
+				}),
+			placeholderData: <T>(previous: T) => previous
+		};
+	});
+}
+
+/**
+ * Every unit free over a term, for a contract that does not exist yet: what the contract form
+ * offers. Disabled until the term has both ends, because the conflict rule has nothing to read
+ * before then.
+ */
+export function useFetchAssignableUnitsForTerm(
+	params: () => { start?: number; end?: number; search?: string; enabled: boolean }
+) {
+	return createQuery(() => {
+		const { start, end, search, enabled } = params();
+		const trimmedSearch = search?.trim() ?? '';
+		const hasTerm = start !== undefined && end !== undefined;
+
+		return {
+			queryKey: keys.getAssignableUnitsForTerm(start ?? 0, end ?? 0, trimmedSearch),
+			enabled: enabled && hasTerm,
+			queryFn: () =>
+				api.contract.units.getAssignableForTerm({
+					start: start ?? 0,
+					end: end ?? 0,
 					search: trimmedSearch || undefined
 				}),
 			placeholderData: <T>(previous: T) => previous

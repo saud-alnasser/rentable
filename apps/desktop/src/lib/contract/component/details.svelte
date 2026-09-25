@@ -1,52 +1,28 @@
-<script lang="ts" module>
-	/** Which of the contract's two collections the address arrived on. */
-	export type ContractCollection = 'payments' | 'units';
-</script>
-
 <script lang="ts">
+	import type { ContractSection } from '$lib/contract/section';
 	import RecordHistory from '$lib/history/component/record-history.svelte';
-	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import type { Contract } from '$lib/platform/database/schema';
-	import DeleteDialog from '@rentable/design/block/delete-dialog.svelte';
 	import RecordSurface from '@rentable/design/block/record-surface.svelte';
 	import Specification from '@rentable/design/block/specification.svelte';
-	import { AWAITING_BLOCKERS } from '@rentable/design/confirmation.js';
 	import * as Cell from '$lib/design/cell';
 	import RecordActionControl from '@rentable/design/block/record-action-control.svelte';
-	import { formatLocaleDate } from '$lib/platform/locale';
-	import {
-		canManuallyTerminateContractStatus,
-		canUnterminateContractStatus,
-		isContractDeletable
-	} from '$lib/contract/contract';
-	import {
-		useDeleteContract,
-		useFetchContract,
-		useTerminateContract,
-		useFetchContractUnits,
-		useUnterminateContract
-	} from '$lib/contract/query';
-	import { useFetchContractPayments } from '$lib/payment/query';
+	import { formatRecordDateRange } from '$lib/design/date';
+	import { contractActs } from '$lib/contract/host.svelte';
+	import { useFetchContract } from '$lib/contract/query';
+	import { toPageActions } from '$lib/design/acts';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import PaymentLedger from '$lib/payment/component/ledger.svelte';
 	import { useFetchTenant } from '$lib/tenant/query';
-	import BanIcon from '@lucide/svelte/icons/ban';
-	import CalendarPlusIcon from '@lucide/svelte/icons/calendar-plus';
-	import RotateCcwIcon from '@lucide/svelte/icons/rotate-ccw';
-	import SquarePenIcon from '@lucide/svelte/icons/square-pen';
-	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import ContractUnits from './units.svelte';
-	import { back } from '@rentable/design/back.svelte.js';
-	import RecordActions from '$lib/design/block/record-actions.svelte';
-	import ContractForm from './form.svelte';
 
 	let {
 		contractId,
-		initialCollection
+		section
 	}: {
 		contractId: string;
-		initialCollection?: ContractCollection;
+		/** the section the address names. */
+		section?: ContractSection;
 	} = $props();
 
 	const intervalLabels: Record<Contract['interval'], () => string> = {
@@ -62,55 +38,6 @@
 		id: contract?.tenantId,
 		enabled: Boolean(contract?.tenantId)
 	}));
-	const deleteMutation = useDeleteContract();
-
-	// what a deletion would be refused for, read before the question is asked rather than
-	// after the destructive control is pressed.
-	const heldUnitsQuery = useFetchContractUnits(() => contractId);
-	const heldPaymentsQuery = useFetchContractPayments(() => contractId);
-	const deletionBlockers = $derived.by(() => {
-		if (heldUnitsQuery.isPending || heldPaymentsQuery.isPending) return AWAITING_BLOCKERS;
-
-		const units = heldUnitsQuery.data ?? [];
-		const payments = heldPaymentsQuery.data ?? [];
-
-		if (isContractDeletable(units, payments)) return [];
-
-		return [
-			units.length ? $LL.common.deleteDialog.blockedUnits({ count: units.length }) : null,
-			payments.length ? $LL.common.deleteDialog.blockedPayments({ count: payments.length }) : null
-		].filter((blocker) => blocker !== null);
-	});
-	const terminateMutation = useTerminateContract();
-	const unterminateMutation = useUnterminateContract();
-
-	type ContractFormValue = Omit<NonNullable<typeof contractQuery.data>, 'id'> & { id?: string };
-
-	let formOpensOn = $state<ContractFormValue | undefined>(undefined);
-	// set when the form was opened to renew this contract rather than to edit or copy it.
-	let renewingContractId = $state<string | undefined>(undefined);
-	let isContractFormOpen = $state(false);
-	let contractFormRenderKey = $state(0);
-	let isDeleteDialogOpen = $state(false);
-	let isTerminateDialogOpen = $state(false);
-	let isUnterminateDialogOpen = $state(false);
-
-	const formatDate = (value: number) =>
-		formatLocaleDate($locale, value, { dateStyle: 'medium', timeZone: 'UTC' });
-
-	const openContractForm = (value: ContractFormValue | undefined) => {
-		formOpensOn = value;
-		renewingContractId = undefined;
-		contractFormRenderKey += 1;
-		isContractFormOpen = true;
-	};
-
-	const openRenewal = (id: string) => {
-		formOpensOn = undefined;
-		renewingContractId = id;
-		contractFormRenderKey += 1;
-		isContractFormOpen = true;
-	};
 
 	const tenantLabel = $derived.by(() => {
 		if (!contract) return $LL.common.messages.unknown();
@@ -118,31 +45,19 @@
 		return tenantQuery.data?.name?.trim() || $LL.common.labels.tenant();
 	});
 	const period = $derived(
-		contract ? `${formatDate(contract.start)} — ${formatDate(contract.end)}` : ''
+		contract ? formatRecordDateRange($locale, contract.start, contract.end) : ''
 	);
 
-	async function deleteContract() {
-		if (!contract) return;
+	// the contract as its acts are given it: with its tenant's name, which is what the confirmation
+	// names it by where it has no government id, the way the card names it.
+	const actedOn = $derived(
+		contract ? { ...contract, tenantName: tenantQuery.data?.name ?? undefined } : undefined
+	);
 
-		await deleteMutation.mutateAsync(contract.id);
-		// the record is gone, so the screen showing it is no longer somewhere back can return
-		// to — whatever was open before it is.
-		back.forgetCurrent();
-
-		await goto(resolve('/contracts'));
-	}
-
-	async function terminateContract() {
-		if (!contract) return;
-
-		await terminateMutation.mutateAsync(contract.id);
-	}
-
-	async function unterminateContract() {
-		if (!contract) return;
-
-		await unterminateMutation.mutateAsync(contract.id);
-	}
+	// the page's cluster is a projection of the one list the card and the command menu read, so it
+	// offers what they offer, in their order and under their names. What each act opens is the
+	// contract host's, mounted once in the frame, so this page mounts no form and no dialog.
+	const pageActions = $derived(actedOn ? toPageActions(contractActs, actedOn, $LL) : []);
 </script>
 
 {#snippet identity()}
@@ -154,70 +69,16 @@
 {/snippet}
 
 {#snippet actions()}
-	<RecordActions
-		details={[
-			{ label: $LL.common.labels.tenant(), value: tenantLabel },
-			{ label: $LL.common.labels.nationalId(), value: tenantQuery.data?.nationalId ?? '' },
-			{ label: $LL.common.labels.phone(), value: tenantQuery.data?.phone ?? '' },
-			{ label: $LL.common.labels.governmentId(), value: contract?.govId ?? '' },
-			{
-				label: $LL.common.labels.cycle(),
-				value: contract ? intervalLabels[contract.interval]() : ''
-			},
-			{ label: $LL.common.labels.contractPeriod(), value: period }
-		]}
-		onDuplicate={contract
-			? () => {
-					// the government id is a contract's unique field, so the copy starts without it
-					// rather than with a value that cannot be saved.
-					openContractForm({ ...contract, id: undefined, govId: '' });
-				}
-			: undefined}
-	/>
-
-	{#if contract}
-		<!-- renewal continues the term rather than copying it, so it sits beside the copy the
-		     action cluster already offers and never replaces it. -->
+	{#each pageActions as act (act.id)}
 		<RecordActionControl
-			label={$LL.common.actions.renew()}
-			icon={CalendarPlusIcon}
-			onclick={() => openRenewal(contract.id)}
+			label={act.label}
+			icon={act.icon}
+			tone={act.tone}
+			shortcut={act.shortcut}
+			unavailable={act.unavailable}
+			onclick={act.run}
 		/>
-	{/if}
-
-	{#if contract && contract.status !== 'terminated'}
-		<RecordActionControl
-			label={$LL.common.actions.edit()}
-			icon={SquarePenIcon}
-			onclick={() => openContractForm(contract)}
-		/>
-	{/if}
-
-	{#if contract && canManuallyTerminateContractStatus(contract.status)}
-		<RecordActionControl
-			label={$LL.common.actions.terminate()}
-			icon={BanIcon}
-			tone="error"
-			onclick={() => (isTerminateDialogOpen = true)}
-		/>
-	{/if}
-
-	{#if contract && canUnterminateContractStatus(contract.status)}
-		<!-- un-terminating puts a contract back rather than taking it away, so it rests neutral
-		     beside the two that do not. -->
-		<RecordActionControl
-			label={$LL.common.actions.unterminate()}
-			icon={RotateCcwIcon}
-			onclick={() => (isUnterminateDialogOpen = true)}
-		/>
-	{/if}
-
-	<RecordActionControl
-		label={$LL.common.actions.delete()}
-		icon={Trash2Icon}
-		tone="error"
-		onclick={() => (isDeleteDialogOpen = true)}
-	/>
+	{/each}
 {/snippet}
 
 <!-- the cell holds a number at `ltr`, so only a number goes through it: the stand-in is the
@@ -274,62 +135,10 @@
 	{identity}
 	{actions}
 	{fields}
-	{initialCollection}
+	{section}
 	collections={[
 		{ value: 'payments', label: $LL.common.nav.payments(), content: payments },
 		{ value: 'units', label: $LL.common.nav.units(), content: units },
 		{ value: 'history', label: $LL.common.history.title(), content: history }
 	]}
 />
-
-{#if contract}
-	{#key contractFormRenderKey}
-		<ContractForm
-			open={isContractFormOpen}
-			onOpenChange={(isOpen) => {
-				if (!isOpen) {
-					contractFormRenderKey += 1;
-				}
-
-				isContractFormOpen = isOpen;
-			}}
-			value={formOpensOn}
-			renewsContractId={renewingContractId}
-		/>
-	{/key}
-
-	<DeleteDialog
-		open={isDeleteDialogOpen}
-		onOpenChange={(isOpen) => {
-			isDeleteDialogOpen = isOpen;
-		}}
-		record={contract.govId?.trim() || tenantLabel}
-		blockers={deletionBlockers}
-		onSubmit={deleteContract}
-	/>
-
-	<DeleteDialog
-		open={isTerminateDialogOpen}
-		onOpenChange={(isOpen) => {
-			isTerminateDialogOpen = isOpen;
-		}}
-		title={$LL.contracts.table.terminateTitle()}
-		description={$LL.contracts.table.terminateDescription()}
-		confirmLabel={$LL.common.actions.terminate()}
-		confirmLoadingLabel={$LL.common.actions.terminating()}
-		onSubmit={terminateContract}
-	/>
-
-	<DeleteDialog
-		open={isUnterminateDialogOpen}
-		onOpenChange={(isOpen) => {
-			isUnterminateDialogOpen = isOpen;
-		}}
-		title={$LL.contracts.table.restoreTitle()}
-		description={$LL.contracts.table.restoreDescription()}
-		confirmLabel={$LL.common.actions.unterminate()}
-		confirmLoadingLabel={$LL.common.actions.restoring()}
-		confirmVariant="default"
-		onSubmit={unterminateContract}
-	/>
-{/if}

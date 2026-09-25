@@ -5,6 +5,9 @@ import { recordDiagnosticError } from '$lib/platform/diagnostics';
 import { inverseStack, type Inverse } from '$lib/design/inverse';
 import { NAMED_RECORDS, unforeseenRefusals } from '@rentable/design/selection.js';
 import { LL } from '$lib/i18n/i18n-svelte';
+import { readHostRefusal, toRefusalText, toRouterFailureText } from '$lib/error/refusal';
+import { toTauriErrorCode } from '$lib/error/tauri';
+import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 import { createMutation, useQueryClient, type QueryClient } from '@tanstack/svelte-query';
 import { TRPCError } from '@trpc/server';
 import { get } from 'svelte/store';
@@ -24,6 +27,12 @@ type ToastErrorDecision = boolean | string | null;
 export type MutationOptions = {
 	toast?: {
 		success?: ToastMessage;
+		/**
+		 * a second line under the announcement. A delete that runs at once declares the one the
+		 * delete dialog used to carry, that it can be taken back while the application is open,
+		 * because no dialog is shown to say it any more ([[rules/interface]], *Delete and confirm*).
+		 */
+		detail?: ToastMessage;
 		error?: boolean | ToastMessage | ((error: Error) => ToastErrorDecision);
 		unexpected?: ToastMessage;
 	};
@@ -248,9 +257,11 @@ export function onMutationSuccess(opts: MutationOptions, offer?: UndoOffer) {
 	}
 
 	const message = resolveToastMessage(opts.toast.success);
+	// only where one is declared, so an announcement without one is raised exactly as before.
+	const detail = opts.toast.detail && { description: resolveToastMessage(opts.toast.detail) };
 
 	if (!offer) {
-		toast.success(message);
+		toast.success(message, detail || undefined);
 
 		return;
 	}
@@ -258,6 +269,7 @@ export function onMutationSuccess(opts: MutationOptions, offer?: UndoOffer) {
 	withdrawOutstandingOffer();
 
 	outstandingOffer = toast.success(message, {
+		...detail,
 		action: toToastAction(offer),
 		duration: OFFER_DURATION
 	});
@@ -342,19 +354,57 @@ export function onMutationError(opts: MutationOptions, e: Error) {
 
 	if (e instanceof TRPCError && e.code === 'BAD_REQUEST') {
 		if (errorToast === true) {
-			toast.error(e.message);
+			// a refusal crosses as a code, and this is where it becomes the reader's words.
+			toast.error(toRefusalText(e, get(LL)));
+		} else if (typeof errorToast === 'string') {
+			toast.error(errorToast);
+		}
+	} else if (readHostRefusal(e)) {
+		// the shell refuses with a reason, and its message is a developer's description: the
+		// reason is what becomes the reader's words (effort 832, requirement 23).
+		if (errorToast === true) {
+			toast.error(toRefusalText(e, get(LL)));
 		} else if (typeof errorToast === 'string') {
 			toast.error(errorToast);
 		}
 	} else {
-		if (errorToast === true && e.message.trim()) {
-			toast.error(e.message);
+		// what the error was raised with is a developer's description, in English whatever the
+		// reader's language, so it is kept for diagnostics and never becomes the toast.
+		recordDiagnosticError('mutation.failed', {
+			code: e instanceof TRPCError ? e.code : null,
+			detail: e.message
+		});
+
+		const translations = get(LL);
+		const sentence = toKnownFailureText(e, translations);
+		const permission = toRouterFailureText(e, translations);
+
+		if (permission) {
+			// a permission failure is not the generic failure a declaration turns off with
+			// `error: false`: that setting is about refusals a form places itself, and a caller
+			// the middlewares turned away has a sentence of its own to be told.
+			toast.error(permission);
+		} else if (errorToast === true && sentence) {
+			toast.error(sentence);
 		} else if (typeof errorToast === 'string') {
 			toast.error(errorToast);
 		} else if (opts.toast?.unexpected) {
 			toast.error(resolveToastMessage(opts.toast.unexpected));
+		} else if (errorToast === true) {
+			toast.error(translations.common.messages.unexpectedError());
 		}
 	}
+}
+
+/**
+ * The sentence for a failure that is neither a refusal nor unexpected: a permission failure a
+ * router raised, or a failure the shell sent with a code. `null` for anything else, which reads as
+ * the declaration's unexpected sentence or the generic one.
+ */
+function toKnownFailureText(e: Error, translations: TranslationFunctions): string | null {
+	const code = toTauriErrorCode(e);
+
+	return toRouterFailureText(e, translations) ?? (code ? translations.common.errors[code]() : null);
 }
 
 /**
@@ -362,6 +412,11 @@ export function onMutationError(opts: MutationOptions, e: Error) {
  *
  * The inverse issues an ordinary procedure, so the workspace has moved by the time it resolves
  * and the cache is as stale as it would be after any other mutation.
+ *
+ * **It refreshes when the inverse fails, too.** An inverse can be more than one call, as a
+ * contract creation's is, and one failing after another has landed leaves the workspace moved
+ * part of the way. The entry stays on the stack to be pressed again, and the screen shows what
+ * was written rather than what was there before.
  */
 async function applyInverse(client: QueryClient, direction: OfferDirection) {
 	try {
@@ -394,6 +449,9 @@ async function applyInverse(client: QueryClient, direction: OfferDirection) {
 			{ client, change: applied, direction: direction === 'undo' ? 'redo' : 'undo' }
 		);
 	} catch (failure) {
+		// first, as on success: what landed before the failure is on screen before it is spoken of.
+		await invalidateWorkspaceData(client);
+
 		onMutationError(
 			{ toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() } },
 			failure as Error

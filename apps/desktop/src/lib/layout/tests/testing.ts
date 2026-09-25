@@ -78,6 +78,10 @@ export type Journal = {
 	failures: string[];
 	localesLoaded: string[];
 	localeSet: string | null;
+	/** the appearance last applied, `null` before any was. */
+	appearance: string | null;
+	/** the appearance that had been applied at each showing of the window, in order. */
+	shownIn: (string | null)[];
 	/** the workspaces the unit asked the shell to open, in order. */
 	workspacesOpened: string[];
 	/**
@@ -108,7 +112,7 @@ export function harness(
 		/** what the organization state answers after the bootstrap, where that differs. */
 		afterBootstrap?: OrganizationState;
 		bootstrap?: () => Promise<Recovery>;
-		settings?: () => Promise<{ locale?: string | null }>;
+		settings?: () => Promise<{ locale?: string | null; appearance?: string | null }>;
 		/** what loading a locale does, for the paths where the dictionary is what fails. */
 		loadLocale?: (locale: string) => Promise<void>;
 		/** what a username and password do: the state it leaves the machine in, or the refusal. */
@@ -144,6 +148,8 @@ export function harness(
 		failures: [],
 		localesLoaded: [],
 		localeSet: null,
+		appearance: null,
+		shownIn: [],
 		workspacesOpened: []
 	};
 	const seen: StartupSnapshot[] = [];
@@ -160,7 +166,10 @@ export function harness(
 
 	const ports: StartupPorts = {
 		window: {
-			show: async () => void journal.shown++,
+			show: async () => {
+				journal.shown += 1;
+				journal.shownIn.push(journal.appearance);
+			},
 			hide: async () => {
 				journal.hidden += 1;
 				journal.sequence.push('hide');
@@ -173,6 +182,9 @@ export function harness(
 		settings: overrides.settings
 			? { get: overrides.settings }
 			: { get: async () => ({ locale: 'en' }) },
+		appearance: {
+			apply: (setting) => void (journal.appearance = setting ?? 'system')
+		},
 		remoteSync: {
 			getState: async () => state
 		},
@@ -269,6 +281,7 @@ export function harness(
 			forgetContext: () => void journal.contextsForgotten++
 		},
 		describeError: (error) => (error instanceof Error ? error.message : String(error)),
+		detailError: () => null,
 		recordFailure: (message) => void journal.failures.push(message),
 		reportStage: (stage) => void journal.stages.push(stage),
 		reportComplete: () => void journal.completed++,

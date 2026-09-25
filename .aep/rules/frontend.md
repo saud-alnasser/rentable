@@ -33,8 +33,9 @@ the root helper beside it; an invalidation that spells a key out inline drifts t
 the key changes. Settings and remote-sync keep their own keys and invalidations.
 
 Toast behaviour on a mutation goes through the shared success and error handlers, never
-through direct toast calls in a component — that is what keeps `BAD_REQUEST` messages
-reaching the user and everything else reading as an unexpected failure.
+through direct toast calls in a component — that is what keeps a refusal reaching the user
+as the sentence its code stands for, in their language (`error/refusal.ts`, and
+[[rules/api-layer]] under *Errors*), and everything else reading as an unexpected failure.
 
 ## Components
 
@@ -67,7 +68,7 @@ reaching the user and everything else reading as an unexpected failure.
   by concepts; the application shell's own components are not, and live in `layout` (#257).
   **Which `block/` is decided by what the composite reaches**, and #781 sorted the fifteen that
   existed: `packages/design/src/lib/block/` holds the eleven that reach nothing but the design
-  system and what the package is already allowed (`$app/*`, which `record-surface` navigates
+  system and what the package is already allowed (`$app/*`, which `back` navigates
   with), and `design/block/` here holds the four that reach past it. A new composite that
   reaches `$lib/api`, `$lib/platform`, `$lib/error` or a concept belongs in this application; one
   that reaches none of them belongs in the package, where a second client can draw it.
@@ -117,9 +118,20 @@ reaching the user and everything else reading as an unexpected failure.
 Tailwind v4, configured CSS-first — there is no JS config file to edit. **The configuration is
 in two files and the split is by owner.** `packages/design/src/lib/tokens.css` is **the token
 layer**: what the product's surfaces are drawn from, and the name used for it throughout this
-rule. It holds the palette, the tone colours, the radius, the shell breakpoint, and the global
-rules any Rentable client wants. `apps/desktop/src/app.css` imports it, registers the package with
-`@source`, and holds only what belongs to this window.
+rule. It holds the palette, the tone colours, shape and elevation, the shell breakpoint, and the
+global rules any Rentable client wants.
+
+**There are two appearances, light and dark, and every colour token has a value in each**: light
+on `:root`, dark under `.dark`. The class on `<html>` is the only thing that chooses, and the
+application sets it (`apps/desktop/src/lib/platform/appearance.ts`), following the system live
+unless the reader chose light or dark in general settings, and before the window is first shown.
+A surface never chooses: there is no `dark:` variant in use, and a utility names a token, which
+already differs by appearance. `packages/design/src/lib/tests/tokens.test.ts` refuses a token
+declared in one block and not the other, and any text or tone under WCAG AA (4.5:1) against the
+background, card or popover in either, and a disabled button's label under 3:1 on its muted fill
+or on those surfaces. A disabled button is dimmed by that colour pair, never by opacity. A tone
+darkened for light is the same token, saying the same thing. `apps/desktop/src/app.css` imports
+it, registers the package with `@source`, and holds only what belongs to this window.
 
 **The token layer's own header states the consumer contract**, and it is three lines rather than
 two: `@import 'tailwindcss'` has to precede the package import, or `@theme`, `@layer base` and
@@ -136,7 +148,8 @@ re-splitting the layer across two files with no error.
 of that file, it writes into it, and it inserts only where the stylesheet already carries an
 `@import` or a `@theme` at-rule. `tokens.css` carries two, so a registry item's `cssVars` would
 land — and a `cssVars.dark` block brings `@custom-variant dark` and a `.dark {}` rule with it,
-into the one file whose header declares one palette and no modes. **No `add` reaches it.** All 56
+into the one file that already holds the dark appearance's own `.dark` block, where a second one
+would override it silently. **No `add` reaches it.** All 56
 `registry:ui` items were read at #783 and not one carries `cssVars`; the theme lives in the
 `registry:style` `init` item, and `init` is not run here. That is what makes this safe, rather
 than the file being out of reach.
@@ -174,20 +187,163 @@ not on this ladder, and the packaged `primitive/` keeps the geometry it was port
 scale beside the framework's own would make every component read in a dialect, and the token
 layer is deliberately kept to what is genuinely global.
 
+**Both locales render in Readex Pro**, one variable family drawn for Latin and Arabic together,
+chosen by prototype in effort 832. The files are committed under
+`packages/design/src/lib/font/` with their licence, `@font-face` in the token layer loads them
+with `font-display: block`, and `--font-sans` names it first and `system-ui` after it. Nothing is
+fetched from a network, and no fontsource package stands in for the files. `font/README.md` has
+the source and the command that rebuilds them. **Nothing under `font/` is the package's
+interface**: `exports` maps `./font/*` to `null`, so the README, the licence and `patch-tnum.py`
+cannot be imported by a consumer, while the token layer still reaches the two files by relative
+`url()`, which resolves on disk and never through the export map.
+
+**Every text size and weight comes from one scale**, and it is Tailwind's own steps, a subset
+of them:
+
+| Size        | px | For                                                                  |
+| ----------- | -- | -------------------------------------------------------------------- |
+| `text-xs`   | 12 | metadata, field and menu labels, eyebrows, counts on a row, shortcuts |
+| `text-sm`   | 14 | the body: list rows, controls, descriptions, menus                   |
+| `text-base` | 16 | what is typed into an input, a card's title                          |
+| `text-lg`   | 18 | a dialog, sheet or standalone surface's title                        |
+| `text-xl`   | 20 | a figure the dashboard leads with                                    |
+| `text-2xl`  | 24 | a record's title, on a narrow window                                 |
+| `text-3xl`  | 30 | a record's or an area's title, and the link code                     |
+
+| Weight          | For                                           |
+| --------------- | --------------------------------------------- |
+| `font-normal`   | running text, where a primitive resets it     |
+| `font-medium`   | emphasis inside a line, a row's primary value |
+| `font-semibold` | titles, labels, and the one figure a surface leads with |
+
+No arbitrary size (`text-[...]`) and no other weight. A node test in each package fails on
+`text-[`: `packages/design/src/lib/tests/typography.test.ts` and
+`apps/desktop/src/lib/design/tests/typography.test.ts`. A size that seems to be missing is a
+question about the scale, and the answer changes this table rather than one class.
+
+**Money, counts and any figure compared down a column carry `tabular-nums`.** The cells in
+`design/cell/` already do, and a component test holds them to it. *Readex Pro ships no `tnum`
+feature, so the bundled Latin file is patched to carry one; `font/README.md` has how, and a node
+test fails if the feature goes missing.*
+
+**No letter spacing on a reader's text.** `tracking-*` pulls Arabic letters apart where they are
+meant to join, and an uppercase English eyebrow does not need it enough to have a rule that
+holds in one locale only. The same two tests fail on `tracking-` outside an allowlist of machine
+strings, which are held `ltr` and never render Arabic: the link code and the keyboard shortcuts.
+
+**Arabic gets its own line height**, 1.8 across the whole scale, set in the token layer on
+`:root:lang(ar)`. Arabic ink reaches half an em below the baseline, and at the scale's English
+line heights a line that truncates cuts it off. The token layer holds the measurement.
+
+**Every icon is lucide (`@lucide/svelte`), at lucide's own stroke, and sized from three steps.**
+A glyph is matched to the text beside it, so the step is read off the text rather than chosen,
+and a glyph with no text beside it takes the step of the role it plays:
+
+| Step       | Where                                                                                      |
+| ---------- | ------------------------------------------------------------------------------------------ |
+| `size-3.5` | beside `text-xs`, the title bar's window controls, and a state trailing a label (a check)  |
+| `size-4`   | the default: beside `text-sm`, in a button, a menu row, a cell, a status                   |
+| `size-5`   | the mark in its tile, and a glyph that heads a block: the summary leading a dialog's panel |
+
+A glyph inside a `primitive/` keeps the size it was ported with, for the reason spacing does
+(ADR 0007): a radio row's dot and a resize grip are the primitive's geometry, not a size chosen
+here. **A concept keeps one glyph everywhere it appears**: plus creates, `x` closes or clears,
+`chevron-down` opens, `search` searches, and `square-pen` edits, renaming included. Lucide draws
+outlines only, so the one solid mark, a disc, is `design/cell/disc.svelte`: the circle with its
+fill on.
+
+**A menu's rows carry icons on every row or on none.** A row leads with its glyph; a check or a
+direction trailing the label is a state and is not the row's icon; a radio or checkbox row counts
+as carrying one, because the primitive reserves the indicator's column at its start.
+`design/tests/menu-icons.svelte.test.ts` holds the shared menus to it, and the record card's test
+in the package holds both of its routes.
+
+**Every corner is a step of one radius ladder**, Tailwind's own steps and values, declared in the
+token layer with the stock set cleared, so a step not listed here builds nothing:
+
+| Step          | px | For                                                                                                 |
+| ------------- | -- | --------------------------------------------------------------------------------------------------- |
+| `rounded-xs`  | 2  | a mark: a chart swatch, a tooltip's arrow, a resize grip; the menubar's ported rows                 |
+| `rounded-sm`  | 4  | a small box: a checkbox, an item's media, a navigation link                                         |
+| `rounded-md`  | 6  | a control the registry shipped and nothing here restyled: calendar cells, textarea                  |
+| `rounded-lg`  | 8  | a label floating inside a surface: a field's error, a chart tooltip, a key, an input group's button |
+| `rounded-xl`  | 12 | a row: a menu, command, select or sidebar row, a tab, a tile on the dashboard                       |
+| `rounded-2xl` | 16 | a control or a card: a button, an input, a select trigger, a record card, a menu                    |
+| `rounded-3xl` | 24 | a panel: a dialog, a sheet, a popover, the command menu, the list's frame                           |
+
+Anything round all the way, a pill, a dot or a switch, is `rounded-full`, which is not a step.
+An element laid exactly over its parent, a record card's link or a scroll viewport, takes
+`rounded-inherit` so its corners follow whichever step the parent has.
+
+**Elevation is two heights and one inset, each with a value per appearance**, since a shadow
+tuned for a pale ground vanishes on a dark one. They are declared in both appearance blocks and
+read by the utility, so a surface names the height and the appearance chooses the value:
+
+| Utility               | For                                                                                                                                     |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `shadow-raised`       | a card resting on the page, the sidebar's inset, the slider's thumb, the way past a screen                                              |
+| `shadow-overlay`      | what floats over the page: a dialog, sheet, menu or popover, a chart's tooltip, a field's error, a record card lifted under the pointer |
+| `inset-shadow-sunken` | a form's control cut into its panel (`insetControl`)                                                                                    |
+
+A control sits flat on its surface and takes none. Tailwind's stock shadows are cleared, so
+`shadow-lg` and the rest build nothing, and `cn` is taught the named ones, so a later height or
+step replaces an earlier one. A node test in each package fails on an arbitrary radius or shadow
+(`rounded-[`, `shadow-[`): `packages/design/src/lib/tests/shape.test.ts`, which also holds the
+ladder and both appearances' values, and `apps/desktop/src/lib/design/tests/shape.test.ts`. A
+step that seems to be missing is a question about the ladder, and the answer changes this table.
+
 ## Motion
 
 **A surface built here carries motion, and the motion always responds to something** — an
 interaction (hover, press, focus, scrolling to it) or a trigger (data arrives, state changes).
 Nothing starts by itself and nothing loops. Recorded originally as ADR 0016; this is the part that binds a change.
 
+**Motion answers cause and effect.** A record created arrives, a record deleted leaves, an undone
+delete comes back in place, a reordered set moves, a pane swap carries its direction. Motion that
+explains nothing is not added.
+
+**Every duration and easing is a named token**, declared in `@rentable/design`'s `tokens.css`
+and nowhere else. A surface names one of each and never writes a number:
+
+| Token | Utility | Value | For |
+| ----- | ------- | ----- | --- |
+| `--ease-enter` | `ease-enter` | decelerate, `cubic-bezier(0, 0, 0.2, 1)` | something arriving |
+| `--ease-exit` | `ease-exit` | accelerate, `cubic-bezier(0.4, 0, 1, 1)` | something leaving |
+| `--ease-move` | `ease-move` | standard, `cubic-bezier(0.2, 0, 0, 1)` | something on screen changing place or size |
+| `--duration-quick` | `duration-quick` | 150ms | a colour, a small control |
+| `--duration-base` | `duration-base` | 200ms | a dialog, a menu, a row |
+| `--duration-slow` | `duration-slow` | 250ms | a panel crossing the window |
+
+Tailwind's stock easings are cleared, so `ease-in` and its siblings build nothing, and a bare
+`transition-*` falls back on `duration-quick` and `ease-move`. `duration-*` and `ease-*` also set
+the variables `tw-animate-css` reads, so one pair drives a transition and an `animate-in` alike.
+In CSS, name the token: `var(--duration-base)`. Where a mechanism takes a number rather than a
+class (Svelte's `in:`, `out:`, `animate:` and `svelte/motion`), the number is read from the token
+rather than restated. A `motion.test.ts` in each package fails on a raw duration or easing in
+that package's tree, `apps/desktop/src/lib/design/tests/` for the application and
+`packages/design/src/lib/tests/` for the package, and neither reaches across.
+
+**Nothing animates on a path used many times a day from the keyboard**: moving through a list
+with the arrow keys, and the command palette. Both answer at once. The dialog primitive's
+`motion={false}` is how the palette opts out, because class merging cannot take an animation back
+off.
+
 **No motion library.** Reach for what is installed, choosing by what causes the motion:
 
 | Cause | Mechanism |
 | ----------------------------------- | ------------------------------------------------ |
-| hover, press, focus                 | Tailwind `transition-*`                          |
-| an element arriving on mount        | `tw-animate-css` (`animate-in`), as the primitives do |
+| hover, press                        | Tailwind `transition-*`                          |
+| an element arriving or leaving that bits-ui drives (dialog, sheet, menu) | `tw-animate-css` (`animate-in`, `animate-out`), as the primitives do |
 | an element leaving on a data change | Svelte `out:` — CSS cannot, the node is gone first |
-| an element moving position          | **unavailable** — see the ADR                    |
+| a value changing (a count, a ring filling) | `svelte/motion` (`Tween`, `Spring`)     |
+| an element moving position among siblings on screen | `svelte/animate` (`animate:flip`) |
+| a record created, deleted, restored or re-sorted in a directory; a pane swap | a same-document view transition (`document.startViewTransition`) |
+
+**A view transition is feature-detected, and its fallback is no animation.** Where
+`startViewTransition` is missing (macOS below 15, an old WebKitGTK) the change is committed
+directly and simply appears. Only a change caused by a mutation, an undo or a sort transitions; a
+search keystroke does not. `animate:flip` moves only rows already on screen, which is why a
+virtualised directory uses a view transition rather than it.
 
 Prefer a transition defined through `css` over one through `tick`: the first runs off the main
 thread, the second does not.
@@ -196,10 +352,12 @@ thread, the second does not.
 unfinished.** Tailwind's `motion-safe:` gates CSS motion; `prefersReducedMotion` from
 `svelte/motion` gates anything JavaScript-driven.
 
-The token layer carries the two cases a surface cannot reach for itself: every CSS transition,
-and the keyframe animation on anything bits-ui marks with `data-state` or `data-motion`. A
-keyframe animation on an element carrying neither is still the surface's own to gate — which
-covers anything composed here, and the looping indicators, left running deliberately.
+The token layer carries the three cases a surface cannot reach for itself: every CSS transition,
+the keyframe animation on anything bits-ui marks with `data-state` or `data-motion`, and every
+`::view-transition-*` pseudo-element. A keyframe animation on an element carrying none of those is
+still the surface's own to gate, and so is a transform a pointer applies, such as a hover lift:
+collapsing its transition makes it jump rather than stop. That covers anything composed here, and
+the looping indicators (spinner, skeleton, caret), left running deliberately.
 
 **Motion is bidirectional, like everything else here.** A transform that assumes LTR breaks in
 Arabic — prefer logical properties, and check both directions rather than one.
@@ -230,6 +388,47 @@ parameter and sets `dir={isFigure ? 'ltr' : undefined}`.
 *Why this is written down: it was applied consistently and recorded nowhere, so the only way
 to learn it was to notice it, and a surface that missed it failed in Arabic alone.*
 
+**A reader's own words, a name, an address, a location, are isolated where they render**, in a
+`<bdi>` inside the box that styles them. A Latin value in an Arabic line is otherwise reordered at
+its edges: "Adeline Wiegand Sr." reads ".Adeline Wiegand Sr" and "4253 Russel Motorway" reads
+"Russel Motorway 4253". The isolate is inline rather than `dir="auto"` on the box, because `dir`
+also picks the edge the box aligns to. `design/cell/text.svelte` is the cell a row draws one with;
+the record surface's title and eyebrow and a specification's text values isolate themselves.
+
+**The locale files are written in lower case, and a product's name keeps its capital.** A heading
+is raised to sentence case where it renders (`first-letter:uppercase`, or `toTitleCase` for a
+title); a description, the line under a heading or a field, reads as written, in lower case, on
+every surface, because raising only its first letter would leave its second sentence lower case
+beside it. *Turso* is a product's name and is written *Turso* in both locales, wherever it falls
+in the sentence. `i18n/tests/casing.test.ts` holds both.
+
+**Figures use Western digits in both locales.** Money, counts, dates and relative times read
+`1,500`, not `١٬٥٠٠`, in Arabic as in English. `getIntlLocale` in `platform/locale.ts` is where
+that is decided: it maps `ar` to `ar-SA-u-nu-latn`, and every `Intl` and `DateFormatter`
+construction goes through it, the calendar primitive included, which is handed the reader's
+locale rather than left on its `en-US` default. A search typed in Arabic-Indic digits still
+matches, because search folds them. *This is the human's decision of 2026-09-24, and it reverses
+effort 810, which formatted Arabic in Arabic-Indic digits.*
+
+**What mirrors in Arabic is this list, and nothing else.** A glyph or control mirrors when what it
+shows is a direction along the line of text:
+
+- **back and next**: `arrow-left` and `arrow-right` on a back or a forward control;
+- **sequence chevrons**: `chevron-left`/`-right` and `chevrons-left`/`-right` on pagination, a
+  calendar's months, a carousel, a sub-menu, and the breadcrumb's separator;
+- **progress**: a bar fills from the start edge, which is why `primitive/progress` sets a width
+  rather than a translate;
+- **sliders**: the slider's range fills from the start edge, which is why `primitive/slider`
+  hands bits-ui `contract.direction`.
+
+A clock, a check, the search glass, the mark (the logo) and a slash never mirror, and neither does
+anything else that is a thing rather than a direction. The `ring` cell is a clock face, so its arc
+starts at twelve and runs clockwise in both locales. A glyph turns round with `rtl:rotate-180`
+where it is symmetric top to bottom, as every arrow and chevron is, and `rtl:-scale-x-100`
+otherwise; a primitive may carry the class on the control around the glyph. A glyph that
+already points both ways, such as the list's transfer arrows, is on no list and carries neither.
+`design/tests/icons.test.ts` holds the tree to both halves of it.
+
 The type definitions and utility files are **generated**. Edit the locale files, then
 regenerate — see [[references/pnpm]]. Components read translations from the store,
 never from a locale module directly.
@@ -240,11 +439,21 @@ words and its reading direction are supplied from outside: one typed object and 
 handed to `DesignProvider` once in `src/routes/+layout.svelte`. `@rentable/design/strings.js` is
 the contract, and it holds what enforces it and why the direction travels with the words.
 
-*Everything above is unchanged for a component that lives in this application, and after #782 that
-is every cell, every component under a concept or under `layout`, and `block/list.svelte` and
-`block/record-actions.svelte`. What #780, #781 and #782 finished is the primitive tree and
-thirteen of the fifteen blocks, not the crossing. The other two stay, and the rule below is most
-of why.*
+*Everything above is unchanged for a component that lives in this application, and that is every
+cell, every component under a concept or under `layout`, and the four blocks under `design/block/`:
+`list.svelte`, and the three that effort 832 added around it, `create-control.svelte`,
+`list-toolbar.svelte` and `search-field.svelte`. **They stay because each reads a module of this
+application, not a contract the package could be handed.** `create-control` reads the create key
+(`design/create-key.ts`) and registers with what answers it (`design/create-target.svelte.ts`),
+which is what makes it the one control [[rules/interface]] *Create* says draws a create and the one
+the key finds. `search-field` registers the list's search shortcut (`design/list-keyboard.ts`) in
+this application's shortcut registry, which reaches `$lib/platform` to record a collision, and
+`list-toolbar` draws `search-field`, so both are on the application's side of the reach test under
+*Components* above. `$lib` names nothing inside the package, so none of the three could move without
+the create key, its targets and the list's keyboard moving with it. (`block/record-actions.svelte`
+stayed too, until effort 832 made copy details a record act and retired it.) What #780, #781 and
+#782 finished is the primitive tree and thirteen of the fifteen blocks they started from, not the
+crossing, and the rule below is most of why the rest stay.*
 
 **A packaged component that needs a reading direction reads `contract.direction` and never
 derives one.** #779 moved ten families whose only locale read was
@@ -268,14 +477,16 @@ still caught.
 **Nothing can close that from inside the package**: narrowing the type would mean naming a
 consumer's routes in the library written not to know them. So it is an obligation on the two sides
 instead. **The consumer hands in a path it has already resolved**, which is what
-`record-card`, `record-surface` and `back` each say in a comment at the point they use one. **The
+`record-card`, `record-surface`, `section-switch` and `back` each say in a comment at the point they use one. **The
 packaged component says in its prop's own documentation that it expects a resolved path**, because
 that docstring is the only thing a second consumer will read before supplying one.
 
 **A parameterised string is the contract's only where the package owns the number.**
-`DesignStrings` is 34 keys and 33 of them are plain strings; `moreRecords` is a function because
+`DesignStrings` is 37 keys and 35 of them are plain strings; `moreRecords` is a function because
 `block/selection-dialog` counts the refused records it had no room to name, from a plan its
 consumer handed in, so there is no moment at which the consumer could have resolved the phrase.
+`refusal` is the second function: a confirmation turns the refusal its act earned into the
+reader's words, and only the consumer holds the refusal sentences (`error/refusal.ts`).
 Every other counted phrase on that surface arrives as a prop, `describeReason` and `summarize`
 among them, because the words are the concept's. **Ask who knows the number**: the package, and
 it is a key; the caller, and it is a prop.
@@ -291,11 +502,14 @@ consumer register it**, which keeps one place the key is written down and puts t
 where the dictionary is.
 
 **This rule decides where a component lives, not only how it is written**, and #782 is where that
-turned out to matter. `block/list.svelte` registers three shortcuts through `toListShortcuts`,
-each naming a key under `common.table`, and no amount of inverting its other couplings would have
-made those registrations legal in the package. So the block stays with this application, and
+turned out to matter. `block/list.svelte` registers three shortcuts, each naming a key under
+`common.table`, and no amount of inverting its other couplings would have made those
+registrations legal in the package. So the block stays with this application, and
 `design/list-keyboard.ts` and `design/shortcut-registry.{ts,svelte.ts}` stay with it: the first
-builds the registrations and the second two hold them. **Nothing in the package holds a registry
-or wants one** — `shortcut.ts` says so in its own header, and every other caller is under
-`layout/`. Read the placement rule as the rule's consequence rather than as a second rule; the
+builds the registrations and the second two hold them. *Since effort 832 the search key is
+registered by `design/block/search-field.svelte` (`toSearchShortcut`) and the other two by the
+list (`toListShortcuts`), so the field stays with this application for the same reason, and every
+set that draws it answers `/`.* **Nothing in the package holds a registry or wants one**:
+`shortcut.ts` says so in its own header, and every other caller is under `layout/` or
+`design/block/`. Read the placement rule as the rule's consequence rather than as a second rule; the
 effort's spec carries the full argument under `# Open Questions`.

@@ -416,10 +416,11 @@ export function useFetchMembers(enabled: () => boolean = () => true) {
  * invalidates the standings with it, which is what keeps a card's line true after a link, a reset
  * or a removal.
  */
-export function useFetchMemberStandings() {
+export function useFetchMemberStandings(enabled: () => boolean = () => true) {
 	return createQuery(() => ({
 		queryKey: keys.memberStandings,
-		queryFn: () => api.app.organization.member.standings()
+		queryFn: () => api.app.organization.member.standings(),
+		enabled: enabled()
 	}));
 }
 

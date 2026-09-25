@@ -1,14 +1,16 @@
 import { DesignProvider } from '@rentable/design/strings.js';
-import { fireEvent, render, screen } from '@testing-library/svelte';
+import { fireEvent, render, screen, within } from '@testing-library/svelte';
 import { beforeEach, expect, test } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import MemberSheet from '$lib/organization/component/member-sheet.svelte';
 import en from '$lib/i18n/en';
+import { toTitleCase } from '@rentable/design/title-case.js';
 import ar from '$lib/i18n/ar';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
-import { chooseOption, openSelect } from '$lib/design/tests/select';
 import { EVERY_ADMINISTRATION, maskOf, permits } from '@rentable/workspace-permission';
 
 /**
@@ -71,11 +73,13 @@ const sheet = (
 			role: 'member',
 			permissions: 0,
 			rows,
+			canRename: false,
 			canChangeRole: true,
 			canGrantWorkspace: true,
 			canGrantSigning: true,
 			canGrantReadOnly: true,
 			isSaving: false,
+			nameRefusal: null,
 			roleRefusal: null,
 			workspacesRefusal: null,
 			onSave: noop,
@@ -85,6 +89,21 @@ const sheet = (
 	);
 
 const surface = () => document.querySelector('[data-slot=form-surface]');
+const usernameInput = () => document.querySelector<HTMLInputElement>('input[name=username]');
+
+/** the one sentence Rust refuses a username outside the rules with, read off the source. */
+const rustUsernameRules = () => {
+	const source = readFileSync(
+		// the runner's root is `apps/desktop`, and the crate sits beside `src` there.
+		resolve(process.cwd(), 'tauri/src/organization/invite.rs'),
+		'utf8'
+	);
+	const declared = /pub const USERNAME_RULES: &str = "([^"]+)";/.exec(source);
+
+	if (!declared) throw new Error('invite.rs no longer declares USERNAME_RULES');
+
+	return declared[1];
+};
 const tray = (name: string) => document.querySelector(`[data-sheet-tray="${name}"]`);
 const section = (name: string) => document.querySelector(`[data-sheet-section="${name}"]`);
 const listed = () =>
@@ -107,9 +126,13 @@ const allow = async () => {
 	await fireEvent.click(document.querySelector<HTMLButtonElement>('[data-act-allow]')!);
 };
 
-/** the chooser item a role is offered by, found through the sentence it carries. */
+/** the segment of the role control a role is offered by. */
 const roleItem = (role: string) =>
-	document.querySelector(`[data-role-who="${role}"]`)?.closest('[data-slot=select-item]') ?? null;
+	document.querySelector<HTMLElement>(`#member-role [data-role="${role}"]`);
+
+/** the segment of a workspace's access control a level is offered by. */
+const levelItem = (id: string, level: string) =>
+	document.querySelector<HTMLElement>(`#access-${id} [data-level="${level}"]`);
 
 /** open the picker, which stands in the list's own head. */
 const openAdd = async () => {
@@ -140,7 +163,7 @@ test('the sheet is a heavy form surface of three sections, named for the member'
 	expect(surface()?.className).toContain('h-full');
 	expect(surface()?.className).not.toContain('rounded-3xl');
 	expect(surface()?.className).not.toContain('-translate-x-1/2');
-	expect(screen.getByText(en.common.actions.edit)).toBeDefined();
+	expect(screen.getByText(toTitleCase(en.common.actions.edit))).toBeDefined();
 	expect(
 		screen.getByText(
 			en.organization.dashboard.memberSheetDescription.replace('{username:string}', 'ada')
@@ -199,31 +222,43 @@ test('it reads as a tray on top and lists below, the way a directory does', () =
 	expect(document.querySelector('[data-sheet-tray]')?.contains(save)).toBe(false);
 });
 
-// criterion 23: the chooser carries one sentence per role, about who it is for, and the owner's
+// criterion 23: the chooser says who the chosen role is for, under the control, and the owner's
 // role is not one of the two it offers: ownership moves a key and two rows, and is handed over by
-// its own act.
-test('the role chooser says who each role is for, and never offers the owner', async () => {
+// its own act. Two exclusive choices are a toggle group ([[rules/interface]], *Field kinds*), and
+// a segment has no room for a sentence, so the one said is the one chosen.
+test('the role chooser says who the chosen role is for, and never offers the owner', async () => {
 	sheet();
 
-	await openSelect(document.querySelector<HTMLElement>('#member-role')!);
+	const roles = document.querySelector<HTMLElement>('#member-role')!;
 
-	// read by their own marks rather than by their text: the tray says the role held in the same
-	// sentence, so the one being read is on the chooser's own item.
-	const whos = Object.fromEntries(
-		Array.from(document.querySelectorAll('[data-role-who]')).map((said) => [
-			said.getAttribute('data-role-who'),
-			said.textContent?.trim()
-		])
+	expect(
+		within(roles)
+			.getAllByRole('radio')
+			.map((segment) => segment.getAttribute('data-role'))
+	).toEqual(['member', 'administrator']);
+	expect(roleItem('member')?.getAttribute('aria-checked')).toBe('true');
+	expect(tray('member-role-tray')?.textContent).toContain(en.organization.roles.member.who);
+	expect(tray('member-role-tray')?.textContent).not.toContain(
+		en.organization.roles.administrator.who
 	);
 
-	expect(whos).toEqual({
-		member: en.organization.roles.member.who,
-		administrator: en.organization.roles.administrator.who
-	});
-	expect(document.querySelector('[data-role-who="owner"]')).toBeNull();
+	await fireEvent.click(roleItem('administrator')!);
+
+	expect(roleItem('administrator')?.getAttribute('aria-checked')).toBe('true');
+	expect(tray('member-role-tray')?.textContent).toContain(en.organization.roles.administrator.who);
+	expect(tray('member-role-tray')?.textContent).not.toContain(en.organization.roles.member.who);
+
+	// the sentence stands under the control rather than beside the legend.
+	const said = within(tray('member-role-tray') as HTMLElement).getByText(
+		en.organization.roles.administrator.who
+	);
+
+	expect(roles.compareDocumentPosition(said) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+	expect(roleItem('owner')).toBeNull();
 	expect(screen.queryByText(en.organization.roles.owner.who)).toBeNull();
 	// and the administrator's names the one thing the word does not cover.
-	expect(en.organization.roles.administrator.who).toMatch(/turso account/);
+	expect(en.organization.roles.administrator.who).toMatch(/Turso account/);
 });
 
 // the human's third look: what a member may do beyond their role is a short plain list, one line
@@ -360,8 +395,7 @@ test('an administrator meets no also-allowed list, and one line instead', async 
 	expect(section('acts')).not.toBeNull();
 	expect(document.querySelector('[data-acts-every]')).toBeNull();
 
-	await openSelect(document.querySelector<HTMLElement>('#member-role')!);
-	await chooseOption(roleItem('administrator') as HTMLElement);
+	await fireEvent.click(roleItem('administrator')!);
 
 	expect(section('acts')).toBeNull();
 	expect(document.querySelector('[data-acts-every]')).not.toBeNull();
@@ -387,20 +421,28 @@ test('the workspaces are one row each, with a named level and its sentence', asy
 		en.organization.levels.none.does
 	);
 
-	await openSelect(document.querySelector<HTMLElement>('#access-ws-1')!);
+	// the three levels side by side, fullest first, as a choice of three is ([[rules/interface]],
+	// *Field kinds*).
+	expect(
+		within(document.querySelector<HTMLElement>('#access-ws-1')!)
+			.getAllByRole('radio')
+			.map((segment) => segment.getAttribute('data-level'))
+	).toEqual(['full-access', 'read-only', 'none']);
+	expect(levelItem('ws-1', 'full-access')?.getAttribute('aria-checked')).toBe('true');
 
-	const said = Object.fromEntries(
-		Array.from(document.querySelectorAll('[data-level-does]')).map((item) => [
-			item.getAttribute('data-level-does'),
-			item.textContent?.trim()
-		])
-	);
+	// and the sentence under the control follows the level chosen, one level at a time.
+	const says = document.querySelector('[data-access-says="ws-1"]')!;
 
-	expect(said).toEqual({
-		'full-access': en.organization.levels.full.does,
-		'read-only': en.organization.levels.readOnly.does,
-		none: en.organization.levels.none.does
-	});
+	await fireEvent.click(levelItem('ws-1', 'read-only')!);
+	expect(says.textContent?.trim()).toBe(en.organization.levels.readOnly.does);
+
+	await fireEvent.click(levelItem('ws-1', 'none')!);
+	expect(says.textContent?.trim()).toBe(en.organization.levels.none.does);
+
+	expect(
+		document.querySelector('#access-ws-1')!.compareDocumentPosition(says) &
+			Node.DOCUMENT_POSITION_FOLLOWING
+	).toBeTruthy();
 });
 
 // criterion 23: one save, and the three acts it runs are handed back together. What comes back
@@ -410,12 +452,7 @@ test('one save hands back the role, the acts and the workspaces that changed', a
 
 	sheet({ onSave: (edit) => saved.push(edit) });
 
-	await openSelect(document.querySelector<HTMLElement>('#access-ws-2')!);
-	await chooseOption(
-		document
-			.querySelector('[data-level-does="full-access"]')!
-			.closest('[data-slot=select-item]') as HTMLElement
-	);
+	await fireEvent.click(levelItem('ws-2', 'full-access')!);
 	await openAdd();
 	await tick('renameMember');
 	await allow();
@@ -423,6 +460,8 @@ test('one save hands back the role, the acts and the workspaces that changed', a
 
 	expect(saved).toEqual([
 		{
+			// the reader may not rename here, so the name handed back is the one the member holds.
+			username: 'ada',
 			role: 'member',
 			permissions: maskOf('renameMember'),
 			changes: [{ id: 'ws-2', access: 'full-access' }]
@@ -445,8 +484,7 @@ test('a refusal marks its own section', async () => {
 
 	const onRole = sheet({ roleRefusal: 'that is the owners' });
 
-	await openSelect(document.querySelector<HTMLElement>('#member-role')!);
-	await chooseOption(roleItem('administrator') as HTMLElement);
+	await fireEvent.click(roleItem('administrator')!);
 
 	expect(section('role')?.querySelector('[data-sheet-error="role"]')?.textContent?.trim()).toBe(
 		'that is the owners'
@@ -484,10 +522,8 @@ test('a reader who is not the owner is offered the one act that signs nothing, a
 test('and the administrator role is drawn refused for them, rather than hidden', async () => {
 	sheet({ canGrantSigning: false });
 
-	await openSelect(document.querySelector<HTMLElement>('#member-role')!);
-
-	expect(roleItem('administrator')?.hasAttribute('data-disabled')).toBe(true);
-	expect(roleItem('member')?.hasAttribute('data-disabled')).toBe(false);
+	expect(roleItem('administrator')?.hasAttribute('disabled')).toBe(true);
+	expect(roleItem('member')?.hasAttribute('disabled')).toBe(false);
 });
 
 test('a reader holding every act meets no refusal sentence at all', async () => {
@@ -518,6 +554,76 @@ test('each section is drawn by the act it is written with', () => {
 	expect(section('workspaces')).toBeNull();
 });
 
+// effort 832, requirement 6: one verb per act. The name was its own surface behind a *rename*
+// entry beside the *edit*; it is the sheet's first section now, drawn by `renameMember` alone.
+test('the name is the first section, drawn by renameMember and opened on the name they hold', () => {
+	const renaming = sheet({ canRename: true });
+
+	expect(
+		Array.from(document.querySelectorAll('[data-sheet-section]')).map((block) =>
+			block.getAttribute('data-sheet-section')
+		)
+	).toEqual(['name', 'role', 'acts', 'workspaces']);
+	expect(usernameInput()?.value).toBe('ada');
+	expect(section('name')?.querySelector('[data-list-head="member-name"]')?.textContent).toContain(
+		en.organization.dashboard.renameDescription
+	);
+	renaming.unmount();
+
+	// a reader holding renameMember alone meets the name and nothing else.
+	sheet({ canRename: true, canChangeRole: false, canGrantWorkspace: false });
+
+	expect(
+		Array.from(document.querySelectorAll('[data-sheet-section]')).map((block) =>
+			block.getAttribute('data-sheet-section')
+		)
+	).toEqual(['name']);
+});
+
+test('one save hands back the new name, trimmed', async () => {
+	const saved: { username: string }[] = [];
+
+	sheet({ canRename: true, onSave: (edit) => saved.push(edit) });
+
+	await fireEvent.input(usernameInput()!, { target: { value: '  ada.l  ' } });
+	await submit();
+
+	expect(saved.map((edit) => edit.username)).toEqual(['ada.l']);
+});
+
+// criterion 23 of effort 824: a username outside the rules is refused on the field with the one
+// sentence, and the sentence is Rust's own. Nothing is handed back while it stands.
+test('a username outside the rules is refused with the sentence rust refuses it with', async () => {
+	const saved: unknown[] = [];
+
+	sheet({ canRename: true, onSave: (edit) => saved.push(edit) });
+
+	const input = usernameInput()!;
+
+	await fireEvent.input(input, { target: { value: 'ad' } });
+	await fireEvent.focusOut(input);
+
+	expect(section('name')?.querySelector('[data-sheet-error="name"]')?.textContent?.trim()).toBe(
+		en.organization.dashboard.usernameRules
+	);
+	expect(input.getAttribute('aria-invalid')).toBe('true');
+	expect(en.organization.dashboard.usernameRules).toBe(rustUsernameRules());
+
+	await submit();
+
+	expect(saved).toEqual([]);
+});
+
+// and what Rust refuses (a username somebody holds) marks the name the way the others mark theirs.
+test('a refused rename marks the name', () => {
+	sheet({ canRename: true, nameRefusal: 'that username is taken' });
+
+	expect(section('name')?.querySelector('[data-sheet-error="name"]')?.textContent?.trim()).toBe(
+		'that username is taken'
+	);
+	expect(usernameInput()?.getAttribute('aria-invalid')).toBe('true');
+});
+
 test('a closed sheet puts nothing in the document', () => {
 	sheet({ open: false });
 
@@ -534,11 +640,7 @@ test('and in arabic every sentence reads in its own words, right to left', async
 	expect(screen.getByText(ar.organization.dashboard.beyondRole)).toBeDefined();
 	expect(ar.organization.acts.renameMember.does).not.toBe(en.organization.acts.renameMember.does);
 
-	await openSelect(document.querySelector<HTMLElement>('#member-role')!);
-
-	expect(document.querySelector('[data-role-who="member"]')?.textContent?.trim()).toBe(
-		ar.organization.roles.member.who
-	);
+	expect(tray('member-role-tray')?.textContent).toContain(ar.organization.roles.member.who);
 	expect(ar.organization.roles.member.who).not.toBe(en.organization.roles.member.who);
 
 	setLocale('en');

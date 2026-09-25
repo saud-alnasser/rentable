@@ -1,11 +1,11 @@
 <!doctype html>
 <!--
-	`class="dark"` is not orphaned. The chart primitive's style tag emits
-	`.dark [data-chart=…]` rules from a literal selector rather than a Tailwind
-	variant, so this attribute is what selects them. Nothing renders a chart yet;
-	removing it would hand the first one that declares a dark theme its light colours.
+	No appearance class here. `$lib/platform/appearance.ts` sets `dark` (or leaves it off) and
+	`color-scheme` on this element before the window is shown, following the system unless the
+	reader chose light or dark. The chart primitive's literal `.dark [data-chart=…]` rules select
+	against that same class.
 -->
-<html lang="en" dir="ltr" class="dark">
+<html lang="en" dir="ltr">
 	<head>
 		<meta charset="utf-8" />
 		<link rel="icon" href="%sveltekit.assets%/favicon.png" />

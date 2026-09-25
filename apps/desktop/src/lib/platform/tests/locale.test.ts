@@ -23,8 +23,8 @@ test('the symbol leads the amount in english', () => {
 
 // the same order in the string, because the isolate below is what decides where it lands rather
 // than the sentence it is dropped into.
-test('and leads it in arabic too, in that locale digits', () => {
-	assert.equal(visible(formatLocaleMoney('ar', 1500)), `${RIYAL} ١٬٥٠٠`);
+test('and leads it in arabic too, in western digits', () => {
+	assert.equal(visible(formatLocaleMoney('ar', 1500)), `${RIYAL} 1,500`);
 });
 
 // the point of the isolate: left and right are not fixed positions in a bidirectional document,
@@ -36,7 +36,7 @@ test('an amount is isolated and forced left to right, so its place does not depe
 	assert.ok(formatted.startsWith(LTR_ISOLATE), 'an amount opens the isolate');
 	assert.ok(formatted.endsWith(POP_ISOLATE), 'and closes it');
 	assert.ok(
-		formatted.indexOf(RIYAL) < formatted.indexOf('١'),
+		formatted.indexOf(RIYAL) < formatted.indexOf('1'),
 		'the symbol comes before the figure'
 	);
 });
@@ -58,7 +58,7 @@ test('an amount that is already text is taken as written', () => {
 // mark — where a word unit still reads in the direction of the sentence around it.
 test('a word unit still follows the reading direction, unlike the symbol', () => {
 	assert.equal(formatLocaleRangeWithUnit('en', 80, 80, 'units'), '80 / 80 units');
-	assert.equal(formatLocaleRangeWithUnit('ar', 80, 80, 'وحدات'), 'وحدات ٨٠ / ٨٠');
+	assert.equal(formatLocaleRangeWithUnit('ar', 80, 80, 'وحدات'), 'وحدات 80 / 80');
 });
 
 // a past moment in the reader's own words: the count and the grammar are the locale's, so a
@@ -72,7 +72,7 @@ test('a past moment reads relative to now, in the words of each locale', () => {
 	assert.equal(formatLocaleRelativeTime('en', now - 3 * 3_600_000, now), '3 hours ago');
 	assert.equal(formatLocaleRelativeTime('ar', now - 20_000, now), 'الآن');
 	assert.equal(formatLocaleRelativeTime('ar', now - 2 * 60_000, now), 'قبل دقيقتين');
-	assert.equal(formatLocaleRelativeTime('ar', now - 11 * 60_000, now), 'قبل ١١ دقيقة');
+	assert.equal(formatLocaleRelativeTime('ar', now - 11 * 60_000, now), 'قبل 11 دقيقة');
 });
 
 // a moment ahead of now is a clock that moved, and it reads as now rather than as "in 3 minutes".

@@ -3,7 +3,6 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import type api from '$lib/api/caller';
-	import { hasCreateIntent } from '@rentable/design/create-intent.js';
 	import List from '$lib/design/block/list.svelte';
 	import type { ListSort } from '@rentable/design/sort.js';
 	import { CONTRACT_SORT_COLUMN_IDS, type ContractSortColumnId } from '$lib/contract/contract';
@@ -20,7 +19,7 @@
 	import DirectoryImportDialog from '$lib/workspace/component/directory-import-dialog.svelte';
 	import { useImportRecords } from '$lib/workspace/query';
 	import { toTransferInput } from '$lib/workspace/workspace';
-	import ContractActions from './actions.svelte';
+	import { contractHost } from '$lib/contract/host.svelte';
 	import ContractRecord from './record.svelte';
 	import ContractSelectionActions from './selection-actions.svelte';
 
@@ -70,14 +69,9 @@
 		return CONTRACT_SORT_COLUMN_IDS.map((id) => ({ id, label: labels[id] }));
 	});
 
-	// the intent is consumed on arrival and cleared from the URL, so a reload or a back
-	// navigation does not reopen a form the user has already dismissed.
-	const clearCreateIntent = () =>
-		void goto(resolve('/contracts'), { replaceState: true, noScroll: true, keepFocus: true });
-
 	// the rank the list opened on is then cleared from the URL, so a reload does not put back a
-	// narrowing the reader has since cleared — the create intent above is consumed and cleared the
-	// same way. This effect reads the URL and writes the URL and touches the selection not at all,
+	// narrowing the reader has since cleared, the way the contract host consumes and clears a create
+	// intent. This effect reads the URL and writes the URL and touches the selection not at all,
 	// which is what ends it: the clear lands, the next pass reads no rank, and it returns.
 	$effect(() => {
 		if (!readContractRank(page.url)) {
@@ -88,78 +82,74 @@
 	});
 </script>
 
-<ContractActions
-	createRequested={hasCreateIntent(page.url)}
-	onCreateRequestConsumed={clearCreateIntent}
->
-	{#snippet children(contractActions)}
-		<ContractSelectionActions onActed={() => (selected = [])}>
-			{#snippet children(selectionActions)}
-				<List
-					data={contracts}
-					bind:search
-					bind:sort
-					{sortOptions}
-					bind:filters
-					filterOptions={[RANK_FILTER]}
-					bind:selected
-					{selectionActions}
-					isLoading={contractsQuery.isLoading}
-					isFetching={contractsQuery.isFetching}
-					recordHeight={ROW_HEIGHT}
-					exportAs={{
-						name: toNarrowedName($LL.common.nav.contracts(), [
-							search,
-							toChosenLabel(RANK_FILTER, filters, $LL) ?? ''
-						]),
-						columns: [
-							{
-								header: $LL.common.labels.tenant(),
-								value: (contract) => contract.tenantName?.trim() || $LL.common.labels.tenant()
-							},
-							{
-								header: $LL.common.labels.governmentId(),
-								value: (contract) => contract.govId.trim()
-							},
-							// days, so the column sorts and a period can be asked of it. A formatted date was
-							// text: `31 Jan 2026` sorts alphabetically, which puts April before January.
-							{
-								header: $LL.common.labels.start(),
-								value: (contract) => ({ kind: 'date' as const, value: new Date(contract.start) })
-							},
-							{
-								header: $LL.common.labels.end(),
-								value: (contract) => ({ kind: 'date' as const, value: new Date(contract.end) })
-							},
-							{ header: $LL.common.nav.payments(), value: (contract) => contract.paymentCount },
-							{
-								header: $LL.common.labels.status(),
-								value: (contract) => $LL.common.status[contract.status]()
-							},
-							// the pair the card draws as one fraction, as two columns of money. A file is not
-							// a card: `1,500 / 18,000` is one string a spreadsheet can do nothing with, and
-							// what a reader wants of a directory of contracts is the two totals under it.
-							{
-								header: $LL.common.labels.paid(),
-								value: (contract) => ({ kind: 'money' as const, value: contract.paidAmount })
-							},
-							{
-								header: $LL.common.labels.expected(),
-								value: (contract) => ({ kind: 'money' as const, value: contract.expectedAmount })
-							}
-						]
-					}}
-					onImport={() => void importDialog?.choose()}
-					onCreate={contractActions.create}
-				>
-					{#snippet record(contract: ContractRow)}
-						<ContractRecord {contract} actions={contractActions.of(contract)} />
-					{/snippet}
-				</List>
+<ContractSelectionActions onActed={() => (selected = [])}>
+	{#snippet children(selectionActions)}
+		<List
+			data={contracts}
+			bind:search
+			bind:sort
+			{sortOptions}
+			bind:filters
+			filterOptions={[RANK_FILTER]}
+			bind:selected
+			{selectionActions}
+			isLoading={contractsQuery.isLoading}
+			isFetching={contractsQuery.isFetching}
+			recordHeight={ROW_HEIGHT}
+			exportAs={{
+				name: toNarrowedName($LL.common.nav.contracts(), [
+					search,
+					toChosenLabel(RANK_FILTER, filters, $LL) ?? ''
+				]),
+				columns: [
+					{
+						header: $LL.common.labels.tenant(),
+						value: (contract) => contract.tenantName?.trim() || $LL.common.labels.tenant()
+					},
+					{
+						header: $LL.common.labels.governmentId(),
+						value: (contract) => contract.govId.trim()
+					},
+					// days, so the column sorts and a period can be asked of it. A formatted date was
+					// text: `31 Jan 2026` sorts alphabetically, which puts April before January.
+					{
+						header: $LL.common.labels.start(),
+						value: (contract) => ({ kind: 'date' as const, value: new Date(contract.start) })
+					},
+					{
+						header: $LL.common.labels.end(),
+						value: (contract) => ({ kind: 'date' as const, value: new Date(contract.end) })
+					},
+					{ header: $LL.common.nav.payments(), value: (contract) => contract.paymentCount },
+					{
+						header: $LL.common.labels.status(),
+						value: (contract) => $LL.common.status[contract.status]()
+					},
+					// the pair the card draws as one fraction, as two columns of money. A file is not
+					// a card: `1,500 / 18,000` is one string a spreadsheet can do nothing with, and
+					// what a reader wants of a directory of contracts is the two totals under it.
+					{
+						header: $LL.common.labels.paid(),
+						value: (contract) => ({ kind: 'money' as const, value: contract.paidAmount })
+					},
+					{
+						header: $LL.common.labels.expected(),
+						value: (contract) => ({ kind: 'money' as const, value: contract.expectedAmount })
+					}
+				]
+			}}
+			onImport={() => void importDialog?.choose()}
+			onCreate={() => contractHost.create()}
+			createLabel={$LL.common.actions.newContract()}
+			emptyTitle={$LL.contracts.empty.title()}
+			emptyDescription={$LL.contracts.empty.description()}
+		>
+			{#snippet record(contract: ContractRow)}
+				<ContractRecord {contract} />
 			{/snippet}
-		</ContractSelectionActions>
+		</List>
 	{/snippet}
-</ContractActions>
+</ContractSelectionActions>
 
 <!-- a file of contracts, coming in. A contract points at more than any other record here — its
      tenant, and every unit it holds — and each is named rather than numbered, so each is resolved

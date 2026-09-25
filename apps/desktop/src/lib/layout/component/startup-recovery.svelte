@@ -1,6 +1,7 @@
 <script lang="ts">
 	import StandaloneSurface from '@rentable/design/block/standalone-surface.svelte';
 	import { LL } from '$lib/i18n/i18n-svelte';
+	import DetailDisclosure from '$lib/error/component/detail-disclosure.svelte';
 	import SurfaceAction from '@rentable/design/block/surface-action.svelte';
 	import { tauri, type Recovery } from '$lib/platform/tauri';
 	import DownloadIcon from '@lucide/svelte/icons/download';
@@ -33,7 +34,7 @@
 
 {#snippet plate(label: string, value: string, isFigure: boolean)}
 	<div class="rounded-xl bg-muted p-3">
-		<dt class="text-xs tracking-wide text-muted-foreground uppercase">{label}</dt>
+		<dt class="text-xs text-muted-foreground uppercase">{label}</dt>
 		<!-- a version is the machine's and reads left to right in both locales; the words that
 		     stand in for one while there is no version are the reader's. -->
 		<dd class="mt-1 text-sm font-medium break-words" dir={isFigure ? 'ltr' : undefined}>
@@ -93,8 +94,14 @@
 			{$LL.layout.startup.recoveryDetails()}
 		</p>
 
+		<!-- what the updater said is plain words with no code to read a sentence from, so the
+		     generic sentence is the reader's and the words stay behind details, closed
+		     ([[rules/interface]], *Error*). -->
 		{#if recovery.updateError}
-			<p class="text-sm text-destructive">{recovery.updateError}</p>
+			<p class="text-sm text-destructive" data-update-error>
+				{$LL.common.messages.unexpectedError()}
+			</p>
+			<DetailDisclosure detail={recovery.updateError} name="update" />
 		{/if}
 	</div>
 </StandaloneSurface>

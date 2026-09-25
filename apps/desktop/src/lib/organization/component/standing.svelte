@@ -3,6 +3,7 @@
 	import { tauri } from '$lib/platform/tauri';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Callout } from '@rentable/design/primitive/callout/index.js';
+	import DetailDisclosure from '$lib/error/component/detail-disclosure.svelte';
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { useAccountRefusalDetail } from '$lib/organization/query';
@@ -131,12 +132,12 @@
 <!-- the shape every block in the area has: a legend, a sentence saying what the block is for,
      and then what it holds. The purpose sentence reads the same whatever the standing, so a
      person who came here worried learns what the block is about before they read the line
-     that changes; the standing is the block's description, in the muted weight every other
-     block gives its own, with the control at its end on the same row. *The standing stood
-     alone as the block's first line until the human looked at it and could not tell what the
-     block was for.* -->
+     that changes. The purpose is a description like every other block's, so it takes the same
+     muted tone rather than the foreground the block's content reads in; the standing follows it,
+     with the control at its end on the same row. *The standing stood alone as the block's first
+     line until the human looked at it and could not tell what the block was for.* -->
 <Field.Legend>{$LL.organization.standing.title()}</Field.Legend>
-<p class="text-sm leading-normal" data-standing-purpose>{$LL.organization.standing.purpose()}</p>
+<Field.Description data-standing-purpose>{$LL.organization.standing.purpose()}</Field.Description>
 
 <Field.Field orientation="responsive" data-standing={status}>
 	<Field.Content>
@@ -188,11 +189,13 @@
 	     reachable; if it does not clear, there is none to collect and the owner is who to ask. -->
 	<Callout tone="warning" data-credential-refusal>{$LL.workspace.credentialRefused()}</Callout>
 {:else if status === 'needsReconnect'}
-	<!-- the fault itself, and only where there is one: the sentence the service or the replica
-	     gave, which is the half a person can act on. A callout rather than a description
-	     because it is somebody else's text and can be any length. -->
+	<!-- the fault, and only where there is one. What the service or the replica said is kept as
+	     plain words with no code to read a sentence from, so the callout says the generic one in
+	     the reader's language and the words themselves stay behind details, closed
+	     ([[rules/interface]], *Error*). -->
 	{#if fault}
-		<Callout tone="error" data-fault>{fault}</Callout>
+		<Callout tone="error" data-fault>{$LL.common.messages.unexpectedError()}</Callout>
+		<DetailDisclosure detail={fault} name="fault" />
 	{/if}
 
 	{#if needsAuthority}

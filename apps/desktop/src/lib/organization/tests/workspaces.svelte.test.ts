@@ -1,17 +1,31 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import { beforeEach, expect, test, vi } from 'vitest';
 
 import { setLocale } from '$lib/i18n/i18n-svelte';
+import { i18nObject } from '$lib/i18n/i18n-util';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import Workspaces from '$lib/organization/component/workspaces.svelte';
 import { organizationDialog, resetOrganizationDialogs } from '$lib/organization/dialogs.svelte';
+import { organizationHostState, resetOrganizationHost } from '$lib/organization/host.svelte';
+import { fakeOrganizationSession } from '$lib/platform/tests/testing';
 import type { OrganizationMember, OrganizationWorkspace } from '$lib/platform/host';
 import en from '$lib/i18n/en';
+import { toTitleCase } from '@rentable/design/title-case.js';
 import ar from '$lib/i18n/ar';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
-import { chooseOption, openSelect } from '$lib/design/tests/select';
+import {
+	insideTheWait,
+	pastTheWait,
+	pressSearchKey,
+	searchField,
+	searchGlass,
+	typeSearch
+} from '$lib/design/tests/search';
+import { expectCreateControlLast } from '$lib/design/tests/create-control';
+import { BAR_CONTROL, expectBarOrder } from '$lib/design/tests/set-bar';
 
-import QueryProviders from './query-providers.svelte';
+import { hostAnswers, resetHostAnswers } from './host-hooks';
+import HostProviders from './host-providers.svelte';
 
 /**
  * THE WORKSPACES, AS A DIRECTORY OF CARDS
@@ -54,7 +68,18 @@ import QueryProviders from './query-providers.svelte';
  * The rows the access dialog draws are the organization's members rather than its workspaces,
  * which is the same surface read the other way round; the owner is not among them, because Rust
  * refuses a withdrawal of the owner's own grant, and neither is the reader.
+ *
+ * **What a card's act opens is the organization host's** (effort 832, requirement 8), mounted once
+ * in the frame, so the section is rendered with the host beside it (`./host-providers.svelte`) and
+ * the host's hooks stood in for (`./host-hooks.ts`): the members the dialog lists and the session
+ * that says who is reading are what those hooks answer. Each entry is read by the act it projects,
+ * `data-act`. The name's entry reads *edit* (effort 832, requirement 6), where it read *rename*.
  */
+
+vi.mock('$lib/organization/query', async (importOriginal) => ({
+	...(await importOriginal<typeof import('$lib/organization/query')>()),
+	...(await import('./host-hooks')).hostHooks
+}));
 
 const { address, navigations } = vi.hoisted(() => ({
 	address: { url: new URL('http://localhost/settings?section=workspaces') },
@@ -78,8 +103,6 @@ vi.mock('$app/navigation', async (importOriginal) => ({
 		address.url = new URL(to, 'http://localhost');
 	}
 }));
-
-const resolved = async () => {};
 
 /** the reader is standing at the workspaces section, with or without a workspace named on it. */
 const at = (search = '?section=workspaces') => {
@@ -149,21 +172,33 @@ const list = (
 			canDelete: true,
 			canRename: true,
 			canGrantWorkspace: true,
-			isOwner: true,
-			selfId: 'owner',
-			isChangingAccess: false,
 			refusal: null,
-			onChangeAccess: resolved,
-			onDelete: resolved,
 			...overrides
 		},
-		{ wrapper: QueryProviders, wrapperProps: { strings, direction } }
+		{ wrapper: HostProviders, wrapperProps: { strings, direction } }
 	);
 
-/** the acts a card can offer, in the order they are built. */
-const KINDS = ['rename', 'grant', 'delete'] as const;
+/** the acts a card can offer, in the order they are declared, by the name this file reads them by. */
+const KINDS = {
+	'workspace.edit': 'edit',
+	'workspace.members': 'grant',
+	'workspace.delete': 'delete'
+} as const;
 
-const on = (kind: string, id: string) => document.querySelector(`[data-workspace-${kind}="${id}"]`);
+const kindOf = (item: Element) =>
+	KINDS[item.getAttribute('data-act') as keyof typeof KINDS] ?? item.textContent;
+
+const actOf = (kind: string) =>
+	Object.entries(KINDS).find(([, named]) => named === kind)?.[0] ?? kind;
+
+/**
+ * an act's entry on the menu that is open, or a mark a card carries of its own (the open disc,
+ * the count). One card's menu is open at a time, so an entry is that card's.
+ */
+const on = (kind: string, id: string) =>
+	Object.values(KINDS).some((named) => named === kind)
+		? document.querySelector(`[data-slot=dropdown-menu-item][data-act="${actOf(kind)}"]`)
+		: document.querySelector(`[data-workspace-${kind}="${id}"]`);
 const card = (id: string) => document.querySelector(`[data-workspace="${id}"]`);
 
 /** the one control a card carries, or nothing where this reader may do nothing to it. */
@@ -178,7 +213,7 @@ const actsOn = async (id: string) => {
 	await fireEvent.click(trigger);
 
 	const offered = Array.from(document.querySelectorAll('[data-slot=dropdown-menu-item]')).map(
-		(item) => KINDS.find((kind) => item.hasAttribute(`data-workspace-${kind}`)) ?? item.textContent
+		kindOf
 	);
 
 	await fireEvent.click(trigger);
@@ -189,7 +224,7 @@ const actsOn = async (id: string) => {
 /** open a card's control and press one act. */
 const press = async (id: string, kind: string) => {
 	await fireEvent.click(control(id)!);
-	await fireEvent.click(document.querySelector(`[data-workspace-${kind}="${id}"]`)!);
+	await fireEvent.click(on(kind, id)!);
 };
 
 const surface = () => document.querySelector('[data-slot=form-surface]');
@@ -198,11 +233,14 @@ const dialogParagraphs = () =>
 	Array.from(document.querySelectorAll('[data-slot="dialog-content"] p'));
 
 /** the rail's own sentence for how many people are in a workspace, as the card draws it. */
-const memberCount = (count: number) =>
-	en.layout.workspaceMenu.members.replace('{count|number}', String(count));
+const memberCount = (count: number) => i18nObject('en').layout.workspaceMenu.members({ count });
 
 beforeEach(() => {
 	resetOrganizationDialogs();
+	resetOrganizationHost();
+	resetHostAnswers();
+	hostAnswers.session = fakeOrganizationSession({ memberId: 'owner', role: 'owner', workspaces });
+	hostAnswers.members = members;
 	loadLocale('en');
 	setLocale('en');
 	navigations.length = 0;
@@ -292,6 +330,9 @@ test('new workspace stands in the tray for the owner holding the authority, and 
 	expect(opener.querySelector('svg')).not.toBeNull();
 	expect(opener.textContent?.trim()).toBe('');
 	expect(opener.compareDocumentPosition(first) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+	// the one create control, in the position every set gives it (effort 832, criterion 9(a)).
+	expect(opener.hasAttribute('data-create-control')).toBe(true);
+	expectCreateControlLast();
 	expect(organizationDialog.open).toBeNull();
 	await fireEvent.click(opener);
 	expect(organizationDialog.open).toBe('workspace');
@@ -315,18 +356,18 @@ test('an owner whose machine lost the authority reads why in the tray, and every
 	owner.unmount();
 
 	// an administrator never had a create to be refused, so the section says nothing about one.
-	list({ canCreate: false, isOwner: false, refusal: null, selfId: 'ada' });
+	list({ canCreate: false, refusal: null });
 
 	expect(document.querySelector('[data-workspace-create]')).toBeNull();
 	expect(document.querySelector('[data-workspace-refusal]')).toBeNull();
 });
 
 // criterion 21: rename, members and delete on the card's menu, each behind its gate.
-test('an owner holding every gate is offered members and delete on each card, and rename on the open one', async () => {
+test('an owner holding every gate is offered members and delete on each card, and edit on the open one', async () => {
 	list();
 
-	expect(await actsOn('ws-1')).toEqual(['rename', 'grant', 'delete']);
-	// the rename acts on the workspace this machine has open, so it is offered on that card alone.
+	expect(await actsOn('ws-1')).toEqual(['edit', 'grant', 'delete']);
+	// the name's edit acts on the workspace this machine has open, so it is offered on that card alone.
 	expect(await actsOn('ws-2')).toEqual(['grant', 'delete']);
 });
 
@@ -335,9 +376,7 @@ test('a member holding no act is offered no menu at all, and no create control',
 		canCreate: false,
 		canDelete: false,
 		canRename: false,
-		canGrantWorkspace: false,
-		isOwner: false,
-		selfId: 'sami'
+		canGrantWorkspace: false
 	});
 
 	for (const id of ['ws-1', 'ws-2']) {
@@ -359,8 +398,6 @@ test('each act is drawn by its own gate and by no other', async () => {
 			canDelete: false,
 			canRename: false,
 			canGrantWorkspace: false,
-			isOwner: false,
-			selfId: 'sami',
 			...overrides
 		});
 
@@ -368,7 +405,7 @@ test('each act is drawn by its own gate and by no other', async () => {
 		rendered.unmount();
 	};
 
-	await only({ canRename: true }, 'ws-1', ['rename']);
+	await only({ canRename: true }, 'ws-1', ['edit']);
 	await only({ canRename: true }, 'ws-2', []);
 	await only({ canGrantWorkspace: true }, 'ws-1', ['grant']);
 	await only({ canGrantWorkspace: true }, 'ws-2', ['grant']);
@@ -424,13 +461,14 @@ test('the address naming a workspace opens that workspace and is cleared', async
 // holds opens nothing at all.
 test('the edit a card opens is the one this reader holds, and an unknown name opens nothing', async () => {
 	at('?section=workspaces&workspace=ws-1');
-	const renamer = list({ canGrantWorkspace: false, canDelete: false, isOwner: false });
+	const renamer = list({ canGrantWorkspace: false, canDelete: false });
 
 	await waitFor(() => {
 		expect(surface()).not.toBeNull();
 	});
 	expect(screen.getByText(en.workspace.renameDescription)).toBeDefined();
 	renamer.unmount();
+	resetOrganizationHost();
 
 	at('?section=workspaces&workspace=ws-gone');
 	list();
@@ -476,22 +514,24 @@ test('the members act opens the access dialog on the people who could hold that 
 });
 
 test('the members act hands up the rows that changed, as member ids on that workspace', async () => {
-	const written: string[] = [];
-
-	list({
-		onChangeAccess: async (workspaceId, changes) => {
-			written.push(
-				`${workspaceId}:${changes.map((change) => `${change.memberId}=${change.access}`).join(',')}`
-			);
-		}
-	});
+	list();
 
 	await press('ws-2', 'grant');
-	await openSelect(document.querySelector<HTMLElement>('#access-ada')!);
-	await chooseOption(screen.getByRole('option', { name: en.organization.dashboard.accessFull }));
+	await fireEvent.click(
+		within(document.querySelector<HTMLElement>('#access-ada')!).getByRole('radio', {
+			name: en.organization.dashboard.accessFull
+		})
+	);
 	await fireEvent.submit(document.querySelector('form')!);
 
-	expect(written).toEqual(['ws-2:ada=full-access']);
+	await waitFor(() => {
+		expect(hostAnswers.writes).toEqual([
+			{
+				hook: 'useChangeAccess',
+				input: { changes: [{ workspaceId: 'ws-2', memberId: 'ada', access: 'full-access' }] }
+			}
+		]);
+	});
 });
 
 // criterion 21: delete asks once and names what is lost, and it is the owner's.
@@ -500,22 +540,28 @@ test('delete opens the packaged confirm, naming the workspace and what goes with
 
 	await press('ws-2', 'delete');
 
-	expect(dialogTitle()).toBe(en.organization.dashboard.deleteWorkspace);
+	expect(dialogTitle()).toBe(toTitleCase(en.organization.dashboard.deleteWorkspace));
 	expect(dialogParagraphs()[0]?.textContent?.trim()).toBe('Jeddah');
 	expect(dialogParagraphs()[1]?.textContent?.trim()).toBe(
 		en.organization.dashboard.deleteWorkspaceDescription
 	);
+	// it asks, and nothing is written until it is answered.
+	expect(organizationHostState.workspace.deleting?.workspace.id).toBe('ws-2');
+	expect(hostAnswers.writes).toEqual([]);
 });
 
-test('the rename opens the light form surface on the open workspace, with one name field', async () => {
+test('the edit opens the light form surface on the open workspace, with one name field', async () => {
 	list();
 
-	await press('ws-1', 'rename');
+	await press('ws-1', 'edit');
 
 	expect(surface()).not.toBeNull();
 	// light: the centred panel, which the surface draws as a translated box rather than an edge
 	// sheet.
 	expect(surface()?.className).toContain('-translate-x-1/2');
+	// titled for the act that opened it, as the member's sheet is: edit, never rename (ticket 33
+	// of effort 832; [[rules/interface]], *Edit*).
+	expect(dialogTitle()?.toLowerCase()).toBe(en.common.actions.edit);
 	expect(screen.getByText(en.workspace.renameDescription)).toBeDefined();
 	const fields = Array.from(surface()!.querySelectorAll<HTMLInputElement>('input'));
 
@@ -530,11 +576,14 @@ test('the acts read as one plain word each, in the words the rest of the applica
 
 	await fireEvent.click(control('ws-1')!);
 
-	expect(on('rename', 'ws-1')?.textContent?.trim()).toBe(en.workspace.rename);
-	expect(on('grant', 'ws-1')?.textContent?.trim()).toBe(en.organization.dashboard.membersTitle);
-	expect(on('delete', 'ws-1')?.textContent?.trim()).toBe(en.common.actions.delete);
+	// one verb per act (effort 832, requirement 6): the name's entry is the edit every record has.
+	expect(on('edit', 'ws-1')?.textContent?.trim()).toBe(toTitleCase(en.common.actions.edit));
+	expect(on('grant', 'ws-1')?.textContent?.trim()).toBe(
+		toTitleCase(en.organization.dashboard.membersTitle)
+	);
+	expect(on('delete', 'ws-1')?.textContent?.trim()).toBe(toTitleCase(en.common.actions.delete));
 	expect(on('delete', 'ws-1')?.getAttribute('data-variant')).toBe('destructive');
-	expect(on('rename', 'ws-1')?.getAttribute('data-variant')).toBe('default');
+	expect(on('edit', 'ws-1')?.getAttribute('data-variant')).toBe('default');
 });
 
 test('and in arabic every card reads in its own words, right to left', async () => {
@@ -564,4 +613,108 @@ test('and in arabic every card reads in its own words, right to left', async () 
 	expect(on('grant', 'ws-1')?.textContent?.trim()).toBe(ar.organization.dashboard.membersTitle);
 
 	setLocale('en');
+});
+
+// --- Search and order (effort 832, requirement 7) ------------------------------------------------
+
+/** the workspaces the directory is showing, by id, in the order it shows them. */
+const shownWorkspaces = () =>
+	Array.from(document.querySelectorAll('[data-workspace]')).map((held) =>
+		held.getAttribute('data-workspace')
+	);
+
+/** choose one of the orders the list shell's sort control offers. */
+const orderBy = async (label: string) => {
+	// named for the order it holds once one is chosen, so it is found by the words it starts with.
+	await fireEvent.click(
+		screen.getByRole('button', { name: new RegExp(`^${en.common.actions.sortBy}`) })
+	);
+
+	const item = Array.from(document.querySelectorAll('[data-slot=dropdown-menu-item]')).find(
+		(entry) => entry.textContent?.trim() === label
+	);
+
+	await fireEvent.click(item!);
+};
+
+// criterion 7(a): the directory searches with the list shell's field, so it leads with the glass.
+test('the directory is searched from the list shell’s own bar, glass first', () => {
+	list();
+
+	const tray = document.querySelector('[data-directory-tray]')!;
+
+	expect(searchGlass()).not.toBeNull();
+	expect(tray.querySelector('[data-list-toolbar]')).not.toBeNull();
+	expect(tray.contains(searchField())).toBe(true);
+});
+
+test('a term narrows the cards only once the reader stops typing', async () => {
+	list();
+	const everything = shownWorkspaces();
+
+	await typeSearch(workspaces[1].name);
+	await insideTheWait();
+	expect(shownWorkspaces()).toEqual(everything);
+
+	await pastTheWait();
+	expect(shownWorkspaces()).toEqual([workspaces[1].id]);
+});
+
+test('the search key puts the cursor in the directory’s field', async () => {
+	list();
+
+	await pressSearchKey();
+
+	expect(document.activeElement).toBe(searchField());
+});
+
+// search keeps folding digits: a name holding Western digits is found by the Arabic-Indic ones an
+// Arabic keyboard types, as a list's read finds it in SQL.
+test('a term typed in Arabic-Indic digits finds a name written in Western ones', async () => {
+	list({
+		workspaces: [
+			{ ...workspaces[0], id: 'tower-12', name: 'Tower 12' },
+			{ ...workspaces[1], id: 'tower-7', name: 'Tower 7' }
+		]
+	});
+
+	await typeSearch('١٢');
+	await pastTheWait();
+
+	expect(shownWorkspaces()).toEqual(['tower-12']);
+});
+
+test('the directory is ordered by name, then by how many hold each', async () => {
+	list();
+
+	await orderBy(en.common.labels.name);
+	const byName = [...workspaces].sort((one, other) => (one.name < other.name ? -1 : 1));
+	expect(shownWorkspaces()).toEqual(byName.map((workspace) => workspace.id));
+
+	const holding = (id: string) =>
+		members.filter((held) => held.workspaces.some((workspace) => workspace.id === id)).length;
+	const byCount = [...workspaces].sort((one, other) => holding(one.id) - holding(other.id));
+
+	expect(holding(byCount[0].id)).toBeLessThan(holding(byCount[1].id));
+	await orderBy(en.organization.dashboard.membersTitle);
+	expect(shownWorkspaces()).toEqual(byCount.map((workspace) => workspace.id));
+});
+
+// the settings directories offer nothing to export: the file a workspace becomes is the transfer
+// beneath the cards, not the directory's.
+test('the directory offers no transfer of its records', () => {
+	list();
+
+	expect(screen.queryByRole('button', { name: en.common.actions.transferData })).toBeNull();
+});
+
+// ticket 30 of effort 832: the tray orders its controls as the list shell's bar does, and the
+// sentence under the legend is muted like every other description.
+test('the tray orders search, count, sort and create as the list shell does', () => {
+	list();
+
+	expectBarOrder([BAR_CONTROL.search, BAR_CONTROL.count, BAR_CONTROL.sort, BAR_CONTROL.create]);
+	expect(document.querySelector('[data-directory-description]')?.className).toContain(
+		'text-muted-foreground'
+	);
 });

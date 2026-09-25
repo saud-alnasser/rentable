@@ -11,6 +11,9 @@
  * away — a bar naming a step the application does not take is a decoration wearing a report's
  * clothes. `tests/startup-stage.test.ts` holds that to the route rather than to good intentions.
  *
+ * **One pass has a stage of its own before those**, `prepare`, and it is below the five rather than
+ * among them because a launch never takes it: see [`PREPARE_STAGE`].
+ *
  * One consequence worth knowing before reading the screen: **signing in and retrying a session
  * re-enter at `workspace`**, because that is where `continueStartup` begins. The bar starts those
  * paths partway along, which is honest.
@@ -22,7 +25,52 @@
 
 export const STARTUP_STAGES = ['settings', 'account', 'workspace', 'changes', 'records'] as const;
 
-export type StartupStage = (typeof STARTUP_STAGES)[number];
+/**
+ * What a caller readies before the standing is read, on the one pass that has it: the first run
+ * creating the owner's first workspace (effort 832, requirement 18).
+ *
+ * **Not one of the launch's five, and deliberately outside `STARTUP_STAGES`.** A launch never
+ * takes it, so a bar that named it on every launch would be naming a step the application does
+ * not take, which is the lie this module exists to refuse. It is the first stage of its own pass
+ * instead, [`PREPARED_STAGES`], and the bar counts over that pass while it runs.
+ */
+export const PREPARE_STAGE = 'prepare';
+
+export type StartupStage = (typeof STARTUP_STAGES)[number] | typeof PREPARE_STAGE;
+
+/**
+ * The pass `standingChanged({ prepare })` runs: what the caller readies, then the three stages a
+ * sign-in runs past the wall. It never reads the settings or asks who is signed in first, because
+ * the shell is already running and the caller has just made the owner somebody, so the two launch
+ * stages are not on it and the counter reads `1/4` rather than starting partway along.
+ */
+export const PREPARED_STAGES = [PREPARE_STAGE, 'workspace', 'changes', 'records'] as const;
+
+/**
+ * Which pass a stage being reported belongs to, given the pass on screen and whether one is still
+ * running.
+ *
+ * - `prepare` begins the prepared pass, and nothing else does.
+ * - A stage the running pass holds carries it on: the prepared pass's `workspace` is its second
+ *   stage, not the launch's third.
+ * - Anything else is the launch's list: a launch, a retry, a sign-in and a switch all report
+ *   stages of it, and a sign-in re-entering at `workspace` is partway along it, as it always was.
+ *
+ * **A pass that ended is not carried on**, which is what `running` is for. A prepared pass whose
+ * `prepare` failed ends there, on the no-workspace surface; the create that surface offers then
+ * reports `workspace` again, and that belongs to a sign-in's pass, not to the prepared one.
+ */
+export function stagesOfPass(
+	stage: StartupStage,
+	pass: readonly StartupStage[],
+	running: boolean
+): readonly StartupStage[] {
+	if (stage === PREPARE_STAGE) return PREPARED_STAGES;
+
+	if (running && pass.includes(stage)) return pass;
+
+	return STARTUP_STAGES;
+}
 
 /**
  * What each stage costs, in milliseconds, measured rather than divided.
@@ -63,10 +111,17 @@ export const STARTUP_STAGE_WEIGHTS: Record<StartupStage, number> = {
 	account: 8,
 	workspace: 2117,
 	changes: 3595,
-	records: 157
+	records: 157,
+	// **The one weight here that is an estimate**, and it is written as one. Creating a workspace
+	// creates a database on the owner's Turso account and mints its credential, which is the same
+	// order of round trip as `workspace` above; no first run had been timed when the stage was
+	// added (2026-09-24). The first one run reports `startup.stage` with `prepare` in the
+	// diagnostics, like every other stage, and that figure replaces this one.
+	prepare: 3000
 };
 
-const TOTAL_WEIGHT = Object.values(STARTUP_STAGE_WEIGHTS).reduce((sum, share) => sum + share, 0);
+const weightOf = (stages: readonly StartupStage[]) =>
+	stages.reduce((sum, name) => sum + STARTUP_STAGE_WEIGHTS[name], 0);
 
 /**
  * How full the bar is while a stage is running, as a percentage.
@@ -81,14 +136,14 @@ const TOTAL_WEIGHT = Object.values(STARTUP_STAGE_WEIGHTS).reduce((sum, share) =>
  * the last stage leaves it short of full, which is correct: the screen is replaced by the shell
  * rather than ever showing a completed bar.
  */
-export function startupProgressFor(stage: StartupStage): number {
-	const reached = STARTUP_STAGES.indexOf(stage);
-	const behind = STARTUP_STAGES.slice(0, reached).reduce(
-		(sum, name) => sum + STARTUP_STAGE_WEIGHTS[name],
-		0
-	);
+export function startupProgressFor(
+	stage: StartupStage,
+	stages: readonly StartupStage[] = STARTUP_STAGES
+): number {
+	const reached = stages.indexOf(stage);
+	const behind = weightOf(stages.slice(0, reached));
 
-	return (behind / TOTAL_WEIGHT) * 100;
+	return (behind / weightOf(stages)) * 100;
 }
 
 /**
@@ -112,14 +167,19 @@ export function startupProgressFor(stage: StartupStage): number {
  * would land the bar exactly on the next boundary and report work that had not happened. Holding a
  * tenth back makes that structural rather than a property of the arithmetic. A test pins it.
  *
- * `elapsedMs` is milliseconds since the stage was reported. The estimate is worth exactly as much
+ * `elapsedMs` is milliseconds since the stage was reported, and `stages` is the pass on screen, the
+ * launch's unless said. The estimate is worth exactly as much
  * as [`STARTUP_STAGE_WEIGHTS`] is, which is why those are measured.
  */
 const SPAN_RESERVED_FOR_FINISHING = 0.1;
 
-export function startupProgressWithin(stage: StartupStage, elapsedMs: number): number {
-	const from = startupProgressFor(stage);
-	const span = (STARTUP_STAGE_WEIGHTS[stage] / TOTAL_WEIGHT) * 100;
+export function startupProgressWithin(
+	stage: StartupStage,
+	elapsedMs: number,
+	stages: readonly StartupStage[] = STARTUP_STAGES
+): number {
+	const from = startupProgressFor(stage, stages);
+	const span = (STARTUP_STAGE_WEIGHTS[stage] / weightOf(stages)) * 100;
 	const expected = STARTUP_STAGE_WEIGHTS[stage];
 
 	if (elapsedMs <= 0 || expected <= 0) {

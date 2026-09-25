@@ -59,7 +59,11 @@ use std::{future::Future, time::Duration};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-use crate::{diagnostics, error::Error, http::build_client};
+use crate::{
+    diagnostics,
+    error::{Error, RefusalReason},
+    http::build_client,
+};
 
 use super::{
     consent::platform_token,
@@ -185,19 +189,20 @@ impl std::fmt::Display for PlatformError {
     }
 }
 
-/// How each failure crosses to the web layer. `AccountRefused` crosses as a precondition for now,
-/// with its message naming the account; the surface requirement 25 asks for is ticket 17's and it
-/// is what gives the account its own code.
+/// How each failure crosses to the web layer. A refusal crosses with a reason of its own, so the
+/// interface says a sentence about the account where the account is what Turso refused over, and
+/// the message naming it stays a developer's description (effort 832, requirement 23).
 impl From<PlatformError> for Error {
     fn from(error: PlatformError) -> Self {
         let message = error.message();
 
         match error {
             PlatformError::Unreachable { .. } => Error::Network { message },
-            PlatformError::Refused { .. } | PlatformError::AccountRefused { .. } => {
-                Error::PreconditionFailed { message }
+            PlatformError::Refused { .. } => Error::refused(RefusalReason::TursoRefused, message),
+            PlatformError::AccountRefused { .. } => {
+                Error::refused(RefusalReason::TursoAccountRefused, message)
             }
-            PlatformError::NoAuthority => Error::NotConfigured { message },
+            PlatformError::NoAuthority => Error::refused(RefusalReason::TursoNotConnected, message),
         }
     }
 }
@@ -1843,7 +1848,10 @@ mod tests {
         assert_eq!(server.request_count(), 0);
         assert!(matches!(
             crate::error::Error::from(error),
-            crate::error::Error::NotConfigured { .. }
+            crate::error::Error::Refused {
+                reason: crate::error::RefusalReason::TursoNotConnected,
+                ..
+            }
         ));
     }
 
@@ -1859,11 +1867,14 @@ mod tests {
         ));
         assert!(matches!(
             Error::from(PlatformError::Refused { what }),
-            Error::PreconditionFailed { .. }
+            Error::Refused {
+                reason: crate::error::RefusalReason::TursoRefused,
+                ..
+            }
         ));
         assert!(matches!(
             Error::from(PlatformError::AccountRefused { what }),
-            Error::PreconditionFailed { message } if message.contains("account")
+            Error::Refused { reason: crate::error::RefusalReason::TursoAccountRefused, message } if message.contains("account")
         ));
     }
 

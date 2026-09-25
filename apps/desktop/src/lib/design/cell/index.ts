@@ -6,3 +6,4 @@ export { default as Phone } from './phone.svelte';
 export { default as Ring } from './ring.svelte';
 export { default as Status } from './status.svelte';
 export { default as StatusCount } from './status-count.svelte';
+export { default as Text } from './text.svelte';

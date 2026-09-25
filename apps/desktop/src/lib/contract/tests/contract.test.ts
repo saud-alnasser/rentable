@@ -6,6 +6,7 @@ import {
 	countExpectedPaymentsInRange,
 	deriveContractStatus,
 	deriveUnitStatus,
+	getAmountDueThisCycle,
 	getConflictingAssignedUnitIds,
 	getContractPaymentSummary,
 	getContractTotalCost,
@@ -554,4 +555,43 @@ test('hasValidContractCost admits an amount a contract may cost and nothing else
 	// the boundary is the whole of the rule
 	assert.equal(hasValidContractCost(0), false);
 	assert.equal(hasValidContractCost(-1), false);
+});
+
+// requirement 16 of effort 832: the payment form opens with the amount due this cycle, capped at
+// what the contract still owes.
+const monthly = {
+	status: 'active' as const,
+	start: new Date('2026-01-01T00:00:00.000Z'),
+	end: new Date('2026-12-31T00:00:00.000Z'),
+	interval: '1m' as const,
+	cost: 1500,
+	expectedAmount: 18000
+};
+const midMarch = new Date('2026-03-15T00:00:00.000Z');
+
+test('getAmountDueThisCycle is the cycle rent where a cycle or more is unpaid', () => {
+	assert.equal(getAmountDueThisCycle({ ...monthly, paidAmount: 0 }, midMarch), 1500);
+});
+
+test('getAmountDueThisCycle is the unpaid part where the cycle is part paid', () => {
+	assert.equal(getAmountDueThisCycle({ ...monthly, paidAmount: 4000 }, midMarch), 500);
+});
+
+test('getAmountDueThisCycle is the next cycle rent where the reader is paying ahead', () => {
+	assert.equal(getAmountDueThisCycle({ ...monthly, paidAmount: 4500 }, midMarch), 1500);
+});
+
+test('getAmountDueThisCycle is capped at what the contract still owes', () => {
+	assert.equal(getAmountDueThisCycle({ ...monthly, paidAmount: 17000 }, midMarch), 1000);
+	assert.equal(getAmountDueThisCycle({ ...monthly, paidAmount: 18000 }, midMarch), 0);
+});
+
+test('getAmountDueThisCycle rounds to the halala', () => {
+	assert.equal(
+		getAmountDueThisCycle(
+			{ ...monthly, cost: 1000.1, expectedAmount: 12001.2, paidAmount: 0.3 },
+			new Date('2026-01-15T00:00:00.000Z')
+		),
+		999.8
+	);
 });

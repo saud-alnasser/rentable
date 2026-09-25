@@ -47,6 +47,18 @@ type RootTranslation = {
 			 */
 			clearFilter: string
 			/**
+			 * c​l​e​a​r​ ​f​i​l​t​e​r​s
+			 */
+			clearFilters: string
+			/**
+			 * c​l​e​a​r​ ​s​e​a​r​c​h
+			 */
+			clearSearch: string
+			/**
+			 * c​l​e​a​r​ ​s​e​a​r​c​h​ ​a​n​d​ ​f​i​l​t​e​r​s
+			 */
+			clearSearchAndFilters: string
+			/**
 			 * c​l​e​a​r​ ​s​e​l​e​c​t​i​o​n
 			 */
 			clearSelection: string
@@ -58,6 +70,10 @@ type RootTranslation = {
 			 * c​o​p​y​ ​d​e​t​a​i​l​s
 			 */
 			copyDetails: string
+			/**
+			 * d​e​t​a​i​l​s
+			 */
+			details: string
 			/**
 			 * c​h​o​o​s​e​ ​a​ ​f​i​l​e​.​.​.
 			 */
@@ -103,6 +119,10 @@ type RootTranslation = {
 			 */
 			exportSelection: string
 			/**
+			 * g​o​ ​b​a​c​k
+			 */
+			goBack: string
+			/**
 			 * i​m​p​o​r​t
 			 */
 			'import': string
@@ -115,9 +135,29 @@ type RootTranslation = {
 			 */
 			join: string
 			/**
+			 * n​e​w​ ​c​o​m​p​l​e​x
+			 */
+			newComplex: string
+			/**
+			 * n​e​w​ ​c​o​n​t​r​a​c​t
+			 */
+			newContract: string
+			/**
+			 * n​e​w​ ​p​a​y​m​e​n​t
+			 */
+			newPayment: string
+			/**
 			 * n​e​w​ ​r​e​c​o​r​d
 			 */
 			newRecord: string
+			/**
+			 * n​e​w​ ​t​e​n​a​n​t
+			 */
+			newTenant: string
+			/**
+			 * n​e​w​ ​u​n​i​t
+			 */
+			newUnit: string
 			/**
 			 * o​p​e​n​ ​m​e​n​u
 			 */
@@ -142,10 +182,6 @@ type RootTranslation = {
 			 * r​e​n​e​w
 			 */
 			renew: string
-			/**
-			 * r​e​n​e​w​ ​a​ ​c​o​n​t​r​a​c​t
-			 */
-			renewContract: string
 			/**
 			 * r​e​n​e​w​i​n​g​.​.​.
 			 */
@@ -293,7 +329,7 @@ type RootTranslation = {
 			 */
 			preconditionFailed: string
 			/**
-			 * t​h​i​s​ ​l​i​n​k​ ​n​o​ ​l​o​n​g​e​r​ ​o​p​e​n​s​.
+			 * t​h​i​s​ ​w​a​s​ ​r​e​f​u​s​e​d​,​ ​a​n​d​ ​n​o​t​h​i​n​g​ ​w​a​s​ ​c​h​a​n​g​e​d​.
 			 */
 			refused: string
 			/**
@@ -306,6 +342,24 @@ type RootTranslation = {
 			 * w​h​i​c​h​ ​f​i​l​e​ ​s​h​o​u​l​d​ ​t​h​i​s​ ​b​e​c​o​m​e​?
 			 */
 			description: string
+			/**
+			 * t​h​e​r​e​ ​i​s​ ​n​o​t​h​i​n​g​ ​h​e​r​e​ ​t​o​ ​e​x​p​o​r​t
+			 */
+			nothingToExport: string
+		}
+		failures: {
+			/**
+			 * y​o​u​r​ ​r​o​l​e​ ​d​o​e​s​ ​n​o​t​ ​a​l​l​o​w​ ​t​h​i​s​ ​i​n​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​.
+			 */
+			forbidden: string
+			/**
+			 * s​o​m​e​t​h​i​n​g​ ​e​n​t​e​r​e​d​ ​i​s​ ​n​o​t​ ​v​a​l​i​d​.​ ​c​h​e​c​k​ ​i​t​ ​a​n​d​ ​t​r​y​ ​a​g​a​i​n​.
+			 */
+			invalidInput: string
+			/**
+			 * s​i​g​n​ ​i​n​ ​t​o​ ​d​o​ ​t​h​i​s​.
+			 */
+			signedOut: string
 		}
 		formats: {
 			/**
@@ -324,7 +378,7 @@ type RootTranslation = {
 			 */
 			title: RequiredParams<'record'>
 			/**
-			 * t​h​i​s​ ​f​i​l​e​ ​i​s​ ​m​i​s​s​i​n​g​ ​t​h​e​ ​c​o​l​u​m​n​(​s​)​:​ ​{​c​o​l​u​m​n​s​}​.​ ​n​o​t​h​i​n​g​ ​c​a​n​ ​b​e​ ​r​e​a​d​ ​f​r​o​m​ ​i​t​.
+			 * t​h​i​s​ ​f​i​l​e​ ​h​a​s​ ​n​o​ ​{​c​o​l​u​m​n​s​}​,​ ​s​o​ ​n​o​t​h​i​n​g​ ​c​a​n​ ​b​e​ ​r​e​a​d​ ​f​r​o​m​ ​i​t​.
 			 * @param {string} columns
 			 */
 			missingColumns: RequiredParams<'columns'>
@@ -339,13 +393,13 @@ type RootTranslation = {
 			 */
 			nothingToCreate: string
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​r​e​c​o​r​d​(​s​)​ ​w​i​l​l​ ​b​e​ ​c​r​e​a​t​e​d
-			 * @param {unknown} count
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​r​e​c​o​r​d​|​r​e​c​o​r​d​s​}​}​ ​w​i​l​l​ ​b​e​ ​c​r​e​a​t​e​d
+			 * @param {string | number | boolean} count
 			 */
 			willCreate: RequiredParams<'count|number'>
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​r​o​w​(​s​)​ ​w​i​l​l​ ​b​e​ ​s​k​i​p​p​e​d
-			 * @param {unknown} count
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​r​o​w​|​r​o​w​s​}​}​ ​w​i​l​l​ ​b​e​ ​s​k​i​p​p​e​d
+			 * @param {string | number | boolean} count
 			 */
 			willReject: RequiredParams<'count|number'>
 			/**
@@ -390,27 +444,27 @@ type RootTranslation = {
 			 */
 			noSheets: string
 			/**
-			 * t​h​e​ ​{​s​h​e​e​t​}​ ​s​h​e​e​t​ ​i​s​ ​m​i​s​s​i​n​g​ ​t​h​e​ ​c​o​l​u​m​n​(​s​)​:​ ​{​c​o​l​u​m​n​s​}​.​ ​n​o​t​h​i​n​g​ ​c​a​n​ ​b​e​ ​r​e​a​d​ ​f​r​o​m​ ​t​h​i​s​ ​f​i​l​e​.
+			 * t​h​e​ ​{​s​h​e​e​t​}​ ​s​h​e​e​t​ ​h​a​s​ ​n​o​ ​{​c​o​l​u​m​n​s​}​,​ ​s​o​ ​n​o​t​h​i​n​g​ ​c​a​n​ ​b​e​ ​r​e​a​d​ ​f​r​o​m​ ​t​h​i​s​ ​f​i​l​e​.
 			 * @param {string} columns
 			 * @param {string} sheet
 			 */
 			sheetMissingColumns: RequiredParams<'columns' | 'sheet'>
 			/**
-			 * t​h​e​ ​{​s​h​e​e​t​}​ ​s​h​e​e​t​ ​c​a​r​r​i​e​s​ ​n​o​ ​{​c​o​l​u​m​n​s​}​,​ ​s​o​ ​n​o​ ​r​e​c​o​r​d​ ​c​a​n​ ​b​e​ ​c​r​e​a​t​e​d​ ​f​r​o​m​ ​i​t​ ​—​ ​o​n​l​y​ ​r​e​c​o​g​n​i​s​e​d​ ​a​s​ ​o​n​e​ ​a​l​r​e​a​d​y​ ​h​e​r​e​.
+			 * t​h​e​ ​{​s​h​e​e​t​}​ ​s​h​e​e​t​ ​h​a​s​ ​n​o​ ​{​c​o​l​u​m​n​s​}​,​ ​s​o​ ​i​t​s​ ​r​o​w​s​ ​c​a​n​ ​o​n​l​y​ ​m​a​t​c​h​ ​r​e​c​o​r​d​s​ ​a​l​r​e​a​d​y​ ​h​e​r​e​.
 			 * @param {string} columns
 			 * @param {string} sheet
 			 */
 			sheetIncompleteColumns: RequiredParams<'columns' | 'sheet'>
 			/**
-			 * i​n​ ​t​h​e​ ​{​s​h​e​e​t​}​ ​s​h​e​e​t​,​ ​r​o​w​s​ ​{​r​o​w​s​}​ ​b​o​t​h​ ​c​l​a​i​m​ ​{​i​d​e​n​t​i​t​y​}​.​ ​n​o​t​h​i​n​g​ ​w​i​l​l​ ​b​e​ ​i​m​p​o​r​t​e​d​ ​u​n​t​i​l​ ​o​n​e​ ​o​f​ ​t​h​e​m​ ​g​o​e​s​.
+			 * r​o​w​s​ ​{​r​o​w​s​}​ ​o​f​ ​t​h​e​ ​{​s​h​e​e​t​}​ ​s​h​e​e​t​ ​b​o​t​h​ ​c​l​a​i​m​ ​{​i​d​e​n​t​i​t​y​}​.​ ​r​e​m​o​v​e​ ​o​n​e​ ​t​o​ ​i​m​p​o​r​t​.
 			 * @param {string} identity
 			 * @param {string} rows
 			 * @param {string} sheet
 			 */
 			sheetCollision: RequiredParams<'identity' | 'rows' | 'sheet'>
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​r​o​w​(​s​)​ ​n​a​m​e​ ​a​ ​r​e​c​o​r​d​ ​n​o​ ​s​h​e​e​t​ ​h​o​l​d​s​,​ ​s​o​ ​n​o​t​h​i​n​g​ ​i​n​ ​t​h​i​s​ ​f​i​l​e​ ​c​a​n​ ​b​e​ ​i​m​p​o​r​t​e​d​.
-			 * @param {unknown} count
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​r​o​w​ ​n​a​m​e​s​|​r​o​w​s​ ​n​a​m​e​}​}​ ​a​ ​r​e​c​o​r​d​ ​n​o​ ​s​h​e​e​t​ ​h​o​l​d​s​,​ ​s​o​ ​n​o​t​h​i​n​g​ ​i​n​ ​t​h​i​s​ ​f​i​l​e​ ​c​a​n​ ​b​e​ ​i​m​p​o​r​t​e​d​.
+			 * @param {string | number | boolean} count
 			 */
 			unresolvedRefused: RequiredParams<'count|number'>
 			/**
@@ -527,6 +581,10 @@ type RootTranslation = {
 			 */
 			contractPeriod: string
 			/**
+			 * c​o​n​t​r​a​c​t​ ​s​t​a​t​u​s
+			 */
+			contractStatus: string
+			/**
 			 * c​o​s​t​ ​p​e​r​ ​c​y​c​l​e
 			 */
 			costPerPayment: string
@@ -571,7 +629,7 @@ type RootTranslation = {
 			 */
 			expected: string
 			/**
-			 * g​o​v​e​r​n​m​e​n​t​ ​i​d
+			 * g​o​v​e​r​n​m​e​n​t​ ​I​D
 			 */
 			governmentId: string
 			/**
@@ -579,7 +637,7 @@ type RootTranslation = {
 			 */
 			information: string
 			/**
-			 * g​o​v​e​r​n​m​e​n​t​ ​i​d​ ​(​o​p​t​i​o​n​a​l​)
+			 * g​o​v​e​r​n​m​e​n​t​ ​I​D​ ​(​o​p​t​i​o​n​a​l​)
 			 */
 			governmentIdOptional: string
 			/**
@@ -591,7 +649,7 @@ type RootTranslation = {
 			 */
 			name: string
 			/**
-			 * n​a​t​i​o​n​a​l​ ​i​d
+			 * n​a​t​i​o​n​a​l​ ​I​D
 			 */
 			nationalId: string
 			/**
@@ -690,9 +748,17 @@ type RootTranslation = {
 			 */
 			loadingSettings: string
 			/**
-			 * n​o​ ​r​e​s​u​l​t​s​.
+			 * n​o​t​h​i​n​g​ ​m​a​t​c​h​e​s
 			 */
-			noResults: string
+			noMatch: string
+			/**
+			 * t​h​i​s​ ​r​e​c​o​r​d​ ​d​o​e​s​ ​n​o​t​ ​e​x​i​s​t
+			 */
+			recordNotFound: string
+			/**
+			 * i​t​ ​m​a​y​ ​h​a​v​e​ ​b​e​e​n​ ​d​e​l​e​t​e​d​.
+			 */
+			recordNotFoundDescription: string
 			/**
 			 * u​n​e​x​p​e​c​t​e​d​ ​e​r​r​o​r​ ​o​c​c​u​r​r​e​d​!
 			 */
@@ -762,6 +828,479 @@ type RootTranslation = {
 			 */
 			'this-year': string
 		}
+		refusals: {
+			complex: {
+				/**
+				 * t​h​i​s​ ​c​o​m​p​l​e​x​ ​i​s​ ​n​o​ ​l​o​n​g​e​r​ ​i​n​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e​.​ ​r​e​l​o​a​d​ ​t​o​ ​s​e​e​ ​w​h​a​t​ ​c​h​a​n​g​e​d​.
+				 */
+				gone: string
+				/**
+				 * t​h​i​s​ ​c​o​m​p​l​e​x​ ​s​t​i​l​l​ ​h​o​l​d​s​ ​u​n​i​t​s​.​ ​d​e​l​e​t​e​ ​t​h​e​m​ ​b​e​f​o​r​e​ ​d​e​l​e​t​i​n​g​ ​i​t​.
+				 */
+				holdsUnits: string
+				/**
+				 * n​a​m​e​ ​i​s​ ​a​s​s​o​c​i​a​t​e​d​ ​w​i​t​h​ ​a​ ​p​r​e​v​i​o​u​s​l​y​ ​r​e​g​i​s​t​e​r​e​d​ ​c​o​m​p​l​e​x​.
+				 */
+				nameTaken: string
+				/**
+				 * t​h​e​ ​n​a​m​e​ ​{​n​a​m​e​d​}​ ​i​s​ ​a​s​s​o​c​i​a​t​e​d​ ​w​i​t​h​ ​a​ ​p​r​e​v​i​o​u​s​l​y​ ​r​e​g​i​s​t​e​r​e​d​ ​c​o​m​p​l​e​x​.
+				 * @param {string} named
+				 */
+				nameTakenNamed: RequiredParams<'named'>
+				/**
+				 * t​w​o​ ​c​o​m​p​l​e​x​e​s​ ​i​n​ ​t​h​i​s​ ​s​e​t​ ​c​l​a​i​m​ ​{​v​a​l​u​e​}​.
+				 * @param {string} value
+				 */
+				repeatedInSet: RequiredParams<'value'>
+			}
+			contract: {
+				/**
+				 * c​o​s​t​ ​p​e​r​ ​p​a​y​m​e​n​t​ ​m​u​s​t​ ​b​e​ ​g​r​e​a​t​e​r​ ​t​h​a​n​ ​z​e​r​o​.
+				 */
+				costNotPositive: string
+				/**
+				 * e​n​d​ ​d​a​t​e​ ​m​u​s​t​ ​b​e​ ​a​f​t​e​r​ ​s​t​a​r​t​ ​d​a​t​e​.
+				 */
+				endBeforeStart: string
+				/**
+				 * g​o​v​e​r​n​m​e​n​t​ ​I​D​ ​i​s​ ​a​s​s​o​c​i​a​t​e​d​ ​w​i​t​h​ ​a​n​o​t​h​e​r​ ​c​o​n​t​r​a​c​t​.
+				 */
+				govIdTaken: string
+				/**
+				 * g​o​v​e​r​n​m​e​n​t​ ​I​D​ ​{​n​a​m​e​d​}​ ​i​s​ ​a​s​s​o​c​i​a​t​e​d​ ​w​i​t​h​ ​a​n​o​t​h​e​r​ ​c​o​n​t​r​a​c​t​.
+				 * @param {string} named
+				 */
+				govIdTakenNamed: RequiredParams<'named'>
+				/**
+				 * t​h​i​s​ ​c​o​n​t​r​a​c​t​ ​h​a​s​ ​p​a​y​m​e​n​t​s​.​ ​d​e​l​e​t​e​ ​t​h​e​m​ ​b​e​f​o​r​e​ ​d​e​l​e​t​i​n​g​ ​i​t​.
+				 */
+				holdsPayments: string
+				/**
+				 * t​h​i​s​ ​c​o​n​t​r​a​c​t​ ​i​s​ ​n​o​ ​l​o​n​g​e​r​ ​i​n​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e​.​ ​r​e​l​o​a​d​ ​t​o​ ​s​e​e​ ​w​h​a​t​ ​c​h​a​n​g​e​d​.
+				 */
+				missing: string
+				/**
+				 * o​n​l​y​ ​a​n​ ​a​c​t​i​v​e​,​ ​f​u​l​f​i​l​l​e​d​ ​o​r​ ​p​a​s​t​ ​c​o​n​t​r​a​c​t​ ​c​a​n​ ​b​e​ ​t​e​r​m​i​n​a​t​e​d​.
+				 */
+				notTerminable: string
+				/**
+				 * o​n​l​y​ ​a​ ​t​e​r​m​i​n​a​t​e​d​ ​c​o​n​t​r​a​c​t​ ​c​a​n​ ​b​e​ ​r​e​s​t​o​r​e​d​.
+				 */
+				notUnterminable: string
+				/**
+				 * t​h​i​s​ ​c​o​n​t​r​a​c​t​ ​i​s​ ​p​a​i​d​ ​i​n​ ​f​u​l​l​ ​a​n​d​ ​t​a​k​e​s​ ​n​o​ ​m​o​r​e​ ​p​a​y​m​e​n​t​s​.
+				 */
+				paidInFull: string
+				/**
+				 * e​n​d​ ​d​a​t​e​ ​m​u​s​t​ ​s​t​a​y​ ​w​i​t​h​i​n​ ​{​d​a​y​s​}​ ​d​a​y​s​ ​b​e​f​o​r​e​ ​o​r​ ​a​f​t​e​r​ ​t​h​e​ ​c​a​l​c​u​l​a​t​e​d​ ​{​i​n​t​e​r​v​a​l​}​ ​c​y​c​l​e​ ​e​n​d​ ​d​a​t​e​.
+				 * @param {number} days
+				 * @param {string} interval
+				 */
+				periodOffCycle: RequiredParams<'days' | 'interval'>
+				/**
+				 * a​n​o​t​h​e​r​ ​c​o​n​t​r​a​c​t​ ​h​o​l​d​s​ ​o​n​e​ ​o​r​ ​m​o​r​e​ ​o​f​ ​t​h​e​s​e​ ​u​n​i​t​s​ ​o​v​e​r​ ​t​h​e​ ​n​e​w​ ​d​a​t​e​s​.​ ​c​h​o​o​s​e​ ​d​i​f​f​e​r​e​n​t​ ​d​a​t​e​s​.
+				 */
+				periodOverlapsUnits: string
+				/**
+				 * a​ ​r​e​n​e​w​a​l​ ​m​u​s​t​ ​s​t​a​r​t​ ​a​f​t​e​r​ ​t​h​e​ ​c​o​n​t​r​a​c​t​ ​i​t​ ​r​e​n​e​w​s​ ​e​n​d​s​.
+				 */
+				renewalBeforeEnd: string
+				/**
+				 * t​w​o​ ​c​o​n​t​r​a​c​t​s​ ​i​n​ ​t​h​i​s​ ​s​e​t​ ​c​l​a​i​m​ ​{​v​a​l​u​e​}​.
+				 * @param {string} value
+				 */
+				repeatedInSet: RequiredParams<'value'>
+				/**
+				 * t​h​e​ ​s​e​l​e​c​t​e​d​ ​t​e​n​a​n​t​ ​i​s​ ​n​o​ ​l​o​n​g​e​r​ ​i​n​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e​.​ ​c​h​o​o​s​e​ ​a​n​o​t​h​e​r​.
+				 */
+				tenantMissing: string
+				/**
+				 * n​o​ ​t​e​n​a​n​t​ ​w​i​t​h​ ​t​h​e​ ​I​D​ ​{​n​a​m​e​d​}​ ​i​s​ ​i​n​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e​.
+				 * @param {string} named
+				 */
+				tenantMissingNamed: RequiredParams<'named'>
+				/**
+				 * t​h​i​s​ ​c​o​n​t​r​a​c​t​ ​i​s​ ​t​e​r​m​i​n​a​t​e​d​ ​a​n​d​ ​l​o​c​k​e​d​.​ ​r​e​s​t​o​r​e​ ​i​t​ ​b​e​f​o​r​e​ ​c​h​a​n​g​i​n​g​ ​i​t​.
+				 */
+				terminatedLocked: string
+				/**
+				 * t​h​e​ ​u​n​i​t​s​ ​o​f​ ​a​ ​c​o​n​t​r​a​c​t​ ​c​a​n​n​o​t​ ​c​h​a​n​g​e​ ​o​n​c​e​ ​p​a​y​m​e​n​t​s​ ​a​r​e​ ​r​e​g​i​s​t​e​r​e​d​ ​a​g​a​i​n​s​t​ ​i​t​.
+				 */
+				unitsLockedByPayments: string
+				/**
+				 * o​n​e​ ​o​r​ ​m​o​r​e​ ​o​f​ ​t​h​e​s​e​ ​u​n​i​t​s​ ​a​r​e​ ​n​o​ ​l​o​n​g​e​r​ ​i​n​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e​.​ ​r​e​l​o​a​d​ ​t​o​ ​s​e​e​ ​w​h​a​t​ ​c​h​a​n​g​e​d​.
+				 */
+				unitsMissing: string
+				/**
+				 * a​n​o​t​h​e​r​ ​c​o​n​t​r​a​c​t​ ​h​o​l​d​s​ ​o​n​e​ ​o​r​ ​m​o​r​e​ ​o​f​ ​t​h​e​ ​c​h​o​s​e​n​ ​u​n​i​t​s​ ​o​v​e​r​ ​t​h​i​s​ ​t​e​r​m​.​ ​c​h​o​o​s​e​ ​o​t​h​e​r​ ​u​n​i​t​s​ ​o​r​ ​a​ ​d​i​f​f​e​r​e​n​t​ ​t​e​r​m​.
+				 */
+				unitsTaken: string
+				/**
+				 * a​n​o​t​h​e​r​ ​c​o​n​t​r​a​c​t​ ​h​o​l​d​s​ ​o​n​e​ ​o​r​ ​m​o​r​e​ ​o​f​ ​t​h​e​s​e​ ​u​n​i​t​s​ ​o​v​e​r​ ​t​h​e​ ​s​e​l​e​c​t​e​d​ ​t​e​r​m​.​ ​c​h​o​o​s​e​ ​a​ ​d​i​f​f​e​r​e​n​t​ ​t​e​r​m​.
+				 */
+				unitsUnavailable: string
+			}
+			host: {
+				/**
+				 * t​h​i​s​ ​l​i​n​k​ ​h​a​s​ ​l​a​p​s​e​d​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​s​e​n​t​ ​i​t​ ​f​o​r​ ​a​ ​n​e​w​ ​o​n​e​.
+				 */
+				lapsed: string
+				/**
+				 * t​h​i​s​ ​l​i​n​k​ ​w​a​s​ ​a​l​r​e​a​d​y​ ​u​s​e​d​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​s​e​n​t​ ​i​t​ ​f​o​r​ ​a​ ​n​e​w​ ​o​n​e​.
+				 */
+				consumed: string
+				/**
+				 * t​h​i​s​ ​l​i​n​k​ ​w​a​s​ ​w​i​t​h​d​r​a​w​n​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​s​e​n​t​ ​i​t​ ​f​o​r​ ​a​ ​n​e​w​ ​o​n​e​.
+				 */
+				revoked: string
+				/**
+				 * a​ ​n​e​w​e​r​ ​l​i​n​k​ ​r​e​p​l​a​c​e​d​ ​t​h​i​s​ ​o​n​e​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​s​e​n​t​ ​i​t​ ​f​o​r​ ​t​h​e​ ​n​e​w​ ​o​n​e​.
+				 */
+				replaced: string
+				/**
+				 * t​y​p​e​ ​t​h​e​ ​s​i​x​-​c​h​a​r​a​c​t​e​r​ ​c​o​d​e​ ​t​h​a​t​ ​c​a​m​e​ ​w​i​t​h​ ​t​h​e​ ​l​i​n​k​.
+				 */
+				codeMissing: string
+				/**
+				 * t​h​e​ ​c​o​d​e​ ​i​s​ ​w​r​o​n​g​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​s​e​n​t​ ​t​h​e​ ​l​i​n​k​ ​t​o​ ​r​e​a​d​ ​i​t​ ​o​u​t​ ​a​g​a​i​n​.
+				 */
+				codeWrong: string
+				/**
+				 * t​h​i​s​ ​i​s​ ​n​o​t​ ​a​ ​r​e​n​t​a​b​l​e​ ​j​o​i​n​ ​l​i​n​k​.​ ​c​o​p​y​ ​t​h​e​ ​w​h​o​l​e​ ​l​i​n​k​ ​a​n​d​ ​t​r​y​ ​a​g​a​i​n​.
+				 */
+				linkUnreadable: string
+				/**
+				 * t​h​i​s​ ​l​i​n​k​ ​c​o​n​n​e​c​t​s​ ​a​n​o​t​h​e​r​ ​m​a​c​h​i​n​e​ ​r​a​t​h​e​r​ ​t​h​a​n​ ​i​n​v​i​t​i​n​g​ ​y​o​u​.​ ​s​i​g​n​ ​i​n​ ​w​i​t​h​ ​y​o​u​r​ ​u​s​e​r​n​a​m​e​ ​a​n​d​ ​p​a​s​s​w​o​r​d​ ​i​n​s​t​e​a​d​.
+				 */
+				linkNotAnInvitation: string
+				/**
+				 * t​h​i​s​ ​l​i​n​k​ ​i​s​ ​a​n​ ​i​n​v​i​t​a​t​i​o​n​ ​r​a​t​h​e​r​ ​t​h​a​n​ ​a​ ​l​i​n​k​ ​f​o​r​ ​a​n​o​t​h​e​r​ ​m​a​c​h​i​n​e​.​ ​o​p​e​n​ ​i​t​ ​w​h​e​r​e​ ​y​o​u​ ​a​c​c​e​p​t​ ​a​n​ ​i​n​v​i​t​a​t​i​o​n​.
+				 */
+				linkNotForAMachine: string
+				/**
+				 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​a​l​r​e​a​d​y​ ​h​o​l​d​s​ ​a​n​o​t​h​e​r​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​d​i​s​c​o​n​n​e​c​t​ ​i​t​ ​f​i​r​s​t​.
+				 */
+				anotherOrganizationHeld: string
+				/**
+				 * t​h​e​ ​u​s​e​r​n​a​m​e​ ​o​r​ ​p​a​s​s​w​o​r​d​ ​i​s​ ​w​r​o​n​g​.
+				 */
+				credentialsWrong: string
+				/**
+				 * t​h​e​ ​p​a​s​s​w​o​r​d​ ​n​e​e​d​s​ ​a​t​ ​l​e​a​s​t​ ​1​2​ ​c​h​a​r​a​c​t​e​r​s​.
+				 */
+				passwordTooShort: string
+				/**
+				 * c​h​a​n​g​e​ ​y​o​u​r​ ​p​a​s​s​w​o​r​d​ ​b​e​f​o​r​e​ ​d​o​i​n​g​ ​a​n​y​t​h​i​n​g​ ​e​l​s​e​.
+				 */
+				passwordChangeRequired: string
+				/**
+				 * n​o​b​o​d​y​ ​i​s​ ​s​i​g​n​e​d​ ​i​n​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​.​ ​s​i​g​n​ ​i​n​ ​a​n​d​ ​t​r​y​ ​a​g​a​i​n​.
+				 */
+				signedOut: string
+				/**
+				 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​h​o​l​d​s​ ​n​o​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​y​e​t​.
+				 */
+				noOrganization: string
+				/**
+				 * n​o​b​o​d​y​ ​h​a​s​ ​s​i​g​n​e​d​ ​i​n​ ​t​o​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​y​e​t​.​ ​s​i​g​n​ ​i​n​ ​f​i​r​s​t​.
+				 */
+				noMemberYet: string
+				/**
+				 * y​o​u​r​ ​a​c​c​o​u​n​t​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​i​s​ ​o​u​t​ ​o​f​ ​d​a​t​e​.​ ​s​i​g​n​ ​i​n​ ​a​g​a​i​n​.
+				 */
+				signInAgain: string
+				/**
+				 * y​o​u​ ​w​e​r​e​ ​r​e​m​o​v​e​d​ ​f​r​o​m​ ​t​h​i​s​ ​o​r​g​a​n​i​z​a​t​i​o​n​.
+				 */
+				youWereRemoved: string
+				/**
+				 * y​o​u​r​ ​s​e​s​s​i​o​n​s​ ​w​e​r​e​ ​e​n​d​e​d​ ​f​r​o​m​ ​a​n​o​t​h​e​r​ ​m​a​c​h​i​n​e​.​ ​s​i​g​n​ ​i​n​ ​a​g​a​i​n​.
+				 */
+				sessionsEnded: string
+				/**
+				 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​w​a​s​ ​h​a​n​d​e​d​ ​o​v​e​r​,​ ​s​o​ ​o​n​l​y​ ​i​t​s​ ​n​e​w​ ​o​w​n​e​r​ ​c​a​n​ ​d​o​ ​t​h​i​s​.
+				 */
+				keyNotInForce: string
+				/**
+				 * a​ ​u​s​e​r​n​a​m​e​ ​i​s​ ​3​ ​t​o​ ​3​2​ ​l​e​t​t​e​r​s​,​ ​d​i​g​i​t​s​,​ ​d​o​t​s​,​ ​u​n​d​e​r​s​c​o​r​e​s​ ​o​r​ ​h​y​p​h​e​n​s​,​ ​w​i​t​h​ ​n​o​ ​s​p​a​c​e​s​.
+				 */
+				usernameInvalid: string
+				/**
+				 * t​h​a​t​ ​u​s​e​r​n​a​m​e​ ​i​s​ ​a​l​r​e​a​d​y​ ​t​a​k​e​n​ ​i​n​ ​t​h​i​s​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​c​h​o​o​s​e​ ​a​n​o​t​h​e​r​.
+				 */
+				usernameTaken: string
+				/**
+				 * c​h​o​o​s​e​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​ ​o​r​ ​m​e​m​b​e​r​.
+				 */
+				roleUnknown: string
+				/**
+				 * t​h​a​t​ ​m​e​m​b​e​r​ ​i​s​ ​n​o​ ​l​o​n​g​e​r​ ​i​n​ ​t​h​i​s​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​r​e​l​o​a​d​ ​t​o​ ​s​e​e​ ​w​h​a​t​ ​c​h​a​n​g​e​d​.
+				 */
+				memberMissing: string
+				/**
+				 * t​h​i​s​ ​a​c​c​o​u​n​t​ ​i​s​ ​n​o​ ​l​o​n​g​e​r​ ​i​n​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.
+				 */
+				memberGone: string
+				/**
+				 * t​h​a​t​ ​m​e​m​b​e​r​ ​w​a​s​ ​r​e​m​o​v​e​d​.​ ​m​a​k​e​ ​t​h​e​m​ ​a​n​ ​a​c​c​o​u​n​t​ ​a​g​a​i​n​ ​i​f​ ​t​h​e​y​ ​a​r​e​ ​t​o​ ​c​o​m​e​ ​b​a​c​k​.
+				 */
+				memberRemoved: string
+				/**
+				 * y​o​u​ ​c​a​n​n​o​t​ ​d​o​ ​t​h​i​s​ ​t​o​ ​y​o​u​r​ ​o​w​n​ ​a​c​c​o​u​n​t​.​ ​a​n​o​t​h​e​r​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​ ​c​a​n​.
+				 */
+				notYourself: string
+				/**
+				 * t​h​e​ ​o​w​n​e​r​'​s​ ​a​c​c​o​u​n​t​ ​i​s​ ​n​o​t​ ​c​h​a​n​g​e​d​ ​t​h​i​s​ ​w​a​y​.​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​i​s​ ​t​h​e​i​r​s​.
+				 */
+				ownerProtected: string
+				/**
+				 * o​n​l​y​ ​t​h​e​ ​o​w​n​e​r​ ​c​a​n​ ​d​o​ ​t​h​i​s​.​ ​a​s​k​ ​t​h​e​ ​o​w​n​e​r​.
+				 */
+				ownerOnly: string
+				/**
+				 * t​h​i​s​ ​n​e​e​d​s​ ​t​h​e​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​,​ ​w​h​i​c​h​ ​i​s​ ​c​o​n​n​e​c​t​e​d​ ​o​n​ ​t​h​e​ ​o​w​n​e​r​'​s​ ​m​a​c​h​i​n​e​.​ ​a​s​k​ ​t​h​e​ ​o​w​n​e​r​.
+				 */
+				ownerMachineOnly: string
+				/**
+				 * y​o​u​r​ ​r​o​l​e​ ​d​o​e​s​ ​n​o​t​ ​i​n​c​l​u​d​e​ ​t​h​i​s​.​ ​a​s​k​ ​a​n​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​.
+				 */
+				roleLacksAct: string
+				/**
+				 * o​n​l​y​ ​a​n​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​ ​c​a​n​ ​d​o​ ​t​h​i​s​.
+				 */
+				notAdministrator: string
+				/**
+				 * y​o​u​ ​a​r​e​ ​t​h​e​ ​o​w​n​e​r​ ​a​l​r​e​a​d​y​.​ ​c​h​o​o​s​e​ ​t​h​e​ ​a​c​c​o​u​n​t​ ​t​h​a​t​ ​i​s​ ​t​o​ ​h​a​v​e​ ​i​t​.
+				 */
+				alreadyOwner: string
+				/**
+				 * t​h​a​t​ ​a​c​c​o​u​n​t​ ​h​a​s​ ​n​o​ ​p​a​s​s​w​o​r​d​ ​o​f​ ​i​t​s​ ​o​w​n​ ​y​e​t​.​ ​o​n​c​e​ ​t​h​e​y​ ​o​p​e​n​ ​t​h​e​i​r​ ​l​i​n​k​ ​a​n​d​ ​c​h​o​o​s​e​ ​o​n​e​,​ ​o​f​f​e​r​ ​i​t​ ​a​g​a​i​n​.
+				 */
+				accountNotSetUp: string
+				/**
+				 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​i​s​ ​a​l​r​e​a​d​y​ ​o​f​f​e​r​e​d​ ​t​o​ ​a​n​ ​a​c​c​o​u​n​t​.​ ​w​i​t​h​d​r​a​w​ ​t​h​a​t​ ​o​f​f​e​r​ ​f​i​r​s​t​.
+				 */
+				offerPending: string
+				/**
+				 * t​h​e​ ​o​f​f​e​r​ ​w​a​s​ ​a​l​r​e​a​d​y​ ​a​c​c​e​p​t​e​d​,​ ​a​n​d​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​i​s​ ​t​h​e​i​r​s​ ​n​o​w​.​ ​n​o​t​h​i​n​g​ ​w​a​s​ ​c​h​a​n​g​e​d​.
+				 */
+				offerAccepted: string
+				/**
+				 * n​o​ ​o​f​f​e​r​ ​o​f​ ​t​h​i​s​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​s​t​a​n​d​s​.
+				 */
+				nothingOffered: string
+				/**
+				 * t​h​e​ ​a​c​c​o​u​n​t​ ​t​h​a​t​ ​o​f​f​e​r​e​d​ ​y​o​u​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​i​s​ ​n​o​ ​l​o​n​g​e​r​ ​i​n​ ​i​t​.
+				 */
+				offererGone: string
+				/**
+				 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​n​e​e​d​s​ ​a​ ​n​a​m​e​.
+				 */
+				organizationNameMissing: string
+				/**
+				 * t​h​e​ ​w​o​r​k​s​p​a​c​e​ ​n​e​e​d​s​ ​a​ ​n​a​m​e​.
+				 */
+				workspaceNameMissing: string
+				/**
+				 * t​h​a​t​ ​w​o​r​k​s​p​a​c​e​ ​i​s​ ​n​o​ ​l​o​n​g​e​r​ ​i​n​ ​t​h​i​s​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​r​e​l​o​a​d​ ​t​o​ ​s​e​e​ ​w​h​a​t​ ​c​h​a​n​g​e​d​.
+				 */
+				workspaceMissing: string
+				/**
+				 * n​o​ ​w​o​r​k​s​p​a​c​e​ ​i​s​ ​o​p​e​n​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​.​ ​o​p​e​n​ ​o​n​e​ ​a​n​d​ ​t​r​y​ ​a​g​a​i​n​.
+				 */
+				noWorkspaceOpen: string
+				/**
+				 * y​o​u​ ​h​a​v​e​ ​n​o​ ​a​c​c​e​s​s​ ​t​o​ ​t​h​a​t​ ​w​o​r​k​s​p​a​c​e​.
+				 */
+				noGrant: string
+				/**
+				 * t​h​a​t​ ​m​e​m​b​e​r​ ​h​a​s​ ​n​o​ ​a​c​c​e​s​s​ ​t​o​ ​t​h​a​t​ ​w​o​r​k​s​p​a​c​e​.
+				 */
+				grantMissing: string
+				/**
+				 * y​o​u​ ​c​a​n​ ​s​h​a​r​e​ ​o​n​l​y​ ​a​ ​w​o​r​k​s​p​a​c​e​ ​y​o​u​ ​h​a​v​e​ ​f​u​l​l​ ​a​c​c​e​s​s​ ​t​o​ ​y​o​u​r​s​e​l​f​.
+				 */
+				grantBeyondOwn: string
+				/**
+				 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​h​o​l​d​s​ ​n​o​ ​a​c​c​e​s​s​ ​t​o​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​r​e​c​o​r​d​s​.​ ​s​i​g​n​ ​i​n​ ​a​g​a​i​n​ ​a​n​d​ ​t​r​y​ ​o​n​c​e​ ​m​o​r​e​.
+				 */
+				noOrganizationCredential: string
+				/**
+				 * a​ ​n​e​w​e​r​ ​v​e​r​s​i​o​n​ ​o​f​ ​r​e​n​t​a​b​l​e​ ​u​p​g​r​a​d​e​d​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​.​ ​u​p​d​a​t​e​ ​r​e​n​t​a​b​l​e​ ​t​o​ ​o​p​e​n​ ​i​t​.
+				 */
+				workspaceNewer: string
+				/**
+				 * t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​n​e​e​d​s​ ​u​p​g​r​a​d​i​n​g​,​ ​a​n​d​ ​r​e​a​d​-​o​n​l​y​ ​a​c​c​e​s​s​ ​c​a​n​n​o​t​ ​d​o​ ​i​t​.​ ​a​s​k​ ​a​ ​m​e​m​b​e​r​ ​w​i​t​h​ ​f​u​l​l​ ​a​c​c​e​s​s​ ​t​o​ ​o​p​e​n​ ​i​t​ ​o​n​c​e​.
+				 */
+				workspaceBehind: string
+				/**
+				 * t​h​e​ ​d​a​t​a​b​a​s​e​ ​r​e​f​u​s​e​d​ ​t​h​e​ ​r​e​q​u​e​s​t​,​ ​a​n​d​ ​n​o​t​h​i​n​g​ ​w​a​s​ ​c​h​a​n​g​e​d​.​ ​t​r​y​ ​a​g​a​i​n​ ​l​a​t​e​r​.
+				 */
+				databaseRefused: string
+				/**
+				 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​i​s​ ​n​o​t​ ​c​o​n​n​e​c​t​e​d​ ​t​o​ ​t​h​e​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​.​ ​c​o​n​n​e​c​t​ ​i​t​ ​a​n​d​ ​t​r​y​ ​a​g​a​i​n​.
+				 */
+				tursoNotConnected: string
+				/**
+				 * T​u​r​s​o​ ​n​e​e​d​s​ ​t​h​e​ ​c​o​n​s​e​n​t​ ​g​r​a​n​t​e​d​ ​a​g​a​i​n​.​ ​c​o​n​n​e​c​t​ ​t​h​e​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​ ​a​g​a​i​n​.
+				 */
+				consentNeededAgain: string
+				/**
+				 * t​h​i​s​ ​c​o​n​s​e​n​t​ ​i​s​ ​n​o​ ​l​o​n​g​e​r​ ​w​a​i​t​i​n​g​.​ ​s​t​a​r​t​ ​i​t​ ​a​g​a​i​n​.
+				 */
+				consentGone: string
+				/**
+				 * t​h​a​t​ ​i​s​ ​n​o​t​ ​t​h​e​ ​g​r​o​u​p​ ​t​h​e​ ​c​o​n​s​e​n​t​ ​w​a​s​ ​g​i​v​e​n​ ​o​v​e​r​.​ ​c​h​e​c​k​ ​t​h​e​ ​n​a​m​e​ ​a​n​d​ ​t​r​y​ ​a​g​a​i​n​.
+				 */
+				groupMismatch: string
+				/**
+				 * T​u​r​s​o​ ​n​e​e​d​s​ ​t​h​e​ ​n​a​m​e​ ​o​f​ ​t​h​e​ ​g​r​o​u​p​ ​y​o​u​ ​p​i​c​k​e​d​.​ ​t​y​p​e​ ​i​t​ ​b​e​l​o​w​.
+				 */
+				groupNeeded: string
+				/**
+				 * t​h​a​t​ ​g​r​o​u​p​ ​a​l​r​e​a​d​y​ ​h​o​l​d​s​ ​a​n​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​p​i​c​k​ ​a​n​o​t​h​e​r​ ​g​r​o​u​p​ ​o​r​ ​a​n​o​t​h​e​r​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​.
+				 */
+				groupHoldsOrganization: string
+				/**
+				 * t​h​e​ ​c​o​n​s​e​n​t​ ​w​a​s​ ​g​i​v​e​n​ ​o​v​e​r​ ​a​ ​g​r​o​u​p​ ​t​h​a​t​ ​h​o​l​d​s​ ​n​o​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​g​i​v​e​ ​i​t​ ​o​v​e​r​ ​t​h​e​ ​g​r​o​u​p​ ​t​h​a​t​ ​h​o​l​d​s​ ​y​o​u​r​s​.
+				 */
+				groupEmpty: string
+				/**
+				 * t​h​i​s​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​ ​h​o​l​d​s​ ​n​o​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​t​o​ ​c​o​n​n​e​c​t​ ​t​o​.​ ​g​o​ ​b​a​c​k​ ​a​n​d​ ​m​a​k​e​ ​o​n​e​.
+				 */
+				nothingToConnectTo: string
+				/**
+				 * T​u​r​s​o​ ​w​o​u​l​d​ ​n​o​t​ ​c​r​e​a​t​e​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​d​a​t​a​b​a​s​e​.
+				 */
+				createRefused: string
+				/**
+				 * T​u​r​s​o​ ​r​e​f​u​s​e​d​ ​t​h​e​ ​r​e​q​u​e​s​t​.​ ​t​r​y​i​n​g​ ​a​g​a​i​n​ ​w​i​l​l​ ​n​o​t​ ​h​e​l​p​.
+				 */
+				tursoRefused: string
+				/**
+				 * T​u​r​s​o​ ​r​e​f​u​s​e​d​ ​t​h​e​ ​r​e​q​u​e​s​t​ ​b​e​c​a​u​s​e​ ​o​f​ ​t​h​e​ ​a​c​c​o​u​n​t​ ​i​t​s​e​l​f​.​ ​c​h​e​c​k​ ​t​h​e​ ​a​c​c​o​u​n​t​'​s​ ​p​l​a​n​ ​i​n​ ​T​u​r​s​o​.
+				 */
+				tursoAccountRefused: string
+			}
+			payment: {
+				/**
+				 * p​a​y​m​e​n​t​ ​a​m​o​u​n​t​ ​m​u​s​t​ ​b​e​ ​g​r​e​a​t​e​r​ ​t​h​a​n​ ​z​e​r​o​.
+				 */
+				amountNotPositive: string
+				/**
+				 * a​ ​p​a​y​m​e​n​t​ ​c​a​n​n​o​t​ ​b​e​ ​d​a​t​e​d​ ​i​n​ ​t​h​e​ ​f​u​t​u​r​e​.
+				 */
+				datedInFuture: string
+				/**
+				 * t​h​i​s​ ​p​a​y​m​e​n​t​ ​i​s​ ​n​o​ ​l​o​n​g​e​r​ ​i​n​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e​.​ ​r​e​l​o​a​d​ ​t​o​ ​s​e​e​ ​w​h​a​t​ ​c​h​a​n​g​e​d​.
+				 */
+				missing: string
+				/**
+				 * t​w​o​ ​p​a​y​m​e​n​t​s​ ​i​n​ ​t​h​i​s​ ​s​e​t​ ​c​l​a​i​m​ ​{​v​a​l​u​e​}​.
+				 * @param {string} value
+				 */
+				repeatedInSet: RequiredParams<'value'>
+			}
+			record: {
+				/**
+				 * a​n​o​t​h​e​r​ ​r​e​c​o​r​d​ ​a​l​r​e​a​d​y​ ​h​o​l​d​s​ ​t​h​a​t​ ​I​D​.
+				 */
+				idTaken: string
+				/**
+				 * a​n​o​t​h​e​r​ ​r​e​c​o​r​d​ ​a​l​r​e​a​d​y​ ​h​o​l​d​s​ ​t​h​e​ ​I​D​ ​{​n​a​m​e​d​}​.
+				 * @param {string} named
+				 */
+				idTakenNamed: RequiredParams<'named'>
+			}
+			tenant: {
+				/**
+				 * t​h​i​s​ ​t​e​n​a​n​t​ ​i​s​ ​n​o​ ​l​o​n​g​e​r​ ​i​n​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e​.​ ​r​e​l​o​a​d​ ​t​o​ ​s​e​e​ ​w​h​a​t​ ​c​h​a​n​g​e​d​.
+				 */
+				gone: string
+				/**
+				 * c​o​n​t​r​a​c​t​s​ ​m​e​n​t​i​o​n​ ​t​h​i​s​ ​t​e​n​a​n​t​,​ ​s​o​ ​i​t​ ​c​a​n​n​o​t​ ​b​e​ ​d​e​l​e​t​e​d​.
+				 */
+				holdsContracts: string
+				/**
+				 * n​a​t​i​o​n​a​l​ ​I​D​ ​i​s​ ​a​s​s​o​c​i​a​t​e​d​ ​w​i​t​h​ ​a​ ​r​e​g​i​s​t​e​r​e​d​ ​t​e​n​a​n​t​.
+				 */
+				nationalIdTaken: string
+				/**
+				 * n​a​t​i​o​n​a​l​ ​I​D​ ​{​n​a​m​e​d​}​ ​i​s​ ​a​s​s​o​c​i​a​t​e​d​ ​w​i​t​h​ ​a​ ​r​e​g​i​s​t​e​r​e​d​ ​t​e​n​a​n​t​.
+				 * @param {string} named
+				 */
+				nationalIdTakenNamed: RequiredParams<'named'>
+				/**
+				 * p​h​o​n​e​ ​i​s​ ​a​s​s​o​c​i​a​t​e​d​ ​w​i​t​h​ ​a​ ​r​e​g​i​s​t​e​r​e​d​ ​t​e​n​a​n​t​.
+				 */
+				phoneTaken: string
+				/**
+				 * p​h​o​n​e​ ​{​n​a​m​e​d​}​ ​i​s​ ​a​s​s​o​c​i​a​t​e​d​ ​w​i​t​h​ ​a​ ​r​e​g​i​s​t​e​r​e​d​ ​t​e​n​a​n​t​.
+				 * @param {string} named
+				 */
+				phoneTakenNamed: RequiredParams<'named'>
+				/**
+				 * t​w​o​ ​t​e​n​a​n​t​s​ ​i​n​ ​t​h​i​s​ ​s​e​t​ ​c​l​a​i​m​ ​{​v​a​l​u​e​}​.
+				 * @param {string} value
+				 */
+				repeatedInSet: RequiredParams<'value'>
+			}
+			unit: {
+				/**
+				 * t​h​i​s​ ​u​n​i​t​ ​i​s​ ​n​o​ ​l​o​n​g​e​r​ ​i​n​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e​.​ ​r​e​l​o​a​d​ ​t​o​ ​s​e​e​ ​w​h​a​t​ ​c​h​a​n​g​e​d​.
+				 */
+				gone: string
+				/**
+				 * a​ ​c​o​n​t​r​a​c​t​ ​m​e​n​t​i​o​n​s​ ​t​h​i​s​ ​u​n​i​t​,​ ​s​o​ ​i​t​ ​c​a​n​n​o​t​ ​b​e​ ​d​e​l​e​t​e​d​.
+				 */
+				holdsContracts: string
+				/**
+				 * {​n​a​m​e​}​ ​i​s​ ​u​s​e​d​ ​t​w​i​c​e​;​ ​e​a​c​h​ ​u​n​i​t​ ​n​e​e​d​s​ ​i​t​s​ ​o​w​n​ ​n​a​m​e​.
+				 * @param {string} name
+				 */
+				nameRepeated: RequiredParams<'name'>
+				/**
+				 * n​a​m​e​ ​i​s​ ​a​s​s​o​c​i​a​t​e​d​ ​w​i​t​h​ ​a​ ​u​n​i​t​ ​i​n​ ​t​h​e​ ​s​a​m​e​ ​c​o​m​p​l​e​x​.
+				 */
+				nameTaken: string
+				/**
+				 * t​h​e​ ​n​a​m​e​ ​{​n​a​m​e​d​}​ ​i​s​ ​a​s​s​o​c​i​a​t​e​d​ ​w​i​t​h​ ​a​ ​u​n​i​t​ ​i​n​ ​t​h​e​ ​s​a​m​e​ ​c​o​m​p​l​e​x​.
+				 * @param {string} named
+				 */
+				nameTakenNamed: RequiredParams<'named'>
+				/**
+				 * t​w​o​ ​u​n​i​t​s​ ​i​n​ ​t​h​i​s​ ​s​e​t​ ​c​l​a​i​m​ ​{​v​a​l​u​e​}​.
+				 * @param {string} value
+				 */
+				repeatedInSet: RequiredParams<'value'>
+			}
+			workspace: {
+				/**
+				 * t​h​e​r​e​ ​i​s​ ​n​o​t​h​i​n​g​ ​t​o​ ​i​m​p​o​r​t​.
+				 */
+				nothingToImport: string
+				/**
+				 * t​h​e​ ​f​i​l​e​ ​n​a​m​e​s​ ​a​ ​c​o​m​p​l​e​x​ ​c​a​l​l​e​d​ ​{​n​a​m​e​}​,​ ​a​n​d​ ​t​h​e​r​e​ ​i​s​ ​n​o​n​e​.
+				 * @param {string} name
+				 */
+				unknownComplex: RequiredParams<'name'>
+				/**
+				 * t​h​e​ ​f​i​l​e​ ​n​a​m​e​s​ ​a​ ​c​o​n​t​r​a​c​t​ ​c​a​l​l​e​d​ ​{​n​a​m​e​}​,​ ​a​n​d​ ​t​h​e​r​e​ ​i​s​ ​n​o​n​e​.
+				 * @param {string} name
+				 */
+				unknownContract: RequiredParams<'name'>
+				/**
+				 * t​h​e​ ​f​i​l​e​ ​n​a​m​e​s​ ​a​ ​t​e​n​a​n​t​ ​c​a​l​l​e​d​ ​{​n​a​m​e​}​,​ ​a​n​d​ ​t​h​e​r​e​ ​i​s​ ​n​o​n​e​.
+				 * @param {string} name
+				 */
+				unknownTenant: RequiredParams<'name'>
+				/**
+				 * t​h​e​ ​f​i​l​e​ ​n​a​m​e​s​ ​a​ ​u​n​i​t​ ​c​a​l​l​e​d​ ​{​n​a​m​e​}​,​ ​a​n​d​ ​t​h​e​r​e​ ​i​s​ ​n​o​n​e​.
+				 * @param {string} name
+				 */
+				unknownUnit: RequiredParams<'name'>
+			}
+		}
 		selection: {
 			/**
 			 * a​n​d​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​m​o​r​e
@@ -778,8 +1317,8 @@ type RootTranslation = {
 			 */
 			outcomeChanged: RequiredParams<'records'>
 			/**
-			 * t​h​e​ ​w​o​r​k​s​p​a​c​e​ ​c​h​a​n​g​e​d​ ​w​h​i​l​e​ ​t​h​i​s​ ​w​a​s​ ​o​p​e​n​,​ ​s​o​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​r​e​c​o​r​d​(​s​)​ ​c​o​u​l​d​ ​n​o​t​ ​b​e​ ​d​o​n​e​.​ ​n​o​t​h​i​n​g​ ​w​a​s​ ​r​e​t​r​i​e​d​.
-			 * @param {unknown} count
+			 * t​h​e​ ​w​o​r​k​s​p​a​c​e​ ​c​h​a​n​g​e​d​ ​w​h​i​l​e​ ​t​h​i​s​ ​w​a​s​ ​o​p​e​n​,​ ​s​o​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​r​e​c​o​r​d​|​r​e​c​o​r​d​s​}​}​ ​c​o​u​l​d​ ​n​o​t​ ​b​e​ ​d​o​n​e​.​ ​n​o​t​h​i​n​g​ ​w​a​s​ ​r​e​t​r​i​e​d​.
+			 * @param {string | number | boolean} count
 			 */
 			outcomeChangedCount: RequiredParams<'count|number'>
 		}
@@ -900,8 +1439,8 @@ type RootTranslation = {
 			 */
 			recordsSelected: RequiredParams<'count|number'>
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​r​e​s​u​l​t​(​s​)
-			 * @param {unknown} count
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​r​e​s​u​l​t​|​r​e​s​u​l​t​s​}​}
+			 * @param {string | number | boolean} count
 			 */
 			results: RequiredParams<'count|number'>
 			/**
@@ -909,9 +1448,9 @@ type RootTranslation = {
 			 */
 			rowsPerPage: string
 			/**
-			 * {​s​e​l​e​c​t​e​d​}​ ​o​f​ ​{​t​o​t​a​l​}​ ​r​o​w​(​s​)​ ​s​e​l​e​c​t​e​d​.
+			 * {​s​e​l​e​c​t​e​d​}​ ​o​f​ ​{​t​o​t​a​l​}​ ​{​{​r​o​w​|​r​o​w​s​}​}​ ​s​e​l​e​c​t​e​d​.
 			 * @param {unknown} selected
-			 * @param {unknown} total
+			 * @param {string | number | boolean} total
 			 */
 			rowsSelected: RequiredParams<'selected' | 'total'>
 			/**
@@ -952,13 +1491,13 @@ type RootTranslation = {
 			 */
 			deleted: RequiredParams<'record'>
 			/**
-			 * c​r​e​a​t​i​n​g​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​r​e​c​o​r​d​(​s​)
-			 * @param {unknown} count
+			 * c​r​e​a​t​i​n​g​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​r​e​c​o​r​d​|​r​e​c​o​r​d​s​}​}
+			 * @param {string | number | boolean} count
 			 */
 			createdMany: RequiredParams<'count|number'>
 			/**
-			 * d​e​l​e​t​i​n​g​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​r​e​c​o​r​d​(​s​)
-			 * @param {unknown} count
+			 * d​e​l​e​t​i​n​g​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​r​e​c​o​r​d​|​r​e​c​o​r​d​s​}​}
+			 * @param {string | number | boolean} count
 			 */
 			deletedMany: RequiredParams<'count|number'>
 			/**
@@ -966,6 +1505,10 @@ type RootTranslation = {
 			 * @param {string} record
 			 */
 			edited: RequiredParams<'record'>
+			/**
+			 * y​o​u​ ​c​a​n​ ​u​n​d​o​ ​t​h​i​s​ ​w​h​i​l​e​ ​t​h​e​ ​a​p​p​ ​i​s​ ​o​p​e​n​.
+			 */
+			lasts: string
 			/**
 			 * n​o​t​h​i​n​g​ ​t​o​ ​a​p​p​l​y​ ​a​g​a​i​n
 			 */
@@ -994,8 +1537,8 @@ type RootTranslation = {
 			 */
 			terminated: RequiredParams<'record'>
 			/**
-			 * t​e​r​m​i​n​a​t​i​n​g​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​c​o​n​t​r​a​c​t​(​s​)
-			 * @param {unknown} count
+			 * t​e​r​m​i​n​a​t​i​n​g​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​c​o​n​t​r​a​c​t​|​c​o​n​t​r​a​c​t​s​}​}
+			 * @param {string | number | boolean} count
 			 */
 			terminatedMany: RequiredParams<'count|number'>
 			/**
@@ -1013,8 +1556,8 @@ type RootTranslation = {
 			 */
 			unterminated: RequiredParams<'record'>
 			/**
-			 * r​e​s​t​o​r​i​n​g​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​c​o​n​t​r​a​c​t​(​s​)
-			 * @param {unknown} count
+			 * r​e​s​t​o​r​i​n​g​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​c​o​n​t​r​a​c​t​|​c​o​n​t​r​a​c​t​s​}​}
+			 * @param {string | number | boolean} count
 			 */
 			unterminatedMany: RequiredParams<'count|number'>
 		}
@@ -1045,6 +1588,12 @@ type RootTranslation = {
 			 * c​o​m​m​a​n​d​ ​p​a​l​e​t​t​e
 			 */
 			commandPalette: string
+			/**
+			 * {​a​c​t​}​ ​d​o​e​s​ ​n​o​t​ ​a​p​p​l​y​ ​t​o​ ​{​r​e​c​o​r​d​}​.
+			 * @param {unknown} act
+			 * @param {unknown} record
+			 */
+			commandPaletteActDoesNotApply: RequiredParams<'act' | 'record'>
 			/**
 			 * t​y​p​e​ ​t​o​ ​f​i​n​d​ ​t​h​e​ ​r​e​c​o​r​d​ ​t​h​i​s​ ​r​u​n​s​ ​o​n​.
 			 */
@@ -1094,6 +1643,10 @@ type RootTranslation = {
 			 */
 			nextSlide: string
 			/**
+			 * n​o​t​h​i​n​g​ ​o​n​ ​t​h​i​s​ ​s​c​r​e​e​n​ ​t​a​k​e​s​ ​a​ ​n​e​w​ ​r​e​c​o​r​d
+			 */
+			nothingToCreateHere: string
+			/**
 			 * p​a​g​i​n​a​t​i​o​n
 			 */
 			pagination: string
@@ -1120,8 +1673,8 @@ type RootTranslation = {
 		}
 		deleteDialog: {
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​c​o​n​t​r​a​c​t​(​s​)​ ​s​t​i​l​l​ ​m​e​n​t​i​o​n​ ​i​t
-			 * @param {unknown} count
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​c​o​n​t​r​a​c​t​ ​s​t​i​l​l​ ​m​e​n​t​i​o​n​s​|​c​o​n​t​r​a​c​t​s​ ​s​t​i​l​l​ ​m​e​n​t​i​o​n​}​}​ ​i​t
+			 * @param {string | number | boolean} count
 			 */
 			blockedContracts: RequiredParams<'count|number'>
 			/**
@@ -1129,17 +1682,17 @@ type RootTranslation = {
 			 */
 			blockedDescription: string
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​p​a​y​m​e​n​t​(​s​)​ ​r​e​c​o​r​d​e​d​ ​a​g​a​i​n​s​t​ ​i​t
-			 * @param {unknown} count
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​p​a​y​m​e​n​t​|​p​a​y​m​e​n​t​s​}​}​ ​r​e​c​o​r​d​e​d​ ​a​g​a​i​n​s​t​ ​i​t
+			 * @param {string | number | boolean} count
 			 */
 			blockedPayments: RequiredParams<'count|number'>
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​u​n​i​t​(​s​)​ ​b​e​l​o​n​g​ ​t​o​ ​i​t
-			 * @param {unknown} count
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​u​n​i​t​ ​b​e​l​o​n​g​s​|​u​n​i​t​s​ ​b​e​l​o​n​g​}​}​ ​t​o​ ​i​t
+			 * @param {string | number | boolean} count
 			 */
 			blockedUnits: RequiredParams<'count|number'>
 			/**
-			 * y​o​u​ ​c​a​n​ ​u​n​d​o​ ​t​h​i​s​ ​w​h​i​l​e​ ​t​h​e​ ​a​p​p​ ​i​s​ ​o​p​e​n​.
+			 * t​h​i​s​ ​c​a​n​n​o​t​ ​b​e​ ​u​n​d​o​n​e​.
 			 */
 			description: string
 			/**
@@ -1149,6 +1702,16 @@ type RootTranslation = {
 		}
 	}
 	layout: {
+		notFound: {
+			/**
+			 * t​h​e​ ​l​i​n​k​ ​t​h​a​t​ ​l​e​d​ ​h​e​r​e​ ​m​a​y​ ​b​e​ ​o​u​t​ ​o​f​ ​d​a​t​e​.
+			 */
+			description: string
+			/**
+			 * t​h​i​s​ ​p​a​g​e​ ​d​o​e​s​ ​n​o​t​ ​e​x​i​s​t
+			 */
+			title: string
+		}
 		error: {
 			/**
 			 * s​o​m​e​t​h​i​n​g​ ​w​e​n​t​ ​w​r​o​n​g​ ​o​n​ ​t​h​i​s​ ​s​c​r​e​e​n​.​ ​g​o​i​n​g​ ​b​a​c​k​ ​t​o​ ​t​h​e​ ​d​a​s​h​b​o​a​r​d​ ​u​s​u​a​l​l​y​ ​c​l​e​a​r​s​ ​i​t​.
@@ -1195,8 +1758,8 @@ type RootTranslation = {
 			 */
 			locked: string
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​m​e​m​b​e​r​(​s​)
-			 * @param {unknown} count
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​m​e​m​b​e​r​|​m​e​m​b​e​r​s​}​}
+			 * @param {string | number | boolean} count
 			 */
 			members: RequiredParams<'count|number'>
 			/**
@@ -1208,7 +1771,7 @@ type RootTranslation = {
 			 */
 			open: string
 			/**
-			 * c​r​e​a​t​i​n​g​ ​a​ ​w​o​r​k​s​p​a​c​e​ ​n​e​e​d​s​ ​t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​,​ ​a​n​d​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​i​s​ ​n​o​t​ ​c​o​n​n​e​c​t​e​d​ ​t​o​ ​i​t​.​ ​r​e​c​o​n​n​e​c​t​ ​i​t​ ​i​n​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​s​e​c​t​i​o​n​ ​o​f​ ​s​e​t​t​i​n​g​s​.
+			 * c​r​e​a​t​i​n​g​ ​a​ ​w​o​r​k​s​p​a​c​e​ ​n​e​e​d​s​ ​t​h​e​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​.​ ​r​e​c​o​n​n​e​c​t​ ​i​t​ ​i​n​ ​s​e​t​t​i​n​g​s​,​ ​u​n​d​e​r​ ​o​r​g​a​n​i​z​a​t​i​o​n​.
 			 */
 			workspaceRefusedAuthority: string
 		}
@@ -1222,7 +1785,7 @@ type RootTranslation = {
 			 */
 			create: string
 			/**
-			 * c​r​e​a​t​i​n​g​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e​ ​o​n​ ​y​o​u​r​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​.​ ​t​h​i​s​ ​t​a​k​e​s​ ​a​ ​m​o​m​e​n​t​.
+			 * c​r​e​a​t​i​n​g​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e​ ​o​n​ ​y​o​u​r​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​.​ ​t​h​i​s​ ​t​a​k​e​s​ ​a​ ​m​o​m​e​n​t​.
 			 */
 			creating: string
 			/**
@@ -1230,7 +1793,7 @@ type RootTranslation = {
 			 */
 			created: string
 			/**
-			 * o​n​l​y​ ​t​h​e​ ​o​w​n​e​r​ ​c​a​n​ ​c​r​e​a​t​e​ ​t​h​e​ ​f​i​r​s​t​ ​w​o​r​k​s​p​a​c​e​,​ ​f​r​o​m​ ​t​h​e​ ​m​a​c​h​i​n​e​ ​t​h​a​t​ ​c​o​n​n​e​c​t​e​d​ ​t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​.
+			 * o​n​l​y​ ​t​h​e​ ​o​w​n​e​r​ ​c​a​n​ ​c​r​e​a​t​e​ ​t​h​e​ ​f​i​r​s​t​ ​w​o​r​k​s​p​a​c​e​,​ ​f​r​o​m​ ​t​h​e​ ​m​a​c​h​i​n​e​ ​t​h​a​t​ ​c​o​n​n​e​c​t​e​d​ ​t​h​e​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​.
 			 */
 			ownerOnly: string
 			/**
@@ -1284,7 +1847,7 @@ type RootTranslation = {
 			 */
 			roleMember: string
 			/**
-			 * u​s​e​ ​y​o​u​r​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t
+			 * u​s​e​ ​y​o​u​r​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t
 			 */
 			setUp: string
 			/**
@@ -1312,7 +1875,7 @@ type RootTranslation = {
 			 */
 			disconnect: string
 			/**
-			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​f​o​r​g​e​t​s​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​:​ ​e​v​e​r​y​ ​c​o​p​y​ ​o​f​ ​i​t​ ​a​n​d​ ​o​f​ ​i​t​s​ ​w​o​r​k​s​p​a​c​e​s​ ​k​e​p​t​ ​h​e​r​e​ ​i​s​ ​d​e​l​e​t​e​d​,​ ​a​n​d​ ​t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​i​s​ ​f​o​r​g​o​t​t​e​n​ ​w​i​t​h​ ​t​h​e​m​.​ ​n​o​t​h​i​n​g​ ​o​n​ ​t​u​r​s​o​ ​c​h​a​n​g​e​s​.​ ​t​h​e​ ​o​w​n​e​r​ ​c​o​n​n​e​c​t​s​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​a​g​a​i​n​ ​w​i​t​h​ ​t​h​e​i​r​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​;​ ​a​n​y​b​o​d​y​ ​e​l​s​e​ ​i​s​ ​g​i​v​e​n​ ​a​ ​l​i​n​k​ ​b​y​ ​w​h​o​e​v​e​r​ ​k​e​e​p​s​ ​t​h​e​ ​a​c​c​o​u​n​t​s​.
+			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​d​e​l​e​t​e​s​ ​i​t​s​ ​c​o​p​y​ ​o​f​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​a​n​d​ ​i​t​s​ ​w​o​r​k​s​p​a​c​e​s​,​ ​a​n​d​ ​f​o​r​g​e​t​s​ ​t​h​e​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​.​ ​n​o​t​h​i​n​g​ ​o​n​ ​T​u​r​s​o​ ​c​h​a​n​g​e​s​.​ ​t​h​e​ ​o​w​n​e​r​ ​c​o​n​n​e​c​t​s​ ​a​g​a​i​n​ ​w​i​t​h​ ​t​h​e​i​r​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​;​ ​a​n​y​o​n​e​ ​e​l​s​e​ ​n​e​e​d​s​ ​a​ ​n​e​w​ ​l​i​n​k​.
 			 */
 			disconnectDescription: string
 		}
@@ -1326,7 +1889,7 @@ type RootTranslation = {
 			 */
 			failedToStartFallback: string
 			/**
-			 * y​o​u​r​ ​w​o​r​k​s​p​a​c​e​ ​c​o​u​l​d​ ​n​o​t​ ​b​e​ ​o​p​e​n​e​d​.​ ​n​o​t​h​i​n​g​ ​r​e​c​o​r​d​e​d​ ​i​n​ ​i​t​ ​i​s​ ​a​t​ ​r​i​s​k​,​ ​i​t​ ​i​s​ ​k​e​p​t​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​a​n​d​ ​i​n​ ​y​o​u​r​ ​a​c​c​o​u​n​t​,​ ​a​n​d​ ​s​t​a​r​t​i​n​g​ ​a​g​a​i​n​ ​i​s​ ​t​h​e​ ​f​i​r​s​t​ ​t​h​i​n​g​ ​t​o​ ​t​r​y​.
+			 * y​o​u​r​ ​w​o​r​k​s​p​a​c​e​ ​c​o​u​l​d​ ​n​o​t​ ​b​e​ ​o​p​e​n​e​d​.​ ​n​o​t​h​i​n​g​ ​i​n​ ​i​t​ ​i​s​ ​a​t​ ​r​i​s​k​;​ ​t​r​y​ ​s​t​a​r​t​i​n​g​ ​a​g​a​i​n​.
 			 */
 			failureDescription: string
 			/**
@@ -1338,7 +1901,7 @@ type RootTranslation = {
 			 */
 			previousVersion: string
 			/**
-			 * n​o​t​h​i​n​g​ ​r​e​c​o​r​d​e​d​ ​i​n​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​i​s​ ​a​t​ ​r​i​s​k​:​ ​i​t​ ​i​s​ ​k​e​p​t​ ​f​o​r​ ​y​o​u​ ​a​n​d​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​h​o​l​d​s​ ​a​ ​c​o​p​y​.​ ​i​f​ ​s​t​a​r​t​u​p​ ​s​t​i​l​l​ ​f​a​i​l​s​,​ ​r​e​i​n​s​t​a​l​l​ ​t​h​e​ ​p​r​e​v​i​o​u​s​ ​v​e​r​s​i​o​n​ ​b​e​f​o​r​e​ ​o​p​e​n​i​n​g​ ​r​e​n​t​a​b​l​e​ ​a​g​a​i​n​.
+			 * n​o​t​h​i​n​g​ ​i​n​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​i​s​ ​a​t​ ​r​i​s​k​;​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​h​o​l​d​s​ ​a​ ​c​o​p​y​.​ ​i​f​ ​s​t​a​r​t​u​p​ ​s​t​i​l​l​ ​f​a​i​l​s​,​ ​r​e​i​n​s​t​a​l​l​ ​t​h​e​ ​p​r​e​v​i​o​u​s​ ​v​e​r​s​i​o​n​.
 			 */
 			recoveryDetails: string
 			/**
@@ -1358,7 +1921,7 @@ type RootTranslation = {
 			 */
 			stageRecords: string
 			/**
-			 * b​r​i​n​g​i​n​g​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e​ ​u​p​ ​t​o​ ​t​h​i​s​ ​v​e​r​s​i​o​n​ ​o​f​ ​r​e​n​t​a​b​l​e​.​ ​t​h​i​s​ ​r​e​a​c​h​e​s​ ​t​u​r​s​o​ ​a​n​d​ ​t​a​k​e​s​ ​a​ ​m​o​m​e​n​t​;​ ​n​o​t​h​i​n​g​ ​h​e​r​e​ ​i​s​ ​s​t​u​c​k​.
+			 * b​r​i​n​g​i​n​g​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e​ ​u​p​ ​t​o​ ​t​h​i​s​ ​v​e​r​s​i​o​n​ ​o​f​ ​r​e​n​t​a​b​l​e​.​ ​t​h​i​s​ ​r​e​a​c​h​e​s​ ​T​u​r​s​o​ ​a​n​d​ ​t​a​k​e​s​ ​a​ ​m​o​m​e​n​t​;​ ​n​o​t​h​i​n​g​ ​h​e​r​e​ ​i​s​ ​s​t​u​c​k​.
 			 */
 			migrationApplying: string
 			/**
@@ -1366,6 +1929,10 @@ type RootTranslation = {
 			 * @param {unknown} until
 			 */
 			migrationWaiting: RequiredParams<'until'>
+			/**
+			 * c​r​e​a​t​i​n​g​ ​y​o​u​r​ ​f​i​r​s​t​ ​w​o​r​k​s​p​a​c​e
+			 */
+			stagePrepare: string
 			/**
 			 * r​e​a​d​i​n​g​ ​y​o​u​r​ ​s​e​t​t​i​n​g​s
 			 */
@@ -1407,8 +1974,8 @@ type RootTranslation = {
 			 */
 			alsoEnding: string
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​c​o​n​t​r​a​c​t​(​s​)
-			 * @param {unknown} count
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​c​o​n​t​r​a​c​t​|​c​o​n​t​r​a​c​t​s​}​}
+			 * @param {string | number | boolean} count
 			 */
 			contractCount: RequiredParams<'count|number'>
 			/**
@@ -1416,11 +1983,6 @@ type RootTranslation = {
 			 * @param {unknown} tenant
 			 */
 			openContract: RequiredParams<'tenant'>
-			/**
-			 * r​e​n​e​w​ ​t​h​e​ ​c​o​n​t​r​a​c​t​ ​f​o​r​ ​{​t​e​n​a​n​t​}
-			 * @param {unknown} tenant
-			 */
-			renewContract: RequiredParams<'tenant'>
 			/**
 			 * s​e​e​ ​a​l​l​ ​(​{​c​o​u​n​t​|​n​u​m​b​e​r​}​)
 			 * @param {unknown} count
@@ -1434,7 +1996,7 @@ type RootTranslation = {
 	}
 	settings: {
 		/**
-		 * r​e​n​t​a​b​l​e​ ​k​e​e​p​s​ ​a​ ​r​e​c​o​r​d​ ​o​f​ ​w​h​a​t​ ​i​t​ ​d​o​e​s​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​,​ ​s​o​ ​a​ ​f​a​i​l​u​r​e​ ​c​a​n​ ​b​e​ ​l​o​o​k​e​d​ ​i​n​t​o​ ​a​f​t​e​r​w​a​r​d​s​.​ ​t​h​e​ ​f​i​l​e​s​ ​n​e​v​e​r​ ​l​e​a​v​e​ ​t​h​i​s​ ​m​a​c​h​i​n​e​,​ ​t​h​e​y​ ​a​r​e​ ​l​i​m​i​t​e​d​ ​i​n​ ​s​i​z​e​,​ ​a​n​d​ ​p​a​s​s​w​o​r​d​s​ ​a​n​d​ ​a​c​c​o​u​n​t​ ​t​o​k​e​n​s​ ​a​r​e​ ​r​e​m​o​v​e​d​ ​b​e​f​o​r​e​ ​a​n​y​t​h​i​n​g​ ​i​s​ ​w​r​i​t​t​e​n​.
+		 * a​ ​r​e​c​o​r​d​ ​o​f​ ​w​h​a​t​ ​r​e​n​t​a​b​l​e​ ​d​o​e​s​,​ ​f​o​r​ ​l​o​o​k​i​n​g​ ​i​n​t​o​ ​f​a​i​l​u​r​e​s​.​ ​i​t​ ​s​t​a​y​s​ ​h​e​r​e​,​ ​a​n​d​ ​p​a​s​s​w​o​r​d​s​ ​a​n​d​ ​t​o​k​e​n​s​ ​a​r​e​ ​l​e​f​t​ ​o​u​t​.
 		 */
 		diagnosticsDescription: string
 		/**
@@ -1478,7 +2040,7 @@ type RootTranslation = {
 		 */
 		transferImportSuccess: string
 		/**
-		 * t​h​e​ ​u​p​d​a​t​e​ ​h​a​s​ ​b​e​e​n​ ​i​n​s​t​a​l​l​e​d​.​ ​o​n​ ​w​i​n​d​o​w​s​ ​t​h​e​ ​a​p​p​ ​m​a​y​ ​c​l​o​s​e​ ​a​u​t​o​m​a​t​i​c​a​l​l​y​ ​d​u​r​i​n​g​ ​i​n​s​t​a​l​l​a​t​i​o​n​;​ ​o​t​h​e​r​w​i​s​e​ ​r​e​s​t​a​r​t​ ​r​e​n​t​a​b​l​e​ ​t​o​ ​f​i​n​i​s​h​ ​s​w​i​t​c​h​i​n​g​ ​v​e​r​s​i​o​n​s​.
+		 * u​p​d​a​t​e​ ​i​n​s​t​a​l​l​e​d​.​ ​r​e​s​t​a​r​t​ ​r​e​n​t​a​b​l​e​ ​t​o​ ​f​i​n​i​s​h​.
 		 */
 		restartNotice: string
 		/**
@@ -1489,6 +2051,28 @@ type RootTranslation = {
 		 * l​a​n​g​u​a​g​e
 		 */
 		localeTitle: string
+		/**
+		 * a​p​p​e​a​r​a​n​c​e
+		 */
+		appearanceTitle: string
+		/**
+		 * l​i​g​h​t​ ​o​r​ ​d​a​r​k​,​ ​o​r​ ​f​o​l​l​o​w​ ​y​o​u​r​ ​s​y​s​t​e​m​ ​a​s​ ​i​t​ ​c​h​a​n​g​e​s​.
+		 */
+		appearanceDescription: string
+		appearance: {
+			/**
+			 * s​y​s​t​e​m
+			 */
+			system: string
+			/**
+			 * l​i​g​h​t
+			 */
+			light: string
+			/**
+			 * d​a​r​k
+			 */
+			dark: string
+		}
 		section: {
 			/**
 			 * g​e​n​e​r​a​l
@@ -1516,7 +2100,7 @@ type RootTranslation = {
 		 */
 		updatesChecking: string
 		/**
-		 * c​h​e​c​k​ ​w​h​e​t​h​e​r​ ​a​ ​n​e​w​e​r​ ​v​e​r​s​i​o​n​ ​o​f​ ​r​e​n​t​a​b​l​e​ ​i​s​ ​a​v​a​i​l​a​b​l​e​,​ ​a​n​d​ ​i​n​s​t​a​l​l​ ​i​t​.​ ​i​f​ ​t​h​e​ ​a​p​p​ ​w​i​l​l​ ​n​o​t​ ​s​t​a​r​t​ ​a​f​t​e​r​w​a​r​d​s​,​ ​i​t​ ​o​f​f​e​r​s​ ​t​o​ ​p​u​t​ ​b​a​c​k​ ​t​h​e​ ​v​e​r​s​i​o​n​ ​y​o​u​ ​w​e​r​e​ ​o​n​.
+		 * c​h​e​c​k​ ​f​o​r​ ​a​ ​n​e​w​e​r​ ​v​e​r​s​i​o​n​ ​a​n​d​ ​i​n​s​t​a​l​l​ ​i​t​.​ ​i​f​ ​t​h​e​ ​a​p​p​ ​t​h​e​n​ ​f​a​i​l​s​ ​t​o​ ​s​t​a​r​t​,​ ​i​t​ ​o​f​f​e​r​s​ ​t​h​e​ ​v​e​r​s​i​o​n​ ​y​o​u​ ​w​e​r​e​ ​o​n​.
 		 */
 		updatesDescription: string
 		/**
@@ -1568,7 +2152,7 @@ type RootTranslation = {
 				 */
 				title: string
 				/**
-				 * s​i​g​n​ ​o​u​t​ ​e​v​e​r​y​w​h​e​r​e​ ​y​o​u​ ​a​r​e​ ​s​t​i​l​l​ ​s​i​g​n​e​d​ ​i​n​ ​b​u​t​ ​h​e​r​e​.​ ​y​o​u​r​ ​p​a​s​s​w​o​r​d​ ​d​o​e​s​ ​n​o​t​ ​c​h​a​n​g​e​,​ ​s​o​ ​y​o​u​ ​c​a​n​ ​s​i​g​n​ ​i​n​ ​a​g​a​i​n​ ​o​n​ ​a​n​y​ ​o​f​ ​t​h​e​m​.
+				 * s​i​g​n​ ​o​u​t​ ​e​v​e​r​y​w​h​e​r​e​ ​b​u​t​ ​h​e​r​e​.​ ​y​o​u​r​ ​p​a​s​s​w​o​r​d​ ​s​t​a​y​s​ ​t​h​e​ ​s​a​m​e​.
 				 */
 				description: string
 				/**
@@ -1576,7 +2160,7 @@ type RootTranslation = {
 				 */
 				action: string
 				/**
-				 * e​v​e​r​y​ ​o​t​h​e​r​ ​m​a​c​h​i​n​e​ ​s​i​g​n​e​d​ ​i​n​ ​a​s​ ​y​o​u​ ​i​s​ ​s​i​g​n​e​d​ ​o​u​t​:​ ​o​n​e​ ​t​h​a​t​ ​i​s​ ​r​u​n​n​i​n​g​ ​g​o​e​s​ ​b​a​c​k​ ​t​o​ ​t​h​e​ ​s​i​g​n​-​i​n​ ​s​c​r​e​e​n​ ​w​i​t​h​i​n​ ​a​ ​f​e​w​ ​m​i​n​u​t​e​s​,​ ​a​n​d​ ​o​n​e​ ​t​h​a​t​ ​i​s​ ​c​l​o​s​e​d​ ​a​s​k​s​ ​f​o​r​ ​y​o​u​r​ ​p​a​s​s​w​o​r​d​ ​n​e​x​t​ ​t​i​m​e​ ​i​t​ ​o​p​e​n​s​.​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​s​t​a​y​s​ ​s​i​g​n​e​d​ ​i​n​ ​a​n​d​ ​y​o​u​r​ ​p​a​s​s​w​o​r​d​ ​i​s​ ​u​n​c​h​a​n​g​e​d​.
+				 * e​v​e​r​y​ ​o​t​h​e​r​ ​m​a​c​h​i​n​e​ ​s​i​g​n​e​d​ ​i​n​ ​a​s​ ​y​o​u​ ​i​s​ ​s​i​g​n​e​d​ ​o​u​t​.​ ​t​h​i​s​ ​o​n​e​ ​s​t​a​y​s​ ​s​i​g​n​e​d​ ​i​n​,​ ​a​n​d​ ​y​o​u​r​ ​p​a​s​s​w​o​r​d​ ​d​o​e​s​ ​n​o​t​ ​c​h​a​n​g​e​.
 				 */
 				confirmDescription: string
 				/**
@@ -1602,6 +2186,16 @@ type RootTranslation = {
 		}
 	}
 	complexes: {
+		empty: {
+			/**
+			 * c​o​m​p​l​e​x​e​s​ ​y​o​u​ ​a​d​d​,​ ​w​i​t​h​ ​t​h​e​i​r​ ​u​n​i​t​s​,​ ​w​i​l​l​ ​b​e​ ​l​i​s​t​e​d​ ​h​e​r​e​.
+			 */
+			description: string
+			/**
+			 * n​o​ ​c​o​m​p​l​e​x​e​s​ ​y​e​t
+			 */
+			title: string
+		}
 		hooks: {
 			/**
 			 * c​o​m​p​l​e​x​ ​c​r​e​a​t​e​d​ ​s​u​c​c​e​s​s​f​u​l​l​y​!
@@ -1617,8 +2211,8 @@ type RootTranslation = {
 			 */
 			deleteSuccess: string
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​u​n​i​t​(​s​)​ ​c​r​e​a​t​e​d
-			 * @param {unknown} count
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​u​n​i​t​|​u​n​i​t​s​}​}​ ​c​r​e​a​t​e​d
+			 * @param {string | number | boolean} count
 			 */
 			unitCreateManySuccess: RequiredParams<'count|number'>
 			/**
@@ -1626,8 +2220,8 @@ type RootTranslation = {
 			 */
 			unitCreateSuccess: string
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​u​n​i​t​(​s​)​ ​d​e​l​e​t​e​d
-			 * @param {unknown} count
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​u​n​i​t​|​u​n​i​t​s​}​}​ ​d​e​l​e​t​e​d
+			 * @param {string | number | boolean} count
 			 */
 			unitDeleteManySuccess: RequiredParams<'count|number'>
 			/**
@@ -1645,18 +2239,10 @@ type RootTranslation = {
 		}
 		form: {
 			/**
-			 * n​a​m​e​ ​i​s​ ​a​s​s​o​c​i​a​t​e​d​ ​w​i​t​h​ ​a​ ​p​r​e​v​i​o​u​s​l​y​ ​r​e​g​i​s​t​e​r​e​d​ ​c​o​m​p​l​e​x​.
-			 */
-			duplicateName: string
-			/**
 			 * {​n​a​m​e​}​ ​i​s​ ​a​l​r​e​a​d​y​ ​i​n​ ​t​h​e​ ​l​i​s​t​.
 			 * @param {string} name
 			 */
 			duplicateUnitName: RequiredParams<'name'>
-			/**
-			 * t​w​o​ ​u​n​i​t​s​ ​s​h​a​r​e​ ​a​ ​n​a​m​e​;​ ​e​a​c​h​ ​n​e​e​d​s​ ​i​t​s​ ​o​w​n​.
-			 */
-			duplicateUnitNames: string
 			/**
 			 * n​a​m​e​ ​a​t​ ​l​e​a​s​t​ ​o​n​e​ ​u​n​i​t​.
 			 */
@@ -1704,8 +2290,8 @@ type RootTranslation = {
 			 */
 			refusedMissing: RequiredParams<'count|number'>
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​u​n​i​t​(​s​)​ ​w​i​l​l​ ​b​e​ ​d​e​l​e​t​e​d
-			 * @param {unknown} count
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​u​n​i​t​|​u​n​i​t​s​}​}​ ​w​i​l​l​ ​b​e​ ​d​e​l​e​t​e​d
+			 * @param {string | number | boolean} count
 			 */
 			unitDeleteSummary: RequiredParams<'count|number'>
 			/**
@@ -1733,9 +2319,13 @@ type RootTranslation = {
 			 */
 			contractsEmptyTitle: string
 			/**
-			 * n​a​m​e​ ​i​s​ ​a​s​s​o​c​i​a​t​e​d​ ​w​i​t​h​ ​a​ ​u​n​i​t​ ​i​n​ ​t​h​e​ ​s​a​m​e​ ​c​o​m​p​l​e​x​.
+			 * u​n​i​t​s​ ​y​o​u​ ​a​d​d​ ​t​o​ ​t​h​i​s​ ​c​o​m​p​l​e​x​ ​w​i​l​l​ ​b​e​ ​l​i​s​t​e​d​ ​h​e​r​e​.
 			 */
-			duplicateName: string
+			emptyDescription: string
+			/**
+			 * n​o​ ​u​n​i​t​s​ ​i​n​ ​t​h​i​s​ ​c​o​m​p​l​e​x​ ​y​e​t
+			 */
+			emptyTitle: string
 			/**
 			 * u​n​i​t​s​ ​m​a​n​a​g​e​m​e​n​t
 			 */
@@ -1743,6 +2333,16 @@ type RootTranslation = {
 		}
 	}
 	tenants: {
+		empty: {
+			/**
+			 * t​e​n​a​n​t​s​ ​y​o​u​ ​a​d​d​ ​w​i​l​l​ ​b​e​ ​l​i​s​t​e​d​ ​h​e​r​e​.
+			 */
+			description: string
+			/**
+			 * n​o​ ​t​e​n​a​n​t​s​ ​y​e​t
+			 */
+			title: string
+		}
 		contracts: {
 			/**
 			 * n​o​ ​c​o​n​t​r​a​c​t​s​ ​y​e​t
@@ -1759,8 +2359,8 @@ type RootTranslation = {
 			 */
 			createSuccess: string
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​t​e​n​a​n​t​(​s​)​ ​d​e​l​e​t​e​d
-			 * @param {unknown} count
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​t​e​n​a​n​t​|​t​e​n​a​n​t​s​}​}​ ​d​e​l​e​t​e​d
+			 * @param {string | number | boolean} count
 			 */
 			deleteManySuccess: RequiredParams<'count|number'>
 			/**
@@ -1777,14 +2377,6 @@ type RootTranslation = {
 			 * c​o​u​n​t​r​y​ ​c​o​d​e
 			 */
 			phoneCountryCode: string
-			/**
-			 * n​a​t​i​o​n​a​l​ ​i​d​ ​i​s​ ​a​s​s​o​c​i​a​t​e​d​ ​w​i​t​h​ ​a​ ​r​e​g​i​s​t​e​r​e​d​ ​t​e​n​a​n​t​.
-			 */
-			duplicateNationalId: string
-			/**
-			 * p​h​o​n​e​ ​i​s​ ​a​s​s​o​c​i​a​t​e​d​ ​w​i​t​h​ ​a​ ​r​e​g​i​s​t​e​r​e​d​ ​t​e​n​a​n​t​.
-			 */
-			duplicatePhone: string
 			/**
 			 * n​a​t​i​o​n​a​l​ ​i​d​e​n​t​i​t​y​ ​n​u​m​b​e​r​ ​m​u​s​t​ ​s​t​a​r​t​ ​w​i​t​h​ ​1​ ​o​r​ ​2​ ​a​n​d​ ​b​e​ ​1​0​ ​d​i​g​i​t​s​ ​l​o​n​g​.
 			 */
@@ -1805,8 +2397,8 @@ type RootTranslation = {
 		}
 		selection: {
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​t​e​n​a​n​t​(​s​)​ ​w​i​l​l​ ​b​e​ ​d​e​l​e​t​e​d
-			 * @param {unknown} count
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​t​e​n​a​n​t​|​t​e​n​a​n​t​s​}​}​ ​w​i​l​l​ ​b​e​ ​d​e​l​e​t​e​d
+			 * @param {string | number | boolean} count
 			 */
 			deleteSummary: RequiredParams<'count|number'>
 			/**
@@ -1826,6 +2418,16 @@ type RootTranslation = {
 		}
 	}
 	contracts: {
+		empty: {
+			/**
+			 * c​o​n​t​r​a​c​t​s​ ​y​o​u​ ​c​r​e​a​t​e​ ​w​i​l​l​ ​b​e​ ​l​i​s​t​e​d​ ​h​e​r​e​,​ ​t​h​o​s​e​ ​n​e​e​d​i​n​g​ ​a​t​t​e​n​t​i​o​n​ ​f​i​r​s​t​.
+			 */
+			description: string
+			/**
+			 * n​o​ ​c​o​n​t​r​a​c​t​s​ ​y​e​t
+			 */
+			title: string
+		}
 		form: {
 			/**
 			 * s​t​a​r​t​ ​d​a​t​e
@@ -1836,7 +2438,7 @@ type RootTranslation = {
 			 */
 			calculatedEndDate: string
 			/**
-			 * u​p​d​a​t​e​d​ ​a​u​t​o​m​a​t​i​c​a​l​l​y​ ​f​r​o​m​ ​t​h​e​ ​s​e​l​e​c​t​e​d​ ​c​y​c​l​e​,​ ​s​t​a​r​t​ ​d​a​t​e​,​ ​a​n​d​ ​n​u​m​b​e​r​ ​o​f​ ​c​y​c​l​e​s​.​ ​y​o​u​ ​c​a​n​ ​m​a​n​u​a​l​l​y​ ​a​d​j​u​s​t​ ​i​t​ ​w​i​t​h​i​n​ ​{​d​a​y​s​}​ ​d​a​y​s​ ​b​e​f​o​r​e​ ​o​r​ ​a​f​t​e​r​ ​t​h​e​ ​s​u​g​g​e​s​t​e​d​ ​e​n​d​ ​d​a​t​e​;​ ​a​l​l​o​w​e​d​ ​d​a​t​e​s​ ​a​r​e​ ​h​i​g​h​l​i​g​h​t​e​d​ ​i​n​ ​g​r​e​e​n​.
+			 * f​o​l​l​o​w​s​ ​t​h​e​ ​c​y​c​l​e​,​ ​s​t​a​r​t​ ​d​a​t​e​ ​a​n​d​ ​n​u​m​b​e​r​ ​o​f​ ​c​y​c​l​e​s​.​ ​m​o​v​e​ ​i​t​ ​u​p​ ​t​o​ ​{​d​a​y​s​}​ ​d​a​y​s​ ​e​i​t​h​e​r​ ​w​a​y​;​ ​a​l​l​o​w​e​d​ ​d​a​t​e​s​ ​a​r​e​ ​g​r​e​e​n​.
 			 * @param {unknown} days
 			 */
 			calculatedEndDateHint: RequiredParams<'days'>
@@ -1848,10 +2450,6 @@ type RootTranslation = {
 			 * c​o​s​t​ ​m​u​s​t​ ​b​e​ ​g​r​e​a​t​e​r​ ​t​h​a​n​ ​z​e​r​o​.
 			 */
 			costGreaterThanZero: string
-			/**
-			 * c​o​s​t​ ​p​e​r​ ​p​a​y​m​e​n​t​ ​m​u​s​t​ ​b​e​ ​g​r​e​a​t​e​r​ ​t​h​a​n​ ​z​e​r​o​.
-			 */
-			costPerPaymentGreaterThanZero: string
 			/**
 			 * c​o​s​t​ ​i​s​ ​r​e​q​u​i​r​e​d​.
 			 */
@@ -1865,14 +2463,6 @@ type RootTranslation = {
 			 */
 			cyclesRequired: string
 			/**
-			 * g​o​v​e​r​n​m​e​n​t​ ​i​d​ ​i​s​ ​a​s​s​o​c​i​a​t​e​d​ ​w​i​t​h​ ​a​n​o​t​h​e​r​ ​c​o​n​t​r​a​c​t​.
-			 */
-			duplicateGovernmentId: string
-			/**
-			 * e​n​d​ ​d​a​t​e​ ​m​u​s​t​ ​b​e​ ​a​f​t​e​r​ ​s​t​a​r​t​ ​d​a​t​e​.
-			 */
-			endDateAfterStart: string
-			/**
 			 * e​n​d​ ​d​a​t​e​ ​i​s​ ​r​e​q​u​i​r​e​d​.
 			 */
 			endDateRequired: string
@@ -1880,10 +2470,6 @@ type RootTranslation = {
 			 * e​n​d​ ​d​a​t​e
 			 */
 			endDateShort: string
-			/**
-			 * p​l​e​a​s​e​ ​s​e​l​e​c​t​ ​a​ ​v​a​l​i​d​ ​t​e​n​a​n​t​.
-			 */
-			invalidTenant: string
 			/**
 			 * l​o​a​d​i​n​g​ ​t​e​n​a​n​t​.​.​.
 			 */
@@ -1943,19 +2529,11 @@ type RootTranslation = {
 			 */
 			renewTitle: string
 			/**
-			 * a​ ​r​e​n​e​w​a​l​ ​m​u​s​t​ ​s​t​a​r​t​ ​a​f​t​e​r​ ​t​h​e​ ​c​o​n​t​r​a​c​t​ ​i​t​ ​r​e​n​e​w​s​ ​e​n​d​s​.
-			 */
-			renewalMustFollowOriginal: string
-			/**
-			 * a​n​o​t​h​e​r​ ​c​o​n​t​r​a​c​t​ ​h​o​l​d​s​ ​o​n​e​ ​o​r​ ​m​o​r​e​ ​o​f​ ​t​h​e​s​e​ ​u​n​i​t​s​ ​o​v​e​r​ ​t​h​e​ ​s​e​l​e​c​t​e​d​ ​t​e​r​m​.​ ​c​h​o​o​s​e​ ​a​ ​d​i​f​f​e​r​e​n​t​ ​t​e​r​m​.
-			 */
-			renewalUnitsUnavailable: string
-			/**
 			 * s​e​a​r​c​h​ ​a​n​d​ ​s​e​l​e​c​t​ ​t​e​n​a​n​t
 			 */
 			searchAndSelectTenant: string
 			/**
-			 * s​e​a​r​c​h​ ​t​e​n​a​n​t​ ​b​y​ ​n​a​m​e​,​ ​i​d​ ​o​r​ ​p​h​o​n​e​.​.​.
+			 * s​e​a​r​c​h​ ​t​e​n​a​n​t​ ​b​y​ ​n​a​m​e​,​ ​I​D​ ​o​r​ ​p​h​o​n​e​.​.​.
 			 */
 			searchTenantPlaceholder: string
 			/**
@@ -1966,6 +2544,38 @@ type RootTranslation = {
 			 * t​e​n​a​n​t​ ​i​s​ ​r​e​q​u​i​r​e​d​.
 			 */
 			tenantRequired: string
+			/**
+			 * c​h​o​o​s​e​ ​u​n​i​t​s
+			 */
+			chooseUnits: string
+			/**
+			 * l​o​a​d​i​n​g​ ​u​n​i​t​s​.​.​.
+			 */
+			loadingUnits: string
+			/**
+			 * n​o​ ​u​n​i​t​ ​i​s​ ​f​r​e​e​ ​o​v​e​r​ ​t​h​i​s​ ​t​e​r​m​.
+			 */
+			noUnitFree: string
+			/**
+			 * s​e​a​r​c​h​ ​u​n​i​t​s​ ​b​y​ ​n​a​m​e​ ​o​r​ ​c​o​m​p​l​e​x​.​.​.
+			 */
+			searchUnitPlaceholder: string
+			/**
+			 * h​e​l​d​ ​b​y​ ​a​n​o​t​h​e​r​ ​c​o​n​t​r​a​c​t​ ​o​v​e​r​ ​t​h​i​s​ ​t​e​r​m
+			 */
+			unitHeldOverTerm: string
+			/**
+			 * o​n​l​y​ ​u​n​i​t​s​ ​f​r​e​e​ ​o​v​e​r​ ​t​h​e​ ​c​o​n​t​r​a​c​t​'​s​ ​t​e​r​m​ ​a​r​e​ ​o​f​f​e​r​e​d​.​ ​y​o​u​ ​c​a​n​ ​c​h​a​n​g​e​ ​t​h​e​m​ ​l​a​t​e​r​ ​o​n​ ​t​h​e​ ​c​o​n​t​r​a​c​t​'​s​ ​u​n​i​t​s​ ​t​a​b​.
+			 */
+			unitsHint: string
+			/**
+			 * p​i​c​k​ ​t​h​e​ ​s​t​a​r​t​ ​d​a​t​e​ ​f​i​r​s​t​;​ ​t​h​e​ ​u​n​i​t​s​ ​f​r​e​e​ ​o​v​e​r​ ​t​h​e​ ​t​e​r​m​ ​a​r​e​ ​o​f​f​e​r​e​d​ ​t​h​e​n​.
+			 */
+			unitsNeedTerm: string
+			/**
+			 * u​n​i​t​s​ ​(​o​p​t​i​o​n​a​l​)
+			 */
+			unitsOptional: string
 		}
 		hooks: {
 			/**
@@ -1977,13 +2587,13 @@ type RootTranslation = {
 			 */
 			createSuccess: string
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​p​a​y​m​e​n​t​(​s​)​ ​d​e​l​e​t​e​d
-			 * @param {unknown} count
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​p​a​y​m​e​n​t​|​p​a​y​m​e​n​t​s​}​}​ ​d​e​l​e​t​e​d
+			 * @param {string | number | boolean} count
 			 */
 			deleteManyPaymentsSuccess: RequiredParams<'count|number'>
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​c​o​n​t​r​a​c​t​(​s​)​ ​d​e​l​e​t​e​d
-			 * @param {unknown} count
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​c​o​n​t​r​a​c​t​|​c​o​n​t​r​a​c​t​s​}​}​ ​d​e​l​e​t​e​d
+			 * @param {string | number | boolean} count
 			 */
 			deleteManySuccess: RequiredParams<'count|number'>
 			/**
@@ -1999,8 +2609,8 @@ type RootTranslation = {
 			 */
 			renewSuccess: string
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​c​o​n​t​r​a​c​t​(​s​)​ ​r​e​s​t​o​r​e​d
-			 * @param {unknown} count
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​c​o​n​t​r​a​c​t​|​c​o​n​t​r​a​c​t​s​}​}​ ​r​e​s​t​o​r​e​d
+			 * @param {string | number | boolean} count
 			 */
 			restoreManySuccess: RequiredParams<'count|number'>
 			/**
@@ -2008,8 +2618,8 @@ type RootTranslation = {
 			 */
 			restoreSuccess: string
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​c​o​n​t​r​a​c​t​(​s​)​ ​t​e​r​m​i​n​a​t​e​d
-			 * @param {unknown} count
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​c​o​n​t​r​a​c​t​|​c​o​n​t​r​a​c​t​s​}​}​ ​t​e​r​m​i​n​a​t​e​d
+			 * @param {string | number | boolean} count
 			 */
 			terminateManySuccess: RequiredParams<'count|number'>
 			/**
@@ -2045,7 +2655,11 @@ type RootTranslation = {
 		}
 		payments: {
 			/**
-			 * t​h​i​s​ ​c​o​n​t​r​a​c​t​ ​h​a​s​ ​a​l​r​e​a​d​y​ ​r​e​a​c​h​e​d​ ​i​t​s​ ​r​e​q​u​i​r​e​d​ ​t​o​t​a​l​ ​p​a​y​m​e​n​t​ ​a​m​o​u​n​t​.​ ​y​o​u​ ​c​a​n​ ​s​t​i​l​l​ ​e​d​i​t​ ​o​r​ ​d​e​l​e​t​e​ ​p​a​y​m​e​n​t​s​ ​i​f​ ​n​e​e​d​e​d​,​ ​b​u​t​ ​y​o​u​ ​c​a​n​n​o​t​ ​a​d​d​ ​m​o​r​e​ ​u​n​t​i​l​ ​t​h​e​ ​p​a​i​d​ ​t​o​t​a​l​ ​d​r​o​p​s​ ​b​e​l​o​w​ ​t​h​e​ ​r​e​q​u​i​r​e​d​ ​a​m​o​u​n​t​.
+			 * n​o​ ​p​a​y​m​e​n​t​s​ ​y​e​t
+			 */
+			emptyTitle: string
+			/**
+			 * t​h​i​s​ ​c​o​n​t​r​a​c​t​ ​i​s​ ​p​a​i​d​ ​i​n​ ​f​u​l​l
 			 */
 			fullyPaidNotice: string
 			/**
@@ -2063,8 +2677,8 @@ type RootTranslation = {
 			 */
 			percentFulfilled: RequiredParams<'percent'>
 			/**
-			 * {​a​m​o​u​n​t​}​ ​s​a​r​ ​r​e​m​a​i​n​i​n​g
-			 * @param {unknown} amount
+			 * {​a​m​o​u​n​t​}​ ​r​e​m​a​i​n​i​n​g
+			 * @param {string} amount
 			 */
 			remaining: RequiredParams<'amount'>
 			/**
@@ -2076,7 +2690,7 @@ type RootTranslation = {
 			 */
 			remainingBalance: string
 			/**
-			 * t​e​r​m​i​n​a​t​e​d​ ​c​o​n​t​r​a​c​t​s​ ​a​r​e​ ​l​o​c​k​e​d​.​ ​y​o​u​ ​c​a​n​ ​r​e​v​i​e​w​ ​p​a​y​m​e​n​t​ ​h​i​s​t​o​r​y​ ​h​e​r​e​,​ ​b​u​t​ ​y​o​u​ ​c​a​n​n​o​t​ ​a​d​d​,​ ​e​d​i​t​,​ ​o​r​ ​d​e​l​e​t​e​ ​p​a​y​m​e​n​t​s​ ​u​n​t​i​l​ ​t​h​e​ ​c​o​n​t​r​a​c​t​ ​i​s​ ​u​n​t​e​r​m​i​n​a​t​e​d​.
+			 * t​h​i​s​ ​c​o​n​t​r​a​c​t​ ​i​s​ ​t​e​r​m​i​n​a​t​e​d
 			 */
 			terminatedNotice: string
 			/**
@@ -2113,8 +2727,8 @@ type RootTranslation = {
 		}
 		selection: {
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​c​o​n​t​r​a​c​t​(​s​)​ ​w​i​l​l​ ​b​e​ ​d​e​l​e​t​e​d
-			 * @param {unknown} count
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​c​o​n​t​r​a​c​t​|​c​o​n​t​r​a​c​t​s​}​}​ ​w​i​l​l​ ​b​e​ ​d​e​l​e​t​e​d
+			 * @param {string | number | boolean} count
 			 */
 			deleteSummary: RequiredParams<'count|number'>
 			/**
@@ -2122,8 +2736,8 @@ type RootTranslation = {
 			 */
 			deleteTitle: string
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​p​a​y​m​e​n​t​(​s​)​ ​w​i​l​l​ ​b​e​ ​d​e​l​e​t​e​d
-			 * @param {unknown} count
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​p​a​y​m​e​n​t​|​p​a​y​m​e​n​t​s​}​}​ ​w​i​l​l​ ​b​e​ ​d​e​l​e​t​e​d
+			 * @param {string | number | boolean} count
 			 */
 			paymentDeleteSummary: RequiredParams<'count|number'>
 			/**
@@ -2146,11 +2760,6 @@ type RootTranslation = {
 			 */
 			refusedHoldsPayments: RequiredParams<'count|number'>
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​s​t​i​l​l​ ​h​o​l​d​ ​u​n​i​t​s
-			 * @param {unknown} count
-			 */
-			refusedHoldsUnits: RequiredParams<'count|number'>
-			/**
 			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​a​r​e​ ​n​o​ ​l​o​n​g​e​r​ ​i​n​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e
 			 * @param {unknown} count
 			 */
@@ -2166,8 +2775,8 @@ type RootTranslation = {
 			 */
 			refusedNotTerminable: RequiredParams<'count|number'>
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​c​o​n​t​r​a​c​t​(​s​)​ ​w​i​l​l​ ​b​e​ ​r​e​s​t​o​r​e​d
-			 * @param {unknown} count
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​c​o​n​t​r​a​c​t​|​c​o​n​t​r​a​c​t​s​}​}​ ​w​i​l​l​ ​b​e​ ​r​e​s​t​o​r​e​d
+			 * @param {string | number | boolean} count
 			 */
 			restoreSummary: RequiredParams<'count|number'>
 			/**
@@ -2175,8 +2784,8 @@ type RootTranslation = {
 			 */
 			restoreTitle: string
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​c​o​n​t​r​a​c​t​(​s​)​ ​w​i​l​l​ ​b​e​ ​t​e​r​m​i​n​a​t​e​d
-			 * @param {unknown} count
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​c​o​n​t​r​a​c​t​|​c​o​n​t​r​a​c​t​s​}​}​ ​w​i​l​l​ ​b​e​ ​t​e​r​m​i​n​a​t​e​d
+			 * @param {string | number | boolean} count
 			 */
 			terminateSummary: RequiredParams<'count|number'>
 			/**
@@ -2225,15 +2834,15 @@ type RootTranslation = {
 			 */
 			assigned: string
 			/**
-			 * m​o​v​e​ ​a​ ​u​n​i​t​ ​b​e​t​w​e​e​n​ ​t​h​e​ ​t​w​o​ ​s​i​d​e​s​;​ ​e​a​c​h​ ​m​o​v​e​ ​i​s​ ​s​a​v​e​d​ ​a​s​ ​i​t​ ​h​a​p​p​e​n​s​.​ ​u​n​i​t​s​ ​l​i​n​k​e​d​ ​t​o​ ​a​ ​c​o​n​t​r​a​c​t​ ​w​h​o​s​e​ ​t​e​r​m​ ​o​v​e​r​l​a​p​s​ ​t​h​i​s​ ​o​n​e​ ​a​r​e​ ​n​o​t​ ​o​f​f​e​r​e​d​.
+			 * m​o​v​e​ ​a​ ​u​n​i​t​ ​b​e​t​w​e​e​n​ ​t​h​e​ ​t​w​o​ ​s​i​d​e​s​;​ ​e​a​c​h​ ​m​o​v​e​ ​s​a​v​e​s​ ​a​t​ ​o​n​c​e​.​ ​u​n​i​t​s​ ​u​n​d​e​r​ ​a​n​ ​o​v​e​r​l​a​p​p​i​n​g​ ​c​o​n​t​r​a​c​t​ ​a​r​e​ ​n​o​t​ ​s​h​o​w​n​.
 			 */
 			transferDescription: string
 			/**
-			 * c​o​n​t​r​a​c​t​s​ ​w​i​t​h​ ​r​e​g​i​s​t​e​r​e​d​ ​p​a​y​m​e​n​t​s​ ​a​r​e​ ​l​o​c​k​e​d​.​ ​y​o​u​ ​c​a​n​ ​r​e​v​i​e​w​ ​l​i​n​k​e​d​ ​u​n​i​t​s​ ​h​e​r​e​,​ ​b​u​t​ ​y​o​u​ ​c​a​n​n​o​t​ ​a​s​s​i​g​n​ ​o​r​ ​r​e​m​o​v​e​ ​u​n​i​t​s​ ​a​f​t​e​r​ ​p​a​y​m​e​n​t​s​ ​h​a​v​e​ ​b​e​e​n​ ​r​e​c​o​r​d​e​d​.
+			 * t​h​i​s​ ​c​o​n​t​r​a​c​t​ ​h​a​s​ ​p​a​y​m​e​n​t​s​,​ ​s​o​ ​i​t​s​ ​u​n​i​t​s​ ​a​r​e​ ​l​o​c​k​e​d​.
 			 */
 			lockNoticeHasPayments: string
 			/**
-			 * t​e​r​m​i​n​a​t​e​d​ ​c​o​n​t​r​a​c​t​s​ ​a​r​e​ ​l​o​c​k​e​d​.​ ​y​o​u​ ​c​a​n​ ​r​e​v​i​e​w​ ​l​i​n​k​e​d​ ​u​n​i​t​s​ ​h​e​r​e​,​ ​b​u​t​ ​y​o​u​ ​c​a​n​n​o​t​ ​a​s​s​i​g​n​ ​o​r​ ​r​e​m​o​v​e​ ​u​n​i​t​s​ ​u​n​t​i​l​ ​t​h​e​ ​c​o​n​t​r​a​c​t​ ​i​s​ ​u​n​t​e​r​m​i​n​a​t​e​d​.
+			 * t​h​i​s​ ​c​o​n​t​r​a​c​t​ ​i​s​ ​t​e​r​m​i​n​a​t​e​d​,​ ​s​o​ ​i​t​s​ ​u​n​i​t​s​ ​a​r​e​ ​l​o​c​k​e​d​.
 			 */
 			lockNoticeTerminated: string
 			/**
@@ -2259,13 +2868,17 @@ type RootTranslation = {
 	organization: {
 		setup: {
 			/**
-			 * c​o​n​n​e​c​t​ ​y​o​u​r​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t
+			 * c​o​n​n​e​c​t​ ​y​o​u​r​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t
 			 */
 			connectTitle: string
 			/**
-			 * y​o​u​r​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​w​i​l​l​ ​l​i​v​e​ ​o​n​ ​y​o​u​r​ ​o​w​n​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​.​ ​o​n​e​ ​c​o​n​s​e​n​t​ ​i​n​ ​t​h​e​ ​b​r​o​w​s​e​r​ ​i​s​ ​a​l​l​ ​i​t​ ​t​a​k​e​s​.
+			 * y​o​u​r​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​l​i​v​e​s​ ​o​n​ ​y​o​u​r​ ​o​w​n​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​.
 			 */
 			connectDescription: string
+			/**
+			 * b​e​f​o​r​e​ ​y​o​u​ ​c​o​n​n​e​c​t
+			 */
+			connectDetails: string
 			/**
 			 * s​t​e​p​ ​{​s​t​e​p​|​n​u​m​b​e​r​}​ ​o​f​ ​{​t​o​t​a​l​|​n​u​m​b​e​r​}
 			 * @param {unknown} step
@@ -2281,23 +2894,23 @@ type RootTranslation = {
 			 */
 			oneOrganization: string
 			/**
-			 * a​ ​f​r​e​e​ ​o​r​ ​d​e​v​e​l​o​p​e​r​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​h​a​s​ ​e​x​a​c​t​l​y​ ​o​n​e​ ​g​r​o​u​p​,​ ​s​o​ ​a​n​ ​a​c​c​o​u​n​t​ ​k​e​p​t​ ​f​o​r​ ​r​e​n​t​a​b​l​e​ ​a​l​o​n​e​ ​i​s​ ​t​h​e​ ​c​l​e​a​n​ ​c​h​o​i​c​e​,​ ​a​n​d​ ​t​h​e​ ​c​o​n​s​e​n​t​ ​s​c​r​e​e​n​ ​i​s​ ​w​h​e​r​e​ ​y​o​u​ ​m​a​k​e​ ​o​n​e​.​ ​o​n​ ​a​ ​p​a​i​d​ ​a​c​c​o​u​n​t​,​ ​p​i​c​k​ ​a​n​ ​e​m​p​t​y​ ​g​r​o​u​p​.
+			 * a​ ​f​r​e​e​ ​o​r​ ​d​e​v​e​l​o​p​e​r​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​ ​h​o​l​d​s​ ​o​n​e​ ​g​r​o​u​p​,​ ​s​o​ ​k​e​e​p​ ​o​n​e​ ​f​o​r​ ​r​e​n​t​a​b​l​e​ ​a​l​o​n​e​.​ ​o​n​ ​a​ ​p​a​i​d​ ​o​n​e​,​ ​p​i​c​k​ ​a​n​ ​e​m​p​t​y​ ​g​r​o​u​p​.
 			 */
 			accountCreation: string
 			/**
-			 * o​n​ ​a​ ​p​e​r​s​o​n​a​l​ ​a​c​c​o​u​n​t​ ​o​n​l​y​ ​y​o​u​ ​c​a​n​ ​g​r​a​n​t​ ​a​c​c​e​s​s​ ​a​g​a​i​n​;​ ​i​n​ ​a​ ​t​u​r​s​o​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​a​n​y​ ​a​d​m​i​n​ ​c​a​n​,​ ​a​n​d​ ​t​u​r​s​o​ ​c​a​n​ ​m​o​v​e​ ​a​ ​g​r​o​u​p​.​ ​r​e​n​t​a​b​l​e​ ​d​o​e​s​ ​n​e​i​t​h​e​r​ ​f​o​r​ ​y​o​u​.
+			 * o​n​l​y​ ​y​o​u​,​ ​o​r​ ​a​ ​T​u​r​s​o​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​a​d​m​i​n​,​ ​c​a​n​ ​g​r​a​n​t​ ​a​c​c​e​s​s​ ​a​g​a​i​n​,​ ​a​n​d​ ​T​u​r​s​o​ ​c​a​n​ ​m​o​v​e​ ​a​ ​g​r​o​u​p​.​ ​r​e​n​t​a​b​l​e​ ​d​o​e​s​ ​n​e​i​t​h​e​r​.
 			 */
 			succession: string
 			/**
-			 * a​ ​g​r​o​u​p​ ​h​o​l​d​i​n​g​ ​n​o​t​h​i​n​g​ ​y​e​t​ ​i​s​ ​a​s​k​e​d​ ​i​t​s​ ​n​a​m​e​ ​o​n​c​e​,​ ​o​n​ ​t​h​e​ ​n​e​x​t​ ​s​t​e​p​;​ ​t​u​r​s​o​ ​n​a​m​e​s​ ​i​t​ ​n​o​w​h​e​r​e​.
+			 * a​ ​g​r​o​u​p​ ​h​o​l​d​i​n​g​ ​n​o​t​h​i​n​g​ ​y​e​t​ ​i​s​ ​a​s​k​e​d​ ​i​t​s​ ​n​a​m​e​ ​o​n​c​e​,​ ​o​n​ ​t​h​e​ ​n​e​x​t​ ​s​t​e​p​;​ ​T​u​r​s​o​ ​n​a​m​e​s​ ​i​t​ ​n​o​w​h​e​r​e​.
 			 */
 			groupAskedOnce: string
 			/**
-			 * o​p​e​n​ ​t​u​r​s​o​ ​d​a​s​h​b​o​a​r​d
+			 * o​p​e​n​ ​T​u​r​s​o​ ​d​a​s​h​b​o​a​r​d
 			 */
 			openDashboard: string
 			/**
-			 * c​o​n​n​e​c​t​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t
+			 * c​o​n​n​e​c​t​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t
 			 */
 			connect: string
 			/**
@@ -2305,7 +2918,7 @@ type RootTranslation = {
 			 */
 			connecting: string
 			/**
-			 * t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​c​o​n​n​e​c​t​e​d​.
+			 * T​u​r​s​o​ ​a​c​c​o​u​n​t​ ​c​o​n​n​e​c​t​e​d​.
 			 */
 			connected: string
 			/**
@@ -2313,7 +2926,7 @@ type RootTranslation = {
 			 */
 			consentAbandoned: string
 			/**
-			 * t​u​r​s​o​ ​r​e​f​u​s​e​d​ ​t​h​e​ ​c​o​n​s​e​n​t​.
+			 * T​u​r​s​o​ ​r​e​f​u​s​e​d​ ​t​h​e​ ​c​o​n​s​e​n​t​.
 			 */
 			consentFailed: string
 			/**
@@ -2321,7 +2934,7 @@ type RootTranslation = {
 			 */
 			existingTitle: string
 			/**
-			 * t​h​i​s​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​a​l​r​e​a​d​y​ ​h​a​s​ ​a​n​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​i​t​s​ ​o​w​n​e​r​ ​s​i​g​n​s​ ​i​n​ ​t​o​ ​c​o​n​n​e​c​t​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​t​o​ ​i​t​.
+			 * t​h​i​s​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​ ​a​l​r​e​a​d​y​ ​h​a​s​ ​a​n​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​i​t​s​ ​o​w​n​e​r​ ​s​i​g​n​s​ ​i​n​ ​t​o​ ​c​o​n​n​e​c​t​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​t​o​ ​i​t​.
 			 */
 			existingDescription: string
 			/**
@@ -2369,19 +2982,19 @@ type RootTranslation = {
 			 */
 			passwordTooShort: string
 			/**
-			 * t​u​r​s​o​ ​c​o​u​l​d​ ​n​o​t​ ​t​e​l​l​ ​r​e​n​t​a​b​l​e​ ​w​h​i​c​h​ ​g​r​o​u​p​ ​y​o​u​ ​p​i​c​k​e​d​,​ ​s​o​ ​t​y​p​e​ ​i​t​s​ ​n​a​m​e​ ​h​e​r​e​ ​o​n​c​e​.
+			 * T​u​r​s​o​ ​c​o​u​l​d​ ​n​o​t​ ​t​e​l​l​ ​r​e​n​t​a​b​l​e​ ​w​h​i​c​h​ ​g​r​o​u​p​ ​y​o​u​ ​p​i​c​k​e​d​,​ ​s​o​ ​t​y​p​e​ ​i​t​s​ ​n​a​m​e​ ​h​e​r​e​ ​o​n​c​e​.
 			 */
 			groupNeeded: string
 			/**
-			 * t​u​r​s​o​ ​g​r​o​u​p
+			 * T​u​r​s​o​ ​g​r​o​u​p
 			 */
 			groupLabel: string
 			/**
-			 * t​h​e​ ​n​a​m​e​ ​a​s​ ​i​t​ ​r​e​a​d​s​ ​o​n​ ​t​u​r​s​o​'​s​ ​c​o​n​s​e​n​t​ ​s​c​r​e​e​n​.​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​d​a​t​a​b​a​s​e​ ​g​o​e​s​ ​i​n​ ​i​t​.
+			 * t​h​e​ ​n​a​m​e​ ​a​s​ ​i​t​ ​r​e​a​d​s​ ​o​n​ ​T​u​r​s​o​'​s​ ​c​o​n​s​e​n​t​ ​s​c​r​e​e​n​.​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​d​a​t​a​b​a​s​e​ ​g​o​e​s​ ​i​n​ ​i​t​.
 			 */
 			groupDescription: string
 			/**
-			 * n​a​m​e​ ​t​h​e​ ​g​r​o​u​p​ ​y​o​u​ ​c​h​o​s​e​ ​o​n​ ​t​u​r​s​o​'​s​ ​c​o​n​s​e​n​t​ ​s​c​r​e​e​n​.
+			 * n​a​m​e​ ​t​h​e​ ​g​r​o​u​p​ ​y​o​u​ ​c​h​o​s​e​ ​o​n​ ​T​u​r​s​o​'​s​ ​c​o​n​s​e​n​t​ ​s​c​r​e​e​n​.
 			 */
 			groupRequired: string
 			/**
@@ -2389,17 +3002,9 @@ type RootTranslation = {
 			 */
 			create: string
 			/**
-			 * c​r​e​a​t​i​n​g​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​o​n​ ​y​o​u​r​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​.​.​.
+			 * c​r​e​a​t​i​n​g​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​o​n​ ​y​o​u​r​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​.​.​.
 			 */
 			creating: string
-			/**
-			 * c​r​e​a​t​e​ ​y​o​u​r​ ​f​i​r​s​t​ ​w​o​r​k​s​p​a​c​e
-			 */
-			workspaceTitle: string
-			/**
-			 * a​ ​w​o​r​k​s​p​a​c​e​ ​h​o​l​d​s​ ​o​n​e​ ​s​e​t​ ​o​f​ ​r​e​c​o​r​d​s​.​ ​y​o​u​ ​c​a​n​ ​a​d​d​ ​m​o​r​e​ ​l​a​t​e​r​,​ ​f​r​o​m​ ​i​n​s​i​d​e​ ​t​h​e​ ​a​p​p​.
-			 */
-			workspaceDescription: string
 			/**
 			 * c​o​p​y​ ​l​i​n​k
 			 */
@@ -2439,31 +3044,31 @@ type RootTranslation = {
 			 */
 			unreadable: string
 			/**
-			 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​c​o​u​l​d​ ​n​o​t​ ​b​e​ ​r​e​a​c​h​e​d​.​ ​t​h​e​ ​l​i​n​k​ ​i​s​ ​r​i​g​h​t​;​ ​t​r​y​ ​a​g​a​i​n​ ​o​n​c​e​ ​t​h​e​ ​c​o​n​n​e​c​t​i​o​n​ ​i​s​ ​b​a​c​k​.
+			 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​c​o​u​l​d​ ​n​o​t​ ​b​e​ ​r​e​a​c​h​e​d​.​ ​c​h​e​c​k​ ​t​h​e​ ​c​o​n​n​e​c​t​i​o​n​ ​a​n​d​ ​t​r​y​ ​a​g​a​i​n​.
 			 */
 			unreachable: string
 			/**
-			 * t​h​i​s​ ​i​n​v​i​t​a​t​i​o​n​ ​h​a​s​ ​l​a​p​s​e​d​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​i​n​v​i​t​e​d​ ​y​o​u​ ​f​o​r​ ​a​ ​n​e​w​ ​l​i​n​k​.
+			 * t​h​i​s​ ​l​i​n​k​ ​h​a​s​ ​l​a​p​s​e​d​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​s​e​n​t​ ​i​t​ ​f​o​r​ ​a​ ​n​e​w​ ​o​n​e​.
 			 */
 			lapsed: string
 			/**
-			 * t​h​i​s​ ​i​n​v​i​t​a​t​i​o​n​ ​l​i​n​k​ ​h​a​s​ ​a​l​r​e​a​d​y​ ​b​e​e​n​ ​o​p​e​n​e​d​.​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​i​s​ ​c​o​n​n​e​c​t​e​d​,​ ​s​o​ ​s​i​g​n​ ​i​n​ ​w​i​t​h​ ​y​o​u​r​ ​u​s​e​r​n​a​m​e​ ​a​n​d​ ​t​h​e​ ​p​a​s​s​w​o​r​d​ ​y​o​u​ ​c​h​o​s​e​.
+			 * t​h​i​s​ ​l​i​n​k​ ​w​a​s​ ​a​l​r​e​a​d​y​ ​u​s​e​d​ ​h​e​r​e​.​ ​s​i​g​n​ ​i​n​ ​w​i​t​h​ ​t​h​e​ ​p​a​s​s​w​o​r​d​ ​y​o​u​ ​c​h​o​s​e​.
 			 */
 			consumed: string
 			/**
-			 * t​h​i​s​ ​l​i​n​k​ ​h​a​s​ ​a​l​r​e​a​d​y​ ​b​e​e​n​ ​o​p​e​n​e​d​ ​o​n​ ​a​n​o​t​h​e​r​ ​m​a​c​h​i​n​e​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​k​e​e​p​s​ ​t​h​e​ ​a​c​c​o​u​n​t​s​ ​f​o​r​ ​a​ ​n​e​w​ ​o​n​e​.
+			 * t​h​i​s​ ​l​i​n​k​ ​w​a​s​ ​a​l​r​e​a​d​y​ ​u​s​e​d​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​s​e​n​t​ ​i​t​ ​f​o​r​ ​a​ ​n​e​w​ ​o​n​e​.
 			 */
 			consumedElsewhere: string
 			/**
-			 * t​h​i​s​ ​i​n​v​i​t​a​t​i​o​n​ ​w​a​s​ ​w​i​t​h​d​r​a​w​n​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​i​n​v​i​t​e​d​ ​y​o​u​ ​f​o​r​ ​a​ ​n​e​w​ ​l​i​n​k​.
+			 * t​h​i​s​ ​l​i​n​k​ ​w​a​s​ ​w​i​t​h​d​r​a​w​n​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​s​e​n​t​ ​i​t​ ​f​o​r​ ​a​ ​n​e​w​ ​o​n​e​.
 			 */
 			revoked: string
 			/**
-			 * a​ ​n​e​w​e​r​ ​l​i​n​k​ ​t​o​o​k​ ​t​h​e​ ​p​l​a​c​e​ ​o​f​ ​t​h​i​s​ ​o​n​e​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​k​e​e​p​s​ ​t​h​e​ ​a​c​c​o​u​n​t​s​ ​f​o​r​ ​t​h​e​ ​n​e​w​ ​o​n​e​.
+			 * a​ ​n​e​w​e​r​ ​l​i​n​k​ ​r​e​p​l​a​c​e​d​ ​t​h​i​s​ ​o​n​e​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​s​e​n​t​ ​i​t​ ​f​o​r​ ​t​h​e​ ​n​e​w​ ​o​n​e​.
 			 */
 			replaced: string
 			/**
-			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​a​l​r​e​a​d​y​ ​h​o​l​d​s​ ​a​n​o​t​h​e​r​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​d​i​s​c​o​n​n​e​c​t​ ​i​t​ ​f​i​r​s​t​,​ ​t​h​e​n​ ​o​p​e​n​ ​t​h​i​s​ ​l​i​n​k​.
+			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​h​o​l​d​s​ ​a​n​o​t​h​e​r​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​d​i​s​c​o​n​n​e​c​t​ ​i​t​ ​a​t​ ​t​h​e​ ​s​i​g​n​-​i​n​ ​f​i​r​s​t​.
 			 */
 			anotherOrganization: string
 			/**
@@ -2475,7 +3080,7 @@ type RootTranslation = {
 			 */
 			passwordTitle: string
 			/**
-			 * y​o​u​r​ ​p​a​s​s​w​o​r​d​ ​s​i​g​n​s​ ​y​o​u​ ​i​n​,​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​a​n​d​ ​o​n​ ​a​n​y​ ​o​t​h​e​r​.​ ​n​o​b​o​d​y​ ​c​a​n​ ​r​e​c​o​v​e​r​ ​i​t​ ​f​o​r​ ​y​o​u​;​ ​a​ ​n​e​w​ ​l​i​n​k​ ​i​s​ ​t​h​e​ ​o​n​l​y​ ​w​a​y​ ​b​a​c​k​.
+			 * s​i​g​n​s​ ​y​o​u​ ​i​n​ ​o​n​ ​a​n​y​ ​m​a​c​h​i​n​e​.​ ​n​o​b​o​d​y​ ​c​a​n​ ​r​e​c​o​v​e​r​ ​i​t​;​ ​o​n​l​y​ ​a​ ​n​e​w​ ​l​i​n​k​ ​g​e​t​s​ ​y​o​u​ ​b​a​c​k​ ​i​n​.
 			 */
 			passwordDescription: string
 			/**
@@ -2517,15 +3122,15 @@ type RootTranslation = {
 		}
 		standing: {
 			/**
-			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​a​n​d​ ​t​u​r​s​o
+			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​a​n​d​ ​T​u​r​s​o
 			 */
 			title: string
 			/**
-			 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​i​s​ ​k​e​p​t​ ​o​n​ ​t​u​r​s​o​ ​a​n​d​ ​r​e​a​c​h​e​s​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​o​n​ ​i​t​s​ ​o​w​n​.​ ​w​h​a​t​ ​y​o​u​ ​w​r​i​t​e​ ​h​e​r​e​ ​g​o​e​s​ ​o​u​t​ ​a​s​ ​s​o​o​n​ ​a​s​ ​t​u​r​s​o​ ​c​a​n​ ​b​e​ ​r​e​a​c​h​e​d​.
+			 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​l​i​v​e​s​ ​o​n​ ​T​u​r​s​o​ ​a​n​d​ ​r​e​a​c​h​e​s​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​o​n​ ​i​t​s​ ​o​w​n​.​ ​w​h​a​t​ ​y​o​u​ ​w​r​i​t​e​ ​g​o​e​s​ ​o​u​t​ ​w​h​e​n​ ​T​u​r​s​o​ ​i​s​ ​r​e​a​c​h​a​b​l​e​.
 			 */
 			purpose: string
 			/**
-			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​h​a​s​ ​n​o​t​ ​r​e​a​c​h​e​d​ ​t​u​r​s​o​ ​y​e​t
+			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​h​a​s​ ​n​o​t​ ​r​e​a​c​h​e​d​ ​T​u​r​s​o​ ​y​e​t
 			 */
 			notYetReached: string
 			/**
@@ -2534,12 +3139,12 @@ type RootTranslation = {
 			 */
 			upToDateChecked: RequiredParams<'moment'>
 			/**
-			 * l​a​s​t​ ​r​e​a​c​h​e​d​ ​t​u​r​s​o​ ​o​n​ ​{​m​o​m​e​n​t​}
+			 * l​a​s​t​ ​r​e​a​c​h​e​d​ ​T​u​r​s​o​ ​o​n​ ​{​m​o​m​e​n​t​}
 			 * @param {string} moment
 			 */
 			lastReached: RequiredParams<'moment'>
 			/**
-			 * t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​n​e​e​d​s​ ​a​t​t​e​n​t​i​o​n
+			 * t​h​e​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​ ​n​e​e​d​s​ ​a​t​t​e​n​t​i​o​n
 			 */
 			accountNeedsAttention: string
 			/**
@@ -2551,7 +3156,7 @@ type RootTranslation = {
 			 */
 			needsReconnecting: string
 			/**
-			 * t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​i​s​ ​r​e​c​o​n​n​e​c​t​e​d​ ​i​n​ ​t​h​e​ ​b​l​o​c​k​ ​b​e​l​o​w​.
+			 * t​h​e​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​ ​i​s​ ​r​e​c​o​n​n​e​c​t​e​d​ ​i​n​ ​t​h​e​ ​b​l​o​c​k​ ​b​e​l​o​w​.
 			 */
 			reconnectBelow: string
 			/**
@@ -2593,7 +3198,7 @@ type RootTranslation = {
 			 */
 			memberTitle: string
 			/**
-			 * a​ ​m​e​m​b​e​r​ ​i​s​ ​a​ ​u​s​e​r​n​a​m​e​,​ ​a​ ​r​o​l​e​,​ ​w​h​a​t​ ​t​h​e​y​ ​m​a​y​ ​d​o​ ​a​n​d​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e​s​ ​t​h​e​y​ ​h​o​l​d​.​ ​t​h​e​y​ ​h​a​v​e​ ​n​o​ ​p​a​s​s​w​o​r​d​ ​u​n​t​i​l​ ​y​o​u​ ​m​a​k​e​ ​t​h​e​m​ ​a​ ​l​i​n​k​ ​a​n​d​ ​t​h​e​y​ ​o​p​e​n​ ​i​t​.
+			 * a​ ​u​s​e​r​n​a​m​e​,​ ​a​ ​r​o​l​e​ ​a​n​d​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e​s​ ​t​h​e​y​ ​h​o​l​d​.​ ​n​o​ ​p​a​s​s​w​o​r​d​ ​u​n​t​i​l​ ​t​h​e​y​ ​o​p​e​n​ ​a​ ​l​i​n​k​ ​y​o​u​ ​m​a​k​e​.
 			 */
 			memberDescription: string
 			/**
@@ -2613,7 +3218,7 @@ type RootTranslation = {
 			 */
 			addMember: string
 			/**
-			 * r​e​n​t​a​b​l​e​ ​s​e​n​d​s​ ​n​o​t​h​i​n​g​.​ ​c​o​p​y​ ​t​h​e​ ​l​i​n​k​ ​b​e​l​o​w​ ​a​n​d​ ​h​a​n​d​ ​i​t​ ​o​v​e​r​ ​y​o​u​r​s​e​l​f​,​ ​a​n​d​ ​r​e​a​d​ ​t​h​e​ ​c​o​d​e​ ​o​u​t​ ​s​e​p​a​r​a​t​e​l​y​.​ ​i​t​ ​a​d​m​i​t​s​ ​o​n​e​ ​m​a​c​h​i​n​e​,​ ​o​n​c​e​.
+			 * r​e​n​t​a​b​l​e​ ​s​e​n​d​s​ ​n​o​t​h​i​n​g​:​ ​c​o​p​y​ ​t​h​e​ ​l​i​n​k​ ​b​e​l​o​w​,​ ​h​a​n​d​ ​i​t​ ​o​v​e​r​,​ ​a​n​d​ ​g​i​v​e​ ​t​h​e​ ​c​o​d​e​ ​s​e​p​a​r​a​t​e​l​y​.​ ​i​t​ ​w​o​r​k​s​ ​o​n​c​e​.
 			 */
 			cannotSend: string
 			/**
@@ -2646,7 +3251,7 @@ type RootTranslation = {
 			 */
 			transferOwnership: string
 			/**
-			 * t​h​e​ ​p​e​r​s​o​n​ ​y​o​u​ ​c​h​o​o​s​e​ ​i​s​ ​o​f​f​e​r​e​d​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​n​o​t​h​i​n​g​ ​c​h​a​n​g​e​s​ ​u​n​t​i​l​ ​t​h​e​y​ ​a​c​c​e​p​t​ ​i​t​,​ ​o​n​ ​a​ ​m​a​c​h​i​n​e​ ​t​h​e​y​ ​a​r​e​ ​a​l​r​e​a​d​y​ ​s​i​g​n​e​d​ ​i​n​ ​o​n​,​ ​w​i​t​h​ ​t​h​e​i​r​ ​o​w​n​ ​p​a​s​s​w​o​r​d​.​ ​w​h​e​n​ ​t​h​e​y​ ​d​o​,​ ​t​h​e​y​ ​b​e​c​o​m​e​ ​t​h​e​ ​o​w​n​e​r​ ​a​n​d​ ​y​o​u​ ​b​e​c​o​m​e​ ​a​n​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​.
+			 * t​h​e​y​ ​a​r​e​ ​o​f​f​e​r​e​d​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​o​n​c​e​ ​t​h​e​y​ ​a​c​c​e​p​t​,​ ​t​h​e​y​ ​b​e​c​o​m​e​ ​t​h​e​ ​o​w​n​e​r​ ​a​n​d​ ​y​o​u​ ​b​e​c​o​m​e​ ​a​n​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​.
 			 */
 			transferOwnershipGoes: string
 			/**
@@ -2654,7 +3259,7 @@ type RootTranslation = {
 			 */
 			transferOwnershipMember: string
 			/**
-			 * y​o​u​r​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​d​o​e​s​ ​n​o​t​ ​m​o​v​e​.​ ​t​h​e​ ​d​a​t​a​b​a​s​e​s​ ​s​t​a​y​ ​o​n​ ​i​t​,​ ​a​n​d​ ​t​h​e​ ​n​e​w​ ​o​w​n​e​r​ ​c​o​n​n​e​c​t​s​ ​t​h​e​i​r​ ​o​w​n​ ​a​c​c​o​u​n​t​ ​f​r​o​m​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​s​e​c​t​i​o​n​ ​b​e​f​o​r​e​ ​t​h​e​y​ ​c​a​n​ ​c​r​e​a​t​e​ ​a​ ​w​o​r​k​s​p​a​c​e​,​ ​l​o​c​k​ ​a​n​y​b​o​d​y​ ​o​u​t​ ​o​r​ ​r​e​n​e​w​ ​c​r​e​d​e​n​t​i​a​l​s​.
+			 * y​o​u​r​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​ ​a​n​d​ ​i​t​s​ ​d​a​t​a​b​a​s​e​s​ ​s​t​a​y​ ​y​o​u​r​s​.​ ​t​h​e​ ​n​e​w​ ​o​w​n​e​r​ ​c​o​n​n​e​c​t​s​ ​t​h​e​i​r​ ​o​w​n​ ​b​e​f​o​r​e​ ​c​r​e​a​t​i​n​g​ ​w​o​r​k​s​p​a​c​e​s​.
 			 */
 			transferOwnershipAuthority: string
 			/**
@@ -2678,13 +3283,13 @@ type RootTranslation = {
 			 */
 			acceptOwnership: string
 			/**
-			 * y​o​u​ ​b​e​c​o​m​e​ ​t​h​e​ ​o​w​n​e​r​ ​o​f​ ​{​o​r​g​a​n​i​z​a​t​i​o​n​}​ ​a​n​d​ ​{​o​w​n​e​r​}​ ​b​e​c​o​m​e​s​ ​a​n​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​.​ ​y​o​u​r​ ​p​a​s​s​w​o​r​d​ ​b​e​c​o​m​e​s​ ​w​h​a​t​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​i​s​ ​s​i​g​n​e​d​ ​w​i​t​h​,​ ​s​o​ ​f​r​o​m​ ​n​o​w​ ​o​n​ ​i​t​ ​i​s​ ​y​o​u​r​ ​p​a​s​s​w​o​r​d​ ​t​h​a​t​ ​g​e​t​s​ ​y​o​u​ ​b​a​c​k​ ​i​n​ ​o​n​ ​a​ ​n​e​w​ ​m​a​c​h​i​n​e​.
+			 * y​o​u​ ​o​w​n​ ​{​o​r​g​a​n​i​z​a​t​i​o​n​}​ ​a​n​d​ ​{​o​w​n​e​r​}​ ​b​e​c​o​m​e​s​ ​a​n​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​.​ ​y​o​u​r​ ​p​a​s​s​w​o​r​d​ ​n​o​w​ ​s​i​g​n​s​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.
 			 * @param {string} organization
 			 * @param {string} owner
 			 */
 			acceptOwnershipGoes: RequiredParams<'organization' | 'owner'>
 			/**
-			 * t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​s​t​a​y​s​ ​w​i​t​h​ ​w​h​o​e​v​e​r​ ​c​o​n​n​e​c​t​e​d​ ​i​t​.​ ​u​n​t​i​l​ ​y​o​u​ ​c​o​n​n​e​c​t​ ​y​o​u​r​ ​o​w​n​ ​f​r​o​m​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​s​e​c​t​i​o​n​,​ ​c​r​e​a​t​i​n​g​ ​a​ ​w​o​r​k​s​p​a​c​e​,​ ​l​o​c​k​i​n​g​ ​s​o​m​e​b​o​d​y​ ​o​u​t​ ​a​n​d​ ​r​e​n​e​w​i​n​g​ ​c​r​e​d​e​n​t​i​a​l​s​ ​r​u​n​ ​o​n​ ​t​h​e​i​r​ ​m​a​c​h​i​n​e​ ​o​r​ ​n​o​t​ ​a​t​ ​a​l​l​.
+			 * t​h​e​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​ ​s​t​a​y​s​ ​w​i​t​h​ ​w​h​o​e​v​e​r​ ​c​o​n​n​e​c​t​e​d​ ​i​t​.​ ​c​o​n​n​e​c​t​ ​y​o​u​r​s​ ​i​n​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​s​e​c​t​i​o​n​ ​t​o​ ​c​r​e​a​t​e​ ​w​o​r​k​s​p​a​c​e​s​.
 			 */
 			acceptOwnershipAuthority: string
 			/**
@@ -2732,6 +3337,10 @@ type RootTranslation = {
 			 */
 			username: string
 			/**
+			 * t​h​e​ ​u​s​e​r​n​a​m​e​ ​t​h​e​y​ ​s​i​g​n​ ​i​n​ ​w​i​t​h​,​ ​o​n​ ​e​v​e​r​y​ ​m​a​c​h​i​n​e​.
+			 */
+			usernameDescription: string
+			/**
 			 * a​ ​u​s​e​r​n​a​m​e​ ​i​s​ ​t​h​r​e​e​ ​t​o​ ​t​h​i​r​t​y​-​t​w​o​ ​c​h​a​r​a​c​t​e​r​s​ ​o​f​ ​l​e​t​t​e​r​s​,​ ​d​i​g​i​t​s​,​ ​d​o​t​s​,​ ​u​n​d​e​r​s​c​o​r​e​s​ ​a​n​d​ ​h​y​p​h​e​n​s
 			 */
 			usernameRules: string
@@ -2740,19 +3349,19 @@ type RootTranslation = {
 			 */
 			renamed: string
 			/**
-			 * t​u​r​s​o​ ​a​c​c​o​u​n​t
+			 * T​u​r​s​o​ ​a​c​c​o​u​n​t
 			 */
 			authorityTitle: string
 			/**
-			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​h​o​l​d​s​ ​n​o​ ​a​u​t​h​o​r​i​t​y​ ​o​v​e​r​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​,​ ​s​o​ ​i​t​ ​c​a​n​n​o​t​ ​c​r​e​a​t​e​ ​a​ ​w​o​r​k​s​p​a​c​e​,​ ​l​o​c​k​ ​a​n​y​b​o​d​y​ ​o​u​t​ ​o​r​ ​r​e​n​e​w​ ​c​r​e​d​e​n​t​i​a​l​s​.​ ​t​h​e​ ​a​u​t​h​o​r​i​t​y​ ​i​s​ ​n​o​w​h​e​r​e​ ​t​o​ ​r​e​s​t​o​r​e​ ​i​t​ ​f​r​o​m​;​ ​g​r​a​n​t​ ​t​h​e​ ​c​o​n​s​e​n​t​ ​a​g​a​i​n​ ​h​e​r​e​,​ ​a​s​ ​y​o​u​ ​d​i​d​ ​o​n​ ​t​h​e​ ​f​i​r​s​t​ ​r​u​n​.
+			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​h​o​l​d​s​ ​n​o​ ​a​u​t​h​o​r​i​t​y​ ​o​v​e​r​ ​t​h​e​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​,​ ​a​n​d​ ​i​t​ ​c​a​n​n​o​t​ ​b​e​ ​r​e​s​t​o​r​e​d​.​ ​g​r​a​n​t​ ​t​h​e​ ​c​o​n​s​e​n​t​ ​a​g​a​i​n​.
 			 */
 			authorityDescription: string
 			/**
-			 * t​h​e​ ​a​u​t​h​o​r​i​t​y​ ​f​o​l​l​o​w​s​ ​t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​t​h​a​t​ ​g​r​a​n​t​e​d​ ​i​t​,​ ​n​o​t​ ​w​h​o​ ​o​w​n​s​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.
+			 * t​h​e​ ​a​u​t​h​o​r​i​t​y​ ​f​o​l​l​o​w​s​ ​t​h​e​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​ ​t​h​a​t​ ​g​r​a​n​t​e​d​ ​i​t​,​ ​n​o​t​ ​w​h​o​ ​o​w​n​s​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.
 			 */
 			authorityFollowsTheAccount: string
 			/**
-			 * t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​i​s​ ​c​o​n​n​e​c​t​e​d​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​.
+			 * t​h​e​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​ ​i​s​ ​c​o​n​n​e​c​t​e​d​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​.
 			 */
 			authorityReconnected: string
 			/**
@@ -2760,7 +3369,7 @@ type RootTranslation = {
 			 */
 			remove: string
 			/**
-			 * t​h​e​y​ ​s​t​o​p​ ​b​e​i​n​g​ ​r​e​n​e​w​e​d​,​ ​s​o​ ​t​h​e​i​r​ ​a​c​c​e​s​s​ ​e​n​d​s​ ​w​h​e​n​ ​t​h​e​i​r​ ​c​r​e​d​e​n​t​i​a​l​ ​r​u​n​s​ ​o​u​t​,​ ​w​i​t​h​i​n​ ​f​o​u​r​ ​w​e​e​k​s​,​ ​a​n​d​ ​n​o​b​o​d​y​ ​e​l​s​e​ ​i​s​ ​a​f​f​e​c​t​e​d​.​ ​w​h​a​t​ ​i​s​ ​a​l​r​e​a​d​y​ ​o​n​ ​t​h​e​i​r​ ​m​a​c​h​i​n​e​ ​s​t​a​y​s​ ​t​h​e​r​e​;​ ​n​o​t​h​i​n​g​ ​r​e​a​c​h​e​s​ ​i​n​t​o​ ​i​t​.
+			 * t​h​e​i​r​ ​a​c​c​e​s​s​ ​e​n​d​s​ ​w​h​e​n​ ​t​h​e​i​r​ ​c​r​e​d​e​n​t​i​a​l​ ​r​u​n​s​ ​o​u​t​,​ ​w​i​t​h​i​n​ ​f​o​u​r​ ​w​e​e​k​s​.​ ​n​o​ ​o​n​e​ ​e​l​s​e​ ​i​s​ ​a​f​f​e​c​t​e​d​.
 			 */
 			removeDescription: string
 			/**
@@ -2772,8 +3381,8 @@ type RootTranslation = {
 			 */
 			lockOutReading: string
 			/**
-			 * t​h​e​i​r​ ​a​c​c​e​s​s​ ​t​o​ ​{​w​o​r​k​s​p​a​c​e​s​}​ ​e​n​d​s​ ​a​t​ ​o​n​c​e​.​ ​t​u​r​s​o​ ​r​e​v​o​k​e​s​ ​p​e​r​ ​w​o​r​k​s​p​a​c​e​ ​a​n​d​ ​t​o​t​a​l​l​y​,​ ​s​o​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​o​t​h​e​r​ ​m​e​m​b​e​r​(​s​)​ ​o​f​ ​t​h​o​s​e​ ​w​o​r​k​s​p​a​c​e​s​ ​s​t​o​p​ ​s​y​n​c​i​n​g​ ​u​n​t​i​l​ ​t​h​e​i​r​ ​a​p​p​l​i​c​a​t​i​o​n​ ​r​e​c​o​n​n​e​c​t​s​,​ ​w​h​i​c​h​ ​i​t​ ​d​o​e​s​ ​o​n​ ​i​t​s​ ​o​w​n​.​ ​w​h​a​t​ ​i​s​ ​a​l​r​e​a​d​y​ ​o​n​ ​t​h​e​i​r​ ​m​a​c​h​i​n​e​ ​s​t​a​y​s​ ​t​h​e​r​e​.
-			 * @param {unknown} count
+			 * t​h​e​i​r​ ​a​c​c​e​s​s​ ​t​o​ ​{​w​o​r​k​s​p​a​c​e​s​}​ ​e​n​d​s​ ​n​o​w​.​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​o​t​h​e​r​ ​{​{​m​e​m​b​e​r​ ​p​a​u​s​e​s​|​m​e​m​b​e​r​s​ ​p​a​u​s​e​}​}​ ​s​y​n​c​i​n​g​ ​u​n​t​i​l​ ​r​e​c​o​n​n​e​c​t​e​d​.
+			 * @param {string | number | boolean} count
 			 * @param {unknown} workspaces
 			 */
 			lockOutDescription: RequiredParams<'count|number' | 'workspaces'>
@@ -2782,8 +3391,8 @@ type RootTranslation = {
 			 */
 			removed: string
 			/**
-			 * t​h​e​ ​m​e​m​b​e​r​ ​w​a​s​ ​l​o​c​k​e​d​ ​o​u​t​.​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​o​t​h​e​r​ ​m​e​m​b​e​r​(​s​)​ ​r​e​c​o​n​n​e​c​t​ ​o​n​ ​t​h​e​i​r​ ​o​w​n​.
-			 * @param {unknown} count
+			 * t​h​e​ ​m​e​m​b​e​r​ ​w​a​s​ ​l​o​c​k​e​d​ ​o​u​t​.​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​o​t​h​e​r​ ​{​{​m​e​m​b​e​r​ ​r​e​c​o​n​n​e​c​t​s​|​m​e​m​b​e​r​s​ ​r​e​c​o​n​n​e​c​t​}​}​ ​o​n​ ​t​h​e​i​r​ ​o​w​n​.
+			 * @param {string | number | boolean} count
 			 */
 			lockedOut: RequiredParams<'count|number'>
 			/**
@@ -2822,6 +3431,10 @@ type RootTranslation = {
 			 */
 			accessTakenBack: string
 			/**
+			 * t​h​e​ ​w​o​r​k​s​p​a​c​e​s​ ​t​h​e​y​ ​c​a​n​ ​o​p​e​n​,​ ​a​n​d​ ​w​h​a​t​ ​t​h​e​y​ ​c​a​n​ ​d​o​ ​i​n​ ​e​a​c​h​.
+			 */
+			memberWorkspacesDescription: string
+			/**
 			 * t​h​e​ ​w​o​r​k​s​p​a​c​e​s​ ​w​e​r​e​ ​s​a​v​e​d​.
 			 */
 			accessSaved: string
@@ -2830,7 +3443,7 @@ type RootTranslation = {
 			 */
 			workspaceAccessTitle: string
 			/**
-			 * w​h​o​ ​h​o​l​d​s​ ​{​w​o​r​k​s​p​a​c​e​}​,​ ​a​n​d​ ​w​h​a​t​ ​e​a​c​h​ ​o​f​ ​t​h​e​m​ ​c​a​n​ ​d​o​ ​i​n​ ​i​t​.​ ​t​a​k​i​n​g​ ​a​ ​w​o​r​k​s​p​a​c​e​ ​b​a​c​k​ ​m​i​n​t​s​ ​n​o​t​h​i​n​g​,​ ​s​o​ ​w​h​a​t​ ​s​o​m​e​b​o​d​y​ ​a​l​r​e​a​d​y​ ​h​o​l​d​s​ ​w​o​r​k​s​ ​u​n​t​i​l​ ​i​t​ ​r​u​n​s​ ​o​u​t​.
+			 * w​h​o​ ​h​o​l​d​s​ ​{​w​o​r​k​s​p​a​c​e​}​ ​a​n​d​ ​w​h​a​t​ ​e​a​c​h​ ​c​a​n​ ​d​o​ ​t​h​e​r​e​.​ ​a​c​c​e​s​s​ ​t​a​k​e​n​ ​b​a​c​k​ ​l​a​s​t​s​ ​u​n​t​i​l​ ​i​t​ ​r​u​n​s​ ​o​u​t​.
 			 * @param {string} workspace
 			 */
 			workspaceAccessDescription: RequiredParams<'workspace'>
@@ -2839,7 +3452,7 @@ type RootTranslation = {
 			 */
 			deleteWorkspace: string
 			/**
-			 * t​h​e​ ​w​o​r​k​s​p​a​c​e​ ​a​n​d​ ​i​t​s​ ​d​a​t​a​b​a​s​e​ ​a​r​e​ ​d​e​l​e​t​e​d​ ​f​r​o​m​ ​t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​,​ ​w​i​t​h​ ​e​v​e​r​y​ ​t​e​n​a​n​t​,​ ​c​o​m​p​l​e​x​,​ ​u​n​i​t​,​ ​c​o​n​t​r​a​c​t​ ​a​n​d​ ​p​a​y​m​e​n​t​ ​i​n​ ​i​t​,​ ​o​n​ ​e​v​e​r​y​ ​m​a​c​h​i​n​e​ ​t​h​a​t​ ​s​y​n​c​s​ ​i​t​.​ ​n​o​t​h​i​n​g​ ​p​u​t​s​ ​i​t​ ​b​a​c​k​.
+			 * t​h​e​ ​w​o​r​k​s​p​a​c​e​ ​a​n​d​ ​e​v​e​r​y​ ​r​e​c​o​r​d​ ​i​n​ ​i​t​ ​a​r​e​ ​d​e​l​e​t​e​d​ ​f​r​o​m​ ​T​u​r​s​o​ ​a​n​d​ ​f​r​o​m​ ​e​v​e​r​y​ ​m​a​c​h​i​n​e​ ​t​h​a​t​ ​s​y​n​c​s​ ​i​t​.​ ​n​o​t​h​i​n​g​ ​p​u​t​s​ ​i​t​ ​b​a​c​k​.
 			 */
 			deleteWorkspaceDescription: string
 			/**
@@ -2852,7 +3465,7 @@ type RootTranslation = {
 			 */
 			transferTitle: RequiredParams<'workspace'>
 			/**
-			 * f​o​r​g​e​t​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t
+			 * f​o​r​g​e​t​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t
 			 */
 			forgetAccount: string
 			/**
@@ -2933,7 +3546,7 @@ type RootTranslation = {
 			 */
 			leavingTitle: string
 			/**
-			 * d​i​s​c​o​n​n​e​c​t​i​n​g​ ​f​o​r​g​e​t​s​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​:​ ​y​o​u​ ​a​r​e​ ​s​i​g​n​e​d​ ​o​u​t​,​ ​e​v​e​r​y​ ​c​o​p​y​ ​o​f​ ​i​t​ ​a​n​d​ ​o​f​ ​i​t​s​ ​w​o​r​k​s​p​a​c​e​s​ ​k​e​p​t​ ​h​e​r​e​ ​i​s​ ​d​e​l​e​t​e​d​,​ ​a​n​d​ ​t​h​e​ ​t​u​r​s​o​ ​a​u​t​h​o​r​i​t​y​ ​i​s​ ​c​l​e​a​r​e​d​.​ ​n​o​t​h​i​n​g​ ​o​n​ ​t​u​r​s​o​ ​i​s​ ​t​o​u​c​h​e​d​,​ ​a​n​d​ ​t​h​e​ ​l​i​n​k​ ​c​o​n​n​e​c​t​s​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​a​g​a​i​n​.​ ​t​o​ ​r​e​a​c​h​ ​a​n​o​t​h​e​r​ ​o​r​g​a​n​i​z​a​t​i​o​n​,​ ​d​i​s​c​o​n​n​e​c​t​ ​a​n​d​ ​c​o​n​n​e​c​t​ ​t​o​ ​i​t​.
+			 * s​i​g​n​s​ ​y​o​u​ ​o​u​t​ ​a​n​d​ ​d​e​l​e​t​e​s​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​c​o​p​y​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​.​ ​n​o​t​h​i​n​g​ ​o​n​ ​T​u​r​s​o​ ​c​h​a​n​g​e​s​.
 			 */
 			disconnectForgets: string
 			/**
@@ -2945,11 +3558,11 @@ type RootTranslation = {
 			 */
 			disconnected: string
 			/**
-			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​h​o​l​d​s​ ​a​ ​t​o​k​e​n​ ​f​o​r​ ​t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​y​o​u​r​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​l​i​v​e​s​ ​o​n​.​ ​f​o​r​g​e​t​t​i​n​g​ ​i​t​ ​h​e​r​e​ ​m​e​a​n​s​ ​n​o​t​h​i​n​g​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​r​e​a​c​h​e​s​ ​t​h​a​t​ ​a​c​c​o​u​n​t​ ​a​f​t​e​r​w​a​r​d​s​.
+			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​h​o​l​d​s​ ​a​ ​t​o​k​e​n​ ​f​o​r​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​.​ ​f​o​r​g​e​t​ ​i​t​,​ ​a​n​d​ ​n​o​t​h​i​n​g​ ​h​e​r​e​ ​r​e​a​c​h​e​s​ ​t​h​a​t​ ​a​c​c​o​u​n​t​.
 			 */
 			forgetAccountDescription: string
 			/**
-			 * f​o​r​g​e​t​t​i​n​g​ ​t​h​e​ ​t​o​k​e​n​ ​d​o​e​s​ ​n​o​t​ ​r​e​v​o​k​e​ ​i​t​.​ ​w​h​a​t​ ​y​o​u​ ​g​r​a​n​t​e​d​ ​s​t​a​y​s​ ​g​r​a​n​t​e​d​ ​u​n​t​i​l​ ​y​o​u​ ​e​n​d​ ​i​t​ ​y​o​u​r​s​e​l​f​,​ ​o​n​ ​t​u​r​s​o​'​s​ ​o​w​n​ ​d​a​s​h​b​o​a​r​d​ ​a​t​ ​a​p​p​.​t​u​r​s​o​.​t​e​c​h​.
+			 * f​o​r​g​e​t​t​i​n​g​ ​d​o​e​s​ ​n​o​t​ ​r​e​v​o​k​e​ ​t​h​e​ ​t​o​k​e​n​.​ ​e​n​d​ ​t​h​e​ ​g​r​a​n​t​ ​y​o​u​r​s​e​l​f​ ​o​n​ ​T​u​r​s​o​'​s​ ​d​a​s​h​b​o​a​r​d​ ​a​t​ ​a​p​p​.​t​u​r​s​o​.​t​e​c​h​.
 			 */
 			forgetAccountRevokes: string
 			/**
@@ -2957,7 +3570,7 @@ type RootTranslation = {
 			 */
 			forgetAccountRevokesAt: string
 			/**
-			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​n​o​ ​l​o​n​g​e​r​ ​h​o​l​d​s​ ​a​ ​t​o​k​e​n​ ​f​o​r​ ​y​o​u​r​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​.
+			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​n​o​ ​l​o​n​g​e​r​ ​h​o​l​d​s​ ​a​ ​t​o​k​e​n​ ​f​o​r​ ​y​o​u​r​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​.
 			 */
 			accountForgotten: string
 			/**
@@ -2965,11 +3578,11 @@ type RootTranslation = {
 			 */
 			deleteOrganization: string
 			/**
-			 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​a​n​d​ ​e​v​e​r​y​ ​w​o​r​k​s​p​a​c​e​ ​i​n​ ​i​t​ ​a​r​e​ ​d​e​l​e​t​e​d​ ​f​r​o​m​ ​y​o​u​r​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​.​ ​n​o​t​h​i​n​g​ ​p​u​t​s​ ​t​h​e​m​ ​b​a​c​k​.
+			 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​a​n​d​ ​e​v​e​r​y​ ​w​o​r​k​s​p​a​c​e​ ​i​n​ ​i​t​ ​a​r​e​ ​d​e​l​e​t​e​d​ ​f​r​o​m​ ​y​o​u​r​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​.​ ​n​o​t​h​i​n​g​ ​p​u​t​s​ ​t​h​e​m​ ​b​a​c​k​.
 			 */
 			deleteOrganizationDescription: string
 			/**
-			 * e​v​e​r​y​ ​w​o​r​k​s​p​a​c​e​ ​g​o​e​s​,​ ​a​n​d​ ​e​v​e​r​y​t​h​i​n​g​ ​i​n​ ​i​t​:​ ​t​e​n​a​n​t​s​,​ ​c​o​m​p​l​e​x​e​s​,​ ​u​n​i​t​s​,​ ​c​o​n​t​r​a​c​t​s​ ​a​n​d​ ​p​a​y​m​e​n​t​s​.​ ​s​o​ ​d​o​e​s​ ​e​v​e​r​y​ ​w​a​y​ ​i​n​,​ ​f​o​r​ ​e​v​e​r​y​ ​m​e​m​b​e​r​.​ ​t​h​e​ ​o​t​h​e​r​ ​m​a​c​h​i​n​e​s​ ​f​i​n​d​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​g​o​n​e​ ​t​h​e​ ​n​e​x​t​ ​t​i​m​e​ ​t​h​e​y​ ​o​p​e​n​ ​a​n​d​ ​l​a​n​d​ ​o​n​ ​t​h​e​ ​f​i​r​s​t​ ​s​c​r​e​e​n​.​ ​n​o​t​h​i​n​g​ ​p​u​t​s​ ​t​h​i​s​ ​b​a​c​k​.
+			 * e​v​e​r​y​ ​w​o​r​k​s​p​a​c​e​ ​a​n​d​ ​e​v​e​r​y​ ​r​e​c​o​r​d​ ​i​n​ ​i​t​ ​i​s​ ​d​e​l​e​t​e​d​,​ ​a​n​d​ ​e​v​e​r​y​ ​m​e​m​b​e​r​ ​l​o​s​e​s​ ​t​h​e​i​r​ ​w​a​y​ ​i​n​.​ ​n​o​t​h​i​n​g​ ​p​u​t​s​ ​t​h​i​s​ ​b​a​c​k​.
 			 */
 			deleteOrganizationGoes: string
 			/**
@@ -2980,13 +3593,13 @@ type RootTranslation = {
 		roles: {
 			owner: {
 				/**
-				 * h​o​l​d​s​ ​t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​e​v​e​r​y​t​h​i​n​g​ ​i​s​ ​k​e​p​t​ ​o​n​,​ ​a​n​d​ ​c​a​n​ ​d​o​ ​a​n​y​t​h​i​n​g​ ​h​e​r​e​.​ ​t​h​e​r​e​ ​i​s​ ​o​n​e​ ​o​w​n​e​r​,​ ​a​n​d​ ​h​a​n​d​i​n​g​ ​i​t​ ​o​v​e​r​ ​i​s​ ​t​h​e​i​r​ ​o​w​n​ ​a​c​t​.
+				 * h​o​l​d​s​ ​t​h​e​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​ ​a​n​d​ ​c​a​n​ ​d​o​ ​a​n​y​t​h​i​n​g​.​ ​t​h​e​r​e​ ​i​s​ ​o​n​e​ ​o​w​n​e​r​,​ ​a​n​d​ ​o​n​l​y​ ​t​h​e​y​ ​c​a​n​ ​h​a​n​d​ ​i​t​ ​o​v​e​r​.
 				 */
 				who: string
 			}
 			administrator: {
 				/**
-				 * l​o​o​k​s​ ​a​f​t​e​r​ ​t​h​e​ ​p​e​o​p​l​e​ ​a​n​d​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e​s​:​ ​a​d​d​s​ ​a​ ​m​e​m​b​e​r​,​ ​m​a​k​e​s​ ​l​i​n​k​s​,​ ​r​e​n​a​m​e​s​,​ ​g​r​a​n​t​s​ ​a​ ​w​o​r​k​s​p​a​c​e​.​ ​t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​s​t​a​y​s​ ​t​h​e​ ​o​w​n​e​r​'​s​.
+				 * a​d​d​s​ ​m​e​m​b​e​r​s​,​ ​m​a​k​e​s​ ​l​i​n​k​s​ ​a​n​d​ ​g​r​a​n​t​s​ ​w​o​r​k​s​p​a​c​e​s​.​ ​t​h​e​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​ ​s​t​a​y​s​ ​t​h​e​ ​o​w​n​e​r​'​s​.
 				 */
 				who: string
 			}
@@ -3083,7 +3696,7 @@ type RootTranslation = {
 			 */
 			ownerAlone: string
 			/**
-			 * t​h​e​s​e​ ​r​u​n​ ​o​n​ ​t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​t​h​e​ ​o​w​n​e​r​ ​c​o​n​n​e​c​t​e​d​,​ ​s​o​ ​n​o​b​o​d​y​ ​c​a​n​ ​b​e​ ​g​i​v​e​n​ ​t​h​e​m​.
+			 * t​h​e​s​e​ ​r​u​n​ ​o​n​ ​t​h​e​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​ ​t​h​e​ ​o​w​n​e​r​ ​c​o​n​n​e​c​t​e​d​,​ ​s​o​ ​n​o​b​o​d​y​ ​c​a​n​ ​b​e​ ​g​i​v​e​n​ ​t​h​e​m​.
 			 */
 			ownerAloneReason: string
 			/**
@@ -3111,7 +3724,7 @@ type RootTranslation = {
 			 */
 			renew: string
 			/**
-			 * c​o​n​n​e​c​t​ ​t​h​e​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​,​ ​a​n​d​ ​f​o​r​g​e​t​ ​i​t​.
+			 * c​o​n​n​e​c​t​ ​t​h​e​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​,​ ​a​n​d​ ​f​o​r​g​e​t​ ​i​t​.
 			 */
 			tursoAccount: string
 		}
@@ -3126,10 +3739,6 @@ type RootTranslation = {
 		 */
 		nameRequired: string
 		/**
-		 * r​e​n​a​m​e
-		 */
-		rename: string
-		/**
 		 * w​h​a​t​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​i​s​ ​c​a​l​l​e​d​,​ ​o​n​ ​e​v​e​r​y​ ​m​a​c​h​i​n​e​ ​s​i​g​n​e​d​ ​i​n​ ​t​o​ ​i​t​.
 		 */
 		renameDescription: string
@@ -3138,25 +3747,25 @@ type RootTranslation = {
 		 */
 		renamed: string
 		/**
-		 * y​o​u​r​ ​a​c​c​e​s​s​ ​t​o​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​w​a​s​ ​r​e​f​r​e​s​h​e​d​,​ ​a​n​d​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​i​s​ ​c​o​l​l​e​c​t​i​n​g​ ​t​h​e​ ​n​e​w​ ​c​r​e​d​e​n​t​i​a​l​.​ ​i​f​ ​i​t​ ​d​o​e​s​ ​n​o​t​ ​c​l​e​a​r​ ​o​n​ ​i​t​s​ ​o​w​n​,​ ​a​s​k​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​o​w​n​e​r​.​ ​e​v​e​r​y​t​h​i​n​g​ ​h​e​r​e​ ​k​e​e​p​s​ ​w​o​r​k​i​n​g​ ​m​e​a​n​w​h​i​l​e​.
+		 * y​o​u​r​ ​a​c​c​e​s​s​ ​w​a​s​ ​r​e​n​e​w​e​d​ ​a​n​d​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​i​s​ ​f​e​t​c​h​i​n​g​ ​i​t​.​ ​w​o​r​k​ ​g​o​e​s​ ​o​n​ ​h​e​r​e​;​ ​i​f​ ​i​t​ ​d​o​e​s​ ​n​o​t​ ​c​l​e​a​r​,​ ​a​s​k​ ​t​h​e​ ​o​w​n​e​r​.
 		 */
 		credentialRefused: string
 		/**
-		 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​t​u​r​s​o​ ​a​c​c​o​u​n​t​ ​n​e​e​d​s​ ​a​t​t​e​n​t​i​o​n​,​ ​s​o​ ​n​o​t​h​i​n​g​ ​i​s​ ​r​e​a​c​h​i​n​g​ ​t​u​r​s​o​ ​f​o​r​ ​n​o​w​.​ ​t​e​l​l​ ​{​o​w​n​e​r​}​.​ ​e​v​e​r​y​t​h​i​n​g​ ​h​e​r​e​ ​k​e​e​p​s​ ​w​o​r​k​i​n​g​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​,​ ​a​n​d​ ​w​h​a​t​ ​y​o​u​ ​w​r​i​t​e​ ​g​o​e​s​ ​o​u​t​ ​o​n​c​e​ ​i​t​ ​i​s​ ​s​e​e​n​ ​t​o​.
+		 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​ ​n​e​e​d​s​ ​a​t​t​e​n​t​i​o​n​,​ ​s​o​ ​n​o​t​h​i​n​g​ ​r​e​a​c​h​e​s​ ​T​u​r​s​o​ ​f​o​r​ ​n​o​w​.​ ​t​e​l​l​ ​{​o​w​n​e​r​}​.​ ​w​o​r​k​ ​h​e​r​e​ ​g​o​e​s​ ​o​n​.
 		 * @param {unknown} owner
 		 */
 		accountRefusedMember: RequiredParams<'owner'>
 		/**
-		 * t​u​r​s​o​ ​i​s​ ​r​e​f​u​s​i​n​g​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​a​c​c​o​u​n​t​:​ ​{​d​e​t​a​i​l​}​.​ ​e​v​e​r​y​t​h​i​n​g​ ​k​e​e​p​s​ ​w​o​r​k​i​n​g​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​,​ ​a​n​d​ ​w​h​a​t​ ​i​s​ ​w​r​i​t​t​e​n​ ​g​o​e​s​ ​o​u​t​ ​o​n​c​e​ ​t​h​e​ ​a​c​c​o​u​n​t​ ​i​s​ ​s​e​e​n​ ​t​o​.​ ​t​h​e​ ​p​l​a​c​e​ ​t​o​ ​s​e​e​ ​t​o​ ​i​t​ ​i​s​ ​t​u​r​s​o​'​s​ ​o​w​n​ ​d​a​s​h​b​o​a​r​d​ ​a​t​ ​a​p​p​.​t​u​r​s​o​.​t​e​c​h​,​ ​u​n​d​e​r​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​t​h​a​t​ ​h​o​l​d​s​ ​y​o​u​r​ ​g​r​o​u​p​.
+		 * T​u​r​s​o​ ​i​s​ ​r​e​f​u​s​i​n​g​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​a​c​c​o​u​n​t​:​ ​{​d​e​t​a​i​l​}​.​ ​w​o​r​k​ ​g​o​e​s​ ​o​n​ ​h​e​r​e​;​ ​f​i​x​ ​i​t​ ​a​t​ ​a​p​p​.​t​u​r​s​o​.​t​e​c​h​ ​t​o​ ​s​e​n​d​ ​i​t​.
 		 * @param {unknown} detail
 		 */
 		accountRefusedOwner: RequiredParams<'detail'>
 		/**
-		 * t​u​r​s​o​ ​i​s​ ​r​e​f​u​s​i​n​g​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​a​c​c​o​u​n​t​.​ ​e​v​e​r​y​t​h​i​n​g​ ​k​e​e​p​s​ ​w​o​r​k​i​n​g​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​,​ ​a​n​d​ ​w​h​a​t​ ​i​s​ ​w​r​i​t​t​e​n​ ​g​o​e​s​ ​o​u​t​ ​o​n​c​e​ ​t​h​e​ ​a​c​c​o​u​n​t​ ​i​s​ ​s​e​e​n​ ​t​o​.​ ​t​h​e​ ​p​l​a​c​e​ ​t​o​ ​s​e​e​ ​t​o​ ​i​t​ ​i​s​ ​t​u​r​s​o​'​s​ ​o​w​n​ ​d​a​s​h​b​o​a​r​d​ ​a​t​ ​a​p​p​.​t​u​r​s​o​.​t​e​c​h​,​ ​u​n​d​e​r​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​t​h​a​t​ ​h​o​l​d​s​ ​y​o​u​r​ ​g​r​o​u​p​.
+		 * T​u​r​s​o​ ​i​s​ ​r​e​f​u​s​i​n​g​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​a​c​c​o​u​n​t​.​ ​w​o​r​k​ ​g​o​e​s​ ​o​n​ ​h​e​r​e​;​ ​f​i​x​ ​i​t​ ​a​t​ ​a​p​p​.​t​u​r​s​o​.​t​e​c​h​ ​t​o​ ​s​e​n​d​ ​i​t​.
 		 */
 		accountRefusedOwnerNoDetail: string
 		/**
-		 * w​r​i​t​e​ ​e​v​e​r​y​t​h​i​n​g​ ​—​ ​t​e​n​a​n​t​s​,​ ​c​o​m​p​l​e​x​e​s​,​ ​u​n​i​t​s​,​ ​c​o​n​t​r​a​c​t​s​ ​a​n​d​ ​p​a​y​m​e​n​t​s​ ​—​ ​t​o​ ​o​n​e​ ​w​o​r​k​b​o​o​k​,​ ​o​r​ ​r​e​a​d​ ​o​n​e​ ​b​a​c​k​ ​i​n​.​ ​r​e​c​o​r​d​s​ ​n​a​m​e​ ​e​a​c​h​ ​o​t​h​e​r​ ​b​y​ ​n​a​m​e​ ​r​a​t​h​e​r​ ​t​h​a​n​ ​b​y​ ​n​u​m​b​e​r​,​ ​s​o​ ​a​ ​f​i​l​e​ ​o​p​e​n​s​ ​o​n​ ​a​n​y​ ​m​a​c​h​i​n​e​.
+		 * w​r​i​t​e​ ​e​v​e​r​y​ ​r​e​c​o​r​d​ ​t​o​ ​o​n​e​ ​w​o​r​k​b​o​o​k​,​ ​o​r​ ​r​e​a​d​ ​o​n​e​ ​i​n​.​ ​r​e​c​o​r​d​s​ ​n​a​m​e​ ​e​a​c​h​ ​o​t​h​e​r​,​ ​s​o​ ​t​h​e​ ​f​i​l​e​ ​o​p​e​n​s​ ​o​n​ ​a​n​y​ ​m​a​c​h​i​n​e​.
 		 */
 		transferDescription: string
 	}
@@ -3196,6 +3805,18 @@ export type TranslationFunctions = {
 			 */
 			clearFilter: () => LocalizedString
 			/**
+			 * clear filters
+			 */
+			clearFilters: () => LocalizedString
+			/**
+			 * clear search
+			 */
+			clearSearch: () => LocalizedString
+			/**
+			 * clear search and filters
+			 */
+			clearSearchAndFilters: () => LocalizedString
+			/**
 			 * clear selection
 			 */
 			clearSelection: () => LocalizedString
@@ -3207,6 +3828,10 @@ export type TranslationFunctions = {
 			 * copy details
 			 */
 			copyDetails: () => LocalizedString
+			/**
+			 * details
+			 */
+			details: () => LocalizedString
 			/**
 			 * choose a file...
 			 */
@@ -3252,6 +3877,10 @@ export type TranslationFunctions = {
 			 */
 			exportSelection: () => LocalizedString
 			/**
+			 * go back
+			 */
+			goBack: () => LocalizedString
+			/**
 			 * import
 			 */
 			'import': () => LocalizedString
@@ -3264,9 +3893,29 @@ export type TranslationFunctions = {
 			 */
 			join: () => LocalizedString
 			/**
+			 * new complex
+			 */
+			newComplex: () => LocalizedString
+			/**
+			 * new contract
+			 */
+			newContract: () => LocalizedString
+			/**
+			 * new payment
+			 */
+			newPayment: () => LocalizedString
+			/**
 			 * new record
 			 */
 			newRecord: () => LocalizedString
+			/**
+			 * new tenant
+			 */
+			newTenant: () => LocalizedString
+			/**
+			 * new unit
+			 */
+			newUnit: () => LocalizedString
 			/**
 			 * open menu
 			 */
@@ -3291,10 +3940,6 @@ export type TranslationFunctions = {
 			 * renew
 			 */
 			renew: () => LocalizedString
-			/**
-			 * renew a contract
-			 */
-			renewContract: () => LocalizedString
 			/**
 			 * renewing...
 			 */
@@ -3442,7 +4087,7 @@ export type TranslationFunctions = {
 			 */
 			preconditionFailed: () => LocalizedString
 			/**
-			 * this link no longer opens.
+			 * this was refused, and nothing was changed.
 			 */
 			refused: () => LocalizedString
 			/**
@@ -3455,6 +4100,24 @@ export type TranslationFunctions = {
 			 * which file should this become?
 			 */
 			description: () => LocalizedString
+			/**
+			 * there is nothing here to export
+			 */
+			nothingToExport: () => LocalizedString
+		}
+		failures: {
+			/**
+			 * your role does not allow this in this workspace.
+			 */
+			forbidden: () => LocalizedString
+			/**
+			 * something entered is not valid. check it and try again.
+			 */
+			invalidInput: () => LocalizedString
+			/**
+			 * sign in to do this.
+			 */
+			signedOut: () => LocalizedString
 		}
 		formats: {
 			/**
@@ -3472,7 +4135,7 @@ export type TranslationFunctions = {
 			 */
 			title: (arg: { record: string }) => LocalizedString
 			/**
-			 * this file is missing the column(s): {columns}. nothing can be read from it.
+			 * this file has no {columns}, so nothing can be read from it.
 			 */
 			missingColumns: (arg: { columns: string }) => LocalizedString
 			/**
@@ -3484,13 +4147,13 @@ export type TranslationFunctions = {
 			 */
 			nothingToCreate: () => LocalizedString
 			/**
-			 * {count|number} record(s) will be created
+			 * {count|number} {{record|records}} will be created
 			 */
-			willCreate: (arg: { count: unknown }) => LocalizedString
+			willCreate: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
-			 * {count|number} row(s) will be skipped
+			 * {count|number} {{row|rows}} will be skipped
 			 */
-			willReject: (arg: { count: unknown }) => LocalizedString
+			willReject: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
 			 * row {row|number}
 			 */
@@ -3526,21 +4189,21 @@ export type TranslationFunctions = {
 			 */
 			noSheets: () => LocalizedString
 			/**
-			 * the {sheet} sheet is missing the column(s): {columns}. nothing can be read from this file.
+			 * the {sheet} sheet has no {columns}, so nothing can be read from this file.
 			 */
 			sheetMissingColumns: (arg: { columns: string, sheet: string }) => LocalizedString
 			/**
-			 * the {sheet} sheet carries no {columns}, so no record can be created from it — only recognised as one already here.
+			 * the {sheet} sheet has no {columns}, so its rows can only match records already here.
 			 */
 			sheetIncompleteColumns: (arg: { columns: string, sheet: string }) => LocalizedString
 			/**
-			 * in the {sheet} sheet, rows {rows} both claim {identity}. nothing will be imported until one of them goes.
+			 * rows {rows} of the {sheet} sheet both claim {identity}. remove one to import.
 			 */
 			sheetCollision: (arg: { identity: string, rows: string, sheet: string }) => LocalizedString
 			/**
-			 * {count|number} row(s) name a record no sheet holds, so nothing in this file can be imported.
+			 * {count|number} {{row names|rows name}} a record no sheet holds, so nothing in this file can be imported.
 			 */
-			unresolvedRefused: (arg: { count: unknown }) => LocalizedString
+			unresolvedRefused: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
 			 * {sheet} row {row|number} names {reference}
 			 */
@@ -3648,6 +4311,10 @@ export type TranslationFunctions = {
 			 */
 			contractPeriod: () => LocalizedString
 			/**
+			 * contract status
+			 */
+			contractStatus: () => LocalizedString
+			/**
 			 * cost per cycle
 			 */
 			costPerPayment: () => LocalizedString
@@ -3692,7 +4359,7 @@ export type TranslationFunctions = {
 			 */
 			expected: () => LocalizedString
 			/**
-			 * government id
+			 * government ID
 			 */
 			governmentId: () => LocalizedString
 			/**
@@ -3700,7 +4367,7 @@ export type TranslationFunctions = {
 			 */
 			information: () => LocalizedString
 			/**
-			 * government id (optional)
+			 * government ID (optional)
 			 */
 			governmentIdOptional: () => LocalizedString
 			/**
@@ -3712,7 +4379,7 @@ export type TranslationFunctions = {
 			 */
 			name: () => LocalizedString
 			/**
-			 * national id
+			 * national ID
 			 */
 			nationalId: () => LocalizedString
 			/**
@@ -3810,9 +4477,17 @@ export type TranslationFunctions = {
 			 */
 			loadingSettings: () => LocalizedString
 			/**
-			 * no results.
+			 * nothing matches
 			 */
-			noResults: () => LocalizedString
+			noMatch: () => LocalizedString
+			/**
+			 * this record does not exist
+			 */
+			recordNotFound: () => LocalizedString
+			/**
+			 * it may have been deleted.
+			 */
+			recordNotFoundDescription: () => LocalizedString
 			/**
 			 * unexpected error occurred!
 			 */
@@ -3882,6 +4557,460 @@ export type TranslationFunctions = {
 			 */
 			'this-year': () => LocalizedString
 		}
+		refusals: {
+			complex: {
+				/**
+				 * this complex is no longer in the workspace. reload to see what changed.
+				 */
+				gone: () => LocalizedString
+				/**
+				 * this complex still holds units. delete them before deleting it.
+				 */
+				holdsUnits: () => LocalizedString
+				/**
+				 * name is associated with a previously registered complex.
+				 */
+				nameTaken: () => LocalizedString
+				/**
+				 * the name {named} is associated with a previously registered complex.
+				 */
+				nameTakenNamed: (arg: { named: string }) => LocalizedString
+				/**
+				 * two complexes in this set claim {value}.
+				 */
+				repeatedInSet: (arg: { value: string }) => LocalizedString
+			}
+			contract: {
+				/**
+				 * cost per payment must be greater than zero.
+				 */
+				costNotPositive: () => LocalizedString
+				/**
+				 * end date must be after start date.
+				 */
+				endBeforeStart: () => LocalizedString
+				/**
+				 * government ID is associated with another contract.
+				 */
+				govIdTaken: () => LocalizedString
+				/**
+				 * government ID {named} is associated with another contract.
+				 */
+				govIdTakenNamed: (arg: { named: string }) => LocalizedString
+				/**
+				 * this contract has payments. delete them before deleting it.
+				 */
+				holdsPayments: () => LocalizedString
+				/**
+				 * this contract is no longer in the workspace. reload to see what changed.
+				 */
+				missing: () => LocalizedString
+				/**
+				 * only an active, fulfilled or past contract can be terminated.
+				 */
+				notTerminable: () => LocalizedString
+				/**
+				 * only a terminated contract can be restored.
+				 */
+				notUnterminable: () => LocalizedString
+				/**
+				 * this contract is paid in full and takes no more payments.
+				 */
+				paidInFull: () => LocalizedString
+				/**
+				 * end date must stay within {days} days before or after the calculated {interval} cycle end date.
+				 */
+				periodOffCycle: (arg: { days: number, interval: string }) => LocalizedString
+				/**
+				 * another contract holds one or more of these units over the new dates. choose different dates.
+				 */
+				periodOverlapsUnits: () => LocalizedString
+				/**
+				 * a renewal must start after the contract it renews ends.
+				 */
+				renewalBeforeEnd: () => LocalizedString
+				/**
+				 * two contracts in this set claim {value}.
+				 */
+				repeatedInSet: (arg: { value: string }) => LocalizedString
+				/**
+				 * the selected tenant is no longer in the workspace. choose another.
+				 */
+				tenantMissing: () => LocalizedString
+				/**
+				 * no tenant with the ID {named} is in the workspace.
+				 */
+				tenantMissingNamed: (arg: { named: string }) => LocalizedString
+				/**
+				 * this contract is terminated and locked. restore it before changing it.
+				 */
+				terminatedLocked: () => LocalizedString
+				/**
+				 * the units of a contract cannot change once payments are registered against it.
+				 */
+				unitsLockedByPayments: () => LocalizedString
+				/**
+				 * one or more of these units are no longer in the workspace. reload to see what changed.
+				 */
+				unitsMissing: () => LocalizedString
+				/**
+				 * another contract holds one or more of the chosen units over this term. choose other units or a different term.
+				 */
+				unitsTaken: () => LocalizedString
+				/**
+				 * another contract holds one or more of these units over the selected term. choose a different term.
+				 */
+				unitsUnavailable: () => LocalizedString
+			}
+			host: {
+				/**
+				 * this link has lapsed. ask whoever sent it for a new one.
+				 */
+				lapsed: () => LocalizedString
+				/**
+				 * this link was already used. ask whoever sent it for a new one.
+				 */
+				consumed: () => LocalizedString
+				/**
+				 * this link was withdrawn. ask whoever sent it for a new one.
+				 */
+				revoked: () => LocalizedString
+				/**
+				 * a newer link replaced this one. ask whoever sent it for the new one.
+				 */
+				replaced: () => LocalizedString
+				/**
+				 * type the six-character code that came with the link.
+				 */
+				codeMissing: () => LocalizedString
+				/**
+				 * the code is wrong. ask whoever sent the link to read it out again.
+				 */
+				codeWrong: () => LocalizedString
+				/**
+				 * this is not a rentable join link. copy the whole link and try again.
+				 */
+				linkUnreadable: () => LocalizedString
+				/**
+				 * this link connects another machine rather than inviting you. sign in with your username and password instead.
+				 */
+				linkNotAnInvitation: () => LocalizedString
+				/**
+				 * this link is an invitation rather than a link for another machine. open it where you accept an invitation.
+				 */
+				linkNotForAMachine: () => LocalizedString
+				/**
+				 * this machine already holds another organization. disconnect it first.
+				 */
+				anotherOrganizationHeld: () => LocalizedString
+				/**
+				 * the username or password is wrong.
+				 */
+				credentialsWrong: () => LocalizedString
+				/**
+				 * the password needs at least 12 characters.
+				 */
+				passwordTooShort: () => LocalizedString
+				/**
+				 * change your password before doing anything else.
+				 */
+				passwordChangeRequired: () => LocalizedString
+				/**
+				 * nobody is signed in on this machine. sign in and try again.
+				 */
+				signedOut: () => LocalizedString
+				/**
+				 * this machine holds no organization yet.
+				 */
+				noOrganization: () => LocalizedString
+				/**
+				 * nobody has signed in to the organization on this machine yet. sign in first.
+				 */
+				noMemberYet: () => LocalizedString
+				/**
+				 * your account on this machine is out of date. sign in again.
+				 */
+				signInAgain: () => LocalizedString
+				/**
+				 * you were removed from this organization.
+				 */
+				youWereRemoved: () => LocalizedString
+				/**
+				 * your sessions were ended from another machine. sign in again.
+				 */
+				sessionsEnded: () => LocalizedString
+				/**
+				 * the organization was handed over, so only its new owner can do this.
+				 */
+				keyNotInForce: () => LocalizedString
+				/**
+				 * a username is 3 to 32 letters, digits, dots, underscores or hyphens, with no spaces.
+				 */
+				usernameInvalid: () => LocalizedString
+				/**
+				 * that username is already taken in this organization. choose another.
+				 */
+				usernameTaken: () => LocalizedString
+				/**
+				 * choose administrator or member.
+				 */
+				roleUnknown: () => LocalizedString
+				/**
+				 * that member is no longer in this organization. reload to see what changed.
+				 */
+				memberMissing: () => LocalizedString
+				/**
+				 * this account is no longer in the organization.
+				 */
+				memberGone: () => LocalizedString
+				/**
+				 * that member was removed. make them an account again if they are to come back.
+				 */
+				memberRemoved: () => LocalizedString
+				/**
+				 * you cannot do this to your own account. another administrator can.
+				 */
+				notYourself: () => LocalizedString
+				/**
+				 * the owner's account is not changed this way. the organization is theirs.
+				 */
+				ownerProtected: () => LocalizedString
+				/**
+				 * only the owner can do this. ask the owner.
+				 */
+				ownerOnly: () => LocalizedString
+				/**
+				 * this needs the Turso account, which is connected on the owner's machine. ask the owner.
+				 */
+				ownerMachineOnly: () => LocalizedString
+				/**
+				 * your role does not include this. ask an administrator.
+				 */
+				roleLacksAct: () => LocalizedString
+				/**
+				 * only an administrator can do this.
+				 */
+				notAdministrator: () => LocalizedString
+				/**
+				 * you are the owner already. choose the account that is to have it.
+				 */
+				alreadyOwner: () => LocalizedString
+				/**
+				 * that account has no password of its own yet. once they open their link and choose one, offer it again.
+				 */
+				accountNotSetUp: () => LocalizedString
+				/**
+				 * the organization is already offered to an account. withdraw that offer first.
+				 */
+				offerPending: () => LocalizedString
+				/**
+				 * the offer was already accepted, and the organization is theirs now. nothing was changed.
+				 */
+				offerAccepted: () => LocalizedString
+				/**
+				 * no offer of this organization stands.
+				 */
+				nothingOffered: () => LocalizedString
+				/**
+				 * the account that offered you the organization is no longer in it.
+				 */
+				offererGone: () => LocalizedString
+				/**
+				 * the organization needs a name.
+				 */
+				organizationNameMissing: () => LocalizedString
+				/**
+				 * the workspace needs a name.
+				 */
+				workspaceNameMissing: () => LocalizedString
+				/**
+				 * that workspace is no longer in this organization. reload to see what changed.
+				 */
+				workspaceMissing: () => LocalizedString
+				/**
+				 * no workspace is open on this machine. open one and try again.
+				 */
+				noWorkspaceOpen: () => LocalizedString
+				/**
+				 * you have no access to that workspace.
+				 */
+				noGrant: () => LocalizedString
+				/**
+				 * that member has no access to that workspace.
+				 */
+				grantMissing: () => LocalizedString
+				/**
+				 * you can share only a workspace you have full access to yourself.
+				 */
+				grantBeyondOwn: () => LocalizedString
+				/**
+				 * this machine holds no access to the organization's records. sign in again and try once more.
+				 */
+				noOrganizationCredential: () => LocalizedString
+				/**
+				 * a newer version of rentable upgraded this workspace. update rentable to open it.
+				 */
+				workspaceNewer: () => LocalizedString
+				/**
+				 * this workspace needs upgrading, and read-only access cannot do it. ask a member with full access to open it once.
+				 */
+				workspaceBehind: () => LocalizedString
+				/**
+				 * the database refused the request, and nothing was changed. try again later.
+				 */
+				databaseRefused: () => LocalizedString
+				/**
+				 * this machine is not connected to the Turso account. connect it and try again.
+				 */
+				tursoNotConnected: () => LocalizedString
+				/**
+				 * Turso needs the consent granted again. connect the Turso account again.
+				 */
+				consentNeededAgain: () => LocalizedString
+				/**
+				 * this consent is no longer waiting. start it again.
+				 */
+				consentGone: () => LocalizedString
+				/**
+				 * that is not the group the consent was given over. check the name and try again.
+				 */
+				groupMismatch: () => LocalizedString
+				/**
+				 * Turso needs the name of the group you picked. type it below.
+				 */
+				groupNeeded: () => LocalizedString
+				/**
+				 * that group already holds an organization. pick another group or another Turso account.
+				 */
+				groupHoldsOrganization: () => LocalizedString
+				/**
+				 * the consent was given over a group that holds no organization. give it over the group that holds yours.
+				 */
+				groupEmpty: () => LocalizedString
+				/**
+				 * this Turso account holds no organization to connect to. go back and make one.
+				 */
+				nothingToConnectTo: () => LocalizedString
+				/**
+				 * Turso would not create the organization's database.
+				 */
+				createRefused: () => LocalizedString
+				/**
+				 * Turso refused the request. trying again will not help.
+				 */
+				tursoRefused: () => LocalizedString
+				/**
+				 * Turso refused the request because of the account itself. check the account's plan in Turso.
+				 */
+				tursoAccountRefused: () => LocalizedString
+			}
+			payment: {
+				/**
+				 * payment amount must be greater than zero.
+				 */
+				amountNotPositive: () => LocalizedString
+				/**
+				 * a payment cannot be dated in the future.
+				 */
+				datedInFuture: () => LocalizedString
+				/**
+				 * this payment is no longer in the workspace. reload to see what changed.
+				 */
+				missing: () => LocalizedString
+				/**
+				 * two payments in this set claim {value}.
+				 */
+				repeatedInSet: (arg: { value: string }) => LocalizedString
+			}
+			record: {
+				/**
+				 * another record already holds that ID.
+				 */
+				idTaken: () => LocalizedString
+				/**
+				 * another record already holds the ID {named}.
+				 */
+				idTakenNamed: (arg: { named: string }) => LocalizedString
+			}
+			tenant: {
+				/**
+				 * this tenant is no longer in the workspace. reload to see what changed.
+				 */
+				gone: () => LocalizedString
+				/**
+				 * contracts mention this tenant, so it cannot be deleted.
+				 */
+				holdsContracts: () => LocalizedString
+				/**
+				 * national ID is associated with a registered tenant.
+				 */
+				nationalIdTaken: () => LocalizedString
+				/**
+				 * national ID {named} is associated with a registered tenant.
+				 */
+				nationalIdTakenNamed: (arg: { named: string }) => LocalizedString
+				/**
+				 * phone is associated with a registered tenant.
+				 */
+				phoneTaken: () => LocalizedString
+				/**
+				 * phone {named} is associated with a registered tenant.
+				 */
+				phoneTakenNamed: (arg: { named: string }) => LocalizedString
+				/**
+				 * two tenants in this set claim {value}.
+				 */
+				repeatedInSet: (arg: { value: string }) => LocalizedString
+			}
+			unit: {
+				/**
+				 * this unit is no longer in the workspace. reload to see what changed.
+				 */
+				gone: () => LocalizedString
+				/**
+				 * a contract mentions this unit, so it cannot be deleted.
+				 */
+				holdsContracts: () => LocalizedString
+				/**
+				 * {name} is used twice; each unit needs its own name.
+				 */
+				nameRepeated: (arg: { name: string }) => LocalizedString
+				/**
+				 * name is associated with a unit in the same complex.
+				 */
+				nameTaken: () => LocalizedString
+				/**
+				 * the name {named} is associated with a unit in the same complex.
+				 */
+				nameTakenNamed: (arg: { named: string }) => LocalizedString
+				/**
+				 * two units in this set claim {value}.
+				 */
+				repeatedInSet: (arg: { value: string }) => LocalizedString
+			}
+			workspace: {
+				/**
+				 * there is nothing to import.
+				 */
+				nothingToImport: () => LocalizedString
+				/**
+				 * the file names a complex called {name}, and there is none.
+				 */
+				unknownComplex: (arg: { name: string }) => LocalizedString
+				/**
+				 * the file names a contract called {name}, and there is none.
+				 */
+				unknownContract: (arg: { name: string }) => LocalizedString
+				/**
+				 * the file names a tenant called {name}, and there is none.
+				 */
+				unknownTenant: (arg: { name: string }) => LocalizedString
+				/**
+				 * the file names a unit called {name}, and there is none.
+				 */
+				unknownUnit: (arg: { name: string }) => LocalizedString
+			}
+		}
 		selection: {
 			/**
 			 * and {count|number} more
@@ -3896,9 +5025,9 @@ export type TranslationFunctions = {
 			 */
 			outcomeChanged: (arg: { records: string }) => LocalizedString
 			/**
-			 * the workspace changed while this was open, so {count|number} record(s) could not be done. nothing was retried.
+			 * the workspace changed while this was open, so {count|number} {{record|records}} could not be done. nothing was retried.
 			 */
-			outcomeChangedCount: (arg: { count: unknown }) => LocalizedString
+			outcomeChangedCount: (arg: { count: string | number | boolean }) => LocalizedString
 		}
 		status: {
 			/**
@@ -4014,17 +5143,17 @@ export type TranslationFunctions = {
 			 */
 			recordsSelected: (arg: { count: unknown }) => LocalizedString
 			/**
-			 * {count|number} result(s)
+			 * {count|number} {{result|results}}
 			 */
-			results: (arg: { count: unknown }) => LocalizedString
+			results: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
 			 * rows per page
 			 */
 			rowsPerPage: () => LocalizedString
 			/**
-			 * {selected} of {total} row(s) selected.
+			 * {selected} of {total} {{row|rows}} selected.
 			 */
-			rowsSelected: (arg: { selected: unknown, total: unknown }) => LocalizedString
+			rowsSelected: (arg: { selected: unknown, total: string | number | boolean }) => LocalizedString
 			/**
 			 * search...
 			 */
@@ -4058,17 +5187,21 @@ export type TranslationFunctions = {
 			 */
 			deleted: (arg: { record: string }) => LocalizedString
 			/**
-			 * creating {count|number} record(s)
+			 * creating {count|number} {{record|records}}
 			 */
-			createdMany: (arg: { count: unknown }) => LocalizedString
+			createdMany: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
-			 * deleting {count|number} record(s)
+			 * deleting {count|number} {{record|records}}
 			 */
-			deletedMany: (arg: { count: unknown }) => LocalizedString
+			deletedMany: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
 			 * editing {record}
 			 */
 			edited: (arg: { record: string }) => LocalizedString
+			/**
+			 * you can undo this while the app is open.
+			 */
+			lasts: () => LocalizedString
 			/**
 			 * nothing to apply again
 			 */
@@ -4094,9 +5227,9 @@ export type TranslationFunctions = {
 			 */
 			terminated: (arg: { record: string }) => LocalizedString
 			/**
-			 * terminating {count|number} contract(s)
+			 * terminating {count|number} {{contract|contracts}}
 			 */
-			terminatedMany: (arg: { count: unknown }) => LocalizedString
+			terminatedMany: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
 			 * undo
 			 */
@@ -4110,9 +5243,9 @@ export type TranslationFunctions = {
 			 */
 			unterminated: (arg: { record: string }) => LocalizedString
 			/**
-			 * restoring {count|number} contract(s)
+			 * restoring {count|number} {{contract|contracts}}
 			 */
-			unterminatedMany: (arg: { count: unknown }) => LocalizedString
+			unterminatedMany: (arg: { count: string | number | boolean }) => LocalizedString
 		}
 		window: {
 			/**
@@ -4141,6 +5274,10 @@ export type TranslationFunctions = {
 			 * command palette
 			 */
 			commandPalette: () => LocalizedString
+			/**
+			 * {act} does not apply to {record}.
+			 */
+			commandPaletteActDoesNotApply: (arg: { act: unknown, record: unknown }) => LocalizedString
 			/**
 			 * type to find the record this runs on.
 			 */
@@ -4190,6 +5327,10 @@ export type TranslationFunctions = {
 			 */
 			nextSlide: () => LocalizedString
 			/**
+			 * nothing on this screen takes a new record
+			 */
+			nothingToCreateHere: () => LocalizedString
+			/**
 			 * pagination
 			 */
 			pagination: () => LocalizedString
@@ -4216,23 +5357,23 @@ export type TranslationFunctions = {
 		}
 		deleteDialog: {
 			/**
-			 * {count|number} contract(s) still mention it
+			 * {count|number} {{contract still mentions|contracts still mention}} it
 			 */
-			blockedContracts: (arg: { count: unknown }) => LocalizedString
+			blockedContracts: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
 			 * this cannot be deleted while the following still depend on it.
 			 */
 			blockedDescription: () => LocalizedString
 			/**
-			 * {count|number} payment(s) recorded against it
+			 * {count|number} {{payment|payments}} recorded against it
 			 */
-			blockedPayments: (arg: { count: unknown }) => LocalizedString
+			blockedPayments: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
-			 * {count|number} unit(s) belong to it
+			 * {count|number} {{unit belongs|units belong}} to it
 			 */
-			blockedUnits: (arg: { count: unknown }) => LocalizedString
+			blockedUnits: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
-			 * you can undo this while the app is open.
+			 * this cannot be undone.
 			 */
 			description: () => LocalizedString
 			/**
@@ -4242,6 +5383,16 @@ export type TranslationFunctions = {
 		}
 	}
 	layout: {
+		notFound: {
+			/**
+			 * the link that led here may be out of date.
+			 */
+			description: () => LocalizedString
+			/**
+			 * this page does not exist
+			 */
+			title: () => LocalizedString
+		}
 		error: {
 			/**
 			 * something went wrong on this screen. going back to the dashboard usually clears it.
@@ -4288,9 +5439,9 @@ export type TranslationFunctions = {
 			 */
 			locked: () => LocalizedString
 			/**
-			 * {count|number} member(s)
+			 * {count|number} {{member|members}}
 			 */
-			members: (arg: { count: unknown }) => LocalizedString
+			members: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
 			 * switch to
 			 */
@@ -4300,7 +5451,7 @@ export type TranslationFunctions = {
 			 */
 			open: () => LocalizedString
 			/**
-			 * creating a workspace needs the turso account, and this machine is not connected to it. reconnect it in the organization section of settings.
+			 * creating a workspace needs the Turso account. reconnect it in settings, under organization.
 			 */
 			workspaceRefusedAuthority: () => LocalizedString
 		}
@@ -4314,7 +5465,7 @@ export type TranslationFunctions = {
 			 */
 			create: () => LocalizedString
 			/**
-			 * creating the workspace on your turso account. this takes a moment.
+			 * creating the workspace on your Turso account. this takes a moment.
 			 */
 			creating: () => LocalizedString
 			/**
@@ -4322,7 +5473,7 @@ export type TranslationFunctions = {
 			 */
 			created: () => LocalizedString
 			/**
-			 * only the owner can create the first workspace, from the machine that connected the turso account.
+			 * only the owner can create the first workspace, from the machine that connected the Turso account.
 			 */
 			ownerOnly: () => LocalizedString
 			/**
@@ -4376,7 +5527,7 @@ export type TranslationFunctions = {
 			 */
 			roleMember: () => LocalizedString
 			/**
-			 * use your turso account
+			 * use your Turso account
 			 */
 			setUp: () => LocalizedString
 			/**
@@ -4404,7 +5555,7 @@ export type TranslationFunctions = {
 			 */
 			disconnect: () => LocalizedString
 			/**
-			 * this machine forgets the organization: every copy of it and of its workspaces kept here is deleted, and the turso account is forgotten with them. nothing on turso changes. the owner connects this machine again with their turso account; anybody else is given a link by whoever keeps the accounts.
+			 * this machine deletes its copy of the organization and its workspaces, and forgets the Turso account. nothing on Turso changes. the owner connects again with their Turso account; anyone else needs a new link.
 			 */
 			disconnectDescription: () => LocalizedString
 		}
@@ -4418,7 +5569,7 @@ export type TranslationFunctions = {
 			 */
 			failedToStartFallback: () => LocalizedString
 			/**
-			 * your workspace could not be opened. nothing recorded in it is at risk, it is kept on this machine and in your account, and starting again is the first thing to try.
+			 * your workspace could not be opened. nothing in it is at risk; try starting again.
 			 */
 			failureDescription: () => LocalizedString
 			/**
@@ -4430,7 +5581,7 @@ export type TranslationFunctions = {
 			 */
 			previousVersion: () => LocalizedString
 			/**
-			 * nothing recorded in this workspace is at risk: it is kept for you and this machine holds a copy. if startup still fails, reinstall the previous version before opening rentable again.
+			 * nothing in this workspace is at risk; this machine holds a copy. if startup still fails, reinstall the previous version.
 			 */
 			recoveryDetails: () => LocalizedString
 			/**
@@ -4450,13 +5601,17 @@ export type TranslationFunctions = {
 			 */
 			stageRecords: () => LocalizedString
 			/**
-			 * bringing the workspace up to this version of rentable. this reaches turso and takes a moment; nothing here is stuck.
+			 * bringing the workspace up to this version of rentable. this reaches Turso and takes a moment; nothing here is stuck.
 			 */
 			migrationApplying: () => LocalizedString
 			/**
 			 * another member is bringing the workspace up to this version of rentable. waiting on them, until {until} at the latest.
 			 */
 			migrationWaiting: (arg: { until: unknown }) => LocalizedString
+			/**
+			 * creating your first workspace
+			 */
+			stagePrepare: () => LocalizedString
 			/**
 			 * reading your settings
 			 */
@@ -4498,17 +5653,13 @@ export type TranslationFunctions = {
 			 */
 			alsoEnding: () => LocalizedString
 			/**
-			 * {count|number} contract(s)
+			 * {count|number} {{contract|contracts}}
 			 */
-			contractCount: (arg: { count: unknown }) => LocalizedString
+			contractCount: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
 			 * open the contract for {tenant}
 			 */
 			openContract: (arg: { tenant: unknown }) => LocalizedString
-			/**
-			 * renew the contract for {tenant}
-			 */
-			renewContract: (arg: { tenant: unknown }) => LocalizedString
 			/**
 			 * see all ({count|number})
 			 */
@@ -4521,7 +5672,7 @@ export type TranslationFunctions = {
 	}
 	settings: {
 		/**
-		 * rentable keeps a record of what it does on this machine, so a failure can be looked into afterwards. the files never leave this machine, they are limited in size, and passwords and account tokens are removed before anything is written.
+		 * a record of what rentable does, for looking into failures. it stays here, and passwords and tokens are left out.
 		 */
 		diagnosticsDescription: () => LocalizedString
 		/**
@@ -4565,7 +5716,7 @@ export type TranslationFunctions = {
 		 */
 		transferImportSuccess: () => LocalizedString
 		/**
-		 * the update has been installed. on windows the app may close automatically during installation; otherwise restart rentable to finish switching versions.
+		 * update installed. restart rentable to finish.
 		 */
 		restartNotice: () => LocalizedString
 		/**
@@ -4576,6 +5727,28 @@ export type TranslationFunctions = {
 		 * language
 		 */
 		localeTitle: () => LocalizedString
+		/**
+		 * appearance
+		 */
+		appearanceTitle: () => LocalizedString
+		/**
+		 * light or dark, or follow your system as it changes.
+		 */
+		appearanceDescription: () => LocalizedString
+		appearance: {
+			/**
+			 * system
+			 */
+			system: () => LocalizedString
+			/**
+			 * light
+			 */
+			light: () => LocalizedString
+			/**
+			 * dark
+			 */
+			dark: () => LocalizedString
+		}
 		section: {
 			/**
 			 * general
@@ -4603,7 +5776,7 @@ export type TranslationFunctions = {
 		 */
 		updatesChecking: () => LocalizedString
 		/**
-		 * check whether a newer version of rentable is available, and install it. if the app will not start afterwards, it offers to put back the version you were on.
+		 * check for a newer version and install it. if the app then fails to start, it offers the version you were on.
 		 */
 		updatesDescription: () => LocalizedString
 		/**
@@ -4655,7 +5828,7 @@ export type TranslationFunctions = {
 				 */
 				title: () => LocalizedString
 				/**
-				 * sign out everywhere you are still signed in but here. your password does not change, so you can sign in again on any of them.
+				 * sign out everywhere but here. your password stays the same.
 				 */
 				description: () => LocalizedString
 				/**
@@ -4663,7 +5836,7 @@ export type TranslationFunctions = {
 				 */
 				action: () => LocalizedString
 				/**
-				 * every other machine signed in as you is signed out: one that is running goes back to the sign-in screen within a few minutes, and one that is closed asks for your password next time it opens. this machine stays signed in and your password is unchanged.
+				 * every other machine signed in as you is signed out. this one stays signed in, and your password does not change.
 				 */
 				confirmDescription: () => LocalizedString
 				/**
@@ -4688,6 +5861,16 @@ export type TranslationFunctions = {
 		}
 	}
 	complexes: {
+		empty: {
+			/**
+			 * complexes you add, with their units, will be listed here.
+			 */
+			description: () => LocalizedString
+			/**
+			 * no complexes yet
+			 */
+			title: () => LocalizedString
+		}
 		hooks: {
 			/**
 			 * complex created successfully!
@@ -4702,17 +5885,17 @@ export type TranslationFunctions = {
 			 */
 			deleteSuccess: () => LocalizedString
 			/**
-			 * {count|number} unit(s) created
+			 * {count|number} {{unit|units}} created
 			 */
-			unitCreateManySuccess: (arg: { count: unknown }) => LocalizedString
+			unitCreateManySuccess: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
 			 * unit created successfully!
 			 */
 			unitCreateSuccess: () => LocalizedString
 			/**
-			 * {count|number} unit(s) deleted
+			 * {count|number} {{unit|units}} deleted
 			 */
-			unitDeleteManySuccess: (arg: { count: unknown }) => LocalizedString
+			unitDeleteManySuccess: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
 			 * unit deleted successfully!
 			 */
@@ -4728,17 +5911,9 @@ export type TranslationFunctions = {
 		}
 		form: {
 			/**
-			 * name is associated with a previously registered complex.
-			 */
-			duplicateName: () => LocalizedString
-			/**
 			 * {name} is already in the list.
 			 */
 			duplicateUnitName: (arg: { name: string }) => LocalizedString
-			/**
-			 * two units share a name; each needs its own.
-			 */
-			duplicateUnitNames: () => LocalizedString
 			/**
 			 * name at least one unit.
 			 */
@@ -4782,9 +5957,9 @@ export type TranslationFunctions = {
 			 */
 			refusedMissing: (arg: { count: unknown }) => LocalizedString
 			/**
-			 * {count|number} unit(s) will be deleted
+			 * {count|number} {{unit|units}} will be deleted
 			 */
-			unitDeleteSummary: (arg: { count: unknown }) => LocalizedString
+			unitDeleteSummary: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
 			 * delete units
 			 */
@@ -4808,9 +5983,13 @@ export type TranslationFunctions = {
 			 */
 			contractsEmptyTitle: () => LocalizedString
 			/**
-			 * name is associated with a unit in the same complex.
+			 * units you add to this complex will be listed here.
 			 */
-			duplicateName: () => LocalizedString
+			emptyDescription: () => LocalizedString
+			/**
+			 * no units in this complex yet
+			 */
+			emptyTitle: () => LocalizedString
 			/**
 			 * units management
 			 */
@@ -4818,6 +5997,16 @@ export type TranslationFunctions = {
 		}
 	}
 	tenants: {
+		empty: {
+			/**
+			 * tenants you add will be listed here.
+			 */
+			description: () => LocalizedString
+			/**
+			 * no tenants yet
+			 */
+			title: () => LocalizedString
+		}
 		contracts: {
 			/**
 			 * no contracts yet
@@ -4834,9 +6023,9 @@ export type TranslationFunctions = {
 			 */
 			createSuccess: () => LocalizedString
 			/**
-			 * {count|number} tenant(s) deleted
+			 * {count|number} {{tenant|tenants}} deleted
 			 */
-			deleteManySuccess: (arg: { count: unknown }) => LocalizedString
+			deleteManySuccess: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
 			 * tenant deleted successfully!
 			 */
@@ -4851,14 +6040,6 @@ export type TranslationFunctions = {
 			 * country code
 			 */
 			phoneCountryCode: () => LocalizedString
-			/**
-			 * national id is associated with a registered tenant.
-			 */
-			duplicateNationalId: () => LocalizedString
-			/**
-			 * phone is associated with a registered tenant.
-			 */
-			duplicatePhone: () => LocalizedString
 			/**
 			 * national identity number must start with 1 or 2 and be 10 digits long.
 			 */
@@ -4878,9 +6059,9 @@ export type TranslationFunctions = {
 		}
 		selection: {
 			/**
-			 * {count|number} tenant(s) will be deleted
+			 * {count|number} {{tenant|tenants}} will be deleted
 			 */
-			deleteSummary: (arg: { count: unknown }) => LocalizedString
+			deleteSummary: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
 			 * delete tenants
 			 */
@@ -4896,6 +6077,16 @@ export type TranslationFunctions = {
 		}
 	}
 	contracts: {
+		empty: {
+			/**
+			 * contracts you create will be listed here, those needing attention first.
+			 */
+			description: () => LocalizedString
+			/**
+			 * no contracts yet
+			 */
+			title: () => LocalizedString
+		}
 		form: {
 			/**
 			 * start date
@@ -4906,7 +6097,7 @@ export type TranslationFunctions = {
 			 */
 			calculatedEndDate: () => LocalizedString
 			/**
-			 * updated automatically from the selected cycle, start date, and number of cycles. you can manually adjust it within {days} days before or after the suggested end date; allowed dates are highlighted in green.
+			 * follows the cycle, start date and number of cycles. move it up to {days} days either way; allowed dates are green.
 			 */
 			calculatedEndDateHint: (arg: { days: unknown }) => LocalizedString
 			/**
@@ -4917,10 +6108,6 @@ export type TranslationFunctions = {
 			 * cost must be greater than zero.
 			 */
 			costGreaterThanZero: () => LocalizedString
-			/**
-			 * cost per payment must be greater than zero.
-			 */
-			costPerPaymentGreaterThanZero: () => LocalizedString
 			/**
 			 * cost is required.
 			 */
@@ -4934,14 +6121,6 @@ export type TranslationFunctions = {
 			 */
 			cyclesRequired: () => LocalizedString
 			/**
-			 * government id is associated with another contract.
-			 */
-			duplicateGovernmentId: () => LocalizedString
-			/**
-			 * end date must be after start date.
-			 */
-			endDateAfterStart: () => LocalizedString
-			/**
 			 * end date is required.
 			 */
 			endDateRequired: () => LocalizedString
@@ -4949,10 +6128,6 @@ export type TranslationFunctions = {
 			 * end date
 			 */
 			endDateShort: () => LocalizedString
-			/**
-			 * please select a valid tenant.
-			 */
-			invalidTenant: () => LocalizedString
 			/**
 			 * loading tenant...
 			 */
@@ -5010,19 +6185,11 @@ export type TranslationFunctions = {
 			 */
 			renewTitle: () => LocalizedString
 			/**
-			 * a renewal must start after the contract it renews ends.
-			 */
-			renewalMustFollowOriginal: () => LocalizedString
-			/**
-			 * another contract holds one or more of these units over the selected term. choose a different term.
-			 */
-			renewalUnitsUnavailable: () => LocalizedString
-			/**
 			 * search and select tenant
 			 */
 			searchAndSelectTenant: () => LocalizedString
 			/**
-			 * search tenant by name, id or phone...
+			 * search tenant by name, ID or phone...
 			 */
 			searchTenantPlaceholder: () => LocalizedString
 			/**
@@ -5033,6 +6200,38 @@ export type TranslationFunctions = {
 			 * tenant is required.
 			 */
 			tenantRequired: () => LocalizedString
+			/**
+			 * choose units
+			 */
+			chooseUnits: () => LocalizedString
+			/**
+			 * loading units...
+			 */
+			loadingUnits: () => LocalizedString
+			/**
+			 * no unit is free over this term.
+			 */
+			noUnitFree: () => LocalizedString
+			/**
+			 * search units by name or complex...
+			 */
+			searchUnitPlaceholder: () => LocalizedString
+			/**
+			 * held by another contract over this term
+			 */
+			unitHeldOverTerm: () => LocalizedString
+			/**
+			 * only units free over the contract's term are offered. you can change them later on the contract's units tab.
+			 */
+			unitsHint: () => LocalizedString
+			/**
+			 * pick the start date first; the units free over the term are offered then.
+			 */
+			unitsNeedTerm: () => LocalizedString
+			/**
+			 * units (optional)
+			 */
+			unitsOptional: () => LocalizedString
 		}
 		hooks: {
 			/**
@@ -5044,13 +6243,13 @@ export type TranslationFunctions = {
 			 */
 			createSuccess: () => LocalizedString
 			/**
-			 * {count|number} payment(s) deleted
+			 * {count|number} {{payment|payments}} deleted
 			 */
-			deleteManyPaymentsSuccess: (arg: { count: unknown }) => LocalizedString
+			deleteManyPaymentsSuccess: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
-			 * {count|number} contract(s) deleted
+			 * {count|number} {{contract|contracts}} deleted
 			 */
-			deleteManySuccess: (arg: { count: unknown }) => LocalizedString
+			deleteManySuccess: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
 			 * payment deleted successfully!
 			 */
@@ -5064,17 +6263,17 @@ export type TranslationFunctions = {
 			 */
 			renewSuccess: () => LocalizedString
 			/**
-			 * {count|number} contract(s) restored
+			 * {count|number} {{contract|contracts}} restored
 			 */
-			restoreManySuccess: (arg: { count: unknown }) => LocalizedString
+			restoreManySuccess: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
 			 * contract restored successfully!
 			 */
 			restoreSuccess: () => LocalizedString
 			/**
-			 * {count|number} contract(s) terminated
+			 * {count|number} {{contract|contracts}} terminated
 			 */
-			terminateManySuccess: (arg: { count: unknown }) => LocalizedString
+			terminateManySuccess: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
 			 * contract terminated successfully!
 			 */
@@ -5108,7 +6307,11 @@ export type TranslationFunctions = {
 		}
 		payments: {
 			/**
-			 * this contract has already reached its required total payment amount. you can still edit or delete payments if needed, but you cannot add more until the paid total drops below the required amount.
+			 * no payments yet
+			 */
+			emptyTitle: () => LocalizedString
+			/**
+			 * this contract is paid in full
 			 */
 			fullyPaidNotice: () => LocalizedString
 			/**
@@ -5124,9 +6327,9 @@ export type TranslationFunctions = {
 			 */
 			percentFulfilled: (arg: { percent: unknown }) => LocalizedString
 			/**
-			 * {amount} sar remaining
+			 * {amount} remaining
 			 */
-			remaining: (arg: { amount: unknown }) => LocalizedString
+			remaining: (arg: { amount: string }) => LocalizedString
 			/**
 			 * remaining after this payment
 			 */
@@ -5136,7 +6339,7 @@ export type TranslationFunctions = {
 			 */
 			remainingBalance: () => LocalizedString
 			/**
-			 * terminated contracts are locked. you can review payment history here, but you cannot add, edit, or delete payments until the contract is unterminated.
+			 * this contract is terminated
 			 */
 			terminatedNotice: () => LocalizedString
 			/**
@@ -5172,17 +6375,17 @@ export type TranslationFunctions = {
 		}
 		selection: {
 			/**
-			 * {count|number} contract(s) will be deleted
+			 * {count|number} {{contract|contracts}} will be deleted
 			 */
-			deleteSummary: (arg: { count: unknown }) => LocalizedString
+			deleteSummary: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
 			 * delete contracts
 			 */
 			deleteTitle: () => LocalizedString
 			/**
-			 * {count|number} payment(s) will be deleted
+			 * {count|number} {{payment|payments}} will be deleted
 			 */
-			paymentDeleteSummary: (arg: { count: unknown }) => LocalizedString
+			paymentDeleteSummary: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
 			 * delete payments
 			 */
@@ -5200,10 +6403,6 @@ export type TranslationFunctions = {
 			 */
 			refusedHoldsPayments: (arg: { count: unknown }) => LocalizedString
 			/**
-			 * {count|number} still hold units
-			 */
-			refusedHoldsUnits: (arg: { count: unknown }) => LocalizedString
-			/**
 			 * {count|number} are no longer in the workspace
 			 */
 			refusedMissing: (arg: { count: unknown }) => LocalizedString
@@ -5216,17 +6415,17 @@ export type TranslationFunctions = {
 			 */
 			refusedNotTerminable: (arg: { count: unknown }) => LocalizedString
 			/**
-			 * {count|number} contract(s) will be restored
+			 * {count|number} {{contract|contracts}} will be restored
 			 */
-			restoreSummary: (arg: { count: unknown }) => LocalizedString
+			restoreSummary: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
 			 * restore contracts
 			 */
 			restoreTitle: () => LocalizedString
 			/**
-			 * {count|number} contract(s) will be terminated
+			 * {count|number} {{contract|contracts}} will be terminated
 			 */
-			terminateSummary: (arg: { count: unknown }) => LocalizedString
+			terminateSummary: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
 			 * terminate contracts
 			 */
@@ -5272,15 +6471,15 @@ export type TranslationFunctions = {
 			 */
 			assigned: () => LocalizedString
 			/**
-			 * move a unit between the two sides; each move is saved as it happens. units linked to a contract whose term overlaps this one are not offered.
+			 * move a unit between the two sides; each move saves at once. units under an overlapping contract are not shown.
 			 */
 			transferDescription: () => LocalizedString
 			/**
-			 * contracts with registered payments are locked. you can review linked units here, but you cannot assign or remove units after payments have been recorded.
+			 * this contract has payments, so its units are locked.
 			 */
 			lockNoticeHasPayments: () => LocalizedString
 			/**
-			 * terminated contracts are locked. you can review linked units here, but you cannot assign or remove units until the contract is unterminated.
+			 * this contract is terminated, so its units are locked.
 			 */
 			lockNoticeTerminated: () => LocalizedString
 			/**
@@ -5306,13 +6505,17 @@ export type TranslationFunctions = {
 	organization: {
 		setup: {
 			/**
-			 * connect your turso account
+			 * connect your Turso account
 			 */
 			connectTitle: () => LocalizedString
 			/**
-			 * your organization will live on your own turso account. one consent in the browser is all it takes.
+			 * your organization lives on your own Turso account.
 			 */
 			connectDescription: () => LocalizedString
+			/**
+			 * before you connect
+			 */
+			connectDetails: () => LocalizedString
 			/**
 			 * step {step|number} of {total|number}
 			 */
@@ -5326,23 +6529,23 @@ export type TranslationFunctions = {
 			 */
 			oneOrganization: () => LocalizedString
 			/**
-			 * a free or developer turso account has exactly one group, so an account kept for rentable alone is the clean choice, and the consent screen is where you make one. on a paid account, pick an empty group.
+			 * a free or developer Turso account holds one group, so keep one for rentable alone. on a paid one, pick an empty group.
 			 */
 			accountCreation: () => LocalizedString
 			/**
-			 * on a personal account only you can grant access again; in a turso organization any admin can, and turso can move a group. rentable does neither for you.
+			 * only you, or a Turso organization's admin, can grant access again, and Turso can move a group. rentable does neither.
 			 */
 			succession: () => LocalizedString
 			/**
-			 * a group holding nothing yet is asked its name once, on the next step; turso names it nowhere.
+			 * a group holding nothing yet is asked its name once, on the next step; Turso names it nowhere.
 			 */
 			groupAskedOnce: () => LocalizedString
 			/**
-			 * open turso dashboard
+			 * open Turso dashboard
 			 */
 			openDashboard: () => LocalizedString
 			/**
-			 * connect turso account
+			 * connect Turso account
 			 */
 			connect: () => LocalizedString
 			/**
@@ -5350,7 +6553,7 @@ export type TranslationFunctions = {
 			 */
 			connecting: () => LocalizedString
 			/**
-			 * turso account connected.
+			 * Turso account connected.
 			 */
 			connected: () => LocalizedString
 			/**
@@ -5358,7 +6561,7 @@ export type TranslationFunctions = {
 			 */
 			consentAbandoned: () => LocalizedString
 			/**
-			 * turso refused the consent.
+			 * Turso refused the consent.
 			 */
 			consentFailed: () => LocalizedString
 			/**
@@ -5366,7 +6569,7 @@ export type TranslationFunctions = {
 			 */
 			existingTitle: () => LocalizedString
 			/**
-			 * this turso account already has an organization. its owner signs in to connect this machine to it.
+			 * this Turso account already has an organization. its owner signs in to connect this machine to it.
 			 */
 			existingDescription: () => LocalizedString
 			/**
@@ -5414,19 +6617,19 @@ export type TranslationFunctions = {
 			 */
 			passwordTooShort: () => LocalizedString
 			/**
-			 * turso could not tell rentable which group you picked, so type its name here once.
+			 * Turso could not tell rentable which group you picked, so type its name here once.
 			 */
 			groupNeeded: () => LocalizedString
 			/**
-			 * turso group
+			 * Turso group
 			 */
 			groupLabel: () => LocalizedString
 			/**
-			 * the name as it reads on turso's consent screen. the organization's database goes in it.
+			 * the name as it reads on Turso's consent screen. the organization's database goes in it.
 			 */
 			groupDescription: () => LocalizedString
 			/**
-			 * name the group you chose on turso's consent screen.
+			 * name the group you chose on Turso's consent screen.
 			 */
 			groupRequired: () => LocalizedString
 			/**
@@ -5434,17 +6637,9 @@ export type TranslationFunctions = {
 			 */
 			create: () => LocalizedString
 			/**
-			 * creating the organization on your turso account...
+			 * creating the organization on your Turso account...
 			 */
 			creating: () => LocalizedString
-			/**
-			 * create your first workspace
-			 */
-			workspaceTitle: () => LocalizedString
-			/**
-			 * a workspace holds one set of records. you can add more later, from inside the app.
-			 */
-			workspaceDescription: () => LocalizedString
 			/**
 			 * copy link
 			 */
@@ -5484,31 +6679,31 @@ export type TranslationFunctions = {
 			 */
 			unreadable: () => LocalizedString
 			/**
-			 * the organization could not be reached. the link is right; try again once the connection is back.
+			 * the organization could not be reached. check the connection and try again.
 			 */
 			unreachable: () => LocalizedString
 			/**
-			 * this invitation has lapsed. ask whoever invited you for a new link.
+			 * this link has lapsed. ask whoever sent it for a new one.
 			 */
 			lapsed: () => LocalizedString
 			/**
-			 * this invitation link has already been opened. this machine is connected, so sign in with your username and the password you chose.
+			 * this link was already used here. sign in with the password you chose.
 			 */
 			consumed: () => LocalizedString
 			/**
-			 * this link has already been opened on another machine. ask whoever keeps the accounts for a new one.
+			 * this link was already used. ask whoever sent it for a new one.
 			 */
 			consumedElsewhere: () => LocalizedString
 			/**
-			 * this invitation was withdrawn. ask whoever invited you for a new link.
+			 * this link was withdrawn. ask whoever sent it for a new one.
 			 */
 			revoked: () => LocalizedString
 			/**
-			 * a newer link took the place of this one. ask whoever keeps the accounts for the new one.
+			 * a newer link replaced this one. ask whoever sent it for the new one.
 			 */
 			replaced: () => LocalizedString
 			/**
-			 * this machine already holds another organization. disconnect it first, then open this link.
+			 * this machine holds another organization. disconnect it at the sign-in first.
 			 */
 			anotherOrganization: () => LocalizedString
 			/**
@@ -5520,7 +6715,7 @@ export type TranslationFunctions = {
 			 */
 			passwordTitle: () => LocalizedString
 			/**
-			 * your password signs you in, on this machine and on any other. nobody can recover it for you; a new link is the only way back.
+			 * signs you in on any machine. nobody can recover it; only a new link gets you back in.
 			 */
 			passwordDescription: () => LocalizedString
 			/**
@@ -5562,15 +6757,15 @@ export type TranslationFunctions = {
 		}
 		standing: {
 			/**
-			 * this machine and turso
+			 * this machine and Turso
 			 */
 			title: () => LocalizedString
 			/**
-			 * the organization is kept on turso and reaches this machine on its own. what you write here goes out as soon as turso can be reached.
+			 * the organization lives on Turso and reaches this machine on its own. what you write goes out when Turso is reachable.
 			 */
 			purpose: () => LocalizedString
 			/**
-			 * this machine has not reached turso yet
+			 * this machine has not reached Turso yet
 			 */
 			notYetReached: () => LocalizedString
 			/**
@@ -5578,11 +6773,11 @@ export type TranslationFunctions = {
 			 */
 			upToDateChecked: (arg: { moment: string }) => LocalizedString
 			/**
-			 * last reached turso on {moment}
+			 * last reached Turso on {moment}
 			 */
 			lastReached: (arg: { moment: string }) => LocalizedString
 			/**
-			 * the turso account needs attention
+			 * the Turso account needs attention
 			 */
 			accountNeedsAttention: () => LocalizedString
 			/**
@@ -5594,7 +6789,7 @@ export type TranslationFunctions = {
 			 */
 			needsReconnecting: () => LocalizedString
 			/**
-			 * the turso account is reconnected in the block below.
+			 * the Turso account is reconnected in the block below.
 			 */
 			reconnectBelow: () => LocalizedString
 			/**
@@ -5636,7 +6831,7 @@ export type TranslationFunctions = {
 			 */
 			memberTitle: () => LocalizedString
 			/**
-			 * a member is a username, a role, what they may do and the workspaces they hold. they have no password until you make them a link and they open it.
+			 * a username, a role and the workspaces they hold. no password until they open a link you make.
 			 */
 			memberDescription: () => LocalizedString
 			/**
@@ -5656,7 +6851,7 @@ export type TranslationFunctions = {
 			 */
 			addMember: () => LocalizedString
 			/**
-			 * rentable sends nothing. copy the link below and hand it over yourself, and read the code out separately. it admits one machine, once.
+			 * rentable sends nothing: copy the link below, hand it over, and give the code separately. it works once.
 			 */
 			cannotSend: () => LocalizedString
 			/**
@@ -5688,7 +6883,7 @@ export type TranslationFunctions = {
 			 */
 			transferOwnership: () => LocalizedString
 			/**
-			 * the person you choose is offered the organization. nothing changes until they accept it, on a machine they are already signed in on, with their own password. when they do, they become the owner and you become an administrator.
+			 * they are offered the organization. once they accept, they become the owner and you become an administrator.
 			 */
 			transferOwnershipGoes: () => LocalizedString
 			/**
@@ -5696,7 +6891,7 @@ export type TranslationFunctions = {
 			 */
 			transferOwnershipMember: () => LocalizedString
 			/**
-			 * your turso account does not move. the databases stay on it, and the new owner connects their own account from the organization section before they can create a workspace, lock anybody out or renew credentials.
+			 * your Turso account and its databases stay yours. the new owner connects their own before creating workspaces.
 			 */
 			transferOwnershipAuthority: () => LocalizedString
 			/**
@@ -5720,11 +6915,11 @@ export type TranslationFunctions = {
 			 */
 			acceptOwnership: () => LocalizedString
 			/**
-			 * you become the owner of {organization} and {owner} becomes an administrator. your password becomes what the organization is signed with, so from now on it is your password that gets you back in on a new machine.
+			 * you own {organization} and {owner} becomes an administrator. your password now signs the organization.
 			 */
 			acceptOwnershipGoes: (arg: { organization: string, owner: string }) => LocalizedString
 			/**
-			 * the turso account stays with whoever connected it. until you connect your own from the organization section, creating a workspace, locking somebody out and renewing credentials run on their machine or not at all.
+			 * the Turso account stays with whoever connected it. connect yours in the organization section to create workspaces.
 			 */
 			acceptOwnershipAuthority: () => LocalizedString
 			/**
@@ -5772,6 +6967,10 @@ export type TranslationFunctions = {
 			 */
 			username: () => LocalizedString
 			/**
+			 * the username they sign in with, on every machine.
+			 */
+			usernameDescription: () => LocalizedString
+			/**
 			 * a username is three to thirty-two characters of letters, digits, dots, underscores and hyphens
 			 */
 			usernameRules: () => LocalizedString
@@ -5780,19 +6979,19 @@ export type TranslationFunctions = {
 			 */
 			renamed: () => LocalizedString
 			/**
-			 * turso account
+			 * Turso account
 			 */
 			authorityTitle: () => LocalizedString
 			/**
-			 * this machine holds no authority over the organization's turso account, so it cannot create a workspace, lock anybody out or renew credentials. the authority is nowhere to restore it from; grant the consent again here, as you did on the first run.
+			 * this machine holds no authority over the Turso account, and it cannot be restored. grant the consent again.
 			 */
 			authorityDescription: () => LocalizedString
 			/**
-			 * the authority follows the turso account that granted it, not who owns the organization.
+			 * the authority follows the Turso account that granted it, not who owns the organization.
 			 */
 			authorityFollowsTheAccount: () => LocalizedString
 			/**
-			 * the turso account is connected on this machine.
+			 * the Turso account is connected on this machine.
 			 */
 			authorityReconnected: () => LocalizedString
 			/**
@@ -5800,7 +6999,7 @@ export type TranslationFunctions = {
 			 */
 			remove: () => LocalizedString
 			/**
-			 * they stop being renewed, so their access ends when their credential runs out, within four weeks, and nobody else is affected. what is already on their machine stays there; nothing reaches into it.
+			 * their access ends when their credential runs out, within four weeks. no one else is affected.
 			 */
 			removeDescription: () => LocalizedString
 			/**
@@ -5812,17 +7011,17 @@ export type TranslationFunctions = {
 			 */
 			lockOutReading: () => LocalizedString
 			/**
-			 * their access to {workspaces} ends at once. turso revokes per workspace and totally, so {count|number} other member(s) of those workspaces stop syncing until their application reconnects, which it does on its own. what is already on their machine stays there.
+			 * their access to {workspaces} ends now. {count|number} other {{member pauses|members pause}} syncing until reconnected.
 			 */
-			lockOutDescription: (arg: { count: unknown, workspaces: unknown }) => LocalizedString
+			lockOutDescription: (arg: { count: string | number | boolean, workspaces: unknown }) => LocalizedString
 			/**
 			 * the member was removed. their access ends when their credential runs out.
 			 */
 			removed: () => LocalizedString
 			/**
-			 * the member was locked out. {count|number} other member(s) reconnect on their own.
+			 * the member was locked out. {count|number} other {{member reconnects|members reconnect}} on their own.
 			 */
-			lockedOut: (arg: { count: unknown }) => LocalizedString
+			lockedOut: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
 			 * you do not hold {workspaces}, so the reset could not restore it. an administrator who does can grant it again.
 			 */
@@ -5856,6 +7055,10 @@ export type TranslationFunctions = {
 			 */
 			accessTakenBack: () => LocalizedString
 			/**
+			 * the workspaces they can open, and what they can do in each.
+			 */
+			memberWorkspacesDescription: () => LocalizedString
+			/**
 			 * the workspaces were saved.
 			 */
 			accessSaved: () => LocalizedString
@@ -5864,7 +7067,7 @@ export type TranslationFunctions = {
 			 */
 			workspaceAccessTitle: () => LocalizedString
 			/**
-			 * who holds {workspace}, and what each of them can do in it. taking a workspace back mints nothing, so what somebody already holds works until it runs out.
+			 * who holds {workspace} and what each can do there. access taken back lasts until it runs out.
 			 */
 			workspaceAccessDescription: (arg: { workspace: string }) => LocalizedString
 			/**
@@ -5872,7 +7075,7 @@ export type TranslationFunctions = {
 			 */
 			deleteWorkspace: () => LocalizedString
 			/**
-			 * the workspace and its database are deleted from the turso account, with every tenant, complex, unit, contract and payment in it, on every machine that syncs it. nothing puts it back.
+			 * the workspace and every record in it are deleted from Turso and from every machine that syncs it. nothing puts it back.
 			 */
 			deleteWorkspaceDescription: () => LocalizedString
 			/**
@@ -5884,7 +7087,7 @@ export type TranslationFunctions = {
 			 */
 			transferTitle: (arg: { workspace: string }) => LocalizedString
 			/**
-			 * forget turso account
+			 * forget Turso account
 			 */
 			forgetAccount: () => LocalizedString
 			/**
@@ -5964,7 +7167,7 @@ export type TranslationFunctions = {
 			 */
 			leavingTitle: () => LocalizedString
 			/**
-			 * disconnecting forgets the organization on this machine: you are signed out, every copy of it and of its workspaces kept here is deleted, and the turso authority is cleared. nothing on turso is touched, and the link connects this machine again. to reach another organization, disconnect and connect to it.
+			 * signs you out and deletes the organization's copy on this machine. nothing on Turso changes.
 			 */
 			disconnectForgets: () => LocalizedString
 			/**
@@ -5976,11 +7179,11 @@ export type TranslationFunctions = {
 			 */
 			disconnected: () => LocalizedString
 			/**
-			 * this machine holds a token for the turso account your organization lives on. forgetting it here means nothing on this machine reaches that account afterwards.
+			 * this machine holds a token for the organization's Turso account. forget it, and nothing here reaches that account.
 			 */
 			forgetAccountDescription: () => LocalizedString
 			/**
-			 * forgetting the token does not revoke it. what you granted stays granted until you end it yourself, on turso's own dashboard at app.turso.tech.
+			 * forgetting does not revoke the token. end the grant yourself on Turso's dashboard at app.turso.tech.
 			 */
 			forgetAccountRevokes: () => LocalizedString
 			/**
@@ -5988,7 +7191,7 @@ export type TranslationFunctions = {
 			 */
 			forgetAccountRevokesAt: () => LocalizedString
 			/**
-			 * this machine no longer holds a token for your turso account.
+			 * this machine no longer holds a token for your Turso account.
 			 */
 			accountForgotten: () => LocalizedString
 			/**
@@ -5996,11 +7199,11 @@ export type TranslationFunctions = {
 			 */
 			deleteOrganization: () => LocalizedString
 			/**
-			 * the organization and every workspace in it are deleted from your turso account. nothing puts them back.
+			 * the organization and every workspace in it are deleted from your Turso account. nothing puts them back.
 			 */
 			deleteOrganizationDescription: () => LocalizedString
 			/**
-			 * every workspace goes, and everything in it: tenants, complexes, units, contracts and payments. so does every way in, for every member. the other machines find the organization gone the next time they open and land on the first screen. nothing puts this back.
+			 * every workspace and every record in it is deleted, and every member loses their way in. nothing puts this back.
 			 */
 			deleteOrganizationGoes: () => LocalizedString
 			/**
@@ -6011,13 +7214,13 @@ export type TranslationFunctions = {
 		roles: {
 			owner: {
 				/**
-				 * holds the turso account everything is kept on, and can do anything here. there is one owner, and handing it over is their own act.
+				 * holds the Turso account and can do anything. there is one owner, and only they can hand it over.
 				 */
 				who: () => LocalizedString
 			}
 			administrator: {
 				/**
-				 * looks after the people and the workspaces: adds a member, makes links, renames, grants a workspace. the turso account stays the owner's.
+				 * adds members, makes links and grants workspaces. the Turso account stays the owner's.
 				 */
 				who: () => LocalizedString
 			}
@@ -6114,7 +7317,7 @@ export type TranslationFunctions = {
 			 */
 			ownerAlone: () => LocalizedString
 			/**
-			 * these run on the turso account the owner connected, so nobody can be given them.
+			 * these run on the Turso account the owner connected, so nobody can be given them.
 			 */
 			ownerAloneReason: () => LocalizedString
 			/**
@@ -6142,7 +7345,7 @@ export type TranslationFunctions = {
 			 */
 			renew: () => LocalizedString
 			/**
-			 * connect the turso account, and forget it.
+			 * connect the Turso account, and forget it.
 			 */
 			tursoAccount: () => LocalizedString
 		}
@@ -6157,10 +7360,6 @@ export type TranslationFunctions = {
 		 */
 		nameRequired: () => LocalizedString
 		/**
-		 * rename
-		 */
-		rename: () => LocalizedString
-		/**
 		 * what this workspace is called, on every machine signed in to it.
 		 */
 		renameDescription: () => LocalizedString
@@ -6169,28 +7368,28 @@ export type TranslationFunctions = {
 		 */
 		renamed: () => LocalizedString
 		/**
-		 * your access to this workspace was refreshed, and this machine is collecting the new credential. if it does not clear on its own, ask the organization's owner. everything here keeps working meanwhile.
+		 * your access was renewed and this machine is fetching it. work goes on here; if it does not clear, ask the owner.
 		 */
 		credentialRefused: () => LocalizedString
 		/**
-		 * the organization's turso account needs attention, so nothing is reaching turso for now. tell {owner}. everything here keeps working on this machine, and what you write goes out once it is seen to.
+		 * the organization's Turso account needs attention, so nothing reaches Turso for now. tell {owner}. work here goes on.
 		 */
 		accountRefusedMember: (arg: { owner: unknown }) => LocalizedString
 		/**
-		 * turso is refusing the organization's account: {detail}. everything keeps working on this machine, and what is written goes out once the account is seen to. the place to see to it is turso's own dashboard at app.turso.tech, under the organization that holds your group.
+		 * Turso is refusing the organization's account: {detail}. work goes on here; fix it at app.turso.tech to send it.
 		 */
 		accountRefusedOwner: (arg: { detail: unknown }) => LocalizedString
 		/**
-		 * turso is refusing the organization's account. everything keeps working on this machine, and what is written goes out once the account is seen to. the place to see to it is turso's own dashboard at app.turso.tech, under the organization that holds your group.
+		 * Turso is refusing the organization's account. work goes on here; fix it at app.turso.tech to send it.
 		 */
 		accountRefusedOwnerNoDetail: () => LocalizedString
 		/**
-		 * write everything — tenants, complexes, units, contracts and payments — to one workbook, or read one back in. records name each other by name rather than by number, so a file opens on any machine.
+		 * write every record to one workbook, or read one in. records name each other, so the file opens on any machine.
 		 */
 		transferDescription: () => LocalizedString
 	}
 }
 
 export type Formatters = {
-	number: (value: unknown | string | number | boolean) => unknown
+	number: (value: string | number | boolean | unknown) => unknown
 }

@@ -16,6 +16,8 @@ export type ConfirmingSurface = {
 	close: () => void;
 	/** what to show for a refusal that carries no message of its own. */
 	unexpected: () => string;
+	/** the refusal in the reader's words, which the string contract's `refusal` supplies. */
+	refusal: (failure: unknown) => string;
 };
 
 /**
@@ -66,7 +68,7 @@ export class ConfirmationSubmission {
 			await this.#surface.perform();
 			this.#surface.close();
 		} catch (failure) {
-			this.error = toRefusal(failure, this.#surface.unexpected());
+			this.error = toRefusal(failure, this.#surface.unexpected(), this.#surface.refusal);
 		} finally {
 			this.isSubmitting = false;
 		}

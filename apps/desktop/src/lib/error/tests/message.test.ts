@@ -6,7 +6,8 @@ import en from '$lib/i18n/en';
 import { i18nObject } from '$lib/i18n/i18n-util.ts';
 import { loadLocale } from '$lib/i18n/i18n-util.sync.ts';
 import { toErrorDetail, toErrorMessage, toErrorText } from '$lib/error/message.ts';
-import { TAURI_ERROR_CODES } from '$lib/error/tauri.ts';
+import { TAURI_ERROR_CODES, TAURI_REFUSAL_REASONS } from '$lib/error/tauri.ts';
+import { TRPCError } from '@trpc/server';
 
 // the loaded locale rather than a hand-written stand-in: these functions take the whole of
 // `TranslationFunctions`, and the two-key object this used to pass was a shape nothing ever
@@ -46,6 +47,27 @@ test('a command failure is titled from its code and keeps the rust prose as deta
 	});
 });
 
+test('a router failure is titled from its code, and its English message is neither title nor detail', () => {
+	const failure = new TRPCError({
+		code: 'FORBIDDEN',
+		message: 'this account does not hold createPayment in this workspace'
+	});
+
+	assert.deepEqual(toErrorMessage(failure, translations), {
+		title: 'your role does not allow this in this workspace.',
+		detail: null
+	});
+	assert.equal(
+		toErrorText(
+			new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'no such table' }),
+			translations
+		),
+		'unexpected error occurred!'
+	);
+	// the message is still there for whoever reads diagnostics or opens a disclosure.
+	assert.equal(toErrorDetail(failure), failure.message);
+});
+
 test('an error raised inside typescript is shown as it was written', () => {
 	assert.deepEqual(toErrorMessage(new Error('a sync is already running'), translations), {
 		title: 'a sync is already running',
@@ -60,11 +82,40 @@ test('a value carrying nothing readable falls back to the unexpected-error messa
 	});
 });
 
-test('flattening joins the title and the detail, isolating the untranslated prose', () => {
+test('flattening keeps the title alone, and the detail stays for a disclosure', () => {
 	assert.equal(
 		toErrorText({ code: 'integrity', message: 'hash mismatch' }, translations),
-		'the data does not match what was expected. — ⁨hash mismatch⁩'
+		'the data does not match what was expected.'
 	);
+});
+
+/**
+ * THE SHELL'S OWN WORDS STAY BEHIND DETAILS
+ *
+ * A failure nobody can act on, an I/O failure or a corrupt file, keeps its generic sentence, and
+ * the shell's English message is reachable only behind the details disclosure (effort 832,
+ * requirement 23). `toErrorText` is what every single-line surface renders, so it is where that
+ * holds for all of them.
+ */
+test('an io failure read in arabic is the arabic sentence, with no english in it', () => {
+	loadLocale('ar');
+
+	const arabic = i18nObject('ar');
+	const english = 'failed to read settings.json: permission denied';
+
+	for (const failure of [
+		{ code: 'io', message: english },
+		{ code: 'integrity', message: 'database disk image is malformed' },
+		// the same failure after the router wrapped it, which is how most of them arrive.
+		new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: english, cause: { code: 'io' } })
+	]) {
+		const text = toErrorText(failure, arabic);
+		const { title, detail } = toErrorMessage(failure, arabic);
+
+		assert.equal(text, title);
+		assert.ok(detail, 'the shell said something, and it is kept for the disclosure');
+		assert.doesNotMatch(text, /[A-Za-z]/, `english reached the text: ${text}`);
+	}
 });
 
 test('flattening a detail-free failure yields the title alone', () => {
@@ -92,5 +143,65 @@ test('a caller fallback never displaces a code the failure actually carried', ()
 			title: 'a file could not be read or written.',
 			detail: null
 		}
+	);
+});
+
+/**
+ * Effort 832, requirement 23: **a refusal the shell raises reads as its reason's sentence, in the
+ * reader's language, and nothing of Rust's English rides with it.** Every one-line surface that
+ * shows a failure goes through `toErrorText` (autosync, the members' edits, the settings area, the
+ * startup ports), so this is what each of them renders.
+ */
+test('a shell refusal reads as its reason in the reader’s language, with no rust prose beside it', () => {
+	loadLocale('ar');
+
+	const refused = {
+		code: 'refused',
+		reason: 'roleLacksAct',
+		message: 'your role does not include inviteMember'
+	};
+
+	assert.equal(toErrorText(refused, translations), en.common.refusals.host.roleLacksAct);
+	assert.equal(toErrorText(refused, i18nObject('ar')), ar.common.refusals.host.roleLacksAct);
+	assert.deepEqual(toErrorMessage(refused, i18nObject('ar')), {
+		title: ar.common.refusals.host.roleLacksAct,
+		detail: null
+	});
+
+	// and the same after a procedure wrapped it, which is how a host call made through the router
+	// reaches the caller.
+	const wrapped = Object.assign(new Error('wrapped'), { cause: refused });
+
+	assert.equal(toErrorText(wrapped, i18nObject('ar')), ar.common.refusals.host.roleLacksAct);
+});
+
+test('every reason the shell can refuse with has a sentence in both locales, and they differ', () => {
+	for (const reason of TAURI_REFUSAL_REASONS) {
+		const english = en.common.refusals.host[reason];
+		const arabic = ar.common.refusals.host[reason];
+
+		assert.ok(english.length > 0, `english is missing ${reason}`);
+		assert.ok(arabic.length > 0, `arabic is missing ${reason}`);
+		assert.notEqual(arabic, english, `arabic copies english for ${reason}`);
+	}
+
+	assert.deepEqual(Object.keys(en.common.refusals.host).sort(), [...TAURI_REFUSAL_REASONS].sort());
+	assert.deepEqual(Object.keys(ar.common.refusals.host).sort(), [...TAURI_REFUSAL_REASONS].sort());
+});
+
+// a failure nobody can act on is not a refusal, and keeps its generic sentence with the prose as
+// detail (the ticket's constraint).
+test('an io failure stays the generic sentence', () => {
+	assert.deepEqual(toErrorMessage({ code: 'io', message: 'permission denied' }, translations), {
+		title: en.common.errors.io,
+		detail: 'permission denied'
+	});
+});
+
+// a reason this side has no word for is not shown as rust's prose either.
+test('a refusal carrying a reason this side does not know falls back to the refused sentence', () => {
+	assert.equal(
+		toErrorMessage({ code: 'refused', reason: 'burnt', message: 'x' }, translations).title,
+		en.common.errors.refused
 	);
 });

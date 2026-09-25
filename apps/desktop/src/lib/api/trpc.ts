@@ -3,6 +3,7 @@ import { permits, type NamedActs } from '@rentable/workspace-permission';
 import { TRPCError, initTRPC } from '@trpc/server';
 import { ZodError } from 'zod';
 import { context } from './context';
+import { readRefusal } from './refusal';
 
 /**
  * CONTEXT
@@ -25,7 +26,10 @@ const t = initTRPC.context<typeof context>().create({
 			...shape,
 			data: {
 				...shape.data,
-				zodError: error.cause instanceof ZodError ? error.cause.flatten() : null
+				zodError: error.cause instanceof ZodError ? error.cause.flatten() : null,
+				// the code and values a refusal was raised with, which is what the interface reads
+				// rather than the message ([[rules/api-layer]], under *Errors*).
+				refusal: readRefusal(error)
 			}
 		};
 	}
@@ -105,11 +109,11 @@ export const middleware = {
 	 * **Every act, not any of them.** A procedure that names two is a procedure that does two
 	 * things, and a caller holding one of them cannot do it.
 	 *
-	 * **`FORBIDDEN`, which surfaces as a generic failure** ([[rules/api-layer]], under *Errors*,
-	 * makes anything that is not `BAD_REQUEST` do that). That is the right outcome rather than a
-	 * shortfall: a caller who reached a procedure the interface would not have drawn for them has
-	 * gone around the interface, and there is no sentence worth writing for that. It matches
-	 * `requireIdentity`'s `UNAUTHORIZED` one middleware up.
+	 * **`FORBIDDEN`, which reads as one fixed sentence** ([[rules/api-layer]], under *Errors*),
+	 * the reader's words for a role that does not allow the act, never this message. A caller who
+	 * reached a procedure the interface would not have drawn for them has gone around the
+	 * interface, so no sentence names the acts. It matches `requireIdentity`'s `UNAUTHORIZED` one
+	 * middleware up.
 	 *
 	 * **It re-checks the identity it is composed behind**, because it is built off the root `t` and
 	 * so cannot see the narrowing `requireIdentity` did. The check is cheap and the alternative is
@@ -125,9 +129,9 @@ export const middleware = {
 
 			if (!identity || !acts.every((act) => permits(identity.permissions, act))) {
 				// The acts by their own names rather than a sentence built around them: this never
-				// reaches a person — `FORBIDDEN` surfaces as a generic failure — so it is written
-				// for whoever is reading a log, and *may not renameWorkspace* is prose neither
-				// audience wants.
+				// reaches a person, since `FORBIDDEN` reads as its own translated sentence, so it is
+				// written for whoever is reading a log, and *may not renameWorkspace* is prose
+				// neither audience wants.
 				throw new TRPCError({
 					code: 'FORBIDDEN',
 					message: `this account does not hold ${acts.join(', ')} in this workspace`

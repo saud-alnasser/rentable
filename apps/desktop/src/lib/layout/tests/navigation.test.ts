@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { sourceFiles } from '#tests/source.ts';
 
-import { isActiveRoute, toBreadcrumbTrail } from '../navigation.ts';
+import {
+	isActiveRoute,
+	PAGE_ROUTES,
+	toBreadcrumbTrail,
+	type BreadcrumbCrumb
+} from '../navigation.ts';
 
 test('a route is active on its own page and on anything beneath it', () => {
 	assert.equal(isActiveRoute('/tenants', '/tenants'), true);
@@ -18,35 +24,93 @@ test('the dashboard is active only at the root, never beneath it', () => {
 	assert.equal(isActiveRoute('/tenants', '/'), false);
 });
 
-test('the trail names every static segment, deepest last', () => {
-	assert.deepEqual(toBreadcrumbTrail('/complexes/units'), [
-		{ segment: 'complexes', path: '/complexes', isLast: false },
-		{ segment: 'units', path: '/complexes/units', isLast: true }
-	]);
+/** every route id with a page, read off the routes directory rather than off the list. */
+function routesOnDisk(): string[] {
+	return sourceFiles(/^\+page\.svelte$/)
+		.map(({ label }) => label.split('/'))
+		.filter((segments) => segments[0] === 'routes')
+		.map((segments) => `/${segments.slice(1, -1).join('/')}`)
+		.sort();
+}
+
+test('the list of pages is every page in the routes directory, and nothing else', () => {
+	assert.deepEqual([...PAGE_ROUTES].sort(), routesOnDisk());
 });
 
-test('the root has no trail to show', () => {
-	assert.deepEqual(toBreadcrumbTrail('/'), []);
-});
+// criterion 14(a) of effort 832: no crumb links to a non-route. Asked of every page the
+// application has, against the routes directory itself.
+test('every crumb on every page is a route', () => {
+	const pages = new Set(routesOnDisk());
 
-test('a record identifier is not a place, so it leaves the trail', () => {
-	assert.deepEqual(toBreadcrumbTrail('/tenants/42'), [
-		{ segment: 'tenants', path: '/tenants', isLast: true }
-	]);
-
-	assert.deepEqual(toBreadcrumbTrail('/contracts/1f0d9f4c-3b1e-4a0a-9b6e-2c6a5f7d8e90/payments'), [
-		{ segment: 'contracts', path: '/contracts', isLast: false },
-		{
-			segment: 'payments',
-			path: '/contracts/1f0d9f4c-3b1e-4a0a-9b6e-2c6a5f7d8e90/payments',
-			isLast: true
+	for (const route of PAGE_ROUTES) {
+		for (const crumb of toBreadcrumbTrail(route)) {
+			assert.ok(pages.has(crumb.route), `${route} has a crumb to ${crumb.route}`);
 		}
-	]);
+	}
 });
 
-test('the last static segment is the last crumb even when an identifier follows it', () => {
-	assert.deepEqual(toBreadcrumbTrail('/complexes/units/7'), [
-		{ segment: 'complexes', path: '/complexes', isLast: false },
-		{ segment: 'units', path: '/complexes/units', isLast: true }
-	]);
+test('the three addresses no page lives at are never a crumb', () => {
+	const crumbs = PAGE_ROUTES.flatMap((route) => toBreadcrumbTrail(route));
+
+	for (const missing of ['/complexes/units', '/contracts/units', '/contracts/payments']) {
+		assert.equal(
+			crumbs.some((crumb) => crumb.route === missing),
+			false,
+			missing
+		);
+	}
+});
+
+test('a record page ends on the record, under the directory it belongs to', () => {
+	const expected: Record<string, BreadcrumbCrumb[]> = {
+		'/tenants/[id]': [
+			{ kind: 'place', route: '/tenants', isLast: false },
+			{ kind: 'record', route: '/tenants/[id]', isLast: true }
+		],
+		'/complexes/[id]': [
+			{ kind: 'place', route: '/complexes', isLast: false },
+			{ kind: 'record', route: '/complexes/[id]', isLast: true }
+		],
+		// a unit is reached through its complex, and its trail runs through it (ticket 36).
+		'/complexes/units/[id]': [
+			{ kind: 'place', route: '/complexes', isLast: false },
+			{ kind: 'parent', route: '/complexes/[id]', isLast: false },
+			{ kind: 'record', route: '/complexes/units/[id]', isLast: true }
+		],
+		'/contracts/[id]': [
+			{ kind: 'place', route: '/contracts', isLast: false },
+			{ kind: 'record', route: '/contracts/[id]', isLast: true }
+		],
+		'/contracts/units/[id]': [
+			{ kind: 'place', route: '/contracts', isLast: false },
+			{ kind: 'record', route: '/contracts/units/[id]', isLast: true }
+		],
+		// a payment is reached through its contract, and its trail runs through it (ticket 33).
+		'/contracts/payments/[id]': [
+			{ kind: 'place', route: '/contracts', isLast: false },
+			{ kind: 'parent', route: '/contracts/[id]', isLast: false },
+			{ kind: 'record', route: '/contracts/payments/[id]', isLast: true }
+		]
+	};
+
+	for (const [route, trail] of Object.entries(expected)) {
+		assert.deepEqual(toBreadcrumbTrail(route), trail, route);
+	}
+});
+
+test('a directory and the settings area are the one crumb, and it is the current page', () => {
+	for (const route of ['/tenants', '/complexes', '/contracts', '/settings'] as const) {
+		assert.deepEqual(toBreadcrumbTrail(route), [{ kind: 'place', route, isLast: true }]);
+	}
+});
+
+test('the dashboard and the way in have no trail to show', () => {
+	for (const route of ['/', '/organization/new', '/organization/join']) {
+		assert.deepEqual(toBreadcrumbTrail(route), [], route);
+	}
+});
+
+test('an address no route matched has no trail', () => {
+	assert.deepEqual(toBreadcrumbTrail(null), []);
+	assert.deepEqual(toBreadcrumbTrail('/nowhere'), []);
 });

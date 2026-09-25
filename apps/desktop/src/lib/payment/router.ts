@@ -5,6 +5,7 @@ import { ensureIdFree, newId } from '$lib/platform/database/identity';
 import { matchesAnySearch } from '$lib/platform/database/search';
 import * as s from '$lib/platform/database/schema';
 import { PaymentSchema, type Payment } from '$lib/platform/database/schema';
+import { refuse } from '$lib/api/refusal';
 import { autosync, procedure, router } from '$lib/api/trpc';
 import {
 	ensureContractIsNotTerminated,
@@ -16,11 +17,11 @@ import {
 	ensurePaymentIsNotInTheFuture,
 	ensureValidPaymentAmount,
 	groupPaymentsByContractId,
+	PAYMENT_SORT_COLUMN_IDS,
 	whatRefusesPaymentDeletion,
 	type PaymentRefusalReason
 } from '$lib/payment/payment';
-import { TRPCError } from '@trpc/server';
-import { and, desc, eq, inArray, sql, type AnyColumn, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql, type AnyColumn, type SQL } from 'drizzle-orm';
 import z from 'zod';
 
 /**
@@ -117,6 +118,34 @@ const paymentDay = sql<string>`strftime('%Y-%m-%d', ${s.payment.date} / 1000, 'u
 // one, so a term folds and a column folds the same way here as everywhere else.
 const PAYMENT_SEARCH_COLUMNS: readonly (SQL | AnyColumn)[] = [s.payment.amount, paymentDay];
 
+const PaymentSortSchema = z.object({
+	columnId: z.enum(PAYMENT_SORT_COLUMN_IDS),
+	direction: z.enum(['asc', 'desc'])
+});
+
+/**
+ * A ledger's order: the one chosen, then the statement's own, newest first.
+ *
+ * Two payments made on one day are told apart by which was recorded later, and two of one amount
+ * by which was made later, so the order stays total whatever the reader chose.
+ */
+function paymentOrderBy(sort: z.infer<typeof PaymentSortSchema> | undefined): SQL[] {
+	const statementOrder = [desc(s.payment.date), desc(s.payment.id)];
+
+	if (!sort) {
+		return statementOrder;
+	}
+
+	const column = sort.columnId === 'date' ? s.payment.date : s.payment.amount;
+	const chosen = sort.direction === 'asc' ? asc(column) : desc(column);
+
+	if (sort.columnId === 'date') {
+		return [chosen, sort.direction === 'asc' ? asc(s.payment.id) : desc(s.payment.id)];
+	}
+
+	return [chosen, ...statementOrder];
+}
+
 export default router({
 	/**
 	 * One payment, carrying the contract it was made against and whose tenant holds it.
@@ -130,6 +159,8 @@ export default router({
 				payment: s.payment,
 				contractGovId: s.contract.govId,
 				contractStatus: s.contract.status,
+				contractPaidAmount: s.contract.paidAmount,
+				contractExpectedAmount: s.contract.expectedAmount,
 				tenantName: s.tenant.name
 			})
 			.from(s.payment)
@@ -146,6 +177,8 @@ export default router({
 			...serializePayment(row.payment),
 			contractGovId: row.contractGovId ?? '',
 			contractStatus: row.contractStatus,
+			contractPaidAmount: row.contractPaidAmount,
+			contractExpectedAmount: row.contractExpectedAmount,
 			tenantName: row.tenantName
 		};
 	}),
@@ -183,7 +216,8 @@ export default router({
 
 	/**
 	 * A contract's payments, in one bounded query: the whole result set for a search, newest
-	 * first, so the ledger can read that order to place its month headers.
+	 * first unless an order is chosen, so the ledger can read that order to place its month
+	 * headers.
 	 *
 	 * `search` matches an amount, or the payment's calendar day written as `2026-03-20` — a
 	 * prefix of it, `2026-03`, selects a month. It is the stored day rather than the date the
@@ -200,7 +234,9 @@ export default router({
 				 * paid then*, and a question about what exists cannot be answered by shortening
 				 * what was already fetched ([[rules/data]], under *List reads*).
 				 */
-				period: z.enum(FILTER_PERIODS).optional()
+				period: z.enum(FILTER_PERIODS).optional(),
+				/** the order the reader chose, or the statement's own, newest first. */
+				sort: PaymentSortSchema.optional()
 			})
 		)
 		.query(async ({ input, ctx }) => {
@@ -218,10 +254,9 @@ export default router({
 						input.period ? isPaymentWithinPeriod(input.period, ctx.clock.now()) : undefined
 					)
 				)
-				// a statement reads newest first, and two payments made on one day are told apart
-				// by which was recorded later — without that tie-break the order is not total, and
-				// two renders of the same ledger may disagree.
-				.orderBy(desc(s.payment.date), desc(s.payment.id));
+				// a statement reads newest first unless the reader chose otherwise, and every order
+				// carries a tie-break, so two renders of the same ledger cannot disagree.
+				.orderBy(...paymentOrderBy(input.sort));
 
 			return payments.map(serializePayment);
 		}),
@@ -248,10 +283,7 @@ export default router({
 				.get();
 
 			if (!contract) {
-				throw new TRPCError({
-					code: 'BAD_REQUEST',
-					message: 'contract does not exist'
-				});
+				throw refuse('contract.missing');
 			}
 
 			const registered = await ctx.db
@@ -292,10 +324,7 @@ export default router({
 				.get();
 
 			if (!existingPayment) {
-				throw new TRPCError({
-					code: 'BAD_REQUEST',
-					message: 'payment does not exist'
-				});
+				throw refuse('payment.missing');
 			}
 
 			const contract = await ctx.db
@@ -305,10 +334,7 @@ export default router({
 				.get();
 
 			if (!contract) {
-				throw new TRPCError({
-					code: 'BAD_REQUEST',
-					message: 'contract does not exist'
-				});
+				throw refuse('contract.missing');
 			}
 
 			ensureContractIsNotTerminated(contract.status);
@@ -353,10 +379,7 @@ export default router({
 				.get();
 
 			if (!contract) {
-				throw new TRPCError({
-					code: 'BAD_REQUEST',
-					message: 'contract does not exist'
-				});
+				throw refuse('contract.missing');
 			}
 
 			ensureContractIsNotTerminated(contract.status);
@@ -453,10 +476,7 @@ export default router({
 			const repeated = ids.find((id, index) => ids.indexOf(id) !== index);
 
 			if (repeated) {
-				throw new TRPCError({
-					code: 'BAD_REQUEST',
-					message: `two payments in this set claim ${repeated}`
-				});
+				throw refuse('payment.repeatedInSet', { value: repeated });
 			}
 
 			const held = await ctx.db.select().from(s.payment).where(inArray(s.payment.id, ids));
@@ -472,7 +492,7 @@ export default router({
 			const absent = contractIds.find((contractId) => !contractsById.has(contractId));
 
 			if (absent) {
-				throw new TRPCError({ code: 'BAD_REQUEST', message: 'contract does not exist' });
+				throw refuse('contract.missing');
 			}
 
 			const registered = await ctx.db

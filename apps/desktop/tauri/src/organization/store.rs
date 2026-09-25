@@ -30,7 +30,10 @@
 
 use std::path::{Path, PathBuf};
 
-use crate::{database::Database, error::Error};
+use crate::{
+    database::Database,
+    error::{Error, RefusalReason},
+};
 
 use super::{
     authority::{
@@ -765,8 +768,11 @@ impl OrganizationStore {
                 vec![turso::Value::Text(member_id.to_string())],
             )
             .await?;
-        let row = rows.next().await?.ok_or_else(|| Error::NotFound {
-            message: "that member is not in this organization".to_string(),
+        let row = rows.next().await?.ok_or_else(|| {
+            Error::refused(
+                RefusalReason::MemberMissing,
+                "that member is not in this organization",
+            )
         })?;
 
         if blob(&row, 0)? != vault.public_key {
@@ -814,12 +820,12 @@ impl OrganizationStore {
         session_epoch: i64,
         now: i64,
     ) -> Result<(), Error> {
-        let held = self
-            .session_epoch_of(member_id)
-            .await?
-            .ok_or_else(|| Error::NotFound {
-                message: "that member is not in this organization".to_string(),
-            })?;
+        let held = self.session_epoch_of(member_id).await?.ok_or_else(|| {
+            Error::refused(
+                RefusalReason::MemberMissing,
+                "that member is not in this organization",
+            )
+        })?;
 
         self.connection
             .execute(
@@ -2855,7 +2861,10 @@ mod tests {
             store
                 .set_session_epoch("member-nobody", 4, 1_757_000_004_000)
                 .await,
-            Err(Error::NotFound { .. })
+            Err(Error::Refused {
+                reason: crate::error::RefusalReason::MemberMissing,
+                ..
+            })
         ));
     }
 

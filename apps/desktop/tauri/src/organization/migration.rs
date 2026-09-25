@@ -36,7 +36,12 @@ use std::{future::Future, time::Duration};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-use crate::{diagnostics, error::Error, http::build_client, sync::turso::platform::AccessLevel};
+use crate::{
+    diagnostics,
+    error::{Error, RefusalReason},
+    http::build_client,
+    sync::turso::platform::AccessLevel,
+};
 
 use super::{
     migrate::{self, Pipeline},
@@ -146,11 +151,10 @@ impl PipelineLease {
         let status = response.status();
 
         if !status.is_success() {
-            return Err(Error::PreconditionFailed {
-                message: format!(
-                    "the organization database refused the migration lease ({status})"
-                ),
-            });
+            return Err(Error::refused(
+                RefusalReason::DatabaseRefused,
+                format!("the organization database refused the migration lease ({status})"),
+            ));
         }
 
         response.json().await.map_err(|_| Error::Integrity {
@@ -204,9 +208,10 @@ impl LeaseAuthority for PipelineLease {
 
         for result in &results {
             if result.get("type").and_then(Value::as_str) == Some("error") {
-                return Err(Error::PreconditionFailed {
-                    message: "the organization database refused the migration lease".to_string(),
-                });
+                return Err(Error::refused(
+                    RefusalReason::DatabaseRefused,
+                    "the organization database refused the migration lease",
+                ));
             }
         }
 
@@ -327,13 +332,14 @@ pub fn refuse_newer(facts: &WorkspaceFacts) -> Result<(), Error> {
     let shipped = migrate::shipped_version();
 
     if facts.schema_version > shipped {
-        return Err(Error::PreconditionFailed {
-            message: format!(
+        return Err(Error::refused(
+            RefusalReason::WorkspaceNewer,
+            format!(
                 "{} was upgraded by a newer rentable (schema {}, and this one knows {}). update \
                  rentable to open it; nothing in it was read",
                 facts.name, facts.schema_version, shipped
             ),
-        });
+        ));
     }
 
     Ok(())
@@ -388,12 +394,13 @@ where
     // against whoever could apply the migrations. What they are owed is the sentence, and the
     // workspace opens for them once a member with full access has opened it.
     if current < shipped && held.access != AccessLevel::FullAccess {
-        return Err(Error::PreconditionFailed {
-            message: format!(
+        return Err(Error::refused(
+            RefusalReason::WorkspaceBehind,
+            format!(
                 "{} is behind this version and read-only access cannot bring it up. ask a member with full access to open it once",
                 facts.name
             ),
-        });
+        ));
     }
 
     while current < shipped {
@@ -1034,7 +1041,13 @@ mod tests {
         .await;
 
         assert!(
-            matches!(failed, Err(Error::PreconditionFailed { .. })),
+            matches!(
+                failed,
+                Err(Error::Refused {
+                    reason: crate::error::RefusalReason::DatabaseRefused,
+                    ..
+                })
+            ),
             "{failed:?}"
         );
         assert!(
@@ -1146,7 +1159,7 @@ mod tests {
         let refused = refuse_newer(&facts);
 
         assert!(
-            matches!(refused, Err(Error::PreconditionFailed { ref message })
+            matches!(refused, Err(Error::Refused { reason: crate::error::RefusalReason::WorkspaceNewer, ref message })
                 if message.contains(&format!("schema {}", shipped + 1))
                     && message.contains(&format!("knows {shipped}"))
                     && message.contains("update rentable")),

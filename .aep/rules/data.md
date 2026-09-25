@@ -158,6 +158,20 @@ under a local session." There is one kind of session now, so the exception above
 case there is, and an escape hatch that no longer exists is worse than none — it reads as
 though half the application were still safe from this.*
 
+**An undo restores rows; it does not re-run a create.** The inverse of a deletion puts back the
+rows the deletion removed, as they were, in one batch, and then reconciles. A create is the wrong
+procedure for it: it derives what it stores from today, and it asks whether the record may be
+made now. A contract deleted while terminated comes back terminated rather than active, and it
+comes back holding the units it held even where another contract has taken one since, because
+the undo is taking back a deletion rather than making a new contract. What a restore still
+refuses is what the schema could not hold: an identity or a unique value taken since, or a row
+it names that is gone. `contract.restoreMany` is the procedure for contracts.
+
+*Added 2026-09-25 by ticket 41 of [[efforts/832-the-interface-speaks-one-language-and-guides/spec]]:
+the contract inverses recreated through `create` and `createMany`, so a terminated contract came
+back active and its units read occupied, and an undo was refused where another contract had taken
+a unit since.*
+
 Recorded originally as ADR 0026, *Undo is a session stack of inverses, replayed through the real procedures*.
 
 ## Derived state

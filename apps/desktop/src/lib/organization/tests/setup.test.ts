@@ -12,8 +12,8 @@ import {
 	PASSWORD_FLOOR,
 	SETUP_STEPS,
 	SETUP_WALK,
-	THE_GROUP_IS_NEEDED,
 	fieldsPresented,
+	isTheGroupNeeded,
 	refusalAfterFailedConnect,
 	refusalAfterFailedCreate,
 	statementsBeforeCreation,
@@ -30,10 +30,10 @@ import { WORKSPACE_NAME_LIMIT } from '$lib/workspace/workspace.ts';
  * THE WALK, ASSERTED OVER
  *
  * Criterion 3 of effort 819: **the only text entered into this application is the
- * organization's name and a password**, and since effort 824 the first workspace's name, which
- * is a person's own word for their records exactly as the organization's name is, and the
- * owner's username, which is their own name for themselves (requirement 21); neither is a Turso
- * detail. The screen draws its fields from `SETUP_WALK`, so this is an assertion over what the
+ * organization's name and a password**, and since effort 824 the owner's username, which is their
+ * own name for themselves (requirement 21) and not a Turso detail. *Effort 824 added the first
+ * workspace's name as well, and effort 832 took it back out: the workspace is made for the owner,
+ * named after the organization.* The screen draws its fields from `SETUP_WALK`, so this is an assertion over what the
  * screen presents and not over a list kept beside it, and a field added later that asks for a
  * slug, a group, a token or a URL fails here before it reaches review.
  * `setup-walk.svelte.test.ts` asserts the same thing over the rendered DOM.
@@ -47,8 +47,8 @@ import { WORKSPACE_NAME_LIMIT } from '$lib/workspace/workspace.ts';
  * `setup-walk.svelte.test.ts` where a person can be shown it.
  */
 
-test('the only fields the walk presents are the name, a username, a password and the workspace', () => {
-	assert.deepEqual(fieldsPresented(), ['name', 'username', 'password', 'workspace']);
+test('the only fields the walk presents are the name, a username and a password', () => {
+	assert.deepEqual(fieldsPresented(), ['name', 'username', 'password']);
 });
 
 // requirement 13: what the consent covers is explained, and no group is asked for. requirement 22
@@ -71,14 +71,15 @@ test('what the consent covers and what succession costs are said before the orga
 	assert.deepEqual(explaining?.fields, []);
 });
 
-// effort 824, requirement 3: the walk ends inside the workspace. The last step names it, asks
-// for nothing else, and there is no step after it showing the link.
-test('the walk is three steps, and the workspace is the last', () => {
+// effort 832, requirement 18 and its criterion (a): the walk is two cards before the application,
+// the consent and the name. The first workspace is made for the owner in the loading pass after
+// it, so no step asks for it, and there is no step after the name showing the link.
+test('the walk is two steps: the consent, then the name', () => {
+	assert.deepEqual([...SETUP_STEPS], ['connect', 'name']);
 	assert.deepEqual(
 		SETUP_WALK.map((step) => step.step),
-		['connect', 'name', 'workspace']
+		['connect', 'name']
 	);
-	assert.deepEqual(SETUP_WALK.at(-1)?.fields, ['workspace']);
 	assert.deepEqual(SETUP_WALK.at(-1)?.statements, []);
 });
 
@@ -213,20 +214,20 @@ const STATEMENTS = {
 		oneOrganization:
 			'a group holds one organization. a group that already holds one is connected to, not refused.',
 		accountCreation:
-			'a free or developer turso account has exactly one group, so an account kept for rentable alone is the clean choice, and the consent screen is where you make one. on a paid account, pick an empty group.',
+			'a free or developer Turso account holds one group, so keep one for rentable alone. on a paid one, pick an empty group.',
 		succession:
-			'on a personal account only you can grant access again; in a turso organization any admin can, and turso can move a group. rentable does neither for you.',
+			"only you, or a Turso organization's admin, can grant access again, and Turso can move a group. rentable does neither.",
 		groupAskedOnce:
-			'a group holding nothing yet is asked its name once, on the next step; turso names it nowhere.'
+			'a group holding nothing yet is asked its name once, on the next step; Turso names it nowhere.'
 	},
 	ar: {
 		groupCoverage: 'تشمل الموافقة كل قاعدة بيانات في المجموعة التي تختارها، ولا شيء خارجها.',
 		oneOrganization:
 			'تحمل المجموعة الواحدة مؤسسة واحدة، وإن كانت تحمل واحدة بالفعل فالاتصال بها هو ما يحدث، لا الرفض.',
 		accountCreation:
-			'لا يحمل حساب Turso المجاني أو حساب Developer سوى مجموعة واحدة، لذا يبقى تخصيص حساب لـ rentable وحده هو الخيار الأنظف، وشاشة الموافقة تفتح لك حساباً إن لم يكن لديك واحد. أما في الحساب المدفوع فاختر مجموعة فارغة.',
+			'حساب Turso المجاني أو Developer يحمل مجموعة واحدة، فخصّص حسابًا لـ rentable وحده. وفي الحساب المدفوع اختر مجموعة فارغة.',
 		succession:
-			'في الحساب الشخصي أنت وحدك من يمنح الصلاحية مجدداً؛ وفي منظمة Turso يستطيع أي مدير ذلك، وتستطيع Turso نقل المجموعة. لا يفعل rentable أياً منهما نيابة عنك.',
+			'لا يمنح الصلاحية مجددًا إلا أنت أو مدير منظمة Turso، وتستطيع Turso نقل المجموعة. لا يفعل rentable أيًا منهما.',
 		groupAskedOnce:
 			'المجموعة التي لا تحمل شيئاً بعد يطلب rentable اسمها مرة واحدة في الخطوة التالية، فـ Turso لا تذكر هذا الاسم في أي مكان يصل إليه.'
 	}
@@ -254,8 +255,9 @@ test('the connect step says these things, and says them in both locales', () => 
  * that, since the machine holds no authority to create with, so it returns to the consent
  * carrying the refusal's own sentence.
  *
- * The sentence itself is Rust's and is shown unchanged; the literal below is read back out of
- * `setup.rs` so the fixture cannot drift away from what the person is actually shown.
+ * The sentence the person reads is the locale's, from the refusal's `groupHoldsOrganization`
+ * reason (effort 832, requirement 23). What Rust says is kept behind a disclosure under it, and the
+ * literal below is read back out of `setup.rs` so the fixture cannot drift away from it.
  */
 const GROUP_ALREADY_HOLDS_ONE =
 	'this group already holds the organization database `org-7f3a`; a group holds one organization, so pick another group or another Turso account';
@@ -285,8 +287,9 @@ test('the refusal a group already holding an organization gives is the sentence 
  * Effort 826's correction to requirement 13: the group the person typed is what the first create
  * names, so a group that is not the one the consent is over is refused before anything is
  * created. **The refusal names both**, because the person is being asked to correct one word and
- * cannot do that without seeing what the other one is. The sentence is Rust's and is shown
- * unchanged, so it is read back out of `setup.rs` here the way the group-already-held one is.
+ * cannot do that without seeing what the other one is. The reader's sentence is the locale's,
+ * from `groupMismatch`, and Rust's words behind it name both, so they are read back out of
+ * `setup.rs` here the way the group-already-held ones are.
  */
 test('the refusal a group that is not the consented one gives names both groups, and rust formats it', async () => {
 	const rust = await readFile(
@@ -305,7 +308,8 @@ test('the refusal a group that is not the consented one gives names both groups,
 // concerned: the authority is untouched, so the person stays on the name step and retypes it.
 test('a create refused over the group leaves the walk on the step the group was typed on', () => {
 	const refused = {
-		code: 'preconditionFailed',
+		code: 'refused',
+		reason: 'groupMismatch',
 		message: 'the group this consent is over is called `rentable`, not `rentabel`'
 	};
 
@@ -313,15 +317,18 @@ test('a create refused over the group leaves the walk on the step the group was 
 });
 
 test('a create refused after the consent was given back sends the walk to the connect step', () => {
-	const refused = { code: 'preconditionFailed', message: GROUP_ALREADY_HOLDS_ONE };
+	const refused = {
+		code: 'refused',
+		reason: 'groupHoldsOrganization',
+		message: GROUP_ALREADY_HOLDS_ONE
+	};
 
 	// the authority is gone, because rust gave it back: the walk goes to the consent and says
-	// why it is there.
+	// why it is there, with what rust said kept for the disclosure under the sentence.
 	assert.deepEqual(refusalAfterFailedCreate(refused, false), {
 		step: 'connect',
-		message: GROUP_ALREADY_HOLDS_ONE,
 		askGroup: false,
-		detail: null
+		detail: GROUP_ALREADY_HOLDS_ONE
 	});
 
 	// and the step it lands on is the one that offers the consent, which is where the person
@@ -332,27 +339,36 @@ test('a create refused after the consent was given back sends the walk to the co
 
 /**
  * Requirement 13's second correction: Turso would take no group this application could work out,
- * so the one name left is the one the person picked. **The signal is the fixed phrase**, because
- * nothing else about that run is different: the consent is intact and the machine still holds
- * the authority, which is what every other refusal is told apart by. The phrase is Rust's, and
- * it is read back out of `setup.rs` so the constant here cannot drift away from what is thrown.
+ * so the one name left is the one the person picked. **The signal is the `groupNeeded` reason**,
+ * because nothing else about that run is different: the consent is intact and the machine still
+ * holds the authority, which is what every other refusal is told apart by.
+ *
+ * *It was a fixed phrase at the head of Rust's message until effort 832, pinned by reading the
+ * constant back out of `setup.rs`. The reason replaced it, and the phrase is gone from both sides.*
  */
-test('the fixed phrase the walk reads is the one rust formats', async () => {
+test('the walk asks for the group on the reason rust gives, and on no phrase', async () => {
 	const rust = await readFile(
 		fileURLToPath(new URL('../../../../tauri/src/organization/setup.rs', import.meta.url)),
 		'utf8'
 	);
 
-	assert.ok(
-		rust.includes(`pub const THE_GROUP_IS_NEEDED: &str = "${THE_GROUP_IS_NEEDED}";`),
-		'rust no longer declares the phrase this file matches on'
+	assert.ok(rust.includes('RefusalReason::GroupNeeded'), 'rust no longer refuses with the reason');
+	assert.ok(!rust.includes('THE_GROUP_IS_NEEDED'), 'rust still carries the phrase');
+
+	assert.equal(isTheGroupNeeded({ code: 'refused', reason: 'groupNeeded', message: 'x' }), true);
+	// the words that used to be the signal are no signal now.
+	assert.equal(
+		isTheGroupNeeded({ code: 'preconditionFailed', message: "the turso group's name is needed" }),
+		false
 	);
 });
 
 test('a create refused because turso will take no group asks for one on the name step', () => {
 	const refused = {
-		code: 'preconditionFailed',
-		message: `${THE_GROUP_IS_NEEDED}. turso refused every group this application could name on its own, and said: group \`default\` does not exist in this organization`
+		code: 'refused',
+		reason: 'groupNeeded',
+		message:
+			'turso refused every group this application could name on its own, and said: group `default` does not exist in this organization'
 	};
 
 	// the consent is untouched, so the machine still holds the authority and the walk stays
@@ -360,36 +376,34 @@ test('a create refused because turso will take no group asks for one on the name
 	// of why comes back beside it as detail rather than as the sentence the field leads with.
 	assert.deepEqual(refusalAfterFailedCreate(refused, true), {
 		step: 'name',
-		message: refused.message,
 		askGroup: true,
-		detail:
-			'turso refused every group this application could name on its own, and said: group `default` does not exist in this organization'
+		detail: refused.message
 	});
 
-	// and it is the phrase rather than the authority that decides, so a machine that somehow
+	// and it is the reason rather than the authority that decides, so a machine that somehow
 	// lost the authority as well is still asked for the group rather than sent to the consent.
 	assert.equal(refusalAfterFailedCreate(refused, false)?.askGroup, true);
 });
 
 /**
- * Requirement 13's fourth correction: what the field shows under its sentence is Turso's own
- * account, and the split that gets it is on the fixed phrase alone. **Everything after the
- * phrase is free to change**, Rust's framing and Turso's last reason inside it, so a split
- * that looked for the words around the reason would be reading a sentence nobody promised.
+ * Requirement 13's fourth correction, as effort 832 left it: what the field keeps under its
+ * sentence is what Rust said, whole, since nothing is split off a phrase any more. Turso's last
+ * reason is inside it and free to change with Turso.
  */
-test('the detail under the field is everything the refusal says after the fixed phrase', () => {
-	// the punctuation between the two belongs to the phrase, so the detail starts a line.
+test('the detail under the field is what rust said, and nothing where it said nothing', () => {
 	assert.equal(
-		refusalAfterFailedCreate({ message: `${THE_GROUP_IS_NEEDED}. 404 group not found` }, true)
-			?.detail,
+		refusalAfterFailedCreate(
+			{ code: 'refused', reason: 'groupNeeded', message: '404 group not found' },
+			true
+		)?.detail,
 		'404 group not found'
 	);
 
-	// a refusal that is the phrase and nothing else has no detail to show, and the field draws
-	// none rather than an empty line under its sentence.
-	assert.equal(refusalAfterFailedCreate({ message: THE_GROUP_IS_NEEDED }, true)?.detail, null);
+	// a refusal that said nothing has no detail to show, and the field draws none rather than an
+	// empty disclosure under its sentence.
 	assert.equal(
-		refusalAfterFailedCreate({ message: `${THE_GROUP_IS_NEEDED}.  ` }, true)?.detail,
+		refusalAfterFailedCreate({ code: 'refused', reason: 'groupNeeded', message: '  ' }, true)
+			?.detail,
 		null
 	);
 });
@@ -403,20 +417,19 @@ test('an ordinary failed create leaves the walk where it is', () => {
 
 /**
  * Requirement 13's second correction, the other half: **the walk hands an admitted machine over
- * rather than drawing it a step.** A reload during a first run, an address typed in, and the
- * moment after the first workspace is created all reach the route with a session on the state
- * query, and until this the walk read only whether that session held no workspace. One that held
- * a workspace fell through and the person was shown the consent step again, on a machine that
- * had finished the walk.
+ * rather than drawing it a step.** A reload during a first run and an address typed in reach the
+ * route with a session on the state query. Until effort 832 an owner whose organization held no
+ * workspace was sent to the walk's third step; there is no third step now, and the way in draws
+ * the no-workspace surface for them, which offers the create.
  */
 test('where the walk goes for a machine that is already somebody', () => {
 	// nobody is in: the walk draws whatever step it was on.
 	assert.equal(stepFor(null), null);
 	assert.equal(stepFor(undefined), null);
 
-	// an owner is in and their organization holds nothing yet: the third step, whatever step the
-	// route was opened at, since the first two would create the organization again.
-	assert.equal(stepFor(fakeOrganizationSession({ workspaces: [] })), 'workspace');
+	// an owner is in and their organization holds nothing yet: the way in, since both steps would
+	// create the organization again.
+	assert.equal(stepFor(fakeOrganizationSession({ workspaces: [] })), 'leave');
 
 	// and one who holds a workspace has finished: there is nothing left to ask, so they go home.
 	assert.equal(stepFor(fakeOrganizationSession()), 'leave');
@@ -593,8 +606,8 @@ test('a username outside the rules is refused with the one sentence every form r
 });
 
 /**
- * Requirement 13 of the redesign: the no-workspace surface, the walk's last step and the
- * new-workspace dialog each draw the one workspace form, so a name over the limit is refused
+ * Requirement 13 of the redesign: the no-workspace surface and the new-workspace dialog each draw
+ * the one workspace form (the walk's last step did too, until effort 832 removed it), so a name over the limit is refused
  * with the same sentence wherever it was typed. This pins that sentence to the schema they all
  * read, and the surfaces' own tests have one thing to equal.
  */
@@ -659,13 +672,13 @@ test('the connect-existing way is two steps and is not the walk that creates', (
 		!SETUP_WALK.some((step) => step.step === 'existing'),
 		'the existing step is presented by the walk that creates'
 	);
-	assert.deepEqual(fieldsPresented(), ['name', 'username', 'password', 'workspace']);
+	assert.deepEqual(fieldsPresented(), ['name', 'username', 'password']);
 });
 
 /**
  * A refused connect is read off **what was refused**. A refusal about the consented account itself
- * is Rust's `preconditionFailed`, and nothing typed on the step answers one, so the walk returns to
- * the consent carrying the sentence; everything else leaves the consent where it was and is said on
+ * carries one of the reasons nothing typed on the step answers, so the walk returns to the consent
+ * carrying it; everything else leaves the consent where it was and is said on
  * the step, against the password, with what was typed still in the fields.
  *
  * *It read the Turso authority instead until ticket 20, which is a fact about this machine rather
@@ -674,26 +687,27 @@ test('the connect-existing way is two steps and is not the walk that creates', (
  * they had never lost. The network case is the last assertion here.*
  *
  * *And the refusal it was written for was the register's, a machine somebody was still on, until
- * the human ruled one machine per account out on 2026-09-20. The sentence below is the one Rust
- * still formats for a `preconditionFailed` here.*
+ * the human ruled one machine per account out on 2026-09-20. The words below are the ones Rust
+ * still formats for `nothingToConnectTo` here, kept for the disclosure under the sentence.*
  */
 test('a connect refused on the account itself sends the walk to the connect step', () => {
 	const refused = {
-		code: 'preconditionFailed',
+		code: 'refused',
+		reason: 'nothingToConnectTo',
 		message: 'this turso account holds no organization to connect to. go back and make one'
 	};
 
 	assert.deepEqual(refusalAfterFailedConnect(refused), {
 		step: 'connect',
-		message: refused.message,
 		askGroup: false,
-		detail: null
+		detail: refused.message
 	});
 
 	// the owner typed the wrong password: the consent is intact, so the walk stays where it is.
 	assert.equal(
 		refusalAfterFailedConnect({
-			code: 'forbidden',
+			code: 'refused',
+			reason: 'credentialsWrong',
 			message:
 				'the username and password do not open a place in the organization this turso account holds'
 		}),
@@ -716,7 +730,8 @@ test('a connect refused on the account itself sends the walk to the connect step
 });
 
 /**
- * and the sentences the connect refuses with are Rust's, read back out of `setup.rs`.
+ * and the words the connect refuses with, behind the reader's sentence, are Rust's, read back out
+ * of `setup.rs`.
  *
  * *There were two until 2026-09-20, and the one that went pointed at a link a connected machine
  * could make. Nothing formats it now, which this asserts as well: the owner is handed no link, so
@@ -760,5 +775,41 @@ test('the existing step says whose account it is and who signs in, in both local
 
 	for (const word of [/\bgroup\b/, /\bdatabase\b/, /\bconsent\b/]) {
 		assert.ok(!word.test(en.organization.setup.existingDescription), String(word));
+	}
+});
+
+/**
+ * Effort 832, requirements 17 and 18: **the connect card carries one line and a disclosure.** The
+ * line is the card's description, and it is one sentence, short, in both locales, written in each
+ * rather than copied. The facts sit behind the disclosure, whose label is short too.
+ */
+test('the connect step says one short line, and the facts are behind a short disclosure', () => {
+	for (const locale of ['en', 'ar'] as const) {
+		const setup = { en, ar }[locale].organization.setup;
+
+		for (const key of ['connectDescription', 'connectDetails'] as const) {
+			assert.ok(setup[key].length > 0, `${locale}: ${key}`);
+			assert.ok(setup[key].length <= 60, `${locale}: ${key} is ${setup[key].length} characters`);
+		}
+
+		// one sentence: a full stop only at its end.
+		assert.equal(setup.connectDescription.trim().replace(/\.$/, '').includes('.'), false, locale);
+	}
+
+	assert.notEqual(
+		ar.organization.setup.connectDescription,
+		en.organization.setup.connectDescription
+	);
+	assert.notEqual(ar.organization.setup.connectDetails, en.organization.setup.connectDetails);
+
+	// the Arabic is Arabic: written in its own script, with Turso the only Latin word in it.
+	for (const key of ['connectDescription', 'connectDetails'] as const) {
+		const latin = ar.organization.setup[key].match(/[A-Za-z]+/g) ?? [];
+
+		assert.ok(
+			latin.every((word) => word === 'Turso'),
+			`ar: ${key} carries ${latin.join(', ')}`
+		);
+		assert.match(ar.organization.setup[key], /[\u0600-\u06FF]/, `ar: ${key}`);
 	}
 });

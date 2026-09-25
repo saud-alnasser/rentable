@@ -135,3 +135,34 @@ for (const [direction, side] of [
 		);
 	});
 }
+
+/**
+ * The rail sits centred on the sidebar's inner edge in both reading directions.
+ *
+ * jsdom lays nothing out, so what is asserted is the class list: the rail is placed by a logical
+ * offset alone, and carries no horizontal translate. A translate is physical, so one paired with
+ * a logical `start-*` or `end-*` centres the rail in one direction and pushes it off the edge in
+ * the other, which is what the generated rail did (requirement 22 of effort 832).
+ */
+test('the rail is placed by a logical offset and carries no physical translate', () => {
+	inAWindowThatIs('wide');
+
+	render(
+		SidebarHarness,
+		{},
+		{
+			wrapper: DesignProvider,
+			wrapperProps: {
+				strings: suppliedStrings({ toggleSidebar: 'طي القائمة الجانبية' }),
+				direction: 'rtl'
+			}
+		}
+	);
+
+	const rail = screen.getByLabelText('طي القائمة الجانبية');
+	const classes = [...rail.classList];
+
+	expect(classes.filter((name) => /(^|:)-?translate-x-/.test(name))).toEqual([]);
+	expect(classes).toContain('group-data-[side=left]:-end-2');
+	expect(classes).toContain('group-data-[side=right]:-start-2');
+});

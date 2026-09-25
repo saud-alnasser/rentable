@@ -76,7 +76,7 @@
 			<div
 				data-slot="sidebar-gap"
 				class={cn(
-					'relative w-(--sidebar-width) bg-transparent transition-[width] duration-200 ease-linear',
+					'relative w-(--sidebar-width) bg-transparent transition-[width] duration-base ease-move',
 					'group-data-[collapsible=offcanvas]:w-0',
 					'group-data-[side=right]:rotate-180',
 					variant === 'floating' || variant === 'inset'
@@ -87,7 +87,7 @@
 			<div
 				data-slot="sidebar-container"
 				class={cn(
-					'fixed inset-y-0 z-10 flex h-svh w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear',
+					'fixed inset-y-0 z-10 flex h-svh w-(--sidebar-width) transition-[left,right,width] duration-base ease-move',
 					side === 'left'
 						? 'start-0 group-data-[collapsible=offcanvas]:start-[calc(var(--sidebar-width)*-1)]'
 						: 'end-0 group-data-[collapsible=offcanvas]:end-[calc(var(--sidebar-width)*-1)]',
@@ -102,7 +102,7 @@
 				<div
 					data-sidebar="sidebar"
 					data-slot="sidebar-inner"
-					class="flex h-full w-full flex-col bg-sidebar group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:border-sidebar-border group-data-[variant=floating]:shadow-sm"
+					class="flex h-full w-full flex-col bg-sidebar group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:border-sidebar-border group-data-[variant=floating]:shadow-raised"
 				>
 					{@render children?.()}
 				</div>

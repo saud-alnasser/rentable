@@ -1,6 +1,8 @@
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 
+import { isRefusal, toRefusalText } from '$lib/error/refusal';
 import { toTauriErrorCode } from '$lib/error/tauri';
+import { TRPCError } from '@trpc/server';
 
 const FIRST_STRONG_ISOLATE = '⁨';
 const POP_DIRECTIONAL_ISOLATE = '⁩';
@@ -50,11 +52,22 @@ export function toErrorDetail(error: unknown): string | null {
 }
 
 /**
- * render a thrown value for the user. a failure that crossed the tauri boundary
- * is titled from its code so it is translated, and rust's untranslated prose is
- * kept as detail rather than discarded — it is the only description of what
- * actually went wrong. anything raised inside typescript is already written in
- * the user's language, so it is shown as it was written.
+ * render a thrown value for the user. a refusal a procedure raised is titled from
+ * its code (`error/refusal.ts`), and so is one the shell raised with a reason, with
+ * nothing beside it: the reason is the whole of what the reader needs, and rust's
+ * message is a developer's description a screen shows only behind a disclosure,
+ * through `toErrorDetail`. any other failure that crossed the tauri boundary is
+ * titled from its code so it is translated, and rust's untranslated prose is
+ * kept as detail rather than discarded, since it is the only description of what
+ * actually went wrong. a failure a router raised that is not a refusal, a
+ * permission failure, an input its schema turned away or anything unexpected, is
+ * titled from its code with nothing beside it (`toRouterFailureText`), since its
+ * message was written for a developer. anything else raised inside typescript is
+ * already written in the user's language, so it is shown as it was written.
+ *
+ * **The detail is never visible text.** It is the machine's English whatever the reader's
+ * language, so a surface puts it behind `error/component/detail-disclosure.svelte` or sends it to
+ * diagnostics, and never beside the title ([[rules/interface]], *Error*).
  *
  * `fallback` replaces the generic message when there is nothing readable at all,
  * for callers that can say something more useful about where the failure was.
@@ -64,10 +77,22 @@ export function toErrorMessage(
 	translations: TranslationFunctions,
 	fallback?: string
 ): ErrorMessage {
+	// a refusal is a code, from a procedure or the shell, and its message is a developer's
+	// description.
+	if (isRefusal(error)) {
+		return { title: toRefusalText(error, translations), detail: null };
+	}
+
 	const code = toTauriErrorCode(error);
 
 	if (code) {
 		return { title: translations.common.errors[code](), detail: toErrorDetail(error) };
+	}
+
+	// a router's failure that is not a refusal: its message is a developer's description, written
+	// in English for a log, so it is titled from its code and carries nothing beside it.
+	if (error instanceof TRPCError) {
+		return { title: toRefusalText(error, translations), detail: null };
 	}
 
 	return {
@@ -77,8 +102,9 @@ export function toErrorMessage(
 }
 
 /**
- * `toErrorMessage` flattened onto one line, for the places that render a single
- * string and have nowhere to put a description.
+ * `toErrorMessage`'s title alone, for the places that render a single string. The detail is left
+ * out rather than joined on: it is the shell's English, and a surface with room for it reads it
+ * from `toErrorMessage` and puts it behind the details disclosure.
  */
 export function toErrorText(
 	error: unknown,
@@ -87,18 +113,13 @@ export function toErrorText(
 ): string {
 	const { title, detail } = toErrorMessage(error, translations, fallback);
 
-	if (!detail) {
-		return title;
-	}
-
 	// a title with nothing in it is a translation that is not loaded, which happens on the one
-	// screen drawn before a locale is. The detail is the whole of what is known there, and a
-	// separator in front of it reads as a sentence whose first half went missing.
-	if (!title) {
+	// screen drawn before a locale is (`layout/component/startup-unreadable.svelte`). No reader's
+	// language exists there to translate into, and the detail is the whole of what is known, so it
+	// is what that screen says, isolated for the reason `isolateDirection` states.
+	if (!title && detail) {
 		return isolateDirection(detail);
 	}
 
-	// the detail is rust's english prose whatever the locale, so it is isolated for the reason
-	// `isolateDirection` states.
-	return `${title} — ${isolateDirection(detail)}`;
+	return title;
 }

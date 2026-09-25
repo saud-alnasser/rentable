@@ -28,7 +28,11 @@ use serde::{Deserialize, Serialize};
 // `crate::keyring`, this application's own, rather than the `keyring` crate the extern prelude
 // would otherwise answer with: reaching the platform's store is that module's job and nothing
 // here has an entry to open.
-use crate::{error::Error, http::build_client, keyring};
+use crate::{
+    error::{Error, RefusalReason},
+    http::build_client,
+    keyring,
+};
 
 use super::super::oauth::{
     OAuthConfig,
@@ -770,10 +774,10 @@ pub(crate) fn store_platform_token(platform_token: &str) -> Result<(), Error> {
 
 /// The authority this machine holds, for whatever is about to spend it.
 ///
-/// **No authority is a refusal rather than an absence**, and it is `NotConfigured` because
-/// that is a thing somebody can do something about: grant the consent again. A provisioning
-/// path that read an `Option` here would have to decide what nothing means at every call
-/// site, and the one that forgot would send an empty bearer token to Turso and report
+/// **No authority is a refusal rather than an absence**, and it is `Refused` with
+/// `TursoNotConnected` because that is a thing somebody can do something about: grant the consent
+/// again. A provisioning path that read an `Option` here would have to decide what nothing means
+/// at every call site, and the one that forgot would send an empty bearer token to Turso and report
 /// whatever Turso said about it. The store answering nothing and the store not answering stay
 /// apart on the way through: only the first is this refusal.
 pub(crate) fn platform_token() -> Result<String, Error> {
@@ -807,9 +811,7 @@ fn consents_poisoned() -> Error {
 }
 
 fn consent_not_found() -> Error {
-    Error::NotFound {
-        message: "turso consent not found".to_string(),
-    }
+    Error::refused(RefusalReason::ConsentGone, "turso consent not found")
 }
 
 /// what a caller is told where this machine holds nothing.
@@ -817,10 +819,10 @@ fn consent_not_found() -> Error {
 /// **It names the consent rather than Turso**, because Turso was never asked: a machine that
 /// has disconnected, or has never connected, fails here and sends nothing.
 fn no_platform_authority() -> Error {
-    Error::NotConfigured {
-        message: "this machine holds no turso authority. connect a turso account to provision"
-            .to_string(),
-    }
+    Error::refused(
+        RefusalReason::TursoNotConnected,
+        "this machine holds no turso authority. connect a turso account to provision",
+    )
 }
 
 #[cfg(test)]
@@ -1364,7 +1366,13 @@ mod tests {
             .expect_err("a first run found authority after an abandoned consent");
 
         assert!(
-            matches!(refusal, Error::NotConfigured { .. }),
+            matches!(
+                refusal,
+                Error::Refused {
+                    reason: crate::error::RefusalReason::TursoNotConnected,
+                    ..
+                }
+            ),
             "{refusal:?}"
         );
         assert!(
@@ -1532,7 +1540,13 @@ mod tests {
         let refusal = platform_token().expect_err("authority survived the disconnect");
 
         assert!(
-            matches!(refusal, Error::NotConfigured { .. }),
+            matches!(
+                refusal,
+                Error::Refused {
+                    reason: crate::error::RefusalReason::TursoNotConnected,
+                    ..
+                }
+            ),
             "a machine holding no authority reported something other than having none: {refusal}"
         );
         assert!(
@@ -1573,7 +1587,13 @@ mod tests {
             .await
             .expect_err("a disconnected consent still reported on itself");
 
-        assert!(matches!(error, Error::NotFound { .. }));
+        assert!(matches!(
+            error,
+            Error::Refused {
+                reason: crate::error::RefusalReason::ConsentGone,
+                ..
+            }
+        ));
     }
 
     /// pressing it twice means the same thing both times, and a machine that never connected

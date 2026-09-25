@@ -51,6 +51,12 @@ export type StartupSnapshot = {
 	state: StartupState;
 	/** what went wrong, already rendered for a reader. `null` where nothing did. */
 	error: string | null;
+	/**
+	 * what the shell said behind `error`, in its own words, for a surface that has room for a
+	 * details disclosure. Never shown beside the sentence ([[rules/interface]], *Error*). It
+	 * belongs to the error it came with, so setting `error` without it clears it.
+	 */
+	errorDetail: string | null;
 	recovery: Recovery | null;
 	remoteSync: RemoteSyncState | null;
 	/** where this machine stands with organizations, which is what the wall admits on. */
@@ -106,8 +112,16 @@ export type StartupPorts = {
 		hide(): Promise<unknown>;
 		close(): Promise<unknown>;
 	};
-	/** the shell's own settings, read off the host: they carry the locale the wall is drawn in. */
-	settings: { get(): Promise<{ locale?: string | null }> };
+	/**
+	 * the shell's own settings, read off the host: they carry the locale the wall is drawn in and
+	 * the appearance every screen is drawn in.
+	 */
+	settings: { get(): Promise<{ locale?: string | null; appearance?: string | null }> };
+	/**
+	 * light, dark or following the system, drawn at once. What it is handed is the stored value
+	 * as it came off the file, and anything it does not recognise is system.
+	 */
+	appearance: { apply(setting: string | null | undefined): void };
 	remoteSync: {
 		getState(): Promise<RemoteSyncState>;
 	};
@@ -169,7 +183,9 @@ export type StartupPorts = {
 	};
 	/** a thrown value as a reader should see it. The route's translations, from outside. */
 	describeError(error: unknown): string;
-	recordFailure(message: string): void;
+	/** what the shell said behind a thrown value, kept for a disclosure; `null` where nothing. */
+	detailError(error: unknown): string | null;
+	recordFailure(message: string, detail: string | null): void;
 	reportStage(stage: StartupStage): void;
 	reportComplete(): void;
 	now(): number;
@@ -178,6 +194,7 @@ export type StartupPorts = {
 const INITIAL: StartupSnapshot = {
 	state: 'loading',
 	error: null,
+	errorDetail: null,
 	recovery: null,
 	remoteSync: null,
 	organization: null,
@@ -236,11 +253,23 @@ export class Startup {
 	}
 
 	#set(changes: Partial<StartupSnapshot>) {
-		this.#snapshot = { ...this.#snapshot, ...changes };
+		// a detail left behind by an error that has since changed would be drawn under a sentence
+		// it does not belong to.
+		const detail = 'error' in changes && !('errorDetail' in changes) ? { errorDetail: null } : {};
+
+		this.#snapshot = { ...this.#snapshot, ...detail, ...changes };
 
 		for (const observer of this.#observers) {
 			observer(this.snapshot);
 		}
+	}
+
+	/** a thrown value as the snapshot holds it: the reader's sentence, and the shell's words apart. */
+	#describe(error: unknown): Pick<StartupSnapshot, 'error' | 'errorDetail'> {
+		return {
+			error: this.#ports.describeError(error),
+			errorDetail: this.#ports.detailError(error)
+		};
 	}
 
 	/**
@@ -256,14 +285,16 @@ export class Startup {
 	 */
 	async #fail(error: unknown) {
 		const message = this.#ports.describeError(error);
+		const detail = this.#ports.detailError(error);
 
 		this.#set({
 			recovery: null,
 			state: 'error',
 			error: message,
+			errorDetail: detail,
 			hasFailedUnreadable: this.#snapshot.hasFailedUnreadable || !this.#snapshot.isI18nReady
 		});
-		this.#ports.recordFailure(message);
+		this.#ports.recordFailure(message, detail);
 
 		await this.#ports.window.show();
 	}
@@ -437,6 +468,12 @@ export class Startup {
 			const settings = await this.#ports.settings.get();
 			const chosen = settings.locale ?? this.#ports.locale.base;
 
+			// **The appearance before anything can be shown.** The window is created hidden and
+			// every path below ends by showing it, so drawing the reader's choice here is what keeps
+			// the first frame from painting in the wrong one. Until this line the appearance follows
+			// the system, which is also what a launch whose settings cannot be read is shown in.
+			this.#ports.appearance.apply(settings.appearance);
+
 			// **The reader's own locale first, so the loading screen can be drawn.** This loaded
 			// every locale before setting one, and nothing renders until a locale is ready, so the
 			// application's true first frame was an empty window for the whole of the stage the bar
@@ -512,7 +549,7 @@ export class Startup {
 		try {
 			this.#set({ organization: await this.#ports.organization.signIn(username, password) });
 		} catch (error) {
-			this.#set({ error: this.#ports.describeError(error), isSigningIn: false });
+			this.#set({ ...this.#describe(error), isSigningIn: false });
 
 			return;
 		}
@@ -590,8 +627,26 @@ export class Startup {
 	 * whole of that round trip, and what a person saw was the surface they had just finished
 	 * with sitting there doing nothing. Everything after the read draws the loading surface
 	 * anyway, so this only moves it in front of the one call that was under it.
+	 *
+	 * **A caller with something to ready first hands it in as `prepare`** (effort 832, requirement
+	 * 18). It runs under the loading surface as that pass's first stage, so the first run creating
+	 * the owner's first workspace is one loading pass rather than a busy walk followed by one. What
+	 * it makes is then read with everything else. **A `prepare` that fails does not stop the pass**:
+	 * the standing is read anyway, and a machine it left with no workspace lands on the no-workspace
+	 * surface, which already offers the create. Saying what went wrong is the `prepare`'s own, as it
+	 * is for any mutation, so nothing here repeats it.
+	 *
+	 * **A caller that has to leave its own address hands the move in as `arrive`** (effort 832,
+	 * requirement 19). It is waited for under the loading surface before the standing is read, and
+	 * it is not a stage: moving the address costs nothing a bar could show. Without it the pass
+	 * could end while the address was still the caller's, and a screen that opens signed out, the
+	 * connect screen, would be drawn again over a finished pass. A move that fails is not a reason
+	 * to stop: the standing is read anyway, and the shell draws what it says.
 	 */
-	async standingChanged() {
+	async standingChanged({
+		prepare,
+		arrive
+	}: { prepare?: () => Promise<unknown>; arrive?: () => Promise<unknown> } = {}) {
 		// where the screen goes back to if the read fails: the caller is standing on a surface
 		// that can say so, and a failure here is not a reason to leave them under a loading
 		// surface that has nothing left to load.
@@ -599,10 +654,30 @@ export class Startup {
 
 		this.#set({ state: 'loading', error: null });
 
+		if (prepare) {
+			this.#ports.reportStage('prepare');
+
+			try {
+				await prepare();
+			} catch {
+				// said by the `prepare`. The pass ends at its first stage, so the next one the
+				// no-workspace surface starts is not counted as its continuation.
+				this.#ports.reportComplete();
+			}
+		}
+
+		if (arrive) {
+			try {
+				await arrive();
+			} catch {
+				// the address stays where it was, and what the standing says is drawn over it.
+			}
+		}
+
 		try {
 			this.#set({ organization: await this.#ports.organization.getState() });
 		} catch (error) {
-			this.#set({ state: before, error: this.#ports.describeError(error) });
+			this.#set({ state: before, ...this.#describe(error) });
 
 			return;
 		}
@@ -721,7 +796,7 @@ export class Startup {
 		try {
 			await this.#ports.organization.disconnect();
 		} catch (error) {
-			this.#set({ error: this.#ports.describeError(error) });
+			this.#set(this.#describe(error));
 
 			return;
 		}

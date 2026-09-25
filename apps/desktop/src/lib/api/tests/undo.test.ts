@@ -4,7 +4,13 @@ import { beforeEach, describe, it, mock } from 'node:test';
 import type { CreateMutationResult } from '@tanstack/svelte-query';
 import { get } from 'svelte/store';
 
-import { type Api, createApi, monthsFromNow, seedTenant } from '$lib/api/tests/testing.ts';
+import {
+	type Api,
+	createApi,
+	monthsFromNow,
+	seedTenant,
+	refusedWith
+} from '$lib/api/tests/testing.ts';
 import { bindingOf } from '$lib/design/tests/testing.ts';
 import { fakeSyncState } from '$lib/platform/tests/testing.ts';
 
@@ -22,9 +28,16 @@ mock.module('$lib/api/caller', {
 	}
 });
 
+/** the query keys the client was asked to refresh, newest last. */
+const refreshed: (readonly unknown[] | undefined)[] = [];
+
 mock.module('@tanstack/svelte-query', {
 	exports: {
-		useQueryClient: () => ({ invalidateQueries: async () => {} }),
+		useQueryClient: () => ({
+			invalidateQueries: async (filters?: { queryKey?: readonly unknown[] }) => {
+				refreshed.push(filters?.queryKey);
+			}
+		}),
 		createMutation: (options: () => unknown) => options(),
 		createQuery: () => ({})
 	}
@@ -43,12 +56,17 @@ mock.module('$lib/platform/tauri', {
 		tauri: {
 			remoteSync: {
 				getState: async () => remoteState.state
-			}
+			},
+			// a failed undo is recorded for diagnostics; what it records is not asserted here.
+			diagnostics: { write: async () => {} }
 		}
 	}
 });
 
 const { inverseStack } = await import('$lib/design/inverse');
+const { applyUndo } = await import('$lib/design/mutation');
+const { workspacePrefixes } = await import('$lib/design/query');
+const { useQueryClient } = await import('@tanstack/svelte-query');
 const { useCreateTenant, useUpdateTenant, useDeleteTenant } = await import('$lib/tenant/query');
 const {
 	useCreateComplex,
@@ -61,6 +79,7 @@ const {
 } = await import('$lib/complex/query');
 const {
 	useCreateContract,
+	useDeleteContract,
 	useUpdateContract,
 	useRenewContract,
 	useSetContractUnits,
@@ -180,7 +199,7 @@ describe('undoing a record change', () => {
 					nationalId: '1999999999',
 					phone: '+966559999999'
 				}),
-			/another record already holds that id/
+			refusedWith('record.idTaken')
 		);
 	});
 
@@ -194,7 +213,7 @@ describe('undoing a record change', () => {
 		await run(useUpdateTenant, { id: tenant.id, name: 'Renamed' });
 		await caller.tenant.delete({ id: tenant.id });
 
-		await assert.rejects(() => inverseStack.undo(), /no longer in the workspace/);
+		await assert.rejects(() => inverseStack.undo(), refusedWith('tenant.gone'));
 
 		assert.equal(
 			await caller.tenant.get({ id: tenant.id }),
@@ -211,14 +230,14 @@ describe('undoing a record change', () => {
 		await run(useUpdateUnit, { id: unit.id, complexId: complex.id, name: 'A2' });
 		await caller.complex.units.delete({ id: unit.id });
 
-		await assert.rejects(() => inverseStack.undo(), /no longer in the workspace/);
+		await assert.rejects(() => inverseStack.undo(), refusedWith('unit.gone'));
 
 		inverseStack.clear();
 
 		await run(useUpdateComplex, { id: complex.id, name: 'Renamed' });
 		await caller.complex.delete({ id: complex.id });
 
-		await assert.rejects(() => inverseStack.undo(), /no longer in the workspace/);
+		await assert.rejects(() => inverseStack.undo(), refusedWith('complex.gone'));
 	});
 
 	it('takes back a complex, a unit, a contract and a payment alike', async () => {
@@ -333,6 +352,184 @@ describe('undoing a record change', () => {
 		);
 	});
 
+	// a contract created holding units is taken back whole: the inverse empties it and deletes it,
+	// and applying it again creates both (effort 832, requirement 20).
+	it('takes back a contract created with its units, leaving neither, and applies both again', async () => {
+		const tenant = await seedTenant(caller);
+		const complex = await caller.complex.create({ name: 'Creation Tower', location: 'Riyadh' });
+		const unit = await caller.complex.units.create({ name: 'C1', complexId: complex.id });
+		const contract = await run(useCreateContract, {
+			tenantId: tenant.id,
+			start: monthsFromNow(-1),
+			end: monthsFromNow(11),
+			interval: '12m',
+			cost: 1000,
+			unitIds: [unit.id]
+		});
+
+		await inverseStack.undo();
+		assert.equal(await caller.contract.get({ id: contract.id }), undefined);
+		assert.deepEqual(await caller.contract.getMany({ unitId: unit.id }), []);
+
+		await inverseStack.redo();
+		assert.deepEqual(await caller.contract.get({ id: contract.id }), contract);
+		assert.deepEqual(
+			(await caller.contract.units.getMany({ contractId: contract.id })).map((held) => held.id),
+			[unit.id]
+		);
+	});
+
+	// ticket 41: the inverse is the one deletion, which releases the units in the same batch. No
+	// second call means no undo that stops halfway, with the units released and the contract
+	// standing.
+	it('takes back a contract creation with the one deletion, and nothing else', async () => {
+		const tenant = await seedTenant(caller);
+		const complex = await caller.complex.create({ name: 'Single Tower', location: 'Riyadh' });
+		const unit = await caller.complex.units.create({ name: 'S1', complexId: complex.id });
+		const contract = await run(useCreateContract, {
+			tenantId: tenant.id,
+			start: monthsFromNow(-1),
+			end: monthsFromNow(11),
+			interval: '12m',
+			cost: 1000,
+			unitIds: [unit.id]
+		});
+		const real = caller;
+		const called: string[] = [];
+
+		// every contract procedure the undo reaches, the unit procedures included, by its path.
+		const recording = (procedures: object, path: string): object =>
+			new Proxy(procedures, {
+				get: (target, name) => {
+					const value = Reflect.get(target, name);
+					const named = `${path}.${String(name)}`;
+
+					if (typeof value === 'function') {
+						return (...args: unknown[]) => {
+							called.push(named);
+
+							return value(...args);
+						};
+					}
+
+					return value && typeof value === 'object' ? recording(value, named) : value;
+				}
+			});
+
+		caller = new Proxy(real, {
+			get: (target, concept) =>
+				concept === 'contract'
+					? recording(target.contract, 'contract')
+					: Reflect.get(target, concept)
+		});
+
+		try {
+			await inverseStack.undo();
+		} finally {
+			caller = real;
+		}
+
+		assert.deepEqual(called, ['contract.delete']);
+		assert.equal(await caller.contract.get({ id: contract.id }), undefined);
+		assert.equal((await caller.complex.units.get({ id: unit.id }))?.status, 'vacant');
+	});
+
+	// ticket 38, narrowed by ticket 41: an undo that fails still refreshes what it touched, and the
+	// entry stays to be pressed again. The deletion is one batch, so the failure leaves the contract
+	// whole, holding its units, rather than half taken back.
+	it('refreshes what a contract creation’s undo touched when it fails, leaving the contract whole', async () => {
+		const tenant = await seedTenant(caller);
+		const complex = await caller.complex.create({ name: 'Halfway Tower', location: 'Riyadh' });
+		const unit = await caller.complex.units.create({ name: 'H1', complexId: complex.id });
+		const contract = await run(useCreateContract, {
+			tenantId: tenant.id,
+			start: monthsFromNow(-1),
+			end: monthsFromNow(11),
+			interval: '12m',
+			cost: 1000,
+			unitIds: [unit.id]
+		});
+		const entry = inverseStack.undoable;
+		const real = caller;
+
+		// the deletion fails, as a lost connection would fail it.
+		caller = new Proxy(real, {
+			get: (target, concept) =>
+				concept === 'contract'
+					? new Proxy(target.contract, {
+							get: (procedures, name) =>
+								name === 'delete'
+									? async () => {
+											throw new Error('the connection was lost');
+										}
+									: Reflect.get(procedures, name)
+						})
+					: Reflect.get(target, concept)
+		});
+		refreshed.length = 0;
+
+		try {
+			await applyUndo(useQueryClient());
+		} finally {
+			caller = real;
+		}
+
+		for (const prefix of [workspacePrefixes.contracts, workspacePrefixes.units]) {
+			assert.ok(
+				refreshed.some((key) => JSON.stringify(key) === JSON.stringify(prefix)),
+				`${JSON.stringify(prefix)} was not refreshed after the undo failed`
+			);
+		}
+		assert.equal(inverseStack.undoable, entry);
+		assert.ok(await caller.contract.get({ id: contract.id }));
+		assert.deepEqual(
+			(await caller.contract.units.getMany({ contractId: contract.id })).map((held) => held.id),
+			[unit.id]
+		);
+
+		// pressed again, it finishes.
+		await applyUndo(useQueryClient());
+		assert.equal(await caller.contract.get({ id: contract.id }), undefined);
+	});
+
+	// ticket 41: a deletion is taken back by restoring the rows, so a terminated contract comes
+	// back terminated, holding its unit even where another contract took it since.
+	it('takes back deleting a terminated contract, restoring it as it was', async () => {
+		const tenant = await seedTenant(caller);
+		const complex = await caller.complex.create({ name: 'Restore Tower', location: 'Riyadh' });
+		const unit = await caller.complex.units.create({ name: 'R1', complexId: complex.id });
+		const term = {
+			tenantId: tenant.id,
+			start: monthsFromNow(-1),
+			end: monthsFromNow(11),
+			interval: '12m' as const,
+			cost: 1000,
+			unitIds: [unit.id]
+		};
+		const contract = await caller.contract.create(term);
+
+		await caller.contract.terminate({ id: contract.id });
+		await run(useDeleteContract, contract.id);
+
+		const other = await caller.contract.create(term);
+
+		await inverseStack.undo();
+
+		assert.equal((await caller.contract.get({ id: contract.id }))?.status, 'terminated');
+		assert.deepEqual(
+			(await caller.contract.units.getMany({ contractId: contract.id })).map((held) => held.id),
+			[unit.id]
+		);
+		assert.deepEqual(
+			(await caller.contract.units.getMany({ contractId: other.id })).map((held) => held.id),
+			[unit.id]
+		);
+
+		// and applied again, it deletes the contract it restored.
+		await inverseStack.redo();
+		assert.equal(await caller.contract.get({ id: contract.id }), undefined);
+	});
+
 	it('reinstates a terminated contract through the procedure that exists for it', async () => {
 		const tenant = await seedTenant(caller);
 		const contract = await run(useCreateContract, {
@@ -441,7 +638,7 @@ describe('undoing a record change', () => {
 		});
 
 		assert.equal(created.length, 18);
-		assert.equal(inverseStack.undoable?.describe(get(LL)), 'creating 18 record(s)');
+		assert.equal(inverseStack.undoable?.describe(get(LL)), 'creating 18 records');
 
 		await inverseStack.undo();
 		assert.deepEqual(await caller.complex.units.getMany({ complexId: complex.id }), []);

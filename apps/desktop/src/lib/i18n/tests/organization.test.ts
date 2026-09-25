@@ -271,8 +271,8 @@ test('both locales have let go of every string the retired pages read', () => {
 const TERMS = [
 	['sign in', 'common.actions.signIn'],
 	['sign out', 'common.actions.signOut'],
-	['connect turso account', 'organization.setup.connect'],
-	['forget turso account', 'organization.dashboard.forgetAccount'],
+	['connect Turso account', 'organization.setup.connect'],
+	['forget Turso account', 'organization.dashboard.forgetAccount'],
 	['link and code', 'organization.dashboard.linkTitle'],
 	['full access', 'organization.dashboard.accessFull'],
 	['read only', 'organization.dashboard.accessReadOnly'],
@@ -338,7 +338,7 @@ test('the turso account is the only thing the organization strings call an accou
 
 		assert.match(
 			value,
-			/turso/,
+			/Turso/,
 			`${key} calls something other than the turso account an account: ${value}`
 		);
 	}

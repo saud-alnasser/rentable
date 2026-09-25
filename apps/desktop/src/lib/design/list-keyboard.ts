@@ -150,32 +150,42 @@ export function nextPosition(
 	}
 }
 
-/** the one key that puts the cursor in a list's search field. */
+/** the one key that puts the cursor in a set's search field. */
 const SEARCH_KEY = '/';
 
 /**
- * What a list registers while it is on screen.
+ * What a search field registers while it is on screen.
  *
  * The search key is the application's, because it has to answer from wherever the reader is
- * standing on the surface — and it is registered by the list rather than by the shell so that it
- * exists only where there is a list to search. The two the reader presses inside the list are the
- * surface's: they mean nothing away from the records, and the block answers them on its own
- * element. They are registered anyway, because the sheet is where a reader learns a key is there.
+ * standing on the surface. It is registered by the field rather than by the shell, so it exists
+ * only where there is a set to search, and by the field rather than by the list, so a set that is
+ * not drawn by the list shell (the contract's unit panes, the settings directories) answers it
+ * the same way.
  *
- * @param focusSearch what the search key does, passed in because the field belongs to the block.
+ * @param focusSearch what the search key does, passed in because the element is the field's.
  */
-export function toListShortcuts(focusSearch: () => void): ShortcutRegistration[] {
+export function toSearchShortcut(focusSearch: () => void): ShortcutRegistration {
+	return {
+		id: 'list.search',
+		scope: 'application',
+		keys: [{ key: SEARCH_KEY }],
+		describe: (translations) => translations.common.table.focusSearch(),
+		// a lone punctuation key inside a field is a character the reader is typing, and taking
+		// it would make every text field on a list surface unable to type it.
+		standsDownWhileEditing: true,
+		run: focusSearch
+	};
+}
+
+/**
+ * What a list registers while it is on screen, beside its search field's key.
+ *
+ * The two the reader presses inside the list are the surface's: they mean nothing away from the
+ * records, and the block answers them on its own element. They are registered anyway, because
+ * the sheet is where a reader learns a key is there.
+ */
+export function toListShortcuts(): ShortcutRegistration[] {
 	return [
-		{
-			id: 'list.search',
-			scope: 'application',
-			keys: [{ key: SEARCH_KEY }],
-			describe: (translations) => translations.common.table.focusSearch(),
-			// a lone punctuation key inside a field is a character the reader is typing, and taking
-			// it would make every text field on a list surface unable to type it.
-			standsDownWhileEditing: true,
-			run: focusSearch
-		},
 		{
 			id: 'list.move',
 			scope: 'surface',
@@ -184,11 +194,37 @@ export function toListShortcuts(focusSearch: () => void): ShortcutRegistration[]
 		},
 		{
 			id: 'list.open',
-			// answered by the record's own link, which is what the focus is on — so this is a
+			// answered by the record's own link, which is what the focus is on, so this is a
 			// declaration and nothing else, and there is deliberately no handler behind it.
 			scope: 'surface',
 			keys: [{ key: 'Enter' }],
 			describe: (translations) => translations.common.table.openRecord()
 		}
 	];
+}
+
+/**
+ * Where a record sits in the rows a list lays out, or nothing where the list is not showing it.
+ *
+ * What a list reads to bring a record just created into view and put the focus on it
+ * ([[rules/interface]], *Guidance*): the same position a move lands on, so the keyboard carries on
+ * from the record rather than from wherever it was before.
+ */
+export function toPositionOf<TData extends { id: string }, TGroup extends ListGroup>(
+	rows: readonly ListRow<TData, TGroup>[],
+	id: string
+): ListPosition | undefined {
+	for (const [row, laid] of rows.entries()) {
+		if (laid.kind !== 'record') {
+			continue;
+		}
+
+		const column = laid.records.findIndex((record) => record.id === id);
+
+		if (column !== -1) {
+			return { row, column };
+		}
+	}
+
+	return undefined;
 }

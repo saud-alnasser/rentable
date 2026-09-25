@@ -7,6 +7,7 @@ import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import Disconnect from '$lib/organization/component/disconnect.svelte';
 import en from '$lib/i18n/en';
+import { toTitleCase } from '@rentable/design/title-case.js';
 import ar from '$lib/i18n/ar';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 
@@ -67,7 +68,7 @@ test('pressing the control asks once, naming the organization and what it costs'
 		expect(dialog()).not.toBeNull();
 	});
 	expect(document.querySelector('[data-slot="dialog-title"]')?.textContent).toBe(
-		en.layout.signIn.disconnect
+		toTitleCase(en.layout.signIn.disconnect)
 	);
 	expect(paragraphs()[0]?.textContent?.trim()).toBe('Acme Rentals');
 	expect(paragraphs()[1]?.textContent?.trim()).toBe(en.layout.signIn.disconnectDescription);
@@ -112,8 +113,9 @@ test('confirming calls the port once, and cancelling calls nothing', async () =>
 	});
 });
 
-// a refusal the person can act on is a `BAD_REQUEST`, which the confirm shows verbatim rather
-// than closing over; anything else is the shared handler's toast, and the confirm still stays.
+// a refusal the person can act on is a `BAD_REQUEST`, which the confirm shows in the reader's
+// words rather than closing over, never the message it was raised with (effort 832, requirement
+// 23); anything else is the shared handler's toast, and the confirm still stays.
 test('a refused disconnect leaves the confirm open with the refusal on it', async () => {
 	loadLocale('en');
 	setLocale('en');
@@ -130,9 +132,11 @@ test('a refused disconnect leaves the confirm open with the refusal on it', asyn
 	await fireEvent.click(footer().at(-1)!);
 
 	await waitFor(() => {
-		expect(dialog()?.textContent).toContain('the replica is still open');
+		expect(dialog()?.textContent).toContain(
+			'something entered is not valid. check it and try again.'
+		);
 	});
-	expect(dialog()).not.toBeNull();
+	expect(dialog()?.textContent).not.toContain('the replica is still open');
 });
 
 test('and in arabic, the section and the confirm read in their own words', async () => {

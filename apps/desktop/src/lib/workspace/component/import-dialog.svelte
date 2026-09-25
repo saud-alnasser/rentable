@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { toTitleCase } from '@rentable/design/title-case.js';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Callout } from '@rentable/design/primitive/callout/index.js';
 	import * as Dialog from '@rentable/design/primitive/dialog/index.js';
@@ -192,7 +193,7 @@
 <Dialog.Root bind:open>
 	<Dialog.Content class="w-full max-w-md">
 		<Dialog.Header>
-			<Dialog.Title class="capitalize">{$LL.settings.transferImportTitle()}</Dialog.Title>
+			<Dialog.Title>{toTitleCase($LL.settings.transferImportTitle())}</Dialog.Title>
 			<Dialog.Description class="flex items-center gap-2">
 				<FileSpreadsheetIcon class="size-3.5 shrink-0" />
 				<span class="min-w-0 truncate">{fileName}</span>

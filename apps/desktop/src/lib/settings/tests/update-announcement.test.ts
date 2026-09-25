@@ -14,11 +14,11 @@ const raised: RaisedToast[] = [];
 mock.module('svelte-sonner', {
 	exports: {
 		toast: {
-			success: (title: string, options: { description: string | undefined }) => {
-				raised.push({ tone: 'success', title, description: options.description });
+			success: (title: string, options?: { description: string | undefined }) => {
+				raised.push({ tone: 'success', title, description: options?.description });
 			},
-			error: (title: string, options: { description: string | undefined }) => {
-				raised.push({ tone: 'error', title, description: options.description });
+			error: (title: string, options?: { description: string | undefined }) => {
+				raised.push({ tone: 'error', title, description: options?.description });
 			}
 		}
 	}
@@ -64,7 +64,7 @@ test('and it is the reader own language that says it', () => {
 	]);
 });
 
-test('a check that failed is titled from its code and keeps rust own prose', () => {
+test('a check that failed is titled from its code, and rust own prose is not the toast', () => {
 	raised.length = 0;
 
 	// what a failure crossing the tauri boundary looks like by the time it reaches here.
@@ -77,7 +77,7 @@ test('a check that failed is titled from its code and keeps rust own prose', () 
 		{
 			tone: 'error',
 			title: en.common.errors.network(),
-			description: 'error sending request for url'
+			description: undefined
 		}
 	]);
 });

@@ -3,6 +3,7 @@
 	import StandaloneSurface from '@rentable/design/block/standalone-surface.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { toErrorDetail } from '$lib/error/message';
+	import DetailDisclosure from '$lib/error/component/detail-disclosure.svelte';
 	import { LL } from '$lib/i18n/i18n-svelte';
 
 	/**
@@ -40,7 +41,7 @@
 	} = $props();
 
 	// the thrown value's own prose, read the way every other thrown value here is read. Absent
-	// where it carried none, rather than shown as a placeholder saying nothing.
+	// where it carried none, so no disclosure opens onto nothing.
 	const detail = $derived(toErrorDetail(error));
 </script>
 
@@ -52,9 +53,11 @@
 		: $LL.layout.error.shellDescription()}
 >
 	{#if detail}
-		<!-- for whoever is asked what happened, the way the routed error screen already shows it:
-		     the sentence above is for the reader, who met this because nothing anticipated it. -->
-		<p class="text-sm break-words text-muted-foreground">{detail}</p>
+		<!-- the sentence above is the reader's, who met this because nothing anticipated it. The
+		     thrown message is a developer's, in whatever language they wrote, so it is kept closed
+		     behind the disclosure for whoever is asked what happened, as the routed error screen
+		     keeps its own ([[rules/interface]], *Error*). -->
+		<DetailDisclosure name="caught" {detail} />
 	{/if}
 
 	{#snippet actions()}

@@ -49,7 +49,9 @@
 	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
 	import { locale } from '$lib/i18n/i18n-svelte';
 	import { formatLocaleNumber } from '$lib/platform/locale';
-	import type { Icon as IconComponent } from '@tabler/icons-svelte';
+	import type LayoutGridIcon from '@lucide/svelte/icons/layout-grid';
+
+	type IconComponent = typeof LayoutGridIcon;
 
 	/**
 	 * A count, as every directory row renders one: the glyph that stands for the thing being

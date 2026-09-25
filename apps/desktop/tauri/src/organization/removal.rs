@@ -35,7 +35,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     diagnostics,
-    error::Error,
+    error::{Error, RefusalReason},
     state::AppState,
     sync::turso::platform::{DeletionIntent, TursoPlatform},
 };
@@ -159,50 +159,55 @@ pub async fn remove_member<P: TursoPlatform>(
     )?;
 
     if member_id == session.member_id {
-        return Err(Error::Forbidden {
-            message: "you cannot remove yourself. another administrator can".to_string(),
-        });
+        return Err(Error::refused(
+            RefusalReason::NotYourself,
+            "you cannot remove yourself. another administrator can",
+        ));
     }
 
     let members = store.members(&session.verifying_key).await?;
     let member = members
         .iter()
         .find(|member| member.id == member_id)
-        .ok_or_else(|| Error::NotFound {
-            message: "that member is not in this organization".to_string(),
+        .ok_or_else(|| {
+            Error::refused(
+                RefusalReason::MemberMissing,
+                "that member is not in this organization",
+            )
         })?;
 
     if member.role == permission::OWNER {
-        return Err(Error::Forbidden {
-            message: "an owner is not removed. the organization is theirs".to_string(),
-        });
+        return Err(Error::refused(
+            RefusalReason::OwnerProtected,
+            "an owner is not removed. the organization is theirs",
+        ));
     }
 
     if member.role == permission::REMOVED {
-        return Err(Error::PreconditionFailed {
-            message: "that member was already removed".to_string(),
-        });
+        return Err(Error::refused(
+            RefusalReason::MemberRemoved,
+            "that member was already removed",
+        ));
     }
 
     // the destructive path is refused before anything is written, on the two things it needs.
     let platform = if lock_out {
         if session.role != permission::OWNER {
-            return Err(Error::Forbidden {
-                message: "only an owner can lock a member out, because rotating a workspace's \
+            return Err(Error::refused(
+                RefusalReason::OwnerMachineOnly,
+                "only an owner can lock a member out, because rotating a workspace's \
                           credentials needs the turso authority. ask the owner, or remove them \
-                          without the lock-out"
-                    .to_string(),
-            });
+                          without the lock-out",
+            ));
         }
 
         Some(platform.ok_or_else(|| {
-            Error::Forbidden {
-                message:
-                    "locking a member out needs the turso authority, which this machine does not \
+            Error::refused(
+                RefusalReason::OwnerMachineOnly,
+                "locking a member out needs the turso authority, which this machine does not \
                       hold. remove them without the lock-out, or do it from the machine that \
-                      connected the account"
-                        .to_string(),
-            }
+                      connected the account",
+            )
         })?)
     } else {
         None
@@ -304,25 +309,30 @@ pub async fn delete_organization<P: TursoPlatform>(
         let member = app_state.member.read().await;
         let organization = app_state.organization.read().await;
         let (Some(session), Some(store)) = (member.as_ref(), organization.as_ref()) else {
-            return Err(Error::PreconditionFailed {
-                message: "nobody is signed in to an organization on this machine".to_string(),
-            });
+            return Err(Error::refused(
+                RefusalReason::SignedOut,
+                "nobody is signed in to an organization on this machine",
+            ));
         };
 
         session.settled()?;
 
         if session.role != permission::OWNER {
-            return Err(Error::Forbidden {
-                message: ONLY_THE_OWNER_DELETES.to_string(),
-            });
+            return Err(Error::refused(
+                RefusalReason::OwnerOnly,
+                ONLY_THE_OWNER_DELETES,
+            ));
         }
 
         let members = store.members(&session.verifying_key).await?;
         let row = members
             .iter()
             .find(|row| row.id == session.member_id)
-            .ok_or_else(|| Error::NotFound {
-                message: "this member's row is not in the organization any more".to_string(),
+            .ok_or_else(|| {
+                Error::refused(
+                    RefusalReason::MemberGone,
+                    "this member's row is not in the organization any more",
+                )
             })?;
 
         // the password, tried against the row rather than trusted from the session: a wrong one
@@ -829,7 +839,7 @@ mod tests {
         .await;
 
         assert!(
-            matches!(refused, Err(Error::Forbidden { ref message }) if message.contains("removed")),
+            matches!(refused, Err(Error::Refused { reason: crate::error::RefusalReason::YouWereRemoved, ref message }) if message.contains("removed")),
             "{refused:?}"
         );
 
@@ -858,7 +868,10 @@ mod tests {
                 AT + 2
             )
             .await,
-            Err(Error::PreconditionFailed { .. })
+            Err(Error::Refused {
+                reason: crate::error::RefusalReason::MemberRemoved,
+                ..
+            })
         ));
     }
 
@@ -1084,7 +1097,10 @@ mod tests {
                 AT
             )
             .await,
-            Err(Error::PreconditionFailed { .. })
+            Err(Error::Refused {
+                reason: crate::error::RefusalReason::PasswordChangeRequired,
+                ..
+            })
         ));
         administrator.must_change_password = false;
 
@@ -1100,7 +1116,10 @@ mod tests {
                     AT
                 )
                 .await,
-                Err(Error::Forbidden { .. })
+                Err(Error::Refused {
+                    reason: crate::error::RefusalReason::OwnerProtected,
+                    ..
+                })
             ),
             "the owner was removed"
         );
@@ -1116,7 +1135,10 @@ mod tests {
                     AT
                 )
                 .await,
-                Err(Error::Forbidden { .. })
+                Err(Error::Refused {
+                    reason: crate::error::RefusalReason::NotYourself,
+                    ..
+                })
             ),
             "the owner removed themselves"
         );
@@ -1135,7 +1157,7 @@ mod tests {
         .await;
 
         assert!(
-            matches!(by_administrator, Err(Error::Forbidden { ref message }) if message.contains("ask the owner")),
+            matches!(by_administrator, Err(Error::Refused { reason: crate::error::RefusalReason::OwnerMachineOnly, ref message }) if message.contains("ask the owner")),
             "{by_administrator:?}"
         );
 
@@ -1151,7 +1173,13 @@ mod tests {
         .await;
 
         assert!(
-            matches!(without_authority, Err(Error::Forbidden { .. })),
+            matches!(
+                without_authority,
+                Err(Error::Refused {
+                    reason: crate::error::RefusalReason::OwnerMachineOnly,
+                    ..
+                })
+            ),
             "{without_authority:?}"
         );
 
@@ -1177,7 +1205,10 @@ mod tests {
                 AT
             )
             .await,
-            Err(Error::Forbidden { .. })
+            Err(Error::Refused {
+                reason: crate::error::RefusalReason::RoleLacksAct,
+                ..
+            })
         ));
 
         assert_eq!(
@@ -1236,7 +1267,7 @@ mod tests {
         .expect_err("an administrator locked a member out");
 
         assert!(
-            matches!(refusal, Error::Forbidden { ref message } if message.contains("only an owner")
+            matches!(refusal, Error::Refused { reason: crate::error::RefusalReason::OwnerMachineOnly, ref message } if message.contains("only an owner")
                 && message.contains("ask the owner")),
             "{refusal:?}"
         );
@@ -1586,7 +1617,7 @@ mod tests {
             .expect_err("an administrator deleted the organization");
 
         assert!(
-            matches!(refused, Error::Forbidden { ref message } if message.contains("only the owner")),
+            matches!(refused, Error::Refused { reason: crate::error::RefusalReason::OwnerOnly, ref message } if message.contains("only the owner")),
             "{refused:?}"
         );
 

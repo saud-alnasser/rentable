@@ -12,16 +12,17 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
 	plugins: [svelte()],
 	resolve: {
-		// **`$app/navigation` is supplied here and nowhere else.** Two modules in this package call
-		// `goto`, `svelte.config.js` declares no alias on purpose, and a library has no other way
+		// **`$app/navigation` is supplied here and nowhere else.** `back.svelte.ts` calls `goto`,
+		// and every block drawing the back control reaches it; `svelte.config.js` declares no alias on purpose, and a library has no other way
 		// to say what that specifier means: an alias declared for the package would be rewritten
 		// on the way out by a build step this package does not have, and would reach the consumer
 		// pointing at a file it cannot see. So it is the runner's, and it points at scaffolding
 		// under `src/tests/`, which the `exports` map does not carry.
 		//
-		// Without it a test that touches either module fails at resolution rather than at an
-		// assertion: `Failed to resolve import "$app/navigation" from
-		// "src/lib/block/record-surface.svelte"`.
+		// Without it a test that touches one of them fails at resolution rather than at an
+		// assertion, as the first test of `block/record-surface.svelte` did: `Failed to resolve
+		// import "$app/navigation" from "src/lib/block/record-surface.svelte"`, when that block
+		// still called `goto` itself.
 		alias: {
 			'$app/navigation': fileURLToPath(new URL('./src/tests/app-navigation.ts', import.meta.url))
 		},

@@ -7,7 +7,8 @@ import {
 	createApi,
 	monthsFromNow,
 	seedTenant,
-	withStatementLog
+	withStatementLog,
+	refusedWith
 } from '$lib/api/tests/testing.ts';
 import { isRecordId, newId } from '$lib/platform/database/identity.ts';
 import type { ComplexSortColumnId } from '$lib/complex/complex.ts';
@@ -52,7 +53,7 @@ test('creating a complex with a duplicate name is rejected', async () => {
 
 	await assert.rejects(
 		() => api.complex.create({ name: 'Palm Court', location: 'Jeddah' }),
-		/name is associated with a previously registered complex/
+		refusedWith('complex.nameTaken')
 	);
 });
 
@@ -102,7 +103,7 @@ test('a name-only update to a name used by another complex is still rejected', a
 
 	await assert.rejects(
 		() => api.complex.update({ id: second.id, name: 'Palm Court' }),
-		/name is associated with a previously registered complex/
+		refusedWith('complex.nameTaken')
 	);
 });
 
@@ -113,7 +114,7 @@ test('updating a complex to a name used by another complex is rejected', async (
 
 	await assert.rejects(
 		() => api.complex.update({ id: second.id, name: 'Palm Court', location: 'Jeddah' }),
-		/name is associated with a previously registered complex/
+		refusedWith('complex.nameTaken')
 	);
 });
 
@@ -134,7 +135,7 @@ test('deleting a complex that still has units is rejected', async () => {
 
 	await assert.rejects(
 		() => api.complex.delete({ id: complex.id }),
-		/cannot delete complex with associated units/
+		refusedWith('complex.holdsUnits')
 	);
 });
 
@@ -158,7 +159,7 @@ test('creating a unit with a duplicate name in the same complex is rejected', as
 
 	await assert.rejects(
 		() => api.complex.units.create({ name: 'A1', complexId: complex.id }),
-		/name is associated with a unit in the same complex/
+		refusedWith('unit.nameTaken')
 	);
 });
 
@@ -224,7 +225,7 @@ test('updating a unit to a name used by another unit in the complex is rejected'
 
 	await assert.rejects(
 		() => api.complex.units.update({ id: second.id, complexId: complex.id, name: 'A1' }),
-		/name is associated with a unit in the same complex/
+		refusedWith('unit.nameTaken')
 	);
 });
 
@@ -237,7 +238,7 @@ test('updating a unit to an empty name another unit in the complex holds is reje
 
 	await assert.rejects(
 		() => api.complex.units.update({ id: second.id, complexId: complex.id, name: '' }),
-		/name is associated with a unit in the same complex/
+		refusedWith('unit.nameTaken')
 	);
 });
 
@@ -297,7 +298,7 @@ test('deleting a unit assigned to a contract is rejected', async () => {
 
 	await assert.rejects(
 		() => api.complex.units.delete({ id: unit.id }),
-		/cannot delete unit with associated contracts/
+		refusedWith('unit.holdsContracts')
 	);
 });
 
@@ -595,6 +596,36 @@ test('searching the board reaches the unit name and the occupying tenant', async
 	);
 });
 
+// effort 832, ticket 30: every list sorts, and the unit directory is one of them. The order is
+// the one chosen, and its ties fall back to the name.
+test('the board orders by what the reader chose, and ties fall back to the name', async () => {
+	const api = await createApi();
+	const complex = await api.complex.create({ name: 'Palm Court', location: 'Riyadh' });
+	await api.complex.units.create({ name: 'C3', complexId: complex.id });
+	const occupied = await api.complex.units.create({ name: 'B2', complexId: complex.id });
+	await api.complex.units.create({ name: 'A1', complexId: complex.id });
+	const tenant = await seedTenant(api);
+	const contract = await api.contract.create({
+		tenantId: tenant.id,
+		start: monthsFromNow(-1),
+		end: monthsFromNow(11),
+		interval: '12m',
+		cost: 1000
+	});
+	await api.contract.units.set({ contractId: contract.id, unitIds: [occupied.id] });
+
+	const namesIn = async (columnId: 'name' | 'tenantName' | 'status', direction: 'asc' | 'desc') =>
+		(await api.complex.units.getMany({ complexId: complex.id, sort: { columnId, direction } })).map(
+			(unit) => unit.name
+		);
+
+	assert.deepEqual(await namesIn('name', 'desc'), ['C3', 'B2', 'A1']);
+	// the two vacant units name nobody, and are told apart by their names.
+	assert.deepEqual(await namesIn('tenantName', 'desc'), ['B2', 'A1', 'C3']);
+	assert.deepEqual(await namesIn('status', 'asc'), ['B2', 'A1', 'C3']);
+	assert.deepEqual(await namesIn('status', 'desc'), ['A1', 'C3', 'B2']);
+});
+
 // --- Creating a complex with its units ------------------------------------------------
 
 test('a complex and its units are created in one submission', async () => {
@@ -632,7 +663,7 @@ test('two units entered under one name are refused, naming the collision', async
 				location: 'Riyadh',
 				units: [{ name: 'A1' }, { name: ' a1 ' }]
 			}),
-		/"a1" is used twice/
+		refusedWith('unit.nameRepeated', { name: 'a1' })
 	);
 
 	assert.deepEqual(await api.complex.getMany({}), []);
@@ -649,7 +680,7 @@ test('a refused complex name creates none of its units either', async () => {
 				location: 'Jeddah',
 				units: [{ name: 'A1' }]
 			}),
-		/name is associated with a previously registered complex/
+		refusedWith('complex.nameTaken')
 	);
 
 	assert.deepEqual(
@@ -927,7 +958,7 @@ test('and where one complex cannot be put back, none is', async () => {
 
 	await assert.rejects(
 		() => api.complex.createMany({ complexes: deleted.deleted }),
-		new RegExp(`name ${second.name} is associated with a previously registered complex`)
+		refusedWith('complex.nameTakenNamed', { named: second.name })
 	);
 
 	assert.equal(await api.complex.get({ id: first.id }), undefined);
@@ -943,7 +974,7 @@ test('and a set of complexes claiming one name twice is refused before anything 
 
 	await assert.rejects(
 		() => api.complex.createMany({ complexes: [head, { ...tail, name: head.name }] }),
-		new RegExp(`two complexes in this set claim ${head.name}`)
+		refusedWith('complex.repeatedInSet', { value: head.name })
 	);
 
 	assert.equal(await api.complex.get({ id: head.id }), undefined);
@@ -994,7 +1025,7 @@ test('and two units in one complex claiming one name are refused before anything
 
 	await assert.rejects(
 		() => api.complex.units.createMany({ units: [head, { ...tail, name: head.name }] }),
-		/each unit needs its own name/
+		refusedWith('unit.nameRepeated')
 	);
 
 	assert.equal(await readUnit(api, head.id), undefined);
@@ -1035,7 +1066,7 @@ test('and a unit whose name was taken while it was gone blocks the whole set', a
 
 	await assert.rejects(
 		() => api.complex.units.createMany({ units: deleted.deleted }),
-		/name A2 is associated with a unit in the same complex/
+		refusedWith('unit.nameTakenNamed', { named: 'A2' })
 	);
 
 	assert.equal(await readUnit(api, first.id), undefined);
@@ -1116,7 +1147,7 @@ test('a run colliding with a unit the complex already holds writes none of it', 
 			api.complex.units.createMany({
 				units: ['A1', 'A2', 'A3', 'A4'].map((name) => ({ name, complexId: complex.id }))
 			}),
-		/name A3 is associated with a unit in the same complex/
+		refusedWith('unit.nameTakenNamed', { named: 'A3' })
 	);
 
 	assert.deepEqual(

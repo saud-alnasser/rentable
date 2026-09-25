@@ -13,12 +13,13 @@
 </script>
 
 <script lang="ts">
-	import { goto } from '$app/navigation';
 	import BackControl from '#lib/block/back-control.svelte';
+	import Loading from '#lib/block/loading.svelte';
+	import NotFound from '#lib/block/not-found.svelte';
 	import PageFrame from '#lib/block/page-frame.svelte';
-	import * as Empty from '#lib/primitive/empty/index.js';
-	import { Spinner } from '#lib/primitive/spinner/index.js';
-	import * as Tabs from '#lib/primitive/tabs/index.js';
+	import SectionSwitch from '#lib/block/section-switch.svelte';
+	import { Skeleton } from '#lib/primitive/skeleton/index.js';
+	import { shownRecord, type ShownParent } from '#lib/shown-record.svelte.js';
 	import { useDesignContract } from '#lib/strings.js';
 
 	/**
@@ -43,11 +44,12 @@
 		path,
 		eyebrow,
 		title,
+		parent,
 		identity,
 		actions,
 		fields,
 		collections = [],
-		initialCollection
+		section
 	}: {
 		/** Whether the record is still on its way. */
 		isLoading?: boolean;
@@ -63,6 +65,12 @@
 		/** The record's name. Read only where the record was found. */
 		title: string;
 		/**
+		 * The record this one is reached through, where it has one: its name and its address,
+		 * already resolved. The breadcrumb runs through it, so a payment's trail names its contract
+		 * rather than skipping from the directory to the payment.
+		 */
+		parent?: ShownParent;
+		/**
 		 * What identifies the record besides its name, read without labels because format and
 		 * context already say what each one is (_Labels are a last resort_).
 		 */
@@ -73,8 +81,11 @@
 		fields?: Snippet;
 		/** What hangs off the record. One is shown under its heading; two or more are chosen between. */
 		collections?: RecordCollection[];
-		/** The collection the address arrived on, where the record has more than one. */
-		initialCollection?: string;
+		/**
+		 * The collection the address names, read from `?section=` by the route. One the record
+		 * does not have, and none at all, draw the first.
+		 */
+		section?: string | null;
 	} = $props();
 
 	const contract = useDesignContract();
@@ -83,133 +94,139 @@
 	// nothing to say there, and four of the five used to say it anyway.
 	const isChoosable = $derived(collections.length > 1);
 	const defaultCollection = $derived(collections[0]?.value ?? '');
-	const addressed = $derived(initialCollection ?? defaultCollection);
+	const chosen = $derived(
+		collections.find((collection) => collection.value === section)?.value ?? defaultCollection
+	);
 
-	// eslint-disable-next-line svelte/prefer-writable-derived
-	let chosen = $state('');
+	// the first collection is the record's own address, so the address a reader arrives on with no
+	// section and the one the switch writes for the first are the same address.
+	const switchable = $derived(
+		collections.map((collection) => ({
+			value: collection.value,
+			label: collection.label,
+			href: collection.value === defaultCollection ? path : `${path}?section=${collection.value}`
+		}))
+	);
 
-	const collectionHref = (collection: string) =>
-		collection === defaultCollection ? path : `${path}?section=${collection}`;
-
+	// the chrome above names the record this surface is showing, and only once it knows whether
+	// there is one: nothing while it loads, the record's name once found, and `null` where the
+	// record is not there. Taken back when the surface goes.
 	$effect(() => {
-		chosen = addressed;
-	});
+		shownRecord.name = isLoading ? undefined : found ? title : null;
+		shownRecord.parent = !isLoading && found ? parent : undefined;
 
-	$effect(() => {
-		if (!isChoosable || chosen === addressed) {
-			return;
-		}
-
-		// `path` is a route the concept already resolved, so the base is on it once — resolving
-		// the href again would put it on twice.
-		void goto(collectionHref(chosen), {
-			replaceState: true,
-			noScroll: true,
-			keepFocus: true
-		});
+		return () => {
+			shownRecord.name = undefined;
+			shownRecord.parent = undefined;
+		};
 	});
 </script>
 
 {#snippet heading(text: string)}
-	<h2 class="shrink-0 text-xs tracking-[0.2em] text-muted-foreground uppercase">{text}</h2>
+	<h2 class="shrink-0 text-xs text-muted-foreground uppercase">{text}</h2>
 {/snippet}
 
 <!-- fills: a record's collections scroll inside their own panel, which they cannot do unless the
      frame above them is exactly as tall as the window. -->
 <PageFrame fills>
-	{#if isLoading}
-		<div class="flex flex-1 items-center justify-center" aria-busy="true">
-			<div class="flex flex-col items-center gap-3">
-				<Spinner class="size-8 text-muted-foreground" />
-				<p class="text-sm text-muted-foreground">{contract.strings.loadingRecord}</p>
+	<Loading loading={isLoading} label={contract.strings.loadingRecord} class="flex flex-col gap-4">
+		<!-- the shape of the header every record draws: the back control and the action cluster on
+		     one line, then the eyebrow, the name and the identity beneath it, then the fields. -->
+		{#snippet skeleton()}
+			<div class="flex items-start justify-between gap-3">
+				<Skeleton class="size-8 rounded-full" />
+				<Skeleton class="h-8 w-32 rounded-full" />
 			</div>
-		</div>
-	{:else if !found}
-		<!-- the back control keeps its usual place, so a record that is not there is still a
-		     screen the reader can leave the way they leave every other one. -->
-		<div>
-			<BackControl fallback={backFallback} />
-		</div>
+			<div class="space-y-2">
+				<Skeleton class="h-3 w-20" />
+				<Skeleton class="h-8 w-64 max-w-full" />
+				<Skeleton class="h-4 w-40" />
+			</div>
+			<Skeleton class="h-24 w-full rounded-xl" />
+		{/snippet}
 
-		<Empty.Root class="flex-1">
-			<Empty.Header>
-				<Empty.Title>{contract.strings.noResults}</Empty.Title>
-			</Empty.Header>
-		</Empty.Root>
-	{:else}
-		<!-- the record and its own fields are one group, and the gap inside it is smaller than
-		     the gap to the collection below: spacing is what says the fields belong to the record
-		     rather than to the list (_Avoid ambiguous spacing_).
+		{#if !found}
+			<!-- that the record does not exist, never that a search found nothing: nothing was
+			     searched. One way back, beneath the sentence where the reader's eye lands, and the
+			     same treatment an address leading nowhere gets (`not-found.svelte`). -->
+			<NotFound
+				title={contract.strings.recordNotFound}
+				description={contract.strings.recordNotFoundDescription}
+				fallback={backFallback}
+				class="flex-1"
+			/>
+		{:else}
+			<!-- the record and its own fields are one group, and the gap inside it is smaller than
+			     the gap to the collection below: spacing is what says the fields belong to the record
+			     rather than to the list (_Avoid ambiguous spacing_).
 
-		     no panel behind any of it. Four treatments were prototyped and every one that put the
-		     record on the page background beat the one that kept a filled slab — the slab spent a
-		     third of the window on a name and left the fields reading as though they belonged to
-		     nothing. -->
-		<div class="flex shrink-0 flex-col gap-4">
-			<header>
-				<div class="flex items-start justify-between gap-3 rtl:flex-row-reverse">
-					<BackControl fallback={backFallback} />
+			     no panel behind any of it. Four treatments were prototyped and every one that put the
+			     record on the page background beat the one that kept a filled slab, since the slab spent a
+			     third of the window on a name and left the fields reading as though they belonged to
+			     nothing. -->
+			<div class="flex shrink-0 flex-col gap-4">
+				<header>
+					<!-- a plain row: the frame's direction already puts the back control at the start
+					     edge and the actions at the end, in either reading direction. A reverse under
+					     `rtl:` would flip it back, putting the back control on the left in Arabic with
+					     its mirrored arrow pointing away from the edge it sits on. -->
+					<div class="flex items-start justify-between gap-3">
+						<BackControl fallback={backFallback} />
 
-					{#if actions}
-						<div class="flex flex-wrap items-center justify-end gap-2">
-							{@render actions()}
-						</div>
-					{/if}
-				</div>
+						{#if actions}
+							<div class="flex flex-wrap items-center justify-end gap-2">
+								{@render actions()}
+							</div>
+						{/if}
+					</div>
 
-				<div class="mt-4 min-w-0 space-y-1 text-start">
-					<p class="text-xs tracking-[0.2em] text-muted-foreground uppercase">{eyebrow}</p>
-					<h1 class="truncate text-2xl font-semibold tracking-tight sm:text-3xl">{title}</h1>
-					{#if identity}
-						<div class="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-							{@render identity()}
-						</div>
-					{/if}
-				</div>
-			</header>
+					<div class="mt-4 min-w-0 space-y-1 text-start">
+						<!-- the name and the eyebrow are often what somebody typed, a person or an address,
+						     so each keeps its own direction: a Latin name in an Arabic line is otherwise
+						     reordered. Isolated inline, so the line still aligns to the reader's start edge. -->
+						<p class="text-xs text-muted-foreground uppercase"><bdi>{eyebrow}</bdi></p>
+						<h1 class="truncate text-2xl font-semibold sm:text-3xl"><bdi>{title}</bdi></h1>
+						{#if identity}
+							<div class="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+								{@render identity()}
+							</div>
+						{/if}
+					</div>
+				</header>
 
-			<!-- no inset of its own: the fields align with the header and the collection below,
-			     which are the page's own edges. -->
-			{#if fields}
-				{@render fields()}
-			{/if}
-		</div>
+				<!-- no inset of its own: the fields align with the header and the collection below,
+				     which are the page's own edges. -->
+				{#if fields}
+					{@render fields()}
+				{/if}
+			</div>
 
-		{#if isChoosable}
-			<Tabs.Root bind:value={chosen} class="min-h-0 flex-1 gap-3">
-				<Tabs.List class="shrink-0 self-start">
-					{#each collections as collection (collection.value)}
-						<!-- the chosen collection is marked by a value step rather than by the
-						     primitive's solid `primary` fill: with the panel and the tiles gone there is
-						     nothing else loud on the surface, and a filled switcher would lead a screen
-						     nobody opened to change sections on. -->
-						<Tabs.Trigger
-							value={collection.value}
-							class="capitalize data-[state=active]:bg-accent data-[state=active]:text-foreground"
+			{#if isChoosable}
+				{@const shown = collections.find((collection) => collection.value === chosen)}
+				<div class="flex min-h-0 flex-1 flex-col gap-3">
+					<SectionSwitch sections={switchable} current={chosen} label={title} />
+
+					<!-- a flex column, not merely a sized box: a collection asking for a share of the
+					     height resolves against nothing otherwise and grows without bound, so the list
+					     runs past the window instead of scrolling inside it, and anything pinned to its
+					     scroll edge has nothing to pin against. -->
+					{#if shown}
+						<section
+							class="flex min-h-0 flex-1 flex-col"
+							aria-label={shown.label}
+							data-collection={shown.value}
 						>
-							{collection.label}
-						</Tabs.Trigger>
-					{/each}
-				</Tabs.List>
-
-				{#each collections as collection (collection.value)}
-					<!-- a flex column, not merely a sized box: the panel is a block by default, so a
-					     collection inside it asking for a share of the height resolves against nothing
-					     and grows without bound — the list then runs past the window instead of
-					     scrolling inside it, and anything pinned to its scroll edge has nothing to
-					     pin against. Only a record with more than one collection takes this path,
-					     which is why exactly one screen showed it. -->
-					<Tabs.Content value={collection.value} class="flex min-h-0 flex-1 flex-col">
-						{@render collection.content()}
-					</Tabs.Content>
-				{/each}
-			</Tabs.Root>
-		{:else if collections.length === 1}
-			{@const only = collections[0]}
-			<section class="flex min-h-0 flex-1 flex-col gap-3">
-				{@render heading(only.label)}
-				{@render only.content()}
-			</section>
+							{@render shown.content()}
+						</section>
+					{/if}
+				</div>
+			{:else if collections.length === 1}
+				{@const only = collections[0]}
+				<section class="flex min-h-0 flex-1 flex-col gap-3">
+					{@render heading(only.label)}
+					{@render only.content()}
+				</section>
+			{/if}
 		{/if}
-	{/if}
+	</Loading>
 </PageFrame>

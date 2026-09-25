@@ -1,7 +1,7 @@
 import type { Contract, Unit } from '$lib/platform/database/schema';
 import { addUtcDays, addUtcMonths, toUtcDay, type DateLike } from '$lib/api/date';
 import { getPaidAmount, type PaymentLike } from '$lib/payment/payment';
-import { TRPCError } from '@trpc/server';
+import { refuse } from '$lib/api/refusal';
 
 /**
  * CONTRACT
@@ -46,13 +46,6 @@ const INTERVAL_MONTHS: Record<Contract['interval'], number> = {
 	'3m': 3,
 	'6m': 6,
 	'12m': 12
-};
-
-const INTERVAL_LABELS: Record<Contract['interval'], string> = {
-	'1m': 'monthly',
-	'3m': 'quarterly',
-	'6m': 'semi-annual',
-	'12m': 'annual'
 };
 
 export function getIntervalMonths(interval: Contract['interval']) {
@@ -217,6 +210,33 @@ export function getRemainingContractBalance(paidAmount: number, expectedAmount: 
 	}
 
 	return expectedAmount - paidAmount;
+}
+
+/**
+ * What a new payment against this contract most likely is: the amount due this cycle, capped at
+ * what the contract still owes. It is the payment form's default ([[rules/interface]],
+ * *Guidance*), so a reader recording an ordinary rent confirms a figure rather than typing one.
+ *
+ * Read from the aggregates reconcile materializes, as the balance is. What is due by today less
+ * what is paid is the gap: where it is a cycle or more (arrears), the cycle's rent is due; where it
+ * is part of one, that part is; where nothing is due yet, the next cycle's rent is what a reader
+ * paying ahead is paying. A contract that owes nothing has nothing due. Rounded to the halala,
+ * because the gap is a difference of floats and the form refuses a figure finer than that.
+ */
+export function getAmountDueThisCycle(
+	contract: ContractLike & Pick<Contract, 'paidAmount' | 'expectedAmount'>,
+	now: DateLike
+) {
+	const remaining = getRemainingContractBalance(contract.paidAmount, contract.expectedAmount);
+
+	if (remaining <= 0) {
+		return 0;
+	}
+
+	const gap = getExpectedAmountBy(contract, now) - contract.paidAmount;
+	const dueThisCycle = gap > EPSILON ? Math.min(gap, contract.cost) : contract.cost;
+
+	return Math.round(Math.min(dueThisCycle, remaining) * 100) / 100;
 }
 
 export function isContractPaidInFull(contract: ContractLike, payments: PaymentLike[]) {
@@ -464,33 +484,55 @@ export function deriveUnitStatuses(
 
 // --- Rules asserted before persisting -------------------------------------------------
 //
-// Each throws the user-facing BAD_REQUEST the routers previously raised inline. Routers
-// fetch the rows a rule needs and call in; the condition and its message live here.
+// Each throws the refusal the routers previously raised inline. Routers fetch the rows a rule
+// needs and call in; the condition and its code live here.
 
 /**
- * The refusal every rule in this domain raises: a `BAD_REQUEST` whose message is shown to the
- * user verbatim. Exported so a rule kept in a sibling file — renewal's — refuses in the same
- * shape rather than assembling a second one that only looks the same.
+ * Every refusal a contract rule or procedure raises, by code. The sentence each stands for is the
+ * interface's, under `common.refusals.contract`, and `error/refusal.ts` is where a form learns
+ * which field one belongs under.
+ *
+ * The `...Named` codes carry the value a set-wide call has to say back, because a reader told that
+ * one of several records was refused has nothing to act on.
  */
-export function badRequest(message: string): never {
-	throw new TRPCError({ code: 'BAD_REQUEST', message });
-}
+export type ContractRefusalCode =
+	| 'contract.endBeforeStart'
+	| 'contract.periodOffCycle'
+	| 'contract.costNotPositive'
+	| 'contract.govIdTaken'
+	| 'contract.govIdTakenNamed'
+	| 'contract.terminatedLocked'
+	| 'contract.notTerminable'
+	| 'contract.notUnterminable'
+	| 'contract.unitsLockedByPayments'
+	| 'contract.paidInFull'
+	| 'contract.holdsPayments'
+	| 'contract.periodOverlapsUnits'
+	| 'contract.unitsUnavailable'
+	| 'contract.unitsTaken'
+	| 'contract.renewalBeforeEnd'
+	| 'contract.missing'
+	| 'contract.tenantMissing'
+	| 'contract.tenantMissingNamed'
+	| 'contract.repeatedInSet'
+	| 'contract.unitsMissing';
 
 export function ensureValidContractInput(
 	input: Pick<Contract, 'start' | 'end' | 'interval' | 'cost'>
 ) {
 	if (input.end < input.start) {
-		badRequest('end date must be after start date');
+		throw refuse('contract.endBeforeStart');
 	}
 
 	if (!hasValidContractPeriodForInterval(input)) {
-		badRequest(
-			`contract period must stay within ${CONTRACT_END_DATE_TOLERANCE_DAYS} days of the calculated ${INTERVAL_LABELS[input.interval]} cycle end date`
-		);
+		throw refuse('contract.periodOffCycle', {
+			days: CONTRACT_END_DATE_TOLERANCE_DAYS,
+			interval: input.interval
+		});
 	}
 
 	if (!hasValidContractCost(input.cost)) {
-		badRequest('cost per payment must be greater than zero');
+		throw refuse('contract.costNotPositive');
 	}
 }
 
@@ -502,53 +544,53 @@ export function ensureValidContractInput(
  */
 export function ensureGovIdAvailable(conflicting: unknown, named?: string) {
 	if (conflicting) {
-		badRequest(`government id${named ? ` ${named}` : ''} is associated with another contract`);
+		throw named ? refuse('contract.govIdTakenNamed', { named }) : refuse('contract.govIdTaken');
 	}
 }
 
 export function ensureContractIsNotTerminated(status: Contract['status']) {
 	if (status === 'terminated') {
-		badRequest('terminated contracts are locked');
+		throw refuse('contract.terminatedLocked');
 	}
 }
 
 export function ensureContractTerminable(status: Contract['status']) {
 	if (!canManuallyTerminateContractStatus(status)) {
-		badRequest('only active, fulfilled, or past contracts can be terminated');
+		throw refuse('contract.notTerminable');
 	}
 }
 
 export function ensureContractUnterminable(status: Contract['status']) {
 	if (!canUnterminateContractStatus(status)) {
-		badRequest('only terminated contracts can be unterminated');
+		throw refuse('contract.notUnterminable');
 	}
 }
 
 export function ensureContractUnitsAreMutable(payments: unknown[]) {
 	if (payments.length > 0) {
-		badRequest('cannot change contract units after payments have been registered');
+		throw refuse('contract.unitsLockedByPayments');
 	}
 }
 
 export function ensureContractPaymentsCreatable(contract: ContractLike, payments: PaymentLike[]) {
 	if (isContractPaidInFull(contract, payments)) {
-		badRequest('cannot add payments once the required contract amount has been fully paid');
+		throw refuse('contract.paidInFull');
 	}
 }
 
 /**
  * What stops a contract being deleted, or `undefined` where nothing does.
  *
- * The rule itself, and the only rendering of it: a contract may hold no unit and carry no
- * payment. It answers with *which* of the two rather than with a yes or a no, because a
- * selection of contracts is turned away for both reasons at once and a reader who is only told
- * that some of them cannot go has nothing to act on.
+ * The rule itself, and the only rendering of it: a contract may carry no payment. It answers with
+ * *what* stops it rather than with a yes or a no, because a selection of contracts is turned away
+ * by reason and a reader who is only told that some of them cannot go has nothing to act on.
+ *
+ * **The units it holds do not stop it.** They go with it, in the same batch, and undoing the
+ * deletion puts them back with it, as undoing a creation already takes them away (effort 832,
+ * criterion 11(a)). A contract is created holding its units, so a rule refusing one for holding
+ * them refused nearly every contract that had taken no money.
  */
-export function whatBlocksContractDeletion(units: unknown[], payments: unknown[]) {
-	if (units.length > 0) {
-		return 'holds-units' as const;
-	}
-
+export function whatBlocksContractDeletion(payments: unknown[]) {
 	return payments.length > 0 ? ('holds-payments' as const) : undefined;
 }
 
@@ -560,18 +602,12 @@ export type ContractDeletionBlocker = NonNullable<ReturnType<typeof whatBlocksCo
  *
  * Exported beside the rule that enforces it for the reason `isTenantDeletable` states.
  */
-export const isContractDeletable = (units: unknown[], payments: unknown[]) =>
-	whatBlocksContractDeletion(units, payments) === undefined;
+export const isContractDeletable = (payments: unknown[]) =>
+	whatBlocksContractDeletion(payments) === undefined;
 
-export function ensureContractDeletable(units: unknown[], payments: unknown[]) {
-	const blocker = whatBlocksContractDeletion(units, payments);
-
-	if (blocker === 'holds-units') {
-		badRequest('cannot delete contract with associated units');
-	}
-
-	if (blocker === 'holds-payments') {
-		badRequest('cannot delete contract with associated payments');
+export function ensureContractDeletable(payments: unknown[]) {
+	if (whatBlocksContractDeletion(payments) === 'holds-payments') {
+		throw refuse('contract.holdsPayments');
 	}
 }
 
@@ -600,7 +636,6 @@ export function whatRefusesContractAction(
 	action: ContractSelectionAction,
 	contract: ContractLike,
 	payments: PaymentLike[],
-	assignments: unknown[],
 	now: DateLike
 ): ContractRefusalReason | undefined {
 	switch (action) {
@@ -614,7 +649,7 @@ export function whatRefusesContractAction(
 		case 'restore':
 			return canUnterminateContractStatus(contract.status) ? undefined : 'not-restorable';
 		case 'delete':
-			return whatBlocksContractDeletion(assignments, payments);
+			return whatBlocksContractDeletion(payments);
 	}
 }
 
@@ -624,17 +659,26 @@ export function ensurePeriodDoesNotOverlapAssignments(
 	contractId: string
 ) {
 	if (getConflictingAssignedUnitIds(assignments, range, contractId).size > 0) {
-		badRequest('assigned units overlap with another contract during the selected dates');
+		throw refuse('contract.periodOverlapsUnits');
 	}
 }
 
+/**
+ * Refuses where another contract holds one of these units over this contract's term.
+ *
+ * The refusal names what the reader would change. Where the units are the ones they chose, as a
+ * new contract's are, it is `contract.unitsTaken` and belongs under the units; where the units
+ * come with the contract and only the term was theirs, as a renewal's do, it is the default and
+ * belongs under the term.
+ */
 export function ensureUnitsAssignable(
 	assignments: UnitAssignmentLike[],
 	contract: ContractRangeLike,
-	contractId: string
+	contractId: string,
+	code: 'contract.unitsUnavailable' | 'contract.unitsTaken' = 'contract.unitsUnavailable'
 ) {
 	if (getConflictingAssignedUnitIds(assignments, contract, contractId).size > 0) {
-		badRequest('one or more selected units are already assigned to an overlapping contract');
+		throw refuse(code);
 	}
 }
 

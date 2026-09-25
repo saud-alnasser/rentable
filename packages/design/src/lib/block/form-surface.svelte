@@ -2,13 +2,13 @@
 	import { tv, type VariantProps } from 'tailwind-variants';
 
 	const presentation = tv({
-		base: 'fixed z-50 flex flex-col gap-0 overflow-hidden bg-card shadow-xl ring-1 ring-foreground/10 ease-out data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0',
+		base: 'fixed z-50 flex flex-col gap-0 overflow-hidden bg-card shadow-overlay ring-1 ring-foreground/10 data-[state=closed]:animate-out data-[state=closed]:ease-exit data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:ease-enter data-[state=open]:fade-in-0',
 		variants: {
 			weight: {
 				light:
-					'top-1/2 left-1/2 max-h-[calc(100vh-2rem)] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-3xl animation-duration-200 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 md:max-w-lg',
+					'top-1/2 left-1/2 max-h-[calc(100vh-2rem)] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-3xl duration-base data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 md:max-w-lg',
 				heavy:
-					'inset-y-0 end-0 h-full w-full animation-duration-300 data-[state=closed]:slide-out-to-end data-[state=open]:slide-in-from-end md:max-w-lg'
+					'inset-y-0 end-0 h-full w-full data-[state=open]:duration-slow data-[state=closed]:duration-base data-[state=closed]:slide-out-to-end data-[state=open]:slide-in-from-end md:max-w-lg'
 			}
 		}
 	});
@@ -30,11 +30,12 @@
 	 * ring at all. Anything that restyles a control's border inherits this trap.
 	 */
 	export const insetControl =
-		'border-transparent bg-foreground/5 shadow-[inset_0_2px_4px_rgb(0_0_0/0.14)] hover:bg-foreground/8 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20';
+		'border-transparent bg-foreground/5 inset-shadow-sunken hover:bg-foreground/8 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20';
 </script>
 
 <script lang="ts">
 	import * as Dialog from '#lib/primitive/dialog/index.js';
+	import { toTitleCase } from '#lib/title-case.js';
 	import { useDesignContract } from '#lib/strings.js';
 	import XIcon from '@lucide/svelte/icons/x';
 	import { Dialog as DialogPrimitive } from 'bits-ui';
@@ -102,7 +103,7 @@
 			     validation is the schema's, and its messages are the translated ones. -->
 			<form method="POST" use:enhance novalidate class="flex min-h-0 flex-1 flex-col">
 				<div class="flex flex-col gap-2 border-b border-border/60 bg-muted/10 px-5 py-4">
-					<Dialog.Title class="capitalize">{title}</Dialog.Title>
+					<Dialog.Title>{toTitleCase(title)}</Dialog.Title>
 					{#if description}
 						<Dialog.Description>{description}</Dialog.Description>
 					{/if}

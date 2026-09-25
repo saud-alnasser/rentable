@@ -1,5 +1,5 @@
 <script lang="ts">
-	import DeleteDialog from '@rentable/design/block/delete-dialog.svelte';
+	import ConfirmDialog from '@rentable/design/block/confirm-dialog.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
@@ -17,7 +17,8 @@
 	 *
 	 * **It asks once before it runs.** Nothing here is recoverable by the person on the other
 	 * machine except by signing in again, and a lost laptop is the case it is for, so the question
-	 * is the destructive confirm every other loss in the application uses, worded for this act:
+	 * is the confirm dialog named for this act rather than the delete dialog, since nothing is
+	 * deleted ([[rules/interface]], *Delete and confirm*):
 	 * the organization leads as the record, the line says what ends and what does not, and the
 	 * control carries the verb. A refusal the handler throws is shown inside the dialog, so the
 	 * person is still standing at the question when they read it.
@@ -61,7 +62,7 @@
 	</div>
 </Field.Field>
 
-<DeleteDialog
+<ConfirmDialog
 	open={confirming}
 	onOpenChange={(open) => {
 		confirming = open;

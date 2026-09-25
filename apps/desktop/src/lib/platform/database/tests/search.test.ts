@@ -81,8 +81,8 @@ test('folding is idempotent, so applying it to a folded value changes nothing', 
 
 // -- what the screen shows ----------------------------------------------------------------
 
-// `ar-SA` renders every number in Arabic-Indic digits and `en-GB` groups them with a comma,
-// and neither of those spellings is what the column holds. A reader types what they can see.
+// both locales render a number in Western digits grouped with a comma, which is not the
+// spelling the column holds. A reader types what they can see.
 test('a number is found as either locale renders it', async () => {
 	const api = await createApi();
 	const contract = await seedContract(api, { cost: 1500, govId: 'C-1' });
@@ -91,7 +91,7 @@ test('a number is found as either locale renders it', async () => {
 	const arabic = formatLocaleNumber('ar', 1500);
 	const english = formatLocaleNumber('en', 1500);
 
-	assert.equal(arabic, '١٬٥٠٠', 'the fixture no longer matches what ar-SA renders');
+	assert.equal(arabic, '1,500', 'the fixture no longer matches what ar renders');
 	assert.equal(english, '1,500', 'the fixture no longer matches what en-GB renders');
 
 	assert.deepEqual(ids(await api.contract.getMany({ search: arabic })), [contract.id]);

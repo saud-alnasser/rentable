@@ -108,9 +108,9 @@
 	<!-- one width for all seven. The three that disagreed did so because each chose its own. -->
 	<div
 		class={cn(
-			'w-full max-w-lg rounded-3xl bg-card text-start shadow-xl ring-1 ring-foreground/10',
+			'w-full max-w-lg rounded-3xl bg-card text-start shadow-overlay ring-1 ring-foreground/10',
 			banded ? 'overflow-hidden' : 'p-6',
-			'motion-safe:animate-in motion-safe:animation-duration-200 motion-safe:zoom-in-95 motion-safe:fade-in',
+			'motion-safe:animate-in motion-safe:duration-base motion-safe:ease-enter motion-safe:zoom-in-95 motion-safe:fade-in',
 			className
 		)}
 		role={busy ? 'status' : undefined}
@@ -124,7 +124,7 @@
 				{#if Glyph}
 					<Glyph class="size-5 shrink-0" />
 				{/if}
-				<h1 class="min-w-0 flex-1 text-lg font-semibold tracking-tight first-letter:uppercase">
+				<h1 class="min-w-0 flex-1 text-lg font-semibold first-letter:uppercase">
 					{title}
 				</h1>
 
@@ -148,7 +148,7 @@
 					<Spinner class="mt-0.5 size-5 shrink-0 text-muted-foreground" />
 				{/if}
 				<div class="min-w-0 flex-1 space-y-1">
-					<h1 class="text-lg font-semibold tracking-tight first-letter:uppercase">{title}</h1>
+					<h1 class="text-lg font-semibold first-letter:uppercase">{title}</h1>
 					{#if description}
 						<p class="text-sm text-muted-foreground">{description}</p>
 					{/if}

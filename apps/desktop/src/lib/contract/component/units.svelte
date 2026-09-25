@@ -1,6 +1,7 @@
 <script lang="ts">
-	import { Input } from '@rentable/design/primitive/input/index.js';
+	import { Callout } from '@rentable/design/primitive/callout/index.js';
 	import { cn } from '@rentable/design/tailwind.js';
+	import SearchField from '$lib/design/block/search-field.svelte';
 	import UnitPane from './unit-pane.svelte';
 	import {
 		useFetchAssignableContractUnits,
@@ -73,24 +74,26 @@
 
 <div class="flex min-h-0 flex-1 flex-col gap-3">
 	{#if lockNotice}
-		<p
-			class="shrink-0 rounded-2xl border border-destructive/40 bg-destructive/10 px-4 py-2.5 text-start text-xs text-muted-foreground"
-		>
+		<!-- info rather than error: a locked contract is working as it should, and the notice says
+		     why the transfer controls are absent rather than that something failed. -->
+		<Callout tone="info" class="shrink-0 text-start" data-lock-notice>
 			{lockNotice}
-		</p>
+		</Callout>
 	{:else}
 		<p class="shrink-0 text-start text-xs text-muted-foreground">
 			{$LL.contracts.units.transferDescription()}
 		</p>
 	{/if}
 
-	<Input
-		type="search"
-		bind:value={search}
-		placeholder={$LL.common.table.searchPlaceholder()}
-		aria-label={$LL.common.ui.search()}
-		class="shrink-0"
-	/>
+	<!-- the one search field, so the panes search the way every directory does: the glass, the
+	     wait after the last keystroke, and `/` ([[rules/interface]], *Search*). Both panes read the
+	     one term, since a unit moves from one to the other and should stay found. -->
+	<!-- on the surface every set's search sits on, so the field reads as the one it is rather than
+	     as a bare line of text over the panes. The field alone and not the whole bar: the panes are
+	     two halves of one transfer, each counting its own units, with nothing to order or create. -->
+	<div data-pane-search class="shrink-0 rounded-2xl bg-card px-3 py-2.5">
+		<SearchField bind:value={search} />
+	</div>
 
 	<!-- the panes stack below the shell's breakpoint, and they are start and end rather than
 	     left and right: neither the order nor the controls may depend on a physical side.
@@ -111,6 +114,8 @@
 			{isLocked}
 			{isTransferring}
 			gridded={isLocked}
+			isSearched={search.trim() !== ''}
+			onClearSearch={() => (search = '')}
 			onTransfer={transfer}
 		/>
 		{#if !isLocked}
@@ -124,6 +129,8 @@
 				isLoading={assignableQuery.isLoading}
 				{isLocked}
 				{isTransferring}
+				isSearched={search.trim() !== ''}
+				onClearSearch={() => (search = '')}
 				onTransfer={transfer}
 			/>
 		{/if}

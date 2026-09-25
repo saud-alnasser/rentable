@@ -96,9 +96,9 @@
 		{onpointerdown}
 		{onmousedown}
 		style="bottom: {1 + row * 3.25}rem"
-		class="pointer-events-auto fixed left-1/2 z-[60] flex -translate-x-1/2 items-center gap-1 rounded-full border-2 border-dashed border-fuchsia-500 bg-neutral-950/95 p-1 font-mono text-xs text-fuchsia-200 shadow-2xl backdrop-blur-sm"
+		class="pointer-events-auto fixed left-1/2 z-[60] flex -translate-x-1/2 items-center gap-1 rounded-full border-2 border-dashed border-fuchsia-500 bg-neutral-950/95 p-1 font-mono text-xs text-fuchsia-200 shadow-overlay backdrop-blur-sm"
 	>
-		<span class="px-2 text-[10px] whitespace-nowrap text-fuchsia-400/70 uppercase">{name}</span>
+		<span class="px-2 text-xs whitespace-nowrap text-fuchsia-400/70 uppercase">{name}</span>
 
 		<button
 			type="button"
@@ -109,7 +109,7 @@
 		>
 
 		<span
-			class="min-w-40 rounded-full bg-fuchsia-500 px-3 py-1.5 text-center font-bold text-white shadow-[0_0_12px] shadow-fuchsia-500/50"
+			class="min-w-40 rounded-full bg-fuchsia-500 px-3 py-1.5 text-center font-semibold text-white shadow-overlay"
 		>
 			{position()}/{variants.length} · {labels[current]}
 		</span>

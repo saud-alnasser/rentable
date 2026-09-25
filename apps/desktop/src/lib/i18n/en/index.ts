@@ -13,9 +13,13 @@ const en = {
 			checkForUpdates: 'check for updates',
 			checkingForUpdates: 'checking for updates...',
 			clearFilter: 'clear this filter',
+			clearFilters: 'clear filters',
+			clearSearch: 'clear search',
+			clearSearchAndFilters: 'clear search and filters',
 			clearSelection: 'clear selection',
 			connect: 'connect',
 			copyDetails: 'copy details',
+			details: 'details',
 			chooseFile: 'choose a file...',
 			create: 'create',
 			creating: 'creating...',
@@ -27,17 +31,22 @@ const en = {
 			edit: 'edit',
 			export: 'export',
 			exportSelection: 'export selection',
+			goBack: 'go back',
 			import: 'import',
 			installingUpdate: 'installing update...',
 			join: 'join',
+			newComplex: 'new complex',
+			newContract: 'new contract',
+			newPayment: 'new payment',
 			newRecord: 'new record',
+			newTenant: 'new tenant',
+			newUnit: 'new unit',
 			openMenu: 'open menu',
 			openPayments: 'open payments',
 			openPreviousRelease: 'open previous release',
 			proceed: 'proceed',
 			remove: 'remove',
 			renew: 'renew',
-			renewContract: 'renew a contract',
 			renewing: 'renewing...',
 			restore: 'restore',
 			restoring: 'restoring...',
@@ -77,12 +86,19 @@ const en = {
 			notConfigured: 'this feature is not set up yet.',
 			notFound: 'the item could not be found.',
 			preconditionFailed: 'something has to be ready before this can run.',
-			refused: 'this link no longer opens.',
+			refused: 'this was refused, and nothing was changed.',
 			timedOut: 'the operation took too long and stopped.'
 		},
 
 		export: {
-			description: 'which file should this become?'
+			description: 'which file should this become?',
+			nothingToExport: 'there is nothing here to export'
+		},
+
+		failures: {
+			forbidden: 'your role does not allow this in this workspace.',
+			invalidInput: 'something entered is not valid. check it and try again.',
+			signedOut: 'sign in to do this.'
 		},
 
 		formats: {
@@ -92,14 +108,13 @@ const en = {
 
 		import: {
 			title: 'import {record:string}',
-			missingColumns:
-				'this file is missing the column(s): {columns:string}. nothing can be read from it.',
+			missingColumns: 'this file has no {columns:string}, so nothing can be read from it.',
 			collision:
 				'rows {rows:string} both claim {identity:string}. nothing will be imported until one of them goes.',
 			nothingToCreate:
 				'every row in this file is already here or cannot be read, so there is nothing to import.',
-			willCreate: '{count|number} record(s) will be created',
-			willReject: '{count|number} row(s) will be skipped',
+			willCreate: '{count|number} {{record|records}} will be created',
+			willReject: '{count|number} {{row|rows}} will be skipped',
 			rejectedRow: 'row {row|number}',
 			reasons: {
 				duplicateOfExisting: '{detail:string} is already here',
@@ -112,13 +127,13 @@ const en = {
 			skippedUnresolved: '{count|number} naming a record that is not here',
 			noSheets: 'this file holds no sheet this recognises, so there is nothing to import.',
 			sheetMissingColumns:
-				'the {sheet:string} sheet is missing the column(s): {columns:string}. nothing can be read from this file.',
+				'the {sheet:string} sheet has no {columns:string}, so nothing can be read from this file.',
 			sheetIncompleteColumns:
-				'the {sheet:string} sheet carries no {columns:string}, so no record can be created from it — only recognised as one already here.',
+				'the {sheet:string} sheet has no {columns:string}, so its rows can only match records already here.',
 			sheetCollision:
-				'in the {sheet:string} sheet, rows {rows:string} both claim {identity:string}. nothing will be imported until one of them goes.',
+				'rows {rows:string} of the {sheet:string} sheet both claim {identity:string}. remove one to import.',
 			unresolvedRefused:
-				'{count|number} row(s) name a record no sheet holds, so nothing in this file can be imported.',
+				'{count|number} {{row names|rows name}} a record no sheet holds, so nothing in this file can be imported.',
 			unresolvedRow: '{sheet:string} row {row|number} names {reference:string}',
 			skippedHeld: '{count|number} already here',
 			skippedIncomplete: '{count|number} missing a required value',
@@ -154,6 +169,7 @@ const en = {
 			contractEnds: 'contract ends',
 			contractNumber: 'contract number',
 			contractPeriod: 'contract period',
+			contractStatus: 'contract status',
 			costPerPayment: 'cost per cycle',
 			currentDatabasePath: 'current database path',
 			currentValue: 'current value',
@@ -165,12 +181,12 @@ const en = {
 			dueBalanceCoveredToDate: 'due balance covered to date',
 			end: 'end',
 			expected: 'expected',
-			governmentId: 'government id',
+			governmentId: 'government ID',
 			information: 'information',
-			governmentIdOptional: 'government id (optional)',
+			governmentIdOptional: 'government ID (optional)',
 			location: 'location',
 			name: 'name',
-			nationalId: 'national id',
+			nationalId: 'national ID',
 			noticeWindowDays: 'notice window (days)',
 			occupiedUnits: 'occupied units',
 			payment: 'payment',
@@ -197,7 +213,9 @@ const en = {
 			exported: 'exported to {path:string}',
 			loadingRecord: 'loading record...',
 			loadingSettings: 'loading settings...',
-			noResults: 'no results.',
+			noMatch: 'nothing matches',
+			recordNotFound: 'this record does not exist',
+			recordNotFoundDescription: 'it may have been deleted.',
 			unexpectedError: 'unexpected error occurred!',
 			unknown: 'unknown'
 		},
@@ -222,13 +240,173 @@ const en = {
 			'this-year': 'this year'
 		},
 
+		// what a procedure's refusal says, by the code it was raised with (`$lib/api/refusal`). A
+		// refusal crosses as a code and its values, and this is the only place it becomes words.
+		refusals: {
+			complex: {
+				gone: 'this complex is no longer in the workspace. reload to see what changed.',
+				holdsUnits: 'this complex still holds units. delete them before deleting it.',
+				nameTaken: 'name is associated with a previously registered complex.',
+				nameTakenNamed:
+					'the name {named:string} is associated with a previously registered complex.',
+				repeatedInSet: 'two complexes in this set claim {value:string}.'
+			},
+			contract: {
+				costNotPositive: 'cost per payment must be greater than zero.',
+				endBeforeStart: 'end date must be after start date.',
+				govIdTaken: 'government ID is associated with another contract.',
+				govIdTakenNamed: 'government ID {named:string} is associated with another contract.',
+				holdsPayments: 'this contract has payments. delete them before deleting it.',
+				missing: 'this contract is no longer in the workspace. reload to see what changed.',
+				notTerminable: 'only an active, fulfilled or past contract can be terminated.',
+				notUnterminable: 'only a terminated contract can be restored.',
+				paidInFull: 'this contract is paid in full and takes no more payments.',
+				periodOffCycle:
+					'end date must stay within {days:number} days before or after the calculated {interval:string} cycle end date.',
+				periodOverlapsUnits:
+					'another contract holds one or more of these units over the new dates. choose different dates.',
+				renewalBeforeEnd: 'a renewal must start after the contract it renews ends.',
+				repeatedInSet: 'two contracts in this set claim {value:string}.',
+				tenantMissing: 'the selected tenant is no longer in the workspace. choose another.',
+				tenantMissingNamed: 'no tenant with the ID {named:string} is in the workspace.',
+				terminatedLocked: 'this contract is terminated and locked. restore it before changing it.',
+				unitsLockedByPayments:
+					'the units of a contract cannot change once payments are registered against it.',
+				unitsMissing:
+					'one or more of these units are no longer in the workspace. reload to see what changed.',
+				unitsTaken:
+					'another contract holds one or more of the chosen units over this term. choose other units or a different term.',
+				unitsUnavailable:
+					'another contract holds one or more of these units over the selected term. choose a different term.'
+			},
+			// what the shell says, by the reason a Rust refusal carries (`$lib/error/tauri`). Its own
+			// message is a developer's description; this is what the reader is told.
+			host: {
+				lapsed: 'this link has lapsed. ask whoever sent it for a new one.',
+				consumed: 'this link was already used. ask whoever sent it for a new one.',
+				revoked: 'this link was withdrawn. ask whoever sent it for a new one.',
+				replaced: 'a newer link replaced this one. ask whoever sent it for the new one.',
+				codeMissing: 'type the six-character code that came with the link.',
+				codeWrong: 'the code is wrong. ask whoever sent the link to read it out again.',
+				linkUnreadable: 'this is not a rentable join link. copy the whole link and try again.',
+				linkNotAnInvitation:
+					'this link connects another machine rather than inviting you. sign in with your username and password instead.',
+				linkNotForAMachine:
+					'this link is an invitation rather than a link for another machine. open it where you accept an invitation.',
+				anotherOrganizationHeld:
+					'this machine already holds another organization. disconnect it first.',
+				credentialsWrong: 'the username or password is wrong.',
+				passwordTooShort: 'the password needs at least 12 characters.',
+				passwordChangeRequired: 'change your password before doing anything else.',
+				signedOut: 'nobody is signed in on this machine. sign in and try again.',
+				noOrganization: 'this machine holds no organization yet.',
+				noMemberYet: 'nobody has signed in to the organization on this machine yet. sign in first.',
+				signInAgain: 'your account on this machine is out of date. sign in again.',
+				youWereRemoved: 'you were removed from this organization.',
+				sessionsEnded: 'your sessions were ended from another machine. sign in again.',
+				keyNotInForce: 'the organization was handed over, so only its new owner can do this.',
+				usernameInvalid:
+					'a username is 3 to 32 letters, digits, dots, underscores or hyphens, with no spaces.',
+				usernameTaken: 'that username is already taken in this organization. choose another.',
+				roleUnknown: 'choose administrator or member.',
+				memberMissing: 'that member is no longer in this organization. reload to see what changed.',
+				memberGone: 'this account is no longer in the organization.',
+				memberRemoved:
+					'that member was removed. make them an account again if they are to come back.',
+				notYourself: 'you cannot do this to your own account. another administrator can.',
+				ownerProtected: "the owner's account is not changed this way. the organization is theirs.",
+				ownerOnly: 'only the owner can do this. ask the owner.',
+				ownerMachineOnly:
+					"this needs the Turso account, which is connected on the owner's machine. ask the owner.",
+				roleLacksAct: 'your role does not include this. ask an administrator.',
+				notAdministrator: 'only an administrator can do this.',
+				alreadyOwner: 'you are the owner already. choose the account that is to have it.',
+				accountNotSetUp:
+					'that account has no password of its own yet. once they open their link and choose one, offer it again.',
+				offerPending:
+					'the organization is already offered to an account. withdraw that offer first.',
+				offerAccepted:
+					'the offer was already accepted, and the organization is theirs now. nothing was changed.',
+				nothingOffered: 'no offer of this organization stands.',
+				offererGone: 'the account that offered you the organization is no longer in it.',
+				organizationNameMissing: 'the organization needs a name.',
+				workspaceNameMissing: 'the workspace needs a name.',
+				workspaceMissing:
+					'that workspace is no longer in this organization. reload to see what changed.',
+				noWorkspaceOpen: 'no workspace is open on this machine. open one and try again.',
+				noGrant: 'you have no access to that workspace.',
+				grantMissing: 'that member has no access to that workspace.',
+				grantBeyondOwn: 'you can share only a workspace you have full access to yourself.',
+				noOrganizationCredential:
+					"this machine holds no access to the organization's records. sign in again and try once more.",
+				workspaceNewer:
+					'a newer version of rentable upgraded this workspace. update rentable to open it.',
+				workspaceBehind:
+					'this workspace needs upgrading, and read-only access cannot do it. ask a member with full access to open it once.',
+				databaseRefused:
+					'the database refused the request, and nothing was changed. try again later.',
+				tursoNotConnected:
+					'this machine is not connected to the Turso account. connect it and try again.',
+				consentNeededAgain:
+					'Turso needs the consent granted again. connect the Turso account again.',
+				consentGone: 'this consent is no longer waiting. start it again.',
+				groupMismatch:
+					'that is not the group the consent was given over. check the name and try again.',
+				groupNeeded: 'Turso needs the name of the group you picked. type it below.',
+				groupHoldsOrganization:
+					'that group already holds an organization. pick another group or another Turso account.',
+				groupEmpty:
+					'the consent was given over a group that holds no organization. give it over the group that holds yours.',
+				nothingToConnectTo:
+					'this Turso account holds no organization to connect to. go back and make one.',
+				createRefused: "Turso would not create the organization's database.",
+				tursoRefused: 'Turso refused the request. trying again will not help.',
+				tursoAccountRefused:
+					"Turso refused the request because of the account itself. check the account's plan in Turso."
+			},
+			payment: {
+				amountNotPositive: 'payment amount must be greater than zero.',
+				datedInFuture: 'a payment cannot be dated in the future.',
+				missing: 'this payment is no longer in the workspace. reload to see what changed.',
+				repeatedInSet: 'two payments in this set claim {value:string}.'
+			},
+			record: {
+				idTaken: 'another record already holds that ID.',
+				idTakenNamed: 'another record already holds the ID {named:string}.'
+			},
+			tenant: {
+				gone: 'this tenant is no longer in the workspace. reload to see what changed.',
+				holdsContracts: 'contracts mention this tenant, so it cannot be deleted.',
+				nationalIdTaken: 'national ID is associated with a registered tenant.',
+				nationalIdTakenNamed: 'national ID {named:string} is associated with a registered tenant.',
+				phoneTaken: 'phone is associated with a registered tenant.',
+				phoneTakenNamed: 'phone {named:string} is associated with a registered tenant.',
+				repeatedInSet: 'two tenants in this set claim {value:string}.'
+			},
+			unit: {
+				gone: 'this unit is no longer in the workspace. reload to see what changed.',
+				holdsContracts: 'a contract mentions this unit, so it cannot be deleted.',
+				nameRepeated: '{name:string} is used twice; each unit needs its own name.',
+				nameTaken: 'name is associated with a unit in the same complex.',
+				nameTakenNamed: 'the name {named:string} is associated with a unit in the same complex.',
+				repeatedInSet: 'two units in this set claim {value:string}.'
+			},
+			workspace: {
+				nothingToImport: 'there is nothing to import.',
+				unknownComplex: 'the file names a complex called {name:string}, and there is none.',
+				unknownContract: 'the file names a contract called {name:string}, and there is none.',
+				unknownTenant: 'the file names a tenant called {name:string}, and there is none.',
+				unknownUnit: 'the file names a unit called {name:string}, and there is none.'
+			}
+		},
+
 		selection: {
 			more: 'and {count|number} more',
 			nothingToDo: 'none of the selected records can take this action.',
 			outcomeChanged:
 				'the workspace changed while this was open, so {records:string} could not be done. nothing was retried.',
 			outcomeChangedCount:
-				'the workspace changed while this was open, so {count|number} record(s) could not be done. nothing was retried.'
+				'the workspace changed while this was open, so {count|number} {{record|records}} could not be done. nothing was retried.'
 		},
 
 		status: {
@@ -265,9 +443,9 @@ const en = {
 			openRecord: 'open the focused record',
 			pageOf: 'page {page} of {count}',
 			recordsSelected: '{count|number} selected',
-			results: '{count|number} result(s)',
+			results: '{count|number} {{result|results}}',
 			rowsPerPage: 'rows per page',
-			rowsSelected: '{selected} of {total} row(s) selected.',
+			rowsSelected: '{selected} of {total} {{row|rows}} selected.',
 			searchPlaceholder: 'search...',
 			selectRecord: 'select this record'
 		},
@@ -281,20 +459,21 @@ const en = {
 			assigned: 'changing the units of {record:string}',
 			created: 'creating {record:string}',
 			deleted: 'deleting {record:string}',
-			createdMany: 'creating {count|number} record(s)',
-			deletedMany: 'deleting {count|number} record(s)',
+			createdMany: 'creating {count|number} {{record|records}}',
+			deletedMany: 'deleting {count|number} {{record|records}}',
 			edited: 'editing {record:string}',
+			lasts: 'you can undo this while the app is open.',
 			nothingToRedo: 'nothing to apply again',
 			nothingToUndo: 'nothing to take back',
 			redo: 'redo',
 			redone: '{change:string} applied again',
 			renewed: 'renewing {record:string}',
 			terminated: 'terminating {record:string}',
-			terminatedMany: 'terminating {count|number} contract(s)',
+			terminatedMany: 'terminating {count|number} {{contract|contracts}}',
 			undo: 'undo',
 			undone: '{change:string} undone',
 			unterminated: 'restoring {record:string}',
-			unterminatedMany: 'restoring {count|number} contract(s)'
+			unterminatedMany: 'restoring {count|number} {{contract|contracts}}'
 		},
 
 		window: {
@@ -307,6 +486,7 @@ const en = {
 			breadcrumb: 'breadcrumb',
 			close: 'close',
 			commandPalette: 'command palette',
+			commandPaletteActDoesNotApply: '{act} does not apply to {record}.',
 			commandPaletteChooseRecord: 'type to find the record this runs on.',
 			commandPaletteDescription: 'search for a command to run',
 			commandPaletteEmpty: 'no matches found',
@@ -319,6 +499,7 @@ const en = {
 			morePages: 'more pages',
 			next: 'next',
 			nextSlide: 'next slide',
+			nothingToCreateHere: 'nothing on this screen takes a new record',
 			pagination: 'pagination',
 			previous: 'previous',
 			previousSlide: 'previous slide',
@@ -328,15 +509,20 @@ const en = {
 		},
 
 		deleteDialog: {
-			blockedContracts: '{count|number} contract(s) still mention it',
+			blockedContracts: '{count|number} {{contract still mentions|contracts still mention}} it',
 			blockedDescription: 'this cannot be deleted while the following still depend on it.',
-			blockedPayments: '{count|number} payment(s) recorded against it',
-			blockedUnits: '{count|number} unit(s) belong to it',
-			description: 'you can undo this while the app is open.',
+			blockedPayments: '{count|number} {{payment|payments}} recorded against it',
+			blockedUnits: '{count|number} {{unit belongs|units belong}} to it',
+			description: 'this cannot be undone.',
 			unnamedRecord: 'this record'
 		}
 	},
 	layout: {
+		notFound: {
+			description: 'the link that led here may be out of date.',
+			title: 'this page does not exist'
+		},
+
 		error: {
 			description:
 				'something went wrong on this screen. going back to the dashboard usually clears it.',
@@ -356,20 +542,20 @@ const en = {
 		workspaceMenu: {
 			create: 'new workspace',
 			locked: 'not available',
-			members: '{count|number} member(s)',
+			members: '{count|number} {{member|members}}',
 			switchTo: 'switch to',
 			open: 'open',
 			workspaceRefusedAuthority:
-				'creating a workspace needs the turso account, and this machine is not connected to it. reconnect it in the organization section of settings.'
+				'creating a workspace needs the Turso account. reconnect it in settings, under organization.'
 		},
 
 		noWorkspace: {
 			nameLabel: 'workspace name',
 			create: 'create workspace',
-			creating: 'creating the workspace on your turso account. this takes a moment.',
+			creating: 'creating the workspace on your Turso account. this takes a moment.',
 			created: 'the workspace was created.',
 			ownerOnly:
-				'only the owner can create the first workspace, from the machine that connected the turso account.',
+				'only the owner can create the first workspace, from the machine that connected the Turso account.',
 			title: 'no workspace yet',
 			description:
 				'your organization has no workspace yet. create the first one to start keeping records.'
@@ -386,7 +572,7 @@ const en = {
 			roleOwner: 'owner',
 			roleAdministrator: 'administrator',
 			roleMember: 'member',
-			setUp: 'use your turso account',
+			setUp: 'use your Turso account',
 			setUpDescription: 'you own the organization.',
 			connectByLink: 'use a link and code',
 			connectByLinkDescription: 'you were given a link and a code.',
@@ -395,26 +581,27 @@ const en = {
 			useALink: 'use a link',
 			disconnect: 'disconnect this machine',
 			disconnectDescription:
-				'this machine forgets the organization: every copy of it and of its workspaces kept here is deleted, and the turso account is forgotten with them. nothing on turso changes. the owner connects this machine again with their turso account; anybody else is given a link by whoever keeps the accounts.'
+				'this machine deletes its copy of the organization and its workspaces, and forgets the Turso account. nothing on Turso changes. the owner connects again with their Turso account; anyone else needs a new link.'
 		},
 
 		startup: {
 			factUpdatingTo: 'upgrading to',
 			failedToStartFallback: 'failed to start the app.',
 			failureDescription:
-				'your workspace could not be opened. nothing recorded in it is at risk, it is kept on this machine and in your account, and starting again is the first thing to try.',
+				'your workspace could not be opened. nothing in it is at risk; try starting again.',
 			failureTitle: 'rentable could not finish starting',
 			previousVersion: 'previous version',
 			recoveryDetails:
-				'nothing recorded in this workspace is at risk: it is kept for you and this machine holds a copy. if startup still fails, reinstall the previous version before opening rentable again.',
+				'nothing in this workspace is at risk; this machine holds a copy. if startup still fails, reinstall the previous version.',
 			recoveryRequiredTitle: 'update recovery required',
 			stageAccount: 'checking your account',
 			stageChanges: 'checking for changes',
 			stageRecords: 'bringing records up to date',
 			migrationApplying:
-				'bringing the workspace up to this version of rentable. this reaches turso and takes a moment; nothing here is stuck.',
+				'bringing the workspace up to this version of rentable. this reaches Turso and takes a moment; nothing here is stuck.',
 			migrationWaiting:
 				'another member is bringing the workspace up to this version of rentable. waiting on them, until {until} at the latest.',
+			stagePrepare: 'creating your first workspace',
 			stageSettings: 'reading your settings',
 			stageWorkspace: 'opening your workspace'
 		}
@@ -434,9 +621,8 @@ const en = {
 
 		sections: {
 			alsoEnding: 'also ending',
-			contractCount: '{count|number} contract(s)',
+			contractCount: '{count|number} {{contract|contracts}}',
 			openContract: 'open the contract for {tenant}',
-			renewContract: 'renew the contract for {tenant}',
 			seeAll: 'see all ({count|number})'
 		},
 
@@ -445,7 +631,7 @@ const en = {
 
 	settings: {
 		diagnosticsDescription:
-			'rentable keeps a record of what it does on this machine, so a failure can be looked into afterwards. the files never leave this machine, they are limited in size, and passwords and account tokens are removed before anything is written.',
+			'a record of what rentable does, for looking into failures. it stays here, and passwords and tokens are left out.',
 		diagnosticsReveal: 'open log folder',
 		diagnosticsTitle: 'diagnostics',
 
@@ -463,11 +649,18 @@ const en = {
 		transferImportTitle: 'import a workspace',
 		transferImportSuccess: 'the file was imported',
 
-		restartNotice:
-			'the update has been installed. on windows the app may close automatically during installation; otherwise restart rentable to finish switching versions.',
+		restartNotice: 'update installed. restart rentable to finish.',
 
 		localeDescription: 'the interface changes as soon as you pick one.',
 		localeTitle: 'language',
+
+		appearanceTitle: 'appearance',
+		appearanceDescription: 'light or dark, or follow your system as it changes.',
+		appearance: {
+			system: 'system',
+			light: 'light',
+			dark: 'dark'
+		},
 
 		// the four sections of the settings area, each named for what it holds and in the order the
 		// rail draws them rather than in alphabetical order: the order is read here as a list.
@@ -482,7 +675,7 @@ const en = {
 
 		updatesChecking: 'checking for updates...',
 		updatesDescription:
-			'check whether a newer version of rentable is available, and install it. if the app will not start afterwards, it offers to put back the version you were on.',
+			'check for a newer version and install it. if the app then fails to start, it offers the version you were on.',
 		updatesTitle: 'updates',
 
 		you: {
@@ -499,11 +692,10 @@ const en = {
 			},
 			sessions: {
 				title: 'other machines',
-				description:
-					'sign out everywhere you are still signed in but here. your password does not change, so you can sign in again on any of them.',
+				description: 'sign out everywhere but here. your password stays the same.',
 				action: 'sign out of other machines',
 				confirmDescription:
-					'every other machine signed in as you is signed out: one that is running goes back to the sign-in screen within a few minutes, and one that is closed asks for your password next time it opens. this machine stays signed in and your password is unchanged.',
+					'every other machine signed in as you is signed out. this one stays signed in, and your password does not change.',
 				ended: 'your other machines were signed out.',
 				endedPending:
 					'this machine is offline; the sign-out reaches the others once it is back online.'
@@ -518,22 +710,25 @@ const en = {
 		}
 	},
 	complexes: {
+		empty: {
+			description: 'complexes you add, with their units, will be listed here.',
+			title: 'no complexes yet'
+		},
+
 		hooks: {
 			createSuccess: 'complex created successfully!',
 			deleteManySuccess: '{count|number} complex(es) deleted',
 			deleteSuccess: 'complex deleted successfully!',
-			unitCreateManySuccess: '{count|number} unit(s) created',
+			unitCreateManySuccess: '{count|number} {{unit|units}} created',
 			unitCreateSuccess: 'unit created successfully!',
-			unitDeleteManySuccess: '{count|number} unit(s) deleted',
+			unitDeleteManySuccess: '{count|number} {{unit|units}} deleted',
 			unitDeleteSuccess: 'unit deleted successfully!',
 			unitUpdateSuccess: 'unit updated successfully!',
 			updateSuccess: 'complex updated successfully!'
 		},
 
 		form: {
-			duplicateName: 'name is associated with a previously registered complex.',
 			duplicateUnitName: '{name:string} is already in the list.',
-			duplicateUnitNames: 'two units share a name; each needs its own.',
 			noUnitNamed: 'name at least one unit.',
 			noUnitsYet: 'no units yet. add them here, or later from the complex itself.',
 			unitName: 'unit name',
@@ -547,7 +742,7 @@ const en = {
 			deleteTitle: 'delete complexes',
 			refusedHoldsUnits: '{count|number} still hold units',
 			refusedMissing: '{count|number} are no longer in the workspace',
-			unitDeleteSummary: '{count|number} unit(s) will be deleted',
+			unitDeleteSummary: '{count|number} {{unit|units}} will be deleted',
 			unitDeleteTitle: 'delete units',
 			// every contract that ever mentioned it, not the one holding it today: a unit reading
 			// as vacant on the list can still be one no deletion may touch.
@@ -558,12 +753,18 @@ const en = {
 		units: {
 			contractsEmptyDescription: 'contracts that mention this unit will appear here.',
 			contractsEmptyTitle: 'no contracts mention this unit',
-			duplicateName: 'name is associated with a unit in the same complex.',
+			emptyDescription: 'units you add to this complex will be listed here.',
+			emptyTitle: 'no units in this complex yet',
 			management: 'units management'
 		}
 	},
 
 	tenants: {
+		empty: {
+			description: 'tenants you add will be listed here.',
+			title: 'no tenants yet'
+		},
+
 		contracts: {
 			emptyTitle: 'no contracts yet',
 			emptyDescription: 'contracts this tenant holds will appear here.'
@@ -571,15 +772,13 @@ const en = {
 
 		hooks: {
 			createSuccess: 'tenant created successfully!',
-			deleteManySuccess: '{count|number} tenant(s) deleted',
+			deleteManySuccess: '{count|number} {{tenant|tenants}} deleted',
 			deleteSuccess: 'tenant deleted successfully!',
 			updateSuccess: 'tenant updated successfully!'
 		},
 
 		form: {
 			phoneCountryCode: 'country code',
-			duplicateNationalId: 'national id is associated with a registered tenant.',
-			duplicatePhone: 'phone is associated with a registered tenant.',
 			invalidNationalId: 'national identity number must start with 1 or 2 and be 10 digits long.',
 			invalidPhone: 'phone must be valid for the selected country code {countryCode}.',
 			phoneNumberPlaceholder: '5xxxxxxxx',
@@ -587,7 +786,7 @@ const en = {
 		},
 
 		selection: {
-			deleteSummary: '{count|number} tenant(s) will be deleted',
+			deleteSummary: '{count|number} {{tenant|tenants}} will be deleted',
 			deleteTitle: 'delete tenants',
 			refusedHoldsContracts: '{count|number} still hold contracts',
 			refusedMissing: '{count|number} are no longer in the workspace'
@@ -595,22 +794,23 @@ const en = {
 	},
 
 	contracts: {
+		empty: {
+			description: 'contracts you create will be listed here, those needing attention first.',
+			title: 'no contracts yet'
+		},
+
 		form: {
 			startDate: 'start date',
 			calculatedEndDate: 'end date',
 			calculatedEndDateHint:
-				'updated automatically from the selected cycle, start date, and number of cycles. you can manually adjust it within {days} days before or after the suggested end date; allowed dates are highlighted in green.',
+				'follows the cycle, start date and number of cycles. move it up to {days} days either way; allowed dates are green.',
 			costDecimalPlaces: 'cost can have at most two decimal places.',
 			costGreaterThanZero: 'cost must be greater than zero.',
-			costPerPaymentGreaterThanZero: 'cost per payment must be greater than zero.',
 			costRequired: 'cost is required.',
 			cyclesGreaterThanZero: 'number of cycles must be greater than zero.',
 			cyclesRequired: 'number of cycles is required.',
-			duplicateGovernmentId: 'government id is associated with another contract.',
-			endDateAfterStart: 'end date must be after start date.',
 			endDateRequired: 'end date is required.',
 			endDateShort: 'end date',
-			invalidTenant: 'please select a valid tenant.',
 			loadingTenant: 'loading tenant...',
 			loadingTenants: 'loading tenants...',
 			noTenantFound: 'no tenant found.',
@@ -627,26 +827,32 @@ const en = {
 			renewDescription:
 				'the tenant, units, cycle and cost carry over from the contract being renewed. set the term the renewal runs for.',
 			renewTitle: 'renew contract',
-			renewalMustFollowOriginal: 'a renewal must start after the contract it renews ends.',
-			renewalUnitsUnavailable:
-				'another contract holds one or more of these units over the selected term. choose a different term.',
 			searchAndSelectTenant: 'search and select tenant',
-			searchTenantPlaceholder: 'search tenant by name, id or phone...',
+			searchTenantPlaceholder: 'search tenant by name, ID or phone...',
 			startDateRequired: 'start date is required.',
-			tenantRequired: 'tenant is required.'
+			tenantRequired: 'tenant is required.',
+			chooseUnits: 'choose units',
+			loadingUnits: 'loading units...',
+			noUnitFree: 'no unit is free over this term.',
+			searchUnitPlaceholder: 'search units by name or complex...',
+			unitHeldOverTerm: 'held by another contract over this term',
+			unitsHint:
+				"only units free over the contract's term are offered. you can change them later on the contract's units tab.",
+			unitsNeedTerm: 'pick the start date first; the units free over the term are offered then.',
+			unitsOptional: 'units (optional)'
 		},
 
 		hooks: {
 			createPaymentSuccess: 'payment created successfully!',
 			createSuccess: 'contract created successfully!',
-			deleteManyPaymentsSuccess: '{count|number} payment(s) deleted',
-			deleteManySuccess: '{count|number} contract(s) deleted',
+			deleteManyPaymentsSuccess: '{count|number} {{payment|payments}} deleted',
+			deleteManySuccess: '{count|number} {{contract|contracts}} deleted',
 			deletePaymentSuccess: 'payment deleted successfully!',
 			deleteSuccess: 'contract deleted successfully!',
 			renewSuccess: 'contract renewed successfully!',
-			restoreManySuccess: '{count|number} contract(s) restored',
+			restoreManySuccess: '{count|number} {{contract|contracts}} restored',
 			restoreSuccess: 'contract restored successfully!',
-			terminateManySuccess: '{count|number} contract(s) terminated',
+			terminateManySuccess: '{count|number} {{contract|contracts}} terminated',
 			terminateSuccess: 'contract terminated successfully!',
 			updatePaymentSuccess: 'payment updated successfully!',
 			updateSuccess: 'contract updated successfully!'
@@ -660,17 +866,16 @@ const en = {
 		},
 
 		payments: {
-			fullyPaidNotice:
-				'this contract has already reached its required total payment amount. you can still edit or delete payments if needed, but you cannot add more until the paid total drops below the required amount.',
+			emptyTitle: 'no payments yet',
+			fullyPaidNotice: 'this contract is paid in full',
 			fullyPaidSummary:
 				'this contract has been fully paid. you can edit or delete payments, but you cannot add more.',
 			monthTotal: 'total shown for {month}',
 			percentFulfilled: '{percent}% fulfilled',
-			remaining: '{amount} sar remaining',
+			remaining: '{amount:string} remaining',
 			remainingAfter: 'remaining after this payment',
 			remainingBalance: 'remaining balance',
-			terminatedNotice:
-				'terminated contracts are locked. you can review payment history here, but you cannot add, edit, or delete payments until the contract is unterminated.',
+			terminatedNotice: 'this contract is terminated',
 			terminatedSummary: 'this contract is terminated and locked. payment records are read-only.',
 			title: 'payments',
 			titleFor: 'payments for {govId}',
@@ -684,9 +889,9 @@ const en = {
 		},
 
 		selection: {
-			deleteSummary: '{count|number} contract(s) will be deleted',
+			deleteSummary: '{count|number} {{contract|contracts}} will be deleted',
 			deleteTitle: 'delete contracts',
-			paymentDeleteSummary: '{count|number} payment(s) will be deleted',
+			paymentDeleteSummary: '{count|number} {{payment|payments}} will be deleted',
 			paymentDeleteTitle: 'delete payments',
 			// a payment carries no rule of its own; everything that locks one is its contract's
 			// state, and the ledger hides its controls there, so this is only ever reached by the
@@ -694,13 +899,12 @@ const en = {
 			paymentRefusedContractTerminated: '{count|number} belong to a terminated contract',
 			paymentRefusedMissing: '{count|number} are no longer in the workspace',
 			refusedHoldsPayments: '{count|number} still carry payments',
-			refusedHoldsUnits: '{count|number} still hold units',
 			refusedMissing: '{count|number} are no longer in the workspace',
 			refusedNotRestorable: '{count|number} are not terminated',
 			refusedNotTerminable: '{count|number} cannot be terminated by hand',
-			restoreSummary: '{count|number} contract(s) will be restored',
+			restoreSummary: '{count|number} {{contract|contracts}} will be restored',
 			restoreTitle: 'restore contracts',
-			terminateSummary: '{count|number} contract(s) will be terminated',
+			terminateSummary: '{count|number} {{contract|contracts}} will be terminated',
 			terminateTitle: 'terminate contracts'
 		},
 
@@ -721,12 +925,10 @@ const en = {
 			assigned: 'assigned',
 
 			transferDescription:
-				'move a unit between the two sides; each move is saved as it happens. units linked to a contract whose term overlaps this one are not offered.',
+				'move a unit between the two sides; each move saves at once. units under an overlapping contract are not shown.',
 
-			lockNoticeHasPayments:
-				'contracts with registered payments are locked. you can review linked units here, but you cannot assign or remove units after payments have been recorded.',
-			lockNoticeTerminated:
-				'terminated contracts are locked. you can review linked units here, but you cannot assign or remove units until the contract is unterminated.',
+			lockNoticeHasPayments: 'this contract has payments, so its units are locked.',
+			lockNoticeTerminated: 'this contract is terminated, so its units are locked.',
 
 			noAssignedUnits: 'no units are assigned to this contract yet.',
 			noAvailableUnits: 'no units are available for this contract timeframe.'
@@ -740,29 +942,29 @@ const en = {
 
 	organization: {
 		setup: {
-			connectTitle: 'connect your turso account',
-			connectDescription:
-				'your organization will live on your own turso account. one consent in the browser is all it takes.',
+			connectTitle: 'connect your Turso account',
+			connectDescription: 'your organization lives on your own Turso account.',
+			connectDetails: 'before you connect',
 			position: 'step {step|number} of {total|number}',
 			groupCoverage:
 				'the consent covers every database in the group you choose, and nothing outside it.',
 			oneOrganization:
 				'a group holds one organization. a group that already holds one is connected to, not refused.',
 			accountCreation:
-				'a free or developer turso account has exactly one group, so an account kept for rentable alone is the clean choice, and the consent screen is where you make one. on a paid account, pick an empty group.',
+				'a free or developer Turso account holds one group, so keep one for rentable alone. on a paid one, pick an empty group.',
 			succession:
-				'on a personal account only you can grant access again; in a turso organization any admin can, and turso can move a group. rentable does neither for you.',
+				"only you, or a Turso organization's admin, can grant access again, and Turso can move a group. rentable does neither.",
 			groupAskedOnce:
-				'a group holding nothing yet is asked its name once, on the next step; turso names it nowhere.',
-			openDashboard: 'open turso dashboard',
-			connect: 'connect turso account',
+				'a group holding nothing yet is asked its name once, on the next step; Turso names it nowhere.',
+			openDashboard: 'open Turso dashboard',
+			connect: 'connect Turso account',
 			connecting: 'finish the consent in the browser window that just opened.',
-			connected: 'turso account connected.',
+			connected: 'Turso account connected.',
 			consentAbandoned: 'the consent was not granted. nothing was created.',
-			consentFailed: 'turso refused the consent.',
+			consentFailed: 'Turso refused the consent.',
 			existingTitle: 'sign in to your organization',
 			existingDescription:
-				'this turso account already has an organization. its owner signs in to connect this machine to it.',
+				'this Turso account already has an organization. its owner signs in to connect this machine to it.',
 			existingConnect: 'connect this machine',
 			existingConnecting: 'connecting this machine...',
 			nameTitle: 'name your organization',
@@ -777,16 +979,13 @@ const en = {
 				'use at least 12 characters. this password is all that stands between the records and anyone who holds a copy.',
 			passwordTooShort: 'use at least 12 characters.',
 			groupNeeded:
-				'turso could not tell rentable which group you picked, so type its name here once.',
-			groupLabel: 'turso group',
+				'Turso could not tell rentable which group you picked, so type its name here once.',
+			groupLabel: 'Turso group',
 			groupDescription:
-				"the name as it reads on turso's consent screen. the organization's database goes in it.",
-			groupRequired: "name the group you chose on turso's consent screen.",
+				"the name as it reads on Turso's consent screen. the organization's database goes in it.",
+			groupRequired: "name the group you chose on Turso's consent screen.",
 			create: 'create organization',
-			creating: 'creating the organization on your turso account...',
-			workspaceTitle: 'create your first workspace',
-			workspaceDescription:
-				'a workspace holds one set of records. you can add more later, from inside the app.',
+			creating: 'creating the organization on your Turso account...',
 			copyLink: 'copy link',
 			linkCopied: 'link copied.',
 			continue: 'continue',
@@ -799,22 +998,20 @@ const en = {
 			reading: 'reading the link...',
 			unreadable:
 				'this is not a rentable link. paste the whole link, exactly as it was handed to you.',
-			unreachable:
-				'the organization could not be reached. the link is right; try again once the connection is back.',
-			lapsed: 'this invitation has lapsed. ask whoever invited you for a new link.',
-			consumed:
-				'this invitation link has already been opened. this machine is connected, so sign in with your username and the password you chose.',
-			consumedElsewhere:
-				'this link has already been opened on another machine. ask whoever keeps the accounts for a new one.',
-			revoked: 'this invitation was withdrawn. ask whoever invited you for a new link.',
-			replaced:
-				'a newer link took the place of this one. ask whoever keeps the accounts for the new one.',
+			// the seven refusals: one line each, and each names the next step (effort 832,
+			// requirement 19). What the shell said is behind the details disclosure under them.
+			unreachable: 'the organization could not be reached. check the connection and try again.',
+			lapsed: 'this link has lapsed. ask whoever sent it for a new one.',
+			consumed: 'this link was already used here. sign in with the password you chose.',
+			consumedElsewhere: 'this link was already used. ask whoever sent it for a new one.',
+			revoked: 'this link was withdrawn. ask whoever sent it for a new one.',
+			replaced: 'a newer link replaced this one. ask whoever sent it for the new one.',
 			anotherOrganization:
-				'this machine already holds another organization. disconnect it first, then open this link.',
+				'this machine holds another organization. disconnect it at the sign-in first.',
 			toSignIn: 'go to the sign-in',
 			passwordTitle: 'choose your password',
 			passwordDescription:
-				'your password signs you in, on this machine and on any other. nobody can recover it for you; a new link is the only way back.',
+				'signs you in on any machine. nobody can recover it; only a new link gets you back in.',
 			organizationLabel: 'organization',
 			codeLabel: 'code',
 			codeDescription: 'the six characters read out to you with the link.',
@@ -826,28 +1023,28 @@ const en = {
 			back: 'back'
 		},
 		// the block at the top of the organization section: where this machine stands with the
-		// organization on turso, in one sentence (effort 828, requirement 25). A standing that
+		// organization on Turso, in one sentence (effort 828, requirement 25). A standing that
 		// needs something says what needs doing; synced says when this machine last reached
-		// turso. No status word stands alone here, and the only one of these that says "sync" is
+		// Turso. No status word stands alone here, and the only one of these that says "sync" is
 		// the control, which the human named so on 2026-09-17.
 		standing: {
 			// the legend and the sentence of purpose, the same whatever the standing: what the block
 			// is about, before the line that changes.
-			title: 'this machine and turso',
+			title: 'this machine and Turso',
 			purpose:
-				'the organization is kept on turso and reaches this machine on its own. what you write here goes out as soon as turso can be reached.',
-			// a machine that has never reached turso: a fresh machine opened offline, which is not
+				'the organization lives on Turso and reaches this machine on its own. what you write goes out when Turso is reachable.',
+			// a machine that has never reached Turso: a fresh machine opened offline, which is not
 			// up to date and has no moment to say. *It read "up to date" until review round two of
 			// effort 828.*
-			notYetReached: 'this machine has not reached turso yet',
+			notYetReached: 'this machine has not reached Turso yet',
 			upToDateChecked: 'up to date, checked {moment:string}',
-			lastReached: 'last reached turso on {moment:string}',
-			accountNeedsAttention: 'the turso account needs attention',
+			lastReached: 'last reached Turso on {moment:string}',
+			accountNeedsAttention: 'the Turso account needs attention',
 			accessNeedsAttention: "this machine's access needs attention",
 			needsReconnecting: 'this machine needs reconnecting',
 			// an owner whose machine holds no authority: the reconnect is the block below, and the
 			// standing block points at it rather than drawing a second consent.
-			reconnectBelow: 'the turso account is reconnected in the block below.',
+			reconnectBelow: 'the Turso account is reconnected in the block below.',
 			checkNow: 'sync',
 			checking: 'syncing...'
 		},
@@ -868,13 +1065,13 @@ const en = {
 
 			memberTitle: 'a new member',
 			memberDescription:
-				'a member is a username, a role, what they may do and the workspaces they hold. they have no password until you make them a link and they open it.',
+				'a username, a role and the workspaces they hold. no password until they open a link you make.',
 			role: 'role',
 			administratorsAreTheOwners: 'only the owner can make an administrator.',
 			noWorkspaceToGrant: 'no workspace to grant yet. they can be granted one later.',
 			addMember: 'add a member',
 			cannotSend:
-				'rentable sends nothing. copy the link below and hand it over yourself, and read the code out separately. it admits one machine, once.',
+				'rentable sends nothing: copy the link below, hand it over, and give the code separately. it works once.',
 			linkTitle: 'link and code',
 			codeTitle: 'confirmation code',
 			codeDescription:
@@ -889,19 +1086,19 @@ const en = {
 			// say what changes belong to the surfaces they open.
 			transferOwnership: 'hand over ownership',
 			transferOwnershipGoes:
-				'the person you choose is offered the organization. nothing changes until they accept it, on a machine they are already signed in on, with their own password. when they do, they become the owner and you become an administrator.',
+				'they are offered the organization. once they accept, they become the owner and you become an administrator.',
 			transferOwnershipMember: 'who is offered the organization',
 			transferOwnershipAuthority:
-				'your turso account does not move. the databases stay on it, and the new owner connects their own account from the organization section before they can create a workspace, lock anybody out or renew credentials.',
+				'your Turso account and its databases stay yours. the new owner connects their own before creating workspaces.',
 			transferOwnershipConfirm: 'offer it',
 			ownershipOffered: 'the organization was offered. they accept it on a machine of their own.',
 			withdrawOffer: 'withdraw the offer',
 			ownershipOfferWithdrawn: 'the offer was withdrawn. nothing changed hands.',
 			acceptOwnership: 'accept ownership',
 			acceptOwnershipGoes:
-				'you become the owner of {organization:string} and {owner:string} becomes an administrator. your password becomes what the organization is signed with, so from now on it is your password that gets you back in on a new machine.',
+				'you own {organization:string} and {owner:string} becomes an administrator. your password now signs the organization.',
 			acceptOwnershipAuthority:
-				'the turso account stays with whoever connected it. until you connect your own from the organization section, creating a workspace, locking somebody out and renewing credentials run on their machine or not at all.',
+				'the Turso account stays with whoever connected it. connect yours in the organization section to create workspaces.',
 			acceptOwnershipConfirm: 'accept it',
 			ownershipAccepted: 'the organization is yours. you are the owner now.',
 			lockOut: 'lock out',
@@ -915,27 +1112,29 @@ const en = {
 			renameDescription:
 				'the username they sign in with, on every machine. nothing tells them it changed; tell them yourself.',
 			username: 'username',
+			// the line under the username on the sheet that adds a member.
+			usernameDescription: 'the username they sign in with, on every machine.',
 			usernameRules:
 				'a username is three to thirty-two characters of letters, digits, dots, underscores and hyphens',
 			renamed: 'the member was renamed.',
-			authorityTitle: 'turso account',
+			authorityTitle: 'Turso account',
 			authorityDescription:
-				"this machine holds no authority over the organization's turso account, so it cannot create a workspace, lock anybody out or renew credentials. the authority is nowhere to restore it from; grant the consent again here, as you did on the first run.",
+				'this machine holds no authority over the Turso account, and it cannot be restored. grant the consent again.',
 			// requirement 22: an owner who was handed the organization holds no authority, and the
 			// reason is not that this machine lost one. One short sentence saying where it is.
 			authorityFollowsTheAccount:
-				'the authority follows the turso account that granted it, not who owns the organization.',
-			authorityReconnected: 'the turso account is connected on this machine.',
+				'the authority follows the Turso account that granted it, not who owns the organization.',
+			authorityReconnected: 'the Turso account is connected on this machine.',
 			remove: 'remove',
 			removeDescription:
-				'they stop being renewed, so their access ends when their credential runs out, within four weeks, and nobody else is affected. what is already on their machine stays there; nothing reaches into it.',
+				'their access ends when their credential runs out, within four weeks. no one else is affected.',
 			removeAndLockOut: 'remove and lock out',
 			lockOutReading: 'reading which workspaces this touches...',
 			lockOutDescription:
-				'their access to {workspaces} ends at once. turso revokes per workspace and totally, so {count|number} other member(s) of those workspaces stop syncing until their application reconnects, which it does on its own. what is already on their machine stays there.',
+				'their access to {workspaces} ends now. {count|number} other {{member pauses|members pause}} syncing until reconnected.',
 			removed: 'the member was removed. their access ends when their credential runs out.',
 			lockedOut:
-				'the member was locked out. {count|number} other member(s) reconnect on their own.',
+				'the member was locked out. {count|number} other {{member reconnects|members reconnect}} on their own.',
 			unreachableWorkspaces:
 				'you do not hold {workspaces}, so the reset could not restore it. an administrator who does can grant it again.',
 			linkUnreachableWorkspaces:
@@ -949,16 +1148,18 @@ const en = {
 			accessNone: 'no access',
 			accessTakenBack:
 				'taking a workspace back mints nothing, so what they already hold works until it runs out.',
+			// the line under the workspaces on the sheet that adds a member.
+			memberWorkspacesDescription: 'the workspaces they can open, and what they can do in each.',
 			accessSaved: 'the workspaces were saved.',
 			workspaceAccessTitle: 'members and access',
 			workspaceAccessDescription:
-				'who holds {workspace:string}, and what each of them can do in it. taking a workspace back mints nothing, so what somebody already holds works until it runs out.',
+				'who holds {workspace:string} and what each can do there. access taken back lasts until it runs out.',
 			deleteWorkspace: 'delete workspace',
 			deleteWorkspaceDescription:
-				'the workspace and its database are deleted from the turso account, with every tenant, complex, unit, contract and payment in it, on every machine that syncs it. nothing puts it back.',
+				'the workspace and every record in it are deleted from Turso and from every machine that syncs it. nothing puts it back.',
 			workspaceDeleted: 'the workspace was deleted.',
 			transferTitle: 'export and import {workspace:string}',
-			forgetAccount: 'forget turso account',
+			forgetAccount: 'forget Turso account',
 			readOnlyIsTheOwners: "only the owner can grant read only access, on the owner's own machine.",
 			memberSheetDescription: 'what {username:string} may do in this organization.',
 			beyondRole: 'beyond their role',
@@ -984,20 +1185,20 @@ const en = {
 			// read either description.
 			leavingTitle: 'leaving',
 			disconnectForgets:
-				'disconnecting forgets the organization on this machine: you are signed out, every copy of it and of its workspaces kept here is deleted, and the turso authority is cleared. nothing on turso is touched, and the link connects this machine again. to reach another organization, disconnect and connect to it.',
+				"signs you out and deletes the organization's copy on this machine. nothing on Turso changes.",
 			disconnect: 'disconnect',
 			disconnected: 'this machine no longer holds the organization.',
 			forgetAccountDescription:
-				'this machine holds a token for the turso account your organization lives on. forgetting it here means nothing on this machine reaches that account afterwards.',
+				"this machine holds a token for the organization's Turso account. forget it, and nothing here reaches that account.",
 			forgetAccountRevokes:
-				"forgetting the token does not revoke it. what you granted stays granted until you end it yourself, on turso's own dashboard at app.turso.tech.",
+				"forgetting does not revoke the token. end the grant yourself on Turso's dashboard at app.turso.tech.",
 			forgetAccountRevokesAt: 'app.turso.tech',
-			accountForgotten: 'this machine no longer holds a token for your turso account.',
+			accountForgotten: 'this machine no longer holds a token for your Turso account.',
 			deleteOrganization: 'delete organization',
 			deleteOrganizationDescription:
-				'the organization and every workspace in it are deleted from your turso account. nothing puts them back.',
+				'the organization and every workspace in it are deleted from your Turso account. nothing puts them back.',
 			deleteOrganizationGoes:
-				'every workspace goes, and everything in it: tenants, complexes, units, contracts and payments. so does every way in, for every member. the other machines find the organization gone the next time they open and land on the first screen. nothing puts this back.',
+				'every workspace and every record in it is deleted, and every member loses their way in. nothing puts this back.',
 			organizationDeleted: 'the organization was deleted.'
 		},
 
@@ -1010,10 +1211,10 @@ const en = {
 		 */
 		roles: {
 			owner: {
-				who: 'holds the turso account everything is kept on, and can do anything here. there is one owner, and handing it over is their own act.'
+				who: 'holds the Turso account and can do anything. there is one owner, and only they can hand it over.'
 			},
 			administrator: {
-				who: "looks after the people and the workspaces: adds a member, makes links, renames, grants a workspace. the turso account stays the owner's."
+				who: "adds members, makes links and grants workspaces. the Turso account stays the owner's."
 			},
 			member: {
 				who: 'works in the workspaces they hold, and changes nothing about anybody else unless you allow it.'
@@ -1059,33 +1260,32 @@ const en = {
 			memberNote: 'a member starts with none of these, and is allowed them on their own sheet.',
 			ownerAlone: 'the owner alone',
 			ownerAloneReason:
-				'these run on the turso account the owner connected, so nobody can be given them.',
+				'these run on the Turso account the owner connected, so nobody can be given them.',
 			allowed: 'yes',
 			notAllowed: 'no',
 			createWorkspace: 'make a new workspace.',
 			deleteWorkspace: 'delete a workspace and everything in it.',
 			lockOut: 'cut somebody off from every workspace at once.',
 			renew: 'renew the credentials that keep everybody syncing.',
-			tursoAccount: 'connect the turso account, and forget it.'
+			tursoAccount: 'connect the Turso account, and forget it.'
 		}
 	},
 
 	workspace: {
 		nameTooLong: 'that name is too long.',
 		nameRequired: 'give this workspace a name.',
-		rename: 'rename',
 		renameDescription: 'what this workspace is called, on every machine signed in to it.',
 		renamed: 'the workspace was renamed.',
 		credentialRefused:
-			"your access to this workspace was refreshed, and this machine is collecting the new credential. if it does not clear on its own, ask the organization's owner. everything here keeps working meanwhile.",
+			'your access was renewed and this machine is fetching it. work goes on here; if it does not clear, ask the owner.',
 		accountRefusedMember:
-			"the organization's turso account needs attention, so nothing is reaching turso for now. tell {owner}. everything here keeps working on this machine, and what you write goes out once it is seen to.",
+			"the organization's Turso account needs attention, so nothing reaches Turso for now. tell {owner}. work here goes on.",
 		accountRefusedOwner:
-			"turso is refusing the organization's account: {detail}. everything keeps working on this machine, and what is written goes out once the account is seen to. the place to see to it is turso's own dashboard at app.turso.tech, under the organization that holds your group.",
+			"Turso is refusing the organization's account: {detail}. work goes on here; fix it at app.turso.tech to send it.",
 		accountRefusedOwnerNoDetail:
-			"turso is refusing the organization's account. everything keeps working on this machine, and what is written goes out once the account is seen to. the place to see to it is turso's own dashboard at app.turso.tech, under the organization that holds your group.",
+			"Turso is refusing the organization's account. work goes on here; fix it at app.turso.tech to send it.",
 		transferDescription:
-			'write everything — tenants, complexes, units, contracts and payments — to one workbook, or read one back in. records name each other by name rather than by number, so a file opens on any machine.'
+			'write every record to one workbook, or read one in. records name each other, so the file opens on any machine.'
 	}
 } satisfies BaseTranslation;
 

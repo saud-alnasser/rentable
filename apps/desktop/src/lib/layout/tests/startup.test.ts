@@ -93,6 +93,144 @@ test('and the first run, once it has created the organization and a workspace, g
 	assert.equal(startup.snapshot.remoteSync?.workspace.remoteId, 'first');
 });
 
+/**
+ * Effort 832, requirement 18: **the first run is two steps and one loading pass.** The walk
+ * creates the organization and hands the first workspace's creation to the unit as `prepare`. The
+ * loading surface is what is up while it runs, as the pass's first stage, and what it made is read
+ * with everything else: the pass goes on into that workspace.
+ */
+test('a prepare runs under the loading surface as the first stage, and the pass goes on into what it made', async () => {
+	const founded = fakeOrganizationState({
+		session: fakeOrganizationSession({
+			workspaces: [fakeOrganizationWorkspace({ id: 'acme', name: 'Acme Rentals' })]
+		}),
+		holdsTursoAuthority: true
+	});
+	const { startup, journal, seen } = harness({
+		organization: nowhereToGo(),
+		afterBootstrap: founded
+	});
+
+	await startup.start();
+	journal.stages.length = 0;
+
+	const seenBefore = seen.length;
+	const whilePreparing: { state: string; stages: string[] }[] = [];
+
+	await startup.standingChanged({
+		prepare: async () => {
+			whilePreparing.push({ state: startup.snapshot.state, stages: [...journal.stages] });
+		}
+	});
+
+	// the loading surface was already up when the prepare ran, and it was the pass's first stage:
+	// nothing else was drawn between the walk and it.
+	assert.deepEqual(whilePreparing, [{ state: 'loading', stages: ['prepare'] }]);
+	assert.equal(seen[seenBefore]?.state, 'loading');
+	assert.deepEqual(journal.stages, ['prepare', 'workspace', 'changes', 'records']);
+
+	// one pass: loading, and then ready, with no other surface in between.
+	assert.deepEqual(
+		[...new Set(seen.slice(seenBefore).map((snapshot) => snapshot.state))],
+		['loading', 'ready']
+	);
+	assert.deepEqual(journal.workspacesOpened, ['acme']);
+	assert.equal(startup.snapshot.error, null);
+});
+
+// and a prepare that fails lands on the no-workspace surface, which already offers the create: the
+// organization exists and the owner is in, so the pass reads where the machine stands anyway.
+test('a prepare that fails lands on the no-workspace surface, with the owner in', async () => {
+	const founded = fakeOrganizationState({
+		session: fakeOrganizationSession({ workspaces: [] }),
+		holdsTursoAuthority: true
+	});
+	const { startup, journal } = harness({
+		organization: nowhereToGo(),
+		afterBootstrap: founded
+	});
+
+	await startup.start();
+
+	await startup.standingChanged({
+		prepare: async () => {
+			throw new Error('turso could not be reached');
+		}
+	});
+
+	assert.equal(startup.snapshot.state, 'no-workspace');
+	assert.equal(startup.snapshot.railIsUp, true);
+	assert.equal(startup.snapshot.organization?.session?.workspaces.length, 0);
+	// said by the prepare's own handler, so the unit carries no error of its own for it, and it
+	// is not a startup failure.
+	assert.equal(startup.snapshot.error, null);
+	assert.deepEqual(journal.failures, []);
+	assert.deepEqual(journal.workspacesOpened, []);
+	assert.equal(journal.bootstrapped, 0);
+});
+
+// effort 832, requirement 19: a join leaves the connect screen's address, and the move is waited
+// for under the loading surface, as no stage of its own, before the standing is read. A pass that
+// did not wait could end while the address was still the connect screen's, which opens signed out
+// and would be drawn again over the finished pass.
+test('an arrive runs under the loading surface with no stage of its own, before the standing is read', async () => {
+	const joined = fakeOrganizationState({
+		session: fakeOrganizationSession({
+			workspaces: [fakeOrganizationWorkspace({ id: 'acme', name: 'Acme Rentals' })]
+		})
+	});
+	const { startup, journal, seen } = harness({
+		organization: nowhereToGo(),
+		afterBootstrap: joined
+	});
+
+	await startup.start();
+	journal.stages.length = 0;
+
+	const seenBefore = seen.length;
+	const whileArriving: { state: string; stages: string[]; read: boolean }[] = [];
+
+	await startup.standingChanged({
+		arrive: async () => {
+			whileArriving.push({
+				state: startup.snapshot.state,
+				stages: [...journal.stages],
+				read: startup.snapshot.organization?.session != null
+			});
+		}
+	});
+
+	// up under the loading surface, counted as nothing, and before the standing was read.
+	assert.deepEqual(whileArriving, [{ state: 'loading', stages: [], read: false }]);
+	assert.deepEqual(journal.stages, ['workspace', 'changes', 'records']);
+	assert.deepEqual(
+		[...new Set(seen.slice(seenBefore).map((snapshot) => snapshot.state))],
+		['loading', 'ready']
+	);
+	assert.deepEqual(journal.workspacesOpened, ['acme']);
+});
+
+// and a move that fails is not a reason to stop: the standing is read, and the pass goes on.
+test('an arrive that fails still reads the standing and goes on', async () => {
+	const joined = fakeOrganizationState({
+		session: fakeOrganizationSession({
+			workspaces: [fakeOrganizationWorkspace({ id: 'acme', name: 'Acme Rentals' })]
+		})
+	});
+	const { startup, journal } = harness({ organization: nowhereToGo(), afterBootstrap: joined });
+
+	await startup.start();
+	await startup.standingChanged({
+		arrive: async () => {
+			throw new Error('the navigation was cancelled');
+		}
+	});
+
+	assert.equal(startup.snapshot.state, 'ready');
+	assert.equal(startup.snapshot.error, null);
+	assert.deepEqual(journal.workspacesOpened, ['acme']);
+});
+
 // effort 824, requirement 18: connecting by the organization's link records it on this machine
 // with no member and opens no vault, and the route then tells the unit where the machine stands
 // changed. What the unit reads is an organization held and nobody in, which is the wall, locked,
@@ -133,6 +271,33 @@ test('and the locale is loaded before the wall, so the wall is readable', async 
 
 	assert.equal(journal.localeSet, 'ar', 'the reader own locale, set first');
 	assert.deepEqual(journal.localesLoaded, ['ar', 'en'], 'and the rest after it');
+});
+
+// the window is created hidden, so the reader's appearance drawn before the first showing is
+// what keeps a frame from painting in the wrong one (effort 832, requirement 2).
+test('and the stored appearance is applied before the window is shown', async () => {
+	const { startup, journal } = harness({
+		organization: nowhereToGo(),
+		settings: async () => ({ locale: 'en', appearance: 'light' })
+	});
+
+	await startup.start();
+
+	assert.equal(journal.appearance, 'light');
+	assert.ok(journal.shown > 0, 'the wall was shown');
+	assert.ok(
+		journal.shownIn.every((appearance) => appearance === 'light'),
+		`shown in ${journal.shownIn.join(', ')}`
+	);
+});
+
+test('a settings file with no appearance is shown following the system', async () => {
+	const { startup, journal } = harness({ settings: async () => ({ locale: 'en' }) });
+
+	await startup.start();
+
+	assert.equal(startup.snapshot.state, 'ready');
+	assert.deepEqual(journal.shownIn, ['system']);
 });
 
 // --- 2. Launch already signed in -------------------------------------------------------

@@ -90,9 +90,58 @@ needs an acting user is a property of the call.*
 
 ## Errors
 
-User-facing validation failures are raised as a `BAD_REQUEST`, and the message is shown to
-the user verbatim — write it for them, in lower case, saying what they must do. Any other
-code is treated as unexpected and surfaces as a generic failure.
+**A refusal is a code, and its message is a developer's description.** A request a person could
+have made and the domain turns away is thrown as `refuse(code, params?)` from
+`src/lib/api/refusal.ts`, which builds the `BAD_REQUEST` and carries `{ code, params }` on its
+`cause`; `errorFormatter` copies it into `shape.data` as `refusal`. Nothing shows the message to a
+person.
+
+- **The code is named by its concept**, `contract.endBeforeStart`, from the `RefusalCode` union
+  that concept declares beside the rules that raise it. `RefusalCode` in `api/refusal.ts` is their
+  union. A refusal naming a value carries it in `params`, never spliced into the code.
+- **The sentence is the interface's.** `common.refusals.<concept>.<name>` holds one per code in
+  both locales, written for the reader in lower case and saying what they must do.
+  `error/refusal.ts` turns an error into that sentence (`toRefusalText`), and a type check there
+  fails where a code has no sentence or a sentence has no code.
+- **A form maps a code to its field** through `fieldOfRefusal`, and never matches the words of a
+  message.
+- **A procedure's own input schema raises no refusal, and its message is not shown either.** A
+  `BAD_REQUEST` tRPC raises for input the schema turned away reads as
+  `common.failures.invalidInput`, and a form places it through `fieldOfFailure`, which reads the
+  field from the first issue's path where it names one of `RefusalField`.
+
+*Why a code: a sentence written in a router is written in one language, a form placing it has to
+match its words, and a reader who switches language holds sentences cached in the one they left.
+Revised 2026-09-24 by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement
+23; this read "the message is shown to the user verbatim — write it for them", and the forms
+matched fourteen English substrings to place one.*
+
+**A failure that is not a refusal still reads in the reader's language, and never as its
+message.** `FORBIDDEN` and `UNAUTHORIZED` are not refusals: the middlewares raise them for a caller
+who reached a procedure the interface would not have drawn. Each reads as a sentence of its own,
+`common.failures.forbidden` and `common.failures.signedOut`, through `toRouterFailureText` in
+`error/refusal.ts`. Any other code reads as the declaration's unexpected sentence or the generic
+`common.messages.unexpectedError`. The message stays a developer's: `design/mutation.ts` records it
+in diagnostics, and a screen that already offers a details disclosure may show it there, never in
+visible text. *Revised 2026-09-25 by ticket 35 of the same effort: this read "they keep surfacing as
+a generic failure", and the mutation handler, `toErrorMessage` and `toRefusalText` showed their
+English message instead.*
+
+**A rejection from `ctx.host` reaches the caller wrapped.** tRPC turns anything thrown in a procedure
+that is not its own error into an `INTERNAL_SERVER_ERROR`, with the Tauri payload as its `cause`.
+`error/tauri.ts` reads the code and the reason from there as well as from the error itself.
+
+**The shell refuses the same way, with a reason.** Every refusal a person can cause under the
+Rust shell's `organization/` and `sync/` is `Error::Refused { reason }`, the reason one word from
+`RefusalReason` in `tauri/src/error.rs`, mirrored by `TAURI_REFUSAL_REASONS` and read as the code
+`host.<reason>`, whose sentence is `common.refusals.host.<reason>`. Its message is a developer's
+description; where it carries Turso's words a screen shows them behind a details disclosure and
+never inside a sentence. A failure nobody can act on keeps its own variant and its generic
+sentence, and its message is kept the same way: behind a disclosure where the surface has room,
+in diagnostics where it has none, and never beside the sentence (`toErrorText` returns the title
+alone). *Revised 2026-09-25 by ticket 37 of the same effort: a toast showed the message as its
+description, and `toErrorText` joined it onto the sentence.* *Added 2026-09-24 by the same requirement: the shell's refusals crossed as English prose
+the interface showed raw or matched by phrase.*
 
 ## One database client type
 

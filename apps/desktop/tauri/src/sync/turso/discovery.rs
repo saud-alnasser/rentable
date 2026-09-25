@@ -50,7 +50,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use crate::{
-    diagnostics, error::Error, http::build_client, persisted::Persisted, sync::RemoteSyncStore,
+    diagnostics,
+    error::{Error, RefusalReason},
+    http::build_client,
+    persisted::Persisted,
+    sync::RemoteSyncStore,
 };
 
 /// Where the MCP server lives, and the same value the consent names as its resource indicator.
@@ -349,9 +353,10 @@ pub async fn create_first_database(
     // take, a group it could not find. Said as it was said, rather than as a listing that
     // happens not to carry the name afterwards.
     if let Some(reason) = tool_refusal(&created) {
-        return Err(Error::PreconditionFailed {
-            message: format!("{CREATE_REFUSED}{reason}"),
-        });
+        return Err(Error::refused(
+            RefusalReason::CreateRefused,
+            format!("{CREATE_REFUSED}{reason}"),
+        ));
     }
 
     // the reply's shape is undocumented, so a record read out of it is a convenience and the
@@ -795,9 +800,10 @@ pub async fn organization(
 ///
 /// **Three failures are three answers.** A request that never arrives is `Network`, because
 /// retrying is the sensible response and nothing is wrong with the account. A refusal from the
-/// server is `NotConfigured` and its message names setting up rather than syncing, because
-/// whoever sees it is on a first run and has no workspace to sync. A reply that is not the shape
-/// this expects is `Integrity`, which is a defect here rather than anything the customer did.
+/// server is `Refused` with `ConsentNeededAgain`, and its message names setting up rather than
+/// syncing, because whoever sees it is on a first run and has no workspace to sync. A reply that
+/// is not the shape this expects is `Integrity`, which is a defect here rather than anything the
+/// customer did.
 async fn call(
     client: &reqwest::Client,
     endpoint: &McpEndpoint,
@@ -850,21 +856,23 @@ async fn call(
 /// **A refusal never quotes Turso back.** The message reaching a screen is ours, so that a
 /// server-side string can never become the instruction a customer follows.
 fn refused(status: u16) -> Error {
-    Error::NotConfigured {
-        message: format!(
+    Error::refused(
+        RefusalReason::ConsentNeededAgain,
+        format!(
             "turso refused this application's request to identify the account ({status}). \
              Setting up an organization needs the consent granted again."
         ),
-    }
+    )
 }
 
 fn refused_with_code(code: i64) -> Error {
-    Error::NotConfigured {
-        message: format!(
+    Error::refused(
+        RefusalReason::ConsentNeededAgain,
+        format!(
             "turso refused this application's request to identify the account (rpc {code}). \
              Setting up an organization needs the consent granted again."
         ),
-    }
+    )
 }
 
 /// Read the JSON-RPC message out of a body that may be framed as a server-sent event.
@@ -1235,7 +1243,13 @@ mod tests {
                 .expect_err("a refused create was read as a database");
 
         assert!(
-            matches!(error, crate::error::Error::PreconditionFailed { .. }),
+            matches!(
+                error,
+                crate::error::Error::Refused {
+                    reason: crate::error::RefusalReason::CreateRefused,
+                    ..
+                }
+            ),
             "{error:?}"
         );
         assert!(

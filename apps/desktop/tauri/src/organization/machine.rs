@@ -124,9 +124,11 @@ where
     F: std::future::Future<Output = Result<R, Error>>,
     R: std::borrow::Borrow<OrganizationStore>,
 {
-    let not_for_a_machine = || Error::InvalidInput {
-        message: "this link does not connect another machine; open it at the wall instead"
-            .to_string(),
+    let not_for_a_machine = || {
+        Error::refused(
+            RefusalReason::LinkNotForAMachine,
+            "this link does not connect another machine; open it at the wall instead",
+        )
     };
     let half = &link.half;
 
@@ -143,12 +145,13 @@ where
     if let Some(held) = machine.organization.as_ref()
         && held.id != link.organization_id
     {
-        return Err(Error::PreconditionFailed {
-            message: format!(
+        return Err(Error::refused(
+            RefusalReason::AnotherOrganizationHeld,
+            format!(
                 "this link is for {} and this machine holds {}; disconnect it first",
                 link.organization_name, held.name
             ),
-        });
+        ));
     }
 
     if half.expires_at <= now {
@@ -570,7 +573,7 @@ mod tests {
             .expect_err("a wrong code connected a machine");
 
         assert!(
-            matches!(&refusal, Error::Forbidden { message } if message == CODE_REFUSED),
+            matches!(&refusal, Error::Refused { reason: crate::error::RefusalReason::CodeWrong, message } if message == CODE_REFUSED),
             "{refusal:?}"
         );
         assert!(

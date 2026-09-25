@@ -3,18 +3,19 @@
 	import { isFilterPeriod, type FilterPeriod } from '$lib/api/period';
 	import * as Cell from '$lib/design/cell';
 	import { PERIOD_FILTER, toFilterOptions } from '$lib/design/filter';
+	import Loading from '@rentable/design/block/loading.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as DropdownMenu from '@rentable/design/primitive/dropdown-menu/index.js';
-	import * as Empty from '@rentable/design/primitive/empty/index.js';
+	import Empty from '@rentable/design/block/empty.svelte';
 	import { toDashboardSections } from '$lib/dashboard/dashboard';
 	import { useFetchContractWorkQueue } from '$lib/dashboard/query';
 	import DashboardSectionCard from '$lib/dashboard/component/section.svelte';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { formatLocaleRangeWithUnit } from '$lib/platform/locale';
-	import { Spinner } from '@rentable/design/primitive/spinner/index.js';
-	import CheckIcon from '@tabler/icons-svelte/icons/check';
-	import ChevronDownIcon from '@tabler/icons-svelte/icons/chevron-down';
-	import CoinIcon from '@tabler/icons-svelte/icons/coin';
+	import { Skeleton } from '@rentable/design/primitive/skeleton/index.js';
+	import CheckIcon from '@lucide/svelte/icons/check';
+	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
+	import CoinsIcon from '@lucide/svelte/icons/coins';
 
 	/**
 	 * The landing screen: a band of routed figures over one section of records per attention rank
@@ -100,7 +101,7 @@
 						{#snippet child({ props })}
 							<Button {...props} variant="ghost" size="sm" class="h-6 gap-1 px-2 text-xs">
 								<span class="capitalize">{periodLabel}</span>
-								<ChevronDownIcon class="size-3" />
+								<ChevronDownIcon class="size-3.5" />
 							</Button>
 						{/snippet}
 					</DropdownMenu.Trigger>
@@ -145,20 +146,22 @@
 
 		<a
 			href={resolve('/complexes')}
-			class="flex items-center justify-around gap-4 rounded-2xl bg-card p-4 transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:p-5"
+			class="flex flex-col gap-2 rounded-2xl bg-card p-4 transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:p-5"
 		>
-			<span class="flex flex-col items-center gap-2">
+			<!-- the label heads the card as the money card's does, on a row as tall as its period
+			     control, so the two rings sit on one line across the band. -->
+			<span class="flex h-6 items-center truncate text-xs text-muted-foreground">
+				{$LL.dashboard.figures.occupiedUnits()}
+			</span>
+			<span class="-m-1 flex items-center justify-around gap-4 p-1" data-occupancy-figure>
 				<Cell.Ring
 					size="hero"
 					value={occupancy?.occupiedUnits ?? 0}
 					total={occupancy?.totalUnits ?? 0}
 				/>
-				<span class="text-center text-xs text-muted-foreground">
-					{$LL.dashboard.figures.occupiedUnits()}
+				<span class="flex min-w-0 flex-col gap-1 text-start">
+					<span class="truncate text-sm font-semibold tabular-nums">{occupiedOfTotal}</span>
 				</span>
-			</span>
-			<span class="flex min-w-0 flex-col gap-1 text-start">
-				<span class="truncate text-sm font-semibold tabular-nums">{occupiedOfTotal}</span>
 			</span>
 		</a>
 
@@ -176,7 +179,7 @@
 				<span
 					class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-destructive/10 text-destructive"
 				>
-					<CoinIcon class="size-4.5" aria-hidden="true" />
+					<CoinsIcon class="size-4" aria-hidden="true" />
 				</span>
 				<span class="truncate text-xs text-muted-foreground">
 					{$LL.dashboard.figures.outstanding()}
@@ -188,21 +191,40 @@
 		</a>
 	</div>
 
-	{#if workQueueQuery.isLoading}
-		<div class="flex flex-1 items-center justify-center py-16" aria-busy="true">
-			<Spinner class="size-6 text-muted-foreground" />
-			<span class="sr-only">{$LL.common.ui.loading()}</span>
-		</div>
-	{:else if sections.length === 0}
-		<Empty.Root class="rounded-2xl border border-dashed">
-			<Empty.Header>
-				<Empty.Title>{$LL.dashboard.empty.title()}</Empty.Title>
-				<Empty.Description>{$LL.dashboard.empty.description()}</Empty.Description>
-			</Empty.Header>
-		</Empty.Root>
-	{:else}
-		{#each sections as section (section.summary.rank)}
-			<DashboardSectionCard {section} />
-		{/each}
-	{/if}
+	<Loading
+		loading={workQueueQuery.isLoading}
+		label={$LL.common.ui.loading()}
+		class="flex flex-col gap-4"
+	>
+		<!-- the shape of two sections: a header naming the rank over a few rows of contracts. -->
+		{#snippet skeleton()}
+			{#each { length: 2 }, index (index)}
+				<div class="flex flex-col gap-3 rounded-2xl bg-card p-4">
+					<div class="flex items-center gap-3">
+						<Skeleton class="size-8 rounded-lg" />
+						<Skeleton class="h-4 w-32" />
+					</div>
+					{#each { length: 3 }, row (row)}
+						<Skeleton class="h-10 w-full rounded-xl" />
+					{/each}
+				</div>
+			{/each}
+		{/snippet}
+
+		{#if sections.length === 0}
+			<!-- the one empty treatment ([[rules/interface]], *Empty*). Nothing to chase is the landing
+			     screen with nothing in it yet, and there is no act to offer: the sections fill as
+			     contracts fall behind or near their end. -->
+			<Empty
+				kind="nothing-yet"
+				title={$LL.dashboard.empty.title()}
+				description={$LL.dashboard.empty.description()}
+				class="rounded-2xl border border-dashed"
+			/>
+		{:else}
+			{#each sections as section (section.summary.rank)}
+				<DashboardSectionCard {section} />
+			{/each}
+		{/if}
+	</Loading>
 </div>

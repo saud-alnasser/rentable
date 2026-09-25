@@ -5,9 +5,11 @@ import type { SelectionCall } from '@rentable/design/selection.js';
 import type { HistoryEntry } from '$lib/history/history';
 import { workspacePrefixes } from '$lib/design/query';
 import { LL, locale } from '$lib/i18n/i18n-svelte';
+import { isPaymentSortColumnId } from '$lib/payment/payment';
 import { isRecordId } from '$lib/platform/database/identity';
+import type { ListSort } from '@rentable/design/sort.js';
 import { formatLocaleMoney, formatLocaleNumber } from '$lib/platform/locale';
-import { createQuery } from '@tanstack/svelte-query';
+import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 import { get } from 'svelte/store';
 
 export const keys = {
@@ -15,12 +17,18 @@ export const keys = {
 	getMany: (contractId: string) => [...workspacePrefixes.payments, contractId],
 	// the period is part of the key because it is part of the question: two periods are two
 	// result sets, and sharing a key would serve one of them under the other's name.
-	list: (contractId: string, search: string, period: FilterPeriod | undefined) => [
+	list: (
+		contractId: string,
+		search: string,
+		period: FilterPeriod | undefined,
+		sort: ListSort | null = null
+	) => [
 		...workspacePrefixes.payments,
 		'list',
 		contractId,
 		search,
-		period ?? null
+		period ?? null,
+		sort ? `${sort.columnId}:${sort.direction}` : 'default'
 	],
 	search: (term: string) => [...workspacePrefixes.payments, 'search', term],
 	// the selection itself, sorted: the same set assembled in a different order is the same
@@ -95,6 +103,21 @@ export function useFetchPayment(id: () => string) {
 	});
 }
 
+/**
+ * Read one payment once, with the contract it was made against, for a caller that holds only its
+ * identity or a ledger row short of that contract: the payment host, answering an act the command
+ * menu named by id, and copying a payment's details. Under the key `useFetchPayment` reads.
+ */
+export function useReadPayment() {
+	const client = useQueryClient();
+
+	return (id: string) =>
+		client.fetchQuery({
+			queryKey: keys.get(id),
+			queryFn: () => api.contract.payments.get({ id })
+		});
+}
+
 export function useFetchContractPayments(
 	contractId: () => string,
 	enabled: () => boolean = () => true
@@ -117,19 +140,28 @@ export function useFetchContractPayments(
  * keeps rendering rows instead of flashing through its loading state on every keystroke.
  */
 export function useListContractPayments(
-	params: () => { contractId: string; search?: string; period?: FilterPeriod }
+	params: () => {
+		contractId: string;
+		search?: string;
+		period?: FilterPeriod;
+		sort?: ListSort | null;
+	}
 ) {
 	return createQuery(() => {
-		const { contractId, search, period } = params();
+		const { contractId, search, period, sort = null } = params();
 		const trimmedSearch = search?.trim() ?? '';
 
 		return {
-			queryKey: keys.list(contractId, trimmedSearch, period),
+			queryKey: keys.list(contractId, trimmedSearch, period, sort),
 			queryFn: () =>
 				api.contract.payments.getMany({
 					contractId,
 					search: trimmedSearch || undefined,
-					period
+					period,
+					sort:
+						sort && isPaymentSortColumnId(sort.columnId)
+							? { columnId: sort.columnId, direction: sort.direction }
+							: undefined
 				}),
 			placeholderData: <T>(previous: T) => previous
 		};
@@ -255,6 +287,8 @@ export const useDeletePayment = declareMutation({
 		},
 	toast: {
 		success: () => get(LL).contracts.hooks.deletePaymentSuccess(),
+		// no dialog asked first, so the announcement says how long it can be taken back.
+		detail: () => get(LL).common.undo.lasts(),
 		error: false,
 		unexpected: () => get(LL).common.messages.unexpectedError()
 	}

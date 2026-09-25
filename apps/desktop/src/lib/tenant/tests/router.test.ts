@@ -8,7 +8,8 @@ import {
 	monthsFromNow,
 	seedTenant,
 	unusedId,
-	withStatementLog
+	withStatementLog,
+	refusedWith
 } from '$lib/api/tests/testing.ts';
 import { isRecordId } from '$lib/platform/database/identity.ts';
 import type { ListSort } from '@rentable/design/sort.ts';
@@ -153,7 +154,7 @@ test('creating a tenant with a national id already in use is rejected', async ()
 
 	await assert.rejects(
 		() => api.tenant.create({ name: 'Omar', nationalId: NATIONAL_ID, phone: '+966551234500' }),
-		/national id is associated with a registered tenant/
+		refusedWith('tenant.nationalIdTaken')
 	);
 });
 
@@ -163,7 +164,7 @@ test('creating a tenant with a phone already in use is rejected', async () => {
 
 	await assert.rejects(
 		() => api.tenant.create({ name: 'Omar', nationalId: IQAMA, phone: PHONE }),
-		/phone is associated with a registered tenant/
+		refusedWith('tenant.phoneTaken')
 	);
 });
 
@@ -233,10 +234,7 @@ test('an id-only update is a no-op that returns the tenant unchanged', async () 
 test('an id-only update for a tenant that does not exist says so rather than answering with nothing', async () => {
 	const api = await createApi();
 
-	await assert.rejects(
-		() => api.tenant.update({ id: unusedId() }),
-		/this tenant is no longer in the workspace/
-	);
+	await assert.rejects(() => api.tenant.update({ id: unusedId() }), refusedWith('tenant.gone'));
 });
 
 test('a partial update to an identity used by another tenant is still rejected', async () => {
@@ -250,11 +248,11 @@ test('a partial update to an identity used by another tenant is still rejected',
 
 	await assert.rejects(
 		() => api.tenant.update({ id: other.id, nationalId: NATIONAL_ID }),
-		/national id is associated with a registered tenant/
+		refusedWith('tenant.nationalIdTaken')
 	);
 	await assert.rejects(
 		() => api.tenant.update({ id: other.id, phone: PHONE }),
-		/phone is associated with a registered tenant/
+		refusedWith('tenant.phoneTaken')
 	);
 });
 
@@ -275,7 +273,7 @@ test('updating a tenant to a national id used by another tenant is rejected', as
 				nationalId: NATIONAL_ID,
 				phone: '+966551234500'
 			}),
-		/national id is associated with a registered tenant/
+		refusedWith('tenant.nationalIdTaken')
 	);
 });
 
@@ -290,7 +288,7 @@ test('updating a tenant to a phone used by another tenant is rejected', async ()
 
 	await assert.rejects(
 		() => api.tenant.update({ id: other.id, name: 'Omar', nationalId: IQAMA, phone: PHONE }),
-		/phone is associated with a registered tenant/
+		refusedWith('tenant.phoneTaken')
 	);
 });
 
@@ -319,7 +317,7 @@ test('deleting a tenant that has a contract is rejected', async () => {
 
 	await assert.rejects(
 		() => api.tenant.delete({ id: tenant.id }),
-		/cannot delete tenant with associated contracts/
+		refusedWith('tenant.holdsContracts')
 	);
 });
 
@@ -503,7 +501,7 @@ test('and where one of them cannot be put back, none is', async () => {
 
 	await assert.rejects(
 		() => api.tenant.createMany({ tenants: deleted.deleted }),
-		new RegExp(`national id ${second.nationalId} is associated with a registered tenant`)
+		refusedWith('tenant.nationalIdTakenNamed', { named: second.nationalId })
 	);
 
 	assert.equal(await api.tenant.get({ id: first.id }), undefined);
@@ -522,7 +520,7 @@ test('and a set claiming one national id twice is refused before anything is wri
 			api.tenant.createMany({
 				tenants: [head, { ...tail, nationalId: head.nationalId }]
 			}),
-		new RegExp(`two tenants in this set claim ${head.nationalId}`)
+		refusedWith('tenant.repeatedInSet', { value: head.nationalId })
 	);
 
 	assert.equal(await api.tenant.get({ id: head.id }), undefined);

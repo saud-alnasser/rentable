@@ -29,8 +29,8 @@ import Providers from './providers.svelte';
  * actually meet.
  *
  * **The address is the mock**, because that is where a section is named. `$app/state` is
- * supplied by the SvelteKit plugin and carries no navigation here, so the one member the rail
- * reads is stood in for and moved between tests.
+ * supplied by the SvelteKit plugin and carries no navigation here, so the one member the two
+ * directories read is stood in for and moved between tests.
  */
 
 const { address } = vi.hoisted(() => ({
@@ -67,33 +67,14 @@ const area = (overrides: Partial<Parameters<typeof render<typeof SettingsArea>>[
 			syncState: fakeSyncState(),
 			members: [],
 			standings: [],
-			makingLink: null,
-			unsetting: null,
-			endingSessions: null,
 			isChangingPassword: false,
-			isChangingRole: false,
-			isChangingAccess: false,
-			isOffering: false,
-			isWithdrawing: false,
 			isAcceptingOwnership: false,
 			isDeletingOrganization: false,
 			onChangeLocale: noop,
 			onRevealDiagnostics: noop,
 			onChangePassword: resolved,
 			onEndOtherSessions: resolved,
-			onEndSessions: noop,
-			onMakeLink: noop,
-			onUnsetPassword: noop,
-			onRemove: noop,
-			onLockOut: noop,
-			onRename: resolved,
-			onChangeRole: resolved,
-			onChangeAccess: resolved,
-			onOfferOwnership: resolved,
-			onWithdrawOffer: noop,
 			onAcceptOwnership: resolved,
-			onChangeWorkspaceAccess: resolved,
-			onDeleteWorkspace: resolved,
 			onAuthorityReconnected: noop,
 			onDeleteOrganization: resolved,
 			onDisconnect: resolved,
@@ -103,8 +84,8 @@ const area = (overrides: Partial<Parameters<typeof render<typeof SettingsArea>>[
 	);
 };
 
-/** the rail's anchors, in the order they were drawn. */
-const tabs = () => [...document.querySelectorAll<HTMLAnchorElement>('[data-settings-rail] a')];
+/** the section switch's anchors, in the order they were drawn. */
+const tabs = () => [...document.querySelectorAll<HTMLAnchorElement>('[data-section-switch] a')];
 
 const tabNames = () => tabs().map((tab) => tab.textContent?.trim());
 
@@ -119,6 +100,29 @@ const orderOf = (...marks: string[]) =>
 	[...document.querySelectorAll<HTMLElement>(marks.map((mark) => `[${mark}]`).join(','))]
 		.map((element) => marks.find((mark) => element.hasAttribute(mark)))
 		.filter((mark) => mark !== undefined);
+
+// criterion 14(c) of effort 832: the settings sections switch with the one control a record's
+// sections switch with, the design package's section switch, rather than a row of their own.
+test('the sections switch with the shared section switch, named for the area', () => {
+	at('?section=account');
+	area({ section: 'account' });
+
+	const control = document.querySelectorAll<HTMLElement>('nav[data-section-switch]');
+
+	expect(control).toHaveLength(1);
+	expect(control[0]?.getAttribute('aria-label')).toBe(en.settings.title);
+	expect(tabs().map((tab) => tab.dataset.section)).toEqual([
+		'general',
+		'account',
+		'organization',
+		'workspaces'
+	]);
+	expect(
+		tabs()
+			.find((tab) => tab.dataset.section === 'account')
+			?.getAttribute('aria-current')
+	).toBe('page');
+});
 
 // requirement 24 of effort 828: four sections, each named for what it holds.
 test('an owner is offered the four sections, in order', () => {

@@ -7,6 +7,8 @@
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { useRenameWorkspace } from '$lib/settings/query';
 	import { WORKSPACE_NAME_LIMIT } from '$lib/workspace/workspace';
+	import SaveIcon from '@lucide/svelte/icons/save';
+	import { surfaceForm } from '$lib/design/form';
 	import { defaults, superForm } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';
 	import z from 'zod';
@@ -54,7 +56,7 @@
 	let { form, constraints, errors, enhance, ...rest } = superForm<RenameForm>(
 		defaults(zod4(z.object({ name: z.string() }))),
 		{
-			SPA: true,
+			...surfaceForm,
 			validators: zod4(RenameSchema),
 			onUpdate: async ({ form }) => {
 				if (!form.valid) return;
@@ -88,13 +90,15 @@
 	const superform = { form, constraints, errors, enhance, ...rest };
 </script>
 
-<!-- light: one field, and the weight is what it is rather than what the window is. -->
+<!-- light: one field, and the weight is what it is rather than what the window is. Titled edit, the
+     name of the act that opens it and the title the member's sheet wears ([[rules/interface]],
+     *Edit*). -->
 <FormSurface
 	{open}
 	{onOpenChange}
 	{enhance}
 	weight="light"
-	title={$LL.workspace.rename()}
+	title={$LL.common.actions.edit()}
 	description={$LL.workspace.renameDescription()}
 >
 	<Form.Field form={superform} name="name" class="group relative">
@@ -120,7 +124,9 @@
 		>
 			{$LL.common.actions.cancel()}
 		</Button>
+		<!-- the verb's glyph before its label, as every submit carries one. -->
 		<Button type="submit" disabled={renameMutation.isPending} class="capitalize">
+			<SaveIcon class="size-4" />
 			{$LL.common.actions.save()}
 		</Button>
 	{/snippet}

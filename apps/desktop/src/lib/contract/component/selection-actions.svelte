@@ -27,7 +27,7 @@
 	 * What a selection of contracts offers, and everything those actions need.
 	 *
 	 * Three surfaces list contracts — the directory, a tenant's page and a unit's — and the set is
-	 * one set, for the reason `actions.svelte` gives about a single record: assembled per surface,
+	 * one set, for the reason `contract/acts.ts` gives about a single record: assembled per surface,
 	 * what may be done to a selection would come to depend on where the reader met it.
 	 *
 	 * **The bar carries all three whatever is in the selection.** Whether an action applies to any
@@ -94,7 +94,7 @@
 	const REFUSAL_ORDER = {
 		terminate: ['not-terminable', 'missing'],
 		restore: ['not-restorable', 'missing'],
-		delete: ['holds-units', 'holds-payments', 'missing']
+		delete: ['holds-payments', 'missing']
 	} as const satisfies Record<ContractSelectionAction, readonly string[]>;
 
 	const titles = $derived({
@@ -133,7 +133,6 @@
 		describeRefusals({
 			'not-terminable': (count: number) => $LL.contracts.selection.refusedNotTerminable({ count }),
 			'not-restorable': (count: number) => $LL.contracts.selection.refusedNotRestorable({ count }),
-			'holds-units': (count: number) => $LL.contracts.selection.refusedHoldsUnits({ count }),
 			'holds-payments': (count: number) => $LL.contracts.selection.refusedHoldsPayments({ count }),
 			missing: (count: number) => $LL.contracts.selection.refusedMissing({ count })
 		} satisfies Record<ContractRefusalReason, (count: number) => string>)

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import DeleteDialog from '@rentable/design/block/delete-dialog.svelte';
+	import ConfirmDialog from '@rentable/design/block/confirm-dialog.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
@@ -50,7 +50,7 @@
 	</div>
 </Field.Field>
 
-<DeleteDialog
+<ConfirmDialog
 	open={confirming}
 	onOpenChange={(value) => {
 		confirming = value;

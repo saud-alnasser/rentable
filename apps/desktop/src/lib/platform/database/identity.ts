@@ -1,5 +1,11 @@
 import { regex } from '@rentable/design/identifier.js';
-import { TRPCError } from '@trpc/server';
+import { refuse } from '$lib/api/refusal';
+
+/**
+ * The refusals of a stated identity, by code. Any concept's record can meet them, so they are
+ * named for the record rather than for a concept; see `$lib/api/refusal`.
+ */
+export type RecordRefusalCode = 'record.idTaken' | 'record.idTakenNamed';
 
 /**
  * IDENTITY
@@ -24,10 +30,7 @@ import { TRPCError } from '@trpc/server';
  */
 export function ensureIdFree(existing: unknown, named?: string) {
 	if (existing) {
-		throw new TRPCError({
-			code: 'BAD_REQUEST',
-			message: `another record already holds ${named ? `the id ${named}` : 'that id'}`
-		});
+		throw named ? refuse('record.idTakenNamed', { named }) : refuse('record.idTaken');
 	}
 }
 

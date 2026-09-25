@@ -1,5 +1,5 @@
 import { recordDiagnosticInfo } from '$lib/platform/diagnostics';
-import { type StartupStage } from './startup-stage';
+import { STARTUP_STAGES, stagesOfPass, type StartupStage } from './startup-stage';
 
 /**
  * Where startup has got to, as the loading screen reads it.
@@ -10,6 +10,7 @@ import { type StartupStage } from './startup-stage';
  */
 
 export {
+	PREPARED_STAGES,
 	STARTUP_STAGES,
 	STARTUP_STAGE_WEIGHTS,
 	startupProgressFor,
@@ -18,14 +19,21 @@ export {
 export type { StartupStage } from './startup-stage';
 
 /**
- * The stage, and when it started.
+ * The stage, when it started, and the pass it is a stage of.
  *
  * `since` is here rather than in the screen because the screen mounts after the first stage is
- * already reported: a component measuring from its own mount would time the wrong thing.
+ * already reported: a component measuring from its own mount would time the wrong thing. `stages`
+ * is here for the same reason: which pass is running is known where the stage is reported, and
+ * the screen counts and weighs over it.
  */
-export const startupStage = $state<{ current: StartupStage; since: number }>({
+export const startupStage = $state<{
+	current: StartupStage;
+	since: number;
+	stages: readonly StartupStage[];
+}>({
 	current: 'settings',
-	since: Date.now()
+	since: Date.now(),
+	stages: STARTUP_STAGES
 });
 
 let enteredAt: number | null = null;
@@ -44,15 +52,21 @@ export function reportStartupStage(stage: StartupStage) {
 
 	timeTheStageBefore(now);
 
+	// a pass is running while a stage before this one has not been closed by `reportStartupComplete`.
+	const stages = stagesOfPass(stage, startupStage.stages, previous !== null);
+
 	previous = stage;
 	enteredAt = now;
 
 	startupStage.current = stage;
 	startupStage.since = now;
+	startupStage.stages = stages;
 }
 
 /**
- * Say that startup finished, so the last stage gets timed too.
+ * Say that startup finished, so the last stage gets timed too. *Also said where a prepared pass
+ * ends at its first stage, because the `prepare` it ran failed: the pass is over, and what it cost
+ * is still a measurement.*
  *
  * **Without this the final stage is the one stage never measured**, because what times a stage is
  * the next one starting and nothing follows the last. That left `records` as the only weight in

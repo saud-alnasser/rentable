@@ -116,8 +116,8 @@ const everyStep: JoinStep[] = [
 	pasting(),
 	{ ...pasting('nope', CODE), isUnreadable: true },
 	{ kind: 'reading', link: LINK, code: CODE },
-	{ kind: 'unreachable', link: LINK, code: CODE, message: 'offline' },
-	{ kind: 'refused', link: LINK, refusal: 'lapsed', message: null, wasConnecting: false },
+	{ kind: 'unreachable', link: LINK, code: CODE, detail: 'offline' },
+	{ kind: 'refused', link: LINK, refusal: 'lapsed', detail: null, wasConnecting: false },
 	stepOf({ kind: 'invitation', expiresAt: 1 })
 ];
 
@@ -294,8 +294,10 @@ test('the code field is under the link, six characters, with its own sentence', 
 });
 
 // requirement 23's two refusals and criterion 17: each said by name in the reader's own language,
-// with what the shell said kept under it, and each marking the field the person answers it on.
-// A wrong code comes back `forbidden` and a code nobody typed `invalidInput`.
+// with what the shell said kept behind a closed disclosure, and each marking the field the person
+// answers it on. Effort 832, requirement 19: the field's sentence is the one line, and nothing
+// beside it says it again.
+// A wrong code comes back refused as `codeWrong` and a code nobody typed as `codeMissing`.
 test('a wrong code and a missing one are each refused by name, and mark the code field', () => {
 	loadLocale('en');
 	setLocale('en');
@@ -303,17 +305,17 @@ test('a wrong code and a missing one are each refused by name, and mark the code
 	const wrong = joinScreen({
 		...pasting(LINK, CODE),
 		codeRefusal: 'wrong',
-		errorMessage: 'the code is wrong; ask whoever sent you the link to read it out again'
+		detail: 'the seal did not open under that code'
 	});
 
 	expect(screen.getByText(en.organization.join.codeWrong)).toBeDefined();
 	// the sentence sits on the code field and in no callout over the form: a validation error marks
 	// its own field and no form places a summary ([[rules/interface]], *Validation errors*).
 	expect(fieldErrorOn('code')).toBe(en.organization.join.codeWrong);
-	expect(inCallouts()).not.toContain(en.organization.join.codeWrong);
-	expect(document.querySelector('[data-join-detail]')?.textContent).toBe(
-		'the code is wrong; ask whoever sent you the link to read it out again'
-	);
+	expect(inCallouts()).toEqual([]);
+	// what the shell said is behind the disclosure, closed, and not a second line on the screen.
+	expect(document.querySelector('[data-error-detail="join"]')).not.toBeNull();
+	expect(document.body.textContent).not.toContain('the seal did not open under that code');
 	expect(document.querySelector('input[name=code]')?.getAttribute('aria-invalid')).toBe('true');
 	// the link is the other half and nothing is wrong with it, so it is not marked and what was
 	// typed is still there to try again with.
@@ -445,12 +447,15 @@ test('an organization that could not be reached says so, shows what the shell sa
 	const onConnect = vi.fn();
 
 	joinScreen(
-		{ kind: 'unreachable', link: LINK, code: CODE, message: 'Acme could not be reached' },
+		{ kind: 'unreachable', link: LINK, code: CODE, detail: 'Acme could not be reached' },
 		{ onConnect }
 	);
 
 	expect(inputsOnScreen()).toEqual([]);
 	expect(screen.getByText(en.organization.join.unreachable)).toBeDefined();
+	// the one line, and what the shell said behind the disclosure until somebody asks for it.
+	expect(screen.queryByText('Acme could not be reached')).toBeNull();
+	await fireEvent.click(screen.getByRole('button', { name: en.common.actions.details }));
 	expect(screen.getByText('Acme could not be reached')).toBeDefined();
 
 	await fireEvent.click(screen.getByRole('button', { name: en.organization.join.tryAgain }));
@@ -479,7 +484,7 @@ test('each of the five refusals says its own sentence and asks for nothing', () 
 			kind: 'refused',
 			link: LINK,
 			refusal,
-			message: null,
+			detail: null,
 			wasConnecting: true
 		});
 
@@ -489,7 +494,7 @@ test('each of the five refusals says its own sentence and asks for nothing', () 
 	}
 });
 
-test('a lapsed and a revoked link say the same thing about a new link, and neither offers a way on', () => {
+test('a lapsed and a revoked link both send the reader for a new one, and neither offers a way on', () => {
 	loadLocale('en');
 	setLocale('en');
 
@@ -498,12 +503,12 @@ test('a lapsed and a revoked link say the same thing about a new link, and neith
 			kind: 'refused',
 			link: LINK,
 			refusal,
-			message: null,
+			detail: null,
 			wasConnecting: true
 		});
 
 		expect(screen.getByText(en.organization.join[refusal]).textContent, refusal).toContain(
-			'ask whoever invited you for a new link'
+			'ask whoever sent it for a new one'
 		);
 		expect(
 			screen.queryByRole('button', { name: en.organization.join.toSignIn }),
@@ -525,7 +530,7 @@ test('a link already opened offers the wall, and pressing it hands the shell bac
 	const onSignIn = vi.fn();
 
 	joinScreen(
-		{ kind: 'refused', link: LINK, refusal: 'consumed', message: null, wasConnecting: true },
+		{ kind: 'refused', link: LINK, refusal: 'consumed', detail: null, wasConnecting: true },
 		{ onSignIn }
 	);
 
@@ -551,7 +556,7 @@ test('a spent machine link says what is true and offers no wall', () => {
 	const onSignIn = vi.fn();
 
 	joinScreen(
-		{ kind: 'refused', link: LINK, refusal: 'consumed', message: null, wasConnecting: false },
+		{ kind: 'refused', link: LINK, refusal: 'consumed', detail: null, wasConnecting: false },
 		{ onSignIn }
 	);
 
@@ -561,21 +566,84 @@ test('a spent machine link says what is true and offers no wall', () => {
 	expect(onSignIn).not.toHaveBeenCalled();
 });
 
-test('a link for another organization shows what the shell said under the sentence', () => {
+test('a link for another organization keeps what the shell said behind the disclosure under the sentence', async () => {
 	loadLocale('en');
 	setLocale('en');
 	joinScreen({
 		kind: 'refused',
 		link: LINK,
 		refusal: 'anotherOrganization',
-		message: 'this machine already holds Beta; disconnect it before connecting another',
+		detail: 'this machine already holds Beta',
 		wasConnecting: false
 	});
 
-	expect(screen.getByText(en.organization.join.anotherOrganization)).toBeDefined();
-	expect(
-		screen.getByText('this machine already holds Beta; disconnect it before connecting another')
-	).toBeDefined();
+	expect(inCallouts()).toEqual([en.organization.join.anotherOrganization]);
+	expect(screen.queryByText('this machine already holds Beta')).toBeNull();
+
+	await fireEvent.click(screen.getByRole('button', { name: en.common.actions.details }));
+
+	expect(screen.getByText('this machine already holds Beta')).toBeDefined();
+});
+
+// effort 832, requirement 19 and ticket 23: **every refusal is one line, and it names the next
+// step.** Before ticket 23 the screen drew its own sentence and the shell's translated one under
+// it, which said the same thing twice, and the sentences ran to two or three clauses of
+// explanation. Each of the seven is now what happened and what to do, short enough to sit on one
+// line of the card, and it is the only line the step draws.
+test('each of the seven refusals is one line, the only one drawn, and names the next step', () => {
+	const seven = [
+		['lapsed', { kind: 'refused', refusal: 'lapsed', wasConnecting: false }],
+		['consumed', { kind: 'refused', refusal: 'consumed', wasConnecting: true }],
+		['consumedElsewhere', { kind: 'refused', refusal: 'consumed', wasConnecting: false }],
+		['revoked', { kind: 'refused', refusal: 'revoked', wasConnecting: false }],
+		['replaced', { kind: 'refused', refusal: 'replaced', wasConnecting: false }],
+		[
+			'anotherOrganization',
+			{ kind: 'refused', refusal: 'anotherOrganization', wasConnecting: false }
+		],
+		['unreachable', { kind: 'unreachable', code: CODE }]
+	] as const;
+
+	// what the reader does next, one of which each english sentence names.
+	const nextSteps = ['ask whoever sent it', 'sign in', 'disconnect it', 'try again'];
+
+	for (const [locale, strings, direction] of [
+		['en', en, 'ltr'],
+		['ar', ar, 'rtl']
+	] as const) {
+		loadLocale(locale);
+		setLocale(locale);
+
+		for (const [key, partial] of seven) {
+			const sentence = strings.organization.join[key];
+			const named = `${locale}.${key}`;
+
+			// one line: no break, and short enough for the card's measure.
+			expect(sentence, named).not.toContain('\n');
+			expect(sentence.length, named).toBeLessThanOrEqual(80);
+
+			if (locale === 'en') {
+				expect(
+					nextSteps.some((next) => sentence.includes(next)),
+					named
+				).toBe(true);
+			}
+
+			const rendered = joinScreen(
+				{ ...partial, link: LINK, detail: 'what the shell said' } as JoinStep,
+				{ direction }
+			);
+
+			// the only sentence on the step is its own, once, with the detail closed under it.
+			expect(inCallouts(), named).toEqual([sentence]);
+			expect(document.body.textContent?.split(sentence).length, named).toBe(2);
+			expect(document.body.textContent, named).not.toContain('what the shell said');
+			expect(document.querySelector('[data-error-detail="join"]'), named).not.toBeNull();
+			rendered.unmount();
+		}
+	}
+
+	setLocale('en');
 });
 
 // effort 824, requirement 1: one way back on every step, in the corner, and it is the only one.
@@ -692,7 +760,7 @@ test('the screen renders in arabic with the same one form, the same refusals and
 	unreadable.unmount();
 
 	const unreachable = joinScreen(
-		{ kind: 'unreachable', link: LINK, code: CODE, message: 'offline' },
+		{ kind: 'unreachable', link: LINK, code: CODE, detail: 'offline' },
 		{ direction: 'rtl' }
 	);
 
@@ -709,7 +777,7 @@ test('the screen renders in arabic with the same one form, the same refusals and
 		'anotherOrganization'
 	] as const) {
 		const rendered = joinScreen(
-			{ kind: 'refused', link: LINK, refusal, message: null, wasConnecting: true },
+			{ kind: 'refused', link: LINK, refusal, detail: null, wasConnecting: true },
 			{ direction: 'rtl' }
 		);
 
@@ -740,6 +808,7 @@ test('every sentence this screen added is written in both locales', () => {
 		'description',
 		'linkLabel',
 		'reading',
+		'unreachable',
 		'lapsed',
 		'consumed',
 		'consumedElsewhere',

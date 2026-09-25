@@ -1,8 +1,8 @@
 <script lang="ts" module>
 	import type { ContractRank } from '$lib/contract/rank';
-	import AlertTriangleIcon from '@tabler/icons-svelte/icons/alert-triangle';
-	import CalendarClockIcon from '@tabler/icons-svelte/icons/calendar-clock';
-	import ClockPlayIcon from '@tabler/icons-svelte/icons/clock-play';
+	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
+	import CalendarClockIcon from '@lucide/svelte/icons/calendar-clock';
+	import ClockIcon from '@lucide/svelte/icons/clock';
 
 	/**
 	 * The glyph each rank is read by: what is already late, what is behind, what needs renewing.
@@ -10,9 +10,9 @@
 	 * They stand beside the rank's own word rather than instead of it, so they are read as
 	 * severity rather than as vocabulary — an alert, a clock still running, and a calendar.
 	 */
-	const glyphs: Record<ContractRank, typeof AlertTriangleIcon> = {
-		overdue: AlertTriangleIcon,
-		owing: ClockPlayIcon,
+	const glyphs: Record<ContractRank, typeof TriangleAlertIcon> = {
+		overdue: TriangleAlertIcon,
+		owing: ClockIcon,
 		'ending-soon': CalendarClockIcon
 	};
 </script>
@@ -22,8 +22,8 @@
 	import type api from '$lib/api/caller';
 	import * as Cell from '$lib/design/cell';
 	import { Badge } from '@rentable/design/primitive/badge/index.js';
-	import { Button } from '@rentable/design/primitive/button/index.js';
-	import ContractForm from '$lib/contract/component/form.svelte';
+	import RecordActionControl from '@rentable/design/block/record-action-control.svelte';
+	import { contractActs, contractHost } from '$lib/contract/host.svelte';
 	import { isMoneyRank } from '$lib/contract/rank';
 	import { withContractRank } from '$lib/contract/rank-filter';
 	import type { DashboardSection } from '$lib/dashboard/dashboard';
@@ -57,17 +57,14 @@
 	 */
 	const offersRenewal = $derived(!isMoneyRank(rank));
 
-	// the contract the renewal form was opened on. A queue row carries an identity and the
-	// figures the row shows; the form reads everything a renewal needs off the contract itself.
-	let renewingContractId = $state<string | undefined>(undefined);
-	let isRenewalFormOpen = $state(false);
-	let renewalFormRenderKey = $state(0);
+	// the act as the contract declares it, so the row offers it under the name and glyph the card,
+	// the page and the command menu do.
+	const renewal = contractActs.find((act) => act.id === 'contract.renew')!;
 
-	const openRenewal = (id: string) => {
-		renewingContractId = id;
-		renewalFormRenderKey += 1;
-		isRenewalFormOpen = true;
-	};
+	// a queue row carries an identity and the figures the row shows, so the renewal is asked of the
+	// contract host by identity: it reads the contract, and the form reads everything a renewal
+	// needs off it. The form is the host's, mounted once in the frame, as every contract form is.
+	const openRenewal = (id: string) => contractHost.runOn(renewal.id, id);
 </script>
 
 <section class="shrink-0 rounded-2xl bg-card">
@@ -109,7 +106,7 @@
 
 				<span class="pointer-events-none relative flex min-w-0 flex-1 flex-col gap-1">
 					<span class="flex min-w-0 items-center gap-2">
-						<span class="truncate text-sm font-medium">{entry.tenantName}</span>
+						<Cell.Text class="truncate text-sm font-medium" text={entry.tenantName} />
 						<Cell.Status status={entry.status} />
 						{#if entry.isEndingSoon && isMoneyRank(entry.rank)}
 							<Badge variant="outline">{$LL.dashboard.sections.alsoEnding()}</Badge>
@@ -136,15 +133,17 @@
 				     its record and never does a second thing, so acting on one is always an
 				     explicit control on it. -->
 				{#if offersRenewal}
-					<Button
-						variant="outline"
-						size="sm"
-						class="relative shrink-0"
-						aria-label={$LL.dashboard.sections.renewContract({ tenant: entry.tenantName })}
-						onclick={() => openRenewal(entry.id)}
-					>
-						{$LL.common.actions.renew()}
-					</Button>
+					<!-- the contract's own renew act, drawn as every record act's control is: its
+					     glyph, its name in the tooltip, and the same everywhere it is offered. -->
+					<span class="relative shrink-0">
+						<RecordActionControl
+							label={renewal.label($LL)}
+							icon={renewal.icon}
+							tone={renewal.tone}
+							shortcut={renewal.shortcut}
+							onclick={() => openRenewal(entry.id)}
+						/>
+					</span>
 				{/if}
 			</div>
 		{/each}
@@ -162,21 +161,3 @@
 		</a>
 	{/if}
 </section>
-
-<!-- one form for the whole section, because a row's control acts on the one contract the reader
-     reached for. Mounted only under the rank that offers renewal. -->
-{#if offersRenewal}
-	{#key renewalFormRenderKey}
-		<ContractForm
-			open={isRenewalFormOpen}
-			onOpenChange={(isOpen) => {
-				if (!isOpen) {
-					renewalFormRenderKey += 1;
-				}
-
-				isRenewalFormOpen = isOpen;
-			}}
-			renewsContractId={renewingContractId}
-		/>
-	{/key}
-{/if}

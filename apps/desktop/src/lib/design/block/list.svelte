@@ -1,7 +1,12 @@
 <script lang="ts" generics="TData extends { id: string }, TGroup extends ListGroup">
 	import { browser } from '$app/environment';
 	import ExportDialog from '@rentable/design/block/export-dialog.svelte';
-	import RecordActionControl from '@rentable/design/block/record-action-control.svelte';
+	import CreateControl from '$lib/design/block/create-control.svelte';
+	import EmptyState, { type EmptyKind } from '@rentable/design/block/empty.svelte';
+	import Loading from '@rentable/design/block/loading.svelte';
+	import RecordActionControl, {
+		unavailableControl
+	} from '@rentable/design/block/record-action-control.svelte';
 	import {
 		writeExport,
 		toNarrowedName,
@@ -12,10 +17,9 @@
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Checkbox } from '@rentable/design/primitive/checkbox/index.js';
 	import * as DropdownMenu from '@rentable/design/primitive/dropdown-menu/index.js';
-	import * as Empty from '@rentable/design/primitive/empty/index.js';
-	import { Input } from '@rentable/design/primitive/input/index.js';
 	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
 	import {
+		hasAnyFilter,
 		toChosenOption,
 		toFilterLabel,
 		toFilterOptions,
@@ -28,6 +32,7 @@
 		nextPosition,
 		toListMovement,
 		toListShortcuts,
+		toPositionOf,
 		toRecordRows,
 		type ListMovement,
 		type ListPosition
@@ -35,37 +40,32 @@
 	import { selectedRecords } from '@rentable/design/selection.js';
 	import DownloadIcon from '@lucide/svelte/icons/download';
 	import { isolateDirection } from '$lib/error/message';
-	import { showErrorToast } from '$lib/error/toast';
+	import { showErrorToast, showSuccessToast } from '$lib/error/toast';
 	import { isEditingText } from '@rentable/design/shortcut.js';
 	import { shortcuts } from '$lib/design/shortcut-registry.svelte';
-	import { nextListSort, type ListSort } from '@rentable/design/sort.js';
+	import type { ListSort } from '@rentable/design/sort.js';
+	import ListToolbar, { type ListSortOption } from '$lib/design/block/list-toolbar.svelte';
 	import { cn } from '@rentable/design/tailwind.js';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import { tauri } from '$lib/platform/tauri';
-	import { Spinner } from '@rentable/design/primitive/spinner/index.js';
-	import ArrowsSortIcon from '@tabler/icons-svelte/icons/arrows-sort';
-	import CheckIcon from '@tabler/icons-svelte/icons/check';
-	import ChecklistIcon from '@tabler/icons-svelte/icons/list-check';
-	import ChevronDownIcon from '@tabler/icons-svelte/icons/chevron-down';
-	import FilterIcon from '@tabler/icons-svelte/icons/filter';
-	import TransferIcon from '@tabler/icons-svelte/icons/transfer';
-	import ChevronUpIcon from '@tabler/icons-svelte/icons/chevron-up';
-	import PlusIcon from '@tabler/icons-svelte/icons/plus';
-	import SearchIcon from '@tabler/icons-svelte/icons/search';
-	import XIcon from '@tabler/icons-svelte/icons/x';
+	import { Skeleton } from '@rentable/design/primitive/skeleton/index.js';
+	import CheckIcon from '@lucide/svelte/icons/check';
+	import ListTodoIcon from '@lucide/svelte/icons/list-todo';
+	import FunnelIcon from '@lucide/svelte/icons/funnel';
+	import ArrowLeftRightIcon from '@lucide/svelte/icons/arrow-left-right';
+	import PlusIcon from '@lucide/svelte/icons/plus';
+	import XIcon from '@lucide/svelte/icons/x';
 	import { createVirtualizer } from '@tanstack/svelte-virtual';
-	import { toast } from 'svelte-sonner';
-	import { tick, type Snippet } from 'svelte';
+	import {
+		hasSameOrder,
+		queueListMove,
+		toClipPath,
+		toTransitionName
+	} from '$lib/design/list-motion';
+	import { landing, whenSurfacesClose, type LandingRequest } from '$lib/design/landing.svelte';
+	import { tick, untrack, type Snippet } from 'svelte';
 	import { get } from 'svelte/store';
-
-	/** One order the list offers the reader, keyed by a column the query can order by. */
-	type ListSortOption = {
-		/** The column's id, which is what the query orders by. */
-		id: string;
-		/** The name the sort control lists it under. */
-		label: string;
-	};
 
 	type ListProps = {
 		/** The whole result set for the current search and sort, in the query's own order. */
@@ -100,8 +100,22 @@
 		 * the list flashes through its loading state on every search keystroke.
 		 */
 		isFetching?: boolean;
-		/** Offered as the leading action when the list can create a record. */
+		/**
+		 * Ask the concept's host for its create form, where the list can take a record. Given it, the
+		 * list draws the create control last in its toolbar, and answers the create key while it is
+		 * on screen.
+		 */
 		onCreate?: () => void;
+		/**
+		 * What the create makes, in the concept's words: "new tenant", never "new record". Given
+		 * with `onCreate`, and read by the toolbar's control and the empty state's act alike.
+		 */
+		createLabel?: string;
+		/**
+		 * Why the set takes no new record right now, in one line, or nothing where it does. The create
+		 * control stays drawn, refused, and says it on hover and focus, as the key does.
+		 */
+		createUnavailable?: string;
 		/**
 		 * The narrowings this list offers, declared rather than drawn.
 		 *
@@ -157,6 +171,12 @@
 		 */
 		onImport?: () => void;
 		/**
+		 * Why this list takes no file right now, in one line, or nothing where it does. The import
+		 * stays in the menu, refused, and says it on hover and focus, as the create control does
+		 * ([[rules/interface]], *Guidance*).
+		 */
+		importUnavailable?: string;
+		/**
 		 * What the surface offers for the records currently selected.
 		 *
 		 * Giving it is what turns selection on: a list with nothing to do to several records at
@@ -172,9 +192,13 @@
 		 * it that does not change.
 		 */
 		selected?: string[];
-		/** What the empty state says when the list has no records to show. */
-		emptyTitle?: string;
-		/** An optional line under it, where the list can say why it is empty. */
+		/**
+		 * What the list says where it holds nothing yet: the concept's own words for what it will
+		 * hold. Required, because a list that holds nothing is not a search that found nothing, and
+		 * only the concept can say which records belong here ([[rules/interface]], *Empty*).
+		 */
+		emptyTitle: string;
+		/** A line under it, saying where the records come from. */
 		emptyDescription?: string;
 	};
 
@@ -189,24 +213,28 @@
 		isLoading = false,
 		isFetching = false,
 		onCreate,
+		createLabel,
+		createUnavailable,
 		filterOptions = [],
 		filters = $bindable({}),
 		onImport,
+		importUnavailable,
 		selectionActions,
 		selected = $bindable([]),
 		exportAs,
 		recordHeight = 56,
 		groupHeaderHeight = 36,
 		recordMinWidth,
-		emptyTitle = $LL.common.messages.noResults(),
+		emptyTitle,
 		emptyDescription
 	}: ListProps = $props();
 
-	// the card grid's own value, arrived at there against real data.
-	const SEARCH_DEBOUNCE_MS = 250;
 	// the grid overscanned two rows of cards; a record row is a fraction of a card's height,
 	// so the same two rows would buy a fraction of the distance ahead of the scroll.
 	const OVERSCAN_ROWS = 8;
+	// as many cards as the tallest window shows before the first result lands; the frame clips
+	// the rest.
+	const SKELETON_ROWS = 12;
 
 	let isExporting = $state(false);
 	/**
@@ -258,7 +286,7 @@
 
 			// the path is isolated because it is written left to right whatever the sentence
 			// around it is, and an unisolated one reorders the Arabic it is spliced into.
-			toast.success($LL.common.messages.exported({ path: isolateDirection(path) }));
+			showSuccessToast($LL.common.messages.exported({ path: isolateDirection(path) }));
 
 			// a file manager that will not open is not a failed export: the file is written and
 			// the user has been told where.
@@ -272,10 +300,158 @@
 		}
 	}
 
+	/**
+	 * The result set the rows are drawn from: `data`, committed rather than read.
+	 *
+	 * A change to `data` is not drawn the moment it arrives. It is committed here, inside a view
+	 * transition where it moves something and directly where it does not, so a record created
+	 * arrives, a record deleted leaves, an undone delete comes back in place and a re-sorted record
+	 * moves, rows the virtualiser adds or removes included. Raw, because the records are the
+	 * query's objects and nothing here writes into them.
+	 */
+	let displayed = $state.raw(untrack(() => data));
+	/** What the last commit asked for, which a transition draws once it gets to: always the latest. */
+	let committing = untrack(() => data);
+	/**
+	 * Whether the next change to `data` is the answer to this list's own search.
+	 *
+	 * Set at the moment the block writes `search`, and spent by the change that answers it. A
+	 * keystroke narrows what the reader is looking at, and records sliding under the letters would
+	 * be motion on a path used many times a minute, so that change is drawn at once. Plain rather
+	 * than state: it is read and written inside the commit and nothing draws it.
+	 */
+	let isAwaitingSearch = false;
+	/** Whether the list was still waiting for its first result set when `data` last moved. */
+	let wasLoading = untrack(() => isLoading);
+	/**
+	 * Whether this list's records are what a transition in flight is capturing.
+	 *
+	 * The names are worn only for the length of this list's own transition. Worn always, another
+	 * list on the same screen would have its records captured by this one's transition and clipped
+	 * to this one's frame.
+	 */
+	let isMoving = $state(false);
+	/**
+	 * Whether this list has a move waiting its turn. The waiting move draws whatever was committed
+	 * last when it starts, so a change arriving meanwhile needs no move of its own.
+	 */
+	let isQueued = false;
+	// what scopes this list's names, so two lists on one screen can show the same record.
+	const listId = $props.id();
+	// what names the empty state's refused create to assistive technology, whether or not its
+	// tooltip is drawn.
+	const emptyCreateReasonId = `${listId}-create-reason`;
+	// the same, for the transfer menu's refused entries.
+	const transferReasonId = (which: 'export' | 'import') => `${listId}-${which}-reason`;
+	// the tooltip trigger's attributes on a menu entry, less the two that would name it something
+	// else: its slot, and the button type a trigger carries. As `record-card.svelte` does it.
+	const asMenuEntry = (props: Record<string, unknown>) => {
+		const hint = { ...props };
+
+		delete hint['data-slot'];
+		delete hint.type;
+
+		return hint;
+	};
+	let frame = $state<HTMLElement | null>(null);
+
+	/**
+	 * Draw `next` inside a same-document view transition, and directly where the webview has none.
+	 *
+	 * The document itself is not captured while this runs: its `view-transition-name` is taken away
+	 * for the length of the transition, so the root snapshot does not animate and everything around
+	 * the records stays live under the pointer. Only the records are captured, and their layer is
+	 * clipped to the frame, since it is drawn above the whole document and the frame's own clip does
+	 * not reach it.
+	 */
+	function commitMoving(next: TData[]) {
+		committing = next;
+
+		if (typeof document.startViewTransition !== 'function' || !frame) {
+			displayed = next;
+
+			return;
+		}
+
+		if (isQueued) {
+			return;
+		}
+
+		// in turn with every other list's moves, since the document holds one transition and one
+		// mark at a time (`queueListMove`).
+		isQueued = true;
+		void queueListMove(() => {
+			isQueued = false;
+
+			return move();
+		});
+	}
+
+	/** Start this list's transition, now that no other is running, and settle once it ends. */
+	async function move() {
+		// the frame left while the move waited, or a direct commit drew the latest set meanwhile.
+		if (!frame?.isConnected || displayed === committing) {
+			displayed = committing;
+
+			return;
+		}
+
+		const root = document.documentElement;
+
+		isMoving = true;
+		root.style.setProperty(
+			'--list-motion-clip',
+			toClipPath(frame.getBoundingClientRect(), getComputedStyle(frame).borderTopLeftRadius)
+		);
+		root.dataset.listMotion = '';
+
+		try {
+			// the old state is captured at the next frame, after the microtask that draws
+			// `isMoving`, so the names are on the records by then.
+			const transition = document.startViewTransition(async () => {
+				displayed = committing;
+				await tick();
+			});
+
+			await transition.finished;
+		} finally {
+			isMoving = false;
+			delete root.dataset.listMotion;
+			root.style.removeProperty('--list-motion-clip');
+		}
+	}
+
+	// every change to `data` passes through here, and only a change that moves something moves.
+	$effect(() => {
+		const next = data;
+		const loading = isLoading;
+
+		untrack(() => {
+			// the first result set is the list appearing, not records arriving in it. Read across two
+			// passes, because the set lands in the same update that ends the loading.
+			const isFirstArrival = wasLoading || loading;
+			wasLoading = loading;
+
+			if (next === committing) {
+				return;
+			}
+
+			const isSearchAnswer = isAwaitingSearch;
+			isAwaitingSearch = false;
+
+			if (isFirstArrival || isSearchAnswer || hasSameOrder(committing, next)) {
+				committing = next;
+				displayed = next;
+
+				return;
+			}
+
+			commitMoving(next);
+		});
+	});
+
 	let viewport = $state<HTMLElement | null>(null);
 	let viewportWidth = $state(0);
-	let searchInput = $state(search);
-	let searchElement = $state<HTMLInputElement | null>(null);
 	// which record the keyboard is on. It is a place in the layout rather than a record, because a
 	// resize relays the same records across a different number of columns and the reader's finger
 	// stays where it was on the screen.
@@ -302,9 +478,15 @@
 	const columns = $derived(
 		recordMinWidth ? Math.max(1, Math.floor(viewportWidth / recordMinWidth)) : 1
 	);
+	// the skeleton stands where the viewport will be, before there is a viewport to measure, so it
+	// counts its columns off the frame around both.
+	let frameWidth = $state(0);
+	const skeletonColumns = $derived(
+		recordMinWidth ? Math.max(1, Math.floor(frameWidth / recordMinWidth)) : 1
+	);
 	// grouping without a header snippet would insert rows that render nothing and still take
 	// up a header's height, so the two props only take effect as a pair.
-	const rows = $derived(listRows(data, groupHeader ? groupOf : undefined, columns));
+	const rows = $derived(listRows(displayed, groupHeader ? groupOf : undefined, columns));
 	const recordRows = $derived(toRecordRows(rows));
 	const direction = $derived(localesMetadata[$locale].direction);
 
@@ -347,16 +529,36 @@
 		runAnchor = id;
 		selected = selectedIds.has(id) ? selected.filter((held) => held !== id) : [...selected, id];
 	}
-	const sortableColumnIds = $derived(sortOptions.map((option) => option.id));
 	// which records a selection names, as the shared rule states it: in the list's own order, and
 	// narrowed to the records the list is still showing.
 	const selectedRows = $derived(selectedRecords(data, selected));
 
 	const hasResults = $derived(rows.length > 0);
-	const isAwaitingFirstResults = $derived(isLoading && !hasResults);
-	const activeSortLabel = $derived(
-		sortOptions.find((option) => option.id === sort?.columnId)?.label
+	// why the list cannot be written to a file now: it shows nothing, and a file of no rows is not
+	// one anybody asked for ([[rules/interface]], *Export and import*).
+	const exportUnavailable = $derived(hasResults ? undefined : $LL.common.export.nothingToExport());
+	// an empty list read under a search or a filter is a narrowing that matched nothing, and says
+	// so; read under neither, it is a list with nothing in it yet. The two never read the same.
+	const isSearched = $derived(search.trim() !== '');
+	const isFiltered = $derived(hasAnyFilter(filters));
+	const emptyKind = $derived<EmptyKind>(isSearched || isFiltered ? 'no-match' : 'nothing-yet');
+	const clearLabel = $derived(
+		isSearched && isFiltered
+			? $LL.common.actions.clearSearchAndFilters()
+			: isSearched
+				? $LL.common.actions.clearSearch()
+				: $LL.common.actions.clearFilters()
 	);
+
+	/** Put down whatever narrowed the list to nothing, so the whole set is drawn again. */
+	function clearNarrowing() {
+		// the answer is the list's own search being undone, so it is drawn at once, as a keystroke's
+		// answer is.
+		isAwaitingSearch = true;
+		search = '';
+		filters = {};
+	}
+	const isAwaitingFirstResults = $derived(isLoading && !hasResults);
 
 	const virtualizer = createVirtualizer<HTMLElement, HTMLElement>({
 		count: 0,
@@ -392,18 +594,6 @@
 		});
 	});
 
-	$effect(() => {
-		if (searchInput === search) {
-			return;
-		}
-
-		const timeout = setTimeout(() => {
-			search = searchInput;
-		}, SEARCH_DEBOUNCE_MS);
-
-		return () => clearTimeout(timeout);
-	});
-
 	// a new order is a new list: the row under the pointer is not the row that was there, so
 	// staying at the old offset would leave the user somewhere they never scrolled to. The
 	// keyboard's place goes with it, for the same reason.
@@ -426,9 +616,9 @@
 		});
 	});
 
-	// registered rather than listened for: the search key reaches the application's one listener,
-	// and the sheet reads all three from here without being told about them.
-	$effect(() => shortcuts.register(...toListShortcuts(() => searchElement?.focus())));
+	// registered rather than listened for: the sheet reads both from here without being told about
+	// them. The search key is the search field's, which registers it wherever a set is searched.
+	$effect(() => shortcuts.register(...toListShortcuts()));
 
 	/**
 	 * Answer a move by putting the focus on the record it lands on.
@@ -474,6 +664,77 @@
 		awaitingFocus = null;
 	});
 
+	/**
+	 * The landing request this list has answered, so it answers each one once. Plain rather than
+	 * state: it is read and written inside the answer and nothing draws it.
+	 */
+	let answeredLanding: LandingRequest | null = null;
+	/** A record this list took, waiting for its row to be drawn. */
+	let arriving = $state<string | null>(null);
+
+	// a record just created is answered for here, once, from the set this list holds
+	// ([[rules/interface]], *Guidance*). Holding it, the list takes it at once, so a second list
+	// showing the same record does not answer too. Not holding it, the list is done with it: a
+	// later change bringing the record in, a filter cleared say, is not the create it answers.
+	$effect(() => {
+		const request = landing.pending;
+
+		// a set still loading has nothing to answer from yet.
+		if (!request || isLoading) {
+			return;
+		}
+
+		const isHeld = data.some((item) => item.id === request.id);
+
+		untrack(() => {
+			if (answeredLanding === request) {
+				return;
+			}
+
+			answeredLanding = request;
+
+			if (isHeld) {
+				landing.take(request);
+				arriving = request.id;
+			}
+		});
+	});
+
+	// the record taken, brought into view once its row is drawn, and the focus put on it once the
+	// form that made it has gone, through the same standing request a move raises. The row can be a
+	// transition behind the result set, which is why this waits on `rows` rather than on `data`.
+	$effect(() => {
+		const id = arriving;
+
+		if (!id) {
+			return;
+		}
+
+		// gone again before it was drawn, so there is nothing to land on.
+		if (!data.some((item) => item.id === id)) {
+			arriving = null;
+
+			return;
+		}
+
+		const position = toPositionOf(rows, id);
+
+		if (!position) {
+			return;
+		}
+
+		untrack(() => {
+			arriving = null;
+			get(virtualizer).scrollToIndex(position.row, { align: 'center' });
+
+			void whenSurfacesClose().then(() => {
+				focused = position;
+				awaitingFocus = position;
+				get(virtualizer).scrollToIndex(position.row, { align: 'auto' });
+			});
+		});
+	});
+
 	function handleKeydown(event: KeyboardEvent) {
 		const movement = toListMovement(event.key, direction);
 
@@ -491,10 +752,6 @@
 		// what the arrows would otherwise do is scroll the viewport out from under the focus.
 		event.preventDefault();
 		moveFocus(movement);
-	}
-
-	function chooseSort(columnId: string) {
-		sort = nextListSort(sort, columnId, sortableColumnIds);
 	}
 </script>
 
@@ -530,31 +787,104 @@
 	{/if}
 {/snippet}
 
+<!-- the create the toolbar offers, in words, where the list holds nothing yet. The key stays the
+     toolbar control's: this one holds no place, so the two cannot answer it twice.
+
+     Refused exactly when the toolbar's is, and for the same reason: dimmed, still reachable by the
+     pointer and the keyboard, and saying why on hover and focus rather than offering a create the
+     set will not take ([[rules/interface]], *Guidance*). -->
+{#snippet createAct()}
+	<Tooltip.Root disabled={!createUnavailable}>
+		<Tooltip.Trigger>
+			{#snippet child({ props })}
+				<Button
+					{...props}
+					variant="outline"
+					size="sm"
+					class={createUnavailable ? unavailableControl : undefined}
+					data-empty-create
+					data-unavailable={createUnavailable ? '' : undefined}
+					aria-disabled={createUnavailable ? 'true' : undefined}
+					aria-describedby={createUnavailable ? emptyCreateReasonId : undefined}
+					onclick={() => {
+						if (!createUnavailable) {
+							onCreate?.();
+						}
+					}}
+				>
+					<PlusIcon />
+					{createLabel}
+					{#if createUnavailable}
+						<span id={emptyCreateReasonId} class="sr-only">{createUnavailable}</span>
+					{/if}
+				</Button>
+			{/snippet}
+		</Tooltip.Trigger>
+		<Tooltip.Content side="top" sideOffset={8}>
+			<span data-unavailable-reason>{createUnavailable}</span>
+		</Tooltip.Content>
+	</Tooltip.Root>
+{/snippet}
+
+<!-- one direction of the transfer menu. Where it cannot run it stays in the menu, dimmed and
+     refused, and says why beside the entry on hover and focus, as a record's menu entry does: a
+     menu's own disabled entry is skipped by the keyboard and ignores the pointer, which would leave
+     the reason unreachable ([[rules/interface]], *Guidance*). Refusing the selection also keeps the
+     menu open with the reason showing. -->
+{#snippet transferEntry(
+	which: 'export' | 'import',
+	label: string,
+	unavailable: string | undefined,
+	run: () => void
+)}
+	{#if unavailable}
+		<Tooltip.Root>
+			<Tooltip.Trigger>
+				{#snippet child({ props: hint })}
+					<DropdownMenu.Item
+						{...asMenuEntry(hint)}
+						data-transfer={which}
+						onSelect={(event: Event) => event.preventDefault()}
+					>
+						{#snippet child({ props })}
+							<div
+								{...props}
+								aria-disabled="true"
+								aria-describedby={transferReasonId(which)}
+								data-unavailable=""
+								class={cn(props.class as string, 'cursor-not-allowed opacity-50')}
+							>
+								<span class="flex-1 capitalize">{label}</span>
+								<span id={transferReasonId(which)} class="sr-only">{unavailable}</span>
+							</div>
+						{/snippet}
+					</DropdownMenu.Item>
+				{/snippet}
+			</Tooltip.Trigger>
+			<Tooltip.Content side={direction === 'rtl' ? 'left' : 'right'} sideOffset={8}>
+				<span data-unavailable-reason>{unavailable}</span>
+			</Tooltip.Content>
+		</Tooltip.Root>
+	{:else}
+		<DropdownMenu.Item data-transfer={which} disabled={isExporting} onSelect={run}>
+			<span class="flex-1 capitalize">{label}</span>
+		</DropdownMenu.Item>
+	{/if}
+{/snippet}
+
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="flex min-h-0 flex-1 flex-col gap-3" onkeydown={handleKeydown}>
-	<div
-		class="flex shrink-0 flex-col gap-3 rounded-2xl bg-card px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between"
+	<!-- the bar every searchable set opens with: the search, what the set is, and what can be done
+	     to it ([[rules/interface]], *Search*). -->
+	<ListToolbar
+		bind:search
+		onSearch={() => (isAwaitingSearch = true)}
+		count={displayed.length}
+		narrowed={isFiltered}
+		{sortOptions}
+		bind:sort
 	>
-		<div class="relative w-full sm:max-w-sm">
-			<SearchIcon
-				class="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-			/>
-			<Input
-				bind:ref={searchElement}
-				placeholder={$LL.common.table.searchPlaceholder()}
-				value={searchInput}
-				oninput={(event) => {
-					searchInput = event.currentTarget.value;
-				}}
-				class="h-8 border-transparent bg-transparent ps-9 hover:bg-input/30"
-			/>
-		</div>
-
-		<div class="flex shrink-0 flex-wrap items-center gap-3">
-			<span class="text-xs text-muted-foreground" aria-live="polite">
-				{$LL.common.table.results({ count: data.length })}
-			</span>
-
+		{#snippet narrowing()}
 			<!-- with the other controls rather than before the count: narrowing, ordering, exporting
 			     and creating are the four things the toolbar does, and the count is what the list
 			     currently is. Standing between them made the filter read as part of the reading
@@ -579,7 +909,7 @@
 									size="icon-sm"
 									aria-label={toFilterLabel(filter, filters, $LL)}
 								>
-									<FilterIcon />
+									<FunnelIcon />
 								</Button>
 							{/snippet}
 						</DropdownMenu.Trigger>
@@ -607,13 +937,15 @@
 
 							<!-- an entry of its own rather than only the toggle above it: pressing the
 							     chosen value again clears it, but nothing on the screen says so, and a
-							     reader who cannot get back to the whole list is stuck inside a subset. -->
+							     reader who cannot get back to the whole list is stuck inside a subset.
+
+							     No glyph before it: the values above it carry none, and a menu whose
+							     items carry icons carries them on every item or on none. -->
 							{#if chosen}
 								<DropdownMenu.Separator />
 								<DropdownMenu.Item
 									onSelect={() => (filters = withFilter(filters, filter.id, undefined))}
 								>
-									<XIcon class="size-3.5" />
 									<span class="flex-1">{$LL.common.actions.clearFilter()}</span>
 								</DropdownMenu.Item>
 							{/if}
@@ -631,6 +963,7 @@
 					size="icon-sm"
 					aria-pressed={isSelecting}
 					aria-label={$LL.common.actions.selectRecords()}
+					data-select-control
 					onclick={() => {
 						isSelecting = !isSelecting;
 
@@ -640,118 +973,64 @@
 						}
 					}}
 				>
-					<ChecklistIcon />
+					<ListTodoIcon />
 				</Button>
 			{/if}
+		{/snippet}
 
-			{#if sortOptions.length > 0}
-				<DropdownMenu.Root>
-					<DropdownMenu.Trigger>
-						{#snippet child({ props })}
-							<!-- filled while a sort is chosen, on the same rule as the filter beside it:
-							     a control that decides which records the reader is looking at, or in
-							     what order, says so by being filled. The export and create controls
-							     stay outlined however often they are used — they act on the list rather
-							     than deciding what it holds. -->
-							<Button
-								{...props}
-								variant={sort ? 'default' : 'outline'}
-								size="icon-sm"
-								aria-label={activeSortLabel
-									? `${$LL.common.actions.sortBy()}: ${activeSortLabel}`
-									: $LL.common.actions.sortBy()}
-							>
-								<ArrowsSortIcon />
-							</Button>
-						{/snippet}
-					</DropdownMenu.Trigger>
-					<DropdownMenu.Content align="end">
-						<DropdownMenu.Label>{$LL.common.actions.sortBy()}</DropdownMenu.Label>
-						<DropdownMenu.Separator />
-						{#each sortOptions as option (option.id)}
-							<DropdownMenu.Item onSelect={() => chooseSort(option.id)}>
-								<span class="flex-1">{option.label}</span>
-								{#if sort?.columnId === option.id}
-									{#if sort.direction === 'asc'}
-										<ChevronUpIcon class="size-3.5" />
-									{:else}
-										<ChevronDownIcon class="size-3.5" />
-									{/if}
-								{/if}
-							</DropdownMenu.Item>
-						{/each}
-					</DropdownMenu.Content>
-				</DropdownMenu.Root>
-			{/if}
-			{#if exportAs || onImport}
-				<!-- a menu rather than the bare icon it was: the icon could say *export* and nothing
-				     else, so a second format had nowhere to be named and neither had the direction.
-				     The groups are the directions, which is what leaves the import one a place to be
-				     added rather than a control to be rebuilt around it. -->
-				<DropdownMenu.Root>
-					<DropdownMenu.Trigger>
-						{#snippet child({ props })}
-							<Button
-								{...props}
-								variant="outline"
-								size="icon-sm"
-								aria-label={$LL.common.actions.transferData()}
-								disabled={isExporting}
-							>
-								<!-- both directions, because the control now offers both: an arrow leaving a
-								     table said *export* and left the import item under a glyph contradicting
-								     it. Two arrows, one each way.
+		{#if exportAs || onImport}
+			<!-- a menu rather than the bare icon it was: the icon could say *export* and nothing
+			     else, so a second format had nowhere to be named and neither had the direction.
+			     The groups are the directions, which is what leaves the import one a place to be
+			     added rather than a control to be rebuilt around it. -->
+			<DropdownMenu.Root>
+				<DropdownMenu.Trigger>
+					{#snippet child({ props })}
+						<Button
+							{...props}
+							variant="outline"
+							size="icon-sm"
+							aria-label={$LL.common.actions.transferData()}
+							disabled={isExporting}
+						>
+							<!-- both directions, because the control now offers both: an arrow leaving a
+							     table said *export* and left the import item under a glyph contradicting
+							     it. Two arrows, one each way.
 
-								     Not mirrored in the other reading direction, unlike every directional
-								     glyph here — a pair that already points both ways is the same pair
-								     reflected, and the class would only swap which arrow is on top. -->
-								<TransferIcon />
-							</Button>
-						{/snippet}
-					</DropdownMenu.Trigger>
-					<DropdownMenu.Content align="end">
-						<!-- the two directions, and nothing else. Which file an export becomes is not a
-						     third action beside them — it is a question about one of the two, and it is
-						     asked in a dialog of its own once that one is chosen. -->
-						{#if exportAs}
-							<DropdownMenu.Item
-								disabled={!hasResults || isExporting}
-								onSelect={() => (exporting = { rows: data, name: exportAs.name })}
-							>
-								<span class="flex-1 capitalize">{$LL.common.actions.export()}</span>
-							</DropdownMenu.Item>
-						{/if}
+							     Not mirrored in the other reading direction, unlike every directional
+							     glyph here: a pair that already points both ways is the same pair
+							     reflected, and the class would only swap which arrow is on top. -->
+							<ArrowLeftRightIcon />
+						</Button>
+					{/snippet}
+				</DropdownMenu.Trigger>
+				<DropdownMenu.Content align="end">
+					<!-- the two directions, and nothing else. Which file an export becomes is not a
+					     third action beside them; it is a question about one of the two, and it is
+					     asked in a dialog of its own once that one is chosen. -->
+					{#if exportAs}
+						{@render transferEntry(
+							'export',
+							$LL.common.actions.export(),
+							exportUnavailable,
+							() => (exporting = { rows: data, name: exportAs.name })
+						)}
+					{/if}
 
-						{#if onImport}
-							<DropdownMenu.Item onSelect={() => onImport?.()}>
-								<span class="flex-1 capitalize">{$LL.common.actions.import()}</span>
-							</DropdownMenu.Item>
-						{/if}
-					</DropdownMenu.Content>
-				</DropdownMenu.Root>
-			{/if}
-			{#if onCreate}
-				<Tooltip.Root>
-					<Tooltip.Trigger>
-						{#snippet child({ props })}
-							<Button
-								{...props}
-								variant="outline"
-								size="icon-sm"
-								aria-label={$LL.common.actions.newRecord()}
-								onclick={() => onCreate()}
-							>
-								<PlusIcon />
-							</Button>
-						{/snippet}
-					</Tooltip.Trigger>
-					<Tooltip.Content side="top" sideOffset={8}>
-						{$LL.common.actions.newRecord()}
-					</Tooltip.Content>
-				</Tooltip.Root>
-			{/if}
-		</div>
-	</div>
+					{#if onImport}
+						{@render transferEntry('import', $LL.common.actions.import(), importUnavailable, () =>
+							onImport?.()
+						)}
+					{/if}
+				</DropdownMenu.Content>
+			</DropdownMenu.Root>
+		{/if}
+		<!-- last, at the end of the bar: the one place every set offers its create
+		     ([[rules/interface]], *Create*). -->
+		{#if onCreate}
+			<CreateControl label={createLabel ?? ''} {onCreate} unavailable={createUnavailable} />
+		{/if}
+	</ListToolbar>
 
 	<!-- present only while something is selected, and above the rows rather than floating over
 	     them: what it offers is destructive, and a bar that covers the last row is a bar that
@@ -822,69 +1101,120 @@
 
 	<!-- no frame of its own: the cards carry their own edges, and a bordered box drawn around
 	     bordered rows is the arrangement _Use fewer borders_ (238) exists to replace. -->
-	<div class="min-h-0 flex-1 overflow-hidden rounded-3xl">
-		{#if isAwaitingFirstResults}
-			<div class="flex h-full items-center justify-center" aria-busy="true">
-				<Spinner class="size-6 text-muted-foreground" />
-				<span class="sr-only">{$LL.common.ui.loading()}</span>
-			</div>
-		{:else if !hasResults}
-			<Empty.Root class="h-full">
-				<Empty.Header>
-					<Empty.Title>{emptyTitle}</Empty.Title>
-					{#if emptyDescription}
-						<Empty.Description>{emptyDescription}</Empty.Description>
-					{/if}
-				</Empty.Header>
-			</Empty.Root>
-		{:else}
-			<div
-				bind:this={viewport}
-				bind:clientWidth={viewportWidth}
-				class="h-full overflow-y-auto"
-				aria-busy={isFetching || undefined}
-			>
-				<div class="relative w-full" style={`height: ${totalHeight}px;`}>
-					{#each virtualRows as virtualRow (virtualRow.key)}
-						{@const row = rows[virtualRow.index]}
-						{#if row}
-							<!-- the row is not clipped, and that is a trade rather than an oversight: the
-							     clip used to make a card that outgrew its declared height visible where it
-							     was caused, and a card that lifts on hover has to leave its row. The two
-							     cannot both hold, so an outgrown card now overlaps the one below instead of
-							     being cut — still visible, and still fixed by raising `recordHeight`. -->
-							<div
-								data-index={virtualRow.index}
-								class={cn(ROW_INSET, 'absolute start-0 top-0 w-full')}
-								style={`height: ${virtualRow.size}px; padding-bottom: ${ROW_GAP}px; transform: translateY(${virtualRow.start}px);`}
-							>
-								<!-- each record renders inside a cell of the block's own, so a move can name the
-								     record it lands on and find it again in the document. Nothing else hangs
-								     off it: the card is still the concept's, and the cell is the address. -->
-								{#if row.kind === 'header'}
-									{@render groupHeader?.(row.group)}
-								{:else if columns === 1}
-									<div data-record="0" class="h-full">
-										{@render selectableRecord(row.records[0])}
-									</div>
-								{:else}
-									<div
-										class="grid h-full"
-										style={`grid-template-columns: repeat(${columns}, minmax(0, 1fr));`}
-									>
-										{#each row.records as item, column (item.id)}
-											<div data-record={column} class="h-full min-w-0">
-												{@render selectableRecord(item)}
-											</div>
-										{/each}
-									</div>
-								{/if}
-							</div>
-						{/if}
-					{/each}
+	<div
+		bind:this={frame}
+		class="min-h-0 flex-1 overflow-hidden rounded-3xl"
+		bind:clientWidth={frameWidth}
+	>
+		<Loading
+			loading={isAwaitingFirstResults}
+			label={$LL.common.ui.loading()}
+			class={cn(ROW_INSET, 'flex h-full flex-col overflow-hidden')}
+		>
+			<!-- the shape of the first screenful: cards at the height and in the columns the rows will
+			     take, with the gap the virtualizer puts before and between them. -->
+			{#snippet skeleton()}
+				{#each { length: SKELETON_ROWS }, index (index)}
+					<div
+						class="grid shrink-0 gap-3"
+						style={`height: ${recordHeight}px; margin-top: ${ROW_GAP}px; grid-template-columns: repeat(${skeletonColumns}, minmax(0, 1fr));`}
+					>
+						{#each { length: skeletonColumns }, column (column)}
+							<Skeleton class="h-full rounded-2xl" />
+						{/each}
+					</div>
+				{/each}
+			{/snippet}
+
+			{#if !hasResults}
+				<!-- the one empty treatment ([[rules/interface]], *Empty*). Nothing yet says what the
+				     list will hold and offers the create the toolbar offers; a narrowing that matched
+				     nothing says so and offers to put the narrowing down. -->
+				{#if emptyKind === 'no-match'}
+					<EmptyState kind="no-match" title={$LL.common.messages.noMatch()}>
+						{#snippet action()}
+							<Button variant="outline" size="sm" onclick={clearNarrowing}>
+								<XIcon />
+								{clearLabel}
+							</Button>
+						{/snippet}
+					</EmptyState>
+				{:else}
+					<EmptyState
+						kind="nothing-yet"
+						title={emptyTitle}
+						description={emptyDescription}
+						action={onCreate ? createAct : undefined}
+					/>
+				{/if}
+			{:else}
+				<div
+					bind:this={viewport}
+					bind:clientWidth={viewportWidth}
+					class="h-full overflow-y-auto"
+					aria-busy={isFetching || undefined}
+				>
+					<div class="relative w-full" style={`height: ${totalHeight}px;`}>
+						{#each virtualRows as virtualRow (virtualRow.key)}
+							{@const row = rows[virtualRow.index]}
+							{#if row}
+								<!-- the row is not clipped, and that is a trade rather than an oversight: the
+								     clip used to make a card that outgrew its declared height visible where it
+								     was caused, and a card that lifts on hover has to leave its row. The two
+								     cannot both hold, so an outgrown card now overlaps the one below instead of
+								     being cut: still visible, and still fixed by raising `recordHeight`. -->
+								<div
+									data-index={virtualRow.index}
+									class={cn(ROW_INSET, 'absolute start-0 top-0 w-full')}
+									style={`height: ${virtualRow.size}px; padding-bottom: ${ROW_GAP}px; transform: translateY(${virtualRow.start}px);`}
+								>
+									<!-- each record renders inside a cell of the block's own, so a move can name the
+									     record it lands on and find it again in the document. Nothing else hangs
+									     off it: the card is still the concept's, and the cell is the address. -->
+									{#if row.kind === 'header'}
+										<div
+											class="h-full"
+											style:view-transition-name={isMoving
+												? toTransitionName(listId, row.key)
+												: undefined}
+										>
+											{@render groupHeader?.(row.group)}
+										</div>
+									{:else if columns === 1}
+										<div
+											data-record="0"
+											class="h-full"
+											style:view-transition-name={isMoving
+												? toTransitionName(listId, row.records[0].id)
+												: undefined}
+										>
+											{@render selectableRecord(row.records[0])}
+										</div>
+									{:else}
+										<div
+											class="grid h-full"
+											style={`grid-template-columns: repeat(${columns}, minmax(0, 1fr));`}
+										>
+											{#each row.records as item, column (item.id)}
+												<div
+													data-record={column}
+													class="h-full min-w-0"
+													style:view-transition-name={isMoving
+														? toTransitionName(listId, item.id)
+														: undefined}
+												>
+													{@render selectableRecord(item)}
+												</div>
+											{/each}
+										</div>
+									{/if}
+								</div>
+							{/if}
+						{/each}
+					</div>
 				</div>
-			</div>
-		{/if}
+			{/if}
+		</Loading>
 	</div>
 </div>
 
@@ -902,3 +1232,62 @@
 		onExport={exportRows}
 	/>
 {/if}
+
+<style>
+	/* the document is not captured while a list moves, so nothing outside its records animates and
+	   the page around them stays live. */
+	:global(html[data-list-motion]) {
+		view-transition-name: none;
+	}
+
+	/* the layer the snapshots are drawn on, cut to the list's frame. It lets the pointer through, so
+	   a click during the move reaches the page rather than the layer over it. */
+	:global(html[data-list-motion]::view-transition) {
+		clip-path: var(--list-motion-clip);
+		pointer-events: none;
+	}
+
+	/* a record changing place travels from its old box to its new one. It runs on the slow step
+	   because a re-sorted record can cross the whole frame, and on the base step it read as a jump.
+	   The reduced-motion block in the token layer takes every animation here away. */
+	:global(html[data-list-motion]::view-transition-group(*)) {
+		animation-duration: var(--duration-slow);
+		animation-timing-function: var(--ease-move);
+	}
+
+	/* a record that stays is drawn once: its new image, carried by the group. The browser adds the
+	   old and new images together, and two fades on different curves sum to more than one card's
+	   worth of light for most of the move, so every card that stayed brightened and settled back.
+	   Hiding the old image leaves nothing to add. */
+	:global(html[data-list-motion]::view-transition-old(*)) {
+		animation: none;
+		opacity: 0;
+	}
+
+	:global(html[data-list-motion]::view-transition-new(*)) {
+		animation: none;
+	}
+
+	/* an image with no partner is a record leaving or arriving, and only that one fades: the one
+	   leaving accelerates away and the one arriving settles. */
+	:global(html[data-list-motion]::view-transition-old(*):only-child) {
+		opacity: 1;
+		animation: list-record-leave var(--duration-base) var(--ease-exit) both;
+	}
+
+	:global(html[data-list-motion]::view-transition-new(*):only-child) {
+		animation: list-record-arrive var(--duration-base) var(--ease-enter) both;
+	}
+
+	@keyframes -global-list-record-leave {
+		to {
+			opacity: 0;
+		}
+	}
+
+	@keyframes -global-list-record-arrive {
+		from {
+			opacity: 0;
+		}
+	}
+</style>

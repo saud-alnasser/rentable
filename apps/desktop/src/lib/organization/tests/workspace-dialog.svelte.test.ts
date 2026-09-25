@@ -7,6 +7,7 @@ import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import WorkspaceDialog from '$lib/organization/component/workspace-dialog.svelte';
 import { WORKSPACE_NAME_LIMIT } from '$lib/workspace/workspace';
 import en from '$lib/i18n/en';
+import { toTitleCase } from '@rentable/design/title-case.js';
 import ar from '$lib/i18n/ar';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 
@@ -53,7 +54,7 @@ test('the dialog opens light on the shared form surface, and draws the one share
 	// light: the centred panel, which the surface draws as a translated box rather than an edge
 	// sheet.
 	expect(surface?.className).toContain('-translate-x-1/2');
-	expect(screen.getByText(en.layout.workspaceMenu.create)).toBeDefined();
+	expect(screen.getByText(toTitleCase(en.layout.workspaceMenu.create))).toBeDefined();
 	expect(
 		Array.from(document.querySelectorAll('input')).map((input) => input.getAttribute('name'))
 	).toEqual(['name']);

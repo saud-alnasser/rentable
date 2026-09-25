@@ -3,9 +3,9 @@
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import { Input } from '@rentable/design/primitive/input/index.js';
+	import { showErrorSentence } from '$lib/error/toast';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { useSetEndingSoonNoticeDays } from '$lib/settings/query';
-	import { toast } from 'svelte-sonner';
 
 	type AppSettings = Awaited<ReturnType<typeof api.app.settings.get>>;
 
@@ -33,7 +33,7 @@
 		const days = Number(value);
 
 		if (!Number.isInteger(days) || days <= 0) {
-			toast.error($LL.settings.endingSoonInvalid());
+			showErrorSentence($LL.settings.endingSoonInvalid());
 			return;
 		}
 
@@ -47,7 +47,9 @@
 
 <Field.Field orientation="responsive">
 	<Field.Content>
-		<Field.Label for="ending-soon-notice-days">{$LL.settings.endingSoonTitle()}</Field.Label>
+		<Field.Label for="ending-soon-notice-days">
+			<span class="first-letter:uppercase">{$LL.settings.endingSoonTitle()}</span>
+		</Field.Label>
 		<Field.Description>{$LL.settings.endingSoonDescription()}</Field.Description>
 	</Field.Content>
 	<!-- the saved value is the field's own value: a second panel restating it was the page

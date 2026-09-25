@@ -31,6 +31,11 @@ export default defineConfig({
 		watch: {
 			// 3. tell vite to ignore watching `tauri`
 			ignored: ['**/tauri/**']
+		},
+		// 4. the design package's font files are fetched by url from its token layer, and SvelteKit's
+		// allow list covers only this package's own folders, so the dev server refused them
+		fs: {
+			allow: ['../../packages/design/src/lib/font']
 		}
 	}
 });

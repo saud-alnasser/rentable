@@ -111,6 +111,25 @@ test('this machine reads and writes its own settings with nobody signed in', asy
 	assert.ok(changed, 'the settings page could not write its settings');
 });
 
+// The appearance is written through the same procedure, and only in the three words the shell
+// reads: anything else is refused before it reaches the settings file.
+test('the appearance is written through settings, and nothing but its three settings is taken', async () => {
+	const api = await signedOutApi();
+
+	assert.equal((await api.app.settings.get()).appearance, 'system');
+
+	const changed = await api.app.settings.set({ appearance: 'dark' });
+
+	assert.equal(changed.appearance, 'dark');
+	assert.equal(changed.locale, 'en', 'a changeset naming the appearance leaves the locale alone');
+
+	const refusal = await refusalFrom(
+		api.app.settings.set({ appearance: 'sepia' as unknown as 'dark' })
+	);
+
+	assert.equal(refusal?.code, 'BAD_REQUEST');
+});
+
 // The updates group on the same page. Updating is this installation's business rather than an
 // account's, and the page is one screen.
 test('the updater answers a machine nobody has signed in on', async () => {

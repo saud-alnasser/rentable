@@ -1,5 +1,11 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import ComplexHost from '$lib/complex/component/host.svelte';
+	import UnitHost from '$lib/complex/unit/component/host.svelte';
+	import ContractHost from '$lib/contract/component/host.svelte';
+	import PaymentHost from '$lib/payment/component/host.svelte';
+	import TenantHost from '$lib/tenant/component/host.svelte';
+	import OrganizationHost from '$lib/organization/component/host.svelte';
 	import { tauri } from '$lib/platform/tauri';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Kbd } from '@rentable/design/primitive/kbd/index.js';
@@ -7,9 +13,9 @@
 	import * as Sidebar from '@rentable/design/primitive/sidebar/index.js';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import LayoutBreadcrumb from '$lib/layout/component/breadcrumb.svelte';
+	import LayoutCreateShortcut from '$lib/layout/component/create-shortcut.svelte';
 	import LayoutCaughtError from '$lib/layout/component/caught-error.svelte';
 	import LayoutPalette, { PALETTE_SHORTCUT_HINT } from '$lib/layout/component/palette.svelte';
-	import LayoutRecordVerbs from '$lib/layout/component/record-verbs.svelte';
 	import LayoutShortcutListener from '$lib/layout/component/shortcut-listener.svelte';
 	import LayoutShortcutSheet from '$lib/layout/component/shortcut-sheet.svelte';
 	import LayoutSidebar from '$lib/layout/component/sidebar.svelte';
@@ -18,8 +24,8 @@
 	import { CAUGHT_ERROR_EVENT, toCaughtErrorFields } from '$lib/layout/boundary';
 	import { toBreadcrumbTrail } from '$lib/layout/navigation';
 	import { recordDiagnosticError } from '$lib/platform/diagnostics';
-	import KeyboardIcon from '@tabler/icons-svelte/icons/keyboard';
-	import SearchIcon from '@tabler/icons-svelte/icons/search';
+	import KeyboardIcon from '@lucide/svelte/icons/keyboard';
+	import SearchIcon from '@lucide/svelte/icons/search';
 	import type { Snippet } from 'svelte';
 
 	/**
@@ -58,7 +64,7 @@
 	const hasRail = $derived(shell !== 'bare');
 	const isSignedOut = $derived(shell === 'signed-out');
 
-	const hasBreadcrumb = $derived(toBreadcrumbTrail(page.url.pathname).length > 0);
+	const hasBreadcrumb = $derived(toBreadcrumbTrail(page.route.id).length > 0);
 
 	let isPaletteOpen = $state(false);
 	let isShortcutSheetOpen = $state(false);
@@ -70,8 +76,11 @@
 	 * appears on signing in makes signing in look like arriving somewhere else. *This is a reading
 	 * of "other things are disabled" rather than a decision stated in those words, and it is the
 	 * cheapest thing on this screen to change.*
+	 *
+	 * The button dims itself once it is marked `aria-disabled`, in the colour its primitive holds
+	 * to 3:1; half opacity on top of that took it under.
 	 */
-	const unavailable = 'pointer-events-none opacity-50';
+	const unavailable = 'pointer-events-none';
 
 	function startDragging(event: MouseEvent) {
 		if (event.button !== 0) {
@@ -176,14 +185,25 @@
      can take back. -->
 <LayoutShortcutListener />
 <LayoutUndoShortcut />
+<!-- and the create key, on every screen for the same reason: where no set is on screen it is
+     refused with its reason, rather than left to the webview. -->
+<LayoutCreateShortcut />
 
 <div lang={$locale} dir={currentDirection} class="h-screen w-screen overflow-hidden border">
 	{#if hasRail}
 		{#if !isSignedOut}
 			<LayoutPalette bind:open={isPaletteOpen} />
-			<!-- beside the palette, because the palette is the only thing that runs these and what
-			     they open has to survive it closing. -->
-			<LayoutRecordVerbs />
+			<!-- every record form and confirmation, mounted once per concept: a card, a record page,
+			     the dashboard and the palette each ask a host for what an act opens, and what it
+			     opens has to outlive the palette closing and the reader moving between screens. -->
+			<TenantHost />
+			<ComplexHost />
+			<UnitHost />
+			<ContractHost />
+			<PaymentHost />
+			<!-- and every member and workspace surface, for the same reason: the settings directories
+			     ask for them, and nothing they open is mounted twice. -->
+			<OrganizationHost />
 			<LayoutShortcutSheet bind:open={isShortcutSheetOpen} />
 		{/if}
 		<Sidebar.Provider class="h-full min-h-0 overflow-hidden">

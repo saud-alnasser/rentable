@@ -11,7 +11,7 @@
 	import { accountInitials } from '$lib/sync/account';
 	import { requestSignOut } from '$lib/sync/sign-out';
 	import LogOutIcon from '@lucide/svelte/icons/log-out';
-	import SettingsIcon from '@tabler/icons-svelte/icons/settings';
+	import SettingsIcon from '@lucide/svelte/icons/settings';
 	import ChevronsUpDownIcon from '@lucide/svelte/icons/chevrons-up-down';
 
 	/**

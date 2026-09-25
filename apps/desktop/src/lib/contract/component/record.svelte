@@ -2,11 +2,14 @@
 	import { resolve } from '$app/paths';
 	import type api from '$lib/api/caller';
 	import type { Contract } from '$lib/platform/database/schema';
-	import RecordCard, { type RecordCardAction } from '@rentable/design/block/record-card.svelte';
+	import RecordCard from '@rentable/design/block/record-card.svelte';
+	import { contractActs } from '$lib/contract/host.svelte';
+	import { toCardActions } from '$lib/design/acts';
 	import * as Cell from '$lib/design/cell';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
+	import { formatRecordDateRange } from '$lib/design/date';
 	import { formatLocaleMoney } from '$lib/platform/locale';
-	import CashIcon from '@tabler/icons-svelte/icons/cash-banknote';
+	import BanknoteIcon from '@lucide/svelte/icons/banknote';
 
 	/**
 	 * One contract, as every surface that lists contracts renders it — the directory, a
@@ -18,18 +21,15 @@
 	 * address and what its link is called are here for the same reason.
 	 */
 	let {
-		contract,
-		actions
+		contract
 	}: {
 		contract: Awaited<ReturnType<typeof api.contract.getMany>>[number];
-		/**
-		 * what this contract offers, from `contract/component/actions.svelte`.
-		 *
-		 * Stated rather than optional: all three surfaces render the one set, and a card that
-		 * could quietly be given none is how one of them would come to offer nothing again.
-		 */
-		actions: RecordCardAction[];
 	} = $props();
+
+	// what this contract offers, projected from the one list every surface offering a contract
+	// reads (`contract/acts.ts`): the card's menu, its context menu, the contract's page and the
+	// command menu cannot come to differ, and a card cannot be handed none.
+	const actions = $derived(toCardActions(contractActs, contract, $LL));
 
 	const intervalLabels = $derived<Record<Contract['interval'], string>>({
 		'1m': $LL.contracts.intervals.monthly(),
@@ -47,14 +47,14 @@
 <RecordCard href={resolve(`/contracts/${contract.id}`)} {label} {actions}>
 	{#snippet content()}
 		<span class="pointer-events-none relative flex min-w-0 flex-1 flex-col gap-0.5 text-start">
-			<span class="truncate text-sm font-medium">{label}</span>
+			<Cell.Text class="truncate text-sm font-medium" text={label} />
 			<span class="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
 				<span class="truncate tabular-nums">{contract.govId.trim() || '—'}</span>
 				<span aria-hidden="true">&middot;</span>
 				<!-- a range rather than "start → end": an arrow does not mirror in Arabic, where the
 				     two dates swap and it would then point at the wrong one. -->
 				<span class="truncate tabular-nums">
-					<Cell.Date value={contract.start} /> – <Cell.Date value={contract.end} />
+					{formatRecordDateRange($locale, contract.start, contract.end)}
 				</span>
 			</span>
 		</span>
@@ -64,7 +64,7 @@
 			     same tone while meaning different things by it. Quiet at nothing, as every count on a
 			     row is — a contract with no payments has no money to report. -->
 			<Cell.Count
-				icon={CashIcon}
+				icon={BanknoteIcon}
 				count={contract.paymentCount}
 				label={$LL.common.nav.payments()}
 				tone={contract.paymentCount > 0 ? 'money' : 'settled'}

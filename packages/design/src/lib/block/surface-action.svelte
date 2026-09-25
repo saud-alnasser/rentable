@@ -91,8 +91,8 @@
 	 * `active:translate-y-px`, and a hover that raises would fight it for the same property.
 	 */
 	const primary =
-		'group bg-linear-to-b from-primary to-primary/75 shadow-sm ring-1 ring-primary/40 ' +
-		'hover:from-primary hover:to-primary hover:shadow-md hover:ring-primary/70';
+		'group bg-linear-to-b from-primary to-primary/75 shadow-raised ring-1 ring-primary/40 ' +
+		'hover:from-primary hover:to-primary hover:ring-primary/70';
 
 	const secondary = 'group border-border bg-card text-foreground';
 </script>
@@ -117,7 +117,7 @@
 		{onclick}
 	>
 		<Icon
-			class="size-4 transition-transform duration-500 {spins
+			class="size-4 transition-transform duration-slow {spins
 				? 'motion-safe:group-hover:rotate-180'
 				: 'motion-safe:group-hover:scale-110'}"
 		/>

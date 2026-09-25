@@ -4,7 +4,7 @@
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import { toExportSheet } from '@rentable/design/csv.js';
 	import { isolateDirection } from '$lib/error/message';
-	import { showErrorToast } from '$lib/error/toast';
+	import { showErrorToast, showSuccessToast } from '$lib/error/toast';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { tauri } from '$lib/platform/tauri';
 	import WorkspaceImportDialog from '$lib/workspace/component/import-dialog.svelte';
@@ -16,7 +16,6 @@
 		toTransferInput,
 		type WorkspaceTransfer
 	} from '$lib/workspace/workspace';
-	import { toast } from 'svelte-sonner';
 
 	/**
 	 * A whole workspace, out as one file and back in from one.
@@ -71,7 +70,7 @@
 			const transfer = await api.workspace.get();
 			const path = await tauri.export.writeWorkbook(chosen, toSheets(transfer));
 
-			toast.success($LL.common.messages.exported({ path: isolateDirection(path) }));
+			showSuccessToast($LL.common.messages.exported({ path: isolateDirection(path) }));
 
 			// a file manager that will not open is not a failed export: the file is written and the
 			// reader has been told where.

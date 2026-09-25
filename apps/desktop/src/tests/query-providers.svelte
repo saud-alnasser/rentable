@@ -1,0 +1,43 @@
+<script lang="ts">
+	/**
+	 * The three providers a section that owns a query needs above it.
+	 *
+	 * Scaffolding rather than a test, and a fixture rather than a `wrapper` for the reason
+	 * `organization/tests/providers.svelte` gives: `wrapper` puts exactly one component above the
+	 * subject, and a section that calls a hook from `organization/query.ts` reads the query client
+	 * from context as well as the design contract, while a section whose row actions are an icon
+	 * cluster draws a tooltip, whose root reads `TooltipProvider`. The client is a fresh one per render, with
+	 * retries off so a query that reaches the shell, which this runner has none of, settles rather
+	 * than waits; a test that wants no call at all renders the section with its query disabled.
+	 * `routes/+layout.svelte` nests the three the same way round.
+	 *
+	 * It sits here rather than in a module's `tests/` because more than one module renders under
+	 * it: complex, contract, design, layout, organization, payment and tenant tests all do, and a
+	 * test reaches it as `#tests/query-providers.svelte` through the `imports` map in
+	 * `package.json`. `[[rules/testing]]` under *Component tests* says why.
+	 */
+	import { TooltipProvider } from '@rentable/design/primitive/tooltip/index.js';
+	import {
+		DesignProvider,
+		type DesignDirection,
+		type DesignStrings
+	} from '@rentable/design/strings.js';
+	import { QueryClient, QueryClientProvider } from '@tanstack/svelte-query';
+	import type { Snippet } from 'svelte';
+
+	let {
+		strings,
+		direction,
+		children
+	}: { strings: DesignStrings; direction: DesignDirection; children: Snippet } = $props();
+
+	const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+</script>
+
+<DesignProvider {strings} {direction}>
+	<QueryClientProvider {client}>
+		<TooltipProvider>
+			{@render children()}
+		</TooltipProvider>
+	</QueryClientProvider>
+</DesignProvider>

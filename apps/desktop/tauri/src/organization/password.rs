@@ -24,7 +24,10 @@
 //! copy from arriving as a convenience. *`invite::reset_account`, the unset and the link in one
 //! call, is a test fixture now.*
 
-use crate::{diagnostics, error::Error};
+use crate::{
+    diagnostics,
+    error::{Error, RefusalReason},
+};
 
 use super::{
     session::{MemberSession, remember},
@@ -46,20 +49,24 @@ pub async fn change_password(
     now: i64,
 ) -> Result<(), Error> {
     if new.chars().count() < MINIMUM_PASSWORD_LENGTH {
-        return Err(Error::InvalidInput {
-            message: format!(
+        return Err(Error::refused(
+            RefusalReason::PasswordTooShort,
+            format!(
                 "the password needs at least {MINIMUM_PASSWORD_LENGTH} characters. it is the only \
                  thing between anybody holding the organization's records and reading them"
             ),
-        });
+        ));
     }
 
     let members = store.members(&session.verifying_key).await?;
     let member = members
         .iter()
         .find(|member| member.id == session.member_id)
-        .ok_or_else(|| Error::NotFound {
-            message: "this member's row is not in the organization any more".to_string(),
+        .ok_or_else(|| {
+            Error::refused(
+                RefusalReason::MemberGone,
+                "this member's row is not in the organization any more",
+            )
         })?;
 
     // the current password, tried against the row rather than trusted from the session: a
@@ -462,7 +469,13 @@ mod tests {
             change_password(&store, &mut session, &generated, &short, test_cost(), AT).await;
 
         assert!(
-            matches!(refused, Err(Error::InvalidInput { .. })),
+            matches!(
+                refused,
+                Err(Error::Refused {
+                    reason: crate::error::RefusalReason::PasswordTooShort,
+                    ..
+                })
+            ),
             "{refused:?}"
         );
 

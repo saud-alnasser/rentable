@@ -20,9 +20,11 @@
 		refusalAfterFailedCreate,
 		stepAfterConsent,
 		stepFor,
-		type SetupStep
+		type SetupStep,
+		type WalkRefusal
 	} from '$lib/organization/setup';
-	import { toErrorDetail } from '$lib/error/message';
+	import { LL } from '$lib/i18n/i18n-svelte';
+	import { toErrorDetail, toErrorText } from '$lib/error/message';
 	import { THE_WAY_IN } from '$lib/layout/shell-surface';
 	import { useStartup } from '$lib/layout/startup-context';
 
@@ -31,7 +33,8 @@
 	 *
 	 * The screen is `organization/component/setup-walk.svelte`, drawn from props; what is here is
 	 * every call that reaches Rust and the state each answers with: opening the consent, polling it,
-	 * creating the organization, and creating the first workspace. It opens with nobody signed in,
+	 * creating the organization, and handing the first workspace's creation to the loading pass. It
+	 * opens with nobody signed in,
 	 * which `layout/shell-surface.ts` decides, because it is how a person comes to be somebody here.
 	 *
 	 * **It reads where the machine stands before asking for a consent.** A machine that already
@@ -60,8 +63,8 @@
 	 * **A create Turso refuses over the group asks for the group.** That one leaves the consent
 	 * where it is, so the walk stays on the name step and draws the field with what was already
 	 * typed still in it, and the create that follows carries all four values.
-	 * `organization/setup.ts` tells the two refusals apart and splits Turso's own account of the
-	 * refusal off the fixed phrase, which the field shows under its sentence as detail.
+	 * `organization/setup.ts` tells the two refusals apart by their reasons, and Turso's own account
+	 * of the refusal is what the field keeps under its sentence, behind a disclosure.
 	 *
 	 * **That is also why this route says what a failed create failed at, rather than the shared
 	 * handler.** The handler shows a thrown message as a toast, which is the loudest thing on the
@@ -69,40 +72,54 @@
 	 * step foretold it and the field says what to type, so Turso's words belong under that field
 	 * and nowhere else. Every other failure is said here exactly as the handler said it.
 	 *
-	 * **The walk ends inside the workspace.** Creating it on the third step is the workspace
-	 * mutation, then the way in, and then the startup unit reading where the machine stands
-	 * again: the shell signed the owner in as it created the organization, so the startup unit
-	 * admits them, opens the one workspace and goes on in from the way in, the path a sign-in
-	 * takes past the wall. **The navigation is awaited before the standing is read**, so the
+	 * **Every refusal said here is a sentence in the reader's language, with what the shell said
+	 * behind a disclosure under it** (effort 832, requirement 23). The sentence comes from the
+	 * refusal's reason; the words behind it are Rust's or Turso's, and are what a person would quote
+	 * to somebody else.
+	 *
+	 * **The walk ends inside the workspace, and the owner is never asked to name it** (effort 832,
+	 * requirement 18). Once the organization is created the startup unit is told where the machine
+	 * stands changed, with a `prepare` that creates the first workspace, named after the
+	 * organization, through the same mutation the no-workspace surface uses. The loading surface
+	 * goes up at once and shows that as its first stage, so the walk hands over to exactly one
+	 * loading pass: the shell signed the owner in as it created the organization, and the unit
+	 * admits them, opens the workspace and goes on in, the path a sign-in takes past the wall. A
+	 * create that fails is said by the mutation's handler, and the pass lands on the no-workspace
+	 * surface, which offers the create again.
+	 *
+	 * **The address moves to the way in inside the `prepare`, and is waited for**, so the
 	 * application draws under the way in rather than under this route, which the shell would
-	 * otherwise keep; the walk stays on its working surface from the create until then.
+	 * otherwise keep. The loading surface is drawn over whichever address is current, so the move
+	 * is not seen.
 	 */
 	const startup = useStartup();
 
 	let step = $state<SetupStep>('connect');
 	let sessionId = $state<string | null>(null);
-	let refusal = $state<string | null>(null);
+	let refusal = $state<WalkRefusal | null>(null);
 	let askGroup = $state(false);
 	let groupDetail = $state<string | null>(null);
-	let existingRefusal = $state<string | null>(null);
+	let existingRefusal = $state<WalkRefusal | null>(null);
 	let isHandingOver = $state(false);
 
 	const stateQuery = useFetchOrganizationState();
 
+	/** a refusal as the walk says it: the reader's sentence, and the shell's words behind it. */
+	const said = (error: unknown): WalkRefusal => ({
+		sentence: toErrorText(error, $LL),
+		detail: toErrorDetail(error)
+	});
+
 	// the walk resumes where the machine stands, and `organization/setup.ts` decides what that
-	// means: an owner already signed in whose organization holds no workspace is on the third
-	// step, whatever this route was opened at, since the first two would create the organization
-	// again. An owner who already holds a workspace is finished and is sent home rather than
-	// shown a step. A reload or an address typed in reaches this route the same way, which is
-	// what makes the dev server's own reload during a first run harmless.
+	// means: somebody already signed in has nothing left to ask here, since both steps would create
+	// the organization again, and is sent to the way in rather than shown a step. A reload or an
+	// address typed in reaches this route the same way, which is what makes the dev server's own
+	// reload during a first run harmless. **Not while this walk is handing over**: its own create
+	// signs the owner in, and the hand-over moves the address itself, under the loading surface.
 	$effect(() => {
-		const going = stepFor(stateQuery.data?.session);
+		if (isHandingOver) return;
 
-		if (going === 'workspace' && step !== 'workspace') {
-			step = 'workspace';
-		}
-
-		if (going === 'leave') {
+		if (stepFor(stateQuery.data?.session) === 'leave') {
 			void goto(resolve(THE_WAY_IN));
 		}
 	});
@@ -112,7 +129,11 @@
 	// the shared handler says nothing about a failed create, because one of the failures it would
 	// say is the one this walk answers on the surface; `create` below says the rest.
 	const createOrganization = useCreateOrganization();
-	const createWorkspace = useCreateWorkspace();
+	// the first workspace is made for the owner rather than by them, so it is not announced: the
+	// loading pass it is the first stage of is what they see. A failure is said as it is anywhere.
+	const createWorkspace = useCreateWorkspace(undefined, {
+		toast: { error: true, unexpected: () => $LL.common.messages.unexpectedError() }
+	});
 	const inspectGroup = useInspectGroup();
 	// every refusal here is said on the step, so none of them is raised as a toast as well.
 	const connectExisting = useConnectExisting();
@@ -169,22 +190,22 @@
 			await connectExisting.mutateAsync({ username, password });
 		} catch (error) {
 			// read off what was refused rather than off where this machine stands: a refusal about
-			// the consented account itself is the `preconditionFailed`, and nothing typed on this
-			// step answers one, so they go back to the consent. Everything else is said against the
-			// password on the step they are on, with what they typed still in it. *This refetched
-			// the state and read the Turso authority, so a connection that dropped at the wrong
-			// moment sent the person back to grant a consent they still had.*
+			// the consented account itself carries a reason nothing typed on this step answers, so
+			// they go back to the consent. Everything else is said against the password on the step
+			// they are on, with what they typed still in it. *This refetched the state and read the
+			// Turso authority, so a connection that dropped at the wrong moment sent the person back
+			// to grant a consent they still had.*
 			const back = refusalAfterFailedConnect(error);
 
 			if (!back) {
-				existingRefusal = toErrorDetail(error);
+				existingRefusal = said(error);
 
 				return;
 			}
 
 			sessionId = null;
 			existingRefusal = null;
-			refusal = back.message;
+			refusal = said(error);
 			step = back.step;
 
 			return;
@@ -197,10 +218,15 @@
 	};
 
 	const create = async (name: string, username: string, password: string, group: string | null) => {
+		// held from the press until the loading surface is up, so the walk keeps its working surface
+		// and the resume above does not move the address while the create signs the owner in.
+		isHandingOver = true;
+
 		try {
 			await createOrganization.mutateAsync({ name, username, password, group });
-			step = 'workspace';
 		} catch (error) {
+			isHandingOver = false;
+
 			// the form keeps what they typed, because most of the failures that reach here are
 			// the ones a person retries. Two are not, and `refusalAfterFailedCreate` tells them
 			// apart: a group already holding an organization gave the authority back, so where
@@ -224,31 +250,18 @@
 			// the consent this walk polled is gone with the authority, so nothing is left to
 			// report its old status from.
 			sessionId = null;
-			refusal = back.message;
+			refusal = said(error);
 			step = back.step;
-		}
-	};
-
-	const createFirstWorkspace = async (name: string) => {
-		// the walk keeps its working surface from here until the way in has it, so the form does
-		// not come back for the moment between the workspace existing and the address changing.
-		isHandingOver = true;
-
-		try {
-			await createWorkspace.mutateAsync({ name });
-		} catch {
-			// said by the shared handler; the surface keeps what they typed.
-			isHandingOver = false;
 
 			return;
 		}
 
-		// the walk is over and the owner is in: the address goes to the way in and is waited for,
-		// and only then does the startup unit read where the machine stands. Told first, it would
-		// put the loading surface up under this route and the walk would be what the application
-		// redraws itself over.
-		await goto(resolve(THE_WAY_IN));
-		void startup.standingChanged();
+		// the owner is in, and the walk is over: the loading surface goes up now, and its first
+		// stage makes the first workspace, named after the organization, while the address moves
+		// to the way in. Both are done before the standing is read.
+		void startup.standingChanged({
+			prepare: () => Promise.all([createWorkspace.mutateAsync({ name }), goto(resolve(THE_WAY_IN))])
+		});
 	};
 
 	const next = () => void goOn();
@@ -275,10 +288,6 @@
 			return;
 		}
 
-		// the third step draws no corner, and this holds even if one is pressed: the name step
-		// created the organization and signed the owner in, and nothing behind it can be re-entered.
-		if (step === 'workspace') return;
-
 		step = SETUP_STEPS[index - 1] ?? step;
 	};
 </script>
@@ -292,10 +301,7 @@
 	{existingRefusal}
 	holdsTursoAuthority={stateQuery.data?.holdsTursoAuthority ?? false}
 	isConnecting={beginConsent.isPending || inspectGroup.isPending}
-	isCreating={createOrganization.isPending ||
-		connectExisting.isPending ||
-		createWorkspace.isPending ||
-		isHandingOver}
+	isCreating={createOrganization.isPending || connectExisting.isPending || isHandingOver}
 	onOpenDashboard={() => void tauri.opener.openUrl(TURSO_DASHBOARD_URL)}
 	onConnect={() => void connect()}
 	onDisconnect={() => void forget()}
@@ -303,5 +309,4 @@
 	onBack={back}
 	onCreate={create}
 	onConnectExisting={connectToExisting}
-	onCreateWorkspace={createFirstWorkspace}
 />

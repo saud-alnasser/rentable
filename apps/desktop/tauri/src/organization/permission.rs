@@ -19,7 +19,7 @@
 //! [`permits`] of that number. What a member can actually reach, a credential, is what their
 //! vault unsealed, and no number here hands anybody a credential they do not hold.
 
-use crate::error::Error;
+use crate::error::{Error, RefusalReason};
 
 /// One act of administration, on the bit the package gives it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -98,9 +98,10 @@ pub fn require(permissions: i64, act: Administration) -> Result<(), Error> {
     if permits(permissions, act) {
         Ok(())
     } else {
-        Err(Error::Forbidden {
-            message: format!("your role does not include {}", act.name()),
-        })
+        Err(Error::refused(
+            RefusalReason::RoleLacksAct,
+            format!("your role does not include {}", act.name()),
+        ))
     }
 }
 
@@ -122,9 +123,10 @@ pub fn require_any(permissions: i64, acts: &[Administration]) -> Result<(), Erro
 
     let named: Vec<&str> = acts.iter().map(|act| act.name()).collect();
 
-    Err(Error::Forbidden {
-        message: format!("your role does not include {}", named.join(" or ")),
-    })
+    Err(Error::refused(
+        RefusalReason::RoleLacksAct,
+        format!("your role does not include {}", named.join(" or ")),
+    ))
 }
 
 #[cfg(test)]

@@ -1,4 +1,5 @@
-import { toTauriErrorCode, toTauriRefusalReason } from '$lib/error/tauri';
+import { toErrorDetail } from '$lib/error/message';
+import { toTauriErrorCode, toTauriRefusalReason, type TauriRefusalReason } from '$lib/error/tauri';
 import type { LinkShape } from '$lib/platform/host';
 
 /**
@@ -41,6 +42,12 @@ import type { LinkShape } from '$lib/platform/host';
  * sentence they read is this side's, said in their language. *The screen read the standing off the
  * link before anybody typed anything until effort 828 sealed the credential.*
  *
+ * **Every refusal is one line, and the shell's words are behind a disclosure** (effort 832,
+ * requirements 17, 19 and 23). A step carries the sentence it says and, apart from it, `detail`:
+ * what Rust or Turso said, which is what a person quotes to somebody else and never what they act
+ * on. *Until effort 832 the shell's sentence was drawn under the screen's own, and once the shell's
+ * refusals were translated from their reasons the two said the same thing twice.*
+ *
  * **A refusal a person can answer marks the field it belongs to** ([[rules/interface]],
  * *Validation errors*): text that is not a link marks the link, and a code the seal refused marks
  * the code, both on the form that took the two. Everything else is the link's own standing, which
@@ -72,8 +79,8 @@ export function normalizeCode(typed: string): string {
 }
 
 /**
- * which of the two the code was refused as. A code that failed the seal is `forbidden`, and a field
- * nobody filled in is `invalidInput`; both are about what the person typed rather than about the
+ * which of the two the code was refused as. A code that failed the seal is refused as `codeWrong`,
+ * and a field nobody filled in as `codeMissing`; both are about what the person typed rather than about the
  * link, both end with the same instruction, and each is said in the reader's own language here.
  *
  * *`lapsed` was the second of these while a code had a life of its own. A code now lives exactly
@@ -91,7 +98,36 @@ export type CodeRefusal = 'wrong' | 'missing';
  * the member made a newer link. The fifth is the connect's, and is the only one a link can meet
  * before any code is typed.
  */
-export type JoinRefusal = 'lapsed' | 'consumed' | 'revoked' | 'replaced' | 'anotherOrganization';
+export type JoinRefusal = LinkStanding | 'anotherOrganization';
+
+/** the four standings a link can be refused on, as Rust's `RefusalReason` spells them. */
+const LINK_STANDINGS = ['lapsed', 'consumed', 'revoked', 'replaced'] as const;
+
+type LinkStanding = (typeof LINK_STANDINGS)[number];
+
+function isLinkStanding(reason: TauriRefusalReason | null): reason is LinkStanding {
+	return LINK_STANDINGS.includes(reason as LinkStanding);
+}
+
+/**
+ * the refusals that say the pasted text is not the link it has to be: not a link at all, or a link
+ * of the other kind. They crossed as `invalidInput` until effort 832 gave each a reason.
+ */
+const UNREADABLE: readonly TauriRefusalReason[] = [
+	'linkUnreadable',
+	'linkNotAnInvitation',
+	'linkNotForAMachine'
+];
+
+/**
+ * the refusals that hand the form back with the code field marked as missing: no code, or input
+ * the accept could not take (a link of the other kind, a password under the floor).
+ */
+const ANSWERED_ON_THE_FORM: readonly TauriRefusalReason[] = [
+	'codeMissing',
+	'passwordTooShort',
+	...UNREADABLE
+];
 
 export type JoinStep =
 	/**
@@ -108,10 +144,16 @@ export type JoinStep =
 			isUnreadable: boolean;
 			/**
 			 * the code was refused, and which of the two it was: the code field is marked, and what
-			 * the shell said is kept under it.
+			 * the shell said is kept behind the disclosure.
 			 */
 			codeRefusal: CodeRefusal | null;
+			/**
+			 * a sentence no field says: a rarer refusal that hands the form back, or a standing that
+			 * changed while the person was typing. `null` where a field carries the whole of it.
+			 */
 			errorMessage: string | null;
+			/** what the shell said, kept behind a disclosure, or `null` where it said nothing. */
+			detail: string | null;
 	  }
 	/**
 	 * the link's text is being read, and the act the read names runs in the same wait: the machine
@@ -119,11 +161,15 @@ export type JoinStep =
 	 * act is what spends it.
 	 */
 	| { kind: 'reading'; link: string; code: string }
-	/** the organization could not be reached from a machine that has never seen it. */
-	| { kind: 'unreachable'; link: string; code: string; message: string }
 	/**
-	 * the link admits nobody: which of the five it is, and the shell's own sentence under it,
-	 * since a standing that changed while the person was typing is worth reading in Rust's words.
+	 * the organization could not be reached from a machine that has never seen it, and what the
+	 * network said, behind a disclosure.
+	 */
+	| { kind: 'unreachable'; link: string; code: string; detail: string | null }
+	/**
+	 * the link admits nobody: which of the five it is, and what the shell said behind a
+	 * disclosure, since a standing that changed while the person was typing is worth quoting in
+	 * Rust's words.
 	 *
 	 * **This machine may or may not be connected here**, and `wasConnecting` is which. The two
 	 * kinds of link judge their row at different moments: an invitation's accept unseals, reaches
@@ -137,7 +183,7 @@ export type JoinStep =
 			kind: 'refused';
 			link: string;
 			refusal: JoinRefusal;
-			message: string | null;
+			detail: string | null;
 			/**
 			 * whether the act that was refused had already recorded the organization on this
 			 * machine, which is the invitation's accept and never the machine connect.
@@ -167,11 +213,20 @@ export type JoinStep =
 			/** the accept is running, which is three key derivations the person is waiting on. */
 			isJoining: boolean;
 			errorMessage: string | null;
+			detail: string | null;
 	  };
 
 /** the form as nobody has answered it yet, or as a refusal hands it back with its fields filled. */
 export function pasting(link = '', code = ''): Extract<JoinStep, { kind: 'paste' }> {
-	return { kind: 'paste', link, code, isUnreadable: false, codeRefusal: null, errorMessage: null };
+	return {
+		kind: 'paste',
+		link,
+		code,
+		isUnreadable: false,
+		codeRefusal: null,
+		errorMessage: null,
+		detail: null
+	};
 }
 
 /**
@@ -244,15 +299,16 @@ export function afterRead(
 		code,
 		organizationName: shape.organizationName,
 		isJoining: false,
-		errorMessage: null
+		errorMessage: null,
+		detail: null
 	};
 }
 
 /**
- * the link could not be read. Which of the three it was is the Rust code on the rejection: text
- * that is not a link is `invalidInput`, which a link in the shape before effort 828 is; an
+ * the link could not be read. Which of the three it was is on the rejection: text that is not a
+ * link is refused as `linkUnreadable`, which a link in the shape before effort 828 is; an
  * organization that could not be reached is `network`; and a machine already holding another
- * organization is `preconditionFailed`, whose sentence names both and says to disconnect first.
+ * organization is refused as `anotherOrganizationHeld`, and the step says to disconnect first.
  * Anything else is shown as what it said.
  *
  * **A decode refusal marks the link field**, on the form the person is already looking at, with
@@ -270,32 +326,35 @@ export function inspectionFailed(
 	error: unknown,
 	describe: (error: unknown) => string
 ): JoinStep {
-	const failure = toTauriErrorCode(error);
+	const reason = toTauriRefusalReason(error);
+	const detail = detailOf(error, describe);
 
-	if (failure === 'invalidInput') {
-		return { ...pasting(link, code), isUnreadable: true };
+	if (reason && UNREADABLE.includes(reason)) {
+		return { ...pasting(link, code), isUnreadable: true, detail };
 	}
 
-	if (failure === 'preconditionFailed') {
+	if (reason === 'anotherOrganizationHeld') {
 		// nothing was reached, so nothing was recorded: the read is a decode and refuses before any
 		// act runs.
 		return {
 			kind: 'refused',
 			link,
 			refusal: 'anotherOrganization',
-			message: describe(error),
+			detail,
 			wasConnecting: false
 		};
 	}
 
-	return { kind: 'unreachable', link, code, message: describe(error) };
+	return { kind: 'unreachable', link, code, detail };
 }
 
 /**
  * the accept is out: the fields stay on screen, disabled, and nothing else moves.
  */
 export function joinBegun(step: JoinStep): JoinStep {
-	return step.kind === 'password' ? { ...step, isJoining: true, errorMessage: null } : step;
+	return step.kind === 'password'
+		? { ...step, isJoining: true, errorMessage: null, detail: null }
+		: step;
 }
 
 /**
@@ -305,17 +364,17 @@ export function joinBegun(step: JoinStep): JoinStep {
  * connect, in the wait the read runs in.
  *
  * **Where each goes, and what says so.** A link the row refuses carries Rust's `reason`, which is
- * `lapsed`, `consumed`, `revoked` or `replaced`, and lands by that name on the refused step with
- * Rust's sentence kept under this side's. A link for an organization this machine does not hold is
- * `preconditionFailed` and is the fifth refusal. A code that failed the seal is `forbidden` and a
- * code nobody typed is `invalidInput`, and both hand the form back with the code field marked,
- * since the field is where the person answers them (effort 828, requirement 17). A connection that
- * went is `network` and is the unreachable step, which offers the same link again. Anything else
- * keeps the person where they were and is shown as it was said.
+ * `lapsed`, `consumed`, `revoked` or `replaced`, and lands by that name on the refused step. A
+ * machine that already holds another organization is `anotherOrganizationHeld` and is the fifth
+ * refusal. A code that failed the seal is `codeWrong` and a code nobody typed is `codeMissing`,
+ * and both hand the form back with the code field marked, since the field is where the person
+ * answers them (effort 828, requirement 17). A connection that went is `network` and is the
+ * unreachable step, which offers the same link again. Anything else keeps the person where they
+ * were and is shown as it was said.
  *
  * *Every one of those but the network came back as one `forbidden` until effort 828, and the
- * screen could not tell a mistyped code from a dead link. The refusal now crosses the boundary as
- * a named code, which is what this reads; nothing here reads a sentence.*
+ * screen could not tell a mistyped code from a dead link. The refusal now crosses the boundary
+ * with a named reason, which is what this reads; nothing here reads a sentence.*
  */
 export function joinFailed(
 	step: JoinStep,
@@ -326,6 +385,7 @@ export function joinFailed(
 
 	const failure = toTauriErrorCode(error);
 	const message = describe(error);
+	const detail = detailOf(error, describe);
 	const reason = toTauriRefusalReason(error);
 
 	// which act was refused, which is what says whether the organization was recorded first: the
@@ -334,38 +394,63 @@ export function joinFailed(
 	// recorded.
 	const wasConnecting = step.kind === 'password';
 
-	if (reason) {
-		return { kind: 'refused', link: step.link, refusal: reason, message, wasConnecting };
+	if (isLinkStanding(reason)) {
+		return { kind: 'refused', link: step.link, refusal: reason, detail, wasConnecting };
 	}
 
-	if (failure === 'preconditionFailed') {
+	if (reason === 'anotherOrganizationHeld') {
 		return {
 			kind: 'refused',
 			link: step.link,
 			refusal: 'anotherOrganization',
-			message,
+			detail,
 			wasConnecting
 		};
 	}
 
 	if (failure === 'network') {
-		return { kind: 'unreachable', link: step.link, code: step.code, message };
+		return { kind: 'unreachable', link: step.link, code: step.code, detail };
 	}
 
 	// what the person typed, which is the one refusal they can answer without a new link, so the
-	// form comes back with the code field marked and both halves still in it. A rarer
-	// `invalidInput`, a password under the floor or a link carrying no invitation, keeps Rust's own
+	// form comes back with the code field marked and both halves still in it. A rarer refusal
+	// answered there, a password under the floor or a link carrying no invitation, keeps its own
 	// sentence on the line below, which is where the exact reason is read.
 	const codeRefusal: CodeRefusal | null =
-		failure === 'forbidden' ? 'wrong' : failure === 'invalidInput' ? 'missing' : null;
+		reason === 'codeWrong'
+			? 'wrong'
+			: reason && ANSWERED_ON_THE_FORM.includes(reason)
+				? 'missing'
+				: null;
 
 	// a failure the boundary did not name leaves the person choosing their password where they
 	// were, because nothing about the fields they are filling in is wrong.
 	if (!codeRefusal && step.kind === 'password') {
-		return { ...step, isJoining: false, errorMessage: message };
+		return { ...step, isJoining: false, errorMessage: message, detail };
 	}
 
-	return { ...pasting(step.link, step.code), codeRefusal, errorMessage: message };
+	// the code field says the whole of a wrong code or a missing one, so no second sentence is
+	// drawn beside it; a rarer refusal answered on the form keeps its own, which is the one line
+	// that says what it was.
+	const fieldSaysIt = reason === 'codeWrong' || reason === 'codeMissing';
+
+	return {
+		...pasting(step.link, step.code),
+		codeRefusal,
+		errorMessage: fieldSaysIt ? null : message,
+		detail
+	};
+}
+
+/**
+ * what the shell said behind a refusal, for the disclosure: its own words, and nothing where they
+ * would only repeat the sentence the step already says, which is what a failure raised inside
+ * TypeScript is, since its message is its sentence.
+ */
+function detailOf(error: unknown, describe: (error: unknown) => string): string | null {
+	const detail = toErrorDetail(error);
+
+	return detail && detail !== describe(error) ? detail : null;
 }
 
 /**

@@ -6,6 +6,7 @@
 	import * as Collapsible from '@rentable/design/primitive/collapsible/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import * as InputGroup from '@rentable/design/primitive/input-group/index.js';
+	import DetailDisclosure from '$lib/error/component/detail-disclosure.svelte';
 	import DisconnectDialog from '$lib/organization/component/disconnect-dialog.svelte';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import BuildingIcon from '@lucide/svelte/icons/building';
@@ -102,6 +103,7 @@
 		organization,
 		isSigningIn,
 		errorMessage,
+		errorDetail = null,
 		onSignIn,
 		onDisconnect,
 		onSetUpOrganization,
@@ -117,6 +119,8 @@
 		/** a password is being tried, which is a key derivation the person is waiting on. */
 		isSigningIn: boolean;
 		errorMessage: string | null;
+		/** what the shell said behind `errorMessage`, kept behind a closed disclosure. */
+		errorDetail?: string | null;
 		onSignIn: (username: string, password: string) => void;
 		/** forget the held organization on this machine, once the person has confirmed it. */
 		onDisconnect: () => Promise<void> | void;
@@ -177,6 +181,11 @@
 	>
 		{#if errorMessage}
 			<Callout tone="error">{errorMessage}</Callout>
+			<!-- the shell's own words, closed: the sentence above is the reader's ([[rules/interface]],
+			     *Error*). -->
+			{#if errorDetail}
+				<DetailDisclosure detail={errorDetail} name="sign-in" />
+			{/if}
 		{/if}
 
 		{#if situation === 'signedOutElsewhere'}

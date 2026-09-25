@@ -2,10 +2,10 @@
 	import { resolve } from '$app/paths';
 	import { back } from '@rentable/design/back.svelte.js';
 	import type { Payment } from '$lib/platform/database/schema';
-	import DeleteDialog from '@rentable/design/block/delete-dialog.svelte';
 	import RecordActionControl from '@rentable/design/block/record-action-control.svelte';
-	import RecordCard, { type RecordCardAction } from '@rentable/design/block/record-card.svelte';
+	import RecordCard from '@rentable/design/block/record-card.svelte';
 	import SelectionDialog from '@rentable/design/block/selection-dialog.svelte';
+	import { toCardActions } from '$lib/design/acts';
 	import List from '$lib/design/block/list.svelte';
 	import * as Cell from '$lib/design/cell';
 	import { toNarrowedName } from '@rentable/design/csv.js';
@@ -16,11 +16,7 @@
 	} from '@rentable/design/selection.js';
 	import { PERIOD_FILTER, toChosenLabel, type FilterSelection } from '$lib/design/filter';
 	import { isFilterPeriod } from '$lib/api/period';
-	import {
-		getRemainingContractBalance,
-		hasSatisfiedContractPaymentRequirement,
-		toContractName
-	} from '$lib/contract/contract';
+	import { getRemainingContractBalance, toContractName } from '$lib/contract/contract';
 	import { useFetchContract } from '$lib/contract/query';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import {
@@ -28,9 +24,12 @@
 		paymentLedgerMonths,
 		type PaymentLedgerMonth
 	} from '$lib/payment/ledger';
+	import { toPaymentCreateUnavailable } from '$lib/payment/acts';
+	import { PAYMENT_SORT_COLUMN_IDS, type PaymentSortColumnId } from '$lib/payment/payment';
+	import type { ListSort } from '@rentable/design/sort.js';
+	import { paymentActs, paymentHost } from '$lib/payment/host.svelte';
 	import {
 		useDeleteManyPayments,
-		useDeletePayment,
 		useListContractPayments,
 		usePlanManyPayments,
 		type PaymentRefusalReason
@@ -39,9 +38,7 @@
 	import DirectoryImportDialog from '$lib/workspace/component/directory-import-dialog.svelte';
 	import { useImportRecords } from '$lib/workspace/query';
 	import { toTransferInput } from '$lib/workspace/workspace';
-	import SquarePenIcon from '@lucide/svelte/icons/square-pen';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
-	import PaymentForm from './form.svelte';
 
 	/** The contract whose payments this statement lists. */
 	let { contractId }: { contractId: string } = $props();
@@ -55,10 +52,8 @@
 	const MONTH_HEIGHT = 34;
 
 	let search = $state('');
+	let sort = $state<ListSort | null>(null);
 	let filters = $state<FilterSelection>({});
-	let payment = $state<Payment | undefined>(undefined);
-	let isPaymentFormOpen = $state(false);
-	let isDeleteDialogOpen = $state(false);
 	let importDialog = $state<ReturnType<typeof DirectoryImportDialog> | undefined>(undefined);
 	// the records the reader has picked out, and the set a control was reached for with. The two
 	// are separate because the selection stays live behind the confirmation, and an action that
@@ -76,8 +71,7 @@
 	});
 
 	const contractQuery = useFetchContract(() => contractId);
-	const paymentsQuery = useListContractPayments(() => ({ contractId, search, period }));
-	const deleteMutation = useDeletePayment();
+	const paymentsQuery = useListContractPayments(() => ({ contractId, search, period, sort }));
 	const deleteManyMutation = useDeleteManyPayments();
 	const importMutation = useImportRecords();
 
@@ -85,6 +79,20 @@
 
 	const payments = $derived(paymentsQuery.data ?? []);
 	const monthOf = $derived(paymentLedgerMonths(payments));
+	// a statement is read in months while it is read in time. Ordered by amount, the months would
+	// open and close again on every row, so the headers go and the rows read as one run.
+	const isReadInTime = $derived(!sort || sort.columnId === 'date');
+
+	// the keys a ledger row shows, as the procedure orders by them. The record type is what makes
+	// a missing label a type error.
+	const sortOptions = $derived.by(() => {
+		const labels: Record<PaymentSortColumnId, string> = {
+			date: $LL.common.labels.paymentDate(),
+			amount: $LL.common.labels.amount()
+		};
+
+		return PAYMENT_SORT_COLUMN_IDS.map((id) => ({ id, label: labels[id] }));
+	});
 
 	const isTerminated = $derived(contractQuery.data?.status === 'terminated');
 	// what this ledger is a ledger of, named the way anything outside a contract's own page
@@ -95,25 +103,14 @@
 			: $LL.common.labels.contract()
 	);
 	const tenantName = $derived(contractQuery.data?.tenantName?.trim() ?? '');
-	const isFullyPaid = $derived(
-		contractQuery.data
-			? hasSatisfiedContractPaymentRequirement(
-					contractQuery.data.paidAmount,
-					contractQuery.data.expectedAmount
-				)
-			: false
-	);
-	// a terminated contract is read-only; a satisfied one still takes corrections to what it
-	// already holds, so only the new payment is refused.
-	const isAddLocked = $derived(isTerminated || isFullyPaid);
+	// why this contract takes no new payment, where it takes none: the create act's reason, which
+	// the create control shows on hover and focus in place of a paragraph above the ledger. A
+	// terminated contract is read-only; a satisfied one still takes corrections to what it already
+	// holds, so only the new payment is refused. An import only ever adds payments, so it is refused
+	// with the same reason, in the transfer menu, rather than taken out of it.
+	const createUnavailable = $derived(toPaymentCreateUnavailable(contractQuery.data, $LL));
+	const isAddLocked = $derived(createUnavailable !== undefined);
 	const hasRowActions = $derived(!isTerminated);
-
-	const lockNotice = $derived.by(() => {
-		if (isTerminated) return $LL.contracts.payments.terminatedNotice();
-		if (isFullyPaid) return $LL.contracts.payments.fullyPaidNotice();
-
-		return undefined;
-	});
 
 	const formatMonth = (month: PaymentLedgerMonth) => formatPaymentLedgerMonth($locale, month);
 	const formatMoney = (value: number) => formatLocaleMoney($locale, value);
@@ -190,32 +187,21 @@
 		selected = [];
 	}
 
-	function openPaymentForm(record?: Payment) {
-		payment = record;
-		isPaymentFormOpen = true;
-	}
-
-	// a terminated contract's statement is read-only, and an empty list is how a card comes to
-	// carry no control and to leave the context gesture alone.
-	const cardActions = (entry: Payment): RecordCardAction[] =>
-		hasRowActions
-			? [
-					{
-						label: $LL.common.actions.edit(),
-						icon: SquarePenIcon,
-						onSelect: () => openPaymentForm(entry)
-					},
-					{
-						label: $LL.common.actions.delete(),
-						icon: Trash2Icon,
-						variant: 'destructive',
-						onSelect: () => {
-							payment = entry;
-							isDeleteDialogOpen = true;
-						}
-					}
-				]
-			: [];
+	// what a payment's card offers, projected from the one list its own page and the command menu
+	// read (`payment/acts.ts`). The row is handed over with its contract's status, which is what
+	// closes a terminated contract's statement to everything that writes, and with what the
+	// contract is paid and requires, which is what refuses a duplicate on one paid in full.
+	const cardActions = (entry: Payment) =>
+		toCardActions(
+			paymentActs,
+			{
+				...entry,
+				contractStatus: contractQuery.data?.status,
+				contractPaidAmount: contractQuery.data?.paidAmount,
+				contractExpectedAmount: contractQuery.data?.expectedAmount
+			},
+			$LL
+		);
 </script>
 
 {#snippet selectionActions(ids: readonly string[])}
@@ -238,24 +224,21 @@
 {/snippet}
 
 <div class="flex min-h-0 flex-1 flex-col gap-3">
-	{#if lockNotice}
-		<p class="shrink-0 rounded-2xl bg-card px-4 py-2.5 text-start text-xs text-muted-foreground">
-			{lockNotice}
-		</p>
-	{/if}
-
 	<List
 		data={payments}
 		bind:search
+		bind:sort
+		{sortOptions}
 		bind:filters
 		filterOptions={[PERIOD_FILTER]}
 		bind:selected
 		{selectionActions}
-		groupOf={monthOf}
+		groupOf={isReadInTime ? monthOf : undefined}
 		isLoading={paymentsQuery.isLoading}
 		isFetching={paymentsQuery.isFetching}
 		recordHeight={ROW_HEIGHT}
 		groupHeaderHeight={MONTH_HEIGHT}
+		emptyTitle={$LL.contracts.payments.emptyTitle()}
 		emptyDescription={isAddLocked ? undefined : $LL.contracts.payments.trackSummary()}
 		exportAs={{
 			// the contract is in the name, because a ledger is one contract's and a file called
@@ -281,8 +264,11 @@
 				}
 			]
 		}}
-		onImport={isAddLocked ? undefined : () => void importDialog?.choose()}
-		onCreate={isAddLocked ? undefined : () => openPaymentForm()}
+		onImport={() => void importDialog?.choose()}
+		importUnavailable={createUnavailable}
+		onCreate={() => paymentHost.create({ contractId })}
+		createLabel={$LL.common.actions.newPayment()}
+		{createUnavailable}
 	>
 		{#snippet groupHeader(month: PaymentLedgerMonth)}
 			<!-- a card in the list rather than a marker floating over it, and a separator rather than
@@ -300,7 +286,7 @@
 			<div
 				class="flex h-full w-fit max-w-full items-center gap-2 rounded-2xl bg-muted/60 px-4 text-xs font-medium"
 			>
-				<span class="min-w-0 truncate tracking-wide uppercase">{formatMonth(month)}</span>
+				<span class="min-w-0 truncate uppercase">{formatMonth(month)}</span>
 				<span class="text-muted-foreground" aria-hidden="true">&middot;</span>
 				<span class="shrink-0 text-muted-foreground">
 					<span class="sr-only">
@@ -335,7 +321,7 @@
 			class="flex shrink-0 flex-wrap items-end justify-between gap-x-6 gap-y-2 rounded-2xl bg-card px-4 py-3 motion-safe:animate-in motion-safe:fade-in"
 		>
 			<div class="flex min-w-0 flex-col gap-1 text-start">
-				<span class="text-xs tracking-wide text-muted-foreground uppercase">
+				<span class="text-xs text-muted-foreground uppercase">
 					{$LL.contracts.payments.remainingBalance()}
 				</span>
 				<span class="text-lg font-semibold">
@@ -345,7 +331,7 @@
 				</span>
 			</div>
 			<div class="flex min-w-0 flex-col gap-1 text-end">
-				<span class="text-xs tracking-wide text-muted-foreground uppercase">
+				<span class="text-xs text-muted-foreground uppercase">
 					{$LL.common.labels.paymentFulfillment()}
 				</span>
 				<span class="text-sm tabular-nums">
@@ -376,33 +362,6 @@
 		onSubmit={deleteSelected}
 	/>
 {/if}
-
-<PaymentForm
-	{contractId}
-	value={payment}
-	open={isPaymentFormOpen}
-	onOpenChange={(isOpen) => {
-		isPaymentFormOpen = isOpen;
-		if (!isOpen) payment = undefined;
-	}}
-/>
-
-<DeleteDialog
-	open={isDeleteDialogOpen}
-	onOpenChange={(isOpen) => {
-		isDeleteDialogOpen = isOpen;
-		if (!isOpen) payment = undefined;
-	}}
-	record={payment ? formatMoney(payment.amount) : undefined}
-	onSubmit={async () => {
-		if (payment) {
-			await deleteMutation.mutateAsync(payment.id);
-			// the payment's own page may be behind the reader; it is not somewhere back can
-			// return to now that the record is gone.
-			back.forget(resolve(`/contracts/payments/${payment.id}`));
-		}
-	}}
-/>
 
 <!-- a statement, coming back in. Each row names the contract it is against and that name is what
      places it, this contract included — a payment is nothing without one, and a statement read on

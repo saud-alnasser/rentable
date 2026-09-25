@@ -8,9 +8,14 @@
 	import { Input } from '@rentable/design/primitive/input/index.js';
 	import * as Select from '@rentable/design/primitive/select/index.js';
 	import { cn } from '@rentable/design/tailwind.js';
+	import { onMutationError } from '$lib/design/mutation';
+	import { fieldOfFailure, toRefusalText } from '$lib/error/refusal';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { useCreateTenant, useUpdateTenant } from '$lib/tenant/query';
+	import PlusIcon from '@lucide/svelte/icons/plus';
+	import SaveIcon from '@lucide/svelte/icons/save';
 	import { TRPCError } from '@trpc/server';
+	import { surfaceForm } from '$lib/design/form';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';
 	import { z } from 'zod';
@@ -77,12 +82,18 @@
 	let {
 		value,
 		open,
-		onOpenChange
+		onOpenChange,
+		onCreated
 	}: {
 		/** the tenant being edited, or the details a new one starts from when duplicating. */
 		value?: Partial<Tenant>;
 		open: boolean;
 		onOpenChange: (value: boolean) => void;
+		/**
+		 * a new record has been written: the host lands the reader where the next step is
+		 * ([[rules/interface]], *Guidance*).
+		 */
+		onCreated?: (created: { id: string }) => void;
 	} = $props();
 
 	const toFormValue = (tenant?: Partial<Tenant>): TenantForm => {
@@ -100,7 +111,7 @@
 	let { form, constraints, errors, enhance, reset, ...rest } = superForm<TenantForm>(
 		defaults(zod4(TenantFormSchema)),
 		{
-			SPA: true,
+			...surfaceForm,
 			validators: zod4(TenantFormSchema),
 			onUpdate: async ({ form }) => {
 				if (!form.valid) return;
@@ -131,7 +142,9 @@
 							...payload
 						});
 					} else {
-						await CreateMutation.mutateAsync(payload);
+						const created = await CreateMutation.mutateAsync(payload);
+
+						onCreated?.(created);
 					}
 
 					onOpenChange(false);
@@ -139,10 +152,13 @@
 					// an unexpected failure is the shared error handler's to report, and it already has:
 					// what is left here is the refusal, mapped onto the field the reader would fix.
 					if (e instanceof TRPCError && e.code === 'BAD_REQUEST') {
-						if (e.message.includes('national id')) {
-							setError(form, 'nationalId', $LL.tenants.form.duplicateNationalId());
-						} else if (e.message.includes('phone')) {
-							setError(form, 'phoneNumber', $LL.tenants.form.duplicatePhone());
+						const field = fieldOfFailure(e);
+
+						if (field === 'nationalId' || field === 'phoneNumber') {
+							setError(form, field, toRefusalText(e, $LL));
+						} else {
+							// what no field here holds is still said, through the shared handler, in the reader's words.
+							onMutationError({ toast: { error: true } }, e);
 						}
 					}
 				}
@@ -260,12 +276,19 @@
 		>
 			{$LL.common.actions.cancel()}
 		</Button>
+		<!-- the verb's glyph before its label, as every submit carries one. -->
 		<Button
 			type="submit"
 			disabled={CreateMutation.isPending || UpdateMutation.isPending}
 			class="capitalize"
 		>
-			{value?.id ? $LL.common.actions.update() : $LL.common.actions.create()}
+			{#if value?.id}
+				<SaveIcon class="size-4" />
+				{$LL.common.actions.update()}
+			{:else}
+				<PlusIcon class="size-4" />
+				{$LL.common.actions.create()}
+			{/if}
 		</Button>
 	{/snippet}
 </FormSurface>

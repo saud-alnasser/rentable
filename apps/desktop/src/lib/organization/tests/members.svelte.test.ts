@@ -1,21 +1,33 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { beforeEach, expect, test, vi } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { i18nObject } from '$lib/i18n/i18n-util';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import Members from '$lib/organization/component/members.svelte';
 import { organizationDialog, resetOrganizationDialogs } from '$lib/organization/dialogs.svelte';
+import { organizationHostState, resetOrganizationHost } from '$lib/organization/host.svelte';
+import { fakeOrganizationSession } from '$lib/platform/tests/testing';
 import type { MemberStanding, OrganizationMember, OrganizationWorkspace } from '$lib/platform/host';
 import en from '$lib/i18n/en';
+import { toTitleCase } from '@rentable/design/title-case.js';
 import ar from '$lib/i18n/ar';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
+import { expectCreateControlLast } from '$lib/design/tests/create-control';
+import { BAR_CONTROL, expectBarOrder } from '$lib/design/tests/set-bar';
 import { chooseOption, openSelect } from '$lib/design/tests/select';
+import {
+	insideTheWait,
+	pastTheWait,
+	pressSearchKey,
+	searchField,
+	searchGlass,
+	typeSearch
+} from '$lib/design/tests/search';
 import { EVERY_ADMINISTRATION, maskOf } from '@rentable/workspace-permission';
 
-import Providers from './providers.svelte';
+import { hostAnswers, resetHostAnswers } from './host-hooks';
+import HostProviders from './host-providers.svelte';
 
 /**
  * THE MEMBERS, AS A DIRECTORY OF CARDS
@@ -48,11 +60,18 @@ import Providers from './providers.svelte';
  * carries no address and no display name. Requirement 24's avatar is the same two letters the rail
  * draws.
  *
- * The rename's own refusal is still read here, against the sentence Rust carries, because the
- * dialog this section owns is where a person meets it. No submit is fired for that one: a
- * superforms SPA submit reaches SvelteKit's `applyAction`, which this runner does not carry, so
- * the refusal is reached the way a person first meets it, by leaving the field.
+ * **What a card's act opens is the organization host's** (effort 832, requirement 8), mounted once
+ * in the frame, so the section is rendered with the host beside it (`./host-providers.svelte`) and
+ * the host's hooks stood in for (`./host-hooks.ts`). A write a card asks for is read off what the
+ * host asked of those hooks. Each entry is read by the act it projects, `data-act`, which is what
+ * `design/acts.ts` marks an entry with. The username's own rule is read on the sheet, in
+ * `member-sheet.svelte.test.ts`.
  */
+
+vi.mock('$lib/organization/query', async (importOriginal) => ({
+	...(await importOriginal<typeof import('$lib/organization/query')>()),
+	...(await import('./host-hooks')).hostHooks
+}));
 
 const { address, navigations } = vi.hoisted(() => ({
 	address: { url: new URL('http://localhost/settings?section=organization') },
@@ -68,7 +87,7 @@ vi.mock('$app/state', () => ({
 }));
 
 vi.mock('$app/navigation', async (importOriginal) => ({
-	// partial, because the rename dialog's `superForm` reaches `beforeNavigate` from the same
+	// partial, because the host's workspace rename form's `superForm` reaches `beforeNavigate` from the same
 	// module: what is stood in for is the one navigation this section makes.
 	...(await importOriginal<typeof import('$app/navigation')>()),
 	goto: async (to: string) => {
@@ -76,9 +95,6 @@ vi.mock('$app/navigation', async (importOriginal) => ({
 		address.url = new URL(to, 'http://localhost');
 	}
 }));
-
-const noop = () => {};
-const resolved = async () => {};
 
 /** the reader is standing at the organization section, with or without an account named on it. */
 const at = (search = '?section=organization') => {
@@ -155,7 +171,6 @@ const list = (
 		{
 			members,
 			standings,
-			workspaces,
 			canInvite: true,
 			canRemove: true,
 			canLockOut: true,
@@ -165,43 +180,35 @@ const list = (
 			canGrantWorkspace: true,
 			isOwner: true,
 			selfId: 'owner',
-			makingLink: null,
-			unsetting: null,
-			endingSessions: null,
-			isChangingRole: false,
-			isChangingAccess: false,
-			isOffering: false,
-			isWithdrawing: false,
-			offerRefusal: null,
-			onEndSessions: noop,
-			onMakeLink: noop,
-			onUnsetPassword: noop,
-			onRemove: noop,
-			onLockOut: noop,
-			onRename: resolved,
-			onChangeRole: resolved,
-			onChangeAccess: resolved,
-			onOfferOwnership: resolved,
-			onWithdrawOffer: noop,
 			...overrides
 		},
-		{ wrapper: Providers, wrapperProps: { strings, direction } }
+		{ wrapper: HostProviders, wrapperProps: { strings, direction } }
 	);
 
-/** the acts a card can offer, in the order they are built. */
-const KINDS = [
-	'withdraw-offer',
-	'transfer',
-	'rename',
-	'edit',
-	'link',
-	'unset-password',
-	'end-sessions',
-	'remove',
-	'lock-out'
-] as const;
+/** the acts a card can offer, in the order they are declared, by the name this file reads them by. */
+const KINDS = {
+	'member.withdrawOffer': 'withdraw-offer',
+	'member.offerOwnership': 'transfer',
+	'member.edit': 'edit',
+	'member.makeLink': 'link',
+	'member.unsetPassword': 'unset-password',
+	'member.endSessions': 'end-sessions',
+	'member.remove': 'remove',
+	'member.lockOut': 'lock-out'
+} as const;
 
-const on = (kind: string, id: string) => document.querySelector(`[data-member-${kind}="${id}"]`);
+const kindOf = (item: Element) =>
+	KINDS[item.getAttribute('data-act') as keyof typeof KINDS] ?? item.textContent;
+
+const actOf = (kind: string) =>
+	Object.entries(KINDS).find(([, named]) => named === kind)?.[0] ?? kind;
+
+/**
+ * an act's entry on the menu that is open. One card's menu is open at a time, so the entry is that
+ * card's: the card is the one the caller opened, which the entry itself does not repeat.
+ */
+const on = (kind: string) =>
+	document.querySelector<HTMLElement>(`[data-slot=dropdown-menu-item][data-act="${actOf(kind)}"]`);
 const card = (id: string) => document.querySelector(`[data-member="${id}"]`);
 
 /** the one control a card carries, or nothing where this reader may do nothing to that account. */
@@ -216,7 +223,7 @@ const actsOn = async (id: string) => {
 	await fireEvent.click(trigger);
 
 	const offered = Array.from(document.querySelectorAll('[data-slot=dropdown-menu-item]')).map(
-		(item) => KINDS.find((kind) => item.hasAttribute(`data-member-${kind}`)) ?? item.textContent
+		kindOf
 	);
 
 	await fireEvent.click(trigger);
@@ -228,7 +235,7 @@ const actsOn = async (id: string) => {
 const openTo = async (id: string, kind: string) => {
 	await fireEvent.click(control(id)!);
 
-	return document.querySelector<HTMLElement>(`[data-member-${kind}="${id}"]`);
+	return on(kind);
 };
 
 /** open a card's control and press one act. */
@@ -238,22 +245,18 @@ const press = async (id: string, kind: string) => {
 const surface = () => document.querySelector('[data-slot=form-surface]');
 const usernameInput = () => document.querySelector<HTMLInputElement>('input[name=username]');
 
-/** the one sentence Rust refuses a username outside the rules with, read off the source. */
-const rustUsernameRules = () => {
-	const source = readFileSync(
-		// the runner's root is `apps/desktop`, and the crate sits beside `src` there.
-		resolve(process.cwd(), 'tauri/src/organization/invite.rs'),
-		'utf8'
-	);
-	const declared = /pub const USERNAME_RULES: &str = "([^"]+)";/.exec(source);
+/** the removal the host is asking about, read fresh each time. */
+const removing = () => organizationHostState.member.removing;
 
-	if (!declared) throw new Error('invite.rs no longer declares USERNAME_RULES');
-
-	return declared[1];
-};
+/** what the host asked of one hook, in the order it asked. */
+const written = (hook: string) =>
+	hostAnswers.writes.filter((write) => write.hook === hook).map((write) => write.input);
 
 beforeEach(() => {
 	resetOrganizationDialogs();
+	resetOrganizationHost();
+	resetHostAnswers();
+	hostAnswers.session = fakeOrganizationSession({ memberId: 'owner', workspaces });
 	loadLocale('en');
 	setLocale('en');
 	navigations.length = 0;
@@ -434,7 +437,6 @@ test('the owner sees every act on every card but their own', async () => {
 	list();
 
 	expect(await actsOn('ada')).toEqual([
-		'rename',
 		'edit',
 		'link',
 		'unset-password',
@@ -443,7 +445,6 @@ test('the owner sees every act on every card but their own', async () => {
 		'lock-out'
 	]);
 	expect(await actsOn('sami')).toEqual([
-		'rename',
 		'edit',
 		'link',
 		'unset-password',
@@ -473,7 +474,7 @@ test('the owner card offers the owner the transfer alone', async () => {
 	list();
 
 	expect(await actsOn('owner')).toEqual(['transfer']);
-	expect(on('transfer', 'owner')).toBeNull();
+	expect(on('transfer')).toBeNull();
 });
 
 // criterion 22: the act is on the owner's own card and on nobody else's.
@@ -488,15 +489,12 @@ test('the transfer is on the owner own card and on no other', async () => {
 // offer, and the owner's card is where it is seen and taken back. The offer and the withdrawal are
 // never on the card together, because there is one offer at a time and Rust refuses a second.
 test('the owner card offers the withdrawal in the offer place while an offer stands', async () => {
-	const withdrawn: string[] = [];
-
 	list({
 		members: [
 			member({ id: 'owner', username: 'olivia', role: 'owner' }),
 			member({ id: 'ada', username: 'ada', role: 'administrator', offeredOwnership: true }),
 			member({ id: 'sami', username: 'sami' })
-		],
-		onWithdrawOffer: () => withdrawn.push('yes')
+		]
 	});
 
 	expect(await actsOn('owner')).toEqual(['withdraw-offer']);
@@ -505,7 +503,9 @@ test('the owner card offers the withdrawal in the offer place while an offer sta
 
 	// it asks nothing: nothing is unsealed and what is undone is something this person did, so it
 	// runs on the press rather than opening a surface.
-	expect(withdrawn).toEqual(['yes']);
+	await waitFor(() => {
+		expect(written('useWithdrawOffer')).toHaveLength(1);
+	});
 	expect(surface()).toBeNull();
 });
 
@@ -585,16 +585,30 @@ test('an owner who is the only account meets no handover', async () => {
 // [[rules/interface]], *Validation errors*: the shell refuses a password that does not open the
 // owner's vault, so that is the field the sentence belongs to and the surface stays open.
 test('a refused offer marks the password and the surface stays open', async () => {
-	list({ offerRefusal: 'that value did not open' });
+	hostAnswers.refusals.useOfferOwnership = new Error('that value did not open');
+	list();
 
 	await press('owner', 'transfer');
+	await openSelect(document.querySelector<HTMLElement>('#transfer-ownership-account')!);
+	await chooseOption(
+		Array.from(document.querySelectorAll<HTMLElement>('[data-slot=select-item]')).find(
+			(item) => item.textContent?.trim() === 'ada'
+		)!
+	);
 
 	const password = document.querySelector<HTMLInputElement>(
 		'[data-transfer-ownership-form] input[type=password]'
-	);
+	)!;
 
-	expect(password?.getAttribute('aria-invalid')).toBe('true');
+	await fireEvent.input(password, { target: { value: 'not the one' } });
+	await fireEvent.submit(password.closest('form')!);
+
+	await waitFor(() => {
+		expect(password.getAttribute('aria-invalid')).toBe('true');
+	});
+	expect(written('useOfferOwnership')).toEqual([{ memberId: 'ada', password: 'not the one' }]);
 	expect(screen.getByText('that value did not open')).toBeDefined();
+	expect(surface()).not.toBeNull();
 });
 
 // the same rule on a card that is not the owner's: an administrator reading their own card is
@@ -656,7 +670,8 @@ test('each act is drawn by its own act and by no other', async () => {
 	await only({ canChangeRole: true }, 'ada', ['edit']);
 	await only({ canGrantWorkspace: true }, 'ada', ['edit']);
 	await only({ canChangeRole: true, canGrantWorkspace: true }, 'ada', ['edit']);
-	await only({ canRename: true }, 'ada', ['rename']);
+	// the name is part of the one edit (effort 832, requirement 6), so renaming draws it too.
+	await only({ canRename: true }, 'ada', ['edit']);
 	// unsetting a password and closing the ways in that are already open are one act read twice,
 	// and the link follows `resetPassword` as well as `inviteMember`, the way Rust and the router
 	// admit it: a reset is a fresh way in, and whoever hands one out hands out the link that
@@ -693,7 +708,7 @@ test('the link act is offered whatever the standing says, and the line stays a f
 
 	const entry = await openTo('sami', 'link');
 
-	expect(entry?.textContent?.trim()).toBe(en.organization.dashboard.makeLink);
+	expect(entry?.textContent?.trim()).toBe(toTitleCase(en.organization.dashboard.makeLink));
 	expect(document.querySelector('[data-member-copy-link]')).toBeNull();
 	expect(document.querySelector('[data-member-code]')).toBeNull();
 	open.unmount();
@@ -724,7 +739,7 @@ test('the link act is offered whatever the standing says, and the line stays a f
 	expect(card('ada')?.querySelector('[data-member-standing]')).toBeNull();
 	expect(await actsOn('ada')).toContain('link');
 	expect(await actsOn('sami')).toContain('link');
-	expect(await actsOn('ada')).toContain('rename');
+	expect(await actsOn('ada')).toContain('edit');
 	loading.unmount();
 });
 
@@ -732,9 +747,7 @@ test('the link act is offered whatever the standing says, and the line stays a f
 // never on the owner's card or the reader's own. The press reaches the route, which is where the
 // mutation is.
 test('signing a member out of every machine is offered behind reset password, and never on the owner', async () => {
-	const asked: string[] = [];
-
-	list({ selfId: 'ada', isOwner: false, onEndSessions: (memberId) => asked.push(memberId) });
+	list({ selfId: 'ada', isOwner: false });
 
 	expect(await actsOn('owner')).not.toContain('end-sessions');
 	expect(await actsOn('ada')).not.toContain('end-sessions');
@@ -742,35 +755,42 @@ test('signing a member out of every machine is offered behind reset password, an
 
 	const entry = await openTo('sami', 'end-sessions');
 
-	expect(entry?.textContent?.trim()).toBe(en.organization.dashboard.endSessions);
+	expect(entry?.textContent?.trim()).toBe(toTitleCase(en.organization.dashboard.endSessions));
 
 	await fireEvent.click(entry!);
 
-	expect(asked).toEqual(['sami']);
+	await waitFor(() => {
+		expect(written('useEndMemberSessions')).toEqual([{ memberId: 'sami' }]);
+	});
 });
 
 test('a card hands its own account to the link, the reset and the removals', async () => {
-	const linked: string[] = [];
-	const unset: string[] = [];
-	const removed: string[] = [];
-	const lockedOut: string[] = [];
-
-	list({
-		onMakeLink: (memberId) => linked.push(memberId),
-		onUnsetPassword: (memberId) => unset.push(memberId),
-		onRemove: (memberId) => removed.push(memberId),
-		onLockOut: (memberId) => lockedOut.push(memberId)
-	});
+	list();
 
 	await press('sami', 'link');
-	await press('sami', 'unset-password');
-	await press('sami', 'remove');
-	await press('sami', 'lock-out');
+	await waitFor(() => {
+		expect(written('useMakeMemberLink')).toEqual([{ memberId: 'sami' }]);
+	});
+	// the link is shown once, on the one panel the shell holds for it.
+	await waitFor(() => {
+		expect(organizationDialog.madeLink?.code).toBe('ABC234');
+	});
 
-	expect(linked).toEqual(['sami']);
-	expect(unset).toEqual(['sami']);
-	expect(removed).toEqual(['sami']);
-	expect(lockedOut).toEqual(['sami']);
+	await press('sami', 'unset-password');
+	await waitFor(() => {
+		expect(written('useUnsetMemberPassword')).toEqual([{ memberId: 'sami' }]);
+	});
+
+	// the removals ask first, at the speed the entry named, and write nothing until answered.
+	await press('sami', 'remove');
+	expect(removing()?.record.member.id).toBe('sami');
+	expect(removing()?.lockOut).toBe(false);
+	organizationHostState.member.removing = null;
+
+	await press('sami', 'lock-out');
+	expect(removing()?.record.member.id).toBe('sami');
+	expect(removing()?.lockOut).toBe(true);
+	expect(written('useRemoveMember')).toEqual([]);
 });
 
 // the human's first look: the menu's words are one or two apiece, and the sentence that explains
@@ -783,19 +803,19 @@ test('every act on the menu reads as one or two plain words', async () => {
 
 	const said: Record<string, string> = Object.fromEntries(
 		[...document.querySelectorAll('[data-slot=dropdown-menu-item]')].map((item) => [
-			KINDS.find((kind) => item.hasAttribute(`data-member-${kind}`)) ?? '?',
+			kindOf(item) ?? '?',
 			item.textContent?.trim() ?? ''
 		])
 	);
 
+	// one verb per act (effort 832, requirement 6): the edit, and no rename beside it.
 	expect(said).toEqual({
-		rename: en.organization.dashboard.rename,
-		edit: en.common.actions.edit,
-		link: en.organization.dashboard.makeLink,
-		'unset-password': en.organization.dashboard.unsetPassword,
-		'end-sessions': en.organization.dashboard.endSessions,
-		remove: en.organization.dashboard.remove,
-		'lock-out': en.organization.dashboard.lockOut
+		edit: toTitleCase(en.common.actions.edit),
+		link: toTitleCase(en.organization.dashboard.makeLink),
+		'unset-password': toTitleCase(en.organization.dashboard.unsetPassword),
+		'end-sessions': toTitleCase(en.organization.dashboard.endSessions),
+		remove: toTitleCase(en.organization.dashboard.remove),
+		'lock-out': toTitleCase(en.organization.dashboard.lockOut)
 	});
 
 	for (const [kind, words] of Object.entries(said)) {
@@ -812,9 +832,9 @@ test('the two acts that destroy something are marked', async () => {
 
 	await fireEvent.click(control('sami')!);
 
-	expect(on('remove', 'sami')?.getAttribute('data-variant')).toBe('destructive');
-	expect(on('lock-out', 'sami')?.getAttribute('data-variant')).toBe('destructive');
-	expect(on('rename', 'sami')?.getAttribute('data-variant')).toBe('default');
+	expect(on('remove')?.getAttribute('data-variant')).toBe('destructive');
+	expect(on('lock-out')?.getAttribute('data-variant')).toBe('destructive');
+	expect(on('edit')?.getAttribute('data-variant')).toBe('default');
 });
 
 // requirement 19, corrected: an account is made from the tray above the cards rather than from
@@ -831,6 +851,9 @@ test('the add control stands in the tray before the first card and asks the shel
 	expect(opener.querySelector('svg')).not.toBeNull();
 	expect(opener.textContent?.trim()).toBe('');
 	expect(opener.compareDocumentPosition(first) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+	// the one create control, in the position every set gives it (effort 832, criterion 9(a)).
+	expect(opener.hasAttribute('data-create-control')).toBe(true);
+	expectCreateControlLast();
 	expect(organizationDialog.open).toBeNull();
 	await fireEvent.click(opener);
 	expect(organizationDialog.open).toBe('account');
@@ -855,7 +878,7 @@ test('the edit act opens the sheet on the member it named, with its three sectio
 		Array.from(document.querySelectorAll('[data-sheet-section]')).map((block) =>
 			block.getAttribute('data-sheet-section')
 		)
-	).toEqual(['role', 'acts', 'workspaces']);
+	).toEqual(['name', 'role', 'acts', 'workspaces']);
 	// the workspaces the member holds, as rows of the sheet rather than a second surface.
 	expect(
 		Array.from(document.querySelectorAll('[data-access-row]')).map((row) =>
@@ -868,17 +891,7 @@ test('the edit act opens the sheet on the member it named, with its three sectio
 
 // criterion 23: one save runs the acts that exist, each with what was chosen on it.
 test('one save writes the role, the widening and the grants through the acts that exist', async () => {
-	const roles: string[] = [];
-	const grants: string[] = [];
-
-	list({
-		onChangeRole: async (memberId, role, permissions) => {
-			roles.push(`${memberId}:${role}:${permissions}`);
-		},
-		onChangeAccess: async (memberId, changes) => {
-			grants.push(`${memberId}:${changes.map((change) => `${change.id}=${change.access}`).join()}`);
-		}
-	});
+	list();
 
 	await press('sami', 'edit');
 
@@ -891,18 +904,23 @@ test('one save writes the role, the widening and the grants through the acts tha
 		)!
 	);
 	await fireEvent.click(document.querySelector<HTMLButtonElement>('[data-act-allow]')!);
-	await openSelect(document.querySelector<HTMLElement>('#access-ws-2')!);
-	await chooseOption(
-		document
-			.querySelector('[data-level-does="full-access"]')!
-			.closest('[data-slot=select-item]') as HTMLElement
+	await fireEvent.click(
+		document.querySelector<HTMLElement>('#access-ws-2 [data-level="full-access"]')!
 	);
 	await fireEvent.submit(document.querySelector('form')!);
 
 	await waitFor(() => {
-		expect(roles).toEqual([`sami:member:${maskOf('renameMember')}`]);
+		expect(written('useChangeRole')).toEqual([
+			{ memberId: 'sami', role: 'member', permissions: maskOf('renameMember') }
+		]);
 	});
-	expect(grants).toEqual(['sami:ws-2=full-access']);
+	await waitFor(() => {
+		expect(written('useChangeAccess')).toEqual([
+			{ changes: [{ workspaceId: 'ws-2', memberId: 'sami', access: 'full-access' }] }
+		]);
+	});
+	// the name was left as it was, so it was not written.
+	expect(written('useRenameMember')).toEqual([]);
 	// nothing was refused, so the sheet closed on what it wrote.
 	await waitFor(() => {
 		expect(surface()).toBeNull();
@@ -912,19 +930,13 @@ test('one save writes the role, the widening and the grants through the acts tha
 // [[rules/interface]], *Validation errors*: what an act refuses is said on the section that asked
 // for it, and the sheet stays open on what was chosen.
 test('a refused act marks its own section and leaves the sheet open', async () => {
-	list({
-		onChangeAccess: async () => {
-			throw new Error('that workspace is not yours to grant');
-		}
-	});
+	hostAnswers.refusals.useChangeAccess = new Error('that workspace is not yours to grant');
+	list();
 
 	await press('sami', 'edit');
 
-	await openSelect(document.querySelector<HTMLElement>('#access-ws-2')!);
-	await chooseOption(
-		document
-			.querySelector('[data-level-does="full-access"]')!
-			.closest('[data-slot=select-item]') as HTMLElement
+	await fireEvent.click(
+		document.querySelector<HTMLElement>('#access-ws-2 [data-level="full-access"]')!
 	);
 	await fireEvent.submit(document.querySelector('form')!);
 
@@ -1002,39 +1014,53 @@ test('the role table is offered to a reader who may change nothing', () => {
 	expect(document.querySelector('[data-role-table-open]')).not.toBeNull();
 });
 
-test('the rename opens a light form surface with one username field, opened on the name the card holds', async () => {
-	list();
+// effort 832, requirement 6: the name is the one edit's first section, opened on the name the
+// card holds, and a reader who may only rename meets that section alone.
+test('the edit opens the name on the sheet, and a reader holding only renameMember meets that alone', async () => {
+	const everything = list();
 
-	await press('ada', 'rename');
+	await press('ada', 'edit');
 
-	expect(surface()).not.toBeNull();
-	// light: the centred panel, which the surface draws as a translated box rather than an edge
-	// sheet.
-	expect(surface()?.className).toContain('-translate-x-1/2');
-	expect(screen.getByText(en.organization.dashboard.renameDescription)).toBeDefined();
-	expect(
-		Array.from(surface()!.querySelectorAll('input')).map((input) => input.getAttribute('name'))
-	).toEqual(['username']);
 	expect(usernameInput()?.value).toBe('ada');
+	expect(screen.getByText(en.organization.dashboard.renameDescription)).toBeDefined();
+	everything.unmount();
+	resetOrganizationHost();
+
+	list({
+		canInvite: false,
+		canRemove: false,
+		canLockOut: false,
+		canReset: false,
+		canChangeRole: false,
+		canGrantWorkspace: false,
+		isOwner: false,
+		selfId: 'sami'
+	});
+
+	await press('ada', 'edit');
+
+	expect(
+		Array.from(document.querySelectorAll('[data-sheet-section]')).map((block) =>
+			block.getAttribute('data-sheet-section')
+		)
+	).toEqual(['name']);
 });
 
-// criterion 23 of effort 824: a username outside the rules is refused on the field with the one
-// sentence, and the sentence is Rust's own.
-test('a username outside the rules is refused with the sentence rust refuses it with', async () => {
+test('a new name is written through the rename, and what Rust refuses marks the name', async () => {
+	hostAnswers.refusals.useRenameMember = new Error('that username is taken');
 	list();
 
-	await press('ada', 'rename');
-
-	const input = usernameInput()!;
-
-	await fireEvent.input(input, { target: { value: 'ad' } });
-	await fireEvent.focusOut(input);
+	await press('ada', 'edit');
+	await fireEvent.input(usernameInput()!, { target: { value: 'ada.l' } });
+	await fireEvent.submit(usernameInput()!.closest('form')!);
 
 	await waitFor(() => {
-		expect(screen.getByRole('alert').textContent).toBe(en.organization.dashboard.usernameRules);
+		expect(document.querySelector('[data-sheet-error="name"]')?.textContent?.trim()).toBe(
+			'that username is taken'
+		);
 	});
-	expect(input.getAttribute('aria-invalid')).toBe('true');
-	expect(en.organization.dashboard.usernameRules).toBe(rustUsernameRules());
+	expect(written('useRenameMember')).toEqual([{ memberId: 'ada', username: 'ada.l' }]);
+	expect(surface()).not.toBeNull();
 });
 
 test('and in arabic every card reads in its own words, right to left', async () => {
@@ -1072,9 +1098,128 @@ test('and in arabic every card reads in its own words, right to left', async () 
 	const lockOut = await openTo('ada', 'lock-out');
 
 	expect(lockOut?.textContent?.trim()).toBe(ar.organization.dashboard.lockOut);
-	expect(on('remove', 'ada')?.textContent?.trim()).toBe(ar.organization.dashboard.remove);
-	expect(on('edit', 'ada')?.textContent?.trim()).toBe(ar.common.actions.edit);
+	expect(on('remove')?.textContent?.trim()).toBe(ar.organization.dashboard.remove);
+	expect(on('edit')?.textContent?.trim()).toBe(ar.common.actions.edit);
 	expect(ar.organization.dashboard.remove).not.toBe(ar.organization.dashboard.lockOut);
 
 	setLocale('en');
+});
+
+// --- Search and order (effort 832, requirement 7) ------------------------------------------------
+
+/** the members the directory is showing, by id, in the order it shows them. */
+const shownMembers = () =>
+	Array.from(document.querySelectorAll('[data-member]')).map((held) =>
+		held.getAttribute('data-member')
+	);
+
+/** choose one of the orders the list shell's sort control offers. */
+const orderBy = async (label: string) => {
+	// named for the order it holds once one is chosen, so it is found by the words it starts with.
+	await fireEvent.click(
+		screen.getByRole('button', { name: new RegExp(`^${en.common.actions.sortBy}`) })
+	);
+
+	const item = Array.from(document.querySelectorAll('[data-slot=dropdown-menu-item]')).find(
+		(entry) => entry.textContent?.trim() === label
+	);
+
+	await fireEvent.click(item!);
+};
+
+// criterion 7(a): the directory searches with the list shell's field, so it leads with the glass.
+test('the directory is searched from the list shell’s own bar, glass first', () => {
+	list();
+
+	const tray = document.querySelector('[data-directory-tray]')!;
+
+	expect(searchGlass()).not.toBeNull();
+	expect(tray.querySelector('[data-list-toolbar]')).not.toBeNull();
+	expect(tray.contains(searchField())).toBe(true);
+});
+
+test('a term narrows the cards only once the reader stops typing', async () => {
+	list();
+
+	await typeSearch('ada');
+	await insideTheWait();
+	expect(shownMembers()).toEqual(['owner', 'ada', 'sami']);
+
+	await pastTheWait();
+	expect(shownMembers()).toEqual(['ada']);
+	expect(document.querySelector('[data-list-count]')?.textContent?.trim()).toBe('1 result');
+});
+
+test('the search key puts the cursor in the directory’s field', async () => {
+	list();
+
+	await pressSearchKey();
+
+	expect(document.activeElement).toBe(searchField());
+});
+
+test('a member is found by what their role is called', async () => {
+	list();
+
+	await typeSearch(en.layout.signIn.roleAdministrator);
+	await pastTheWait();
+
+	expect(shownMembers()).toEqual(['ada']);
+});
+
+test('a search that finds nobody says so, in the list shell’s words', async () => {
+	list();
+
+	await typeSearch('nobody-here');
+	await pastTheWait();
+
+	expect(shownMembers()).toEqual([]);
+	const noMatch = document.querySelector('[data-directory-no-match]');
+
+	expect(noMatch?.querySelector('[data-empty]')?.getAttribute('data-empty')).toBe('no-match');
+	expect(noMatch?.textContent).toContain(en.common.messages.noMatch);
+	expect(noMatch?.textContent).toContain(en.common.actions.clearSearch);
+});
+
+test('the directory is ordered by username, then back the other way', async () => {
+	list();
+
+	await orderBy(en.organization.dashboard.username);
+	expect(shownMembers()).toEqual(['ada', 'owner', 'sami']);
+
+	await orderBy(en.organization.dashboard.username);
+	expect(shownMembers()).toEqual(['sami', 'owner', 'ada']);
+});
+
+test('the directory is ordered by role, the most authority first', async () => {
+	list({ members: [members[2], members[1], members[0]] });
+
+	await orderBy(en.organization.dashboard.role);
+
+	expect(shownMembers()).toEqual(['owner', 'ada', 'sami']);
+});
+
+// the settings directories offer nothing to export: a dozen accounts are not a file anybody wants.
+test('the directory offers no transfer of its records', () => {
+	list();
+
+	expect(screen.queryByRole('button', { name: en.common.actions.transferData })).toBeNull();
+});
+
+// ticket 30 of effort 832: the tray orders its controls as the list shell's bar does, so what reads
+// the set (the role table) stands before the order and the create is last; and the sentence under
+// the legend is muted like every other description.
+test('the tray orders search, count, what reads the set, sort and create as the list shell does', () => {
+	list();
+
+	expectBarOrder([
+		BAR_CONTROL.search,
+		BAR_CONTROL.count,
+		'[data-role-table-open]',
+		BAR_CONTROL.sort,
+		BAR_CONTROL.create
+	]);
+	expect(document.querySelector('[data-directory-description]')?.className).toContain(
+		'text-muted-foreground'
+	);
 });

@@ -1,30 +1,21 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { page } from '$app/state';
 	import type api from '$lib/api/caller';
+	import { COMPLEX_SORT_COLUMN_IDS, type ComplexSortColumnId } from '$lib/complex/complex';
+	import { complexActs, complexHost } from '$lib/complex/host.svelte';
 	import {
-		COMPLEX_SORT_COLUMN_IDS,
-		isComplexDeletable,
-		type ComplexSortColumnId
-	} from '$lib/complex/complex';
-	import {
-		useDeleteComplex,
 		useDeleteManyComplexes,
-		useFetchUnits,
 		useListComplexes,
 		usePlanManyComplexes,
 		type ComplexRefusalReason
 	} from '$lib/complex/query';
-	import DeleteDialog from '@rentable/design/block/delete-dialog.svelte';
 	import List from '$lib/design/block/list.svelte';
 	import { toNarrowedName } from '@rentable/design/csv.js';
 	import RecordActionControl from '@rentable/design/block/record-action-control.svelte';
-	import RecordCard, { type RecordCardAction } from '@rentable/design/block/record-card.svelte';
+	import RecordCard from '@rentable/design/block/record-card.svelte';
 	import SelectionDialog from '@rentable/design/block/selection-dialog.svelte';
+	import { toCardActions } from '$lib/design/acts';
 	import * as Cell from '$lib/design/cell';
-	import { AWAITING_BLOCKERS } from '@rentable/design/confirmation.js';
-	import { hasCreateIntent } from '@rentable/design/create-intent.js';
 	import {
 		describeRefusals,
 		foreseenRefusals,
@@ -35,12 +26,11 @@
 	import DirectoryImportDialog from '$lib/workspace/component/directory-import-dialog.svelte';
 	import { useImportRecords } from '$lib/workspace/query';
 	import { toTransferInput } from '$lib/workspace/workspace';
-	import SquarePenIcon from '@lucide/svelte/icons/square-pen';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
-	import CircleDashedIcon from '@tabler/icons-svelte/icons/circle-dashed';
-	import CircleFilledIcon from '@tabler/icons-svelte/icons/circle-filled';
-	import LayoutGridIcon from '@tabler/icons-svelte/icons/layout-grid';
-	import ComplexForm from './form.svelte';
+	// the counts of occupied and vacant units wear the glyphs the unit's own status wears, so a
+	// count and the status it counts read as the same mark.
+	import { statusGlyphs } from '$lib/design/cell/status.svelte';
+	import LayoutGridIcon from '@lucide/svelte/icons/layout-grid';
 
 	type ComplexRecord = Awaited<ReturnType<typeof api.complex.getMany>>[number];
 
@@ -50,11 +40,6 @@
 
 	let search = $state('');
 	let sort = $state<ListSort | null>(null);
-	let isComplexFormOpen = $state(false);
-	let formOpensOn = $state<ComplexRecord | undefined>(undefined);
-	// the one record a card's menu is acting on, which is what makes a single confirmation and a
-	// single read of what blocks it enough for a whole directory.
-	let deleteOpensOn = $state<ComplexRecord | null>(null);
 	let importDialog = $state<ReturnType<typeof DirectoryImportDialog> | undefined>(undefined);
 	// the records the reader has picked out, and the set a control was reached for with. The two
 	// are separate because the selection stays live behind the confirmation, and an action that
@@ -67,7 +52,6 @@
 		() => sort
 	);
 	const complexes = $derived(complexesQuery.data ?? []);
-	const deleteMutation = useDeleteComplex();
 	const deleteManyMutation = useDeleteManyComplexes();
 	const importMutation = useImportRecords();
 
@@ -99,60 +83,6 @@
 		} satisfies Record<ComplexRefusalReason, (count: number) => string>)
 	);
 
-	// what a deletion would be refused for, read for the record being acted on and only while it
-	// is being acted on. The row carries a unit count, and the rule is the domain's to apply —
-	// judging it on the figure here would state the same rule a second time, outside the module
-	// that owns it.
-	const heldUnitsQuery = useFetchUnits(
-		() => deleteOpensOn?.id ?? '',
-		() => deleteOpensOn !== null
-	);
-	const deleteBlockers = $derived.by(() => {
-		if (!deleteOpensOn) {
-			return [];
-		}
-
-		if (heldUnitsQuery.isPending) {
-			return AWAITING_BLOCKERS;
-		}
-
-		const held = heldUnitsQuery.data ?? [];
-
-		return isComplexDeletable(held)
-			? []
-			: [$LL.common.deleteDialog.blockedUnits({ count: held.length })];
-	});
-
-	// what the record's own page offers, minus opening it. No duplicate: a complex is its name and
-	// its location, both unique to it, so the copy would carry nothing.
-	const cardActions = (complex: ComplexRecord): RecordCardAction[] => [
-		{
-			label: $LL.common.actions.edit(),
-			icon: SquarePenIcon,
-			onSelect: () => {
-				formOpensOn = complex;
-				isComplexFormOpen = true;
-			}
-		},
-		{
-			label: $LL.common.actions.delete(),
-			icon: Trash2Icon,
-			variant: 'destructive',
-			onSelect: () => {
-				deleteOpensOn = complex;
-			}
-		}
-	];
-
-	async function deleteComplex() {
-		if (!deleteOpensOn) {
-			return;
-		}
-
-		await deleteMutation.mutateAsync(deleteOpensOn.id);
-		deleteOpensOn = null;
-	}
-
 	/**
 	 * Delete the set the reader agreed to.
 	 *
@@ -182,18 +112,6 @@
 		};
 
 		return COMPLEX_SORT_COLUMN_IDS.map((id) => ({ id, label: labels[id] }));
-	});
-
-	// the intent is consumed on arrival and cleared from the URL, so a reload or a back
-	// navigation does not reopen a form the user has already dismissed.
-	$effect(() => {
-		if (!hasCreateIntent(page.url)) {
-			return;
-		}
-
-		formOpensOn = undefined;
-		isComplexFormOpen = true;
-		void goto(resolve('/complexes'), { replaceState: true, noScroll: true, keepFocus: true });
 	});
 </script>
 
@@ -236,10 +154,10 @@
 		]
 	}}
 	onImport={() => void importDialog?.choose()}
-	onCreate={() => {
-		formOpensOn = undefined;
-		isComplexFormOpen = true;
-	}}
+	onCreate={() => complexHost.create()}
+	createLabel={$LL.common.actions.newComplex()}
+	emptyTitle={$LL.complexes.empty.title()}
+	emptyDescription={$LL.complexes.empty.description()}
 >
 	{#snippet record(complex: ComplexRecord)}
 		<!-- occupancy is not on the query: a unit is occupied or vacant, so the third figure is
@@ -248,13 +166,13 @@
 		<RecordCard
 			href={resolve(`/complexes/${complex.id}`)}
 			label={complex.name}
-			actions={cardActions(complex)}
+			actions={toCardActions(complexActs, complex, $LL)}
 			class="gap-4"
 		>
 			{#snippet content()}
 				<span class="pointer-events-none relative flex min-w-0 flex-1 flex-col gap-0.5 text-start">
-					<span class="truncate text-sm font-medium">{complex.name}</span>
-					<span class="truncate text-xs text-muted-foreground">{complex.location}</span>
+					<Cell.Text class="truncate text-sm font-medium" text={complex.name} />
+					<Cell.Text class="truncate text-xs text-muted-foreground" text={complex.location} />
 				</span>
 
 				<span class="pointer-events-none relative flex shrink-0 items-center gap-4">
@@ -265,14 +183,14 @@
 					/>
 
 					<Cell.Count
-						icon={CircleFilledIcon}
+						icon={statusGlyphs.occupied}
 						count={occupiedUnitCount}
 						label={$LL.common.labels.occupiedUnits()}
 						tone={occupiedUnitCount > 0 ? 'running' : 'settled'}
 					/>
 
 					<Cell.Count
-						icon={CircleDashedIcon}
+						icon={statusGlyphs.vacant}
 						count={complex.vacantUnitCount}
 						label={$LL.common.labels.vacantUnits()}
 					/>
@@ -302,26 +220,6 @@
 		onSubmit={deleteSelected}
 	/>
 {/if}
-
-<ComplexForm
-	open={isComplexFormOpen}
-	onOpenChange={(isOpen) => {
-		isComplexFormOpen = isOpen;
-	}}
-	value={formOpensOn}
-/>
-
-<DeleteDialog
-	open={deleteOpensOn !== null}
-	onOpenChange={(isOpen) => {
-		if (!isOpen) {
-			deleteOpensOn = null;
-		}
-	}}
-	record={deleteOpensOn?.name}
-	blockers={deleteBlockers}
-	onSubmit={deleteComplex}
-/>
 
 <!-- the file the export wrote, coming back in. What a file of complexes is — which columns, what
      makes two rows one record — is declared once for the whole transfer and read from there

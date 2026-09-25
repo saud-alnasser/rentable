@@ -26,7 +26,7 @@ use std::collections::HashMap;
 
 use crate::{
     diagnostics,
-    error::Error,
+    error::{Error, RefusalReason},
     sync::turso::platform::{AccessLevel, DeletionIntent, TursoPlatform},
 };
 
@@ -72,8 +72,11 @@ pub async fn signer_of(
                 && certificate.signing_public_key == key.verifying_key()
                 && certificate.revoked_at.is_none()
         })
-        .ok_or_else(|| Error::Forbidden {
-            message: "you hold no administrator certificate in this organization".to_string(),
+        .ok_or_else(|| {
+            Error::refused(
+                RefusalReason::NotAdministrator,
+                "you hold no administrator certificate in this organization",
+            )
         })?;
 
     Ok((key, certificate))
@@ -98,9 +101,10 @@ pub async fn create_workspace<P: TursoPlatform>(
     let name = name.trim();
 
     if name.is_empty() {
-        return Err(Error::InvalidInput {
-            message: "the workspace needs a name".to_string(),
-        });
+        return Err(Error::refused(
+            RefusalReason::WorkspaceNameMissing,
+            "the workspace needs a name",
+        ));
     }
 
     let (key, certificate) = signer_of(store, session).await?;
@@ -271,15 +275,21 @@ pub async fn grant_workspace<P: TursoPlatform>(
     let member = members
         .iter()
         .find(|member| member.id == member_id)
-        .ok_or_else(|| Error::NotFound {
-            message: "that member is not in this organization".to_string(),
+        .ok_or_else(|| {
+            Error::refused(
+                RefusalReason::MemberMissing,
+                "that member is not in this organization",
+            )
         })?;
     let workspaces = store.workspaces(&session.verifying_key).await?;
     let workspace = workspaces
         .iter()
         .find(|workspace| workspace.id == workspace_id)
-        .ok_or_else(|| Error::NotFound {
-            message: "that workspace is not in this organization".to_string(),
+        .ok_or_else(|| {
+            Error::refused(
+                RefusalReason::WorkspaceMissing,
+                "that workspace is not in this organization",
+            )
         })?;
 
     let credential = match access {
@@ -288,14 +298,18 @@ pub async fn grant_workspace<P: TursoPlatform>(
             .get(workspace_id)
             .filter(|held| held.access == AccessLevel::FullAccess)
             .map(|held| held.token.clone())
-            .ok_or_else(|| Error::Forbidden {
-                message: "you can grant only a workspace you hold full access to yourself"
-                    .to_string(),
+            .ok_or_else(|| {
+                Error::refused(
+                    RefusalReason::GrantBeyondOwn,
+                    "you can grant only a workspace you hold full access to yourself",
+                )
             })?,
         AccessLevel::ReadOnly => {
-            let platform = platform.ok_or_else(|| Error::Forbidden {
-                message: "a read-only grant is minted on the owner's machine. ask the owner"
-                    .to_string(),
+            let platform = platform.ok_or_else(|| {
+                Error::refused(
+                    RefusalReason::OwnerMachineOnly,
+                    "a read-only grant is minted on the owner's machine. ask the owner",
+                )
             })?;
 
             platform
@@ -366,15 +380,18 @@ pub async fn withdraw_grant(
     let member = members
         .iter()
         .find(|member| member.id == member_id)
-        .ok_or_else(|| Error::NotFound {
-            message: "that member is not in this organization".to_string(),
+        .ok_or_else(|| {
+            Error::refused(
+                RefusalReason::MemberMissing,
+                "that member is not in this organization",
+            )
         })?;
 
     if member.role == permission::OWNER {
-        return Err(Error::Forbidden {
-            message: "an owner's own workspace is not withdrawn. the organization is theirs"
-                .to_string(),
-        });
+        return Err(Error::refused(
+            RefusalReason::OwnerProtected,
+            "an owner's own workspace is not withdrawn. the organization is theirs",
+        ));
     }
 
     let held = store
@@ -384,9 +401,10 @@ pub async fn withdraw_grant(
         .any(|grant| grant.member_id == member_id && grant.workspace_id == workspace_id);
 
     if !held {
-        return Err(Error::NotFound {
-            message: "that member holds no grant on that workspace".to_string(),
-        });
+        return Err(Error::refused(
+            RefusalReason::GrantMissing,
+            "that member holds no grant on that workspace",
+        ));
     }
 
     store.delete_grant(member_id, workspace_id).await?;
@@ -420,8 +438,11 @@ pub async fn delete_workspace<P: TursoPlatform>(
     let workspace = workspaces
         .iter()
         .find(|workspace| workspace.id == workspace_id)
-        .ok_or_else(|| Error::NotFound {
-            message: "that workspace is not in this organization".to_string(),
+        .ok_or_else(|| {
+            Error::refused(
+                RefusalReason::WorkspaceMissing,
+                "that workspace is not in this organization",
+            )
         })?;
 
     platform
@@ -462,9 +483,10 @@ pub async fn rename_workspace(
     let name = name.trim();
 
     if name.is_empty() {
-        return Err(Error::InvalidInput {
-            message: "the workspace needs a name".to_string(),
-        });
+        return Err(Error::refused(
+            RefusalReason::WorkspaceNameMissing,
+            "the workspace needs a name",
+        ));
     }
 
     if !store
@@ -473,9 +495,10 @@ pub async fn rename_workspace(
         .iter()
         .any(|workspace| workspace.id == workspace_id)
     {
-        return Err(Error::NotFound {
-            message: "that workspace is not in this organization".to_string(),
-        });
+        return Err(Error::refused(
+            RefusalReason::WorkspaceMissing,
+            "that workspace is not in this organization",
+        ));
     }
 
     store
@@ -675,9 +698,10 @@ fn require_owner(session: &MemberSession, what: &str) -> Result<(), Error> {
     if session.role == permission::OWNER {
         Ok(())
     } else {
-        Err(Error::Forbidden {
-            message: format!("only an owner can {what}. ask the owner"),
-        })
+        Err(Error::refused(
+            RefusalReason::OwnerOnly,
+            format!("only an owner can {what}. ask the owner"),
+        ))
     }
 }
 
@@ -1165,7 +1189,16 @@ mod tests {
             .await
             .expect_err("the owner's own grant was withdrawn");
 
-        assert!(matches!(theirs, Error::Forbidden { .. }), "{theirs:?}");
+        assert!(
+            matches!(
+                theirs,
+                Error::Refused {
+                    reason: crate::error::RefusalReason::OwnerProtected,
+                    ..
+                }
+            ),
+            "{theirs:?}"
+        );
         assert!(theirs.to_string().contains("owner"), "{theirs}");
 
         // and a grant nobody holds is not found.
@@ -1173,7 +1206,16 @@ mod tests {
             .await
             .expect_err("a grant nobody holds was withdrawn");
 
-        assert!(matches!(missing, Error::NotFound { .. }), "{missing:?}");
+        assert!(
+            matches!(
+                missing,
+                Error::Refused {
+                    reason: crate::error::RefusalReason::GrantMissing,
+                    ..
+                }
+            ),
+            "{missing:?}"
+        );
         assert_eq!(every_row(&store).await, before, "a refusal wrote something");
 
         let minted_before = platform.minted().len();
@@ -1243,7 +1285,13 @@ mod tests {
         .expect_err("a member created a workspace");
 
         assert!(
-            matches!(refusal, crate::error::Error::Forbidden { .. }),
+            matches!(
+                refusal,
+                crate::error::Error::Refused {
+                    reason: crate::error::RefusalReason::OwnerOnly,
+                    ..
+                }
+            ),
             "{refusal:?}"
         );
         assert!(refusal.to_string().contains("ask the owner"), "{refusal}");
@@ -1269,7 +1317,13 @@ mod tests {
             .expect_err("a member deleted a workspace");
 
         assert!(
-            matches!(refusal, crate::error::Error::Forbidden { .. }),
+            matches!(
+                refusal,
+                crate::error::Error::Refused {
+                    reason: crate::error::RefusalReason::OwnerOnly,
+                    ..
+                }
+            ),
             "{refusal:?}"
         );
         assert!(platform.deleted().is_empty(), "a database was deleted");
@@ -1329,7 +1383,13 @@ mod tests {
         .expect_err("an administrator created a workspace");
 
         assert!(
-            matches!(refusal, crate::error::Error::Forbidden { .. }),
+            matches!(
+                refusal,
+                crate::error::Error::Refused {
+                    reason: crate::error::RefusalReason::OwnerOnly,
+                    ..
+                }
+            ),
             "{refusal:?}"
         );
         assert!(refusal.to_string().contains("ask the owner"), "{refusal}");
@@ -1339,7 +1399,13 @@ mod tests {
             .expect_err("an administrator deleted a workspace");
 
         assert!(
-            matches!(refusal, crate::error::Error::Forbidden { .. }),
+            matches!(
+                refusal,
+                crate::error::Error::Refused {
+                    reason: crate::error::RefusalReason::OwnerOnly,
+                    ..
+                }
+            ),
             "{refusal:?}"
         );
         assert!(refusal.to_string().contains("ask the owner"), "{refusal}");
@@ -1354,7 +1420,13 @@ mod tests {
         .expect_err("an administrator renewed the credentials");
 
         assert!(
-            matches!(refusal, crate::error::Error::Forbidden { .. }),
+            matches!(
+                refusal,
+                crate::error::Error::Refused {
+                    reason: crate::error::RefusalReason::OwnerOnly,
+                    ..
+                }
+            ),
             "{refusal:?}"
         );
         assert!(refusal.to_string().contains("ask the owner"), "{refusal}");
@@ -1598,7 +1670,13 @@ mod tests {
         .expect_err("a member without the act granted");
 
         assert!(
-            matches!(refusal, crate::error::Error::Forbidden { .. }),
+            matches!(
+                refusal,
+                crate::error::Error::Refused {
+                    reason: crate::error::RefusalReason::RoleLacksAct,
+                    ..
+                }
+            ),
             "{refusal:?}"
         );
         assert!(refusal.to_string().contains("grantWorkspace"), "{refusal}");
@@ -1691,7 +1769,16 @@ mod tests {
         .await
         .expect_err("a member narrowed out of renameWorkspace renamed a workspace");
 
-        assert!(matches!(refusal, Error::Forbidden { .. }), "{refusal:?}");
+        assert!(
+            matches!(
+                refusal,
+                Error::Refused {
+                    reason: crate::error::RefusalReason::RoleLacksAct,
+                    ..
+                }
+            ),
+            "{refusal:?}"
+        );
         assert!(refusal.to_string().contains("renameWorkspace"), "{refusal}");
 
         // and the name on the row is the one the permitted rename wrote, so the refused one wrote

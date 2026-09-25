@@ -5,6 +5,7 @@ import { matchesAnySearch } from '$lib/platform/database/search';
 import { ensureIdFree, newId } from '$lib/platform/database/identity';
 import { TenantSchema, type Contract } from '$lib/platform/database/schema';
 import { planSelection } from '$lib/api/selection';
+import { refuse } from '$lib/api/refusal';
 import { autosync, procedure, router } from '$lib/api/trpc';
 import { CONTRACT_IN_FORCE_STATUSES } from '$lib/contract/contract';
 import {
@@ -16,7 +17,6 @@ import {
 	whatRefusesTenantDeletion,
 	type TenantSortColumnId
 } from '$lib/tenant/tenant';
-import { TRPCError } from '@trpc/server';
 import { asc, desc, eq, inArray, like, sql, type AnyColumn, type SQL } from 'drizzle-orm';
 import z from 'zod';
 
@@ -309,10 +309,7 @@ export default router({
 				phones.find((phone, index) => phones.indexOf(phone) !== index);
 
 			if (repeated) {
-				throw new TRPCError({
-					code: 'BAD_REQUEST',
-					message: `two tenants in this set claim ${repeated}`
-				});
+				throw refuse('tenant.repeatedInSet', { value: repeated });
 			}
 
 			const held = await ctx.db.select().from(s.tenant).where(inArray(s.tenant.id, ids));

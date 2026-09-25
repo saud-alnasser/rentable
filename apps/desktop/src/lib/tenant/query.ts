@@ -6,7 +6,7 @@ import { workspacePrefixes } from '$lib/design/query';
 import type { ListSort } from '@rentable/design/sort.js';
 import { TENANT_SORT_COLUMN_IDS, type TenantSortColumnId } from '$lib/tenant/tenant';
 import { LL } from '$lib/i18n/i18n-svelte';
-import { createQuery } from '@tanstack/svelte-query';
+import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 import { get } from 'svelte/store';
 
 type FetchTenantsParams = {
@@ -173,6 +173,17 @@ export function useFetchTenant(params: () => FetchTenantParams) {
 	});
 }
 
+/**
+ * Read one tenant once, for a caller acting on a record that names its tenant without carrying it:
+ * the contract host, copying a contract's details. Under the key `useFetchTenant` reads.
+ */
+export function useReadTenant() {
+	const client = useQueryClient();
+
+	return (id: string) =>
+		client.fetchQuery({ queryKey: keys.get(id), queryFn: () => api.tenant.get({ id }) });
+}
+
 export const useCreateTenant = declareMutation({
 	mutate: (data: Parameters<typeof api.tenant.create>[0]) => api.tenant.create(data),
 	touches: ['tenants'],
@@ -265,6 +276,8 @@ export const useDeleteTenant = declareMutation({
 		},
 	toast: {
 		success: () => get(LL).tenants.hooks.deleteSuccess(),
+		// no dialog asked first, so the announcement says how long it can be taken back.
+		detail: () => get(LL).common.undo.lasts(),
 		error: false,
 		unexpected: () => get(LL).common.messages.unexpectedError()
 	}

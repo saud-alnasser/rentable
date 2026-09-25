@@ -12,10 +12,12 @@
  * the sheet, the application's listener, a surface answering its own keys, and the palette
  * offering it by name.
  *
- * The palette is the caller that declaration was written for, and it is why a registration
- * need not have keys at all: an action asking which contract to renew cannot be reached by
- * pressing anything, because the keydown has no way to say which contract. So *what the
- * application can do* is the wider set, and *what a key reaches* is a part of it.
+ * **A record's acts are not registered here.** An act that runs on one record is declared once
+ * by its concept (`<concept>/acts.ts`) and projected onto the card, the page and the palette by
+ * `design/acts.ts`; the palette asks for the record, and the concept's host answers. *This
+ * registry held a record verb (renewing a contract) until effort 832 moved every act into those
+ * declarations, so that order and per-record availability are the concept's rather than
+ * whatever happened to be registered.*
  */
 import {
 	isEditingText,
@@ -91,35 +93,12 @@ export type ApplicationShortcut = Keyed & {
  */
 export type SurfaceShortcut = Keyed & { scope: 'surface' };
 
-/**
- * An action the palette runs on a record the reader chooses there.
- *
- * It has no keys, because a keydown cannot say *which* contract — so the palette asks for the
- * record and hands it over, and the surface that owns the action does the same work it does
- * from its own control. The registry holds it beside the shortcuts rather than in a table of
- * its own: what the application can do is one list, and a second one is the thing this registry
- * exists to have removed.
- */
-export type RecordVerb = Declared & {
-	scope: 'record';
-	/**
-	 * which concept's records it asks for.
-	 *
-	 * A plain name rather than the concept itself: the shell owns the table of which concepts it
-	 * searches, and the design system has no business importing it. A name matching nothing in
-	 * that table is a verb the palette cannot ask for and therefore does not offer.
-	 */
-	subject: string;
-	/** do it, on the record the reader chose. */
-	run: (recordId: string) => void;
-};
-
 /** A registration, as the registry holds it. */
-export type ShortcutRegistration = ApplicationShortcut | SurfaceShortcut | RecordVerb;
+export type ShortcutRegistration = ApplicationShortcut | SurfaceShortcut;
 
-/** The combinations a registration claims, which is none where no keydown reaches it. */
+/** The combinations a registration claims. */
 export function toShortcutKeys(registration: ShortcutRegistration): readonly ShortcutCombination[] {
-	return 'keys' in registration ? registration.keys : [];
+	return registration.keys;
 }
 
 /** Two registrations that one keydown could set off together. */
@@ -216,10 +195,6 @@ export class ShortcutRegistry {
 	 * A pair of surface shortcuts is not one: they are answered by the element that has focus,
 	 * and two elements do not have it at once. Anything an application shortcut is in, is —
 	 * that one fires from wherever the reader is standing.
-	 *
-	 * A registration with no keys is in none of them, which falls out of the loops rather than
-	 * being tested for: there is no keydown that could reach it, so there is no keydown two of
-	 * them could share.
 	 */
 	#collisionsWith(arriving: ShortcutRegistration) {
 		const collisions: ShortcutCollision[] = [];
@@ -271,10 +246,6 @@ export type ShortcutSheetEntry = {
  * Ordered by the printed combination rather than by registration order, which is mount order
  * and therefore not an order at all, and rather than by the description, which would reshuffle
  * the whole sheet when the locale changes.
- *
- * A registration with no keys is left off: this sheet answers *what does pressing something
- * do*, and a row with an empty space where the keys go answers it with nothing. Those are the
- * palette's to list, and it lists them by name.
  */
 export function toShortcutSheetEntries(
 	registered: readonly ShortcutRegistration[],
@@ -282,19 +253,13 @@ export function toShortcutSheetEntries(
 	isAppleKeyboard: boolean
 ): ShortcutSheetEntry[] {
 	return registered
-		.flatMap((registration) => {
-			const keys = toShortcutKeys(registration);
-
-			return keys.length === 0
-				? []
-				: [
-						{
-							id: registration.id,
-							description: registration.describe(translations),
-							hints: keys.map((combination) => toShortcutHint(combination, isAppleKeyboard))
-						}
-					];
-		})
+		.map((registration) => ({
+			id: registration.id,
+			description: registration.describe(translations),
+			hints: toShortcutKeys(registration).map((combination) =>
+				toShortcutHint(combination, isAppleKeyboard)
+			)
+		}))
 		.sort((one, other) => compareHints(one.hints[0], other.hints[0]));
 }
 

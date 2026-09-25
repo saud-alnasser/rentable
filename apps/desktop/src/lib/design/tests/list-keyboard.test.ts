@@ -3,7 +3,15 @@ import test from 'node:test';
 
 import { i18nObject } from '$lib/i18n/i18n-util.ts';
 import { loadLocale } from '$lib/i18n/i18n-util.sync.ts';
-import { nextPosition, toListMovement, toListShortcuts, toRecordRows } from '../list-keyboard.ts';
+import {
+	nextPosition,
+	toListMovement,
+	toListShortcuts,
+	toPositionOf,
+	toRecordRows,
+	toSearchShortcut
+} from '../list-keyboard.ts';
+import { listRows } from '@rentable/design/group.js';
 import { toShortcutSheetEntries } from '../shortcut-registry.ts';
 
 // the loaded locale rather than a hand-written stand-in: a description reads the whole of
@@ -186,11 +194,9 @@ test('a key that is not an arrow is not a move, so it is left to whatever else w
 test('the search key puts the cursor in the field', () => {
 	let focused = 0;
 
-	const search = toListShortcuts(() => (focused += 1)).find(
-		(registration) => registration.id === 'list.search'
-	);
+	const search = toSearchShortcut(() => (focused += 1));
 
-	assert.ok(search?.scope === 'application', 'the search key is the application’s to answer');
+	assert.ok(search.scope === 'application', 'the search key is the application’s to answer');
 	search.run();
 
 	assert.equal(focused, 1);
@@ -200,7 +206,10 @@ test('the search key puts the cursor in the field', () => {
 // on every screen, and a key meaning "the next record" means nothing away from the records.
 test('the keys pressed inside the list are the surface it belongs to', () => {
 	const scopes = Object.fromEntries(
-		toListShortcuts(() => {}).map((registration) => [registration.id, registration.scope])
+		[toSearchShortcut(() => {}), ...toListShortcuts()].map((registration) => [
+			registration.id,
+			registration.scope
+		])
 	);
 
 	assert.deepEqual(scopes, {
@@ -211,11 +220,9 @@ test('the keys pressed inside the list are the surface it belongs to', () => {
 });
 
 test('the search key stands down where text is being typed, since it is a character', () => {
-	const search = toListShortcuts(() => {}).find(
-		(registration) => registration.id === 'list.search'
-	);
+	const search = toSearchShortcut(() => {});
 
-	assert.ok(search?.scope === 'application', 'the search key is the application’s to answer');
+	assert.ok(search.scope === 'application', 'the search key is the application’s to answer');
 	assert.equal(search.standsDownWhileEditing, true);
 });
 
@@ -223,15 +230,23 @@ test('the search key stands down where text is being typed, since it is a charac
 // claim the registry exists to make good on.
 test('every key the list adds arrives on the help sheet, printed as the keyboard prints it', () => {
 	assert.deepEqual(
-		toShortcutSheetEntries(
-			toListShortcuts(() => {}),
-			translations,
-			false
-		),
+		toShortcutSheetEntries([toSearchShortcut(() => {}), ...toListShortcuts()], translations, false),
 		[
 			{ id: 'list.search', description: 'search this list', hints: ['/'] },
 			{ id: 'list.open', description: 'open the focused record', hints: ['Enter'] },
 			{ id: 'list.move', description: 'move between records', hints: ['↑', '↓', '←', '→'] }
 		]
 	);
+});
+
+// requirement 16 of effort 832: a record just created is brought into view and focused where the
+// list shows it, at the position a move would land on, group headers counted as rows.
+test('a record is found at its row and its place across it, and nothing where it is absent', () => {
+	const records = ['a', 'b', 'c', 'd', 'e'].map((id) => ({ id, month: id < 'c' ? 'jan' : 'feb' }));
+	const grouped = listRows(records, (record) => ({ key: record.month }), 2);
+
+	assert.deepEqual(toPositionOf(grouped, 'a'), { row: 1, column: 0 });
+	assert.deepEqual(toPositionOf(grouped, 'b'), { row: 1, column: 1 });
+	assert.deepEqual(toPositionOf(grouped, 'e'), { row: 4, column: 0 });
+	assert.equal(toPositionOf(grouped, 'z'), undefined);
 });

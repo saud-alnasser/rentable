@@ -1,6 +1,7 @@
 import { emitSessionEnded } from '$lib/sync/event';
 import api from '$lib/api/caller';
 import { tauri, type RemoteSyncState } from '$lib/platform/tauri';
+import { browserAppearance, type AppearanceSetting } from '$lib/platform/appearance';
 import {
 	announceReceivedRows,
 	syncWorkspaceBeforeExit,
@@ -104,6 +105,47 @@ export function useSetEndingSoonNoticeDays(
 			onMutationSuccess(opts);
 		},
 		onError: (e) => onMutationError(opts, e)
+	}));
+}
+
+/**
+ * Choose light, dark or the system's, drawn at once and then written.
+ *
+ * **Optimistic, the way the language is.** The choice is drawn before the write goes out, since a
+ * reader who pressed dark and waited on a round trip to see it would press it again; a write the
+ * shell refuses puts the appearance back to what it was and says so through the shared handler.
+ */
+export function useSetAppearance(
+	opts: MutationOptions = {
+		toast: {
+			error: true,
+			unexpected: () => get(LL).common.messages.unexpectedError()
+		}
+	}
+) {
+	const client = useQueryClient();
+
+	return createMutation(() => ({
+		mutationFn: ({ appearance }: { appearance: AppearanceSetting }) =>
+			api.app.settings.set({ appearance }),
+		onMutate: ({ appearance }) => {
+			const previous = browserAppearance().setting;
+
+			browserAppearance().apply(appearance);
+
+			return { previous };
+		},
+		onSuccess: async (settings) => {
+			client.setQueryData(keys.settings, settings);
+			await client.invalidateQueries({ queryKey: keys.settings });
+
+			onMutationSuccess(opts);
+		},
+		onError: (e, _variables, context) => {
+			if (context) browserAppearance().apply(context.previous);
+
+			onMutationError(opts, e);
+		}
 	}));
 }
 

@@ -1,14 +1,14 @@
 <script lang="ts">
 	import { CODE_LENGTH, normalizeCode, type JoinStep } from '$lib/organization/connect';
 	import StandaloneSurface from '@rentable/design/block/standalone-surface.svelte';
-	import SurfaceAction from '@rentable/design/block/surface-action.svelte';
+	import BackControl from '@rentable/design/block/back-control.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Callout } from '@rentable/design/primitive/callout/index.js';
+	import DetailDisclosure from '$lib/error/component/detail-disclosure.svelte';
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import * as InputGroup from '@rentable/design/primitive/input-group/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { PASSWORD_FLOOR } from '$lib/organization/setup';
-	import BackGlyph from './back-glyph.svelte';
 	import HashIcon from '@lucide/svelte/icons/hash';
 	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
 	import LinkIcon from '@lucide/svelte/icons/link';
@@ -45,12 +45,17 @@
 	 *
 	 * **The code comes before anything is reached, so a refusal arrives after it.** Nothing looks at
 	 * the row behind a link until the code has unsealed what reaches the organization, which is why
-	 * a lapsed, consumed, revoked or replaced link is named here rather than on the read. Each says
-	 * its own sentence: a lapsed or a revoked invitation says to ask whoever invited for a new link;
-	 * a replaced machine link says a newer one took its place; a link for another organization says
-	 * to disconnect first. A link already opened is the ordinary way a person sets
-	 * up a second machine, since a member signs in on as many machines as they like and the link is
-	 * spent on the first: it says so and offers the wall, where the password they chose admits them.
+	 * a lapsed, consumed, revoked or replaced link is named here rather than on the read. A link
+	 * already opened is the ordinary way a person sets up a second machine, since a member signs in
+	 * on as many machines as they like and the link is spent on the first: it says so and offers
+	 * the wall, where the password they chose admits them.
+	 *
+	 * **Every refusal is one line that names the next step** (effort 832, requirement 19): ask
+	 * whoever sent the link for a new one, sign in, disconnect at the sign-in, or try again. What
+	 * the shell said is behind a closed disclosure under it, never a second line beside it, because
+	 * the shell's refusals are translated from their reasons and the two would say the same thing
+	 * twice. It is the alert pattern of Apple's Human Interface Guidelines: a short statement of
+	 * what happened, and the act that answers it as the control beneath.
 	 *
 	 * **Every step can be left from the card's corner, and only from there.** The surface's
 	 * `corner` slot is where a reader looks for the way past a screen, and the one control in it
@@ -149,8 +154,7 @@
 
 	// which of the form's two halves was refused, in the reader's own language, and each on the
 	// field that answers for it ([[rules/interface]], *Validation errors*). What the shell said is
-	// kept under them, the way a refused link keeps its detail, because the rare other thing a
-	// `forbidden` means here is a standing that changed while the person was typing.
+	// kept behind the disclosure under the form, the way a refused link keeps its detail.
 	const linkRefusal = $derived(isUnreadable ? $LL.organization.join.unreadable() : null);
 
 	const codeRefusalMessage = $derived.by(() => {
@@ -161,13 +165,8 @@
 			: $LL.organization.join.codeWrong();
 	});
 
-	// whether a field is already carrying the sentence, which is what decides where the shell's
-	// own message goes: under the form as the detail, rather than repeated in a callout over it.
-	const fieldRefused = $derived(linkRefusal !== null || codeRefusalMessage !== null);
-
-	// the refusal's own sentence, one per kind, said in the reader's language. Where a refusal came
-	// back from the shell rather than from the standing the read answered with, what it said is
-	// shown under it as the detail, the way an organization that could not be reached is.
+	// the refusal's own sentence, one per kind, said in the reader's language, with what the shell
+	// said behind the disclosure under it.
 	const refusal = $derived.by(() => {
 		if (step.kind !== 'refused') return null;
 
@@ -202,16 +201,15 @@
 	);
 </script>
 
-<!-- what the shell said, where it said anything: the detail under a field already carrying the
-     sentence, and a callout of its own where no field is the answer. A refusal one of the two
-     fields can answer for is never drawn here ([[rules/interface]], *Validation errors*). -->
-{#snippet shellRefusal(errorMessage: string | null)}
+<!-- a refusal no field says, in one line, and what the shell said behind a closed disclosure. A
+     refusal one of the two fields answers for is said on the field and never again here
+     ([[rules/interface]], *Validation errors*), so only its detail is. -->
+{#snippet shellRefusal(errorMessage: string | null, detail: string | null)}
 	{#if errorMessage}
-		{#if fieldRefused}
-			<p class="text-sm text-muted-foreground" data-join-detail>{errorMessage}</p>
-		{:else}
-			<Callout tone="error">{errorMessage}</Callout>
-		{/if}
+		<Callout tone="error">{errorMessage}</Callout>
+	{/if}
+	{#if detail}
+		<DetailDisclosure {detail} name="join" />
 	{/if}
 {/snippet}
 
@@ -263,7 +261,7 @@
 	{#snippet corner()}
 		<!-- always available, busy or not: the way past a screen that is disabled is a trap, and a
 		     link still being read costs nothing to walk away from. -->
-		<SurfaceAction label={$LL.organization.join.back()} icon={BackGlyph} onclick={onBack} />
+		<BackControl label={$LL.organization.join.back()} onclick={onBack} />
 	{/snippet}
 
 	<div class="space-y-4 pt-2" data-join-step={step.kind}>
@@ -278,7 +276,11 @@
 					if (canConnect) onConnect(pasted, code);
 				}}
 			>
-				{@render shellRefusal(step.errorMessage)}
+				<!-- a sentence no field says goes over the form with its detail; a refusal a field says
+				     keeps only its detail, under the field it belongs to, below. -->
+				{#if step.errorMessage}
+					{@render shellRefusal(step.errorMessage, step.detail)}
+				{/if}
 
 				<Field.Field>
 					<Field.Label for="join-link">{$LL.organization.join.linkLabel()}</Field.Label>
@@ -305,6 +307,10 @@
 
 				{@render codeField()}
 
+				{#if !step.errorMessage && step.detail}
+					<DetailDisclosure detail={step.detail} name="join" />
+				{/if}
+
 				<!-- the same glyph the walk's connect carries: one vocabulary for joining a machine to something. -->
 				<Button type="submit" class="w-full justify-center" disabled={!canConnect}>
 					<PlugIcon class="size-4" />
@@ -314,16 +320,12 @@
 		{:else if step.kind === 'reading'}
 			<p class="text-center text-sm text-muted-foreground">{$LL.organization.join.reading()}</p>
 		{:else if step.kind === 'unreachable'}
-			<Callout tone="error">{$LL.organization.join.unreachable()}</Callout>
-			<p class="text-sm text-muted-foreground" data-join-detail>{step.message}</p>
+			{@render shellRefusal($LL.organization.join.unreachable(), step.detail)}
 			<Button class="w-full justify-center" onclick={() => onConnect(step.link, step.code)}>
 				{$LL.organization.join.tryAgain()}
 			</Button>
 		{:else if step.kind === 'refused'}
-			<Callout tone="error">{refusal}</Callout>
-			{#if step.message}
-				<p class="text-sm text-muted-foreground" data-join-detail>{step.message}</p>
-			{/if}
+			{@render shellRefusal(refusal, step.detail)}
 
 			{#if step.refusal === 'consumed' && step.wasConnecting}
 				<!-- the one control a spent link leads to, and only where the act that spent it
@@ -346,7 +348,7 @@
 					if (canJoin) onJoin(step.link, step.code, password);
 				}}
 			>
-				{@render shellRefusal(step.errorMessage)}
+				{@render shellRefusal(step.errorMessage, step.detail)}
 				{@render organizationLine(step.organizationName)}
 
 				<Field.Field>

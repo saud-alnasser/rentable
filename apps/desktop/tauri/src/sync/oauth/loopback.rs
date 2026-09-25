@@ -91,7 +91,7 @@ impl LoopbackCallback {
         let mut buffer = [0_u8; CALLBACK_REQUEST_LIMIT];
         let count = stream.read(&mut buffer)?;
         let request = String::from_utf8_lossy(&buffer[..count]).to_string();
-        let path = parse_http_request_path(&request).ok_or_else(|| Error::InvalidInput {
+        let path = parse_http_request_path(&request).ok_or_else(|| Error::Integrity {
             message: "failed to parse oauth callback request".to_string(),
         })?;
 

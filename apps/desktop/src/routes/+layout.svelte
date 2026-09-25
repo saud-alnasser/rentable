@@ -6,6 +6,7 @@
 	import { listenForSessionEnded } from '$lib/sync/event';
 	import { listenForSignOut } from '$lib/sync/sign-out';
 	import { trustWorkspaceData } from '$lib/design/query';
+	import { dropLandingOnNavigation } from '$lib/design/landing.svelte';
 	import { TooltipProvider } from '@rentable/design/primitive/tooltip/index.js';
 	import SonnerProvider from '$lib/design/provider/sonner.svelte';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
@@ -39,6 +40,7 @@
 	import { useCreateWorkspace } from '$lib/organization/query';
 	import { browserStartupPorts } from '$lib/layout/startup-ports';
 	import { DesignProvider, type DesignStrings } from '@rentable/design/strings.js';
+	import { toRefusalText } from '$lib/error/refusal';
 	import { QueryClient, QueryClientProvider } from '@tanstack/svelte-query';
 	import { getCurrentWindow } from '@tauri-apps/api/window';
 	import { tauri } from '$lib/platform/tauri';
@@ -65,6 +67,10 @@
 	const startup = createStartup(browserStartupPorts(queryClient));
 
 	provideStartup(startup);
+
+	// a create's request to be brought into view belongs to the screen it was made on, so the
+	// next navigation drops it ([[rules/interface]], *Guidance*).
+	dropLandingOnNavigation();
 
 	// the one reactive thing. The unit is a plain object with observers, because a runes file
 	// cannot be imported by a `node:test` at all, and being testable is the point of it.
@@ -98,6 +104,7 @@
 		deleteBlockedDescription: $LL.common.deleteDialog.blockedDescription(),
 		deleteDescription: $LL.common.deleteDialog.description(),
 		deleting: $LL.common.actions.deleting(),
+		goBack: $LL.common.actions.goBack(),
 		export: $LL.common.actions.export(),
 		exportDescription: $LL.common.export.description(),
 		formatCsv: $LL.common.formats.csv(),
@@ -112,12 +119,14 @@
 		moreRecords: (count: number) => $LL.common.selection.more({ count }),
 		next: $LL.common.ui.next(),
 		nextSlide: $LL.common.ui.nextSlide(),
-		noResults: $LL.common.messages.noResults(),
 		nothingToDo: $LL.common.selection.nothingToDo(),
 		openMenu: $LL.common.actions.openMenu(),
 		pagination: $LL.common.ui.pagination(),
 		previous: $LL.common.ui.previous(),
 		previousSlide: $LL.common.ui.previousSlide(),
+		recordNotFound: $LL.common.messages.recordNotFound(),
+		recordNotFoundDescription: $LL.common.messages.recordNotFoundDescription(),
+		refusal: (failure: unknown) => toRefusalText(failure, $LL),
 		sidebar: $LL.common.ui.sidebar(),
 		toggleSidebar: $LL.common.ui.toggleSidebar(),
 		unexpectedError: $LL.common.messages.unexpectedError(),
@@ -395,6 +404,7 @@
 									organization={shellState.organization?.organization ?? null}
 									isSigningIn={shellState.isSigningIn}
 									errorMessage={shellState.error}
+									errorDetail={shellState.errorDetail}
 									onSignIn={(username, password) => void startup.signIn(username, password)}
 									onDisconnect={() => startup.disconnect()}
 									onSetUpOrganization={() => void goto(resolve(THE_FIRST_RUN))}

@@ -2,8 +2,10 @@ import { recordCard } from '#lib/block/record-card.svelte';
 import { DesignProvider, type DesignStrings } from '#lib/strings.js';
 import RecordCardHarness from '#tests/record-card-harness.svelte';
 import { suppliedStrings } from '#tests/contract-strings.js';
-import { fireEvent, render } from '@testing-library/svelte';
-import PencilIcon from '@lucide/svelte/icons/pencil';
+import { fireEvent, render, waitFor } from '@testing-library/svelte';
+import CopyIcon from '@lucide/svelte/icons/copy';
+import SquarePenIcon from '@lucide/svelte/icons/square-pen';
+import Trash2Icon from '@lucide/svelte/icons/trash-2';
 import { expect, test, vi } from 'vitest';
 
 /**
@@ -31,7 +33,7 @@ const show = (props: Record<string, unknown> = {}, strings: Partial<DesignString
 		wrapperProps: { strings: suppliedStrings(strings), direction: 'rtl' }
 	});
 
-const action = { label: 'عدل', icon: PencilIcon, onSelect: () => {} };
+const action = { label: 'عدل', icon: SquarePenIcon, onSelect: () => {} };
 
 const link = () => document.querySelector('a');
 
@@ -116,6 +118,50 @@ test('an act that is not marked is pressable, and the gesture fires it', async (
 	expect(onSelect).toHaveBeenCalledTimes(1);
 });
 
+// requirement 16 of effort 832, criterion 16(c): an act that cannot run for this record is drawn,
+// refused, and says why in one line on hover and focus. Unlike an act already running it stays
+// reachable, because a reason nobody can reach is no reason at all.
+test('an unavailable act is drawn dimmed on both routes, refuses to run, and says why in a tooltip', async () => {
+	// the tooltip is placed against its trigger, and jsdom implements no ResizeObserver.
+	window.ResizeObserver = class {
+		observe() {}
+		unobserve() {}
+		disconnect() {}
+	} as unknown as typeof ResizeObserver;
+
+	const onSelect = vi.fn();
+	const reason = 'هذا العقد مسدد بالكامل';
+
+	show({ actions: [{ ...action, unavailable: reason, onSelect }] });
+
+	for (const open of [throughTheControl, throughTheGesture]) {
+		const [entry] = await open();
+
+		expect(entry?.getAttribute('aria-disabled')).toBe('true');
+		expect(entry?.hasAttribute('data-unavailable')).toBe(true);
+		// reachable: the menu's own disabled mark is what would take it out of the keyboard's path.
+		expect(entry?.hasAttribute('data-disabled')).toBe(false);
+
+		await fireEvent.focus(entry!);
+
+		const tooltip = await waitFor(() => {
+			const drawn = document.querySelector('[data-slot=tooltip-content]');
+
+			expect(drawn).not.toBeNull();
+
+			return drawn;
+		});
+
+		expect(tooltip?.textContent).toContain(reason);
+
+		await fireEvent.click(entry!);
+
+		expect(onSelect).not.toHaveBeenCalled();
+
+		await fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+	}
+});
+
 // `attributes` is what the surface marks the entry with, the `data-*` every list here is read by,
 // and it is the caller's because the act it stands for is. It reaches the entry verbatim on both
 // routes, which is what lets one test read the same act through either.
@@ -133,4 +179,106 @@ test('what the caller marks an act with reaches the entry on both routes', async
 
 	expect(fromGesture?.getAttribute('data-workspace-rename')).toBe('ws-1');
 	expect(fromGesture?.getAttribute('data-kind')).toBe('edit');
+});
+
+// moving through a list from the keyboard lands focus on each card's link in turn, many times a
+// minute, so arriving there must not animate: the link carries no transition, and nothing the card
+// itself transitions is answered by focus. The lift answers the pointer alone.
+test('keyboard focus arriving on a card animates nothing', () => {
+	show();
+
+	const surface = link()?.parentElement;
+	const classes = [...(surface?.classList ?? []), ...(link()?.classList ?? [])];
+
+	expect([...(link()?.classList ?? [])].filter((token) => /transition/.test(token))).toEqual([]);
+	expect(
+		classes.filter((token) => /(^|:)focus[\w-]*:.*(translate|scale|shadow)/.test(token))
+	).toEqual([]);
+});
+
+// requirement 3 of effort 832, criterion 3(b): a menu's rows carry icons on every row or on none.
+// The card's type makes the icon required, so what this defends is that both routes draw it, and
+// draw it first, which is what lines the rows up down the menu.
+test('every entry on both routes leads with its icon', async () => {
+	show({
+		actions: [action, { label: 'احذف', icon: Trash2Icon, tone: 'error', onSelect: () => {} }]
+	});
+
+	const leads = (entry: Element) => entry.firstElementChild?.tagName.toLowerCase() === 'svg';
+
+	const throughControl = await throughTheControl();
+	expect(throughControl).toHaveLength(2);
+	expect(throughControl.every(leads)).toBe(true);
+
+	await fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+
+	const throughGesture = await throughTheGesture();
+	expect(throughGesture).toHaveLength(2);
+	expect(throughGesture.every(leads)).toBe(true);
+});
+
+// requirement 8 of effort 832: an act is declared once and projected onto every surface, so what
+// the card draws of it is what the record's page and the command menu draw. The keys an act answers
+// to are printed beside it, and a group is a line between two runs of acts, on both routes.
+const grouped = [
+	{ label: 'انسخ', icon: CopyIcon, group: 'primary', onSelect: () => {} },
+	{
+		label: 'عدل',
+		icon: SquarePenIcon,
+		group: 'primary',
+		shortcut: { key: 'e' },
+		onSelect: () => {}
+	},
+	{
+		label: 'احذف',
+		icon: Trash2Icon,
+		group: 'destructive',
+		tone: 'error' as const,
+		onSelect: () => {}
+	}
+];
+
+/** the entries and the separators of an open menu, in the order it draws them. */
+const drawn = (slot: 'dropdown-menu' | 'context-menu') =>
+	[...document.querySelectorAll(`[data-slot=${slot}-item], [data-slot=${slot}-separator]`)].map(
+		(node) =>
+			node.getAttribute('data-slot')?.endsWith('separator') ? '|' : (node.textContent ?? '').trim()
+	);
+
+test('a separator is drawn where the group changes, and only there, on both routes', async () => {
+	show({ actions: grouped });
+
+	await throughTheControl();
+	expect(drawn('dropdown-menu')).toEqual(['انسخ', expect.stringContaining('عدل'), '|', 'احذف']);
+
+	await fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+
+	await throughTheGesture();
+	expect(drawn('context-menu')).toEqual(['انسخ', expect.stringContaining('عدل'), '|', 'احذف']);
+});
+
+test('an act with a shortcut shows its keys as a hint on both routes, and one without shows none', async () => {
+	show({ actions: grouped });
+
+	const hintOf = (entry: Element | undefined) => entry?.querySelector('kbd');
+
+	const throughControl = await throughTheControl();
+	expect(hintOf(throughControl[1])?.textContent?.trim()).toBe('E');
+	expect(hintOf(throughControl[1])?.getAttribute('dir')).toBe('ltr');
+	expect(hintOf(throughControl[0])).toBe(null);
+
+	await fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+
+	const throughGesture = await throughTheGesture();
+	expect(hintOf(throughGesture[1])?.textContent?.trim()).toBe('E');
+	expect(hintOf(throughGesture[2])).toBe(null);
+});
+
+test('an act in the error tone is drawn as the menus draw a destructive entry', async () => {
+	show({ actions: grouped });
+
+	const throughControl = await throughTheControl();
+
+	expect(throughControl[2]?.getAttribute('data-variant')).toBe('destructive');
+	expect(throughControl[0]?.getAttribute('data-variant')).toBe('default');
 });

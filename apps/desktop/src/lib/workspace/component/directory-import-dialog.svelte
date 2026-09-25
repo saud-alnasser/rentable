@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { toTitleCase } from '@rentable/design/title-case.js';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Callout } from '@rentable/design/primitive/callout/index.js';
 	import * as Dialog from '@rentable/design/primitive/dialog/index.js';
@@ -224,7 +225,7 @@
 <Dialog.Root bind:open>
 	<Dialog.Content class="w-full max-w-md">
 		<Dialog.Header>
-			<Dialog.Title class="capitalize">{title}</Dialog.Title>
+			<Dialog.Title>{toTitleCase(title)}</Dialog.Title>
 			<!-- the file, named as the reader named it: the question is about this one and no other.
 			     It sits where every dialog here puts what its title is about, rather than as a line of
 			     its own competing with the answer below. -->

@@ -348,7 +348,7 @@ pub fn derive_member_key(
         || kdf_params.iterations > MAX_ITERATIONS
         || kdf_params.lanes > MAX_LANES
     {
-        return Err(Error::InvalidInput {
+        return Err(Error::Integrity {
             message: "the stored derivation parameters are past what this application will spend"
                 .to_string(),
         });
@@ -360,7 +360,7 @@ pub fn derive_member_key(
         kdf_params.lanes,
         Some(MEMBER_KEY_BYTES),
     )
-    .map_err(|error| Error::InvalidInput {
+    .map_err(|error| Error::Integrity {
         message: format!("the stored derivation parameters cannot be used: {error}"),
     })?;
 
@@ -495,7 +495,7 @@ pub fn seal_to_public_key(
     let shared = ephemeral.diffie_hellman(&PublicKey::from(*recipient_public_key));
 
     if !shared.was_contributory() {
-        return Err(Error::InvalidInput {
+        return Err(Error::Internal {
             message: "the recipient public key cannot be sealed to".to_string(),
         });
     }
@@ -784,7 +784,7 @@ fn read_cost(field: Option<&str>, name: &str) -> Result<u32, Error> {
 }
 
 fn unreadable_params() -> Error {
-    Error::InvalidInput {
+    Error::Integrity {
         message: "the stored derivation parameters are not ones this build wrote".to_string(),
     }
 }
@@ -1244,7 +1244,7 @@ mod tests {
 
         let refused = open_vault("a chosen password", &asked).expect_err("the cost was spent");
 
-        assert!(matches!(refused, Error::InvalidInput { .. }), "{refused:?}");
+        assert!(matches!(refused, Error::Integrity { .. }), "{refused:?}");
         assert!(open_vault("a chosen password", &vault).is_ok());
     }
 

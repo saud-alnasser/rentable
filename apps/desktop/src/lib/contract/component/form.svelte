@@ -7,16 +7,18 @@
 	import FormSurface, { insetControl } from '@rentable/design/block/form-surface.svelte';
 	import * as Form from '@rentable/design/primitive/form/index.js';
 	import { Input } from '@rentable/design/primitive/input/index.js';
+	import * as InputGroup from '@rentable/design/primitive/input-group/index.js';
 	import * as Popover from '@rentable/design/primitive/popover/index.js';
-	import * as Select from '@rentable/design/primitive/select/index.js';
+	import * as ToggleGroup from '@rentable/design/primitive/toggle-group/index.js';
 	import {
 		formatCalendarDate,
 		formatDateInput,
+		joinDateRange,
 		parseCalendarDate,
 		parseDateInput,
 		toCalendarDate
 	} from '$lib/design/date';
-	import { formatLocaleMoney, getIntlLocale } from '$lib/platform/locale';
+	import { formatLocaleMoney, getIntlLocale, RIYAL } from '$lib/platform/locale';
 	import { isWholeHalalas } from '@rentable/design/money.js';
 	import { cn } from '@rentable/design/tailwind.js';
 	import {
@@ -34,22 +36,31 @@
 		observeContractEndDate,
 		observeContractEndDateInputs
 	} from '$lib/contract/end-date';
+	import type { ContractPrefill } from '$lib/contract/host.svelte';
 	import { getContractRenewalTerm } from '$lib/contract/renewal';
+	import { useReadUnit } from '$lib/complex/query';
+	import { onMutationError } from '$lib/design/mutation';
 	import {
 		useCreateContract,
+		useFetchAssignableUnitsForTerm,
 		useFetchContract,
 		useRenewContract,
 		useUpdateContract
 	} from '$lib/contract/query';
+	import { fieldOfFailure, toRefusalText } from '$lib/error/refusal';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { useFetchTenant, useFetchTenants } from '$lib/tenant/query';
 	import { DateFormatter, type CalendarDate } from '@internationalized/date';
+	import CalendarPlusIcon from '@lucide/svelte/icons/calendar-plus';
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
+	import PlusIcon from '@lucide/svelte/icons/plus';
+	import SaveIcon from '@lucide/svelte/icons/save';
 	import { TRPCError } from '@trpc/server';
-	import { toast } from 'svelte-sonner';
+	import { surfaceForm } from '$lib/design/form';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';
+	import { untrack } from 'svelte';
 	import { z } from 'zod';
 
 	const intervals = [
@@ -111,7 +122,10 @@
 				message: $LL.contracts.form.cyclesGreaterThanZero()
 			}),
 		start: z.string().min(1, $LL.contracts.form.startDateRequired()),
-		end: z.string().min(1, $LL.contracts.form.endDateRequired())
+		end: z.string().min(1, $LL.contracts.form.endDateRequired()),
+		// the units a new contract is created holding. Only creation offers them: an edit and a
+		// renewal leave the units where the tab and the predecessor put them.
+		unitIds: z.array(z.string()).default([])
 	});
 
 	type ContractForm = z.infer<typeof ContractFormSchema>;
@@ -123,8 +137,10 @@
 	let {
 		value,
 		renewsContractId,
+		prefill,
 		open,
-		onOpenChange
+		onOpenChange,
+		onCreated
 	}: {
 		/**
 		 * the contract being edited, or the details a new one starts from when duplicating —
@@ -139,8 +155,15 @@
 		 * renewal and one of them holds nothing but the id.
 		 */
 		renewsContractId?: string;
+		/** what a new contract starts with, where whoever opened the form already knows it. */
+		prefill?: ContractPrefill;
 		open: boolean;
 		onOpenChange: (value: boolean) => void;
+		/**
+		 * a new record has been written: the host lands the reader where the next step is
+		 * ([[rules/interface]], *Guidance*).
+		 */
+		onCreated?: (created: { id: string }) => void;
 	} = $props();
 
 	const isRenewing = $derived(renewsContractId !== undefined);
@@ -153,12 +176,13 @@
 	const getInitialForm = (): ContractForm => ({
 		id: undefined,
 		govId: '',
-		tenantId: '',
+		tenantId: prefill?.tenantId ?? '',
 		interval: '1m',
 		cost: '',
 		cycles: '1',
 		start: '',
-		end: ''
+		end: '',
+		unitIds: [...(prefill?.unitIds ?? [])]
 	});
 
 	let dateFormatter = $derived(new DateFormatter(getIntlLocale($locale), { dateStyle: 'medium' }));
@@ -169,9 +193,11 @@
 		});
 	const closeContractForm = () => {
 		isTenantPickerOpen = false;
+		isUnitPickerOpen = false;
 		isStartDatePickerOpen = false;
 		isEndDatePickerOpen = false;
 		tenantSearch = '';
+		unitSearch = '';
 		lastHydratedFormKey = undefined;
 		endDateState = createContractEndDateState();
 		onOpenChange(false);
@@ -189,7 +215,8 @@
 			contract.interval
 		),
 		start: formatDateInput(contract.start),
-		end: formatDateInput(contract.end)
+		end: formatDateInput(contract.end),
+		unitIds: []
 	});
 
 	/**
@@ -211,7 +238,8 @@
 			cost: contract.cost.toString(),
 			cycles: String(term.cycles),
 			start: formatDateInput(term.start),
-			end: formatDateInput(term.end)
+			end: formatDateInput(term.end),
+			unitIds: []
 		};
 	};
 
@@ -235,7 +263,7 @@
 	let { form, constraints, errors, enhance, reset, ...rest } = superForm<ContractForm>(
 		defaults(zod4(ContractFormSchema)),
 		{
-			SPA: true,
+			...surfaceForm,
 			resetForm: false,
 			validators: zod4(ContractFormSchema),
 			onUpdate: async ({ form }) => {
@@ -278,32 +306,36 @@
 					} else if (form.data.id) {
 						await UpdateMutation.mutateAsync({ id: form.data.id, ...payload });
 					} else {
-						await CreateMutation.mutateAsync(payload);
+						// one submission, one write: the contract and the units it holds.
+						const created = await CreateMutation.mutateAsync({
+							...payload,
+							unitIds: form.data.unitIds
+						});
+
+						onCreated?.(created);
 					}
 					closeContractForm();
 				} catch (e) {
 					// an unexpected failure is the shared error handler's to report, and it already has:
 					// what is left here is the refusal, mapped onto the field the reader would fix.
 					if (e instanceof TRPCError && e.code === 'BAD_REQUEST') {
-						// both renewal refusals are about the term, so each marks the end of it the
-						// reader has to move — a refusal shown as a banner names the problem and
-						// never the field.
-						if (e.message.includes('already assigned to an overlapping contract')) {
-							setError(form, 'end', $LL.contracts.form.renewalUnitsUnavailable());
-						} else if (e.message.includes('renewal must start after')) {
-							setError(form, 'start', $LL.contracts.form.renewalMustFollowOriginal());
-						} else if (e.message.includes('government id')) {
-							setError(form, 'govId', $LL.contracts.form.duplicateGovernmentId());
-						} else if (e.message.includes('end date')) {
-							setError(form, 'end', $LL.contracts.form.endDateAfterStart());
-						} else if (e.message.includes('contract period')) {
-							setError(form, 'end', getContractPeriodValidationMessage(form.data.interval));
-						} else if (e.message.includes('cost')) {
-							setError(form, 'cost', $LL.contracts.form.costPerPaymentGreaterThanZero());
-						} else if (e.message.includes('tenant')) {
-							setError(form, 'tenantId', $LL.contracts.form.invalidTenant());
+						// the refusal's code says which field it belongs under; a refusal shown as a
+						// banner names the problem and never the field.
+						const field = fieldOfFailure(e);
+
+						if (field === 'unitIds') {
+							// a list's own error sits beside its items rather than on one of them.
+							setError(form, 'unitIds._errors', toRefusalText(e, $LL));
+						} else if (
+							field === 'end' ||
+							field === 'start' ||
+							field === 'govId' ||
+							field === 'cost' ||
+							field === 'tenantId'
+						) {
+							setError(form, field, toRefusalText(e, $LL));
 						} else {
-							toast.error(e.message);
+							onMutationError({ toast: { error: true } }, e);
 						}
 					}
 				}
@@ -315,6 +347,11 @@
 	let isStartDatePickerOpen = $state(false);
 	let isEndDatePickerOpen = $state(false);
 	let tenantSearch = $state('');
+	let isUnitPickerOpen = $state(false);
+	let unitSearch = $state('');
+	// what each chosen unit is called, kept as it is chosen: a search that narrows past a chosen
+	// unit must not leave the field unable to name it.
+	let chosenUnitNames = $state<Record<string, string>>({});
 	let contractStartDateValue = $state<CalendarDate | undefined>(undefined);
 	let contractEndDateValue = $state<CalendarDate | undefined>(undefined);
 	let lastHydratedFormKey = $state<string | undefined>(undefined);
@@ -376,6 +413,89 @@
 	let isTenantResultsLoading = $derived.by(
 		() => tenantsQuery.isLoading && (tenantsQuery.data ?? []).length === 0
 	);
+
+	// only a new contract chooses its units here; an edit and a renewal never do.
+	const choosesUnits = $derived(!isRenewing && !value?.id);
+
+	// the term the units are weighed against, in order, as the payload will state it. Absent until
+	// both ends are set, because the conflict rule has nothing to read before then.
+	const unitTerm = $derived.by(() => {
+		if (!$form.start || !$form.end) return undefined;
+
+		const start = parseDateInput($form.start);
+		const end = parseDateInput($form.end);
+
+		return start <= end ? { start, end } : { start: end, end: start };
+	});
+
+	// the units free over the term, narrowed in SQL by the picker's search.
+	const freeUnitsQuery = useFetchAssignableUnitsForTerm(() => ({
+		start: unitTerm?.start,
+		end: unitTerm?.end,
+		search: unitSearch,
+		enabled: open && choosesUnits
+	}));
+	const freeUnits = $derived(freeUnitsQuery.data ?? []);
+
+	const toUnitName = (unit: { name: string; complexName: string }) =>
+		`${unit.name} · ${unit.complexName}`;
+
+	// a unit chosen before the form opened (a unit's own page asked for the contract) is named from
+	// its own read: the free units are not read until the term is set, and need not include it.
+	const readUnit = useReadUnit();
+
+	$effect(() => {
+		if (!open || !choosesUnits) return;
+
+		const prefilledUnitIds = prefill?.unitIds ?? [];
+
+		untrack(() => {
+			for (const id of prefilledUnitIds) {
+				if (chosenUnitNames[id]) continue;
+
+				readUnit(id)
+					.then((unit) => {
+						if (unit) chosenUnitNames[id] = toUnitName(unit);
+					})
+					.catch(() => {});
+			}
+		});
+	});
+
+	// the chosen units the term leaves out, because another contract holds them over it. Read only
+	// off the whole free set for this term (no search narrowing it, nothing still arriving), since
+	// a unit missing from a narrowed or a stale list says nothing about the term.
+	const heldUnitIds = $derived.by(() => {
+		if (!unitTerm || unitSearch.trim() || freeUnitsQuery.isFetching || !freeUnitsQuery.data) {
+			return [];
+		}
+
+		const freeUnitIds = new Set(freeUnits.map((unit) => unit.id));
+
+		return $form.unitIds.filter((id) => !freeUnitIds.has(id));
+	});
+
+	const unchooseUnit = (id: string) => {
+		$form.unitIds = $form.unitIds.filter((chosen) => chosen !== id);
+	};
+
+	const toggleUnit = (unit: { id: string; name: string; complexName: string }) => {
+		if ($form.unitIds.includes(unit.id)) {
+			$form.unitIds = $form.unitIds.filter((id) => id !== unit.id);
+		} else {
+			chosenUnitNames[unit.id] = toUnitName(unit);
+			$form.unitIds = [...$form.unitIds, unit.id];
+		}
+	};
+
+	// the chosen units, named in the reader's list style. A unit chosen before its name was read
+	// (one a caller prefilled) is named once the free units arrive.
+	const chosenUnitsLabel = $derived.by(() => {
+		const freeUnitNames = new Map(freeUnits.map((unit) => [unit.id, toUnitName(unit)]));
+		const names = $form.unitIds.map((id) => chosenUnitNames[id] ?? freeUnitNames.get(id) ?? '…');
+
+		return new Intl.ListFormat(getIntlLocale($locale), { type: 'conjunction' }).format(names);
+	});
 	let endDateInputs = $derived.by(() => ({
 		start: contractStartDateValue,
 		interval: $form.interval,
@@ -397,6 +517,7 @@
 		}
 
 		isTenantPickerOpen = false;
+		isUnitPickerOpen = false;
 		isStartDatePickerOpen = false;
 		isEndDatePickerOpen = false;
 		tenantSearch = '';
@@ -492,6 +613,12 @@
 		}
 	});
 
+	$effect(() => {
+		if (!isUnitPickerOpen) {
+			unitSearch = '';
+		}
+	});
+
 	const superform = { form, constraints, errors, enhance, reset, ...rest };
 
 	// one flag for the three writes this surface can be making, so the footer states it once.
@@ -509,7 +636,10 @@
 	// missing a half — the em dash already means "nothing here" everywhere else in this panel.
 	const contractPeriod = $derived(
 		contractStartDateValue && contractEndDateValue
-			? `${formatCalendarDate(contractStartDateValue, dateFormatter, '')} – ${formatCalendarDate(contractEndDateValue, dateFormatter, '')}`
+			? joinDateRange(
+					formatCalendarDate(contractStartDateValue, dateFormatter, ''),
+					formatCalendarDate(contractEndDateValue, dateFormatter, '')
+				)
 			: '—'
 	);
 </script>
@@ -649,19 +779,29 @@
 			<Form.Field form={superform} name="interval" class="group relative">
 				<Form.Control>
 					<Form.Label>{$LL.common.labels.cycle()}</Form.Label>
-					<Select.Root type="single" bind:value={$form.interval} disabled={isRenewing}>
-						<Select.Trigger
-							class={cn('w-full', insetControl)}
-							aria-invalid={$errors.interval ? 'true' : undefined}
-						>
-							{intervalLabels[$form.interval]()}
-						</Select.Trigger>
-						<Select.Content>
-							{#each intervals as interval (interval.value)}
-								<Select.Item value={interval.value} label={interval.label} />
-							{/each}
-						</Select.Content>
-					</Select.Root>
+					<!-- four exclusive choices, so a toggle group rather than a menu: all four are seen
+					     side by side ([[rules/interface]], *Field kinds*). -->
+					<ToggleGroup.Root
+						type="single"
+						variant="outline"
+						size="sm"
+						class="w-full"
+						aria-label={$LL.common.labels.cycle()}
+						aria-invalid={$errors.interval ? 'true' : undefined}
+						disabled={isRenewing}
+						value={$form.interval}
+						onValueChange={(next) => {
+							// pressing the one already chosen would unset a single group; a contract
+							// always has a cycle.
+							if (next) $form.interval = next as Contract['interval'];
+						}}
+					>
+						{#each intervals as interval (interval.value)}
+							<ToggleGroup.Item value={interval.value} class="flex-1 capitalize">
+								{interval.label}
+							</ToggleGroup.Item>
+						{/each}
+					</ToggleGroup.Root>
 				</Form.Control>
 				<FieldError />
 			</Form.Field>
@@ -669,20 +809,23 @@
 			<Form.Field form={superform} name="cost" class="group relative">
 				<Form.Control>
 					<Form.Label>{$LL.common.labels.costPerPayment()}</Form.Label>
-					<Input
-						type="number"
-						min="0.01"
-						step="0.01"
-						disabled={isRenewing}
-						value={$form.cost}
-						oninput={(event) => {
-							$form.cost = event.currentTarget.value;
-						}}
-						placeholder="0.00"
-						class={insetControl}
-						aria-invalid={$errors.cost ? 'true' : undefined}
-						{...$constraints.cost}
-					/>
+					<!-- money: the riyal sign as the adornment and the decimal keypad, left to right in
+					     both locales as every amount is drawn ([[rules/interface]], *Field kinds*). -->
+					<InputGroup.Root class={insetControl} dir="ltr" data-disabled={isRenewing || undefined}>
+						<InputGroup.Addon>{RIYAL}</InputGroup.Addon>
+						<InputGroup.Input
+							inputmode="decimal"
+							autocomplete="off"
+							disabled={isRenewing}
+							value={$form.cost}
+							oninput={(event) => {
+								$form.cost = event.currentTarget.value;
+							}}
+							placeholder="0.00"
+							aria-invalid={$errors.cost ? 'true' : undefined}
+							{...$constraints.cost}
+						/>
+					</InputGroup.Root>
 				</Form.Control>
 				<FieldError />
 			</Form.Field>
@@ -721,6 +864,7 @@
 								type="single"
 								bind:value={contractStartDateValue}
 								captionLayout="dropdown"
+								locale={getIntlLocale($locale)}
 							/>
 						</Popover.Content>
 					</Popover.Root>
@@ -786,6 +930,7 @@
 								bind:value={contractEndDateValue}
 								placeholder={contractEndDateValue ?? calculatedEndDate ?? contractStartDateValue}
 								captionLayout="dropdown"
+								locale={getIntlLocale($locale)}
 								minValue={manualEndDateWindow?.start}
 								maxValue={manualEndDateWindow?.end}
 							>
@@ -816,6 +961,106 @@
 				</Form.Description>
 				<FieldError />
 			</Form.Field>
+
+			{#if choosesUnits}
+				<!-- other records, so a combobox over their search ([[rules/interface]], *Field
+				     kinds*), choosing several: it stays open while the reader picks. It follows the
+				     term because what it offers is decided by the term. -->
+				<Form.Field form={superform} name="unitIds" class="group relative">
+					<Form.Control>
+						<Form.Label>{$LL.contracts.form.unitsOptional()}</Form.Label>
+						<Popover.Root bind:open={isUnitPickerOpen}>
+							<Popover.Trigger>
+								{#snippet child({ props })}
+									<Button
+										{...props}
+										type="button"
+										variant="outline"
+										disabled={!unitTerm}
+										class={cn(
+											'w-full justify-between font-normal',
+											insetControl,
+											$form.unitIds.length === 0 && 'text-muted-foreground'
+										)}
+										aria-invalid={$errors.unitIds?._errors ? 'true' : undefined}
+									>
+										<span class="min-w-0 flex-1 truncate text-start">
+											{$form.unitIds.length > 0
+												? chosenUnitsLabel
+												: $LL.contracts.form.chooseUnits()}
+										</span>
+										<ChevronDownIcon class="size-4 shrink-0 opacity-50" />
+									</Button>
+								{/snippet}
+							</Popover.Trigger>
+
+							<Popover.Content class="w-(--bits-popover-anchor-width) p-0" align="start">
+								<Command.Root class="w-full" shouldFilter={false}>
+									<Command.Input
+										bind:value={unitSearch}
+										placeholder={$LL.contracts.form.searchUnitPlaceholder()}
+									/>
+									<Command.List>
+										<!-- a chosen unit the term leaves out stays in the list, checked and saying
+										     why, so the reader can take it back out; the free ones follow. -->
+										{#if heldUnitIds.length > 0}
+											<Command.Group>
+												{#each heldUnitIds as id (id)}
+													<Command.Item value={id} onSelect={() => unchooseUnit(id)}>
+														<div class="flex min-w-0 flex-1 flex-col text-start">
+															<span class="truncate">{chosenUnitNames[id] ?? '…'}</span>
+															<span class="truncate text-xs text-muted-foreground">
+																{$LL.contracts.form.unitHeldOverTerm()}
+															</span>
+														</div>
+														<CheckIcon class="ms-auto size-4" />
+													</Command.Item>
+												{/each}
+											</Command.Group>
+										{/if}
+										{#if freeUnitsQuery.isLoading && freeUnits.length === 0}
+											<div class="p-3 text-sm text-muted-foreground">
+												{$LL.contracts.form.loadingUnits()}
+											</div>
+										{:else if freeUnits.length === 0}
+											<div class="p-3 text-sm text-muted-foreground">
+												{$LL.contracts.form.noUnitFree()}
+											</div>
+										{:else}
+											<Command.Group>
+												{#each freeUnits as unit (unit.id)}
+													<Command.Item value={unit.id} onSelect={() => toggleUnit(unit)}>
+														<div class="flex min-w-0 flex-1 flex-col text-start">
+															<span class="truncate">{unit.name}</span>
+															<span class="truncate text-xs text-muted-foreground">
+																{unit.complexName}
+															</span>
+														</div>
+														<CheckIcon
+															class={cn(
+																'ms-auto size-4',
+																$form.unitIds.includes(unit.id) ? 'opacity-100' : 'opacity-0'
+															)}
+														/>
+													</Command.Item>
+												{/each}
+											</Command.Group>
+										{/if}
+									</Command.List>
+								</Command.Root>
+							</Popover.Content>
+						</Popover.Root>
+					</Form.Control>
+					<Form.Description>
+						{#if heldUnitIds.length > 0}
+							{$LL.common.refusals.contract.unitsTaken()}
+						{:else}
+							{unitTerm ? $LL.contracts.form.unitsHint() : $LL.contracts.form.unitsNeedTerm()}
+						{/if}
+					</Form.Description>
+					<FieldError />
+				</Form.Field>
+			{/if}
 		</div>
 	</div>
 
@@ -823,11 +1068,18 @@
 		<Button type="button" variant="outline" disabled={isSaving} onclick={closeContractForm}>
 			{$LL.common.actions.cancel()}
 		</Button>
+		<!-- the verb's glyph before its label, as every submit carries one; renew takes the glyph
+		     its act carries in `contract/acts.ts`. -->
 		<Button type="submit" disabled={isSaving} class="capitalize">
 			{#if isRenewing}
+				<CalendarPlusIcon class="size-4" />
 				{RenewMutation.isPending ? $LL.common.actions.renewing() : $LL.common.actions.renew()}
+			{:else if value?.id}
+				<SaveIcon class="size-4" />
+				{$LL.common.actions.update()}
 			{:else}
-				{value?.id ? $LL.common.actions.update() : $LL.common.actions.create()}
+				<PlusIcon class="size-4" />
+				{$LL.common.actions.create()}
 			{/if}
 		</Button>
 	{/snippet}

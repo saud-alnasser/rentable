@@ -4,6 +4,7 @@ import { matchesAnySearch } from '$lib/platform/database/search';
 import { ensureIdFree, newId } from '$lib/platform/database/identity';
 import * as s from '$lib/platform/database/schema';
 import { ContractSchema } from '$lib/platform/database/schema';
+import { refuse } from '$lib/api/refusal';
 import { autosync, procedure, router } from '$lib/api/trpc';
 import {
 	CONTRACT_ATTENTION_ORDER,
@@ -43,7 +44,6 @@ import { serializeContract } from '$lib/contract/serialize';
 import dashboard from '$lib/dashboard/router';
 import { groupPaymentsByContractId } from '$lib/payment/payment';
 import payment from '$lib/payment/router';
-import { TRPCError } from '@trpc/server';
 import {
 	and,
 	asc,
@@ -64,11 +64,23 @@ import z from 'zod';
 // an optional id, so undoing a deletion can put the row back with the identity it had — a page
 // still open on that record is holding a reference to it (ADR 0026). Absent otherwise, and the
 // engine assigns one.
-const ContractCreateSchema = ContractSchema.omit({
+const ContractFieldsSchema = ContractSchema.omit({
 	status: true,
 	paidAmount: true,
 	expectedAmount: true
 }).partial({ id: true });
+// a new contract with the units it is created holding, which the form chooses alongside the
+// tenant (effort 832, requirement 20). Empty by default: a contract may start holding none and
+// take its units on the tab later.
+const ContractCreateSchema = ContractFieldsSchema.extend({
+	unitIds: z.array(z.string()).default([])
+});
+// a deleted contract as its deletion answered with it: the row whole, status and aggregates
+// included, with the units it held. What undoing a deletion puts back, and only that
+// ([[rules/data]], under *Undo*).
+const ContractRestoreSchema = ContractSchema.extend({
+	unitIds: z.array(z.string()).default([])
+});
 const ContractUpdateSchema = ContractSchema.omit({
 	status: true,
 	paidAmount: true,
@@ -89,6 +101,10 @@ const ContractRenewSchema = ContractSchema.pick({ govId: true, start: true, end:
 const ContractUnitsGetManySchema = z.object({ contractId: z.string() });
 const ContractAssignableUnitsSchema = z.object({
 	contractId: z.string(),
+	search: z.string().optional()
+});
+// the term a contract not yet created would run for, which is all the conflict rule reads.
+const TermAssignableUnitsSchema = ContractSchema.pick({ start: true, end: true }).extend({
 	search: z.string().optional()
 });
 // the whole set, not an addition to it: an empty array is the contract holding no units, which
@@ -120,6 +136,42 @@ async function selectAssignmentsForUnits(db: Database, unitIds: string[]) {
 		.where(inArray(s.contractUnit.unitId, unitIds));
 }
 
+/**
+ * Every unit, narrowed by a search over its name and its complex's, with the assignments the
+ * units hold and each one's derived status: what both assignable reads start from before they
+ * apply the conflict rule.
+ */
+async function selectUnitsWithAssignments(db: Database, search: string | undefined, now: number) {
+	const term = search?.trim();
+
+	const units = await db
+		.select({
+			id: s.unit.id,
+			name: s.unit.name,
+			complexId: s.unit.complexId,
+			complexName: s.complex.name
+		})
+		.from(s.unit)
+		.innerJoin(s.complex, eq(s.unit.complexId, s.complex.id))
+		.where(term ? matchesAnySearch([s.unit.name, s.complex.name], term) : undefined)
+		.orderBy(asc(s.complex.name), asc(s.unit.name), asc(s.unit.id));
+
+	const unitIds = units.map((unit) => unit.id);
+	const assignments = await selectAssignmentsForUnits(db, unitIds);
+	const contractIds = [...new Set(assignments.map((assignment) => assignment.contractId))];
+	const payments = contractIds.length
+		? await db.select().from(s.payment).where(inArray(s.payment.contractId, contractIds))
+		: [];
+	const statusByUnitId = deriveUnitStatuses(
+		unitIds,
+		assignments,
+		groupPaymentsByContractId(payments),
+		now
+	);
+
+	return { units, assignments, statusByUnitId };
+}
+
 // fetches the payment rows registered against a contract, for rules that lock on them.
 async function selectPaymentsForContract(db: Database, contractId: string) {
 	return await db.select().from(s.payment).where(eq(s.payment.contractId, contractId));
@@ -131,7 +183,7 @@ async function selectContract(db: Database, contractId: string) {
 	const contract = await db.select().from(s.contract).where(eq(s.contract.id, contractId)).get();
 
 	if (!contract) {
-		throw new TRPCError({ code: 'BAD_REQUEST', message: 'contract does not exist' });
+		throw refuse('contract.missing');
 	}
 
 	return contract;
@@ -296,7 +348,8 @@ async function planContractSelection(
 	const payments = await db.select().from(s.payment).where(inArray(s.payment.contractId, named));
 	const paymentsByContractId = groupPaymentsByContractId(payments);
 
-	// only a deletion weighs assignments, and only a deletion pays to read them.
+	// only a deletion reads assignments: the units a deleted contract held go with it, and are
+	// what putting it back has to restore.
 	const assignments =
 		action === 'delete'
 			? await db.select().from(s.contractUnit).where(inArray(s.contractUnit.contractId, named))
@@ -328,7 +381,6 @@ async function planContractSelection(
 			action,
 			contract,
 			paymentsByContractId.get(id) ?? [],
-			assignmentsByContractId.get(id) ?? [],
 			now
 		);
 
@@ -339,7 +391,7 @@ async function planContractSelection(
 		}
 	}
 
-	return { eligible, refused, paymentsByContractId };
+	return { eligible, refused, paymentsByContractId, assignmentsByContractId };
 }
 
 /** A contract a multi-record action changed, named the way its own history names it. */
@@ -413,10 +465,18 @@ const CONTRACT_SEARCH_COLUMNS: readonly (SQL | AnyColumn)[] = [
 ];
 
 export default router({
+	/**
+	 * Create a contract, holding the units it was created with.
+	 *
+	 * The units are checked against the proposed term exactly as a renewal's are, and a unit
+	 * another contract holds over it refuses the whole call under the units the reader chose. The
+	 * contract and its assignment rows are one batch, and the boundary runs a batch inside a
+	 * transaction (ADR 0027), so a refusal creates neither.
+	 */
 	create: procedure.member
 		.use(autosync())
 		.input(ContractCreateSchema)
-		.mutation(async ({ input, ctx }) => {
+		.mutation(async ({ input: { unitIds: chosenUnitIds, ...input }, ctx }) => {
 			const now = ctx.clock.now();
 
 			ensureValidContractInput(input);
@@ -433,10 +493,7 @@ export default router({
 				.get();
 
 			if (!tenant) {
-				throw new TRPCError({
-					code: 'BAD_REQUEST',
-					message: 'tenant does not exist'
-				});
+				throw refuse('contract.tenantMissing');
 			}
 
 			const normalizedGovId = input.govId?.trim() || null;
@@ -451,6 +508,27 @@ export default router({
 					: undefined
 			);
 
+			const unitIds = [...new Set(chosenUnitIds)];
+
+			if (unitIds.length) {
+				const units = await ctx.db
+					.select({ id: s.unit.id })
+					.from(s.unit)
+					.where(inArray(s.unit.id, unitIds));
+
+				if (units.length !== unitIds.length) {
+					throw refuse('contract.unitsMissing');
+				}
+
+				// the contract does not exist yet, so no assignment is its own to be exempt from.
+				ensureUnitsAssignable(
+					await selectAssignmentsForUnits(ctx.db, unitIds),
+					input,
+					'',
+					'contract.unitsTaken'
+				);
+			}
+
 			const contractShape = {
 				status: 'active' as const,
 				start: new Date(input.start),
@@ -460,23 +538,37 @@ export default router({
 			};
 			const initialStatus = deriveContractStatus(contractShape, [], now);
 			const { paidAmount, expectedAmount } = getContractPaymentSummary(contractShape, []);
+			const contractId = input.id ?? newId();
+			// typed as the row being written, for the reason `renew` gives below.
+			const values: typeof s.contract.$inferInsert = {
+				...input,
+				id: contractId,
+				govId: normalizedGovId,
+				status: initialStatus,
+				paidAmount,
+				expectedAmount,
+				start: new Date(input.start),
+				end: new Date(input.end)
+			};
 
-			const created = await ctx.db
-				.insert(s.contract)
-				.values({
-					...input,
-					id: input.id ?? newId(),
-					govId: normalizedGovId,
-					status: initialStatus,
-					paidAmount,
-					expectedAmount,
-					start: new Date(input.start),
-					end: new Date(input.end)
-				})
-				.returning()
-				.get();
+			if (unitIds.length === 0) {
+				const created = await ctx.db.insert(s.contract).values(values).returning().get();
 
-			await reconcileTouched(ctx.db, now, { contractIds: [created.id] });
+				await reconcileTouched(ctx.db, now, { contractIds: [created.id] });
+
+				return serializeContract(created);
+			}
+
+			// the identity is minted above, so the assignment rows name the contract in the same
+			// batch that creates it, as a renewal's do.
+			const [[created]] = await ctx.db.batch([
+				ctx.db.insert(s.contract).values(values).returning(),
+				...unitIds.map((unitId) =>
+					ctx.db.insert(s.contractUnit).values({ contractId, unitId }).returning()
+				)
+			]);
+
+			await reconcileTouched(ctx.db, now, { contractIds: [created.id], unitIds });
 
 			return serializeContract(created);
 		}),
@@ -603,10 +695,7 @@ export default router({
 				.get();
 
 			if (!existingContract) {
-				throw new TRPCError({
-					code: 'BAD_REQUEST',
-					message: 'contract does not exist'
-				});
+				throw refuse('contract.missing');
 			}
 
 			ensureContractIsNotTerminated(existingContract.status);
@@ -618,10 +707,7 @@ export default router({
 				.get();
 
 			if (!tenant) {
-				throw new TRPCError({
-					code: 'BAD_REQUEST',
-					message: 'tenant does not exist'
-				});
+				throw refuse('contract.tenantMissing');
 			}
 
 			const normalizedGovId = input.govId?.trim() || null;
@@ -710,10 +796,7 @@ export default router({
 				.get();
 
 			if (!existingContract) {
-				throw new TRPCError({
-					code: 'BAD_REQUEST',
-					message: 'contract does not exist'
-				});
+				throw refuse('contract.missing');
 			}
 
 			const payments = await selectPaymentsForContract(ctx.db, input.id);
@@ -848,10 +931,7 @@ export default router({
 				.get();
 
 			if (!existingContract) {
-				throw new TRPCError({
-					code: 'BAD_REQUEST',
-					message: 'contract does not exist'
-				});
+				throw refuse('contract.missing');
 			}
 
 			ensureContractUnterminable(existingContract.status);
@@ -889,33 +969,40 @@ export default router({
 				return undefined;
 			}
 
-			const units = await ctx.db
-				.select()
-				.from(s.contractUnit)
-				.where(eq(s.contractUnit.contractId, input.id));
 			const payments = await selectPaymentsForContract(ctx.db, input.id);
 
-			ensureContractDeletable(units, payments);
+			ensureContractDeletable(payments);
 
-			const deleted = await ctx.db
-				.delete(s.contract)
-				.where(eq(s.contract.id, input.id))
-				.returning()
-				.get();
+			const units = await ctx.db
+				.select({ unitId: s.contractUnit.unitId })
+				.from(s.contractUnit)
+				.where(eq(s.contractUnit.contractId, input.id));
+			const unitIds = units.map((unit) => unit.unitId);
 
-			return deleted ? serializeContract(deleted) : deleted;
+			// the units it held go with it, in one batch with the contract (ADR 0027): a contract
+			// gone and its assignment rows left behind would hold units for nobody.
+			const [, [deleted]] = await ctx.db.batch([
+				ctx.db.delete(s.contractUnit).where(eq(s.contractUnit.contractId, input.id)),
+				ctx.db.delete(s.contract).where(eq(s.contract.id, input.id)).returning()
+			]);
+
+			// the contract is gone, so what is left to reconcile is the units it released.
+			await reconcileTouched(ctx.db, ctx.clock.now(), { contractIds: [], unitIds });
+
+			// the units it held come back with the row, because undoing the deletion restores the
+			// contract holding them.
+			return deleted ? { ...serializeContract(deleted), unitIds } : deleted;
 		}),
 
 	/**
 	 * Delete every contract in the selection that nothing depends on, and name the rest.
 	 *
-	 * The deleted rows come back whole rather than as ids, because that is what putting them back
-	 * needs: an undo restores each record as itself, by its own identity (ADR 0026), and once the
-	 * rows are gone there is nothing left to read them from.
+	 * The deleted rows come back whole rather than as ids, each with the units it held, because
+	 * that is what putting them back needs: an undo restores each record as itself, by its own
+	 * identity (ADR 0026), and once the rows are gone there is nothing left to read them from.
 	 *
-	 * **No reconcile pass.** A contract that may be deleted at all holds no unit and carries no
-	 * payment, so nothing derived was resting on it — which is the same reason the single-record
-	 * deletion beside it runs none.
+	 * The contracts and their assignment rows go in one batch (ADR 0027), and the units they
+	 * released are reconciled, since those units' occupancy rested on the contracts now gone.
 	 */
 	deleteMany: procedure.member
 		.use(autosync())
@@ -923,47 +1010,63 @@ export default router({
 		.mutation(async ({ input, ctx }) => {
 			const plan = await planContractSelection(ctx.db, ctx.clock.now(), input.ids, 'delete');
 			const deletableIds = plan.eligible.map((contract) => contract.id);
+			const unitIdsOf = (contractId: string) =>
+				(plan.assignmentsByContractId.get(contractId) ?? []).map((held) => held.unitId);
+			const released = [...new Set(deletableIds.flatMap(unitIdsOf))];
 
 			if (deletableIds.length) {
-				await ctx.db.delete(s.contract).where(inArray(s.contract.id, deletableIds));
+				await ctx.db.batch([
+					ctx.db.delete(s.contractUnit).where(inArray(s.contractUnit.contractId, deletableIds)),
+					ctx.db.delete(s.contract).where(inArray(s.contract.id, deletableIds))
+				]);
+			}
+
+			if (released.length) {
+				await reconcileTouched(ctx.db, ctx.clock.now(), { contractIds: [], unitIds: released });
 			}
 
 			return {
-				deleted: plan.eligible.map((contract) => serializeContract(contract)),
+				deleted: plan.eligible.map((contract) => ({
+					...serializeContract(contract),
+					unitIds: unitIdsOf(contract.id)
+				})),
 				refused: plan.refused
 			};
 		}),
 
 	/**
-	 * Put a set of contracts back, all of them or none.
+	 * Put a set of deleted contracts back, all of them or none, as they were.
 	 *
-	 * What undoing {@link deleteMany} calls, and the reason it is all or nothing: a set half
-	 * restored leaves the workspace in a shape neither the deletion nor the undo describes. One
-	 * batch, and the boundary runs a batch inside one transaction (ADR 0027), so a refusal
-	 * anywhere in the set creates nothing.
+	 * What undoing {@link delete} and {@link deleteMany} calls. **It restores rows rather than
+	 * creating contracts** ([[rules/data]], under *Undo*): each contract goes back with the status it
+	 * held and the units it held, and neither is asked of the workspace again. A create would derive
+	 * the status afresh, bringing a terminated contract back active, and would ask whether its units
+	 * are free today, refusing one another contract took after the deletion. Neither is what taking a
+	 * deletion back means. Reconcile runs afterwards over what was restored, as for any other write.
+	 *
+	 * All or nothing, because a set half restored leaves the workspace in a shape neither the
+	 * deletion nor the undo describes. One batch, and the boundary runs a batch inside one
+	 * transaction (ADR 0027), so a refusal anywhere in the set restores nothing.
 	 *
 	 * **It throws rather than reporting**, which is what leaves the entry on the undo stack: an
 	 * inverse that threw did not move the workspace, so the reader can deal with whatever refused
-	 * it and press undo again. Every refusal names the contract it is about, because *one of them
-	 * could not be put back* is not something a reader can act on.
-	 *
-	 * Every check `create` makes, asked once for the whole set rather than once per contract.
+	 * it and press undo again. What it still refuses is what the schema could not hold: an identity
+	 * or a government id taken since, a tenant or a unit gone since. Every refusal names the
+	 * contract it is about where there is one to name.
 	 */
-	createMany: procedure.member
+	restoreMany: procedure.member
 		.use(autosync())
-		.input(z.object({ contracts: z.array(ContractCreateSchema).min(1) }))
+		.input(z.object({ contracts: z.array(ContractRestoreSchema).min(1) }))
 		.mutation(async ({ input, ctx }) => {
 			const now = ctx.clock.now();
 
-			for (const contract of input.contracts) {
-				ensureValidContractInput(contract);
-			}
+			// what each is put back holding, by the identity it had.
+			const heldBy = new Map<string, string[]>();
+			const named = input.contracts.map(({ unitIds, ...contract }) => {
+				heldBy.set(contract.id, [...new Set(unitIds)]);
 
-			const named = input.contracts.map((contract) => ({
-				...contract,
-				id: contract.id ?? newId(),
-				govId: contract.govId?.trim() || null
-			}));
+				return { ...contract, govId: contract.govId?.trim() || null };
+			});
 			const ids = named.map((contract) => contract.id);
 			const govIds = named.map((contract) => contract.govId).filter((govId) => govId !== null);
 
@@ -976,10 +1079,7 @@ export default router({
 				govIds.find((govId, index) => govIds.indexOf(govId) !== index);
 
 			if (repeated) {
-				throw new TRPCError({
-					code: 'BAD_REQUEST',
-					message: `two contracts in this set claim ${repeated}`
-				});
+				throw refuse('contract.repeatedInSet', { value: repeated });
 			}
 
 			const held = await ctx.db.select().from(s.contract).where(inArray(s.contract.id, ids));
@@ -995,10 +1095,7 @@ export default router({
 			const missingTenant = tenantIds.find((tenantId) => !heldTenantIds.has(tenantId));
 
 			if (missingTenant) {
-				throw new TRPCError({
-					code: 'BAD_REQUEST',
-					message: `tenant ${missingTenant} does not exist`
-				});
+				throw refuse('contract.tenantMissingNamed', { named: missingTenant });
 			}
 
 			const taken = govIds.length
@@ -1007,40 +1104,43 @@ export default router({
 
 			ensureGovIdAvailable(taken[0], taken[0]?.govId ?? undefined);
 
-			// annotated rather than inferred: a derived status is a union of string literals, and an
-			// object literal built without something expecting that union widens the property to
-			// `string`. The single-record creation is spared it by handing its literal straight to
-			// `values`, which is the expectation this restores.
-			const values: (typeof s.contract.$inferInsert)[] = named.map((contract) => {
-				const shape = {
-					status: 'active' as const,
-					start: new Date(contract.start),
-					end: new Date(contract.end),
-					interval: contract.interval,
-					cost: contract.cost
-				};
-				const { paidAmount, expectedAmount } = getContractPaymentSummary(shape, []);
-				const status = deriveContractStatus(shape, [], now);
+			const unitIds = [...new Set([...heldBy.values()].flat())];
 
-				return {
-					...contract,
-					govId: contract.govId,
-					status,
-					paidAmount,
-					expectedAmount,
-					start: shape.start,
-					end: shape.end
-				};
-			});
+			if (unitIds.length) {
+				const units = await ctx.db
+					.select({ id: s.unit.id })
+					.from(s.unit)
+					.where(inArray(s.unit.id, unitIds));
+
+				if (units.length !== unitIds.length) {
+					throw refuse('contract.unitsMissing');
+				}
+			}
+
+			// the row as it was, status and aggregates included: reconcile below is what brings any
+			// derived column forward to today, exactly as it would for a row that never left.
+			const values: (typeof s.contract.$inferInsert)[] = named.map((contract) => ({
+				...contract,
+				start: new Date(contract.start),
+				end: new Date(contract.end)
+			}));
 
 			const [first, ...rest] = values.map((value) =>
 				ctx.db.insert(s.contract).values(value).returning()
 			);
-			const created = await ctx.db.batch([first, ...rest]);
+			// the assignment rows go down in the same batch as the contracts they name.
+			const assignments = [...heldBy].flatMap(([contractId, held]) =>
+				held.map((unitId) =>
+					ctx.db.insert(s.contractUnit).values({ contractId, unitId }).returning()
+				)
+			);
+			const restored = await ctx.db.batch([first, ...rest, ...assignments]);
 
-			await reconcileTouched(ctx.db, now, { contractIds: ids });
+			await reconcileTouched(ctx.db, now, { contractIds: ids, unitIds });
 
-			return created.map(([contract]) => serializeContract(contract));
+			return (restored.slice(0, values.length) as DbContract[][]).map(([contract]) =>
+				serializeContract(contract)
+			);
 		}),
 
 	/** The contracts a palette search reaches, by reference or by the tenant holding them. */
@@ -1219,47 +1319,17 @@ export default router({
 		 * The search narrows in SQL, over the unit's name and the name of the complex holding
 		 * it, so the surface never receives a wider set to filter. Units held by a contract
 		 * whose term overlaps this one are left out: they are not this contract's to take, so
-		 * offering them would be offering a refusal.
+		 * offering them would be offering a refusal. A unit this contract holds is kept even
+		 * then, because the held pane lists what the contract holds.
 		 */
 		getAssignableMany: procedure.member
 			.input(ContractAssignableUnitsSchema)
 			.query(async ({ input, ctx }) => {
-				const now = ctx.clock.now();
 				const contract = await selectContract(ctx.db, input.contractId);
-				const search = input.search?.trim();
-
-				const units = await ctx.db
-					.select({
-						id: s.unit.id,
-						name: s.unit.name,
-						complexId: s.unit.complexId,
-						complexName: s.complex.name
-					})
-					.from(s.unit)
-					.innerJoin(s.complex, eq(s.unit.complexId, s.complex.id))
-					.where(search ? matchesAnySearch([s.unit.name, s.complex.name], search) : undefined)
-					.orderBy(asc(s.complex.name), asc(s.unit.name), asc(s.unit.id));
-
-				const unitIds = units.map((unit) => unit.id);
-
-				if (unitIds.length === 0) {
-					return units.map((unit) => ({
-						...unit,
-						status: 'vacant' as const,
-						isAssigned: false
-					}));
-				}
-
-				const assignments = await selectAssignmentsForUnits(ctx.db, unitIds);
-				const contractIds = [...new Set(assignments.map((assignment) => assignment.contractId))];
-				const payments = contractIds.length
-					? await ctx.db.select().from(s.payment).where(inArray(s.payment.contractId, contractIds))
-					: [];
-				const statusByUnitId = deriveUnitStatuses(
-					unitIds,
-					assignments,
-					groupPaymentsByContractId(payments),
-					now
+				const { units, assignments, statusByUnitId } = await selectUnitsWithAssignments(
+					ctx.db,
+					input.search,
+					ctx.clock.now()
 				);
 				const conflictingUnitIds = getConflictingAssignedUnitIds(
 					assignments,
@@ -1272,13 +1342,37 @@ export default router({
 						.map((assignment) => assignment.unitId)
 				);
 
+				// a unit this contract holds is always listed, even where an overlapping contract
+				// holds it too: the held pane must show what a delete refusal counts.
 				return units
-					.filter((unit) => !conflictingUnitIds.has(unit.id))
+					.filter((unit) => assignedUnitIds.has(unit.id) || !conflictingUnitIds.has(unit.id))
 					.map((unit) => ({
 						...unit,
 						status: statusByUnitId.get(unit.id) ?? 'vacant',
 						isAssigned: assignedUnitIds.has(unit.id)
 					}));
+			}),
+
+		/**
+		 * Every unit a contract not yet created may hold over this term: what the contract form
+		 * offers before there is a contract to ask {@link getAssignableMany} about.
+		 *
+		 * The same conflict rule, with no contract of its own to exempt: a unit a contract holds
+		 * over an overlapping term is left out, because offering it would be offering a refusal.
+		 */
+		getAssignableForTerm: procedure.member
+			.input(TermAssignableUnitsSchema)
+			.query(async ({ input, ctx }) => {
+				const { units, assignments, statusByUnitId } = await selectUnitsWithAssignments(
+					ctx.db,
+					input.search,
+					ctx.clock.now()
+				);
+				const conflictingUnitIds = getConflictingAssignedUnitIds(assignments, input, '');
+
+				return units
+					.filter((unit) => !conflictingUnitIds.has(unit.id))
+					.map((unit) => ({ ...unit, status: statusByUnitId.get(unit.id) ?? 'vacant' }));
 			}),
 
 		/**
@@ -1305,10 +1399,7 @@ export default router({
 					: [];
 
 				if (units.length !== nextUnitIds.length) {
-					throw new TRPCError({
-						code: 'BAD_REQUEST',
-						message: 'one or more units could not be found'
-					});
+					throw refuse('contract.unitsMissing');
 				}
 
 				const held = await ctx.db

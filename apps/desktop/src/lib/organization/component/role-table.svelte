@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { toTitleCase } from '@rentable/design/title-case.js';
 	import * as Dialog from '@rentable/design/primitive/dialog/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import {
@@ -100,7 +101,7 @@
 <Dialog.Root bind:open={() => open, onOpenChange}>
 	<Dialog.Content class="w-full sm:max-w-2xl">
 		<Dialog.Header>
-			<Dialog.Title class="capitalize">{$LL.organization.roleTable.title()}</Dialog.Title>
+			<Dialog.Title>{toTitleCase($LL.organization.roleTable.title())}</Dialog.Title>
 			<Dialog.Description>{$LL.organization.roleTable.description()}</Dialog.Description>
 		</Dialog.Header>
 
@@ -136,10 +137,10 @@
 					<tr>
 						<th
 							colspan={ROLES.length + 1}
-							class="px-2 pt-4 pb-1 text-start text-xs font-medium capitalize"
+							class="px-2 pt-4 pb-1 text-start text-xs font-medium"
 							data-role-group="given"
 						>
-							{$LL.organization.roleTable.given()}
+							{toTitleCase($LL.organization.roleTable.given())}
 						</th>
 					</tr>
 					{#each EVERY_ADMINISTRATION as act (act)}
@@ -159,10 +160,10 @@
 					<tr>
 						<th
 							colspan={ROLES.length + 1}
-							class="px-2 pt-6 pb-1 text-start text-xs font-medium capitalize"
+							class="px-2 pt-6 pb-1 text-start text-xs font-medium"
 							data-role-group="owner-alone"
 						>
-							{$LL.organization.roleTable.ownerAlone()}
+							{toTitleCase($LL.organization.roleTable.ownerAlone())}
 						</th>
 					</tr>
 					{#each ownerAlone as act (act.name)}

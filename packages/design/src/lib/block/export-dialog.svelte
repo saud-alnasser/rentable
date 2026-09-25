@@ -2,6 +2,7 @@
 	import { EXPORT_FORMATS, type ExportFormat } from '#lib/csv.js';
 	import { Button } from '#lib/primitive/button/index.js';
 	import * as Dialog from '#lib/primitive/dialog/index.js';
+	import { toTitleCase } from '#lib/title-case.js';
 	import { useDesignContract } from '#lib/strings.js';
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import FileSpreadsheetIcon from '@lucide/svelte/icons/file-spreadsheet';
@@ -60,7 +61,7 @@
 <Dialog.Root {open} {onOpenChange}>
 	<Dialog.Content class="w-full max-w-md">
 		<Dialog.Header>
-			<Dialog.Title class="capitalize">{contract.strings.export}</Dialog.Title>
+			<Dialog.Title>{toTitleCase(contract.strings.export)}</Dialog.Title>
 			<Dialog.Description>{contract.strings.exportDescription}</Dialog.Description>
 		</Dialog.Header>
 
@@ -74,7 +75,7 @@
 					type="button"
 					onclick={() => (chosen = format)}
 					aria-pressed={isChosen}
-					class="flex cursor-pointer items-center gap-3 rounded-2xl border p-4 text-start transition-colors duration-200 {isChosen
+					class="flex cursor-pointer items-center gap-3 rounded-2xl border p-4 text-start transition-colors duration-base {isChosen
 						? 'border-primary bg-primary/10'
 						: 'border-transparent bg-muted hover:bg-muted/70'}"
 				>

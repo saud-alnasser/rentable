@@ -83,3 +83,26 @@ test('pressing it with nowhere to go back to takes the fallback', () => {
 
 	expect(navigations().map((call) => call.url)).toEqual([FALLBACK]);
 });
+
+// criterion 14(b) of effort 832: the way in's steps use this control too, and a walk decides for
+// itself where back goes, so the trail is not read and nothing navigates.
+test('on a surface that decides where back goes, pressing it calls that and navigates nowhere', () => {
+	backTrail.visit(CAME_FROM);
+	backTrail.visit(HERE);
+
+	let pressed = 0;
+
+	render(
+		BackControl,
+		{ onclick: () => pressed++, label: 'back a step' },
+		{
+			wrapper: Providers,
+			wrapperProps: { strings: suppliedStrings({ previous: WORD }), direction: 'rtl' }
+		}
+	);
+
+	screen.getByRole('button', { name: 'back a step' }).click();
+
+	expect(pressed).toBe(1);
+	expect(navigations()).toEqual([]);
+});

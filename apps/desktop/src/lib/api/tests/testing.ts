@@ -2,13 +2,20 @@
 // isolated in-memory database, a fixed clock, and a fake host. Not a `*.test.ts` file, so
 // the test runner does not pick it up directly.
 
+import assert from 'node:assert/strict';
+
+import { readRefusal, type RefusalCode, type RefusalParams } from '$lib/api/refusal.ts';
+import { toRefusalText } from '$lib/error/refusal.ts';
+import type { Locales } from '$lib/i18n/i18n-types.ts';
+import { i18nObject } from '$lib/i18n/i18n-util.ts';
+import { loadLocale } from '$lib/i18n/i18n-util.sync.ts';
 import {
 	closeFileDatabase,
 	createFileDatabase,
 	createMemoryDatabase
 } from '$lib/platform/database/memory.ts';
 import { newId } from '$lib/platform/database/identity.ts';
-import type { Identity } from '$lib/api/context.ts';
+import type { Database, Identity } from '$lib/api/context.ts';
 import type { Host } from '$lib/platform/host.ts';
 import { fakeHost } from '$lib/platform/tests/testing.ts';
 import { appRouter } from '../router.ts';
@@ -62,16 +69,20 @@ export type Api = Awaited<ReturnType<typeof createApi>>;
 // **It administers nothing unless a test says otherwise**, which is what `identity` is for: a
 // procedure declared with `procedure.permitted` refuses this caller, so a test about one names the
 // acts it needs and every other test goes on being about what it was about.
+//
+// Pass `db` to hand in the in-memory database yourself, for a test that has to watch how a
+// procedure writes to it rather than only what it issues: whether a write is one batch.
 export async function createApi({
 	host,
 	identity,
-	onStatement
+	onStatement,
+	db = createMemoryDatabase(onStatement)
 }: {
 	host?: Host;
 	identity?: Identity;
 	onStatement?: (sql: string, rowCount: number) => void;
+	db?: Database;
 } = {}) {
-	const db = createMemoryDatabase(onStatement);
 	const ctx = await context({
 		db,
 		clock: { now: () => NOW },
@@ -137,4 +148,42 @@ export async function withStatementLog(run: (api: Api, drain: () => string[]) =>
 /** how many of the logged statements were of a kind. */
 export function countMatching(statements: readonly string[], pattern: RegExp) {
 	return statements.filter((sql) => pattern.test(sql)).length;
+}
+
+/**
+ * What `assert.rejects` and `assert.throws` are handed to say a call was refused with this code.
+ *
+ * A refusal crosses as a code and its values ([[rules/api-layer]], under *Errors*), so that is
+ * what a test pins rather than the message, which is a developer's description and free to change.
+ * Pass `params` to pin the values the sentence will be built from as well.
+ */
+export function refusedWith(code: RefusalCode, params?: RefusalParams) {
+	return (error: unknown) => {
+		const refusal = readRefusal(error);
+
+		assert.equal(refusal?.code, code, `expected a refusal of ${code}, got ${String(error)}`);
+
+		if (params) {
+			assert.deepEqual(refusal?.params, params);
+		}
+
+		return true;
+	};
+}
+
+/**
+ * What a refused call says to a reader of `locale`: the sentence the interface would show for it.
+ *
+ * Arabic by default, because that is the reader a refusal written as English prose used to fail
+ * (effort 832, requirement 23), and the test that reads it there is the one that would notice.
+ */
+export async function refusalReadIn(call: () => Promise<unknown>, locale: Locales = 'ar') {
+	loadLocale(locale);
+
+	const error = await call().then(
+		() => assert.fail('the call should have been refused'),
+		(failure: unknown) => failure
+	);
+
+	return toRefusalText(error, i18nObject(locale));
 }

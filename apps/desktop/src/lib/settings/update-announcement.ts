@@ -1,7 +1,7 @@
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 
 import { toErrorMessage } from '$lib/error/message';
-import { toast } from 'svelte-sonner';
+import { showErrorSentence, showSuccessToast } from '$lib/error/toast';
 
 /**
  * WHAT THE UPDATES SECTION SAYS, AND WHERE IT SAYS IT
@@ -42,8 +42,6 @@ export type UpdateOutcome =
 export type UpdateAnnouncement = {
 	tone: 'success' | 'error';
 	title: string;
-	/** rust's own prose behind the sentence, where a failure crossed the tauri boundary. */
-	detail: string | null;
 };
 
 /**
@@ -62,15 +60,15 @@ export function describeUpdateOutcome(
 		case 'checked':
 			return outcome.hasRelease
 				? null
-				: { tone: 'success', title: translations.settings.latestRelease(), detail: null };
+				: { tone: 'success', title: translations.settings.latestRelease() };
 		case 'installed':
-			return { tone: 'success', title: translations.settings.restartNotice(), detail: null };
+			return { tone: 'success', title: translations.settings.restartNotice() };
 		case 'failed': {
-			// titled from its code where it crossed the boundary, so the sentence is translated and
-			// rust's untranslated prose survives as the description rather than being discarded.
-			const { title, detail } = toErrorMessage(outcome.error, translations);
-
-			return { tone: 'error', title, detail };
+			// titled from its code where it crossed the boundary, so the sentence is translated.
+			// rust's untranslated prose is not the toast's: the section (`logUpdaterError`) and the
+			// restart's mutation handler record it in diagnostics, which is where the machine's words
+			// go ([[rules/interface]], *Error*).
+			return { tone: 'error', title: toErrorMessage(outcome.error, translations).title };
 		}
 	}
 }
@@ -83,11 +81,9 @@ export function announceUpdateOutcome(outcome: UpdateOutcome, translations: Tran
 		return;
 	}
 
-	const options = { description: announcement.detail ?? undefined };
-
 	if (announcement.tone === 'success') {
-		toast.success(announcement.title, options);
+		showSuccessToast(announcement.title);
 	} else {
-		toast.error(announcement.title, options);
+		showErrorSentence(announcement.title);
 	}
 }

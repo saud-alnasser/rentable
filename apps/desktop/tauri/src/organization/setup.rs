@@ -45,7 +45,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     diagnostics,
-    error::Error,
+    error::{Error, RefusalReason},
     persisted::Persisted,
     sync::{
         RemoteSyncStore,
@@ -93,14 +93,6 @@ pub const OWNER_PERMISSIONS: i64 = 0b111_1111;
 /// create tries. It is Turso's word rather than this application's, and it is never shown to
 /// anybody: what it buys is one more account that nobody has to be asked anything on.
 const TURSO_DEFAULT_GROUP: &str = "default";
-
-/// What a run refused over the group begins its message with, so the walk can tell that one
-/// refusal from every other and draw the field.
-///
-/// **A fixed phrase rather than a sentence.** `organization/setup.ts` matches on it to decide
-/// whether to ask for the group at all, so it is the one part of this message that is a contract;
-/// what follows it is Turso's own words and is free to change with them.
-pub const THE_GROUP_IS_NEEDED: &str = "the turso group's name is needed";
 
 /// The strength floor, checked on the machine. There is no server to slow a guess down, so the
 /// password is the whole defence, and the floor is length because length is what an attacker
@@ -253,9 +245,10 @@ where
         .filter(|group| !group.is_empty());
 
     if name.is_empty() {
-        return Err(Error::InvalidInput {
-            message: "the organization needs a name".to_string(),
-        });
+        return Err(Error::refused(
+            RefusalReason::OrganizationNameMissing,
+            "the organization needs a name",
+        ));
     }
 
     // the owner is the first member, so nobody holds the username yet; the shape is the whole
@@ -263,12 +256,13 @@ where
     validate_username(username)?;
 
     if request.password.chars().count() < MINIMUM_PASSWORD_LENGTH {
-        return Err(Error::InvalidInput {
-            message: format!(
+        return Err(Error::refused(
+            RefusalReason::PasswordTooShort,
+            format!(
                 "the password needs at least {MINIMUM_PASSWORD_LENGTH} characters. it is the only \
                  thing between anybody holding the organization's records and reading them"
             ),
-        });
+        ));
     }
 
     let organization_id = random_id()?;
@@ -287,12 +281,13 @@ where
             if let Some(typed_group) = typed_group
                 && consented.organization.group != typed_group
             {
-                return Err(Error::PreconditionFailed {
-                    message: format!(
+                return Err(Error::refused(
+                    RefusalReason::GroupMismatch,
+                    format!(
                         "the group this consent is over is called `{}`, not `{typed_group}`",
                         consented.organization.group
                     ),
-                });
+                ));
             }
 
             // **before the create, so a refusal leaves the account exactly as it was.** Where
@@ -443,12 +438,15 @@ async fn create_into_an_empty_group<P: TursoPlatform>(
         }
     }
 
-    Err(Error::PreconditionFailed {
-        message: format!(
-            "{THE_GROUP_IS_NEEDED}. turso refused every group this application could name on its \
+    // the reason is what the walk draws the field from, and the message is what it shows under
+    // the field behind a disclosure: Turso's last words, which are free to change with Turso.
+    Err(Error::refused(
+        RefusalReason::GroupNeeded,
+        format!(
+            "turso refused every group this application could name on its \
              own, and said: {refusal}"
         ),
-    })
+    ))
 }
 
 /// What the consented group is called, from whichever of the two ways knew, and which one that
@@ -508,7 +506,10 @@ fn named_the_group(by: &str) {
 /// Turso's own reason inside a refused create, where what came back is one.
 fn turso_reason(error: &Error) -> Option<&str> {
     match error {
-        Error::PreconditionFailed { message } => Some(
+        Error::Refused {
+            reason: RefusalReason::CreateRefused,
+            message,
+        } => Some(
             message
                 .strip_prefix(discovery::CREATE_REFUSED)
                 .unwrap_or(message),
@@ -839,9 +840,8 @@ where
     // it holds. The way to another is a disconnect.
     connect::refuse_while_held(store)?;
 
-    let nothing_to_connect_to = || Error::PreconditionFailed {
-        message: NOTHING_TO_CONNECT_TO.to_string(),
-    };
+    let nothing_to_connect_to =
+        || Error::refused(RefusalReason::NothingToConnectTo, NOTHING_TO_CONNECT_TO);
     let (organization, databases) = discovery::group_databases(platform_token, mcp)
         .await?
         .ok_or_else(nothing_to_connect_to)?;
@@ -986,9 +986,7 @@ async fn the_owners_key(
     password: &str,
 ) -> Result<([u8; VERIFYING_KEY_BYTES], ContentKey), Error> {
     let refused = || session::refused_by_name(ORGANIZATION_THIS_ACCOUNT_HOLDS);
-    let only_the_owner = || Error::Forbidden {
-        message: ONLY_THE_OWNER_CONNECTS.to_string(),
-    };
+    let only_the_owner = || Error::refused(RefusalReason::OwnerOnly, ONLY_THE_OWNER_CONNECTS);
     let wanted = username.trim().to_lowercase();
     let members = replica.members_unverified().await?;
     let mut opened = None;
@@ -1085,12 +1083,13 @@ fn one_organization_to_a_group(databases: &[String]) -> Result<(), Error> {
     match held {
         // the name is the customer's own and is said back to them, because it is what they look
         // for in Turso's dashboard to decide whether to delete it or pick elsewhere.
-        Some(held) => Err(Error::PreconditionFailed {
-            message: format!(
+        Some(held) => Err(Error::refused(
+            RefusalReason::GroupHoldsOrganization,
+            format!(
                 "this group already holds the organization database `{held}`; a group holds \
                  one organization, so pick another group or another Turso account"
             ),
-        }),
+        )),
         None => Ok(()),
     }
 }
@@ -1217,15 +1216,19 @@ fn draw_these_ids_next(ids: &[&str]) {
 /// says what to do: grant the consent. Requirement 5's re-consent, at the one place a first run
 /// spends the authority.
 pub fn authority() -> Result<String, Error> {
-    crate::sync::turso::consent::platform_token().map_err(|_| Error::NotConfigured {
-        message: "this machine holds no turso authority. connect the turso account first, then \
-                  create the organization"
-            .to_string(),
+    crate::sync::turso::consent::platform_token().map_err(|_| {
+        Error::refused(
+            RefusalReason::TursoNotConnected,
+            "this machine holds no turso authority. connect the turso account first, then \
+                  create the organization",
+        )
     })
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::error::RefusalReason;
+
     use std::sync::{Arc, Mutex};
 
     use base64::Engine as _;
@@ -1235,8 +1238,8 @@ mod tests {
         BASE64URL, CreateOrganization, GroupState, MINIMUM_PASSWORD_LENGTH,
         ONLY_THE_OWNER_CONNECTS, ORGANIZATION_CREDENTIAL_LIFETIME, ORGANIZATION_DATABASE_PREFIX,
         ORGANIZATION_KEY_PURPOSE, ORGANIZATION_THIS_ACCOUNT_HOLDS, OWNER_PERMISSIONS, OWNER_ROLE,
-        Remote, SHIPPING_KDF, THE_GROUP_IS_NEEDED, connect_existing, create_organization,
-        credential_expiry, draw_these_ids_next, group_inspect,
+        Remote, SHIPPING_KDF, connect_existing, create_organization, credential_expiry,
+        draw_these_ids_next, group_inspect,
     };
     use crate::{
         error::Error,
@@ -1456,7 +1459,13 @@ mod tests {
         .expect_err("a group already holding an organization was built into again");
 
         assert!(
-            matches!(refusal, Error::PreconditionFailed { .. }),
+            matches!(
+                refusal,
+                Error::Refused {
+                    reason: crate::error::RefusalReason::GroupHoldsOrganization,
+                    ..
+                }
+            ),
             "{refusal:?}"
         );
         assert_eq!(
@@ -1519,7 +1528,13 @@ mod tests {
         .expect_err("a group the consent is not over was built into");
 
         assert!(
-            matches!(refusal, Error::PreconditionFailed { .. }),
+            matches!(
+                refusal,
+                Error::Refused {
+                    reason: crate::error::RefusalReason::GroupMismatch,
+                    ..
+                }
+            ),
             "{refusal:?}"
         );
         assert_eq!(
@@ -2072,15 +2087,17 @@ mod tests {
             "the probe that learned nothing, then a handshake and a create per attempt"
         );
 
-        // and the refusal asks for the one thing left: the fixed phrase first, so the walk can
-        // tell it from every other refusal, and Turso's last words after it.
+        // and the refusal asks for the one thing left: by its reason, so the walk can tell it
+        // from every other refusal, with Turso's last words in the message.
         assert!(
-            matches!(refusal, Error::PreconditionFailed { .. }),
+            matches!(
+                refusal,
+                Error::Refused {
+                    reason: RefusalReason::GroupNeeded,
+                    ..
+                }
+            ),
             "{refusal:?}"
-        );
-        assert!(
-            refusal.to_string().starts_with(THE_GROUP_IS_NEEDED),
-            "{refusal}"
         );
         assert!(refusal.to_string().ends_with(NO_SUCH_GROUP), "{refusal}");
 
@@ -2299,7 +2316,7 @@ mod tests {
             .expect_err("bad input was accepted");
 
             assert!(
-                matches!(error, crate::error::Error::InvalidInput { .. }),
+                matches!(error, crate::error::Error::Refused { .. }),
                 "{error:?}"
             );
 
@@ -2644,7 +2661,7 @@ mod tests {
         .expect_err("an administrator connected on the owner's account");
 
         assert!(
-            matches!(refused, Error::Forbidden { ref message } if message == ONLY_THE_OWNER_CONNECTS),
+            matches!(refused, Error::Refused { reason: crate::error::RefusalReason::OwnerOnly, ref message } if message == ONLY_THE_OWNER_CONNECTS),
             "{refused:?}"
         );
         assert!(
@@ -2823,7 +2840,7 @@ mod tests {
         .expect_err("the founder connected after handing the organization over");
 
         assert!(
-            matches!(refused, Error::Forbidden { ref message } if message == ONLY_THE_OWNER_CONNECTS),
+            matches!(refused, Error::Refused { reason: crate::error::RefusalReason::OwnerOnly, ref message } if message == ONLY_THE_OWNER_CONNECTS),
             "{refused:?}"
         );
         assert!(

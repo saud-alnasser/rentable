@@ -1,7 +1,7 @@
 /*
  * the token layer, and the whole of what the product's surfaces are drawn from. a second Rentable
- * client imports this file and inherits the palette, the tone vocabulary, the radius, the shell
- * breakpoint and the global rules that belong to the product rather than to one window.
+ * client imports this file and inherits the palette, the tone vocabulary, shape and elevation,
+ * the shell breakpoint and the global rules that belong to the product rather than to one window.
  *
  * a consumer needs three lines, and two of them fail silently if they are wrong. there is no
  * error in either case: the build succeeds and the application is simply wrong on screen.
@@ -27,21 +27,89 @@
  */
 
 /*
- * one palette, no modes: the tokens live here alone, and there is no `dark:` variant to
- * select against them — every utility states the one value it renders. the base is neutral
- * black — chroma 0 throughout — and elevation is carried by value: background < card <
- * popover < muted < secondary < accent, each step lighter reading as more raised. blue
- * exists only in `primary` and `ring`, so it can only ever mark the active, selected, or
- * focused element. every other hue here is named for the one thing it says, so a surface
- * cannot reach for a colour without saying what it means by it.
+ * two appearances, one vocabulary: light on `:root`, dark under `.dark`, and the class on
+ * `<html>` is the only thing that chooses between them. the application sets it (in desktop,
+ * `platform/appearance.ts`, following the system unless the reader chose one), so a surface
+ * never does: there is no `dark:` variant to select against the tokens, and every utility
+ * states the one token it renders, which carries a value in both. a token added to one block
+ * and not the other is a defect, and `tests/tokens.test.ts` refuses it, along with any text or
+ * tone that falls under WCAG AA against the surfaces it sits on.
+ *
+ * the base is neutral, chroma 0 throughout, and elevation is carried by value. in dark:
+ * background < card < popover < muted < secondary < accent, each step lighter reading as more
+ * raised. in light the ground is a pale grey and a card or popover is white above it. borders
+ * and inputs are black alpha in light and white alpha in dark. blue exists only in `primary`
+ * and `ring`, so it can only ever mark the active, selected, or focused element. every other
+ * hue here is named for the one thing it says, so a surface cannot reach for a colour without
+ * saying what it means by it, and a tone darkened for light is still the same token saying the
+ * same thing.
  */
 :root {
 	/*
-	 * the radius ladder is Tailwind's own — the shadcn-style overrides that inverted it
-	 * (rounded-xl above rounded-2xl) are gone. `--radius` survives only because the
-	 * input-group primitive still derives from it; it feeds no ladder token.
+	 * the light appearance's elevation. the names are explained under *Shape and elevation*
+	 * below. a shadow on a pale ground needs little to read, so these stay soft.
 	 */
-	--radius: 0.875rem;
+	--elevation-raised: 0 1px 2px 0 oklch(0 0 0 / 6%), 0 1px 3px 0 oklch(0 0 0 / 10%);
+	--elevation-overlay: 0 12px 24px -6px oklch(0 0 0 / 16%), 0 4px 8px -4px oklch(0 0 0 / 10%);
+	--elevation-sunken: inset 0 2px 4px oklch(0 0 0 / 10%);
+	/*
+	 * the light appearance. the names are explained once, in the dark block below, and mean
+	 * the same here. the tones are darker than their dark twins so that each still reads at
+	 * 4.5:1 on the white card and the grey ground.
+	 */
+	--background: oklch(0.965 0 0);
+	--foreground: oklch(0.22 0 0);
+	--card: oklch(1 0 0);
+	--card-foreground: oklch(0.22 0 0);
+	--popover: oklch(1 0 0);
+	--popover-foreground: oklch(0.22 0 0);
+	--primary: oklch(0.58 0.2 256);
+	--primary-foreground: oklch(0.99 0 0);
+	--secondary: oklch(0.935 0 0);
+	--secondary-foreground: oklch(0.22 0 0);
+	--muted: oklch(0.95 0 0);
+	--muted-foreground: oklch(0.5 0 0);
+	--disabled-foreground: oklch(0.6 0 0);
+	--accent: oklch(0.915 0 0);
+	--accent-foreground: oklch(0.18 0 0);
+	--destructive: oklch(0.56 0.21 25);
+	--info: oklch(0.52 0.15 252);
+	--warning: oklch(0.54 0.12 70);
+	--success: oklch(0.52 0.14 152);
+	--permitted: oklch(0.52 0.12 163);
+	--permitted-foreground: oklch(0.99 0 0);
+	--money: oklch(0.51 0.15 152);
+	--border: oklch(0 0 0 / 9%);
+	--input: oklch(0 0 0 / 12%);
+	--ring: oklch(0.58 0.2 256);
+	--chart-1: oklch(0.55 0.22 264);
+	--chart-2: oklch(0.6 0.15 162);
+	--chart-3: oklch(0.7 0.16 70);
+	--chart-4: oklch(0.58 0.23 304);
+	--chart-5: oklch(0.6 0.22 16);
+	--sidebar: oklch(0.945 0 0);
+	--sidebar-foreground: oklch(0.22 0 0);
+	--sidebar-primary: oklch(0.58 0.2 256);
+	--sidebar-primary-foreground: oklch(0.99 0 0);
+	--sidebar-accent: oklch(0.905 0 0);
+	--sidebar-accent-foreground: oklch(0.18 0 0);
+	--sidebar-border: oklch(0 0 0 / 8%);
+	--sidebar-ring: oklch(0.58 0.2 256);
+}
+
+/*
+ * the dark appearance, and the palette the application had alone until it had two. every value
+ * here is the one it carried then, so dark reads exactly as it did.
+ */
+.dark {
+	/*
+	 * a shadow against a dark ground reads as almost nothing at the alpha light uses, so each
+	 * is several times denser here: the same step reads as the same height in both. the sunken
+	 * well is the value it carried when dark was the only appearance.
+	 */
+	--elevation-raised: 0 1px 2px 0 oklch(0 0 0 / 40%), 0 1px 3px 0 oklch(0 0 0 / 50%);
+	--elevation-overlay: 0 12px 28px -6px oklch(0 0 0 / 60%), 0 4px 10px -4px oklch(0 0 0 / 40%);
+	--elevation-sunken: inset 0 2px 4px oklch(0 0 0 / 14%);
 	--background: oklch(0.13 0 0);
 	--foreground: oklch(0.97 0 0);
 	--card: oklch(0.17 0 0);
@@ -54,6 +122,13 @@
 	--secondary-foreground: oklch(0.97 0 0);
 	--muted: oklch(0.2 0 0);
 	--muted-foreground: oklch(0.72 0 0);
+	/*
+	 * the label of a control that cannot run now. dimmer than the muted foreground, so a quiet
+	 * control still reads as off when it is, and never under 3:1 on a surface or on the muted fill
+	 * a disabled button takes. it replaced half opacity, which took a primary button's white label
+	 * and blue fill towards the ground together and left grey on dark blue.
+	 */
+	--disabled-foreground: oklch(0.55 0 0);
 	--accent: oklch(0.26 0 0);
 	--accent-foreground: oklch(0.985 0 0);
 	--destructive: oklch(0.704 0.191 22.216);
@@ -124,6 +199,7 @@
 	--color-secondary-foreground: var(--secondary-foreground);
 	--color-muted: var(--muted);
 	--color-muted-foreground: var(--muted-foreground);
+	--color-disabled-foreground: var(--disabled-foreground);
 	--color-accent: var(--accent);
 	--color-accent-foreground: var(--accent-foreground);
 	--color-destructive: var(--destructive);
@@ -165,6 +241,173 @@
 	--breakpoint-shell: 48rem;
 }
 
+/* ===================================== */
+/* Shape and elevation                   */
+/* ===================================== */
+
+/*
+ * every corner comes from one ladder and every shadow from one of two heights. a surface names a
+ * step and never a length, and `shape.test.ts` in each package fails on an arbitrary radius or
+ * shadow anywhere it draws. [[rules/frontend]] *Styling* says which surface takes which step.
+ *
+ * the ladder is Tailwind's own steps and values, stated here so it is this file's rather than
+ * the framework's: xs for a mark, sm for a small box, md for a control the registry shipped, lg
+ * for a label floating inside a surface, xl for a row, 2xl for a control or a card, 3xl for a
+ * panel. anything round all the way is `rounded-full`, which is not a step. the stock steps are
+ * cleared first, so one the ladder does not name generates nothing.
+ *
+ * two heights, and no third: `raised` is a card resting on the page, or a control that stands
+ * off it by design (the slider's thumb, the way past a screen), and `overlay` is anything
+ * floating over it: a dialog, a sheet, a menu, a popover, a card lifted under the pointer.
+ * `sunken` is the one inset, a form's control cut into the panel. each is a value per appearance,
+ * declared in the two blocks above and read through a variable here, because a shadow tuned for
+ * a pale ground vanishes on a dark one. the stock shadows are cleared for the
+ * same reason the stock radii are, and because every one of them is black at an alpha only light
+ * can see.
+ *
+ * `rounded-inherit` is for an element laid exactly over its parent, a card's link or a scroll
+ * viewport, whose corners have to be the parent's whichever step that is.
+ */
+@theme {
+	--radius-*: initial;
+	--radius-xs: 0.125rem;
+	--radius-sm: 0.25rem;
+	--radius-md: 0.375rem;
+	--radius-lg: 0.5rem;
+	--radius-xl: 0.75rem;
+	--radius-2xl: 1rem;
+	--radius-3xl: 1.5rem;
+}
+
+@theme inline {
+	--shadow-*: initial;
+	--inset-shadow-*: initial;
+	--drop-shadow-*: initial;
+	--text-shadow-*: initial;
+	--shadow-raised: var(--elevation-raised);
+	--shadow-overlay: var(--elevation-overlay);
+	--inset-shadow-sunken: var(--elevation-sunken);
+}
+
+@utility rounded-inherit {
+	border-radius: inherit;
+}
+
+/* ===================================== */
+/* Typeface                              */
+/* ===================================== */
+
+/*
+ * Readex Pro, one variable family drawn for both scripts, committed under `font/` with its
+ * licence and loaded from there alone: nothing here reaches a network. Two files split by
+ * `unicode-range`, so a screen in one script never decodes the other's glyphs. `font/README.md`
+ * holds where they came from and the command that rebuilt them, and the ranges below are the
+ * ones that command names.
+ *
+ * `block` rather than `swap` because the files are local: the wait is a disk read, and swapping
+ * would flash the system face for a frame on every start.
+ *
+ * `system-ui` follows it for any character neither file carries.
+ */
+@font-face {
+	font-family: 'Readex Pro';
+	font-style: normal;
+	font-weight: 160 700;
+	font-display: block;
+	src: url('./font/readex-pro-latin.woff2') format('woff2');
+	unicode-range:
+		U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+		U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+	font-family: 'Readex Pro';
+	font-style: normal;
+	font-weight: 160 700;
+	font-display: block;
+	src: url('./font/readex-pro-arabic.woff2') format('woff2');
+	unicode-range:
+		U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E,
+		U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC;
+}
+
+@theme {
+	--font-sans:
+		'Readex Pro', system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
+		'Noto Color Emoji';
+}
+
+/*
+ * the line height Arabic needs, set on every size in the type scale at once. Readex Pro's line
+ * box is 1em above the baseline and 0.25em below it, and Arabic ink goes much further down: a
+ * yeh with a kasra reaches 0.5em below the baseline at weight 700. The leading added to a line is
+ * split evenly above and below, so a line clears that descent only from 1.75 times the size, and
+ * anything less is cut off wherever a surface truncates. 1.8 leaves a margin over that floor.
+ * Measured by shaping vocalised text with HarfBuzz on 2026-09-24.
+ *
+ * keyed on the document's language, which `routes/+layout.svelte` sets on `<html>`, so English
+ * keeps the scale's own tighter lines. `leading-none` is not reached here: it is a literal `1`
+ * and is meant for a single figure centred in a fixed box. The plain `line-height` is what text
+ * carrying no size class inherits, in place of the 1.5 Tailwind's preflight gives it.
+ */
+:root:lang(ar) {
+	line-height: 1.8;
+	--text-xs--line-height: 1.8;
+	--text-sm--line-height: 1.8;
+	--text-base--line-height: 1.8;
+	--text-lg--line-height: 1.8;
+	--text-xl--line-height: 1.8;
+	--text-2xl--line-height: 1.8;
+	--text-3xl--line-height: 1.8;
+	--leading-tight: 1.8;
+	--leading-snug: 1.8;
+	--leading-normal: 1.8;
+}
+
+/* ===================================== */
+/* Motion                                */
+/* ===================================== */
+
+/*
+ * the motion vocabulary: three easings named for what the element is doing, three durations named
+ * for how much of the screen it crosses. a surface names one of each and never a number, and
+ * `motion.test.ts` in the application fails on a raw duration or a stock easing anywhere else.
+ *
+ * something arriving decelerates into place, something leaving accelerates out of the way, and
+ * something already on screen that changes place or size eases both ends. quick is a colour or a
+ * small control, base is a dialog or a menu, slow is a panel crossing the window; nothing here runs
+ * longer, because desktop motion that outlasts a quarter second reads as waiting.
+ *
+ * each easing is a Tailwind `--ease-*` entry, so `ease-enter` is the utility and `--ease-enter` the
+ * value. each duration is stated once as `--duration-*` and mapped into `--transition-duration-*`,
+ * which is what `duration-base` resolves against. both utilities also set the variables
+ * tw-animate-css reads, so `animate-in` on a dialog takes the same pair a transition does.
+ *
+ * the stock easings are cleared rather than left beside these, so the stock names generate nothing
+ * and a surface cannot reach one by accident. the defaults every bare `transition-*` falls back on
+ * are the vocabulary too, which is how a hover transition that names neither still speaks it.
+ *
+ * `static` for the same reason the breakpoint above is: a view transition reads these from plain
+ * CSS rather than from a utility, and unused-value elimination would otherwise drop them.
+ */
+@theme static {
+	--ease-*: initial;
+	--ease-enter: cubic-bezier(0, 0, 0.2, 1);
+	--ease-exit: cubic-bezier(0.4, 0, 1, 1);
+	--ease-move: cubic-bezier(0.2, 0, 0, 1);
+
+	--duration-quick: 150ms;
+	--duration-base: 200ms;
+	--duration-slow: 250ms;
+
+	--transition-duration-quick: var(--duration-quick);
+	--transition-duration-base: var(--duration-base);
+	--transition-duration-slow: var(--duration-slow);
+
+	--default-transition-duration: var(--duration-quick);
+	--default-transition-timing-function: var(--ease-move);
+}
+
 @layer base {
 	* {
 		@apply border-border outline-ring/50;
@@ -202,6 +445,19 @@
 	border-radius: 9999px;
 }
 
+/*
+ * a thumb never shrinks to a dot. over a directory of thousands the thumb's share of the track
+ * is a few pixels, and at the scrollbar's width that reads as a stray mark at the top of the list
+ * rather than as a place in it.
+ */
+*::-webkit-scrollbar-thumb:vertical {
+	min-height: 2rem;
+}
+
+*::-webkit-scrollbar-thumb:horizontal {
+	min-width: 2rem;
+}
+
 *::-webkit-scrollbar-thumb:hover {
 	background: var(--color-muted-foreground);
 }
@@ -221,6 +477,11 @@
  * the looping indicators — spinner, skeleton, caret — keep moving, and none of them carries
  * either attribute. a spinner is the only thing on screen saying work is in progress, and a
  * frozen one reads as a hung application rather than a calmer one.
+ *
+ * a view transition is the third case, and the one a surface could not reach even if it tried:
+ * the snapshots it animates are pseudo-elements on the document, outside every component. with
+ * their animation off the new state simply appears, which is the same answer the fallback gives a
+ * webview with no `startViewTransition` at all.
  */
 @media (prefers-reduced-motion: reduce) {
 	*,
@@ -232,5 +493,12 @@
 	[data-state],
 	[data-motion] {
 		animation: none;
+	}
+
+	::view-transition-group(*),
+	::view-transition-image-pair(*),
+	::view-transition-old(*),
+	::view-transition-new(*) {
+		animation: none !important;
 	}
 }

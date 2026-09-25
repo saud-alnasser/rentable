@@ -102,7 +102,7 @@ const DIRECTORY_FILES: Record<(typeof DIRECTORY_CONCEPTS)[number], ImportTable> 
 		headers: ['Name', 'Location', 'Units', 'Occupied Units', 'Vacant Units'],
 		rows: [['Al Nakheel', 'Riyadh', '1', '1', '0']]
 	},
-	// `complex/component/unit-directory.svelte` — the unit's own name under `Name`, where the
+	// `complex/unit/component/directory.svelte` puts the unit's own name under `Name`, where the
 	// workspace's Units sheet says `Unit`.
 	units: {
 		name: 'Sheet1',
