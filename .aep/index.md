@@ -128,7 +128,7 @@ Start at [[protocol]].
 | 824-the-way-in-and-the-workspace-control-are-redesigned | implemented | [[efforts/824-the-way-in-and-the-workspace-control-are-redesigned/spec]] | 0 | 0 | 17 |
 | 826-the-organization-and-the-way-in-are-rethought | implemented | [[efforts/826-the-organization-and-the-way-in-are-rethought/spec]] | 2 | 1 | 22 |
 | 828-the-link-needs-a-code-and-the-settings-area-guides | implemented | [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]] | 5 | 0 | 29 |
-| 832-the-interface-speaks-one-language-and-guides | accepted | [[efforts/832-the-interface-speaks-one-language-and-guides/spec]] | 3 | 4 | 40 |
+| 832-the-interface-speaks-one-language-and-guides | accepted | [[efforts/832-the-interface-speaks-one-language-and-guides/spec]] | 3 | 4 | 41 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -313,3 +313,4 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/832-the-interface-speaks-one-language-and-guides/tickets/38-deletes-and-refusals-hold-together]] fix(contract): a contract with its units deletes at once, and every refusal is heard | 832-the-interface-speaks-one-language-and-guides | resolved | — |
 | [[efforts/832-the-interface-speaks-one-language-and-guides/tickets/39-errors-landing-and-motion-stay-contained]] fix(desktop): the error page, landing and list motion each stay in their own lane | 832-the-interface-speaks-one-language-and-guides | resolved | — |
 | [[efforts/832-the-interface-speaks-one-language-and-guides/tickets/40-the-tree-follows-its-own-layout]] refactor(desktop): the tree follows its own layout rules | 832-the-interface-speaks-one-language-and-guides | resolved | 38, 39 |
+| [[efforts/832-the-interface-speaks-one-language-and-guides/tickets/41-undo-restores-what-was-deleted]] fix(contract): undoing a delete restores exactly what was deleted | 832-the-interface-speaks-one-language-and-guides | open | — |
