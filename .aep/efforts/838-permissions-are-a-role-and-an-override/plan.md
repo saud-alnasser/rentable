@@ -90,8 +90,28 @@ After this effort:
   command, as requirement 7 puts it, and criterion 9's cases (an override, a role row, one's own
   row, written around the command) are still refused on read. A member row a certificate no longer
   covers, as a concurrent rank move leaves one, grants nothing on read rather than refusing the
-  directory, and reads as covered again once a member who covers it saves it. A removed member's
-  row grants nothing, so a removal is never refused for what the member role carries.*
+  directory. A removed member's row grants nothing, so a removal is never refused for what the
+  member role carries.*
+
+  *And again, on the focused review of that change: an uncovered row's content is never carried
+  forward as authority. A rename that re-signed one kept the role a non-covering signer had named,
+  so a forged promotion became real under whoever renamed next, a flag they lacked included. So an
+  uncovered row is saved only by assigning its role (with an override, where one is given), by an
+  actor who holds every flag the result gives, as though the member held nothing before; every
+  other act on it is refused by name; an assignment tolerates a row naming a role that is gone;
+  and an uncovered row that says the member was removed reads as removed, fail-safe, and is
+  restored by such an assignment, which a covered removal still does not allow.*
+
+  *And finally, on the re-check of that: saving an uncovered row by an assignment still carried
+  forward what a forger had written on it, a lifted removal and a signing key of the forger's own
+  that the new certificate then named at the member's rank. An uncovered row is content anybody
+  holding the credential may have written, and nothing the directory holds says which of its fields
+  are genuine. So an uncovered row is never saved: every act on it is refused by name but its
+  removal, by an actor outranking the member's certified rank, after which the person is made an
+  account again. The owner's machine still repairs the owner's own row, taking the signing key and
+  the vault from what the owner's own secret opens and derives, never from the row. The rows this
+  costs are the rare ones a concurrent rank move or a role's deletion leaves; the common race, a
+  role's mask widened beside an invitation, leaves none.*
 - **Order is well-founded and not circular.** Certificates verify from the pinned key alone; role
   rows verify from certificates; member rows verify from certificates and the role rows they
   name. No row authorizes its own signer.
