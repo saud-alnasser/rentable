@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # refactor(desktop): the unused workspace gate is deleted
@@ -15,9 +15,9 @@ with their test, and nothing names them.
 
 Traces requirement 10 of [[efforts/838-permissions-are-a-role-and-an-override/spec]].
 
-- [ ] `workspace/component/permitted.svelte`, `workspace/permitted.ts` and its test are deleted, and
+- [x] `workspace/component/permitted.svelte`, `workspace/permitted.ts` and its test are deleted, and
       a grep of the sources and the rules names neither.
-- [ ] `pnpm check`, `pnpm test` and `pnpm lint` pass.
+- [x] `pnpm check`, `pnpm test` and `pnpm lint` pass.
 
 ## Relevant areas
 
