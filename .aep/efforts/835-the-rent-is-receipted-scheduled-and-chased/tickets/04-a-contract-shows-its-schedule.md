@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [01]
 ---
 
@@ -15,14 +15,14 @@ amount, covered amount and state, read through a new `contract.schedule` procedu
 Traces requirements 5 and 6 of [[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]], and
 its criteria 5 and 6.
 
-- [ ] `contract.schedule({ id })` returns ticket 01's cycles for the contract and all its payments
+- [x] `contract.schedule({ id })` returns ticket 01's cycles for the contract and all its payments
       (router test through the real caller: criterion 5's contract, and the first case of 6(b)).
-- [ ] `schedule` is a section in `contract/section.ts` after `payments`, reached by
+- [x] `schedule` is a section in `contract/section.ts` after `payments`, reached by
       `?section=schedule` (section test updated).
-- [ ] Each row shows the due date, the amount due, the amount covered, and the state as an icon with
+- [x] Each row shows the due date, the amount due, the amount covered, and the state as an icon with
       an accessible name; a late row with a partial cover states the part (component test).
-- [ ] A terminated contract's schedule shows no late and no due row (criterion 6(c), component test).
-- [ ] It works in both locales and both appearances; the i18n suites pass.
+- [x] A terminated contract's schedule shows no late and no due row (criterion 6(c), component test).
+- [x] It works in both locales and both appearances; the i18n suites pass.
 
 ## Relevant areas
 

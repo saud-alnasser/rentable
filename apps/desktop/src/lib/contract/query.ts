@@ -56,6 +56,7 @@ export const keys = {
 	],
 	get: (id: string) => [...workspacePrefixes.contracts, id],
 	getUnits: (id: string) => [...workspacePrefixes.contracts, 'units', id],
+	getSchedule: (id: string) => [...workspacePrefixes.contracts, 'schedule', id],
 	search: (term: string) => [...workspacePrefixes.contracts, 'search', term],
 	getAssignableUnits: (contractId: string, search: string) => [
 		...workspacePrefixes.contracts,
@@ -206,6 +207,29 @@ export function useFetchContract(id: () => string, enabled: () => boolean = () =
 			queryKey: keys.get(freshId),
 			enabled: enabled(),
 			queryFn: () => api.contract.get({ id: freshId })
+		};
+	});
+}
+
+/** One cycle of a contract's schedule, as the procedure answers with it. */
+export type ContractScheduleCycle = Awaited<ReturnType<typeof api.contract.schedule>>[number];
+
+/**
+ * A contract's schedule, cycle by cycle, as the procedure allocates it. The pane renders what
+ * arrives and allocates nothing itself; a payment written anywhere invalidates the contracts
+ * prefix this key sits under, so the cover it shows follows the ledger.
+ */
+export function useFetchContractSchedule(
+	contractId: () => string,
+	enabled: () => boolean = () => true
+) {
+	return createQuery(() => {
+		const id = contractId();
+
+		return {
+			queryKey: keys.getSchedule(id),
+			enabled: enabled(),
+			queryFn: () => api.contract.schedule({ id })
 		};
 	});
 }

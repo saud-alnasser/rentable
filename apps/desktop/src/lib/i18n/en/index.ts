@@ -888,6 +888,34 @@ const en = {
 			owing: 'owing'
 		},
 
+		// a contract's cycles, one row each, with the payments allocated to them oldest first.
+		schedule: {
+			columns: {
+				amount: 'amount due',
+				covered: 'paid',
+				due: 'due date',
+				state: 'state'
+			},
+			// the name a late row's state is read by where part of it is paid, so the part is heard
+			// with the lateness rather than left for a column the reader has to find.
+			latePart: 'late; {covered:string} of {amount:string} paid',
+			stateDescriptions: {
+				due: 'due today and not paid in full',
+				late: 'past its due date and not paid in full',
+				paid: 'paid in full',
+				partlyPaid: 'not due yet; part of it is paid',
+				upcoming: 'not due yet; nothing paid toward it'
+			},
+			states: {
+				due: 'due today',
+				late: 'late',
+				paid: 'paid',
+				partlyPaid: 'partly paid',
+				upcoming: 'upcoming'
+			},
+			title: 'schedule'
+		},
+
 		selection: {
 			deleteSummary: '{count|number} {{contract|contracts}} will be deleted',
 			deleteTitle: 'delete contracts',

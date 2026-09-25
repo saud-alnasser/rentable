@@ -850,6 +850,31 @@ const ar = {
 			owing: 'مستحق'
 		},
 
+		schedule: {
+			columns: {
+				amount: 'المبلغ المستحق',
+				covered: 'المدفوع',
+				due: 'تاريخ الاستحقاق',
+				state: 'الحالة'
+			},
+			latePart: 'متأخرة؛ دُفع {covered} من {amount}',
+			stateDescriptions: {
+				due: 'تستحق اليوم ولم تُدفع بالكامل',
+				late: 'فات موعد استحقاقها ولم تُدفع بالكامل',
+				paid: 'مدفوعة بالكامل',
+				partlyPaid: 'لم يحن موعدها؛ دُفع جزء منها',
+				upcoming: 'لم يحن موعدها؛ لم يُدفع منها شيء'
+			},
+			states: {
+				due: 'مستحقة اليوم',
+				late: 'متأخرة',
+				paid: 'مدفوعة',
+				partlyPaid: 'مدفوعة جزئياً',
+				upcoming: 'قادمة'
+			},
+			title: 'جدول الدفعات'
+		},
+
 		selection: {
 			deleteSummary: 'سيتم حذف {count|number} عقد',
 			deleteTitle: 'حذف العقود',

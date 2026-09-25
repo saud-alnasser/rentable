@@ -2725,6 +2725,80 @@ type RootTranslation = {
 			 */
 			owing: string
 		}
+		schedule: {
+			columns: {
+				/**
+				 * a​m​o​u​n​t​ ​d​u​e
+				 */
+				amount: string
+				/**
+				 * p​a​i​d
+				 */
+				covered: string
+				/**
+				 * d​u​e​ ​d​a​t​e
+				 */
+				due: string
+				/**
+				 * s​t​a​t​e
+				 */
+				state: string
+			}
+			/**
+			 * l​a​t​e​;​ ​{​c​o​v​e​r​e​d​}​ ​o​f​ ​{​a​m​o​u​n​t​}​ ​p​a​i​d
+			 * @param {string} amount
+			 * @param {string} covered
+			 */
+			latePart: RequiredParams<'amount' | 'covered'>
+			stateDescriptions: {
+				/**
+				 * d​u​e​ ​t​o​d​a​y​ ​a​n​d​ ​n​o​t​ ​p​a​i​d​ ​i​n​ ​f​u​l​l
+				 */
+				due: string
+				/**
+				 * p​a​s​t​ ​i​t​s​ ​d​u​e​ ​d​a​t​e​ ​a​n​d​ ​n​o​t​ ​p​a​i​d​ ​i​n​ ​f​u​l​l
+				 */
+				late: string
+				/**
+				 * p​a​i​d​ ​i​n​ ​f​u​l​l
+				 */
+				paid: string
+				/**
+				 * n​o​t​ ​d​u​e​ ​y​e​t​;​ ​p​a​r​t​ ​o​f​ ​i​t​ ​i​s​ ​p​a​i​d
+				 */
+				partlyPaid: string
+				/**
+				 * n​o​t​ ​d​u​e​ ​y​e​t​;​ ​n​o​t​h​i​n​g​ ​p​a​i​d​ ​t​o​w​a​r​d​ ​i​t
+				 */
+				upcoming: string
+			}
+			states: {
+				/**
+				 * d​u​e​ ​t​o​d​a​y
+				 */
+				due: string
+				/**
+				 * l​a​t​e
+				 */
+				late: string
+				/**
+				 * p​a​i​d
+				 */
+				paid: string
+				/**
+				 * p​a​r​t​l​y​ ​p​a​i​d
+				 */
+				partlyPaid: string
+				/**
+				 * u​p​c​o​m​i​n​g
+				 */
+				upcoming: string
+			}
+			/**
+			 * s​c​h​e​d​u​l​e
+			 */
+			title: string
+		}
 		selection: {
 			/**
 			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​c​o​n​t​r​a​c​t​|​c​o​n​t​r​a​c​t​s​}​}​ ​w​i​l​l​ ​b​e​ ​d​e​l​e​t​e​d
@@ -6372,6 +6446,78 @@ export type TranslationFunctions = {
 			 * owing
 			 */
 			owing: () => LocalizedString
+		}
+		schedule: {
+			columns: {
+				/**
+				 * amount due
+				 */
+				amount: () => LocalizedString
+				/**
+				 * paid
+				 */
+				covered: () => LocalizedString
+				/**
+				 * due date
+				 */
+				due: () => LocalizedString
+				/**
+				 * state
+				 */
+				state: () => LocalizedString
+			}
+			/**
+			 * late; {covered} of {amount} paid
+			 */
+			latePart: (arg: { amount: string, covered: string }) => LocalizedString
+			stateDescriptions: {
+				/**
+				 * due today and not paid in full
+				 */
+				due: () => LocalizedString
+				/**
+				 * past its due date and not paid in full
+				 */
+				late: () => LocalizedString
+				/**
+				 * paid in full
+				 */
+				paid: () => LocalizedString
+				/**
+				 * not due yet; part of it is paid
+				 */
+				partlyPaid: () => LocalizedString
+				/**
+				 * not due yet; nothing paid toward it
+				 */
+				upcoming: () => LocalizedString
+			}
+			states: {
+				/**
+				 * due today
+				 */
+				due: () => LocalizedString
+				/**
+				 * late
+				 */
+				late: () => LocalizedString
+				/**
+				 * paid
+				 */
+				paid: () => LocalizedString
+				/**
+				 * partly paid
+				 */
+				partlyPaid: () => LocalizedString
+				/**
+				 * upcoming
+				 */
+				upcoming: () => LocalizedString
+			}
+			/**
+			 * schedule
+			 */
+			title: () => LocalizedString
 		}
 		selection: {
 			/**

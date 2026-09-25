@@ -40,6 +40,7 @@ import {
 } from '$lib/contract/rank';
 import { ensureRenewalFollowsPredecessor } from '$lib/contract/renewal';
 import { reconcileTouched } from '$lib/contract/reconcile';
+import { scheduleContract } from '$lib/contract/schedule';
 import { serializeContract } from '$lib/contract/serialize';
 import dashboard from '$lib/dashboard/router';
 import { groupPaymentsByContractId } from '$lib/payment/payment';
@@ -1188,6 +1189,24 @@ export default router({
 			}
 
 			return undefined;
+		}),
+
+	/**
+	 * A contract's schedule: one entry per cycle across its whole period, each with the day it
+	 * falls due, what it costs, how much of that the payments cover, and its state today.
+	 *
+	 * Every payment against the contract is read, because the allocation takes them oldest first
+	 * and a cycle's cover depends on every payment before it. Computed here on every read and
+	 * stored nowhere (`contract/schedule.ts`). Dates cross as timestamps, as a contract's do.
+	 */
+	schedule: procedure.member
+		.input(ContractSchema.pick({ id: true }))
+		.query(async ({ input, ctx }) => {
+			const contract = await selectContract(ctx.db, input.id);
+			const payments = await selectPaymentsForContract(ctx.db, contract.id);
+			const { cycles } = scheduleContract(contract, payments, ctx.clock.now());
+
+			return cycles.map((cycle) => ({ ...cycle, due: cycle.due.getTime() }));
 		}),
 
 	// the contracts directory, in one bounded query: the whole result set for a search, in the
