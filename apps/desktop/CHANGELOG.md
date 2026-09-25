@@ -1,5 +1,33 @@
 # rentable
 
+## 0.15.1
+
+### Patch Changes
+
+- [#836](https://github.com/saud-alnasser/rentable/pull/836) [`242bd8e`](https://github.com/saud-alnasser/rentable/commit/242bd8ee65a2b01e4f1a796f97bb2f598691e59d) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - a contract's record has a schedule: one row per cycle with its due date, the amount due, how much of it is paid, and whether it is paid, late, due today, partly paid or upcoming
+
+- [#836](https://github.com/saud-alnasser/rentable/pull/836) [`242bd8e`](https://github.com/saud-alnasser/rentable/commit/242bd8ee65a2b01e4f1a796f97bb2f598691e59d) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - a payment's record shows its history: recording, editing and deleting a payment, and undoing any of them, each leave an entry
+
+- [#836](https://github.com/saud-alnasser/rentable/pull/836) [`242bd8e`](https://github.com/saud-alnasser/rentable/commit/242bd8ee65a2b01e4f1a796f97bb2f598691e59d) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - a payment can say how it was paid (cash, bank transfer, cheque or Ejar), carry the transfer, cheque or SADAD number it was made under, and hold a note. all three are optional, set on the payment form and shown on its record, and a payment recorded before them says its method is not recorded. searching a contract's payments or the command menu finds a payment by any part of its reference, and undo takes back an edit to any of the three. this raises the workspace schema to version 5: once any member opens a workspace on this version, a machine still on an older one refuses to open it and asks to be updated
+
+- [#836](https://github.com/saud-alnasser/rentable/pull/836) [`242bd8e`](https://github.com/saud-alnasser/rentable/commit/242bd8ee65a2b01e4f1a796f97bb2f598691e59d) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - a record in a list is highlighted with a soft tint under the pointer instead of lifting, so it stays where it is while you aim at it
+
+- [#836](https://github.com/saud-alnasser/rentable/pull/836) [`242bd8e`](https://github.com/saud-alnasser/rentable/commit/242bd8ee65a2b01e4f1a796f97bb2f598691e59d) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - remind tenant, beside print on a contract that is overdue, owing or due soon, shows the WhatsApp message first in Arabic or English as chosen, then opens WhatsApp with it written
+
+- [#836](https://github.com/saud-alnasser/rentable/pull/836) [`242bd8e`](https://github.com/saud-alnasser/rentable/commit/242bd8ee65a2b01e4f1a796f97bb2f598691e59d) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - the owner or an administrator can add the organization's signature or seal in its settings, and it is printed at the foot of every receipt and schedule
+
+- [#836](https://github.com/saud-alnasser/rentable/pull/836) [`242bd8e`](https://github.com/saud-alnasser/rentable/commit/242bd8ee65a2b01e4f1a796f97bb2f598691e59d) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - every payment has a receipt, previewed inside the application and printed or saved as a PDF, in Arabic or English as chosen: the organization that issued it, who paid and how, for which contract, units and cycles, and what remains of the contract's total
+
+- [#836](https://github.com/saud-alnasser/rentable/pull/836) [`242bd8e`](https://github.com/saud-alnasser/rentable/commit/242bd8ee65a2b01e4f1a796f97bb2f598691e59d) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - on Windows, saving or printing a receipt or schedule no longer flashes the window light for a moment: the page is printed from a hidden window behind the application
+
+- [#836](https://github.com/saud-alnasser/rentable/pull/836) [`242bd8e`](https://github.com/saud-alnasser/rentable/commit/242bd8ee65a2b01e4f1a796f97bb2f598691e59d) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - saving or printing from the print preview closes it once, cleanly, instead of flickering open and closed while the page prints
+
+- [#836](https://github.com/saud-alnasser/rentable/pull/836) [`242bd8e`](https://github.com/saud-alnasser/rentable/commit/242bd8ee65a2b01e4f1a796f97bb2f598691e59d) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - the WhatsApp reminder names the contract by its number instead of listing its units, so the same message fits every contract
+
+- [#836](https://github.com/saud-alnasser/rentable/pull/836) [`242bd8e`](https://github.com/saud-alnasser/rentable/commit/242bd8ee65a2b01e4f1a796f97bb2f598691e59d) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - a contract's schedule can be printed or saved as a PDF: it opens in a preview inside the application first, as a one-page document in Arabic or English as chosen, headed by the organization; on Windows a PDF is saved without any print dialog, and printing uses the system's own dialog
+
+- [#836](https://github.com/saud-alnasser/rentable/pull/836) [`242bd8e`](https://github.com/saud-alnasser/rentable/commit/242bd8ee65a2b01e4f1a796f97bb2f598691e59d) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - the landing screen shows what falls due in the next seven days: a contract whose next cycle is due within the week and not yet paid is under a new rank, due soon, with the amount and the date it falls due, and the contract lists can be filtered to it
+
 ## 0.15.0
 
 ### Minor Changes
