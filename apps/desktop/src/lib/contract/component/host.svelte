@@ -42,7 +42,7 @@
 	import { formatRecordDateRange } from '$lib/design/date';
 	import PrintPreview from '$lib/print/component/preview.svelte';
 	import { sendPage } from '$lib/print/sheet.svelte';
-	import { useReadOrganizationName } from '$lib/organization/query';
+	import { useReadOrganizationMark, useReadOrganizationName } from '$lib/organization/query';
 	import type { Locales } from '$lib/i18n/i18n-types';
 	import { i18nObject } from '$lib/i18n/i18n-util';
 	import { useReadTenant } from '$lib/tenant/query';
@@ -80,6 +80,7 @@
 	const readSchedule = useReadContractSchedule();
 	// the organization, which is who keeps the schedule (effort 835, requirement 13).
 	const readOrganizationName = useReadOrganizationName();
+	const readOrganizationMark = useReadOrganizationMark();
 
 	const confirming = $derived(contractHostState.confirming);
 
@@ -258,15 +259,18 @@
 	 */
 	async function previewSchedule(contract: ContractActRecord) {
 		try {
-			const [cycles, units, tenant, issuer] = await Promise.all([
+			const [cycles, units, tenant, issuer, mark] = await Promise.all([
 				readSchedule.cycles(contract.id),
 				readSchedule.units(contract.id),
 				readTenant(contract.tenantId).catch(() => undefined),
-				readOrganizationName()
+				readOrganizationName(),
+				// a mark that cannot be read leaves the foot empty rather than the schedule unprinted.
+				readOrganizationMark().catch(() => null)
 			]);
 
 			schedule = {
 				issuer,
+				mark,
 				contract,
 				tenant: {
 					name: tenant?.name?.trim() || contract.tenantName?.trim() || $LL.common.labels.tenant()

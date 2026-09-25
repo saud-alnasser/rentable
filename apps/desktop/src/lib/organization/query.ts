@@ -19,6 +19,7 @@ import { get } from 'svelte/store';
 export const keys = {
 	all: ['organization'],
 	consent: (sessionId: string) => ['organization', 'consent', sessionId],
+	mark: ['organization', 'mark'],
 	members: ['organization', 'members'],
 	memberStandings: ['organization', 'members', 'standings'],
 	state: ['organization', 'state']
@@ -448,6 +449,72 @@ export function useReadOrganizationName() {
 
 		return state.session?.organizationName?.trim() ?? '';
 	};
+}
+
+/**
+ * The organization's mark, a signature or a seal, for the settings that show it. Nothing where
+ * none is set.
+ */
+export function useFetchOrganizationMark() {
+	return createQuery(() => ({
+		queryKey: keys.mark,
+		queryFn: () => api.app.organization.mark.get()
+	}));
+}
+
+/** Read the organization's mark once, for a page that prints it at its foot. */
+export function useReadOrganizationMark() {
+	const client = useQueryClient();
+
+	return () =>
+		client.fetchQuery({ queryKey: keys.mark, queryFn: () => api.app.organization.mark.get() });
+}
+
+/**
+ * Keep the image at `path` as the organization's mark. The host reads it, checks it by its bytes
+ * and seals it; a refusal (too large, not an image, not the reader's to change) is its sentence.
+ */
+export function useSetOrganizationMark(
+	opts: MutationOptions = {
+		toast: {
+			success: () => get(LL).organization.mark.saved(),
+			error: true,
+			unexpected: () => get(LL).common.messages.unexpectedError()
+		}
+	}
+) {
+	const client = useQueryClient();
+
+	return createMutation(() => ({
+		mutationFn: (path: string) => api.app.organization.mark.set({ path }),
+		onSuccess: async (mark) => {
+			client.setQueryData(keys.mark, mark);
+			onMutationSuccess(opts);
+		},
+		onError: (e) => onMutationError(opts, e)
+	}));
+}
+
+/** Remove the organization's mark; the pages printed after it have none. */
+export function useClearOrganizationMark(
+	opts: MutationOptions = {
+		toast: {
+			success: () => get(LL).organization.mark.removed(),
+			error: true,
+			unexpected: () => get(LL).common.messages.unexpectedError()
+		}
+	}
+) {
+	const client = useQueryClient();
+
+	return createMutation(() => ({
+		mutationFn: () => api.app.organization.mark.clear(),
+		onSuccess: async () => {
+			client.setQueryData(keys.mark, null);
+			onMutationSuccess(opts);
+		},
+		onError: (e) => onMutationError(opts, e)
+	}));
 }
 
 /**

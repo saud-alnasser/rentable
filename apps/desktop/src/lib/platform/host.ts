@@ -453,6 +453,9 @@ export type UnreachableWorkspace = {
  * satisfies this interface and the compiler says so, so the two cannot drift quietly, and a
  * second client kind becomes an implementation of this rather than a rewrite of that.
  */
+/** The organization's mark as the host hands it over: its kind, and the image in base64. */
+export type OrganizationMark = { mediaType: string; data: string };
+
 export type Host = {
 	bootstrap: () => Promise<Recovery>;
 	window: {
@@ -512,6 +515,8 @@ export type Host = {
 	dialog: {
 		/** Ask the user for a file, answering its path or nothing where they walked away. */
 		openFile: () => Promise<string | null>;
+		/** Ask the user for an image, a PNG, JPEG or WebP, answering its path or nothing. */
+		openImage: () => Promise<string | null>;
 		/** Ask the user where a file goes, answering its path or nothing where they walked away. */
 		saveFile: (defaultName: string) => Promise<string | null>;
 	};
@@ -533,6 +538,12 @@ export type Host = {
 	 * observes outcomes ([[rules/credentials]], *Client boundary*).
 	 */
 	organization: {
+		/** the organization's mark, a signature or a seal, or nothing where none is set. */
+		markGet: () => Promise<OrganizationMark | null>;
+		/** keep the image at `path` as the mark: read, checked and sealed by the host. */
+		markSet: (path: string) => Promise<OrganizationMark>;
+		/** remove the mark. */
+		markClear: () => Promise<void>;
 		/** open the consent: a browser address to send the person to, and a session to poll. */
 		consentBegin: () => Promise<OrganizationConsentStart>;
 		/** how far the consent has got. Polled while `pending`. */

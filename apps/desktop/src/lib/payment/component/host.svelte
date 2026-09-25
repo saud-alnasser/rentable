@@ -29,7 +29,7 @@
 	import PrintPreview from '$lib/print/component/preview.svelte';
 	import { sendPage } from '$lib/print/sheet.svelte';
 	import type { Locales } from '$lib/i18n/i18n-types';
-	import { useReadOrganizationName } from '$lib/organization/query';
+	import { useReadOrganizationMark, useReadOrganizationName } from '$lib/organization/query';
 	import { writeDetailsToClipboard } from '$lib/platform/clipboard';
 	import { formatLocaleMoney } from '$lib/platform/locale';
 	import { landing } from '$lib/design/landing.svelte';
@@ -58,6 +58,7 @@
 	const readReceipt = useReadPaymentReceipt();
 	// the organization, which is who issues a receipt (effort 835, requirement 13).
 	const readOrganizationName = useReadOrganizationName();
+	const readOrganizationMark = useReadOrganizationMark();
 
 	const deleting = $derived(paymentHostState.deleting);
 
@@ -151,7 +152,12 @@
 	async function previewReceipt(payment: PaymentActRecord) {
 		try {
 			// a receipt is never shown without the name of who issued it.
-			const [read, issuer] = await Promise.all([readReceipt(payment.id), readOrganizationName()]);
+			const [read, issuer, mark] = await Promise.all([
+				readReceipt(payment.id),
+				readOrganizationName(),
+				// a mark that cannot be read leaves the foot empty rather than the receipt unprinted.
+				readOrganizationMark().catch(() => null)
+			]);
 
 			if (!issuer) {
 				showErrorSentence($LL.print.failed());
@@ -159,7 +165,7 @@
 				return;
 			}
 
-			receipt = { ...read, issuer };
+			receipt = { ...read, issuer, mark };
 			receiptLocale = $locale;
 			receiptOpen = true;
 		} catch (error) {

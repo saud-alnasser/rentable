@@ -42,6 +42,7 @@ const PAYMENTS: SchedulePaymentLike[] = [
 
 const VALUE: PrintedScheduleValue = {
 	issuer: 'Al Nakheel Properties',
+	mark: null,
 	contract: {
 		govId: '20471133',
 		start: day('2026-01-01').getTime(),
@@ -147,4 +148,21 @@ test('chosen in Arabic, it reads right to left in Arabic alone, with every figur
 	expect(cell(rows()[0], 'data-cycle-amount')).toMatch(/3,000/);
 	expect(cell(rows()[1], 'data-cycle-due')).toBe(formatRecordDate('ar', day('2026-04-01')));
 	expect(rows()).toHaveLength(4);
+});
+
+// effort 835, requirement 13(e): the organization's signature or seal at the foot, where set.
+test('a schedule prints the organization’s mark at its foot, and an empty foot where there is none', () => {
+	render(PrintedSchedule, {
+		value: { ...VALUE, mark: { mediaType: 'image/webp', data: 'UklGRg' } },
+		locale: 'ar'
+	});
+
+	expect(page().querySelector('[data-printed-mark] img')?.getAttribute('src')).toBe(
+		'data:image/webp;base64,UklGRg'
+	);
+
+	document.body.innerHTML = '';
+	printed('en');
+
+	expect(page().querySelector('[data-printed-mark]')).toBeNull();
 });

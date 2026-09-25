@@ -1030,6 +1030,19 @@ const en = {
 	},
 
 	organization: {
+		// the one image the organization prints at the foot of its pages (effort 835).
+		mark: {
+			alt: "the organization's signature or seal",
+			choose: 'choose image',
+			description: 'printed at the foot of every receipt and schedule.',
+			none: 'none added yet',
+			readOnly: 'the owner or an administrator can change it.',
+			remove: 'remove',
+			removed: 'signature or seal removed',
+			replace: 'replace image',
+			saved: 'signature or seal saved',
+			title: 'signature or seal'
+		},
 		setup: {
 			connectTitle: 'connect your Turso account',
 			connectDescription: 'your organization lives on your own Turso account.',

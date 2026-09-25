@@ -977,6 +977,18 @@ const ar = {
 	},
 
 	organization: {
+		mark: {
+			alt: 'توقيع المؤسسة أو ختمها',
+			choose: 'اختيار صورة',
+			description: 'يُطبع أسفل كل سند قبض وجدول دفعات.',
+			none: 'لم يُضف بعد',
+			readOnly: 'يستطيع المالك أو أحد المديرين تغييره.',
+			remove: 'إزالة',
+			removed: 'أُزيل التوقيع أو الختم',
+			replace: 'استبدال الصورة',
+			saved: 'حُفظ التوقيع أو الختم',
+			title: 'التوقيع أو الختم'
+		},
 		setup: {
 			connectTitle: 'اربط حساب Turso الخاص بك',
 			connectDescription: 'تقيم مؤسستك على حساب Turso الخاص بك.',

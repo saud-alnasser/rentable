@@ -3124,6 +3124,48 @@ type RootTranslation = {
 		workspaceUpToDate: string
 	}
 	organization: {
+		mark: {
+			/**
+			 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​s​i​g​n​a​t​u​r​e​ ​o​r​ ​s​e​a​l
+			 */
+			alt: string
+			/**
+			 * c​h​o​o​s​e​ ​i​m​a​g​e
+			 */
+			choose: string
+			/**
+			 * p​r​i​n​t​e​d​ ​a​t​ ​t​h​e​ ​f​o​o​t​ ​o​f​ ​e​v​e​r​y​ ​r​e​c​e​i​p​t​ ​a​n​d​ ​s​c​h​e​d​u​l​e​.
+			 */
+			description: string
+			/**
+			 * n​o​n​e​ ​a​d​d​e​d​ ​y​e​t
+			 */
+			none: string
+			/**
+			 * t​h​e​ ​o​w​n​e​r​ ​o​r​ ​a​n​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​ ​c​a​n​ ​c​h​a​n​g​e​ ​i​t​.
+			 */
+			readOnly: string
+			/**
+			 * r​e​m​o​v​e
+			 */
+			remove: string
+			/**
+			 * s​i​g​n​a​t​u​r​e​ ​o​r​ ​s​e​a​l​ ​r​e​m​o​v​e​d
+			 */
+			removed: string
+			/**
+			 * r​e​p​l​a​c​e​ ​i​m​a​g​e
+			 */
+			replace: string
+			/**
+			 * s​i​g​n​a​t​u​r​e​ ​o​r​ ​s​e​a​l​ ​s​a​v​e​d
+			 */
+			saved: string
+			/**
+			 * s​i​g​n​a​t​u​r​e​ ​o​r​ ​s​e​a​l
+			 */
+			title: string
+		}
 		setup: {
 			/**
 			 * c​o​n​n​e​c​t​ ​y​o​u​r​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t
@@ -7001,6 +7043,48 @@ export type TranslationFunctions = {
 		workspaceUpToDate: () => LocalizedString
 	}
 	organization: {
+		mark: {
+			/**
+			 * the organization's signature or seal
+			 */
+			alt: () => LocalizedString
+			/**
+			 * choose image
+			 */
+			choose: () => LocalizedString
+			/**
+			 * printed at the foot of every receipt and schedule.
+			 */
+			description: () => LocalizedString
+			/**
+			 * none added yet
+			 */
+			none: () => LocalizedString
+			/**
+			 * the owner or an administrator can change it.
+			 */
+			readOnly: () => LocalizedString
+			/**
+			 * remove
+			 */
+			remove: () => LocalizedString
+			/**
+			 * signature or seal removed
+			 */
+			removed: () => LocalizedString
+			/**
+			 * replace image
+			 */
+			replace: () => LocalizedString
+			/**
+			 * signature or seal saved
+			 */
+			saved: () => LocalizedString
+			/**
+			 * signature or seal
+			 */
+			title: () => LocalizedString
+		}
 		setup: {
 			/**
 			 * connect your Turso account

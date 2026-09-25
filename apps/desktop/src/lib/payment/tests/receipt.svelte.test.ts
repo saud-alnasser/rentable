@@ -24,6 +24,7 @@ const day = (value: string) => Date.parse(`${value}T00:00:00.000Z`);
 const VALUE: PrintedReceiptValue = {
 	reference: '01K5-Z3QW-8M2T-4HBC',
 	issuer: 'Al Nakheel Properties',
+	mark: null,
 	payment: {
 		id: '01990002-0000-7000-8000-000000000000',
 		contractId: 'contract-1',
@@ -144,4 +145,19 @@ test('the note is the landlord’s and is not printed, and nothing reads as a ta
 
 		document.body.innerHTML = '';
 	}
+});
+
+// effort 835, requirement 13(e): the organization's signature or seal at the foot, where set.
+test('a receipt prints the organization’s mark at its foot, and an empty foot where there is none', () => {
+	printed('en', { ...VALUE, mark: { mediaType: 'image/png', data: 'iVBORw0K' } });
+
+	const image = page().querySelector<HTMLImageElement>('[data-printed-mark] img');
+
+	expect(image?.getAttribute('src')).toBe('data:image/png;base64,iVBORw0K');
+	expect(image?.getAttribute('alt')).toBe(en.organization.mark.alt);
+
+	document.body.innerHTML = '';
+	printed('en');
+
+	expect(page().querySelector('[data-printed-mark]')).toBeNull();
 });

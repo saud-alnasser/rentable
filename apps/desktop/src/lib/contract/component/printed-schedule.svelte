@@ -1,10 +1,13 @@
 <script lang="ts" module>
 	import type { ContractScheduleCycle } from '$lib/contract/query';
+	import type { OrganizationMark } from '$lib/platform/tauri';
 
 	/** Everything a printed schedule carries, read by the host before it is previewed. */
 	export type PrintedScheduleValue = {
 		/** the organization the contract is kept by, by its name. */
 		issuer: string;
+		/** the organization's signature or seal, printed at the foot, or nothing where none is set. */
+		mark: OrganizationMark | null;
 		contract: { govId: string; start: number; end: number };
 		tenant: { name: string };
 		units: { name: string; complexName: string }[];
@@ -119,4 +122,15 @@
 			{/each}
 		</tbody>
 	</table>
+	<!-- the organization's signature or seal, at the foot where a receipt is signed; a page with
+	     none set has an empty foot (effort 835, requirement 13). -->
+	{#if value.mark}
+		<footer class="flex justify-end pt-4" data-printed-mark>
+			<img
+				src="data:{value.mark.mediaType};base64,{value.mark.data}"
+				alt={t.organization.mark.alt()}
+				class="h-24 max-w-48 object-contain"
+			/>
+		</footer>
+	{/if}
 </article>

@@ -544,7 +544,9 @@ dialog and paper goes through the operating system's dialog, never the webview's
 on macOS and Linux both open the system's print panel (`tauri/src/print.rs`).
 
 The page is paper: light whatever the window's appearance (`.paper` in the token layer), in the one
-language chosen, set out as a document with who issued it at its head, with Western digits. Where
+language chosen, set out as a document with the organization that issued it at its head and its
+signature or seal at the foot where one is set (the organization's *mark*, set in its settings),
+with Western digits. Where
 the host refuses, the reader is told in one sentence (`showErrorSentence`); a saved PDF is
 confirmed in a toast. Today the contract prints its schedule and a payment its receipt.
 
