@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [13, 14, 15]
 ---
 
@@ -18,13 +18,13 @@ act on a workspace is administrative. After this, each says what the code does.
 
 Traces requirements 1 and 10 of [[efforts/838-permissions-are-a-role-and-an-override/spec]], and criterion 1.
 
-- [ ] `rules/interface` describes the member card's role picker and override editor, the role field
+- [x] `rules/interface` describes the member card's role picker and override editor, the role field
       as a choice among the organization's roles, and the act's `flag` under *Record card actions*.
-- [ ] `rules/api-layer` *Who may call* names `procedure.permitted`, `permittedAny` and `permittedBy`,
+- [x] `rules/api-layer` *Who may call* names `procedure.permitted`, `permittedAny` and `permittedBy`,
       the meta the router walk reads, and when a procedure is `member` or `public`, with a count that
       matches the walk.
-- [ ] The comments in `api/context.ts`, `api/trpc.ts` and `permitted.svelte` say what the code does.
-- [ ] `node .aep/scripts/index.mjs` and `validate.mjs` pass; `pnpm lint` passes.
+- [x] The comments in `api/context.ts`, `api/trpc.ts` and `permitted.svelte` say what the code does.
+- [x] `node .aep/scripts/index.mjs` and `validate.mjs` pass; `pnpm lint` passes.
 
 ## Relevant areas
 

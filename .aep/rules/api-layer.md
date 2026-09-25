@@ -46,9 +46,56 @@ use-when: "adding or changing a router, a domain module, a database client or tr
 
 ## Who may call
 
-- **Two procedure kinds, and `member` is the default.** `procedure.member` refuses a machine
-  nobody is signed in on; `procedure.public` does not. A procedure written without thinking
-  about this should be the safe one, so the safe one is the one you reach for by habit.
+- **A procedure names who may call it, in one of five ways, and each records itself in its
+  `meta`.** All five are on `procedure` in `api/trpc.ts`.
+  - `procedure.permitted(...flags)` asks for every flag it names. It is the rule for an act.
+  - `procedure.permittedAny(...flags)` asks for any one of them, for two acts that carry the same
+    authority over the same thing. There is one: `member.linkMake`, which is `inviteMember`'s or
+    `resetPassword`'s.
+  - `procedure.permittedBy(possible, schema, flagsOf)` reads the flag off its input, for a
+    procedure that serves every record kind. There are two, `history.append` and
+    `history.getMany`: an entry about a payment is the payment's act.
+  - `procedure.member` asks only that somebody is signed in, and refuses a machine nobody is.
+  - `procedure.public` asks nothing.
+
+  The three `permitted` forms compose onto `member` rather than replacing it, so each refuses
+  nobody-signed-in first and then refuses with `FORBIDDEN`, naming the flags the caller lacks.
+  None of them is the authority: the Rust side refuses the same request against the member's
+  signed row whatever the router says. The flags are read off `Context.identity.permissions`,
+  which `api/context.ts` folds for the workspace open: a read-only grant clears every create, edit
+  and delete.
+- **The walk reads the meta.** `Meta` in `api/trpc.ts` carries `flags` for `permitted`, `anyOf` for
+  `permittedAny`, `byInput` for every flag `permittedBy` may ask for, and `member: true` or
+  `public: true`. `api/tests/flags.test.ts` walks `appRouter._def.procedures`, which holds one
+  entry per procedure under its dotted path, and fails on a procedure that names no flag and is
+  neither `member` nor `public`, on a record procedure that names no flag other than the two open
+  reads below, and on a record procedure whose flag is not the one the plan maps it to. A
+  procedure declared any other way records nothing, so the walk names it.
+- **A flag where there is one, and `member` only where there is none.** Every record procedure
+  names its flag but two reads open to every member, `contract.dashboard` and `workspace.held`,
+  whose answers leave out a kind the member may not view. What else is `member` is one of three
+  things. A member's own act: their password, their other sessions, accepting an ownership offer
+  made to them, opening a workspace they hold a grant on, and this machine's bootstrap and
+  reconcile. A read open to every member: the member list and its standings, the roles, and the
+  mark. And an act whose check is Rust's alone: the owner's acts (deleting the organization,
+  creating and removing a workspace, offering ownership and withdrawing the offer, renewing
+  credentials), whose flags only the owner's row carries and which Rust checks against the root
+  certificate, and setting and clearing the mark, which Rust holds to `manageMark` off the
+  verified row. Of the ways to write a procedure that needs somebody, `member` is still the one to
+  reach for by habit over `public`: a procedure written without thinking about who calls it
+  should be the safe one.
+
+  **Counted 2026-09-25 the way the walk counts:** every entry of `appRouter._def.procedures`,
+  sorted by its `meta`. There are 112: 75 `permitted`, 1 `permittedAny`, 2 `permittedBy`, 20
+  `member` and 14 `public`, so 98 need somebody signed in and 78 of those name a flag.
+
+  *This read "**Two procedure kinds, and `member` is the default.** `procedure.member` refuses a
+  machine nobody is signed in on; `procedure.public` does not", and nothing counted the member
+  procedures here; `api/trpc.ts` and `api/context.ts` said forty-six of fifty-one. `permitted`
+  had been a third way of writing `member` since 2026-08-21 and `permittedAny` a fourth since
+  effort 828, and the rule named neither; effort 838 made every record procedure name its flag,
+  added `permittedBy` and the meta, and the walk that holds the router to them. Corrected by ticket 16 of
+  [[efforts/838-permissions-are-a-role-and-an-override/spec]], requirements 1 and 10.*
 - **Host-only is the test for `public`, not harmless-looking.** A public procedure reaches
   `ctx.host` and never `ctx.db`. A read of the workspace is not public however read-only it
   looks, because the workspace belongs to somebody. Today there are fourteen: this machine's

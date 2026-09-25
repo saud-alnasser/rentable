@@ -43,22 +43,31 @@
 	 * **It reads the query rather than taking permissions as a prop**, so a caller anywhere can gate
 	 * without threading state down to it. `useFetchRemoteSyncState` is the one every surface on
 	 * `/workspace` already reads, so this joins an existing subscription rather than adding a read.
+	 * What it reads is the workspace's `permissions`: the member's effective permissions off their
+	 * row, as the shell learned them for the workspace open, and not folded for a read-only grant.
 	 *
-	 * **A state that has not arrived administers nothing.** Before the query resolves there is no
-	 * answer, and drawing a control on the strength of not knowing is the one outcome to avoid;
-	 * zero is what a machine with no organization, an older store and a member who administers
-	 * nothing all come to, and they mean the same thing to a reader.
+	 * **A state that has not arrived holds no flag.** Before the query resolves there is no answer,
+	 * and drawing a control on the strength of not knowing is the one outcome to avoid; zero is
+	 * what a machine with no organization, an older store and a member who holds nothing all come
+	 * to, and they mean the same thing to a reader.
 	 *
 	 * **This is a courtesy and never the authority.** The Rust side refuses the request whatever
-	 * this draws, and `procedure.permitted` refuses it one layer earlier — a client is a thing a
+	 * this draws, and `procedure.permitted` refuses it one layer earlier: a client is a thing a
 	 * person can edit ([[rules/credentials]] is about credentials; this is the same instinct about
 	 * trust).
 	 *
+	 * **It is not the gate for a record act.** The vocabulary holds a flag for every record act as
+	 * well as the organization's, and a record control reads `memberPermissions` in
+	 * `workspace/permission.ts` through its act's `flag` instead, which folds a read-only grant as
+	 * the tRPC context does; this reads the number unfolded, so a record flag gated here would be
+	 * offered on a grant that refuses it.
+	 *
 	 * **It lives with the workspace rather than in `design/block/`** ([[rules/frontend]], under
 	 * *Components*: app-level composites are shared by concepts, and domain UI lives with its
-	 * domain). Every act in the vocabulary is an administrative act on a workspace. The condition
-	 * for moving it is a caller outside the workspace domain, and it is one file move when that
-	 * arrives.
+	 * domain), since the number it reads is the open workspace's. The condition for moving it is a
+	 * caller outside the workspace domain, and it is one file move when that arrives. *This said
+	 * every act in the vocabulary was an administrative act on a workspace until effort 838 gave
+	 * each record act a flag.*
 	 */
 	type Props = {
 		/**

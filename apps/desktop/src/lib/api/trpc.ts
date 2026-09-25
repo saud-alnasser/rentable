@@ -127,9 +127,9 @@ export const caller = t.createCallerFactory;
  * this object holds the defined middlewares that are available to the API procedures.
  * some of them are used by default in the procedures.
  *
- * **`requirePermission` is the one entry that is called rather than used.** It is a factory,
- * because what it refuses depends on which acts the procedure asked for; everything else here is
- * a middleware and goes straight into a `.use()`.
+ * **`requirePermission` and `requireAnyPermission` are called rather than used.** Each is a
+ * factory, because what it refuses depends on which acts the procedure asked for; everything else
+ * here is a middleware and goes straight into a `.use()`.
  */
 export const middleware = {
 	/**
@@ -174,9 +174,9 @@ export const middleware = {
 	/**
 	 * refuses a call by somebody whose membership does not carry every act it names.
 	 *
-	 * **A factory rather than a middleware, and the only entry here that is called** — what it
-	 * refuses depends on which acts a procedure asked for, and those are known where the procedure
-	 * is declared rather than here.
+	 * **A factory rather than a middleware**, as `requireAnyPermission` is: what it refuses depends
+	 * on which acts a procedure asked for, and those are known where the procedure is declared
+	 * rather than here.
 	 *
 	 * **Every act, not any of them.** A procedure that names two is a procedure that does two
 	 * things, and a caller holding one of them cannot do it.
@@ -248,33 +248,25 @@ export const autosync = () => middleware.scheduleWorkspaceSync;
 /**
  * PROCEDURES
  *
- * this section defines the procedures that are available to the API.
- */
-/**
- * PROCEDURES
+ * **Five ways to declare a procedure, and the difference is who may call it.** `permitted`,
+ * `permittedAny` and `permittedBy` name the flags a call needs; `member` needs only somebody
+ * signed in; `public` needs nobody. The three that name a flag compose onto `member` rather than
+ * replacing it, so a permitted procedure is a member procedure that asks one question more, and
+ * everything `requireIdentity` narrows downstream survives.
  *
- * **Two kinds, and the difference is whether the call has an acting user to name.**
+ * **A flag where there is one, and `member` only where there is none**: a member's own act, a read
+ * open to every member whose answer leaves out what they may not view, and an act whose check is
+ * Rust's alone, such as the owner's. `public` is for a call with nobody to name, and asking what an
+ * account may do is the opposite question, so no flag reaches it.
  *
- * *There was one until 2026-08-20, called `public`, and it was every procedure in the application
- * — which was harmless while `context()` refused a machine with nobody signed in, and stopped
- * being harmless the moment it could not.* Requirement 7 of
- * [[efforts/capabilities-only-one-surface-got]] draws the shell signed out, so the absence has to
- * be expressible, and something has to hold the line the context used to hold.
+ * *There was one kind until 2026-08-20, called `public`, and it was every procedure in the
+ * application; requirement 7 of [[efforts/capabilities-only-one-surface-got]] drew the shell signed
+ * out, and `member` took over the line the context used to hold.*
  *
- * **`member` is the default and `public` is the exception**, deliberately in that order: a
- * procedure written without thinking about this should be the safe one. Forty-six of the fifty-one
- * are `member`.
- *
- * **`permitted` is a third way of writing the first**, added 2026-08-21. It is not a fourth kind of
- * caller: it composes onto `member` rather than replacing it, so a permitted procedure is a member
- * procedure that asks one more question, and everything `requireIdentity` narrows downstream
- * survives. `public` is untouched and out of reach of this — reading what this machine has synced
- * is a fact about the machine, and asking what an account may do is the opposite question.
- *
- * **Every record procedure is `permitted` since effort 838**, each naming the flag its act needs
- * (requirement 10), and `member` alone is left to what is a member's own or open to every member.
- * Each way of declaring a procedure records itself in its `meta`, which is what lets a test walk
- * the router and name a procedure that says nothing about who may call it.
+ * Each way of declaring a procedure records itself in its `meta`, which is what lets
+ * `tests/flags.test.ts` walk the router and name a procedure that says nothing about who may call
+ * it. How many there are of each is counted there and in [[rules/api-layer]], under *Who may
+ * call*, rather than here.
  */
 export const procedure = {
 	/**
@@ -285,8 +277,9 @@ export const procedure = {
 	 * writes the workspace before there is an account — a property of the boundary rather than of
 	 * the order the layout happens to call things in.
 	 *
-	 * On its own it is for a member's own act, or a read open to every member whose answer leaves
-	 * out what they may not view. A record act is `permitted`, which asks this first.
+	 * On its own it is for a member's own act, a read open to every member whose answer leaves out
+	 * what they may not view, or an act Rust alone decides who may take: the owner's, and the mark's.
+	 * An act with a flag the router can ask for is `permitted`, which asks this first.
 	 *
 	 * middlewares: [log, requireIdentity]
 	 */
@@ -295,9 +288,11 @@ export const procedure = {
 	 * public
 	 *
 	 * a call with no actor to name, and **host-only is the test rather than harmless-looking**.
-	 * These reach `ctx.host` and never `ctx.db`: this machine's own settings, its updater, and
-	 * what the shell knows about syncing. A procedure that touches the workspace is not public
-	 * however read-only it looks, because the workspace belongs to somebody.
+	 * These reach `ctx.host` and never `ctx.db`: this machine's own settings, its updater, what the
+	 * shell knows about syncing, and the calls that come before there is anybody to act as (the
+	 * consent, creating or connecting an organization, and opening a link). A procedure that
+	 * touches the workspace is not public however read-only it looks, because the workspace belongs
+	 * to somebody.
 	 *
 	 * middlewares: [log]
 	 */

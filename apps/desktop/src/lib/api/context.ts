@@ -46,8 +46,8 @@ export type { Host };
  * **So the absence is expressible again, and the refusal moved rather than went.** It is
  * `procedure.member`'s now, in `./trpc`, which is a better place for it than here: whether a call
  * needs an acting user is a property of the call, and a context is not the thing making one. What
- * is here is the fact — who is acting, or nobody — and the refusal is one middleware away for the
- * forty-six procedures that need somebody.
+ * is here is the fact, who is acting or nobody, and the refusal is one middleware away for every
+ * procedure that is not `public`.
  *
  * **This is not the shape decision 03 rejected, and the difference is the whole point of `null`.**
  * What that decision called the harder of the two failures was an *anonymous placeholder* standing
@@ -68,19 +68,25 @@ export type Identity = {
 	/** the one thing that names the member; there is no address and no display name beside it. */
 	username: string;
 	/**
-	 * what this account may do in the workspace this machine holds.
+	 * what this member may do in the workspace this machine has open, as the flags every
+	 * `procedure.permitted` gate reads.
 	 *
-	 * **Here because it is a fact about who is acting**, which is what `Identity` is for — and not
+	 * **Their effective permissions, folded for that workspace.** The session carries what their
+	 * role and override come to across the organization, off their verified row, and `effectiveIn`
+	 * clears every create, edit and delete where their grant on the workspace open is read-only, or
+	 * where there is no grant or no workspace open to read. The organization's own flags are not a
+	 * workspace's to clear and pass through as the session has them.
+	 *
+	 * **Here because it is a fact about who is acting**, which is what `Identity` is for, and not
 	 * on the context beside `db` and `host`, which carry ambient capabilities and never business
 	 * configuration ([[rules/api-layer]], under *Where things live*).
 	 *
 	 * **Never read as a number.** `permits` from `@rentable/workspace-permission` answers a
-	 * question about it by the name of an act, and that package is the only place the bits are
-	 * named, on this side or the Rust side.
+	 * question about it by the name of an act; that package names the bits on this side, and
+	 * `permission.rs` carries the same bits under the same names on the Rust side.
 	 *
-	 * `0` where the shell could not be reached, where no session has been opened, and on
-	 * a machine nobody is signed in on. All three mean the same thing to a procedure: this caller
-	 * administers nothing.
+	 * Where the shell could not be reached or nobody is signed in there is no identity at all,
+	 * and so nothing to read this off.
 	 */
 	permissions: number;
 };
@@ -213,9 +219,11 @@ export const context = async (overrides: Partial<Context> = {}): Promise<Context
 	const clock = overrides.clock ?? systemClock;
 	const identity = overrides.identity ?? (await actingIdentity(host));
 
-	// **Answering with nobody is not the same as letting anybody through.** Forty-six procedures reach
-	// the workspace database and every one of them goes through `procedure.member`, which refuses
-	// exactly this. What is left public is host-only and has no actor to name: this machine's own
-	// settings, its updater, and what the shell knows about syncing.
+	// **Answering with nobody is not the same as letting anybody through.** Every procedure but a
+	// `public` one refuses exactly this, since `permitted`, `permittedAny` and `permittedBy` each
+	// ask `procedure.member`'s question first, and everything that reaches the workspace database
+	// is one of them. What is left public is host-only and has no actor to name: this machine's own
+	// settings, its updater, what the shell knows about syncing, and the calls that come before
+	// there is anybody to act as.
 	return { db, clock, host, identity };
 };
