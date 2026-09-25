@@ -20,7 +20,11 @@
 	import type { ResolvedPathname } from '$app/types';
 	import { withCreateIntent } from '@rentable/design/create-intent.js';
 	import { unitHost } from '$lib/complex/unit/host.svelte';
-	import { declarePaletteCreates, type CreateDirectory } from '$lib/layout/create';
+	import {
+		declarePaletteCreates,
+		toOfferedCreates,
+		type CreateDirectory
+	} from '$lib/layout/create';
 	import { paymentHost } from '$lib/payment/host.svelte';
 	import { Kbd, KbdGroup } from '@rentable/design/primitive/kbd/index.js';
 	import * as Command from '@rentable/design/primitive/command/index.js';
@@ -33,7 +37,9 @@
 		type PaletteShortcut,
 		type RecordSubject
 	} from '$lib/layout/palette';
+	import { toViewablePlaces } from '$lib/layout/navigation';
 	import { useRecordConcepts } from '$lib/layout/record-search';
+	import { memberPermissions } from '$lib/workspace/permission';
 	import ZapIcon from '@lucide/svelte/icons/zap';
 	import FileIcon from '@lucide/svelte/icons/file-text';
 	import PlusIcon from '@lucide/svelte/icons/plus';
@@ -89,12 +95,14 @@
 	const isAppleKeyboard = usesAppleKeyboard();
 
 	const destinations = $derived(
-		[...primaryDestinations, ...secondaryDestinations].filter((destination) =>
-			matchesTerm(destination.label($LL), term)
-		)
+		toViewablePlaces(
+			[...primaryDestinations, ...secondaryDestinations],
+			memberPermissions.views
+		).filter((destination) => matchesTerm(destination.label($LL), term))
 	);
+	// only what the reader may create: a create they lack a flag for is not offered.
 	const creations = $derived(
-		createActions.filter(
+		toOfferedCreates(createActions, (flags) => memberPermissions.refusalOfEvery(flags, $LL)).filter(
 			(action) =>
 				matchesTerm(action.label($LL), term) || matchesTerm($LL.common.actions.create(), term)
 		)

@@ -2,6 +2,7 @@ import type { UnitPrefill } from '$lib/complex/unit/host.svelte';
 import type { PaymentPrefill } from '$lib/payment/host.svelte';
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 import type { RecordSubject } from '$lib/layout/palette';
+import type { RecordFlag } from '$lib/workspace/permission';
 
 /**
  * THE COMMAND MENU'S CREATE GROUP
@@ -19,6 +20,11 @@ import type { RecordSubject } from '$lib/layout/palette';
  *
  * Declared as a function of the two hosts it asks, rather than bound to them here, so the list can
  * be read and run under Node with stand-ins.
+ *
+ * **Each entry names the flags it needs** (effort 838, requirement 10): the create its procedure
+ * names, and, for an entry that asks for a record first, viewing the kind it asks for, since a
+ * reader who cannot see a complex cannot choose the one a unit goes in. The command menu offers
+ * only the entries the reader holds every flag of ({@link toOfferedCreates}).
  */
 
 /** A directory a record is created in by address. */
@@ -30,6 +36,8 @@ export type PaletteCreate = {
 	subject: RecordSubject;
 	/** its name, in the reader's language. */
 	label: (translations: TranslationFunctions) => string;
+	/** what the reader needs, every one of them, for the command menu to offer it. */
+	flags: readonly RecordFlag[];
 } & (
 	| {
 			kind: 'directory';
@@ -57,18 +65,21 @@ export function declarePaletteCreates(hosts: CreateHosts): PaletteCreate[] {
 		{
 			subject: 'tenant',
 			label: (t) => t.common.labels.tenant(),
+			flags: ['createTenant'],
 			kind: 'directory',
 			directory: '/tenants'
 		},
 		{
 			subject: 'complex',
 			label: (t) => t.common.labels.complex(),
+			flags: ['createComplex'],
 			kind: 'directory',
 			directory: '/complexes'
 		},
 		{
 			subject: 'unit',
 			label: (t) => t.common.labels.unit(),
+			flags: ['createUnit', 'viewComplex'],
 			kind: 'asks',
 			asks: 'complex',
 			create: (complexId) => hosts.unit({ complexId })
@@ -76,15 +87,30 @@ export function declarePaletteCreates(hosts: CreateHosts): PaletteCreate[] {
 		{
 			subject: 'contract',
 			label: (t) => t.common.labels.contract(),
+			flags: ['createContract'],
 			kind: 'directory',
 			directory: '/contracts'
 		},
 		{
 			subject: 'payment',
 			label: (t) => t.common.labels.payment(),
+			flags: ['createPayment', 'viewContract'],
 			kind: 'asks',
 			asks: 'contract',
 			create: (contractId) => hosts.payment({ contractId })
 		}
 	];
+}
+
+/**
+ * The entries of the create group the reader may use: those whose every flag they hold. An entry
+ * they may not use is left out rather than refused, as a record's act they lack is
+ * (`toPaletteActs`), since the menu is searched by name and a row that can never run would answer
+ * every search for it.
+ */
+export function toOfferedCreates(
+	creates: readonly PaletteCreate[],
+	refusal: (flags: readonly RecordFlag[]) => string | undefined
+): PaletteCreate[] {
+	return creates.filter((create) => refusal(create.flags) === undefined);
 }

@@ -296,6 +296,7 @@ export const useCreateContract = declareMutation({
 	touches: ['contracts', 'units'],
 	inverse: ({ variables, result }) => ({
 		describe: (t) => t.common.undo.created({ record: t.common.labels.contract() }),
+		flags: { undo: ['deleteContract'], redo: ['createContract'] },
 		// one call: the deletion releases the units in the same batch, so the undo lands whole or
 		// not at all, and a contract holding units is never left standing without them.
 		undo: () => api.contract.delete({ id: result.id }),
@@ -333,6 +334,7 @@ export const useRenewContract = declareMutation({
 	touches: ['contracts', 'units'],
 	inverse: ({ variables, result }) => ({
 		describe: (t) => t.common.undo.renewed({ record: t.common.labels.contract() }),
+		flags: { undo: ['deleteContract'], redo: ['editContract'] },
 		// one delete, as a creation's undo is: it releases the successor's units in the same batch.
 		undo: () => api.contract.delete({ id: result.id }),
 		// renewed again with the identity it had, so a page still open on the successor is holding
@@ -353,6 +355,7 @@ export const useUpdateContract = declareMutation({
 	inverse: ({ variables, captured }) =>
 		captured && {
 			describe: (t) => t.common.undo.edited({ record: t.common.labels.contract() }),
+			flags: { undo: ['editContract'], redo: ['editContract'] },
 			undo: () => api.contract.update(captured),
 			redo: () => api.contract.update(variables),
 			// both directions are an edit: what changed differs, that it was edited does not.
@@ -383,6 +386,7 @@ export const useDeleteContract = declareMutation({
 	inverse: ({ result }) =>
 		result && {
 			describe: (t) => t.common.undo.deleted({ record: t.common.labels.contract() }),
+			flags: { undo: ['editContract'], redo: ['deleteContract'] },
 			// restored as it was, status included, holding the units it held, which the deletion
 			// answered with. A restore rather than a create ([[rules/data]], under *Undo*): a create
 			// would derive the status again and ask whether the units are free today.
@@ -420,6 +424,7 @@ export const useTerminateContract = declareMutation({
 	// derived status rather than putting back the one the contract happened to hold.
 	inverse: ({ variables, result }) => ({
 		describe: (t) => t.common.undo.terminated({ record: t.common.labels.contract() }),
+		flags: { undo: ['editContract'], redo: ['editContract'] },
 		undo: () => api.contract.unterminate({ id: variables }),
 		redo: () => api.contract.terminate({ id: variables }),
 		records: (direction) => ({
@@ -459,6 +464,7 @@ export const useTerminateManyContracts = declareMutation({
 			? undefined
 			: {
 					describe: (t) => t.common.undo.terminatedMany({ count: result.terminated.length }),
+					flags: { undo: ['editContract'], redo: ['editContract'] },
 					undo: () => api.contract.unterminateMany({ ids: toContractIds(result.terminated) }),
 					redo: () => api.contract.terminateMany({ ids: toContractIds(result.terminated) }),
 					records: (direction) =>
@@ -501,6 +507,7 @@ export const useRestoreManyContracts = declareMutation({
 			? undefined
 			: {
 					describe: (t) => t.common.undo.unterminatedMany({ count: result.unterminated.length }),
+					flags: { undo: ['editContract'], redo: ['editContract'] },
 					undo: () => api.contract.terminateMany({ ids: toContractIds(result.unterminated) }),
 					redo: () => api.contract.unterminateMany({ ids: toContractIds(result.unterminated) }),
 					records: (direction) =>
@@ -543,6 +550,7 @@ export const useDeleteManyContracts = declareMutation({
 			? undefined
 			: {
 					describe: (t) => t.common.undo.deletedMany({ count: result.deleted.length }),
+					flags: { undo: ['editContract'], redo: ['deleteContract'] },
 					undo: () => api.contract.restoreMany({ contracts: result.deleted }),
 					redo: () => api.contract.deleteMany({ ids: toContractIds(result.deleted) }),
 					records: (direction) =>
@@ -571,6 +579,7 @@ export const useUnterminateContract = declareMutation({
 	touches: ['contracts', 'units'],
 	inverse: ({ variables, result }) => ({
 		describe: (t) => t.common.undo.unterminated({ record: t.common.labels.contract() }),
+		flags: { undo: ['editContract'], redo: ['editContract'] },
 		undo: () => api.contract.terminate({ id: variables }),
 		redo: () => api.contract.unterminate({ id: variables }),
 		records: (direction) => ({
@@ -669,6 +678,7 @@ export const useSetContractUnits = declareMutation({
 	capture: (variables) => api.contract.units.getMany({ contractId: variables.contractId }),
 	inverse: ({ variables, captured }) => ({
 		describe: (t) => t.common.undo.assigned({ record: t.common.labels.contract() }),
+		flags: { undo: ['editContract'], redo: ['editContract'] },
 		undo: () =>
 			api.contract.units.set({
 				contractId: variables.contractId,

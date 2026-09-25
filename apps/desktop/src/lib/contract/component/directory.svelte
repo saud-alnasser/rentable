@@ -19,6 +19,7 @@
 	import DirectoryImportDialog from '$lib/workspace/component/directory-import-dialog.svelte';
 	import { useImportRecords } from '$lib/workspace/query';
 	import { toTransferInput } from '$lib/workspace/workspace';
+	import { IMPORT_FLAGS, memberPermissions } from '$lib/workspace/permission';
 	import { contractHost } from '$lib/contract/host.svelte';
 	import ContractRecord from './record.svelte';
 	import ContractSelectionActions from './selection-actions.svelte';
@@ -139,8 +140,10 @@
 				]
 			}}
 			onImport={() => void importDialog?.choose()}
+			importUnavailable={memberPermissions.refusalOfEvery(IMPORT_FLAGS, $LL)}
 			onCreate={() => contractHost.create()}
 			createLabel={$LL.common.actions.newContract()}
+			createUnavailable={memberPermissions.refusal('createContract', $LL)}
 			emptyTitle={$LL.contracts.empty.title()}
 			emptyDescription={$LL.contracts.empty.description()}
 		>

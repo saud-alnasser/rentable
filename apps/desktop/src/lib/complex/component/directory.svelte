@@ -26,6 +26,7 @@
 	import DirectoryImportDialog from '$lib/workspace/component/directory-import-dialog.svelte';
 	import { useImportRecords } from '$lib/workspace/query';
 	import { toTransferInput } from '$lib/workspace/workspace';
+	import { IMPORT_FLAGS, memberPermissions } from '$lib/workspace/permission';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	// the counts of occupied and vacant units wear the glyphs the unit's own status wears, so a
 	// count and the status it counts read as the same mark.
@@ -123,6 +124,7 @@
 		label={`${$LL.common.actions.delete()} · ${$LL.common.table.recordsSelected({ count: ids.length })}`}
 		icon={Trash2Icon}
 		tone="error"
+		unavailable={memberPermissions.refusal('deleteComplex', $LL)}
 		onclick={() => (confirming = [...ids])}
 	/>
 {/snippet}
@@ -154,8 +156,10 @@
 		]
 	}}
 	onImport={() => void importDialog?.choose()}
+	importUnavailable={memberPermissions.refusalOfEvery(IMPORT_FLAGS, $LL)}
 	onCreate={() => complexHost.create()}
 	createLabel={$LL.common.actions.newComplex()}
+	createUnavailable={memberPermissions.refusal('createComplex', $LL)}
 	emptyTitle={$LL.complexes.empty.title()}
 	emptyDescription={$LL.complexes.empty.description()}
 >

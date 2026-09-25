@@ -1,4 +1,5 @@
 import type { ApplicationShortcut } from '$lib/design/shortcut-registry';
+import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 
 /** Held with ctrl or command: undo, and redo with shift. */
 const UNDO_KEY = 'z';
@@ -25,10 +26,13 @@ export type UndoIntent = 'undo' | 'redo';
  * client the shell holds and this module has no business knowing about.
  * @param hasChange whether there is anything to apply in a direction, for the same reason: the
  * stack's reactive face is a rune module, and this one is read by a test running under Node.
+ * @param refusal why the reader may not move the change there is in a direction, or nothing where
+ * they may (`InverseStack.refusal`, effort 838).
  */
 export function toUndoShortcuts(
 	apply: (intent: UndoIntent) => void,
-	hasChange: (intent: UndoIntent) => boolean
+	hasChange: (intent: UndoIntent) => boolean,
+	refusal: (intent: UndoIntent, translations: TranslationFunctions) => string | undefined
 ): ApplicationShortcut[] {
 	return [
 		{
@@ -37,7 +41,9 @@ export function toUndoShortcuts(
 			keys: [{ key: UNDO_KEY, command: true, shift: false }],
 			describe: (translations) => translations.common.undo.undo(),
 			unavailable: (translations) =>
-				hasChange('undo') ? undefined : translations.common.undo.nothingToUndo(),
+				hasChange('undo')
+					? refusal('undo', translations)
+					: translations.common.undo.nothingToUndo(),
 			standsDownWhileEditing: true,
 			run: () => apply('undo')
 		},
@@ -50,7 +56,9 @@ export function toUndoShortcuts(
 			],
 			describe: (translations) => translations.common.undo.redo(),
 			unavailable: (translations) =>
-				hasChange('redo') ? undefined : translations.common.undo.nothingToRedo(),
+				hasChange('redo')
+					? refusal('redo', translations)
+					: translations.common.undo.nothingToRedo(),
 			standsDownWhileEditing: true,
 			run: () => apply('redo')
 		}

@@ -6,6 +6,7 @@
 	import PaymentHost from '$lib/payment/component/host.svelte';
 	import TenantHost from '$lib/tenant/component/host.svelte';
 	import OrganizationHost from '$lib/organization/component/host.svelte';
+	import WorkspacePermissions from '$lib/workspace/component/permissions.svelte';
 	import PrintSheet from '$lib/print/component/sheet.svelte';
 	import { tauri } from '$lib/platform/tauri';
 	import { Button } from '@rentable/design/primitive/button/index.js';
@@ -199,6 +200,9 @@
 >
 	{#if hasRail}
 		{#if !isSignedOut}
+			<!-- what the reader may do to the records of the workspace open, read once and held where
+			     every record control reads it: first, so what is drawn below is drawn off it. -->
+			<WorkspacePermissions />
 			<LayoutPalette bind:open={isPaletteOpen} />
 			<!-- every record form and confirmation, mounted once per concept: a card, a record page,
 			     the dashboard and the palette each ask a host for what an act opens, and what it

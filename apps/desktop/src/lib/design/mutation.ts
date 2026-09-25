@@ -268,6 +268,15 @@ export function onMutationSuccess(opts: MutationOptions, offer?: UndoOffer) {
 
 	withdrawOutstandingOffer();
 
+	// an offer the reader may not take is not made (effort 838, requirement 10): the change is
+	// announced alone, without the line saying how long an undo lasts, and the key, asked for it,
+	// says why it cannot be taken back.
+	if (inverseStack.refusal(offer.direction, get(LL))) {
+		toast.success(message);
+
+		return;
+	}
+
 	outstandingOffer = toast.success(message, {
 		...detail,
 		action: toToastAction(offer),
@@ -419,6 +428,16 @@ function toKnownFailureText(e: Error, translations: TranslationFunctions): strin
  * was written rather than what was there before.
  */
 async function applyInverse(client: QueryClient, direction: OfferDirection) {
+	// refused here as well as where it is offered, for the key: the procedures behind it would
+	// refuse too, and the reader is owed the flag rather than a failure.
+	const refusal = inverseStack.refusal(direction, get(LL));
+
+	if (refusal) {
+		toast.error(refusal);
+
+		return;
+	}
+
 	try {
 		const applied = await (direction === 'undo' ? inverseStack.undo() : inverseStack.redo());
 

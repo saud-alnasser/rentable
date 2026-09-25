@@ -212,6 +212,7 @@ export const useCreatePayment = declareMutation({
 	touches: ['payments', 'contracts', 'units'],
 	inverse: ({ result }) => ({
 		describe: (t) => t.common.undo.created({ record: t.common.labels.payment() }),
+		flags: { undo: ['deletePayment'], redo: ['createPayment'] },
 		undo: () => api.contract.payments.delete({ id: result.id }),
 		redo: () => api.contract.payments.create(result),
 		records: (direction) =>
@@ -233,6 +234,7 @@ export const useUpdatePayment = declareMutation({
 	inverse: ({ variables, captured }) =>
 		captured && {
 			describe: (t) => t.common.undo.edited({ record: t.common.labels.payment() }),
+			flags: { undo: ['editPayment'], redo: ['editPayment'] },
 			undo: () => api.contract.payments.update(captured),
 			redo: () => api.contract.payments.update(variables),
 			// both directions are an edit, as a contract's are. The amount named is the one the
@@ -271,6 +273,7 @@ export const useDeleteManyPayments = declareMutation({
 			? undefined
 			: {
 					describe: (t) => t.common.undo.deletedMany({ count: result.deleted.length }),
+					flags: { undo: ['createPayment'], redo: ['deletePayment'] },
 					undo: () => api.contract.payments.createMany({ payments: result.deleted }),
 					redo: () => api.contract.payments.deleteMany({ ids: toPaymentIds(result.deleted) }),
 					records: (direction) =>
@@ -310,6 +313,7 @@ export const useDeletePayment = declareMutation({
 	inverse: ({ result }) =>
 		result && {
 			describe: (t) => t.common.undo.deleted({ record: t.common.labels.payment() }),
+			flags: { undo: ['createPayment'], redo: ['deletePayment'] },
 			undo: () => api.contract.payments.create(result),
 			redo: () => api.contract.payments.delete({ id: result.id }),
 			records: (direction) =>

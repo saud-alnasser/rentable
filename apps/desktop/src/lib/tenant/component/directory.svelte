@@ -26,6 +26,7 @@
 	import { TENANT_SORT_COLUMN_IDS, type TenantSortColumnId } from '$lib/tenant/tenant';
 	import { useImportRecords } from '$lib/workspace/query';
 	import { toTransferInput } from '$lib/workspace/workspace';
+	import { IMPORT_FLAGS, memberPermissions } from '$lib/workspace/permission';
 	import { CONTRACT_ATTENTION_ORDER } from '$lib/contract/contract';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 
@@ -133,6 +134,7 @@
 		label={`${$LL.common.actions.delete()} · ${$LL.common.table.recordsSelected({ count: ids.length })}`}
 		icon={Trash2Icon}
 		tone="error"
+		unavailable={memberPermissions.refusal('deleteTenant', $LL)}
 		onclick={() => (confirming = [...ids])}
 	/>
 {/snippet}
@@ -167,8 +169,10 @@
 		]
 	}}
 	onImport={() => void importDialog?.choose()}
+	importUnavailable={memberPermissions.refusalOfEvery(IMPORT_FLAGS, $LL)}
 	onCreate={() => tenantHost.create()}
 	createLabel={$LL.common.actions.newTenant()}
+	createUnavailable={memberPermissions.refusal('createTenant', $LL)}
 	emptyTitle={$LL.tenants.empty.title()}
 	emptyDescription={$LL.tenants.empty.description()}
 >

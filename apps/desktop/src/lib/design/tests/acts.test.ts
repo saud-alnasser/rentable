@@ -1159,3 +1159,181 @@ test('a move is placed directly below the role it passes, and the edges say why 
 		translations.organization.roleList.lowest()
 	);
 });
+
+/*
+ * Effort 838, requirement 10 and criterion 10: an act whose flag the reader lacks is shown refused on
+ * every surface that offers it for a record, with the reason naming the flag, and the command menu
+ * does not offer it at all. On a read-only grant every act that writes is refused, and the reason is
+ * the grant rather than the role.
+ */
+
+const { memberPermissions } = await import('$lib/workspace/permission');
+const { EVERY_FLAG, WRITE_FLAGS, maskOf } = await import('@rentable/workspace-permission');
+
+type Flagged = { concept: string; acts: RecordActs<never>; record: never };
+
+/** every concept's acts, bound to stand-ins, with a record each one applies to in full. */
+function everyConcept(): Flagged[] {
+	const bind = <T>(concept: string, acts: RecordActs<T>, record: T) =>
+		({ concept, acts, record }) as unknown as Flagged;
+
+	return [
+		bind(
+			'tenant',
+			declareTenantActs(
+				recordingRequests(['copyDetails', 'edit', 'newContract', 'confirmDelete'] as const).host
+			),
+			TENANT
+		),
+		bind(
+			'complex',
+			declareComplexActs(recordingRequests(['copyDetails', 'edit', 'confirmDelete'] as const).host),
+			COMPLEX
+		),
+		bind(
+			'unit',
+			declareUnitActs(
+				recordingRequests(['copyDetails', 'edit', 'newContract', 'confirmDelete'] as const).host
+			),
+			{ id: 'unit-1', name: 'A1', complexId: 'complex-1', status: 'vacant' as const }
+		),
+		bind('contract', declareContractActs(recordingHost().host), contractIn('active')),
+		bind(
+			'payment',
+			declarePaymentActs(
+				recordingRequests(['copyDetails', 'receipt', 'duplicate', 'edit', 'confirmDelete'] as const)
+					.host
+			),
+			paymentAgainst('active')
+		)
+	];
+}
+
+const EVERY_FLAG_HELD = maskOf(...EVERY_FLAG);
+
+/** every flag but one, on a full-access grant. */
+const lacking = (flag: (typeof EVERY_FLAG)[number]) => ({
+	permissions: maskOf(...EVERY_FLAG.filter((held) => held !== flag)),
+	accessLevel: 'full-access' as const
+});
+
+/** what each surface says of one act on one record, or nothing where it does not offer it. */
+function reasonsFor<T>(acts: RecordActs<T>, record: T, id: string) {
+	return {
+		card: toCardActions(acts, record, translations).find(
+			(action) => action.attributes?.['data-act'] === id
+		)?.unavailable,
+		page: toPageActions(acts, record, translations).find((act) => act.id === id)?.unavailable,
+		palette: toPaletteVerbs(acts, record, translations, false).find((act) => act.id === id)
+			?.unavailable
+	};
+}
+
+test('every record act names the flag it needs, and every one it names is a record flag', () => {
+	for (const { concept, acts } of everyConcept()) {
+		for (const act of acts) {
+			// copying details reads what is already on screen, so it is the one act with no flag.
+			if (act.id.endsWith('.copyDetails')) {
+				assert.equal(act.flag, undefined, `${act.id} needs nothing`);
+				continue;
+			}
+
+			assert.ok(act.flag, `${act.id} names a flag`);
+			assert.ok(
+				(EVERY_FLAG as readonly string[]).includes(act.flag),
+				`${concept}: ${act.flag} is in the vocabulary`
+			);
+		}
+	}
+});
+
+test('an act whose flag the reader lacks is refused on the card, the page and the palette, naming the flag', (context) => {
+	context.after(() => memberPermissions.hold(null));
+
+	for (const { acts, record } of everyConcept()) {
+		for (const act of acts.filter((declared) => declared.flag)) {
+			const flag = act.flag!;
+
+			memberPermissions.hold(lacking(flag));
+
+			const reason = translations.common.permission.missing[flag]();
+
+			if (act.appliesTo?.(record) ?? true) {
+				assert.deepEqual(
+					reasonsFor(acts, record, act.id),
+					{ card: reason, page: reason, palette: reason },
+					`${act.id} without ${flag}`
+				);
+			}
+
+			// the command menu, before a record is named, does not offer it at all.
+			assert.ok(
+				!toPaletteActs(acts, translations, false).some((offered) => offered.id === act.id),
+				`the palette does not offer ${act.id} without ${flag}`
+			);
+		}
+	}
+});
+
+test('a reader holding every flag is refused nothing and offered every act', (context) => {
+	context.after(() => memberPermissions.hold(null));
+	memberPermissions.hold({ permissions: EVERY_FLAG_HELD, accessLevel: 'full-access' });
+
+	for (const { acts, record } of everyConcept()) {
+		assert.deepEqual(
+			toPageActions(acts, record, translations).filter((act) => act.unavailable),
+			[]
+		);
+		assert.deepEqual(
+			toPaletteActs(acts, translations, false).map((act) => act.id),
+			acts.map((act) => act.id)
+		);
+	}
+});
+
+test('on a read-only grant every act that writes is refused with the grant as its reason, and the rest stay', (context) => {
+	context.after(() => memberPermissions.hold(null));
+	// the role carries every flag, so the grant is the only thing that could refuse anything.
+	memberPermissions.hold({ permissions: EVERY_FLAG_HELD, accessLevel: 'read-only' });
+
+	const readOnly = translations.common.permission.readOnly();
+
+	for (const { acts, record } of everyConcept()) {
+		for (const act of acts) {
+			const writes = act.flag !== undefined && WRITE_FLAGS.includes(act.flag);
+			const reasons = reasonsFor(acts, record, act.id);
+
+			if (act.appliesTo?.(record) ?? true) {
+				assert.deepEqual(
+					reasons,
+					writes
+						? { card: readOnly, page: readOnly, palette: readOnly }
+						: { card: undefined, page: undefined, palette: undefined },
+					act.id
+				);
+			}
+
+			assert.equal(
+				toPaletteActs(acts, translations, false).some((offered) => offered.id === act.id),
+				!writes,
+				`the palette offers ${act.id} on a read-only grant: ${!writes}`
+			);
+		}
+	}
+});
+
+test('a new payment is refused for the flag before anything the contract says', (context) => {
+	context.after(() => memberPermissions.hold(null));
+	memberPermissions.hold(lacking('createPayment'));
+
+	const missing = translations.common.permission.missing.createPayment();
+
+	assert.equal(toPaymentCreateUnavailable(undefined, translations), missing);
+	assert.equal(
+		toPaymentCreateUnavailable(
+			{ status: 'terminated', paidAmount: 0, expectedAmount: 18000 },
+			translations
+		),
+		missing
+	);
+});

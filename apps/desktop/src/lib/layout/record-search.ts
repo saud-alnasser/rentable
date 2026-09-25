@@ -6,7 +6,7 @@ import { useSearchComplexes, useSearchUnits } from '$lib/complex/query';
 import { unitActs, unitHost } from '$lib/complex/unit/host.svelte';
 import { contractActs, contractHost } from '$lib/contract/host.svelte';
 import { useSearchContracts } from '$lib/contract/query';
-import { toPaletteActs, type PaletteAct } from '$lib/design/acts';
+import { toPaletteActs, type PaletteAct, type RecordAct } from '$lib/design/acts';
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 import type { RecordSearch, RecordSubject } from '$lib/layout/palette';
 import { useOrganizationOfferings } from '$lib/organization/palette';
@@ -15,6 +15,7 @@ import { useSearchPayments } from '$lib/payment/query';
 import { tenantActs, tenantHost } from '$lib/tenant/host.svelte';
 import { RECORD_PARAM, WORKSPACE_PARAM, withSection } from '$lib/settings/section';
 import { useSearchTenants } from '$lib/tenant/query';
+import { memberPermissions, type RecordKind } from '$lib/workspace/permission';
 
 /**
  * RECORD SEARCH
@@ -27,6 +28,10 @@ import { useSearchTenants } from '$lib/tenant/query';
  * opened from their settings directory, and the menu reaches them to run an act on them; their
  * acts are gated on who is reading, so the organization reads what they are gated on and offers
  * only the acts that reader may take (`organization/palette.ts`).
+ *
+ * **A kind the reader may not view is not searched, and none of its acts is offered** (effort 838,
+ * requirement 10). Its search is handed no term, which is below every search's minimum, so the
+ * question is never asked rather than asked and refused on each keystroke.
  */
 
 /** How many records of each concept the palette offers before the reader narrows further. */
@@ -56,6 +61,16 @@ type RecordConcept = {
 	};
 };
 
+/** The term a kind's search is asked, which is nothing where the reader may not view that kind. */
+const termFor = (kind: RecordKind, term: () => string) => () =>
+	memberPermissions.views(kind) ? term() : '';
+
+/** What the palette offers to do to a kind's records: nothing where the reader may not view them. */
+const actsFor =
+	<T>(kind: RecordKind, acts: readonly RecordAct<T>[]) =>
+	(t: TranslationFunctions, isAppleKeyboard: boolean) =>
+		memberPermissions.views(kind) ? toPaletteActs(acts, t, isAppleKeyboard) : [];
+
 /**
  * The concepts the palette searches, in the order it presents them.
  *
@@ -70,9 +85,9 @@ export function useRecordConcepts(isOpen: () => boolean): RecordConcept[] {
 			subject: 'tenant',
 			heading: (t) => t.common.nav.tenants(),
 			href: (match) => resolve(`/tenants/${match.id}`),
-			find: (term) => useSearchTenants(term, MATCH_LIMIT),
+			find: (term) => useSearchTenants(termFor('tenant', term), MATCH_LIMIT),
 			acts: {
-				offered: (t, isAppleKeyboard) => toPaletteActs(tenantActs, t, isAppleKeyboard),
+				offered: actsFor('tenant', tenantActs),
 				runOn: (actId, tenantId) => tenantHost.runOn(actId, tenantId)
 			}
 		},
@@ -80,9 +95,9 @@ export function useRecordConcepts(isOpen: () => boolean): RecordConcept[] {
 			subject: 'complex',
 			heading: (t) => t.common.nav.complexes(),
 			href: (match) => resolve(`/complexes/${match.id}`),
-			find: (term) => useSearchComplexes(term, MATCH_LIMIT),
+			find: (term) => useSearchComplexes(termFor('complex', term), MATCH_LIMIT),
 			acts: {
-				offered: (t, isAppleKeyboard) => toPaletteActs(complexActs, t, isAppleKeyboard),
+				offered: actsFor('complex', complexActs),
 				runOn: (actId, complexId) => complexHost.runOn(actId, complexId)
 			}
 		},
@@ -90,9 +105,9 @@ export function useRecordConcepts(isOpen: () => boolean): RecordConcept[] {
 			subject: 'unit',
 			heading: (t) => t.common.nav.units(),
 			href: (match) => resolve(`/complexes/units/${match.id}`),
-			find: (term) => useSearchUnits(term, MATCH_LIMIT),
+			find: (term) => useSearchUnits(termFor('unit', term), MATCH_LIMIT),
 			acts: {
-				offered: (t, isAppleKeyboard) => toPaletteActs(unitActs, t, isAppleKeyboard),
+				offered: actsFor('unit', unitActs),
 				runOn: (actId, unitId) => unitHost.runOn(actId, unitId)
 			}
 		},
@@ -100,9 +115,9 @@ export function useRecordConcepts(isOpen: () => boolean): RecordConcept[] {
 			subject: 'contract',
 			heading: (t) => t.common.nav.contracts(),
 			href: (match) => resolve(`/contracts/${match.id}`),
-			find: (term) => useSearchContracts(term, MATCH_LIMIT),
+			find: (term) => useSearchContracts(termFor('contract', term), MATCH_LIMIT),
 			acts: {
-				offered: (t, isAppleKeyboard) => toPaletteActs(contractActs, t, isAppleKeyboard),
+				offered: actsFor('contract', contractActs),
 				runOn: (actId, contractId) => contractHost.runOn(actId, contractId)
 			}
 		},
@@ -110,9 +125,9 @@ export function useRecordConcepts(isOpen: () => boolean): RecordConcept[] {
 			subject: 'payment',
 			heading: (t) => t.common.nav.payments(),
 			href: (match) => resolve(`/contracts/payments/${match.id}`),
-			find: (term) => useSearchPayments(term, MATCH_LIMIT),
+			find: (term) => useSearchPayments(termFor('payment', term), MATCH_LIMIT),
 			acts: {
-				offered: (t, isAppleKeyboard) => toPaletteActs(paymentActs, t, isAppleKeyboard),
+				offered: actsFor('payment', paymentActs),
 				runOn: (actId, paymentId) => paymentHost.runOn(actId, paymentId)
 			}
 		},

@@ -1,6 +1,8 @@
 <script lang="ts">
 	import api from '$lib/api/caller';
+	import { unavailableControl } from '@rentable/design/block/record-action-control.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
+	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import { toExportSheet } from '@rentable/design/csv.js';
 	import { isolateDirection } from '$lib/error/message';
@@ -9,6 +11,7 @@
 	import { tauri } from '$lib/platform/tauri';
 	import WorkspaceImportDialog from '$lib/workspace/component/import-dialog.svelte';
 	import { useImportRecords } from '$lib/workspace/query';
+	import { IMPORT_FLAGS, memberPermissions } from '$lib/workspace/permission';
 	import {
 		TRANSFER_COLUMNS,
 		TRANSFER_CONCEPTS,
@@ -34,6 +37,11 @@
 	let importDialog = $state<ReturnType<typeof WorkspaceImportDialog> | undefined>(undefined);
 
 	const importMutation = useImportRecords();
+
+	// why the reader may not bring a file in here, or nothing where they may: every kind's create,
+	// as the procedure asks, since a workspace file holds every kind (effort 838, requirement 10).
+	const importUnavailable = $derived(memberPermissions.refusalOfEvery(IMPORT_FLAGS, $LL));
+	const importReasonId = $props.id();
 
 	/** Every sheet of the file, in the order the reader has to read them back in. */
 	function toSheets(transfer: WorkspaceTransfer) {
@@ -97,9 +105,36 @@
 		<Button variant="outline" size="sm" disabled={isExporting} onclick={exportWorkspace}>
 			{isExporting ? $LL.common.actions.working() : $LL.common.actions.export()}
 		</Button>
-		<Button variant="outline" size="sm" onclick={() => void importDialog?.choose()}>
-			{$LL.common.actions.import()}
-		</Button>
+		<!-- refused rather than taken away where the reader may not import, and saying why on hover
+		     and focus, as a list's import does ([[rules/interface]], *Guidance*). -->
+		<Tooltip.Root disabled={!importUnavailable}>
+			<Tooltip.Trigger>
+				{#snippet child({ props })}
+					<Button
+						{...props}
+						variant="outline"
+						size="sm"
+						class={importUnavailable ? unavailableControl : undefined}
+						data-unavailable={importUnavailable ? '' : undefined}
+						aria-disabled={importUnavailable ? 'true' : undefined}
+						aria-describedby={importUnavailable ? importReasonId : undefined}
+						onclick={() => {
+							if (!importUnavailable) {
+								void importDialog?.choose();
+							}
+						}}
+					>
+						{$LL.common.actions.import()}
+						{#if importUnavailable}
+							<span id={importReasonId} class="sr-only">{importUnavailable}</span>
+						{/if}
+					</Button>
+				{/snippet}
+			</Tooltip.Trigger>
+			<Tooltip.Content side="top" sideOffset={8}>
+				<span data-unavailable-reason>{importUnavailable}</span>
+			</Tooltip.Content>
+		</Tooltip.Root>
 	</div>
 </Field.Field>
 

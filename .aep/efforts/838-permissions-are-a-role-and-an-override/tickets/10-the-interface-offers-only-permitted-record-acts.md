@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [09]
 ---
 
@@ -15,14 +15,14 @@ the member cannot view is absent from navigation, search, cross-kind panes, the 
 
 Traces requirement 10 of [[efforts/838-permissions-are-a-role-and-an-override/spec]], and criterion 10.
 
-- [ ] Each concept's `acts.ts` sets `unavailable` with a reason naming the missing flag; component
+- [x] Each concept's `acts.ts` sets `unavailable` with a reason naming the missing flag; component
       tests per concept show the reason, and show the palette not offering the act.
-- [ ] `layout/create.ts`, the directories' bulk actions, the import dialogs and `design/inverse.ts`
+- [x] `layout/create.ts`, the directories' bulk actions, the import dialogs and `design/inverse.ts`
       check the same flags, each with a test.
-- [ ] Without a kind's view flag, `layout/navigation.ts` omits it, `layout/record-search.ts` does not
+- [x] Without a kind's view flag, `layout/navigation.ts` omits it, `layout/record-search.ts` does not
       search it, the tenant's and the unit's contracts panes and the contract's payment ledger are
       absent, and the receipt and the schedule are not offered; each with a test.
-- [ ] On a read-only grant every create, edit and delete control reads as refused with the read-only
+- [x] On a read-only grant every create, edit and delete control reads as refused with the read-only
       reason.
 
 ## Relevant areas

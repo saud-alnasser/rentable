@@ -8,6 +8,7 @@
 	import { unitActs } from '$lib/complex/unit/host.svelte';
 	import { toPageActions } from '$lib/design/acts';
 	import { LL } from '$lib/i18n/i18n-svelte';
+	import { memberPermissions } from '$lib/workspace/permission';
 	import UnitContracts from './contracts.svelte';
 
 	let { unitId }: { unitId: string } = $props();
@@ -76,5 +77,7 @@
 	{parent}
 	{actions}
 	{fields}
-	collections={[{ value: 'contracts', label: $LL.common.nav.contracts(), content: contracts }]}
+	collections={memberPermissions.views('contract')
+		? [{ value: 'contracts', label: $LL.common.nav.contracts(), content: contracts }]
+		: []}
 />

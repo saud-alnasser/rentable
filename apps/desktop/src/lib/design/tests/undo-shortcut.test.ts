@@ -27,7 +27,11 @@ function openStack({ has = () => true }: { has?: (intent: UndoIntent) => boolean
 	const applied: UndoIntent[] = [];
 	const registry = new ShortcutRegistry(() => {});
 
-	for (const registration of toUndoShortcuts((intent) => applied.push(intent), has)) {
+	for (const registration of toUndoShortcuts(
+		(intent) => applied.push(intent),
+		has,
+		() => undefined
+	)) {
 		registry.register(registration);
 	}
 
@@ -123,7 +127,8 @@ test('the pair names both directions for the sheet', () => {
 	assert.deepEqual(
 		toUndoShortcuts(
 			() => {},
-			() => true
+			() => true,
+			() => undefined
 		).map((registration) => registration.describe(undoTranslations)),
 		['undo', 'redo']
 	);
@@ -135,7 +140,8 @@ test('the pair names both directions for the sheet', () => {
 test('each direction says why it cannot run, from its own end of the stack', () => {
 	const [undo, redo] = toUndoShortcuts(
 		() => {},
-		(intent) => intent === 'redo'
+		(intent) => intent === 'redo',
+		() => undefined
 	);
 
 	assert.ok(undo.unavailable);
@@ -147,13 +153,46 @@ test('each direction says why it cannot run, from its own end of the stack', () 
 test('and neither says anything while there is something to apply', () => {
 	const [undo, redo] = toUndoShortcuts(
 		() => {},
-		() => true
+		() => true,
+		() => undefined
 	);
 
 	assert.ok(undo.unavailable);
 	assert.ok(redo.unavailable);
 	assert.equal(undo.unavailable(undoTranslations), undefined);
 	assert.equal(redo.unavailable(undoTranslations), undefined);
+});
+
+// effort 838, requirement 10: a change the reader may not move says why, and the reason is the
+// stack's (`InverseStack.refusal`), asked for the direction the row moves.
+test('a direction the reader may not move says why, and the other stays open', () => {
+	const asked: UndoIntent[] = [];
+	const [undo, redo] = toUndoShortcuts(
+		() => {},
+		() => true,
+		(intent, translations) => {
+			asked.push(intent);
+
+			return intent === 'undo' ? translations.common.permission.missing.deleteTenant() : undefined;
+		}
+	);
+
+	assert.equal(
+		undo.unavailable?.(undoTranslations),
+		'you do not have permission to delete tenants.'
+	);
+	assert.equal(redo.unavailable?.(undoTranslations), undefined);
+	assert.deepEqual(asked, ['undo', 'redo']);
+});
+
+test('an empty stack says it is empty, before it asks what the reader may do', () => {
+	const [undo] = toUndoShortcuts(
+		() => {},
+		() => false,
+		() => 'refused'
+	);
+
+	assert.equal(undo.unavailable?.(undoTranslations), 'nothing to take back');
 });
 
 // the keydown never consults it: a shortcut whose work is a no-op is a no-op either way, and

@@ -166,7 +166,22 @@ async function accessToOpenWorkspace(
 		// said below: no workspace that can be named is read-only.
 	}
 
-	const grant = session.workspaces.find((workspace) => workspace.id === open);
+	return accessIn(session, open);
+}
+
+/**
+ * how a member reaches one workspace, from their session and the workspace's id: the access on
+ * their grant for it, and read-only where there is no workspace or no grant.
+ *
+ * **Exported so the interface folds the same way** (effort 838, requirement 10): what a record
+ * control offers is read from the same session and the same open workspace this reads, so a
+ * control and the procedure behind it cannot disagree about a read-only grant.
+ */
+export function accessIn(
+	session: OrganizationSession,
+	openWorkspaceId: string | null
+): AccessLevel {
+	const grant = session.workspaces.find((workspace) => workspace.id === openWorkspaceId);
 
 	return grant?.accessLevel === 'full-access' ? 'full-access' : 'read-only';
 }

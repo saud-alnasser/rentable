@@ -832,6 +832,94 @@ type RootTranslation = {
 			 */
 			'this-year': string
 		}
+		permission: {
+			missing: {
+				/**
+				 * y​o​u​ ​d​o​ ​n​o​t​ ​h​a​v​e​ ​p​e​r​m​i​s​s​i​o​n​ ​t​o​ ​v​i​e​w​ ​c​o​m​p​l​e​x​e​s​.
+				 */
+				viewComplex: string
+				/**
+				 * y​o​u​ ​d​o​ ​n​o​t​ ​h​a​v​e​ ​p​e​r​m​i​s​s​i​o​n​ ​t​o​ ​a​d​d​ ​c​o​m​p​l​e​x​e​s​.
+				 */
+				createComplex: string
+				/**
+				 * y​o​u​ ​d​o​ ​n​o​t​ ​h​a​v​e​ ​p​e​r​m​i​s​s​i​o​n​ ​t​o​ ​e​d​i​t​ ​c​o​m​p​l​e​x​e​s​.
+				 */
+				editComplex: string
+				/**
+				 * y​o​u​ ​d​o​ ​n​o​t​ ​h​a​v​e​ ​p​e​r​m​i​s​s​i​o​n​ ​t​o​ ​d​e​l​e​t​e​ ​c​o​m​p​l​e​x​e​s​.
+				 */
+				deleteComplex: string
+				/**
+				 * y​o​u​ ​d​o​ ​n​o​t​ ​h​a​v​e​ ​p​e​r​m​i​s​s​i​o​n​ ​t​o​ ​v​i​e​w​ ​u​n​i​t​s​.
+				 */
+				viewUnit: string
+				/**
+				 * y​o​u​ ​d​o​ ​n​o​t​ ​h​a​v​e​ ​p​e​r​m​i​s​s​i​o​n​ ​t​o​ ​a​d​d​ ​u​n​i​t​s​.
+				 */
+				createUnit: string
+				/**
+				 * y​o​u​ ​d​o​ ​n​o​t​ ​h​a​v​e​ ​p​e​r​m​i​s​s​i​o​n​ ​t​o​ ​e​d​i​t​ ​u​n​i​t​s​.
+				 */
+				editUnit: string
+				/**
+				 * y​o​u​ ​d​o​ ​n​o​t​ ​h​a​v​e​ ​p​e​r​m​i​s​s​i​o​n​ ​t​o​ ​d​e​l​e​t​e​ ​u​n​i​t​s​.
+				 */
+				deleteUnit: string
+				/**
+				 * y​o​u​ ​d​o​ ​n​o​t​ ​h​a​v​e​ ​p​e​r​m​i​s​s​i​o​n​ ​t​o​ ​v​i​e​w​ ​t​e​n​a​n​t​s​.
+				 */
+				viewTenant: string
+				/**
+				 * y​o​u​ ​d​o​ ​n​o​t​ ​h​a​v​e​ ​p​e​r​m​i​s​s​i​o​n​ ​t​o​ ​a​d​d​ ​t​e​n​a​n​t​s​.
+				 */
+				createTenant: string
+				/**
+				 * y​o​u​ ​d​o​ ​n​o​t​ ​h​a​v​e​ ​p​e​r​m​i​s​s​i​o​n​ ​t​o​ ​e​d​i​t​ ​t​e​n​a​n​t​s​.
+				 */
+				editTenant: string
+				/**
+				 * y​o​u​ ​d​o​ ​n​o​t​ ​h​a​v​e​ ​p​e​r​m​i​s​s​i​o​n​ ​t​o​ ​d​e​l​e​t​e​ ​t​e​n​a​n​t​s​.
+				 */
+				deleteTenant: string
+				/**
+				 * y​o​u​ ​d​o​ ​n​o​t​ ​h​a​v​e​ ​p​e​r​m​i​s​s​i​o​n​ ​t​o​ ​v​i​e​w​ ​c​o​n​t​r​a​c​t​s​.
+				 */
+				viewContract: string
+				/**
+				 * y​o​u​ ​d​o​ ​n​o​t​ ​h​a​v​e​ ​p​e​r​m​i​s​s​i​o​n​ ​t​o​ ​a​d​d​ ​c​o​n​t​r​a​c​t​s​.
+				 */
+				createContract: string
+				/**
+				 * y​o​u​ ​d​o​ ​n​o​t​ ​h​a​v​e​ ​p​e​r​m​i​s​s​i​o​n​ ​t​o​ ​e​d​i​t​ ​c​o​n​t​r​a​c​t​s​.
+				 */
+				editContract: string
+				/**
+				 * y​o​u​ ​d​o​ ​n​o​t​ ​h​a​v​e​ ​p​e​r​m​i​s​s​i​o​n​ ​t​o​ ​d​e​l​e​t​e​ ​c​o​n​t​r​a​c​t​s​.
+				 */
+				deleteContract: string
+				/**
+				 * y​o​u​ ​d​o​ ​n​o​t​ ​h​a​v​e​ ​p​e​r​m​i​s​s​i​o​n​ ​t​o​ ​v​i​e​w​ ​p​a​y​m​e​n​t​s​.
+				 */
+				viewPayment: string
+				/**
+				 * y​o​u​ ​d​o​ ​n​o​t​ ​h​a​v​e​ ​p​e​r​m​i​s​s​i​o​n​ ​t​o​ ​a​d​d​ ​p​a​y​m​e​n​t​s​.
+				 */
+				createPayment: string
+				/**
+				 * y​o​u​ ​d​o​ ​n​o​t​ ​h​a​v​e​ ​p​e​r​m​i​s​s​i​o​n​ ​t​o​ ​e​d​i​t​ ​p​a​y​m​e​n​t​s​.
+				 */
+				editPayment: string
+				/**
+				 * y​o​u​ ​d​o​ ​n​o​t​ ​h​a​v​e​ ​p​e​r​m​i​s​s​i​o​n​ ​t​o​ ​d​e​l​e​t​e​ ​p​a​y​m​e​n​t​s​.
+				 */
+				deletePayment: string
+			}
+			/**
+			 * y​o​u​r​ ​a​c​c​e​s​s​ ​t​o​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​i​s​ ​r​e​a​d​ ​o​n​l​y​,​ ​s​o​ ​n​o​t​h​i​n​g​ ​i​n​ ​i​t​ ​c​a​n​ ​b​e​ ​c​h​a​n​g​e​d​.
+			 */
+			readOnly: string
+		}
 		refusals: {
 			complex: {
 				/**
@@ -5024,6 +5112,94 @@ export type TranslationFunctions = {
 			 * this year
 			 */
 			'this-year': () => LocalizedString
+		}
+		permission: {
+			missing: {
+				/**
+				 * you do not have permission to view complexes.
+				 */
+				viewComplex: () => LocalizedString
+				/**
+				 * you do not have permission to add complexes.
+				 */
+				createComplex: () => LocalizedString
+				/**
+				 * you do not have permission to edit complexes.
+				 */
+				editComplex: () => LocalizedString
+				/**
+				 * you do not have permission to delete complexes.
+				 */
+				deleteComplex: () => LocalizedString
+				/**
+				 * you do not have permission to view units.
+				 */
+				viewUnit: () => LocalizedString
+				/**
+				 * you do not have permission to add units.
+				 */
+				createUnit: () => LocalizedString
+				/**
+				 * you do not have permission to edit units.
+				 */
+				editUnit: () => LocalizedString
+				/**
+				 * you do not have permission to delete units.
+				 */
+				deleteUnit: () => LocalizedString
+				/**
+				 * you do not have permission to view tenants.
+				 */
+				viewTenant: () => LocalizedString
+				/**
+				 * you do not have permission to add tenants.
+				 */
+				createTenant: () => LocalizedString
+				/**
+				 * you do not have permission to edit tenants.
+				 */
+				editTenant: () => LocalizedString
+				/**
+				 * you do not have permission to delete tenants.
+				 */
+				deleteTenant: () => LocalizedString
+				/**
+				 * you do not have permission to view contracts.
+				 */
+				viewContract: () => LocalizedString
+				/**
+				 * you do not have permission to add contracts.
+				 */
+				createContract: () => LocalizedString
+				/**
+				 * you do not have permission to edit contracts.
+				 */
+				editContract: () => LocalizedString
+				/**
+				 * you do not have permission to delete contracts.
+				 */
+				deleteContract: () => LocalizedString
+				/**
+				 * you do not have permission to view payments.
+				 */
+				viewPayment: () => LocalizedString
+				/**
+				 * you do not have permission to add payments.
+				 */
+				createPayment: () => LocalizedString
+				/**
+				 * you do not have permission to edit payments.
+				 */
+				editPayment: () => LocalizedString
+				/**
+				 * you do not have permission to delete payments.
+				 */
+				deletePayment: () => LocalizedString
+			}
+			/**
+			 * your access to this workspace is read only, so nothing in it can be changed.
+			 */
+			readOnly: () => LocalizedString
 		}
 		refusals: {
 			complex: {

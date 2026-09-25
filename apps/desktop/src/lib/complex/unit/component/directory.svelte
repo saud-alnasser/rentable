@@ -27,6 +27,7 @@
 	import DirectoryImportDialog from '$lib/workspace/component/directory-import-dialog.svelte';
 	import { useImportRecords } from '$lib/workspace/query';
 	import { toTransferInput } from '$lib/workspace/workspace';
+	import { IMPORT_FLAGS, memberPermissions } from '$lib/workspace/permission';
 	import UserIcon from '@lucide/svelte/icons/user';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 
@@ -144,6 +145,7 @@
 		label={`${$LL.common.actions.delete()} · ${$LL.common.table.recordsSelected({ count: ids.length })}`}
 		icon={Trash2Icon}
 		tone="error"
+		unavailable={memberPermissions.refusal('deleteUnit', $LL)}
 		onclick={() => (confirming = [...ids])}
 	/>
 {/snippet}
@@ -173,8 +175,10 @@
 		]
 	}}
 	onImport={() => void importDialog?.choose()}
+	importUnavailable={memberPermissions.refusalOfEvery(IMPORT_FLAGS, $LL)}
 	onCreate={() => unitHost.create({ complexId })}
 	createLabel={$LL.common.actions.newUnit()}
+	createUnavailable={memberPermissions.refusal('createUnit', $LL)}
 	emptyTitle={$LL.complexes.units.emptyTitle()}
 	emptyDescription={$LL.complexes.units.emptyDescription()}
 >
