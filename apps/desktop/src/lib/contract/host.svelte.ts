@@ -49,7 +49,7 @@ type ContractHostState = {
 	copying: ContractActRecord | null;
 	/** the contract whose tenant is being reminded, while its reminder is read and opened. */
 	reminding: ContractActRecord | null;
-	/** the contract whose schedule is on its way to the print dialog. */
+	/** the contract whose schedule is being read for the print preview. */
 	printing: ContractActRecord | null;
 	/**
 	 * an act asked for by a contract's identity alone, from a surface that holds nothing else: the

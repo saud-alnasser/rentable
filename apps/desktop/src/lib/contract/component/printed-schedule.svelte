@@ -1,8 +1,10 @@
 <script lang="ts" module>
 	import type { ContractScheduleCycle } from '$lib/contract/query';
 
-	/** Everything a printed schedule carries, read by the host before it prints. */
+	/** Everything a printed schedule carries, read by the host before it is previewed. */
 	export type PrintedScheduleValue = {
+		/** the workspace the contract is kept in, by the name the shell shows for it. */
+		issuer: string;
 		contract: { govId: string; start: number; end: number };
 		tenant: { name: string };
 		units: { name: string; complexName: string }[];
@@ -18,59 +20,55 @@
 	import { stateKeys } from './cycle-state.svelte';
 
 	/**
-	 * A contract's schedule on paper: who and what it is for, then every cycle with its due date,
+	 * A contract's schedule on paper, as a document in one language: who keeps it and what it is at
+	 * the head, then the contract, its tenant and its units, then every cycle with its due date,
 	 * what it costs, what is paid of it, and its state.
 	 *
-	 * **Every heading is in Arabic and in English**, whichever language the reader has chosen,
-	 * because the page is handed to a tenant who may read either. Each carries its own language and
-	 * direction, so the Arabic is shaped and runs right to left inside an English page and the
-	 * English the other way inside an Arabic one. The values are written in the reader's language,
-	 * with Western digits in both (`platform/locale.ts`).
+	 * **One language, the one the reader chose** in the preview (effort 835, requirement 10,
+	 * revised). The page carries its own `lang` and `dir`, so an Arabic schedule runs right to left
+	 * whatever the application is showing, with Western digits (`platform/locale.ts`).
 	 *
-	 * Drawn for the print sheet and nowhere else, so its state is a word rather than the pane's
-	 * glyph and tooltip: paper has no pointer to hover with. It allocates nothing; the cycles are
-	 * the ones `contract.schedule` answered with.
+	 * Drawn for paper and nowhere else, so its state is a word rather than the pane's glyph and
+	 * tooltip: paper has no pointer to hover with. It allocates nothing; the cycles are the ones
+	 * `contract.schedule` answered with.
 	 */
 	let { value, locale }: { value: PrintedScheduleValue; locale: Locales } = $props();
 
-	// both are in memory from startup on (`layout/startup.ts`), whichever one the reader chose.
-	const arabic = i18nObject('ar');
-	const english = i18nObject('en');
+	// every locale is in memory from startup on (`layout/startup.ts`), whichever one is showing.
+	const t = $derived<TranslationFunctions>(i18nObject(locale));
+	const dir = $derived(locale === 'ar' ? 'rtl' : 'ltr');
+	const govId = $derived(value.contract.govId.trim());
 </script>
 
-{#snippet both(say: (t: TranslationFunctions) => string)}
-	<span lang="ar" dir="rtl" class="block first-letter:uppercase">{say(arabic)}</span>
-	<span lang="en" dir="ltr" class="block first-letter:uppercase">{say(english)}</span>
-{/snippet}
+<article lang={locale} {dir} class="flex flex-col gap-8 text-sm" data-printed-schedule>
+	<header class="flex items-start justify-between gap-6 border-b border-border pb-6">
+		<p class="text-lg font-semibold" data-printed-issuer><bdi>{value.issuer}</bdi></p>
 
-<article class="flex flex-col gap-6" data-printed-schedule>
-	<h1 class="flex flex-col gap-1 text-lg font-semibold">
-		{@render both((t) => t.contracts.schedule.printTitle())}
-	</h1>
+		<div class="flex flex-col items-end gap-1 text-end">
+			<h1 class="text-xl font-semibold first-letter:uppercase">
+				{t.contracts.schedule.printTitle()}
+			</h1>
+			{#if govId}
+				<p class="text-muted-foreground">
+					<span class="first-letter:uppercase">{t.common.labels.contractNumber()}</span>
+					<span class="text-foreground" dir="ltr">{govId}</span>
+				</p>
+			{/if}
+		</div>
+	</header>
 
-	<dl class="grid grid-cols-[auto_1fr] items-baseline gap-x-6 gap-y-3">
-		{#if value.contract.govId.trim()}
-			<dt class="text-xs text-muted-foreground">
-				{@render both((t) => t.common.labels.contractNumber())}
-			</dt>
-			<dd class="font-medium"><span dir="ltr">{value.contract.govId}</span></dd>
-		{/if}
+	<dl class="grid grid-cols-[auto_1fr] items-baseline gap-x-8 gap-y-3">
+		<dt class="text-muted-foreground first-letter:uppercase">{t.common.labels.tenant()}</dt>
+		<dd class="font-medium" data-printed-tenant><bdi>{value.tenant.name}</bdi></dd>
 
-		<dt class="text-xs text-muted-foreground">
-			{@render both((t) => t.common.labels.contractPeriod())}
+		<dt class="text-muted-foreground first-letter:uppercase">
+			{t.common.labels.contractPeriod()}
 		</dt>
 		<dd class="font-medium tabular-nums">
 			{formatRecordDateRange(locale, value.contract.start, value.contract.end)}
 		</dd>
 
-		<dt class="text-xs text-muted-foreground">
-			{@render both((t) => t.common.labels.tenant())}
-		</dt>
-		<dd class="font-medium" data-printed-tenant><bdi>{value.tenant.name}</bdi></dd>
-
-		<dt class="text-xs text-muted-foreground">
-			{@render both((t) => t.common.labels.units())}
-		</dt>
+		<dt class="text-muted-foreground first-letter:uppercase">{t.common.labels.units()}</dt>
 		<dd class="font-medium" data-printed-units>
 			{#each value.units as unit, index (index)}
 				<span class="block"><bdi>{unit.name}</bdi> · <bdi>{unit.complexName}</bdi></span>
@@ -83,17 +81,17 @@
 	<table class="w-full border-collapse">
 		<thead>
 			<tr class="border-b border-border text-xs text-muted-foreground">
-				<th class="py-2 text-start align-bottom font-medium">
-					{@render both((t) => t.contracts.schedule.columns.due())}
+				<th class="py-2 text-start font-medium first-letter:uppercase">
+					{t.contracts.schedule.columns.due()}
 				</th>
-				<th class="py-2 ps-4 text-end align-bottom font-medium">
-					{@render both((t) => t.contracts.schedule.columns.amount())}
+				<th class="py-2 ps-4 text-end font-medium first-letter:uppercase">
+					{t.contracts.schedule.columns.amount()}
 				</th>
-				<th class="py-2 ps-4 text-end align-bottom font-medium">
-					{@render both((t) => t.contracts.schedule.columns.covered())}
+				<th class="py-2 ps-4 text-end font-medium first-letter:uppercase">
+					{t.contracts.schedule.columns.covered()}
 				</th>
-				<th class="py-2 ps-4 text-start align-bottom font-medium">
-					{@render both((t) => t.contracts.schedule.columns.state())}
+				<th class="py-2 ps-4 text-start font-medium first-letter:uppercase">
+					{t.contracts.schedule.columns.state()}
 				</th>
 			</tr>
 		</thead>
@@ -114,8 +112,8 @@
 					<td class="py-2 ps-4 text-end tabular-nums" data-cycle-covered>
 						{formatLocaleMoney(locale, cycle.covered)}
 					</td>
-					<td class="py-2 ps-4 text-start" data-cycle-state>
-						{@render both((t) => t.contracts.schedule.states[stateKeys[cycle.state]]())}
+					<td class="py-2 ps-4 text-start first-letter:uppercase" data-cycle-state>
+						{t.contracts.schedule.states[stateKeys[cycle.state]]()}
 					</td>
 				</tr>
 			{/each}

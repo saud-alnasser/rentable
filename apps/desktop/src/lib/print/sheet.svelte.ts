@@ -99,3 +99,45 @@ export function print(content: Snippet, request: PrintRequest = { mode: 'print' 
 		})();
 	});
 }
+
+/**
+ * Whether the host writes a PDF itself, with no dialog. Only WebView2 can (`tauri/src/print.rs`);
+ * on macOS and Linux the system's print panel is how a PDF is saved.
+ */
+export const writesPdfSilently = () =>
+	typeof navigator !== 'undefined' && /Windows/.test(navigator.userAgent);
+
+/**
+ * A page sent where the preview's reader asked: to paper, or to a PDF.
+ *
+ * On Windows a PDF goes to a path the reader chooses first and is written there, answering
+ * `saved`. Elsewhere the system's print panel saves it, so a PDF goes the way paper does and
+ * answers `printed`: asking for a path the panel would then ask for again, and clearing the page
+ * before the panel has drawn it, were both wrong. `cancelled` is the reader walking away from the
+ * save dialog, which is not a failure and says nothing; a refusal from the host rejects, for the
+ * caller to say so in a sentence.
+ */
+export async function sendPage(
+	content: Snippet,
+	mode: PrintRequest['mode'],
+	fileName: string
+): Promise<'saved' | 'printed' | 'cancelled'> {
+	if (mode === 'print' || !writesPdfSilently()) {
+		await print(content, { mode: 'print' });
+
+		return 'printed';
+	}
+
+	const path = await tauri.dialog.saveFile(toFileName(fileName));
+
+	if (!path) {
+		return 'cancelled';
+	}
+
+	await print(content, { mode, path });
+
+	return 'saved';
+}
+
+/** A name a save dialog can open on: whatever a free-text part carried that reads as a folder. */
+export const toFileName = (name: string) => name.replace(/[\\/:*?"<>|]+/g, '-').trim();

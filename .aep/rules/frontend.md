@@ -69,7 +69,8 @@ as the sentence its code stands for, in their language (`error/refusal.ts`, and
   **Which `block/` is decided by what the composite reaches**, and #781 sorted the fifteen that
   existed: `packages/design/src/lib/block/` holds the eleven that reach nothing but the design
   system and what the package is already allowed (`$app/*`, which `back` navigates
-  with), and `design/block/` here holds the four that reach past it. A new composite that
+  with), and `design/block/` here holds the ones that reach past it (four then, five since
+  `language-choice.svelte`, below). A new composite that
   reaches `$lib/api`, `$lib/platform`, `$lib/error` or a concept belongs in this application; one
   that reaches none of them belongs in the package, where a second client can draw it.
 
@@ -123,11 +124,15 @@ global rules any Rentable client wants.
 
 **There are two appearances, light and dark, and every colour token has a value in each**: light
 on `:root`, dark under `.dark`. On screen the class on `<html>` is the only thing that chooses,
-and the application sets it (`apps/desktop/src/lib/platform/appearance.ts`), following the system live
-unless the reader chose light or dark in general settings, and before the window is first shown.
+and the application sets it (`apps/desktop/src/lib/platform/appearance.ts`), following the system
+live unless the reader chose light or dark in general settings, and before the window is first
+shown.
 **Paper is always light**: the dark block applies under `@media screen` alone, and the print rules
 in `apps/desktop/src/app.css` pin the light scheme, so a page printed from a dark window is not
-printed dark (effort 835).
+printed dark (effort 835). **`.paper` is the one exception to the class choosing on screen**: the
+token layer declares the light values on it as on `:root`, so a page previewed in a dark window is
+drawn light, as it will print, and it takes the leading of its own language rather than the
+window's.
 A surface never chooses: there is no `dark:` variant in use, and a utility names a token, which
 already differs by appearance. `packages/design/src/lib/tests/tokens.test.ts` refuses a token
 declared in one block and not the other, and any text or tone under WCAG AA (4.5:1) against the
@@ -440,10 +445,12 @@ The type definitions and utility files are **generated**. Edit the locale files,
 regenerate — see [[references/pnpm]]. Components read translations from the store,
 never from a locale module directly.
 
-**One exception: a printed page in both languages at once.** The printed schedule and the receipt
-state each line in Arabic and in English whichever language the reader chose, so they read both
-through `i18nObject('ar')` and `i18nObject('en')`, which startup has already loaded. A page
-drawn for the screen still reads the store (effort 835).
+**One exception: text handed to a tenant in the language chosen for it.** The printed schedule, the
+receipt, the name a saved one is offered under, and the WhatsApp reminder are written in the
+language picked in their preview, which need not be the one the application shows, so they read it
+through `i18nObject(locale)`, which startup has already loaded, and a page sets that language's
+`lang` and `dir` on itself. Everything drawn for the reader of the screen still reads the store
+(effort 835).
 
 **A packaged component reads neither the store nor the locale metadata**, and this rule stops at
 the package boundary. `@rentable/design` imports nothing that names this application, so its
@@ -452,9 +459,11 @@ handed to `DesignProvider` once in `src/routes/+layout.svelte`. `@rentable/desig
 the contract, and it holds what enforces it and why the direction travels with the words.
 
 *Everything above is unchanged for a component that lives in this application, and that is every
-cell, every component under a concept or under `layout`, and the four blocks under `design/block/`:
-`list.svelte`, and the three that effort 832 added around it, `create-control.svelte`,
-`list-toolbar.svelte` and `search-field.svelte`. **They stay because each reads a module of this
+cell, every component under a concept or under `layout`, and the five blocks under `design/block/`:
+`list.svelte`, the three that effort 832 added around it, `create-control.svelte`,
+`list-toolbar.svelte` and `search-field.svelte`, and `language-choice.svelte`, which effort 835
+added for the language a printed page or a reminder is written in and which reads this
+application's own list of languages (`localesMetadata`). **They stay because each reads a module of this
 application, not a contract the package could be handed.** `create-control` reads the create key
 (`design/create-key.ts`) and registers with what answers it (`design/create-target.svelte.ts`),
 which is what makes it the one control [[rules/interface]] *Create* says draws a create and the one

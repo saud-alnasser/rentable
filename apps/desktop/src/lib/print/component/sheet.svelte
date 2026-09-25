@@ -17,6 +17,6 @@
 	let { lang, dir }: { lang: string; dir: 'ltr' | 'rtl' | 'auto' } = $props();
 </script>
 
-<div {lang} {dir} class="hidden bg-card text-sm text-foreground print:block" data-print-sheet>
+<div {lang} {dir} class="paper hidden bg-card text-sm text-foreground print:block" data-print-sheet>
 	{@render printSheet.content?.()}
 </div>

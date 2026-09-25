@@ -28,9 +28,10 @@
 
 /*
  * two appearances, one vocabulary: light on `:root`, dark under `.dark`, and on screen the class
- * on `<html>` is the only thing that chooses between them. paper is always light: the dark block
- * applies under `@media screen` alone, and the application's print rules pin the light scheme
- * (desktop's `app.css`, `@media print`). the application sets the class (in desktop,
+ * on `<html>` is the only thing that chooses between them, but for `.paper`, which is light
+ * whatever the window is in: a page previewed on screen is drawn as it will print. paper is always
+ * light: the dark block applies under `@media screen` alone, and the application's print rules
+ * pin the light scheme (desktop's `app.css`, `@media print`). the application sets the class (in desktop,
  * `platform/appearance.ts`, following the system unless the reader chose one), so a surface
  * never does: there is no `dark:` variant to select against the tokens, and every utility
  * states the one token it renders, which carries a value in both. a token added to one block
@@ -46,6 +47,7 @@
  * saying what it means by it, and a tone darkened for light is still the same token saying the
  * same thing.
  */
+.paper,
 :root {
 	/*
 	 * the light appearance's elevation. the names are explained under *Shape and elevation*
@@ -358,8 +360,13 @@
  * keeps the scale's own tighter lines. `leading-none` is not reached here: it is a literal `1`
  * and is meant for a single figure centred in a fixed box. The plain `line-height` is what text
  * carrying no size class inherits, in place of the 1.5 Tailwind's preflight gives it.
+ *
+ * a page on `.paper` is written in the language chosen for it, which need not be the document's,
+ * so it is keyed on the page's own language there: an Arabic page takes these lines whatever the
+ * application shows, and an English page below takes back the scale's own.
  */
-:root:lang(ar) {
+:root:lang(ar),
+.paper [lang='ar'] {
 	line-height: 1.8;
 	--text-xs--line-height: 1.8;
 	--text-sm--line-height: 1.8;
@@ -371,6 +378,21 @@
 	--leading-tight: 1.8;
 	--leading-snug: 1.8;
 	--leading-normal: 1.8;
+}
+
+/* the scale's own lines, for an English page printed from an Arabic window (the block above). */
+.paper [lang='en'] {
+	line-height: 1.5;
+	--text-xs--line-height: calc(1 / 0.75);
+	--text-sm--line-height: calc(1.25 / 0.875);
+	--text-base--line-height: calc(1.5 / 1);
+	--text-lg--line-height: calc(1.75 / 1.125);
+	--text-xl--line-height: calc(1.75 / 1.25);
+	--text-2xl--line-height: calc(2 / 1.5);
+	--text-3xl--line-height: calc(2.25 / 1.875);
+	--leading-tight: 1.25;
+	--leading-snug: 1.375;
+	--leading-normal: 1.5;
 }
 
 /* ===================================== */

@@ -49,6 +49,7 @@ const ALLOWED: readonly (readonly [string, string])[] = [
 	['turso', 'the company an organization lives on. A brand name, and never translated.'],
 	['developer', "turso's own name for one of its plans, spelled as their pricing page spells it."],
 	['csv', 'the file format, which is its acronym in arabic as it is in english.'],
+	['pdf', 'the file format a receipt or a schedule is saved as, an acronym in both languages.'],
 	['xxxxxxxx', 'the mask in the phone placeholder `5xxxxxxxx`, a shape rather than a word.']
 ];
 

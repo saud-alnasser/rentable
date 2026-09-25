@@ -533,17 +533,20 @@ Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], re
 
 ### Print
 
-**A record prints through the one print sheet and the system's print dialog, and nothing else.**
-The act is a record act in the `primary` group, drawn with the printer glyph whatever it prints,
-and it asks the concept's host. The host reads what the page states afresh, draws it as a snippet,
-and hands it to `print()` (`print/sheet.svelte.ts`), which shows the sheet alone under
-`@media print` and settles on `afterprint`. The dialog's PDF destination is how a PDF is saved; the
-application writes no file of its own.
+**A record prints through the application's own preview, then the one print sheet.** The act is a
+record act in the `primary` group, drawn with the printer glyph whatever it prints, and it asks the
+concept's host. The host reads what the page states afresh and opens the preview
+(`print/component/preview.svelte`): the edge panel, a language choice on top that opens on the
+application's own, the page below drawn as paper, and two acts, *save as PDF* and *print* (the
+primary). Either hands the same page to `sendPage` (`print/sheet.svelte.ts`), which shows the sheet
+alone under `@media print` and asks the host to print it: on Windows a PDF is written with no
+dialog and paper goes through the operating system's dialog, never the webview's browser preview;
+on macOS and Linux both open the system's print panel (`tauri/src/print.rs`).
 
-The page is paper: light whatever the window's appearance, every heading or line in Arabic and in
-English, each in its own language and direction, with Western digits. Where the dialog refuses, the
-reader is told in one sentence (`showErrorSentence`) that the page could not be printed. Today the
-contract prints its schedule and a payment its receipt.
+The page is paper: light whatever the window's appearance (`.paper` in the token layer), in the one
+language chosen, set out as a document with who issued it at its head, with Western digits. Where
+the host refuses, the reader is told in one sentence (`showErrorSentence`); a saved PDF is
+confirmed in a toast. Today the contract prints its schedule and a payment its receipt.
 
 *Why one sheet in the main window: a second window runs startup again against the same replica,
 and an iframe's print does nothing on macOS

@@ -7,8 +7,14 @@
 	import { usesAppleKeyboard } from '@rentable/design/shortcut.js';
 	import { toDeleteStep, toPaletteVerbs } from '$lib/design/acts';
 	import { onMutationError, onMutationSuccess } from '$lib/design/mutation';
-	import { showErrorSentence, showErrorToast, showRefusal } from '$lib/error/toast';
+	import {
+		showErrorSentence,
+		showErrorToast,
+		showRefusal,
+		showSuccessToast
+	} from '$lib/error/toast';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
+	import { i18nObject } from '$lib/i18n/i18n-util';
 	import { toPaymentCreateUnavailable, type PaymentActRecord } from '$lib/payment/acts';
 	import {
 		closePaymentConfirmation,
@@ -20,7 +26,9 @@
 	} from '$lib/payment/host.svelte';
 	import { useReadContract } from '$lib/contract/query';
 	import { useDeletePayment, useReadPayment, useReadPaymentReceipt } from '$lib/payment/query';
-	import { print } from '$lib/print/sheet.svelte';
+	import PrintPreview from '$lib/print/component/preview.svelte';
+	import { sendPage } from '$lib/print/sheet.svelte';
+	import type { Locales } from '$lib/i18n/i18n-types';
 	import { useFetchRemoteSyncState } from '$lib/settings/query';
 	import { writeDetailsToClipboard } from '$lib/platform/clipboard';
 	import { formatLocaleMoney } from '$lib/platform/locale';
@@ -129,51 +137,66 @@
 	}
 
 	/**
-	 * the receipt on the print sheet, while one is being printed. Raw, because it is only ever
-	 * replaced, and a print that finishes clears it only where it is still the one it drew.
+	 * the receipt being previewed, the language it is shown in, and whether it is on its way to
+	 * paper or a file. Raw, because a receipt is only ever replaced.
 	 */
-	let printed = $state.raw<PrintedReceiptValue | null>(null);
+	let receipt = $state.raw<PrintedReceiptValue | null>(null);
+	let receiptOpen = $state(false);
+	let receiptLocale = $state<Locales>('en');
+	let sending = $state(false);
 
 	/**
-	 * A payment's receipt on paper: what it states is read afresh, drawn on the print sheet, and
-	 * handed to the system's print dialog. Nothing opens here but that dialog.
+	 * A payment's receipt, shown first in the application's own preview: what it states is read
+	 * afresh, and the preview opens on the language the application shows.
 	 */
-	async function printReceipt(payment: PaymentActRecord) {
-		let value: PrintedReceiptValue;
-
+	async function previewReceipt(payment: PaymentActRecord) {
 		try {
 			// the rail's header has almost always read it already; where it has not, it is read now,
-			// so a receipt is never printed without the name of who issued it.
-			const [receipt, workspace] = await Promise.all([
+			// so a receipt is never shown without the name of who issued it.
+			const [read, workspace] = await Promise.all([
 				readReceipt(payment.id),
 				remoteSyncQuery.data?.workspace ??
-					remoteSyncQuery.refetch().then((read) => read.data?.workspace)
+					remoteSyncQuery.refetch().then((answer) => answer.data?.workspace)
 			]);
 			const issuer = workspace?.name?.trim();
 
 			if (!issuer) {
-				showErrorSentence($LL.contracts.payments.receipt.printFailed());
+				showErrorSentence($LL.print.failed());
 
 				return;
 			}
 
-			value = { ...receipt, issuer };
+			receipt = { ...read, issuer };
+			receiptLocale = $locale;
+			receiptOpen = true;
 		} catch (error) {
 			showErrorToast(error, $LL);
+		}
+	}
 
+	/** The previewed receipt, in the language chosen, to paper or to a PDF. */
+	async function sendReceipt(mode: 'print' | 'pdf') {
+		if (!receipt || sending) {
 			return;
 		}
 
-		printed = value;
+		sending = true;
 
 		try {
-			await print(printedReceipt);
-		} catch {
-			showErrorSentence($LL.contracts.payments.receipt.printFailed());
-		} finally {
-			if (printed === value) {
-				printed = null;
+			const title = i18nObject(receiptLocale).contracts.payments.receipt.title();
+			const outcome = await sendPage(printedReceipt, mode, `${title} ${receipt.reference}.pdf`);
+
+			if (outcome !== 'cancelled') {
+				receiptOpen = false;
+
+				if (outcome === 'saved') {
+					showSuccessToast($LL.print.saved());
+				}
 			}
+		} catch {
+			showErrorSentence($LL.print.failed());
+		} finally {
+			sending = false;
 		}
 	}
 
@@ -279,7 +302,7 @@
 		}
 
 		paymentHostState.printing = null;
-		untrack(() => void printReceipt(payment));
+		untrack(() => void previewReceipt(payment));
 	});
 
 	$effect(() => {
@@ -320,10 +343,29 @@
 </script>
 
 {#snippet printedReceipt()}
-	{#if printed}
-		<PrintedReceipt value={printed} />
+	{#if receipt}
+		<PrintedReceipt value={receipt} locale={receiptLocale} />
 	{/if}
 {/snippet}
+
+{#snippet receiptPage(pageLocale: Locales)}
+	{#if receipt}
+		<PrintedReceipt value={receipt} locale={pageLocale} />
+	{/if}
+{/snippet}
+
+<PrintPreview
+	open={receiptOpen}
+	onOpenChange={(isOpen) => {
+		if (!isOpen) receiptOpen = false;
+	}}
+	title={$LL.contracts.payments.receipt.print()}
+	bind:locale={receiptLocale}
+	page={receiptPage}
+	busy={sending}
+	onSave={() => void sendReceipt('pdf')}
+	onPrint={() => void sendReceipt('print')}
+/>
 
 <!-- mounted once a contract has been named: the form reads what that contract still has due, and
      a form with no contract has nothing it could write to. -->

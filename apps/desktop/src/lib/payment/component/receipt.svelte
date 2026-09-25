@@ -19,32 +19,29 @@
 	import { formatLocaleMoney, formatLocaleNumber } from '$lib/platform/locale';
 
 	/**
-	 * A payment's receipt on paper: one page, stated once in Arabic and once in English.
+	 * A payment's receipt on paper, as a document in one language.
 	 *
-	 * **Two whole blocks rather than one bilingual list**, because the page is handed to a tenant
-	 * who reads it in one language, and a line that runs between two scripts reads well in
-	 * neither. Each block carries its own language and direction, so the Arabic is shaped and runs
-	 * right to left on the same page as English running left to right, and the Arabic line height
-	 * the tokens set for `lang="ar"` applies to it. Values are written in the block's own
-	 * language, with Western digits in both (`platform/locale.ts`).
+	 * **One language, the one the reader chose** in the preview (effort 835, requirement 10,
+	 * revised): two languages on one page read as clutter, and a receipt is handed to a tenant who
+	 * reads it in one. The page carries its own `lang` and `dir`, so an Arabic receipt runs right to
+	 * left and takes the Arabic line height whatever the application is showing, and its values are
+	 * written in that language with Western digits (`platform/locale.ts`).
 	 *
-	 * **What was not recorded is left out, its label with it**: a receipt with no method says
-	 * nothing about the method rather than calling it unknown. The payment's note is not printed;
-	 * it is the landlord's, not the tenant's.
+	 * **It reads as a document**: who issued it at the head's start and what it is, its number and
+	 * its date at the end; then the amount, set apart because it is what a receipt is for; then who
+	 * paid and what for; then what remains. What was not recorded is left out with its label, and
+	 * the payment's note stays off the page: it is the landlord's, not the tenant's.
 	 *
-	 * It is a receipt, never a tax invoice, and says nothing that reads as one. Drawn for the print
-	 * sheet and nowhere else, and it allocates nothing: the cycles and the remainder are the ones
-	 * the procedure answered with.
+	 * It is a receipt, never a tax invoice, and says nothing that reads as one. It allocates
+	 * nothing: the cycles and the remainder are the ones the procedure answered with.
 	 */
-	let { value }: { value: PrintedReceiptValue } = $props();
+	let { value, locale }: { value: PrintedReceiptValue; locale: Locales } = $props();
 
-	// both are in memory from startup on (`layout/startup.ts`), whichever one the reader chose.
-	const blocks: { locale: Locales; dir: 'rtl' | 'ltr'; t: TranslationFunctions }[] = [
-		{ locale: 'ar', dir: 'rtl', t: i18nObject('ar') },
-		{ locale: 'en', dir: 'ltr', t: i18nObject('en') }
-	];
+	// every locale is in memory from startup on (`layout/startup.ts`), whichever one is showing.
+	const t = $derived<TranslationFunctions>(i18nObject(locale));
+	const dir = $derived(locale === 'ar' ? 'rtl' : 'ltr');
 
-	const methodLabel = (t: TranslationFunctions, method: PaymentMethod) =>
+	const methodLabel = (method: PaymentMethod) =>
 		({
 			cash: t.contracts.payments.methods.cash,
 			'bank-transfer': t.contracts.payments.methods.bankTransfer,
@@ -56,129 +53,98 @@
 	const govId = $derived(value.contract.govId.trim());
 </script>
 
-<article class="flex flex-col gap-8" data-receipt>
-	<!-- the reference is the same machine string in both languages, so it is stated once, above
-	     both, and read left to right in either. -->
-	<p class="text-center font-mono text-sm" dir="ltr" data-receipt-reference>
-		{value.reference}
-	</p>
+{#snippet fact(label: string, name: string)}
+	<dt class="text-muted-foreground first-letter:uppercase" data-receipt-label={name}>{label}</dt>
+{/snippet}
 
-	{#each blocks as block (block.locale)}
-		{@const t = block.t}
-		<section
-			lang={block.locale}
-			dir={block.dir}
-			class="flex break-inside-avoid flex-col gap-4"
-			data-receipt-block={block.locale}
-		>
-			<h1 class="text-lg font-semibold first-letter:uppercase">
+<article lang={locale} {dir} class="flex flex-col gap-8 text-sm" data-receipt>
+	<header class="flex items-start justify-between gap-6 border-b border-border pb-6">
+		<p class="text-lg font-semibold" data-receipt-issuer><bdi>{value.issuer}</bdi></p>
+
+		<div class="flex flex-col items-end gap-1 text-end">
+			<h1 class="text-xl font-semibold first-letter:uppercase">
 				{t.contracts.payments.receipt.title()}
 			</h1>
+			<p class="text-muted-foreground">
+				<span class="first-letter:uppercase">{t.contracts.payments.receipt.reference()}</span>
+				<span class="font-mono text-foreground" dir="ltr" data-receipt-reference>
+					{value.reference}
+				</span>
+			</p>
+			<p class="text-muted-foreground tabular-nums" data-receipt-date>
+				{formatRecordDate(locale, value.payment.date)}
+			</p>
+		</div>
+	</header>
 
-			<dl class="grid grid-cols-[auto_1fr] items-baseline gap-x-6 gap-y-2">
-				<dt class="text-xs text-muted-foreground first-letter:uppercase">
-					{t.contracts.payments.receipt.reference()}
-				</dt>
-				<dd class="font-mono text-sm"><span dir="ltr">{value.reference}</span></dd>
+	<section class="flex items-baseline justify-between gap-6 rounded-xl bg-muted px-6 py-4">
+		<span class="text-muted-foreground first-letter:uppercase">
+			{t.contracts.payments.receipt.amount()}
+		</span>
+		<span class="text-xl font-semibold tabular-nums" data-receipt-amount>
+			{formatLocaleMoney(locale, value.payment.amount)}
+		</span>
+	</section>
 
-				<dt class="text-xs text-muted-foreground first-letter:uppercase">
-					{t.contracts.payments.receipt.issuedBy()}
-				</dt>
-				<dd class="font-medium" data-receipt-issuer><bdi>{value.issuer}</bdi></dd>
+	<dl class="grid grid-cols-[auto_1fr] items-baseline gap-x-8 gap-y-3">
+		{@render fact(t.contracts.payments.receipt.receivedFrom(), 'tenant')}
+		<dd class="font-medium"><bdi>{value.tenant.name}</bdi></dd>
 
-				<dt class="text-xs text-muted-foreground first-letter:uppercase">
-					{t.contracts.payments.receipt.receivedOn()}
-				</dt>
-				<dd class="font-medium tabular-nums">
-					{formatRecordDate(block.locale, value.payment.date)}
-				</dd>
+		{@render fact(t.common.labels.nationalId(), 'nationalId')}
+		<dd class="font-medium"><span dir="ltr">{value.tenant.nationalId}</span></dd>
 
-				<dt class="text-xs text-muted-foreground first-letter:uppercase">
-					{t.contracts.payments.receipt.amount()}
-				</dt>
-				<dd class="font-semibold tabular-nums" data-receipt-amount>
-					{formatLocaleMoney(block.locale, value.payment.amount)}
-				</dd>
+		{#if value.payment.method}
+			{@render fact(t.contracts.payments.method(), 'method')}
+			<dd class="font-medium">{methodLabel(value.payment.method)}</dd>
+		{/if}
 
-				<dt class="text-xs text-muted-foreground first-letter:uppercase">
-					{t.contracts.payments.receipt.receivedFrom()}
-				</dt>
-				<dd class="font-medium">
-					<bdi>{value.tenant.name}</bdi>
-				</dd>
+		{#if reference}
+			{@render fact(t.contracts.payments.reference(), 'reference')}
+			<dd class="font-medium"><span dir="ltr">{reference}</span></dd>
+		{/if}
 
-				<dt class="text-xs text-muted-foreground first-letter:uppercase">
-					{t.common.labels.nationalId()}
-				</dt>
-				<dd class="font-medium"><span dir="ltr">{value.tenant.nationalId}</span></dd>
+		{#if govId}
+			{@render fact(t.common.labels.contractNumber(), 'contractNumber')}
+			<dd class="font-medium"><span dir="ltr">{govId}</span></dd>
+		{/if}
 
-				{#if value.payment.method}
-					<dt class="text-xs text-muted-foreground first-letter:uppercase" data-receipt-method>
-						{t.contracts.payments.method()}
-					</dt>
-					<dd class="font-medium">{methodLabel(t, value.payment.method)}</dd>
-				{/if}
+		<!-- stated whether or not the contract has a number, so a tenant holding two contracts on
+		     one unit can tell which this receipt is for. -->
+		{@render fact(t.common.labels.contractPeriod(), 'period')}
+		<dd class="font-medium tabular-nums" data-receipt-period>
+			{formatRecordDateRange(locale, value.contract.start, value.contract.end)}
+		</dd>
 
-				{#if reference}
-					<dt
-						class="text-xs text-muted-foreground first-letter:uppercase"
-						data-receipt-payment-reference
-					>
-						{t.contracts.payments.reference()}
-					</dt>
-					<dd class="font-medium"><span dir="ltr">{reference}</span></dd>
-				{/if}
+		{@render fact(t.common.labels.units(), 'units')}
+		<dd class="font-medium">
+			{#each value.units as unit, index (index)}
+				<span class="block"><bdi>{unit.name}</bdi> · <bdi>{unit.complexName}</bdi></span>
+			{:else}
+				<span>—</span>
+			{/each}
+		</dd>
 
-				{#if govId}
-					<dt class="text-xs text-muted-foreground first-letter:uppercase">
-						{t.common.labels.contractNumber()}
-					</dt>
-					<dd class="font-medium"><span dir="ltr">{govId}</span></dd>
-				{/if}
+		{@render fact(t.contracts.payments.receipt.covers(), 'cycles')}
+		<dd class="font-medium" data-receipt-cycles>
+			{#each value.cycles as cycle (cycle.index)}
+				<span class="block tabular-nums" data-receipt-cycle={cycle.index}>
+					{t.contracts.payments.receipt.cycle({
+						index: formatLocaleNumber(locale, cycle.index + 1),
+						date: formatRecordDate(locale, cycle.due)
+					})}
+				</span>
+			{:else}
+				<span>—</span>
+			{/each}
+		</dd>
+	</dl>
 
-				<!-- stated whether or not the contract has a number, so a tenant holding two contracts
-				     on one unit can tell which this receipt is for. -->
-				<dt class="text-xs text-muted-foreground first-letter:uppercase">
-					{t.common.labels.contractPeriod()}
-				</dt>
-				<dd class="font-medium tabular-nums" data-receipt-period>
-					{formatRecordDateRange(block.locale, value.contract.start, value.contract.end)}
-				</dd>
-
-				<dt class="text-xs text-muted-foreground first-letter:uppercase">
-					{t.common.labels.units()}
-				</dt>
-				<dd class="font-medium">
-					{#each value.units as unit, index (index)}
-						<span class="block"><bdi>{unit.name}</bdi> · <bdi>{unit.complexName}</bdi></span>
-					{:else}
-						<span>—</span>
-					{/each}
-				</dd>
-
-				<dt class="text-xs text-muted-foreground first-letter:uppercase">
-					{t.contracts.payments.receipt.covers()}
-				</dt>
-				<dd class="font-medium" data-receipt-cycles>
-					{#each value.cycles as cycle (cycle.index)}
-						<span class="block tabular-nums" data-receipt-cycle={cycle.index}>
-							{t.contracts.payments.receipt.cycle({
-								index: formatLocaleNumber(block.locale, cycle.index + 1),
-								date: formatRecordDate(block.locale, cycle.due)
-							})}
-						</span>
-					{:else}
-						<span>—</span>
-					{/each}
-				</dd>
-
-				<dt class="text-xs text-muted-foreground first-letter:uppercase">
-					{t.contracts.payments.receipt.remaining()}
-				</dt>
-				<dd class="font-medium tabular-nums" data-receipt-remaining>
-					{formatLocaleMoney(block.locale, value.remaining)}
-				</dd>
-			</dl>
-		</section>
-	{/each}
+	<footer class="flex items-baseline justify-between gap-6 border-t border-border pt-4">
+		<span class="text-muted-foreground first-letter:uppercase">
+			{t.contracts.payments.receipt.remaining()}
+		</span>
+		<span class="font-semibold tabular-nums" data-receipt-remaining>
+			{formatLocaleMoney(locale, value.remaining)}
+		</span>
+	</footer>
 </article>

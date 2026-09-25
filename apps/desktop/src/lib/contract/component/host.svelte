@@ -29,13 +29,22 @@
 	import { toDeleteStep, toPaletteVerbs } from '$lib/design/acts';
 	import { consumeCreateIntent } from '$lib/design/create-intent.svelte';
 	import { onMutationError, onMutationSuccess } from '$lib/design/mutation';
-	import { showErrorSentence, showErrorToast, showRefusal } from '$lib/error/toast';
+	import {
+		showErrorSentence,
+		showErrorToast,
+		showRefusal,
+		showSuccessToast
+	} from '$lib/error/toast';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { useFetchContractPayments } from '$lib/payment/query';
 	import { writeDetailsToClipboard } from '$lib/platform/clipboard';
 	import { tauri } from '$lib/platform/tauri';
 	import { formatRecordDateRange } from '$lib/design/date';
-	import { print } from '$lib/print/sheet.svelte';
+	import PrintPreview from '$lib/print/component/preview.svelte';
+	import { sendPage } from '$lib/print/sheet.svelte';
+	import { useFetchRemoteSyncState } from '$lib/settings/query';
+	import type { Locales } from '$lib/i18n/i18n-types';
+	import { i18nObject } from '$lib/i18n/i18n-util';
 	import { useReadTenant } from '$lib/tenant/query';
 	import { onDestroy, untrack } from 'svelte';
 	import ContractForm from './form.svelte';
@@ -68,6 +77,9 @@
 	const readReminder = useReadContractReminder();
 	const readTenant = useReadTenant();
 	const readSchedule = useReadContractSchedule();
+	// the workspace the shell names, which is who keeps the schedule; the one query the rail's header
+	// reads, so the page and the header cannot name it differently.
+	const remoteSyncQuery = useFetchRemoteSyncState();
 
 	const confirming = $derived(contractHostState.confirming);
 
@@ -211,26 +223,31 @@
 	}
 
 	/**
-	 * the schedule on the print sheet, while one is being printed. Raw, because it is only ever
-	 * replaced, and a print that finishes clears it only where it is still the one it drew.
+	 * the schedule being previewed, the language it is shown in, and whether it is on its way to
+	 * paper or a file. Raw, because a schedule is only ever replaced.
 	 */
-	let printed = $state.raw<PrintedScheduleValue | null>(null);
+	let schedule = $state.raw<PrintedScheduleValue | null>(null);
+	let scheduleOpen = $state(false);
+	let scheduleLocale = $state<Locales>('en');
+	let sending = $state(false);
 
 	/**
-	 * A contract's schedule on paper: its cycles, its tenant and its units are read afresh, drawn on
-	 * the print sheet, and handed to the system's print dialog. Nothing opens here but that dialog.
+	 * A contract's schedule, shown first in the application's own preview: its cycles, its tenant,
+	 * its units and who keeps it are read afresh, and the preview opens on the language the
+	 * application shows.
 	 */
-	async function printSchedule(contract: ContractActRecord) {
-		let value: PrintedScheduleValue;
-
+	async function previewSchedule(contract: ContractActRecord) {
 		try {
-			const [cycles, units, tenant] = await Promise.all([
+			const [cycles, units, tenant, workspace] = await Promise.all([
 				readSchedule.cycles(contract.id),
 				readSchedule.units(contract.id),
-				readTenant(contract.tenantId).catch(() => undefined)
+				readTenant(contract.tenantId).catch(() => undefined),
+				remoteSyncQuery.data?.workspace ??
+					remoteSyncQuery.refetch().then((answer) => answer.data?.workspace)
 			]);
 
-			value = {
+			schedule = {
+				issuer: workspace?.name?.trim() ?? '',
 				contract,
 				tenant: {
 					name: tenant?.name?.trim() || contract.tenantName?.trim() || $LL.common.labels.tenant()
@@ -238,22 +255,41 @@
 				units,
 				cycles
 			};
+			scheduleLocale = $locale;
+			scheduleOpen = true;
 		} catch (error) {
 			showErrorToast(error, $LL);
+		}
+	}
 
+	/** The previewed schedule, in the language chosen, to paper or to a PDF. */
+	async function sendSchedule(mode: 'print' | 'pdf') {
+		if (!schedule || sending) {
 			return;
 		}
 
-		printed = value;
+		sending = true;
 
 		try {
-			await print(printedSchedule);
-		} catch {
-			showErrorSentence($LL.contracts.schedule.printFailed());
-		} finally {
-			if (printed === value) {
-				printed = null;
+			const title = i18nObject(scheduleLocale).contracts.schedule.printTitle();
+			const name = schedule.contract.govId.trim();
+			const outcome = await sendPage(
+				printedSchedule,
+				mode,
+				`${title}${name ? ` ${name}` : ''}.pdf`
+			);
+
+			if (outcome !== 'cancelled') {
+				scheduleOpen = false;
+
+				if (outcome === 'saved') {
+					showSuccessToast($LL.print.saved());
+				}
 			}
+		} catch {
+			showErrorSentence($LL.print.failed());
+		} finally {
+			sending = false;
 		}
 	}
 
@@ -336,7 +372,7 @@
 		}
 
 		contractHostState.printing = null;
-		untrack(() => void printSchedule(contract));
+		untrack(() => void previewSchedule(contract));
 	});
 
 	$effect(() => {
@@ -378,10 +414,29 @@
 </script>
 
 {#snippet printedSchedule()}
-	{#if printed}
-		<PrintedSchedule value={printed} locale={$locale} />
+	{#if schedule}
+		<PrintedSchedule value={schedule} locale={scheduleLocale} />
 	{/if}
 {/snippet}
+
+{#snippet schedulePage(pageLocale: Locales)}
+	{#if schedule}
+		<PrintedSchedule value={schedule} locale={pageLocale} />
+	{/if}
+{/snippet}
+
+<PrintPreview
+	open={scheduleOpen}
+	onOpenChange={(isOpen) => {
+		if (!isOpen) scheduleOpen = false;
+	}}
+	title={$LL.contracts.schedule.print()}
+	bind:locale={scheduleLocale}
+	page={schedulePage}
+	busy={sending}
+	onSave={() => void sendSchedule('pdf')}
+	onPrint={() => void sendSchedule('print')}
+/>
 
 {#key contractHostState.form.key}
 	<ContractForm

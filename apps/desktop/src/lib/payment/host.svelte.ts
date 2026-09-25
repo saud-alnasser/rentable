@@ -29,7 +29,7 @@ type PaymentHostState = {
 	deleting: PaymentActRecord | null;
 	/** the payment whose details are on their way to the clipboard. */
 	copying: PaymentActRecord | null;
-	/** the payment whose receipt is on its way to the print dialog. */
+	/** the payment whose receipt is being read for the print preview. */
 	printing: PaymentActRecord | null;
 	/** an act asked for by a payment's identity alone, from the command menu. */
 	asked: { actId: string; paymentId: string } | null;

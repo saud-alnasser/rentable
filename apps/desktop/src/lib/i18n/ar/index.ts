@@ -852,9 +852,7 @@ const ar = {
 				amount: 'المبلغ المستلم',
 				covers: 'يغطي',
 				cycle: 'الدورة {index}، تستحق في {date}',
-				issuedBy: 'صادر عن',
 				print: 'طباعة السند',
-				printFailed: 'تعذّرت طباعة السند.',
 				receivedFrom: 'استلمنا من',
 				receivedOn: 'تاريخ الاستلام',
 				reference: 'رقم السند',
@@ -901,7 +899,6 @@ const ar = {
 			},
 			latePart: 'متأخرة؛ دُفع {covered} من {amount}',
 			print: 'طباعة الجدول',
-			printFailed: 'تعذّرت طباعة الجدول.',
 			printTitle: 'جدول الدفعات',
 			stateDescriptions: {
 				due: 'تستحق اليوم ولم تُدفع بالكامل',
@@ -960,6 +957,14 @@ const ar = {
 			noAssignedUnits: 'لا توجد وحدات مرتبطة.',
 			noAvailableUnits: 'لا توجد وحدات متاحة.'
 		}
+	},
+
+	print: {
+		failed: 'تعذّرت طباعة الصفحة.',
+		language: 'لغة الصفحة',
+		print: 'طباعة',
+		save: 'حفظ كملف PDF',
+		saved: 'تم حفظ ملف PDF'
 	},
 
 	settingsHooks: {

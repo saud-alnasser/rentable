@@ -52,7 +52,7 @@ export type ContractConfirmation = 'delete' | 'terminate' | 'restore';
 export type ContractHostRequests = {
 	/** put the contract's details on the clipboard. */
 	copyDetails: (contract: ContractActRecord) => void;
-	/** print the contract's schedule, every cycle of it, through the system's print dialog. */
+	/** open the print preview on the contract's schedule, every cycle of it. */
 	print: (contract: ContractActRecord) => void;
 	/** open the form on a new contract that starts from this one. */
 	duplicate: (contract: ContractActRecord) => void;

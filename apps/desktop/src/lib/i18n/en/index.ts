@@ -885,15 +885,13 @@ const en = {
 			note: 'note',
 			noteOptional: 'note (optional)',
 			percentFulfilled: '{percent}% fulfilled',
-			// a payment's receipt, printed with each line in Arabic and English beside it. It says it
-			// was received and what for; it is not a tax invoice and says nothing that reads as one.
+			// a payment's receipt, printed in the language chosen. It says it was received and what
+			// for; it is not a tax invoice and says nothing that reads as one.
 			receipt: {
 				amount: 'amount received',
 				covers: 'covers',
 				cycle: 'cycle {index:string}, due {date:string}',
-				issuedBy: 'issued by',
 				print: 'print receipt',
-				printFailed: 'the receipt could not be printed.',
 				receivedFrom: 'received from',
 				receivedOn: 'date received',
 				reference: 'receipt number',
@@ -946,10 +944,8 @@ const en = {
 			// the name a late row's state is read by where part of it is paid, so the part is heard
 			// with the lateness rather than left for a column the reader has to find.
 			latePart: 'late; {covered:string} of {amount:string} paid',
-			// the act that prints it, and what the printed page is headed; the page carries both
-			// languages, so it reads this beside its Arabic.
+			// the act that prints it, and what the printed page is headed, in the language chosen.
 			print: 'print schedule',
-			printFailed: 'the schedule could not be printed.',
 			printTitle: 'payment schedule',
 			stateDescriptions: {
 				due: 'due today and not paid in full',
@@ -1013,6 +1009,15 @@ const en = {
 			noAssignedUnits: 'no units are assigned to this contract yet.',
 			noAvailableUnits: 'no units are available for this contract timeframe.'
 		}
+	},
+
+	// the preview a page opens in before it is printed or saved, whatever the page is.
+	print: {
+		failed: 'the page could not be printed.',
+		language: 'language of the page',
+		print: 'print',
+		save: 'save as PDF',
+		saved: 'PDF saved'
 	},
 
 	settingsHooks: {

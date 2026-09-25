@@ -2738,17 +2738,9 @@ type RootTranslation = {
 				 */
 				cycle: RequiredParams<'date' | 'index'>
 				/**
-				 * i​s​s​u​e​d​ ​b​y
-				 */
-				issuedBy: string
-				/**
 				 * p​r​i​n​t​ ​r​e​c​e​i​p​t
 				 */
 				print: string
-				/**
-				 * t​h​e​ ​r​e​c​e​i​p​t​ ​c​o​u​l​d​ ​n​o​t​ ​b​e​ ​p​r​i​n​t​e​d​.
-				 */
-				printFailed: string
 				/**
 				 * r​e​c​e​i​v​e​d​ ​f​r​o​m
 				 */
@@ -2900,10 +2892,6 @@ type RootTranslation = {
 			 * p​r​i​n​t​ ​s​c​h​e​d​u​l​e
 			 */
 			print: string
-			/**
-			 * t​h​e​ ​s​c​h​e​d​u​l​e​ ​c​o​u​l​d​ ​n​o​t​ ​b​e​ ​p​r​i​n​t​e​d​.
-			 */
-			printFailed: string
 			/**
 			 * p​a​y​m​e​n​t​ ​s​c​h​e​d​u​l​e
 			 */
@@ -3086,6 +3074,28 @@ type RootTranslation = {
 			 */
 			noAvailableUnits: string
 		}
+	}
+	print: {
+		/**
+		 * t​h​e​ ​p​a​g​e​ ​c​o​u​l​d​ ​n​o​t​ ​b​e​ ​p​r​i​n​t​e​d​.
+		 */
+		failed: string
+		/**
+		 * l​a​n​g​u​a​g​e​ ​o​f​ ​t​h​e​ ​p​a​g​e
+		 */
+		language: string
+		/**
+		 * p​r​i​n​t
+		 */
+		print: string
+		/**
+		 * s​a​v​e​ ​a​s​ ​P​D​F
+		 */
+		save: string
+		/**
+		 * P​D​F​ ​s​a​v​e​d
+		 */
+		saved: string
 	}
 	settingsHooks: {
 		/**
@@ -6618,17 +6628,9 @@ export type TranslationFunctions = {
 				 */
 				cycle: (arg: { date: string, index: string }) => LocalizedString
 				/**
-				 * issued by
-				 */
-				issuedBy: () => LocalizedString
-				/**
 				 * print receipt
 				 */
 				print: () => LocalizedString
-				/**
-				 * the receipt could not be printed.
-				 */
-				printFailed: () => LocalizedString
 				/**
 				 * received from
 				 */
@@ -6762,10 +6764,6 @@ export type TranslationFunctions = {
 			 * print schedule
 			 */
 			print: () => LocalizedString
-			/**
-			 * the schedule could not be printed.
-			 */
-			printFailed: () => LocalizedString
 			/**
 			 * payment schedule
 			 */
@@ -6937,6 +6935,28 @@ export type TranslationFunctions = {
 			 */
 			noAvailableUnits: () => LocalizedString
 		}
+	}
+	print: {
+		/**
+		 * the page could not be printed.
+		 */
+		failed: () => LocalizedString
+		/**
+		 * language of the page
+		 */
+		language: () => LocalizedString
+		/**
+		 * print
+		 */
+		print: () => LocalizedString
+		/**
+		 * save as PDF
+		 */
+		save: () => LocalizedString
+		/**
+		 * PDF saved
+		 */
+		saved: () => LocalizedString
 	}
 	settingsHooks: {
 		/**

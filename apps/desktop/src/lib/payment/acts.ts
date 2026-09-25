@@ -48,7 +48,7 @@ export type PaymentActId =
 export type PaymentHostRequests = {
 	/** put the payment's details on the clipboard. */
 	copyDetails: (payment: PaymentActRecord) => void;
-	/** print the payment's receipt through the system's print dialog. */
+	/** open the print preview on the payment's receipt. */
 	receipt: (payment: PaymentActRecord) => void;
 	/** open the form on a new payment that starts from this one. */
 	duplicate: (payment: PaymentActRecord) => void;

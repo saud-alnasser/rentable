@@ -60,10 +60,11 @@ body {
 		color-scheme: light !important;
 	}
 
+	/* important: a dialog open while printing (the preview) locks the body's scroll inline. */
 	html,
 	body {
 		height: auto;
-		overflow: visible;
+		overflow: visible !important;
 		background-color: var(--color-card);
 	}
 

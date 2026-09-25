@@ -3,6 +3,7 @@ import { afterEach, beforeAll, expect, test } from 'vitest';
 
 import ar from '$lib/i18n/ar';
 import en from '$lib/i18n/en';
+import type { Locales } from '$lib/i18n/i18n-types';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import { formatRecordDate, formatRecordDateRange } from '$lib/design/date';
 import { formatLocaleMoney } from '$lib/platform/locale';
@@ -11,11 +12,11 @@ import PrintedReceipt, { type PrintedReceiptValue } from '$lib/payment/component
 /**
  * A PAYMENT'S RECEIPT, ON PAPER
  *
- * Ticket 06 of [[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]], requirement 9 and
- * criteria 9(a), 9(c) and 9(d): the page carries every fact the requirement lists, once in Arabic
- * reading right to left and once in English reading left to right; a method or a reference not
- * recorded is left out with its label; the issuer is the workspace. The printed page itself,
- * through the dialog, is checked by hand (criterion 10).
+ * Tickets 06 and 11 of [[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]],
+ * requirements 9 and 10 as revised on 2026-09-25: the page carries every fact requirement 9 lists,
+ * in the one language the reader chose (criterion 9(c)); a method or a reference not recorded is
+ * left out with its label; the issuer is the workspace and heads the page. The printed page itself
+ * is checked by hand (criterion 10).
  */
 
 const day = (value: string) => Date.parse(`${value}T00:00:00.000Z`);
@@ -54,37 +55,52 @@ afterEach(() => {
 	document.body.innerHTML = '';
 });
 
-const block = (locale: 'ar' | 'en') =>
-	document.querySelector<HTMLElement>(`[data-receipt-block="${locale}"]`)!;
+const printed = (locale: Locales, value: PrintedReceiptValue = VALUE) =>
+	render(PrintedReceipt, { value, locale });
+const page = () => document.querySelector<HTMLElement>('[data-receipt]')!;
 const text = (element: Element | null) => element?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
+/** money is compared as written, since its spacing is not a plain space. */
+const written = (name: string) => page().querySelector(`[${name}]`)?.textContent?.trim();
 
-test('the receipt is stated in Arabic right to left and in English left to right on one page', () => {
-	render(PrintedReceipt, { value: VALUE });
+test('a receipt chosen in Arabic reads right to left and carries no English label', () => {
+	printed('ar');
 
-	expect(block('ar').getAttribute('lang')).toBe('ar');
-	expect(block('ar').getAttribute('dir')).toBe('rtl');
-	expect(block('en').getAttribute('lang')).toBe('en');
-	expect(block('en').getAttribute('dir')).toBe('ltr');
+	expect(page().getAttribute('lang')).toBe('ar');
+	expect(page().getAttribute('dir')).toBe('rtl');
+	expect(text(page().querySelector('h1'))).toBe(ar.contracts.payments.receipt.title);
 
-	expect(text(block('ar').querySelector('h1'))).toBe(ar.contracts.payments.receipt.title);
-	expect(text(block('en').querySelector('h1'))).toBe(en.contracts.payments.receipt.title);
+	for (const label of [
+		en.contracts.payments.receipt.amount,
+		en.contracts.payments.receipt.receivedFrom,
+		en.common.labels.units,
+		en.contracts.payments.receipt.remaining
+	]) {
+		expect(text(page()).toLowerCase()).not.toContain(label);
+	}
 });
 
-test('each block carries every fact of requirement 9, the issuer being the workspace', () => {
-	render(PrintedReceipt, { value: VALUE });
+test('a receipt chosen in English reads left to right and carries no Arabic', () => {
+	printed('en');
 
+	expect(page().getAttribute('lang')).toBe('en');
+	expect(page().getAttribute('dir')).toBe('ltr');
+	expect(text(page())).not.toMatch(/[؀-ۿ]/);
+});
+
+test('the page carries every fact of requirement 9, headed by the workspace that issued it', () => {
 	for (const locale of ['ar', 'en'] as const) {
-		const said = text(block(locale));
+		printed(locale);
+
+		const said = text(page());
+
+		expect(text(page().querySelector('header [data-receipt-issuer]'))).toBe(VALUE.issuer);
 
 		for (const fact of [
 			VALUE.reference,
-			VALUE.issuer,
 			formatRecordDate(locale, VALUE.payment.date),
 			VALUE.tenant.name,
 			VALUE.tenant.nationalId,
-			locale === 'ar'
-				? ar.contracts.payments.methods.bankTransfer
-				: en.contracts.payments.methods.bankTransfer,
+			(locale === 'ar' ? ar : en).contracts.payments.methods.bankTransfer,
 			'SADAD-7731',
 			'20471133',
 			'A-12',
@@ -95,46 +111,37 @@ test('each block carries every fact of requirement 9, the issuer being the works
 			expect(said, `${locale} states ${fact}`).toContain(fact);
 		}
 
-		// money is compared as written, since its spacing is not a plain space.
-		const money = (name: string) => block(locale).querySelector(`[${name}]`)?.textContent?.trim();
+		expect(written('data-receipt-amount')).toBe(formatLocaleMoney(locale, VALUE.payment.amount));
+		expect(written('data-receipt-remaining')).toBe(formatLocaleMoney(locale, 4500));
 
-		expect(money('data-receipt-amount')).toBe(formatLocaleMoney(locale, VALUE.payment.amount));
-		expect(money('data-receipt-remaining')).toBe(formatLocaleMoney(locale, 4500));
-		expect(text(block(locale).querySelector('[data-receipt-issuer]'))).toBe(VALUE.issuer);
+		document.body.innerHTML = '';
 	}
 });
 
 test('a payment covering the second cycle and part of the third names both', () => {
-	render(PrintedReceipt, { value: VALUE });
+	printed('en');
 
-	const english = [...block('en').querySelectorAll('[data-receipt-cycle]')].map(text);
-
-	expect(english).toEqual([
+	expect([...page().querySelectorAll('[data-receipt-cycle]')].map(text)).toEqual([
 		`cycle 2, due ${formatRecordDate('en', day('2026-04-01'))}`,
 		`cycle 3, due ${formatRecordDate('en', day('2026-07-01'))}`
 	]);
-	expect(block('ar').querySelectorAll('[data-receipt-cycle]')).toHaveLength(2);
 });
 
 test('a method and a reference not recorded are left out, their labels with them', () => {
-	render(PrintedReceipt, {
-		value: { ...VALUE, payment: { ...VALUE.payment, method: null, reference: null } }
-	});
+	printed('en', { ...VALUE, payment: { ...VALUE.payment, method: null, reference: null } });
 
-	for (const locale of ['ar', 'en'] as const) {
-		expect(block(locale).querySelector('[data-receipt-method]')).toBeNull();
-		expect(block(locale).querySelector('[data-receipt-payment-reference]')).toBeNull();
-		expect(text(block(locale))).not.toContain(
-			locale === 'ar' ? ar.contracts.payments.method : en.contracts.payments.method
-		);
-	}
+	expect(page().querySelector('[data-receipt-label="method"]')).toBeNull();
+	expect(page().querySelector('[data-receipt-label="reference"]')).toBeNull();
+	expect(text(page())).not.toContain(en.contracts.payments.method);
 });
 
 test('the note is the landlord’s and is not printed, and nothing reads as a tax invoice', () => {
-	render(PrintedReceipt, { value: VALUE });
+	for (const locale of ['ar', 'en'] as const) {
+		printed(locale);
 
-	const page = text(document.querySelector('[data-receipt]'));
+		expect(text(page())).not.toContain('paid at the office');
+		expect(text(page()).toLowerCase()).not.toMatch(/invoice|vat|فاتورة|ضريبة/);
 
-	expect(page).not.toContain('paid at the office');
-	expect(page.toLowerCase()).not.toMatch(/invoice|vat|فاتورة|ضريبة/);
+		document.body.innerHTML = '';
+	}
 });

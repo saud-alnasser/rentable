@@ -3,11 +3,12 @@ import { createRawSnippet, flushSync, tick } from 'svelte';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
 const host = vi.hoisted(() => ({ page: vi.fn() }));
+const dialog = vi.hoisted(() => ({ saveFile: vi.fn() }));
 
-vi.mock('$lib/platform/tauri', () => ({ tauri: { print: host } }));
+vi.mock('$lib/platform/tauri', () => ({ tauri: { print: host, dialog } }));
 
 import Sheet from '$lib/print/component/sheet.svelte';
-import { print, printSheet } from '$lib/print/sheet.svelte';
+import { print, printSheet, sendPage, toFileName } from '$lib/print/sheet.svelte';
 
 /**
  * THE PRINT SHEET
@@ -40,6 +41,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+	vi.restoreAllMocks();
 	printSheet.content = null;
 	document.body.innerHTML = '';
 });
@@ -142,4 +144,70 @@ test('a PDF is written from the page on the sheet, and is finished when the host
 
 	flushSync();
 	expect(drawn()).toBeUndefined();
+});
+
+/** the platform the webview reports: only Windows writes a PDF with no dialog. */
+const runningOn = (userAgent: string) =>
+	vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(userAgent);
+
+test('on Windows, saving as PDF asks where the file goes first, and writes it there', async () => {
+	sheet();
+	runningOn('Mozilla/5.0 (Windows NT 10.0; Win64; x64) Edg/140.0');
+	dialog.saveFile.mockResolvedValueOnce('C:/receipts/receipt.pdf');
+
+	await expect(sendPage(page('the receipt'), 'pdf', 'receipt 01K5.pdf')).resolves.toBe('saved');
+
+	expect(dialog.saveFile).toHaveBeenCalledExactlyOnceWith('receipt 01K5.pdf');
+	expect(host.page).toHaveBeenCalledExactlyOnceWith({
+		mode: 'pdf',
+		path: 'C:/receipts/receipt.pdf'
+	});
+});
+
+test('walking away from the save dialog prints nothing and is not a failure', async () => {
+	sheet();
+	runningOn('Mozilla/5.0 (Windows NT 10.0; Win64; x64) Edg/140.0');
+	dialog.saveFile.mockResolvedValueOnce(null);
+
+	await expect(sendPage(page('the receipt'), 'pdf', 'receipt.pdf')).resolves.toBe('cancelled');
+
+	expect(host.page).not.toHaveBeenCalled();
+	expect(printSheet.content).toBeNull();
+});
+
+test('a refusal from the host rejects, for the preview to say so', async () => {
+	sheet();
+	answer = () => Promise.reject(new Error('the printer is gone'));
+
+	await expect(sendPage(page('the schedule'), 'print', 'schedule.pdf')).rejects.toThrow(
+		'the printer is gone'
+	);
+});
+
+test('off Windows, saving as PDF goes the way paper does, through the system panel', async () => {
+	sheet();
+	runningOn('Mozilla/5.0 (Macintosh; Intel Mac OS X 15_0) AppleWebKit/605.1.15');
+
+	let finished = false;
+	const saving = sendPage(page('the schedule'), 'pdf', 'schedule.pdf').then((outcome) => {
+		finished = true;
+
+		return outcome;
+	});
+
+	await settle();
+
+	// no path is asked for that the panel would ask for again, and the page stays drawn for it.
+	expect(dialog.saveFile).not.toHaveBeenCalled();
+	expect(host.page).toHaveBeenCalledExactlyOnceWith({ mode: 'print' });
+	expect(finished).toBe(false);
+	expect(drawn()).toBe('the schedule');
+
+	window.dispatchEvent(new Event('afterprint'));
+
+	await expect(saving).resolves.toBe('printed');
+});
+
+test('a file name keeps nothing a save dialog would read as a folder', () => {
+	expect(toFileName('schedule 12/2026\\A:1.pdf')).toBe('schedule 12-2026-A-1.pdf');
 });
