@@ -1,7 +1,7 @@
 {
 	"private": true,
 	"name": "@rentable/design",
-	"version": "0.0.0",
+	"version": "0.0.1",
 	"description": "the interface every rentable client is drawn from",
 	"type": "module",
 	"imports": {
