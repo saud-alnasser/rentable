@@ -103,7 +103,7 @@ on notifying ([[rules/interface]], *Notifying is these two and nothing else*) is
 9. **A receipt states**, on one page, in Arabic or in English as the person printing chooses
    (requirement 10):
    - that it is a receipt (سند قبض), and a reference that identifies this payment and no other;
-   - who issued it: the workspace the payment was recorded in;
+   - who issued it: the organization the workspace belongs to, by its name (requirement 13);
    - the date received and the amount, in riyals;
    - who paid: the tenant's name and national identity number;
    - how it was paid, and its reference, where recorded;
@@ -128,6 +128,20 @@ on notifying ([[rules/interface]], *Notifying is these two and nothing else*) is
     *Revised by the human on 2026-09-25, after trying the first build:* the two-language page was
     cluttered and plain, and the system's print preview did not feel part of the application; each
     page is now in one chosen language, and the preview is the application's own.
+
+## The organization on its pages
+
+13. **A printed page carries the organization, and its mark.** A receipt and a schedule are headed
+    by the organization's name, not the workspace's, and an organization may keep one image, a
+    signature or a seal, that is printed at the foot of every receipt and schedule it issues.
+    - The mark is set, replaced and removed in the organization's settings, by its owner or an
+      administrator; a member sees it and cannot change it.
+    - It is one image (PNG, JPEG or WebP, up to 512 KB), kept in the organization's own database
+      sealed like its name, so every member's machine has it once it has pulled, offline included.
+    - A page with no mark set simply has none; nothing asks for one at print time.
+
+    *Added by the human on 2026-09-25, after trying the first build:* the workspace's name was the
+    wrong issuer, and a printed receipt needs the landlord's signature or seal to be handed over.
 
 ## Reminders
 
@@ -194,6 +208,13 @@ on notifying ([[rules/interface]], *Notifying is these two and nothing else*) is
     amount, the date and the units, in the language chosen, which starts on the language the
     application shows. (c) The act is not offered on a contract in no rank or on a terminated
     one.
+13. (a) A receipt and a schedule name the organization at their head, and never the workspace.
+    (b) The owner or an administrator can set, replace and remove the mark in the organization's
+    settings; a member is shown it and offered no way to change it, and a write from a member is
+    refused. (c) A mark set on one machine appears on the pages printed by another member's machine
+    after it pulls. (d) An image over 512 KB, or not PNG, JPEG or WebP, is refused with a sentence
+    saying why. (e) With a mark set, it is printed at the foot of every receipt and schedule; with
+    none, the foot is empty.
 
 # Constraints
 
@@ -233,7 +254,8 @@ on notifying ([[rules/interface]], *Notifying is these two and nothing else*) is
   calendar (`PAYMENT_LEDGER_MONTH_FORMAT`), and a second calendar is its own decision.
 - **Choosing which cycle a payment pays.** Allocation is always oldest first.
 - **Late fees, grace periods, and partial-cycle proration.**
-- **A logo or letterhead** on the receipt, and printing several receipts at once.
+- **A logo or letterhead** on the receipt, and printing several receipts at once. The
+  organization's one mark, a signature or a seal at the foot (requirement 13), is the exception.
 - **Freezing a receipt.** A receipt is produced from the payment as it stands; editing the payment
   and printing again gives the edited receipt.
 - **Attachments** (a scan of the cheque or the transfer).
@@ -242,17 +264,17 @@ on notifying ([[rules/interface]], *Notifying is these two and nothing else*) is
 - **A contract's history listing its payments' entries.** A payment's entries are read on the
   payment's record; a deleted payment's entries are recorded and have no record to be read on,
   as is already true of a bulk deletion.
-- **Writing a PDF without the print dialog.** Possible on Windows and macOS only through native
-  webview code, and not dependable on Linux (WebKit bug 212814), so it would be a platform-shaped
-  feature; the dialog's PDF destination serves all three.
+- **Writing a PDF without the print dialog on macOS and Linux.** On Windows WebView2 writes one
+  (requirement 10, revised); on macOS it needs native code this repository cannot compile off a
+  Mac, and on Linux it is not dependable (WebKit bug 212814), so there the print panel's PDF
+  option saves it.
 - **A PDF produced in JavaScript.** No library found shapes Arabic (pdf-lib, jsPDF, pdfmake), so a
   receipt built that way would be unreadable in the language it is for.
 
 # Assumptions
 
-- **The issuer named on a receipt is the workspace**, by the name the shell shows for it
-  ([[efforts/the-shell-says-whose-workspace-this-is/spec]]). A landlord who wants a person's or a
-  company's name on it names the workspace that way.
+- **The issuer named on a receipt is the organization**, by its name, which every member holds
+  (requirement 13, revised by the human on 2026-09-25; it was the workspace's name).
 - **Seven days is the right window for *due soon*,** fixed rather than a setting. *Ending soon*
   has a setting because notice periods vary by contract; rent reminders do not.
 - **A payment is taken in date order for allocation, and payments on the same day by the order

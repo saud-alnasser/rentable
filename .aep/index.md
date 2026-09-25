@@ -129,7 +129,7 @@ Start at [[protocol]].
 | 826-the-organization-and-the-way-in-are-rethought | implemented | [[efforts/826-the-organization-and-the-way-in-are-rethought/spec]] | 2 | 1 | 22 |
 | 828-the-link-needs-a-code-and-the-settings-area-guides | implemented | [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]] | 5 | 0 | 29 |
 | 832-the-interface-speaks-one-language-and-guides | accepted | [[efforts/832-the-interface-speaks-one-language-and-guides/spec]] | 3 | 4 | 43 |
-| 835-the-rent-is-receipted-scheduled-and-chased | accepted | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]] | 1 | 0 | 12 |
+| 835-the-rent-is-receipted-scheduled-and-chased | accepted | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]] | 1 | 0 | 15 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -329,3 +329,6 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/10-windows-prints-without-the-browser-preview]] feat(desktop): Windows prints and saves a PDF without the browser preview | 835-the-rent-is-receipted-scheduled-and-chased | open | 06 |
 | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/11-printing-opens-the-applications-own-preview]] feat(desktop): printing opens the application's own preview | 835-the-rent-is-receipted-scheduled-and-chased | open | 10 |
 | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/12-remind-tenant-shows-the-message-first]] feat(contract): remind tenant shows the message first | 835-the-rent-is-receipted-scheduled-and-chased | resolved | 11 |
+| [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/13-the-organization-heads-its-pages]] feat(desktop): the organization heads its printed pages | 835-the-rent-is-receipted-scheduled-and-chased | open | 11 |
+| [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/14-an-organization-keeps-one-mark]] feat(organization): an organization keeps one mark | 835-the-rent-is-receipted-scheduled-and-chased | open | 13 |
+| [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/15-the-mark-is-set-in-settings-and-printed]] feat(desktop): the mark is set in settings and printed | 835-the-rent-is-receipted-scheduled-and-chased | open | 14 |

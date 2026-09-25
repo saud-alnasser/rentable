@@ -74,7 +74,37 @@ and the page.
   panel with the same toggle and one act, *open WhatsApp*. The act is labelled *remind tenant* and
   moves beside *print* in the contract's acts, both being what is handed to the tenant.
 
+## Added 2026-09-25: the organization and its mark on the page
 
+Requirement 13, from the human's second look.
+
+- **The issuer is the organization's name**, which every signed-in member already holds: the
+  session opens `organization.name_sealed` with the content key (`SessionFacts.organization_name`),
+  read on the web side as `useFetchOrganizationState().data.session.organizationName`, offline
+  included. Both hosts take it from there instead of the workspace's name.
+- **The mark lives in the organization database**, one row of a new table, `mark` (see the
+  correction below), the eleventh `CREATE TABLE IF NOT EXISTS` in `organization/store.rs`. An
+  older replica gains it through `complete_schema` on its next pull, as every table added since the
+  first has. The image is sealed under the content key (`seal_content`, as a workspace's name is),
+  so a member's machine reads it after its pull.
+- **Who may write it is read off the verified row's role**, owner or administrator, and not through
+  a new permission bit: a bit would change the package's masks and every signed row that carries
+  one, for an act the two roles already share.
+- *Corrected 2026-09-25 at review:* **the row is signed**, under the setter's administrator
+  certificate (`authority::MarkAuthority`), and read only where it verifies. Review found that a
+  member holds the database's credential and the content key, so an unsigned row could be written
+  around the gate and printed as the organization's signature. The table is `mark`, with
+  `certificate_id` and `signature`; the unsigned `organization_mark` an earlier build of this
+  effort created stays on any replica that ran it, and nothing reads it.
+- **Commands** in `organization/mark.rs` and `organization/command.rs`: `organization_mark_get`
+  answers `{ mediaType, data }` (base64) or nothing; `organization_mark_set { path }` reads the file
+  the open dialog chose, refuses anything over 512 KB or not PNG, JPEG or WebP by its first bytes,
+  seals and writes it, and pushes; `organization_mark_clear` removes it and pushes.
+- **Web**: `organization/mark` query and mutations; a *mark* field in the organization section of
+  settings (the image shown, *choose image*, *remove*), for the owner and administrators, and the
+  image alone for a member; the pages draw it at the foot, end-aligned, at a fixed height.
+
+## Where the receipt is offered after recording
 
 The draft spec offered it in the success toast beside undo. The toast carries one offer
 (`design/mutation.ts:239-276`; [[rules/interface]], *Undo*), so this was put to the human as two
