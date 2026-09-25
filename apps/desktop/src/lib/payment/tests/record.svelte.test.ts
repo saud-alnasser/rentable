@@ -1,5 +1,5 @@
-import { render } from '@testing-library/svelte';
-import { afterEach, beforeEach, expect, test, vi } from 'vitest';
+import { render, waitFor } from '@testing-library/svelte';
+import { afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest';
 
 import Providers from '$lib/design/cell/tests/providers.svelte';
 import en from '$lib/i18n/en';
@@ -23,7 +23,37 @@ import PaymentDetails from '$lib/payment/component/details.svelte';
  * id, since `$app/state` carries no navigation under this runner.
  */
 
-const { payment } = vi.hoisted(() => ({
+const { payment, history } = vi.hoisted(() => ({
+	history: {
+		asked: [] as { concept: string; recordId: string }[],
+		// as the account answers: newest first.
+		entries: [
+			{
+				id: 'h3',
+				concept: 'payment',
+				recordId: 'payment-1',
+				action: 'deleted',
+				record: '2,377',
+				at: Date.UTC(2026, 2, 3)
+			},
+			{
+				id: 'h2',
+				concept: 'payment',
+				recordId: 'payment-1',
+				action: 'edited',
+				record: '2,377',
+				at: Date.UTC(2026, 2, 2)
+			},
+			{
+				id: 'h1',
+				concept: 'payment',
+				recordId: 'payment-1',
+				action: 'created',
+				record: '2,000',
+				at: Date.UTC(2026, 2, 1)
+			}
+		]
+	},
 	payment: {
 		id: 'payment-1',
 		date: Date.UTC(2026, 2, 1),
@@ -40,18 +70,40 @@ vi.mock('$lib/payment/query', async (importOriginal) => ({
 	useFetchPayment: () => ({ data: payment, isLoading: false })
 }));
 
+// the account is read as the history section reads it for any record, and what it was asked for is
+// kept, so the test sees the section asking about this payment rather than about something else.
+vi.mock('$lib/history/query', () => ({
+	useListHistory: (concept: () => string, recordId: () => string) => {
+		history.asked.push({ concept: concept(), recordId: recordId() });
+
+		return { data: history.entries, isLoading: false, isFetching: false };
+	}
+}));
+
 vi.mock('$app/state', () => ({
 	page: { route: { id: '/contracts/payments/[id]' }, url: new URL('http://localhost/') }
 }));
+
+// the history section is a list, which measures itself; jsdom has neither measure.
+beforeAll(() => {
+	Element.prototype.scrollIntoView ??= () => {};
+	window.ResizeObserver ??= class {
+		observe() {}
+		unobserve() {}
+		disconnect() {}
+	} as unknown as typeof ResizeObserver;
+});
 
 beforeEach(() => {
 	loadLocale('en');
 	setLocale('en');
 	payment.contractStatus = 'terminated';
+	history.asked.length = 0;
 });
 
 afterEach(() => {
 	document.body.innerHTML = '';
+	vi.restoreAllMocks();
 });
 
 const page = () => render(PaymentDetails, { paymentId: payment.id }, { wrapper: Providers });
@@ -137,4 +189,35 @@ test('on a contract still running, the same acts are offered and nothing is refu
 	page();
 
 	expect(document.querySelectorAll('[data-unavailable]')).toHaveLength(0);
+});
+
+// ticket 02 of [[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]], criterion 4(b): a
+// payment's record shows its account as a contract's does, newest first.
+test("the payment's record shows its history, newest first", async () => {
+	// jsdom lays nothing out, so the list's viewport is given a size the virtualiser can fill.
+	vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(800);
+	vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(600);
+
+	page();
+
+	expect(history.asked).toContainEqual({ concept: 'payment', recordId: payment.id });
+
+	const section = [...document.querySelectorAll('section')].find((node) =>
+		node.textContent?.includes(en.common.history.title)
+	);
+
+	expect(section, 'the history is a section of the record').toBeTruthy();
+
+	const actions = () =>
+		[...section!.querySelectorAll('[data-index]')]
+			.sort((a, b) => Number(a.getAttribute('data-index')) - Number(b.getAttribute('data-index')))
+			.map((row) => row.querySelector('span.capitalize')?.textContent?.trim());
+
+	await waitFor(() => expect(actions()).toHaveLength(3));
+
+	expect(actions()).toEqual([
+		en.common.history.actions.deleted,
+		en.common.history.actions.edited,
+		en.common.history.actions.created
+	]);
 });

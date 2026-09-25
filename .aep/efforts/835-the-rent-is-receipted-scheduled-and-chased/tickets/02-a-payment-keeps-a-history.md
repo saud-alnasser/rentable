@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # feat(payment): a payment keeps a history
@@ -14,13 +14,13 @@ already does, and a payment's record shows its history the way a contract's does
 Traces requirement 4 of [[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]], and its
 criteria 4(b) and 4(c).
 
-- [ ] `useCreatePayment`, `useUpdatePayment` and `useDeletePayment` declare `records`, and their
+- [x] `useCreatePayment`, `useUpdatePayment` and `useDeletePayment` declare `records`, and their
       inverses `records(direction)`, writing `created`, `edited` and `deleted` through
       `toPaymentHistoryEntry`. Mutation tests show each appends through `api.history.append`, and
       that undoing an edit appends one.
-- [ ] The payment's record renders `RecordHistory concept="payment"`, newest first (component test
+- [x] The payment's record renders `RecordHistory concept="payment"`, newest first (component test
       on the payment record; criterion 4(b)).
-- [ ] Deleting one payment writes one entry (criterion 4(c)).
+- [x] Deleting one payment writes one entry (criterion 4(c)).
 
 ## Relevant areas
 

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import RecordHistory from '$lib/history/component/record-history.svelte';
 	import RecordSurface from '@rentable/design/block/record-surface.svelte';
 	import Specification from '@rentable/design/block/specification.svelte';
 	import * as Cell from '$lib/design/cell';
@@ -76,6 +77,12 @@
 	/>
 {/snippet}
 
+<!-- the one collection a payment has: what was done to it, as a contract's record shows its
+     own. -->
+{#snippet history()}
+	<RecordHistory concept="payment" recordId={paymentId} />
+{/snippet}
+
 <RecordSurface
 	isLoading={paymentQuery.isLoading}
 	found={Boolean(payment)}
@@ -87,4 +94,5 @@
 	{identity}
 	{actions}
 	{fields}
+	collections={[{ value: 'history', label: $LL.common.history.title(), content: history }]}
 />

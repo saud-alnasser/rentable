@@ -194,8 +194,11 @@ export const useCreatePayment = declareMutation({
 	inverse: ({ result }) => ({
 		describe: (t) => t.common.undo.created({ record: t.common.labels.payment() }),
 		undo: () => api.contract.payments.delete({ id: result.id }),
-		redo: () => api.contract.payments.create(result)
+		redo: () => api.contract.payments.create(result),
+		records: (direction) =>
+			toPaymentHistoryEntry(result, direction === 'undo' ? 'deleted' : 'created')
 	}),
+	records: ({ result }) => toPaymentHistoryEntry(result, 'created'),
 	toast: {
 		success: () => get(LL).contracts.hooks.createPaymentSuccess(),
 		error: false,
@@ -212,8 +215,14 @@ export const useUpdatePayment = declareMutation({
 		captured && {
 			describe: (t) => t.common.undo.edited({ record: t.common.labels.payment() }),
 			undo: () => api.contract.payments.update(captured),
-			redo: () => api.contract.payments.update(variables)
+			redo: () => api.contract.payments.update(variables),
+			// both directions are an edit, as a contract's are. The amount named is the one the
+			// payment holds once that direction has run, since the amount is what names a payment
+			// and an edit is often a change to exactly that.
+			records: (direction) =>
+				toPaymentHistoryEntry(direction === 'undo' ? captured : variables, 'edited')
 		},
+	records: ({ variables }) => toPaymentHistoryEntry(variables, 'edited'),
 	toast: {
 		success: () => get(LL).contracts.hooks.updatePaymentSuccess(),
 		error: false,
@@ -283,8 +292,13 @@ export const useDeletePayment = declareMutation({
 		result && {
 			describe: (t) => t.common.undo.deleted({ record: t.common.labels.payment() }),
 			undo: () => api.contract.payments.create(result),
-			redo: () => api.contract.payments.delete({ id: result.id })
+			redo: () => api.contract.payments.delete({ id: result.id }),
+			records: (direction) =>
+				toPaymentHistoryEntry(result, direction === 'undo' ? 'created' : 'deleted')
 		},
+	// the amount is frozen here for the reason the whole entry is: a moment later the record is
+	// gone, and an account that could only name what still exists could not report a deletion.
+	records: ({ result }) => result && toPaymentHistoryEntry(result, 'deleted'),
 	toast: {
 		success: () => get(LL).contracts.hooks.deletePaymentSuccess(),
 		// no dialog asked first, so the announcement says how long it can be taken back.
