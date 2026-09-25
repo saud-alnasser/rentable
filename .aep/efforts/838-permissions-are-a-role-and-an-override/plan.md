@@ -53,8 +53,8 @@ After this effort:
 
   | Row | The signing certificate must |
   | --- | --- |
-  | `member` | hold any of `inviteMember`, `removeMember`, `assignRole`, `overrideMember`, `renameMember`, `resetPassword`, and outrank the member's role; or be the root |
-  | `role` | hold `manageRoles` and outrank the role's rank; the manager role is therefore the root's alone |
+  | `member` | hold any of `inviteMember`, `removeMember`, `assignRole`, `overrideMember`, `renameMember`, `resetPassword`, outrank the member's role, hold every flag the row's effective permissions carry, and not be the row's own member's; or be the root |
+  | `role` | hold `manageRoles`, outrank the role's rank, and hold every flag its mask carries; the manager role is therefore the root's alone |
   | `certificate`, `revocation` | the walk above |
   | `grant` | hold `grantWorkspace`; a read-only grant, the root |
   | `workspace` | hold `renameWorkspace` or `grantWorkspace`; creating one is the root's by where the Turso authority is |
@@ -64,7 +64,20 @@ After this effort:
 
   So a member holding the organization database's credential who signs around a command gets no
   further than their certificate: rows of the kinds its ceiling names, about people ranked below
-  them. That is the cryptographic bound. Which flags inside it they may switch is the command's.
+  them, giving nobody a flag the ceiling does not carry, and never their own row. That is the
+  cryptographic bound. Which flags inside it they may switch, where the before and the after are
+  both in hand, is the command's.
+
+  *Corrected 2026-09-25 at /implement's review, round one (return to plan, the row-kind table
+  only; the requirements and the approach are unchanged). The table left the flags a row carries to
+  the command, and the correctness review proved what that let through: a member holding a
+  certificate wrote their own member row with a wider override and it verified everywhere; the next
+  unrelated role edit re-issued their certificate with that width as its ceiling; and a manager
+  wrote a role row carrying `grantWorkspace` and `createWorkspace`, flags their own ceiling lacked,
+  which every reader accepted. Criterion 9 asks that an override or a member's own row written
+  around the command be refused on read, which the table as written could not do. The member row is
+  now bounded by the ceiling in what it gives and refused to its own member's certificate, and the
+  role row by the ceiling in its mask.*
 - **Order is well-founded and not circular.** Certificates verify from the pinned key alone; role
   rows verify from certificates; member rows verify from certificates and the role rows they
   name. No row authorizes its own signer.
