@@ -1,5 +1,5 @@
 ---
-status: draft
+status: accepted
 ---
 
 # Problem
@@ -50,7 +50,7 @@ rank, without the owner present.
   hold.
 - The chain of trust that lets a manager put a signing act into effect without the owner.
 - Enforcement of every flag, in the interface and at the command or router that performs the act.
-- Carrying existing organizations across without anybody gaining or losing what they could do.
+- A clean break from the organization format that exists today, and a clear refusal of it.
 - The surfaces in the settings area where roles are defined and a member's role and override are
   set.
 
@@ -104,12 +104,13 @@ rank, without the owner present.
     command refuses the act again, naming the flag. A member without a record kind's view flag does
     not see records of that kind anywhere in the application. A member on a read-only grant holds
     no create, edit or delete flag in that workspace, whatever their role says.
-11. **Existing organizations carry across and nobody's reach changes.** On the first launch of the
-    build that carries this: every `administrator` becomes a manager; every member's existing mask
-    becomes their role plus an override, so that their effective administrative flags are exactly
-    what their row carried; and an existing organization's member role is created with every record
-    flag, because every member could create, edit and delete every record before this. A new
-    organization's member role is requirement 3's.
+11. **The organization format breaks cleanly, and an old organization is refused by name.** An
+    organization this build creates carries a format version, and a build meeting an organization
+    without one, or with a newer one, reads nothing from it and says the organization was made by
+    another version of the application: an older organization is to be exported workspace by
+    workspace, deleted, and made again here, and a newer one needs this application updated. No
+    in-place migration exists. *The human's call at /plan, 2026-09-25: the application has one user,
+    from before Turso sync, and they export their workspace, move to the new system, and import it.*
 12. **Roles are defined in the settings area, and a member's role and override on their card.** The
     organization section lists the roles by rank, each with its flags grouped by family, and lets a
     holder of the flag create, rename, re-rank, edit and delete them. A member's card sets their role
@@ -153,10 +154,10 @@ rank, without the owner present.
     reason, and the router or command refusing with the flag's name; a member without a kind's view
     flag finds no records of that kind in lists, search, the dashboard, or printouts; a member on a
     read-only grant is refused every create, edit and delete in that workspace.
-11. A replica written by the previous build, carrying an owner, two administrators with different
-    masks, and members with and without extra acts, opens under the new build with every
-    administrator a manager, every member's effective administrative flags equal to the mask their
-    row carried, and every member able to create, edit and delete every record kind.
+11. A test opens an organization database in today's shape, and one carrying a newer format
+    version, under the new build: neither is read past the format check, neither is written to, and
+    each refusal names what to do. A workspace exported under today's build imports whole into a
+    workspace of a new organization.
 12. On the running application, the roles list, the role editor and a member's card show and change
     what requirement 12 says, and a control the viewer may not use says why. Checked by the human.
 
@@ -165,11 +166,12 @@ rank, without the owner present.
 - **The bitmask holds 53 flags and no more.** It is one JavaScript number and one SQLite integer,
   and decision 04's guard (`packages/workspace-permission/tests/permission.test.ts`) fails at a
   54th flag, because a value past 2^53 rounds away its low bits and corrupts every row already
-  written. The vocabulary this spec asks for is roughly thirty flags.
+  written. The vocabulary this spec asks for is about forty flags.
 - **What a row says about authority is signed, and verified against the key the machine pinned,
   never one read out of the database it judges.** A role row, an override and a member's role are
-  authority, so each is signed, and a machine that cannot verify one treats it as absent
-  (`contexts/desktop/organization`, *Chain*). This is what stops a member who holds the
+  authority, so each is signed, and a read meeting a row it cannot verify refuses, as every
+  verified reader does today (`store.rs`, the module header; `contexts/desktop/organization`,
+  *Chain*). This is what stops a member who holds the
   organization database's credential from writing themselves a wider role.
 - **The redesigned chain keeps every property the current one has.** Revocation still retires a
   signer without bricking the rows they signed (`store::re_sign_rows_of_certificate` today);
@@ -217,12 +219,9 @@ rank, without the owner present.
   administer nothing) is this spec's reading of "normal basic permissions" and is the human's to
   correct.
 - **A trust chain that lets a manager certify a signer is buildable** within the constraints above,
-  most likely as delegation, where a certified signer certifies others for no more than they hold
-  and a row is verified by walking to the organization key. Load-bearing and unverified; the plan
-  settles it with evidence before anything is built on it.
-- **Every member holding a grant can create, edit and delete every record today.** Every record
-  mutation is `procedure.member` (`complex/router.ts` and its siblings), which asks only that the
-  caller is a signed-in member; the migration in requirement 11 rests on it.
+  as delegation: a certified signer certifies others for no more than they hold, and a row is
+  verified by walking to the organization key. `plan.md` sets the design out against the chain as
+  the code has it; the design is argued, not prototyped.
 
 # Risks
 
@@ -237,8 +236,10 @@ rank, without the owner present.
   member without the delete flag cannot delete; they cannot in the application, and can with the
   credential and another tool. The out-of-scope entry states it; the interface should not imply
   more.
-- **Machines on different builds.** An older build reading role rows or overrides it does not know
-  may compute a different answer, or refuse rows it cannot verify. The organization is replicated
-  to every member's machine, and members update on their own schedule.
-- **Migration touches every signed member row.** Re-signing rows during migration needs a signer
-  with authority over each, on the first machine that migrates, which may not be the owner's.
+- **A machine on an older build refuses the new organization's rows** as rows it cannot verify,
+  because a delegated certificate is not signed by the organization key. Accepted: there is one
+  user, and the format version is what makes the next break a clear refusal instead.
+- **Deleting a signed row is still possible.** Anybody holding the organization database's
+  credential can delete a revocation and so revive a certificate, or replay an older signed row,
+  as they can delete any row today. There is no server to hold the latest state; this is the
+  limit `contexts/desktop/organization` already records, and this effort does not close it.
