@@ -1278,6 +1278,10 @@ type RootTranslation = {
 				 */
 				organizationOlder: string
 				/**
+				 * u​p​g​r​a​d​i​n​g​ ​t​h​i​s​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​n​e​e​d​s​ ​a​ ​c​o​n​n​e​c​t​i​o​n​.​ ​c​o​n​n​e​c​t​ ​t​o​ ​t​h​e​ ​i​n​t​e​r​n​e​t​ ​a​n​d​ ​s​i​g​n​ ​i​n​ ​a​g​a​i​n​;​ ​n​o​t​h​i​n​g​ ​w​a​s​ ​c​h​a​n​g​e​d​.
+				 */
+				organizationUpgradeOffline: string
+				/**
 				 * a​ ​n​e​w​e​r​ ​v​e​r​s​i​o​n​ ​o​f​ ​r​e​n​t​a​b​l​e​ ​m​a​d​e​ ​t​h​i​s​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​u​p​d​a​t​e​ ​r​e​n​t​a​b​l​e​ ​t​o​ ​o​p​e​n​ ​i​t​.
 				 */
 				organizationNewer: string
@@ -5568,6 +5572,10 @@ export type TranslationFunctions = {
 				 * an older version made this organization. it waits for its owner to open it in this version, which upgrades it.
 				 */
 				organizationOlder: () => LocalizedString
+				/**
+				 * upgrading this organization needs a connection. connect to the internet and sign in again; nothing was changed.
+				 */
+				organizationUpgradeOffline: () => LocalizedString
 				/**
 				 * a newer version of rentable made this organization. update rentable to open it.
 				 */

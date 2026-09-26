@@ -1045,13 +1045,93 @@ mod tests {
         contents
     }
 
-    /// Effort 838, ticket 22, at the machine link: **an organization an earlier version made,
-    /// opened first by a member's next machine, waits for its owner, and nothing is written to it.**
+    /// Turn this build's organization into format 1 as the main branch shapes it, keeping its
+    /// rows: no `format`, `role`, `certificate` or `revocation` table, the role word and the
+    /// seven-act mask on the member row where this format has a role, an override and a removal,
+    /// and format 1's `administrator_certificate` with its unsigned `revoked_at`. The refusal is
+    /// made before any row is read, so what the rows say does not matter; the shape is what every
+    /// way in has to recognise, and it is checked against the main branch's here.
+    async fn as_format_one(store: &OrganizationStore) {
+        for statement in [
+            "DROP TABLE \"format\"",
+            "DROP TABLE \"role\"",
+            "DROP TABLE \"certificate\"",
+            "DROP TABLE \"revocation\"",
+            "ALTER TABLE \"member\" ADD COLUMN \"role\" TEXT NOT NULL DEFAULT 'member'",
+            "ALTER TABLE \"member\" ADD COLUMN \"permissions\" INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE \"member\" DROP COLUMN \"role_id\"",
+            "ALTER TABLE \"member\" DROP COLUMN \"override\"",
+            "ALTER TABLE \"member\" DROP COLUMN \"removed_at\"",
+            "CREATE TABLE \"administrator_certificate\" (\
+                \"id\" TEXT PRIMARY KEY NOT NULL, \
+                \"member_id\" TEXT NOT NULL, \
+                \"signing_public_key\" BLOB NOT NULL, \
+                \"signature_by_organization_key\" BLOB NOT NULL, \
+                \"issued_at\" TEXT NOT NULL, \
+                \"revoked_at\" TEXT)",
+        ] {
+            store
+                .connection()
+                .execute(statement, ())
+                .await
+                .unwrap_or_else(|error| panic!("{statement}: {error}"));
+        }
+
+        // the main branch's eleven tables, and its member row's columns.
+        assert_eq!(
+            store.tables().await.expect("the tables"),
+            vec![
+                "administrator_certificate",
+                "grant",
+                "invitation",
+                "machine",
+                "machine_link",
+                "mark",
+                "member",
+                "migration_lease",
+                "organization",
+                "succession",
+                "workspace",
+            ]
+        );
+
+        let mut columns = store.columns_of("member").await.expect("the columns");
+        let mut main = vec![
+            "id",
+            "username_sealed",
+            "public_key",
+            "signing_public_key",
+            "sealed_secret_key",
+            "sealed_content_key",
+            "kdf_salt",
+            "kdf_params",
+            "role",
+            "permissions",
+            "must_change_password",
+            "certificate_id",
+            "signature",
+            "created_at",
+            "updated_at",
+            "session_epoch",
+            "owner_seed_sealed",
+        ];
+
+        columns.sort();
+        main.sort_unstable();
+
+        assert_eq!(columns, main);
+        assert!(store.is_older().await.expect("the format"));
+    }
+
+    /// Effort 838, tickets 22 and 23, at the machine link: **an organization an earlier version
+    /// made, opened first by a member's next machine, waits for its owner, and nothing is written
+    /// to it.**
     ///
-    /// The organization is this build's own with its `format` table taken away, which reads as an
-    /// earlier version's to the refusal every way in meets; `upgrade.rs` meets one of format 1
-    /// itself. The link and its code open, and the connect is refused before the link's row is
-    /// read: the organization is as it was, the link unspent, and the machine records nothing.
+    /// The organization is this build's own turned into format 1 in the main branch's shape
+    /// ([`as_format_one`]). The link and its code open, and the connect is refused before the
+    /// link's row is read: the organization is as it was, the link unspent, and the machine
+    /// records nothing. *It took the `format` table away from this build's shape until ticket 23,
+    /// which is an upgrade's last row missing rather than format 1.*
     #[tokio::test]
     async fn an_older_organization_opened_first_by_a_machine_link_waits_for_its_owner() {
         let directory = scratch("older");
@@ -1068,11 +1148,7 @@ mod tests {
         .await
         .expect("the link could not be made");
 
-        store
-            .connection()
-            .execute("DROP TABLE \"format\"", ())
-            .await
-            .expect("an organization an earlier version made");
+        as_format_one(&store).await;
 
         let before = contents(&store).await;
         let mut machine = fresh_machine(&scratch("older-machine"));

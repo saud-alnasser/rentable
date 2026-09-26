@@ -178,12 +178,22 @@ pub struct OrganizationCreated {
 /// under it resolves to Turso's load balancer, so a unit test that derived a remote from a fake
 /// hostname would push to a real server with a fake token. Production hands in [`Remote::libsql`];
 /// a test hands in [`Remote::none`] and the replica stays on this machine.
+///
+/// **It is also how the upgrade of an older organization reaches that remote** (effort 838,
+/// ticket 23), which runs only once a push and a pull have both gone: the libsql remote is the
+/// replica's own, and no remote is a machine offline. A test that needs the upgrade to find the
+/// remote reached hands in [`Remote::answering`], which keeps the replica on this machine and
+/// answers every push and pull as gone.
 #[derive(Clone, Copy, Debug)]
 pub enum Remote {
     /// `libsql://<hostname>`, which is what the sync engine takes.
     Libsql,
     /// no remote: the replica is local, and a push has nowhere to go.
     None,
+    /// no remote, and every push and pull answered as gone: a test's stand-in for a machine
+    /// online, where there is no remote it could reach.
+    #[cfg(test)]
+    Answering,
 }
 
 impl Remote {
@@ -196,10 +206,37 @@ impl Remote {
         Self::None
     }
 
+    #[cfg(test)]
+    pub(crate) fn answering() -> Self {
+        Self::Answering
+    }
+
     fn url_for(self, hostname: &str) -> Option<String> {
         match self {
             Self::Libsql => Some(format!("libsql://{hostname}")),
             Self::None => None,
+            #[cfg(test)]
+            Self::Answering => None,
+        }
+    }
+}
+
+impl upgrade::Replication for Remote {
+    async fn push(&self, store: &OrganizationStore) -> bool {
+        match self {
+            Self::Libsql => upgrade::ItsRemote.push(store).await,
+            Self::None => false,
+            #[cfg(test)]
+            Self::Answering => true,
+        }
+    }
+
+    async fn pull(&self, store: &OrganizationStore) -> bool {
+        match self {
+            Self::Libsql => upgrade::ItsRemote.pull(store).await,
+            Self::None => false,
+            #[cfg(test)]
+            Self::Answering => true,
         }
     }
 }
@@ -821,9 +858,10 @@ const ORGANIZATION_THIS_ACCOUNT_HOLDS: &str = "the organization this turso accou
 /// by construction rather than by a role a row claims.
 ///
 /// **An organization an earlier version made is upgraded here, by this password, first** (effort
-/// 838, ticket 22). Pulled and found to be of format 1, it is upgraded in place where the password
-/// opens the owner's vault (`upgrade::with_the_owners_password`), and refused as waiting for its
-/// owner where it opens anybody else's; everything below then reads it in this format.
+/// 838, tickets 22 and 23). Pulled and found to be of format 1, or part way through an upgrade cut
+/// short, it is upgraded or finished in place where the password opens the owner's vault and the
+/// remote answers (`upgrade::with_the_owners_password`), and refused as waiting for its owner
+/// where it opens anybody else's; everything below then reads it in this format.
 ///
 /// **Nothing the unverified read yielded reaches the session.** Past the comparison, the sign-in
 /// is the wall's own [`sign_in_by_username`] over the verified rows, so the member, the vault and
@@ -928,9 +966,15 @@ where
         // owner's, and refused as waiting for its owner where it is anybody else's; one of another
         // format is refused before its row is read or any credential renewed in it (effort 838,
         // requirement 11 as amended, ticket 22).
-        upgrade::with_the_owners_password(&replica, username, password, &credential, now, || {
-            session::refused_by_name(ORGANIZATION_THIS_ACCOUNT_HOLDS)
-        })
+        upgrade::with_the_owners_password(
+            &replica,
+            &remote,
+            username,
+            password,
+            &credential,
+            now,
+            || session::refused_by_name(ORGANIZATION_THIS_ACCOUNT_HOLDS),
+        )
         .await?;
         replica.refuse_another_format().await?;
 

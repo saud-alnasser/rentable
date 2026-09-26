@@ -38,12 +38,19 @@ The one `format` row, version 2, written when an organization is made. An organi
 effort 838 has no `format` table, which is format 1, and its owner's machine upgrades it in place at
 their sign-in, their resume or their connect on the Turso account (`organization/upgrade.rs`): every
 row is judged under the old rules, carried into this format signed from the root, and the row is
-written last. Until then, and for an organization with a newer number, a build reads nothing from it
-and writes nothing to it, and says what to do: an older one waits for its owner, a newer one needs
-the application updated (838, requirement 11, as the human amended it on 2026-09-26). The number is
-unsigned: rewriting it only makes the organization refuse to open, which the credential already
-allows by deleting rows. *It said there was no in-place migration, and that an older organization
-was exported and made again, until ticket 22 of effort 838.*
+written last. The owner is whoever's vault derives the organization key, and nothing else on a row
+decides it. The upgrade runs only online, after what the machine held is pushed and a pull has
+completed; otherwise nothing is written and the owner is asked for a connection. An upgrade cut short
+has no row either, reads as older, and the owner's next sign-in finishes it from any machine. Each
+certificate the upgrade issues keeps format 1's id, `cert-<member>`, and its key, so a row an old
+build signs afterwards still verifies. Until the row is there, and for an organization with a newer
+number, a build reads nothing from it and writes nothing to it, and says what to do: an older one
+waits for its owner, which a member's machine learns by pulling first with its own grant, and a
+newer one needs the application updated (838, requirement 11, as the human amended it on
+2026-09-26). The number is unsigned: rewriting it only makes the organization refuse to open, which
+the credential already allows by deleting rows. *It said there was no in-place migration, and that
+an older organization was exported and made again, until ticket 22 of effort 838; ticket 23 added
+the online condition, the pull before a member's answer and the finishing of a partial upgrade.*
 
 **Flag**:
 One act the application performs for a member, on one bit of one mask. The vocabulary lives in
@@ -163,7 +170,8 @@ certificate from the actor's own, a revocation of the old one, and every row the
 re-signed under the actor, the mark and roles included, in one transaction. Where the actor could
 not sign one of those rows the act is refused, naming what it needs, and nothing is written. An
 assignment, an override, a role's new mask or rank, a reset and a removal all go through it. Every
-issue takes a fresh id, `cert-<member>-<issued at>`.
+issue takes a fresh id, `cert-<member>-<issued at>`, except the owner's upgrade of a format 1
+organization, whose certificates keep format 1's `cert-<member>` (see *Format*).
 
 **The key changes when the owner does.** A handover is two acts (see *Authority*). The acceptance
 issues the new owner a root under what their own vault derives, re-signs the founder's rows under

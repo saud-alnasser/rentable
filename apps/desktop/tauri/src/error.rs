@@ -224,6 +224,10 @@ pub enum RefusalReason {
     /// the organization was made by an earlier version of rentable, and waits for its owner to
     /// open it in this version, which upgrades it (effort 838, ticket 22).
     OrganizationOlder,
+    /// the organization waits for its owner's upgrade, and the upgrade runs only against its
+    /// latest state, which this machine could not reach; nothing was changed (effort 838, ticket
+    /// 23).
+    OrganizationUpgradeOffline,
     /// the organization was made by a newer version of rentable, which this one is updated to.
     OrganizationNewer,
 

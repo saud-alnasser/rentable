@@ -83,7 +83,8 @@ pub const MACHINE_PRESENCE_WINDOW: i64 = 7 * 24 * 60 * 60 * 1000;
 /// **An older organization is upgraded by its owner, and a newer one refused.** An organization
 /// this build creates carries this number in its one `format` row. Every organization made before
 /// effort 838 has no `format` table, which is what version 1 was: its owner's machine upgrades it
-/// in place at their sign-in or resume, and writes this row last (`upgrade.rs`, ticket 22).
+/// in place at their sign-in, resume or connect, online, and writes this row last (`upgrade.rs`,
+/// tickets 22 and 23). An upgrade cut short has no row either, and its owner finishes it.
 /// Until then, and for an organization with a number above this one, nothing is read from it and
 /// nothing written to it: [`OrganizationStore::refuse_another_format`] says which, and the person
 /// is told what to do. That absence is how an older organization is told apart, and it is why
@@ -241,24 +242,63 @@ const MARK_ID: &str = "mark";
 /// The key of the one `format` row.
 const FORMAT_ID: &str = "format";
 
-/// The member column format 1 carried the role word in, whose presence is what marks a member
-/// table of that format ([`OrganizationStore::is_format_one`]).
+/// The member column format 1 carried the role word in, and the one it carried the seven-act mask
+/// in: either still standing marks an upgrade that has not finished
+/// ([`OrganizationStore::carries_format_one`]).
 const FORMAT_ONE_ROLE_COLUMN: &str = "role";
+const FORMAT_ONE_PERMISSIONS_COLUMN: &str = "permissions";
 
-/// What turns a format 1 `member` table into this format's, in order: the three columns added,
-/// each with a default a `NOT NULL` addition needs, then the two dropped
-/// ([`OrganizationStore::reshape_format_one`] says why in that order).
-const FORMAT_ONE_RESHAPE: [&str; 5] = [
-    "ALTER TABLE \"member\" ADD COLUMN \"role_id\" TEXT NOT NULL DEFAULT 'member'",
-    "ALTER TABLE \"member\" ADD COLUMN \"override\" INTEGER NOT NULL DEFAULT 0",
-    "ALTER TABLE \"member\" ADD COLUMN \"removed_at\" INTEGER",
-    "ALTER TABLE \"member\" DROP COLUMN \"role\"",
-    "ALTER TABLE \"member\" DROP COLUMN \"permissions\"",
+/// The table format 1 kept its certificates in, which the upgrade drops last of all but the
+/// `format` row, so every row of that format can still be judged until then.
+const FORMAT_ONE_CERTIFICATE_TABLE: &str = "administrator_certificate";
+
+/// What turns a format 1 `member` table into this format's, in order, each with the column whose
+/// presence says whether it is still to run: the three columns added, each with a default a
+/// `NOT NULL` addition needs, then the two dropped ([`OrganizationStore::format_one_reshape`] says
+/// why in that order).
+const FORMAT_ONE_RESHAPE: [(FormatOneReshape, &str); 5] = [
+    (
+        FormatOneReshape::Add(
+            "ALTER TABLE \"member\" ADD COLUMN \"role_id\" TEXT NOT NULL DEFAULT 'member'",
+        ),
+        "role_id",
+    ),
+    (
+        FormatOneReshape::Add(
+            "ALTER TABLE \"member\" ADD COLUMN \"override\" INTEGER NOT NULL DEFAULT 0",
+        ),
+        "override",
+    ),
+    (
+        FormatOneReshape::Add("ALTER TABLE \"member\" ADD COLUMN \"removed_at\" INTEGER"),
+        "removed_at",
+    ),
+    (
+        FormatOneReshape::Drop("ALTER TABLE \"member\" DROP COLUMN \"role\""),
+        FORMAT_ONE_ROLE_COLUMN,
+    ),
+    (
+        FormatOneReshape::Drop("ALTER TABLE \"member\" DROP COLUMN \"permissions\""),
+        FORMAT_ONE_PERMISSIONS_COLUMN,
+    ),
 ];
 
-/// A `member` row of a format 1 organization as it lies (effort 838, ticket 22): the role word
-/// and the seven-act mask where this format has a role and an override, and the certificate and
-/// signature that format put on it, judged by nobody yet.
+/// One statement of the reshape of a format 1 `member` table, as
+/// [`OrganizationStore::format_one_reshape`] finds it still to run: a column to add, which runs
+/// where the column is missing, or one to drop, which runs where it stands.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FormatOneReshape {
+    Add(&'static str),
+    Drop(&'static str),
+}
+
+/// A `member` row of an organization its owner's upgrade has not finished with (effort 838,
+/// tickets 22 and 23), as it lies, judged by nobody yet: the vault and the keys, the certificate and
+/// signature it carries, and whichever of the two formats' authority columns the table still has.
+///
+/// **Every authority column is optional**, because an upgrade cut short leaves the table part way
+/// between the two shapes: the role word and the mask gone while the row still carries the
+/// format 1 signature over them, or the row already written again in this format.
 #[derive(Clone, Debug)]
 pub struct FormatOneMemberRow {
     pub id: String,
@@ -266,10 +306,15 @@ pub struct FormatOneMemberRow {
     pub vault: Vault,
     pub signing_public_key: [u8; VERIFYING_KEY_BYTES],
     pub sealed_content_key: Vec<u8>,
-    /// `owner`, `administrator`, `member` or `removed`.
-    pub role: String,
-    /// the seven acts of format 1, one bit each.
-    pub permissions: i64,
+    /// `owner`, `administrator`, `member` or `removed`, where the column still stands.
+    pub role: Option<String>,
+    /// the seven acts of format 1, one bit each, where the column still stands.
+    pub permissions: Option<i64>,
+    /// this format's role, override and removal, where the columns have been added: the defaults
+    /// until the row is written again, and what the upgrade wrote after.
+    pub role_id: Option<String>,
+    pub override_mask: Option<i64>,
+    pub removed_at: Option<i64>,
     pub must_change_password: bool,
     pub created_at: i64,
     pub updated_at: i64,
@@ -292,6 +337,7 @@ pub struct FormatOneSigned<T> {
 /// carries forward ([`OrganizationStore::format_one_directory`]).
 #[derive(Clone, Debug)]
 pub struct FormatOneDirectory {
+    /// format 1's certificates, while the table stands: empty once an upgrade has dropped it.
     pub certificates: Vec<FormatOneCertificate>,
     pub members: Vec<FormatOneMemberRow>,
     pub workspaces: Vec<FormatOneSigned<WorkspaceRecord>>,
@@ -657,7 +703,7 @@ impl OrganizationStore {
     /// `database/test/workspace.rs` records and the reason this schema is never migrated by
     /// renaming. `ALTER TABLE ... ADD COLUMN` and `DROP COLUMN` do replicate, measured on
     /// 2026-09-26, and the one upgrade that alters a table says under what condition
-    /// ([`OrganizationStore::reshape_format_one`]).
+    /// ([`OrganizationStore::format_one_reshape`]).
     pub async fn install_schema(&self) -> Result<(), Error> {
         for statement in SCHEMA {
             self.connection.execute(statement, ()).await?;
@@ -806,10 +852,11 @@ impl OrganizationStore {
     ///
     /// **Two refusals, because the person does two different things.** An organization with no
     /// format, or an earlier one, was made by an earlier version of the application, and its
-    /// owner's machine upgrades it the first time they sign in on this one (ticket 22); anybody
-    /// else meeting it first waits for that. Its owner meets this only where the upgrade could not
-    /// run, a format row somebody deleted above all. One with a later format was made by a newer
-    /// version, and this application is updated.
+    /// owner's machine upgrades it the first time they sign in on this one, online (tickets 22
+    /// and 23); anybody else meeting it first waits for that, and so does everybody meeting an
+    /// upgrade cut short, which the owner's next sign-in finishes. Its owner meets this only where
+    /// the upgrade did not run. One with a later format was made by a newer version, and this
+    /// application is updated.
     ///
     /// Reads the format and nothing else, and writes nothing, so a refused organization is left
     /// exactly as it was found.
@@ -2784,43 +2831,91 @@ impl OrganizationStore {
     }
 
     // format 1: an organization made before effort 838, as its owner's upgrade reads and reshapes
-    // it (ticket 22)
+    // it (tickets 22 and 23)
 
-    /// Whether this is an organization of format 1, the shape every build before effort 838
-    /// wrote: no format row, and a `member` table still carrying the role word.
+    /// Whether this is an organization of an earlier format: a `member` table and no format row.
     ///
-    /// **Both, because either alone is something else.** A missing format row over this build's
-    /// member table is this format with the row deleted, or an upgrade another machine pushed that
-    /// has not all arrived yet, and neither is reshaped here: it is refused as older until the rest
-    /// arrives. A member table carrying the role word under a format row is nothing any build
-    /// wrote.
-    pub async fn is_format_one(&self) -> Result<bool, Error> {
-        Ok(self.format().await?.is_none()
-            && self
-                .columns_of("member")
-                .await?
-                .iter()
-                .any(|column| column == FORMAT_ONE_ROLE_COLUMN))
+    /// **That covers two shapes, and both wait for the owner** (effort 838, ticket 23). One is
+    /// format 1 as every build before effort 838 wrote it. The other is an upgrade cut short, on
+    /// this machine or on the remote this machine pulled: the table part way between the two
+    /// shapes, or everything written again but the `format` row, which is written last. Neither is
+    /// this format, and neither is anything a stranger made, so both are the owner's to upgrade or
+    /// to finish ([`OrganizationStore::carries_format_one`] tells them apart), and everybody else
+    /// is told the organization waits for its owner.
+    ///
+    /// *It was "no format row and a `member` table still carrying the role word" until ticket 23:
+    /// a remote left with part of the upgrade matched neither format, so everybody was refused,
+    /// the owner included, and nothing could finish it.*
+    pub async fn is_older(&self) -> Result<bool, Error> {
+        Ok(self.format().await?.is_none() && !self.columns_of("member").await?.is_empty())
     }
 
-    /// Every member row of a format 1 organization, as it lies, with nothing judged.
+    /// Whether anything of format 1 is still here: its certificate table, or the role word or the
+    /// mask on the member table. An older organization carrying none of them is one whose upgrade
+    /// wrote everything but the `format` row, or one of this format whose row somebody deleted,
+    /// and either is finished by writing the row and nothing else.
+    pub async fn carries_format_one(&self) -> Result<bool, Error> {
+        let columns = self.columns_of("member").await?;
+
+        Ok(self
+            .tables()
+            .await?
+            .iter()
+            .any(|table| table == FORMAT_ONE_CERTIFICATE_TABLE)
+            || columns.iter().any(|column| {
+                column == FORMAT_ONE_ROLE_COLUMN || column == FORMAT_ONE_PERMISSIONS_COLUMN
+            }))
+    }
+
+    /// Every member row of an organization of an earlier format, as it lies, with nothing judged,
+    /// read with whichever authority columns the table has now.
     ///
-    /// **Two readers, and neither believes anything here.** The owner's sign-in and resume read it
+    /// **Two readers, and neither believes anything here.** The sign-in and the resume read it
     /// before a pull to find the vault a password or a remembered key opens, which is the reason
     /// [`OrganizationStore::members_unverified`] gives for reading first; the vault is all they
     /// take from it, and the organization key it derives is compared with the key the machine
-    /// pinned. The upgrade reads it after the pull and verifies every row it carries forward
-    /// (`authority::verify_format_one`), dropping the rest.
+    /// pinned. The upgrade reads it after the pull and judges every row it carries forward, under
+    /// the rules of the format its signature was made in, dropping the rest.
     pub async fn format_one_members(&self) -> Result<Vec<FormatOneMemberRow>, Error> {
+        let columns = self.columns_of("member").await?;
+        let has = |column: &str| columns.iter().any(|name| name == column);
+        // the base columns first, at fixed places, and then whichever of the five authority
+        // columns stand, each at the place it lands.
+        let mut select = vec![
+            "\"id\"",
+            "\"username_sealed\"",
+            "\"public_key\"",
+            "\"signing_public_key\"",
+            "\"sealed_secret_key\"",
+            "\"sealed_content_key\"",
+            "\"kdf_salt\"",
+            "\"kdf_params\"",
+            "\"must_change_password\"",
+            "\"certificate_id\"",
+            "\"signature\"",
+            "\"created_at\"",
+            "\"updated_at\"",
+            "\"session_epoch\"",
+            "\"owner_seed_sealed\"",
+        ];
+        let mut place = |column: &'static str, quoted: &'static str| {
+            has(column).then(|| {
+                select.push(quoted);
+                select.len() - 1
+            })
+        };
+        let role = place(FORMAT_ONE_ROLE_COLUMN, "\"role\"");
+        let permissions = place(FORMAT_ONE_PERMISSIONS_COLUMN, "\"permissions\"");
+        let role_id = place("role_id", "\"role_id\"");
+        let override_mask = place("override", "\"override\"");
+        let removed_at = place("removed_at", "\"removed_at\"");
         let mut rows = self
             .connection
             .query(
-                "SELECT \"id\", \"username_sealed\", \"public_key\", \"signing_public_key\", \
-                        \"sealed_secret_key\", \"sealed_content_key\", \"kdf_salt\", \
-                        \"kdf_params\", \"role\", \"permissions\", \"must_change_password\", \
-                        \"certificate_id\", \"signature\", \"created_at\", \"updated_at\", \
-                        \"session_epoch\", \"owner_seed_sealed\" \
-                 FROM \"member\" ORDER BY \"created_at\", \"id\"",
+                &format!(
+                    "SELECT {} FROM \"member\" ORDER BY \"created_at\", \"id\"",
+                    select.join(", ")
+                ),
                 (),
             )
             .await?;
@@ -2838,45 +2933,65 @@ impl OrganizationStore {
                 },
                 signing_public_key: fixed::<VERIFYING_KEY_BYTES>(&row, 3, "signing_public_key")?,
                 sealed_content_key: blob(&row, 5)?,
-                role: text(&row, 8)?,
-                permissions: integer(&row, 9)?,
-                must_change_password: integer(&row, 10)? != 0,
-                certificate_id: text(&row, 11)?,
-                signature: blob(&row, 12)?,
-                created_at: integer(&row, 13)?,
-                updated_at: integer(&row, 14)?,
-                session_epoch: integer(&row, 15)?,
-                owner_seed_sealed: nullable_blob(&row, 16)?,
+                must_change_password: integer(&row, 8)? != 0,
+                certificate_id: text(&row, 9)?,
+                signature: blob(&row, 10)?,
+                created_at: integer(&row, 11)?,
+                updated_at: integer(&row, 12)?,
+                session_epoch: integer(&row, 13)?,
+                owner_seed_sealed: nullable_blob(&row, 14)?,
+                role: role.map(|index| text(&row, index)).transpose()?,
+                permissions: permissions.map(|index| integer(&row, index)).transpose()?,
+                role_id: role_id.map(|index| text(&row, index)).transpose()?,
+                override_mask: override_mask
+                    .map(|index| integer(&row, index))
+                    .transpose()?,
+                removed_at: match removed_at {
+                    Some(index) => nullable_integer(&row, index)?,
+                    None => None,
+                },
             });
         }
 
         Ok(members)
     }
 
-    /// Every signed row of a format 1 organization, as it lies, with the certificates that sign
-    /// them: what the upgrade judges under the rules of that format and carries forward.
+    /// Every signed row of an organization of an earlier format, as it lies, with format 1's
+    /// certificates while their table stands: what the upgrade judges and carries forward. This
+    /// format's certificates, where an upgrade cut short already wrote some, are
+    /// [`OrganizationStore::chain_rows`].
     pub async fn format_one_directory(&self) -> Result<FormatOneDirectory, Error> {
         let tables = self.tables().await?;
         let mut certificates = Vec::new();
-        let mut rows = self
-            .connection
-            .query(
-                "SELECT \"id\", \"member_id\", \"signing_public_key\", \
-                        \"signature_by_organization_key\", \"issued_at\", \"revoked_at\" \
-                 FROM \"administrator_certificate\" ORDER BY \"id\"",
-                (),
-            )
-            .await?;
 
-        while let Some(row) = rows.next().await? {
-            certificates.push(FormatOneCertificate {
-                id: text(&row, 0)?,
-                member_id: text(&row, 1)?,
-                signing_public_key: fixed::<VERIFYING_KEY_BYTES>(&row, 2, "signing_public_key")?,
-                signature_by_organization_key: blob(&row, 3)?,
-                issued_at: text(&row, 4)?,
-                revoked_at: nullable_text(&row, 5)?,
-            });
+        if tables
+            .iter()
+            .any(|table| table == FORMAT_ONE_CERTIFICATE_TABLE)
+        {
+            let mut rows = self
+                .connection
+                .query(
+                    "SELECT \"id\", \"member_id\", \"signing_public_key\", \
+                            \"signature_by_organization_key\", \"issued_at\", \"revoked_at\" \
+                     FROM \"administrator_certificate\" ORDER BY \"id\"",
+                    (),
+                )
+                .await?;
+
+            while let Some(row) = rows.next().await? {
+                certificates.push(FormatOneCertificate {
+                    id: text(&row, 0)?,
+                    member_id: text(&row, 1)?,
+                    signing_public_key: fixed::<VERIFYING_KEY_BYTES>(
+                        &row,
+                        2,
+                        "signing_public_key",
+                    )?,
+                    signature_by_organization_key: blob(&row, 3)?,
+                    issued_at: text(&row, 4)?,
+                    revoked_at: nullable_text(&row, 5)?,
+                });
+            }
         }
 
         let mut workspaces = Vec::new();
@@ -2999,10 +3114,24 @@ impl OrganizationStore {
         })
     }
 
-    /// Give a format 1 organization this format's tables, in place: the member row's role and
-    /// override where its role word and mask were, the new tables, and no
-    /// `administrator_certificate`. Rows are the caller's to write afterwards, inside the same
-    /// transaction; the member rows as they stand grant nothing until they are.
+    /// This format's certificates and revocations, where an upgrade cut short already created
+    /// their tables, and none where it has not: what a row it already signed again is judged by.
+    pub async fn chain_rows_if_any(&self) -> Result<(Vec<Certificate>, Vec<Revocation>), Error> {
+        let tables = self.tables().await?;
+
+        if ["certificate", "revocation"]
+            .iter()
+            .all(|wanted| tables.iter().any(|table| table == wanted))
+        {
+            self.chain_rows().await
+        } else {
+            Ok((Vec::new(), Vec::new()))
+        }
+    }
+
+    /// What is still to run of the reshape of a format 1 `member` table, in order: each column
+    /// added only where it is missing, and each dropped only where it stands, so an upgrade cut
+    /// short part way through is finished without a statement run twice.
     ///
     /// **Measured through a sync connection on 2026-09-26, against a live account, before
     /// anything relied on it** (effort 838, ticket 22). `ALTER TABLE ... ADD COLUMN` and
@@ -3013,19 +3142,40 @@ impl OrganizationStore {
     /// drops**: an `UPDATE` made between the add and the drop, pushed with both, fails the push
     /// with `Number of arguments mismatch: expected 2, got 3`, and the remote is left with part of
     /// it. So every statement here runs before the first row is written, the whole upgrade is one
-    /// transaction and one push, and the push of anything the old build left captured goes before
-    /// it. `database/test/workspace.rs` records the drop-and-rename of 2026-08-20 that does not
-    /// replicate, which is why nothing here renames.
+    /// transaction and one push, and the upgrade runs only once what the old build left captured
+    /// has been pushed (ticket 23). `database/test/workspace.rs` records the drop-and-rename of
+    /// 2026-08-20 that does not replicate, which is why nothing here renames.
     ///
     /// **Added before dropped, and each added with a default**: the writer names its columns and
     /// omits the two it drops, which are `NOT NULL` with no default and would refuse its insert
     /// while they stood, and a `NOT NULL` column can only be added with one.
-    pub async fn reshape_format_one(&self) -> Result<(), Error> {
-        for statement in FORMAT_ONE_RESHAPE {
-            self.connection.execute(statement, ()).await?;
-        }
+    pub async fn format_one_reshape(&self) -> Result<Vec<FormatOneReshape>, Error> {
+        let columns = self.columns_of("member").await?;
+        let stands = |column: &str| columns.iter().any(|name| name == column);
 
-        self.install_schema().await?;
+        Ok(FORMAT_ONE_RESHAPE
+            .iter()
+            .filter(|(statement, column)| match statement {
+                FormatOneReshape::Add(_) => !stands(column),
+                FormatOneReshape::Drop(_) => stands(column),
+            })
+            .map(|(statement, _)| *statement)
+            .collect())
+    }
+
+    /// Run one statement of the reshape [`OrganizationStore::format_one_reshape`] found still to
+    /// run.
+    pub async fn reshape_format_one(&self, statement: FormatOneReshape) -> Result<(), Error> {
+        let (FormatOneReshape::Add(sql) | FormatOneReshape::Drop(sql)) = statement;
+
+        self.connection.execute(sql, ()).await?;
+
+        Ok(())
+    }
+
+    /// Drop format 1's certificate table, where it still stands: the upgrade's last statement but
+    /// the `format` row, since nothing of format 1 can be judged once it is gone.
+    pub async fn drop_format_one_certificates(&self) -> Result<(), Error> {
         self.connection
             .execute("DROP TABLE IF EXISTS \"administrator_certificate\"", ())
             .await?;
@@ -3033,8 +3183,8 @@ impl OrganizationStore {
         Ok(())
     }
 
-    /// Remove a member row the upgrade could not carry: one that did not verify under the rules
-    /// of format 1, and so would refuse every read of the directory in this one.
+    /// Remove a member row the upgrade could not carry: one that verified under the rules of
+    /// neither format, and so would refuse every read of the directory in this one.
     pub async fn delete_format_one_member(&self, id: &str) -> Result<(), Error> {
         self.connection
             .execute(

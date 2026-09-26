@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [22]
 ---
 
@@ -29,38 +29,38 @@ condition, as italic notes.
 
 Traces requirement 11 of [[efforts/838-permissions-are-a-role-and-an-override/spec]].
 
-- [ ] The owner's upgrade runs only after the changes already captured on the machine have been
+- [x] The owner's upgrade runs only after the changes already captured on the machine have been
       pushed, or there were none, and a pull has completed. Offline, or with either step failing,
       nothing is transformed and the owner is refused with a reason that asks for a connection, in
       English and Arabic. A test drives each case with nothing written.
-- [ ] A member machine holding a format 1 replica pulls before it answers, using the member's own
+- [x] A member machine holding a format 1 replica pulls before it answers, using the member's own
       format 1 credential verified under the format 1 rules. Once the remote reads as format 2, the
       member's sign-in and resume go through. While the remote is still format 1, they get the
       waits-for-its-owner refusal. A test covers both.
-- [ ] A remote left with part of the upgrade is recognised as unfinished, not as format 2 or as a
+- [x] A remote left with part of the upgrade is recognised as unfinished, not as format 2 or as a
       stranger. The owner's next sign-in (from the same machine or another) completes it, and every
       other machine is told it waits for its owner. A test builds each partial state the upgrade's
       order can leave.
-- [ ] Two owner machines cannot both transform: the second finds the upgrade done, or unfinished and
+- [x] Two owner machines cannot both transform: the second finds the upgrade done, or unfinished and
       completes it, and never replays the first's schema change. A test runs one after the other on
       one database.
-- [ ] A workspace, grant, invitation or mark row an old build signs after the upgrade never makes the
+- [x] A workspace, grant, invitation or mark row an old build signs after the upgrade never makes the
       directory unreadable for everyone. It is either verified or left out of what is read. A test
       writes one.
-- [ ] The owner is recognised by the organization key alone:
+- [x] The owner is recognised by the organization key alone:
       - an unsigned `revoked_at` on the owner's format 1 certificate is ignored;
       - `must_change_password` on the owner's row neither hides their vault nor stops the upgrade;
       - a pin that a format 1 handover left stale is settled before the owner test runs.
       Each case has a test.
-- [ ] A non-key-holder's row saying `owner` maps from its own `permissions` column, as the old
+- [x] A non-key-holder's row saying `owner` maps from its own `permissions` column, as the old
       session read it, and the doc comment says so.
-- [ ] The join and machine-link refusals are tested against a format 1 organization in the
+- [x] The join and machine-link refusals are tested against a format 1 organization in the
       main-branch shape, not a format 2 one with `format` dropped.
-- [ ] `plan.md`, *Migration*, records in italic notes:
+- [x] `plan.md`, *Migration*, records in italic notes:
       - the order as built, including the push before the pull;
       - the measured result in place of the conditional;
       - the online condition.
-- [ ] `cargo test`, `pnpm check`, `pnpm test` and `pnpm lint` pass.
+- [x] `cargo test`, `pnpm check`, `pnpm test` and `pnpm lint` pass.
 
 ## Relevant areas
 

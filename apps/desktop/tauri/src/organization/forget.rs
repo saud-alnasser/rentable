@@ -39,7 +39,8 @@
 //! refused; since the human's call of 2026-09-26 its owner's sign-in or resume upgrades it in place
 //! (`upgrade.rs`), and a machine that had forgotten it would have nothing left to upgrade, and would
 //! have lost the Turso authority with it. So a replica of that format is kept, the owner's machine
-//! upgrades it, and every other machine is told it waits for its owner.
+//! upgrades it, and every other machine pulls before it answers, going on once the upgrade has
+//! arrived and told it waits for its owner until then (ticket 23).
 //!
 //! *There was a seventh sign, and effort 828 retired it with the column it read.* An `invitation`
 //! table with no `code_seal` marked a replica written before effort 826 sealed the invited vault's

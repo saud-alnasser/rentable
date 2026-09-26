@@ -390,6 +390,8 @@ const en = {
 					'the database refused the request, and nothing was changed. try again later.',
 				organizationOlder:
 					'an older version made this organization. it waits for its owner to open it in this version, which upgrades it.',
+				organizationUpgradeOffline:
+					'upgrading this organization needs a connection. connect to the internet and sign in again; nothing was changed.',
 				organizationNewer:
 					'a newer version of rentable made this organization. update rentable to open it.',
 				tursoNotConnected:

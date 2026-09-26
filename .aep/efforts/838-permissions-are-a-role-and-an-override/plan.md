@@ -341,6 +341,26 @@ key, the unsigned `revoked_at`), then transform, push, and carry on into the ord
 that does not verify under the old rules is not carried; the upgrade names what it dropped in the
 log.
 
+*The order as built, tickets 22 and 23 (`upgrade.rs`): open the replica; read the member rows as they
+lie to find the vault the password or the remembered key opens; settle the pinned key along any
+completed succession a format 1 handover left; confirm the organization key; unseal the member's own
+grant on the organization database where the machine holds no credential yet. Anybody but the owner
+then pulls with it, and goes on into the ordinary sign-in only where what arrived is format 2. The
+owner's machine pushes what the old build left captured, then pulls, then judges every row under the
+format that signed it, then transforms in one transaction in the order `upgrade::planned` gives: the
+member columns added and dropped where still needed, the tables, the rows that verify under neither
+format removed, the root and the two role rows, each member's certificate and row, the standing offer
+withdrawn, the workspaces, grants, invitations and mark, `administrator_certificate` dropped, and the
+`format` row. Then it pushes. Each certificate keeps format 1's id, `cert-<member>`, and its key, so a
+row an old build signs afterwards still verifies.*
+
+*The online condition, ticket 23: the transform runs only once that first push has gone and the pull
+has completed. Offline, or with either failing, nothing is written and the owner is refused with
+`OrganizationUpgradeOffline`, asking for a connection. Where the pull brings format 2, another of the
+owner's machines finished first and nothing is written. An upgrade cut short anywhere reads as older,
+every other machine waits, and the owner's next sign-in online finishes it from any machine, each
+step running only on the shape it finds.*
+
 **What.**
 
 - `member`: `role` and `permissions` give way to `role_id`, `override` and `removed_at`, and every
@@ -369,6 +389,13 @@ drop-and-rename does not replicate through a sync connection (measured 2026-08-2
 `store.rs` and `database/test/workspace.rs`). The ticket measures `ALTER TABLE ... ADD COLUMN` and
 `DROP COLUMN` through the sync connection first; if either fails, the member columns are handled by
 the approach that does replicate, and the measurement is recorded where the earlier one is.
+
+*Measured 2026-09-26 on a live account (ticket 22), recorded at `store.rs` and
+`database/test/workspace.rs`: `ADD COLUMN`, `DROP COLUMN` and `DROP TABLE` all replicate through a
+sync connection, so the member columns are altered in place. The one failure is a row change captured
+under a column set that a later statement in the same push drops, which fails that push with `Number
+of arguments mismatch`; so the reshape runs before any row is written, and what the old build left
+captured is pushed before the upgrade runs.*
 
 A machine still on the old build after the upgrade reads a directory it cannot parse. That is the
 cost of the owner updating first; the old build is not changed.

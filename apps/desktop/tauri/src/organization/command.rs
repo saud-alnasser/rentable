@@ -832,12 +832,14 @@ pub(crate) async fn ended_elsewhere(app_state: &AppState) -> bool {
 /// is what stops an open replica reaching the remote before anybody is in.
 ///
 /// **An organization an earlier version made is upgraded here by its owner, and one of another
-/// format refused and let go of** (effort 838, requirement 11 as amended, ticket 22). This is
-/// where a sign-in and a launch's resume both reach what the machine holds, so the owner's
-/// password, or the key their machine remembers, upgrades a format 1 organization before anything
-/// else reads it (`upgrade.rs`); anybody else's is refused as waiting for its owner, and a newer
-/// one by name, before either reads a row of it, and neither writes to it: no registry row, no
-/// pull, no push.
+/// format refused and let go of** (effort 838, requirement 11 as amended, tickets 22 and 23). This
+/// is where a sign-in and a launch's resume both reach what the machine holds, so the owner's
+/// password, or the key their machine remembers, upgrades an older organization, or finishes an
+/// upgrade cut short, before anything else reads it, and only once a push and a pull have both
+/// gone (`upgrade.rs`). Anybody else's machine pulls first, with the credential its own grant
+/// holds, and goes on where the owner has upgraded; where the owner has not, it is refused as
+/// waiting for its owner. A newer one is refused by name. Neither refusal reads a row of this
+/// format or writes anything: no registry row and no push.
 async fn open_replica(
     app_state: &AppState,
     held: &HeldOrganization,
@@ -870,6 +872,7 @@ async fn open_replica(
         Opening::Password { username, password } => {
             upgrade::with_password(
                 &store,
+                &upgrade::ItsRemote,
                 held,
                 username,
                 password,
@@ -879,7 +882,14 @@ async fn open_replica(
             .await?
         }
         Opening::Remembered => {
-            upgrade::with_remembered_key(&store, held, &credential, timestamp::now()).await?
+            upgrade::with_remembered_key(
+                &store,
+                &upgrade::ItsRemote,
+                held,
+                &credential,
+                timestamp::now(),
+            )
+            .await?
         }
     }
 
@@ -2470,8 +2480,11 @@ mod tests {
     /// organization's format moved under it. A newer format is format 3. An older one is the
     /// `format` row gone from a table that is still there, which is the one way this build's own
     /// organization comes to read as an earlier version's, and the table gone altogether over this
-    /// build's member table is the other; neither is the shape the owner's upgrade reshapes, which
-    /// `upgrade.rs` tests on an organization of format 1 itself.
+    /// build's member table is the other. Both read as an upgrade that wrote everything but its
+    /// last row, which the owner finishes only against the organization's latest state (ticket
+    /// 23). This machine is the owner's, and its push goes nowhere: the credential the first run
+    /// minted is the in-memory platform's and no remote takes it, so the resume asks for a
+    /// connection; `upgrade.rs` tests the upgrade itself.
     ///
     /// Each of them: the launch leaves the wall up with no session and the organization
     /// still held, the replica the resume and the sign-in both open through refuses with its own
@@ -2485,7 +2498,7 @@ mod tests {
             (
                 "older",
                 "DELETE FROM \"format\"",
-                crate::error::RefusalReason::OrganizationOlder,
+                crate::error::RefusalReason::OrganizationUpgradeOffline,
             ),
             (
                 "newer",
@@ -2554,9 +2567,10 @@ mod tests {
         }
 
         // no `format` table at all over this build's member table: the launch keeps it now that an
-        // organization with no format table is upgraded rather than forgotten (ticket 22), and this
-        // is not one the upgrade reshapes, since its member table carries no role word. So the
-        // resume is refused as the two above are, as waiting for its owner, and nothing is written.
+        // organization with no format table is upgraded rather than forgotten (ticket 22), and it
+        // carries nothing of format 1, so what is left of an upgrade is its last row (ticket 23).
+        // The resume is the owner's, with a push no remote takes, so it is refused as the older one
+        // above is, asking for a connection, and nothing is written.
         let directory = scratch("format-today");
         let app_state = first_run(&directory).await;
         let (organization_id, _) = recorded(&app_state).await;
@@ -2604,7 +2618,7 @@ mod tests {
             matches!(
                 refused,
                 Err(Error::Refused {
-                    reason: crate::error::RefusalReason::OrganizationOlder,
+                    reason: crate::error::RefusalReason::OrganizationUpgradeOffline,
                     ..
                 })
             ),
