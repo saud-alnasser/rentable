@@ -1274,7 +1274,7 @@ type RootTranslation = {
 				 */
 				databaseRefused: string
 				/**
-				 * a​n​ ​o​l​d​e​r​ ​v​e​r​s​i​o​n​ ​m​a​d​e​ ​t​h​i​s​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​e​x​p​o​r​t​ ​e​a​c​h​ ​w​o​r​k​s​p​a​c​e​ ​t​h​e​r​e​,​ ​d​e​l​e​t​e​ ​i​t​,​ ​m​a​k​e​ ​i​t​ ​a​g​a​i​n​ ​h​e​r​e​ ​a​n​d​ ​i​m​p​o​r​t​ ​t​h​e​m​.
+				 * a​n​ ​o​l​d​e​r​ ​v​e​r​s​i​o​n​ ​m​a​d​e​ ​t​h​i​s​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​i​t​ ​w​a​i​t​s​ ​f​o​r​ ​i​t​s​ ​o​w​n​e​r​ ​t​o​ ​o​p​e​n​ ​i​t​ ​i​n​ ​t​h​i​s​ ​v​e​r​s​i​o​n​,​ ​w​h​i​c​h​ ​u​p​g​r​a​d​e​s​ ​i​t​.
 				 */
 				organizationOlder: string
 				/**
@@ -5565,7 +5565,7 @@ export type TranslationFunctions = {
 				 */
 				databaseRefused: () => LocalizedString
 				/**
-				 * an older version made this organization. export each workspace there, delete it, make it again here and import them.
+				 * an older version made this organization. it waits for its owner to open it in this version, which upgrades it.
 				 */
 				organizationOlder: () => LocalizedString
 				/**

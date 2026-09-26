@@ -788,14 +788,7 @@ async fn resumed(
     member_id: &str,
     credential: &CredentialSlot,
 ) -> Result<Resumption, Error> {
-    let filed =
-        keyring::read(MEMBER_KEY_SERVICE, &account_of(&held.id, member_id))?.ok_or_else(|| {
-            Error::refused(
-                RefusalReason::SignInAgain,
-                "this machine remembers no key for the member it holds",
-            )
-        })?;
-    let (filed_epoch, member_key) = read_entry(&filed)?;
+    let (filed_epoch, member_key) = remembered(&held.id, member_id)?;
     let verifying_key = verifying_key_of(held)?;
     let members = store.members(&verifying_key).await?;
     let member = members
@@ -1115,6 +1108,25 @@ pub(crate) fn read_entry(filed: &str) -> Result<(i64, MemberKey), Error> {
         epoch.parse::<i64>().map_err(|_| unreadable())?,
         MemberKey::decode(encoded)?,
     ))
+}
+
+/// The key this machine filed for a member at their last sign-in, and the epoch it was filed
+/// under: what a resume opens the vault with. Refused where nothing is filed or what is filed is
+/// not an entry this build wrote. Read by the resume, and by the owner's upgrade of an older
+/// organization on the way to it (`upgrade.rs`, effort 838, ticket 22), which reads the same key.
+pub(crate) fn remembered(
+    organization_id: &str,
+    member_id: &str,
+) -> Result<(i64, MemberKey), Error> {
+    let filed = keyring::read(MEMBER_KEY_SERVICE, &account_of(organization_id, member_id))?
+        .ok_or_else(|| {
+            Error::refused(
+                RefusalReason::SignInAgain,
+                "this machine remembers no key for the member it holds",
+            )
+        })?;
+
+    read_entry(&filed)
 }
 
 /// What one member's entry is filed under: the organization, and their row in it.

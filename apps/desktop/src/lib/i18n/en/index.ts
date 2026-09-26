@@ -389,7 +389,7 @@ const en = {
 				databaseRefused:
 					'the database refused the request, and nothing was changed. try again later.',
 				organizationOlder:
-					'an older version made this organization. export each workspace there, delete it, make it again here and import them.',
+					'an older version made this organization. it waits for its owner to open it in this version, which upgrades it.',
 				organizationNewer:
 					'a newer version of rentable made this organization. update rentable to open it.',
 				tursoNotConnected:

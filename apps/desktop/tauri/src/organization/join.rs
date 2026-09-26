@@ -2111,4 +2111,80 @@ mod tests {
         );
         assert!(!filed.contains(CHOSEN), "the password was filed");
     }
+
+    /// Everything the organization database holds, table by table and row by row, as a test
+    /// compares it before and after a refusal: a write anywhere changes it.
+    async fn contents(store: &OrganizationStore) -> Vec<(String, Vec<Vec<turso::Value>>)> {
+        let mut contents = Vec::new();
+
+        for table in store.tables().await.expect("the tables") {
+            let mut rows = store
+                .connection()
+                .query(&format!("SELECT * FROM \"{table}\" ORDER BY rowid"), ())
+                .await
+                .expect("the rows");
+            let mut values = Vec::new();
+
+            while let Some(row) = rows.next().await.expect("a row") {
+                values.push(
+                    (0..row.column_count())
+                        .map(|index| row.get_value(index).expect("a value"))
+                        .collect(),
+                );
+            }
+
+            contents.push((table, values));
+        }
+
+        contents
+    }
+
+    /// Effort 838, ticket 22, at the join: **an organization an earlier version made, opened
+    /// first by an invited member, waits for its owner, and nothing is written to it.**
+    ///
+    /// The organization is this build's first run with its `format` table taken away, which reads
+    /// as an earlier version's to the refusal every way in meets; `upgrade.rs` meets one of format
+    /// 1 itself. The link opens, since the code is right, and the accept is refused before any row
+    /// is read: nothing on the organization moves, the invitation stands unspent, and the machine
+    /// records nothing.
+    #[tokio::test]
+    async fn an_older_organization_opened_first_by_an_invited_member_waits_for_its_owner() {
+        let directory = scratch("older");
+        let (store, _, _, invitation, _, code) = invited(&directory).await;
+
+        store
+            .connection()
+            .execute("DROP TABLE \"format\"", ())
+            .await
+            .expect("an organization an earlier version made");
+
+        let before = contents(&store).await;
+        let (machine, refused) = opened(
+            &scratch("older-machine"),
+            &store,
+            &invitation,
+            &code,
+            CHOSEN,
+            ISSUED_AT + 3,
+        )
+        .await;
+
+        assert!(
+            matches!(
+                &refused,
+                Err(Error::Refused {
+                    reason: RefusalReason::OrganizationOlder,
+                    message,
+                }) if message.contains("waits for its owner")
+            ),
+            "{:?}",
+            refused.map(|session| session.member_id)
+        );
+        assert_eq!(
+            contents(&store).await,
+            before,
+            "the refusal wrote to the organization"
+        );
+        assert!(machine.organization.is_none());
+    }
 }

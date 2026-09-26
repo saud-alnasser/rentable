@@ -287,6 +287,15 @@ pub(in crate::database) fn shipped_migration_count() -> usize {
 /// the original and renames, and the push that follows fails with `no such table: main.complex`.
 /// Measured against a live account 2026-08-20.
 ///
+/// **An alter in place does replicate**, measured against a live account on 2026-09-26 for the
+/// organization's upgrade (effort 838, ticket 22): `ALTER TABLE ... ADD COLUMN`, `ALTER TABLE ...
+/// DROP COLUMN` and `DROP TABLE` all reached a second replica and a third bootstrapped from the
+/// remote, and so did rows written in the new shape. The one failure was a row change captured
+/// under a column that a later statement in the same push dropped, which fails that push with
+/// `Number of arguments mismatch` and leaves the remote with part of it. The reading, and the
+/// order the upgrade keeps because of it, are at `organization/store.rs`,
+/// `OrganizationStore::reshape_format_one`.
+///
 /// So the shipped schema goes on through [`LiveWorkspace::apply_schema_remotely`] instead, which
 /// is the faithful path anyway: requirement 11 puts migrations over the wire, and a
 /// replica receives the schema as replicated pages rather than applying it.

@@ -29,7 +29,7 @@ use super::{
     },
     setup::{self, CreateOrganization, GroupState, OrganizationCreated, Remote},
     store::OrganizationStore,
-    workspace,
+    upgrade, workspace,
 };
 use crate::sync::turso::{
     discovery::McpEndpoint,
@@ -428,7 +428,15 @@ pub async fn organization_sign_in(
         sign_out(app_state.inner()).await;
     }
 
-    let (store, credential) = open_replica(app_state.inner(), &held).await?;
+    let (store, credential) = open_replica(
+        app_state.inner(),
+        &held,
+        Opening::Password {
+            username: &username,
+            password: &password,
+        },
+    )
+    .await?;
 
     // a handover accepted while this machine was at the wall left rows this machine's key cannot
     // verify, and the sign-in reads rows (effort 828, requirement 22). The succession is followed
@@ -567,7 +575,7 @@ async fn resume_remembered(app_state: &AppState) {
         return;
     };
 
-    let resumed = match open_replica(app_state, &held).await {
+    let resumed = match open_replica(app_state, &held, Opening::Remembered).await {
         Ok((store, credential)) => {
             // a replica that already holds a handover this machine has not followed: the
             // succession is followed before the remembered key opens anything, so the resume
@@ -823,13 +831,17 @@ pub(crate) async fn ended_elsewhere(app_state: &AppState) -> bool {
 /// reachable; the token function answers from the slot, which is empty until a vault is open and
 /// is what stops an open replica reaching the remote before anybody is in.
 ///
-/// **A replica of another format is refused here, and let go of** (effort 838, requirement 11).
-/// This is where a sign-in and a launch's resume both reach what the machine holds, so an
-/// organization an earlier or a newer version of the application made is refused by name before
-/// either reads a row of it, and neither writes to it: no registry row, no pull, no push.
+/// **An organization an earlier version made is upgraded here by its owner, and one of another
+/// format refused and let go of** (effort 838, requirement 11 as amended, ticket 22). This is
+/// where a sign-in and a launch's resume both reach what the machine holds, so the owner's
+/// password, or the key their machine remembers, upgrades a format 1 organization before anything
+/// else reads it (`upgrade.rs`); anybody else's is refused as waiting for its owner, and a newer
+/// one by name, before either reads a row of it, and neither writes to it: no registry row, no
+/// pull, no push.
 async fn open_replica(
     app_state: &AppState,
     held: &HeldOrganization,
+    opening: Opening<'_>,
 ) -> Result<(OrganizationStore, CredentialSlot), Error> {
     let database_path = {
         let settings = app_state.settings.read().await;
@@ -854,9 +866,38 @@ async fn open_replica(
     )
     .await?;
 
+    match opening {
+        Opening::Password { username, password } => {
+            upgrade::with_password(
+                &store,
+                held,
+                username,
+                password,
+                &credential,
+                timestamp::now(),
+            )
+            .await?
+        }
+        Opening::Remembered => {
+            upgrade::with_remembered_key(&store, held, &credential, timestamp::now()).await?
+        }
+    }
+
     store.refuse_another_format().await?;
 
     Ok((store, credential))
+}
+
+/// What opens the replica: a username and password typed at the wall, or the key this machine
+/// remembers for the member its record names. Either is what the owner's upgrade of an older
+/// organization runs on.
+#[derive(Clone, Copy)]
+enum Opening<'a> {
+    Password {
+        username: &'a str,
+        password: &'a str,
+    },
+    Remembered,
 }
 
 /// Follow a handover this machine was not present for, and pin the key it left behind (effort
@@ -2191,7 +2232,7 @@ mod tests {
     use serde_json::json;
     use tokio::sync::RwLock;
 
-    use super::{open_replica, sign_out, state_of};
+    use super::{Opening, open_replica, sign_out, state_of};
     use crate::{
         database::Database,
         error::Error,
@@ -2428,11 +2469,11 @@ mod tests {
     /// The machine ran the first run and stayed signed in, so the launch would resume; then the
     /// organization's format moved under it. A newer format is format 3. An older one is the
     /// `format` row gone from a table that is still there, which is the one way this build's own
-    /// organization comes to read as an earlier version's; a replica with no `format` table at all
-    /// is today's shape, which the launch forgets before anything opens it (`forget.rs`, and the
-    /// last case here).
+    /// organization comes to read as an earlier version's, and the table gone altogether over this
+    /// build's member table is the other; neither is the shape the owner's upgrade reshapes, which
+    /// `upgrade.rs` tests on an organization of format 1 itself.
     ///
-    /// Each of the first two: the launch leaves the wall up with no session and the organization
+    /// Each of them: the launch leaves the wall up with no session and the organization
     /// still held, the replica the resume and the sign-in both open through refuses with its own
     /// reason, and the replica holds exactly what it held before, no registry row and no table
     /// gained.
@@ -2497,7 +2538,9 @@ mod tests {
                     .clone()
                     .expect("the record")
             };
-            let refused = open_replica(&app_state, &held).await.map(|_| ());
+            let refused = open_replica(&app_state, &held, Opening::Remembered)
+                .await
+                .map(|_| ());
 
             assert!(
                 matches!(refused, Err(Error::Refused { reason: refusal, .. }) if refusal == reason),
@@ -2510,8 +2553,10 @@ mod tests {
             );
         }
 
-        // today's shape, no `format` table at all: the launch forgets it before anything opens it,
-        // so it never meets the reader above. The connect that follows is where the person is told.
+        // no `format` table at all over this build's member table: the launch keeps it now that an
+        // organization with no format table is upgraded rather than forgotten (ticket 22), and this
+        // is not one the upgrade reshapes, since its member table carries no role word. So the
+        // resume is refused as the two above are, as waiting for its owner, and nothing is written.
         let directory = scratch("format-today");
         let app_state = first_run(&directory).await;
         let (organization_id, _) = recorded(&app_state).await;
@@ -2532,16 +2577,43 @@ mod tests {
                 .expect("today's shape");
         }
 
+        let before = contents(&replica).await;
         let state = state_of(&app_state).await.expect("the state");
 
         assert!(state.session.is_none());
-        assert!(
-            state.organization.is_none(),
-            "a replica of today's shape was not forgotten"
+        assert_eq!(
+            state.organization.map(|held| held.id),
+            Some(organization_id),
+            "a replica with no format table was forgotten"
         );
+
+        let held = {
+            let mut remote_sync = app_state.remote_sync.write().await;
+
+            remote_sync
+                .store_mut()
+                .organization
+                .clone()
+                .expect("the record")
+        };
+        let refused = open_replica(&app_state, &held, Opening::Remembered)
+            .await
+            .map(|_| ());
+
         assert!(
-            !replica.exists(),
-            "the replica of today's shape is still on disk"
+            matches!(
+                refused,
+                Err(Error::Refused {
+                    reason: crate::error::RefusalReason::OrganizationOlder,
+                    ..
+                })
+            ),
+            "{refused:?}"
+        );
+        assert_eq!(
+            contents(&replica).await,
+            before,
+            "the launch wrote to the organization"
         );
     }
 
@@ -2752,7 +2824,16 @@ mod tests {
                 .clone()
                 .expect("the record")
         };
-        let (store, credential) = open_replica(&app_state, &held).await.expect("the replica");
+        let (store, credential) = open_replica(
+            &app_state,
+            &held,
+            Opening::Password {
+                username: USERNAME,
+                password: PASSWORD,
+            },
+        )
+        .await
+        .expect("the replica");
         let session = {
             let mut remote_sync = app_state.remote_sync.write().await;
 

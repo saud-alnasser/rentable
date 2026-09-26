@@ -1017,4 +1017,82 @@ mod tests {
         );
         assert!(machine.organization.is_none(), "the machine recorded one");
     }
+
+    /// Everything the organization database holds, table by table and row by row, as a test
+    /// compares it before and after a refusal: a write anywhere changes it.
+    async fn contents(store: &OrganizationStore) -> Vec<(String, Vec<Vec<turso::Value>>)> {
+        let mut contents = Vec::new();
+
+        for table in store.tables().await.expect("the tables") {
+            let mut rows = store
+                .connection()
+                .query(&format!("SELECT * FROM \"{table}\" ORDER BY rowid"), ())
+                .await
+                .expect("the rows");
+            let mut values = Vec::new();
+
+            while let Some(row) = rows.next().await.expect("a row") {
+                values.push(
+                    (0..row.column_count())
+                        .map(|index| row.get_value(index).expect("a value"))
+                        .collect(),
+                );
+            }
+
+            contents.push((table, values));
+        }
+
+        contents
+    }
+
+    /// Effort 838, ticket 22, at the machine link: **an organization an earlier version made,
+    /// opened first by a member's next machine, waits for its owner, and nothing is written to it.**
+    ///
+    /// The organization is this build's own with its `format` table taken away, which reads as an
+    /// earlier version's to the refusal every way in meets; `upgrade.rs` meets one of format 1
+    /// itself. The link and its code open, and the connect is refused before the link's row is
+    /// read: the organization is as it was, the link unspent, and the machine records nothing.
+    #[tokio::test]
+    async fn an_older_organization_opened_first_by_a_machine_link_waits_for_its_owner() {
+        let directory = scratch("older");
+        let (store, owner, locator, member_id, _) = account(&directory).await;
+        let made = make_link(
+            &store,
+            &owner,
+            no_platform(),
+            &locator,
+            &member_id,
+            test_cost(),
+            ISSUED_AT + 2,
+        )
+        .await
+        .expect("the link could not be made");
+
+        store
+            .connection()
+            .execute("DROP TABLE \"format\"", ())
+            .await
+            .expect("an organization an earlier version made");
+
+        let before = contents(&store).await;
+        let mut machine = fresh_machine(&scratch("older-machine"));
+        let refused = connect_on(&mut machine, &store, &made, &made.code, ISSUED_AT + 3).await;
+
+        assert!(
+            matches!(
+                &refused,
+                Err(Error::Refused {
+                    reason: RefusalReason::OrganizationOlder,
+                    message,
+                }) if message.contains("waits for its owner")
+            ),
+            "{refused:?}"
+        );
+        assert_eq!(
+            contents(&store).await,
+            before,
+            "the refusal wrote to the organization"
+        );
+        assert!(machine.organization.is_none());
+    }
 }

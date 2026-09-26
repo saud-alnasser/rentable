@@ -221,8 +221,8 @@ pub enum RefusalReason {
     DatabaseRefused,
 
     // the organization's format (effort 838, requirement 11).
-    /// the organization was made by an earlier version of rentable, and is exported there, deleted
-    /// and made again here.
+    /// the organization was made by an earlier version of rentable, and waits for its owner to
+    /// open it in this version, which upgrades it (effort 838, ticket 22).
     OrganizationOlder,
     /// the organization was made by a newer version of rentable, which this one is updated to.
     OrganizationNewer,

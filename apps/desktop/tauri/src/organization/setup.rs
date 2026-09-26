@@ -67,6 +67,7 @@ use super::{
     permission,
     session::{self, CredentialSlot, MemberSession, content_key_of, remember, sign_in_by_username},
     store::{GrantRecord, MemberRecord, OrganizationRecord, OrganizationStore, RoleRecord, Signer},
+    upgrade,
     vault::{
         ContentKey, KdfParams, MemberSecretKey, create_vault_with_secret_and_key,
         generate_content_key, open_content, open_vault, seal_content, seal_to_public_key,
@@ -819,6 +820,11 @@ const ORGANIZATION_THIS_ACCOUNT_HOLDS: &str = "the organization this turso accou
 /// derives something else, so it fails both, which is what makes this the owner's alone
 /// by construction rather than by a role a row claims.
 ///
+/// **An organization an earlier version made is upgraded here, by this password, first** (effort
+/// 838, ticket 22). Pulled and found to be of format 1, it is upgraded in place where the password
+/// opens the owner's vault (`upgrade::with_the_owners_password`), and refused as waiting for its
+/// owner where it opens anybody else's; everything below then reads it in this format.
+///
 /// **Nothing the unverified read yielded reaches the session.** Past the comparison, the sign-in
 /// is the wall's own [`sign_in_by_username`] over the verified rows, so the member, the vault and
 /// the grants a session is built from all came through the chain. It is a second derivation of the
@@ -918,8 +924,14 @@ where
             });
         }
 
-        // an organization another version made is refused before its row is read or any
-        // credential renewed in it (effort 838, requirement 11).
+        // an organization an earlier version made is upgraded here where the password is its
+        // owner's, and refused as waiting for its owner where it is anybody else's; one of another
+        // format is refused before its row is read or any credential renewed in it (effort 838,
+        // requirement 11 as amended, ticket 22).
+        upgrade::with_the_owners_password(&replica, username, password, &credential, now, || {
+            session::refused_by_name(ORGANIZATION_THIS_ACCOUNT_HOLDS)
+        })
+        .await?;
         replica.refuse_another_format().await?;
 
         let row = replica

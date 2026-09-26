@@ -15,7 +15,8 @@
 //! What follows the three is the work over them: the link a machine finds an
 //! organization by, the first run that creates one, the connect that records one on a machine
 //! without opening a vault, the machine link whoever keeps the accounts makes for a member whose
-//! password is already set, and the forget that leaves nothing of it here.
+//! password is already set, and the forget that leaves nothing of it here. And one that runs once:
+//! the owner's upgrade of an organization an earlier version made.
 
 use serde::{Deserialize, Serialize};
 
@@ -37,6 +38,7 @@ pub mod role;
 pub mod session;
 pub mod setup;
 pub mod store;
+pub mod upgrade;
 pub mod vault;
 pub mod workspace;
 

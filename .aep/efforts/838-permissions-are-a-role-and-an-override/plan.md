@@ -393,7 +393,8 @@ cost of the owner updating first; the old build is not changed.
 # Operational Considerations
 
 - **A breaking release.** The changeset is a minor bump flagged as breaking, and says an
-  organization made by an earlier version is refused and how to cross over.
+  organization made by an earlier version is upgraded when its owner first signs in, and that other
+  members wait until then.
 - **Every role edit writes one certificate, one revocation and the re-signed rows per holder.** At
   the sizes this application serves (tens of members) that is a few hundred rows at the most, in one
   push.

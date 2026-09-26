@@ -34,12 +34,16 @@ _Avoid_: "the control plane" and "the account" for it. There is no service of ou
 account is Turso's.
 
 **Format**:
-The one `format` row, version 2, written when an organization is made. A build meeting an
-organization with no format row, or with a newer one, reads nothing from it and writes nothing to
-it, and says what to do: an older organization is exported workspace by workspace, deleted, and
-made again here; a newer one needs the application updated (838, requirement 11). There is no
-in-place migration. The number is unsigned: rewriting it only makes the organization refuse to
-open, which the credential already allows by deleting rows.
+The one `format` row, version 2, written when an organization is made. An organization made before
+effort 838 has no `format` table, which is format 1, and its owner's machine upgrades it in place at
+their sign-in, their resume or their connect on the Turso account (`organization/upgrade.rs`): every
+row is judged under the old rules, carried into this format signed from the root, and the row is
+written last. Until then, and for an organization with a newer number, a build reads nothing from it
+and writes nothing to it, and says what to do: an older one waits for its owner, a newer one needs
+the application updated (838, requirement 11, as the human amended it on 2026-09-26). The number is
+unsigned: rewriting it only makes the organization refuse to open, which the credential already
+allows by deleting rows. *It said there was no in-place migration, and that an older organization
+was exported and made again, until ticket 22 of effort 838.*
 
 **Flag**:
 One act the application performs for a member, on one bit of one mask. The vocabulary lives in
