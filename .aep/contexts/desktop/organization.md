@@ -41,7 +41,7 @@ row is judged under the old rules, carried into this format signed from the root
 written last. The owner is whoever's vault derives the organization key, and nothing else on a row
 decides it. The upgrade runs only online, after what the machine held is pushed and a pull has
 completed; otherwise nothing is written and the owner is asked for a connection. An upgrade cut short
-has no row either, reads as older, and the owner's next sign-in finishes it from any machine. Each
+has no row either, reads as older, and the owner's next sign-in, resume or connect finishes it from any machine. Each
 certificate the upgrade issues keeps format 1's id, `cert-<member>`, and its key, so a row an old
 build signs afterwards still verifies. Until the row is there, and for an organization with a newer
 number, a build reads nothing from it and writes nothing to it, and says what to do: an older one

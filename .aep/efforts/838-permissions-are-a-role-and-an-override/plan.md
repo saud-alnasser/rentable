@@ -358,7 +358,7 @@ row an old build signs afterwards still verifies.*
 has completed. Offline, or with either failing, nothing is written and the owner is refused with
 `OrganizationUpgradeOffline`, asking for a connection. Where the pull brings format 2, another of the
 owner's machines finished first and nothing is written. An upgrade cut short anywhere reads as older,
-every other machine waits, and the owner's next sign-in online finishes it from any machine, each
+every other machine waits, and the owner's next sign-in, resume or connect online finishes it from any machine, each
 step running only on the shape it finds.*
 
 **What.**
@@ -379,7 +379,9 @@ step running only on the shape it finds.*
   re-signed under the root, so none depends on an old certificate id or on a ceiling the old build
   never checked.
 - `format`: written **last**, so an upgrade cut short still reads as format 1 and runs again at the
-  next sign-in. The whole runs in one local transaction and one push.
+  next sign-in. The whole runs in one local transaction and one push. *Superseded by the order as
+  built, above: a push, a pull, one transaction, a push; a cut-short upgrade reads as older, which
+  covers every partial shape, and is finished at the owner's sign-in, resume or connect.*
 - Unsigned tables carry as they are; `session_epoch` is kept, so remembered sessions stay valid. A
   standing handover offer is withdrawn (its `succession` row deleted and the seal cleared); the owner
   offers again. The leftover `organization_mark` table is left alone.
@@ -414,12 +416,13 @@ cost of the owner updating first; the old build is not changed.
 | 8 | the shared table of criterion 6; Rust: a narrowed member's open session refused after one pull (the existing test at role.rs:1781 re-pointed); TS: the context's permissions follow a changed state after the heartbeat |
 | 9 | Rust, three stores on one database: owner offline (no organization key derivable in the test), a manager assigns a signing flag, the member's signed row verifies on the third store; a member row, a role row and an override written around every command by a certified member, beyond their ceiling or at or above their rank, refused on read; removal and narrowing, then a row signed under the old certificate refused and the rows signed before still verifying; a certificate cycle and a walk past 16 refused; a revocation by a certificate that does not outrank refused |
 | 10 | TS: for each record flag, the procedure refuses without it; component tests on each concept's acts for the reason text; navigation, search and dashboard leave out a kind without its view flag; a read-only grant refuses every write |
-| 11 | Rust: a format 1 organization written by the main-branch shape (owner, narrowed administrator, member with administration flags, removed member, pending invitation, both grant levels, mark) upgraded by the owner's sign-in, then every member's effective permissions compared with the old and every row verified from a second store; the upgrade cut short before `format` still reads as format 1 and completes on the next sign-in; a member first refused naming the owner, nothing written; `format` version 3 refused naming the update, nothing written |
+| 11 | Rust: a format 1 organization written by the main-branch shape (owner, narrowed administrator, member with administration flags, removed member, pending invitation, both grant levels, mark) upgraded by the owner's sign-in, then every member's effective permissions compared with the old and every row verified from a second store; the upgrade cut short before `format` still reads as format 1 and completes on the next sign-in; a member first refused naming the owner, nothing written; `format` version 3 refused naming the update, nothing written. *Tickets 23 and 25 add:* offline, or a failed push or pull, nothing written; a member pulling first and following the owner; every partial state finished; a second owner machine writing nothing; a late old-build row read verified; the owner found by key alone; a format 2 organization made to look older never transformed |
 | 12 | the human, on the running application, at the close |
 
 # Operational Considerations
 
-- **A breaking release.** The changeset is a minor bump flagged as breaking, and says an
+- **A breaking release.** The changeset is a minor bump, the pull request carries the breaking flag,
+  and the changeset says an
   organization made by an earlier version is upgraded when its owner first signs in, and that other
   members wait until then.
 - **Every role edit writes one certificate, one revocation and the re-signed rows per holder.** At

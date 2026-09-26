@@ -117,7 +117,12 @@ rank, without the owner present.
     from it and says the application is to be updated. *The human's call at /plan, 2026-09-25, was
     no migration, with the one user exporting and importing. Amended 2026-09-26, the human's call on
     the running application: an update replaces the old build, and a refused organization cannot
-    sign in, so an export is out of reach; the upgrade is part of the update.*
+    sign in, so an export is out of reach; the upgrade is part of the update. Settled at the
+    review of tickets 22 and 23: the upgrade also runs when the owner connects on their Turso
+    account; it runs only online, after what the machine held is pushed and a pull has completed,
+    and otherwise writes nothing and asks the owner for a connection; a member's machine pulls first
+    with its own grant and goes on once the owner has upgraded; a machine link is among the ways in
+    that wait for the owner.*
 12. **Roles are defined in the settings area, and a member's role and override on their card.** The
     organization section lists the roles by rank, each with its flags grouped by family, and lets a
     holder of the flag create, rename, re-rank, edit and delete them. A member's card sets their role
