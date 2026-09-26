@@ -392,6 +392,10 @@ const en = {
 					'an older version made this organization. it waits for its owner to open it in this version, which upgrades it.',
 				organizationUpgradeOffline:
 					'upgrading this organization needs a connection. connect to the internet and sign in again; nothing was changed.',
+				organizationChangesUnsendable:
+					'this machine holds unsent changes the upgraded organization cannot take. disconnect it and connect again to drop them.',
+				organizationCredentialLapsed:
+					"this machine's access to the organization has lapsed. ask your organization for a new link to connect it again.",
 				organizationNewer:
 					'a newer version of rentable made this organization. update rentable to open it.',
 				tursoNotConnected:

@@ -34,7 +34,12 @@ use crate::{
     sync::RemoteSyncStore,
 };
 
-use super::{HeldOrganization, invite::random_id, link::Locator, store::OrganizationStore};
+use super::{
+    HeldOrganization,
+    invite::random_id,
+    link::Locator,
+    store::{FORMAT_VERSION, OrganizationStore},
+};
 
 /// Record the organization `locator` names on this machine, having reached its replica.
 ///
@@ -183,6 +188,9 @@ pub async fn record(
         member_id: member.map(|(id, _)| id.to_string()),
         role: member.map(|(_, role)| role.to_string()),
         joined_at: now,
+        // both callers refused another format before they came here, so what this machine has
+        // read is this build's (effort 838, ticket 25).
+        format: Some(FORMAT_VERSION),
     };
 
     machine.organization = Some(held.clone());

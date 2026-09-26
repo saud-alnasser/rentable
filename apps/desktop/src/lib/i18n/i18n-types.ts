@@ -1282,6 +1282,14 @@ type RootTranslation = {
 				 */
 				organizationUpgradeOffline: string
 				/**
+				 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​h​o​l​d​s​ ​u​n​s​e​n​t​ ​c​h​a​n​g​e​s​ ​t​h​e​ ​u​p​g​r​a​d​e​d​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​c​a​n​n​o​t​ ​t​a​k​e​.​ ​d​i​s​c​o​n​n​e​c​t​ ​i​t​ ​a​n​d​ ​c​o​n​n​e​c​t​ ​a​g​a​i​n​ ​t​o​ ​d​r​o​p​ ​t​h​e​m​.
+				 */
+				organizationChangesUnsendable: string
+				/**
+				 * t​h​i​s​ ​m​a​c​h​i​n​e​'​s​ ​a​c​c​e​s​s​ ​t​o​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​h​a​s​ ​l​a​p​s​e​d​.​ ​a​s​k​ ​y​o​u​r​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​f​o​r​ ​a​ ​n​e​w​ ​l​i​n​k​ ​t​o​ ​c​o​n​n​e​c​t​ ​i​t​ ​a​g​a​i​n​.
+				 */
+				organizationCredentialLapsed: string
+				/**
 				 * a​ ​n​e​w​e​r​ ​v​e​r​s​i​o​n​ ​o​f​ ​r​e​n​t​a​b​l​e​ ​m​a​d​e​ ​t​h​i​s​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​u​p​d​a​t​e​ ​r​e​n​t​a​b​l​e​ ​t​o​ ​o​p​e​n​ ​i​t​.
 				 */
 				organizationNewer: string
@@ -5576,6 +5584,14 @@ export type TranslationFunctions = {
 				 * upgrading this organization needs a connection. connect to the internet and sign in again; nothing was changed.
 				 */
 				organizationUpgradeOffline: () => LocalizedString
+				/**
+				 * this machine holds unsent changes the upgraded organization cannot take. disconnect it and connect again to drop them.
+				 */
+				organizationChangesUnsendable: () => LocalizedString
+				/**
+				 * this machine's access to the organization has lapsed. ask your organization for a new link to connect it again.
+				 */
+				organizationCredentialLapsed: () => LocalizedString
 				/**
 				 * a newer version of rentable made this organization. update rentable to open it.
 				 */

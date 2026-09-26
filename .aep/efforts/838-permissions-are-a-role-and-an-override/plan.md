@@ -359,7 +359,11 @@ has completed. Offline, or with either failing, nothing is written and the owner
 `OrganizationUpgradeOffline`, asking for a connection. Where the pull brings format 2, another of the
 owner's machines finished first and nothing is written. An upgrade cut short anywhere reads as older,
 every other machine waits, and the owner's next sign-in, resume or connect online finishes it from any machine, each
-step running only on the shape it finds.*
+step running only on the shape it finds. Narrowed by ticket 25: a machine that has read the
+organization in this format keeps that locally and never transforms it again, and one without that
+record refuses to transform where a root the organization key signed is present. So a remote cut
+short after its root was written is finished by the push of the machine that ran the upgrade, which
+holds the whole change, and not from another machine.*
 
 **What.**
 

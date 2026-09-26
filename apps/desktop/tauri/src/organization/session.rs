@@ -1815,6 +1815,7 @@ mod tests {
             member_id: Some("me-there".to_string()),
             role: Some("member".to_string()),
             joined_at: 1_757_000_000_001,
+            format: None,
         };
 
         // each opens with its own password and its own role.

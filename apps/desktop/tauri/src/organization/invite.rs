@@ -1750,6 +1750,7 @@ mod tests {
             member_id: Some(member_id.to_string()),
             role: Some(role.to_string()),
             joined_at: 0,
+            format: None,
         }
     }
 

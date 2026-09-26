@@ -83,4 +83,14 @@ pub struct HeldOrganization {
     /// when this machine recorded the organization, whether by creating it, connecting by link,
     /// or the join and restore paths effort 824 retires.
     pub joined_at: i64,
+    /// the organization format this machine has read the organization in, once it has read it
+    /// in this build's (`store::FORMAT_VERSION`): at the first run, a connect, a join, a sign-in or
+    /// a resume that got past the format's refusal. `None` on a record written before this field
+    /// existed, until the next of those.
+    ///
+    /// **The one fact about the format that lives outside the organization database** (effort
+    /// 838, ticket 25). The `format` row is unsigned and every member can write that database, so
+    /// an upgraded organization can be made to look older there; a machine that has read it in
+    /// this format never transforms it again, whatever the row says (`upgrade.rs`).
+    pub format: Option<i64>,
 }

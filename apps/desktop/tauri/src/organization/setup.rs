@@ -66,7 +66,10 @@ use super::{
     invite::validate_username,
     permission,
     session::{self, CredentialSlot, MemberSession, content_key_of, remember, sign_in_by_username},
-    store::{GrantRecord, MemberRecord, OrganizationRecord, OrganizationStore, RoleRecord, Signer},
+    store::{
+        FORMAT_VERSION, GrantRecord, MemberRecord, OrganizationRecord, OrganizationStore,
+        RoleRecord, Signer,
+    },
     upgrade,
     vault::{
         ContentKey, KdfParams, MemberSecretKey, create_vault_with_secret_and_key,
@@ -222,22 +225,28 @@ impl Remote {
 }
 
 impl upgrade::Replication for Remote {
-    async fn push(&self, store: &OrganizationStore) -> bool {
+    async fn push(&self, store: &OrganizationStore) -> upgrade::Pushed {
         match self {
-            Self::Libsql => upgrade::ItsRemote.push(store).await,
+            Self::Libsql => upgrade::pushed(store).await,
+            Self::None => upgrade::Pushed::DidNotGo,
+            #[cfg(test)]
+            Self::Answering => upgrade::Pushed::Went,
+        }
+    }
+
+    async fn pull(&self, store: &OrganizationStore) -> bool {
+        match self {
+            Self::Libsql => upgrade::pulled(store).await,
             Self::None => false,
             #[cfg(test)]
             Self::Answering => true,
         }
     }
 
-    async fn pull(&self, store: &OrganizationStore) -> bool {
-        match self {
-            Self::Libsql => upgrade::ItsRemote.pull(store).await,
-            Self::None => false,
-            #[cfg(test)]
-            Self::Answering => true,
-        }
+    /// Nothing: the connect has minted the credential it upgrades under already, on this same
+    /// account, before the replica was opened.
+    async fn minted(&self, _: &str) -> Option<String> {
+        None
     }
 }
 
@@ -729,6 +738,9 @@ async fn finish<P: TursoPlatform>(
         member_id: Some(member_id.clone()),
         role: Some(OWNER_ROLE.to_string()),
         joined_at: now,
+        // it was made in this build's format, which is the first reading of it there is (effort
+        // 838, ticket 25).
+        format: Some(FORMAT_VERSION),
     });
     store.commit()?;
 
@@ -1000,6 +1012,7 @@ where
             member_id: None,
             role: None,
             joined_at: now,
+            format: Some(FORMAT_VERSION),
         };
         let mut session =
             sign_in_by_username(&replica, &signing_in, username, password, &credential).await?;

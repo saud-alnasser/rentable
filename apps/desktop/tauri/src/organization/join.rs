@@ -72,7 +72,7 @@ use super::{
         remember, sign_in_by_username,
     },
     setup::MINIMUM_PASSWORD_LENGTH,
-    store::{InvitationRecord, MemberRecord, OrganizationStore},
+    store::{FORMAT_VERSION, InvitationRecord, MemberRecord, OrganizationStore},
     vault::{KdfParams, open_vault, reseal_vault_with_key},
 };
 
@@ -295,6 +295,7 @@ where
     machine.organization = Some(HeldOrganization {
         member_id: Some(session.member_id.clone()),
         role: Some(session.role.clone()),
+        format: Some(FORMAT_VERSION),
         ..held.clone()
     });
     machine.commit()?;
@@ -331,9 +332,12 @@ pub async fn admit(
     // has a password of its own, so nothing about the flag is acted on (effort 826, ticket 03).
     let session = sign_in_by_username(store, held, username, password, credential).await?;
 
+    // a sign-in reads the organization in this build's format and in no other, so the record keeps
+    // that it has (effort 838, ticket 25).
     let filled = HeldOrganization {
         member_id: Some(session.member_id.clone()),
         role: Some(session.role.clone()),
+        format: Some(FORMAT_VERSION),
         ..held.clone()
     };
 

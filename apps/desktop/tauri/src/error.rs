@@ -228,6 +228,14 @@ pub enum RefusalReason {
     /// latest state, which this machine could not reach; nothing was changed (effort 838, ticket
     /// 23).
     OrganizationUpgradeOffline,
+    /// this machine holds changes an earlier version made that the upgraded organization cannot
+    /// take, and they are dropped by disconnecting this machine and connecting it again; nothing
+    /// was changed (effort 838, ticket 25).
+    OrganizationChangesUnsendable,
+    /// this machine's own access to the organization's records has lapsed or is gone, so it
+    /// cannot learn whether the owner has upgraded; it needs a new link from its organization
+    /// (effort 838, ticket 25).
+    OrganizationCredentialLapsed,
     /// the organization was made by a newer version of rentable, which this one is updated to.
     OrganizationNewer,
 

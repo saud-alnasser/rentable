@@ -1028,6 +1028,15 @@ impl<'a> Chain<'a> {
         }
     }
 
+    /// Whether the pinned key signed a root among these certificates, revoked or not: what only an
+    /// organization of this format holds, since nothing but the holder of that key writes one
+    /// (effort 838, ticket 25, where the owner's upgrade asks it before transforming anything).
+    pub fn holds_a_root(&self) -> bool {
+        self.certificates
+            .values()
+            .any(|certificate| certificate.is_root() && self.walk(&certificate.id).is_ok())
+    }
+
     /// A certificate that walks to the pinned key and that nothing has revoked: what a row is
     /// signed under, and what a member signs and issues with.
     pub fn live(&self, certificate_id: &str) -> Result<&'a Certificate, Error> {

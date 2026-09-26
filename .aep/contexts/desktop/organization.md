@@ -47,10 +47,25 @@ build signs afterwards still verifies. Until the row is there, and for an organi
 number, a build reads nothing from it and writes nothing to it, and says what to do: an older one
 waits for its owner, which a member's machine learns by pulling first with its own grant, and a
 newer one needs the application updated (838, requirement 11, as the human amended it on
-2026-09-26). The number is unsigned: rewriting it only makes the organization refuse to open, which
-the credential already allows by deleting rows. *It said there was no in-place migration, and that
-an older organization was exported and made again, until ticket 22 of effort 838; ticket 23 added
-the online condition, the pull before a member's answer and the finishing of a partial upgrade.*
+2026-09-26). A `format` row beside format 1's certificate table or member columns is not this
+format: it reads as unfinished. The number is unsigned: rewriting it only makes the organization
+refuse to open, which the credential already allows by deleting rows, and **it never makes an
+upgraded organization upgraded again**. A machine that has read the organization in this format
+keeps that on its own record (`HeldOrganization::format`, in `remote-sync.json`, which nothing
+replicated reaches), and a machine with no such record finds a root certificate the organization
+key signed, which only this format holds; either refuses the transform and writes nothing, so a
+member who deletes the row, puts format 1's table and columns back and replays a promotion they
+once held gains nothing by it. What is still written is the last step alone, the `format` row and
+its table, where nothing of format 1 is left. Each way the upgrade stands still names its way out:
+an owner whose grant on the organization database lapsed has one minted on their own account
+first; changes the old build captured that an already reshaped remote refuses for good say that
+disconnecting and connecting again drops them (`OrganizationChangesUnsendable`); a member whose
+pull was refused over a lapsed or missing credential is told the machine needs a new link
+(`OrganizationCredentialLapsed`). *It said there was no in-place migration, and that an older
+organization was exported and made again, until ticket 22 of effort 838; ticket 23 added the online
+condition, the pull before a member's answer and the finishing of a partial upgrade; ticket 25 made
+an upgraded organization never upgraded again, which leaves a partial upgrade past its root to the
+push of the machine that made it.*
 
 **Flag**:
 One act the application performs for a member, on one bit of one mask. The vocabulary lives in
@@ -154,8 +169,13 @@ is content anybody holding the credential may have written, and nothing the dire
 which of its fields are genuine. Every act on the member but their removal, an assignment included,
 is refused by name (`session::refuse_unsettled`), and so is retiring a certificate that signed such
 a row until that member is removed; the removal is made by somebody ranked above the member as
-certified, and the person is made an account again. A row whose signature or chain does not verify
-still refuses the read. **A removed member's row grants nothing**, so nothing the member role
+certified, and the person is made an account again. A member or role row whose signature or chain
+does not verify still refuses the read. **A workspace, grant, invitation or mark row that does not
+verify**, under a revoked or unknown certificate or beyond what its certificate covers, **is left
+out of the read and logged** (`store::read_or_left_out`, 838 ticket 25): it grants nothing either
+way, and the rows beside it still read, so a removed manager's old machine pushing late, or a row
+written around the command, no longer makes the directory unreadable for everybody. **A removed
+member's row grants nothing**, so nothing the member role
 carries refuses a removal. **The owner's own row is the owner's machine's to repair**: where it
 reads as anything but the owner's role, demoted or removed from below, the machine whose vault
 derives the pinned key writes it again under the root at sign-in, at resume and on the heartbeat

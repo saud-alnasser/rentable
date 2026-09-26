@@ -28,7 +28,7 @@ use super::{
         WorkspaceFacts,
     },
     setup::{self, CreateOrganization, GroupState, OrganizationCreated, Remote},
-    store::OrganizationStore,
+    store::{self, OrganizationStore},
     upgrade, workspace,
 };
 use crate::sync::turso::{
@@ -867,12 +867,18 @@ async fn open_replica(
         },
     )
     .await?;
+    // the owner's account, where this machine holds its authority: what renews a lapsed grant
+    // before the owner's upgrade pushes (ticket 25). It mints only for the owner, whom the upgrade
+    // finds by key, and only where the grant is lapsed or gone.
+    let remote = upgrade::ItsRemote {
+        account: owner_platform(app_state).await,
+    };
 
     match opening {
         Opening::Password { username, password } => {
             upgrade::with_password(
                 &store,
-                &upgrade::ItsRemote,
+                &remote,
                 held,
                 username,
                 password,
@@ -882,20 +888,39 @@ async fn open_replica(
             .await?
         }
         Opening::Remembered => {
-            upgrade::with_remembered_key(
-                &store,
-                &upgrade::ItsRemote,
-                held,
-                &credential,
-                timestamp::now(),
-            )
-            .await?
+            upgrade::with_remembered_key(&store, &remote, held, &credential, timestamp::now())
+                .await?
         }
     }
 
     store.refuse_another_format().await?;
+    read_in_this_format(app_state, held).await?;
 
     Ok((store, credential))
+}
+
+/// Keep on this machine's record that it has read the organization in this build's format, where
+/// the record does not say so yet: a record written before the field existed, at its first
+/// sign-in or resume past the format's refusal (effort 838, ticket 25). From then on the owner's
+/// upgrade never transforms the organization on this machine, whatever its `format` row says.
+async fn read_in_this_format(app_state: &AppState, held: &HeldOrganization) -> Result<(), Error> {
+    if held.format == Some(store::FORMAT_VERSION) {
+        return Ok(());
+    }
+
+    let mut remote_sync = app_state.remote_sync.write().await;
+    let record = remote_sync.store_mut();
+
+    if let Some(organization) = record
+        .organization
+        .as_mut()
+        .filter(|organization| organization.id == held.id)
+    {
+        organization.format = Some(store::FORMAT_VERSION);
+        record.commit()?;
+    }
+
+    Ok(())
 }
 
 /// What opens the replica: a username and password typed at the wall, or the key this machine
@@ -2242,7 +2267,7 @@ mod tests {
     use serde_json::json;
     use tokio::sync::RwLock;
 
-    use super::{Opening, open_replica, sign_out, state_of};
+    use super::{HeldOrganization, Opening, open_replica, sign_out, state_of};
     use crate::{
         database::Database,
         error::Error,
@@ -2439,6 +2464,55 @@ mod tests {
             app_state.organization.read().await.is_some(),
             "the replica was not held open"
         );
+    }
+
+    /// **Effort 838, ticket 25: the machine keeps that it has read the organization in this
+    /// format, outside the organization database.** The first run records it; a record written
+    /// before the field existed gains it at the first resume past the format's refusal; and it is
+    /// the machine's own record, which nothing replicated reaches.
+    #[tokio::test]
+    async fn the_record_keeps_that_this_machine_has_read_the_organization_in_this_format() {
+        let _turn = a_turn().await;
+        let directory = scratch("format-kept");
+        let app_state = first_run(&directory).await;
+
+        assert_eq!(
+            held(&app_state).await.format,
+            Some(crate::organization::store::FORMAT_VERSION),
+            "the first run did not keep the format it made the organization in"
+        );
+
+        // a record from before the field: the format forgotten, as an older build wrote it.
+        {
+            let mut remote_sync = app_state.remote_sync.write().await;
+            let record = remote_sync.store_mut();
+
+            if let Some(organization) = record.organization.as_mut() {
+                organization.format = None;
+            }
+
+            record.commit().expect("the record");
+        }
+
+        let state = state_of(&app_state).await.expect("the state");
+
+        assert!(state.session.is_some(), "the launch did not resume");
+        assert_eq!(
+            held(&app_state).await.format,
+            Some(crate::organization::store::FORMAT_VERSION),
+            "the resume did not keep the format it read the organization in"
+        );
+    }
+
+    /// The record this machine keeps about the organization it holds.
+    async fn held(app_state: &AppState) -> HeldOrganization {
+        let mut remote_sync = app_state.remote_sync.write().await;
+
+        remote_sync
+            .store_mut()
+            .organization
+            .clone()
+            .expect("the record names no organization")
     }
 
     /// Everything the replica on disk holds, table by table and row by row, read through a store

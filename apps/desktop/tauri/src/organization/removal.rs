@@ -600,6 +600,7 @@ mod tests {
             member_id: Some(member_id.to_string()),
             role: Some(role.to_string()),
             joined_at: 0,
+            format: None,
         }
     }
 
@@ -1992,8 +1993,8 @@ mod tests {
     /// The member was widened with `grantWorkspace` and granted North to a colleague. The manager's
     /// removal re-signs that grant under the manager's certificate and revokes the member's, so the
     /// colleague still reads the grants and still opens North; a grant the removed member then
-    /// signs under their revoked certificate, straight into the database, refuses the read by
-    /// name on every machine.
+    /// signs under their revoked certificate, straight into the database, is left out of the read
+    /// on every machine, and the rest still read (ticket 25).
     #[tokio::test]
     async fn a_manager_removes_a_member_and_what_they_sign_afterwards_is_refused() {
         use crate::organization::{
@@ -2090,13 +2091,22 @@ mod tests {
             .await
             .expect("the hostile write");
 
-        let refusal = org
+        // left out of the read rather than refusing it (effort 838, ticket 25): the grant gives
+        // the colleague nothing, and every other grant still reads.
+        let grants = org
             .store
             .grants(&pinned)
             .await
-            .expect_err("a grant signed under a removed member's certificate was accepted");
+            .expect("a grant under a removed member's certificate refused every grant");
 
-        assert!(refusal.to_string().contains("revoked"), "{refusal}");
+        assert!(
+            !grants
+                .iter()
+                .any(|grant| grant.member_id == colleague.member_id
+                    && grant.workspace_id == org.south),
+            "a grant signed under a removed member's certificate was accepted"
+        );
+        assert!(!grants.is_empty(), "the grants beside it were not read");
     }
 
     /// Effort 838, the plan's *Architecture*: **a removal whose departing certificate signed a row

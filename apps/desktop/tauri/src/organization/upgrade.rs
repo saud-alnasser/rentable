@@ -30,6 +30,25 @@
 //! on, and a second owner machine could make one of its own. Where the pull brings this format,
 //! another machine of the owner's got there first and nothing is written.
 //!
+//! **Each way the upgrade can stand still names its way out** (ticket 25). An owner whose grant on
+//! the organization database has lapsed, or is gone, has one minted on their own Turso account
+//! before the push, the way `setup::connect_existing` mints one. Changes the old build captured
+//! that an already reshaped remote refuses for good are `OrganizationChangesUnsendable`, which
+//! says that disconnecting this machine and connecting it again drops them. A member's machine
+//! whose pull was refused over a lapsed or missing credential is `OrganizationCredentialLapsed`,
+//! which says it needs a new link, rather than waiting for an owner it cannot hear from.
+//!
+//! **An organization once of this format is never transformed again** (ticket 25). The `format`
+//! row is unsigned and every member holds the database's credential, so an upgraded organization
+//! can be made to look older: its row deleted, format 1's certificate table and member columns
+//! put back, and a promotion a member once held under format 1 replayed onto their row. Two
+//! things stop the owner's machine re-reading that as format 1, and neither lives where a member
+//! can write: the machine's own record of having read the organization in this format
+//! (`HeldOrganization::format`), and, on a machine with no such record, a root certificate the
+//! organization key signed, which only an organization of this format holds. Either refuses the
+//! transform, and nothing is written. What is still finished is the last step alone, the `format`
+//! row, where nothing of format 1 is left: that writes back what the directory already is.
+//!
 //! **What each member keeps is exactly what they could do** ([`carried_by`]): the old seven acts,
 //! `changeRole` read as `assignRole` and `overrideMember`; every record flag, delete included,
 //! because the old build gated no record act; and for an administrator the mark and the roles.
@@ -49,9 +68,9 @@
 //! (ticket 23). A machine still on the old build can sign a workspace, grant, invitation or mark
 //! row after the upgrade, offline and pushed later, and that row names `cert-<member>`. Under the
 //! same id and key its signature verifies against this chain, bounded by the ceiling the member
-//! was given, so the row reads like any other rather than refusing the directory for everybody.
-//! The alternative, leaving such rows out of every read, would have meant a store that skips a row
-//! it cannot verify, which this format refuses on purpose.
+//! was given, so the row reads like any other. One that reaches past that ceiling is left out of
+//! the read and logged, as every workspace, grant, invitation and mark row that does not verify is
+//! (`store::read_or_left_out`, ticket 25), and the rows beside it still read.
 //!
 //! **The upgrade is a list of steps, in order, and each tolerates the shape it finds** (ticket
 //! 23): the reshape runs only the statements the table still needs, every row is written by its
@@ -68,6 +87,7 @@ use std::collections::HashMap;
 use crate::{
     diagnostics,
     error::{Error, RefusalReason},
+    sync::turso::platform::{AccessLevel, PlatformApi, TursoPlatform},
 };
 
 use super::{
@@ -83,12 +103,15 @@ use super::{
     session::{
         CredentialSlot, content_key_of, opened, refused_by_name, remembered, verifying_key_of,
     },
-    setup::{ADMINISTRATOR_KEY_PURPOSE, owner_key_from},
+    setup::{
+        ADMINISTRATOR_KEY_PURPOSE, ORGANIZATION_CREDENTIAL_LIFETIME, ORGANIZATION_DATABASE_PREFIX,
+        owner_key_from,
+    },
     store::{
-        FormatOneDirectory, FormatOneMemberRow, FormatOneReshape, GrantRecord, InvitationRecord,
-        MarkRecord, MemberRecord, OrganizationStore, RoleRecord, Signer, WorkspaceRecord,
-        grant_authority, invitation_authority, mark_authority, waits_for_its_owner,
-        workspace_authority,
+        FORMAT_VERSION, FormatOneDirectory, FormatOneMemberRow, FormatOneReshape, GrantRecord,
+        InvitationRecord, MarkRecord, MemberRecord, OrganizationStore, RoleRecord, SignedRow,
+        Signer, WorkspaceRecord, grant_authority, invitation_authority, mark_authority,
+        role_authority, waits_for_its_owner, workspace_authority,
     },
     vault::{MemberSecretKey, open_sealed_secret_key, open_vault, unseal_with_secret_key},
 };
@@ -113,40 +136,120 @@ const FORMAT_ONE_ACTS: i64 = 0b111_1111;
 /// The act format 1 called `changeRole`, which this format splits in two.
 const FORMAT_ONE_CHANGE_ROLE: i64 = 1 << 2;
 
-/// How the upgrade reaches the organization's remote: send what this machine holds, and bring
-/// what the others wrote, each answering whether it went.
-///
-/// **A seam, because the upgrade's answer depends on the remote's.** Production hands in
-/// [`ItsRemote`], the remote the replica was opened against, or `setup::Remote` on the connect;
-/// a test hands in a remote that answers as it is told, since there is no remote here to reach.
-pub(crate) trait Replication {
-    /// Send what `store` holds to its remote; whether it went.
-    async fn push(&self, store: &OrganizationStore) -> bool;
-    /// Bring what the others wrote into `store`; whether a pull completed, whatever it brought.
-    async fn pull(&self, store: &OrganizationStore) -> bool;
+/// What the remote said to a push this measured failure is in: changes captured under a column
+/// set a later statement dropped (`OrganizationStore::format_one_reshape`).
+const ARGUMENTS_MISMATCH: &str = "Number of arguments mismatch";
+
+/// What a push came to.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Pushed {
+    /// the remote took everything this machine held.
+    Went,
+    /// it did not reach the remote, or the remote did not take it for now: the offline case.
+    DidNotGo,
+    /// the remote refused changes an earlier build captured under columns it has since dropped,
+    /// and will refuse them at every push after (ticket 25).
+    Unsendable,
 }
 
-/// The remote the replica was opened against.
-pub(crate) struct ItsRemote;
+/// How the upgrade reaches the organization's remote and the owner's own account: send what this
+/// machine holds, bring what the others wrote, and mint the owner a credential where theirs is
+/// gone.
+///
+/// **A seam, because the upgrade's answer depends on the remote's.** Production hands in
+/// [`ItsRemote`], the remote the replica was opened against and the owner's Turso account where
+/// this machine holds its authority, or `setup::Remote` on the connect; a test hands in a remote
+/// that answers as it is told, since there is no remote here to reach.
+pub(crate) trait Replication {
+    /// Send what `store` holds to its remote, and say what came of it.
+    async fn push(&self, store: &OrganizationStore) -> Pushed;
+    /// Bring what the others wrote into `store`; whether a pull completed, whatever it brought.
+    async fn pull(&self, store: &OrganizationStore) -> bool;
+    /// A credential on `database_name` minted through the owner's own Turso account, the way
+    /// `setup::connect_existing` mints one, or `None` where this machine holds no authority or the
+    /// account would not mint.
+    async fn minted(&self, database_name: &str) -> Option<String>;
+}
 
-impl Replication for ItsRemote {
+/// The remote the replica was opened against, and the Turso account `account` reaches where this
+/// machine holds the owner's authority over it.
+pub(crate) struct ItsRemote<P = PlatformApi> {
+    pub(crate) account: Option<P>,
+}
+
+impl<P: TursoPlatform + Sync> Replication for ItsRemote<P> {
     /// The replica's own push.
-    async fn push(&self, store: &OrganizationStore) -> bool {
-        store.push().await
+    async fn push(&self, store: &OrganizationStore) -> Pushed {
+        pushed(store).await
     }
 
-    /// The replica's own pull, where it completed, whatever it brought; a pull that did not is
-    /// logged and answered as not gone.
+    /// The replica's own pull.
     async fn pull(&self, store: &OrganizationStore) -> bool {
-        match store.pulled().await {
-            Ok(_) => true,
+        pulled(store).await
+    }
+
+    /// A full-access credential for four weeks, as the connect on the account mints one.
+    async fn minted(&self, database_name: &str) -> Option<String> {
+        let account = self.account.as_ref()?;
+
+        match account
+            .mint_token(
+                database_name,
+                ORGANIZATION_CREDENTIAL_LIFETIME,
+                AccessLevel::FullAccess,
+            )
+            .await
+        {
+            Ok(token) => Some(token),
             Err(refusal) => {
-                diagnostics::info("organization.upgrade.notPulled")
+                diagnostics::info("organization.upgrade.notMinted")
                     .with("reason", refusal.to_string())
                     .write();
 
-                false
+                None
             }
+        }
+    }
+}
+
+/// The replica's own push, told apart by what the remote answered: a column set it no longer has
+/// is refused for good, and anything else is the offline case. A push that did not go is logged.
+pub(crate) async fn pushed(store: &OrganizationStore) -> Pushed {
+    match store.pushed().await {
+        Ok(()) => Pushed::Went,
+        Err(refusal) => {
+            let refusal = refusal.to_string();
+
+            diagnostics::info("organization.upgrade.notPushed")
+                .with("reason", refusal.as_str())
+                .write();
+
+            classified(&refusal)
+        }
+    }
+}
+
+/// What a push the remote refused with `refusal` came to: the measured mismatch is refused for
+/// good, and anything else is the offline case.
+fn classified(refusal: &str) -> Pushed {
+    if refusal.contains(ARGUMENTS_MISMATCH) {
+        Pushed::Unsendable
+    } else {
+        Pushed::DidNotGo
+    }
+}
+
+/// The replica's own pull, where it completed, whatever it brought; a pull that did not is logged
+/// and answered as not gone.
+pub(crate) async fn pulled(store: &OrganizationStore) -> bool {
+    match store.pulled().await {
+        Ok(_) => true,
+        Err(refusal) => {
+            diagnostics::info("organization.upgrade.notPulled")
+                .with("reason", refusal.to_string())
+                .write();
+
+            false
         }
     }
 }
@@ -163,7 +266,8 @@ struct Opened {
 ///
 /// Nothing happens to an organization of this format or a newer one, and the caller's refusal of
 /// the format follows either way. A username and password that open no vault are the wall's one
-/// sentence, as a sign-in on this format says it.
+/// sentence, as a sign-in on this format says it. Where `held` says this machine has read the
+/// organization in this format, nothing is transformed ([`upgrade`]).
 pub(crate) async fn with_password(
     store: &OrganizationStore,
     remote: &impl Replication,
@@ -178,11 +282,21 @@ pub(crate) async fn with_password(
     }
 
     let pinned = verifying_key_of(held)?;
-    let opened = vault_opened_by(store, username, password)
+    let opened = vault_opened_by(store, &settled(store, &pinned).await?, username, password)
         .await?
         .ok_or_else(|| refused_by_name(&held.name))?;
 
-    upgrade(store, remote, &held.id, &pinned, &opened, credential, now).await
+    upgrade(
+        store,
+        remote,
+        &held.id,
+        &pinned,
+        &opened,
+        credential,
+        held.format,
+        now,
+    )
+    .await
 }
 
 /// Upgrade the organization `held` names where it is of an earlier format and the key this machine
@@ -231,7 +345,17 @@ pub(crate) async fn with_remembered_key(
         secret,
     };
 
-    upgrade(store, remote, &held.id, &pinned, &opened, credential, now).await
+    upgrade(
+        store,
+        remote,
+        &held.id,
+        &pinned,
+        &opened,
+        credential,
+        held.format,
+        now,
+    )
+    .await
 }
 
 /// Upgrade the organization a machine connecting on the owner's Turso account has just pulled,
@@ -240,7 +364,9 @@ pub(crate) async fn with_remembered_key(
 /// There is no pinned key yet on this path, so the key the password derives is judged against the
 /// organization row's, which is the comparison that path makes of every owner
 /// (`setup::the_owners_key`); the rows are then judged under it. `credential` already holds what
-/// the consent minted. `refused` is the sentence that path gives a pair that opens nothing.
+/// the consent minted. `refused` is the sentence that path gives a pair that opens nothing. A
+/// machine connecting has read nothing of the organization before, so what stops it transforming
+/// one of this format made to look older is the root certificate that format holds ([`upgrade`]).
 pub(crate) async fn with_the_owners_password(
     store: &OrganizationStore,
     remote: &impl Replication,
@@ -261,7 +387,8 @@ pub(crate) async fn with_the_owners_password(
             message: "the database this turso account holds carries no organization of ours"
                 .to_string(),
         })?;
-    let opened = vault_opened_by(store, username, password)
+    let key = settled(store, &organization.verifying_key).await?;
+    let opened = vault_opened_by(store, &key, username, password)
         .await?
         .ok_or_else(refused)?;
 
@@ -272,6 +399,7 @@ pub(crate) async fn with_the_owners_password(
         &organization.verifying_key,
         &opened,
         credential,
+        None,
         now,
     )
     .await
@@ -285,12 +413,21 @@ pub(crate) async fn with_the_owners_password(
 /// `must_change_password` somebody wrote onto the owner's row hides nothing. What anybody else's
 /// vault opens is a member's wait for the owner, and past the upgrade the ordinary sign-in refuses
 /// what it refuses.
+///
+/// **Where more than one row's vault opens, the owner's row is the one they signed as their own**
+/// (ticket 25): its format 1 signature verifies under the format 1 certificate `key` issued to that
+/// row's member, naming the key the vault derives ([`signed_as_its_own`]). A member holding the
+/// credential can copy the owner's vault onto a row of their own, signature and all, since
+/// `member.v2` never signed a member's id; what they cannot copy is a certificate issued to that
+/// row. Where none of them is, the first is taken, as before, and the copies are logged.
 async fn vault_opened_by(
     store: &OrganizationStore,
+    key: &[u8; VERIFYING_KEY_BYTES],
     username: &str,
     password: &str,
 ) -> Result<Option<Opened>, Error> {
     let wanted = username.trim().to_lowercase();
+    let mut opening = Vec::new();
 
     for member in store.format_one_members().await? {
         let Ok(secret) = open_vault(password, &member.vault) else {
@@ -304,20 +441,129 @@ async fn vault_opened_by(
         )?;
 
         if carried.trim().to_lowercase() == wanted {
+            opening.push((member, secret));
+        }
+    }
+
+    if opening.len() > 1 {
+        let certificates = store.format_one_certificates().await?;
+
+        if let Some(own) = opening
+            .iter()
+            .position(|(member, secret)| signed_as_its_own(key, &certificates, member, secret))
+        {
+            let (member, secret) = opening.swap_remove(own);
+
             return Ok(Some(Opened {
                 member_id: member.id,
                 secret,
             }));
         }
+
+        diagnostics::warn("organization.upgrade.vaultOnSeveralRows")
+            .with("rows", opening.len().to_string())
+            .write();
     }
 
-    Ok(None)
+    Ok(opening.into_iter().next().map(|(member, secret)| Opened {
+        member_id: member.id,
+        secret,
+    }))
+}
+
+/// Whether `member`'s format 1 signature is its own member's: made under the format 1
+/// certificate `key` issued to that very row, naming the signing key `secret` derives, with that
+/// certificate's unsigned `revoked_at` not read, as the owner's never is.
+fn signed_as_its_own(
+    key: &[u8; VERIFYING_KEY_BYTES],
+    certificates: &[FormatOneCertificate],
+    member: &FormatOneMemberRow,
+    secret: &MemberSecretKey,
+) -> bool {
+    let Ok(signing_key) = signing_key_of(secret) else {
+        return false;
+    };
+    let signing_public_key = signing_key.verifying_key();
+
+    certificates
+        .iter()
+        .filter(|certificate| {
+            certificate.id == member.certificate_id
+                && certificate.member_id == member.id
+                && certificate.signing_public_key == signing_public_key
+        })
+        .any(|certificate| {
+            format_one_signature(
+                key,
+                &FormatOneCertificate {
+                    revoked_at: None,
+                    ..certificate.clone()
+                },
+                member,
+            )
+            .is_ok()
+        })
+}
+
+/// The role word and the seven-act mask a format 1 member row's signature was made over under
+/// `certificate`, or why none was.
+///
+/// The row's own columns where they stand; where a reshape cut short dropped either, the one value
+/// the signature was made over is found by trying each value format 1 could have written, which
+/// are four words and a hundred and twenty-eight masks.
+fn format_one_signature(
+    key: &[u8; VERIFYING_KEY_BYTES],
+    certificate: &FormatOneCertificate,
+    member: &FormatOneMemberRow,
+) -> Result<(String, i64), String> {
+    let roles = match member.role.as_deref() {
+        Some(role) => vec![role],
+        None => FORMAT_ONE_ROLES.to_vec(),
+    };
+    let masks = match member.permissions {
+        Some(permissions) => permissions..=permissions,
+        None => 0..=FORMAT_ONE_ACTS,
+    };
+    let mut refusal = None;
+
+    for role in roles {
+        for permissions in masks.clone() {
+            match verify_format_one(
+                key,
+                certificate,
+                FormatOneRow::Member(FormatOneMember {
+                    public_key: &member.vault.public_key,
+                    signing_public_key: &member.signing_public_key,
+                    role,
+                    permissions,
+                    owner_seed_sealed: member.owner_seed_sealed.as_deref(),
+                }),
+                &member.signature,
+            ) {
+                Ok(()) => return Ok((role.to_string(), permissions)),
+                Err(error) => {
+                    refusal.get_or_insert_with(|| error.to_string());
+                }
+            }
+        }
+    }
+
+    Err(refusal.unwrap_or_else(|| "no role word verified".to_string()))
 }
 
 /// Upgrade an older organization where `opened` is the owner's vault, or follow the owner's
 /// upgrade where it is anybody else's: the member's own credential taken from their grant where
-/// the machine holds none, then, for the owner alone, a push and a pull, the upgrade [`planned`]
-/// and [`applied`] in one transaction, and a push of what it wrote.
+/// the machine holds none, the owner's minted on their own account where theirs is lapsed or
+/// gone, then, for the owner alone, a push and a pull, the upgrade [`planned`] and [`applied`] in
+/// one transaction, and a push of what it wrote.
+///
+/// **The transform is refused where the organization has been of this format** (ticket 25): where
+/// `known_format`, this machine's own record, says it has read it in this format, or where it
+/// holds a root certificate the organization key signed. Either way what is still to do reshapes
+/// and re-signs a directory that was already upgraded, from rows a member can put back, and
+/// nothing is written. The `format` row alone, where nothing of format 1 is left, is still
+/// written: that says what the directory already is.
+#[allow(clippy::too_many_arguments)]
 async fn upgrade(
     store: &OrganizationStore,
     remote: &impl Replication,
@@ -325,6 +571,7 @@ async fn upgrade(
     pinned: &[u8; VERIFYING_KEY_BYTES],
     opened: &Opened,
     credential: &CredentialSlot,
+    known_format: Option<i64>,
     now: i64,
 ) -> Result<(), Error> {
     let organization_key = owner_key_from(&opened.secret)?;
@@ -333,6 +580,7 @@ async fn upgrade(
     // holds, so a pin a format 1 handover left behind is settled before the owner is looked for.
     let key = settled(store, pinned).await?;
     let owner = organization_key.verifying_key() == key;
+    let mut reach = Reach::Held;
 
     // the member's own credential on the organization database, where the machine holds none
     // yet: their grant, judged under the rules of the format that signed it, and unsealed with the
@@ -344,26 +592,55 @@ async fn upgrade(
         .is_none()
     {
         let owners_signing_key = owner.then(|| signing_key.verifying_key());
+        let grant = own_grant(store, organization_id, &key, opened, owners_signing_key).await?;
 
-        if let Some(token) =
-            own_credential(store, organization_id, &key, opened, owners_signing_key).await?
-        {
+        reach = match &grant {
+            None => Reach::Missing,
+            Some(grant) if grant.lapsed(now) => Reach::Lapsed,
+            Some(_) => Reach::Held,
+        };
+
+        // the owner's lapsed or missing grant is renewed on their own account before the push
+        // spends it, as the connect on the account mints one; a machine without the authority
+        // goes on with what the grant held, and the push says whether that reached anything.
+        let minted = if owner && reach != Reach::Held {
+            remote
+                .minted(&format!("{ORGANIZATION_DATABASE_PREFIX}{organization_id}"))
+                .await
+        } else {
+            None
+        };
+
+        if minted.is_some() {
+            diagnostics::info("organization.upgrade.credentialRenewed")
+                .with("organization", organization_id)
+                .with("was", reach.as_str())
+                .write();
+
+            reach = Reach::Held;
+        }
+
+        if let Some(token) = minted.or(grant.map(|grant| grant.token)) {
             *credential.lock().map_err(|_| poisoned())? = Some(token);
         }
     }
 
     if !owner {
-        return follow_the_owner(store, remote).await;
+        return follow_the_owner(store, remote, reach).await;
     }
 
     // what the old build left captured goes first, since a row captured under the columns the
     // upgrade drops cannot share a push with the drop; then what the others wrote. Either not
     // going is a refusal, and nothing has been written.
-    if !remote.push(store).await {
-        return Err(needs_a_connection(
-            organization_id,
-            "what this machine holds could not be sent",
-        ));
+    match remote.push(store).await {
+        Pushed::Went => {}
+        Pushed::Unsendable => return Err(changes_unsendable(organization_id)),
+        Pushed::DidNotGo => {
+            return Err(needs_a_connection(
+                organization_id,
+                "what this machine holds could not be sent",
+            ));
+        }
     }
 
     if !remote.pull(store).await {
@@ -380,8 +657,28 @@ async fn upgrade(
     }
 
     // what arrived can carry a handover, so the owner is looked for again under what it settles.
-    if organization_key.verifying_key() != settled(store, pinned).await? {
+    let key = settled(store, pinned).await?;
+
+    if organization_key.verifying_key() != key {
         return Err(waits_for_its_owner());
+    }
+
+    // an organization that has been of this format is not transformed again, whatever its
+    // `format` row says now: only its last row is written back, where nothing of format 1 is left.
+    if store.carries_format_one().await? {
+        if known_format.is_some_and(|format| format >= FORMAT_VERSION) {
+            return Err(upgraded_already(
+                organization_id,
+                "this machine has read the organization in this format",
+            ));
+        }
+
+        if holds_a_root(store, &key).await? {
+            return Err(upgraded_already(
+                organization_id,
+                "the organization holds a root certificate the organization key signed",
+            ));
+        }
     }
 
     let plan = planned(store, &organization_key, &signing_key, opened, now).await?;
@@ -392,7 +689,7 @@ async fn upgrade(
     )
     .await?;
 
-    if !remote.push(store).await {
+    if remote.push(store).await != Pushed::Went {
         diagnostics::warn("organization.upgrade.notYetSent")
             .with("organization", organization_id)
             .write();
@@ -405,19 +702,104 @@ async fn upgrade(
     Ok(())
 }
 
+/// What the machine's own credential on the organization database comes to, before the pull
+/// that spends it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Reach {
+    /// one the machine held already, or one a grant held that has not lapsed.
+    Held,
+    /// the grant's credential died at the expiry it records.
+    Lapsed,
+    /// no grant on the organization database verifies for this member.
+    Missing,
+}
+
+impl Reach {
+    /// How the log names it.
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Held => "held",
+            Self::Lapsed => "lapsed",
+            Self::Missing => "missing",
+        }
+    }
+}
+
 /// A machine that is not the owner's, meeting an older organization: it pulls, with the
 /// credential its own grant held, and goes on where what arrived is this format or a newer one,
 /// which the caller then reads or refuses. Where the organization is still older, or the pull did
-/// not go, it waits for its owner and nothing was written.
+/// not go, it waits for its owner, and nothing was written to the organization.
+///
+/// **A pull refused over a credential that is lapsed or gone is told apart** (ticket 25): that
+/// machine would wait for its owner for ever, since it cannot hear whether the owner has upgraded,
+/// so it is told it needs a new link from its organization instead.
 async fn follow_the_owner(
     store: &OrganizationStore,
     remote: &impl Replication,
+    reach: Reach,
 ) -> Result<(), Error> {
-    if remote.pull(store).await && !store.is_older().await? {
+    let pulled = remote.pull(store).await;
+
+    if pulled && !store.is_older().await? {
         return Ok(());
     }
 
+    if !pulled && reach != Reach::Held {
+        diagnostics::info("organization.upgrade.credentialLapsed")
+            .with("reach", reach.as_str())
+            .write();
+
+        return Err(Error::refused(
+            RefusalReason::OrganizationCredentialLapsed,
+            "this machine's own credential on the organization is lapsed or gone, so it cannot \
+             learn whether the owner has upgraded it. it needs a new link from its organization; \
+             nothing was written to the organization",
+        ));
+    }
+
     Err(waits_for_its_owner())
+}
+
+/// The refusal of an owner whose machine holds changes an earlier build captured that the
+/// organization, reshaped by another of the owner's machines, refuses at every push: nothing was
+/// written, and disconnecting this machine and connecting it again drops those changes and is the
+/// way on (ticket 25).
+fn changes_unsendable(organization_id: &str) -> Error {
+    diagnostics::warn("organization.upgrade.changesUnsendable")
+        .with("organization", organization_id)
+        .write();
+
+    Error::refused(
+        RefusalReason::OrganizationChangesUnsendable,
+        "this machine holds changes an earlier version made that the upgraded organization \
+         refuses. disconnecting this machine and connecting it again drops those unsent changes; \
+         nothing was written to the organization",
+    )
+}
+
+/// The refusal of an owner's upgrade of an organization that has been of this format and has
+/// been made to look older since (ticket 25): nothing was written to the organization. What it
+/// meets is the refusal every way in meets for an older organization, since the row that would
+/// say otherwise is the one that was taken away; the log says which of the two facts refused it.
+fn upgraded_already(organization_id: &str, why: &str) -> Error {
+    diagnostics::warn("organization.upgrade.refusedAgain")
+        .with("organization", organization_id)
+        .with("reason", why)
+        .write();
+
+    waits_for_its_owner()
+}
+
+/// Whether the organization holds a root certificate, one the organization key `key` signed:
+/// what only an organization of this format holds, since only its owner's upgrade or its first run
+/// writes one.
+async fn holds_a_root(
+    store: &OrganizationStore,
+    key: &[u8; VERIFYING_KEY_BYTES],
+) -> Result<bool, Error> {
+    let (certificates, revocations) = store.chain_rows_if_any().await?;
+
+    Ok(Chain::new(key, &certificates, &revocations).holds_a_root())
 }
 
 /// The refusal of an owner whose upgrade could not reach the organization's latest state: nothing
@@ -448,16 +830,7 @@ async fn settled(
     store: &OrganizationStore,
     pinned: &[u8; VERIFYING_KEY_BYTES],
 ) -> Result<[u8; VERIFYING_KEY_BYTES], Error> {
-    if !store
-        .tables()
-        .await?
-        .iter()
-        .any(|table| table == "succession")
-    {
-        return Ok(*pinned);
-    }
-
-    let successions = store.successions().await?;
+    let successions = store.successions_if_any().await?;
     let mut key = *pinned;
 
     // bounded by the number of rows there are, so a cycle somebody wrote is a walk that ends.
@@ -477,26 +850,43 @@ async fn settled(
     Ok(key)
 }
 
+/// A member's own grant on the organization database: the credential it holds and when that
+/// dies, where the grant recorded it.
+struct OwnGrant {
+    token: String,
+    expires_at: Option<i64>,
+}
+
+impl OwnGrant {
+    /// Whether the credential died at or before `now`, by the expiry the grant recorded; one that
+    /// recorded none never lapses.
+    fn lapsed(&self, now: i64) -> bool {
+        self.expires_at.is_some_and(|expiry| expiry <= now)
+    }
+}
+
 /// What the grant of `opened`'s member on the organization database holds, where one verifies:
-/// the credential their replica pulls with.
+/// the credential their replica pulls with, and when it dies.
 ///
 /// `owners_signing_key` is the owner's, where `opened` is the owner's vault: their certificate is
 /// judged by its key alone, so an unsigned `revoked_at` on it revokes nothing.
-async fn own_credential(
+async fn own_grant(
     store: &OrganizationStore,
     organization_id: &str,
     key: &[u8; VERIFYING_KEY_BYTES],
     opened: &Opened,
     owners_signing_key: Option<[u8; VERIFYING_KEY_BYTES]>,
-) -> Result<Option<String>, Error> {
+) -> Result<Option<OwnGrant>, Error> {
     let directory = store.format_one_directory().await?;
     let (certificates, revocations) = store.chain_rows_if_any().await?;
+    let role_rows = store.role_rows_if_any().await?;
     let judge = Judge::new(
         key,
         &directory,
         owners_signing_key.as_ref(),
         &certificates,
         &revocations,
+        &role_rows,
     );
     let Some(grant) = directory.grants.iter().find(|grant| {
         grant.record.member_id == opened.member_id && grant.record.workspace_id == organization_id
@@ -515,14 +905,22 @@ async fn own_credential(
         return Ok(None);
     }
 
-    String::from_utf8(unseal_with_secret_key(
+    let token = String::from_utf8(unseal_with_secret_key(
         &opened.secret,
         &grant.record.sealed_credential,
     )?)
-    .map(Some)
     .map_err(|_| Error::Integrity {
         message: "a sealed credential is not text".to_string(),
-    })
+    })?;
+
+    Ok(Some(OwnGrant {
+        token,
+        expires_at: grant
+            .record
+            .credential_expires_at
+            .as_deref()
+            .and_then(|at| at.parse::<i64>().ok()),
+    }))
 }
 
 /// The key the owner signs rows with, which their own secret derives and the root names.
@@ -578,7 +976,8 @@ struct Plan {
 ///    `OrganizationStore::format_one_reshape` records;
 /// 2. every table of this format, where it does not stand;
 /// 3. every row that verified under neither format, removed, so nothing below is taken with it;
-/// 4. the owner's root certificate, and the two built-in role rows;
+/// 4. the owner's root certificate, every role row that verifies, and the two built-in role rows
+///    where none of them is either;
 /// 5. for every member, their certificate where they are live and not the owner, and their row;
 /// 6. a standing handover offer withdrawn;
 /// 7. every workspace, grant and invitation, and the mark, signed again from the root;
@@ -588,6 +987,12 @@ struct Plan {
 ///
 /// An organization that carries nothing of format 1 any more had everything written but step 9,
 /// and step 9 is all it is given.
+///
+/// **Members are judged against the role rows that verify**, where a `role` table stands (ticket
+/// 25), so the holder of a custom role is carried in it rather than dropped for naming a role the
+/// built-in two do not include; each such row is signed again from the root with the rest. The
+/// caller never plans over an organization holding a root, which is the only one whose role rows
+/// verify, so this is what judges a row as it stands and not a path the owner's sign-in takes.
 async fn planned(
     store: &OrganizationStore,
     organization_key: &OrganizationKey,
@@ -614,12 +1019,14 @@ async fn planned(
 
     let directory = store.format_one_directory().await?;
     let (certificates, revocations) = store.chain_rows_if_any().await?;
+    let role_rows = store.role_rows_if_any().await?;
     let judge = Judge::new(
         &pinned,
         &directory,
         Some(&signing_key.verifying_key()),
         &certificates,
         &revocations,
+        &role_rows,
     );
     let owner_id = opened.member_id.as_str();
     let judged = judged(&judge, &directory, owner_id);
@@ -645,16 +1052,21 @@ async fn planned(
 
     steps.push(Step::Certificate(root.clone()));
 
-    // the two built-in roles that are rows, as the first run writes them, before any member row
+    // every role row that verified, signed again from the root, and the two built-in roles that
+    // are rows, as the first run writes them, where no row of theirs did; all before any member row
     // names one.
+    steps.extend(judge.roles.iter().cloned().map(Step::Role));
+
     for built_in in [MANAGER_ROLE, MEMBER_ROLE] {
-        steps.push(Step::Role(RoleRecord {
-            id: built_in.id.to_string(),
-            kind: built_in.id.to_string(),
-            name_sealed: Vec::new(),
-            mask: built_in.mask,
-            rank: built_in.rank,
-        }));
+        if !judge.roles.iter().any(|role| role.id == built_in.id) {
+            steps.push(Step::Role(RoleRecord {
+                id: built_in.id.to_string(),
+                kind: built_in.id.to_string(),
+                name_sealed: Vec::new(),
+                mask: built_in.mask,
+                rank: built_in.rank,
+            }));
+        }
     }
 
     // a certificate for every live member, from the root, over their own signing key; the owner's
@@ -689,7 +1101,7 @@ async fn planned(
                 member.signing_public_key
             },
             sealed_content_key: member.sealed_content_key.clone(),
-            role_id: carried.role_id.to_string(),
+            role_id: carried.role_id.clone(),
             override_mask: carried.override_mask,
             removed_at: carried.removed.then_some(member.updated_at),
             effective: carried.effective,
@@ -707,7 +1119,8 @@ async fn planned(
 
     // a standing offer of the organization is withdrawn: its row goes, and its seal went above.
     // A completed succession stays, since a machine that pinned an older key walks it.
-    for succession in store.successions().await? {
+    // A replica with no succession table has no offer to withdraw, as `settled` reads it.
+    for succession in store.successions_if_any().await? {
         if succession.accepted_at.is_none() {
             steps.push(Step::WithdrawOffer(succession.id));
         }
@@ -753,6 +1166,7 @@ async fn applied(
                 } => store.delete_grant(member_id, workspace_id).await?,
                 Row::Invitation(id) => store.delete_invitation(id).await?,
                 Row::Mark => store.clear_mark().await?,
+                Row::Role(id) => store.delete_role(id).await?,
             },
             Step::Certificate(certificate) => store.write_certificate(certificate).await?,
             Step::Role(role) => store.write_role(signer()?, role).await?,
@@ -772,9 +1186,9 @@ async fn applied(
 
 /// What a member of format 1 carries into this one: the role they hold, their override, what they
 /// end with, and whether they were removed.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct Carried {
-    role_id: &'static str,
+    role_id: String,
     override_mask: i64,
     /// what they end with, which is also the ceiling of the certificate they are issued.
     effective: i64,
@@ -795,7 +1209,7 @@ struct Carried {
 fn carried_by(role: &str, permissions: i64, owner: bool) -> Carried {
     if owner {
         return Carried {
-            role_id: permission::OWNER,
+            role_id: permission::OWNER.to_string(),
             override_mask: 0,
             effective: OWNER_ROLE.mask,
             rank: OWNER_ROLE.rank,
@@ -805,7 +1219,7 @@ fn carried_by(role: &str, permissions: i64, owner: bool) -> Carried {
 
     if role == REMOVED {
         return Carried {
-            role_id: MEMBER_ROLE.id,
+            role_id: MEMBER_ROLE.id.to_string(),
             override_mask: 0,
             effective: 0,
             rank: MEMBER_ROLE.rank,
@@ -829,7 +1243,7 @@ fn carried_by(role: &str, permissions: i64, owner: bool) -> Carried {
     };
 
     Carried {
-        role_id: role.id,
+        role_id: role.id.to_string(),
         override_mask: permission::effective(role.mask, effective),
         effective,
         rank: role.rank,
@@ -837,28 +1251,35 @@ fn carried_by(role: &str, permissions: i64, owner: bool) -> Carried {
     }
 }
 
-/// What a member carries whose row an upgrade cut short already wrote in this format: the
-/// built-in role it names, its override, and whether it was removed. `None` for any other role,
-/// which no upgrade writes onto anybody but the owner.
+/// What a member carries whose row is already written in this format: the role it names, as
+/// `roles` gives its mask and rank, its override, and whether it was removed. `None` for the
+/// owner's role, which nobody but the key holder carries, and for a role no verified row stands
+/// for.
+///
+/// *It knew the two built-in roles and no other until ticket 25, so the holder of a custom role was
+/// dropped as naming a role no upgrade gives a member.*
 fn carried_as_written(
     role_id: &str,
     override_mask: i64,
     removed_at: Option<i64>,
+    roles: &HashMap<String, (i64, i64)>,
 ) -> Option<Carried> {
-    let role = [MANAGER_ROLE, MEMBER_ROLE]
-        .into_iter()
-        .find(|role| role.id == role_id)?;
+    if role_id == permission::OWNER {
+        return None;
+    }
+
+    let (mask, rank) = *roles.get(role_id)?;
     let removed = removed_at.is_some();
 
     Some(Carried {
-        role_id: role.id,
+        role_id: role_id.to_string(),
         override_mask,
         effective: if removed {
             0
         } else {
-            permission::effective(role.mask, override_mask)
+            permission::effective(mask, override_mask)
         },
-        rank: role.rank,
+        rank,
         removed,
     })
 }
@@ -882,11 +1303,18 @@ struct Judge<'a> {
     pinned: &'a [u8; VERIFYING_KEY_BYTES],
     format_one: Vec<FormatOneCertificate>,
     chain: Chain<'a>,
+    /// every role row that verified through the chain, highest rank first.
+    roles: Vec<RoleRecord>,
+    /// every role row that did not, and why.
+    refused_roles: Vec<(String, String)>,
+    /// the mask and rank of every role a member row may name: the two built-in roles, as the
+    /// verified rows have them where they stand, and every custom role that verified.
+    standings: HashMap<String, (i64, i64)>,
 }
 
 impl<'a> Judge<'a> {
-    /// A judge over `directory`'s format 1 certificates and this format's `certificates` and
-    /// `revocations`, both rooted at `pinned`, with the two built-in roles that are rows.
+    /// A judge over `directory`'s format 1 certificates and this format's `certificates`,
+    /// `revocations` and `role_rows`, all rooted at `pinned`.
     ///
     /// `owners_signing_key` is the owner's, where the caller holds it: a format 1 certificate
     /// naming it is judged by its key and signature alone, and the unsigned `revoked_at` on it is
@@ -897,6 +1325,7 @@ impl<'a> Judge<'a> {
         owners_signing_key: Option<&[u8; VERIFYING_KEY_BYTES]>,
         certificates: &'a [Certificate],
         revocations: &'a [Revocation],
+        role_rows: &[SignedRow<RoleRecord>],
     ) -> Self {
         let format_one = directory
             .certificates
@@ -913,15 +1342,42 @@ impl<'a> Judge<'a> {
                 }
             })
             .collect();
-        let built_in: HashMap<String, (i64, i64)> = [MANAGER_ROLE, MEMBER_ROLE]
+
+        // the role rows first, through a chain that judges no member row: a role row is judged by
+        // its certificate alone, and the member rows below are judged by what these say.
+        let mut roles = Vec::new();
+        let mut refused_roles = Vec::new();
+        let unranked = Chain::new(pinned, certificates, revocations);
+
+        for row in role_rows {
+            match unranked.verify(
+                &row.certificate_id,
+                role_authority(&row.record),
+                &row.signature,
+            ) {
+                Ok(()) => roles.push(row.record.clone()),
+                Err(error) => refused_roles.push((row.record.id.clone(), error.to_string())),
+            }
+        }
+
+        let mut standings: HashMap<String, (i64, i64)> = [MANAGER_ROLE, MEMBER_ROLE]
             .into_iter()
             .map(|role| (role.id.to_string(), (role.mask, role.rank)))
             .collect();
 
+        standings.extend(
+            roles
+                .iter()
+                .map(|role| (role.id.clone(), (role.mask, role.rank))),
+        );
+
         Self {
             pinned,
             format_one,
-            chain: Chain::new(pinned, certificates, revocations).with_roles(built_in),
+            chain: Chain::new(pinned, certificates, revocations).with_roles(standings.clone()),
+            roles,
+            refused_roles,
+            standings,
         }
     }
 
@@ -933,6 +1389,12 @@ impl<'a> Judge<'a> {
     }
 
     /// Whether a workspace, grant, invitation or mark row is genuine, and why not where it is not.
+    ///
+    /// **A workspace row's format 1 certificate is not asked whether it was revoked** (ticket 25):
+    /// `revoked_at` is unsigned, so it proves nothing, and a workspace row not carried is a
+    /// workspace database nobody can reach again, every grant on it with it. What the row says is
+    /// the database it names, which only its creator's signature put there. Grants, invitations
+    /// and the mark still follow the revocation, since each hands somebody something.
     fn row(
         &self,
         certificate_id: &str,
@@ -942,9 +1404,17 @@ impl<'a> Judge<'a> {
         let mut refusal = None;
 
         if let Some(certificate) = self.format_one_certificate(certificate_id) {
+            let certificate = match authority {
+                Authority::Workspace(_) => FormatOneCertificate {
+                    revoked_at: None,
+                    ..certificate.clone()
+                },
+                _ => certificate.clone(),
+            };
+
             match verify_format_one(
                 self.pinned,
-                certificate,
+                &certificate,
                 FormatOneRow::Unchanged(authority),
                 signature,
             ) {
@@ -960,44 +1430,16 @@ impl<'a> Judge<'a> {
 
     /// Where a member stands, from a row that is genuine, and why not where it is not.
     ///
-    /// A row still carrying format 1's signature is read under `member.v2`, with the role word and
-    /// the mask the table still holds; where a reshape cut short dropped either, the one value its
-    /// signature was made over is found by trying each value format 1 could have written, which
-    /// are four words and a hundred and twenty-eight masks. A row an upgrade cut short already
-    /// wrote in this format is read through the chain.
+    /// A row still carrying format 1's signature is read under `member.v2`
+    /// ([`format_one_signature`]). A row already written in this format is read through the chain,
+    /// against the roles that verified, a custom one included.
     fn member(&self, member: &FormatOneMemberRow) -> Result<Carried, String> {
         let mut refusal = None;
 
         if let Some(certificate) = self.format_one_certificate(&member.certificate_id) {
-            let roles = match member.role.as_deref() {
-                Some(role) => vec![role],
-                None => FORMAT_ONE_ROLES.to_vec(),
-            };
-            let masks = match member.permissions {
-                Some(permissions) => permissions..=permissions,
-                None => 0..=FORMAT_ONE_ACTS,
-            };
-
-            for role in roles {
-                for permissions in masks.clone() {
-                    match verify_format_one(
-                        self.pinned,
-                        certificate,
-                        FormatOneRow::Member(FormatOneMember {
-                            public_key: &member.vault.public_key,
-                            signing_public_key: &member.signing_public_key,
-                            role,
-                            permissions,
-                            owner_seed_sealed: member.owner_seed_sealed.as_deref(),
-                        }),
-                        &member.signature,
-                    ) {
-                        Ok(()) => return Ok(carried_by(role, permissions, false)),
-                        Err(error) => {
-                            refusal.get_or_insert_with(|| error.to_string());
-                        }
-                    }
-                }
+            match format_one_signature(self.pinned, certificate, member) {
+                Ok((role, permissions)) => return Ok(carried_by(&role, permissions, false)),
+                Err(error) => refusal = Some(error),
             }
         }
 
@@ -1018,14 +1460,17 @@ impl<'a> Judge<'a> {
                 &member.signature,
             ) {
                 Ok(Reading::Covered) => {
-                    if let Some(carried) =
-                        carried_as_written(role_id, override_mask, member.removed_at)
-                    {
+                    if let Some(carried) = carried_as_written(
+                        role_id,
+                        override_mask,
+                        member.removed_at,
+                        &self.standings,
+                    ) {
                         return Ok(carried);
                     }
 
                     refusal.get_or_insert_with(|| {
-                        "it names a role no upgrade gives a member".to_string()
+                        "it names a role no verified row stands for".to_string()
                     });
                 }
                 Ok(Reading::Uncovered) => {
@@ -1071,6 +1516,9 @@ enum Row {
     Invitation(String),
     /// the one mark row.
     Mark,
+    /// a role row an upgrade cut short left, or anybody wrote, that does not verify: left in
+    /// place, it would refuse every read of the roles in this format.
+    Role(String),
 }
 
 impl Row {
@@ -1082,13 +1530,16 @@ impl Row {
             Self::Grant { .. } => "grant",
             Self::Invitation(_) => "invitation",
             Self::Mark => "mark",
+            Self::Role(_) => "role",
         }
     }
 
     /// The row's key, as the log names it: a grant's member and workspace joined by `/`.
     fn id(&self) -> String {
         match self {
-            Self::Member(id) | Self::Workspace(id) | Self::Invitation(id) => id.clone(),
+            Self::Member(id) | Self::Workspace(id) | Self::Invitation(id) | Self::Role(id) => {
+                id.clone()
+            }
             Self::Grant {
                 member_id,
                 workspace_id,
@@ -1107,7 +1558,14 @@ fn judged<'a>(judge: &Judge<'_>, directory: &'a FormatOneDirectory, owner_id: &s
         grants: Vec::new(),
         invitations: Vec::new(),
         mark: None,
-        dropped: Vec::new(),
+        dropped: judge
+            .refused_roles
+            .iter()
+            .map(|(id, reason)| Dropped {
+                row: Row::Role(id.clone()),
+                reason: reason.clone(),
+            })
+            .collect(),
     };
 
     for member in &directory.members {
@@ -1217,8 +1675,9 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        FORMAT_ONE_ACTS, Opened, Replication, applied, carried_by, planned, signing_key_of,
-        with_password, with_remembered_key, with_the_owners_password,
+        FORMAT_ONE_ACTS, ItsRemote, Opened, Pushed, Replication, Step, applied, carried_by,
+        classified, planned, signing_key_of, vault_opened_by, with_password, with_remembered_key,
+        with_the_owners_password,
     };
     use crate::{
         error::{Error, RefusalReason},
@@ -1240,7 +1699,7 @@ mod tests {
                 CredentialSlot, Resumption, refused_by_name, remember, resume, sign_in_by_username,
             },
             setup::{ADMINISTRATOR_KEY_PURPOSE, Remote, connect_existing, owner_key_from},
-            store::{FORMAT_VERSION, OrganizationStore, SuccessionRecord},
+            store::{FORMAT_VERSION, OrganizationStore, RoleRecord, Signer, SuccessionRecord},
             vault::{
                 ContentKey, KdfParams, MemberKey, MemberSecretKey, Vault,
                 create_vault_with_secret_and_key, generate_content_key, open_content, seal_content,
@@ -1400,25 +1859,41 @@ mod tests {
         Arc::new(Mutex::new(None))
     }
 
-    /// A remote that answers every push and every pull as it is told, and says which were asked
-    /// for, in order.
+    /// A remote that answers every push and every pull as it is told, mints what it is told to on
+    /// the owner's account, and says which were asked for, in order.
     struct Answering {
-        push: bool,
+        push: Pushed,
         pull: bool,
+        mint: Option<&'static str>,
         asked: Mutex<Vec<&'static str>>,
     }
 
     impl Answering {
-        /// A remote answering every push with `push` and every pull with `pull`.
+        /// A remote answering every push with `push` and every pull with `pull`, on a machine
+        /// that holds no authority to mint with.
         fn new(push: bool, pull: bool) -> Self {
             Self {
-                push,
+                push: if push { Pushed::Went } else { Pushed::DidNotGo },
                 pull,
+                mint: None,
                 asked: Mutex::new(Vec::new()),
             }
         }
 
-        /// Which of push and pull were asked for, in order.
+        /// The same remote, answering every push as `push`.
+        fn pushing(self, push: Pushed) -> Self {
+            Self { push, ..self }
+        }
+
+        /// The same remote, on a machine whose account mints `token`.
+        fn minting(self, token: &'static str) -> Self {
+            Self {
+                mint: Some(token),
+                ..self
+            }
+        }
+
+        /// Which of push, pull and mint were asked for, in order.
         fn asked(&self) -> Vec<&'static str> {
             self.asked.lock().expect("the record").clone()
         }
@@ -1426,7 +1901,7 @@ mod tests {
 
     impl Replication for Answering {
         /// Records the push and answers as told.
-        async fn push(&self, _: &OrganizationStore) -> bool {
+        async fn push(&self, _: &OrganizationStore) -> Pushed {
             self.asked.lock().expect("the record").push("push");
             self.push
         }
@@ -1435,6 +1910,12 @@ mod tests {
         async fn pull(&self, _: &OrganizationStore) -> bool {
             self.asked.lock().expect("the record").push("pull");
             self.pull
+        }
+
+        /// Records the mint and answers with what it was told to mint.
+        async fn minted(&self, _: &str) -> Option<String> {
+            self.asked.lock().expect("the record").push("mint");
+            self.mint.map(str::to_string)
         }
     }
 
@@ -1456,8 +1937,13 @@ mod tests {
 
     impl Replication for MemberPull<'_> {
         /// A member's machine never pushes to an older organization, so a push fails the test.
-        async fn push(&self, _: &OrganizationStore) -> bool {
+        async fn push(&self, _: &OrganizationStore) -> Pushed {
             panic!("a member's machine pushed to an older organization")
+        }
+
+        /// A member's machine mints nothing: it holds no account.
+        async fn minted(&self, _: &str) -> Option<String> {
+            panic!("a member's machine asked the owner's account for a credential")
         }
 
         /// Records the credential the pull was made with, runs the owner's upgrade where it is set
@@ -2191,6 +2677,7 @@ mod tests {
             member_id: Some("owner".to_string()),
             role: Some("owner".to_string()),
             joined_at: EARLIER,
+            format: None,
         };
         let certificates = [
             ("owner", owners),
@@ -2458,7 +2945,7 @@ mod tests {
         let owner = carried_by("owner", FORMAT_ONE_ACTS, true);
 
         assert_eq!(
-            (owner.role_id, owner.override_mask, owner.effective),
+            (owner.role_id.as_str(), owner.override_mask, owner.effective),
             ("owner", 0, OWNER_ROLE.mask)
         );
 
@@ -2526,7 +3013,11 @@ mod tests {
         let removed = carried_by("removed", 0, false);
 
         assert_eq!(
-            (removed.role_id, removed.override_mask, removed.removed),
+            (
+                removed.role_id.as_str(),
+                removed.override_mask,
+                removed.removed
+            ),
             ("member", 0, true)
         );
 
@@ -2855,7 +3346,9 @@ mod tests {
     /// stranger's. A member's sign-in is told the organization waits for its owner, and writes
     /// nothing. The owner's next sign-in, a minute later and from any machine, since nothing in it
     /// is this machine's, finishes it into exactly what a whole upgrade leaves, and runs no
-    /// statement of the reshape twice.
+    /// statement of the reshape twice; except, since ticket 25, a state that already holds the
+    /// root and still carries format 1, which no machine transforms and the upgrading machine's
+    /// own push completes.
     #[tokio::test]
     async fn every_partial_state_the_upgrade_can_leave_is_recognised_and_the_owner_finishes_it() {
         let steps = {
@@ -2940,8 +3433,14 @@ mod tests {
             );
 
             let owner = older.person("owner");
-
-            with_password(
+            let rooted = plan.steps[..written].iter().any(
+                |step| matches!(step, super::Step::Certificate(certificate) if certificate.is_root()),
+            );
+            let carries = store
+                .carries_format_one()
+                .await
+                .expect("what is left of format 1");
+            let finished = with_password(
                 &store,
                 &online(),
                 &older.held,
@@ -2950,8 +3449,33 @@ mod tests {
                 &slot(),
                 NOW + 60_000,
             )
-            .await
-            .unwrap_or_else(|error| panic!("{written}: the owner did not finish it: {error}"));
+            .await;
+
+            if rooted && carries {
+                // **ticket 25's second criterion narrows this one**: past the root, a machine
+                // that has not read the organization in this format transforms nothing, since a
+                // root is what an organization of this format holds, and a member can make one
+                // look older. The rest arrives with the push of the machine that made the upgrade,
+                // which holds all of it.
+                assert_eq!(
+                    reason_of(&finished),
+                    Some(RefusalReason::OrganizationOlder),
+                    "{written}: {finished:?}"
+                );
+                assert_eq!(
+                    contents(&store).await,
+                    before,
+                    "{written}: the owner's machine transformed an organization holding a root"
+                );
+
+                applied(&store, &key, plan.root.as_ref(), &plan.steps[written..])
+                    .await
+                    .unwrap_or_else(|error| panic!("{written}: the rest of the upgrade: {error}"));
+            } else {
+                finished.unwrap_or_else(|error| {
+                    panic!("{written}: the owner did not finish it: {error}")
+                });
+            }
 
             assert_upgraded(&store, &older, &older.pinned()).await;
 
@@ -3907,6 +4431,895 @@ mod tests {
             contents(&store).await,
             before,
             "a refusal wrote to the organization"
+        );
+    }
+
+    // ticket 25: an upgraded organization is never upgraded again, and every stuck case names its
+    // way out.
+
+    /// A moment after every grant in the fixture has lapsed: they record an expiry of
+    /// `1760000000000`.
+    const LAPSED: i64 = 1_761_000_000_000;
+
+    /// The fixture, upgraded by the owner's sign-in online.
+    async fn upgraded(name: &str) -> (Older, OrganizationStore) {
+        let older = older(name).await;
+        let store = older.open().await;
+        let owner = older.person("owner");
+
+        with_password(
+            &store,
+            &online(),
+            &older.held,
+            owner.username,
+            owner.password,
+            &slot(),
+            NOW,
+        )
+        .await
+        .expect("the upgrade");
+
+        (older, store)
+    }
+
+    /// The record a machine keeps once it has read the organization in this format.
+    fn read_in_this_format(held: &HeldOrganization) -> HeldOrganization {
+        HeldOrganization {
+            format: Some(FORMAT_VERSION),
+            ..held.clone()
+        }
+    }
+
+    /// What a member holding the credential does to an upgraded organization to make it look
+    /// older, every step of it through the database: the `format` row deleted; format 1's
+    /// certificate table made again, holding the owner's genuine format 1 certificate; the role
+    /// word and the mask put back on the member table; and a promotion mina once held under
+    /// format 1, administrator with every act, signed by the owner, replayed onto her row.
+    async fn made_to_look_older(older: &Older, store: &OrganizationStore) {
+        let owner = older.person("owner");
+        let mina = older.person("mina");
+
+        run(store, "DELETE FROM \"format\"", Vec::new()).await;
+        run(store, FORMAT_ONE_SCHEMA[2], Vec::new()).await;
+        write_certificate(store, older.certificate("owner")).await;
+        run(
+            store,
+            "ALTER TABLE \"member\" ADD COLUMN \"role\" TEXT NOT NULL DEFAULT 'member'",
+            Vec::new(),
+        )
+        .await;
+        run(
+            store,
+            "ALTER TABLE \"member\" ADD COLUMN \"permissions\" INTEGER NOT NULL DEFAULT 0",
+            Vec::new(),
+        )
+        .await;
+
+        let promotion = sign_format_one(
+            &owner.signing,
+            older.certificate("owner"),
+            FormatOneRow::Member(FormatOneMember {
+                public_key: &mina.vault.public_key,
+                signing_public_key: &mina.signing.verifying_key(),
+                role: "administrator",
+                permissions: FORMAT_ONE_ACTS,
+                owner_seed_sealed: None,
+            }),
+        );
+
+        run(
+            store,
+            "UPDATE \"member\" SET \"role\" = 'administrator', \"permissions\" = ?, \
+             \"certificate_id\" = 'cert-owner', \"signature\" = ? WHERE \"id\" = 'mina'",
+            vec![turso::Value::Integer(FORMAT_ONE_ACTS), bytes(&promotion)],
+        )
+        .await;
+    }
+
+    /// **Ticket 25's first criterion.** Upgrade; delete the `format` row; make the old table and
+    /// columns again; replay mina's old promotion; then sign in and resume as the owner, on the
+    /// machine that keeps having read the organization in this format. Nothing is written, and
+    /// the replayed row grants nothing: it verifies under no format this build reads, and mina
+    /// holds exactly the certificate the upgrade issued her.
+    #[tokio::test]
+    async fn an_organization_read_in_this_format_is_never_transformed_again() {
+        let _turn = take_the_credential_store().await;
+        let (older, store) = upgraded("never-again").await;
+        let owner = older.person("owner");
+        let pinned = older.pinned();
+        let held = read_in_this_format(&older.held);
+
+        made_to_look_older(&older, &store).await;
+
+        assert!(store.is_older().await.expect("the format"));
+
+        // what the refusal keeps from happening: planned over this state, the replayed row reads
+        // as an administrator of format 1 and would be signed from the root as a manager.
+        {
+            let opened = older.owners_vault();
+            let key = signing_key_of(&opened.secret).expect("the signing key");
+            let plan = planned(&store, &older.organization_key, &key, &opened, NOW)
+                .await
+                .expect("the plan");
+
+            assert!(
+                plan.steps.iter().any(|step| matches!(
+                    step,
+                    Step::Member(member) if member.id == "mina" && member.role_id == "manager"
+                )),
+                "the replayed promotion would not have been carried; the test proves nothing"
+            );
+        }
+
+        let before = contents(&store).await;
+        let remote = online();
+        let refused = with_password(
+            &store,
+            &remote,
+            &held,
+            owner.username,
+            owner.password,
+            &slot(),
+            NOW + 60_000,
+        )
+        .await;
+
+        assert_eq!(
+            reason_of(&refused),
+            Some(RefusalReason::OrganizationOlder),
+            "the sign-in: {refused:?}"
+        );
+
+        remember(
+            ORGANIZATION_ID,
+            "owner",
+            owner.session_epoch,
+            &owner.member_key,
+        );
+
+        let refused = with_remembered_key(&store, &remote, &held, &slot(), NOW + 60_000).await;
+
+        assert_eq!(
+            reason_of(&refused),
+            Some(RefusalReason::OrganizationOlder),
+            "the resume: {refused:?}"
+        );
+        assert_eq!(
+            contents(&store).await,
+            before,
+            "an organization read in this format was transformed again"
+        );
+
+        // the replayed row grants nothing: it verifies under no format this build reads, and the
+        // only certificate mina holds is the member's the upgrade issued her.
+        assert!(
+            store.member(&pinned, "mina").await.is_err(),
+            "the replayed format 1 row verified as a row of this format"
+        );
+
+        let certificates = store
+            .live_certificates(&pinned, "mina")
+            .await
+            .expect("the certificates");
+
+        assert_eq!(certificates.len(), 1);
+        assert_eq!(certificates[0].ceiling, expected_effective("mina"));
+    }
+
+    /// **Ticket 25's second criterion.** The same organization, made to look older the same way,
+    /// met by the owner on a machine that keeps no record of having read it in this format: a
+    /// sign-in, a resume and a connect on the Turso account. Each refuses to transform it, since
+    /// it holds a root certificate the organization key signed, and nothing is written.
+    #[tokio::test]
+    async fn without_that_record_a_root_the_organization_key_signed_refuses_the_transform() {
+        let _turn = take_the_credential_store().await;
+        let (older, store) = upgraded("a-root-refuses").await;
+        let owner = older.person("owner");
+
+        made_to_look_older(&older, &store).await;
+
+        let before = contents(&store).await;
+
+        assert_eq!(older.held.format, None);
+
+        let refused = with_password(
+            &store,
+            &online(),
+            &older.held,
+            owner.username,
+            owner.password,
+            &slot(),
+            NOW + 60_000,
+        )
+        .await;
+
+        assert_eq!(
+            reason_of(&refused),
+            Some(RefusalReason::OrganizationOlder),
+            "the sign-in: {refused:?}"
+        );
+
+        remember(
+            ORGANIZATION_ID,
+            "owner",
+            owner.session_epoch,
+            &owner.member_key,
+        );
+
+        let refused = with_remembered_key(&store, &online(), &older.held, &slot(), NOW).await;
+
+        assert_eq!(
+            reason_of(&refused),
+            Some(RefusalReason::OrganizationOlder),
+            "the resume: {refused:?}"
+        );
+
+        let refused = with_the_owners_password(
+            &store,
+            &online(),
+            owner.username,
+            owner.password,
+            &Arc::new(Mutex::new(Some(ORGANIZATION_CREDENTIAL.to_string()))),
+            NOW,
+            || Error::Internal {
+                message: "the pair opened nothing".to_string(),
+            },
+        )
+        .await;
+
+        assert_eq!(
+            reason_of(&refused),
+            Some(RefusalReason::OrganizationOlder),
+            "the connect: {refused:?}"
+        );
+        assert_eq!(
+            contents(&store).await,
+            before,
+            "an organization holding a root was transformed"
+        );
+    }
+
+    /// **Ticket 25's third criterion.** A member holding a custom role, in an organization whose
+    /// `role` table holds that role's verified row: the upgrade judges members against the role
+    /// rows that verify, so the holder is carried in their role, the role row is signed again
+    /// from the root, and they read afterwards with what the role gives. The plan is made directly,
+    /// since the owner's sign-in refuses an organization holding a root before it plans.
+    #[tokio::test]
+    async fn the_holder_of_a_custom_role_is_carried_in_it() {
+        let (older, store) = upgraded("custom-role").await;
+        let owner = older.person("owner");
+        let pinned = older.pinned();
+        let root = store
+            .live_certificate(&pinned, "owner", &owner.signing.verifying_key())
+            .await
+            .expect("the chain")
+            .expect("the root");
+        let signer = Signer {
+            key: &owner.signing,
+            certificate: &root,
+        };
+        let leasing = RoleRecord {
+            id: "role-leasing".to_string(),
+            kind: "custom".to_string(),
+            name_sealed: seal_content(&older.content_key, "role.name_sealed", b"Leasing")
+                .expect("the name"),
+            mask: MEMBER_ROLE.mask | mask(&[Flag::InviteMember]),
+            rank: 500_000,
+        };
+
+        store.write_role(&signer, &leasing).await.expect("the role");
+
+        let pia = store
+            .member(&pinned, "pia")
+            .await
+            .expect("the member")
+            .expect("pia");
+
+        store
+            .write_member(
+                &signer,
+                &crate::organization::store::MemberRecord {
+                    role_id: leasing.id.clone(),
+                    override_mask: 0,
+                    ..pia
+                },
+            )
+            .await
+            .expect("pia in the custom role");
+
+        made_to_look_older(&older, &store).await;
+
+        let opened = older.owners_vault();
+        let key = signing_key_of(&opened.secret).expect("the signing key");
+        let plan = planned(&store, &older.organization_key, &key, &opened, NOW + 60_000)
+            .await
+            .expect("the plan");
+
+        assert!(
+            plan.steps.iter().any(|step| matches!(
+                step,
+                Step::Member(member) if member.id == "pia" && member.role_id == "role-leasing"
+            )),
+            "the holder of a custom role was not carried in it"
+        );
+        assert!(
+            !plan
+                .steps
+                .iter()
+                .any(|step| matches!(step, Step::Drop(dropped) if dropped.row.id() == "pia")),
+            "the holder of a custom role was dropped"
+        );
+        assert!(
+            plan.steps.iter().any(
+                |step| matches!(step, Step::Role(role) if role.id == "role-leasing" && role.rank == 500_000)
+            ),
+            "the custom role was not signed again"
+        );
+
+        in_one_transaction(
+            &store,
+            applied(&store, &key, plan.root.as_ref(), &plan.steps),
+        )
+        .await
+        .expect("the plan applied");
+
+        let pia = store
+            .members(&pinned)
+            .await
+            .expect("the members")
+            .into_iter()
+            .find(|member| member.id == "pia")
+            .expect("pia");
+
+        assert_eq!(pia.role_id, "role-leasing");
+        assert_eq!(pia.effective, leasing.mask);
+        assert!(pia.covered);
+    }
+
+    /// **Ticket 25's fourth criterion, the stray row.** A `format` row written into an
+    /// organization still in format 1's shape reads as unfinished: it is refused as older, a
+    /// member's pull creates nothing in it, a member waits for the owner, and the owner's sign-in
+    /// upgrades it. *It read as this format until ticket 25, and every sign-in failed on
+    /// `role_id`.*
+    #[tokio::test]
+    async fn a_format_row_beside_format_ones_shape_reads_as_unfinished() {
+        let older = older("stray-format").await;
+        let store = older.open().await;
+
+        store.write_format().await.expect("the stray row");
+
+        assert_eq!(
+            store.format().await.expect("the format"),
+            Some(FORMAT_VERSION)
+        );
+        assert!(store.is_older().await.expect("the format"));
+        assert_eq!(
+            reason_of(&store.refuse_another_format().await),
+            Some(RefusalReason::OrganizationOlder)
+        );
+
+        let before = contents(&store).await;
+
+        assert!(
+            !store.complete_schema().await.expect("the completion"),
+            "a pull created tables in an organization still in format 1's shape"
+        );
+
+        let mina = older.person("mina");
+        let refused = with_password(
+            &store,
+            &online(),
+            &older.held_by("mina"),
+            mina.username,
+            mina.password,
+            &slot(),
+            NOW,
+        )
+        .await;
+
+        assert_eq!(
+            reason_of(&refused),
+            Some(RefusalReason::OrganizationOlder),
+            "{refused:?}"
+        );
+        assert_eq!(contents(&store).await, before, "a member wrote");
+
+        let owner = older.person("owner");
+
+        with_password(
+            &store,
+            &online(),
+            &older.held,
+            owner.username,
+            owner.password,
+            &slot(),
+            NOW,
+        )
+        .await
+        .expect("the owner's sign-in did not upgrade it");
+
+        assert_upgraded(&store, &older, &older.pinned()).await;
+    }
+
+    /// **Ticket 25's fourth criterion, the dropped table.** An upgraded organization whose
+    /// `format` table somebody dropped reads as older and carries nothing of format 1, so the
+    /// upgrade's last step is all that is left, and it creates the table and writes the row:
+    /// on a machine with no record of the format, and on one that has read it in this format.
+    #[tokio::test]
+    async fn a_dropped_format_table_is_created_by_the_last_step() {
+        for known in [None, Some(FORMAT_VERSION)] {
+            let (older, store) = upgraded("format-dropped").await;
+            let owner = older.person("owner");
+
+            run(&store, "DROP TABLE \"format\"", Vec::new()).await;
+
+            assert!(store.is_older().await.expect("the format"), "{known:?}");
+            assert!(
+                !store
+                    .carries_format_one()
+                    .await
+                    .expect("what is left of format 1"),
+                "{known:?}"
+            );
+
+            with_password(
+                &store,
+                &online(),
+                &HeldOrganization {
+                    format: known,
+                    ..older.held.clone()
+                },
+                owner.username,
+                owner.password,
+                &slot(),
+                NOW + 60_000,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("{known:?}: the last step failed: {error}"));
+
+            assert_upgraded(&store, &older, &older.pinned()).await;
+        }
+    }
+
+    /// **Ticket 25's fifth criterion.** The owner's grant on the organization database lapsed, or
+    /// gone: the upgrade has a credential minted on the owner's own account before it pushes, and
+    /// that is the one it pushes and pulls with. A grant that lives is spent as it is, and nothing
+    /// is minted.
+    #[tokio::test]
+    async fn a_lapsed_or_missing_owner_grant_is_renewed_on_the_owners_account_before_the_push() {
+        const MINTED: &str = "a-credential-the-owners-account-minted";
+
+        for case in ["lapsed", "missing", "living"] {
+            let older = older(&format!("owner-grant-{case}")).await;
+            let store = older.open().await;
+            let owner = older.person("owner");
+            let now = match case {
+                "lapsed" => LAPSED,
+                _ => NOW,
+            };
+
+            if case == "missing" {
+                run(
+                    &store,
+                    "DELETE FROM \"grant\" WHERE \"member_id\" = 'owner' AND \"workspace_id\" = ?",
+                    vec![text(ORGANIZATION_ID)],
+                )
+                .await;
+            }
+
+            let remote = online().minting(MINTED);
+            let credential = slot();
+
+            with_password(
+                &store,
+                &remote,
+                &older.held,
+                owner.username,
+                owner.password,
+                &credential,
+                now,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("{case}: {error}"));
+
+            let (asked, held) = match case {
+                "living" => (vec!["push", "pull", "push"], ORGANIZATION_CREDENTIAL),
+                _ => (vec!["mint", "push", "pull", "push"], MINTED),
+            };
+
+            assert_eq!(remote.asked(), asked, "{case}");
+            assert_eq!(
+                credential.lock().expect("the slot").as_deref(),
+                Some(held),
+                "{case}"
+            );
+            assert_eq!(
+                store.format().await.expect("the format"),
+                Some(FORMAT_VERSION),
+                "{case}"
+            );
+        }
+    }
+
+    /// **Ticket 25's fifth criterion, the mint.** The production remote mints the way
+    /// `setup::connect_existing` does: the organization's database, for four weeks, at full access,
+    /// on the owner's account; and a machine holding no authority mints nothing.
+    #[tokio::test]
+    async fn the_owners_account_mints_what_the_connect_mints() {
+        let platform = Arc::new(InMemoryPlatform::new("an-org"));
+
+        platform.holding_unprotected("org-7f3a");
+
+        let minted = ItsRemote {
+            account: Some(Arc::clone(&platform)),
+        }
+        .minted("org-7f3a")
+        .await;
+
+        assert_eq!(minted.as_deref(), Some("token-for-org-7f3a-4w-full-access"));
+        assert_eq!(
+            platform.minted(),
+            vec![(
+                "org-7f3a".to_string(),
+                crate::organization::setup::ORGANIZATION_CREDENTIAL_LIFETIME.to_string(),
+                AccessLevel::FullAccess
+            )]
+        );
+        assert_eq!(
+            ItsRemote::<InMemoryPlatform> { account: None }
+                .minted("org-7f3a")
+                .await,
+            None
+        );
+    }
+
+    /// **Ticket 25's sixth criterion.** A member's machine whose pull was refused, with its own
+    /// grant on the organization database lapsed or gone, is told it needs a new link from its
+    /// organization, not that it waits for its owner; nothing is written. With a grant that lives,
+    /// a refused pull is the offline case, and it waits for the owner as before; so does a lapsed
+    /// grant whose pull went after all. The sentence in English and Arabic is held by the message
+    /// tests, which require one for every reason.
+    #[tokio::test]
+    async fn a_member_whose_credential_is_lapsed_or_gone_is_told_it_needs_a_new_link() {
+        for (case, pulls, reason) in [
+            ("lapsed", false, RefusalReason::OrganizationCredentialLapsed),
+            (
+                "missing",
+                false,
+                RefusalReason::OrganizationCredentialLapsed,
+            ),
+            ("living", false, RefusalReason::OrganizationOlder),
+            (
+                "lapsed, the pull went",
+                true,
+                RefusalReason::OrganizationOlder,
+            ),
+        ] {
+            let older = older("member-credential").await;
+            let store = older.open().await;
+            let mina = older.person("mina");
+            let now = if case.starts_with("lapsed") {
+                LAPSED
+            } else {
+                NOW
+            };
+
+            if case == "missing" {
+                run(
+                    &store,
+                    "DELETE FROM \"grant\" WHERE \"member_id\" = 'mina' AND \"workspace_id\" = ?",
+                    vec![text(ORGANIZATION_ID)],
+                )
+                .await;
+            }
+
+            let before = contents(&store).await;
+            let refused = with_password(
+                &store,
+                &Answering::new(true, pulls),
+                &older.held_by("mina"),
+                mina.username,
+                mina.password,
+                &slot(),
+                now,
+            )
+            .await;
+
+            assert_eq!(reason_of(&refused), Some(reason), "{case}: {refused:?}");
+
+            if reason == RefusalReason::OrganizationCredentialLapsed {
+                assert!(
+                    refused
+                        .expect_err("refused")
+                        .to_string()
+                        .contains("needs a new link from its organization"),
+                    "{case}"
+                );
+            }
+
+            assert_eq!(contents(&store).await, before, "{case}: a member wrote");
+        }
+    }
+
+    /// **Ticket 25's seventh criterion.** The owner's machine holds changes the old build
+    /// captured, which a remote another of the owner's machines already reshaped refuses with
+    /// the measured `Number of arguments mismatch`: the sign-in and the resume are refused with a
+    /// reason of their own, saying that disconnecting and connecting again drops those changes,
+    /// nothing is pulled, and nothing is written.
+    #[tokio::test]
+    async fn changes_a_reshaped_remote_refuses_give_their_own_reason_and_nothing_is_written() {
+        let _turn = take_the_credential_store().await;
+        let older = older("unsendable").await;
+        let store = older.open().await;
+        let owner = older.person("owner");
+        let before = contents(&store).await;
+
+        assert_eq!(
+            classified("Number of arguments mismatch: expected 2, got 3"),
+            Pushed::Unsendable
+        );
+        assert_eq!(classified("error sending request"), Pushed::DidNotGo);
+
+        let remote = online().pushing(Pushed::Unsendable);
+        let refused = with_password(
+            &store,
+            &remote,
+            &older.held,
+            owner.username,
+            owner.password,
+            &slot(),
+            NOW,
+        )
+        .await;
+
+        assert_eq!(
+            reason_of(&refused),
+            Some(RefusalReason::OrganizationChangesUnsendable),
+            "{refused:?}"
+        );
+        assert!(
+            refused
+                .expect_err("refused")
+                .to_string()
+                .contains("disconnecting this machine and connecting it again drops those")
+        );
+        assert_eq!(remote.asked(), vec!["push"]);
+
+        remember(
+            ORGANIZATION_ID,
+            "owner",
+            owner.session_epoch,
+            &owner.member_key,
+        );
+
+        let refused = with_remembered_key(
+            &store,
+            &online().pushing(Pushed::Unsendable),
+            &older.held,
+            &slot(),
+            NOW,
+        )
+        .await;
+
+        assert_eq!(
+            reason_of(&refused),
+            Some(RefusalReason::OrganizationChangesUnsendable),
+            "the resume: {refused:?}"
+        );
+        assert_eq!(contents(&store).await, before, "something was written");
+        assert!(store.is_older().await.expect("the format"));
+    }
+
+    /// **Ticket 25's eighth criterion.** The removed member's format 1 certificate carries an
+    /// unsigned `revoked_at`. A workspace they signed under it is carried, and the upgrade
+    /// re-signs it from the root; a grant, an invitation and a member row they signed under it
+    /// are not.
+    #[tokio::test]
+    async fn a_workspace_row_is_carried_whatever_an_unsigned_revocation_says() {
+        let older = older("revoked-workspace").await;
+        let store = older.open().await;
+        let owner = older.person("owner");
+        let rafi = older.person("rafi");
+        let rafis = older.certificate("rafi");
+        let rhea = Person::new("rhea", "rhea.recruit", "member", 0, 0);
+
+        assert!(
+            rafis.revoked_at.is_some(),
+            "the fixture's revocation is gone"
+        );
+
+        write_workspace(
+            &store,
+            &older.content_key,
+            "east",
+            WorkspaceAuthority {
+                database_name: "ws-east",
+                database_hostname: "ws-east-an-org.aws-eu-west-1.turso.io",
+            },
+            &rafi.signing,
+            rafis,
+        )
+        .await;
+        write_grant(
+            &store,
+            older.person("mina"),
+            "east",
+            "east-full",
+            "full-access",
+            &rafi.signing,
+            rafis,
+            false,
+        )
+        .await;
+        write_invitation(&store, "invitation-rafi", "mina", rafi, rafis).await;
+        write_member(
+            &store,
+            &older.content_key,
+            &rhea,
+            &rafi.signing,
+            rafis,
+            None,
+            EARLIER,
+        )
+        .await;
+
+        with_password(
+            &store,
+            &online(),
+            &older.held,
+            owner.username,
+            owner.password,
+            &slot(),
+            NOW,
+        )
+        .await
+        .expect("the upgrade");
+
+        let pinned = older.pinned();
+
+        assert!(
+            store
+                .workspaces(&pinned)
+                .await
+                .expect("the workspaces")
+                .iter()
+                .any(|workspace| workspace.id == "east"),
+            "a workspace signed under a certificate with an unsigned revocation was dropped"
+        );
+        assert!(
+            !store
+                .grants(&pinned)
+                .await
+                .expect("the grants")
+                .iter()
+                .any(|grant| grant.workspace_id == "east"),
+            "a grant signed under a revoked certificate was carried"
+        );
+        assert!(
+            !store
+                .invitations(&pinned)
+                .await
+                .expect("the invitations")
+                .iter()
+                .any(|invitation| invitation.id == "invitation-rafi"),
+            "an invitation signed under a revoked certificate was carried"
+        );
+        assert!(
+            !store
+                .members(&pinned)
+                .await
+                .expect("the members")
+                .iter()
+                .any(|member| member.id == "rhea"),
+            "a member row signed under a revoked certificate was carried"
+        );
+    }
+
+    /// **Ticket 25's tenth criterion.** An organization whose replica has no `succession` table,
+    /// which a build before effort 828 made: the plan meets it the way `settled` does, with no
+    /// offer to withdraw, and the owner's sign-in upgrades it.
+    #[tokio::test]
+    async fn the_plan_meets_a_replica_without_a_succession_table() {
+        let older = older("no-succession").await;
+        let store = older.open().await;
+        let owner = older.person("owner");
+
+        run(&store, "DROP TABLE \"succession\"", Vec::new()).await;
+
+        let opened = older.owners_vault();
+        let key = signing_key_of(&opened.secret).expect("the signing key");
+        let plan = planned(&store, &older.organization_key, &key, &opened, NOW)
+            .await
+            .expect("a replica without a succession table could not be planned");
+
+        assert!(
+            !plan
+                .steps
+                .iter()
+                .any(|step| matches!(step, Step::WithdrawOffer(_)))
+        );
+
+        with_password(
+            &store,
+            &online(),
+            &older.held,
+            owner.username,
+            owner.password,
+            &slot(),
+            NOW,
+        )
+        .await
+        .expect("the upgrade");
+
+        assert_upgraded(&store, &older, &older.pinned()).await;
+    }
+
+    /// **Ticket 25's eleventh criterion.** A copy of the owner's member row, under another id and
+    /// read first, opens with the owner's password as the owner's own does, signature and all,
+    /// since `member.v2` never signed a member's id. The owner's row is the one signed under the
+    /// format 1 certificate issued to that row, and the upgrade makes that one the owner.
+    #[tokio::test]
+    async fn where_the_owners_vault_opens_on_a_copy_the_owners_own_row_is_taken() {
+        let older = older("vault-copy").await;
+        let store = older.open().await;
+        let owner = older.person("owner");
+
+        run(
+            &store,
+            "INSERT INTO \"member\" SELECT 'a-copy', \"username_sealed\", \"public_key\", \
+             \"signing_public_key\", \"sealed_secret_key\", \"sealed_content_key\", \"kdf_salt\", \
+             \"kdf_params\", \"role\", \"permissions\", \"must_change_password\", \
+             \"certificate_id\", \"signature\", ?, \"updated_at\", \"session_epoch\", \
+             \"owner_seed_sealed\" FROM \"member\" WHERE \"id\" = 'owner'",
+            vec![turso::Value::Integer(EARLIER - 1)],
+        )
+        .await;
+
+        assert_eq!(
+            store
+                .format_one_members()
+                .await
+                .expect("the members")
+                .first()
+                .map(|member| member.id.as_str()),
+            Some("a-copy"),
+            "the copy is not read first; the test proves nothing"
+        );
+
+        let opened = vault_opened_by(&store, &older.pinned(), owner.username, owner.password)
+            .await
+            .expect("the vaults")
+            .expect("a vault opened");
+
+        assert_eq!(opened.member_id, "owner");
+
+        let credential = slot();
+
+        with_password(
+            &store,
+            &online(),
+            &older.held,
+            owner.username,
+            owner.password,
+            &credential,
+            NOW,
+        )
+        .await
+        .expect("the upgrade");
+
+        let members = store.members(&older.pinned()).await.expect("the members");
+
+        assert_eq!(
+            members
+                .iter()
+                .find(|member| member.id == "owner")
+                .map(|member| member.role_id.as_str()),
+            Some("owner")
+        );
+        assert_eq!(
+            credential.lock().expect("the slot").as_deref(),
+            Some(ORGANIZATION_CREDENTIAL),
+            "the owner's own grant was not the one found"
         );
     }
 }

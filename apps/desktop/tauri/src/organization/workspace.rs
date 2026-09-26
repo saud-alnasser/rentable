@@ -20,7 +20,8 @@
 //! 13's limit, at the grant), and signs it under their own delegated certificate, which every
 //! machine verifies without the owner. A read-only grant is a credential Turso mints at that
 //! level, which needs the platform authority and is therefore the owner's to make, and it is
-//! signed under the root: a read-only grant any other certificate signed is refused on read.
+//! signed under the root: a read-only grant any other certificate signed is left out of every
+//! read, and grants nothing.
 //!
 //! **A credential has an expiry, and renewal is the owner's machine minting fresh ones and
 //! re-sealing them to every member who still holds a grant.** Removal is what stops renewing,
@@ -1006,6 +1007,7 @@ mod tests {
             member_id: Some("member-b".to_string()),
             role: Some(permission::MEMBER.to_string()),
             joined_at: 1_757_000_000_001,
+            format: None,
         }
     }
 
@@ -1065,6 +1067,7 @@ mod tests {
             member_id: Some("member-admin".to_string()),
             role: Some(permission::MANAGER.to_string()),
             joined_at: 1_757_000_000_002,
+            format: None,
         }
     }
 
@@ -1868,7 +1871,8 @@ mod tests {
         );
         assert_eq!(platform.minted().len(), minted, "a credential was minted");
 
-        // and around it: the row is written, and every reader refuses it.
+        // and around it: the row is written, and every reader leaves it out (ticket 25), so the
+        // grant it replaced is gone and nothing stands in its place.
         let manager_key = AdministratorKey::from_bytes(
             &manager
                 .secret
@@ -1891,10 +1895,12 @@ mod tests {
             .expect("the row is written around the store; it is the readers that refuse it");
 
         assert!(
-            matches!(
-                store.grants(&owner.verifying_key).await,
-                Err(Error::Integrity { .. })
-            ),
+            !store
+                .grants(&owner.verifying_key)
+                .await
+                .expect("a read-only grant a manager signed refused every grant")
+                .iter()
+                .any(|grant| grant.member_id == "member-b" && grant.workspace_id == workspace.id),
             "a read-only grant a manager signed verified"
         );
     }
@@ -2095,6 +2101,7 @@ mod tests {
             member_id: Some(owner.member_id.clone()),
             role: Some(permission::OWNER.to_string()),
             joined_at: 0,
+            format: None,
         }
     }
 

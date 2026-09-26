@@ -294,7 +294,7 @@ pub(in crate::database) fn shipped_migration_count() -> usize {
 /// under a column that a later statement in the same push dropped, which fails that push with
 /// `Number of arguments mismatch` and leaves the remote with part of it. The reading, and the
 /// order the upgrade keeps because of it, are at `organization/store.rs`,
-/// `OrganizationStore::reshape_format_one`.
+/// `OrganizationStore::format_one_reshape`.
 ///
 /// So the shipped schema goes on through [`LiveWorkspace::apply_schema_remotely`] instead, which
 /// is the faithful path anyway: requirement 11 puts migrations over the wire, and a

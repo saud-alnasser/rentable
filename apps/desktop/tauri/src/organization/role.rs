@@ -2417,6 +2417,7 @@ mod tests {
             member_id: Some(member_id.to_string()),
             role: Some(role.to_string()),
             joined_at: 0,
+            format: None,
         }
     }
 
@@ -3141,7 +3142,7 @@ mod tests {
             "retiring the certificate bricked the rows it had signed"
         );
 
-        // and a row they sign under the old one anyway is refused on read, by name.
+        // and a row they sign under the old one anyway is left out of the read (ticket 25).
         let key = AdministratorKey::from_bytes(
             &opened
                 .secret
@@ -3167,12 +3168,16 @@ mod tests {
             .await
             .expect("the write itself is not what refuses");
 
-        let refusal = store
+        // left out of the read rather than refusing it (effort 838, ticket 25).
+        let grants = store
             .grants(&owner.verifying_key)
             .await
-            .expect_err("a row signed under a revoked certificate was accepted");
+            .expect("a row signed under a revoked certificate refused every grant");
 
-        assert!(refusal.to_string().contains("revoked"), "{refusal}");
+        assert!(
+            !grants.iter().any(is_theirs),
+            "a row signed under a revoked certificate was accepted"
+        );
     }
 
     /// Effort 838, ticket 04: **a re-issue the actor could not complete is refused by name, and
