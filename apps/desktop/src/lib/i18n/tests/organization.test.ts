@@ -127,24 +127,32 @@ test('both locales say where an account stands, in three lines that differ', () 
 	assert.match(ar.organization.dashboard.invitationExpires, /\{date\}/);
 });
 
-// effort 826, requirements 5 and 6: the two refusals the spec keeps in words rather than in a
-// hidden control each name the owner, in both languages.
+// effort 826, requirement 5: granting read only stays in words rather than in a hidden control,
+// and names the owner, in both languages. *Handing out an act that signs a row was the owner's too
+// until effort 838 let a manager put one into effect (requirement 9).*
 test('both locales name the owner where an act belongs to nobody else', () => {
 	for (const [name, translation] of locales) {
-		assert.ok(
-			translation.organization.dashboard.signingIsTheOwners.length > 0,
-			`${name} says nothing about who may hand out a signing act`
-		);
 		assert.ok(
 			translation.organization.dashboard.readOnlyIsTheOwners.length > 0,
 			`${name} says nothing about who may grant read only`
 		);
 	}
 
-	assert.match(en.organization.dashboard.signingIsTheOwners, /only the owner/);
 	assert.match(en.organization.dashboard.readOnlyIsTheOwners, /only the owner/);
-	assert.match(ar.organization.dashboard.signingIsTheOwners, /المالك وحده/);
 	assert.match(ar.organization.dashboard.readOnlyIsTheOwners, /المالك وحده/);
+});
+
+// effort 838, requirement 3: the manager replaced the administrator, so no sentence a person reads
+// says administrator any more. The keys that mirror Rust's refusal reasons keep their names; what
+// is held here is the words.
+test('no value in either locale says administrator', () => {
+	for (const [name, translation] of locales) {
+		const saying = Object.entries(leaves(translation)).filter(([, value]) =>
+			/administrat/i.test(value)
+		);
+
+		assert.deepEqual(saying, [], `${name} still says administrator`);
+	}
 });
 
 // effort 826, requirement 8: what an invitation shows afterwards is one link, and the sentence

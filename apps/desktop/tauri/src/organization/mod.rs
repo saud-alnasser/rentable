@@ -73,8 +73,10 @@ pub struct HeldOrganization {
     /// this person's member row in the organization, once a sign-in has found it. `None` on a
     /// machine that connected by link and has not signed in yet; a sign-out keeps it.
     pub member_id: Option<String>,
-    /// their role there, as last read. A display fact: what a member may do is what their vault
-    /// holds, never this. `None` with `member_id`.
+    /// the kind of their role there, as last read: `owner`, `manager`, `member` or `custom`. A
+    /// display fact: what a member may do is what their vault holds, never this. `None` with
+    /// `member_id`, and on a record an earlier build wrote with a word that is no kind, which the
+    /// record's load drops and the next sign-in fills (effort 838, ticket 15).
     pub role: Option<String>,
     /// when this machine recorded the organization, whether by creating it, connecting by link,
     /// or the join and restore paths effort 824 retires.

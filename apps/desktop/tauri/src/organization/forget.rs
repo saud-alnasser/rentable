@@ -17,7 +17,7 @@
 //!
 //! **The old shape, and why it is forgotten rather than migrated.** Nothing was published, so a
 //! machine holding what 819 built holds test data of its own, and the human decided on 2026-09-13
-//! to start over rather than carry it. Eight signs, any one of which is the old shape: the record
+//! to start over rather than carry it. Nine signs, any one of which is the old shape: the record
 //! still carries a non-empty `organizations` list, which is what a machine that had joined
 //! several kept; the held organization's replica file is missing, which is a record with nothing
 //! behind it; that replica's `member` table has no `username_sealed` column, which is the
@@ -29,8 +29,10 @@
 //! same effort gave a member a run of sessions to be signed out of (requirement 22); and its
 //! `member` table has no `owner_seed_sealed` column, which is every replica written before effort
 //! 828's requirement 22 gave the founder's key a row to be handed over in, and which every read of
-//! a member row names.
-//! The last five are a local `PRAGMA table_info`, read before any pull, so an
+//! a member row names. A ninth is effort 838's: the replica has no `format` table, which is every
+//! organization made before the format break (requirement 11), and a reader of this build would
+//! refuse it by name at every sign-in rather than open it.
+//! The last six are a local read of the replica's schema, before any pull, so an
 //! unreachable remote does not stop the check. It runs on the first `organization_state_get` of a
 //! launch, before anything else opens the replica.
 //!
@@ -92,6 +94,11 @@ pub enum OldShape {
     /// without it answers nothing at all, and the column is under the member signature, so a row
     /// written before it hashes a preimage no reader here builds.
     MemberWithoutOwnerSeed,
+    /// the held organization carries no `format` table, which is every organization made before
+    /// effort 838 broke the format (requirement 11). Nothing here migrates one, and a sign-in
+    /// would refuse it by name every time, so the replica is forgotten and the machine connects
+    /// again; the connect is where the refusal says what to do.
+    OrganizationWithoutFormat,
 }
 
 impl fmt::Display for OldShape {
@@ -120,6 +127,9 @@ impl fmt::Display for OldShape {
             }
             Self::MemberWithoutOwnerSeed => formatter
                 .write_str("the held organization's member table carries no owner_seed_sealed"),
+            Self::OrganizationWithoutFormat => {
+                formatter.write_str("the held organization carries no format table")
+            }
         }
     }
 }
@@ -148,6 +158,10 @@ const SESSION_EPOCH_COLUMN: &str = "session_epoch";
 /// (requirement 22), whose absence marks a replica whose member rows no read here can answer and
 /// whose signatures no reader here can rebuild.
 const OWNER_SEED_COLUMN: &str = "owner_seed_sealed";
+
+/// The table an organization has carried since effort 838 broke the format (requirement 11),
+/// whose absence marks every organization made before it.
+const FORMAT_TABLE: &str = "format";
 
 /// Forget the organization this machine holds, whole.
 ///
@@ -313,6 +327,7 @@ async fn old_shape(app_state: &AppState) -> Result<Option<OldShape>, Error> {
     .await?;
     let member_columns = store.columns_of("member").await?;
     let invitation_columns = store.columns_of("invitation").await?;
+    let tables = store.tables().await?;
 
     drop(store);
 
@@ -361,6 +376,12 @@ async fn old_shape(app_state: &AppState) -> Result<Option<OldShape>, Error> {
         .any(|column| column == OWNER_SEED_COLUMN)
     {
         return Ok(Some(OldShape::MemberWithoutOwnerSeed));
+    }
+
+    // last of all, because it is the newest: a replica in the shape every build before effort 838
+    // wrote passes every sign above and carries no `format` table.
+    if !tables.iter().any(|table| table == FORMAT_TABLE) {
+        return Ok(Some(OldShape::OrganizationWithoutFormat));
     }
 
     Ok(None)
@@ -738,8 +759,10 @@ mod tests {
     /// forgotten; one written under the six-act permission table, whose `invitation` table carries
     /// no `sealed_secret`, is forgotten; one whose `member` table carries no `signing_public_key`
     /// is forgotten; one whose `member` table carries no `session_epoch` is forgotten, which is
-    /// requirement 22's; one whose replica is not on disk at all is forgotten the same way; and one
-    /// of this build's shape is kept, `code_seal` gone with effort 828 and all.
+    /// requirement 22's; one with no `format` table, which is every organization before effort
+    /// 838's format break (requirement 11), is forgotten; one whose replica is not on disk at all
+    /// is forgotten the same way; and one of this build's shape is kept, `code_seal` gone with
+    /// effort 828 and all.
     #[tokio::test]
     async fn a_replica_of_the_old_schema_or_none_at_all_is_forgotten_at_startup() {
         let _turn = crate::keyring::take_the_credential_store().await;
@@ -1035,6 +1058,8 @@ mod tests {
             "CREATE TABLE IF NOT EXISTS \"member\" (\"id\" TEXT PRIMARY KEY NOT NULL, \"username_sealed\" BLOB NOT NULL, \"public_key\" BLOB NOT NULL, \"signing_public_key\" BLOB NOT NULL, \"permissions\" INTEGER NOT NULL, \"session_epoch\" INTEGER NOT NULL DEFAULT 0, \"owner_seed_sealed\" BLOB)",
             "CREATE TABLE IF NOT EXISTS \"invitation\" (\"id\" TEXT PRIMARY KEY NOT NULL, \"member_id\" TEXT NOT NULL, \"expires_at\" INTEGER NOT NULL, \"consumed_at\" INTEGER, \"sealed_secret\" BLOB NOT NULL, \"issued_by\" TEXT NOT NULL, \"certificate_id\" TEXT NOT NULL, \"signature\" BLOB NOT NULL, \"created_at\" INTEGER NOT NULL)",
             "INSERT INTO \"member\" VALUES ('member-owner', X'00', X'00', X'00', 127, 0, NULL)",
+            "CREATE TABLE IF NOT EXISTS \"format\" (\"id\" TEXT PRIMARY KEY NOT NULL, \"version\" INTEGER NOT NULL)",
+            "INSERT INTO \"format\" VALUES ('format', 2)",
         ] {
             store
                 .connection()
@@ -1060,6 +1085,40 @@ mod tests {
                 .iter()
                 .any(|name| name == "org-nocode.db"),
             "the replica was swept"
+        );
+
+        // effort 838, requirement 11: the shape every build before the format break wrote, which
+        // is this build's own first run with the `format` table taken away. It passes every other
+        // sign, and is forgotten on this one before anything reads it.
+        let directory = scratch("no-format");
+        let (organization, held) = created(&directory).await;
+
+        organization
+            .connection()
+            .execute("DROP TABLE \"format\"", ())
+            .await
+            .expect("the format table taken away");
+        drop(organization);
+
+        let app_state = state_over(&directory).await;
+
+        assert_eq!(
+            forget_old_shape(&app_state)
+                .await
+                .expect("the check failed"),
+            Some(OldShape::OrganizationWithoutFormat)
+        );
+        assert_eq!(replica_files(&directory), Vec::<String>::new());
+        assert!(
+            app_state
+                .remote_sync
+                .write()
+                .await
+                .store_mut()
+                .organization
+                .is_none(),
+            "{} was not forgotten",
+            held.id
         );
 
         // no replica at all behind the record.

@@ -12,8 +12,8 @@ import QueryProviders from '#tests/query-providers.svelte';
  * THE ORGANIZATION'S SIGNATURE OR SEAL, IN SETTINGS
  *
  * Ticket 15 of [[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]], criteria 13(b)
- * and 13(d): the owner or an administrator chooses, replaces and removes the mark; a member sees
- * it and no control; an image the host refuses is answered with the host's sentence.
+ * and 13(d): whoever holds `manageMark` chooses, replaces and removes the mark; a reader without
+ * it sees the mark and no control; an image the host refuses is answered with the host's sentence.
  *
  * **What reaches Rust is stood in for**: the router's three mark procedures at the caller, and the
  * open dialog at `tauri`.
@@ -31,7 +31,7 @@ vi.mock('$lib/platform/tauri', () => ({
 	tauri: { dialog: { openImage: host.openImage } }
 }));
 
-// the mark goes through the router's `member` procedures, which hand it to the host.
+// the mark goes through the router's procedures gated on `manageMark`, which hand it to the host.
 vi.mock('$lib/api/caller', () => ({
 	default: {
 		app: {
@@ -74,7 +74,7 @@ const shown = (setsMark: boolean) =>
 const image = () =>
 	document.querySelector<HTMLImageElement>('[data-organization-mark-image]')?.getAttribute('src');
 
-test('an administrator with no mark set chooses an image, and it is shown', async () => {
+test('a holder of manageMark with no mark set chooses an image, and it is shown', async () => {
 	host.markGet.mockResolvedValue(null);
 	host.openImage.mockResolvedValue('C:/seal.png');
 	host.markSet.mockResolvedValue(MARK);
@@ -93,7 +93,7 @@ test('an administrator with no mark set chooses an image, and it is shown', asyn
 	expect(host.markSet).toHaveBeenCalledExactlyOnceWith('C:/seal.png');
 });
 
-test('an administrator removes the mark', async () => {
+test('a holder of manageMark removes the mark', async () => {
 	host.markGet.mockResolvedValue(MARK);
 	host.markClear.mockResolvedValue(undefined);
 	shown(true);
@@ -105,7 +105,7 @@ test('an administrator removes the mark', async () => {
 	expect(host.markClear).toHaveBeenCalledOnce();
 });
 
-test('a member sees the mark and is offered no way to change it', async () => {
+test('a reader without manageMark sees the mark and is offered no way to change it', async () => {
 	host.markGet.mockResolvedValue(MARK);
 	shown(false);
 

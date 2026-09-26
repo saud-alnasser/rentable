@@ -25,6 +25,7 @@ import {
 } from '$lib/complex/complex';
 import { CONTRACT_OCCUPYING_STATUSES, deriveUnitStatuses } from '$lib/contract/contract';
 import { groupPaymentsByContractId } from '$lib/payment/payment';
+import { permits } from '@rentable/workspace-permission';
 import { and, asc, desc, eq, gte, inArray, lt, sql, type AnyColumn, type SQL } from 'drizzle-orm';
 import { QueryBuilder } from 'drizzle-orm/sqlite-core';
 import z from 'zod';
@@ -70,8 +71,16 @@ const ComplexSortSchema = z.object({
  * in insertion order, which reads as no order at all. The id is still last because a name
  * is unique today only by a constraint the order cannot see.
  */
-function complexOrderBy(sort: z.infer<typeof ComplexSortSchema> | undefined): SQL[] {
+function complexOrderBy(
+	chosenSort: z.infer<typeof ComplexSortSchema> | undefined,
+	viewsUnit: boolean
+): SQL[] {
 	const directoryOrder = [asc(s.complex.name), asc(s.complex.id)];
+	// a member who may not view units is not ordered by how many a complex holds, which would be
+	// the count told another way (effort 838, requirement 10).
+	const countsUnits =
+		chosenSort?.columnId === 'unitCount' || chosenSort?.columnId === 'vacantUnitCount';
+	const sort = countsUnits && !viewsUnit ? undefined : chosenSort;
 
 	if (!sort) {
 		return directoryOrder;
@@ -96,10 +105,14 @@ const UnitSortSchema = z.object({
  * row selects, so the order and the name a card shows cannot come to differ.
  */
 function unitOrderBy(
-	sort: z.infer<typeof UnitSortSchema> | undefined,
-	tenantName: SQL<string | null>
+	chosenSort: z.infer<typeof UnitSortSchema> | undefined,
+	tenantName: SQL<string | null>,
+	viewsTenant: boolean
 ): SQL[] {
 	const directoryOrder = [asc(s.unit.name), asc(s.unit.id)];
+	// nor by an occupant that a member who may not view tenants is not shown (effort 838,
+	// requirement 10).
+	const sort = chosenSort?.columnId === 'tenantName' && !viewsTenant ? undefined : chosenSort;
 
 	if (!sort) {
 		return directoryOrder;
@@ -272,7 +285,8 @@ export default router({
 	 * The id is optional and almost always absent, so undoing a deletion can put the row back
 	 * with the identity it had (ADR 0026).
 	 */
-	create: procedure.member
+	create: procedure
+		.permitted('createComplex')
 		.use(autosync())
 		.input(ComplexCreateSchema)
 		.mutation(async ({ input, ctx }) => {
@@ -328,7 +342,8 @@ export default router({
 			return { ...created, units: createdUnits.map(([unit]) => unit) };
 		}),
 
-	update: procedure.member
+	update: procedure
+		.permitted('editComplex')
 		.use(autosync())
 		.input(ComplexSchema.partial({ name: true, location: true }))
 		.mutation(async ({ input, ctx }) => {
@@ -370,7 +385,8 @@ export default router({
 			return ensureComplexStillExists(updated);
 		}),
 
-	delete: procedure.member
+	delete: procedure
+		.permitted('deleteComplex')
 		.use(autosync())
 		.input(ComplexSchema.pick({ id: true }))
 		.mutation(async ({ input, ctx }) => {
@@ -397,7 +413,8 @@ export default router({
 	 *
 	 * A query rather than a mutation: it reads and writes nothing.
 	 */
-	planMany: procedure.member
+	planMany: procedure
+		.permitted('createComplex')
 		.input(z.object({ ids: z.array(ComplexSchema.shape.id).min(1) }))
 		.query(async ({ input, ctx }) => {
 			const plan = await planComplexSelection(ctx.db, input.ids);
@@ -416,7 +433,8 @@ export default router({
 	 * holds no unit, so nothing derived was resting on it either. That is the same reason the
 	 * single-record deletion above runs none.
 	 */
-	deleteMany: procedure.member
+	deleteMany: procedure
+		.permitted('deleteComplex')
 		.use(autosync())
 		.input(z.object({ ids: z.array(ComplexSchema.shape.id).min(1) }))
 		.mutation(async ({ input, ctx }) => {
@@ -445,7 +463,8 @@ export default router({
 	 * No units, unlike {@link create}: a complex that could be deleted held none, so a complex
 	 * this puts back has none to put back with it.
 	 */
-	createMany: procedure.member
+	createMany: procedure
+		.permitted('createComplex')
 		.use(autosync())
 		.input(z.object({ complexes: z.array(ComplexSchema.partial({ id: true })).min(1) }))
 		.mutation(async ({ input, ctx }) => {
@@ -481,12 +500,16 @@ export default router({
 			return created.map(([complex]) => complex);
 		}),
 
-	get: procedure.member.input(ComplexSchema.pick({ id: true })).query(async ({ input, ctx }) => {
-		return await ctx.db.select().from(s.complex).where(eq(s.complex.id, input.id)).get();
-	}),
+	get: procedure
+		.permitted('viewComplex')
+		.input(ComplexSchema.pick({ id: true }))
+		.query(async ({ input, ctx }) => {
+			return await ctx.db.select().from(s.complex).where(eq(s.complex.id, input.id)).get();
+		}),
 
 	/** The complexes a palette search reaches, by name or location. */
-	search: procedure.member
+	search: procedure
+		.permitted('viewComplex')
 		.input(RecordSearchSchema)
 		.query(async ({ input, ctx }): Promise<RecordMatch[]> => {
 			return await ctx.db
@@ -497,7 +520,8 @@ export default router({
 				.limit(input.limit);
 		}),
 
-	getMany: procedure.member
+	getMany: procedure
+		.permitted('viewComplex')
 		.input(
 			z.object({
 				search: z.string().optional(),
@@ -506,8 +530,10 @@ export default router({
 		)
 		.query(async ({ input, ctx }) => {
 			const search = input.search?.trim();
+			// a row counts its units only for a member who may view units (effort 838, requirement 10).
+			const viewsUnit = permits(ctx.identity.permissions, 'viewUnit');
 
-			return await ctx.db
+			const complexes = await ctx.db
 				.select({
 					id: s.complex.id,
 					name: s.complex.name,
@@ -519,50 +545,78 @@ export default router({
 				.leftJoin(s.unit, eq(s.unit.complexId, s.complex.id))
 				.where(search ? matchesAnySearch(COMPLEX_SEARCH_COLUMNS, search) : undefined)
 				.groupBy(s.complex.id)
-				.orderBy(...complexOrderBy(input.sort));
+				.orderBy(...complexOrderBy(input.sort, viewsUnit));
+
+			return complexes.map(({ unitCount, vacantUnitCount, ...complex }) => ({
+				...complex,
+				...(viewsUnit ? { unitCount, vacantUnitCount } : {})
+			}));
 		}),
 
 	units: {
 		// one unit, carrying the complex holding it: a unit is reached only through its complex,
 		// so a view of one that could not name it would send the reader back to find out where
-		// they are.
-		get: procedure.member.input(UnitSchema.pick({ id: true })).query(async ({ input, ctx }) => {
-			const unit = await ctx.db
-				.select({
-					id: s.unit.id,
-					name: s.unit.name,
-					complexId: s.unit.complexId,
-					status: s.unit.status,
-					complexName: s.complex.name
-				})
-				.from(s.unit)
-				.innerJoin(s.complex, eq(s.unit.complexId, s.complex.id))
-				.where(eq(s.unit.id, input.id))
-				.get();
+		// they are. The name is left out for a member who may not view complexes (effort 838,
+		// requirement 10); the id stays, since it is the unit's own column.
+		get: procedure
+			.permitted('viewUnit')
+			.input(UnitSchema.pick({ id: true }))
+			.query(async ({ input, ctx }) => {
+				const unit = await ctx.db
+					.select({
+						id: s.unit.id,
+						name: s.unit.name,
+						complexId: s.unit.complexId,
+						status: s.unit.status,
+						complexName: s.complex.name
+					})
+					.from(s.unit)
+					.innerJoin(s.complex, eq(s.unit.complexId, s.complex.id))
+					.where(eq(s.unit.id, input.id))
+					.get();
 
-			if (!unit) {
-				return undefined;
-			}
+				if (!unit) {
+					return undefined;
+				}
 
-			const [withStatus] = await getUnitsWithDerivedStatus(ctx, [unit]);
+				const [withStatus] = await getUnitsWithDerivedStatus(ctx, [unit]);
+				const { complexName, ...own } = unit;
 
-			return { ...unit, status: withStatus?.status ?? unit.status };
-		}),
+				return {
+					...own,
+					...(permits(ctx.identity.permissions, 'viewComplex') ? { complexName } : {}),
+					status: withStatus?.status ?? unit.status
+				};
+			}),
 
-		/** The units a palette search reaches, by their own name or the complex holding them. */
-		search: procedure.member
+		/**
+		 * The units a palette search reaches, by their own name or the complex holding them. A
+		 * member who may not view complexes reaches a unit by its name alone, and is shown no
+		 * complex beside it (effort 838, requirement 10).
+		 */
+		search: procedure
+			.permitted('viewUnit')
 			.input(RecordSearchSchema)
 			.query(async ({ input, ctx }): Promise<RecordMatch[]> => {
-				return await ctx.db
+				const viewsComplex = permits(ctx.identity.permissions, 'viewComplex');
+				const units = await ctx.db
 					.select({ id: s.unit.id, label: s.unit.name, hint: s.complex.name })
 					.from(s.unit)
 					.innerJoin(s.complex, eq(s.unit.complexId, s.complex.id))
-					.where(matchesAnySearch([s.unit.name, s.complex.name], input.term))
+					.where(
+						matchesAnySearch(
+							viewsComplex ? [s.unit.name, s.complex.name] : [s.unit.name],
+							input.term
+						)
+					)
 					.orderBy(asc(s.complex.name), asc(s.unit.name), asc(s.unit.id))
 					.limit(input.limit);
+
+				return units.map((unit) => (viewsComplex ? unit : { ...unit, hint: '' }));
 			}),
 
-		getMany: procedure.member
+		getMany: procedure
+			.permitted('viewUnit')
 			.input(
 				UnitSchema.pick({ complexId: true }).extend({
 					search: z.string().optional(),
@@ -572,10 +626,13 @@ export default router({
 			.query(async ({ input, ctx }) => {
 				const search = input.search?.trim();
 				const tenantName = occupyingTenantName(ctx.clock.now());
+				// the occupant is named, and searched by, only for a member who may view tenants
+				// (effort 838, requirement 10).
+				const viewsTenant = permits(ctx.identity.permissions, 'viewTenant');
 
 				// the directory's own order is the name, and the reader may choose another from the
 				// keys the card shows, as every list may (effort 832, ticket 30).
-				return await ctx.db
+				const units = await ctx.db
 					.select({
 						id: s.unit.id,
 						name: s.unit.name,
@@ -587,16 +644,24 @@ export default router({
 					.where(
 						and(
 							eq(s.unit.complexId, input.complexId),
-							search ? matchesAnySearch([s.unit.name, tenantName], search) : undefined
+							search
+								? matchesAnySearch(viewsTenant ? [s.unit.name, tenantName] : [s.unit.name], search)
+								: undefined
 						)
 					)
-					.orderBy(...unitOrderBy(input.sort, tenantName));
+					.orderBy(...unitOrderBy(input.sort, tenantName, viewsTenant));
+
+				return units.map(({ tenantName, ...unit }) => ({
+					...unit,
+					...(viewsTenant ? { tenantName } : {})
+				}));
 			}),
 
 		// an optional id, so undoing a deletion can put the row back with the identity it had — a
 		// page still open on that record is holding a reference to it (ADR 0026). Absent
 		// otherwise, and the engine assigns one.
-		create: procedure.member
+		create: procedure
+			.permitted('createUnit')
 			.use(autosync())
 			.input(UnitSchema.omit({ status: true }).partial({ id: true }))
 			.mutation(async ({ input, ctx }) => {
@@ -629,7 +694,8 @@ export default router({
 				return created;
 			}),
 
-		update: procedure.member
+		update: procedure
+			.permitted('editUnit')
 			.use(autosync())
 			.input(UnitSchema.partial({ name: true, status: true }))
 			.mutation(async ({ input, ctx }) => {
@@ -670,7 +736,8 @@ export default router({
 				return ensureUnitStillExists(updated);
 			}),
 
-		delete: procedure.member
+		delete: procedure
+			.permitted('deleteUnit')
 			.use(autosync())
 			.input(UnitSchema.pick({ id: true }))
 			.mutation(async ({ input, ctx }) => {
@@ -697,7 +764,8 @@ export default router({
 		 *
 		 * A query rather than a mutation: it reads and writes nothing.
 		 */
-		planMany: procedure.member
+		planMany: procedure
+			.permitted('createUnit')
 			.input(z.object({ ids: z.array(UnitSchema.shape.id).min(1) }))
 			.query(async ({ input, ctx }) => {
 				const plan = await planUnitSelection(ctx.db, input.ids);
@@ -716,7 +784,8 @@ export default router({
 		 * did either. Occupancy moves through reconciliation alone, and this mutation gives it
 		 * nothing to move: what it removed was already outside every touch-set.
 		 */
-		deleteMany: procedure.member
+		deleteMany: procedure
+			.permitted('deleteUnit')
 			.use(autosync())
 			.input(z.object({ ids: z.array(UnitSchema.shape.id).min(1) }))
 			.mutation(async ({ input, ctx }) => {
@@ -740,7 +809,8 @@ export default router({
 		 * it: a unit that could be deleted had never been assigned, so `vacant` is not a default
 		 * standing in for what it was; it is what it was.
 		 */
-		createMany: procedure.member
+		createMany: procedure
+			.permitted('createUnit')
 			.use(autosync())
 			.input(
 				z.object({

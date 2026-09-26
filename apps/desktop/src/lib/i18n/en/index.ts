@@ -241,6 +241,34 @@ const en = {
 			'this-year': 'this year'
 		},
 
+		// why a record control is refused for who is reading (effort 838, requirement 10): the flag
+		// they lack, or a read-only grant on the workspace open, which takes every write away.
+		permission: {
+			missing: {
+				viewComplex: 'you do not have permission to view complexes.',
+				createComplex: 'you do not have permission to add complexes.',
+				editComplex: 'you do not have permission to edit complexes.',
+				deleteComplex: 'you do not have permission to delete complexes.',
+				viewUnit: 'you do not have permission to view units.',
+				createUnit: 'you do not have permission to add units.',
+				editUnit: 'you do not have permission to edit units.',
+				deleteUnit: 'you do not have permission to delete units.',
+				viewTenant: 'you do not have permission to view tenants.',
+				createTenant: 'you do not have permission to add tenants.',
+				editTenant: 'you do not have permission to edit tenants.',
+				deleteTenant: 'you do not have permission to delete tenants.',
+				viewContract: 'you do not have permission to view contracts.',
+				createContract: 'you do not have permission to add contracts.',
+				editContract: 'you do not have permission to edit contracts.',
+				deleteContract: 'you do not have permission to delete contracts.',
+				viewPayment: 'you do not have permission to view payments.',
+				createPayment: 'you do not have permission to add payments.',
+				editPayment: 'you do not have permission to edit payments.',
+				deletePayment: 'you do not have permission to delete payments.'
+			},
+			readOnly: 'your access to this workspace is read only, so nothing in it can be changed.'
+		},
+
 		// what a procedure's refusal says, by the code it was raised with (`$lib/api/refusal`). A
 		// refusal crosses as a code and its values, and this is the only place it becomes words.
 		refusals: {
@@ -310,20 +338,31 @@ const en = {
 				usernameInvalid:
 					'a username is 3 to 32 letters, digits, dots, underscores or hyphens, with no spaces.',
 				usernameTaken: 'that username is already taken in this organization. choose another.',
-				roleUnknown: 'choose administrator or member.',
+				roleUnknown: 'choose one of the roles the organization has.',
 				memberMissing: 'that member is no longer in this organization. reload to see what changed.',
 				markNotAnImage: 'choose a PNG, JPEG or WebP image.',
 				markTooLarge: 'the image is over 512 KB. choose a smaller one.',
 				memberGone: 'this account is no longer in the organization.',
 				memberRemoved:
 					'that member was removed. make them an account again if they are to come back.',
-				notYourself: 'you cannot do this to your own account. another administrator can.',
+				notYourself: 'you cannot do this to your own account. somebody who ranks above you can.',
 				ownerProtected: "the owner's account is not changed this way. the organization is theirs.",
 				ownerOnly: 'only the owner can do this. ask the owner.',
 				ownerMachineOnly:
 					"this needs the Turso account, which is connected on the owner's machine. ask the owner.",
-				roleLacksAct: 'your role does not include this. ask an administrator.',
-				notAdministrator: 'only an administrator can do this.',
+				roleLacksAct: 'your role does not include this. ask a manager.',
+				notAdministrator: 'only a manager can do this.',
+				rankNotAbove: 'that role is not below your own. ask somebody who ranks above it.',
+				roleUnsettled:
+					"somebody not allowed to changed this member's record. somebody above them removes them and makes them an account again.",
+				roleBuiltIn:
+					"every organization has this role, so it is not renamed, moved or deleted. the owner's role always carries everything.",
+				roleNameMissing: 'give the role a name.',
+				roleNameTaken: 'another role has that name. choose a different one.',
+				roleOutOfPlace: 'a role goes below the manager and above the member.',
+				noRankBelow: 'there is no room left below your role. ask somebody who ranks above you.',
+				ownerRoleNotAssigned:
+					"the owner's role moves only when the owner hands the organization over.",
 				alreadyOwner: 'you are the owner already. choose the account that is to have it.',
 				accountNotSetUp:
 					'that account has no password of its own yet. once they open their link and choose one, offer it again.',
@@ -349,6 +388,10 @@ const en = {
 					'this workspace needs upgrading, and read-only access cannot do it. ask a member with full access to open it once.',
 				databaseRefused:
 					'the database refused the request, and nothing was changed. try again later.',
+				organizationOlder:
+					'an older version made this organization. export each workspace there, delete it, make it again here and import them.',
+				organizationNewer:
+					'a newer version of rentable made this organization. update rentable to open it.',
 				tursoNotConnected:
 					'this machine is not connected to the Turso account. connect it and try again.',
 				consentNeededAgain:
@@ -574,7 +617,7 @@ const en = {
 			password: 'password',
 			unlocking: 'signing you in. this takes a moment on purpose.',
 			roleOwner: 'owner',
-			roleAdministrator: 'administrator',
+			roleManager: 'manager',
 			roleMember: 'member',
 			setUp: 'use your Turso account',
 			setUpDescription: 'you own the organization.',
@@ -627,6 +670,8 @@ const en = {
 			alsoEnding: 'also ending',
 			contractCount: '{count|number} {{contract|contracts}}',
 			openContract: 'open the contract for {tenant}',
+			openContractNumbered: 'open contract {number}',
+			openThisContract: 'open the contract',
 			seeAll: 'see all ({count|number})'
 		},
 
@@ -709,7 +754,7 @@ const en = {
 			ownership: {
 				title: 'ownership',
 				offered:
-					'{owner:string} has offered you this organization. accepting makes you the owner and makes them an administrator.'
+					'{owner:string} has offered you this organization. accepting makes you the owner and makes them a manager.'
 			}
 		}
 	},
@@ -1036,7 +1081,7 @@ const en = {
 			choose: 'choose image',
 			description: 'printed at the foot of every receipt and schedule.',
 			none: 'none added yet',
-			readOnly: 'the owner or an administrator can change it.',
+			readOnly: 'somebody allowed to change the mark can change it.',
 			remove: 'remove',
 			removed: 'signature or seal removed',
 			replace: 'replace image',
@@ -1169,7 +1214,6 @@ const en = {
 			memberDescription:
 				'a username, a role and the workspaces they hold. no password until they open a link you make.',
 			role: 'role',
-			administratorsAreTheOwners: 'only the owner can make an administrator.',
 			noWorkspaceToGrant: 'no workspace to grant yet. they can be granted one later.',
 			addMember: 'add a member',
 			cannotSend:
@@ -1188,7 +1232,7 @@ const en = {
 			// say what changes belong to the surfaces they open.
 			transferOwnership: 'hand over ownership',
 			transferOwnershipGoes:
-				'they are offered the organization. once they accept, they become the owner and you become an administrator.',
+				'they are offered the organization. once they accept, they become the owner and you become a manager.',
 			transferOwnershipMember: 'who is offered the organization',
 			transferOwnershipAuthority:
 				'your Turso account and its databases stay yours. the new owner connects their own before creating workspaces.',
@@ -1198,7 +1242,7 @@ const en = {
 			ownershipOfferWithdrawn: 'the offer was withdrawn. nothing changed hands.',
 			acceptOwnership: 'accept ownership',
 			acceptOwnershipGoes:
-				'you own {organization:string} and {owner:string} becomes an administrator. your password now signs the organization.',
+				'you own {organization:string} and {owner:string} becomes a manager. your password now signs the organization.',
 			acceptOwnershipAuthority:
 				'the Turso account stays with whoever connected it. connect yours in the organization section to create workspaces.',
 			acceptOwnershipConfirm: 'accept it',
@@ -1238,9 +1282,9 @@ const en = {
 			lockedOut:
 				'the member was locked out. {count|number} other {{member reconnects|members reconnect}} on their own.',
 			unreachableWorkspaces:
-				'you do not hold {workspaces}, so the reset could not restore it. an administrator who does can grant it again.',
+				'you do not hold {workspaces}, so the reset could not restore it. a manager who does can grant it again.',
 			linkUnreachableWorkspaces:
-				'you do not hold {workspaces}, so the link could not carry it over. an administrator who does can grant it again.',
+				'you do not hold {workspaces}, so the link could not carry it over. a manager who does can grant it again.',
 			noWorkspaces: 'no workspace yet.',
 			// what a card says about the workspaces somebody holds: how many, and not which. Which
 			// ones, and what each is good for, is the surface the card's own menu opens.
@@ -1264,24 +1308,16 @@ const en = {
 			forgetAccount: 'forget Turso account',
 			readOnlyIsTheOwners: "only the owner can grant read only access, on the owner's own machine.",
 			memberSheetDescription: 'what {username:string} may do in this organization.',
-			beyondRole: 'beyond their role',
-			beyondRoleDescription: 'what this member can do that a member usually cannot.',
-			beyondRoleNone: 'nothing beyond their role.',
-			beyondRoleAdd: 'allow something else',
-			// the picker's one confirm: everything ticked is allowed at once.
-			allowActs: 'allow',
-			administratorAllowedEvery: 'an administrator may already do all of it.',
-			permissionsLegend: 'what they may do',
-			actInviteMember: 'invite members',
-			actRemoveMember: 'remove members',
-			actChangeRole: 'change roles and permissions',
-			actRenameWorkspace: 'rename workspaces',
-			actResetPassword: 'issue new links',
-			actRenameMember: 'rename members',
-			actGrantWorkspace: 'grant workspaces',
-			signingIsTheOwners:
-				"only the owner can give somebody an act that writes another member's row. taking one back is yours.",
-			roleChanged: 'the role and the permissions were saved.',
+			roleChanged: 'the role was saved.',
+			overrideSaved: 'what they may do was saved.',
+			// why a control on a member's card is refused (effort 838, requirement 12): the member
+			// ranks at or above the reader, the card is the reader's own, or the reader lacks the flag.
+			notBelowYou: 'they are not below you, so somebody who ranks above them does this.',
+			yourOwn:
+				'this is you: your role and permissions are changed by somebody who ranks above you.',
+			lacksFlag: 'you may not {flag:string}.',
+			notHeld: 'you do not hold this yourself.',
+			roleOutOfReach: 'a role at or above your own is given by somebody who ranks above it.',
 			// the foot of the organization section: the two acts that end something, under one quiet
 			// word so that a reader scanning the section knows what the last block is before they
 			// read either description.
@@ -1309,13 +1345,14 @@ const en = {
 		 *
 		 * A role is described by the person it suits rather than by the acts it unlocks, which is
 		 * what every product in the research does and what makes the chooser readable without the
-		 * table beside it. The administrator's names the one thing the word does not cover.
+		 * table beside it. The manager's names the one thing the word does not cover. A role the
+		 * organization made is described by what it carries instead.
 		 */
 		roles: {
 			owner: {
 				who: 'holds the Turso account and can do anything. there is one owner, and only they can hand it over.'
 			},
-			administrator: {
+			manager: {
 				who: "adds members, makes links and grants workspaces. the Turso account stays the owner's."
 			},
 			member: {
@@ -1324,21 +1361,97 @@ const en = {
 		},
 
 		/**
-		 * what each act lets a person do, said as the thing they can do.
-		 *
-		 * These lines are the one place the seven acts are explained: the sheet's list, the picker
-		 * that allows one, and the role table all read them, so an act is worded once. Short, and
-		 * each starts with *can*, because they are read as a list of what one person may do rather
-		 * than as a form's labels.
+		 * what each flag is called where a role or a member's permissions list it (effort 838,
+		 * requirement 12), grouped under its family. A record kind's four read as the verb alone,
+		 * under the kind's name; the organization's and the owner's read as what the person does.
 		 */
-		acts: {
-			inviteMember: { does: 'can invite members' },
-			removeMember: { does: 'can remove members' },
-			changeRole: { does: 'can change what a member may do' },
-			renameWorkspace: { does: 'can rename a workspace' },
-			resetPassword: { does: "can reset a member's password" },
-			renameMember: { does: 'can rename members' },
-			grantWorkspace: { does: 'can give a member a workspace' }
+		families: {
+			administration: 'the organization',
+			owner: "the owner's own",
+			complex: 'complexes',
+			unit: 'units',
+			tenant: 'tenants',
+			contract: 'contracts',
+			payment: 'payments'
+		},
+		flagVerbs: {
+			view: 'view',
+			create: 'create',
+			edit: 'edit',
+			delete: 'delete'
+		},
+		flags: {
+			inviteMember: 'invite members',
+			removeMember: 'remove members',
+			assignRole: 'give members a role',
+			renameWorkspace: 'rename workspaces',
+			resetPassword: 'reset passwords',
+			renameMember: 'rename members',
+			grantWorkspace: 'grant workspaces',
+			manageRoles: 'manage roles',
+			overrideMember: "change one member's permissions",
+			manageMark: "change the organization's mark",
+			createWorkspace: 'create workspaces',
+			deleteWorkspace: 'delete workspaces',
+			mintReadOnly: 'grant read only access',
+			lockOut: 'lock members out',
+			renewCredentials: 'renew credentials',
+			tursoAccount: 'connect the Turso account',
+			transferOwnership: 'hand the organization over',
+			deleteOrganization: 'delete the organization'
+		},
+
+		/**
+		 * the roles block of the organization section, and the role editor it opens (effort 838,
+		 * requirements 4 and 12).
+		 */
+		roleList: {
+			title: 'roles',
+			description:
+				"what each kind of person may do, highest first. a member's own card can change it for them alone.",
+			add: 'add a role',
+			rank: 'rank',
+			heldBy: 'held by {count|number} {{member|members}}',
+			heldByNobody: 'nobody holds it yet',
+			carriesNothing: 'nothing yet',
+			moveUp: 'move up',
+			moveDown: 'move down',
+			highest: 'it is already just below the manager.',
+			lowest: 'it is already just above the member.',
+			notBelowYou: 'that role is not below your own.',
+			newTitle: 'a new role',
+			newDescription:
+				'a name, and what everybody given it may do. it starts just above the member and moves from its card.',
+			editDescription: 'what everybody holding {role:string} may do.',
+			name: 'name',
+			nameDescription: 'what the role is called on every card.',
+			builtInName: 'every organization has this role, so its name stays.',
+			flagsTitle: 'what it may do',
+			flagsDescription: 'what is ticked is on for everybody who holds the role.',
+			create: 'add the role',
+			deleteTitle: 'delete role',
+			deleteDescription:
+				'everybody holding it holds the member role instead, keeping anything changed for them alone.',
+			created: 'the role was added.',
+			saved: 'the role was saved.',
+			moved: 'the role was moved.',
+			deleted: 'the role was deleted.'
+		},
+
+		/**
+		 * what a member may do, on their card: their role's value, what is changed for them alone,
+		 * and what they end up with, flag by flag (effort 838, requirement 12).
+		 */
+		override: {
+			legend: 'what they may do',
+			description:
+				'the first column is what their role gives. change a flag for them alone, and the last column is what they may do.',
+			role: 'role',
+			changed: 'changed',
+			result: 'they may',
+			yes: 'yes',
+			no: 'no',
+			change: 'change {flag:string} for them alone'
 		},
 
 		/** what each access level is good for, beside the level's own name. */
@@ -1346,30 +1459,6 @@ const en = {
 			full: { does: 'reads and writes everything in it.' },
 			readOnly: { does: 'reads it, and writes nothing.' },
 			none: { does: 'does not reach it at all.' }
-		},
-
-		/**
-		 * the read-only table, opened from the members tray and edited nowhere.
-		 *
-		 * The comparison belongs beside the chooser rather than inside it: a person consults it
-		 * before picking a role, and picking one is a single control either way.
-		 */
-		roleTable: {
-			title: 'what each role may do',
-			description:
-				'a role is what somebody is called and what they start with. anything else is allowed on their own sheet.',
-			given: 'what you can give somebody',
-			memberNote: 'a member starts with none of these, and is allowed them on their own sheet.',
-			ownerAlone: 'the owner alone',
-			ownerAloneReason:
-				'these run on the Turso account the owner connected, so nobody can be given them.',
-			allowed: 'yes',
-			notAllowed: 'no',
-			createWorkspace: 'make a new workspace.',
-			deleteWorkspace: 'delete a workspace and everything in it.',
-			lockOut: 'cut somebody off from every workspace at once.',
-			renew: 'renew the credentials that keep everybody syncing.',
-			tursoAccount: 'connect the Turso account, and forget it.'
 		}
 	},
 

@@ -437,8 +437,9 @@
 	}));
 	const freeUnits = $derived(freeUnitsQuery.data ?? []);
 
-	const toUnitName = (unit: { name: string; complexName: string }) =>
-		`${unit.name} · ${unit.complexName}`;
+	// the complex is named only to a reader who may view complexes (effort 838, requirement 10).
+	const toUnitName = (unit: { name: string; complexName?: string }) =>
+		unit.complexName === undefined ? unit.name : `${unit.name} · ${unit.complexName}`;
 
 	// a unit chosen before the form opened (a unit's own page asked for the contract) is named from
 	// its own read: the free units are not read until the term is set, and need not include it.
@@ -479,7 +480,7 @@
 		$form.unitIds = $form.unitIds.filter((chosen) => chosen !== id);
 	};
 
-	const toggleUnit = (unit: { id: string; name: string; complexName: string }) => {
+	const toggleUnit = (unit: { id: string; name: string; complexName?: string }) => {
 		if ($form.unitIds.includes(unit.id)) {
 			$form.unitIds = $form.unitIds.filter((id) => id !== unit.id);
 		} else {

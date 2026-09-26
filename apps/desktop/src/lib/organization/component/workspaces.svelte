@@ -63,9 +63,7 @@
 	 * **Every gate is a prop, and none of them is a permission read here.** Creating and deleting a
 	 * workspace are the owner's in Rust (`require_owner`), so they are drawn from who is reading
 	 * and what this machine holds rather than from a bit on the row; renaming and granting are
-	 * acts, read by the area from the session and handed down. `workspace/component/permitted.svelte`
-	 * is deliberately not used: it subscribes to the open workspace's own permissions, which is a
-	 * different question from what this member may do in the organization.
+	 * acts, read by the area from the session and handed down.
 	 *
 	 * **The name is the open workspace's alone.** `remoteSync.rename` calls this machine's
 	 * workspace something else, and there is no command that renames one from a distance, so the

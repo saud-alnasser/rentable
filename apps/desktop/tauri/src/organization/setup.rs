@@ -19,7 +19,7 @@
 //! # Where the keys live, which this ticket decides
 //!
 //! **The organization key is derived from the owner's vault secret and stored nowhere**, and so is
-//! the owner's administrator signing key. `vault::MemberSecretKey::derive_seed` is the derivation
+//! the owner's signing key. `vault::MemberSecretKey::derive_seed` is the derivation
 //! and says why. The two homes it rejects are the ones the alternatives had: a column in the
 //! organization database, which is the database the key protects, and this machine's keyring,
 //! which fails requirement 6 the day the owner installs on a second machine. A derived key follows
@@ -58,12 +58,15 @@ use crate::{
 
 use super::{
     HeldOrganization,
-    authority::{AdministratorKey, OrganizationKey, VERIFYING_KEY_BYTES, issue_certificate},
+    authority::{
+        AdministratorKey, OrganizationKey, VERIFYING_KEY_BYTES, certificate_id,
+        issue_root_certificate,
+    },
     connect::{self, OrganizationFacts},
     invite::validate_username,
     permission,
     session::{self, CredentialSlot, MemberSession, content_key_of, remember, sign_in_by_username},
-    store::{GrantRecord, MemberRecord, OrganizationRecord, OrganizationStore, Signer},
+    store::{GrantRecord, MemberRecord, OrganizationRecord, OrganizationStore, RoleRecord, Signer},
     vault::{
         ContentKey, KdfParams, MemberSecretKey, create_vault_with_secret_and_key,
         generate_content_key, open_content, open_vault, seal_content, seal_to_public_key,
@@ -82,12 +85,6 @@ pub const OWNER_ROLE: &str = "owner";
 /// what [`one_organization_to_a_group`] reads, and why it is a constant rather than spelled
 /// into the `format!` below and again into a refusal that has to recognise it.
 pub const ORGANIZATION_DATABASE_PREFIX: &str = "org-";
-
-/// Every grantable act, as `packages/workspace-permission` masks them: seven flags, seven bits.
-/// The package is the vocabulary and this is its value for the role that holds all of it. What
-/// else an owner may do is not in this number, because requirement 5 keeps the acts that need the
-/// Turso authority out of the table altogether.
-pub const OWNER_PERMISSIONS: i64 = 0b111_1111;
 
 /// What Turso calls the group a new organization is made with, and the second name a first
 /// create tries. It is Turso's word rather than this application's, and it is never shown to
@@ -130,10 +127,10 @@ pub const ADMINISTRATOR_KEY_PURPOSE: &str = "administrator-key";
 /// `role::accept_ownership`, on a machine that already holds the old key.*
 ///
 /// **Every caller that needs the owner's key reads it through here**, so no second derivation can
-/// drift: `role::offer_ownership` and `role::accept_ownership`, the acts that certify a signer
-/// (`role::change_role`, `invite::write_account`, through `role::organization_key_of`, which
-/// refuses the derivation where it is not the key the session has pinned) on a machine already
-/// signed in, and `setup::connect_existing` on a machine that holds nothing yet. What comes back
+/// drift: `role::offer_ownership` and `role::accept_ownership` on a machine already signed in,
+/// and `setup::connect_existing` on a machine that holds nothing yet. *The acts that certify a
+/// signer read it too, through `role::organization_key_of`, until effort 838 issued every
+/// certificate from its issuer's own.* What comes back
 /// is compared or used to sign; it is never trusted because a column offered it.
 pub fn owner_key_from(secret: &MemberSecretKey) -> Result<OrganizationKey, Error> {
     Ok(OrganizationKey::from_bytes(
@@ -565,9 +562,11 @@ async fn finish<P: TursoPlatform>(
         AdministratorKey::from_bytes(&secret.derive_seed(ADMINISTRATOR_KEY_PURPOSE)?);
     let verifying_key = organization_key.verifying_key();
     let member_id = random_id()?;
-    let certificate = issue_certificate(
+    // the root: the one certificate the organization key signs, the owner's, carrying every flag
+    // (effort 838). Every other certificate is issued down from it.
+    let certificate = issue_root_certificate(
         &organization_key,
-        &format!("cert-{member_id}"),
+        &certificate_id(&member_id, &now.to_string()),
         &member_id,
         &administrator_key.verifying_key(),
         &now.to_string(),
@@ -584,6 +583,7 @@ async fn finish<P: TursoPlatform>(
     .await?;
 
     organization_store.install_schema().await?;
+    organization_store.write_format().await?;
     organization_store
         .write_organization(&OrganizationRecord {
             id: organization_id.to_string(),
@@ -599,6 +599,23 @@ async fn finish<P: TursoPlatform>(
         key: &administrator_key,
         certificate: &certificate,
     };
+
+    // the two built-in roles that are rows, signed by the root, before any member row names one
+    // (effort 838, requirement 3). The owner's role is a constant and is not among them.
+    for built_in in [permission::MANAGER_ROLE, permission::MEMBER_ROLE] {
+        organization_store
+            .write_role(
+                &signer,
+                &RoleRecord {
+                    id: built_in.id.to_string(),
+                    kind: built_in.id.to_string(),
+                    name_sealed: Vec::new(),
+                    mask: built_in.mask,
+                    rank: built_in.rank,
+                },
+            )
+            .await?;
+    }
 
     organization_store
         .write_member(
@@ -616,8 +633,11 @@ async fn finish<P: TursoPlatform>(
                 // here because this is one of the two moments a fresh vault secret is in hand
                 // (`invite::issue` is the other). It is what a widening certifies against.
                 signing_public_key: administrator_key.verifying_key(),
-                role: OWNER_ROLE.to_string(),
-                permissions: OWNER_PERMISSIONS,
+                role_id: permission::OWNER.to_string(),
+                override_mask: 0,
+                removed_at: None,
+                effective: permission::OWNER_ROLE.mask,
+                covered: true,
                 must_change_password: false,
                 created_at: now,
                 updated_at: now,
@@ -795,8 +815,8 @@ const ORGANIZATION_THIS_ACCOUNT_HOLDS: &str = "the organization this turso accou
 /// against each vault until one opens carrying the username that was typed; and the secret that
 /// vault yields re-derives the organization key, exactly as [`finish`] derived it when the
 /// organization was created. Its public half has to be the organization row's `verifying_key`, and
-/// every member row has to verify against it. An administrator's password opens an administrator's
-/// vault and derives something else, so it fails both, which is what makes this the owner's alone
+/// every member row has to verify against it. A manager's password opens a manager's vault and
+/// derives something else, so it fails both, which is what makes this the owner's alone
 /// by construction rather than by a role a row claims.
 ///
 /// **Nothing the unverified read yielded reaches the session.** Past the comparison, the sign-in
@@ -898,6 +918,10 @@ where
             });
         }
 
+        // an organization another version made is refused before its row is read or any
+        // credential renewed in it (effort 838, requirement 11).
+        replica.refuse_another_format().await?;
+
         let row = replica
             .organization()
             .await?
@@ -994,10 +1018,7 @@ async fn the_owners_key(
     // past any vault the password opens that is somebody else's, as the wall walks them: two
     // members who chose the same password each open under it, and the owner is not always the
     // one who opens first.
-    for member in members
-        .iter()
-        .filter(|member| member.role != permission::REMOVED)
-    {
+    for member in members.iter().filter(|member| member.removed_at.is_none()) {
         let Ok(secret) = open_vault(password, &member.vault) else {
             continue;
         };
@@ -1028,7 +1049,7 @@ async fn the_owners_key(
     // the password alone, and no column read (requirement 22). A founder and an account that was
     // handed the organization both derive the key their own secret yields, because the acceptance
     // re-keyed the directory under the new owner's derivation; a founder who handed over derives
-    // a key that matches nothing here and is refused as the administrator they now are. **Nothing
+    // a key that matches nothing here and is refused as the manager they now are. **Nothing
     // about who the owner is comes off a row**, which is what a way back read out of the database
     // it judges would have meant.
     let verifying_key = owner_key_from(&secret)
@@ -1237,8 +1258,8 @@ mod tests {
     use super::{
         BASE64URL, CreateOrganization, GroupState, MINIMUM_PASSWORD_LENGTH,
         ONLY_THE_OWNER_CONNECTS, ORGANIZATION_CREDENTIAL_LIFETIME, ORGANIZATION_DATABASE_PREFIX,
-        ORGANIZATION_KEY_PURPOSE, ORGANIZATION_THIS_ACCOUNT_HOLDS, OWNER_PERMISSIONS, OWNER_ROLE,
-        Remote, SHIPPING_KDF, connect_existing, create_organization, credential_expiry,
+        ORGANIZATION_KEY_PURPOSE, ORGANIZATION_THIS_ACCOUNT_HOLDS, OWNER_ROLE, Remote,
+        SHIPPING_KDF, connect_existing, create_organization, credential_expiry,
         draw_these_ids_next, group_inspect,
     };
     use crate::{
@@ -1703,8 +1724,7 @@ mod tests {
             .expect("a row");
 
         assert_eq!(members.len(), 1);
-        assert_eq!(members[0].role, OWNER_ROLE);
-        assert_eq!(members[0].permissions, OWNER_PERMISSIONS);
+        assert_eq!(members[0].role_id, OWNER_ROLE);
         assert!(!members[0].must_change_password);
         assert_eq!(members[0].vault.kdf_params, test_cost());
         assert_eq!(grants.len(), 1);
@@ -1713,6 +1733,44 @@ mod tests {
         assert_eq!(grants[0].access_level, "full-access");
         assert_eq!(row.verifying_key, key);
         assert_eq!(row.remote_url, held.remote_url);
+        // exactly the three roles (effort 838, criterion 3): the owner is the constant, held by
+        // the one member through the root, which carries every flag; the manager and the member
+        // are rows with the masks and ranks the package gives them.
+        assert_eq!(members[0].role_id, permission::OWNER);
+        assert_eq!(members[0].override_mask, 0);
+        assert_eq!(members[0].effective, permission::OWNER_ROLE.mask);
+        assert_eq!(
+            organization
+                .roles(&key)
+                .await
+                .expect("the roles")
+                .into_iter()
+                .map(|role| (role.id, role.kind, role.mask, role.rank))
+                .collect::<Vec<_>>(),
+            [permission::MANAGER_ROLE, permission::MEMBER_ROLE]
+                .map(|built_in| (
+                    built_in.id.to_string(),
+                    built_in.id.to_string(),
+                    built_in.mask,
+                    built_in.rank
+                ))
+                .to_vec()
+        );
+
+        let certificates = organization.certificates().await.expect("the certificates");
+
+        assert_eq!(certificates.len(), 1);
+        assert!(certificates[0].is_root());
+        assert_eq!(certificates[0].member_id, members[0].id);
+        assert_eq!(certificates[0].ceiling, permission::OWNER_ROLE.mask);
+        assert_eq!(certificates[0].rank, permission::OWNER_ROLE.rank);
+
+        // and the format it was made in, which is what a build of another format refuses it by
+        // (effort 838, requirement 11).
+        assert_eq!(
+            organization.format().await.expect("the format"),
+            Some(crate::organization::store::FORMAT_VERSION)
+        );
 
         // the organization key follows from the owner's password and from nothing stored: the
         // vault opens, the seed is derived, and its verifying key is the one the link pinned.
@@ -2366,7 +2424,7 @@ mod tests {
     const FOUR_WEEKS_MS: i64 = 28 * 24 * 60 * 60 * 1000;
     const SIX_DAYS_MS: i64 = 6 * 24 * 60 * 60 * 1000;
     const ISSUED_AT: i64 = 1_757_000_000_000;
-    const ADMINISTRATORS_PASSWORD: &str = "a password adam chose";
+    const MANAGERS_PASSWORD: &str = "a password adam chose";
 
     fn slot() -> CredentialSlot {
         Arc::new(Mutex::new(None))
@@ -2548,7 +2606,10 @@ mod tests {
         assert_eq!(registered.len(), 1);
         assert_eq!(registered[0].0.id, held.machine_id);
         assert_eq!(
-            registered[0].1.as_ref().map(|member| member.role.as_str()),
+            registered[0]
+                .1
+                .as_ref()
+                .map(|member| member.role_id.as_str()),
             Some(OWNER_ROLE)
         );
 
@@ -2581,19 +2642,19 @@ mod tests {
         );
     }
 
-    /// **The second case.** An administrator's password opens an administrator's vault, and the
+    /// **The second case.** A manager's password opens a manager's vault, and the
     /// key that vault derives is not the organization's, so the connect is refused by name and
     /// the machine is left holding nothing.
     ///
     /// This is the whole of what makes the way in the owner's: nothing here reads a role off a
     /// row and believes it.
     #[tokio::test]
-    async fn an_administrators_password_is_refused_and_the_machine_holds_nothing() {
+    async fn a_managers_password_is_refused_and_the_machine_holds_nothing() {
         let _turn = take_the_credential_store().await;
 
         store_platform_token(TOKEN).expect("the test credential store would not take the token");
 
-        let directory = scratch("connect-existing-administrator");
+        let directory = scratch("connect-existing-manager");
         let (platform, replica, owners_machine) = an_organization(&directory).await;
         let owner = sign_in(
             &replica,
@@ -2613,7 +2674,7 @@ mod tests {
             &locator,
             Invitation {
                 username: "adam.admin",
-                role: permission::ADMINISTRATOR,
+                role: permission::MANAGER,
                 workspaces: &[],
             },
             test_cost(),
@@ -2623,7 +2684,7 @@ mod tests {
         .expect("the invitation failed");
         let theirs = directory.join("adam");
 
-        std::fs::create_dir_all(&theirs).expect("the administrator's directory");
+        std::fs::create_dir_all(&theirs).expect("the manager's directory");
 
         let mut their_machine = fresh_machine(&theirs, "remote-sync");
 
@@ -2632,12 +2693,12 @@ mod tests {
             &mut their_machine,
             &JoinLink::decode(&invited.join_link).expect("the invitation link"),
             &invited.code,
-            ADMINISTRATORS_PASSWORD,
+            MANAGERS_PASSWORD,
             test_cost(),
             ISSUED_AT + 1,
         )
         .await
-        .expect("the administrator could not open their link");
+        .expect("the manager could not open their link");
 
         drop(replica);
 
@@ -2654,11 +2715,11 @@ mod tests {
             Remote::none(),
             &directory.join("app.db"),
             "adam.admin",
-            ADMINISTRATORS_PASSWORD,
+            MANAGERS_PASSWORD,
             now,
         )
         .await
-        .expect_err("an administrator connected on the owner's account");
+        .expect_err("a manager connected on the owner's account");
 
         assert!(
             matches!(refused, Error::Refused { reason: crate::error::RefusalReason::OwnerOnly, ref message } if message == ONLY_THE_OWNER_CONNECTS),
@@ -2672,7 +2733,7 @@ mod tests {
 
     /// An organization that has been handed over, on a scratch directory of its own.
     ///
-    /// The founder makes it, an administrator opens their link on a machine of their own with a
+    /// The founder makes it, a manager opens their link on a machine of their own with a
     /// password they choose, and the two acts of requirement 22 run: the owner offers with their
     /// own password, and the offered account accepts on its own machine. What comes back is the
     /// account, the founder's session as it stood before the handover, and the platform, with the
@@ -2695,7 +2756,7 @@ mod tests {
             &locator,
             Invitation {
                 username: "adam.admin",
-                role: permission::ADMINISTRATOR,
+                role: permission::MANAGER,
                 workspaces: &[],
             },
             test_cost(),
@@ -2705,7 +2766,7 @@ mod tests {
         .expect("the invitation failed");
         let theirs = directory.join("adam");
 
-        std::fs::create_dir_all(&theirs).expect("the administrator's directory");
+        std::fs::create_dir_all(&theirs).expect("the manager's directory");
 
         let mut their_machine = fresh_machine(&theirs, "remote-sync");
         let (_, mut their_session) = join::accept(
@@ -2713,12 +2774,12 @@ mod tests {
             &mut their_machine,
             &JoinLink::decode(&invited.join_link).expect("the invitation link"),
             &invited.code,
-            ADMINISTRATORS_PASSWORD,
+            MANAGERS_PASSWORD,
             test_cost(),
             ISSUED_AT + 1,
         )
         .await
-        .expect("the administrator could not open their link");
+        .expect("the manager could not open their link");
 
         crate::organization::role::offer_ownership(
             &replica,
@@ -2733,7 +2794,7 @@ mod tests {
             &replica,
             &mut their_session,
             &mut their_machine,
-            ADMINISTRATORS_PASSWORD,
+            MANAGERS_PASSWORD,
             ISSUED_AT + 3,
         )
         .await
@@ -2774,7 +2835,7 @@ mod tests {
             Remote::none(),
             &directory.join("app.db"),
             "adam.admin",
-            ADMINISTRATORS_PASSWORD,
+            MANAGERS_PASSWORD,
             now,
         )
         .await
@@ -2806,15 +2867,15 @@ mod tests {
     }
 
     /// **Criterion 22, the founder afterwards.** Having handed the organization over, the founder
-    /// is refused on this path as the administrator they now are.
+    /// is refused on this path as the manager they now are.
     ///
     /// **By construction rather than by a check.** Nothing here reads a role: the key the
     /// founder's password derives is simply not what the directory is signed under any more, so
-    /// they fail the comparison exactly as any administrator fails it. That is what closes review
+    /// they fail the comparison exactly as any manager fails it. That is what closes review
     /// round one's second finding, where the founder went on connecting after a transfer because
     /// the key had not moved.
     #[tokio::test]
-    async fn the_founder_is_refused_as_an_administrator_after_handing_the_organization_over() {
+    async fn the_founder_is_refused_as_a_manager_after_handing_the_organization_over() {
         let _turn = take_the_credential_store().await;
 
         store_platform_token(TOKEN).expect("the test credential store would not take the token");

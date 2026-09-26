@@ -178,7 +178,12 @@ export type StartupPorts = {
 		rememberRemoteSync(state: RemoteSyncState): void;
 		invalidateRemoteSync(): Promise<unknown>;
 		invalidateAll(): Promise<unknown>;
-		/** the held API context names an account; drop it when that stops being true. */
+		/** everything drawn from the organization: its state, its members, its roles. */
+		invalidateOrganization(): Promise<unknown>;
+		/**
+		 * the held API context names an account and what it may do in the workspace open; drop it
+		 * when either stops being true.
+		 */
 		forgetContext(): void;
 	};
 	/** a thrown value as a reader should see it. The route's translations, from outside. */
@@ -373,6 +378,9 @@ export class Startup {
 
 		if (chosen) {
 			await this.#ports.organization.openWorkspace(chosen.id);
+			// what the held context may do is folded for the workspace open (effort 838,
+			// requirement 10), and this is the moment that changes.
+			this.#ports.cache.forgetContext();
 		}
 
 		return true;
@@ -731,6 +739,9 @@ export class Startup {
 			return;
 		}
 
+		// the member is who they were, and what they may do is not: a read-only grant on the
+		// workspace now open clears the writes the held context carried for the one before.
+		this.#ports.cache.forgetContext();
 		this.#ports.cache.dropUndrawn();
 		await this.#ports.cache.invalidateAll();
 
@@ -829,6 +840,8 @@ export class Startup {
 			return;
 		}
 
+		await this.#rereadOrganization();
+
 		if (state) {
 			this.#set({ remoteSync: state });
 			this.#ports.cache.rememberRemoteSync(state);
@@ -851,6 +864,31 @@ export class Startup {
 		}
 
 		await this.#announceReceived();
+	}
+
+	/**
+	 * What a heartbeat owes the organization (effort 838, requirement 8): a change to a role or an
+	 * override on another machine reaches an open session within one of them.
+	 *
+	 * **Every dispatch, not only one that brought workspace rows.** The dispatch pulls the
+	 * organization's replica as well, and `received` says nothing about it, so what the member may do
+	 * is read again each time: the held context is dropped, so the next call resolves the identity
+	 * off the verified row, and the state and every organization query are read again, so the
+	 * interface draws what the row now says. It costs one read of the state per heartbeat.
+	 *
+	 * A read that fails, or finds nobody in, leaves the snapshot as it was: a session ended from
+	 * another machine is the standing's to say, and it says it before this runs.
+	 */
+	async #rereadOrganization() {
+		this.#ports.cache.forgetContext();
+
+		const organization = await this.#ports.organization.getState().catch(() => null);
+
+		if (organization?.session) {
+			this.#set({ organization });
+		}
+
+		await this.#ports.cache.invalidateOrganization();
 	}
 
 	/** the whole-table pass a pull that brought rows owes, and the announcement after it. */

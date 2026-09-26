@@ -3,7 +3,9 @@ import test from 'node:test';
 
 import { i18nObject } from '$lib/i18n/i18n-util.ts';
 import { loadLocale } from '$lib/i18n/i18n-util.sync.ts';
-import { declarePaletteCreates, type PaletteCreate } from '../create.ts';
+import { declarePaletteCreates, toOfferedCreates, type PaletteCreate } from '../create.ts';
+import { refusalOfEvery, type RecordFlag, type Standing } from '$lib/workspace/permission.ts';
+import { EVERY_FLAG, maskOf } from '@rentable/workspace-permission';
 import type { RecordSubject } from '../palette.ts';
 
 /**
@@ -92,4 +94,52 @@ test('a payment asks for its contract, and the payment host is asked with it', (
 	if (payment.kind === 'asks') payment.create('contract-1');
 
 	assert.deepEqual(asked, [{ host: 'payment', prefill: { contractId: 'contract-1' } }]);
+});
+
+/*
+ * Effort 838, requirement 10 and criterion 10: the create group offers only what the reader may
+ * create, by the create flag its procedure names, and an entry that asks for a record first also
+ * needs the reader to see the kind it asks for.
+ */
+
+/** the subjects offered to a reader holding every flag but these, on a grant of this access. */
+function offeredWithout(
+	hidden: RecordFlag[],
+	accessLevel: Standing['accessLevel'] = 'full-access'
+) {
+	const standing: Standing = {
+		permissions: maskOf(...EVERY_FLAG.filter((flag) => !(hidden as string[]).includes(flag))),
+		accessLevel
+	};
+
+	return toOfferedCreates(group().creates, (flags) =>
+		refusalOfEvery(flags, standing, translations)
+	).map((create) => create.subject);
+}
+
+test('each entry names the create its procedure asks for', () => {
+	const { creates } = group();
+
+	assert.deepEqual(
+		creates.map((create) => create.flags[0]),
+		['createTenant', 'createComplex', 'createUnit', 'createContract', 'createPayment']
+	);
+});
+
+test('an entry whose create the reader lacks is not offered, and the others are', () => {
+	assert.deepEqual(offeredWithout([]), ['tenant', 'complex', 'unit', 'contract', 'payment']);
+	assert.deepEqual(offeredWithout(['createTenant']), ['complex', 'unit', 'contract', 'payment']);
+	assert.deepEqual(offeredWithout(['createComplex']), ['tenant', 'unit', 'contract', 'payment']);
+	assert.deepEqual(offeredWithout(['createUnit']), ['tenant', 'complex', 'contract', 'payment']);
+	assert.deepEqual(offeredWithout(['createContract']), ['tenant', 'complex', 'unit', 'payment']);
+	assert.deepEqual(offeredWithout(['createPayment']), ['tenant', 'complex', 'unit', 'contract']);
+});
+
+test('a unit or a payment is not offered to a reader who cannot see what it asks for', () => {
+	assert.deepEqual(offeredWithout(['viewComplex']), ['tenant', 'complex', 'contract', 'payment']);
+	assert.deepEqual(offeredWithout(['viewContract']), ['tenant', 'complex', 'unit', 'contract']);
+});
+
+test('on a read-only grant nothing is offered to create', () => {
+	assert.deepEqual(offeredWithout([], 'read-only'), []);
 });

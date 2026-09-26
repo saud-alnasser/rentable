@@ -63,6 +63,7 @@ export function declareUnitActs(host: UnitHostRequests): UnitAct[] {
 			label: (t) => t.common.actions.edit(),
 			icon: SquarePenIcon,
 			group: 'primary',
+			flag: 'editUnit',
 			run: host.edit
 		},
 		{
@@ -73,6 +74,8 @@ export function declareUnitActs(host: UnitHostRequests): UnitAct[] {
 			label: (t) => t.common.actions.newContract(),
 			icon: FilePlusIcon,
 			group: 'primary',
+			// the act makes a contract, so it is the contract's create the reader needs.
+			flag: 'createContract',
 			run: host.newContract
 		},
 		{
@@ -83,6 +86,7 @@ export function declareUnitActs(host: UnitHostRequests): UnitAct[] {
 			icon: Trash2Icon,
 			tone: 'error',
 			group: 'destructive',
+			flag: 'deleteUnit',
 			// the record is all it removes, so it runs at once and offers undo.
 			confirmation: 'none',
 			run: host.confirmDelete

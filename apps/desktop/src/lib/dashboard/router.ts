@@ -18,6 +18,7 @@ import {
 	type ContractRank,
 	type ContractRankSummary
 } from '$lib/contract/rank';
+import { permits, type Flag } from '@rentable/workspace-permission';
 import { eq, sql } from 'drizzle-orm';
 import z from 'zod';
 
@@ -44,8 +45,12 @@ type DashboardQueueEntry = {
 	govId: string;
 	status: Contract['status'];
 	rank: ContractRank;
-	tenantName: string;
-	tenantPhone: string;
+	/**
+	 * who holds the contract, absent for a member who may not view tenants (effort 838,
+	 * requirement 10).
+	 */
+	tenantName?: string;
+	tenantPhone?: string;
 	outstandingAmount: number;
 	contractEnd: number;
 	/** Set on a contract filed under the money that also ends inside the notice window. */
@@ -57,7 +62,13 @@ type DashboardQueueEntry = {
 	comingDue?: { due: number; amount: number };
 };
 
-/** The portfolio figures the screen's band carries, and nothing else. */
+/**
+ * The portfolio figures the screen's band carries, and nothing else.
+ *
+ * Each figure is absent where the member may not view the kind it is read from (effort 838,
+ * requirement 10): what was due is the contracts', what came in the payments', and the occupancy
+ * the units'.
+ */
 type DashboardSummary = {
 	/**
 	 * what was expected and what came in, over the period asked about.
@@ -65,8 +76,8 @@ type DashboardSummary = {
 	 * Named for what they are rather than for a month: the screen used to be able to answer about
 	 * the current one and nothing else, so *this month* was part of what the figures meant.
 	 */
-	money: { due: number; collected: number };
-	occupancy: { totalUnits: number; occupiedUnits: number };
+	money: { due?: number; collected?: number };
+	occupancy?: { totalUnits: number; occupiedUnits: number };
 };
 
 type DashboardData = {
@@ -90,21 +101,32 @@ const DashboardInputSchema = z
 	})
 	.optional();
 
+/**
+ * **Open to every member, and leaving out what they may not view** (effort 838, requirement 10).
+ * The landing screen is where everybody arrives, so refusing it for want of one kind would refuse
+ * the application. A member without `viewContract` is answered with no queue, no ranks and no
+ * figure due; one without `viewPayment` with no figure collected; one without `viewUnit` with no
+ * occupancy; and one without `viewTenant` with a queue that names nobody. What is left out is not
+ * returned.
+ */
 export default procedure.member
 	.input(DashboardInputSchema)
 	.query(async ({ input, ctx }): Promise<DashboardData> => {
 		const now = ctx.clock.now();
 		const range = toPeriodRange(input?.period ?? 'this-month', now);
 		const settings = await ctx.host.settings.get();
+		const views = (flag: Flag) => permits(ctx.identity.permissions, flag);
 
-		const contracts = await ctx.db
-			.select({
-				contract: s.contract,
-				tenantName: s.tenant.name,
-				tenantPhone: s.tenant.phone
-			})
-			.from(s.contract)
-			.innerJoin(s.tenant, eq(s.contract.tenantId, s.tenant.id));
+		const contracts = !views('viewContract')
+			? []
+			: await ctx.db
+					.select({
+						contract: s.contract,
+						tenantName: s.tenant.name,
+						tenantPhone: s.tenant.phone
+					})
+					.from(s.contract)
+					.innerJoin(s.tenant, eq(s.contract.tenantId, s.tenant.id));
 
 		const ranked = contracts
 			.flatMap(({ contract, tenantName, tenantPhone }): DashboardQueueEntry[] => {
@@ -135,8 +157,7 @@ export default procedure.member
 						govId: serializedContract.govId,
 						status: serializedContract.status,
 						rank,
-						tenantName,
-						tenantPhone,
+						...(views('viewTenant') ? { tenantName, tenantPhone } : {}),
 						outstandingAmount,
 						contractEnd: serializedContract.end,
 						isEndingSoon: isContractEndingSoon(
@@ -153,8 +174,8 @@ export default procedure.member
 			})
 			.sort((left, right) =>
 				compareContractsByRank(
-					{ ...left, nextDue: left.comingDue?.due },
-					{ ...right, nextDue: right.comingDue?.due }
+					{ ...left, tenantName: left.tenantName ?? '', nextDue: left.comingDue?.due },
+					{ ...right, tenantName: right.tenantName ?? '', nextDue: right.comingDue?.due }
 				)
 			);
 
@@ -164,15 +185,17 @@ export default procedure.member
 
 		// the band's figures describe the portfolio, so they are read over every contract rather
 		// than over the ranked ones. Only the columns the month's arithmetic needs.
-		const portfolio = await ctx.db
-			.select({
-				status: s.contract.status,
-				start: s.contract.start,
-				end: s.contract.end,
-				interval: s.contract.interval,
-				cost: s.contract.cost
-			})
-			.from(s.contract);
+		const portfolio = !views('viewContract')
+			? []
+			: await ctx.db
+					.select({
+						status: s.contract.status,
+						start: s.contract.start,
+						end: s.contract.end,
+						interval: s.contract.interval,
+						cost: s.contract.cost
+					})
+					.from(s.contract);
 
 		const due = portfolio
 			.filter(({ status }) => isContractIncludedInDashboardPortfolio(status))
@@ -186,30 +209,41 @@ export default procedure.member
 		// intention are two chances to write it differently. It also fixes what the pair of bounds
 		// here used to do — `<= end` at midnight dropped every payment made during the last day of
 		// the month.
-		const collected = await ctx.db
-			.select({ amount: sql<number>`coalesce(sum(${s.payment.amount}), 0)` })
-			.from(s.payment)
-			.where(isPaymentWithinPeriod(input?.period ?? 'this-month', now))
-			.get();
+		const collected = !views('viewPayment')
+			? undefined
+			: await ctx.db
+					.select({ amount: sql<number>`coalesce(sum(${s.payment.amount}), 0)` })
+					.from(s.payment)
+					.where(isPaymentWithinPeriod(input?.period ?? 'this-month', now))
+					.get();
 
-		const occupancy = await ctx.db
-			.select({
-				totalUnits: sql<number>`count(${s.unit.id})`,
-				occupiedUnits: sql<number>`count(case when ${s.unit.status} = 'occupied' then 1 end)`
-			})
-			.from(s.unit)
-			.get();
+		const occupancy = !views('viewUnit')
+			? undefined
+			: await ctx.db
+					.select({
+						totalUnits: sql<number>`count(${s.unit.id})`,
+						occupiedUnits: sql<number>`count(case when ${s.unit.status} = 'occupied' then 1 end)`
+					})
+					.from(s.unit)
+					.get();
 
 		return {
 			endingSoonNoticeDays: settings.endingSoonNoticeDays,
 			queue: takeEntriesShownPerRank(ranked),
 			ranks,
 			summary: {
-				money: { due, collected: collected?.amount ?? 0 },
-				occupancy: {
-					totalUnits: occupancy?.totalUnits ?? 0,
-					occupiedUnits: occupancy?.occupiedUnits ?? 0
-				}
+				money: {
+					...(views('viewContract') ? { due } : {}),
+					...(views('viewPayment') ? { collected: collected?.amount ?? 0 } : {})
+				},
+				...(views('viewUnit')
+					? {
+							occupancy: {
+								totalUnits: occupancy?.totalUnits ?? 0,
+								occupiedUnits: occupancy?.occupiedUnits ?? 0
+							}
+						}
+					: {})
 			}
 		};
 	});

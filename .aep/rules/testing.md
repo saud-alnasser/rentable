@@ -161,6 +161,15 @@ Three things bind a component test, and each of them is a way of passing while m
   when `query-providers.svelte` had grown seven modules of callers from `organization/tests/`
   and `tenant/tests/` had copied it.*
 
+  `palette-harness.svelte` is the second: the command menu and the application's one keyboard
+  listener beside a screen, which the layout tests render directly and the complex, contract,
+  payment and tenant permission tests render through `permission.ts`'s `openPalette`. So is the
+  one `ResizeObserver` a component test needs where a tooltip or a list measures itself: jsdom
+  implements none, and `permission.ts`'s `layOutLists` stands one in, so a test reaching a
+  tooltip calls it rather than writing its own. *Both lived in module tests until ticket 19 of
+  [[efforts/838-permissions-are-a-role-and-an-override/spec]]: the harness in `layout/tests/`,
+  and a stub apiece in the new tests beside the shared one.*
+
   The package's directory is outside `src/lib/`, which is what keeps its fixtures out of the package: the
   `exports` map sends `./*` to `./src/lib/*`, so a fixture under the library directory is a
   component every consumer can import, and one of these throws unless something above it renders

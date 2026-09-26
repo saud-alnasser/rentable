@@ -2,6 +2,7 @@ import { hasSatisfiedContractPaymentRequirement } from '$lib/contract/contract';
 import type { RecordAct } from '$lib/design/acts';
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 import type { Contract, Payment } from '$lib/platform/database/schema';
+import { memberPermissions } from '$lib/workspace/permission';
 import CopyIcon from '@lucide/svelte/icons/copy';
 import FilesIcon from '@lucide/svelte/icons/files';
 import PrinterIcon from '@lucide/svelte/icons/printer';
@@ -108,6 +109,7 @@ export function declarePaymentActs(host: PaymentHostRequests): PaymentAct[] {
 			// the glyph every printing act draws, as the schedule's does.
 			icon: PrinterIcon,
 			group: 'primary',
+			flag: 'viewPayment',
 			run: host.receipt
 		},
 		{
@@ -115,6 +117,7 @@ export function declarePaymentActs(host: PaymentHostRequests): PaymentAct[] {
 			label: (t) => t.common.actions.duplicate(),
 			icon: FilesIcon,
 			group: 'primary',
+			flag: 'createPayment',
 			unavailable: toDuplicateUnavailable,
 			run: host.duplicate
 		},
@@ -123,6 +126,7 @@ export function declarePaymentActs(host: PaymentHostRequests): PaymentAct[] {
 			label: (t) => t.common.actions.edit(),
 			icon: SquarePenIcon,
 			group: 'primary',
+			flag: 'editPayment',
 			unavailable: toWriteUnavailable,
 			run: host.edit
 		},
@@ -132,6 +136,7 @@ export function declarePaymentActs(host: PaymentHostRequests): PaymentAct[] {
 			icon: Trash2Icon,
 			tone: 'error',
 			group: 'destructive',
+			flag: 'deletePayment',
 			// the record is all it removes, so it runs at once and offers undo.
 			confirmation: 'none',
 			unavailable: toWriteUnavailable,
@@ -148,7 +153,8 @@ export type PaymentCreateContract = Pick<Contract, 'status' | 'paidAmount' | 'ex
  * reason, shown on the ledger's create control and answered by the host wherever a payment is
  * asked for ([[rules/interface]], *Guidance*).
  *
- * A terminated contract is read-only. A contract paid in full still takes corrections to what it
+ * A reader who may not add payments is told so first, whatever the contract (effort 838,
+ * requirement 10). A terminated contract is read-only. A contract paid in full still takes corrections to what it
  * holds, so only the new payment is refused, and it is refused until the paid total drops below
  * what is required.
  */
@@ -156,8 +162,10 @@ export function toPaymentCreateUnavailable(
 	contract: PaymentCreateContract | undefined,
 	t: TranslationFunctions
 ): string | undefined {
-	if (!contract) {
-		return undefined;
+	const refused = memberPermissions.refusal('createPayment', t);
+
+	if (refused || !contract) {
+		return refused;
 	}
 
 	if (contract.status === 'terminated') {

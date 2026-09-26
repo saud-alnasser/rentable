@@ -27,6 +27,7 @@
 	import DirectoryImportDialog from '$lib/workspace/component/directory-import-dialog.svelte';
 	import { useImportRecords } from '$lib/workspace/query';
 	import { toTransferInput } from '$lib/workspace/workspace';
+	import { IMPORT_FLAGS, memberPermissions } from '$lib/workspace/permission';
 	import UserIcon from '@lucide/svelte/icons/user';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 
@@ -117,6 +118,10 @@
 		selected = [];
 	}
 
+	// the occupant is offered as an order and a column of the file only to a reader who may view
+	// tenants: the list answers anyone else with no occupant (effort 838, requirement 10).
+	const viewsTenant = $derived(memberPermissions.views('tenant'));
+
 	// what a unit's card offers, projected from the one list its own page and the command menu read
 	// (`complex/unit/acts.ts`). The row is handed over with the complex this directory lists, which
 	// is what a unit's details name it by.
@@ -132,7 +137,10 @@
 			status: $LL.common.labels.status()
 		};
 
-		return UNIT_SORT_COLUMN_IDS.map((id) => ({ id, label: labels[id] }));
+		return UNIT_SORT_COLUMN_IDS.filter((id) => id !== 'tenantName' || viewsTenant).map((id) => ({
+			id,
+			label: labels[id]
+		}));
 	});
 </script>
 
@@ -144,6 +152,7 @@
 		label={`${$LL.common.actions.delete()} · ${$LL.common.table.recordsSelected({ count: ids.length })}`}
 		icon={Trash2Icon}
 		tone="error"
+		unavailable={memberPermissions.refusal('deleteUnit', $LL)}
 		onclick={() => (confirming = [...ids])}
 	/>
 {/snippet}
@@ -169,12 +178,21 @@
 			{ header: $LL.common.labels.complex(), value: () => complexName },
 			{ header: $LL.common.labels.name(), value: (unit) => unit.name },
 			{ header: $LL.common.labels.status(), value: (unit) => $LL.common.status[unit.status]() },
-			{ header: $LL.common.labels.tenant(), value: (unit) => unit.tenantName ?? '' }
+			...(viewsTenant
+				? [
+						{
+							header: $LL.common.labels.tenant(),
+							value: (unit: UnitRecord) => unit.tenantName ?? ''
+						}
+					]
+				: [])
 		]
 	}}
 	onImport={() => void importDialog?.choose()}
+	importUnavailable={memberPermissions.refusalOfEvery(IMPORT_FLAGS, $LL)}
 	onCreate={() => unitHost.create({ complexId })}
 	createLabel={$LL.common.actions.newUnit()}
+	createUnavailable={memberPermissions.refusal('createUnit', $LL)}
 	emptyTitle={$LL.complexes.units.emptyTitle()}
 	emptyDescription={$LL.complexes.units.emptyDescription()}
 >
@@ -187,15 +205,19 @@
 			{#snippet content()}
 				<span class="pointer-events-none relative flex min-w-0 flex-1 flex-col gap-0.5 text-start">
 					<Cell.Text class="truncate text-sm font-medium" text={record.name} />
-					<!-- who is in it, which is the question the board this replaced existed to answer. -->
-					<span class="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-						{#if record.tenantName}
-							<UserIcon class="size-3.5 shrink-0" aria-hidden="true" />
-							<Cell.Text class="truncate" text={record.tenantName} />
-						{:else}
-							<span class="truncate">{$LL.common.status.vacant()}</span>
-						{/if}
-					</span>
+					<!-- who is in it, which is the question the board this replaced existed to answer. A
+					     reader who may not view tenants is answered with no occupant at all, and the line
+					     is left out rather than reading as vacant (effort 838, requirement 10). -->
+					{#if 'tenantName' in record}
+						<span class="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+							{#if record.tenantName}
+								<UserIcon class="size-3.5 shrink-0" aria-hidden="true" />
+								<Cell.Text class="truncate" text={record.tenantName} />
+							{:else}
+								<span class="truncate">{$LL.common.status.vacant()}</span>
+							{/if}
+						</span>
+					{/if}
 				</span>
 
 				<span class="pointer-events-none relative flex shrink-0 items-center gap-3">

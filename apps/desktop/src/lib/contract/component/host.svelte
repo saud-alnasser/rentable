@@ -46,6 +46,7 @@
 	import type { Locales } from '$lib/i18n/i18n-types';
 	import { i18nObject } from '$lib/i18n/i18n-util';
 	import { useReadTenant } from '$lib/tenant/query';
+	import { memberPermissions } from '$lib/workspace/permission';
 	import { onDestroy, untrack } from 'svelte';
 	import ContractForm from './form.svelte';
 	import PrintedSchedule, { type PrintedScheduleValue } from './printed-schedule.svelte';
@@ -178,15 +179,28 @@
 	 * tenant is read for what the contract row does not carry, so neither surface copies less.
 	 */
 	async function copyDetails(contract: ContractActRecord) {
-		const tenant = await readTenant(contract.tenantId).catch(() => undefined);
+		// the tenant is neither read nor copied for a reader who may not view tenants (effort 838,
+		// requirement 10).
+		const viewsTenant = memberPermissions.views('tenant');
+		const tenant = viewsTenant
+			? await readTenant(contract.tenantId).catch(() => undefined)
+			: undefined;
 
 		const copied = await writeDetailsToClipboard([
-			{
-				label: $LL.common.labels.tenant(),
-				value: tenant?.name?.trim() || contract.tenantName?.trim() || $LL.common.labels.tenant()
-			},
-			{ label: $LL.common.labels.nationalId(), value: tenant?.nationalId ?? '' },
-			{ label: $LL.common.labels.phone(), value: tenant?.phone ?? contract.tenantPhone ?? '' },
+			...(viewsTenant
+				? [
+						{
+							label: $LL.common.labels.tenant(),
+							value:
+								tenant?.name?.trim() || contract.tenantName?.trim() || $LL.common.labels.tenant()
+						},
+						{ label: $LL.common.labels.nationalId(), value: tenant?.nationalId ?? '' },
+						{
+							label: $LL.common.labels.phone(),
+							value: tenant?.phone ?? contract.tenantPhone ?? ''
+						}
+					]
+				: []),
 			{ label: $LL.common.labels.governmentId(), value: contract.govId ?? '' },
 			{ label: $LL.common.labels.cycle(), value: intervalLabels[contract.interval] },
 			{
@@ -231,7 +245,7 @@
 	 * it there, and nothing here records that a reminder went.
 	 */
 	async function sendReminder(message: string) {
-		if (!reminder) {
+		if (!reminder?.tenantPhone) {
 			return;
 		}
 
@@ -256,13 +270,20 @@
 	 * A contract's schedule, shown first in the application's own preview: its cycles, its tenant,
 	 * its units and who keeps it are read afresh, and the preview opens on the language the
 	 * application shows.
+	 *
+	 * The tenant and the units are read only for a reader who may view them, and the page leaves
+	 * each out otherwise (effort 838, requirement 10); the complex holding a unit is left out by the
+	 * read itself.
 	 */
 	async function previewSchedule(contract: ContractActRecord) {
+		const viewsTenant = memberPermissions.views('tenant');
+		const viewsUnit = memberPermissions.views('unit');
+
 		try {
 			const [cycles, units, tenant, issuer, mark] = await Promise.all([
 				readSchedule.cycles(contract.id),
-				readSchedule.units(contract.id),
-				readTenant(contract.tenantId).catch(() => undefined),
+				viewsUnit ? readSchedule.units(contract.id) : undefined,
+				viewsTenant ? readTenant(contract.tenantId).catch(() => undefined) : undefined,
 				readOrganizationName(),
 				// a mark that cannot be read leaves the foot empty rather than the schedule unprinted.
 				readOrganizationMark().catch(() => null)
@@ -272,10 +293,15 @@
 				issuer,
 				mark,
 				contract,
-				tenant: {
-					name: tenant?.name?.trim() || contract.tenantName?.trim() || $LL.common.labels.tenant()
-				},
-				units,
+				...(viewsTenant
+					? {
+							tenant: {
+								name:
+									tenant?.name?.trim() || contract.tenantName?.trim() || $LL.common.labels.tenant()
+							}
+						}
+					: {}),
+				...(units ? { units } : {}),
 				cycles
 			};
 			scheduleLocale = $locale;

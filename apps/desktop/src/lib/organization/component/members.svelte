@@ -9,19 +9,17 @@
 	import { Badge } from '@rentable/design/primitive/badge/index.js';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
-	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
 	import CreateControl from '$lib/design/block/create-control.svelte';
 	import { toCardActions } from '$lib/design/acts';
 	import type { ListSort } from '@rentable/design/sort.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { accountInitials } from '$lib/sync/account';
-	import { toMemberActContext, type MemberActRecord } from '$lib/organization/acts';
+	import { lacking, toMemberActContext, type MemberActRecord } from '$lib/organization/acts';
 	import DirectoryTray from '$lib/organization/component/directory-tray.svelte';
 	import { toMemberDirectory } from '$lib/organization/directory';
-	import RoleTable from '$lib/organization/component/role-table.svelte';
 	import { memberActs, memberHost, memberPending } from '$lib/organization/host.svelte';
+	import { memberRoleName } from '$lib/organization/role';
 	import { RECORD_PARAM, recordOf, withSection } from '$lib/settings/section';
-	import ListChecksIcon from '@lucide/svelte/icons/list-checks';
 	import XIcon from '@lucide/svelte/icons/x';
 
 	/**
@@ -67,7 +65,9 @@
 	 * effort 832 settled one verb per act.*
 	 *
 	 * **An act the session lacks is absent from the menu, not disabled.** Each gate is drawn from
-	 * the reader's own permissions and refused again in Rust on the signed row.
+	 * the reader's own permissions and refused again in Rust on the signed row. **An act the reader
+	 * holds on somebody at or above their own rank is drawn refused, with that reason**, and so is
+	 * the edit on the reader's own card (effort 838, requirement 12).
 	 *
 	 * **Each act reads as one or two plain words**, and the sentence that explains it belongs to
 	 * the surface it opens rather than to the entry: a menu is read at a glance, and *role and
@@ -76,7 +76,7 @@
 	 * **The owner is removed by nobody and edited by nobody, and nobody edits their own
 	 * role, permissions or workspaces** (requirement 19). So the owner's card carries one act and
 	 * no other: handing the organization over (requirement 22), which is the owner's own and is
-	 * absent for everybody else, so an administrator meets that card with no menu and no gesture at
+	 * absent for everybody else, so a manager meets that card with no menu and no gesture at
 	 * all. **That one act is two, and never both at once**: offering the organization while no
 	 * offer stands, and withdrawing the one that does. A reader's own card is the same: a member's
 	 * name, role and workspaces are given by somebody else, and Rust refuses each of the three on
@@ -99,10 +99,9 @@
 	 * bar, its one primary at the other, and the records below. *The primary sat under the last
 	 * card until that look.*
 	 *
-	 * **What each role may do is read from the tray too**, beside the add and as quiet as it
-	 * (requirement 23). The comparison is documentation rather than a control, so it sits next to
-	 * the directory rather than inside the chooser that picks a role, and it is the one surface
-	 * this section mounts.
+	 * **What each role may do is the roles block's**, beside this directory in the same section
+	 * (effort 838, requirement 12). *It was a read-only table opened from this tray until the roles
+	 * became records of their own.*
 	 */
 	let {
 		members,
@@ -112,10 +111,13 @@
 		canLockOut,
 		canRename,
 		canReset,
-		canChangeRole,
+		canAssignRole,
+		canOverride,
 		canGrantWorkspace,
 		isOwner,
-		selfId
+		selfId,
+		rank,
+		permissions
 	}: {
 		members: OrganizationMember[];
 		/** where each member stands, joined to the members on the member's id. */
@@ -135,14 +137,20 @@
 		canRename: boolean;
 		/** whether the reader's row carries `resetPassword`, which is what a reset is held to. */
 		canReset: boolean;
-		/** whether the reader's row carries `changeRole`. */
-		canChangeRole: boolean;
+		/** whether the reader's row carries `assignRole`. */
+		canAssignRole: boolean;
+		/** whether the reader's row carries `overrideMember`. */
+		canOverride: boolean;
 		/** whether the reader's row carries `grantWorkspace`. */
 		canGrantWorkspace: boolean;
 		/** whether the reader is the owner: signing acts and read-only grants are theirs alone. */
 		isOwner: boolean;
 		/** the reader's own member id, whose card offers nothing that writes it. */
 		selfId: string;
+		/** how high the reader's role stands: a card at or above it is written by somebody else. */
+		rank: number;
+		/** what the reader may do, which bounds what they may give. */
+		permissions: number;
 	} = $props();
 
 	// the address of the section this directory sits in, resolved once. A card's is it with the
@@ -153,12 +161,7 @@
 	const addressOf = (memberId: string) =>
 		`${sectionAddress}&${RECORD_PARAM}=${encodeURIComponent(memberId)}`;
 
-	const roleLabel = (role: string) =>
-		({
-			owner: $LL.layout.signIn.roleOwner(),
-			administrator: $LL.layout.signIn.roleAdministrator(),
-			member: $LL.layout.signIn.roleMember()
-		})[role] ?? role;
+	const roleLabel = (member: OrganizationMember) => memberRoleName($LL, member);
 
 	const standingOf = (memberId: string) =>
 		standings.find((standing) => standing.memberId === memberId) ?? null;
@@ -194,12 +197,15 @@
 			{
 				selfId,
 				isOwner,
+				rank,
+				permissions,
 				canInvite,
 				canReset,
 				canRemove,
 				canLockOut,
 				canRename,
-				canChangeRole,
+				canAssignRole,
+				canOverride,
 				canGrantWorkspace
 			},
 			members,
@@ -208,7 +214,11 @@
 		)
 	);
 
-	const recordOfMember = (member: OrganizationMember): MemberActRecord => ({ member, context });
+	const recordOfMember = (member: OrganizationMember): MemberActRecord => ({
+		member,
+		context,
+		standing: standingOf(member.id)
+	});
 
 	// the member the address names is opened and then cleared out of the address, the way a
 	// concept's host consumes a create intent: left there, a reload would reopen a surface the
@@ -231,8 +241,6 @@
 		void goto(sectionAddress, { replaceState: true, noScroll: true, keepFocus: true });
 	});
 
-	let readingRoles = $state(false);
-
 	let search = $state('');
 	// the empty treatment at a settings section's size: a directory here is one block among
 	// others, so it takes no screen's worth of padding.
@@ -254,40 +262,16 @@
 	discoverable without competing with the records (*Semantics are secondary*, Refactoring UI
 	p.60). The form is the shell's, opened the same way the rail's row opens it.
 -->
-{#snippet trayReading()}
-	<!-- what each role may do (requirement 23). It is read before a role is picked and writes
-	     nothing, so it stands next to the directory rather than inside the chooser, and it stands
-	     where the list shell puts what reads the set rather than what acts on it: after the count
-	     and before the order, outlined like the controls beside it. -->
-	<Tooltip.Root>
-		<Tooltip.Trigger>
-			{#snippet child({ props })}
-				<Button
-					{...props}
-					variant="outline"
-					size="icon-sm"
-					data-role-table-open
-					aria-label={$LL.organization.roleTable.title()}
-					onclick={() => {
-						readingRoles = true;
-					}}
-				>
-					<ListChecksIcon />
-				</Button>
-			{/snippet}
-		</Tooltip.Trigger>
-		<Tooltip.Content side="top" sideOffset={8}>
-			{$LL.organization.roleTable.title()}
-		</Tooltip.Content>
-	</Tooltip.Root>
-{/snippet}
-
 {#snippet trayActions()}
 	<!-- last in the tray, where every set offers its create ([[rules/interface]], *Create*). -->
 	{#if canInvite}
+		<!-- an account is made with its grant on the organization database, which only a holder of
+		     `grantWorkspace` signs (effort 838, the row-kind table), so the add says so where the
+		     reader lacks it. -->
 		<CreateControl
 			label={$LL.organization.dashboard.addMember()}
 			onCreate={() => memberHost.create()}
+			unavailable={canGrantWorkspace ? undefined : lacking($LL, 'grantWorkspace')}
 			data-invite-open
 		/>
 	{/if}
@@ -304,7 +288,6 @@
 		count={shown.length}
 		{sortOptions}
 		bind:sort
-		narrowing={trayReading}
 		action={trayActions}
 	/>
 
@@ -351,7 +334,7 @@
 								<span class="truncate text-sm font-medium" data-member-username>
 									<bdi>{member.username}</bdi>
 								</span>
-								<Badge variant="secondary">{roleLabel(member.role)}</Badge>
+								<Badge variant="secondary"><bdi>{roleLabel(member)}</bdi></Badge>
 							</div>
 
 							{#if standing}
@@ -384,10 +367,3 @@
 		{/each}
 	</div>
 </Field.Set>
-
-<RoleTable
-	open={readingRoles}
-	onOpenChange={(open) => {
-		readingRoles = open;
-	}}
-/>

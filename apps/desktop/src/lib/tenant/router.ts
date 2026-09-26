@@ -17,6 +17,7 @@ import {
 	whatRefusesTenantDeletion,
 	type TenantSortColumnId
 } from '$lib/tenant/tenant';
+import { permits } from '@rentable/workspace-permission';
 import { asc, desc, eq, inArray, like, sql, type AnyColumn, type SQL } from 'drizzle-orm';
 import z from 'zod';
 
@@ -118,8 +119,15 @@ const TenantSortSchema = z.object({
  * which reads as no order at all. The id is still last because a name is not unique, and
  * without a total order two renders of the same query may disagree.
  */
-function tenantOrderBy(sort: z.infer<typeof TenantSortSchema> | undefined): SQL[] {
+function tenantOrderBy(
+	chosenSort: z.infer<typeof TenantSortSchema> | undefined,
+	viewsContract: boolean
+): SQL[] {
 	const directoryOrder = [asc(s.tenant.name), asc(s.tenant.id)];
+	// a member who may not view contracts is not ordered by how many a tenant holds, which would be
+	// the count told another way (effort 838, requirement 10).
+	const sort =
+		chosenSort?.columnId === 'activeContractCount' && !viewsContract ? undefined : chosenSort;
 
 	if (!sort) {
 		return directoryOrder;
@@ -135,7 +143,8 @@ export default router({
 	// an optional id, so undoing a deletion can put the row back with the identity it had — a
 	// page still open on that record is holding a reference to it (ADR 0026). Absent otherwise,
 	// and the engine assigns one.
-	create: procedure.member
+	create: procedure
+		.permitted('createTenant')
 		.use(autosync())
 		.input(TenantSchema.partial({ id: true }))
 		.mutation(async ({ input, ctx }) => {
@@ -160,7 +169,8 @@ export default router({
 			return created;
 		}),
 
-	update: procedure.member
+	update: procedure
+		.permitted('editTenant')
 		.use(autosync())
 		.input(TenantSchema.partial({ name: true, nationalId: true, phone: true }))
 		.mutation(async ({ input, ctx }) => {
@@ -209,7 +219,8 @@ export default router({
 			return ensureTenantStillExists(updated);
 		}),
 
-	delete: procedure.member
+	delete: procedure
+		.permitted('deleteTenant')
 		.use(autosync())
 		.input(TenantSchema.pick({ id: true }))
 		.mutation(async ({ input, ctx }) => {
@@ -239,7 +250,8 @@ export default router({
 	 *
 	 * A query rather than a mutation: it reads and writes nothing.
 	 */
-	planMany: procedure.member
+	planMany: procedure
+		.permitted('createTenant')
 		.input(z.object({ ids: z.array(TenantSchema.shape.id).min(1) }))
 		.query(async ({ input, ctx }) => {
 			const plan = await planTenantSelection(ctx.db, input.ids);
@@ -261,7 +273,8 @@ export default router({
 	 * The rows come back whole rather than as ids, because putting a record back means putting it
 	 * back as itself, by the identity it had (ADR 0026).
 	 */
-	deleteMany: procedure.member
+	deleteMany: procedure
+		.permitted('deleteTenant')
 		.use(autosync())
 		.input(z.object({ ids: z.array(TenantSchema.shape.id).min(1) }))
 		.mutation(async ({ input, ctx }) => {
@@ -290,7 +303,8 @@ export default router({
 	 *
 	 * Every check `create` makes, asked once for the whole set rather than once per tenant.
 	 */
-	createMany: procedure.member
+	createMany: procedure
+		.permitted('createTenant')
 		.use(autosync())
 		.input(z.object({ tenants: z.array(TenantSchema.partial({ id: true })).min(1) }))
 		.mutation(async ({ input, ctx }) => {
@@ -335,36 +349,40 @@ export default router({
 			return created.map(([tenant]) => tenant);
 		}),
 
-	get: procedure.member.input(TenantSchema.partial()).query(async ({ input, ctx }) => {
-		if (input.id) {
-			return await ctx.db.select().from(s.tenant).where(eq(s.tenant.id, input.id)).get();
-		}
+	get: procedure
+		.permitted('viewTenant')
+		.input(TenantSchema.partial())
+		.query(async ({ input, ctx }) => {
+			if (input.id) {
+				return await ctx.db.select().from(s.tenant).where(eq(s.tenant.id, input.id)).get();
+			}
 
-		if (input.name) {
-			return await ctx.db
-				.select()
-				.from(s.tenant)
-				.where(like(s.tenant.name, `%${input.name}%`))
-				.get();
-		}
+			if (input.name) {
+				return await ctx.db
+					.select()
+					.from(s.tenant)
+					.where(like(s.tenant.name, `%${input.name}%`))
+					.get();
+			}
 
-		if (input.nationalId) {
-			return await ctx.db
-				.select()
-				.from(s.tenant)
-				.where(eq(s.tenant.nationalId, input.nationalId))
-				.get();
-		}
+			if (input.nationalId) {
+				return await ctx.db
+					.select()
+					.from(s.tenant)
+					.where(eq(s.tenant.nationalId, input.nationalId))
+					.get();
+			}
 
-		if (input.phone) {
-			return await ctx.db.select().from(s.tenant).where(eq(s.tenant.phone, input.phone)).get();
-		}
+			if (input.phone) {
+				return await ctx.db.select().from(s.tenant).where(eq(s.tenant.phone, input.phone)).get();
+			}
 
-		return undefined;
-	}),
+			return undefined;
+		}),
 
 	/** The tenants a palette search reaches, by name, identity or phone. */
-	search: procedure.member
+	search: procedure
+		.permitted('viewTenant')
 		.input(RecordSearchSchema)
 		.query(async ({ input, ctx }): Promise<RecordMatch[]> => {
 			const rows = await ctx.db
@@ -377,7 +395,12 @@ export default router({
 			return rows;
 		}),
 
-	getMany: procedure.member
+	/**
+	 * The tenants directory, each row with a count of the tenant's contracts in every status. The
+	 * counts are left out for a member who may not view contracts (effort 838, requirement 10).
+	 */
+	getMany: procedure
+		.permitted('viewTenant')
 		.input(
 			z.object({
 				search: z.string().optional(),
@@ -387,6 +410,7 @@ export default router({
 		)
 		.query(async ({ input, ctx }) => {
 			const search = input.search?.trim();
+			const viewsContract = permits(ctx.identity.permissions, 'viewContract');
 
 			const query = ctx.db
 				.select({
@@ -400,8 +424,32 @@ export default router({
 				.leftJoin(s.contract, eq(s.contract.tenantId, s.tenant.id))
 				.where(search ? matchesAnySearch(TENANT_SEARCH_COLUMNS, search) : undefined)
 				.groupBy(s.tenant.id)
-				.orderBy(...tenantOrderBy(input.sort));
+				.orderBy(...tenantOrderBy(input.sort, viewsContract));
 
-			return input.limit ? await query.limit(input.limit) : await query;
+			const tenants = input.limit ? await query.limit(input.limit) : await query;
+
+			return tenants.map(
+				({
+					contractsScheduled,
+					contractsActive,
+					contractsFulfilled,
+					contractsDefaulted,
+					contractsExpired,
+					contractsTerminated,
+					...tenant
+				}) => ({
+					...tenant,
+					...(viewsContract
+						? {
+								contractsScheduled,
+								contractsActive,
+								contractsFulfilled,
+								contractsDefaulted,
+								contractsExpired,
+								contractsTerminated
+							}
+						: {})
+				})
+			);
 		})
 });

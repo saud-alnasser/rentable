@@ -1,14 +1,19 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import type { Context } from '$lib/api/context.ts';
+import { caller, context, procedure, router } from '$lib/api/trpc.ts';
+import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
 import {
 	fakeHeldOrganization,
+	fakeHost,
 	fakeOrganizationSession,
 	fakeOrganizationState,
 	fakeOrganizationWorkspace,
 	fakeSyncState,
 	fakeWorkspace
 } from '$lib/platform/tests/testing.ts';
+import { maskOf } from '@rentable/workspace-permission';
 
 import {
 	A_DAY,
@@ -700,6 +705,72 @@ test('and a pull that landed rows announces them, while one that landed none doe
 	assert.equal(journal.announced, 1, 'rows arrived, and derived state has to be told');
 });
 
+// --- A change on another machine, after one heartbeat ---------------------------------------
+
+/**
+ * **Criterion 8 of effort 838, on this side of the boundary.** A role or an override changed on
+ * another machine reaches an open session within one sync heartbeat: what the heartbeat reports is
+ * applied here, and that is where the held API context is dropped and the organization read again.
+ *
+ * The context is a real one over a real caller, built the way `api/caller` builds it and dropped by
+ * the port the application wires to `forgetContext`; the shell behind it is a fake whose state the
+ * test moves, as another machine's write reaching the replica would.
+ */
+const heartbeatRouter = router({
+	rename: procedure.permitted('renameWorkspace').query(() => 'renamed')
+});
+
+test('a member narrowed on another machine is refused on the next call after one heartbeat', async () => {
+	const widened = fakeOrganizationState({
+		session: fakeOrganizationSession({ permissions: maskOf('renameWorkspace') })
+	});
+	const narrowed = fakeOrganizationState({ session: fakeOrganizationSession({ permissions: 0 }) });
+	let shell = widened;
+	const host = fakeHost({
+		organization: { ...fakeHost().organization, getState: async () => shell },
+		remoteSync: {
+			...fakeHost().remoteSync,
+			getState: async () => fakeSyncState({ workspace: fakeWorkspace({ remoteId: 'north' }) })
+		}
+	});
+	let held: Promise<Context> | null = null;
+	const api = caller(heartbeatRouter)(
+		() => (held ??= context({ db: createMemoryDatabase(), clock: { now: () => AT }, host }))
+	);
+	const { startup, journal, standWith } = harness({
+		organization: widened,
+		forgetContext: () => {
+			held = null;
+		}
+	});
+
+	await startup.start();
+	assert.equal(await api.rename(), 'renamed');
+
+	// the narrowing lands on the replica; nothing on this machine has asked since.
+	shell = narrowed;
+	standWith(narrowed);
+
+	const invalidatedBefore = journal.organizationInvalidated;
+	await startup.applySyncOutcome({ action: 'none', received: false, workspaceId: 'north' });
+
+	const refusal = await api.rename().then(
+		() => null,
+		(error: unknown) => error as { code?: string }
+	);
+
+	assert.equal(refusal?.code, 'FORBIDDEN', 'the next call acted on what the member held before');
+	assert.equal(startup.snapshot.organization?.session?.permissions, 0);
+	assert.equal(journal.organizationInvalidated, invalidatedBefore + 1);
+
+	// and the other way: widened again, the next heartbeat gives the act back.
+	shell = widened;
+	standWith(widened);
+	await startup.applySyncOutcome({ action: 'none', received: false, workspaceId: 'north' });
+
+	assert.equal(await api.rename(), 'renamed');
+});
+
 // rows that land while a day-crossing pass is out are announced after it rather than dropped:
 // that pass may have read the tables before they arrived, and nothing else refetches them.
 test('and rows that land while a day-crossing reconcile is out are announced once it is back', async () => {
@@ -773,8 +844,9 @@ test('switching workspaces drops what was drawn, opens the chosen one, and runs 
 	// the rail reads the new workspace off its own query without waiting for a refetch.
 	assert.equal(journal.remembered.at(-1)?.workspace.remoteId, 'south');
 	assert.equal(startup.snapshot.remoteSync?.workspace.remoteId, 'south');
-	// the member and the database proxy are what they were, so the session is not remembered again.
-	assert.equal(journal.contextsForgotten, forgottenBefore);
+	// the member is who they were, and what they may do is not: the context is dropped once, since
+	// a read-only grant on the workspace now open clears writes the one before allowed (effort 838).
+	assert.equal(journal.contextsForgotten, forgottenBefore + 1);
 });
 
 test('and a workspace the shell would not open is the ordinary failure, with nothing dropped', async () => {

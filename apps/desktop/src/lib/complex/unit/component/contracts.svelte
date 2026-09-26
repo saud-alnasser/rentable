@@ -10,6 +10,7 @@
 	import { contractHost } from '$lib/contract/host.svelte';
 	import type { FilterSelection } from '$lib/design/filter';
 	import { LL } from '$lib/i18n/i18n-svelte';
+	import { memberPermissions } from '$lib/workspace/permission';
 
 	/** The unit these contracts mention. */
 	let { unitId }: { unitId: string } = $props();
@@ -67,6 +68,7 @@
 			recordHeight={ROW_HEIGHT}
 			onCreate={() => contractHost.create({ unitIds: [unitId] })}
 			createLabel={$LL.common.actions.newContract()}
+			createUnavailable={memberPermissions.refusal('createContract', $LL)}
 			emptyTitle={$LL.complexes.units.contractsEmptyTitle()}
 			emptyDescription={$LL.complexes.units.contractsEmptyDescription()}
 		>

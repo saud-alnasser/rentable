@@ -22,6 +22,7 @@ export const keys = {
 	mark: ['organization', 'mark'],
 	members: ['organization', 'members'],
 	memberStandings: ['organization', 'members', 'standings'],
+	roles: ['organization', 'roles'],
 	state: ['organization', 'state']
 } as const;
 
@@ -531,17 +532,19 @@ export function useCreateAccount(
 	return createMutation(() => ({
 		mutationFn: ({
 			username,
-			role,
-			permissions,
+			roleId,
+			override,
 			workspaces
 		}: {
 			username: string;
-			role: 'administrator' | 'member';
-			permissions: number;
+			roleId: string;
+			override: number;
 			workspaces: { id: string; access: 'full-access' | 'read-only' }[];
-		}) => api.app.organization.member.create({ username, role, permissions, workspaces }),
+		}) => api.app.organization.member.create({ username, roleId, override, workspaces }),
 		onSuccess: async () => {
+			// a role's count of holders moves with an account made in it.
 			await client.invalidateQueries({ queryKey: keys.members });
+			await client.invalidateQueries({ queryKey: keys.roles });
 			onMutationSuccess(opts);
 		},
 		onError: (e) => onMutationError(opts, e)
@@ -701,13 +704,22 @@ export function useAccountRefusalDetail(refused: () => boolean) {
 }
 
 /**
- * write a member's role and the acts their row carries, together.
- *
- * The refusals a person can act on are the owner's two sentences, their own row and the owner's,
- * and each arrives as `BAD_REQUEST` or a forbidden and is shown verbatim; the list is refreshed
- * so the row reads the new role and the chips read the same grants.
+ * the members and the roles read again after a write to either: a role's holders are counted on the
+ * roles, and a member's effective permissions and rank are read off their role, so a change to one
+ * is a change to what the other says.
  */
-export function useChangeRole(
+async function rolesAndMembersChanged(client: QueryClient) {
+	await client.invalidateQueries({ queryKey: keys.members });
+	await client.invalidateQueries({ queryKey: keys.roles });
+}
+
+/**
+ * give a member a role (effort 838, requirement 5), and the override with it where one is given,
+ * as one act (ticket 14). The refusals a person can act on (the member or the role ranking at or
+ * above the reader, a flag the reader does not hold) arrive as the shell's refusals and read as
+ * their sentences.
+ */
+export function useAssignRole(
 	opts: MutationOptions = {
 		toast: {
 			success: () => get(LL).organization.dashboard.roleChanged(),
@@ -721,15 +733,129 @@ export function useChangeRole(
 	return createMutation(() => ({
 		mutationFn: ({
 			memberId,
-			role,
-			permissions
+			roleId,
+			override
 		}: {
 			memberId: string;
-			role: 'administrator' | 'member';
-			permissions: number;
-		}) => api.app.organization.member.changeRole({ memberId, role, permissions }),
+			roleId: string;
+			override?: number;
+		}) => api.app.organization.member.assignRole({ memberId, roleId, override }),
 		onSuccess: async () => {
-			await client.invalidateQueries({ queryKey: keys.members });
+			await rolesAndMembersChanged(client);
+			onMutationSuccess(opts);
+		},
+		onError: (e) => onMutationError(opts, e)
+	}));
+}
+
+/** set the flags switched for one member alone (effort 838, requirement 6). */
+export function useSetOverride(
+	opts: MutationOptions = {
+		toast: {
+			success: () => get(LL).organization.dashboard.overrideSaved(),
+			error: true,
+			unexpected: () => get(LL).common.messages.unexpectedError()
+		}
+	}
+) {
+	const client = useQueryClient();
+
+	return createMutation(() => ({
+		mutationFn: ({ memberId, override }: { memberId: string; override: number }) =>
+			api.app.organization.member.setOverride({ memberId, override }),
+		onSuccess: async () => {
+			await rolesAndMembersChanged(client);
+			onMutationSuccess(opts);
+		},
+		onError: (e) => onMutationError(opts, e)
+	}));
+}
+
+/**
+ * every role, highest rank first, with what each carries and how many hold it (effort 838,
+ * requirement 12). Any signed-in member reads it.
+ */
+export function useFetchRoles(enabled: () => boolean = () => true) {
+	return createQuery(() => ({
+		queryKey: keys.roles,
+		queryFn: () => api.app.organization.role.list(),
+		enabled: enabled()
+	}));
+}
+
+/** the options every role write announces with: its own sentence, and the shared refusal. */
+const roleWrite = (success: () => string): MutationOptions => ({
+	toast: { success, error: true, unexpected: () => get(LL).common.messages.unexpectedError() }
+});
+
+/** make a custom role, directly below another. */
+export function useCreateRole(opts = roleWrite(() => get(LL).organization.roleList.created())) {
+	const client = useQueryClient();
+
+	return createMutation(() => ({
+		mutationFn: (input: { name: string; mask: number; afterRoleId: string }) =>
+			api.app.organization.role.create(input),
+		onSuccess: async () => {
+			await rolesAndMembersChanged(client);
+			onMutationSuccess(opts);
+		},
+		onError: (e) => onMutationError(opts, e)
+	}));
+}
+
+/** rename a custom role. */
+export function useRenameRole(opts = roleWrite(() => get(LL).organization.roleList.saved())) {
+	const client = useQueryClient();
+
+	return createMutation(() => ({
+		mutationFn: (input: { roleId: string; name: string }) =>
+			api.app.organization.role.rename(input),
+		onSuccess: async () => {
+			await rolesAndMembersChanged(client);
+			onMutationSuccess(opts);
+		},
+		onError: (e) => onMutationError(opts, e)
+	}));
+}
+
+/** change what a role carries; every holder's permissions follow. */
+export function useSetRoleMask(opts = roleWrite(() => get(LL).organization.roleList.saved())) {
+	const client = useQueryClient();
+
+	return createMutation(() => ({
+		mutationFn: (input: { roleId: string; mask: number }) =>
+			api.app.organization.role.setMask(input),
+		onSuccess: async () => {
+			await rolesAndMembersChanged(client);
+			onMutationSuccess(opts);
+		},
+		onError: (e) => onMutationError(opts, e)
+	}));
+}
+
+/** move a custom role to directly below another. */
+export function useMoveRole(opts = roleWrite(() => get(LL).organization.roleList.moved())) {
+	const client = useQueryClient();
+
+	return createMutation(() => ({
+		mutationFn: (input: { roleId: string; afterRoleId: string }) =>
+			api.app.organization.role.move(input),
+		onSuccess: async () => {
+			await rolesAndMembersChanged(client);
+			onMutationSuccess(opts);
+		},
+		onError: (e) => onMutationError(opts, e)
+	}));
+}
+
+/** delete a custom role; whoever held it holds the member role. */
+export function useDeleteRole(opts = roleWrite(() => get(LL).organization.roleList.deleted())) {
+	const client = useQueryClient();
+
+	return createMutation(() => ({
+		mutationFn: (input: { roleId: string }) => api.app.organization.role.delete(input),
+		onSuccess: async () => {
+			await rolesAndMembersChanged(client);
 			onMutationSuccess(opts);
 		},
 		onError: (e) => onMutationError(opts, e)

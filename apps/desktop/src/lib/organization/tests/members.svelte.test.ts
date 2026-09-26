@@ -7,7 +7,11 @@ import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import Members from '$lib/organization/component/members.svelte';
 import { organizationDialog, resetOrganizationDialogs } from '$lib/organization/dialogs.svelte';
 import { organizationHostState, resetOrganizationHost } from '$lib/organization/host.svelte';
-import { fakeOrganizationSession } from '$lib/platform/tests/testing';
+import {
+	fakeOrganizationMember,
+	fakeOrganizationRoles,
+	fakeOrganizationSession
+} from '$lib/platform/tests/testing';
 import type { MemberStanding, OrganizationMember, OrganizationWorkspace } from '$lib/platform/host';
 import en from '$lib/i18n/en';
 import { toTitleCase } from '@rentable/design/title-case.js';
@@ -24,7 +28,9 @@ import {
 	searchGlass,
 	typeSearch
 } from '$lib/design/tests/search';
-import { EVERY_ADMINISTRATION, maskOf } from '@rentable/workspace-permission';
+import { BUILT_IN, maskOf } from '@rentable/workspace-permission';
+
+import { layOutLists } from '#tests/permission.ts';
 
 import { hostAnswers, resetHostAnswers } from './host-hooks';
 import HostProviders from './host-providers.svelte';
@@ -34,7 +40,7 @@ import HostProviders from './host-providers.svelte';
  *
  * Criterion 19 of [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]]: one
  * record card per account, each with its standing, the acts on the card's own menu by the gates
- * effort 826's requirement 15 set, the owner's card carrying an administrator nothing, and the add
+ * effort 826's requirement 15 set, the owner's card carrying a manager nothing, and the add
  * at the foot. *It was a list of rows until the human saw them in the running build.*
  *
  * **What a card carries** is the username, the role, one line of standing and the workspaces held
@@ -120,23 +126,15 @@ const workspaces: OrganizationWorkspace[] = [
 	}
 ];
 
-const member = (overrides: Partial<OrganizationMember>): OrganizationMember => ({
-	id: 'm',
-	username: 'member',
-	role: 'member',
-	permissions: 0,
-	workspaces: [],
-	createdAt: 0,
-	offeredOwnership: false,
-	...overrides
-});
+const member = (overrides: Partial<OrganizationMember>): OrganizationMember =>
+	fakeOrganizationMember(overrides);
 
 const members = [
 	member({ id: 'owner', username: 'olivia', role: 'owner' }),
 	member({
 		id: 'ada',
 		username: 'ada',
-		role: 'administrator',
+		role: 'manager',
 		workspaces: [
 			{ id: 'ws-1', access: 'full-access' },
 			{ id: 'ws-2', access: 'read-only' }
@@ -176,10 +174,13 @@ const list = (
 			canLockOut: true,
 			canRename: true,
 			canReset: true,
-			canChangeRole: true,
+			canAssignRole: true,
+			canOverride: true,
 			canGrantWorkspace: true,
 			isOwner: true,
 			selfId: 'owner',
+			rank: BUILT_IN.owner.rank,
+			permissions: BUILT_IN.owner.mask,
 			...overrides
 		},
 		{ wrapper: HostProviders, wrapperProps: { strings, direction } }
@@ -245,6 +246,25 @@ const press = async (id: string, kind: string) => {
 const surface = () => document.querySelector('[data-slot=form-surface]');
 const usernameInput = () => document.querySelector<HTMLInputElement>('input[name=username]');
 
+/**
+ * the reason an unavailable entry gives, read the way a person reaches it: the entry takes the
+ * focus and its tooltip says why. The tooltip is placed against its trigger, and jsdom implements
+ * no `ResizeObserver`, so the shared one that observes nothing stands in.
+ */
+const reasonOf = async (entry: HTMLElement) => {
+	layOutLists();
+
+	await fireEvent.focus(entry);
+
+	return await waitFor(() => {
+		const drawn = document.querySelector('[data-slot=tooltip-content]');
+
+		expect(drawn).not.toBeNull();
+
+		return drawn?.textContent ?? '';
+	});
+};
+
 /** the removal the host is asking about, read fresh each time. */
 const removing = () => organizationHostState.member.removing;
 
@@ -288,7 +308,7 @@ test('a card carries the avatar, the username and the role', () => {
 
 	expect(ada.querySelector('[data-slot="avatar-fallback"]')?.textContent?.trim()).toBe('AD');
 	expect(ada.querySelector('[data-member-username]')?.textContent?.trim()).toBe('ada');
-	expect(ada.textContent).toContain(en.layout.signIn.roleAdministrator);
+	expect(ada.textContent).toContain(en.layout.signIn.roleManager);
 	// one name on the card, and nothing that would carry a second one.
 	expect(ada.querySelectorAll('[data-member-username]')).toHaveLength(1);
 	expect(ada.textContent).not.toContain('@');
@@ -304,7 +324,7 @@ test('a card says how many workspaces are held, in one line, and names none of t
 			member({
 				id: 'ada',
 				username: 'ada',
-				role: 'administrator',
+				role: 'manager',
 				workspaces: [
 					{ id: 'ws-1', access: 'full-access' },
 					{ id: 'ws-2', access: 'read-only' }
@@ -431,7 +451,7 @@ test('an address naming nobody opens nothing and navigates nowhere', () => {
 	expect(navigations).toEqual([]);
 });
 
-// criterion 19: each act sits behind its own act. The owner reading holds all seven, so every act
+// criterion 19: each act sits behind its own flag. The owner reading holds every flag, so every act
 // is on every card but their own.
 test('the owner sees every act on every card but their own', async () => {
 	list();
@@ -455,16 +475,16 @@ test('the owner sees every act on every card but their own', async () => {
 });
 
 // requirement 19: the owner's account is removed by nobody and edited by nobody but the owner, so
-// an administrator meets a card with no menu at all and no gesture behind it.
-test('the owner card carries an administrator nothing, and is drawn with no menu', async () => {
+// a manager meets a card with no menu at all and no gesture behind it.
+test('the owner card carries a manager nothing, and is drawn with no menu', async () => {
 	list({ isOwner: false, canLockOut: false, selfId: 'ada' });
 
 	expect(control('owner')).toBeNull();
 	expect(await actsOn('owner')).toEqual([]);
 	// a card with nothing to offer claims neither route, so there is no control to name either.
 	expect(card('owner')?.querySelector('.sr-only')).toBeNull();
-	// the reader's own card is still nobody's to write.
-	expect(control('ada')).toBeNull();
+	// the reader's own card is still nobody's to write: its edit is there, refused as their own.
+	expect(await actsOn('ada')).toEqual(['edit']);
 });
 
 // and the same card read by the owner: one act and no other, because nobody edits their own role,
@@ -492,7 +512,7 @@ test('the owner card offers the withdrawal in the offer place while an offer sta
 	list({
 		members: [
 			member({ id: 'owner', username: 'olivia', role: 'owner' }),
-			member({ id: 'ada', username: 'ada', role: 'administrator', offeredOwnership: true }),
+			member({ id: 'ada', username: 'ada', role: 'manager', offeredOwnership: true }),
 			member({ id: 'sami', username: 'sami' })
 		]
 	});
@@ -509,9 +529,9 @@ test('the owner card offers the withdrawal in the offer place while an offer sta
 	expect(surface()).toBeNull();
 });
 
-// and it is the owner's: an administrator reading the owner's card still meets no menu at all,
+// and it is the owner's: a manager reading the owner's card still meets no menu at all,
 // which is the card requirement 19 leaves empty for everybody but its holder.
-test('an administrator meets no transfer on the owner card', async () => {
+test('a manager meets no transfer on the owner card', async () => {
 	list({ isOwner: false, canLockOut: false, selfId: 'ada' });
 
 	expect(control('owner')).toBeNull();
@@ -611,16 +631,42 @@ test('a refused offer marks the password and the surface stays open', async () =
 	expect(surface()).not.toBeNull();
 });
 
-// the same rule on a card that is not the owner's: an administrator reading their own card is
-// offered none of the three either. Rust refuses each of them on the row of whoever is asking,
-// `invite::rename_member` by name.
-test('a reader meets no edit on their own card', async () => {
-	list({ isOwner: false, canLockOut: false, selfId: 'ada' });
+// effort 838, requirement 12: nobody changes their own role or override, and the card says so at
+// the control rather than leaving it out. A manager reading their own card meets the edit refused
+// with that reason, and nothing else; everybody else's card below them is still theirs to write.
+test('the edit on a reader own card is refused, saying it is their own', async () => {
+	list({ isOwner: false, canLockOut: false, selfId: 'ada', rank: BUILT_IN.manager.rank });
 
-	expect(control('ada')).toBeNull();
-	expect(await actsOn('ada')).toEqual([]);
-	// and everybody else's card is still theirs to write.
+	expect(await actsOn('ada')).toEqual(['edit']);
+
+	const edit = await openTo('ada', 'edit');
+
+	expect(edit?.getAttribute('aria-disabled')).toBe('true');
+	expect(await reasonOf(edit!)).toContain(en.organization.dashboard.yourOwn);
+	await fireEvent.click(edit!);
+	expect(organizationHostState.member.editing).toBeNull();
+	await fireEvent.click(control('ada')!);
+
 	expect(await actsOn('sami')).toContain('edit');
+});
+
+// and requirement 7: a member at the reader's own rank is written by somebody above them. Every
+// act on their card is drawn refused with that reason.
+test('a card at the reader rank is refused, saying they are not below the reader', async () => {
+	list({ isOwner: false, canLockOut: false, selfId: 'zoe', rank: BUILT_IN.manager.rank });
+
+	expect(await actsOn('ada')).toEqual(['edit', 'link', 'unset-password', 'end-sessions', 'remove']);
+
+	const edit = await openTo('ada', 'edit');
+
+	expect(edit?.getAttribute('aria-disabled')).toBe('true');
+	expect(on('remove')?.getAttribute('aria-disabled')).toBe('true');
+	expect(await reasonOf(edit!)).toContain(en.organization.dashboard.notBelowYou);
+	await fireEvent.click(control('ada')!);
+
+	// sami holds the member role, below a manager, and is theirs.
+	await openTo('sami', 'edit');
+	expect(on('edit')?.getAttribute('aria-disabled')).not.toBe('true');
 });
 
 test('a member holding no act sees no card action at all, and no add control', () => {
@@ -630,7 +676,8 @@ test('a member holding no act sees no card action at all, and no add control', (
 		canLockOut: false,
 		canRename: false,
 		canReset: false,
-		canChangeRole: false,
+		canAssignRole: false,
+		canOverride: false,
 		canGrantWorkspace: false,
 		isOwner: false,
 		selfId: 'sami'
@@ -655,7 +702,8 @@ test('each act is drawn by its own act and by no other', async () => {
 			canLockOut: false,
 			canRename: false,
 			canReset: false,
-			canChangeRole: false,
+			canAssignRole: false,
+			canOverride: false,
 			canGrantWorkspace: false,
 			isOwner: false,
 			selfId: 'owner',
@@ -667,9 +715,10 @@ test('each act is drawn by its own act and by no other', async () => {
 	};
 
 	// one entry, and either act draws it: the sheet holds whichever section that act writes.
-	await only({ canChangeRole: true }, 'ada', ['edit']);
+	await only({ canAssignRole: true }, 'ada', ['edit']);
+	await only({ canOverride: true }, 'ada', ['edit']);
 	await only({ canGrantWorkspace: true }, 'ada', ['edit']);
-	await only({ canChangeRole: true, canGrantWorkspace: true }, 'ada', ['edit']);
+	await only({ canAssignRole: true, canGrantWorkspace: true }, 'ada', ['edit']);
 	// the name is part of the one edit (effort 832, requirement 6), so renaming draws it too.
 	await only({ canRename: true }, 'ada', ['edit']);
 	// unsetting a password and closing the ways in that are already open are one act read twice,
@@ -686,12 +735,13 @@ test('each act is drawn by its own act and by no other', async () => {
 		'unset-password',
 		'end-sessions'
 	]);
-	// and no act reaches the owner's card or the reader's own, whichever act the reader holds.
-	// the owner's own card offers the one act that is theirs, and nothing a permission gates.
+	// and no act reaches the owner's card, whichever act the reader holds: the owner's own card
+	// offers the one act that is theirs, and nothing a permission gates. The reader's own card
+	// carries the edit and nothing else, refused as their own (effort 838, requirement 12).
 	await only({ canGrantWorkspace: true, isOwner: true, selfId: 'owner' }, 'owner', ['transfer']);
-	await only({ canGrantWorkspace: true, selfId: 'ada' }, 'ada', []);
-	await only({ canChangeRole: true, selfId: 'ada' }, 'ada', []);
-	await only({ canRename: true, selfId: 'ada' }, 'ada', []);
+	await only({ canGrantWorkspace: true, selfId: 'ada' }, 'ada', ['edit']);
+	await only({ canAssignRole: true, selfId: 'ada' }, 'ada', ['edit']);
+	await only({ canRemove: true, canReset: true, selfId: 'ada' }, 'ada', []);
 });
 
 // effort 828, requirement 20 as the human corrected it on 2026-09-20: the link act is on every card
@@ -878,7 +928,7 @@ test('the edit act opens the sheet on the member it named, with its three sectio
 		Array.from(document.querySelectorAll('[data-sheet-section]')).map((block) =>
 			block.getAttribute('data-sheet-section')
 		)
-	).toEqual(['name', 'role', 'acts', 'workspaces']);
+	).toEqual(['name', 'role', 'override', 'workspaces']);
 	// the workspaces the member holds, as rows of the sheet rather than a second surface.
 	expect(
 		Array.from(document.querySelectorAll('[data-access-row]')).map((row) =>
@@ -890,28 +940,22 @@ test('the edit act opens the sheet on the member it named, with its three sectio
 });
 
 // criterion 23: one save runs the acts that exist, each with what was chosen on it.
-test('one save writes the role, the widening and the grants through the acts that exist', async () => {
+test('one save writes the override and the grants through the acts that exist', async () => {
 	list();
 
 	await press('sami', 'edit');
 
-	// sami holds ws-1 and nothing else, and is allowed nothing beyond their role. The picker ticks
-	// what is to be allowed and its one confirm puts it on the list.
-	await fireEvent.click(document.querySelector<HTMLButtonElement>('[data-act-add]')!);
-	await fireEvent.click(
-		document.querySelector<HTMLButtonElement>(
-			'[data-act-offer="renameMember"] [data-slot=checkbox]'
-		)!
-	);
-	await fireEvent.click(document.querySelector<HTMLButtonElement>('[data-act-allow]')!);
+	// sami holds ws-1 and nothing else, and nothing is changed for them. Renaming members is
+	// switched on for them alone, and the role is left where it is.
+	await fireEvent.click(document.querySelector<HTMLElement>('#member-override-renameMember')!);
 	await fireEvent.click(
 		document.querySelector<HTMLElement>('#access-ws-2 [data-level="full-access"]')!
 	);
 	await fireEvent.submit(document.querySelector('form')!);
 
 	await waitFor(() => {
-		expect(written('useChangeRole')).toEqual([
-			{ memberId: 'sami', role: 'member', permissions: maskOf('renameMember') }
+		expect(written('useSetOverride')).toEqual([
+			{ memberId: 'sami', override: maskOf('renameMember') }
 		]);
 	});
 	await waitFor(() => {
@@ -919,12 +963,63 @@ test('one save writes the role, the widening and the grants through the acts tha
 			{ changes: [{ workspaceId: 'ws-2', memberId: 'sami', access: 'full-access' }] }
 		]);
 	});
-	// the name was left as it was, so it was not written.
+	// the name and the role were left as they were, so neither was written.
 	expect(written('useRenameMember')).toEqual([]);
+	expect(written('useAssignRole')).toEqual([]);
 	// nothing was refused, so the sheet closed on what it wrote.
 	await waitFor(() => {
 		expect(surface()).toBeNull();
 	});
+});
+
+// ticket 14 of effort 838: a role and an override changed on one save are one act, so the flags
+// the reader must hold are the ones the two move together, and neither is written alone.
+test('a changed role and a changed override are saved in one call', async () => {
+	hostAnswers.roles = fakeOrganizationRoles();
+	list();
+
+	await press('sami', 'edit');
+
+	await openSelect(document.querySelector<HTMLElement>('#member-role')!);
+	await chooseOption(
+		document.querySelector<HTMLElement>('[data-slot=select-item][data-role="supervisor"]')!
+	);
+	await fireEvent.click(document.querySelector<HTMLElement>('#member-override-renameMember')!);
+	await fireEvent.submit(document.querySelector('form')!);
+
+	await waitFor(() => {
+		expect(written('useAssignRole')).toEqual([
+			{ memberId: 'sami', roleId: 'supervisor', override: maskOf('renameMember') }
+		]);
+	});
+	expect(written('useSetOverride')).toEqual([]);
+	await waitFor(() => {
+		expect(surface()).toBeNull();
+	});
+});
+
+// and the one act refused marks both the sections it was asked from, having written neither.
+test('the one act refused marks the role and the override', async () => {
+	hostAnswers.roles = fakeOrganizationRoles();
+	hostAnswers.refusals.useAssignRole = new Error('you do not hold deletePayment');
+	list();
+
+	await press('sami', 'edit');
+
+	await openSelect(document.querySelector<HTMLElement>('#member-role')!);
+	await chooseOption(
+		document.querySelector<HTMLElement>('[data-slot=select-item][data-role="supervisor"]')!
+	);
+	await fireEvent.click(document.querySelector<HTMLElement>('#member-override-renameMember')!);
+	await fireEvent.submit(document.querySelector('form')!);
+
+	await waitFor(() => {
+		expect(document.querySelector('[data-sheet-error="role"]')).not.toBeNull();
+	});
+	expect(document.querySelector('[data-sheet-error="override"]')).not.toBeNull();
+	expect(written('useAssignRole')).toHaveLength(1);
+	expect(written('useSetOverride')).toEqual([]);
+	expect(surface()).not.toBeNull();
 });
 
 // [[rules/interface]], *Validation errors*: what an act refuses is said on the section that asked
@@ -951,72 +1046,9 @@ test('a refused act marks its own section and leaves the sheet open', async () =
 	expect(surface()).not.toBeNull();
 });
 
-// requirement 23: what each role may do is read from the tray, beside the add, and written
-// nowhere.
-test('the tray opens the read-only role table, beside the add', async () => {
-	list();
-
-	const opener = screen.getByRole('button', { name: en.organization.roleTable.title });
-	const tray = document.querySelector('[data-directory-tray]')!;
-
-	expect(tray.contains(opener)).toBe(true);
-	// quiet and glyph-only, like the add it stands beside.
-	expect(opener.querySelector('svg')).not.toBeNull();
-	expect(opener.textContent?.trim()).toBe('');
-	expect(document.querySelector('[data-role-table]')).toBeNull();
-
-	await fireEvent.click(opener);
-
-	const table = document.querySelector('[data-role-table]')!;
-
-	expect(table).not.toBeNull();
-	// a column per role, and a row per act with its sentence.
-	expect(
-		Array.from(table.querySelectorAll('[data-role-column]')).map((column) =>
-			column.getAttribute('data-role-column')
-		)
-	).toEqual(['member', 'administrator', 'owner']);
-	expect(
-		Array.from(table.querySelectorAll('[data-role-act]')).map((row) =>
-			row.getAttribute('data-role-act')
-		)
-	).toEqual([
-		...EVERY_ADMINISTRATION,
-		'createWorkspace',
-		'deleteWorkspace',
-		'lockOut',
-		'renew',
-		'tursoAccount'
-	]);
-	expect(screen.getByText(en.organization.acts.inviteMember.does)).toBeDefined();
-	// the acts nobody can be given, under the owner, with the reason said once.
-	expect(screen.getByText(en.organization.roleTable.ownerAloneReason)).toBeDefined();
-	expect(screen.getByText(en.organization.roles.owner.who)).toBeDefined();
-	// and nothing on it writes.
-	expect(table.querySelectorAll('input, [data-slot=select-trigger]')).toHaveLength(0);
-});
-
-// the table is a reference, so everybody who reads the section reads it, whatever they may write.
-test('the role table is offered to a reader who may change nothing', () => {
-	list({
-		canInvite: false,
-		canRemove: false,
-		canLockOut: false,
-		canRename: false,
-		canReset: false,
-		canChangeRole: false,
-		canGrantWorkspace: false,
-		isOwner: false,
-		selfId: 'sami'
-	});
-
-	expect(document.querySelector('[data-invite-open]')).toBeNull();
-	expect(document.querySelector('[data-role-table-open]')).not.toBeNull();
-});
-
 // effort 832, requirement 6: the name is the one edit's first section, opened on the name the
 // card holds, and a reader who may only rename meets that section alone.
-test('the edit opens the name on the sheet, and a reader holding only renameMember meets that alone', async () => {
+test('the edit opens the name on the sheet, and a reader holding only renameMember writes that alone', async () => {
 	const everything = list();
 
 	await press('ada', 'edit');
@@ -1031,7 +1063,8 @@ test('the edit opens the name on the sheet, and a reader holding only renameMemb
 		canRemove: false,
 		canLockOut: false,
 		canReset: false,
-		canChangeRole: false,
+		canAssignRole: false,
+		canOverride: false,
 		canGrantWorkspace: false,
 		isOwner: false,
 		selfId: 'sami'
@@ -1039,11 +1072,13 @@ test('the edit opens the name on the sheet, and a reader holding only renameMemb
 
 	await press('ada', 'edit');
 
+	// the role and what they may do are read by every reader of the card, and refused to this one.
 	expect(
 		Array.from(document.querySelectorAll('[data-sheet-section]')).map((block) =>
 			block.getAttribute('data-sheet-section')
 		)
-	).toEqual(['name']);
+	).toEqual(['name', 'role', 'override']);
+	expect(document.querySelector('[data-override-refusal]')).not.toBeNull();
 });
 
 test('a new name is written through the rename, and what Rust refuses marks the name', async () => {
@@ -1161,7 +1196,7 @@ test('the search key puts the cursor in the directory’s field', async () => {
 test('a member is found by what their role is called', async () => {
 	list();
 
-	await typeSearch(en.layout.signIn.roleAdministrator);
+	await typeSearch(en.layout.signIn.roleManager);
 	await pastTheWait();
 
 	expect(shownMembers()).toEqual(['ada']);
@@ -1212,13 +1247,7 @@ test('the directory offers no transfer of its records', () => {
 test('the tray orders search, count, what reads the set, sort and create as the list shell does', () => {
 	list();
 
-	expectBarOrder([
-		BAR_CONTROL.search,
-		BAR_CONTROL.count,
-		'[data-role-table-open]',
-		BAR_CONTROL.sort,
-		BAR_CONTROL.create
-	]);
+	expectBarOrder([BAR_CONTROL.search, BAR_CONTROL.count, BAR_CONTROL.sort, BAR_CONTROL.create]);
 	expect(document.querySelector('[data-directory-description]')?.className).toContain(
 		'text-muted-foreground'
 	);

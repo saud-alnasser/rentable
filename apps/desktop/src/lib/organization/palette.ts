@@ -13,6 +13,7 @@ import {
 	type WorkspaceActRecord
 } from '$lib/organization/acts';
 import { toMemberDirectory, toWorkspaceDirectory } from '$lib/organization/directory';
+import { memberRoleName } from '$lib/organization/role';
 import {
 	memberActs,
 	memberHost,
@@ -42,7 +43,7 @@ import { get } from 'svelte/store';
  * again on the signed row.
  *
  * **A reader's gates are known before a record is named**, which is where these two differ from a
- * contract. So an act is offered only where it applies to somebody (an administrator without
+ * contract. So an act is offered only where it applies to somebody (a manager without
  * `removeMember` is never offered *remove*), and once one is chosen the menu lists only the records
  * it applies to (nobody is offered their own card to remove). An act that applies but is waiting on
  * a write already running is listed and refused, with the reason, as a card's menu refuses it.
@@ -149,14 +150,6 @@ function offering<T>(
 	};
 }
 
-/** what a role is called in the reader's language, as the members directory calls it. */
-const roleLabel = (role: string, translations: TranslationFunctions) =>
-	({
-		owner: translations.layout.signIn.roleOwner(),
-		administrator: translations.layout.signIn.roleAdministrator(),
-		member: translations.layout.signIn.roleMember()
-	})[role] ?? role;
-
 /**
  * The member and workspace acts, as the command menu offers them.
  *
@@ -206,13 +199,13 @@ export function useOrganizationOfferings(enabled: () => boolean) {
 		member: offering(memberActs, memberRecords, {
 			idOf: ({ member }) => member.id,
 			labelOf: ({ member }) => member.username,
-			hintOf: ({ member }, translations) => roleLabel(member.role, translations),
+			hintOf: ({ member }, translations) => memberRoleName(translations, member),
 			search: (records, term, translations) => {
 				const found = toMemberDirectory(
 					records.map(({ member }) => member),
 					term,
 					null,
-					(role) => roleLabel(role, translations)
+					(member) => memberRoleName(translations, member)
 				);
 
 				return records.filter((record) => found.includes(record.member));

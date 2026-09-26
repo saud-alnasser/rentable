@@ -12,6 +12,7 @@ import {
 } from '$lib/organization/host.svelte';
 import type { MemberStanding, OrganizationMember, OrganizationSession } from '$lib/platform/host';
 import {
+	fakeOrganizationMember,
 	fakeOrganizationSession,
 	fakeOrganizationWorkspace,
 	fakeSyncState,
@@ -20,7 +21,7 @@ import {
 import { usesAppleKeyboard } from '@rentable/design/shortcut.js';
 import { maskOf } from '@rentable/workspace-permission';
 
-import PaletteHarness from './palette-harness.svelte';
+import PaletteHarness from '#tests/palette-harness.svelte';
 
 /**
  * A MEMBER'S AND A WORKSPACE'S ACTS, IN THE COMMAND MENU
@@ -73,19 +74,11 @@ vi.mock('$lib/settings/query', async (importOriginal) => ({
 	})
 }));
 
-const member = (overrides: Partial<OrganizationMember>): OrganizationMember => ({
-	id: 'm',
-	username: 'member',
-	role: 'member',
-	permissions: 0,
-	workspaces: [],
-	createdAt: 0,
-	offeredOwnership: false,
-	...overrides
-});
+const member = (overrides: Partial<OrganizationMember>): OrganizationMember =>
+	fakeOrganizationMember(overrides);
 
 const olivia = member({ id: 'owner', username: 'olivia', role: 'owner' });
-const ada = member({ id: 'ada', username: 'ada', role: 'administrator' });
+const ada = member({ id: 'ada', username: 'ada', role: 'manager' });
 const sami = member({ id: 'sami', username: 'sami' });
 
 beforeEach(() => {
@@ -115,13 +108,16 @@ afterEach(() => {
 	resetOrganizationHost();
 });
 
-/** ada, an administrator whose row carries the reset and nothing else. */
+/**
+ * ada, a manager whose row carries the reset and what a reset writes: the account's grant on the
+ * organization database, which is `grantWorkspace`'s row (effort 838).
+ */
 const readAsAda = () => {
 	answers.session = fakeOrganizationSession({
 		memberId: 'ada',
 		username: 'ada',
-		role: 'administrator',
-		permissions: maskOf('resetPassword')
+		role: 'manager',
+		permissions: maskOf('resetPassword', 'grantWorkspace')
 	});
 };
 
@@ -176,10 +172,9 @@ test('a member act the reader may not take is not offered', async () => {
 	await waitFor(() => expect(row('member.makeLink')).not.toBeNull());
 	expect(row('member.endSessions')).not.toBeNull();
 
-	// ada's row carries neither removeMember, renameMember, changeRole nor grantWorkspace, and the
-	// handover is the owner's alone.
+	// ada's row carries no removeMember, and the handover is the owner's alone. (The edit is
+	// offered: her grantWorkspace is what a member's workspaces are written with.)
 	for (const act of [
-		'member.edit',
 		'member.remove',
 		'member.lockOut',
 		'member.offerOwnership',

@@ -49,6 +49,10 @@ use super::{HeldOrganization, invite::random_id, link::Locator, store::Organizat
 /// sealed payload with the code to get it, and a blank one means the replica above was reached
 /// with nothing and is refused rather than recorded.
 ///
+/// **So is an organization of another format** (effort 838, requirement 11): one an earlier or a
+/// newer version of the application made is refused by name before its organization row is read,
+/// and nothing is recorded or registered.
+///
 /// **What the machine records, and the registry row beside it, are [`record`]'s**, which is the
 /// one writer both ways of starting to hold an organization go through. A link connect records no
 /// member, because nobody has signed in yet and the wall is what follows.
@@ -70,6 +74,10 @@ pub async fn connect(
             ),
         ));
     }
+
+    // an organization another version of the application made is refused before its row is read
+    // and before this machine records or registers anything (effort 838, requirement 11).
+    store.refuse_another_format().await?;
 
     let verifying_key = locator.verifying_key_bytes()?;
     let organization = store
@@ -530,7 +538,7 @@ mod tests {
             after_sign_in[0]
                 .1
                 .as_ref()
-                .map(|member| member.role.as_str()),
+                .map(|member| member.role_id.as_str()),
             Some(permission::OWNER),
             "the member row beside the machine is not the one who signed in"
         );
@@ -606,5 +614,90 @@ mod tests {
             "another organization's id connected: {refused:?}"
         );
         assert!(machine.organization.is_none());
+    }
+
+    /// Everything an organization database holds, table by table and row by row, as a test
+    /// compares it before and after a refusal: a write anywhere changes it.
+    async fn contents(store: &OrganizationStore) -> Vec<(String, Vec<Vec<turso::Value>>)> {
+        let mut contents = Vec::new();
+
+        for table in store.tables().await.expect("the tables") {
+            let mut rows = store
+                .connection()
+                .query(&format!("SELECT * FROM \"{table}\" ORDER BY rowid"), ())
+                .await
+                .expect("the rows");
+            let mut values = Vec::new();
+
+            while let Some(row) = rows.next().await.expect("a row") {
+                values.push(
+                    (0..row.column_count())
+                        .map(|index| row.get_value(index).expect("a value"))
+                        .collect(),
+                );
+            }
+
+            contents.push((table, values));
+        }
+
+        contents
+    }
+
+    /// Effort 838, requirement 11 and criterion 11, at the connect: **an organization of another
+    /// format is refused by name, and nothing is written to it.**
+    ///
+    /// Today's shape is this build's first run with the `format` table taken away, which is every
+    /// organization made before the format break; the newer one carries format 3. Each is met the
+    /// way a caller meets it, the completion every pull runs first and the connect after, and each
+    /// is refused with its own reason before its organization row is read. Neither database gains
+    /// a table or a row, the older one in particular gaining no `format` table, and the machine
+    /// records nothing.
+    #[tokio::test]
+    async fn an_organization_of_another_format_is_refused_at_the_connect_and_nothing_is_written() {
+        for (name, change, reason) in [
+            (
+                "today",
+                "DROP TABLE \"format\"",
+                crate::error::RefusalReason::OrganizationOlder,
+            ),
+            (
+                "newer",
+                "UPDATE \"format\" SET \"version\" = 3",
+                crate::error::RefusalReason::OrganizationNewer,
+            ),
+        ] {
+            let directory = scratch(name);
+            let (store, _, link) = created(&directory).await;
+            let mut machine = fresh_machine(&directory);
+
+            store
+                .connection()
+                .execute(change, ())
+                .await
+                .expect("the organization of another format");
+
+            let before = contents(&store).await;
+
+            assert!(
+                !store.complete_schema().await.expect("the completion"),
+                "{name}: the completion wrote to an organization of another format"
+            );
+
+            let refused = connect(&store, &mut machine, &link, UNSEALED, ISSUED_AT + 1).await;
+
+            assert!(
+                matches!(refused, Err(Error::Refused { reason: refusal, .. }) if refusal == reason),
+                "{name}: {refused:?}"
+            );
+            assert_eq!(
+                contents(&store).await,
+                before,
+                "{name}: the refusal wrote to the organization"
+            );
+            assert!(
+                machine.organization.is_none(),
+                "{name}: a refused connect recorded the organization"
+            );
+        }
     }
 }

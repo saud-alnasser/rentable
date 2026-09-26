@@ -832,6 +832,94 @@ type RootTranslation = {
 			 */
 			'this-year': string
 		}
+		permission: {
+			missing: {
+				/**
+				 * y​o​u​ ​d​o​ ​n​o​t​ ​h​a​v​e​ ​p​e​r​m​i​s​s​i​o​n​ ​t​o​ ​v​i​e​w​ ​c​o​m​p​l​e​x​e​s​.
+				 */
+				viewComplex: string
+				/**
+				 * y​o​u​ ​d​o​ ​n​o​t​ ​h​a​v​e​ ​p​e​r​m​i​s​s​i​o​n​ ​t​o​ ​a​d​d​ ​c​o​m​p​l​e​x​e​s​.
+				 */
+				createComplex: string
+				/**
+				 * y​o​u​ ​d​o​ ​n​o​t​ ​h​a​v​e​ ​p​e​r​m​i​s​s​i​o​n​ ​t​o​ ​e​d​i​t​ ​c​o​m​p​l​e​x​e​s​.
+				 */
+				editComplex: string
+				/**
+				 * y​o​u​ ​d​o​ ​n​o​t​ ​h​a​v​e​ ​p​e​r​m​i​s​s​i​o​n​ ​t​o​ ​d​e​l​e​t​e​ ​c​o​m​p​l​e​x​e​s​.
+				 */
+				deleteComplex: string
+				/**
+				 * y​o​u​ ​d​o​ ​n​o​t​ ​h​a​v​e​ ​p​e​r​m​i​s​s​i​o​n​ ​t​o​ ​v​i​e​w​ ​u​n​i​t​s​.
+				 */
+				viewUnit: string
+				/**
+				 * y​o​u​ ​d​o​ ​n​o​t​ ​h​a​v​e​ ​p​e​r​m​i​s​s​i​o​n​ ​t​o​ ​a​d​d​ ​u​n​i​t​s​.
+				 */
+				createUnit: string
+				/**
+				 * y​o​u​ ​d​o​ ​n​o​t​ ​h​a​v​e​ ​p​e​r​m​i​s​s​i​o​n​ ​t​o​ ​e​d​i​t​ ​u​n​i​t​s​.
+				 */
+				editUnit: string
+				/**
+				 * y​o​u​ ​d​o​ ​n​o​t​ ​h​a​v​e​ ​p​e​r​m​i​s​s​i​o​n​ ​t​o​ ​d​e​l​e​t​e​ ​u​n​i​t​s​.
+				 */
+				deleteUnit: string
+				/**
+				 * y​o​u​ ​d​o​ ​n​o​t​ ​h​a​v​e​ ​p​e​r​m​i​s​s​i​o​n​ ​t​o​ ​v​i​e​w​ ​t​e​n​a​n​t​s​.
+				 */
+				viewTenant: string
+				/**
+				 * y​o​u​ ​d​o​ ​n​o​t​ ​h​a​v​e​ ​p​e​r​m​i​s​s​i​o​n​ ​t​o​ ​a​d​d​ ​t​e​n​a​n​t​s​.
+				 */
+				createTenant: string
+				/**
+				 * y​o​u​ ​d​o​ ​n​o​t​ ​h​a​v​e​ ​p​e​r​m​i​s​s​i​o​n​ ​t​o​ ​e​d​i​t​ ​t​e​n​a​n​t​s​.
+				 */
+				editTenant: string
+				/**
+				 * y​o​u​ ​d​o​ ​n​o​t​ ​h​a​v​e​ ​p​e​r​m​i​s​s​i​o​n​ ​t​o​ ​d​e​l​e​t​e​ ​t​e​n​a​n​t​s​.
+				 */
+				deleteTenant: string
+				/**
+				 * y​o​u​ ​d​o​ ​n​o​t​ ​h​a​v​e​ ​p​e​r​m​i​s​s​i​o​n​ ​t​o​ ​v​i​e​w​ ​c​o​n​t​r​a​c​t​s​.
+				 */
+				viewContract: string
+				/**
+				 * y​o​u​ ​d​o​ ​n​o​t​ ​h​a​v​e​ ​p​e​r​m​i​s​s​i​o​n​ ​t​o​ ​a​d​d​ ​c​o​n​t​r​a​c​t​s​.
+				 */
+				createContract: string
+				/**
+				 * y​o​u​ ​d​o​ ​n​o​t​ ​h​a​v​e​ ​p​e​r​m​i​s​s​i​o​n​ ​t​o​ ​e​d​i​t​ ​c​o​n​t​r​a​c​t​s​.
+				 */
+				editContract: string
+				/**
+				 * y​o​u​ ​d​o​ ​n​o​t​ ​h​a​v​e​ ​p​e​r​m​i​s​s​i​o​n​ ​t​o​ ​d​e​l​e​t​e​ ​c​o​n​t​r​a​c​t​s​.
+				 */
+				deleteContract: string
+				/**
+				 * y​o​u​ ​d​o​ ​n​o​t​ ​h​a​v​e​ ​p​e​r​m​i​s​s​i​o​n​ ​t​o​ ​v​i​e​w​ ​p​a​y​m​e​n​t​s​.
+				 */
+				viewPayment: string
+				/**
+				 * y​o​u​ ​d​o​ ​n​o​t​ ​h​a​v​e​ ​p​e​r​m​i​s​s​i​o​n​ ​t​o​ ​a​d​d​ ​p​a​y​m​e​n​t​s​.
+				 */
+				createPayment: string
+				/**
+				 * y​o​u​ ​d​o​ ​n​o​t​ ​h​a​v​e​ ​p​e​r​m​i​s​s​i​o​n​ ​t​o​ ​e​d​i​t​ ​p​a​y​m​e​n​t​s​.
+				 */
+				editPayment: string
+				/**
+				 * y​o​u​ ​d​o​ ​n​o​t​ ​h​a​v​e​ ​p​e​r​m​i​s​s​i​o​n​ ​t​o​ ​d​e​l​e​t​e​ ​p​a​y​m​e​n​t​s​.
+				 */
+				deletePayment: string
+			}
+			/**
+			 * y​o​u​r​ ​a​c​c​e​s​s​ ​t​o​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​i​s​ ​r​e​a​d​ ​o​n​l​y​,​ ​s​o​ ​n​o​t​h​i​n​g​ ​i​n​ ​i​t​ ​c​a​n​ ​b​e​ ​c​h​a​n​g​e​d​.
+			 */
+			readOnly: string
+		}
 		refusals: {
 			complex: {
 				/**
@@ -1038,7 +1126,7 @@ type RootTranslation = {
 				 */
 				usernameTaken: string
 				/**
-				 * c​h​o​o​s​e​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​ ​o​r​ ​m​e​m​b​e​r​.
+				 * c​h​o​o​s​e​ ​o​n​e​ ​o​f​ ​t​h​e​ ​r​o​l​e​s​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​h​a​s​.
 				 */
 				roleUnknown: string
 				/**
@@ -1062,7 +1150,7 @@ type RootTranslation = {
 				 */
 				memberRemoved: string
 				/**
-				 * y​o​u​ ​c​a​n​n​o​t​ ​d​o​ ​t​h​i​s​ ​t​o​ ​y​o​u​r​ ​o​w​n​ ​a​c​c​o​u​n​t​.​ ​a​n​o​t​h​e​r​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​ ​c​a​n​.
+				 * y​o​u​ ​c​a​n​n​o​t​ ​d​o​ ​t​h​i​s​ ​t​o​ ​y​o​u​r​ ​o​w​n​ ​a​c​c​o​u​n​t​.​ ​s​o​m​e​b​o​d​y​ ​w​h​o​ ​r​a​n​k​s​ ​a​b​o​v​e​ ​y​o​u​ ​c​a​n​.
 				 */
 				notYourself: string
 				/**
@@ -1078,13 +1166,45 @@ type RootTranslation = {
 				 */
 				ownerMachineOnly: string
 				/**
-				 * y​o​u​r​ ​r​o​l​e​ ​d​o​e​s​ ​n​o​t​ ​i​n​c​l​u​d​e​ ​t​h​i​s​.​ ​a​s​k​ ​a​n​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​.
+				 * y​o​u​r​ ​r​o​l​e​ ​d​o​e​s​ ​n​o​t​ ​i​n​c​l​u​d​e​ ​t​h​i​s​.​ ​a​s​k​ ​a​ ​m​a​n​a​g​e​r​.
 				 */
 				roleLacksAct: string
 				/**
-				 * o​n​l​y​ ​a​n​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​ ​c​a​n​ ​d​o​ ​t​h​i​s​.
+				 * o​n​l​y​ ​a​ ​m​a​n​a​g​e​r​ ​c​a​n​ ​d​o​ ​t​h​i​s​.
 				 */
 				notAdministrator: string
+				/**
+				 * t​h​a​t​ ​r​o​l​e​ ​i​s​ ​n​o​t​ ​b​e​l​o​w​ ​y​o​u​r​ ​o​w​n​.​ ​a​s​k​ ​s​o​m​e​b​o​d​y​ ​w​h​o​ ​r​a​n​k​s​ ​a​b​o​v​e​ ​i​t​.
+				 */
+				rankNotAbove: string
+				/**
+				 * s​o​m​e​b​o​d​y​ ​n​o​t​ ​a​l​l​o​w​e​d​ ​t​o​ ​c​h​a​n​g​e​d​ ​t​h​i​s​ ​m​e​m​b​e​r​'​s​ ​r​e​c​o​r​d​.​ ​s​o​m​e​b​o​d​y​ ​a​b​o​v​e​ ​t​h​e​m​ ​r​e​m​o​v​e​s​ ​t​h​e​m​ ​a​n​d​ ​m​a​k​e​s​ ​t​h​e​m​ ​a​n​ ​a​c​c​o​u​n​t​ ​a​g​a​i​n​.
+				 */
+				roleUnsettled: string
+				/**
+				 * e​v​e​r​y​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​h​a​s​ ​t​h​i​s​ ​r​o​l​e​,​ ​s​o​ ​i​t​ ​i​s​ ​n​o​t​ ​r​e​n​a​m​e​d​,​ ​m​o​v​e​d​ ​o​r​ ​d​e​l​e​t​e​d​.​ ​t​h​e​ ​o​w​n​e​r​'​s​ ​r​o​l​e​ ​a​l​w​a​y​s​ ​c​a​r​r​i​e​s​ ​e​v​e​r​y​t​h​i​n​g​.
+				 */
+				roleBuiltIn: string
+				/**
+				 * g​i​v​e​ ​t​h​e​ ​r​o​l​e​ ​a​ ​n​a​m​e​.
+				 */
+				roleNameMissing: string
+				/**
+				 * a​n​o​t​h​e​r​ ​r​o​l​e​ ​h​a​s​ ​t​h​a​t​ ​n​a​m​e​.​ ​c​h​o​o​s​e​ ​a​ ​d​i​f​f​e​r​e​n​t​ ​o​n​e​.
+				 */
+				roleNameTaken: string
+				/**
+				 * a​ ​r​o​l​e​ ​g​o​e​s​ ​b​e​l​o​w​ ​t​h​e​ ​m​a​n​a​g​e​r​ ​a​n​d​ ​a​b​o​v​e​ ​t​h​e​ ​m​e​m​b​e​r​.
+				 */
+				roleOutOfPlace: string
+				/**
+				 * t​h​e​r​e​ ​i​s​ ​n​o​ ​r​o​o​m​ ​l​e​f​t​ ​b​e​l​o​w​ ​y​o​u​r​ ​r​o​l​e​.​ ​a​s​k​ ​s​o​m​e​b​o​d​y​ ​w​h​o​ ​r​a​n​k​s​ ​a​b​o​v​e​ ​y​o​u​.
+				 */
+				noRankBelow: string
+				/**
+				 * t​h​e​ ​o​w​n​e​r​'​s​ ​r​o​l​e​ ​m​o​v​e​s​ ​o​n​l​y​ ​w​h​e​n​ ​t​h​e​ ​o​w​n​e​r​ ​h​a​n​d​s​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​o​v​e​r​.
+				 */
+				ownerRoleNotAssigned: string
 				/**
 				 * y​o​u​ ​a​r​e​ ​t​h​e​ ​o​w​n​e​r​ ​a​l​r​e​a​d​y​.​ ​c​h​o​o​s​e​ ​t​h​e​ ​a​c​c​o​u​n​t​ ​t​h​a​t​ ​i​s​ ​t​o​ ​h​a​v​e​ ​i​t​.
 				 */
@@ -1153,6 +1273,14 @@ type RootTranslation = {
 				 * t​h​e​ ​d​a​t​a​b​a​s​e​ ​r​e​f​u​s​e​d​ ​t​h​e​ ​r​e​q​u​e​s​t​,​ ​a​n​d​ ​n​o​t​h​i​n​g​ ​w​a​s​ ​c​h​a​n​g​e​d​.​ ​t​r​y​ ​a​g​a​i​n​ ​l​a​t​e​r​.
 				 */
 				databaseRefused: string
+				/**
+				 * a​n​ ​o​l​d​e​r​ ​v​e​r​s​i​o​n​ ​m​a​d​e​ ​t​h​i​s​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​e​x​p​o​r​t​ ​e​a​c​h​ ​w​o​r​k​s​p​a​c​e​ ​t​h​e​r​e​,​ ​d​e​l​e​t​e​ ​i​t​,​ ​m​a​k​e​ ​i​t​ ​a​g​a​i​n​ ​h​e​r​e​ ​a​n​d​ ​i​m​p​o​r​t​ ​t​h​e​m​.
+				 */
+				organizationOlder: string
+				/**
+				 * a​ ​n​e​w​e​r​ ​v​e​r​s​i​o​n​ ​o​f​ ​r​e​n​t​a​b​l​e​ ​m​a​d​e​ ​t​h​i​s​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​u​p​d​a​t​e​ ​r​e​n​t​a​b​l​e​ ​t​o​ ​o​p​e​n​ ​i​t​.
+				 */
+				organizationNewer: string
 				/**
 				 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​i​s​ ​n​o​t​ ​c​o​n​n​e​c​t​e​d​ ​t​o​ ​t​h​e​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​.​ ​c​o​n​n​e​c​t​ ​i​t​ ​a​n​d​ ​t​r​y​ ​a​g​a​i​n​.
 				 */
@@ -1855,9 +1983,9 @@ type RootTranslation = {
 			 */
 			roleOwner: string
 			/**
-			 * a​d​m​i​n​i​s​t​r​a​t​o​r
+			 * m​a​n​a​g​e​r
 			 */
-			roleAdministrator: string
+			roleManager: string
 			/**
 			 * m​e​m​b​e​r
 			 */
@@ -1999,6 +2127,15 @@ type RootTranslation = {
 			 * @param {unknown} tenant
 			 */
 			openContract: RequiredParams<'tenant'>
+			/**
+			 * o​p​e​n​ ​c​o​n​t​r​a​c​t​ ​{​n​u​m​b​e​r​}
+			 * @param {unknown} number
+			 */
+			openContractNumbered: RequiredParams<'number'>
+			/**
+			 * o​p​e​n​ ​t​h​e​ ​c​o​n​t​r​a​c​t
+			 */
+			openThisContract: string
 			/**
 			 * s​e​e​ ​a​l​l​ ​(​{​c​o​u​n​t​|​n​u​m​b​e​r​}​)
 			 * @param {unknown} count
@@ -2194,7 +2331,7 @@ type RootTranslation = {
 				 */
 				title: string
 				/**
-				 * {​o​w​n​e​r​}​ ​h​a​s​ ​o​f​f​e​r​e​d​ ​y​o​u​ ​t​h​i​s​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​a​c​c​e​p​t​i​n​g​ ​m​a​k​e​s​ ​y​o​u​ ​t​h​e​ ​o​w​n​e​r​ ​a​n​d​ ​m​a​k​e​s​ ​t​h​e​m​ ​a​n​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​.
+				 * {​o​w​n​e​r​}​ ​h​a​s​ ​o​f​f​e​r​e​d​ ​y​o​u​ ​t​h​i​s​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​a​c​c​e​p​t​i​n​g​ ​m​a​k​e​s​ ​y​o​u​ ​t​h​e​ ​o​w​n​e​r​ ​a​n​d​ ​m​a​k​e​s​ ​t​h​e​m​ ​a​ ​m​a​n​a​g​e​r​.
 				 * @param {string} owner
 				 */
 				offered: RequiredParams<'owner'>
@@ -3142,7 +3279,7 @@ type RootTranslation = {
 			 */
 			none: string
 			/**
-			 * t​h​e​ ​o​w​n​e​r​ ​o​r​ ​a​n​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​ ​c​a​n​ ​c​h​a​n​g​e​ ​i​t​.
+			 * s​o​m​e​b​o​d​y​ ​a​l​l​o​w​e​d​ ​t​o​ ​c​h​a​n​g​e​ ​t​h​e​ ​m​a​r​k​ ​c​a​n​ ​c​h​a​n​g​e​ ​i​t​.
 			 */
 			readOnly: string
 			/**
@@ -3506,10 +3643,6 @@ type RootTranslation = {
 			 */
 			role: string
 			/**
-			 * o​n​l​y​ ​t​h​e​ ​o​w​n​e​r​ ​c​a​n​ ​m​a​k​e​ ​a​n​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​.
-			 */
-			administratorsAreTheOwners: string
-			/**
 			 * n​o​ ​w​o​r​k​s​p​a​c​e​ ​t​o​ ​g​r​a​n​t​ ​y​e​t​.​ ​t​h​e​y​ ​c​a​n​ ​b​e​ ​g​r​a​n​t​e​d​ ​o​n​e​ ​l​a​t​e​r​.
 			 */
 			noWorkspaceToGrant: string
@@ -3551,7 +3684,7 @@ type RootTranslation = {
 			 */
 			transferOwnership: string
 			/**
-			 * t​h​e​y​ ​a​r​e​ ​o​f​f​e​r​e​d​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​o​n​c​e​ ​t​h​e​y​ ​a​c​c​e​p​t​,​ ​t​h​e​y​ ​b​e​c​o​m​e​ ​t​h​e​ ​o​w​n​e​r​ ​a​n​d​ ​y​o​u​ ​b​e​c​o​m​e​ ​a​n​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​.
+			 * t​h​e​y​ ​a​r​e​ ​o​f​f​e​r​e​d​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​o​n​c​e​ ​t​h​e​y​ ​a​c​c​e​p​t​,​ ​t​h​e​y​ ​b​e​c​o​m​e​ ​t​h​e​ ​o​w​n​e​r​ ​a​n​d​ ​y​o​u​ ​b​e​c​o​m​e​ ​a​ ​m​a​n​a​g​e​r​.
 			 */
 			transferOwnershipGoes: string
 			/**
@@ -3583,7 +3716,7 @@ type RootTranslation = {
 			 */
 			acceptOwnership: string
 			/**
-			 * y​o​u​ ​o​w​n​ ​{​o​r​g​a​n​i​z​a​t​i​o​n​}​ ​a​n​d​ ​{​o​w​n​e​r​}​ ​b​e​c​o​m​e​s​ ​a​n​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​.​ ​y​o​u​r​ ​p​a​s​s​w​o​r​d​ ​n​o​w​ ​s​i​g​n​s​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.
+			 * y​o​u​ ​o​w​n​ ​{​o​r​g​a​n​i​z​a​t​i​o​n​}​ ​a​n​d​ ​{​o​w​n​e​r​}​ ​b​e​c​o​m​e​s​ ​a​ ​m​a​n​a​g​e​r​.​ ​y​o​u​r​ ​p​a​s​s​w​o​r​d​ ​n​o​w​ ​s​i​g​n​s​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.
 			 * @param {string} organization
 			 * @param {string} owner
 			 */
@@ -3696,12 +3829,12 @@ type RootTranslation = {
 			 */
 			lockedOut: RequiredParams<'count|number'>
 			/**
-			 * y​o​u​ ​d​o​ ​n​o​t​ ​h​o​l​d​ ​{​w​o​r​k​s​p​a​c​e​s​}​,​ ​s​o​ ​t​h​e​ ​r​e​s​e​t​ ​c​o​u​l​d​ ​n​o​t​ ​r​e​s​t​o​r​e​ ​i​t​.​ ​a​n​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​ ​w​h​o​ ​d​o​e​s​ ​c​a​n​ ​g​r​a​n​t​ ​i​t​ ​a​g​a​i​n​.
+			 * y​o​u​ ​d​o​ ​n​o​t​ ​h​o​l​d​ ​{​w​o​r​k​s​p​a​c​e​s​}​,​ ​s​o​ ​t​h​e​ ​r​e​s​e​t​ ​c​o​u​l​d​ ​n​o​t​ ​r​e​s​t​o​r​e​ ​i​t​.​ ​a​ ​m​a​n​a​g​e​r​ ​w​h​o​ ​d​o​e​s​ ​c​a​n​ ​g​r​a​n​t​ ​i​t​ ​a​g​a​i​n​.
 			 * @param {unknown} workspaces
 			 */
 			unreachableWorkspaces: RequiredParams<'workspaces'>
 			/**
-			 * y​o​u​ ​d​o​ ​n​o​t​ ​h​o​l​d​ ​{​w​o​r​k​s​p​a​c​e​s​}​,​ ​s​o​ ​t​h​e​ ​l​i​n​k​ ​c​o​u​l​d​ ​n​o​t​ ​c​a​r​r​y​ ​i​t​ ​o​v​e​r​.​ ​a​n​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​ ​w​h​o​ ​d​o​e​s​ ​c​a​n​ ​g​r​a​n​t​ ​i​t​ ​a​g​a​i​n​.
+			 * y​o​u​ ​d​o​ ​n​o​t​ ​h​o​l​d​ ​{​w​o​r​k​s​p​a​c​e​s​}​,​ ​s​o​ ​t​h​e​ ​l​i​n​k​ ​c​o​u​l​d​ ​n​o​t​ ​c​a​r​r​y​ ​i​t​ ​o​v​e​r​.​ ​a​ ​m​a​n​a​g​e​r​ ​w​h​o​ ​d​o​e​s​ ​c​a​n​ ​g​r​a​n​t​ ​i​t​ ​a​g​a​i​n​.
 			 * @param {unknown} workspaces
 			 */
 			linkUnreachableWorkspaces: RequiredParams<'workspaces'>
@@ -3778,69 +3911,34 @@ type RootTranslation = {
 			 */
 			memberSheetDescription: RequiredParams<'username'>
 			/**
-			 * b​e​y​o​n​d​ ​t​h​e​i​r​ ​r​o​l​e
-			 */
-			beyondRole: string
-			/**
-			 * w​h​a​t​ ​t​h​i​s​ ​m​e​m​b​e​r​ ​c​a​n​ ​d​o​ ​t​h​a​t​ ​a​ ​m​e​m​b​e​r​ ​u​s​u​a​l​l​y​ ​c​a​n​n​o​t​.
-			 */
-			beyondRoleDescription: string
-			/**
-			 * n​o​t​h​i​n​g​ ​b​e​y​o​n​d​ ​t​h​e​i​r​ ​r​o​l​e​.
-			 */
-			beyondRoleNone: string
-			/**
-			 * a​l​l​o​w​ ​s​o​m​e​t​h​i​n​g​ ​e​l​s​e
-			 */
-			beyondRoleAdd: string
-			/**
-			 * a​l​l​o​w
-			 */
-			allowActs: string
-			/**
-			 * a​n​ ​a​d​m​i​n​i​s​t​r​a​t​o​r​ ​m​a​y​ ​a​l​r​e​a​d​y​ ​d​o​ ​a​l​l​ ​o​f​ ​i​t​.
-			 */
-			administratorAllowedEvery: string
-			/**
-			 * w​h​a​t​ ​t​h​e​y​ ​m​a​y​ ​d​o
-			 */
-			permissionsLegend: string
-			/**
-			 * i​n​v​i​t​e​ ​m​e​m​b​e​r​s
-			 */
-			actInviteMember: string
-			/**
-			 * r​e​m​o​v​e​ ​m​e​m​b​e​r​s
-			 */
-			actRemoveMember: string
-			/**
-			 * c​h​a​n​g​e​ ​r​o​l​e​s​ ​a​n​d​ ​p​e​r​m​i​s​s​i​o​n​s
-			 */
-			actChangeRole: string
-			/**
-			 * r​e​n​a​m​e​ ​w​o​r​k​s​p​a​c​e​s
-			 */
-			actRenameWorkspace: string
-			/**
-			 * i​s​s​u​e​ ​n​e​w​ ​l​i​n​k​s
-			 */
-			actResetPassword: string
-			/**
-			 * r​e​n​a​m​e​ ​m​e​m​b​e​r​s
-			 */
-			actRenameMember: string
-			/**
-			 * g​r​a​n​t​ ​w​o​r​k​s​p​a​c​e​s
-			 */
-			actGrantWorkspace: string
-			/**
-			 * o​n​l​y​ ​t​h​e​ ​o​w​n​e​r​ ​c​a​n​ ​g​i​v​e​ ​s​o​m​e​b​o​d​y​ ​a​n​ ​a​c​t​ ​t​h​a​t​ ​w​r​i​t​e​s​ ​a​n​o​t​h​e​r​ ​m​e​m​b​e​r​'​s​ ​r​o​w​.​ ​t​a​k​i​n​g​ ​o​n​e​ ​b​a​c​k​ ​i​s​ ​y​o​u​r​s​.
-			 */
-			signingIsTheOwners: string
-			/**
-			 * t​h​e​ ​r​o​l​e​ ​a​n​d​ ​t​h​e​ ​p​e​r​m​i​s​s​i​o​n​s​ ​w​e​r​e​ ​s​a​v​e​d​.
+			 * t​h​e​ ​r​o​l​e​ ​w​a​s​ ​s​a​v​e​d​.
 			 */
 			roleChanged: string
+			/**
+			 * w​h​a​t​ ​t​h​e​y​ ​m​a​y​ ​d​o​ ​w​a​s​ ​s​a​v​e​d​.
+			 */
+			overrideSaved: string
+			/**
+			 * t​h​e​y​ ​a​r​e​ ​n​o​t​ ​b​e​l​o​w​ ​y​o​u​,​ ​s​o​ ​s​o​m​e​b​o​d​y​ ​w​h​o​ ​r​a​n​k​s​ ​a​b​o​v​e​ ​t​h​e​m​ ​d​o​e​s​ ​t​h​i​s​.
+			 */
+			notBelowYou: string
+			/**
+			 * t​h​i​s​ ​i​s​ ​y​o​u​:​ ​y​o​u​r​ ​r​o​l​e​ ​a​n​d​ ​p​e​r​m​i​s​s​i​o​n​s​ ​a​r​e​ ​c​h​a​n​g​e​d​ ​b​y​ ​s​o​m​e​b​o​d​y​ ​w​h​o​ ​r​a​n​k​s​ ​a​b​o​v​e​ ​y​o​u​.
+			 */
+			yourOwn: string
+			/**
+			 * y​o​u​ ​m​a​y​ ​n​o​t​ ​{​f​l​a​g​}​.
+			 * @param {string} flag
+			 */
+			lacksFlag: RequiredParams<'flag'>
+			/**
+			 * y​o​u​ ​d​o​ ​n​o​t​ ​h​o​l​d​ ​t​h​i​s​ ​y​o​u​r​s​e​l​f​.
+			 */
+			notHeld: string
+			/**
+			 * a​ ​r​o​l​e​ ​a​t​ ​o​r​ ​a​b​o​v​e​ ​y​o​u​r​ ​o​w​n​ ​i​s​ ​g​i​v​e​n​ ​b​y​ ​s​o​m​e​b​o​d​y​ ​w​h​o​ ​r​a​n​k​s​ ​a​b​o​v​e​ ​i​t​.
+			 */
+			roleOutOfReach: string
 			/**
 			 * l​e​a​v​i​n​g
 			 */
@@ -3897,7 +3995,7 @@ type RootTranslation = {
 				 */
 				who: string
 			}
-			administrator: {
+			manager: {
 				/**
 				 * a​d​d​s​ ​m​e​m​b​e​r​s​,​ ​m​a​k​e​s​ ​l​i​n​k​s​ ​a​n​d​ ​g​r​a​n​t​s​ ​w​o​r​k​s​p​a​c​e​s​.​ ​t​h​e​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​ ​s​t​a​y​s​ ​t​h​e​ ​o​w​n​e​r​'​s​.
 				 */
@@ -3910,49 +4008,274 @@ type RootTranslation = {
 				who: string
 			}
 		}
-		acts: {
-			inviteMember: {
-				/**
-				 * c​a​n​ ​i​n​v​i​t​e​ ​m​e​m​b​e​r​s
-				 */
-				does: string
-			}
-			removeMember: {
-				/**
-				 * c​a​n​ ​r​e​m​o​v​e​ ​m​e​m​b​e​r​s
-				 */
-				does: string
-			}
-			changeRole: {
-				/**
-				 * c​a​n​ ​c​h​a​n​g​e​ ​w​h​a​t​ ​a​ ​m​e​m​b​e​r​ ​m​a​y​ ​d​o
-				 */
-				does: string
-			}
-			renameWorkspace: {
-				/**
-				 * c​a​n​ ​r​e​n​a​m​e​ ​a​ ​w​o​r​k​s​p​a​c​e
-				 */
-				does: string
-			}
-			resetPassword: {
-				/**
-				 * c​a​n​ ​r​e​s​e​t​ ​a​ ​m​e​m​b​e​r​'​s​ ​p​a​s​s​w​o​r​d
-				 */
-				does: string
-			}
-			renameMember: {
-				/**
-				 * c​a​n​ ​r​e​n​a​m​e​ ​m​e​m​b​e​r​s
-				 */
-				does: string
-			}
-			grantWorkspace: {
-				/**
-				 * c​a​n​ ​g​i​v​e​ ​a​ ​m​e​m​b​e​r​ ​a​ ​w​o​r​k​s​p​a​c​e
-				 */
-				does: string
-			}
+		families: {
+			/**
+			 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n
+			 */
+			administration: string
+			/**
+			 * t​h​e​ ​o​w​n​e​r​'​s​ ​o​w​n
+			 */
+			owner: string
+			/**
+			 * c​o​m​p​l​e​x​e​s
+			 */
+			complex: string
+			/**
+			 * u​n​i​t​s
+			 */
+			unit: string
+			/**
+			 * t​e​n​a​n​t​s
+			 */
+			tenant: string
+			/**
+			 * c​o​n​t​r​a​c​t​s
+			 */
+			contract: string
+			/**
+			 * p​a​y​m​e​n​t​s
+			 */
+			payment: string
+		}
+		flagVerbs: {
+			/**
+			 * v​i​e​w
+			 */
+			view: string
+			/**
+			 * c​r​e​a​t​e
+			 */
+			create: string
+			/**
+			 * e​d​i​t
+			 */
+			edit: string
+			/**
+			 * d​e​l​e​t​e
+			 */
+			'delete': string
+		}
+		flags: {
+			/**
+			 * i​n​v​i​t​e​ ​m​e​m​b​e​r​s
+			 */
+			inviteMember: string
+			/**
+			 * r​e​m​o​v​e​ ​m​e​m​b​e​r​s
+			 */
+			removeMember: string
+			/**
+			 * g​i​v​e​ ​m​e​m​b​e​r​s​ ​a​ ​r​o​l​e
+			 */
+			assignRole: string
+			/**
+			 * r​e​n​a​m​e​ ​w​o​r​k​s​p​a​c​e​s
+			 */
+			renameWorkspace: string
+			/**
+			 * r​e​s​e​t​ ​p​a​s​s​w​o​r​d​s
+			 */
+			resetPassword: string
+			/**
+			 * r​e​n​a​m​e​ ​m​e​m​b​e​r​s
+			 */
+			renameMember: string
+			/**
+			 * g​r​a​n​t​ ​w​o​r​k​s​p​a​c​e​s
+			 */
+			grantWorkspace: string
+			/**
+			 * m​a​n​a​g​e​ ​r​o​l​e​s
+			 */
+			manageRoles: string
+			/**
+			 * c​h​a​n​g​e​ ​o​n​e​ ​m​e​m​b​e​r​'​s​ ​p​e​r​m​i​s​s​i​o​n​s
+			 */
+			overrideMember: string
+			/**
+			 * c​h​a​n​g​e​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​m​a​r​k
+			 */
+			manageMark: string
+			/**
+			 * c​r​e​a​t​e​ ​w​o​r​k​s​p​a​c​e​s
+			 */
+			createWorkspace: string
+			/**
+			 * d​e​l​e​t​e​ ​w​o​r​k​s​p​a​c​e​s
+			 */
+			deleteWorkspace: string
+			/**
+			 * g​r​a​n​t​ ​r​e​a​d​ ​o​n​l​y​ ​a​c​c​e​s​s
+			 */
+			mintReadOnly: string
+			/**
+			 * l​o​c​k​ ​m​e​m​b​e​r​s​ ​o​u​t
+			 */
+			lockOut: string
+			/**
+			 * r​e​n​e​w​ ​c​r​e​d​e​n​t​i​a​l​s
+			 */
+			renewCredentials: string
+			/**
+			 * c​o​n​n​e​c​t​ ​t​h​e​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t
+			 */
+			tursoAccount: string
+			/**
+			 * h​a​n​d​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​o​v​e​r
+			 */
+			transferOwnership: string
+			/**
+			 * d​e​l​e​t​e​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n
+			 */
+			deleteOrganization: string
+		}
+		roleList: {
+			/**
+			 * r​o​l​e​s
+			 */
+			title: string
+			/**
+			 * w​h​a​t​ ​e​a​c​h​ ​k​i​n​d​ ​o​f​ ​p​e​r​s​o​n​ ​m​a​y​ ​d​o​,​ ​h​i​g​h​e​s​t​ ​f​i​r​s​t​.​ ​a​ ​m​e​m​b​e​r​'​s​ ​o​w​n​ ​c​a​r​d​ ​c​a​n​ ​c​h​a​n​g​e​ ​i​t​ ​f​o​r​ ​t​h​e​m​ ​a​l​o​n​e​.
+			 */
+			description: string
+			/**
+			 * a​d​d​ ​a​ ​r​o​l​e
+			 */
+			add: string
+			/**
+			 * r​a​n​k
+			 */
+			rank: string
+			/**
+			 * h​e​l​d​ ​b​y​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​m​e​m​b​e​r​|​m​e​m​b​e​r​s​}​}
+			 * @param {string | number | boolean} count
+			 */
+			heldBy: RequiredParams<'count|number'>
+			/**
+			 * n​o​b​o​d​y​ ​h​o​l​d​s​ ​i​t​ ​y​e​t
+			 */
+			heldByNobody: string
+			/**
+			 * n​o​t​h​i​n​g​ ​y​e​t
+			 */
+			carriesNothing: string
+			/**
+			 * m​o​v​e​ ​u​p
+			 */
+			moveUp: string
+			/**
+			 * m​o​v​e​ ​d​o​w​n
+			 */
+			moveDown: string
+			/**
+			 * i​t​ ​i​s​ ​a​l​r​e​a​d​y​ ​j​u​s​t​ ​b​e​l​o​w​ ​t​h​e​ ​m​a​n​a​g​e​r​.
+			 */
+			highest: string
+			/**
+			 * i​t​ ​i​s​ ​a​l​r​e​a​d​y​ ​j​u​s​t​ ​a​b​o​v​e​ ​t​h​e​ ​m​e​m​b​e​r​.
+			 */
+			lowest: string
+			/**
+			 * t​h​a​t​ ​r​o​l​e​ ​i​s​ ​n​o​t​ ​b​e​l​o​w​ ​y​o​u​r​ ​o​w​n​.
+			 */
+			notBelowYou: string
+			/**
+			 * a​ ​n​e​w​ ​r​o​l​e
+			 */
+			newTitle: string
+			/**
+			 * a​ ​n​a​m​e​,​ ​a​n​d​ ​w​h​a​t​ ​e​v​e​r​y​b​o​d​y​ ​g​i​v​e​n​ ​i​t​ ​m​a​y​ ​d​o​.​ ​i​t​ ​s​t​a​r​t​s​ ​j​u​s​t​ ​a​b​o​v​e​ ​t​h​e​ ​m​e​m​b​e​r​ ​a​n​d​ ​m​o​v​e​s​ ​f​r​o​m​ ​i​t​s​ ​c​a​r​d​.
+			 */
+			newDescription: string
+			/**
+			 * w​h​a​t​ ​e​v​e​r​y​b​o​d​y​ ​h​o​l​d​i​n​g​ ​{​r​o​l​e​}​ ​m​a​y​ ​d​o​.
+			 * @param {string} role
+			 */
+			editDescription: RequiredParams<'role'>
+			/**
+			 * n​a​m​e
+			 */
+			name: string
+			/**
+			 * w​h​a​t​ ​t​h​e​ ​r​o​l​e​ ​i​s​ ​c​a​l​l​e​d​ ​o​n​ ​e​v​e​r​y​ ​c​a​r​d​.
+			 */
+			nameDescription: string
+			/**
+			 * e​v​e​r​y​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​h​a​s​ ​t​h​i​s​ ​r​o​l​e​,​ ​s​o​ ​i​t​s​ ​n​a​m​e​ ​s​t​a​y​s​.
+			 */
+			builtInName: string
+			/**
+			 * w​h​a​t​ ​i​t​ ​m​a​y​ ​d​o
+			 */
+			flagsTitle: string
+			/**
+			 * w​h​a​t​ ​i​s​ ​t​i​c​k​e​d​ ​i​s​ ​o​n​ ​f​o​r​ ​e​v​e​r​y​b​o​d​y​ ​w​h​o​ ​h​o​l​d​s​ ​t​h​e​ ​r​o​l​e​.
+			 */
+			flagsDescription: string
+			/**
+			 * a​d​d​ ​t​h​e​ ​r​o​l​e
+			 */
+			create: string
+			/**
+			 * d​e​l​e​t​e​ ​r​o​l​e
+			 */
+			deleteTitle: string
+			/**
+			 * e​v​e​r​y​b​o​d​y​ ​h​o​l​d​i​n​g​ ​i​t​ ​h​o​l​d​s​ ​t​h​e​ ​m​e​m​b​e​r​ ​r​o​l​e​ ​i​n​s​t​e​a​d​,​ ​k​e​e​p​i​n​g​ ​a​n​y​t​h​i​n​g​ ​c​h​a​n​g​e​d​ ​f​o​r​ ​t​h​e​m​ ​a​l​o​n​e​.
+			 */
+			deleteDescription: string
+			/**
+			 * t​h​e​ ​r​o​l​e​ ​w​a​s​ ​a​d​d​e​d​.
+			 */
+			created: string
+			/**
+			 * t​h​e​ ​r​o​l​e​ ​w​a​s​ ​s​a​v​e​d​.
+			 */
+			saved: string
+			/**
+			 * t​h​e​ ​r​o​l​e​ ​w​a​s​ ​m​o​v​e​d​.
+			 */
+			moved: string
+			/**
+			 * t​h​e​ ​r​o​l​e​ ​w​a​s​ ​d​e​l​e​t​e​d​.
+			 */
+			deleted: string
+		}
+		override: {
+			/**
+			 * w​h​a​t​ ​t​h​e​y​ ​m​a​y​ ​d​o
+			 */
+			legend: string
+			/**
+			 * t​h​e​ ​f​i​r​s​t​ ​c​o​l​u​m​n​ ​i​s​ ​w​h​a​t​ ​t​h​e​i​r​ ​r​o​l​e​ ​g​i​v​e​s​.​ ​c​h​a​n​g​e​ ​a​ ​f​l​a​g​ ​f​o​r​ ​t​h​e​m​ ​a​l​o​n​e​,​ ​a​n​d​ ​t​h​e​ ​l​a​s​t​ ​c​o​l​u​m​n​ ​i​s​ ​w​h​a​t​ ​t​h​e​y​ ​m​a​y​ ​d​o​.
+			 */
+			description: string
+			/**
+			 * r​o​l​e
+			 */
+			role: string
+			/**
+			 * c​h​a​n​g​e​d
+			 */
+			changed: string
+			/**
+			 * t​h​e​y​ ​m​a​y
+			 */
+			result: string
+			/**
+			 * y​e​s
+			 */
+			yes: string
+			/**
+			 * n​o
+			 */
+			no: string
+			/**
+			 * c​h​a​n​g​e​ ​{​f​l​a​g​}​ ​f​o​r​ ​t​h​e​m​ ​a​l​o​n​e
+			 * @param {string} flag
+			 */
+			change: RequiredParams<'flag'>
 		}
 		levels: {
 			full: {
@@ -3973,60 +4296,6 @@ type RootTranslation = {
 				 */
 				does: string
 			}
-		}
-		roleTable: {
-			/**
-			 * w​h​a​t​ ​e​a​c​h​ ​r​o​l​e​ ​m​a​y​ ​d​o
-			 */
-			title: string
-			/**
-			 * a​ ​r​o​l​e​ ​i​s​ ​w​h​a​t​ ​s​o​m​e​b​o​d​y​ ​i​s​ ​c​a​l​l​e​d​ ​a​n​d​ ​w​h​a​t​ ​t​h​e​y​ ​s​t​a​r​t​ ​w​i​t​h​.​ ​a​n​y​t​h​i​n​g​ ​e​l​s​e​ ​i​s​ ​a​l​l​o​w​e​d​ ​o​n​ ​t​h​e​i​r​ ​o​w​n​ ​s​h​e​e​t​.
-			 */
-			description: string
-			/**
-			 * w​h​a​t​ ​y​o​u​ ​c​a​n​ ​g​i​v​e​ ​s​o​m​e​b​o​d​y
-			 */
-			given: string
-			/**
-			 * a​ ​m​e​m​b​e​r​ ​s​t​a​r​t​s​ ​w​i​t​h​ ​n​o​n​e​ ​o​f​ ​t​h​e​s​e​,​ ​a​n​d​ ​i​s​ ​a​l​l​o​w​e​d​ ​t​h​e​m​ ​o​n​ ​t​h​e​i​r​ ​o​w​n​ ​s​h​e​e​t​.
-			 */
-			memberNote: string
-			/**
-			 * t​h​e​ ​o​w​n​e​r​ ​a​l​o​n​e
-			 */
-			ownerAlone: string
-			/**
-			 * t​h​e​s​e​ ​r​u​n​ ​o​n​ ​t​h​e​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​ ​t​h​e​ ​o​w​n​e​r​ ​c​o​n​n​e​c​t​e​d​,​ ​s​o​ ​n​o​b​o​d​y​ ​c​a​n​ ​b​e​ ​g​i​v​e​n​ ​t​h​e​m​.
-			 */
-			ownerAloneReason: string
-			/**
-			 * y​e​s
-			 */
-			allowed: string
-			/**
-			 * n​o
-			 */
-			notAllowed: string
-			/**
-			 * m​a​k​e​ ​a​ ​n​e​w​ ​w​o​r​k​s​p​a​c​e​.
-			 */
-			createWorkspace: string
-			/**
-			 * d​e​l​e​t​e​ ​a​ ​w​o​r​k​s​p​a​c​e​ ​a​n​d​ ​e​v​e​r​y​t​h​i​n​g​ ​i​n​ ​i​t​.
-			 */
-			deleteWorkspace: string
-			/**
-			 * c​u​t​ ​s​o​m​e​b​o​d​y​ ​o​f​f​ ​f​r​o​m​ ​e​v​e​r​y​ ​w​o​r​k​s​p​a​c​e​ ​a​t​ ​o​n​c​e​.
-			 */
-			lockOut: string
-			/**
-			 * r​e​n​e​w​ ​t​h​e​ ​c​r​e​d​e​n​t​i​a​l​s​ ​t​h​a​t​ ​k​e​e​p​ ​e​v​e​r​y​b​o​d​y​ ​s​y​n​c​i​n​g​.
-			 */
-			renew: string
-			/**
-			 * c​o​n​n​e​c​t​ ​t​h​e​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​,​ ​a​n​d​ ​f​o​r​g​e​t​ ​i​t​.
-			 */
-			tursoAccount: string
 		}
 	}
 	workspace: {
@@ -4861,6 +5130,94 @@ export type TranslationFunctions = {
 			 */
 			'this-year': () => LocalizedString
 		}
+		permission: {
+			missing: {
+				/**
+				 * you do not have permission to view complexes.
+				 */
+				viewComplex: () => LocalizedString
+				/**
+				 * you do not have permission to add complexes.
+				 */
+				createComplex: () => LocalizedString
+				/**
+				 * you do not have permission to edit complexes.
+				 */
+				editComplex: () => LocalizedString
+				/**
+				 * you do not have permission to delete complexes.
+				 */
+				deleteComplex: () => LocalizedString
+				/**
+				 * you do not have permission to view units.
+				 */
+				viewUnit: () => LocalizedString
+				/**
+				 * you do not have permission to add units.
+				 */
+				createUnit: () => LocalizedString
+				/**
+				 * you do not have permission to edit units.
+				 */
+				editUnit: () => LocalizedString
+				/**
+				 * you do not have permission to delete units.
+				 */
+				deleteUnit: () => LocalizedString
+				/**
+				 * you do not have permission to view tenants.
+				 */
+				viewTenant: () => LocalizedString
+				/**
+				 * you do not have permission to add tenants.
+				 */
+				createTenant: () => LocalizedString
+				/**
+				 * you do not have permission to edit tenants.
+				 */
+				editTenant: () => LocalizedString
+				/**
+				 * you do not have permission to delete tenants.
+				 */
+				deleteTenant: () => LocalizedString
+				/**
+				 * you do not have permission to view contracts.
+				 */
+				viewContract: () => LocalizedString
+				/**
+				 * you do not have permission to add contracts.
+				 */
+				createContract: () => LocalizedString
+				/**
+				 * you do not have permission to edit contracts.
+				 */
+				editContract: () => LocalizedString
+				/**
+				 * you do not have permission to delete contracts.
+				 */
+				deleteContract: () => LocalizedString
+				/**
+				 * you do not have permission to view payments.
+				 */
+				viewPayment: () => LocalizedString
+				/**
+				 * you do not have permission to add payments.
+				 */
+				createPayment: () => LocalizedString
+				/**
+				 * you do not have permission to edit payments.
+				 */
+				editPayment: () => LocalizedString
+				/**
+				 * you do not have permission to delete payments.
+				 */
+				deletePayment: () => LocalizedString
+			}
+			/**
+			 * your access to this workspace is read only, so nothing in it can be changed.
+			 */
+			readOnly: () => LocalizedString
+		}
 		refusals: {
 			complex: {
 				/**
@@ -5060,7 +5417,7 @@ export type TranslationFunctions = {
 				 */
 				usernameTaken: () => LocalizedString
 				/**
-				 * choose administrator or member.
+				 * choose one of the roles the organization has.
 				 */
 				roleUnknown: () => LocalizedString
 				/**
@@ -5084,7 +5441,7 @@ export type TranslationFunctions = {
 				 */
 				memberRemoved: () => LocalizedString
 				/**
-				 * you cannot do this to your own account. another administrator can.
+				 * you cannot do this to your own account. somebody who ranks above you can.
 				 */
 				notYourself: () => LocalizedString
 				/**
@@ -5100,13 +5457,45 @@ export type TranslationFunctions = {
 				 */
 				ownerMachineOnly: () => LocalizedString
 				/**
-				 * your role does not include this. ask an administrator.
+				 * your role does not include this. ask a manager.
 				 */
 				roleLacksAct: () => LocalizedString
 				/**
-				 * only an administrator can do this.
+				 * only a manager can do this.
 				 */
 				notAdministrator: () => LocalizedString
+				/**
+				 * that role is not below your own. ask somebody who ranks above it.
+				 */
+				rankNotAbove: () => LocalizedString
+				/**
+				 * somebody not allowed to changed this member's record. somebody above them removes them and makes them an account again.
+				 */
+				roleUnsettled: () => LocalizedString
+				/**
+				 * every organization has this role, so it is not renamed, moved or deleted. the owner's role always carries everything.
+				 */
+				roleBuiltIn: () => LocalizedString
+				/**
+				 * give the role a name.
+				 */
+				roleNameMissing: () => LocalizedString
+				/**
+				 * another role has that name. choose a different one.
+				 */
+				roleNameTaken: () => LocalizedString
+				/**
+				 * a role goes below the manager and above the member.
+				 */
+				roleOutOfPlace: () => LocalizedString
+				/**
+				 * there is no room left below your role. ask somebody who ranks above you.
+				 */
+				noRankBelow: () => LocalizedString
+				/**
+				 * the owner's role moves only when the owner hands the organization over.
+				 */
+				ownerRoleNotAssigned: () => LocalizedString
 				/**
 				 * you are the owner already. choose the account that is to have it.
 				 */
@@ -5175,6 +5564,14 @@ export type TranslationFunctions = {
 				 * the database refused the request, and nothing was changed. try again later.
 				 */
 				databaseRefused: () => LocalizedString
+				/**
+				 * an older version made this organization. export each workspace there, delete it, make it again here and import them.
+				 */
+				organizationOlder: () => LocalizedString
+				/**
+				 * a newer version of rentable made this organization. update rentable to open it.
+				 */
+				organizationNewer: () => LocalizedString
 				/**
 				 * this machine is not connected to the Turso account. connect it and try again.
 				 */
@@ -5835,9 +6232,9 @@ export type TranslationFunctions = {
 			 */
 			roleOwner: () => LocalizedString
 			/**
-			 * administrator
+			 * manager
 			 */
-			roleAdministrator: () => LocalizedString
+			roleManager: () => LocalizedString
 			/**
 			 * member
 			 */
@@ -5976,6 +6373,14 @@ export type TranslationFunctions = {
 			 * open the contract for {tenant}
 			 */
 			openContract: (arg: { tenant: unknown }) => LocalizedString
+			/**
+			 * open contract {number}
+			 */
+			openContractNumbered: (arg: { number: unknown }) => LocalizedString
+			/**
+			 * open the contract
+			 */
+			openThisContract: () => LocalizedString
 			/**
 			 * see all ({count|number})
 			 */
@@ -6170,7 +6575,7 @@ export type TranslationFunctions = {
 				 */
 				title: () => LocalizedString
 				/**
-				 * {owner} has offered you this organization. accepting makes you the owner and makes them an administrator.
+				 * {owner} has offered you this organization. accepting makes you the owner and makes them a manager.
 				 */
 				offered: (arg: { owner: string }) => LocalizedString
 			}
@@ -7061,7 +7466,7 @@ export type TranslationFunctions = {
 			 */
 			none: () => LocalizedString
 			/**
-			 * the owner or an administrator can change it.
+			 * somebody allowed to change the mark can change it.
 			 */
 			readOnly: () => LocalizedString
 			/**
@@ -7421,10 +7826,6 @@ export type TranslationFunctions = {
 			 */
 			role: () => LocalizedString
 			/**
-			 * only the owner can make an administrator.
-			 */
-			administratorsAreTheOwners: () => LocalizedString
-			/**
 			 * no workspace to grant yet. they can be granted one later.
 			 */
 			noWorkspaceToGrant: () => LocalizedString
@@ -7465,7 +7866,7 @@ export type TranslationFunctions = {
 			 */
 			transferOwnership: () => LocalizedString
 			/**
-			 * they are offered the organization. once they accept, they become the owner and you become an administrator.
+			 * they are offered the organization. once they accept, they become the owner and you become a manager.
 			 */
 			transferOwnershipGoes: () => LocalizedString
 			/**
@@ -7497,7 +7898,7 @@ export type TranslationFunctions = {
 			 */
 			acceptOwnership: () => LocalizedString
 			/**
-			 * you own {organization} and {owner} becomes an administrator. your password now signs the organization.
+			 * you own {organization} and {owner} becomes a manager. your password now signs the organization.
 			 */
 			acceptOwnershipGoes: (arg: { organization: string, owner: string }) => LocalizedString
 			/**
@@ -7605,11 +8006,11 @@ export type TranslationFunctions = {
 			 */
 			lockedOut: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
-			 * you do not hold {workspaces}, so the reset could not restore it. an administrator who does can grant it again.
+			 * you do not hold {workspaces}, so the reset could not restore it. a manager who does can grant it again.
 			 */
 			unreachableWorkspaces: (arg: { workspaces: unknown }) => LocalizedString
 			/**
-			 * you do not hold {workspaces}, so the link could not carry it over. an administrator who does can grant it again.
+			 * you do not hold {workspaces}, so the link could not carry it over. a manager who does can grant it again.
 			 */
 			linkUnreachableWorkspaces: (arg: { workspaces: unknown }) => LocalizedString
 			/**
@@ -7681,69 +8082,33 @@ export type TranslationFunctions = {
 			 */
 			memberSheetDescription: (arg: { username: string }) => LocalizedString
 			/**
-			 * beyond their role
-			 */
-			beyondRole: () => LocalizedString
-			/**
-			 * what this member can do that a member usually cannot.
-			 */
-			beyondRoleDescription: () => LocalizedString
-			/**
-			 * nothing beyond their role.
-			 */
-			beyondRoleNone: () => LocalizedString
-			/**
-			 * allow something else
-			 */
-			beyondRoleAdd: () => LocalizedString
-			/**
-			 * allow
-			 */
-			allowActs: () => LocalizedString
-			/**
-			 * an administrator may already do all of it.
-			 */
-			administratorAllowedEvery: () => LocalizedString
-			/**
-			 * what they may do
-			 */
-			permissionsLegend: () => LocalizedString
-			/**
-			 * invite members
-			 */
-			actInviteMember: () => LocalizedString
-			/**
-			 * remove members
-			 */
-			actRemoveMember: () => LocalizedString
-			/**
-			 * change roles and permissions
-			 */
-			actChangeRole: () => LocalizedString
-			/**
-			 * rename workspaces
-			 */
-			actRenameWorkspace: () => LocalizedString
-			/**
-			 * issue new links
-			 */
-			actResetPassword: () => LocalizedString
-			/**
-			 * rename members
-			 */
-			actRenameMember: () => LocalizedString
-			/**
-			 * grant workspaces
-			 */
-			actGrantWorkspace: () => LocalizedString
-			/**
-			 * only the owner can give somebody an act that writes another member's row. taking one back is yours.
-			 */
-			signingIsTheOwners: () => LocalizedString
-			/**
-			 * the role and the permissions were saved.
+			 * the role was saved.
 			 */
 			roleChanged: () => LocalizedString
+			/**
+			 * what they may do was saved.
+			 */
+			overrideSaved: () => LocalizedString
+			/**
+			 * they are not below you, so somebody who ranks above them does this.
+			 */
+			notBelowYou: () => LocalizedString
+			/**
+			 * this is you: your role and permissions are changed by somebody who ranks above you.
+			 */
+			yourOwn: () => LocalizedString
+			/**
+			 * you may not {flag}.
+			 */
+			lacksFlag: (arg: { flag: string }) => LocalizedString
+			/**
+			 * you do not hold this yourself.
+			 */
+			notHeld: () => LocalizedString
+			/**
+			 * a role at or above your own is given by somebody who ranks above it.
+			 */
+			roleOutOfReach: () => LocalizedString
 			/**
 			 * leaving
 			 */
@@ -7800,7 +8165,7 @@ export type TranslationFunctions = {
 				 */
 				who: () => LocalizedString
 			}
-			administrator: {
+			manager: {
 				/**
 				 * adds members, makes links and grants workspaces. the Turso account stays the owner's.
 				 */
@@ -7813,49 +8178,271 @@ export type TranslationFunctions = {
 				who: () => LocalizedString
 			}
 		}
-		acts: {
-			inviteMember: {
-				/**
-				 * can invite members
-				 */
-				does: () => LocalizedString
-			}
-			removeMember: {
-				/**
-				 * can remove members
-				 */
-				does: () => LocalizedString
-			}
-			changeRole: {
-				/**
-				 * can change what a member may do
-				 */
-				does: () => LocalizedString
-			}
-			renameWorkspace: {
-				/**
-				 * can rename a workspace
-				 */
-				does: () => LocalizedString
-			}
-			resetPassword: {
-				/**
-				 * can reset a member's password
-				 */
-				does: () => LocalizedString
-			}
-			renameMember: {
-				/**
-				 * can rename members
-				 */
-				does: () => LocalizedString
-			}
-			grantWorkspace: {
-				/**
-				 * can give a member a workspace
-				 */
-				does: () => LocalizedString
-			}
+		families: {
+			/**
+			 * the organization
+			 */
+			administration: () => LocalizedString
+			/**
+			 * the owner's own
+			 */
+			owner: () => LocalizedString
+			/**
+			 * complexes
+			 */
+			complex: () => LocalizedString
+			/**
+			 * units
+			 */
+			unit: () => LocalizedString
+			/**
+			 * tenants
+			 */
+			tenant: () => LocalizedString
+			/**
+			 * contracts
+			 */
+			contract: () => LocalizedString
+			/**
+			 * payments
+			 */
+			payment: () => LocalizedString
+		}
+		flagVerbs: {
+			/**
+			 * view
+			 */
+			view: () => LocalizedString
+			/**
+			 * create
+			 */
+			create: () => LocalizedString
+			/**
+			 * edit
+			 */
+			edit: () => LocalizedString
+			/**
+			 * delete
+			 */
+			'delete': () => LocalizedString
+		}
+		flags: {
+			/**
+			 * invite members
+			 */
+			inviteMember: () => LocalizedString
+			/**
+			 * remove members
+			 */
+			removeMember: () => LocalizedString
+			/**
+			 * give members a role
+			 */
+			assignRole: () => LocalizedString
+			/**
+			 * rename workspaces
+			 */
+			renameWorkspace: () => LocalizedString
+			/**
+			 * reset passwords
+			 */
+			resetPassword: () => LocalizedString
+			/**
+			 * rename members
+			 */
+			renameMember: () => LocalizedString
+			/**
+			 * grant workspaces
+			 */
+			grantWorkspace: () => LocalizedString
+			/**
+			 * manage roles
+			 */
+			manageRoles: () => LocalizedString
+			/**
+			 * change one member's permissions
+			 */
+			overrideMember: () => LocalizedString
+			/**
+			 * change the organization's mark
+			 */
+			manageMark: () => LocalizedString
+			/**
+			 * create workspaces
+			 */
+			createWorkspace: () => LocalizedString
+			/**
+			 * delete workspaces
+			 */
+			deleteWorkspace: () => LocalizedString
+			/**
+			 * grant read only access
+			 */
+			mintReadOnly: () => LocalizedString
+			/**
+			 * lock members out
+			 */
+			lockOut: () => LocalizedString
+			/**
+			 * renew credentials
+			 */
+			renewCredentials: () => LocalizedString
+			/**
+			 * connect the Turso account
+			 */
+			tursoAccount: () => LocalizedString
+			/**
+			 * hand the organization over
+			 */
+			transferOwnership: () => LocalizedString
+			/**
+			 * delete the organization
+			 */
+			deleteOrganization: () => LocalizedString
+		}
+		roleList: {
+			/**
+			 * roles
+			 */
+			title: () => LocalizedString
+			/**
+			 * what each kind of person may do, highest first. a member's own card can change it for them alone.
+			 */
+			description: () => LocalizedString
+			/**
+			 * add a role
+			 */
+			add: () => LocalizedString
+			/**
+			 * rank
+			 */
+			rank: () => LocalizedString
+			/**
+			 * held by {count|number} {{member|members}}
+			 */
+			heldBy: (arg: { count: string | number | boolean }) => LocalizedString
+			/**
+			 * nobody holds it yet
+			 */
+			heldByNobody: () => LocalizedString
+			/**
+			 * nothing yet
+			 */
+			carriesNothing: () => LocalizedString
+			/**
+			 * move up
+			 */
+			moveUp: () => LocalizedString
+			/**
+			 * move down
+			 */
+			moveDown: () => LocalizedString
+			/**
+			 * it is already just below the manager.
+			 */
+			highest: () => LocalizedString
+			/**
+			 * it is already just above the member.
+			 */
+			lowest: () => LocalizedString
+			/**
+			 * that role is not below your own.
+			 */
+			notBelowYou: () => LocalizedString
+			/**
+			 * a new role
+			 */
+			newTitle: () => LocalizedString
+			/**
+			 * a name, and what everybody given it may do. it starts just above the member and moves from its card.
+			 */
+			newDescription: () => LocalizedString
+			/**
+			 * what everybody holding {role} may do.
+			 */
+			editDescription: (arg: { role: string }) => LocalizedString
+			/**
+			 * name
+			 */
+			name: () => LocalizedString
+			/**
+			 * what the role is called on every card.
+			 */
+			nameDescription: () => LocalizedString
+			/**
+			 * every organization has this role, so its name stays.
+			 */
+			builtInName: () => LocalizedString
+			/**
+			 * what it may do
+			 */
+			flagsTitle: () => LocalizedString
+			/**
+			 * what is ticked is on for everybody who holds the role.
+			 */
+			flagsDescription: () => LocalizedString
+			/**
+			 * add the role
+			 */
+			create: () => LocalizedString
+			/**
+			 * delete role
+			 */
+			deleteTitle: () => LocalizedString
+			/**
+			 * everybody holding it holds the member role instead, keeping anything changed for them alone.
+			 */
+			deleteDescription: () => LocalizedString
+			/**
+			 * the role was added.
+			 */
+			created: () => LocalizedString
+			/**
+			 * the role was saved.
+			 */
+			saved: () => LocalizedString
+			/**
+			 * the role was moved.
+			 */
+			moved: () => LocalizedString
+			/**
+			 * the role was deleted.
+			 */
+			deleted: () => LocalizedString
+		}
+		override: {
+			/**
+			 * what they may do
+			 */
+			legend: () => LocalizedString
+			/**
+			 * the first column is what their role gives. change a flag for them alone, and the last column is what they may do.
+			 */
+			description: () => LocalizedString
+			/**
+			 * role
+			 */
+			role: () => LocalizedString
+			/**
+			 * changed
+			 */
+			changed: () => LocalizedString
+			/**
+			 * they may
+			 */
+			result: () => LocalizedString
+			/**
+			 * yes
+			 */
+			yes: () => LocalizedString
+			/**
+			 * no
+			 */
+			no: () => LocalizedString
+			/**
+			 * change {flag} for them alone
+			 */
+			change: (arg: { flag: string }) => LocalizedString
 		}
 		levels: {
 			full: {
@@ -7876,60 +8463,6 @@ export type TranslationFunctions = {
 				 */
 				does: () => LocalizedString
 			}
-		}
-		roleTable: {
-			/**
-			 * what each role may do
-			 */
-			title: () => LocalizedString
-			/**
-			 * a role is what somebody is called and what they start with. anything else is allowed on their own sheet.
-			 */
-			description: () => LocalizedString
-			/**
-			 * what you can give somebody
-			 */
-			given: () => LocalizedString
-			/**
-			 * a member starts with none of these, and is allowed them on their own sheet.
-			 */
-			memberNote: () => LocalizedString
-			/**
-			 * the owner alone
-			 */
-			ownerAlone: () => LocalizedString
-			/**
-			 * these run on the Turso account the owner connected, so nobody can be given them.
-			 */
-			ownerAloneReason: () => LocalizedString
-			/**
-			 * yes
-			 */
-			allowed: () => LocalizedString
-			/**
-			 * no
-			 */
-			notAllowed: () => LocalizedString
-			/**
-			 * make a new workspace.
-			 */
-			createWorkspace: () => LocalizedString
-			/**
-			 * delete a workspace and everything in it.
-			 */
-			deleteWorkspace: () => LocalizedString
-			/**
-			 * cut somebody off from every workspace at once.
-			 */
-			lockOut: () => LocalizedString
-			/**
-			 * renew the credentials that keep everybody syncing.
-			 */
-			renew: () => LocalizedString
-			/**
-			 * connect the Turso account, and forget it.
-			 */
-			tursoAccount: () => LocalizedString
 		}
 	}
 	workspace: {

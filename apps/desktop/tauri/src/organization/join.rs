@@ -67,7 +67,6 @@ use super::{
     HeldOrganization, connect,
     invite::InvitationStanding,
     link::{HalfKind, JoinLink, open_payload},
-    permission,
     session::{
         CredentialSlot, MemberSession, content_key_of, machine_seen, open_session, refused_by_name,
         remember, sign_in_by_username,
@@ -200,6 +199,10 @@ where
     let reached = store_for(Arc::clone(&credential)).await?;
     let store = reached.borrow();
 
+    // an organization another version made is refused before any row of it is read (effort 838,
+    // requirement 11).
+    store.refuse_another_format().await?;
+
     let held = match machine.organization.clone() {
         Some(held) if held.id == link.organization_id => held,
         Some(held) => {
@@ -237,7 +240,7 @@ where
         .find(|member| member.id == invitation.member_id)
         .ok_or_else(|| invitation_refused(&held.name, Refusal::Revoked))?;
 
-    if member.role == permission::REMOVED {
+    if member.removed_at.is_some() {
         return Err(invitation_refused(&held.name, Refusal::Revoked));
     }
 
@@ -797,7 +800,7 @@ mod tests {
         assert_eq!(their_held.joined_at, ISSUED_AT + 3);
 
         assert_eq!(member.role, permission::MEMBER);
-        assert_eq!(member.permissions, 0);
+        assert_eq!(member.permissions, permission::MEMBER_ROLE.mask);
         assert!(
             !member.must_change_password,
             "opening the link left the member with a password to change"

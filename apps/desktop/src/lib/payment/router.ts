@@ -22,6 +22,7 @@ import {
 	whatRefusesPaymentDeletion,
 	type PaymentRefusalReason
 } from '$lib/payment/payment';
+import { permits, type Flag } from '@rentable/workspace-permission';
 import { and, asc, desc, eq, inArray, sql, type AnyColumn, type SQL } from 'drizzle-orm';
 import z from 'zod';
 
@@ -171,37 +172,47 @@ export default router({
 	 * One payment, carrying the contract it was made against and whose tenant holds it.
 	 *
 	 * A payment is reached only through its contract, so a view of one that could not name
-	 * that contract would leave the reader with three figures and no way back.
+	 * that contract would leave the reader with three figures and no way back. The contract's
+	 * fields are left out for a member who may not view contracts, and the tenant's for one who
+	 * may not view tenants (effort 838, requirement 10); the id stays, since it is the payment's
+	 * own column.
 	 */
-	get: procedure.member.input(PaymentSchema.pick({ id: true })).query(async ({ input, ctx }) => {
-		const row = await ctx.db
-			.select({
-				payment: s.payment,
-				contractGovId: s.contract.govId,
-				contractStatus: s.contract.status,
-				contractPaidAmount: s.contract.paidAmount,
-				contractExpectedAmount: s.contract.expectedAmount,
-				tenantName: s.tenant.name
-			})
-			.from(s.payment)
-			.innerJoin(s.contract, eq(s.payment.contractId, s.contract.id))
-			.innerJoin(s.tenant, eq(s.contract.tenantId, s.tenant.id))
-			.where(eq(s.payment.id, input.id))
-			.get();
+	get: procedure
+		.permitted('viewPayment')
+		.input(PaymentSchema.pick({ id: true }))
+		.query(async ({ input, ctx }) => {
+			const row = await ctx.db
+				.select({
+					payment: s.payment,
+					contractGovId: s.contract.govId,
+					contractStatus: s.contract.status,
+					contractPaidAmount: s.contract.paidAmount,
+					contractExpectedAmount: s.contract.expectedAmount,
+					tenantName: s.tenant.name
+				})
+				.from(s.payment)
+				.innerJoin(s.contract, eq(s.payment.contractId, s.contract.id))
+				.innerJoin(s.tenant, eq(s.contract.tenantId, s.tenant.id))
+				.where(eq(s.payment.id, input.id))
+				.get();
 
-		if (!row) {
-			return undefined;
-		}
+			if (!row) {
+				return undefined;
+			}
 
-		return {
-			...serializePayment(row.payment),
-			contractGovId: row.contractGovId ?? '',
-			contractStatus: row.contractStatus,
-			contractPaidAmount: row.contractPaidAmount,
-			contractExpectedAmount: row.contractExpectedAmount,
-			tenantName: row.tenantName
-		};
-	}),
+			return {
+				...serializePayment(row.payment),
+				...(permits(ctx.identity.permissions, 'viewContract')
+					? {
+							contractGovId: row.contractGovId ?? '',
+							contractStatus: row.contractStatus,
+							contractPaidAmount: row.contractPaidAmount,
+							contractExpectedAmount: row.contractExpectedAmount
+						}
+					: {}),
+				...(permits(ctx.identity.permissions, 'viewTenant') ? { tenantName: row.tenantName } : {})
+			};
+		}),
 
 	/**
 	 * Everything a payment's receipt states, read in one go for the page that prints it: the
@@ -212,8 +223,14 @@ export default router({
 	 * because what one payment covers depends on each payment taken before it. Computed on every
 	 * read and stored nowhere, so a payment edited and printed again gives the edited receipt. It
 	 * is a read, so a terminated contract's payments have receipts too.
+	 *
+	 * **What the member may not view is left off the receipt** (effort 838, requirement 10): who
+	 * paid without `viewTenant`, the contract and what remains of it without `viewContract`, the
+	 * units without `viewUnit`, and the complex holding each without `viewComplex`. The cycles are
+	 * the payment's, what it covers, and stay.
 	 */
-	receipt: procedure.member
+	receipt: procedure
+		.permitted('viewPayment')
 		.input(PaymentSchema.pick({ id: true }))
 		.query(async ({ input, ctx }) => {
 			const row = await ctx.db
@@ -228,15 +245,19 @@ export default router({
 				throw refuse('payment.missing');
 			}
 
+			const views = (flag: Flag) => permits(ctx.identity.permissions, flag);
+
 			const [payments, units] = await Promise.all([
 				ctx.db.select().from(s.payment).where(eq(s.payment.contractId, row.contract.id)),
-				ctx.db
-					.select({ name: s.unit.name, complexName: s.complex.name })
-					.from(s.contractUnit)
-					.innerJoin(s.unit, eq(s.contractUnit.unitId, s.unit.id))
-					.innerJoin(s.complex, eq(s.unit.complexId, s.complex.id))
-					.where(eq(s.contractUnit.contractId, row.contract.id))
-					.orderBy(asc(s.complex.name), asc(s.unit.name), asc(s.unit.id))
+				!views('viewUnit')
+					? undefined
+					: ctx.db
+							.select({ name: s.unit.name, complexName: s.complex.name })
+							.from(s.contractUnit)
+							.innerJoin(s.unit, eq(s.contractUnit.unitId, s.unit.id))
+							.innerJoin(s.complex, eq(s.unit.complexId, s.complex.id))
+							.where(eq(s.contractUnit.contractId, row.contract.id))
+							.orderBy(asc(s.complex.name), asc(s.unit.name), asc(s.unit.id))
 			]);
 
 			const { cycles, remaining } = allocateReceipt(
@@ -249,16 +270,28 @@ export default router({
 			return {
 				reference: toReceiptReference(row.payment.id),
 				payment: serializePayment(row.payment),
-				tenant: { name: row.tenant.name, nationalId: row.tenant.nationalId },
-				contract: {
-					govId: row.contract.govId ?? '',
-					start: row.contract.start.getTime(),
-					end: row.contract.end.getTime()
-				},
-				units,
+				...(views('viewTenant')
+					? { tenant: { name: row.tenant.name, nationalId: row.tenant.nationalId } }
+					: {}),
+				...(views('viewContract')
+					? {
+							contract: {
+								govId: row.contract.govId ?? '',
+								start: row.contract.start.getTime(),
+								end: row.contract.end.getTime()
+							},
+							remaining
+						}
+					: {}),
+				...(units
+					? {
+							units: units.map(({ name, complexName }) =>
+								views('viewComplex') ? { name, complexName } : { name }
+							)
+						}
+					: {}),
 				// cycles cross as timestamps, as a contract's dates do.
-				cycles: cycles.map((cycle) => ({ index: cycle.index, due: cycle.due.getTime() })),
-				remaining
+				cycles: cycles.map((cycle) => ({ index: cycle.index, due: cycle.due.getTime() }))
 			};
 		}),
 
@@ -268,9 +301,11 @@ export default router({
 	 *
 	 * A payment has no name, so its handle is the amount as it is stored — the surface showing
 	 * it is what renders that in the reader's locale — and what places it is the contract it
-	 * was made against, which is also the only way back to it.
+	 * was made against, which is also the only way back to it. The contract's reference and its
+	 * tenant are each shown only to a member who may view their kind (effort 838, requirement 10).
 	 */
-	search: procedure.member
+	search: procedure
+		.permitted('viewPayment')
 		.input(RecordSearchSchema)
 		.query(async ({ input, ctx }): Promise<RecordMatch[]> => {
 			const rows = await ctx.db
@@ -287,10 +322,13 @@ export default router({
 				.orderBy(desc(s.payment.date), desc(s.payment.id))
 				.limit(input.limit);
 
+			const viewsContract = permits(ctx.identity.permissions, 'viewContract');
+			const viewsTenant = permits(ctx.identity.permissions, 'viewTenant');
+
 			return rows.map((row) => ({
 				id: row.id,
 				label: String(row.amount),
-				hint: row.contractGovId ?? row.tenantName
+				hint: (viewsContract ? row.contractGovId : null) ?? (viewsTenant ? row.tenantName : '')
 			}));
 		}),
 
@@ -304,7 +342,8 @@ export default router({
 	 * row displays: the display date is localized, and no locale's rendering of it exists in
 	 * the database to compare against. It also matches any part of the reference.
 	 */
-	getMany: procedure.member
+	getMany: procedure
+		.permitted('viewPayment')
 		.input(
 			PaymentSchema.pick({ contractId: true }).extend({
 				search: z.string().optional(),
@@ -344,7 +383,8 @@ export default router({
 	// an optional id, so undoing a deletion can put the row back with the identity it had — a
 	// page still open on that record is holding a reference to it (ADR 0026). Absent otherwise,
 	// and the engine assigns one.
-	create: procedure.member
+	create: procedure
+		.permitted('createPayment')
 		.use(autosync())
 		.input(PaymentSchema.partial({ id: true }))
 		.mutation(async ({ input, ctx }) => {
@@ -393,7 +433,8 @@ export default router({
 			return serializePayment(created);
 		}),
 
-	update: procedure.member
+	update: procedure
+		.permitted('editPayment')
 		.use(autosync())
 		// every field the payment's form sets, so the inverse an undo replays through here puts all of
 		// them back rather than the date and the amount alone.
@@ -452,7 +493,8 @@ export default router({
 			return serializePayment(updated);
 		}),
 
-	delete: procedure.member
+	delete: procedure
+		.permitted('deletePayment')
 		.use(autosync())
 		.input(PaymentSchema.pick({ id: true }))
 		.mutation(async ({ input, ctx }) => {
@@ -500,7 +542,8 @@ export default router({
 	 *
 	 * A query rather than a mutation: it reads and writes nothing.
 	 */
-	planMany: procedure.member
+	planMany: procedure
+		.permitted('createPayment')
 		.input(z.object({ ids: z.array(PaymentSchema.shape.id).min(1) }))
 		.query(async ({ input, ctx }) => {
 			const plan = await planPaymentSelection(ctx.db, input.ids);
@@ -521,7 +564,8 @@ export default router({
 	 * what is passed anyway, because the procedure is not the surface and should not depend on
 	 * where its ids came from.
 	 */
-	deleteMany: procedure.member
+	deleteMany: procedure
+		.permitted('deletePayment')
 		.use(autosync())
 		.input(z.object({ ids: z.array(PaymentSchema.shape.id).min(1) }))
 		.mutation(async ({ input, ctx }) => {
@@ -558,7 +602,8 @@ export default router({
 	 * is made of. One question, before any of them goes in: may payments be added to this
 	 * contract at all right now.
 	 */
-	createMany: procedure.member
+	createMany: procedure
+		.permitted('createPayment')
 		.use(autosync())
 		.input(z.object({ payments: z.array(PaymentSchema.partial({ id: true })).min(1) }))
 		.mutation(async ({ input, ctx }) => {

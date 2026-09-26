@@ -39,7 +39,6 @@ use crate::{
 use super::{
     HeldOrganization, connect,
     link::{HalfKind, JoinLink, open_payload},
-    permission,
     session::CredentialSlot,
     store::OrganizationStore,
     vault::KdfParams,
@@ -59,8 +58,8 @@ enum Refusal {
 /// The one sentence a machine link that no longer opens is refused with, said in the name of the
 /// organization the link names, since that is the only thing the person on the new machine has.
 ///
-/// **It points at whoever keeps the accounts.** A link is made by the owner or an administrator
-/// from the account's card (effort 828, requirement 20), so a refusal has exactly one remedy and
+/// **It points at whoever keeps the accounts.** A link is made by a holder of `inviteMember` or
+/// `resetPassword` ranked above the account, from the account's card (effort 828, requirement 20), so a refusal has exactly one remedy and
 /// it is asking them for another. *It said to make another from the you section while a member
 /// made their own; the person reading this sentence is on a machine that holds nothing and has no
 /// you section to reach.*
@@ -167,6 +166,10 @@ where
     let reached = store_for(credential).await?;
     let store = reached.borrow();
 
+    // an organization another version made is refused before its link's row is read (effort 838,
+    // requirement 11).
+    store.refuse_another_format().await?;
+
     let row = store
         .machine_link(&half.id)
         .await?
@@ -199,7 +202,7 @@ where
         .find(|member| member.id == row.member_id)
         .ok_or_else(|| no_longer_a_member(&link.organization_name))?;
 
-    if member.role == permission::REMOVED {
+    if member.removed_at.is_some() {
         return Err(no_longer_a_member(&link.organization_name));
     }
 

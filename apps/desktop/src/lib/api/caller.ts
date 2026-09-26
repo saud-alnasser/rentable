@@ -21,9 +21,11 @@ import { caller, context } from './trpc';
  * **Built once and kept, not rebuilt per call.** Building one reaches the shell for the state it
  * reads identity off, and doing that on every procedure call would put an IPC round trip in front
  * of every read in the application. What replaces the freshness that would buy is
- * {@link forgetContext}: the thing the context is derived from changes at exactly three moments,
- * somebody signing in, somebody signing out, and an owner creating the organization on the first
- * run, which signs them in without passing the wall.
+ * {@link forgetContext}: the thing the context is derived from changes at somebody signing in,
+ * somebody signing out, an owner creating the organization on the first run, which signs them in
+ * without passing the wall, a workspace being opened, whose grant decides what may be written in
+ * it, and every sync heartbeat, which is what brings a role or an override changed on another
+ * machine (effort 838, requirement 8).
  */
 let held: Promise<Context> | null = null;
 
@@ -38,8 +40,8 @@ const heldContext = () => (held ??= context());
 /**
  * Forget the context, so the next call builds one under whoever is signed in now.
  *
- * **Called by the sign-in wall, by signing out, and by the first run's create**, and it has to
- * be: `context()` resolves the
+ * **Called by the sign-in wall, by signing out, by the first run's create, by opening a workspace
+ * and by every heartbeat**, and it has to be: `context()` resolves the
  * acting identity when it runs, so a context built before the consent screen belongs to nobody and
  * would go on belonging to nobody for the life of the process. Signing out is the same fact in
  * reverse, and leaving a stale one behind there is the worse of the two — it is an identity the

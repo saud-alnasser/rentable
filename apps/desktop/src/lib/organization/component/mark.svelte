@@ -14,10 +14,11 @@
 	 * The organization's signature or seal, the one image printed at the foot of every receipt and
 	 * schedule (effort 835, requirement 13).
 	 *
-	 * **The owner and administrators change it; everybody sees it.** A member meets the image, or
-	 * the line saying there is none, and a sentence naming who can change it, and no control: an
-	 * act offered and then refused would be a question they cannot answer. The host refuses a
-	 * member's write as well, so nothing here is the only gate.
+	 * **A holder of `manageMark` changes it; everybody sees it.** A member without the flag meets
+	 * the image, or the line saying there is none, and a sentence naming who can change it, and no
+	 * control: an act offered and then refused would be a question they cannot answer. The router
+	 * and the host refuse the write as well, so nothing here is the only gate. *It was the owner's
+	 * and the administrators' until effort 838 gave the mark a flag.*
 	 *
 	 * The image is chosen through the open dialog and read by the host from there, which checks it
 	 * by its bytes; a refusal (too large, not an image) is the host's sentence in a toast.

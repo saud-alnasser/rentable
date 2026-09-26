@@ -15,11 +15,11 @@
 //! (`setup::MINIMUM_PASSWORD_LENGTH`), because a member's vault is sealed the same way the
 //! owner's is.
 //!
-//! **A reset is not here.** An administrator who does not know a member's password cannot
+//! **A reset is not here.** A manager who does not know a member's password cannot
 //! re-seal their vault, because nothing they hold opens it; what they can do is take the password
 //! away and reseal the member a fresh vault from what they hold themselves, which is
 //! `invite::unset_password`, with the link that follows made from the account's card (effort 828,
-//! requirement 20), and a test in this module tries every key an administrator holds against a
+//! requirement 20), and a test in this module tries every key a manager holds against a
 //! vault they did not build and finds none of them opens it. That test is what keeps an escrow
 //! copy from arriving as a convenience. *`invite::reset_account`, the unset and the link in one
 //! call, is a test fixture now.*
@@ -248,7 +248,7 @@ mod tests {
         rows_out
     }
 
-    /// An organization: its owner signed in, two workspaces, an administrator holding the first,
+    /// An organization: its owner signed in, two workspaces, a manager holding the first,
     /// and a member holding both. Everybody has signed in once and changed nothing yet.
     async fn organization(
         directory: &std::path::Path,
@@ -330,21 +330,21 @@ mod tests {
         .await
         .expect("the second workspace");
         let link = locator(&store, &owner).await.expect("the link");
-        let administrator = make_account_and_link(
+        let manager = make_account_and_link(
             &store,
             &owner,
             no_platform(),
             &link,
             Invitation {
-                username: "ada.admin",
-                role: permission::ADMINISTRATOR,
+                username: "ada.manager",
+                role: permission::MANAGER,
                 workspaces: &full(std::slice::from_ref(&north.id)),
             },
             test_cost(),
             AT,
         )
         .await
-        .expect("the administrator");
+        .expect("the manager");
         let member = make_account_and_link(
             &store,
             &owner,
@@ -361,10 +361,10 @@ mod tests {
         .await
         .expect("the member");
 
-        let administrator = (administrator.member_id.clone(), secret_of(&administrator));
+        let manager = (manager.member_id.clone(), secret_of(&manager));
         let member = (member.member_id.clone(), secret_of(&member));
 
-        (store, owner, (north.id, south.id), administrator, member)
+        (store, owner, (north.id, south.id), manager, member)
     }
 
     /// Criterion 13's first half: a change re-seals the member's own vault and leaves every other
@@ -412,9 +412,9 @@ mod tests {
             changed += 1;
             assert_eq!(table, "member", "a {table} row changed");
             // id, username, the public key and the signing public key are the first four; the
-            // sealed secret key, the content key, the salt and the params follow; role,
-            // permissions, the flag, the certificate, the signature, created_at, updated_at
-            // close the row.
+            // sealed secret key, the content key, the salt and the params follow; the role, the
+            // override, the removal, the flag, the certificate, the signature, created_at and
+            // updated_at close the row.
             assert_eq!(was[0], is[0], "the id changed");
             assert_eq!(
                 was[0].as_deref(),
@@ -428,11 +428,12 @@ mod tests {
             assert_eq!(was[5], is[5], "the sealed content key changed");
             assert_ne!(was[6], is[6], "the salt did not change");
             assert_eq!(was[8], is[8], "the role changed");
-            assert_eq!(was[9], is[9], "the permissions changed");
-            assert_ne!(was[10], is[10], "the flag did not clear");
-            assert_eq!(was[11], is[11], "the certificate changed");
-            assert_eq!(was[12], is[12], "the signature changed");
-            assert_eq!(was[13], is[13], "created_at changed");
+            assert_eq!(was[9], is[9], "the override changed");
+            assert_eq!(was[10], is[10], "the removal changed");
+            assert_ne!(was[11], is[11], "the flag did not clear");
+            assert_eq!(was[12], is[12], "the certificate changed");
+            assert_eq!(was[13], is[13], "the signature changed");
+            assert_eq!(was[14], is[14], "created_at changed");
         }
 
         assert_eq!(changed, 1, "{changed} rows changed");
@@ -494,23 +495,23 @@ mod tests {
         assert_eq!(before, every_row(&store).await, "a refusal wrote something");
     }
 
-    /// Criterion 13's second half, and the constraint: no key an administrator holds opens a
-    /// vault that administrator did not build. Every thirty-two-byte secret the owner and the
-    /// administrator hold is tried as a member key against every other member's vault, and their
+    /// Criterion 13's second half, and the constraint: no key a manager holds opens a
+    /// vault that manager did not build. Every thirty-two-byte secret the owner and the
+    /// manager hold is tried as a member key against every other member's vault, and their
     /// secret keys are tried against every other member's sealed content key.
     #[tokio::test]
-    async fn no_key_an_administrator_holds_opens_a_vault_they_did_not_build() {
+    async fn no_key_a_manager_holds_opens_a_vault_they_did_not_build() {
         let directory = scratch("escrow");
-        let (store, owner, _, (admin_id, admin_password), (member_id, member_password)) =
+        let (store, owner, _, (manager_id, manager_password), (member_id, member_password)) =
             organization(&directory).await;
-        let administrator = sign_in(
+        let manager = sign_in(
             &store,
-            &joined_as(&owner, &admin_id, permission::ADMINISTRATOR),
-            &admin_password,
+            &joined_as(&owner, &manager_id, permission::MANAGER),
+            &manager_password,
             &slot(),
         )
         .await
-        .expect("the administrator did not sign in");
+        .expect("the manager did not sign in");
         let members = store
             .members(&owner.verifying_key)
             .await
@@ -543,7 +544,7 @@ mod tests {
             .await
             .expect("the members");
 
-        for (who, holder) in [("owner", &owner), ("administrator", &administrator)] {
+        for (who, holder) in [("owner", &owner), ("manager", &manager)] {
             let mut held: Vec<[u8; 32]> = vec![
                 holder.secret.to_bytes(),
                 holder.content_key.to_bytes(),
@@ -589,41 +590,41 @@ mod tests {
         assert_eq!(members_after.len(), 3);
     }
 
-    /// Requirement 13: a reset is a reissue from what the resetting administrator holds, without
+    /// Requirement 13: a reset is a reissue from what the resetting manager holds, without
     /// the member's previous password, and it says which workspaces it could not restore.
     #[tokio::test]
-    async fn a_reset_restores_what_the_administrator_reaches_and_names_what_they_do_not() {
+    async fn a_reset_restores_what_the_manager_reaches_and_names_what_they_do_not() {
         let directory = scratch("reset");
-        let (store, owner, (north, south), (admin_id, admin_password), (member_id, _)) =
+        let (store, owner, (north, south), (manager_id, manager_password), (member_id, _)) =
             organization(&directory).await;
-        let administrator = sign_in(
+        let manager = sign_in(
             &store,
-            &joined_as(&owner, &admin_id, permission::ADMINISTRATOR),
-            &admin_password,
+            &joined_as(&owner, &manager_id, permission::MANAGER),
+            &manager_password,
             &slot(),
         )
         .await
-        .expect("the administrator did not sign in");
-        let mut administrator = administrator;
+        .expect("the manager did not sign in");
+        let mut manager = manager;
 
-        // the administrator has settled, and holds north and not south.
+        // the manager has settled, and holds north and not south.
         change_password(
             &store,
-            &mut administrator,
-            &admin_password,
-            "the administrators own password",
+            &mut manager,
+            &manager_password,
+            "the managers own password",
             test_cost(),
             AT + 1,
         )
         .await
-        .expect("the administrator's change failed");
-        assert!(administrator.workspace_credentials.contains_key(&north));
-        assert!(!administrator.workspace_credentials.contains_key(&south));
+        .expect("the manager's change failed");
+        assert!(manager.workspace_credentials.contains_key(&north));
+        assert!(!manager.workspace_credentials.contains_key(&south));
 
-        let link = locator(&store, &administrator).await.expect("the link");
+        let link = locator(&store, &manager).await.expect("the link");
         let reset = reset_account(
             &store,
-            &administrator,
+            &manager,
             no_platform(),
             &link,
             &member_id,

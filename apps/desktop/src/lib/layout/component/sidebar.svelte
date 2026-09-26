@@ -10,10 +10,11 @@
 	import LayoutWorkspaceLocked from '$lib/layout/component/workspace-locked.svelte';
 	import LayoutWorkspaceMenu from '$lib/layout/component/workspace-menu.svelte';
 	import { primaryDestinations, type Destination } from '$lib/layout/destination';
-	import { isActiveRoute } from '$lib/layout/navigation';
+	import { isActiveRoute, toViewablePlaces } from '$lib/layout/navigation';
 	import { useStartup } from '$lib/layout/startup-context';
 	import { useFetchRemoteSyncState } from '$lib/settings/query';
 	import { useFetchMembers, useFetchOrganizationState } from '$lib/organization/query';
+	import { memberPermissions } from '$lib/workspace/permission';
 	import type { ComponentProps } from 'svelte';
 
 	/**
@@ -160,7 +161,7 @@
 
 	<Sidebar.Content>
 		<nav aria-label={$LL.common.nav.primary()}>
-			{@render links(primaryDestinations)}
+			{@render links(toViewablePlaces(primaryDestinations, memberPermissions.views))}
 		</nav>
 	</Sidebar.Content>
 

@@ -44,9 +44,13 @@ export function isReminderRank(rank: ContractRank | undefined): rank is Reminder
  */
 export type ContractReminder = {
 	rank: ReminderRank;
-	tenantName: string;
+	/**
+	 * the tenant's name and phone, absent for a member who may not view tenants (effort 838,
+	 * requirement 10), who is not offered a reminder for that reason.
+	 */
+	tenantName?: string;
 	/** a machine string, `+9665XXXXXXXX`, as a tenant's phone is stored. */
-	tenantPhone: string;
+	tenantPhone?: string;
 	/** the contract's number, which the message names it by; empty where it has none. */
 	contractNumber: string;
 	amount: number;
@@ -108,7 +112,7 @@ export function composeReminderMessage(
 	locale: Locales
 ): string {
 	const values = {
-		tenant: reminder.tenantName.trim(),
+		tenant: reminder.tenantName?.trim() ?? '',
 		amount: formatLocaleNumber(locale, reminder.amount),
 		date: formatRecordDate(locale, reminder.due),
 		contract: reminder.contractNumber.trim()

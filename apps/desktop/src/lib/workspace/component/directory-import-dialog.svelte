@@ -4,7 +4,7 @@
 	import { Callout } from '@rentable/design/primitive/callout/index.js';
 	import * as Dialog from '@rentable/design/primitive/dialog/index.js';
 	import type { ImportRejection } from '$lib/design/import';
-	import { showErrorToast } from '$lib/error/toast';
+	import { showErrorSentence, showErrorToast } from '$lib/error/toast';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { tauri } from '$lib/platform/tauri';
 	import {
@@ -20,6 +20,7 @@
 	import CopyXIcon from '@lucide/svelte/icons/copy-x';
 	import FileSpreadsheetIcon from '@lucide/svelte/icons/file-spreadsheet';
 	import api from '$lib/api/caller';
+	import { IMPORT_FLAGS, memberPermissions } from '$lib/workspace/permission';
 
 	/**
 	 * Reading a file into one directory: choose it, see what it would do, then agree to it.
@@ -171,6 +172,16 @@
 	/** Ask for a file, read it, and work out what it would do — writing nothing. */
 	export async function choose() {
 		if (isReading) {
+			return;
+		}
+
+		// the procedure asks for every kind's create, whatever the file holds, so this asks the same
+		// before a file is chosen: a reader who may not import is told so, and nothing is read.
+		const refused = memberPermissions.refusalOfEvery(IMPORT_FLAGS, $LL);
+
+		if (refused) {
+			showErrorSentence(refused);
+
 			return;
 		}
 

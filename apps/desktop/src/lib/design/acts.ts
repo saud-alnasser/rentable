@@ -4,6 +4,7 @@ import { toShortcutHint, type ShortcutCombination } from '@rentable/design/short
 import { get } from 'svelte/store';
 import { LL } from '$lib/i18n/i18n-svelte';
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
+import { memberPermissions, type RecordFlag } from '$lib/workspace/permission';
 
 /**
  * RECORD ACTS
@@ -51,6 +52,13 @@ export type RecordAct<T> = {
 	shortcut?: ShortcutCombination;
 	/** hidden where this says no. */
 	appliesTo?: (record: T) => boolean;
+	/**
+	 * the flag a member needs to take it (effort 838, requirement 10), as the procedure it ends in
+	 * names it. Where the reader lacks it the act is shown refused on every record, with the reason
+	 * naming the flag, and the command menu does not offer it: what the reader may do is known
+	 * before a record is named, as a member's and a workspace's acts are.
+	 */
+	flag?: RecordFlag;
 	/** shown and refused, with the reason, where this gives one. */
 	unavailable?: (record: T, t: TranslationFunctions) => string | undefined;
 	/**
@@ -101,6 +109,20 @@ function applying<T>(acts: readonly RecordAct<T>[], record: T) {
 	return acts.filter((act) => act.appliesTo?.(record) ?? true);
 }
 
+/** Why the reader may not take this act, whatever the record, or nothing where they may. */
+function refused<T>(act: RecordAct<T>, t: TranslationFunctions) {
+	return act.flag && memberPermissions.refusal(act.flag, t);
+}
+
+/**
+ * Why this act cannot run on this record now, or nothing where it can: first what the reader may
+ * not do, then what the record does not admit, so a refused flag is the reason given on a record
+ * that would also refuse it for its own state.
+ */
+function toUnavailable<T>(act: RecordAct<T>, record: T, t: TranslationFunctions) {
+	return refused(act, t) || act.unavailable?.(record, t);
+}
+
 /**
  * Whether a host runs this act on this record when asked for it directly: the act applies, and
  * nothing names a reason it cannot run now. Every surface draws an unavailable act refused, so a
@@ -110,7 +132,7 @@ export function mayRun<T>(act: RecordAct<T> | undefined, record: T): act is Reco
 	return (
 		act !== undefined &&
 		(act.appliesTo?.(record) ?? true) &&
-		act.unavailable?.(record, get(LL)) === undefined
+		toUnavailable(act, record, get(LL)) === undefined
 	);
 }
 
@@ -131,7 +153,7 @@ export function toCardActions<T>(
 		tone: act.tone ?? 'neutral',
 		shortcut: act.shortcut,
 		group: act.group,
-		unavailable: act.unavailable?.(record, t),
+		unavailable: toUnavailable(act, record, t),
 		attributes: { 'data-act': act.id },
 		onSelect: () => act.run(record)
 	}));
@@ -163,7 +185,7 @@ export function toPageActions<T>(
 		tone: act.tone ?? 'neutral',
 		shortcut: act.shortcut,
 		group: act.group,
-		unavailable: act.unavailable?.(record, t),
+		unavailable: toUnavailable(act, record, t),
 		run: () => act.run(record)
 	}));
 }
@@ -206,26 +228,33 @@ export function toPaletteVerbs<T>(
 		icon: act.icon,
 		tone: act.tone ?? 'neutral',
 		hints: toHints(act.shortcut, isAppleKeyboard),
-		unavailable: act.unavailable?.(record, t),
+		unavailable: toUnavailable(act, record, t),
 		run: () => act.run(record)
 	}));
 }
 
 /**
- * What the command menu offers before a record is chosen: every act the concept declares, in its
- * order, because which of them apply is not known until the reader names the record. Choosing one
- * asks for the record, and the host answers on the terms {@link toPaletteVerbs} gives for it.
+ * What the command menu offers before a record is chosen: every act the concept declares that the
+ * reader may take, in its order, because which of them apply is not known until the reader names
+ * the record. Choosing one asks for the record, and the host answers on the terms
+ * {@link toPaletteVerbs} gives for it.
+ *
+ * **An act whose flag the reader lacks is not offered at all**, rather than offered and refused:
+ * the menu is searched by name, and a row that could never run on any record would answer every
+ * search for it with a control that does nothing.
  */
 export function toPaletteActs<T>(
 	acts: readonly RecordAct<T>[],
 	t: TranslationFunctions,
 	isAppleKeyboard: boolean
 ): PaletteAct[] {
-	return acts.map((act) => ({
-		id: act.id,
-		label: act.label(t),
-		icon: act.icon,
-		tone: act.tone ?? 'neutral',
-		hints: toHints(act.shortcut, isAppleKeyboard)
-	}));
+	return acts
+		.filter((act) => !refused(act, t))
+		.map((act) => ({
+			id: act.id,
+			label: act.label(t),
+			icon: act.icon,
+			tone: act.tone ?? 'neutral',
+			hints: toHints(act.shortcut, isAppleKeyboard)
+		}));
 }

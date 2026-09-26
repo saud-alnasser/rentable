@@ -60,6 +60,11 @@ const DRAWN_ALLOWED = [
 		why: 'another record: every account the organization could be handed to'
 	},
 	{
+		label: 'lib/organization/component/member-role.svelte',
+		drawnFrom: 'offered',
+		why: 'another record: the roles the organization has, which it adds to itself'
+	},
+	{
 		label: 'lib/tenant/component/form.svelte',
 		drawnFrom: 'PHONE_COUNTRY_OPTIONS',
 		why: 'a phone: the map gives its country half a select'
@@ -78,7 +83,7 @@ describe('a choice of four or fewer', () => {
 				<Select.Trigger>{label}</Select.Trigger>
 				<Select.Content>
 					<Select.Item value="member" label="member">member</Select.Item>
-					<Select.Item value="administrator" label="administrator">administrator</Select.Item>
+					<Select.Item value="manager" label="manager">manager</Select.Item>
 				</Select.Content>
 			</Select.Root>`;
 		const five = two.replace(

@@ -53,8 +53,10 @@
 		<LanguageChoice bind:value={locale} label={$LL.contracts.reminder.language()} />
 
 		<div class="flex flex-col gap-1">
-			<p class="font-medium"><bdi>{reminder.tenantName}</bdi></p>
-			<p class="text-sm text-muted-foreground tabular-nums" dir="ltr">{reminder.tenantPhone}</p>
+			<p class="font-medium"><bdi>{reminder.tenantName ?? ''}</bdi></p>
+			<p class="text-sm text-muted-foreground tabular-nums" dir="ltr">
+				{reminder.tenantPhone ?? ''}
+			</p>
 		</div>
 
 		<!-- the message as the tenant will read it, in its own language and direction. -->

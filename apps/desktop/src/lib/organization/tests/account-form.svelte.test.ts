@@ -11,12 +11,15 @@ import en from '$lib/i18n/en';
 import { toTitleCase } from '@rentable/design/title-case.js';
 import ar from '$lib/i18n/ar';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
+import { chooseOption, openSelect } from '$lib/design/tests/select';
+import { fakeOrganizationRoles } from '$lib/platform/tests/testing';
+import { BUILT_IN, maskOf } from '@rentable/workspace-permission';
 
 /**
  * THE ACCOUNT FORM, RENDERED
  *
  * What the account form puts in the document once it is open: a username, a role, what the person
- * may do beyond it and the workspaces, and no email or display name, since an account is a username
+ * may do flag by flag and the workspaces, and no email or display name, since an account is a username
  * (requirement 22 of effort 824); the username field leading with its subject's glyph and refused
  * under the one rule every username field reads.
  *
@@ -63,7 +66,9 @@ const form = (
 			open: true,
 			onOpenChange: noop,
 			workspaces,
-			canInviteAdministrators: true,
+			roles: fakeOrganizationRoles(),
+			readerRank: BUILT_IN.owner.rank,
+			readerPermissions: BUILT_IN.owner.mask,
 			canGrantReadOnly: true,
 			isCreating: false,
 			onCreate: noop,
@@ -87,19 +92,13 @@ beforeEach(() => {
 	resetOrganizationDialogs();
 });
 
-/** what the picker of acts offers, in its order. */
-const offered = () =>
-	Array.from(document.querySelectorAll('[data-act-offer]')).map((item) =>
-		item.getAttribute('data-act-offer')
-	);
-
 /** what the sheet on screen draws, section by section, in order. */
 const sections = () =>
 	Array.from(document.querySelectorAll('[data-sheet-section]')).map((section) =>
 		section.getAttribute('data-sheet-section')
 	);
 
-test('the form opens on the shared form surface and asks for a username, a role, the acts and the workspaces', () => {
+test('the form opens on the shared form surface and asks for a username, a role, what they may do and the workspaces', () => {
 	loadLocale('en');
 	setLocale('en');
 	form();
@@ -115,8 +114,8 @@ test('the form opens on the shared form surface and asks for a username, a role,
 		.filter((name) => name !== null)
 		.sort();
 
-	// the one input a schema refuses: the role, the acts and the workspaces are segments and a
-	// list, none of them a named input.
+	// the one input a schema refuses: the role, what they may do and the workspaces are a chooser,
+	// boxes and segments, none of them a named input.
 	expect(names).toEqual(['username']);
 	// requirement 22: the username is the whole of the identity; nothing asks for an address or a
 	// display name, by name or by kind.
@@ -124,8 +123,10 @@ test('the form opens on the shared form surface and asks for a username, a role,
 	expect(document.querySelector('[name=displayName]')).toBeNull();
 	expect(document.querySelector('input[type=email]')).toBeNull();
 	expect(screen.getByText(en.organization.dashboard.username)).toBeDefined();
-	expect(screen.getByText(en.organization.dashboard.role)).toBeDefined();
-	expect(screen.getByText(en.organization.dashboard.beyondRole)).toBeDefined();
+	expect(document.querySelector('#account-role-tray-legend')?.textContent?.trim()).toBe(
+		en.organization.dashboard.role
+	);
+	expect(screen.getByText(en.organization.override.legend)).toBeDefined();
 	expect(screen.getByText('Riyadh')).toBeDefined();
 	// effort 828, requirement 20: nothing is handed over here, so nothing on this surface shows a
 	// link or says that the application cannot send one.
@@ -133,119 +134,67 @@ test('the form opens on the shared form surface and asks for a username, a role,
 	expect(document.querySelector('[data-link-handover]')).toBeNull();
 });
 
-// effort 826, requirement 6: the role is the bundle and the acts are the truth, so picking a role
-// fills the acts in and leaves a member's editable. No submit is fired here, for the reason the
-// header gives, so what is asserted is the choice on the screen.
-test('picking a role fills the acts in, and the list of a member stays editable', async () => {
+// effort 838, requirement 5: an account is made in one role with one override, and opens on the
+// member role with nothing changed. Picking a role reads what they may do against it at once.
+test('an account opens on the member role with nothing changed, and a role picked is read at once', async () => {
 	loadLocale('en');
 	setLocale('en');
 	form();
 
-	// a member is created holding nothing beyond their role.
-	expect(document.querySelector('[data-acts-none]')).not.toBeNull();
-	expect(document.querySelector('[data-act]')).toBeNull();
+	const trigger = document.querySelector<HTMLElement>('#account-role')!;
 
-	// two roles, side by side as a choice of two is ([[rules/interface]], *Field kinds*).
-	const role = document.querySelector<HTMLElement>('#account-role')!;
-
+	expect(trigger.textContent?.trim()).toBe(en.layout.signIn.roleMember);
 	expect(
-		within(role)
-			.getAllByRole('radio')
-			.map((segment) => segment.textContent?.trim())
-	).toEqual([en.layout.signIn.roleMember, en.layout.signIn.roleAdministrator]);
-	expect(
-		within(role)
-			.getByRole('radio', { name: en.layout.signIn.roleMember })
-			.getAttribute('aria-checked')
-	).toBe('true');
+		document.querySelector('[data-override-result="deletePayment"]')?.textContent?.trim()
+	).toBe(en.organization.override.no);
 
-	// an administrator holds every act, so the list gives way to the line that says so.
-	await fireEvent.click(
-		within(role).getByRole('radio', { name: en.layout.signIn.roleAdministrator })
+	await openSelect(trigger);
+	await chooseOption(
+		document.querySelector<HTMLElement>('[data-slot=select-item][data-role="manager"]')!
 	);
 
+	expect(trigger.textContent?.trim()).toBe(en.layout.signIn.roleManager);
+	expect(screen.getByText(en.organization.roles.manager.who)).toBeDefined();
 	await waitFor(() => {
-		expect(document.querySelector('[data-acts-every]')).not.toBeNull();
+		expect(
+			document.querySelector('[data-override-result="deletePayment"]')?.textContent?.trim()
+		).toBe(en.organization.override.yes);
 	});
-	expect(document.querySelector('[data-sheet-section="acts"]')).toBeNull();
-	expect(screen.getByText(en.organization.roles.administrator.who)).toBeDefined();
-
-	// back to a member, and an act is allowed from the picker and taken back from the list.
-	await fireEvent.click(within(role).getByRole('radio', { name: en.layout.signIn.roleMember }));
-	await fireEvent.click(document.querySelector<HTMLButtonElement>('[data-act-add]')!);
-	await waitFor(() => {
-		expect(document.querySelector('[data-act-picker]')).not.toBeNull();
-	});
-	await fireEvent.click(
-		document.querySelector<HTMLButtonElement>(
-			'[data-act-offer="inviteMember"] [data-slot=checkbox]'
-		)!
-	);
-	await fireEvent.click(document.querySelector<HTMLButtonElement>('[data-act-allow]')!);
-
-	await waitFor(() => {
-		expect(document.querySelector('[data-act="inviteMember"]')).not.toBeNull();
-	});
-
-	await fireEvent.click(
-		document.querySelector<HTMLButtonElement>('[data-act-remove="inviteMember"]')!
-	);
-
-	await waitFor(() => {
-		expect(document.querySelector('[data-act="inviteMember"]')).toBeNull();
-	});
-	expect(document.querySelector('[data-acts-none]')).not.toBeNull();
 });
 
-// effort 826, requirement 6: handing out an act that signs a row needs the organization key, which
-// only the owner's vault yields, so for anybody else the picker offers the one act that signs
-// nothing and nothing else, as the member's sheet does. The administrator role, which carries the
-// signing acts, is drawn refused beside the member one, and the sentence names the owner.
-test('a caller who is not the owner may hand out only the act that signs nothing', async () => {
+// requirement 7: a maker in a custom role gives no role at or above their own and switches no
+// flag they do not hold; both are drawn refused, with the reason where the reader can read it.
+test('a maker gives no role at or above their own, and no flag they do not hold', async () => {
 	loadLocale('en');
 	setLocale('en');
-	form({ canInviteAdministrators: false });
+	form({ readerRank: 750_000, readerPermissions: BUILT_IN.member.mask + maskOf('inviteMember') });
 
-	await fireEvent.click(document.querySelector<HTMLButtonElement>('[data-act-add]')!);
-	await waitFor(() => {
-		expect(document.querySelector('[data-act-picker]')).not.toBeNull();
-	});
+	await openSelect(document.querySelector<HTMLElement>('#account-role')!);
 
-	expect(offered()).toEqual(['renameWorkspace']);
-	expect(screen.getByText(en.organization.dashboard.administratorsAreTheOwners)).toBeDefined();
+	const disabled = (id: string) =>
+		document
+			.querySelector(`[data-slot=select-item][data-role="${id}"]`)
+			?.hasAttribute('data-disabled');
 
-	const role = document.querySelector<HTMLElement>('#account-role')!;
-
+	expect(disabled('manager')).toBe(true);
+	expect(disabled('supervisor')).toBe(true);
+	expect(disabled('collector')).toBe(false);
+	expect(disabled('member')).toBe(false);
 	expect(
-		within(role)
-			.getByRole('radio', { name: en.layout.signIn.roleAdministrator })
-			.hasAttribute('disabled')
-	).toBe(true);
+		document
+			.querySelector('[data-sheet-section="role"] [data-sheet-tray] [data-role-refusal]')
+			?.textContent?.trim()
+	).toBe(en.organization.dashboard.roleOutOfReach);
+
+	expect(document.querySelector('#account-override-deletePayment')?.hasAttribute('disabled')).toBe(
+		true
+	);
 	expect(
-		within(role).getByRole('radio', { name: en.layout.signIn.roleMember }).hasAttribute('disabled')
-	).toBe(false);
-});
-
-// and the owner is offered all seven, in the order the member's sheet reads them.
-test('the owner may hand out every act', async () => {
-	loadLocale('en');
-	setLocale('en');
-	form();
-
-	await fireEvent.click(document.querySelector<HTMLButtonElement>('[data-act-add]')!);
-	await waitFor(() => {
-		expect(document.querySelector('[data-act-picker]')).not.toBeNull();
-	});
-
-	expect(offered()).toEqual([
-		'inviteMember',
-		'removeMember',
-		'renameMember',
-		'resetPassword',
-		'changeRole',
-		'renameWorkspace',
-		'grantWorkspace'
-	]);
+		document.querySelector('[data-override-reason="deletePayment"]')?.textContent?.trim()
+	).toBe(en.organization.dashboard.notHeld);
+	expect(document.querySelector('#account-override-editPayment')?.hasAttribute('disabled')).toBe(
+		false
+	);
 });
 
 // effort 826, requirement 8: a workspace is granted at an access. Every workspace the maker holds
@@ -379,7 +328,9 @@ test('the fields in arabic are the same, named in their own words', () => {
 	expect(names).toEqual(['username']);
 	expect(document.querySelector('[data-slot=form-surface]')?.getAttribute('dir')).toBe('rtl');
 	expect(screen.getByText(ar.organization.dashboard.username)).toBeDefined();
-	expect(screen.getByText(ar.organization.dashboard.role)).toBeDefined();
+	expect(document.querySelector('#account-role-tray-legend')?.textContent?.trim()).toBe(
+		ar.organization.dashboard.role
+	);
 	expect(screen.getByText(ar.organization.dashboard.memberTitle)).toBeDefined();
 	expect(ar.organization.dashboard.username).not.toBe(en.organization.dashboard.username);
 
@@ -405,17 +356,21 @@ const editSheet = (direction: 'ltr' | 'rtl' = 'ltr') =>
 			open: true,
 			onOpenChange: noop,
 			username: 'ada',
-			role: 'member',
-			permissions: 0,
+			roleId: 'member',
+			override: 0,
+			roles: fakeOrganizationRoles(),
 			rows: [{ id: 'ws-1', name: 'Riyadh', access: 'none' as const }],
+			readerRank: BUILT_IN.owner.rank,
+			readerPermissions: BUILT_IN.owner.mask,
 			canRename: true,
-			canChangeRole: true,
+			canAssignRole: true,
+			canOverride: true,
 			canGrantWorkspace: true,
-			canGrantSigning: true,
 			canGrantReadOnly: true,
 			isSaving: false,
 			nameRefusal: null,
 			roleRefusal: null,
+			overrideRefusal: null,
 			workspacesRefusal: null,
 			onSave: noop
 		},
@@ -430,10 +385,12 @@ const shapeOnScreen = () => ({
 	),
 	trays: document.querySelectorAll('[data-sheet-tray]').length,
 	heads: document.querySelectorAll('[data-list-head]').length,
-	roles: Array.from(
-		document.querySelectorAll('[data-sheet-section="role"] [data-slot=toggle-group-item]')
-	).map((item) => item.getAttribute('data-role')),
-	adds: document.querySelectorAll('[data-act-add]').length,
+	role: document
+		.querySelector('[data-sheet-section="role"] [data-role-chosen]')
+		?.getAttribute('data-role-chosen'),
+	flags: Array.from(document.querySelectorAll('[data-override-flag]')).map((row) =>
+		row.getAttribute('data-override-flag')
+	),
 	levels: Array.from(
 		document.querySelectorAll('[data-access-row] [data-slot=toggle-group-item]')
 	).map((item) => item.getAttribute('data-level'))
@@ -451,14 +408,14 @@ test('the sheet that adds a member draws the sections the sheet that edits one d
 
 	const edited = shapeOnScreen();
 
-	expect(added.sections).toEqual(['name', 'role', 'acts', 'workspaces']);
+	expect(added.sections).toEqual(['name', 'role', 'override', 'workspaces']);
 	expect(added).toEqual(edited);
 	// the legends read as the edit sheet's do: sentence case where they render, never the
 	// uppercase label the username carried.
 	expect(added.legends).toEqual([
 		en.organization.dashboard.username,
 		en.organization.dashboard.role,
-		en.organization.dashboard.beyondRole,
+		en.organization.override.legend,
 		en.settings.section.workspaces
 	]);
 });
@@ -474,7 +431,7 @@ test('the two sheets hold the same shape in arabic', () => {
 	editSheet('rtl');
 
 	expect(added).toEqual(shapeOnScreen());
-	expect(added.legends).toContain(ar.organization.dashboard.beyondRole);
+	expect(added.legends).toContain(ar.organization.override.legend);
 
 	setLocale('en');
 });

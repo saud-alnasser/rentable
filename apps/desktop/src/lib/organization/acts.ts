@@ -1,11 +1,16 @@
 import type { RecordAct } from '$lib/design/acts';
+import type { TranslationFunctions } from '$lib/i18n/i18n-types';
+import { flagPhrase, moveOf } from '$lib/organization/role';
 import type {
 	MemberStanding,
 	OrganizationMember,
+	OrganizationRole,
 	OrganizationSession,
 	OrganizationWorkspace
 } from '$lib/platform/host';
-import { permits } from '@rentable/workspace-permission';
+import { permits, type Flag } from '@rentable/workspace-permission';
+import ArrowDownIcon from '@lucide/svelte/icons/arrow-down';
+import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
 import CrownIcon from '@lucide/svelte/icons/crown';
 import LaptopIcon from '@lucide/svelte/icons/laptop';
 import LinkIcon from '@lucide/svelte/icons/link';
@@ -30,10 +35,19 @@ import UsersIcon from '@lucide/svelte/icons/users';
  * directory that draws the card is what puts them together. Every gate is the one the card carried
  * before these lists, and Rust refuses each act again on the signed row.
  *
- * **One verb per act** (effort 832, requirement 6): the member's name, role, widening and
+ * **One verb per act** (effort 832, requirement 6): the member's name, role, override and
  * workspaces are one edit, and the workspace's name is its edit. The glyph is the one every other
  * edit carries.
+ *
+ * **An act the reader may not take says why** (effort 838, requirement 12): a member at or above
+ * the reader's rank is written by somebody above them, a reader's own card is written by somebody
+ * above the reader, and a role's act names the flag the reader lacks. Each is the refusal Rust
+ * would make, said at the control rather than after the press.
  */
+
+/** why a flag the reader lacks refuses an act, naming the flag. */
+export const lacking = (t: TranslationFunctions, flag: Flag) =>
+	t.organization.dashboard.lacksFlag({ flag: flagPhrase(t, flag) });
 
 /** who is reading the members directory, and what their row lets them do to somebody else's. */
 export type MemberReader = {
@@ -41,6 +55,10 @@ export type MemberReader = {
 	selfId: string;
 	/** whether the reader is the owner: handing the organization over is theirs alone. */
 	isOwner: boolean;
+	/** how high the reader's role stands: a member is written only from strictly above. */
+	rank: number;
+	/** what the reader may do, which is what they may give: a flag they lack is not theirs to move. */
+	permissions: number;
 	/** `inviteMember`: the link, with `canReset`. */
 	canInvite: boolean;
 	/** `resetPassword`: the reset, ending sessions, and the link. */
@@ -51,8 +69,10 @@ export type MemberReader = {
 	canLockOut: boolean;
 	/** `renameMember`. */
 	canRename: boolean;
-	/** `changeRole`. */
-	canChangeRole: boolean;
+	/** `assignRole`: the role a member holds. */
+	canAssignRole: boolean;
+	/** `overrideMember`: what is changed for a member alone. */
+	canOverride: boolean;
 	/** `grantWorkspace`. */
 	canGrantWorkspace: boolean;
 };
@@ -76,15 +96,23 @@ export type MemberActContext = MemberReader & {
 };
 
 /** What a member act is given: the member, and the facts its gates read. */
-export type MemberActRecord = { member: OrganizationMember; context: MemberActContext };
+/**
+ * one member's card as an act reads it: the member, who is reading, and where the account stands
+ * where the reader knows it. `standing` is what tells a link that builds the account again from one
+ * that does not; where it is absent the act is offered, and the command still refuses it by name.
+ */
+export type MemberActRecord = {
+	member: OrganizationMember;
+	context: MemberActContext;
+	standing?: MemberStanding | null;
+};
 
 /**
  * who is reading, as the member acts are gated on it, read off the session.
  *
  * **The one place a reader's gates are read**, so the members directory and the command menu gate
- * an act on the same facts: a copy of these nine lines in each would be two answers to who may do
- * what, and the first permission added to one would leave the other offering an act the card does
- * not.
+ * an act on the same facts: a copy of these lines in each would be two answers to who may do what,
+ * and the first permission added to one would leave the other offering an act the card does not.
  */
 export function memberReaderOf(session: OrganizationSession): MemberReader {
 	const isOwner = session.role === 'owner';
@@ -92,12 +120,15 @@ export function memberReaderOf(session: OrganizationSession): MemberReader {
 	return {
 		selfId: session.memberId,
 		isOwner,
+		rank: session.rank,
+		permissions: session.permissions,
 		canInvite: permits(session.permissions, 'inviteMember'),
 		canReset: permits(session.permissions, 'resetPassword'),
 		canRemove: permits(session.permissions, 'removeMember'),
 		canLockOut: isOwner,
 		canRename: permits(session.permissions, 'renameMember'),
-		canChangeRole: permits(session.permissions, 'changeRole'),
+		canAssignRole: permits(session.permissions, 'assignRole'),
+		canOverride: permits(session.permissions, 'overrideMember'),
 		canGrantWorkspace: permits(session.permissions, 'grantWorkspace')
 	};
 }
@@ -156,7 +187,7 @@ export type MemberActId =
  * runs a write the host holds; none of them writes anything itself.
  */
 export type MemberHostRequests = {
-	/** open the member's one sheet: their name, role, widening and workspaces. */
+	/** open the member's one sheet: their name, role, override and workspaces. */
 	edit: (record: MemberActRecord) => void;
 	/** open the handover, on the accounts it can go to. */
 	offerOwnership: (record: MemberActRecord) => void;
@@ -183,6 +214,13 @@ export type MemberAct = RecordAct<MemberActRecord> & { id: MemberActId };
  */
 const writable = ({ member, context }: MemberActRecord) =>
 	member.id !== context.selfId && member.role !== 'owner';
+
+/**
+ * why an act on somebody else's card cannot run: they rank at or above the reader, so somebody
+ * above them does it (effort 838, requirement 7). Rust refuses the same act by the same rule.
+ */
+const notBelow = ({ member, context }: MemberActRecord, t: TranslationFunctions) =>
+	member.rank >= context.rank ? t.organization.dashboard.notBelowYou() : undefined;
 
 /** whether this is the owner reading their own card, which is where the handover is. */
 const ownersOwn = ({ member, context }: MemberActRecord) =>
@@ -227,11 +265,18 @@ export function declareMemberActs(host: MemberHostRequests): MemberAct[] {
 			label: (t) => t.common.actions.edit(),
 			icon: SquarePenIcon,
 			group: 'primary',
-			appliesTo: (record) =>
-				writable(record) &&
-				(record.context.canRename ||
-					record.context.canChangeRole ||
-					record.context.canGrantWorkspace),
+			// the reader's own card carries it too, refused with the reason: somebody above them
+			// writes their role and what they may do, and saying so is what the control is for.
+			appliesTo: ({ member, context }) =>
+				member.role !== 'owner' &&
+				(context.canRename ||
+					context.canAssignRole ||
+					context.canOverride ||
+					context.canGrantWorkspace),
+			unavailable: (record, t) =>
+				record.member.id === record.context.selfId
+					? t.organization.dashboard.yourOwn()
+					: notBelow(record, t),
 			run: host.edit
 		},
 		{
@@ -243,8 +288,14 @@ export function declareMemberActs(host: MemberHostRequests): MemberAct[] {
 			group: 'lifecycle',
 			appliesTo: (record) =>
 				(record.context.canInvite || record.context.canReset) && writable(record),
+			// a link for an account whose password is not set builds the account again, its grant on
+			// the organization database included, which is `grantWorkspace`'s row (effort 838).
 			unavailable: (record, t) =>
-				record.context.pending.linking ? t.common.actions.working() : undefined,
+				notBelow(record, t) ??
+				(record.standing?.passwordSet === false && !record.context.canGrantWorkspace
+					? lacking(t, 'grantWorkspace')
+					: undefined) ??
+				(record.context.pending.linking ? t.common.actions.working() : undefined),
 			run: host.makeLink
 		},
 		{
@@ -253,8 +304,12 @@ export function declareMemberActs(host: MemberHostRequests): MemberAct[] {
 			icon: RefreshCwIcon,
 			group: 'lifecycle',
 			appliesTo: (record) => record.context.canReset && writable(record),
+			// a reset builds the account again, its grant on the organization database included,
+			// which is `grantWorkspace`'s row (effort 838).
 			unavailable: (record, t) =>
-				record.context.pending.unsetting ? t.common.actions.working() : undefined,
+				notBelow(record, t) ??
+				(record.context.canGrantWorkspace ? undefined : lacking(t, 'grantWorkspace')) ??
+				(record.context.pending.unsetting ? t.common.actions.working() : undefined),
 			run: host.unsetPassword
 		},
 		{
@@ -266,7 +321,8 @@ export function declareMemberActs(host: MemberHostRequests): MemberAct[] {
 			group: 'lifecycle',
 			appliesTo: (record) => record.context.canReset && writable(record),
 			unavailable: (record, t) =>
-				record.context.pending.endingSessions ? t.common.actions.working() : undefined,
+				notBelow(record, t) ??
+				(record.context.pending.endingSessions ? t.common.actions.working() : undefined),
 			run: host.endSessions
 		},
 		{
@@ -277,6 +333,7 @@ export function declareMemberActs(host: MemberHostRequests): MemberAct[] {
 			group: 'destructive',
 			confirmation: 'irreversible',
 			appliesTo: (record) => record.context.canRemove && writable(record),
+			unavailable: notBelow,
 			run: (record) => host.confirmRemoval(record, false)
 		},
 		{
@@ -289,6 +346,7 @@ export function declareMemberActs(host: MemberHostRequests): MemberAct[] {
 			confirmation: 'irreversible',
 			appliesTo: (record) =>
 				record.context.canRemove && record.context.canLockOut && writable(record),
+			unavailable: notBelow,
 			run: (record) => host.confirmRemoval(record, true)
 		}
 	];
@@ -372,6 +430,133 @@ export function declareWorkspaceActs(host: WorkspaceHostRequests): WorkspaceAct[
 			group: 'destructive',
 			confirmation: 'irreversible',
 			appliesTo: ({ context }) => context.canDelete,
+			run: host.confirmDelete
+		}
+	];
+}
+
+/** who is reading the roles block, and what their row lets them do to a role. */
+export type RoleReader = {
+	/** how high the reader's role stands: a role is changed only from strictly above it. */
+	rank: number;
+	/** `manageRoles`. */
+	canManageRoles: boolean;
+	/** what the reader may do, which is what they may put in a role. */
+	permissions: number;
+};
+
+/** the role acts that run on the press and are waiting on the shell, while they are. */
+export type RolePending = { moving: boolean };
+
+/** What a role act is given: the role, every role beside it, and who is reading. */
+export type RoleActRecord = {
+	role: OrganizationRole;
+	/** every role, which is what a move is placed among. */
+	roles: readonly OrganizationRole[];
+	reader: RoleReader;
+	pending: RolePending;
+};
+
+/** who is reading, as the role acts are gated on it, read off the session. */
+export const roleReaderOf = (session: OrganizationSession): RoleReader => ({
+	rank: session.rank,
+	canManageRoles: permits(session.permissions, 'manageRoles'),
+	permissions: session.permissions
+});
+
+/** Every role act, by the id it is keyed on. */
+export type RoleActId = 'role.edit' | 'role.moveUp' | 'role.moveDown' | 'role.delete';
+
+/** What the role acts ask of the organization host. */
+export type RoleHostRequests = {
+	/** open the role editor on the role. */
+	edit: (record: RoleActRecord) => void;
+	/** place the role directly below another, which is what moving it one place is. */
+	move: (record: RoleActRecord, afterRoleId: string) => void;
+	/** ask before deleting the role. */
+	confirmDelete: (record: RoleActRecord) => void;
+};
+
+/** A role act, with the id narrowed to the ones declared here. */
+export type RoleAct = RecordAct<RoleActRecord> & { id: RoleActId };
+
+/**
+ * why a role act cannot run at all: the reader lacks `manageRoles`, or the role is not below them.
+ * The flag first, because it refuses every role alike.
+ */
+const roleRefusal = ({ role, reader }: RoleActRecord, t: TranslationFunctions) => {
+	if (!reader.canManageRoles) return lacking(t, 'manageRoles');
+
+	return role.rank >= reader.rank ? t.organization.roleList.notBelowYou() : undefined;
+};
+
+/** why a move cannot run, where the role could otherwise be moved. */
+const moveRefusal = (record: RoleActRecord, direction: 'up' | 'down', t: TranslationFunctions) => {
+	const refused = roleRefusal(record, t);
+
+	if (refused) return refused;
+
+	const move = moveOf(record.roles, record.role.id, direction, record.reader.rank);
+
+	if ('refused' in move) return t.organization.roleList[move.refused]();
+
+	return record.pending.moving ? t.common.actions.working() : undefined;
+};
+
+/** a move one place, run where it can be placed. */
+const moving = (host: RoleHostRequests, direction: 'up' | 'down') => (record: RoleActRecord) => {
+	const move = moveOf(record.roles, record.role.id, direction, record.reader.rank);
+
+	if ('afterRoleId' in move) host.move(record, move.afterRoleId);
+};
+
+/**
+ * The role's acts (effort 838, requirement 4), bound to the host: what it carries, then where it
+ * stands, then deleting it.
+ *
+ * **The owner's role has none.** It carries every flag and is never edited, moved or deleted, so
+ * its card has nothing to refuse. The manager's and the member's are edited and never moved or
+ * deleted; a custom role takes all four.
+ */
+export function declareRoleActs(host: RoleHostRequests): RoleAct[] {
+	return [
+		{
+			id: 'role.edit',
+			label: (t) => t.common.actions.edit(),
+			icon: SquarePenIcon,
+			group: 'primary',
+			appliesTo: ({ role }) => role.kind !== 'owner',
+			unavailable: roleRefusal,
+			run: host.edit
+		},
+		{
+			id: 'role.moveUp',
+			label: (t) => t.organization.roleList.moveUp(),
+			icon: ArrowUpIcon,
+			group: 'lifecycle',
+			appliesTo: ({ role }) => role.kind === 'custom',
+			unavailable: (record, t) => moveRefusal(record, 'up', t),
+			run: moving(host, 'up')
+		},
+		{
+			id: 'role.moveDown',
+			label: (t) => t.organization.roleList.moveDown(),
+			icon: ArrowDownIcon,
+			group: 'lifecycle',
+			appliesTo: ({ role }) => role.kind === 'custom',
+			unavailable: (record, t) => moveRefusal(record, 'down', t),
+			run: moving(host, 'down')
+		},
+		{
+			// its holders move to the member role, and no organization act is undone, so it asks.
+			id: 'role.delete',
+			label: (t) => t.common.actions.delete(),
+			icon: Trash2Icon,
+			tone: 'error',
+			group: 'destructive',
+			confirmation: 'irreversible',
+			appliesTo: ({ role }) => role.kind === 'custom',
+			unavailable: roleRefusal,
 			run: host.confirmDelete
 		}
 	];

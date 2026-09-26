@@ -4,6 +4,7 @@
 	import type {
 		MemberStanding,
 		OrganizationMember,
+		OrganizationRole,
 		OrganizationSession,
 		RemoteSyncState
 	} from '$lib/platform/host';
@@ -25,9 +26,10 @@
 	import OrganizationMark from '$lib/organization/component/mark.svelte';
 	import OrganizationMembers from '$lib/organization/component/members.svelte';
 	import OrganizationReconnectAuthority from '$lib/organization/component/reconnect-authority.svelte';
+	import OrganizationRoles from '$lib/organization/component/roles.svelte';
 	import OrganizationStanding from '$lib/organization/component/standing.svelte';
 	import OrganizationWorkspaces from '$lib/organization/component/workspaces.svelte';
-	import { memberReaderOf, workspaceContextOf } from '$lib/organization/acts';
+	import { memberReaderOf, roleReaderOf, workspaceContextOf } from '$lib/organization/acts';
 	import SettingsAppearance from '$lib/settings/component/appearance.svelte';
 	import SettingsDiagnostics from '$lib/settings/component/diagnostics.svelte';
 	import SettingsEndingSoon from '$lib/settings/component/ending-soon.svelte';
@@ -41,6 +43,7 @@
 		withSection,
 		type AddressableSection
 	} from '$lib/settings/section';
+	import { permits } from '@rentable/workspace-permission';
 	import CrownIcon from '@lucide/svelte/icons/crown';
 	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
 
@@ -94,6 +97,7 @@
 		syncState,
 		members,
 		standings,
+		roles,
 		isChangingPassword,
 		isAcceptingOwnership,
 		isDeletingOrganization,
@@ -121,6 +125,8 @@
 		members: OrganizationMember[];
 		/** where each account stands, as the members section draws it in a line. */
 		standings: MemberStanding[];
+		/** every role the organization has, which the organization section lists. */
+		roles: OrganizationRole[];
 		isChangingPassword: boolean;
 		/** the organization is being accepted, which re-keys the whole directory and pushes it. */
 		isAcceptingOwnership: boolean;
@@ -404,9 +410,9 @@
 				<Separator />
 			{/if}
 
-			<!-- what the organization prints on its pages: everybody sees it, and the two roles that
-			     administer the organization change it (effort 835, requirement 13). -->
-			<OrganizationMark setsMark={session.role === 'owner' || session.role === 'administrator'} />
+			<!-- what the organization prints on its pages: everybody sees it, and whoever holds the
+			     flag to manage it changes it (effort 835, requirement 13; effort 838). -->
+			<OrganizationMark setsMark={permits(session.permissions, 'manageMark')} />
 
 			<Separator />
 
@@ -425,6 +431,14 @@
 
 				<Separator />
 			{/if}
+
+			<!-- the roles, before the people who hold them: what each kind of person may do, read by
+			     everybody and changed by whoever holds the flag to (effort 838, requirement 12). The
+			     section answers the search key once, and where the people are drawn below, it is
+			     theirs, the set a reader searches ([[rules/interface]], *Search*). -->
+			<OrganizationRoles {roles} reader={roleReaderOf(session)} answersSearchKey={!administers} />
+
+			<Separator />
 
 			<!-- the people. The directory owns its own legend, the sentence under it, the cards and
 			     the add at its foot; what is decided here is what this reader may do, and a member
@@ -467,8 +481,8 @@
 		<Field.Group>
 			<!-- the list owns its own legend, its rows' surfaces and the transfer beneath it; what is
 			     decided here is what this reader may do. The refusal is the rail's own sentence, and
-			     it is drawn for an owner whose machine lost the authority alone: an administrator
-			     never had a create to be refused, so a sentence saying whose it is would be
+			     it is drawn for an owner whose machine lost the authority alone: nobody else ever
+			     had a create to be refused, so a sentence saying whose it is would be
 			     announcing something missing. -->
 			<OrganizationWorkspaces
 				workspaces={session.workspaces}

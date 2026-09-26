@@ -25,6 +25,7 @@ import type {
 	OrganizationCreated,
 	OrganizationMark,
 	OrganizationMember,
+	OrganizationRole,
 	OrganizationState,
 	OrganizationWorkspace,
 	Recovery,
@@ -68,6 +69,7 @@ export type {
 	OrganizationCreated,
 	OrganizationMark,
 	OrganizationMember,
+	OrganizationRole,
 	OrganizationSession,
 	OrganizationState,
 	OrganizationWorkspace,
@@ -272,6 +274,18 @@ export const tauri = {
 		linkRead: (link: string) => invoke<LinkShape>('organization_link_read', { link }),
 		reconnectAuthority: () => invoke<OrganizationState>('organization_reconnect_authority'),
 		renewDue: () => invoke<boolean>('organization_renew_due'),
+		roles: () => invoke<OrganizationRole[]>('organization_roles'),
+		role: {
+			create: (name: string, mask: number, afterRoleId: string) =>
+				invoke<OrganizationRole>('role_create', { name, mask, afterRoleId }),
+			rename: (roleId: string, name: string) =>
+				invoke<OrganizationRole>('role_rename', { roleId, name }),
+			setMask: (roleId: string, mask: number) =>
+				invoke<OrganizationRole>('role_set_mask', { roleId, mask }),
+			move: (roleId: string, afterRoleId: string) =>
+				invoke<OrganizationRole>('role_move', { roleId, afterRoleId }),
+			remove: (roleId: string) => invoke<void>('role_delete', { roleId })
+		},
 		workspace: {
 			create: (name: string) => invoke<OrganizationWorkspace>('workspace_create', { name }),
 			open: (workspaceId: string) =>
@@ -286,12 +300,14 @@ export const tauri = {
 		member: {
 			list: () => invoke<OrganizationMember[]>('organization_members'),
 			standings: () => invoke<MemberStanding[]>('organization_member_standings'),
-			create: (
-				username: string,
-				role: 'administrator' | 'member',
-				permissions: number,
-				workspaces: WorkspaceGrant[]
-			) => invoke<OrganizationMember>('member_create', { username, role, permissions, workspaces }),
+			// the override crosses as `overrideMask`, since Rust keeps `override` as a word of its own.
+			create: (username: string, roleId: string, override: number, workspaces: WorkspaceGrant[]) =>
+				invoke<OrganizationMember>('member_create', {
+					username,
+					roleId,
+					overrideMask: override,
+					workspaces
+				}),
 			linkMake: (memberId: string) => invoke<MadeLink>('member_link_make', { memberId }),
 			unsetPassword: (memberId: string) =>
 				invoke<UnreachableWorkspace[]>('member_password_unset', { memberId }),
@@ -300,8 +316,14 @@ export const tauri = {
 			lockOutCost: (memberId: string) => invoke<LockOutCost>('member_lock_out_cost', { memberId }),
 			rename: (memberId: string, username: string) =>
 				invoke<OrganizationMember>('member_rename', { memberId, username }),
-			changeRole: (memberId: string, role: 'administrator' | 'member', permissions: number) =>
-				invoke<OrganizationMember>('member_change_role', { memberId, role, permissions }),
+			assignRole: (memberId: string, roleId: string, override?: number) =>
+				invoke<OrganizationMember>('member_assign_role', {
+					memberId,
+					roleId,
+					overrideMask: override ?? null
+				}),
+			setOverride: (memberId: string, override: number) =>
+				invoke<OrganizationMember>('member_set_override', { memberId, overrideMask: override }),
 			offerOwnership: (memberId: string, password: string) =>
 				invoke<OrganizationMember>('member_offer_ownership', { memberId, password }),
 			withdrawOffer: () => invoke<void>('member_withdraw_offer'),

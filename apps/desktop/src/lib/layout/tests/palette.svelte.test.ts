@@ -13,11 +13,11 @@ import {
 import SettingsArea from '$lib/settings/component/area.svelte';
 import TenantDetails from '$lib/tenant/component/details.svelte';
 import { usesAppleKeyboard } from '@rentable/design/shortcut.js';
-import { EVERY_ADMINISTRATION, maskOf } from '@rentable/workspace-permission';
+import { BUILT_IN } from '@rentable/workspace-permission';
 
 import type { Component } from 'svelte';
 
-import PaletteHarness from './palette-harness.svelte';
+import PaletteHarness from '#tests/palette-harness.svelte';
 
 /**
  * THE COMMAND MENU, OPENED FROM EVERY SCREEN
@@ -105,11 +105,12 @@ const onSettings = () => {
 		screenProps: {
 			section: 'organization',
 			settings: fakeSettings(),
-			session: fakeOrganizationSession({ permissions: maskOf(...EVERY_ADMINISTRATION) }),
+			session: fakeOrganizationSession({ permissions: BUILT_IN.manager.mask }),
 			holdsTursoAuthority: true,
 			syncState: fakeSyncState(),
 			members: [],
 			standings: [],
+			roles: [],
 			isChangingPassword: false,
 			isAcceptingOwnership: false,
 			isDeletingOrganization: false,

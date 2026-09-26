@@ -7,8 +7,12 @@
 // is a shape the shell never produces, and every test that wrote one out by hand wrote a
 // different one.
 
+import { BUILT_IN } from '@rentable/workspace-permission';
+
 import type {
 	HeldOrganization,
+	OrganizationMember,
+	OrganizationRole,
 	OrganizationSession,
 	OrganizationState,
 	OrganizationWorkspace,
@@ -152,6 +156,14 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 			linkRead: refuse('organization.linkRead'),
 			reconnectAuthority: refuse('organization.reconnectAuthority'),
 			renewDue: refuse('organization.renewDue'),
+			roles: refuse('organization.roles'),
+			role: {
+				create: refuse('organization.role.create'),
+				rename: refuse('organization.role.rename'),
+				setMask: refuse('organization.role.setMask'),
+				move: refuse('organization.role.move'),
+				remove: refuse('organization.role.remove')
+			},
 			workspace: {
 				create: refuse('organization.workspace.create'),
 				open: refuse('organization.workspace.open'),
@@ -169,7 +181,8 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 				remove: refuse('organization.member.remove'),
 				lockOutCost: refuse('organization.member.lockOutCost'),
 				rename: refuse('organization.member.rename'),
-				changeRole: refuse('organization.member.changeRole'),
+				assignRole: refuse('organization.member.assignRole'),
+				setOverride: refuse('organization.member.setOverride'),
 				offerOwnership: refuse('organization.member.offerOwnership'),
 				withdrawOffer: refuse('organization.member.withdrawOffer'),
 				endSessions: refuse('organization.member.endSessions')
@@ -229,12 +242,78 @@ export function fakeOrganizationSession(
 		memberId: 'member-owner',
 		username: 'person.example',
 		role: 'owner',
+		roleId: 'owner',
+		roleName: '',
+		rank: 2_000_000,
+		override: 0,
 		permissions: 0,
 		workspaces: [fakeOrganizationWorkspace()],
 		ownerUsername: 'olivia.owner',
 		ownershipOffered: false,
 		...overrides
 	};
+}
+
+/**
+ * one member as the members list draws them: a member holding the member role, in nothing, unless
+ * a test says otherwise.
+ *
+ * **The role's id and rank follow the kind a test names**, so a test that says `role: 'manager'`
+ * gets the manager's id and rank with it rather than a member's rank under a manager's name. A
+ * custom role takes a rank between the member's and the manager's, and a test about one names its
+ * id and name.
+ */
+export function fakeOrganizationMember(
+	overrides: Partial<OrganizationMember> = {}
+): OrganizationMember {
+	const kind = overrides.role ?? 'member';
+	const builtIn = kind === 'custom' ? null : BUILT_IN[kind];
+
+	return {
+		id: 'm',
+		username: 'member',
+		role: kind,
+		roleId: builtIn?.id ?? 'custom-role',
+		roleName: '',
+		rank: builtIn?.rank ?? 500_000,
+		override: 0,
+		permissions: 0,
+		workspaces: [],
+		createdAt: 0,
+		offeredOwnership: false,
+		...overrides
+	};
+}
+
+/**
+ * one role as the organization section lists it: a custom role carrying what a member does, ranked
+ * between the member and the manager, unless a test says otherwise.
+ */
+export function fakeOrganizationRole(
+	overrides: Partial<OrganizationRole> & { id: string }
+): OrganizationRole {
+	return {
+		kind: 'custom',
+		name: overrides.id,
+		mask: BUILT_IN.member.mask,
+		rank: 500_000,
+		holders: 0,
+		...overrides
+	};
+}
+
+/**
+ * the roles an organization lists, highest first: the three every organization has, with a
+ * supervisor and a collector it made between the manager and the member.
+ */
+export function fakeOrganizationRoles(): OrganizationRole[] {
+	return [
+		fakeOrganizationRole({ ...BUILT_IN.owner, kind: 'owner', name: '', holders: 1 }),
+		fakeOrganizationRole({ ...BUILT_IN.manager, kind: 'manager', name: '', holders: 1 }),
+		fakeOrganizationRole({ id: 'supervisor', rank: 750_000 }),
+		fakeOrganizationRole({ id: 'collector', rank: 250_000, holders: 2 }),
+		fakeOrganizationRole({ ...BUILT_IN.member, kind: 'member', name: '', holders: 3 })
+	];
 }
 
 /**

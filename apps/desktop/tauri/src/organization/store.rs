@@ -28,7 +28,10 @@
 //! hands this module ciphertext. The store is the shape of the rows and the signatures over them,
 //! and nothing else.
 
-use std::path::{Path, PathBuf};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 
 use crate::{
     database::Database,
@@ -37,18 +40,23 @@ use crate::{
 
 use super::{
     authority::{
-        Authority, Certificate, GrantAuthority, InvitationAuthority, MarkAuthority,
-        MemberAuthority, VERIFYING_KEY_BYTES, WorkspaceAuthority, sign, verify,
+        Authority, Certificate, Chain, GrantAuthority, InvitationAuthority, MarkAuthority,
+        MemberAuthority, Reading, Revocation, RoleAuthority, VERIFYING_KEY_BYTES,
+        WorkspaceAuthority, covers, needed_for, sign,
     },
+    permission::{self, OWNER_ROLE},
     vault::{KDF_SALT_BYTES, KdfParams, PUBLIC_KEY_BYTES, Vault},
 };
 
-/// The eleven tables, in the order the schema creates them. A test pins this list against what
+/// The fourteen tables, in the order the schema creates them. A test pins this list against what
 /// the database reports, so a table added anywhere is added here or fails there.
-pub const TABLES: [&str; 11] = [
+pub const TABLES: [&str; 14] = [
+    "format",
     "organization",
+    "role",
     "member",
-    "administrator_certificate",
+    "certificate",
+    "revocation",
     "workspace",
     "grant",
     "invitation",
@@ -70,6 +78,20 @@ pub const TABLES: [&str; 11] = [
 /// the Turso way in open until 2026-09-20; that gate is gone (requirement 14 as corrected).*
 pub const MACHINE_PRESENCE_WINDOW: i64 = 7 * 24 * 60 * 60 * 1000;
 
+/// The organization format this build reads and writes (effort 838, requirement 11).
+///
+/// **A break, not a migration.** An organization this build creates carries this number in its
+/// one `format` row, and one with no row, or with a number other than this, is read no further
+/// and written to not at all: [`OrganizationStore::refuse_another_format`] says which, and the
+/// person is told what to do. Every organization made before effort 838 has no `format` table,
+/// which is what version 1 was, so nothing is ever written with it. That absence is how an older
+/// organization is told apart, and it is why [`OrganizationStore::complete_schema`] never
+/// creates the table in one.
+///
+/// **Unsigned.** Rewriting the number achieves nothing the credential does not already allow: a
+/// holder who changes it makes the organization refuse to open, as deleting its rows would.
+pub const FORMAT_VERSION: i64 = 2;
+
 /// The schema, as the plan's data model gives it.
 ///
 /// **No foreign keys and no `UNIQUE` on an owner.** The first for the reason the workspace schema
@@ -79,13 +101,27 @@ pub const MACHINE_PRESENCE_WINDOW: i64 = 7 * 24 * 60 * 60 * 1000;
 ///
 /// `grant` is quoted everywhere because it is a keyword in most dialects, and a statement that
 /// works in SQLite and fails elsewhere is a statement worth spelling defensively once.
-const SCHEMA: [&str; 11] = [
+const SCHEMA: [&str; 14] = [
+    // one row, the organization format (see [`FORMAT_VERSION`]).
+    "CREATE TABLE IF NOT EXISTS \"format\" (\
+        \"id\" TEXT PRIMARY KEY NOT NULL, \
+        \"version\" INTEGER NOT NULL)",
     "CREATE TABLE IF NOT EXISTS \"organization\" (\
         \"id\" TEXT PRIMARY KEY NOT NULL, \
         \"name_sealed\" BLOB NOT NULL, \
         \"verifying_key\" BLOB NOT NULL, \
         \"remote_url\" TEXT NOT NULL, \
         \"created_at\" INTEGER NOT NULL)",
+    // a role (effort 838): the manager's and the member's, written with the organization, and the
+    // custom ones. The owner's role is a constant and never a row.
+    "CREATE TABLE IF NOT EXISTS \"role\" (\
+        \"id\" TEXT PRIMARY KEY NOT NULL, \
+        \"kind\" TEXT NOT NULL, \
+        \"name_sealed\" BLOB NOT NULL, \
+        \"mask\" INTEGER NOT NULL, \
+        \"rank\" INTEGER NOT NULL, \
+        \"certificate_id\" TEXT NOT NULL, \
+        \"signature\" BLOB NOT NULL)",
     "CREATE TABLE IF NOT EXISTS \"member\" (\
         \"id\" TEXT PRIMARY KEY NOT NULL, \
         \"username_sealed\" BLOB NOT NULL, \
@@ -95,8 +131,9 @@ const SCHEMA: [&str; 11] = [
         \"sealed_content_key\" BLOB NOT NULL, \
         \"kdf_salt\" BLOB NOT NULL, \
         \"kdf_params\" TEXT NOT NULL, \
-        \"role\" TEXT NOT NULL, \
-        \"permissions\" INTEGER NOT NULL, \
+        \"role_id\" TEXT NOT NULL, \
+        \"override\" INTEGER NOT NULL, \
+        \"removed_at\" INTEGER, \
         \"must_change_password\" INTEGER NOT NULL, \
         \"certificate_id\" TEXT NOT NULL, \
         \"signature\" BLOB NOT NULL, \
@@ -104,13 +141,28 @@ const SCHEMA: [&str; 11] = [
         \"updated_at\" INTEGER NOT NULL, \
         \"session_epoch\" INTEGER NOT NULL DEFAULT 0, \
         \"owner_seed_sealed\" BLOB)",
-    "CREATE TABLE IF NOT EXISTS \"administrator_certificate\" (\
+    // a delegated certificate (effort 838): signed by its issuer, or by the organization key where
+    // `issuer_certificate_id` is null, which is the owner's alone. *It was
+    // `administrator_certificate`, signed by the organization key every time and revoked by an
+    // unsigned `revoked_at`, until effort 838.*
+    "CREATE TABLE IF NOT EXISTS \"certificate\" (\
         \"id\" TEXT PRIMARY KEY NOT NULL, \
         \"member_id\" TEXT NOT NULL, \
         \"signing_public_key\" BLOB NOT NULL, \
-        \"signature_by_organization_key\" BLOB NOT NULL, \
+        \"issuer_certificate_id\" TEXT, \
+        \"ceiling\" INTEGER NOT NULL, \
+        \"rank\" INTEGER NOT NULL, \
         \"issued_at\" TEXT NOT NULL, \
-        \"revoked_at\" TEXT)",
+        \"signature\" BLOB NOT NULL)",
+    // a signed revocation (effort 838). Keyed on the pair, so a second revoker's row sits beside
+    // the first rather than replacing it: one that does not verify then cannot overwrite one that
+    // does.
+    "CREATE TABLE IF NOT EXISTS \"revocation\" (\
+        \"certificate_id\" TEXT NOT NULL, \
+        \"revoker_certificate_id\" TEXT NOT NULL, \
+        \"revoked_at\" TEXT NOT NULL, \
+        \"signature\" BLOB NOT NULL, \
+        PRIMARY KEY (\"certificate_id\", \"revoker_certificate_id\"))",
     "CREATE TABLE IF NOT EXISTS \"workspace\" (\
         \"id\" TEXT PRIMARY KEY NOT NULL, \
         \"name_sealed\" BLOB NOT NULL, \
@@ -165,8 +217,8 @@ const SCHEMA: [&str; 11] = [
         \"accepted_at\" INTEGER, \
         \"signature\" BLOB NOT NULL)",
     // the one image an organization prints on its pages, a signature or a seal (effort 835,
-    // requirement 13). Sealed under the content key like a name, and signed by the owner or the
-    // administrator who set it, so an image any member could write straight into the database is
+    // requirement 13). Sealed under the content key like a name, and signed by the holder of
+    // `manageMark` who set it, so an image any member could write straight into the database is
     // never printed as the organization's. *A build during the effort kept it unsigned in
     // `organization_mark`; a replica that ran that build keeps that table, empty or not, and
     // nothing reads it.*
@@ -182,6 +234,9 @@ const SCHEMA: [&str; 11] = [
 
 /// The key of the one `mark` row: an organization keeps one mark.
 const MARK_ID: &str = "mark";
+
+/// The key of the one `format` row.
+const FORMAT_ID: &str = "format";
 
 /// The organization's mark as it is stored: the image sealed, what kind of image it is, and who
 /// set it when.
@@ -234,9 +289,31 @@ pub struct MemberRecord {
     pub signing_public_key: [u8; VERIFYING_KEY_BYTES],
     /// the organization content key, sealed to this member's public key.
     pub sealed_content_key: Vec<u8>,
-    /// `packages/workspace-permission`'s vocabulary. Nothing here interprets it.
-    pub role: String,
-    pub permissions: i64,
+    /// the one role the member holds (effort 838, requirement 5): `owner`, `manager`, `member`, or
+    /// a custom role's id.
+    pub role_id: String,
+    /// the flags switched for this member alone (requirement 6). Zero on the owner's row.
+    pub override_mask: i64,
+    /// when the member was removed, where they were. Signed, so a removal cannot be undone by
+    /// clearing a column. *It was the role `removed` until effort 838.*
+    pub removed_at: Option<i64>,
+    /// **what the member may do: their role's mask exclusive-or'd with their override**
+    /// (requirement 8), computed by the read from the verified role row, and never stored.
+    /// **Nothing on a removed member's row**, and nothing on a row its certificate stopped
+    /// covering (`Chain::read_member`): what an act's gate and a certificate's re-issue read, so
+    /// neither reaches past a row somebody covering it wrote.
+    ///
+    /// **A write does not read it.** What changes a member's permissions is their role and their
+    /// override; a record handed to [`OrganizationStore::write_member`] with this changed and
+    /// neither of those writes exactly what it wrote before.
+    pub effective: i64,
+    /// **whether the row's certificate covers it** (`Chain::read_member`), as the read found it.
+    /// `false` on a genuine row somebody below the member wrote, or one a role moved or went
+    /// under on another machine: it grants nothing, its content is never carried forward as
+    /// authority, and it is never saved, only removed (effort 838, the re-check of ticket 20).
+    /// `true` on every row the unverified read returns, which judges nothing. Like
+    /// `effective`, computed by the read and never stored, and a write does not read it.
+    pub covered: bool,
     pub must_change_password: bool,
     pub created_at: i64,
     pub updated_at: i64,
@@ -264,6 +341,21 @@ pub struct MemberRecord {
     /// row without it hashes exactly as it did before the column existed and nobody can put a
     /// seal on a row without the key that signs one.
     pub owner_seed_sealed: Option<Vec<u8>>,
+}
+
+/// A `role` row (effort 838): the whole of it is under signature.
+///
+/// The manager's and the member's are written with the organization and keep the built-in ids;
+/// a custom role's id is drawn when it is made. `name_sealed` is empty on the built-in two, whose
+/// names the interface gives in the reader's language.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RoleRecord {
+    pub id: String,
+    /// `manager`, `member` or `custom`.
+    pub kind: String,
+    pub name_sealed: Vec<u8>,
+    pub mask: i64,
+    pub rank: i64,
 }
 
 /// A `workspace` row. Only the database identity is under signature; the name and the schema
@@ -341,9 +433,10 @@ pub struct InvitationRecord {
 /// spent.
 ///
 /// **It carries no signature, and that is the accepted limit rather than an oversight** (effort
-/// 828, requirement 3). A plain member holds no administrator key and no certificate, so nothing
-/// they write on their own account can be signed (effort 826, requirement 6), and this is the one
-/// row a plain member writes for themselves. It is written under their own organization credential
+/// 828, requirement 3). Nothing a member writes on their own account is signed (effort 826,
+/// requirement 6): a plain member held no certificate until effort 838, and since then no
+/// certificate signs its own holder's row. This is the one row a plain member writes for
+/// themselves. It is written under their own organization credential
 /// the way `member.session_epoch` is ([`OrganizationStore::set_session_epoch`]), which is the
 /// precedent: a column outside the chain that gates availability and never authority.
 ///
@@ -371,8 +464,8 @@ pub struct MachineLinkRecord {
 /// when it last said so (effort 828, requirement 15).
 ///
 /// **Unsigned, like [`MachineLinkRecord`] and for the same reason.** Every machine writes its own
-/// row, a plain member holds no administrator key and no certificate, so nothing they write on
-/// their own account can be signed (effort 826, requirement 6). It is written under the member's
+/// row, and nothing a member writes on their own account is signed (effort 826, requirement 6;
+/// since effort 838 because no certificate signs its own holder's row). It is written under the member's
 /// own organization credential the way `member.session_epoch` is
 /// ([`OrganizationStore::set_session_epoch`]).
 ///
@@ -430,7 +523,7 @@ pub struct SuccessionRecord {
     pub signature: Vec<u8>,
 }
 
-/// Who is writing: an administrator's key and the certificate that makes it an authority.
+/// Who is writing: a member's signing key and the certificate that makes it an authority.
 ///
 /// Taken together so that `authority::sign` can refuse a key the certificate does not name, once,
 /// at the write, rather than every reader discovering it afterwards.
@@ -549,7 +642,22 @@ impl OrganizationStore {
     /// Read against the database rather than assumed, so a replica that already holds every
     /// table costs one query and no write. The statements are `CREATE TABLE IF NOT EXISTS`, so a
     /// second machine racing the first on the same table finds it there.
+    ///
+    /// **Only an organization of this build's format is completed** (effort 838, requirement 11).
+    /// One of another format is written to not at all, so this creates nothing in it and answers
+    /// that nothing was created; the reader that follows is what refuses it. Above all it never
+    /// creates `format` in an older organization, whose missing table is the only thing that
+    /// tells it apart.
     pub async fn complete_schema(&self) -> Result<bool, turso::Error> {
+        let format = self
+            .format()
+            .await
+            .map_err(|error| turso::Error::Error(error.to_string()))?;
+
+        if format != Some(FORMAT_VERSION) {
+            return Ok(false);
+        }
+
         let present = self
             .tables()
             .await
@@ -585,6 +693,83 @@ impl OrganizationStore {
         }
 
         Ok(names)
+    }
+
+    // the format
+
+    /// Record that this organization is of this build's format: written once, by the first run,
+    /// beside the schema that creates the table.
+    pub async fn write_format(&self) -> Result<(), Error> {
+        self.connection
+            .execute(
+                "INSERT OR REPLACE INTO \"format\" (\"id\", \"version\") VALUES (?, ?)",
+                vec![
+                    turso::Value::Text(FORMAT_ID.to_string()),
+                    turso::Value::Integer(FORMAT_VERSION),
+                ],
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// The organization's format version, or `None` where it has none: no `format` table, which
+    /// is every organization made before effort 838, or a table with no row in it.
+    ///
+    /// Read against the tables the database reports before the row is asked for, so an older
+    /// organization answers `None` rather than failing on a table it never had.
+    pub async fn format(&self) -> Result<Option<i64>, Error> {
+        if !self.tables().await?.iter().any(|table| table == "format") {
+            return Ok(None);
+        }
+
+        let mut rows = self
+            .connection
+            .query(
+                "SELECT \"version\" FROM \"format\" WHERE \"id\" = ? LIMIT 1",
+                vec![turso::Value::Text(FORMAT_ID.to_string())],
+            )
+            .await?;
+
+        match rows.next().await? {
+            Some(row) => Ok(Some(integer(&row, 0)?)),
+            None => Ok(None),
+        }
+    }
+
+    /// Refuse an organization of another format, by name, before anything else is read from it
+    /// or written to it (effort 838, requirement 11).
+    ///
+    /// **Two refusals, because the person does two different things.** An organization with no
+    /// format, or an earlier one, was made by an earlier version of the application: its
+    /// workspaces are exported there, it is deleted, and it is made again here, where each
+    /// workspace is imported. There is no migration in place, by the human's call at the plan. One
+    /// with a later format was made by a newer version, and this application is updated.
+    ///
+    /// Reads the format and nothing else, and writes nothing, so a refused organization is left
+    /// exactly as it was found.
+    pub async fn refuse_another_format(&self) -> Result<(), Error> {
+        match self.format().await? {
+            Some(FORMAT_VERSION) => Ok(()),
+            Some(version) if version > FORMAT_VERSION => Err(Error::refused(
+                RefusalReason::OrganizationNewer,
+                format!(
+                    "the organization is of format {version}, made by a newer version of \
+                     rentable, and this version reads format {FORMAT_VERSION}"
+                ),
+            )),
+            found => Err(Error::refused(
+                RefusalReason::OrganizationOlder,
+                format!(
+                    "the organization carries {}, made by an earlier version of rentable, and \
+                     this version reads format {FORMAT_VERSION}; export each workspace there, \
+                     delete the organization, and make it again here",
+                    found.map_or("no format".to_string(), |version| format!(
+                        "format {version}"
+                    ))
+                ),
+            )),
+        }
     }
 
     // the organization row
@@ -640,13 +825,23 @@ impl OrganizationStore {
         &self,
         organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
     ) -> Result<Option<MarkRecord>, Error> {
-        let certificates = self.certificates().await?;
+        Ok(self
+            .signed_mark(organization_verifying_key)
+            .await?
+            .map(|(_, mark)| mark))
+    }
+
+    /// The mark, verified, paired with the id of the certificate that signed it.
+    async fn signed_mark(
+        &self,
+        organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
+    ) -> Result<Option<(String, MarkRecord)>, Error> {
+        let (certificates, revocations) = self.chain_rows().await?;
+        let chain = Chain::new(organization_verifying_key, &certificates, &revocations);
         let mut rows = self
             .connection
             .query(
-                "SELECT \"image_sealed\", \"media_type\", \"updated_by\", \"updated_at\", \
-                        \"certificate_id\", \"signature\" \
-                 FROM \"mark\" WHERE \"id\" = ?",
+                "SELECT \"image_sealed\", \"media_type\", \"updated_by\", \"updated_at\",                         \"certificate_id\", \"signature\"                  FROM \"mark\" WHERE \"id\" = ?",
                 vec![turso::Value::Text(MARK_ID.to_string())],
             )
             .await?;
@@ -661,37 +856,27 @@ impl OrganizationStore {
             updated_by: text(&row, 2)?,
             updated_at: integer(&row, 3)?,
         };
+        let certificate_id = text(&row, 4)?;
 
         verified(
-            organization_verifying_key,
-            &certificates,
+            &chain,
             "mark",
             MARK_ID,
-            &text(&row, 4)?,
-            Authority::Mark(MarkAuthority {
-                image_sealed: &mark.image_sealed,
-                media_type: &mark.media_type,
-                updated_by: &mark.updated_by,
-                updated_at: mark.updated_at,
-            }),
+            &certificate_id,
+            mark_authority(&mark),
             &blob(&row, 5)?,
         )?;
 
-        Ok(Some(mark))
+        Ok(Some((certificate_id, mark)))
     }
 
-    /// Set the mark, signed by whoever set it, replacing whatever was there.
+    /// Set the mark, signed by whoever set it, replacing whatever was there. Refused, with nothing
+    /// written, where the signer's certificate does not cover it
+    /// ([`OrganizationStore::refuse_uncovered`]).
     pub async fn write_mark(&self, signer: &Signer<'_>, mark: &MarkRecord) -> Result<(), Error> {
-        let signature = sign(
-            signer.key,
-            signer.certificate,
-            Authority::Mark(MarkAuthority {
-                image_sealed: &mark.image_sealed,
-                media_type: &mark.media_type,
-                updated_by: &mark.updated_by,
-                updated_at: mark.updated_at,
-            }),
-        )?;
+        self.refuse_uncovered(signer, mark_authority(mark)).await?;
+
+        let signature = sign(signer.key, signer.certificate, mark_authority(mark))?;
 
         self.connection
             .execute(
@@ -726,25 +911,134 @@ impl OrganizationStore {
         Ok(())
     }
 
-    // certificates
+    // transactions
 
-    /// Write a certificate as issued or as revoked. The signature it carries is the organization
-    /// key's and was made when it was issued; this module checks it on every read of a row it
-    /// authorises, and never makes one.
-    pub async fn write_certificate(&self, certificate: &Certificate) -> Result<(), Error> {
+    /// Open a transaction on this replica: what [`OrganizationStore::commit`] makes whole and
+    /// [`OrganizationStore::rollback`] undoes. For an act whose rows must land together or not at
+    /// all, a re-issue above all (effort 838): a new certificate, the revocation of the old one
+    /// and the rows moved from it.
+    ///
+    /// **Not nested, and not held across a push.** Every write between the two is on this
+    /// connection, and the push that follows the act carries what was committed.
+    pub async fn begin(&self) -> Result<(), Error> {
+        self.connection.execute("BEGIN", ()).await?;
+
+        Ok(())
+    }
+
+    /// Make the open transaction's writes whole.
+    pub async fn commit(&self) -> Result<(), Error> {
+        self.connection.execute("COMMIT", ()).await?;
+
+        Ok(())
+    }
+
+    /// Undo the open transaction's writes.
+    pub async fn rollback(&self) -> Result<(), Error> {
+        self.connection.execute("ROLLBACK", ()).await?;
+
+        Ok(())
+    }
+
+    // what a signer may write
+
+    /// Refuse a row `signer`'s certificate does not cover, naming what it would need
+    /// (`authority::needed_for`), before a byte of it is written (effort 838, the row-kind table).
+    ///
+    /// **A self-check of the writer, and not the security boundary.** What stops a row reaching
+    /// wider than its certificate is every reader refusing it ([`Chain::verify`]), because a member
+    /// holding the credential writes around this module as easily as through it. What this stops
+    /// is a command of ours writing a row every reader then refuses, which refuses the directory for
+    /// everybody by name: every command is to refuse its act up front, and this is what makes one
+    /// that did not fail here rather than on every other machine.
+    ///
+    /// **The role rows are read unverified**, because what is being judged is our own write and
+    /// not somebody else's row: the replica's roles as they stand are the ones a reader will judge
+    /// this row by, and verifying them again on every write would buy nothing a read does not
+    /// already refuse. The signer's own walk and revocations are not asked, for the same reason.
+    /// **The member's live certificates are**, since a member row's signer has to outrank them
+    /// ([`covers`]), and they are judged under the key the `organization` row carries: our own
+    /// write asks what a reader holding that key will make of it, and a replica with no
+    /// organization row yet has nobody certified to outrank.
+    async fn refuse_uncovered(
+        &self,
+        signer: &Signer<'_>,
+        authority: Authority<'_>,
+    ) -> Result<(), Error> {
+        let (roles, certified_rank) = match authority {
+            Authority::Member(member) => {
+                let certified_rank = match self.organization().await? {
+                    Some(organization) => {
+                        let (certificates, revocations) = self.chain_rows().await?;
+
+                        Chain::new(&organization.verifying_key, &certificates, &revocations)
+                            .certified_rank_of(member.id)
+                    }
+                    None => None,
+                };
+
+                (standings(&self.roles_unverified().await?), certified_rank)
+            }
+            _ => (HashMap::new(), None),
+        };
+
+        if covers(
+            signer.certificate,
+            authority,
+            |role_id| roles.get(role_id).copied(),
+            |_| certified_rank,
+        ) {
+            return Ok(());
+        }
+
+        Err(Error::refused(
+            RefusalReason::RoleLacksAct,
+            format!(
+                "this writes a row that needs {} to sign, and your certificate does not carry it. \
+                 nothing was written",
+                needed_for(authority)
+            ),
+        ))
+    }
+
+    // roles
+
+    /// Write a role row, signed by `signer` over every field of it. Refused, with nothing written,
+    /// where the signer's certificate does not cover it: a mask carrying a flag the certificate
+    /// does not, or a rank not below it ([`OrganizationStore::refuse_uncovered`]).
+    pub async fn write_role(&self, signer: &Signer<'_>, role: &RoleRecord) -> Result<(), Error> {
+        self.refuse_uncovered(signer, role_authority(role)).await?;
+        self.insert_role(signer, role).await
+    }
+
+    /// [`OrganizationStore::write_role`] around its check, for a test writing the row somebody
+    /// holding the credential writes around the store: what every reader has to refuse.
+    #[cfg(test)]
+    pub(crate) async fn write_role_around_the_check(
+        &self,
+        signer: &Signer<'_>,
+        role: &RoleRecord,
+    ) -> Result<(), Error> {
+        self.insert_role(signer, role).await
+    }
+
+    async fn insert_role(&self, signer: &Signer<'_>, role: &RoleRecord) -> Result<(), Error> {
+        let signature = sign(signer.key, signer.certificate, role_authority(role))?;
+
         self.connection
             .execute(
-                "INSERT OR REPLACE INTO \"administrator_certificate\" \
-                 (\"id\", \"member_id\", \"signing_public_key\", \"signature_by_organization_key\", \
-                  \"issued_at\", \"revoked_at\") \
-                 VALUES (?, ?, ?, ?, ?, ?)",
+                "INSERT OR REPLACE INTO \"role\" \
+                 (\"id\", \"kind\", \"name_sealed\", \"mask\", \"rank\", \"certificate_id\", \
+                  \"signature\") \
+                 VALUES (?, ?, ?, ?, ?, ?, ?)",
                 vec![
-                    turso::Value::Text(certificate.id.clone()),
-                    turso::Value::Text(certificate.member_id.clone()),
-                    turso::Value::Blob(certificate.signing_public_key.to_vec()),
-                    turso::Value::Blob(certificate.signature_by_organization_key.clone()),
-                    turso::Value::Text(certificate.issued_at.clone()),
-                    optional_text(certificate.revoked_at.as_deref()),
+                    turso::Value::Text(role.id.clone()),
+                    turso::Value::Text(role.kind.clone()),
+                    turso::Value::Blob(role.name_sealed.clone()),
+                    turso::Value::Integer(role.mask),
+                    turso::Value::Integer(role.rank),
+                    turso::Value::Text(signer.certificate.id.clone()),
+                    turso::Value::Blob(signature),
                 ],
             )
             .await?;
@@ -752,15 +1046,163 @@ impl OrganizationStore {
         Ok(())
     }
 
-    /// Every certificate, revoked ones included: a revoked certificate is still what a row names,
-    /// and `verify` is what says the row is refused for it.
+    /// Remove a role row. Its holders are the caller's to have moved first.
+    pub async fn delete_role(&self, id: &str) -> Result<(), Error> {
+        self.connection
+            .execute(
+                "DELETE FROM \"role\" WHERE \"id\" = ?",
+                vec![turso::Value::Text(id.to_string())],
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// Every role row, highest rank first, each verified before it is returned. The owner's role
+    /// is a constant and is not among them.
+    pub async fn roles(
+        &self,
+        organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
+    ) -> Result<Vec<RoleRecord>, Error> {
+        Ok(self
+            .signed_roles(organization_verifying_key)
+            .await?
+            .into_iter()
+            .map(|(_, role)| role)
+            .collect())
+    }
+
+    /// The mask and the rank of one role: the owner's constants, or its verified row's. Refused by
+    /// name for a role nobody holds.
+    pub async fn role_standing(
+        &self,
+        organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
+        role_id: &str,
+    ) -> Result<(i64, i64), Error> {
+        if role_id == permission::OWNER {
+            return Ok((OWNER_ROLE.mask, OWNER_ROLE.rank));
+        }
+
+        self.roles(organization_verifying_key)
+            .await?
+            .into_iter()
+            .find(|role| role.id == role_id)
+            .map(|role| (role.mask, role.rank))
+            .ok_or_else(|| {
+                Error::refused(
+                    RefusalReason::RoleUnknown,
+                    "that role is not in this organization",
+                )
+            })
+    }
+
+    /// Every role row, each verified, paired with the id of the certificate that signed it.
+    async fn signed_roles(
+        &self,
+        organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
+    ) -> Result<Vec<(String, RoleRecord)>, Error> {
+        let (certificates, revocations) = self.chain_rows().await?;
+        let chain = Chain::new(organization_verifying_key, &certificates, &revocations);
+        let mut roles = Vec::new();
+
+        for (certificate_id, signature, role) in self.role_rows().await? {
+            verified(
+                &chain,
+                "role",
+                &role.id,
+                &certificate_id,
+                role_authority(&role),
+                &signature,
+            )?;
+
+            roles.push((certificate_id, role));
+        }
+
+        Ok(roles)
+    }
+
+    /// Every role row with nothing checked, for the one read that checks nothing
+    /// ([`OrganizationStore::members_unverified`]) and for the writer's check of its own row
+    /// ([`OrganizationStore::refuse_uncovered`]), which judges a write of ours and not a row of
+    /// anybody else's.
+    async fn roles_unverified(&self) -> Result<Vec<RoleRecord>, Error> {
+        Ok(self
+            .role_rows()
+            .await?
+            .into_iter()
+            .map(|(_, _, role)| role)
+            .collect())
+    }
+
+    async fn role_rows(&self) -> Result<Vec<(String, Vec<u8>, RoleRecord)>, Error> {
+        let mut rows = self
+            .connection
+            .query(
+                "SELECT \"id\", \"kind\", \"name_sealed\", \"mask\", \"rank\", \"certificate_id\", \
+                        \"signature\" \
+                 FROM \"role\" ORDER BY \"rank\" DESC, \"id\"",
+                (),
+            )
+            .await?;
+        let mut roles = Vec::new();
+
+        while let Some(row) = rows.next().await? {
+            roles.push((
+                text(&row, 5)?,
+                blob(&row, 6)?,
+                RoleRecord {
+                    id: text(&row, 0)?,
+                    kind: text(&row, 1)?,
+                    name_sealed: blob(&row, 2)?,
+                    mask: integer(&row, 3)?,
+                    rank: integer(&row, 4)?,
+                },
+            ));
+        }
+
+        Ok(roles)
+    }
+
+    // certificates
+
+    /// Write a certificate as issued. The signature it carries is its issuer's and was made when
+    /// it was issued; this module checks it on every read of a row it authorises, and never makes
+    /// one. **A certificate is not written again once issued**: a change in what somebody may do
+    /// is a fresh certificate under a fresh id and a revocation of the old one.
+    pub async fn write_certificate(&self, certificate: &Certificate) -> Result<(), Error> {
+        self.connection
+            .execute(
+                "INSERT OR REPLACE INTO \"certificate\" \
+                 (\"id\", \"member_id\", \"signing_public_key\", \"issuer_certificate_id\", \
+                  \"ceiling\", \"rank\", \"issued_at\", \"signature\") \
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                vec![
+                    turso::Value::Text(certificate.id.clone()),
+                    turso::Value::Text(certificate.member_id.clone()),
+                    turso::Value::Blob(certificate.signing_public_key.to_vec()),
+                    optional_text(certificate.issuer_certificate_id.as_deref()),
+                    turso::Value::Integer(certificate.ceiling),
+                    turso::Value::Integer(certificate.rank),
+                    turso::Value::Text(certificate.issued_at.clone()),
+                    turso::Value::Blob(certificate.signature.clone()),
+                ],
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// Every certificate, revoked ones included, with nothing checked: a revoked certificate is
+    /// still what a row names, and the chain is what says the row is refused for it. Judge these
+    /// through [`Chain`], never by reading a field.
     pub async fn certificates(&self) -> Result<Vec<Certificate>, Error> {
         let mut rows = self
             .connection
             .query(
                 "SELECT \"id\", \"member_id\", \"signing_public_key\", \
-                        \"signature_by_organization_key\", \"issued_at\", \"revoked_at\" \
-                 FROM \"administrator_certificate\" ORDER BY \"id\"",
+                        \"issuer_certificate_id\", \"ceiling\", \"rank\", \"issued_at\", \
+                        \"signature\" \
+                 FROM \"certificate\" ORDER BY \"id\"",
                 (),
             )
             .await?;
@@ -771,13 +1213,102 @@ impl OrganizationStore {
                 id: text(&row, 0)?,
                 member_id: text(&row, 1)?,
                 signing_public_key: fixed::<VERIFYING_KEY_BYTES>(&row, 2, "signing_public_key")?,
-                signature_by_organization_key: blob(&row, 3)?,
-                issued_at: text(&row, 4)?,
-                revoked_at: nullable_text(&row, 5)?,
+                issuer_certificate_id: nullable_text(&row, 3)?,
+                ceiling: integer(&row, 4)?,
+                rank: integer(&row, 5)?,
+                issued_at: text(&row, 6)?,
+                signature: blob(&row, 7)?,
             });
         }
 
         Ok(certificates)
+    }
+
+    /// Write a revocation. Its signature is the revoker's, made by the caller; the chain decides
+    /// whether it counts.
+    pub async fn write_revocation(&self, revocation: &Revocation) -> Result<(), Error> {
+        self.connection
+            .execute(
+                "INSERT OR REPLACE INTO \"revocation\" \
+                 (\"certificate_id\", \"revoker_certificate_id\", \"revoked_at\", \"signature\") \
+                 VALUES (?, ?, ?, ?)",
+                vec![
+                    turso::Value::Text(revocation.certificate_id.clone()),
+                    turso::Value::Text(revocation.revoker_certificate_id.clone()),
+                    turso::Value::Text(revocation.revoked_at.clone()),
+                    turso::Value::Blob(revocation.signature.clone()),
+                ],
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// Every revocation, with nothing checked, for the chain to judge.
+    pub async fn revocations(&self) -> Result<Vec<Revocation>, Error> {
+        let mut rows = self
+            .connection
+            .query(
+                "SELECT \"certificate_id\", \"revoker_certificate_id\", \"revoked_at\", \
+                        \"signature\" \
+                 FROM \"revocation\" ORDER BY \"certificate_id\", \"revoker_certificate_id\"",
+                (),
+            )
+            .await?;
+        let mut revocations = Vec::new();
+
+        while let Some(row) = rows.next().await? {
+            revocations.push(Revocation {
+                certificate_id: text(&row, 0)?,
+                revoker_certificate_id: text(&row, 1)?,
+                revoked_at: text(&row, 2)?,
+                signature: blob(&row, 3)?,
+            });
+        }
+
+        Ok(revocations)
+    }
+
+    /// What one read judges its rows by: every certificate and every revocation, read once and
+    /// handed to a [`Chain`] the read builds and drops. That is the per-read cache: a walk is made
+    /// once per certificate however many rows name it, and no verdict outlives the read.
+    pub async fn chain_rows(&self) -> Result<(Vec<Certificate>, Vec<Revocation>), Error> {
+        Ok((self.certificates().await?, self.revocations().await?))
+    }
+
+    /// The certificate a member signs with under the key the caller pinned: live, naming the key
+    /// given, and the newest where two are. `None` where the member holds none.
+    pub async fn live_certificate(
+        &self,
+        organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
+        member_id: &str,
+        signing_public_key: &[u8; VERIFYING_KEY_BYTES],
+    ) -> Result<Option<Certificate>, Error> {
+        let (certificates, revocations) = self.chain_rows().await?;
+
+        Ok(
+            Chain::new(organization_verifying_key, &certificates, &revocations)
+                .live_certificate_of(member_id, signing_public_key)
+                .cloned(),
+        )
+    }
+
+    /// Every live certificate a member holds under the key the caller pinned, whatever key each
+    /// names: what a removal or a narrowing revokes.
+    pub async fn live_certificates(
+        &self,
+        organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
+        member_id: &str,
+    ) -> Result<Vec<Certificate>, Error> {
+        let (certificates, revocations) = self.chain_rows().await?;
+
+        Ok(
+            Chain::new(organization_verifying_key, &certificates, &revocations)
+                .live_certificates_of(member_id)
+                .into_iter()
+                .cloned()
+                .collect(),
+        )
     }
 
     // members
@@ -786,42 +1317,54 @@ impl OrganizationStore {
     ///
     /// **`session_epoch` never comes down here.** It is outside the preimage and inside a
     /// whole-row replace, and the three callers that rewrite a row from one they read
-    /// (`invite::rename_member`, `role::change_role`, `removal::retire_member`) read it off this
+    /// (`invite::rename_member`, `role::apply`, `removal::retire_member`) read it off this
     /// machine's replica. A replica that has not pulled since somebody else ended a member's
     /// sessions still carries the number from before, and writing that back would re-admit every
     /// machine the sign-out locked out. So the row keeps the greater of what it holds and what
     /// the record carries, which is the invariant `session.rs` rests the comparison on: the
     /// number only ever moves forward.
+    ///
+    /// **Refused, with nothing written, where the signer's certificate does not cover the row**
+    /// ([`OrganizationStore::refuse_uncovered`]): a member ranked at or above it, a flag the row's
+    /// override switches that the certificate does not carry, or the certificate's own holder's
+    /// row.
     pub async fn write_member(
         &self,
         signer: &Signer<'_>,
         member: &MemberRecord,
     ) -> Result<(), Error> {
+        self.refuse_uncovered(signer, member_authority(member))
+            .await?;
+        self.insert_member(signer, member).await
+    }
+
+    /// [`OrganizationStore::write_member`] around its check, for a test writing the row somebody
+    /// holding the credential writes around the store: what every reader has to refuse.
+    #[cfg(test)]
+    pub(crate) async fn write_member_around_the_check(
+        &self,
+        signer: &Signer<'_>,
+        member: &MemberRecord,
+    ) -> Result<(), Error> {
+        self.insert_member(signer, member).await
+    }
+
+    async fn insert_member(&self, signer: &Signer<'_>, member: &MemberRecord) -> Result<(), Error> {
         let session_epoch = self
             .session_epoch_of(&member.id)
             .await?
             .map_or(member.session_epoch, |held| held.max(member.session_epoch));
-        let signature = sign(
-            signer.key,
-            signer.certificate,
-            Authority::Member(MemberAuthority {
-                public_key: &member.vault.public_key,
-                signing_public_key: &member.signing_public_key,
-                role: &member.role,
-                permissions: member.permissions,
-                owner_seed_sealed: member.owner_seed_sealed.as_deref(),
-            }),
-        )?;
+        let signature = sign(signer.key, signer.certificate, member_authority(member))?;
 
         self.connection
             .execute(
                 "INSERT OR REPLACE INTO \"member\" \
                  (\"id\", \"username_sealed\", \"public_key\", \"signing_public_key\", \
                   \"sealed_secret_key\", \"sealed_content_key\", \"kdf_salt\", \"kdf_params\", \
-                  \"role\", \"permissions\", \"must_change_password\", \"certificate_id\", \
-                  \"signature\", \"created_at\", \"updated_at\", \"session_epoch\", \
+                  \"role_id\", \"override\", \"removed_at\", \"must_change_password\", \
+                  \"certificate_id\", \"signature\", \"created_at\", \"updated_at\", \"session_epoch\", \
                   \"owner_seed_sealed\") \
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 vec![
                     turso::Value::Text(member.id.clone()),
                     turso::Value::Blob(member.username_sealed.clone()),
@@ -831,8 +1374,11 @@ impl OrganizationStore {
                     turso::Value::Blob(member.sealed_content_key.clone()),
                     turso::Value::Blob(member.vault.kdf_salt.to_vec()),
                     turso::Value::Text(member.vault.kdf_params.encode()),
-                    turso::Value::Text(member.role.clone()),
-                    turso::Value::Integer(member.permissions),
+                    turso::Value::Text(member.role_id.clone()),
+                    turso::Value::Integer(member.override_mask),
+                    member
+                        .removed_at
+                        .map_or(turso::Value::Null, turso::Value::Integer),
                     turso::Value::Integer(i64::from(member.must_change_password)),
                     turso::Value::Text(signer.certificate.id.clone()),
                     turso::Value::Blob(signature),
@@ -1041,19 +1587,32 @@ impl OrganizationStore {
     ///
     /// **`organization_verifying_key` is `None` for the unverified read and for nothing else.**
     /// Where it is `Some`, every row is checked against the chain before it is returned and a row
-    /// that does not check refuses the whole read by name; where it is `None`, the certificates
-    /// are not even fetched, because a caller that is not going to judge the rows has no use for
-    /// the authorities behind them. [`OrganizationStore::members_unverified`] says which caller
-    /// that is and why it is alone.
+    /// that does not check refuses the whole read by name, but for one: a genuine row its
+    /// certificate stopped covering because the role it names moved or went on another machine
+    /// (`Chain::read_member`), which is returned granting nothing. A removed member's row grants
+    /// nothing either, however it reads (effort 838, the human's decision after review round
+    /// two). Where it is `None`, the certificates are not even fetched, because a caller that is
+    /// not going to judge the rows has no use for the authorities behind them.
+    /// [`OrganizationStore::members_unverified`] says which caller that is and why it is alone.
     async fn signed_members_where(
         &self,
         organization_verifying_key: Option<&[u8; VERIFYING_KEY_BYTES]>,
         member_id: Option<&str>,
     ) -> Result<Vec<(String, MemberRecord)>, Error> {
-        let certificates = match organization_verifying_key {
-            Some(_) => self.certificates().await?,
-            None => Vec::new(),
+        // the roles first, verified where the rows are: a member row is judged by the rank of the
+        // role it names, and what it gives is that role's mask with the override applied. The
+        // unverified read reads them unverified too, and uses them for nothing but the number.
+        let roles = match organization_verifying_key {
+            Some(pinned) => self.roles(pinned).await?,
+            None => self.roles_unverified().await?,
         };
+        let (certificates, revocations) = match organization_verifying_key {
+            Some(_) => self.chain_rows().await?,
+            None => (Vec::new(), Vec::new()),
+        };
+        let chain = organization_verifying_key.map(|pinned| {
+            Chain::new(pinned, &certificates, &revocations).with_roles(standings(&roles))
+        });
         let (filter, params) = match member_id {
             Some(id) => (
                 " WHERE \"id\" = ?",
@@ -1067,9 +1626,9 @@ impl OrganizationStore {
                 &format!(
                     "SELECT \"id\", \"username_sealed\", \"public_key\", \"signing_public_key\", \
                             \"sealed_secret_key\", \"sealed_content_key\", \"kdf_salt\", \"kdf_params\", \
-                            \"role\", \"permissions\", \"must_change_password\", \"certificate_id\", \
-                            \"signature\", \"created_at\", \"updated_at\", \"session_epoch\", \
-                            \"owner_seed_sealed\" \
+                            \"role_id\", \"override\", \"removed_at\", \"must_change_password\", \
+                            \"certificate_id\", \"signature\", \"created_at\", \"updated_at\", \
+                            \"session_epoch\", \"owner_seed_sealed\" \
                      FROM \"member\"{filter} ORDER BY \"created_at\", \"id\""
                 ),
                 params,
@@ -1078,55 +1637,53 @@ impl OrganizationStore {
         let mut members = Vec::new();
 
         while let Some(row) = rows.next().await? {
-            let id = text(&row, 0)?;
-            let public_key = fixed::<PUBLIC_KEY_BYTES>(&row, 2, "public_key")?;
-            let signing_public_key = fixed::<VERIFYING_KEY_BYTES>(&row, 3, "signing_public_key")?;
-            let role = text(&row, 8)?;
-            let permissions = integer(&row, 9)?;
-            let certificate_id = text(&row, 11)?;
-            let signature = blob(&row, 12)?;
-            let owner_seed_sealed = nullable_blob(&row, 16)?;
+            let role_id = text(&row, 8)?;
+            let override_mask = integer(&row, 9)?;
+            let certificate_id = text(&row, 12)?;
+            let signature = blob(&row, 13)?;
+            let mut member = MemberRecord {
+                id: text(&row, 0)?,
+                username_sealed: blob(&row, 1)?,
+                vault: Vault {
+                    public_key: fixed::<PUBLIC_KEY_BYTES>(&row, 2, "public_key")?,
+                    sealed_secret_key: blob(&row, 4)?,
+                    kdf_salt: fixed::<KDF_SALT_BYTES>(&row, 6, "kdf_salt")?,
+                    kdf_params: KdfParams::parse(&text(&row, 7)?)?,
+                },
+                signing_public_key: fixed::<VERIFYING_KEY_BYTES>(&row, 3, "signing_public_key")?,
+                sealed_content_key: blob(&row, 5)?,
+                effective: 0,
+                covered: true,
+                role_id,
+                override_mask,
+                removed_at: nullable_integer(&row, 10)?,
+                must_change_password: integer(&row, 11)? != 0,
+                created_at: integer(&row, 14)?,
+                updated_at: integer(&row, 15)?,
+                session_epoch: integer(&row, 16)?,
+                owner_seed_sealed: nullable_blob(&row, 17)?,
+            };
+            let reading = match &chain {
+                Some(chain) => chain
+                    .read_member(&certificate_id, member_of(&member), &signature)
+                    .map_err(|error| Error::Integrity {
+                        message: format!("the member row {} is refused: {error}", member.id),
+                    })?,
+                None => Reading::Covered,
+            };
 
-            if let Some(organization_verifying_key) = organization_verifying_key {
-                verified(
-                    organization_verifying_key,
-                    &certificates,
-                    "member",
-                    &id,
-                    &certificate_id,
-                    Authority::Member(MemberAuthority {
-                        public_key: &public_key,
-                        signing_public_key: &signing_public_key,
-                        role: &role,
-                        permissions,
-                        owner_seed_sealed: owner_seed_sealed.as_deref(),
-                    }),
-                    &signature,
-                )?;
+            // a removed member's row grants nothing, and neither does a genuine one its
+            // certificate stopped covering (effort 838, the human's decision after review round
+            // two): it stays in the directory, removal and all, until somebody above the member
+            // removes it.
+            member.covered = reading == Reading::Covered;
+
+            if member.covered && member.removed_at.is_none() {
+                member.effective =
+                    effective_of(&member.role_id, member.override_mask, &roles).unwrap_or(0);
             }
 
-            members.push((
-                certificate_id,
-                MemberRecord {
-                    id,
-                    username_sealed: blob(&row, 1)?,
-                    vault: Vault {
-                        public_key,
-                        sealed_secret_key: blob(&row, 4)?,
-                        kdf_salt: fixed::<KDF_SALT_BYTES>(&row, 6, "kdf_salt")?,
-                        kdf_params: KdfParams::parse(&text(&row, 7)?)?,
-                    },
-                    signing_public_key,
-                    sealed_content_key: blob(&row, 5)?,
-                    role,
-                    permissions,
-                    must_change_password: integer(&row, 10)? != 0,
-                    created_at: integer(&row, 13)?,
-                    updated_at: integer(&row, 14)?,
-                    session_epoch: integer(&row, 15)?,
-                    owner_seed_sealed,
-                },
-            ));
+            members.push((certificate_id, member));
         }
 
         Ok(members)
@@ -1134,18 +1691,21 @@ impl OrganizationStore {
 
     // workspaces
 
+    /// Write a workspace row, signed by `signer` over its database identity. Refused, with nothing
+    /// written, where the signer's certificate does not cover it
+    /// ([`OrganizationStore::refuse_uncovered`]).
     pub async fn write_workspace(
         &self,
         signer: &Signer<'_>,
         workspace: &WorkspaceRecord,
     ) -> Result<(), Error> {
+        self.refuse_uncovered(signer, workspace_authority(workspace))
+            .await?;
+
         let signature = sign(
             signer.key,
             signer.certificate,
-            Authority::Workspace(WorkspaceAuthority {
-                database_name: &workspace.database_name,
-                database_hostname: &workspace.database_hostname,
-            }),
+            workspace_authority(workspace),
         )?;
 
         self.connection
@@ -1190,7 +1750,8 @@ impl OrganizationStore {
         &self,
         organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
     ) -> Result<Vec<(String, WorkspaceRecord)>, Error> {
-        let certificates = self.certificates().await?;
+        let (certificates, revocations) = self.chain_rows().await?;
+        let chain = Chain::new(organization_verifying_key, &certificates, &revocations);
         let mut rows = self
             .connection
             .query(
@@ -1211,8 +1772,7 @@ impl OrganizationStore {
             let signature = blob(&row, 6)?;
 
             verified(
-                organization_verifying_key,
-                &certificates,
+                &chain,
                 "workspace",
                 &id,
                 &certificate_id,
@@ -1242,18 +1802,28 @@ impl OrganizationStore {
 
     // grants
 
+    /// Write a grant row, signed by `signer` over the whole of it. Refused, with nothing written,
+    /// where the signer's certificate does not cover it: `grantWorkspace`, and the root for a
+    /// read-only grant ([`OrganizationStore::refuse_uncovered`]).
     pub async fn write_grant(&self, signer: &Signer<'_>, grant: &GrantRecord) -> Result<(), Error> {
-        let signature = sign(
-            signer.key,
-            signer.certificate,
-            Authority::Grant(GrantAuthority {
-                member_id: &grant.member_id,
-                workspace_id: &grant.workspace_id,
-                sealed_credential: &grant.sealed_credential,
-                access_level: &grant.access_level,
-                credential_expires_at: grant.credential_expires_at.as_deref(),
-            }),
-        )?;
+        self.refuse_uncovered(signer, grant_authority(grant))
+            .await?;
+        self.insert_grant(signer, grant).await
+    }
+
+    /// [`OrganizationStore::write_grant`] around its check, for a test writing the row somebody
+    /// holding the credential writes around the store: what every reader has to refuse.
+    #[cfg(test)]
+    pub(crate) async fn write_grant_around_the_check(
+        &self,
+        signer: &Signer<'_>,
+        grant: &GrantRecord,
+    ) -> Result<(), Error> {
+        self.insert_grant(signer, grant).await
+    }
+
+    async fn insert_grant(&self, signer: &Signer<'_>, grant: &GrantRecord) -> Result<(), Error> {
+        let signature = sign(signer.key, signer.certificate, grant_authority(grant))?;
 
         self.connection
             .execute(
@@ -1294,7 +1864,8 @@ impl OrganizationStore {
         &self,
         organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
     ) -> Result<Vec<(String, GrantRecord)>, Error> {
-        let certificates = self.certificates().await?;
+        let (certificates, revocations) = self.chain_rows().await?;
+        let chain = Chain::new(organization_verifying_key, &certificates, &revocations);
         let mut rows = self
             .connection
             .query(
@@ -1318,8 +1889,7 @@ impl OrganizationStore {
             let signature = blob(&row, 6)?;
 
             verified(
-                organization_verifying_key,
-                &certificates,
+                &chain,
                 "grant",
                 &format!("{}/{}", grant.member_id, grant.workspace_id),
                 &certificate_id,
@@ -1341,19 +1911,20 @@ impl OrganizationStore {
 
     // invitations
 
+    /// Write an invitation row, signed by `signer`. Refused, with nothing written, where the
+    /// signer's certificate does not cover it ([`OrganizationStore::refuse_uncovered`]).
     pub async fn write_invitation(
         &self,
         signer: &Signer<'_>,
         invitation: &InvitationRecord,
     ) -> Result<(), Error> {
+        self.refuse_uncovered(signer, invitation_authority(invitation))
+            .await?;
+
         let signature = sign(
             signer.key,
             signer.certificate,
-            Authority::Invitation(InvitationAuthority {
-                id: &invitation.id,
-                member_id: &invitation.member_id,
-                expires_at: invitation.expires_at,
-            }),
+            invitation_authority(invitation),
         )?;
 
         self.connection
@@ -1399,7 +1970,8 @@ impl OrganizationStore {
         &self,
         organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
     ) -> Result<Vec<(String, InvitationRecord)>, Error> {
-        let certificates = self.certificates().await?;
+        let (certificates, revocations) = self.chain_rows().await?;
+        let chain = Chain::new(organization_verifying_key, &certificates, &revocations);
         let mut rows = self
             .connection
             .query(
@@ -1419,8 +1991,7 @@ impl OrganizationStore {
             let signature = blob(&row, 7)?;
 
             verified(
-                organization_verifying_key,
-                &certificates,
+                &chain,
                 "invitation",
                 &id,
                 &certificate_id,
@@ -1456,7 +2027,7 @@ impl OrganizationStore {
     /// the time this runs, so the link that named it opens a vault the generated password no
     /// longer fits.
     ///
-    /// Unsigned on purpose: the machine that consumes it holds no administrator key, and a
+    /// Unsigned on purpose: the machine that consumes it holds no signing key yet, and a
     /// consumed invitation is spent whether or not the mark is trusted, because the member row it
     /// pointed at now has a password of the member's own.
     ///
@@ -1883,17 +2454,22 @@ impl OrganizationStore {
 
     /// Re-sign every row a certificate signed, under `signer`, and say how many rows moved.
     ///
-    /// **The one routine reset, removal and any future revocation share, so the three cannot
-    /// drift.** An administrator's certificate is retired two ways: a reset replaces it with a key
-    /// derived from a fresh vault secret (`invite::issue`), and a removal writes it back revoked
-    /// (`removal::remove_member`). Either way, `authority::verify` then refuses every row the old
-    /// certificate signed, because the row's signature no longer matches the key the certificate
-    /// carries (reset) or the certificate is revoked (removal), and `members`/`grants`/
-    /// `invitations`/`workspaces` refuse the whole read on the first such row. So before the
-    /// certificate is retired, the rows it signed are re-signed under the acting administrator, who
-    /// already holds authority over them: the resetting owner, or the removing owner or
-    /// administrator. After it, those rows name the actor's certificate and verify under it, and
-    /// retiring the old certificate bricks nothing.
+    /// **The one routine reset, removal, narrowing and the handover share, so they cannot drift.**
+    /// A certificate is retired by a revocation, or replaced by one naming a fresh key, and either
+    /// way every row it signed would be refused on read, and `members`/`roles`/`grants`/
+    /// `invitations`/`workspaces`/`mark` refuse the whole read on the first such row. So before the
+    /// certificate is retired, the rows it signed are re-signed under the actor. After it, those
+    /// rows name the actor's certificate and verify under it, and retiring the old one bricks
+    /// nothing.
+    ///
+    /// **Refused, naming what is needed, where the actor's certificate could not sign one of those
+    /// rows** (effort 838): re-signing a grant takes `grantWorkspace`, a member row a rank above the
+    /// member, and so on (`authority::needed_for`). The rows are read and every one is judged before
+    /// the first is written, so a refusal leaves nothing half moved. Deleting the row instead is
+    /// not offered: it would take something away from somebody who did nothing. **A member row
+    /// the certificate signed that it no longer covers refuses the act too**, by name, since
+    /// signing it again under the actor would carry its content forward as authority; the member
+    /// is removed first, which the refusal says (effort 838, the re-check of ticket 20).
     ///
     /// The rows are read through the verified readers, so a row that does not verify under the
     /// still-live old certificate refuses the whole operation rather than being re-signed blind;
@@ -1906,43 +2482,151 @@ impl OrganizationStore {
         certificate_id: &str,
         signer: &Signer<'_>,
     ) -> Result<usize, Error> {
-        if signer.certificate.id == certificate_id {
+        self.re_sign_rows_of_certificates_but(
+            organization_verifying_key,
+            &[certificate_id],
+            signer,
+            &[],
+        )
+        .await
+    }
+
+    /// [`OrganizationStore::re_sign_rows_of_certificate`] over the rows of every certificate
+    /// named, read once and moved together, leaving alone the member rows of the members named:
+    /// rows the caller is about to write afresh, as the handover writes the two whose roles swap,
+    /// and which the new signer may not be able to sign as they stand.
+    ///
+    /// **Several certificates in one pass, because every row is read under the key given**, and
+    /// the handover retires two under a key its first write already stops verifying: the
+    /// founder's root, and the certificate the new owner held before it (effort 838). Read one
+    /// after the other, the second read would meet the first one's rows signed under a root the
+    /// key being left never issued.
+    pub async fn re_sign_rows_of_certificates_but(
+        &self,
+        organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
+        certificate_ids: &[&str],
+        signer: &Signer<'_>,
+        rewritten: &[&str],
+    ) -> Result<usize, Error> {
+        if certificate_ids.contains(&signer.certificate.id.as_str()) {
             return Err(Error::Integrity {
                 message: "a certificate cannot re-sign its own rows onto itself".to_string(),
             });
         }
 
-        let mut re_signed = 0;
+        let of = |signed_by: &String| certificate_ids.contains(&signed_by.as_str());
+        let roles: Vec<RoleRecord> = self
+            .signed_roles(organization_verifying_key)
+            .await?
+            .into_iter()
+            .filter(|(signed_by, _)| of(signed_by))
+            .map(|(_, role)| role)
+            .collect();
+        let members: Vec<MemberRecord> = self
+            .signed_members(organization_verifying_key)
+            .await?
+            .into_iter()
+            .filter(|(signed_by, member)| of(signed_by) && !rewritten.contains(&member.id.as_str()))
+            .map(|(_, member)| member)
+            .collect();
+        let workspaces: Vec<WorkspaceRecord> = self
+            .signed_workspaces(organization_verifying_key)
+            .await?
+            .into_iter()
+            .filter(|(signed_by, _)| of(signed_by))
+            .map(|(_, workspace)| workspace)
+            .collect();
+        let grants: Vec<GrantRecord> = self
+            .signed_grants(organization_verifying_key)
+            .await?
+            .into_iter()
+            .filter(|(signed_by, _)| of(signed_by))
+            .map(|(_, grant)| grant)
+            .collect();
+        let invitations: Vec<InvitationRecord> = self
+            .signed_invitations(organization_verifying_key)
+            .await?
+            .into_iter()
+            .filter(|(signed_by, _)| of(signed_by))
+            .map(|(_, invitation)| invitation)
+            .collect();
+        let mark = self
+            .signed_mark(organization_verifying_key)
+            .await?
+            .filter(|(signed_by, _)| of(signed_by))
+            .map(|(_, mark)| mark);
 
-        for (signed_by, member) in self.signed_members(organization_verifying_key).await? {
-            if signed_by == certificate_id {
-                self.write_member(signer, &member).await?;
-                re_signed += 1;
+        // a member row its certificate no longer covers is not signed again under anybody: that
+        // would make the role somebody below the member named real under a signer who covers it
+        // (effort 838, the re-check of ticket 20). The member is removed first, which writes
+        // their row under the remover, and the act is refused by name until they have been.
+        if members.iter().any(|member| !member.covered) {
+            return Err(Error::refused(
+                RefusalReason::RoleUnsettled,
+                "a row this certificate signed was written for a member it could not write it \
+                 for. somebody ranked above that member removes them first, and makes them an \
+                 account again. nothing was changed",
+            ));
+        }
+
+        // every row judged before the first is written. The masks and the ranks are every role's
+        // as it stands, so a member row is judged by the role it names.
+        let all_roles = self.roles(organization_verifying_key).await?;
+        let (certificates, revocations) = self.chain_rows().await?;
+        let chain = Chain::new(organization_verifying_key, &certificates, &revocations)
+            .with_roles(standings(&all_roles));
+        let authorities = roles
+            .iter()
+            .map(role_authority)
+            .chain(members.iter().map(member_authority))
+            .chain(workspaces.iter().map(workspace_authority))
+            .chain(grants.iter().map(grant_authority))
+            .chain(invitations.iter().map(invitation_authority))
+            .chain(mark.iter().map(mark_authority));
+
+        for authority in authorities {
+            if !chain.covers(signer.certificate, authority) {
+                return Err(Error::refused(
+                    RefusalReason::RoleLacksAct,
+                    format!(
+                        "a row the retiring certificate signed needs {} to sign again, and yours \
+                         does not carry it. nothing was changed",
+                        needed_for(authority)
+                    ),
+                ));
             }
         }
 
-        for (signed_by, workspace) in self.signed_workspaces(organization_verifying_key).await? {
-            if signed_by == certificate_id {
-                self.write_workspace(signer, &workspace).await?;
-                re_signed += 1;
-            }
+        for role in &roles {
+            self.write_role(signer, role).await?;
         }
 
-        for (signed_by, grant) in self.signed_grants(organization_verifying_key).await? {
-            if signed_by == certificate_id {
-                self.write_grant(signer, &grant).await?;
-                re_signed += 1;
-            }
+        for member in &members {
+            self.write_member(signer, member).await?;
         }
 
-        for (signed_by, invitation) in self.signed_invitations(organization_verifying_key).await? {
-            if signed_by == certificate_id {
-                self.write_invitation(signer, &invitation).await?;
-                re_signed += 1;
-            }
+        for workspace in &workspaces {
+            self.write_workspace(signer, workspace).await?;
         }
 
-        Ok(re_signed)
+        for grant in &grants {
+            self.write_grant(signer, grant).await?;
+        }
+
+        for invitation in &invitations {
+            self.write_invitation(signer, invitation).await?;
+        }
+
+        if let Some(mark) = &mark {
+            self.write_mark(signer, mark).await?;
+        }
+
+        Ok(roles.len()
+            + members.len()
+            + workspaces.len()
+            + grants.len()
+            + invitations.len()
+            + usize::from(mark.is_some()))
     }
 
     // successions
@@ -2068,38 +2752,111 @@ impl OrganizationStore {
     }
 }
 
-/// One row's verdict, through the only verifier there is.
+/// What a member row puts under signature, from the record.
+fn member_authority(member: &MemberRecord) -> Authority<'_> {
+    Authority::Member(member_of(member))
+}
+
+/// The same, as the member read hands it to [`Chain::read_member`].
+fn member_of(member: &MemberRecord) -> MemberAuthority<'_> {
+    MemberAuthority {
+        id: &member.id,
+        public_key: &member.vault.public_key,
+        signing_public_key: &member.signing_public_key,
+        role_id: &member.role_id,
+        override_mask: member.override_mask,
+        removed_at: member.removed_at,
+        owner_seed_sealed: member.owner_seed_sealed.as_deref(),
+    }
+}
+
+/// What a workspace row puts under signature, from the record.
+fn workspace_authority(workspace: &WorkspaceRecord) -> Authority<'_> {
+    Authority::Workspace(WorkspaceAuthority {
+        database_name: &workspace.database_name,
+        database_hostname: &workspace.database_hostname,
+    })
+}
+
+/// What a grant row puts under signature, from the record.
+fn grant_authority(grant: &GrantRecord) -> Authority<'_> {
+    Authority::Grant(GrantAuthority {
+        member_id: &grant.member_id,
+        workspace_id: &grant.workspace_id,
+        sealed_credential: &grant.sealed_credential,
+        access_level: &grant.access_level,
+        credential_expires_at: grant.credential_expires_at.as_deref(),
+    })
+}
+
+/// What an invitation row puts under signature, from the record.
+fn invitation_authority(invitation: &InvitationRecord) -> Authority<'_> {
+    Authority::Invitation(InvitationAuthority {
+        id: &invitation.id,
+        member_id: &invitation.member_id,
+        expires_at: invitation.expires_at,
+    })
+}
+
+/// What the mark row puts under signature, from the record.
+fn mark_authority(mark: &MarkRecord) -> Authority<'_> {
+    Authority::Mark(MarkAuthority {
+        image_sealed: &mark.image_sealed,
+        media_type: &mark.media_type,
+        updated_by: &mark.updated_by,
+        updated_at: mark.updated_at,
+    })
+}
+
+/// What a role row puts under signature, from the record.
+fn role_authority(role: &RoleRecord) -> Authority<'_> {
+    Authority::Role(RoleAuthority {
+        id: &role.id,
+        kind: &role.kind,
+        name_sealed: &role.name_sealed,
+        mask: role.mask,
+        rank: role.rank,
+    })
+}
+
+/// Every role's `(mask, rank)` by id, as a [`Chain`] and [`covers`] are told them.
+fn standings(roles: &[RoleRecord]) -> HashMap<String, (i64, i64)> {
+    roles
+        .iter()
+        .map(|role| (role.id.clone(), (role.mask, role.rank)))
+        .collect()
+}
+
+/// A member's effective permissions: their role's mask exclusive-or'd with their override
+/// (requirement 6), the owner's every flag. `None` for a role nobody holds.
+fn effective_of(role_id: &str, override_mask: i64, masks: &[RoleRecord]) -> Option<i64> {
+    if role_id == permission::OWNER {
+        return Some(OWNER_ROLE.mask);
+    }
+
+    masks
+        .iter()
+        .find(|role| role.id == role_id)
+        .map(|role| permission::effective(role.mask, override_mask))
+}
+
+/// One row's verdict, through the only verifier there is ([`Chain::verify`]).
 ///
-/// A row naming a certificate that does not exist fails here as well: an unknown certificate is
+/// A row naming a certificate that does not exist fails there as well: an unknown certificate is
 /// an authority nobody issued, which is the same thing as a forged one from where a reader stands.
 fn verified(
-    organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
-    certificates: &[Certificate],
+    chain: &Chain<'_>,
     table: &str,
     id: &str,
     certificate_id: &str,
     authority: Authority<'_>,
     signature: &[u8],
 ) -> Result<(), Error> {
-    let certificate = certificates
-        .iter()
-        .find(|certificate| certificate.id == certificate_id)
-        .ok_or_else(|| Error::Integrity {
-            message: format!(
-                "the {table} row {id} names a certificate nobody issued ({certificate_id}), \
-                 and is refused"
-            ),
-        })?;
-
-    verify(
-        organization_verifying_key,
-        certificate,
-        authority,
-        signature,
-    )
-    .map_err(|error| Error::Integrity {
-        message: format!("the {table} row {id} is refused: {error}"),
-    })
+    chain
+        .verify(certificate_id, authority, signature)
+        .map_err(|error| Error::Integrity {
+            message: format!("the {table} row {id} is refused: {error}"),
+        })
 }
 
 fn text(row: &turso::Row, index: usize) -> Result<String, Error> {
@@ -2190,12 +2947,16 @@ mod tests {
     use std::path::PathBuf;
 
     use super::{
-        GrantRecord, MemberRecord, OrganizationRecord, OrganizationStore, Signer, TABLES,
-        WorkspaceRecord,
+        FORMAT_VERSION, GrantRecord, MarkRecord, MemberRecord, OrganizationRecord,
+        OrganizationStore, RoleRecord, Signer, TABLES, WorkspaceRecord,
     };
-    use crate::error::Error;
+    use crate::error::{Error, RefusalReason};
     use crate::organization::{
-        authority::{AdministratorKey, Certificate, OrganizationKey, issue_certificate},
+        authority::{
+            AdministratorKey, Certificate, Issue, OrganizationKey, issue_certificate,
+            issue_root_certificate, revoke,
+        },
+        permission::{Flag, MANAGER_ROLE, MEMBER_ROLE, mask_of},
         vault::{
             ContentKey, KdfParams, create_vault_with_secret, generate_content_key, open_content,
             seal_content, seal_to_public_key,
@@ -2222,8 +2983,8 @@ mod tests {
         directory
     }
 
-    /// An organization with one administrator, as ticket 09 will create one: an organization key,
-    /// an administrator key, and the certificate that joins them.
+    /// An organization with its owner, as the first run creates one: an organization key, the
+    /// owner's signing key, and the root that joins them.
     struct Chain {
         organization_key: OrganizationKey,
         administrator_key: AdministratorKey,
@@ -2235,7 +2996,7 @@ mod tests {
         fn new() -> Self {
             let organization_key = OrganizationKey::generate().expect("an organization key");
             let administrator_key = AdministratorKey::generate().expect("an administrator key");
-            let certificate = issue_certificate(
+            let certificate = issue_root_certificate(
                 &organization_key,
                 "cert-owner",
                 "member-owner",
@@ -2255,6 +3016,25 @@ mod tests {
             Signer {
                 key: &self.administrator_key,
                 certificate: &self.certificate,
+            }
+        }
+
+        /// The manager's and the member's role rows, as a first run writes them.
+        async fn write_roles(&self, store: &OrganizationStore) {
+            for built_in in [MANAGER_ROLE, MEMBER_ROLE] {
+                store
+                    .write_role(
+                        &self.signer(),
+                        &RoleRecord {
+                            id: built_in.id.to_string(),
+                            kind: built_in.id.to_string(),
+                            name_sealed: Vec::new(),
+                            mask: built_in.mask,
+                            rank: built_in.rank,
+                        },
+                    )
+                    .await
+                    .expect("a role");
             }
         }
 
@@ -2285,8 +3065,11 @@ mod tests {
                 vault,
                 signing_public_key,
                 sealed_content_key,
-                role: role.to_string(),
-                permissions: if role == "owner" { 127 } else { 0 },
+                role_id: role.to_string(),
+                override_mask: 0,
+                removed_at: None,
+                effective: 0,
+                covered: true,
                 must_change_password: role != "owner",
                 created_at: 1_757_000_000_000,
                 updated_at: 1_757_000_000_000,
@@ -2338,6 +3121,7 @@ mod tests {
             .write_certificate(&chain.certificate)
             .await
             .expect("the certificate");
+        chain.write_roles(store).await;
 
         let signer = chain.signer();
 
@@ -2379,7 +3163,8 @@ mod tests {
 
     #[tokio::test]
     async fn a_replica_lacking_a_table_the_schema_names_gains_it_and_says_so() {
-        // an organization made by a build that knew one table fewer: every statement but the last.
+        // an organization of this format made by a build that knew one table fewer: every
+        // statement but the last, and the format row the first run writes.
         let directory = scratch("schema-completes");
         let newest = super::TABLES[super::TABLES.len() - 1];
         let store = OrganizationStore::open(&directory.join("org-x.db"), None, || async {
@@ -2395,6 +3180,7 @@ mod tests {
                 .await
                 .expect("the older schema");
         }
+        store.write_format().await.expect("the format row");
         assert!(
             !store
                 .tables()
@@ -2424,6 +3210,139 @@ mod tests {
                 .await
                 .expect("the second completion"),
             "a complete schema was reported as completed again"
+        );
+    }
+
+    /// Every table in the schema but `format`, created as every build before effort 838 created
+    /// them: an organization of today's shape, before the format break.
+    async fn without_format(directory: &std::path::Path) -> OrganizationStore {
+        let store = OrganizationStore::open(&directory.join("org-old.db"), None, || async {
+            Ok::<String, turso::Error>(String::new())
+        })
+        .await
+        .expect("the store");
+
+        for (table, statement) in TABLES.iter().zip(super::SCHEMA.iter()) {
+            if *table != "format" {
+                store
+                    .connection
+                    .execute(statement, ())
+                    .await
+                    .expect("the schema before the format");
+            }
+        }
+
+        store
+    }
+
+    /// Effort 838, requirement 11: the format is read, and an organization of another format is
+    /// refused by name. No `format` table and a table with no row are both an earlier version's
+    /// organization; a number above this build's is a newer one's; this build's own is let through.
+    #[tokio::test]
+    async fn an_organization_of_another_format_is_refused_by_name() {
+        let directory = scratch("format");
+        let older = without_format(&directory).await;
+
+        assert_eq!(older.format().await.expect("the format"), None);
+        assert!(matches!(
+            older.refuse_another_format().await,
+            Err(Error::Refused {
+                reason: RefusalReason::OrganizationOlder,
+                ..
+            })
+        ));
+
+        let store = open(&scratch("format-current")).await;
+
+        // the table with no row in it: a format row somebody deleted.
+        assert_eq!(store.format().await.expect("the format"), None);
+        assert!(matches!(
+            store.refuse_another_format().await,
+            Err(Error::Refused {
+                reason: RefusalReason::OrganizationOlder,
+                ..
+            })
+        ));
+
+        store.write_format().await.expect("the format row");
+
+        assert_eq!(
+            store.format().await.expect("the format"),
+            Some(FORMAT_VERSION)
+        );
+        store
+            .refuse_another_format()
+            .await
+            .expect("this build's own format was refused");
+
+        store
+            .connection
+            .execute("UPDATE \"format\" SET \"version\" = 3", ())
+            .await
+            .expect("a newer format");
+
+        assert_eq!(store.format().await.expect("the format"), Some(3));
+        assert!(matches!(
+            store.refuse_another_format().await,
+            Err(Error::Refused {
+                reason: RefusalReason::OrganizationNewer,
+                ..
+            })
+        ));
+    }
+
+    /// Effort 838, requirement 11: the completion that runs after every pull writes nothing into an
+    /// organization of another format. Above all it does not create `format` in an older one,
+    /// whose missing table is the only thing that tells it apart, and it does not create the
+    /// tables this build names that an older one lacks.
+    #[tokio::test]
+    async fn an_organization_of_another_format_is_not_completed() {
+        let directory = scratch("format-not-completed");
+        let older = without_format(&directory).await;
+
+        older
+            .connection
+            .execute("DROP TABLE \"mark\"", ())
+            .await
+            .expect("a table the older organization lacks");
+
+        let before = older.tables().await.expect("the tables");
+
+        assert!(
+            !older.complete_schema().await.expect("the completion"),
+            "an older organization was completed"
+        );
+        assert_eq!(older.tables().await.expect("the tables"), before);
+        assert!(
+            !before
+                .iter()
+                .any(|table| table == "format" || table == "mark")
+        );
+
+        let newer = open(&scratch("format-newer")).await;
+
+        newer
+            .connection
+            .execute("INSERT INTO \"format\" VALUES ('format', 3)", ())
+            .await
+            .expect("a newer format");
+        newer
+            .connection
+            .execute("DROP TABLE \"mark\"", ())
+            .await
+            .expect("a table the newer organization dropped");
+
+        assert!(
+            !newer.complete_schema().await.expect("the completion"),
+            "a newer organization was completed"
+        );
+        assert!(
+            !newer
+                .tables()
+                .await
+                .expect("the tables")
+                .iter()
+                .any(|table| table == "mark")
         );
     }
 
@@ -2532,8 +3451,9 @@ mod tests {
                 "sealed_content_key",
                 "kdf_salt",
                 "kdf_params",
-                "role",
-                "permissions",
+                "role_id",
+                "override",
+                "removed_at",
                 "must_change_password",
                 "certificate_id",
                 "signature",
@@ -2798,9 +3718,9 @@ mod tests {
             .expect("an organization row");
 
         assert_eq!(members[0].id, "member-owner");
-        assert_eq!(members[0].role, "owner");
+        assert_eq!(members[0].role_id, "owner");
         assert!(!members[0].must_change_password);
-        assert_eq!(members[1].role, "member");
+        assert_eq!(members[1].role_id, "member");
         assert!(members[1].must_change_password);
         assert_eq!(members[1].vault.kdf_params, test_cost());
         assert_eq!(grants.len(), 2);
@@ -2812,13 +3732,13 @@ mod tests {
         assert_eq!(organization.verifying_key, key);
     }
 
-    /// Effort 828, requirement 22: **a row written before the column and a row written with it
+    /// Effort 828, requirement 22: **a row without the seal and a row carrying it
     /// both verify**, against the same unchanged key.
     ///
-    /// The nullable column is folded into the signed preimage only where it is present
-    /// (`authority::preimage`), so a row with no seal signs exactly the bytes it signed before
-    /// the column existed; `authority.rs` pins those bytes, and this is the same claim read
-    /// through the store, where a row also has to survive a write and a read.
+    /// The nullable column is a tagged field of the signed preimage (`authority::preimage`), so a
+    /// row with it and a row without it are two messages; `authority.rs` pins those bytes, and
+    /// this is the same claim read through the store, where a row also has to survive a write and
+    /// a read.
     ///
     /// **The seal is under signature and not beside it**, which is what the third read here
     /// shows: the column moved by hand on a row signed without it refuses the whole read, so
@@ -2835,8 +3755,12 @@ mod tests {
             .write_certificate(&chain.certificate)
             .await
             .expect("the certificate");
+        chain.write_roles(&store).await;
         store
-            .write_member(&chain.signer(), &chain.member("founder", "olivia", "owner"))
+            .write_member(
+                &chain.signer(),
+                &chain.member("founder", "olivia", "member"),
+            )
             .await
             .expect("the row written before the column");
         store
@@ -2844,7 +3768,7 @@ mod tests {
                 &chain.signer(),
                 &MemberRecord {
                     owner_seed_sealed: Some(sealed.clone()),
-                    ..chain.member("transferee", "ada", "owner")
+                    ..chain.member("transferee", "ada", "member")
                 },
             )
             .await
@@ -2890,9 +3814,9 @@ mod tests {
     /// requirement 22 holding against an ordinary rename.
     ///
     /// The interleaving this stands for: somebody ends a member's sessions, the row goes to 1
-    /// and is pushed; an administrator whose replica has not pulled since fixes a typo in that
+    /// and is pushed; a manager whose replica has not pulled since fixes a typo in that
     /// member's username, and `invite::rename_member` writes the row back whole from the record
-    /// it read, which still carries 0. `role::change_role` and `removal::retire_member` write
+    /// it read, which still carries 0. `role::apply` and `removal::retire_member` write
     /// the same shape, `..member.clone()` with two fields moved, so the three are one case.
     /// Without the guard the row lands back at 0 and every machine the sign-out locked out opens
     /// again on its remembered key.
@@ -3006,7 +3930,7 @@ mod tests {
         store
             .connection()
             .execute(
-                "UPDATE \"member\" SET \"role\" = 'owner', \"permissions\" = 127 \
+                "UPDATE \"member\" SET \"role_id\" = 'manager', \"override\" = 0 \
                  WHERE \"id\" = 'member-staff'",
                 (),
             )
@@ -3045,7 +3969,7 @@ mod tests {
             .expect("the owner's row would not read")
             .expect("the owner is not a member");
 
-        assert_eq!(owner.role, "owner");
+        assert_eq!(owner.role_id, "owner");
         assert!(
             store
                 .member(&chain.verifying_key(), "member-staff")
@@ -3070,9 +3994,17 @@ mod tests {
 
         populated(&store, &chain).await;
 
-        // revocation is a row: the same certificate, written back with `revoked_at` set.
+        // revocation is a row: signed, here by the root revoking itself.
         store
-            .write_certificate(&chain.certificate.revoked("1757100000000"))
+            .write_revocation(
+                &revoke(
+                    &chain.administrator_key,
+                    &chain.certificate,
+                    &chain.certificate,
+                    "1757100000000",
+                )
+                .expect("the revocation"),
+            )
             .await
             .expect("the revocation");
 
@@ -3098,7 +4030,10 @@ mod tests {
             .await
             .expect_err("a workspace under an unknown certificate was read");
 
-        assert!(refusal.to_string().contains("nobody issued"), "{refusal}");
+        assert!(
+            refusal.to_string().contains("issued by nobody"),
+            "{refusal}"
+        );
         assert!(refusal.to_string().contains("north"), "{refusal}");
     }
 
@@ -3119,15 +4054,19 @@ mod tests {
             .await
             .expect_err("rows signed under another organization key were read");
 
-        assert!(refusal.to_string().contains("member-owner"), "{refusal}");
+        // the role rows are read first, because a member row is judged by its role's rank.
+        assert!(
+            refusal.to_string().contains("the role row manager"),
+            "{refusal}"
+        );
     }
 
     /// **The re-signing routine, and what it buys: a certificate that signed rows can be retired
-    /// without bricking them.** An administrator's certificate signs one of every kind of row.
+    /// without bricking them.** A manager's certificate signs one of every kind of row.
     /// While it stands every read verifies; revoked, every read that finds one of its rows is
     /// refused (F3). Re-signed under the owner first, the same revocation refuses nothing, and a
     /// fresh row still signed under the retired certificate is refused, which is what a removed
-    /// administrator's forgery is.
+    /// manager's forgery is.
     #[tokio::test]
     async fn re_signing_a_certificates_rows_lets_it_be_retired_without_bricking_them() {
         use super::InvitationRecord;
@@ -3150,6 +4089,7 @@ mod tests {
             .write_certificate(&chain.certificate)
             .await
             .expect("the owner certificate");
+        chain.write_roles(&store).await;
         store
             .write_member(
                 &chain.signer(),
@@ -3158,21 +4098,34 @@ mod tests {
             .await
             .expect("the owner member");
 
-        // an administrator certified under the same organization key, who signs one of every kind
-        // of row: a member, a workspace, a grant and an invitation.
+        // a manager certified by the owner's root, who signs one of every kind of row: a member,
+        // a workspace, a grant and an invitation.
         let admin_key = AdministratorKey::generate().expect("an administrator key");
         let admin_certificate = issue_certificate(
-            &chain.organization_key,
-            "cert-admin",
-            "member-admin",
-            &admin_key.verifying_key(),
-            "1757000000000",
-        );
+            &chain.administrator_key,
+            &chain.certificate,
+            Issue {
+                id: "cert-admin",
+                member_id: "member-admin",
+                signing_public_key: &admin_key.verifying_key(),
+                ceiling: MANAGER_ROLE.mask,
+                rank: MANAGER_ROLE.rank,
+                issued_at: "1757000000000",
+            },
+        )
+        .expect("the manager's certificate");
+        let revocation = revoke(
+            &chain.administrator_key,
+            &chain.certificate,
+            &admin_certificate,
+            "1757100000000",
+        )
+        .expect("the revocation");
 
         store
             .write_certificate(&admin_certificate)
             .await
-            .expect("the administrator certificate");
+            .expect("the manager's certificate");
 
         let admin_signer = Signer {
             key: &admin_key,
@@ -3230,7 +4183,7 @@ mod tests {
 
         // F3: revoked without re-signing first, every read that finds one of its rows is refused.
         store
-            .write_certificate(&admin_certificate.revoked("1757100000000"))
+            .write_revocation(&revocation)
             .await
             .expect("the revocation");
 
@@ -3245,7 +4198,8 @@ mod tests {
         // restore the certificate, re-sign its rows under the owner, then revoke: nothing bricks,
         // and one of every kind of row moved.
         store
-            .write_certificate(&admin_certificate)
+            .connection()
+            .execute("DELETE FROM \"revocation\"", ())
             .await
             .expect("un-revoke");
 
@@ -3257,7 +4211,7 @@ mod tests {
         assert_eq!(moved, 4, "one of every kind of row was re-signed");
 
         store
-            .write_certificate(&admin_certificate.revoked("1757100000000"))
+            .write_revocation(&revocation)
             .await
             .expect("the revocation, again");
 
@@ -3286,7 +4240,7 @@ mod tests {
             .write_member(
                 &Signer {
                     key: &admin_key,
-                    certificate: &admin_certificate.revoked("1757100000000"),
+                    certificate: &admin_certificate,
                 },
                 &chain.member("member-y", "member-y", "member"),
             )
@@ -3307,6 +4261,504 @@ mod tests {
                 .await
                 .is_err(),
             "a certificate re-signed its own rows onto itself"
+        );
+    }
+
+    /// A certificate the owner's root issues, and the key it names: a manager's, or narrower.
+    fn delegated(
+        chain: &Chain,
+        id: &str,
+        ceiling: i64,
+        rank: i64,
+    ) -> (AdministratorKey, Certificate) {
+        let key = AdministratorKey::generate().expect("a key");
+        let certificate = issue_certificate(
+            &chain.administrator_key,
+            &chain.certificate,
+            Issue {
+                id,
+                member_id: &format!("member-{id}"),
+                signing_public_key: &key.verifying_key(),
+                ceiling,
+                rank,
+                issued_at: "1757000000000",
+            },
+        )
+        .expect("the certificate");
+
+        (key, certificate)
+    }
+
+    /// Effort 838, ticket 04: **the mark and the role rows move with everything else.** A manager
+    /// sets the mark and makes a role; revoked without re-signing, both reads refuse; re-signed
+    /// under the owner first, the mark is still the organization's and the role still reads.
+    #[tokio::test]
+    async fn retiring_the_certificate_that_set_the_mark_and_made_a_role_leaves_both_readable() {
+        let directory = scratch("resign-mark");
+        let store = open(&directory).await;
+        let chain = Chain::new();
+        let key = chain.verifying_key();
+
+        populated(&store, &chain).await;
+
+        let (manager_key, manager) =
+            delegated(&chain, "manager", MANAGER_ROLE.mask, MANAGER_ROLE.rank);
+        let signer = Signer {
+            key: &manager_key,
+            certificate: &manager,
+        };
+
+        store
+            .write_certificate(&manager)
+            .await
+            .expect("the manager");
+        store
+            .write_mark(
+                &signer,
+                &MarkRecord {
+                    image_sealed: b"a sealed image".to_vec(),
+                    media_type: "image/png".to_string(),
+                    updated_by: "member-manager".to_string(),
+                    updated_at: 1_757_000_000_000,
+                },
+            )
+            .await
+            .expect("the mark");
+        store
+            .write_role(
+                &signer,
+                &RoleRecord {
+                    id: "role-leasing".to_string(),
+                    kind: "custom".to_string(),
+                    name_sealed: chain.sealed("role.name_sealed", "Leasing"),
+                    mask: MEMBER_ROLE.mask,
+                    rank: 500_000,
+                },
+            )
+            .await
+            .expect("the role");
+
+        let revocation = revoke(
+            &chain.administrator_key,
+            &chain.certificate,
+            &manager,
+            "1757100000000",
+        )
+        .expect("the revocation");
+
+        store
+            .write_revocation(&revocation)
+            .await
+            .expect("the revocation");
+
+        assert!(
+            store.mark(&key).await.is_err(),
+            "the mark read past a revoked signer"
+        );
+        assert!(
+            store.roles(&key).await.is_err(),
+            "a role read past a revoked signer"
+        );
+
+        store
+            .connection()
+            .execute("DELETE FROM \"revocation\"", ())
+            .await
+            .expect("un-revoke");
+
+        let moved = store
+            .re_sign_rows_of_certificate(&key, "manager", &chain.signer())
+            .await
+            .expect("the re-sign");
+
+        assert_eq!(moved, 2, "the mark and the role were not both re-signed");
+
+        store
+            .write_revocation(&revocation)
+            .await
+            .expect("the revocation, again");
+
+        assert_eq!(
+            store
+                .mark(&key)
+                .await
+                .expect("the mark after")
+                .map(|mark| mark.image_sealed),
+            Some(b"a sealed image".to_vec())
+        );
+        assert!(
+            store
+                .roles(&key)
+                .await
+                .expect("the roles after")
+                .iter()
+                .any(|role| role.id == "role-leasing")
+        );
+    }
+
+    /// Effort 838, ticket 04: **a re-sign the signer could not make is refused by name, and moves
+    /// nothing.** A certificate that signed a grant is to be retired by one that does not carry
+    /// `grantWorkspace`; the refusal names it, and the grant is still the old certificate's.
+    #[tokio::test]
+    async fn a_re_sign_the_signer_could_not_make_is_refused_by_name_and_moves_nothing() {
+        let directory = scratch("resign-refused");
+        let store = open(&directory).await;
+        let chain = Chain::new();
+        let key = chain.verifying_key();
+
+        populated(&store, &chain).await;
+
+        let (granter_key, granter) = delegated(
+            &chain,
+            "granter",
+            mask_of(&[Flag::GrantWorkspace, Flag::InviteMember]),
+            1,
+        );
+        let (narrow_key, narrow) = delegated(
+            &chain,
+            "narrow",
+            mask_of(&[Flag::AssignRole, Flag::RemoveMember]),
+            10,
+        );
+
+        for certificate in [&granter, &narrow] {
+            store
+                .write_certificate(certificate)
+                .await
+                .expect("a certificate");
+        }
+
+        store
+            .write_grant(
+                &Signer {
+                    key: &granter_key,
+                    certificate: &granter,
+                },
+                &GrantRecord {
+                    member_id: "member-staff".to_string(),
+                    workspace_id: "north".to_string(),
+                    sealed_credential: b"a sealed workspace credential".to_vec(),
+                    access_level: "full-access".to_string(),
+                    credential_expires_at: None,
+                },
+            )
+            .await
+            .expect("the grant");
+
+        let before = store.signed_grants(&key).await.expect("the grants");
+        let refusal = store
+            .re_sign_rows_of_certificate(
+                &key,
+                "granter",
+                &Signer {
+                    key: &narrow_key,
+                    certificate: &narrow,
+                },
+            )
+            .await
+            .expect_err("a signer without grantWorkspace re-signed a grant");
+
+        assert!(refusal.to_string().contains("grantWorkspace"), "{refusal}");
+        assert_eq!(
+            store.signed_grants(&key).await.expect("the grants after"),
+            before,
+            "a refused re-sign moved something"
+        );
+    }
+
+    /// Every row of every table, cell by cell, so a write refused part way is caught wherever it
+    /// wrote.
+    async fn every_row(store: &OrganizationStore) -> Vec<String> {
+        let mut rows_out = Vec::new();
+
+        for table in TABLES {
+            let mut rows = store
+                .connection()
+                .query(&format!("SELECT * FROM \"{table}\" ORDER BY 1, 2"), ())
+                .await
+                .expect("the table");
+
+            while let Some(row) = rows.next().await.expect("a row") {
+                let cells: Vec<String> = (0..row.column_count())
+                    .map(|index| format!("{:?}", row.get_value(index).expect("a cell")))
+                    .collect();
+
+                rows_out.push(format!("{table}: {}", cells.join(", ")));
+            }
+        }
+
+        rows_out
+    }
+
+    /// The review of effort 838, round one: **the store refuses to write a row its signer's
+    /// certificate does not cover, naming what it needs, and writes nothing.** One narrow
+    /// certificate, holding `assignRole` and the member role's flags at a rank above the member,
+    /// tries a row of every kind it may not sign: a grant, a role, a workspace, an invitation and
+    /// the mark for want of their flags, a member row switching a flag it lacks, and its own
+    /// member's row. Each is refused with `authority::needed_for`'s words and not a cell moves; a
+    /// member row inside the certificate, about somebody else, is written.
+    #[tokio::test]
+    async fn a_row_its_signers_certificate_does_not_cover_is_refused_by_name_and_not_written() {
+        let directory = scratch("uncovered-write");
+        let store = open(&directory).await;
+        let chain = Chain::new();
+
+        populated(&store, &chain).await;
+
+        let (narrow_key, narrow) = delegated(
+            &chain,
+            "narrow",
+            MEMBER_ROLE.mask | mask_of(&[Flag::AssignRole]),
+            10,
+        );
+
+        store
+            .write_certificate(&narrow)
+            .await
+            .expect("a certificate");
+
+        let signer = Signer {
+            key: &narrow_key,
+            certificate: &narrow,
+        };
+        let widened = MemberRecord {
+            override_mask: mask_of(&[Flag::DeleteContract]),
+            ..chain.member("member-new", "nadia.staff", "member")
+        };
+        let own = chain.member("member-narrow", "nick.staff", "member");
+        let before = every_row(&store).await;
+        let attempts: [(&str, Result<(), Error>); 7] = [
+            (
+                "grantWorkspace",
+                store
+                    .write_grant(
+                        &signer,
+                        &GrantRecord {
+                            member_id: "member-staff".to_string(),
+                            workspace_id: "north".to_string(),
+                            sealed_credential: b"another credential".to_vec(),
+                            access_level: "full-access".to_string(),
+                            credential_expires_at: None,
+                        },
+                    )
+                    .await,
+            ),
+            (
+                "manageRoles, a rank above the role, and every flag the role carries",
+                store
+                    .write_role(
+                        &signer,
+                        &RoleRecord {
+                            id: "role-clerk".to_string(),
+                            kind: "custom".to_string(),
+                            name_sealed: Vec::new(),
+                            mask: MEMBER_ROLE.mask,
+                            rank: 5,
+                        },
+                    )
+                    .await,
+            ),
+            (
+                "renameWorkspace or grantWorkspace",
+                store
+                    .write_workspace(&signer, &chain.workspace("east", "East Properties"))
+                    .await,
+            ),
+            (
+                "inviteMember or resetPassword",
+                store
+                    .write_invitation(
+                        &signer,
+                        &super::InvitationRecord {
+                            id: "invitation-new".to_string(),
+                            member_id: "member-staff".to_string(),
+                            expires_at: 1_757_600_000_000,
+                            consumed_at: None,
+                            sealed_secret: Vec::new(),
+                            issued_by: "member-narrow".to_string(),
+                            created_at: 1_757_000_000_000,
+                        },
+                    )
+                    .await,
+            ),
+            (
+                "manageMark",
+                store
+                    .write_mark(
+                        &signer,
+                        &MarkRecord {
+                            image_sealed: b"an image".to_vec(),
+                            media_type: "image/png".to_string(),
+                            updated_by: "member-narrow".to_string(),
+                            updated_at: 1_757_000_000_000,
+                        },
+                    )
+                    .await,
+            ),
+            (
+                "every flag their override switches",
+                store.write_member(&signer, &widened).await,
+            ),
+            (
+                "not to be the member's own",
+                store.write_member(&signer, &own).await,
+            ),
+        ];
+
+        for (needed, outcome) in attempts {
+            let refusal = outcome.expect_err(needed);
+
+            assert!(
+                matches!(
+                    &refusal,
+                    Error::Refused {
+                        reason: RefusalReason::RoleLacksAct,
+                        ..
+                    }
+                ),
+                "{needed}: {refusal:?}"
+            );
+            assert!(refusal.to_string().contains(needed), "{needed}: {refusal}");
+        }
+
+        assert_eq!(every_row(&store).await, before, "a refused write wrote");
+
+        // inside the certificate, about somebody else, the row is written and reads back.
+        store
+            .write_member(
+                &signer,
+                &chain.member("member-new", "nadia.staff", "member"),
+            )
+            .await
+            .expect("a member row inside the certificate");
+        assert!(
+            store
+                .members(&chain.verifying_key())
+                .await
+                .expect("the directory reads")
+                .iter()
+                .any(|member| member.id == "member-new")
+        );
+    }
+
+    /// Effort 838, ticket 04: **what a re-issue writes lands whole or not at all.** A certificate
+    /// and a revocation written inside a transaction that is rolled back are gone; committed, they
+    /// stay.
+    #[tokio::test]
+    async fn a_transaction_rolled_back_leaves_nothing_it_wrote_and_one_committed_stays() {
+        let directory = scratch("transaction");
+        let store = open(&directory).await;
+        let chain = Chain::new();
+
+        populated(&store, &chain).await;
+
+        let before = store.chain_rows().await.expect("the chain");
+        let (_, manager) = delegated(&chain, "manager", MANAGER_ROLE.mask, MANAGER_ROLE.rank);
+        let revocation = revoke(
+            &chain.administrator_key,
+            &chain.certificate,
+            &manager,
+            "1757100000000",
+        )
+        .expect("the revocation");
+
+        store.begin().await.expect("begin");
+        store
+            .write_certificate(&manager)
+            .await
+            .expect("the certificate");
+        store
+            .write_revocation(&revocation)
+            .await
+            .expect("the revocation");
+        store.rollback().await.expect("rollback");
+
+        assert_eq!(store.chain_rows().await.expect("the chain"), before);
+
+        store.begin().await.expect("begin");
+        store
+            .write_certificate(&manager)
+            .await
+            .expect("the certificate");
+        store
+            .write_revocation(&revocation)
+            .await
+            .expect("the revocation");
+        store.commit().await.expect("commit");
+
+        let (certificates, revocations) = store.chain_rows().await.expect("the chain");
+
+        assert!(certificates.contains(&manager));
+        assert_eq!(revocations, vec![revocation]);
+    }
+
+    /// Effort 838, ticket 04: **a member row whose signer does not outrank the role it names
+    /// grants nothing.** A manager writes a row making somebody a manager, around every command.
+    /// The directory still reads and the row grants nothing: a reader cannot tell it from a row a
+    /// role's rank moved under on another machine, which is genuine, and a row whose only failure
+    /// is its role's standing is read that way rather than refusing everybody the directory
+    /// (review round two). Saved by the root, which covers it, it grants its role's mask.
+    /// *Refused on read, and the directory with it, until then.*
+    #[tokio::test]
+    async fn a_member_row_signed_by_one_not_outranking_its_role_grants_nothing_until_saved() {
+        let directory = scratch("outranked");
+        let store = open(&directory).await;
+        let chain = Chain::new();
+        let key = chain.verifying_key();
+
+        populated(&store, &chain).await;
+
+        let (manager_key, manager) =
+            delegated(&chain, "manager", MANAGER_ROLE.mask, MANAGER_ROLE.rank);
+
+        store
+            .write_certificate(&manager)
+            .await
+            .expect("the manager");
+
+        let staff = store
+            .member(&key, "member-staff")
+            .await
+            .expect("the row")
+            .expect("member-staff");
+
+        store
+            .write_member_around_the_check(
+                &Signer {
+                    key: &manager_key,
+                    certificate: &manager,
+                },
+                &MemberRecord {
+                    role_id: MANAGER_ROLE.id.to_string(),
+                    ..staff.clone()
+                },
+            )
+            .await
+            .expect("written around the store, which is not what refuses");
+
+        let read = store
+            .member(&key, "member-staff")
+            .await
+            .expect("the row reads")
+            .expect("member-staff");
+
+        assert_eq!(read.role_id, MANAGER_ROLE.id);
+        assert_eq!(read.effective, 0, "a manager made somebody a manager");
+        assert_eq!(store.members(&key).await.expect("the directory").len(), 2);
+
+        store
+            .write_member(&chain.signer(), &read)
+            .await
+            .expect("the root saves the row");
+
+        assert_eq!(
+            store
+                .member(&key, "member-staff")
+                .await
+                .expect("the row reads")
+                .expect("member-staff")
+                .effective,
+            MANAGER_ROLE.mask
         );
     }
 
@@ -3382,7 +4834,7 @@ mod tests {
 
         assert_eq!(recent.seen_at, now - 6 * day);
         assert_eq!(
-            its_member.as_ref().map(|member| member.role.as_str()),
+            its_member.as_ref().map(|member| member.role_id.as_str()),
             Some("owner"),
             "the member row beside a machine is not the one it names"
         );
