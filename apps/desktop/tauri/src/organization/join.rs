@@ -248,7 +248,7 @@ where
     // than a wrong password would.
     let secret =
         open_vault(&vault_password, &member.vault).map_err(|_| refused_by_name(&held.name))?;
-    let content_key = content_key_of(member, &secret)?;
+    let content_key = content_key_of(&member.sealed_content_key, &secret)?;
 
     // the rest of a sign-in: every grant the vault holds, the organization's into the slot the
     // replica pushes under from here on, over the link's credential that is in it now.

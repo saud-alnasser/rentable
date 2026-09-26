@@ -1078,7 +1078,7 @@ async fn the_owners_key(
         let Ok(secret) = open_vault(password, &member.vault) else {
             continue;
         };
-        let content_key = content_key_of(member, &secret)?;
+        let content_key = content_key_of(&member.sealed_content_key, &secret)?;
         let carried = opened_text(
             &content_key,
             "member.username_sealed",

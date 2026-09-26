@@ -281,6 +281,32 @@ pub const WRITE_FLAGS: [Flag; 15] = [
     Flag::DeletePayment,
 ];
 
+/// Viewing, creating, editing and deleting every record kind: the five record families, and what
+/// the upgrade of an older organization gives every member it carries, since that build gated no
+/// record act (`upgrade.rs`).
+pub const RECORD_FLAGS: [Flag; 20] = [
+    Flag::ViewComplex,
+    Flag::CreateComplex,
+    Flag::EditComplex,
+    Flag::DeleteComplex,
+    Flag::ViewUnit,
+    Flag::CreateUnit,
+    Flag::EditUnit,
+    Flag::DeleteUnit,
+    Flag::ViewTenant,
+    Flag::CreateTenant,
+    Flag::EditTenant,
+    Flag::DeleteTenant,
+    Flag::ViewContract,
+    Flag::CreateContract,
+    Flag::EditContract,
+    Flag::DeleteContract,
+    Flag::ViewPayment,
+    Flag::CreatePayment,
+    Flag::EditPayment,
+    Flag::DeletePayment,
+];
+
 /// The owner's role, by id and by kind: the one role that is a constant rather than a row.
 pub const OWNER: &str = "owner";
 /// The manager's role, by id and by kind.
@@ -454,8 +480,8 @@ pub fn first_owner_only(mask: i64) -> Option<&'static str> {
 mod tests {
     use super::{
         BUILT_IN, BuiltIn, Family, Flag, MANAGER, MANAGER_ROLE, MEMBER_ADMINISTRATION, MEMBER_ROLE,
-        OWNER, OWNER_ONLY, OWNER_ROLE, WRITE_FLAGS, effective, effective_in, first_not_held,
-        first_owner_only, mask_of, permits, require,
+        OWNER, OWNER_ONLY, OWNER_ROLE, RECORD_FLAGS, WRITE_FLAGS, effective, effective_in,
+        first_not_held, first_owner_only, mask_of, permits, require,
     };
     use crate::sync::turso::platform::AccessLevel;
 
@@ -575,6 +601,24 @@ mod tests {
             )),
             "the package and this crate disagree about the write flags"
         );
+    }
+
+    /// The record flags are the five record families, every flag of each and nothing else. The
+    /// package declares no such set, so this is held to the families it does declare.
+    #[test]
+    fn the_record_flags_are_the_five_record_families() {
+        let families: Vec<Flag> = [
+            Family::Complex,
+            Family::Unit,
+            Family::Tenant,
+            Family::Contract,
+            Family::Payment,
+        ]
+        .into_iter()
+        .flat_map(Family::flags)
+        .collect();
+
+        assert_eq!(names(&RECORD_FLAGS), names(&families));
     }
 
     /// Each built-in role's id, rank and default mask, as the package writes them.

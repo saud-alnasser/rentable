@@ -463,7 +463,7 @@ pub async fn sign_in(
         return Err(removed());
     }
 
-    let content_key = content_key_of(member, &secret)?;
+    let content_key = content_key_of(&member.sealed_content_key, &secret)?;
 
     open_session(
         store,
@@ -616,7 +616,7 @@ pub async fn sign_in_by_username(
         let Ok((secret, member_key)) = open_vault_with_key(password, &member.vault) else {
             continue;
         };
-        let content_key = content_key_of(member, &secret)?;
+        let content_key = content_key_of(&member.sealed_content_key, &secret)?;
         let carried = opened(
             &content_key,
             "member.username_sealed",
@@ -829,7 +829,7 @@ async fn resumed(
         return Err(removed());
     }
 
-    let content_key = content_key_of(member, &secret)?;
+    let content_key = content_key_of(&member.sealed_content_key, &secret)?;
     let session = open_session(
         store,
         held,
@@ -1355,13 +1355,14 @@ pub fn verifying_key_of(joined: &HeldOrganization) -> Result<[u8; VERIFYING_KEY_
     })
 }
 
-/// The organization content key, unsealed from `member`'s row with the secret their vault
-/// yielded: what makes any name legible.
+/// The organization content key, unsealed from the `sealed_content_key` a member's row carries
+/// with the secret their vault yielded: what makes any name legible. The row is either format's,
+/// so the upgrade of an older organization opens it the same way (`upgrade.rs`).
 pub(crate) fn content_key_of(
-    member: &MemberRecord,
+    sealed_content_key: &[u8],
     secret: &MemberSecretKey,
 ) -> Result<ContentKey, Error> {
-    let bytes = unseal_with_secret_key(secret, &member.sealed_content_key)?;
+    let bytes = unseal_with_secret_key(secret, sealed_content_key)?;
 
     Ok(ContentKey::from_bytes(
         <[u8; CONTENT_KEY_BYTES]>::try_from(bytes.as_slice()).map_err(|_| Error::Integrity {
@@ -1371,7 +1372,7 @@ pub(crate) fn content_key_of(
 }
 
 /// A sealed column as text, or empty where it was sealed empty.
-fn opened(key: &ContentKey, column: &str, sealed: &[u8]) -> Result<String, Error> {
+pub(crate) fn opened(key: &ContentKey, column: &str, sealed: &[u8]) -> Result<String, Error> {
     let bytes = open_content(key, column, sealed)?;
 
     String::from_utf8(bytes).map_err(|_| Error::Integrity {
@@ -2105,7 +2106,8 @@ mod tests {
             .find(|member| member.id == id)
             .expect("the row just written");
         let secret = open_vault(password, &member.vault).expect("their password did not open");
-        let content_key = super::content_key_of(member, &secret).expect("the content key");
+        let content_key =
+            super::content_key_of(&member.sealed_content_key, &secret).expect("the content key");
 
         super::open_session(
             store,

@@ -324,10 +324,13 @@ pub struct FormatOneMemberRow {
     pub signature: Vec<u8>,
 }
 
-/// A signed row of a format 1 organization whose shape this format kept, with the certificate
-/// and the signature format 1 put on it.
+/// A signed row as it lies, verified by nobody yet: the record, the id of the certificate that
+/// signed it, and the signature. The one reader of each table that has a record yields these
+/// (`workspace_rows`, `grant_rows`, `invitation_rows`, `mark_row`), and both the verified reads of
+/// this format and the format 1 directory the upgrade judges are built on them, so each table's
+/// column list and row mapping are written once.
 #[derive(Clone, Debug)]
-pub struct FormatOneSigned<T> {
+pub struct SignedRow<T> {
     pub record: T,
     pub certificate_id: String,
     pub signature: Vec<u8>,
@@ -340,10 +343,10 @@ pub struct FormatOneDirectory {
     /// format 1's certificates, while the table stands: empty once an upgrade has dropped it.
     pub certificates: Vec<FormatOneCertificate>,
     pub members: Vec<FormatOneMemberRow>,
-    pub workspaces: Vec<FormatOneSigned<WorkspaceRecord>>,
-    pub grants: Vec<FormatOneSigned<GrantRecord>>,
-    pub invitations: Vec<FormatOneSigned<InvitationRecord>>,
-    pub mark: Option<FormatOneSigned<MarkRecord>>,
+    pub workspaces: Vec<SignedRow<WorkspaceRecord>>,
+    pub grants: Vec<SignedRow<GrantRecord>>,
+    pub invitations: Vec<SignedRow<InvitationRecord>>,
+    pub mark: Option<SignedRow<MarkRecord>>,
 }
 
 /// The organization's mark as it is stored: the image sealed, what kind of image it is, and who
@@ -852,9 +855,10 @@ impl OrganizationStore {
     ///
     /// **Two refusals, because the person does two different things.** An organization with no
     /// format, or an earlier one, was made by an earlier version of the application, and its
-    /// owner's machine upgrades it the first time they sign in on this one, online (tickets 22
-    /// and 23); anybody else meeting it first waits for that, and so does everybody meeting an
-    /// upgrade cut short, which the owner's next sign-in finishes. Its owner meets this only where
+    /// owner's machine upgrades it at their first sign-in, resume or connect on this one, online
+    /// (tickets 22 and 23); anybody else meeting it first waits for that, and so does everybody
+    /// meeting an upgrade cut short, which the owner's next sign-in, resume or connect finishes.
+    /// Its owner meets this only where
     /// the upgrade did not run. One with a later format was made by a newer version, and this
     /// application is updated.
     ///
@@ -940,10 +944,32 @@ impl OrganizationStore {
     ) -> Result<Option<(String, MarkRecord)>, Error> {
         let (certificates, revocations) = self.chain_rows().await?;
         let chain = Chain::new(organization_verifying_key, &certificates, &revocations);
+        let Some(row) = self.mark_row().await? else {
+            return Ok(None);
+        };
+
+        verified(
+            &chain,
+            "mark",
+            MARK_ID,
+            &row.certificate_id,
+            mark_authority(&row.record),
+            &row.signature,
+        )?;
+
+        Ok(Some((row.certificate_id, row.record)))
+    }
+
+    /// The mark row as it lies, verified by nobody, or nothing where none is set: what
+    /// [`OrganizationStore::signed_mark`] verifies and the format 1 directory carries to the
+    /// upgrade's judge.
+    async fn mark_row(&self) -> Result<Option<SignedRow<MarkRecord>>, Error> {
         let mut rows = self
             .connection
             .query(
-                "SELECT \"image_sealed\", \"media_type\", \"updated_by\", \"updated_at\",                         \"certificate_id\", \"signature\"                  FROM \"mark\" WHERE \"id\" = ?",
+                "SELECT \"image_sealed\", \"media_type\", \"updated_by\", \"updated_at\", \
+                        \"certificate_id\", \"signature\" \
+                 FROM \"mark\" WHERE \"id\" = ?",
                 vec![turso::Value::Text(MARK_ID.to_string())],
             )
             .await?;
@@ -952,24 +978,16 @@ impl OrganizationStore {
             return Ok(None);
         };
 
-        let mark = MarkRecord {
-            image_sealed: blob(&row, 0)?,
-            media_type: text(&row, 1)?,
-            updated_by: text(&row, 2)?,
-            updated_at: integer(&row, 3)?,
-        };
-        let certificate_id = text(&row, 4)?;
-
-        verified(
-            &chain,
-            "mark",
-            MARK_ID,
-            &certificate_id,
-            mark_authority(&mark),
-            &blob(&row, 5)?,
-        )?;
-
-        Ok(Some((certificate_id, mark)))
+        Ok(Some(SignedRow {
+            record: MarkRecord {
+                image_sealed: blob(&row, 0)?,
+                media_type: text(&row, 1)?,
+                updated_by: text(&row, 2)?,
+                updated_at: integer(&row, 3)?,
+            },
+            certificate_id: text(&row, 4)?,
+            signature: blob(&row, 5)?,
+        }))
     }
 
     /// Set the mark, signed by whoever set it, replacing whatever was there. Refused, with nothing
@@ -1854,6 +1872,29 @@ impl OrganizationStore {
     ) -> Result<Vec<(String, WorkspaceRecord)>, Error> {
         let (certificates, revocations) = self.chain_rows().await?;
         let chain = Chain::new(organization_verifying_key, &certificates, &revocations);
+
+        self.workspace_rows()
+            .await?
+            .into_iter()
+            .map(|row| {
+                verified(
+                    &chain,
+                    "workspace",
+                    &row.record.id,
+                    &row.certificate_id,
+                    workspace_authority(&row.record),
+                    &row.signature,
+                )?;
+
+                Ok((row.certificate_id, row.record))
+            })
+            .collect()
+    }
+
+    /// Every workspace row as it lies, verified by nobody: what
+    /// [`OrganizationStore::signed_workspaces`] verifies and the format 1 directory carries to the
+    /// upgrade's judge.
+    async fn workspace_rows(&self) -> Result<Vec<SignedRow<WorkspaceRecord>>, Error> {
         let mut rows = self
             .connection
             .query(
@@ -1867,36 +1908,19 @@ impl OrganizationStore {
         let mut workspaces = Vec::new();
 
         while let Some(row) = rows.next().await? {
-            let id = text(&row, 0)?;
-            let database_name = text(&row, 2)?;
-            let database_hostname = text(&row, 3)?;
-            let certificate_id = text(&row, 5)?;
-            let signature = blob(&row, 6)?;
-
-            verified(
-                &chain,
-                "workspace",
-                &id,
-                &certificate_id,
-                Authority::Workspace(WorkspaceAuthority {
-                    database_name: &database_name,
-                    database_hostname: &database_hostname,
-                }),
-                &signature,
-            )?;
-
-            workspaces.push((
-                certificate_id,
-                WorkspaceRecord {
-                    id,
+            workspaces.push(SignedRow {
+                record: WorkspaceRecord {
+                    id: text(&row, 0)?,
                     name_sealed: blob(&row, 1)?,
-                    database_name,
-                    database_hostname,
+                    database_name: text(&row, 2)?,
+                    database_hostname: text(&row, 3)?,
                     schema_version: integer(&row, 4)?,
                     created_at: integer(&row, 7)?,
                     updated_at: integer(&row, 8)?,
                 },
-            ));
+                certificate_id: text(&row, 5)?,
+                signature: blob(&row, 6)?,
+            });
         }
 
         Ok(workspaces)
@@ -1968,6 +1992,28 @@ impl OrganizationStore {
     ) -> Result<Vec<(String, GrantRecord)>, Error> {
         let (certificates, revocations) = self.chain_rows().await?;
         let chain = Chain::new(organization_verifying_key, &certificates, &revocations);
+
+        self.grant_rows()
+            .await?
+            .into_iter()
+            .map(|row| {
+                verified(
+                    &chain,
+                    "grant",
+                    &format!("{}/{}", row.record.member_id, row.record.workspace_id),
+                    &row.certificate_id,
+                    grant_authority(&row.record),
+                    &row.signature,
+                )?;
+
+                Ok((row.certificate_id, row.record))
+            })
+            .collect()
+    }
+
+    /// Every grant row as it lies, verified by nobody: what [`OrganizationStore::signed_grants`]
+    /// verifies and the format 1 directory carries to the upgrade's judge.
+    async fn grant_rows(&self) -> Result<Vec<SignedRow<GrantRecord>>, Error> {
         let mut rows = self
             .connection
             .query(
@@ -1980,32 +2026,17 @@ impl OrganizationStore {
         let mut grants = Vec::new();
 
         while let Some(row) = rows.next().await? {
-            let grant = GrantRecord {
-                member_id: text(&row, 0)?,
-                workspace_id: text(&row, 1)?,
-                sealed_credential: blob(&row, 2)?,
-                access_level: text(&row, 3)?,
-                credential_expires_at: nullable_text(&row, 4)?,
-            };
-            let certificate_id = text(&row, 5)?;
-            let signature = blob(&row, 6)?;
-
-            verified(
-                &chain,
-                "grant",
-                &format!("{}/{}", grant.member_id, grant.workspace_id),
-                &certificate_id,
-                Authority::Grant(GrantAuthority {
-                    member_id: &grant.member_id,
-                    workspace_id: &grant.workspace_id,
-                    sealed_credential: &grant.sealed_credential,
-                    access_level: &grant.access_level,
-                    credential_expires_at: grant.credential_expires_at.as_deref(),
-                }),
-                &signature,
-            )?;
-
-            grants.push((certificate_id, grant));
+            grants.push(SignedRow {
+                record: GrantRecord {
+                    member_id: text(&row, 0)?,
+                    workspace_id: text(&row, 1)?,
+                    sealed_credential: blob(&row, 2)?,
+                    access_level: text(&row, 3)?,
+                    credential_expires_at: nullable_text(&row, 4)?,
+                },
+                certificate_id: text(&row, 5)?,
+                signature: blob(&row, 6)?,
+            });
         }
 
         Ok(grants)
@@ -2074,6 +2105,29 @@ impl OrganizationStore {
     ) -> Result<Vec<(String, InvitationRecord)>, Error> {
         let (certificates, revocations) = self.chain_rows().await?;
         let chain = Chain::new(organization_verifying_key, &certificates, &revocations);
+
+        self.invitation_rows()
+            .await?
+            .into_iter()
+            .map(|row| {
+                verified(
+                    &chain,
+                    "invitation",
+                    &row.record.id,
+                    &row.certificate_id,
+                    invitation_authority(&row.record),
+                    &row.signature,
+                )?;
+
+                Ok((row.certificate_id, row.record))
+            })
+            .collect()
+    }
+
+    /// Every invitation row as it lies, verified by nobody: what
+    /// [`OrganizationStore::signed_invitations`] verifies and the format 1 directory carries to the
+    /// upgrade's judge. A `consumed_at` that is not an integer reads as not consumed.
+    async fn invitation_rows(&self) -> Result<Vec<SignedRow<InvitationRecord>>, Error> {
         let mut rows = self
             .connection
             .query(
@@ -2086,31 +2140,11 @@ impl OrganizationStore {
         let mut invitations = Vec::new();
 
         while let Some(row) = rows.next().await? {
-            let id = text(&row, 0)?;
-            let member_id = text(&row, 1)?;
-            let expires_at = integer(&row, 2)?;
-            let certificate_id = text(&row, 6)?;
-            let signature = blob(&row, 7)?;
-
-            verified(
-                &chain,
-                "invitation",
-                &id,
-                &certificate_id,
-                Authority::Invitation(InvitationAuthority {
-                    id: &id,
-                    member_id: &member_id,
-                    expires_at,
-                }),
-                &signature,
-            )?;
-
-            invitations.push((
-                certificate_id,
-                InvitationRecord {
-                    id,
-                    member_id,
-                    expires_at,
+            invitations.push(SignedRow {
+                record: InvitationRecord {
+                    id: text(&row, 0)?,
+                    member_id: text(&row, 1)?,
+                    expires_at: integer(&row, 2)?,
                     consumed_at: match row.get_value(3)? {
                         turso::Value::Integer(value) => Some(value),
                         _ => None,
@@ -2119,7 +2153,9 @@ impl OrganizationStore {
                     issued_by: text(&row, 5)?,
                     created_at: integer(&row, 8)?,
                 },
-            ));
+                certificate_id: text(&row, 6)?,
+                signature: blob(&row, 7)?,
+            });
         }
 
         Ok(invitations)
@@ -2870,11 +2906,12 @@ impl OrganizationStore {
     /// Every member row of an organization of an earlier format, as it lies, with nothing judged,
     /// read with whichever authority columns the table has now.
     ///
-    /// **Two readers, and neither believes anything here.** The sign-in and the resume read it
-    /// before a pull to find the vault a password or a remembered key opens, which is the reason
-    /// [`OrganizationStore::members_unverified`] gives for reading first; the vault is all they
-    /// take from it, and the organization key it derives is compared with the key the machine
-    /// pinned. The upgrade reads it after the pull and judges every row it carries forward, under
+    /// **Two readers, and neither believes anything here.** The sign-in, the resume and the
+    /// connect read it to find the vault a password or a remembered key opens, the first two before
+    /// a pull, which is the reason [`OrganizationStore::members_unverified`] gives for reading
+    /// first; the vault is all they take from it, and the organization key it derives is compared
+    /// with the key the machine pinned, or on the connect with the organization row's. The upgrade
+    /// reads it after the pull and judges every row it carries forward, under
     /// the rules of the format its signature was made in, dropping the rest.
     pub async fn format_one_members(&self) -> Result<Vec<FormatOneMemberRow>, Error> {
         let columns = self.columns_of("member").await?;
@@ -2994,112 +3031,10 @@ impl OrganizationStore {
             }
         }
 
-        let mut workspaces = Vec::new();
-        let mut rows = self
-            .connection
-            .query(
-                "SELECT \"id\", \"name_sealed\", \"database_name\", \"database_hostname\", \
-                        \"schema_version\", \"certificate_id\", \"signature\", \"created_at\", \
-                        \"updated_at\" \
-                 FROM \"workspace\" ORDER BY \"created_at\", \"id\"",
-                (),
-            )
-            .await?;
-
-        while let Some(row) = rows.next().await? {
-            workspaces.push(FormatOneSigned {
-                record: WorkspaceRecord {
-                    id: text(&row, 0)?,
-                    name_sealed: blob(&row, 1)?,
-                    database_name: text(&row, 2)?,
-                    database_hostname: text(&row, 3)?,
-                    schema_version: integer(&row, 4)?,
-                    created_at: integer(&row, 7)?,
-                    updated_at: integer(&row, 8)?,
-                },
-                certificate_id: text(&row, 5)?,
-                signature: blob(&row, 6)?,
-            });
-        }
-
-        let mut grants = Vec::new();
-        let mut rows = self
-            .connection
-            .query(
-                "SELECT \"member_id\", \"workspace_id\", \"sealed_credential\", \"access_level\", \
-                        \"credential_expires_at\", \"certificate_id\", \"signature\" \
-                 FROM \"grant\" ORDER BY \"member_id\", \"workspace_id\"",
-                (),
-            )
-            .await?;
-
-        while let Some(row) = rows.next().await? {
-            grants.push(FormatOneSigned {
-                record: GrantRecord {
-                    member_id: text(&row, 0)?,
-                    workspace_id: text(&row, 1)?,
-                    sealed_credential: blob(&row, 2)?,
-                    access_level: text(&row, 3)?,
-                    credential_expires_at: nullable_text(&row, 4)?,
-                },
-                certificate_id: text(&row, 5)?,
-                signature: blob(&row, 6)?,
-            });
-        }
-
-        let mut invitations = Vec::new();
-        let mut rows = self
-            .connection
-            .query(
-                "SELECT \"id\", \"member_id\", \"expires_at\", \"consumed_at\", \"sealed_secret\", \
-                        \"issued_by\", \"certificate_id\", \"signature\", \"created_at\" \
-                 FROM \"invitation\" ORDER BY \"created_at\", \"id\"",
-                (),
-            )
-            .await?;
-
-        while let Some(row) = rows.next().await? {
-            invitations.push(FormatOneSigned {
-                record: InvitationRecord {
-                    id: text(&row, 0)?,
-                    member_id: text(&row, 1)?,
-                    expires_at: integer(&row, 2)?,
-                    consumed_at: nullable_integer(&row, 3)?,
-                    sealed_secret: blob(&row, 4)?,
-                    issued_by: text(&row, 5)?,
-                    created_at: integer(&row, 8)?,
-                },
-                certificate_id: text(&row, 6)?,
-                signature: blob(&row, 7)?,
-            });
-        }
-
         // the mark arrived with effort 835, so an organization a build before it made has no
         // table for it until a pull there completed the schema.
         let mark = if tables.iter().any(|table| table == "mark") {
-            let mut rows = self
-                .connection
-                .query(
-                    "SELECT \"image_sealed\", \"media_type\", \"updated_by\", \"updated_at\", \
-                            \"certificate_id\", \"signature\" \
-                     FROM \"mark\" WHERE \"id\" = ?",
-                    vec![turso::Value::Text(MARK_ID.to_string())],
-                )
-                .await?;
-
-            match rows.next().await? {
-                Some(row) => Some(FormatOneSigned {
-                    record: MarkRecord {
-                        image_sealed: blob(&row, 0)?,
-                        media_type: text(&row, 1)?,
-                        updated_by: text(&row, 2)?,
-                        updated_at: integer(&row, 3)?,
-                    },
-                    certificate_id: text(&row, 4)?,
-                    signature: blob(&row, 5)?,
-                }),
-                None => None,
-            }
+            self.mark_row().await?
         } else {
             None
         };
@@ -3107,9 +3042,9 @@ impl OrganizationStore {
         Ok(FormatOneDirectory {
             certificates,
             members: self.format_one_members().await?,
-            workspaces,
-            grants,
-            invitations,
+            workspaces: self.workspace_rows().await?,
+            grants: self.grant_rows().await?,
+            invitations: self.invitation_rows().await?,
             mark,
         })
     }
@@ -3253,7 +3188,7 @@ fn member_of(member: &MemberRecord) -> MemberAuthority<'_> {
 }
 
 /// What a workspace row puts under signature, from the record.
-fn workspace_authority(workspace: &WorkspaceRecord) -> Authority<'_> {
+pub(super) fn workspace_authority(workspace: &WorkspaceRecord) -> Authority<'_> {
     Authority::Workspace(WorkspaceAuthority {
         database_name: &workspace.database_name,
         database_hostname: &workspace.database_hostname,
@@ -3261,7 +3196,7 @@ fn workspace_authority(workspace: &WorkspaceRecord) -> Authority<'_> {
 }
 
 /// What a grant row puts under signature, from the record.
-fn grant_authority(grant: &GrantRecord) -> Authority<'_> {
+pub(super) fn grant_authority(grant: &GrantRecord) -> Authority<'_> {
     Authority::Grant(GrantAuthority {
         member_id: &grant.member_id,
         workspace_id: &grant.workspace_id,
@@ -3272,7 +3207,7 @@ fn grant_authority(grant: &GrantRecord) -> Authority<'_> {
 }
 
 /// What an invitation row puts under signature, from the record.
-fn invitation_authority(invitation: &InvitationRecord) -> Authority<'_> {
+pub(super) fn invitation_authority(invitation: &InvitationRecord) -> Authority<'_> {
     Authority::Invitation(InvitationAuthority {
         id: &invitation.id,
         member_id: &invitation.member_id,
@@ -3281,7 +3216,7 @@ fn invitation_authority(invitation: &InvitationRecord) -> Authority<'_> {
 }
 
 /// What the mark row puts under signature, from the record.
-fn mark_authority(mark: &MarkRecord) -> Authority<'_> {
+pub(super) fn mark_authority(mark: &MarkRecord) -> Authority<'_> {
     Authority::Mark(MarkAuthority {
         image_sealed: &mark.image_sealed,
         media_type: &mark.media_type,

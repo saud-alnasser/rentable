@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [23]
 ---
 
@@ -16,20 +16,20 @@ this there is one of each, and nothing compiled into production exists for a tes
 
 Traces requirement 11 of [[efforts/838-permissions-are-a-role-and-an-override/spec]].
 
-- [ ] The upgrade builds workspace, grant, invitation and mark authorities with the store's own
+- [x] The upgrade builds workspace, grant, invitation and mark authorities with the store's own
       helpers, and no copy of a signing preimage remains in the upgrade.
-- [ ] The format 1 directory reader shares one unverified reader per table with the `signed_*`
+- [x] The format 1 directory reader shares one unverified reader per table with the `signed_*`
       readers. The column lists and row mapping are written once.
-- [ ] The upgrade reuses the session's username opener and content-key opener, and no copy remains.
-- [ ] Nothing in the release build exists only so a test can cut the upgrade short. The cut-short
+- [x] The upgrade reuses the session's username opener and content-key opener, and no copy remains.
+- [x] Nothing in the release build exists only so a test can cut the upgrade short. The cut-short
       test drives the writes before `format` and fails the transaction itself.
-- [ ] Every doc comment in the upgrade says what its code does, including the remembered-key path.
+- [x] Every doc comment in the upgrade says what its code does, including the remembered-key path.
       Every function has one. The places that name where the upgrade runs all name sign-in, resume
       and connect.
-- [ ] A dropped row is named by a typed value, not a table string and a joined id.
-- [ ] The upgrade's standing type is private and does not reuse the name `role::Standing`, and the
+- [x] A dropped row is named by a typed value, not a table string and a joined id.
+- [x] The upgrade's standing type is private and does not reuse the name `role::Standing`, and the
       record flag set sits in `permission.rs` beside the other flag sets.
-- [ ] `cargo test`, `pnpm check`, `pnpm test` and `pnpm lint` pass.
+- [x] `cargo test`, `pnpm check`, `pnpm test` and `pnpm lint` pass.
 
 ## Relevant areas
 

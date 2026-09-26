@@ -36,11 +36,11 @@
 //! *There was a ninth sign, and effort 838 both added it and retired it (ticket 22).*
 //! A replica with no `format` table is every organization made before effort 838's format break,
 //! and the sign forgot it at launch. That was right while such an organization could only be
-//! refused; since the human's call of 2026-09-26 its owner's sign-in or resume upgrades it in place
-//! (`upgrade.rs`), and a machine that had forgotten it would have nothing left to upgrade, and would
-//! have lost the Turso authority with it. So a replica of that format is kept, the owner's machine
-//! upgrades it, and every other machine pulls before it answers, going on once the upgrade has
-//! arrived and told it waits for its owner until then (ticket 23).
+//! refused; since the human's call of 2026-09-26 its owner's sign-in, resume or connect upgrades
+//! it in place (`upgrade.rs`), and a machine that had forgotten it would have nothing left to
+//! upgrade, and would have lost the Turso authority with it. So a replica of that format is kept,
+//! the owner's machine upgrades it, and every other machine pulls before it answers, going on once
+//! the upgrade has arrived and told it waits for its owner until then (ticket 23).
 //!
 //! *There was a seventh sign, and effort 828 retired it with the column it read.* An `invitation`
 //! table with no `code_seal` marked a replica written before effort 826 sealed the invited vault's
@@ -1074,8 +1074,9 @@ mod tests {
         );
 
         // effort 838, ticket 22: an organization with no `format` table, which is every one made
-        // before the format break, is kept, because its owner's sign-in or resume upgrades it in
-        // place and a machine that had forgotten it would have nothing left to upgrade.
+        // before the format break, is kept, because its owner's sign-in, resume or connect
+        // upgrades it in place and a machine that had forgotten it would have nothing left to
+        // upgrade.
         let directory = scratch("no-format");
         let (organization, held) = created(&directory).await;
 
