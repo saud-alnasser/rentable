@@ -1,5 +1,5 @@
 ---
-status: implemented
+status: accepted
 ---
 
 # Problem
@@ -50,7 +50,8 @@ rank, without the owner present.
   hold.
 - The chain of trust that lets a manager put a signing act into effect without the owner.
 - Enforcement of every flag, in the interface and at the command or router that performs the act.
-- A clean break from the organization format that exists today, and a clear refusal of it.
+- An in-place upgrade of an organization in the format that exists today, run by its owner, and a
+  clear refusal of a newer format.
 - The surfaces in the settings area where roles are defined and a member's role and override are
   set.
 
@@ -104,13 +105,19 @@ rank, without the owner present.
     command refuses the act again, naming the flag. A member without a record kind's view flag does
     not see records of that kind anywhere in the application. A member on a read-only grant holds
     no create, edit or delete flag in that workspace, whatever their role says.
-11. **The organization format breaks cleanly, and an old organization is refused by name.** An
-    organization this build creates carries a format version, and a build meeting an organization
-    without one, or with a newer one, reads nothing from it and says the organization was made by
-    another version of the application: an older organization is to be exported workspace by
-    workspace, deleted, and made again here, and a newer one needs this application updated. No
-    in-place migration exists. *The human's call at /plan, 2026-09-25: the application has one user,
-    from before Turso sync, and they export their workspace, move to the new system, and import it.*
+11. **An older organization is upgraded in place by its owner, and a newer one is refused by name.**
+    An organization this build creates carries a format version. When the owner signs in, or
+    resumes, on this build against an organization made by an earlier version, the owner's machine
+    upgrades it before anything else is read: every member keeps the role they held
+    (`administrator` becomes `manager`) and exactly what they could do, through their role and an
+    override, record acts included; removed members stay removed; workspaces, grants, pending
+    invitations and the mark carry across and verify. Until the owner has done this, any other
+    member's sign-in, resume, connect or join reads nothing and says the organization is waiting for
+    its owner to open this version. A build meeting an organization of a newer format reads nothing
+    from it and says the application is to be updated. *The human's call at /plan, 2026-09-25, was
+    no migration, with the one user exporting and importing. Amended 2026-09-26, the human's call on
+    the running application: an update replaces the old build, and a refused organization cannot
+    sign in, so an export is out of reach; the upgrade is part of the update.*
 12. **Roles are defined in the settings area, and a member's role and override on their card.** The
     organization section lists the roles by rank, each with its flags grouped by family, and lets a
     holder of the flag create, rename, re-rank, edit and delete them. A member's card sets their role
@@ -154,10 +161,14 @@ rank, without the owner present.
     reason, and the router or command refusing with the flag's name; a member without a kind's view
     flag finds no records of that kind in lists, search, the dashboard, or printouts; a member on a
     read-only grant is refused every create, edit and delete in that workspace.
-11. A test opens an organization database in today's shape, and one carrying a newer format
-    version, under the new build: neither is read past the format check, neither is written to, and
-    each refusal names what to do. A workspace exported under today's build imports whole into a
-    workspace of a new organization.
+11. A test builds an organization in the format before this effort (an owner, an administrator
+    narrowed by the owner, a member granted administration flags, a removed member, a pending
+    invitation, full-access and read-only grants, a mark) and signs in as the owner on the new
+    build: afterwards the organization reads as format 2, every member's effective permissions
+    equal what they could do before, every row verifies on a second machine, and a half-finished
+    upgrade still reads as the old format. The same organization opened first by a member is
+    refused, naming the owner, and written to not at all. One carrying a newer format version is
+    refused, naming the update, and written to not at all.
 12. On the running application, the roles list, the role editor and a member's card show and change
     what requirement 12 says, and a control the viewer may not use says why. Checked by the human.
 

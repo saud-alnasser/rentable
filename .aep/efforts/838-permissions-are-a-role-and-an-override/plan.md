@@ -259,7 +259,8 @@ the four organization components, `settings/section.ts`, `workspace/permitted.ts
 
 # Data Model
 
-The organization database, created fresh; nothing in it is altered in place.
+The organization database, created fresh by this build; one made by an earlier build is upgraded
+in place by its owner (see *Migration*).
 
 - `format (id TEXT PRIMARY KEY, version INTEGER)`: one row, version 2. Unsigned: rewriting it only
   makes the organization refuse to open, which the credential already allows by deleting rows.
@@ -313,17 +314,64 @@ changes.
 
 - **Turso**: nothing new. Creating, deleting, minting read-only and renewing stay the root's, by
   where the authority is.
-- **The workspace export and import** (`workspace.get`, `importWhole`) are how the one existing user
-  crosses over; neither changes shape.
+- **The workspace export and import** (`workspace.get`, `importWhole`) change no shape. *They were
+  how the one existing user crossed over, until the amendment of 2026-09-26 (see* Migration*).*
 - **`rules/interface` and `rules/frontend`** govern the new blocks and the edge panel; the design
   calls follow the minimal, guiding direction and Apple's HIG.
 
 # Migration
 
-None in place, by the human's call (spec, requirement 11). The one existing user, in today's build:
-exports each workspace, deletes the organization (`organization_delete`, the owner's), updates, then
-creates an organization in the new build and imports each workspace. A new build meeting the old
-organization, by connect or by an existing replica, refuses with that sentence and writes nothing.
+*Amended 2026-09-26, the human's call (spec, requirement 11): the plan said none in place, with the
+one user exporting in the old build; an update replaces that build and a refused organization
+cannot sign in, so the export was out of reach.* An organization of format 1 (no `format` table) is
+upgraded in place, once, by the owner's machine.
+
+**Who.** Only the owner, because every row the new format holds is signed from the root, and the
+root is the organization key, derived from the owner's vault secret (`owner_key_from`, the test
+`repair_owner_row` uses). A vault is the owner's exactly when that key's verifying key equals the
+pinned one. Every other member's sign-in, resume, connect, join or machine link meets
+`OrganizationOlder` with a sentence saying the organization waits for its owner to open this
+version; nothing is written.
+
+**Where.** In the sign-in and the launch resume, and in `setup::connect_existing`, before the format
+is refused: open the replica, read the old member rows unverified to find the vault, open it (the
+password, or the remembered key on resume), confirm the organization key, unseal the credential,
+pull, verify every old row under the format 1 rules (`member.v2`, `certificate.v1` against the pinned
+key, the unsigned `revoked_at`), then transform, push, and carry on into the ordinary sign-in. A row
+that does not verify under the old rules is not carried; the upgrade names what it dropped in the
+log.
+
+**What.**
+
+- `member`: `role` and `permissions` give way to `role_id`, `override` and `removed_at`, and every
+  row is re-signed as `member.v3` under the root. The owner keeps `owner` with no override. An
+  `administrator` becomes `manager`, a `member` stays `member`, and a `removed` member becomes
+  `member` with `removed_at` set to the row's `updated_at` and no live certificate. **The override
+  keeps what each member could do**: the effective permissions are the old bits 0 to 6 (`changeRole`
+  read as `assignRole` and `overrideMember`), every record flag with delete included (the old build
+  gated no record act), and, for an administrator, `manageMark` and `manageRoles`; the override is the
+  role's mask XOR that. A `member` holding any administration flag would rank 0 and so could certify
+  nobody; they become `manager` instead, with the override keeping exactly their flags.
+- `role`: the manager and member rows, as `create_organization` writes them.
+- `certificate`: one per live member, issued from the root with the member's own
+  `signing_public_key`, ceiling their effective permissions and rank their role's; the owner's is the
+  root. `administrator_certificate` is dropped. Every workspace, grant, invitation and mark row is
+  re-signed under the root, so none depends on an old certificate id or on a ceiling the old build
+  never checked.
+- `format`: written **last**, so an upgrade cut short still reads as format 1 and runs again at the
+  next sign-in. The whole runs in one local transaction and one push.
+- Unsigned tables carry as they are; `session_epoch` is kept, so remembered sessions stay valid. A
+  standing handover offer is withdrawn (its `succession` row deleted and the seal cleared); the owner
+  offers again. The leftover `organization_mark` table is left alone.
+
+**The schema change is the risk.** The organization store has never altered a table, and a
+drop-and-rename does not replicate through a sync connection (measured 2026-08-20, noted at
+`store.rs` and `database/test/workspace.rs`). The ticket measures `ALTER TABLE ... ADD COLUMN` and
+`DROP COLUMN` through the sync connection first; if either fails, the member columns are handled by
+the approach that does replicate, and the measurement is recorded where the earlier one is.
+
+A machine still on the old build after the upgrade reads a directory it cannot parse. That is the
+cost of the owner updating first; the old build is not changed.
 
 # Testing Strategy
 
@@ -339,7 +387,7 @@ organization, by connect or by an existing replica, refuses with that sentence a
 | 8 | the shared table of criterion 6; Rust: a narrowed member's open session refused after one pull (the existing test at role.rs:1781 re-pointed); TS: the context's permissions follow a changed state after the heartbeat |
 | 9 | Rust, three stores on one database: owner offline (no organization key derivable in the test), a manager assigns a signing flag, the member's signed row verifies on the third store; a member row, a role row and an override written around every command by a certified member, beyond their ceiling or at or above their rank, refused on read; removal and narrowing, then a row signed under the old certificate refused and the rows signed before still verifying; a certificate cycle and a walk past 16 refused; a revocation by a certificate that does not outrank refused |
 | 10 | TS: for each record flag, the procedure refuses without it; component tests on each concept's acts for the reason text; navigation, search and dashboard leave out a kind without its view flag; a read-only grant refuses every write |
-| 11 | Rust: an organization database in today's schema and one with `format` version 3 refused at connect and at launch, nothing written; TS: an export fixture written by today's build imports whole |
+| 11 | Rust: a format 1 organization written by the main-branch shape (owner, narrowed administrator, member with administration flags, removed member, pending invitation, both grant levels, mark) upgraded by the owner's sign-in, then every member's effective permissions compared with the old and every row verified from a second store; the upgrade cut short before `format` still reads as format 1 and completes on the next sign-in; a member first refused naming the owner, nothing written; `format` version 3 refused naming the update, nothing written |
 | 12 | the human, on the running application, at the close |
 
 # Operational Considerations
