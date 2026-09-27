@@ -131,7 +131,7 @@ Start at [[protocol]].
 | 828-the-link-needs-a-code-and-the-settings-area-guides | implemented | [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]] | 5 | 0 | 29 |
 | 832-the-interface-speaks-one-language-and-guides | accepted | [[efforts/832-the-interface-speaks-one-language-and-guides/spec]] | 3 | 4 | 43 |
 | 835-the-rent-is-receipted-scheduled-and-chased | implemented | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]] | 1 | 0 | 19 |
-| 838-permissions-are-a-role-and-an-override | accepted | [[efforts/838-permissions-are-a-role-and-an-override/spec]] | 2 | 0 | 48 |
+| 838-permissions-are-a-role-and-an-override | accepted | [[efforts/838-permissions-are-a-role-and-an-override/spec]] | 2 | 0 | 49 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -386,3 +386,4 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/838-permissions-are-a-role-and-an-override/tickets/46-the-switches-follow-the-repository]] fix(desktop): the switches and cards follow the repository's rules | 838-permissions-are-a-role-and-an-override | resolved | 45 |
 | [[efforts/838-permissions-are-a-role-and-an-override/tickets/47-review-round-two-of-the-switches-is-settled]] fix(desktop): review round two of the switches is settled | 838-permissions-are-a-role-and-an-override | resolved | 45, 46 |
 | [[efforts/838-permissions-are-a-role-and-an-override/tickets/48-a-workspace-is-in-or-out-with-a-lock]] feat(desktop): a workspace is in or out, with a lock to read-only | 838-permissions-are-a-role-and-an-override | resolved | — |
+| [[efforts/838-permissions-are-a-role-and-an-override/tickets/49-a-workspaces-people-are-in-or-out-with-a-lock]] feat(desktop): a workspace's people are in or out, with a lock to read-only | 838-permissions-are-a-role-and-an-override | open | 48 |
