@@ -401,7 +401,7 @@ const en = {
 				copyNotTaken:
 					'no copy was taken before upgrading, so nothing was changed. check the connection and the backups folder, then try again.',
 				shapeNotAsBuilt:
-					'the upgrade was checked before it was saved and did not come out right, so nothing was changed.',
+					'the upgrade failed its check, so nothing was changed. update rentable and try again; the diagnostics log says why.',
 				tursoNotConnected:
 					'this machine is not connected to the Turso account. connect it and try again.',
 				consentNeededAgain:

@@ -53,9 +53,10 @@ The live tests read three values from the environment instead, because they have
 | `TURSO_GROUP` | an existing group the databases are created in |
 
 `apps/desktop/.env.example` is where they are named, beside `RENTABLE_LIVE_TURSO=1`, which arms
-the run. The older `losing_writer` tests read `TURSO_API_TOKEN` under that name. **The token is the
-human's to rotate: do not print it, do not commit it, and do not assume it is the one production
-uses.**
+the run. The tests that provision through `database/test/workspace.rs`, the older
+`losing_writer` four and the workspace migration's, read `TURSO_API_TOKEN` under that name. **The
+token is the human's to rotate: do not print it, do not commit it, and do not assume it is the one
+production uses.**
 
 ## Commands
 
@@ -70,10 +71,11 @@ client in TypeScript, kept for a hosted tier and imported by nothing; the endpoi
 first documented for it while it was `apps/control-plane/src/workspace/turso.ts`.
 `apps/desktop/tauri/src/database/test/workspace.rs` is the third, added 2026-08-20 by #552: it
 provisions and destroys a database per test so that two replicas have something to diverge against,
-and it is `#[cfg(test)]` and `#[ignore]`d ([[rules/testing]], under *Tests that reach a live
-remote*, is what bounds it). The Rust port is the first thing in the shipping desktop binary to
-reach this API. It adds the configuration call and the seeded create below to the three `turso.ts` makes, and its
-deletion is behind a caller-stated intent rather than a method that merely exists.
+and, since effort 838, so that the migration's live test at the foot of `organization/migrate.rs`
+has a server to run the whole tail on; it is `#[cfg(test)]` and `#[ignore]`d ([[rules/testing]],
+under *Tests that reach a live remote*, is what bounds it). The Rust port is the first thing in the
+shipping desktop binary to reach this API. It adds the configuration call and the seeded create
+below to the three `turso.ts` makes, and its deletion is behind a caller-stated intent rather than a method that merely exists.
 
 ```
 POST   /v1/organizations/{org}/databases
@@ -211,10 +213,12 @@ the desktop's `organization/migrate.rs`, and the package's `migration.ts`.
 A live run creates a real database and is billed and quota-counted — the free tier permits 100.
 **It is the human's call**, the same standing rule as pushing.
 
-**It also leaves databases behind.** #552's live tests add four per run, named
-`t552-<case>-<nonce>`, and #572's add two, named `ws-<uuid>` like any other workspace. Nothing in
-this repository can remove one from a delete-protected group, and against a quota of 100 that is
-worth watching rather than assuming.
+**It also leaves databases behind.** The tests provisioning through `database/test/workspace.rs`
+add one each per run, all named `t552-<case>-<nonce>`: #552's four `losing_writer` tests, and
+effort 838's `migration_live` test, whose case is `t32`, five in all when every one is run. #572's
+add two, named `ws-<uuid>` like any other workspace. Nothing in this repository can remove one
+from a delete-protected group, and against a quota of 100 that is worth watching rather than
+assuming.
 
 *The inventory was a list of names until 2026-08-20 and is a description now, because a list that
 grows by four whenever somebody runs a test is a list that is wrong more often than it is right.*

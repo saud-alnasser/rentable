@@ -1298,7 +1298,7 @@ type RootTranslation = {
 				 */
 				copyNotTaken: string
 				/**
-				 * t​h​e​ ​u​p​g​r​a​d​e​ ​w​a​s​ ​c​h​e​c​k​e​d​ ​b​e​f​o​r​e​ ​i​t​ ​w​a​s​ ​s​a​v​e​d​ ​a​n​d​ ​d​i​d​ ​n​o​t​ ​c​o​m​e​ ​o​u​t​ ​r​i​g​h​t​,​ ​s​o​ ​n​o​t​h​i​n​g​ ​w​a​s​ ​c​h​a​n​g​e​d​.
+				 * t​h​e​ ​u​p​g​r​a​d​e​ ​f​a​i​l​e​d​ ​i​t​s​ ​c​h​e​c​k​,​ ​s​o​ ​n​o​t​h​i​n​g​ ​w​a​s​ ​c​h​a​n​g​e​d​.​ ​u​p​d​a​t​e​ ​r​e​n​t​a​b​l​e​ ​a​n​d​ ​t​r​y​ ​a​g​a​i​n​;​ ​t​h​e​ ​d​i​a​g​n​o​s​t​i​c​s​ ​l​o​g​ ​s​a​y​s​ ​w​h​y​.
 				 */
 				shapeNotAsBuilt: string
 				/**
@@ -5637,7 +5637,7 @@ export type TranslationFunctions = {
 				 */
 				copyNotTaken: () => LocalizedString
 				/**
-				 * the upgrade was checked before it was saved and did not come out right, so nothing was changed.
+				 * the upgrade failed its check, so nothing was changed. update rentable and try again; the diagnostics log says why.
 				 */
 				shapeNotAsBuilt: () => LocalizedString
 				/**

@@ -2,7 +2,7 @@ pub mod commands;
 pub(crate) mod corrupt;
 pub mod proxy;
 #[cfg(test)]
-mod test;
+pub(crate) mod test;
 pub mod version;
 
 use sqlx::{

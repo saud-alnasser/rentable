@@ -502,7 +502,7 @@ file with the same `CREATE` statements, through `sqlx` as the rest of the plain 
   applied to an in-memory SQLite; for the organization it is `install_schema` on a fresh store,
   with the tables the upgrade leaves alone named once as allowed extras. A mismatch refuses with
   `ShapeNotAsBuilt`, in English and Arabic.
-  *Measured at ticket 33 on turso 0.8.0-pre.12: an organization upgraded in place records its
+  *Superseded by ticket 38, below, which compares structure: **Measured at ticket 33 on turso 0.8.0-pre.12: an organization upgraded in place records its
   `member` table as the engine rewrote it after the ALTERs (the added columns last, with the
   defaults a `NOT NULL` ADD COLUMN needs, quotes dropped), which is not the statement a fresh store
   records, and a drop-and-rename does not replicate (2026-08-20, 2026-09-26). So a change of

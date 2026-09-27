@@ -1,13 +1,16 @@
 //! Reaching a live Turso workspace database from a test.
 //!
-//! What the tests over this scaffolding measure is what a losing writer loses when two replicas
-//! of one workspace diverge (#552, acceptance criteria 9 and 17). They live at the foot of
-//! `database/mod.rs`, beside the `open_replica` they go through; this is the part that provisions
-//! a database to diverge against, which is the Turso-side counterpart of `sync/test/server.rs`.
+//! Two sets of tests go through this scaffolding. The four at the foot of `database/mod.rs`,
+//! beside the `open_replica` they go through, measure what a losing writer loses when two replicas
+//! of one workspace diverge (#552, acceptance criteria 9 and 17). The one at the foot of
+//! `organization/migrate.rs` measures whether the server takes every shipped migration in one
+//! explicit transaction (effort 838, ticket 32). This is the part that provisions a database for
+//! them, which is the Turso-side counterpart of `sync/test/server.rs`.
 //!
 //! **A live account is reached, and there is no local stand-in.** The sync engine speaks HTTP to
 //! a remote; the crate's own harness wants a separate server binary, and writing one would mean
-//! implementing the replication protocol whose behaviour is the very thing under test.
+//! implementing the replication protocol whose behaviour is the very thing under test; and what
+//! the migration test asks is what Turso's own server does with a transaction.
 //! [[rules/testing]], under *Tests that reach a live remote*, is where that deviation is declared
 //! and what bounds it.
 //!
@@ -16,7 +19,9 @@
 //! skipped and then passed would report `ok` on a machine that has never reached Turso. `ignored`
 //! reaches the summary line; an `eprintln!` does not. Asking for an ignored test with no
 //! credentials **panics** rather than skipping: running one is a deliberate act, and a run that
-//! meant to be live and silently was not is the one outcome worth refusing.
+//! meant to be live and silently was not is the one outcome worth refusing. The migration test
+//! also reads `RENTABLE_LIVE_TURSO=1`, as every live test admitted since 2026-08-30 does; the four
+//! `losing_writer` tests predate that flag and are not retrofitted ([[rules/testing]]).
 //!
 //! Three variables are needed and **`apps/desktop/.env` carries only two of them**,
 //! `TURSO_API_TOKEN` and `TURSO_ORG`. `TURSO_GROUP` is named in `apps/desktop/.env.example` and
@@ -24,11 +29,15 @@
 //! teardown below cannot remove what it created.
 //!
 //! ```text
-//! TURSO_API_TOKEN=… TURSO_ORG=… TURSO_GROUP=… //!   cargo test --manifest-path ./apps/desktop/tauri/Cargo.toml losing_writer -- //!   --test-threads=1 --ignored --nocapture
+//! TURSO_API_TOKEN=... TURSO_ORG=... TURSO_GROUP=... \
+//!   cargo test --manifest-path ./apps/desktop/tauri/Cargo.toml losing_writer -- \
+//!   --test-threads=1 --ignored --nocapture
 //! ```
 //!
-//! All four test names carry `losing_writer`, so that filter selects the set rather than a subset
-//! of it. [[references/cargo]] has why the manifest path is spelled the way it is.
+//! All four `database/mod.rs` test names carry `losing_writer`, so that filter selects the set
+//! rather than a subset of it; the migration test is selected by `migration_live`, and its own
+//! comment has its command. [[references/cargo]] has why the manifest path is spelled the way it
+//! is.
 
 use std::time::Duration;
 
@@ -39,10 +48,12 @@ use super::super::Database;
 /// **Created and destroyed per test rather than reused.** A database left over from a previous
 /// run carries that run's rows, and a count assertion over it would pass or fail on history
 /// rather than on what this test did.
-pub(in crate::database) struct LiveWorkspace {
+pub(crate) struct LiveWorkspace {
     name: String,
-    url: String,
-    token: String,
+    /// `libsql://<hostname>`.
+    pub(crate) url: String,
+    /// a full-access credential on it, for an hour.
+    pub(crate) token: String,
     organization: String,
     api_token: String,
 }
@@ -54,7 +65,7 @@ impl LiveWorkspace {
     /// **Missing credentials panic.** These tests are `#[ignore]`d, so reaching this function
     /// at all means somebody asked for a live run; answering that by quietly doing nothing is
     /// how a criterion comes to look met.
-    pub(in crate::database) async fn create(label: &str) -> Self {
+    pub(crate) async fn create(label: &str) -> Self {
         let read = |name: &str| {
             std::env::var(name)
                 .ok()
@@ -154,15 +165,6 @@ impl LiveWorkspace {
         (directory, database)
     }
 
-    /// Best effort, and **a refusal is printed rather than swallowed**.
-    ///
-    /// It is known to fail on some accounts, and this repository already measured why: Turso
-    /// will not delete any database inside a delete-protected group, and answers `403 group
-    /// <name> is delete-protected and cannot be deleted` even though the database itself is
-    /// not protected. `packages/turso-platform/index.ts` records the same finding.
-    ///
-    /// **The first draft of this checked only whether the request was sent**, so a 403 read as
-    /// a successful cleanup and four databases were left in the account with nothing said.
     /// Apply the first `up_to` migrations to the **remote** database, as `organization/migrate.rs` does.
     ///
     /// **Promoted, not duplicated.** This posted the statements to `/v2/pipeline` itself until
@@ -189,7 +191,16 @@ impl LiveWorkspace {
         .expect("apply the schema remotely");
     }
 
-    pub(in crate::database) async fn destroy(self) {
+    /// Best effort, and **a refusal is printed rather than swallowed**.
+    ///
+    /// It is known to fail on some accounts, and this repository already measured why: Turso
+    /// will not delete any database inside a delete-protected group, and answers `403 group
+    /// <name> is delete-protected and cannot be deleted` even though the database itself is
+    /// not protected. `packages/turso-platform/index.ts` records the same finding.
+    ///
+    /// **The first draft of this checked only whether the request was sent**, so a 403 read as
+    /// a successful cleanup and four databases were left in the account with nothing said.
+    pub(crate) async fn destroy(self) {
         let Ok(client) = crate::http::build_client(Duration::from_secs(60)) else {
             return;
         };
@@ -397,50 +408,5 @@ pub(in crate::database) async fn text(connection: &turso::Connection, sql: &str)
         turso::Value::Text(value) => Some(value),
         turso::Value::Null => None,
         other => panic!("expected text from {sql}, got {other:?}"),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::organization::migrate::{Migrated, Pipeline, apply_between, shipped_version};
-
-    use super::LiveWorkspace;
-
-    /// **Live, and the human's to run** (effort 838, ticket 32). Every shipped migration, `0003`'s
-    /// drops and renames among them, applied to a fresh database on the account inside one
-    /// explicit transaction over the pipeline, with the check and the version row, then committed;
-    /// and a second run reading the version row back and applying nothing. Whether libSQL's server
-    /// takes all of it in one transaction was not measured when the transaction was written; where
-    /// it does not, the plan's fallback is one transaction per migration file.
-    ///
-    /// ```text
-    /// TURSO_API_TOKEN=... TURSO_ORG=... TURSO_GROUP=... \
-    ///   cargo test --manifest-path ./apps/desktop/tauri/Cargo.toml migration_live -- \
-    ///   --test-threads=1 --ignored --nocapture
-    /// ```
-    #[tokio::test]
-    #[ignore = "reaches a live Turso account and creates a database; see the doc comment"]
-    async fn migration_live_every_shipped_migration_commits_in_one_transaction() {
-        let workspace = LiveWorkspace::create("t32").await;
-        let pipeline = Pipeline::of(
-            workspace
-                .url
-                .strip_prefix("libsql://")
-                .expect("a libsql:// workspace url"),
-        );
-        let shipped = shipped_version() as usize;
-        let applied = apply_between(&pipeline, &workspace.token, 0, shipped).await;
-        let again = apply_between(&pipeline, &workspace.token, 0, shipped).await;
-
-        workspace.destroy().await;
-
-        assert_eq!(
-            applied.expect("the whole schema in one transaction"),
-            Migrated::Applied {
-                from: 0,
-                to: shipped
-            }
-        );
-        assert_eq!(again.expect("the second run"), Migrated::AlreadyAt(shipped));
     }
 }

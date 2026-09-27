@@ -44,6 +44,21 @@ owner in the format it starts from, and the version this build ships is counted 
 Before the change the owner's machine writes a copy of the organization to
 `backups/org-<id>/`, and to their Turso account where it holds it; a copy that cannot be taken
 refuses the upgrade with `CopyNotTaken` and nothing is changed (838, requirements 13 and 14).
+Every change due then runs in one transaction with the `format` row last, and **the organization is
+checked before that transaction commits** (`upgrade.rs`'s `checked`, over `schema.rs`; 838,
+requirement 15): `PRAGMA quick_check` answers `ok`, and the schema is what a fresh organization of
+the format it arrives at is built with, which the last change's `Transition::built` makes on an
+empty in-memory database, less the tables any change of the walk names in `Transition::kept`
+(`organization_mark`). The schema is compared by structure, not statement text: each table by its
+columns' names, declared types, `NOT NULL` and primary key places, each index by its table,
+uniqueness and columns, views and triggers by their normalised statements. So the `member` table,
+which the engine records with its added columns last once it is reshaped in place, compares equal
+to a fresh one with nothing declared for it. `PRAGMA foreign_key_check` is not in the engine's
+`pragma_list` and is logged as not checkable; the schema declares no foreign key. A check that
+fails rolls the whole walk back, writes nothing, and refuses with `ShapeNotAsBuilt`, whose sentence
+says to update the application and try again and that the diagnostics log says why, which it does:
+`schema.notAsBuilt` names every difference. A workspace migration is checked the same way
+(`organization/migrate.rs`).
 A `format` row below 2 where nothing of format 1 is left reads as 2 and is written back. The owner
 is whoever's vault derives the organization key, and nothing else on a row decides it. The upgrade runs only online, after what the machine held is pushed and a pull has
 completed; otherwise nothing is written and the owner is asked for a connection. An upgrade cut short
@@ -71,7 +86,9 @@ pull was refused over a lapsed or missing credential is told the machine needs a
 organization was exported and made again, until ticket 22 of effort 838; ticket 23 added the online
 condition, the pull before a member's answer and the finishing of a partial upgrade; ticket 25 made
 an upgraded organization never upgraded again, which leaves a partial upgrade past its root to the
-push of the machine that made it.*
+push of the machine that made it; ticket 33 added the check before the commit, with a statement
+declared for each table reshaped in place, and ticket 38 made the check compare structure, which
+retired the declaration.*
 
 **Flag**:
 One act the application performs for a member, on one bit of one mask. The vocabulary lives in

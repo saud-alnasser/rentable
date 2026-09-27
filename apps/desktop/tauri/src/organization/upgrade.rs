@@ -72,9 +72,9 @@
 //! **And the organization is checked before the transaction commits** (ticket 33, requirement
 //! 15): after the last change and the `format` row, SQLite's structural check passes and the
 //! schema is the one a fresh organization of the format it arrives at is built with, less the
-//! tables a change leaves alone, and with each table a change reshapes in place read as that
-//! change says the engine records it ([`checked`], `schema.rs`). A check that fails rolls the whole
-//! walk back and refuses with `ShapeNotAsBuilt`.
+//! tables a change leaves alone, compared by structure so a table reshaped in place compares by
+//! its columns and not by the statement the engine rewrote for it ([`checked`], `schema.rs`). A
+//! check that fails rolls the whole walk back and refuses with `ShapeNotAsBuilt`.
 
 use crate::{
     backup, diagnostics,
@@ -718,8 +718,9 @@ async fn walked(
 /// what a fresh organization of format `to` is (ticket 33): built on an empty in-memory database
 /// by the last of `transitions`, the list the runner was handed, so a test's own list is checked
 /// against its own format. The tables any change of the list leaves alone are left out on both
-/// sides, and a table a change reshapes in place may read as that change declares, the last
-/// declaration for a table standing. Built each time rather than kept: it runs once an upgrade.
+/// sides. A table a change reshapes in place is compared by its structure, as every table is
+/// (`schema.rs`), so the statement the engine rewrote for it needs no declaring. Built each time
+/// rather than kept: it runs once an upgrade.
 async fn checked(
     store: &OrganizationStore,
     transitions: &[Transition],
@@ -737,13 +738,9 @@ async fn checked(
         .iter()
         .flat_map(|transition| transition.kept.iter().copied())
         .collect();
-    let fresh = transitions
-        .iter()
-        .flat_map(|transition| transition.reshaped.iter())
-        .fold(
-            schema::read_engine(&fresh_connection).await?.shape,
-            |shape, (table, statement)| shape.or(table, statement),
-        )
+    let fresh = schema::read_engine(&fresh_connection)
+        .await?
+        .shape
         .without(&kept);
     let found = store.found().await?;
     let found = schema::Found {
@@ -1021,7 +1018,6 @@ mod tests {
                     },
                     remote::{Answering, online},
                 },
-                two::MEMBER_AS_RESHAPED,
             },
             vault::{MemberSecretKey, open_content},
             workspace::grant_workspace,
@@ -3138,7 +3134,6 @@ mod tests {
         run: the_next_format,
         built: the_next_format_fresh,
         kept: &[],
-        reshaped: &[],
     };
 
     /// The next format's one table.
@@ -3440,22 +3435,50 @@ mod tests {
             .expect("the same walk without the column left behind");
     }
 
-    /// **Ticket 33's second criterion.** The format 1 organization upgraded by its owner's sign-in
-    /// passes the check, and its `member` table is recorded exactly as format 2's change declares
-    /// the engine records it once reshaped in place, which is what pins that statement; against a
-    /// fresh organization read strictly, that table is the one difference.
+    /// **Ticket 33's second criterion, as ticket 38 compares it.** The format 1 organization
+    /// upgraded by its owner's sign-in passes the check. Its `member` table, reshaped in place, is
+    /// recorded by the engine otherwise than a fresh organization records it (its added columns
+    /// last, with defaults), and compares equal all the same, by its columns: no statement is
+    /// declared for it.
     #[tokio::test]
     async fn the_format_one_organization_upgraded_is_as_a_fresh_one_is_built() {
         let (_, store) = upgraded("checked-from-format-one").await;
-        let mut rows = store
-            .connection()
+        let fresh_database = turso::Builder::new_local(":memory:")
+            .build()
+            .await
+            .expect("an in-memory engine");
+        let fresh_connection = fresh_database.connect().expect("a connection");
+
+        (TRANSITIONS[0].built)(&fresh_connection)
+            .await
+            .expect("a fresh organization");
+
+        let recorded = member_statement(store.connection()).await;
+        let fresh = member_statement(&fresh_connection).await;
+
+        assert_ne!(
+            schema::normalised(&recorded),
+            schema::normalised(&fresh),
+            "the reshaped member table reads as a fresh one's statement, so this test no longer \
+             shows that the check compares structure"
+        );
+
+        checked(&store, TRANSITIONS, FORMAT_VERSION)
+            .await
+            .expect("the upgraded organization is as a fresh one is built");
+    }
+
+    /// The statement `connection` records for the `member` table.
+    async fn member_statement(connection: &turso::Connection) -> String {
+        let mut rows = connection
             .query(
                 "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'member'",
                 (),
             )
             .await
             .expect("the member table");
-        let recorded = match rows
+
+        match rows
             .next()
             .await
             .expect("a row")
@@ -3463,32 +3486,7 @@ mod tests {
         {
             Some(Ok(turso::Value::Text(statement))) => statement,
             other => panic!("the member table's statement: {other:?}"),
-        };
-
-        assert_eq!(
-            schema::normalised(&recorded),
-            schema::normalised(MEMBER_AS_RESHAPED),
-            "the engine records the reshaped member table otherwise than format 2's change says"
-        );
-
-        checked(&store, TRANSITIONS, FORMAT_VERSION)
-            .await
-            .expect("the upgraded organization is as a fresh one is built");
-
-        let strict = Transition {
-            reshaped: &[],
-            ..TRANSITIONS[0]
-        };
-        let refused = checked(&store, &[strict], FORMAT_VERSION).await;
-
-        assert!(
-            matches!(
-                &refused,
-                Err(Error::Refused { reason: RefusalReason::ShapeNotAsBuilt, message })
-                    if message.contains(": table member is not as a fresh database has it.")
-            ),
-            "{refused:?}"
-        );
+        }
     }
 
     /// **Ticket 29's third criterion, the owner.** The owner's sign-in, handed every change this

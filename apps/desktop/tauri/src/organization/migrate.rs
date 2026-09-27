@@ -24,16 +24,19 @@
 //!    `WorkspaceNewer`, as an older build opening a newer workspace is refused.
 //! 3. Otherwise the tail after it as one batch, each statement run only where the one before it
 //!    answered `ok`, so nothing runs after a refusal; and the check's reads (`schema.rs`):
-//!    `quick_check`, `foreign_key_check`, and the schema, compared with a fresh database of the
-//!    version asked for, which is the embedded migrations applied to an in-memory SQLite
-//!    ([`fresh`]).
+//!    `quick_check`, `foreign_key_check`, and the schema's structure (each table's columns,
+//!    each index's columns, each view's and trigger's statement), compared with a fresh database
+//!    of the version asked for, which is the embedded migrations applied to an in-memory SQLite
+//!    ([`fresh`]). Structure, not statement text (ticket 38): the server may record a statement
+//!    otherwise than a plain SQLite does, and the same table compares equal either way.
 //! 4. The version row written and `COMMIT`, and the stream closed.
 //!
 //! Every answer is read statement by statement, since the pipeline answers 200 with a refusal
 //! inside, and any failure sends `ROLLBACK` and closes the stream: the workspace is then exactly
 //! as it was, and a second attempt applies the whole tail. *Whether libSQL's server takes every
-//! statement of `0003` inside one explicit transaction was not measured when this was written; the
-//! `#[ignore]`d live test in `database/test/workspace.rs` does so, and is the human's to run.*
+//! statement of `0003` inside one explicit transaction, and answers the check's pragma reads, was
+//! not measured when this was written; the `#[ignore]`d live test at the foot of this file's
+//! tests does so, armed by `RENTABLE_LIVE_TURSO=1`, and is the human's to run.*
 //!
 //! What is here is the runner. Which client applies a *pending* migration to a workspace that
 //! already has rows, and under what lease, is `organization/migration.rs`; creating a workspace
@@ -310,6 +313,8 @@ async fn migrated_on(
                 execute(schema::QUICK_CHECK),
                 execute(schema::FOREIGN_KEY_CHECK),
                 execute(&backup::listing()),
+                execute(&schema::columns()),
+                execute(&schema::indexes()),
             ],
             false,
         )
@@ -366,19 +371,11 @@ async fn migrated_on(
             })
             .collect::<Result<Vec<String>, Error>>()?,
         foreign_key_violations: rows_of(&applied, 2).len(),
-        shape: Shape::of(
-            rows_of(&applied, 3)
-                .iter()
-                .map(|row| match decoded_row(row)?.as_slice() {
-                    [
-                        turso::Value::Text(kind),
-                        turso::Value::Text(name),
-                        turso::Value::Text(sql),
-                    ] => Ok((kind.clone(), name.clone(), sql.clone())),
-                    _ => Err(unreadable("a schema row")),
-                })
-                .collect::<Result<Vec<(String, String, String)>, Error>>()?,
-        ),
+        shape: Shape::of_values(
+            &decoded_rows(&applied, 3)?,
+            &decoded_rows(&applied, 4)?,
+            &decoded_rows(&applied, 5)?,
+        )?,
     };
 
     schema::as_built(
@@ -636,6 +633,11 @@ impl backup::Source for OverThePipeline<'_> {
 
         Ok(())
     }
+}
+
+/// Every row the `index`th of `results` read, each cell as the value the database holds.
+fn decoded_rows(results: &[Value], index: usize) -> Result<Vec<Vec<turso::Value>>, Error> {
+    rows_of(results, index).iter().map(decoded_row).collect()
 }
 
 /// One row of the pipeline's answer, each cell as the value the database holds.
@@ -1550,5 +1552,61 @@ mod tests {
             );
             assert_eq!(recorded(&pipeline).await, Some(shipped as i64));
         }
+    }
+
+    /// **Live, and the human's to run** (effort 838, tickets 32 and 38). Every shipped migration,
+    /// `0003`'s drops and renames among them, applied to a fresh database on the account inside
+    /// one explicit transaction over the pipeline, with the check and the version row, then
+    /// committed; and a second run reading the version row back and applying nothing. It is the
+    /// one witness of two things the local stand-in cannot answer: whether Turso's server takes
+    /// all of it in one transaction, where the plan's fallback is one transaction per migration
+    /// file; and whether the server answers the check's reads, `pragma_table_info`,
+    /// `pragma_index_list` and `pragma_index_info` among them, so that the workspace it holds
+    /// compares equal to the fresh one built on a plain SQLite. [[rules/testing]] admits it under
+    /// *Tests that reach a live remote*.
+    ///
+    /// ```text
+    /// RENTABLE_LIVE_TURSO=1 TURSO_API_TOKEN=... TURSO_ORG=... TURSO_GROUP=... \
+    ///   cargo test --manifest-path ./apps/desktop/tauri/Cargo.toml migration_live -- \
+    ///   --test-threads=1 --ignored --nocapture
+    /// ```
+    #[tokio::test]
+    #[ignore = "reaches a live Turso account and creates a database; see the doc comment"]
+    async fn migration_live_every_shipped_migration_commits_in_one_transaction() {
+        use crate::database::test::workspace::LiveWorkspace;
+
+        assert_eq!(
+            std::env::var("RENTABLE_LIVE_TURSO")
+                .unwrap_or_else(|_| {
+                    panic!(
+                        "RENTABLE_LIVE_TURSO is needed for a live run; see the doc comment above"
+                    )
+                })
+                .trim(),
+            "1",
+            "a live run is armed by RENTABLE_LIVE_TURSO=1 as well as by --ignored"
+        );
+
+        let workspace = LiveWorkspace::create("t32").await;
+        let pipeline = Pipeline::of(
+            workspace
+                .url
+                .strip_prefix("libsql://")
+                .expect("a libsql:// workspace url"),
+        );
+        let shipped = shipped_version() as usize;
+        let applied = apply_between(&pipeline, &workspace.token, 0, shipped).await;
+        let again = apply_between(&pipeline, &workspace.token, 0, shipped).await;
+
+        workspace.destroy().await;
+
+        assert_eq!(
+            applied.expect("the whole schema in one transaction, checked"),
+            Migrated::Applied {
+                from: 0,
+                to: shipped
+            }
+        );
+        assert_eq!(again.expect("the second run"), Migrated::AlreadyAt(shipped));
     }
 }

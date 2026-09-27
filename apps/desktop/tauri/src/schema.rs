@@ -15,23 +15,31 @@
 //! every statement and still left a column, an index or a trigger other than a fresh build makes
 //! is a migration that went wrong.
 //!
-//! **The schema is compared as statements, normalised.** Every table, index, view and trigger the
-//! application made, read with [`backup::listing`], so what the engine owns is left out by the
-//! same [`backup::NOT_THE_ENGINES`] a copy leaves out, and an index SQLite made for a constraint,
-//! which has no statement, is carried by its table's. Each object is keyed by its kind and its
-//! name, and its statement compared after [`normalised`]: identifier quotes dropped, whitespace
-//! collapsed, and case folded outside string literals. Columns are compared in the order the
-//! statement lists them, which is the order `PRAGMA table_info` reports, so a column added in
-//! another place is a difference. The text is compared rather than `table_info` because it is
-//! the whole of what SQLite keeps: defaults, checks, collations and constraints are in it and not
-//! all of them are in any pragma. A table the caller keeps outside what a version builds, the
-//! organization's allowed extras say, is named with [`Shape::without`] on both sides.
+//! **The schema is compared as structure, not as statements** (ticket 38), as Room's `TableInfo`
+//! compares it. The fresh database a workspace is compared with is built on a plain SQLite here,
+//! while the workspace lives on Turso's server, and the turso engine rewrites a table's statement
+//! when it alters one in place: added columns last, quotes dropped, a default where a `NOT NULL`
+//! addition needs one. Compared as text, one such difference would refuse every migration for
+//! good. So each table is compared by its columns, read with `pragma_table_info`: each column's
+//! name, declared type, `NOT NULL` and place in the primary key, whatever their order or defaults.
+//! Each index is compared by its table, its uniqueness and its columns in order, read with
+//! `pragma_index_list` and `pragma_index_info`. Views and triggers have no pragma, and are compared
+//! by their statements [`normalised`]: identifier quotes dropped, whitespace collapsed, and case
+//! folded outside string literals. What is compared is what [`backup::listing`] lists, so what
+//! the engine owns is left out by the same [`backup::NOT_THE_ENGINES`] a copy leaves out, and an
+//! index SQLite made for a constraint, which has no statement and is named `sqlite_autoindex_`,
+//! is left out on both sides; its table's primary key and columns carry it. A table the caller
+//! keeps outside what a version builds, the organization's allowed extras say, is named with
+//! [`Shape::without`] on both sides.
 //!
-//! **A table reshaped in place may read one other way** (ticket 33). The organization cannot be
-//! rebuilt by a drop and a rename, which does not replicate, so a change of format alters a table
-//! in place, and the engine records that table as it rewrote the statement: added columns last,
-//! with the defaults a `NOT NULL` addition needs. The change declares that statement, and
-//! [`Shape::or`] accepts it for that table alone; everything else is compared strictly.
+//! **Every engine reads the structure itself**, with the same three statements
+//! ([`backup::listing`], [`columns`] and [`indexes`]): the pipeline inside a workspace's
+//! migration, the turso connection for the organization, and `sqlx` for the fresh database a
+//! workspace is compared with. The turso engine answers the pragma functions joined over
+//! `sqlite_master` (measured on 0.8.0-pre.12 at ticket 38); whether Turso's server does is what the
+//! live test at the foot of `organization/migrate.rs` measures. An engine that answered nothing
+//! would make two databases look alike, so a table or an index the listing names and the pragmas
+//! answer nothing for is a difference, never a pass.
 //!
 //! **The organization is read on the turso engine** ([`read_engine`]), which answers
 //! `PRAGMA quick_check` and does not know `PRAGMA foreign_key_check`: an unknown pragma is
@@ -41,7 +49,7 @@
 //! violation is counted, which the organization's schema makes safe: it declares no foreign key
 //! (`organization/store.rs`), and a schema equal to a fresh one declares none either.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use sqlx::{Row, SqliteConnection};
 
@@ -62,92 +70,391 @@ pub const FOREIGN_KEY_CHECK: &str = "PRAGMA foreign_key_check";
 /// How many differences a refusal names before it says how many more there are.
 const NAMED: usize = 5;
 
-/// A database's schema as the check compares it: each table, index, view and trigger by kind and
-/// name, with its statement [`normalised`].
+/// Every column of every table [`backup::listing`] lists: its table, its name, its declared type,
+/// whether it is `NOT NULL`, and its place in the primary key, 0 where it is not in it.
+pub fn columns() -> String {
+    format!(
+        "SELECT t.name, c.name, c.type, c.\"notnull\", c.pk \
+         FROM (SELECT name FROM sqlite_master \
+         WHERE type = 'table' AND sql IS NOT NULL AND {}) AS t, \
+         pragma_table_info(t.name) AS c \
+         ORDER BY t.name, c.cid",
+        backup::NOT_THE_ENGINES
+    )
+}
+
+/// Every column of every index [`backup::listing`] lists, in the index's order: its index, its
+/// table, whether it is unique, and the column's name, none for an expression.
+pub fn indexes() -> String {
+    format!(
+        "SELECT i.name, i.tbl_name, l.\"unique\", c.name \
+         FROM (SELECT name, tbl_name FROM sqlite_master \
+         WHERE type = 'index' AND sql IS NOT NULL AND {}) AS i \
+         JOIN pragma_index_list(i.tbl_name) AS l ON l.name = i.name \
+         JOIN pragma_index_info(i.name) AS c \
+         ORDER BY i.name, c.seqno",
+        backup::NOT_THE_ENGINES
+    )
+}
+
+/// One row [`columns`] answers: table, column, declared type, `NOT NULL`, primary key place.
+pub type ColumnRow = (String, String, String, bool, i64);
+
+/// One row [`indexes`] answers: index, table, unique, column (none for an expression).
+pub type IndexRow = (String, String, bool, Option<String>);
+
+/// A column as the check compares it. Its place among the table's columns and its default are
+/// not part of it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Column {
+    /// the declared type, [`normalised`].
+    declared: String,
+    not_null: bool,
+    /// its place in the primary key, from 1, or 0 where it is not in it.
+    primary_key: i64,
+}
+
+/// An index as the check compares it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Index {
+    table: String,
+    unique: bool,
+    /// its columns in order, an expression as `<expression>`.
+    columns: Vec<String>,
+}
+
+impl Index {
+    /// How a difference names it: `unique, on note(body, id)`.
+    fn described(&self) -> String {
+        format!(
+            "{}on {}({})",
+            if self.unique { "unique, " } else { "" },
+            self.table,
+            self.columns.join(", ")
+        )
+    }
+}
+
+/// A database's schema as the check compares it: each table by its columns, each index by its
+/// table, uniqueness and columns, and each view and trigger by its statement [`normalised`]. Every
+/// name is folded to lower case, as SQLite matches names.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Shape {
-    objects: BTreeMap<(String, String), String>,
-    /// for a table reshaped in place, the one other statement it may read as, [`normalised`].
-    reshaped: BTreeMap<String, String>,
+    /// each table, its columns by name.
+    tables: BTreeMap<String, BTreeMap<String, Column>>,
+    indexes: BTreeMap<String, Index>,
+    /// each view and trigger by kind and name.
+    statements: BTreeMap<(String, String), String>,
+    /// each table and index, by kind and name, the listing named and the pragmas answered
+    /// nothing for: a difference wherever it is, since it was not read.
+    unread: BTreeSet<(String, String)>,
 }
 
 impl Shape {
-    /// The shape of what [`backup::listing`] answered: each row its kind, its name and its
-    /// statement.
-    pub fn of<I>(listed: I) -> Self
-    where
-        I: IntoIterator<Item = (String, String, String)>,
-    {
-        Self {
-            objects: listed
-                .into_iter()
-                .map(|(kind, name, statement)| ((kind, name), normalised(&statement)))
-                .collect(),
-            reshaped: BTreeMap::new(),
+    /// The shape of what [`backup::listing`], [`columns`] and [`indexes`] answered, read in one
+    /// transaction.
+    pub fn of(
+        listed: impl IntoIterator<Item = (String, String, String)>,
+        columns: impl IntoIterator<Item = ColumnRow>,
+        indexes: impl IntoIterator<Item = IndexRow>,
+    ) -> Self {
+        let mut shape = Self::default();
+        let mut structural = Vec::new();
+
+        for (table, name, declared, not_null, primary_key) in columns {
+            shape
+                .tables
+                .entry(table.to_ascii_lowercase())
+                .or_default()
+                .insert(
+                    name.to_ascii_lowercase(),
+                    Column {
+                        declared: normalised(&declared),
+                        not_null,
+                        primary_key,
+                    },
+                );
         }
+
+        for (index, table, unique, column) in indexes {
+            shape
+                .indexes
+                .entry(index.to_ascii_lowercase())
+                .or_insert_with(|| Index {
+                    table: table.to_ascii_lowercase(),
+                    unique,
+                    columns: Vec::new(),
+                })
+                .columns
+                .push(column.map_or_else(
+                    || "<expression>".to_string(),
+                    |column| column.to_ascii_lowercase(),
+                ));
+        }
+
+        for (kind, name, statement) in listed {
+            let name = name.to_ascii_lowercase();
+
+            if kind == "table" || kind == "index" {
+                structural.push((kind, name));
+            } else {
+                shape
+                    .statements
+                    .insert((kind, name), normalised(&statement));
+            }
+        }
+
+        for (kind, name) in structural {
+            let read = if kind == "table" {
+                shape.tables.contains_key(&name)
+            } else {
+                shape.indexes.contains_key(&name)
+            };
+
+            if !read {
+                shape.unread.insert((kind, name));
+            }
+        }
+
+        shape
     }
 
-    /// This shape, with `table` read as `statement` as well as the way this shape has it: for a
-    /// table a change of shape alters in place, whose statement the engine rewrites. A second
-    /// call for the same table replaces the first.
-    pub fn or(mut self, table: &str, statement: &str) -> Self {
-        self.reshaped
-            .insert(table.to_ascii_lowercase(), normalised(statement));
+    /// The shape of the same three reads, each row as the engine's values: what the pipeline and
+    /// the turso engine answer.
+    pub fn of_values(
+        listed: &[Vec<turso::Value>],
+        columns: &[Vec<turso::Value>],
+        indexes: &[Vec<turso::Value>],
+    ) -> Result<Self, Error> {
+        let listed = listed
+            .iter()
+            .map(|row| Ok((text(row, 0)?, text(row, 1)?, text(row, 2)?)))
+            .collect::<Result<Vec<_>, Error>>()?;
+        let columns = columns
+            .iter()
+            .map(|row| {
+                Ok((
+                    text(row, 0)?,
+                    text(row, 1)?,
+                    text(row, 2)?,
+                    integer(row, 3)? != 0,
+                    integer(row, 4)?,
+                ))
+            })
+            .collect::<Result<Vec<ColumnRow>, Error>>()?;
+        let indexes = indexes
+            .iter()
+            .map(|row| {
+                Ok((
+                    text(row, 0)?,
+                    text(row, 1)?,
+                    integer(row, 2)? != 0,
+                    match row.get(3) {
+                        Some(turso::Value::Null) => None,
+                        _ => Some(text(row, 3)?),
+                    },
+                ))
+            })
+            .collect::<Result<Vec<IndexRow>, Error>>()?;
 
-        self
+        Ok(Self::of(listed, columns, indexes))
     }
 
-    /// This shape without the tables named, and without any index or trigger on them: for a
+    /// This shape without the tables named, and without any index, view or trigger on them: for a
     /// table a caller keeps beside what a version builds.
     pub fn without(mut self, tables: &[&str]) -> Self {
-        self.objects.retain(|(_, name), statement| {
-            !tables.iter().any(|table| {
-                let table = table.to_ascii_lowercase();
+        let named = |name: &str| tables.iter().any(|table| table.eq_ignore_ascii_case(name));
 
-                name.eq_ignore_ascii_case(&table)
-                    || statement.contains(&format!(" on {table} "))
-                    || statement.contains(&format!(" on {table}("))
-            })
+        self.tables.retain(|name, _| !named(name));
+        self.indexes.retain(|_, index| !named(&index.table));
+        self.statements.retain(|(_, name), statement| {
+            !named(name)
+                && !tables.iter().any(|table| {
+                    let table = table.to_ascii_lowercase();
+
+                    statement.contains(&format!(" on {table} "))
+                        || statement.contains(&format!(" on {table}("))
+                })
         });
-        self.reshaped
-            .retain(|table, _| !tables.iter().any(|kept| kept.eq_ignore_ascii_case(table)));
+        self.unread
+            .retain(|(kind, name)| !(kind == "table" && named(name)));
 
         self
-    }
-
-    /// Whether `statement`, what a database has for the `kind` named `name`, is what this shape
-    /// has for it, or the statement it may read as once reshaped in place.
-    fn accepts(&self, kind: &str, name: &str, built: &str, statement: &str) -> bool {
-        built == statement
-            || (kind == "table"
-                && self
-                    .reshaped
-                    .get(&name.to_ascii_lowercase())
-                    .is_some_and(|reshaped| reshaped == statement))
     }
 
     /// What this shape has that `fresh` does not, what `fresh` has that it lacks, and what both
-    /// have with different statements, one sentence each, in order of kind and name.
+    /// have otherwise, one sentence each: tables, then indexes, then views and triggers, each by
+    /// name; and last, whatever either side could not read.
     fn differences(&self, fresh: &Shape) -> Vec<String> {
         let mut differences = Vec::new();
 
-        for ((kind, name), statement) in &self.objects {
-            match fresh.objects.get(&(kind.clone(), name.clone())) {
+        for (name, columns) in &self.tables {
+            match fresh.tables.get(name) {
+                None => differences.push(format!("table {name} is not in a fresh database")),
+                Some(built) => {
+                    let columns = column_differences(columns, built);
+
+                    if !columns.is_empty() {
+                        differences.push(format!(
+                            "table {name} is not as a fresh database has it ({})",
+                            columns.join(", ")
+                        ));
+                    }
+                }
+            }
+        }
+
+        differences.extend(
+            fresh
+                .tables
+                .keys()
+                .filter(|name| !self.tables.contains_key(*name))
+                .map(|name| format!("table {name} is missing")),
+        );
+
+        for (name, index) in &self.indexes {
+            match fresh.indexes.get(name) {
+                None => differences.push(format!("index {name} is not in a fresh database")),
+                Some(built) if built != index => differences.push(format!(
+                    "index {name} is not as a fresh database has it ({}, where a fresh one is {})",
+                    index.described(),
+                    built.described()
+                )),
+                Some(_) => {}
+            }
+        }
+
+        differences.extend(
+            fresh
+                .indexes
+                .keys()
+                .filter(|name| !self.indexes.contains_key(*name))
+                .map(|name| format!("index {name} is missing")),
+        );
+
+        for ((kind, name), statement) in &self.statements {
+            match fresh.statements.get(&(kind.clone(), name.clone())) {
                 None => differences.push(format!("{kind} {name} is not in a fresh database")),
-                Some(built) if !fresh.accepts(kind, name, built, statement) => {
+                Some(built) if built != statement => {
                     differences.push(format!("{kind} {name} is not as a fresh database has it"))
                 }
                 Some(_) => {}
             }
         }
 
-        for (kind, name) in fresh.objects.keys() {
-            if !self.objects.contains_key(&(kind.clone(), name.clone())) {
-                differences.push(format!("{kind} {name} is missing"));
-            }
+        differences.extend(
+            fresh
+                .statements
+                .keys()
+                .filter(|key| !self.statements.contains_key(*key))
+                .map(|(kind, name)| format!("{kind} {name} is missing")),
+        );
+
+        for ((kind, name), whose) in self
+            .unread
+            .iter()
+            .map(|object| (object, "the database's"))
+            .chain(
+                fresh
+                    .unread
+                    .iter()
+                    .map(|object| (object, "a fresh database's")),
+            )
+        {
+            differences.push(format!(
+                "{whose} {kind} {name} answered nothing to its pragma, so it was not read"
+            ));
         }
 
         differences
+    }
+}
+
+/// How the columns of one table differ from a fresh one's, one phrase each, by name.
+fn column_differences(
+    found: &BTreeMap<String, Column>,
+    fresh: &BTreeMap<String, Column>,
+) -> Vec<String> {
+    let declared = |column: &Column| {
+        if column.declared.is_empty() {
+            "without a type".to_string()
+        } else {
+            column.declared.clone()
+        }
+    };
+    let place = |primary_key: i64| {
+        if primary_key == 0 {
+            "not in the primary key".to_string()
+        } else {
+            format!("primary key place {primary_key}")
+        }
+    };
+    let mut differences = Vec::new();
+
+    for (name, column) in found {
+        let Some(built) = fresh.get(name) else {
+            differences.push(format!("column {name} is not in a fresh one"));
+
+            continue;
+        };
+
+        if column.declared != built.declared {
+            differences.push(format!(
+                "column {name} is {} where a fresh one is {}",
+                declared(column),
+                declared(built)
+            ));
+        }
+
+        if column.not_null != built.not_null {
+            differences.push(if built.not_null {
+                format!("column {name} may be null where a fresh one is not null")
+            } else {
+                format!("column {name} is not null where a fresh one may be null")
+            });
+        }
+
+        if column.primary_key != built.primary_key {
+            differences.push(format!(
+                "column {name} is {} where a fresh one is {}",
+                place(column.primary_key),
+                place(built.primary_key)
+            ));
+        }
+    }
+
+    differences.extend(
+        fresh
+            .keys()
+            .filter(|name| !found.contains_key(*name))
+            .map(|name| format!("column {name} is missing")),
+    );
+
+    differences
+}
+
+/// The `index`th value of `row` as text.
+fn text(row: &[turso::Value], index: usize) -> Result<String, Error> {
+    match row.get(index) {
+        Some(turso::Value::Text(text)) => Ok(text.clone()),
+        other => Err(unreadable(index, other)),
+    }
+}
+
+/// The `index`th value of `row` as an integer.
+fn integer(row: &[turso::Value], index: usize) -> Result<i64, Error> {
+    match row.get(index) {
+        Some(turso::Value::Integer(integer)) => Ok(*integer),
+        other => Err(unreadable(index, other)),
+    }
+}
+
+/// The failure of a read that answered something the check cannot compare.
+fn unreadable(index: usize, value: Option<&turso::Value>) -> Error {
+    Error::Integrity {
+        message: format!(
+            "the schema check read {value:?} in column {index}, which it cannot compare"
+        ),
     }
 }
 
@@ -236,11 +543,38 @@ pub async fn read(connection: &mut SqliteConnection) -> Result<Found, Error> {
         .iter()
         .map(|row| Ok((row.try_get(0)?, row.try_get(1)?, row.try_get(2)?)))
         .collect::<Result<Vec<(String, String, String)>, sqlx::Error>>()?;
+    let columns = sqlx::query(sqlx::AssertSqlSafe(columns()))
+        .fetch_all(&mut *connection)
+        .await?
+        .iter()
+        .map(|row| {
+            Ok((
+                row.try_get(0)?,
+                row.try_get(1)?,
+                row.try_get(2)?,
+                row.try_get::<i64, _>(3)? != 0,
+                row.try_get(4)?,
+            ))
+        })
+        .collect::<Result<Vec<ColumnRow>, sqlx::Error>>()?;
+    let indexes = sqlx::query(sqlx::AssertSqlSafe(indexes()))
+        .fetch_all(&mut *connection)
+        .await?
+        .iter()
+        .map(|row| {
+            Ok((
+                row.try_get(0)?,
+                row.try_get(1)?,
+                row.try_get::<i64, _>(2)? != 0,
+                row.try_get(3)?,
+            ))
+        })
+        .collect::<Result<Vec<IndexRow>, sqlx::Error>>()?;
 
     Ok(Found {
         quick_check,
         foreign_key_violations,
-        shape: Shape::of(listed),
+        shape: Shape::of(listed, columns, indexes),
     })
 }
 
@@ -248,24 +582,19 @@ pub async fn read(connection: &mut SqliteConnection) -> Result<Found, Error> {
 /// that changed its format, or the fresh organization it is compared with. `PRAGMA
 /// foreign_key_check` is run only where the engine lists it, as this module's comment says.
 pub async fn read_engine(connection: &turso::Connection) -> Result<Found, Error> {
-    let quick_check = texts(connection, QUICK_CHECK, 1)
+    let quick_check = values(connection, QUICK_CHECK)
         .await?
-        .into_iter()
-        .map(|mut row| row.remove(0))
-        .collect();
-    let listed = texts(connection, "PRAGMA pragma_list", 1)
+        .iter()
+        .map(|row| text(row, 0))
+        .collect::<Result<Vec<String>, Error>>()?;
+    let listed = values(connection, "PRAGMA pragma_list")
         .await?
-        .into_iter()
-        .any(|row| row[0].eq_ignore_ascii_case(FOREIGN_KEY_CHECK_NAME));
+        .iter()
+        .any(|row| {
+            text(row, 0).is_ok_and(|name| name.eq_ignore_ascii_case(FOREIGN_KEY_CHECK_NAME))
+        });
     let foreign_key_violations = if listed {
-        let mut rows = connection.query(FOREIGN_KEY_CHECK, ()).await?;
-        let mut violations = 0;
-
-        while rows.next().await?.is_some() {
-            violations += 1;
-        }
-
-        violations
+        values(connection, FOREIGN_KEY_CHECK).await?.len()
     } else {
         // the engine does not know the pragma and would answer nothing: not a pass, so it is
         // logged as not checked, and the schema compared below declares no foreign key.
@@ -275,42 +604,32 @@ pub async fn read_engine(connection: &turso::Connection) -> Result<Found, Error>
 
         0
     };
-    let listing = texts(connection, &backup::listing(), 3)
-        .await?
-        .into_iter()
-        .map(|mut row| {
-            let statement = row.remove(2);
-            let name = row.remove(1);
-
-            (row.remove(0), name, statement)
-        });
+    let shape = Shape::of_values(
+        &values(connection, &backup::listing()).await?,
+        &values(connection, &columns()).await?,
+        &values(connection, &indexes()).await?,
+    )?;
 
     Ok(Found {
         quick_check,
         foreign_key_violations,
-        shape: Shape::of(listing),
+        shape,
     })
 }
 
-/// The first `columns` of every row `sql` answers on `connection`, each as text.
-async fn texts(
+/// Every row `sql` answers on `connection`, each value as the engine holds it.
+async fn values(
     connection: &turso::Connection,
     sql: &str,
-    columns: usize,
-) -> Result<Vec<Vec<String>>, Error> {
+) -> Result<Vec<Vec<turso::Value>>, Error> {
     let mut rows = connection.query(sql, ()).await?;
     let mut answered = Vec::new();
 
     while let Some(row) = rows.next().await? {
         answered.push(
-            (0..columns)
-                .map(|index| match row.get_value(index)? {
-                    turso::Value::Text(text) => Ok(text),
-                    other => Err(Error::Internal {
-                        message: format!("{sql} answered {other:?} where text was expected"),
-                    }),
-                })
-                .collect::<Result<Vec<String>, Error>>()?,
+            (0..row.column_count())
+                .map(|index| row.get_value(index))
+                .collect::<Result<Vec<turso::Value>, turso::Error>>()?,
         );
     }
 
@@ -375,7 +694,7 @@ pub fn normalised(statement: &str) -> String {
 mod tests {
     use sqlx::{ConnectOptions, sqlite::SqliteConnectOptions};
 
-    use super::{Found, Shape, as_built, normalised, read};
+    use super::{Found, Shape, as_built, normalised, read, read_engine};
     use crate::error::{Error, RefusalReason};
 
     async fn memory() -> sqlx::SqliteConnection {
@@ -402,6 +721,33 @@ mod tests {
         read(&mut connection).await.expect("the read")
     }
 
+    /// The same statements run on the turso engine, and read there.
+    async fn built_on_the_engine(statements: &[&str]) -> Found {
+        let database = turso::Builder::new_local(":memory:")
+            .build()
+            .await
+            .expect("an in-memory engine");
+        let connection = database.connect().expect("a connection");
+
+        for statement in statements {
+            connection
+                .execute(statement, ())
+                .await
+                .expect("a statement");
+        }
+
+        read_engine(&connection).await.expect("the read")
+    }
+
+    /// Whether `found` is refused against `fresh`, with a message holding `naming`.
+    fn refused_naming(found: &Found, fresh: &Shape, naming: &str) -> bool {
+        matches!(
+            as_built("a test database", found, fresh),
+            Err(Error::Refused { reason: RefusalReason::ShapeNotAsBuilt, ref message })
+                if message.contains(naming)
+        )
+    }
+
     #[test]
     fn a_statement_is_compared_without_its_quotes_spacing_or_case() {
         assert_eq!(
@@ -418,11 +764,6 @@ mod tests {
                 "create table [note](id integer primary key not null,body text default 'A  b')"
             )
         );
-        assert_ne!(
-            normalised("CREATE TABLE note (id integer, body text)"),
-            normalised("CREATE TABLE note (body text, id integer)"),
-            "columns in another order are another table"
-        );
     }
 
     /// A database built by the same statements is as built, whatever its engine quoted.
@@ -431,6 +772,7 @@ mod tests {
         let statements = [
             "CREATE TABLE `note` (`id` text PRIMARY KEY NOT NULL, `body` text)",
             "CREATE INDEX `note_body_idx` ON `note` (`body`)",
+            "CREATE VIEW `bodies` AS SELECT `body` FROM `note`",
         ];
         let found = built(&statements).await;
         let fresh = built(&statements).await.shape;
@@ -438,6 +780,137 @@ mod tests {
         assert_eq!(found.quick_check, vec!["ok".to_string()]);
         assert_eq!(found.foreign_key_violations, 0);
         as_built("a test database at version 1", &found, &fresh).expect("as built");
+    }
+
+    /// **Ticket 38's first criterion, what is equal.** Two statements of one table, its columns in
+    /// another order, with defaults on one side, quoted otherwise and cased otherwise, and a
+    /// constraint's own index made by another spelling of the constraint, compare equal: a table
+    /// is its columns' names, declared types, `NOT NULL` and primary key places.
+    #[tokio::test]
+    async fn one_table_in_another_column_order_and_with_defaults_compares_equal() {
+        let fresh = built(&[
+            "CREATE TABLE `note` (`id` text PRIMARY KEY NOT NULL, `body` text NOT NULL, \
+             `pinned` integer, `code` text UNIQUE)",
+            "CREATE UNIQUE INDEX `note_body_pinned` ON `note` (`body`, `pinned`)",
+        ])
+        .await
+        .shape;
+        let found = built(&[
+            "CREATE TABLE note (code TEXT, id TEXT NOT NULL PRIMARY KEY, \
+             PINNED INTEGER DEFAULT 0, body TEXT NOT NULL DEFAULT '', UNIQUE (code))",
+            "CREATE UNIQUE INDEX note_body_pinned ON note (body, pinned)",
+        ])
+        .await;
+
+        as_built("a test database", &found, &fresh).expect("the same table, spelled otherwise");
+    }
+
+    /// **Ticket 38's first criterion, what differs.** Against one fresh table and its index, a
+    /// missing column, a changed type, a lost `NOT NULL`, a column moved out of the primary key and
+    /// a missing index are each refused, naming what differs.
+    #[tokio::test]
+    async fn a_missing_column_a_changed_type_a_lost_not_null_and_a_missing_index_each_differ() {
+        let fresh = built(&[
+            "CREATE TABLE note (id text PRIMARY KEY NOT NULL, body text NOT NULL, pinned integer)",
+            "CREATE INDEX note_body ON note (body)",
+        ])
+        .await
+        .shape;
+        let index = "CREATE INDEX note_body ON note (body)";
+        let cases = [
+            (
+                [
+                    "CREATE TABLE note (id text PRIMARY KEY NOT NULL, body text NOT NULL)",
+                    index,
+                ],
+                "table note is not as a fresh database has it (column pinned is missing)",
+            ),
+            (
+                [
+                    "CREATE TABLE note (id text PRIMARY KEY NOT NULL, body blob NOT NULL, \
+                     pinned integer)",
+                    index,
+                ],
+                "(column body is blob where a fresh one is text)",
+            ),
+            (
+                [
+                    "CREATE TABLE note (id text PRIMARY KEY NOT NULL, body text, pinned integer)",
+                    index,
+                ],
+                "(column body may be null where a fresh one is not null)",
+            ),
+            (
+                [
+                    "CREATE TABLE note (id text NOT NULL, body text NOT NULL, pinned integer)",
+                    index,
+                ],
+                "(column id is not in the primary key where a fresh one is primary key place 1)",
+            ),
+            (
+                [
+                    "CREATE TABLE note (id text PRIMARY KEY NOT NULL, body text NOT NULL, \
+                     pinned integer)",
+                    "SELECT 1",
+                ],
+                "index note_body is missing",
+            ),
+        ];
+
+        for (statements, naming) in cases {
+            let found = built(&statements).await;
+
+            assert!(
+                refused_naming(&found, &fresh, naming),
+                "{naming}: {:?}",
+                as_built("a test database", &found, &fresh)
+            );
+        }
+    }
+
+    /// An index is its table, its uniqueness and its columns in order: each of those changed is a
+    /// difference, and so is a view whose statement changed.
+    #[tokio::test]
+    async fn an_index_by_its_uniqueness_and_column_order_and_a_view_by_its_text() {
+        let table = "CREATE TABLE note (id integer PRIMARY KEY, body text, pinned integer)";
+        let fresh = built(&[
+            table,
+            "CREATE INDEX note_body ON note (body, pinned)",
+            "CREATE VIEW bodies AS SELECT body FROM note",
+        ])
+        .await
+        .shape;
+
+        for (index, view) in [
+            (
+                "CREATE UNIQUE INDEX note_body ON note (body, pinned)",
+                "CREATE VIEW bodies AS SELECT body FROM note",
+            ),
+            (
+                "CREATE INDEX note_body ON note (pinned, body)",
+                "CREATE VIEW bodies AS SELECT body FROM note",
+            ),
+        ] {
+            let found = built(&[table, index, view]).await;
+
+            assert!(
+                refused_naming(&found, &fresh, "index note_body is not as a fresh database"),
+                "{index}"
+            );
+        }
+
+        let found = built(&[
+            table,
+            "CREATE INDEX note_body ON note (body, pinned)",
+            "CREATE VIEW bodies AS SELECT pinned FROM note",
+        ])
+        .await;
+
+        assert!(refused_naming(
+            &found,
+            &fresh,
+            "view bodies is not as a fresh database has it"
+        ));
     }
 
     /// An extra table, a missing index and a changed column are each named, and the refusal is
@@ -482,21 +955,17 @@ mod tests {
         let fresh = found.shape.clone();
 
         assert_eq!(found.foreign_key_violations, 1);
-        assert!(matches!(
-            as_built("a test database", &found, &fresh),
-            Err(Error::Refused { reason: RefusalReason::ShapeNotAsBuilt, ref message })
-                if message.contains("foreign_key_check found 1")
-        ));
+        assert!(refused_naming(&found, &fresh, "foreign_key_check found 1"));
 
         let corrupt = Found {
             quick_check: vec!["*** in database main ***".to_string()],
             ..Found::default()
         };
 
-        assert!(matches!(
-            as_built("a test database", &corrupt, &Shape::default()),
-            Err(Error::Refused { reason: RefusalReason::ShapeNotAsBuilt, ref message })
-                if message.contains("quick_check answered *** in database main ***")
+        assert!(refused_naming(
+            &corrupt,
+            &Shape::default(),
+            "quick_check answered *** in database main ***"
         ));
     }
 
@@ -518,38 +987,73 @@ mod tests {
         as_built("a test database", &kept, &fresh.without(&["kept"])).expect("as built");
     }
 
-    /// A table reshaped in place is accepted as the statement declared for it, and only that
-    /// table: another table differing the same way is still refused.
+    /// **Why structure and not text.** A table the turso engine altered in place, its added column
+    /// last with the default a `NOT NULL` addition needs, and its statement rewritten by the
+    /// engine, compares equal to the same table created whole on a plain SQLite; the engine reads
+    /// the structure through the same pragmas.
     #[tokio::test]
-    async fn a_table_reshaped_in_place_reads_as_declared_and_nothing_else_does() {
+    async fn a_table_altered_on_the_engine_compares_equal_to_one_created_whole_on_sqlite() {
         let fresh = built(&[
-            "CREATE TABLE note (id integer PRIMARY KEY, body text)",
-            "CREATE TABLE tag (id integer PRIMARY KEY, name text)",
+            "CREATE TABLE \"member\" (\"id\" TEXT PRIMARY KEY NOT NULL, \
+             \"role_id\" TEXT NOT NULL, \"name\" TEXT)",
+            "CREATE INDEX \"member_role\" ON \"member\" (\"role_id\")",
         ])
         .await
-        .shape
-        .or(
-            "note",
-            "CREATE TABLE note (id integer PRIMARY KEY, body text DEFAULT '')",
+        .shape;
+        let found = built_on_the_engine(&[
+            "CREATE TABLE member (id TEXT NOT NULL PRIMARY KEY, name TEXT)",
+            "ALTER TABLE member ADD COLUMN role_id TEXT NOT NULL DEFAULT 'member'",
+            "CREATE INDEX member_role ON member (role_id)",
+        ])
+        .await;
+
+        assert_eq!(found.quick_check, vec!["ok".to_string()]);
+        as_built("a test database", &found, &fresh).expect("the same table, altered in place");
+
+        let without_the_index = built_on_the_engine(&[
+            "CREATE TABLE member (id TEXT NOT NULL PRIMARY KEY, name TEXT)",
+            "ALTER TABLE member ADD COLUMN role_id TEXT NOT NULL DEFAULT 'member'",
+        ])
+        .await;
+
+        assert!(refused_naming(
+            &without_the_index,
+            &fresh,
+            "index member_role is missing"
+        ));
+    }
+
+    /// A table or an index the listing names and the pragmas answer nothing for is a difference,
+    /// on either side, so an engine that answered nothing never reads as a pass.
+    #[test]
+    fn a_table_the_pragmas_answer_nothing_for_is_never_a_pass() {
+        let unread = Shape::of(
+            [(
+                "table".to_string(),
+                "note".to_string(),
+                "CREATE TABLE note (id integer)".to_string(),
+            )],
+            [],
+            [],
         );
-        let reshaped = built(&[
-            "CREATE TABLE note (id integer PRIMARY KEY, body text DEFAULT '')",
-            "CREATE TABLE tag (id integer PRIMARY KEY, name text)",
-        ])
-        .await;
+        let found = Found {
+            quick_check: vec!["ok".to_string()],
+            shape: unread.clone(),
+            ..Found::default()
+        };
 
-        as_built("a test database", &reshaped, &fresh).expect("the declared reshape");
-
-        let elsewhere = built(&[
-            "CREATE TABLE note (id integer PRIMARY KEY, body text)",
-            "CREATE TABLE tag (id integer PRIMARY KEY, name text DEFAULT '')",
-        ])
-        .await;
-
-        assert!(matches!(
-            as_built("a test database", &elsewhere, &fresh),
-            Err(Error::Refused { reason: RefusalReason::ShapeNotAsBuilt, ref message })
-                if message.contains("table tag is not as a fresh database has it")
+        assert!(refused_naming(
+            &found,
+            &unread,
+            "the database's table note answered nothing to its pragma"
+        ));
+        assert!(refused_naming(
+            &Found {
+                shape: Shape::default(),
+                ..found
+            },
+            &unread,
+            "a fresh database's table note answered nothing to its pragma"
         ));
     }
 }
