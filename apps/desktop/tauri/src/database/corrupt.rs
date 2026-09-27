@@ -25,12 +25,32 @@
 //!   write-ahead log is absent or empty, because only then is the main file the whole database; a
 //!   checkpoint cut short leaves the log behind and the engine recovers from it.
 //!
+//! **Damage met after the open marks the replica, and its next open sets it aside.** A data page
+//! the first read did not touch is met by a later query, a push or a pull, while the replica is
+//! held open and in use, which is no moment to rename its files. So a query answering `Corrupt` or
+//! `NotAdb`, or a push or pull answering turso_core's words for a file that is not a database,
+//! writes a marker beside the replica, `<name>-damaged`, holding what the engine said, and logs
+//! `replica.corrupt.found`. The next open finds the marker and sets the replica aside as it sets
+//! aside a damaged open. The marker is one of the files the replica is removed and set aside with
+//! (`Database::replica_files`), so it goes with the file it speaks of. Every connection the
+//! application reads a replica through is a [`Watched`] one, and a push or pull is passed through
+//! [`Watch::note`], so the kinds are matched here and nowhere else.
+//!
+//! **A replica the sync engine is restoring is left to it.** The engine replaces a replica's base
+//! by copying each of its files to a backup and writing a marker, `<name>-replace-base-apply`,
+//! before it touches them (`turso_sync_engine`'s `ReplaceBaseApplyGuard`); a process that stops
+//! partway leaves the marker, and the engine's next open restores every file from the backups
+//! before it reads anything. A main file cut short beside that marker is one the engine is about
+//! to put back whole, with the writes not yet sent, so [`truncated`] does not call it damaged.
+//!
 //! **Once per open.** A replica opened again that still fails is refused as any open is.
 
 use std::{
     future::Future,
     io::Read,
+    ops::{Deref, DerefMut},
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 use crate::diagnostics::{self, DiagnosticRecord};
@@ -44,6 +64,16 @@ const HEADER_LENGTH: usize = 100;
 
 const MAGIC: &[u8; 16] = b"SQLite format 3\0";
 
+/// What is put after a replica's name for the marker that says damage was met on it after it
+/// opened. The application's own, not the engine's.
+pub(crate) const MARKER: &str = "-damaged";
+
+/// What the sync engine puts after a replica's name for the marker of a replace-base it has not
+/// finished: `create_replace_base_marker_path` in `turso_sync_engine`'s `database_sync_engine.rs`,
+/// read at 0.8.0-pre.12. It is the prefix `Database::replica_files` finds the engine's backups
+/// by, and the marker is named by the prefix alone.
+const REPLACING: &str = super::Database::REPLICA_TRANSIENT_PREFIX;
+
 /// Why a replica is set aside, in the words the log carries.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Damage {
@@ -51,6 +81,8 @@ pub(crate) enum Damage {
     Reported(String),
     /// the file holds fewer bytes than its own header says the database has.
     Truncated { holds: u64, claims: u64 },
+    /// the engine said the file is corrupt, or not a database, after the replica had opened.
+    Found(String),
 }
 
 impl Damage {
@@ -60,6 +92,7 @@ impl Damage {
             Damage::Truncated { holds, claims } => {
                 format!("the file holds {holds} bytes of the {claims} its header says it has")
             }
+            Damage::Found(message) => format!("found after the replica opened: {message}"),
         }
     }
 }
@@ -83,10 +116,14 @@ pub(crate) fn reported(error: &turso::Error) -> Option<Damage> {
 /// A file that does not exist, is empty, or cannot be read is not called truncated here: the first
 /// two are a replica not yet made, and the third is the engine's to answer. A file that is not a
 /// database at all is the engine's too, and it says so.
+///
+/// A replica beside the sync engine's replace-base marker is not called truncated either: the
+/// engine restores every file of it from its backups at the open (see the module comment).
 pub(crate) fn truncated(replica: &Path) -> Option<Damage> {
-    let wal = PathBuf::from(format!("{}-wal", replica.display()));
+    let wal = beside(replica, "-wal");
 
-    if std::fs::metadata(&wal).is_ok_and(|log| log.len() > 0) {
+    if std::fs::metadata(&wal).is_ok_and(|log| log.len() > 0) || beside(replica, REPLACING).exists()
+    {
         return None;
     }
 
@@ -139,6 +176,147 @@ pub(crate) fn truncated(replica: &Path) -> Option<Damage> {
     (holds < claims).then_some(Damage::Truncated { holds, claims })
 }
 
+/// The file named `suffix` beside `replica`, as the engine names its sidecars.
+fn beside(replica: &Path, suffix: &str) -> PathBuf {
+    PathBuf::from(format!("{}{suffix}", replica.display()))
+}
+
+/// The damage recorded beside `replica` after it opened, where any was.
+pub(crate) fn marked(replica: &Path) -> Option<Damage> {
+    std::fs::read_to_string(beside(replica, MARKER))
+        .ok()
+        .map(Damage::Found)
+}
+
+/// Record beside `replica` that the engine answered `error` on it, where that answer is damage,
+/// and log it the first time. The next open sets the replica aside ([`opened_once_more`]).
+///
+/// A marker that will not write is left unwritten: the damage is met again at the next query, and
+/// nothing about answering this one depends on it.
+pub(crate) fn met(replica: &Path, error: &turso::Error) {
+    let Some(Damage::Reported(message)) = reported(error) else {
+        return;
+    };
+    let marker = beside(replica, MARKER);
+
+    if marker.exists() {
+        return;
+    }
+
+    if std::fs::write(&marker, &message).is_ok() {
+        found(replica, &message).write();
+    }
+}
+
+/// What the log says of damage met on a replica after it opened.
+fn found(replica: &Path, message: &str) -> DiagnosticRecord {
+    diagnostics::warn("replica.corrupt.found")
+        .with("replica", replica.display().to_string())
+        .with("damage", message)
+        .with(
+            "then",
+            "the replica is set aside the next time it is opened",
+        )
+}
+
+/// Where the replica a connection reads lies, so that damage met on it is recorded beside it.
+///
+/// Empty where no replica is named, which is a connection a test opened for itself: nothing is
+/// recorded of it.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct Watch(Option<Arc<Path>>);
+
+impl Watch {
+    pub(crate) fn over(replica: &Path) -> Self {
+        Watch(Some(Arc::from(replica)))
+    }
+
+    /// Pass `answer` through, having recorded any damage it reports ([`met`]).
+    pub(crate) fn note<T>(&self, answer: Result<T, turso::Error>) -> Result<T, turso::Error> {
+        if let (Some(replica), Err(error)) = (self.0.as_deref(), &answer) {
+            met(replica, error);
+        }
+
+        answer
+    }
+}
+
+/// A connection to a replica whose queries record the damage they meet.
+///
+/// `query` and `execute` are its own, and the rows a query answers are [`Rows`], whose `next` is
+/// its own too, which is where a damaged page is read; everything else is the engine's connection,
+/// reached through `Deref`.
+pub(crate) struct Watched {
+    connection: turso::Connection,
+    watch: Watch,
+}
+
+impl Watched {
+    pub(crate) fn new(connection: turso::Connection, watch: Watch) -> Self {
+        Watched { connection, watch }
+    }
+
+    /// What records the damage this connection's replica answers, for a push or a pull of it.
+    pub(crate) fn watch(&self) -> &Watch {
+        &self.watch
+    }
+
+    pub(crate) async fn query(
+        &self,
+        sql: impl AsRef<str>,
+        params: impl turso::IntoParams,
+    ) -> Result<Rows, turso::Error> {
+        let rows = self.watch.note(self.connection.query(sql, params).await)?;
+
+        Ok(Rows {
+            rows,
+            watch: self.watch.clone(),
+        })
+    }
+
+    pub(crate) async fn execute(
+        &self,
+        sql: impl AsRef<str>,
+        params: impl turso::IntoParams,
+    ) -> Result<u64, turso::Error> {
+        self.watch.note(self.connection.execute(sql, params).await)
+    }
+}
+
+impl Deref for Watched {
+    type Target = turso::Connection;
+
+    fn deref(&self) -> &turso::Connection {
+        &self.connection
+    }
+}
+
+/// The rows of a [`Watched`] query.
+pub(crate) struct Rows {
+    rows: turso::Rows,
+    watch: Watch,
+}
+
+impl Rows {
+    pub(crate) async fn next(&mut self) -> Result<Option<turso::Row>, turso::Error> {
+        self.watch.note(self.rows.next().await)
+    }
+}
+
+impl Deref for Rows {
+    type Target = turso::Rows;
+
+    fn deref(&self) -> &turso::Rows {
+        &self.rows
+    }
+}
+
+impl DerefMut for Rows {
+    fn deref_mut(&mut self) -> &mut turso::Rows {
+        &mut self.rows
+    }
+}
+
 /// Rename the replica and every file the engine keeps beside it to `<name>.corrupt-<at>`, and say
 /// what now carries that name. A file that will not move is left, and the open that follows meets
 /// it and is refused as any open is.
@@ -173,14 +351,15 @@ pub(crate) fn record(replica: &Path, damage: &Damage, kept: &[PathBuf]) -> Diagn
 
 /// Open a replica, and where it is found damaged, set it aside and open it once more.
 ///
-/// `open` builds the engine over `replica` and makes its first read; a damaged file answers there
-/// or before it, in [`truncated`]. The second open's failure, whatever it is, is the answer.
+/// `open` builds the engine over `replica` and makes its first read; a damaged file answers there,
+/// or before it: in [`marked`], where damage was met on it after an earlier open, or in
+/// [`truncated`]. The second open's failure, whatever it is, is the answer.
 pub(crate) async fn opened_once_more<T, F, Fut>(replica: &Path, open: F) -> Result<T, turso::Error>
 where
     F: Fn() -> Fut,
     Fut: Future<Output = Result<T, turso::Error>>,
 {
-    let damage = match truncated(replica) {
+    let damage = match marked(replica).or_else(|| truncated(replica)) {
         Some(damage) => damage,
         None => match open().await {
             Ok(opened) => return Ok(opened),
@@ -199,7 +378,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{Damage, opened_once_more, record, reported, truncated};
+    use super::{
+        Damage, MAGIC, MARKER, Watch, marked, met, opened_once_more, record, reported, truncated,
+    };
     use crate::database::Database;
     use std::{
         path::{Path, PathBuf},
@@ -431,7 +612,7 @@ mod tests {
     fn a_short_file_beside_its_log_is_not_called_truncated() {
         let directory = scratch("beside-its-log");
         let replica = directory.join("ws-north.db");
-        let mut header = b"SQLite format 3 ".to_vec();
+        let mut header = MAGIC.to_vec();
         header.resize(4096, 0);
         header[16..18].copy_from_slice(&4096u16.to_be_bytes());
         header[28..32].copy_from_slice(&3u32.to_be_bytes());
@@ -442,6 +623,168 @@ mod tests {
         std::fs::write(format!("{}-wal", replica.display()), b"frames").expect("the log");
 
         assert_eq!(truncated(&replica), None);
+        let _ = std::fs::remove_dir_all(&directory);
+    }
+
+    /// A main file cut short beside the sync engine's replace-base marker is one the engine is
+    /// about to restore from its backups at the open, and is left to it.
+    #[test]
+    fn a_short_file_the_engine_is_restoring_is_not_called_truncated() {
+        let directory = scratch("being-restored");
+        let replica = directory.join("ws-north.db");
+        let mut header = MAGIC.to_vec();
+        header.resize(4096, 0);
+        header[16..18].copy_from_slice(&4096u16.to_be_bytes());
+        header[28..32].copy_from_slice(&3u32.to_be_bytes());
+        std::fs::write(&replica, &header).expect("the file");
+
+        assert!(truncated(&replica).is_some(), "the fixture is not short");
+
+        // the name `create_replace_base_marker_path` gives it, and a manifest of its kind.
+        std::fs::write(
+            format!("{}-replace-base-apply", replica.display()),
+            br#"{"version":1,"operation":"replace_base_apply"}"#,
+        )
+        .expect("the marker");
+
+        assert_eq!(truncated(&replica), None);
+        let _ = std::fs::remove_dir_all(&directory);
+    }
+
+    /// Damage the engine reports on a query is recorded beside the replica, once; nothing else an
+    /// engine answers is.
+    #[test]
+    fn damage_met_after_the_open_is_marked_beside_the_replica() {
+        let directory = scratch("met");
+        let replica = directory.join("ws-north.db");
+        let watch = Watch::over(&replica);
+
+        for error in [
+            turso::Error::Busy("database is locked".to_string()),
+            turso::Error::Constraint("UNIQUE constraint failed".to_string()),
+            turso::Error::Error("sync engine operation failed: http error".to_string()),
+        ] {
+            assert!(watch.note::<()>(Err(error)).is_err());
+        }
+        assert_eq!(
+            marked(&replica),
+            None,
+            "something other than damage marked it"
+        );
+
+        let answer = watch.note::<()>(Err(turso::Error::Corrupt("page 7".to_string())));
+
+        assert!(
+            matches!(answer, Err(turso::Error::Corrupt(_))),
+            "the answer was changed on its way through: {answer:?}"
+        );
+        assert_eq!(marked(&replica), Some(Damage::Found("page 7".to_string())));
+
+        // a later answer does not write over the first.
+        met(
+            &replica,
+            &turso::Error::NotAdb("file is not a database".to_string()),
+        );
+        assert_eq!(marked(&replica), Some(Damage::Found("page 7".to_string())));
+
+        // a watch over no replica records nothing anywhere.
+        assert!(
+            Watch::default()
+                .note::<()>(Err(turso::Error::Corrupt("page 7".to_string())))
+                .is_err()
+        );
+        assert_eq!(
+            names_in(&directory),
+            vec![format!("ws-north.db{MARKER}")],
+            "a marker was written somewhere else"
+        );
+        let _ = std::fs::remove_dir_all(&directory);
+    }
+
+    /// A replica marked damaged after an earlier open is set aside at its next open, marker and
+    /// all, and pulled again.
+    #[tokio::test]
+    async fn a_replica_marked_damaged_is_set_aside_at_its_next_open() {
+        let directory = scratch("marked");
+        let replica = directory.join("ws-north.db");
+
+        written(&replica).await;
+        met(&replica, &turso::Error::Corrupt("page 7".to_string()));
+
+        let before = names_in(&directory);
+        assert!(
+            before.contains(&format!("ws-north.db{MARKER}")),
+            "{before:?}"
+        );
+
+        let (database, remote) = reopened(&replica).await;
+
+        every_file_kept(&directory, &before);
+        assert_eq!(
+            marked(&replica),
+            None,
+            "the marker outlived the replica it spoke of"
+        );
+
+        pulled_again(&database, &remote).await;
+
+        drop(database);
+        let _ = std::fs::remove_dir_all(&directory);
+    }
+
+    /// A real replica with a data page overwritten past the first page opens, since its first read
+    /// is of page 1, and the query that reaches the page marks it through the watched connection.
+    #[tokio::test]
+    async fn a_damaged_page_met_by_a_query_marks_the_replica() {
+        let directory = scratch("damaged-page");
+        let replica = directory.join("ws-north.db");
+
+        written(&replica).await;
+
+        let mut bytes = std::fs::read(&replica).expect("the file");
+        let pages = bytes.len() / 4096;
+        for page in pages / 2..pages {
+            bytes[page * 4096..page * 4096 + 64].fill(0xA5);
+        }
+        std::fs::write(&replica, &bytes).expect("the damage");
+
+        let database = Database::open_replica(&replica, None, || async {
+            Ok::<String, turso::Error>(String::new())
+        })
+        .await
+        .expect("a replica damaged past its first page opens");
+        assert_eq!(marked(&replica), None, "the open marked it");
+
+        let connection = super::Watched::new(
+            database.connect().await.expect("a connection"),
+            Watch::over(&replica),
+        );
+        let mut answer = connection.query("select name from tenant", ()).await;
+        let mut read = Ok(None);
+        if let Ok(rows) = answer.as_mut() {
+            loop {
+                read = rows.next().await;
+                if !matches!(read, Ok(Some(_))) {
+                    break;
+                }
+            }
+        }
+
+        let error = answer
+            .err()
+            .or(read.err())
+            .expect("the damaged pages read whole");
+        assert!(
+            reported(&error).is_some(),
+            "the engine answered something other than damage: {error:?}"
+        );
+        assert!(
+            marked(&replica).is_some(),
+            "the query did not mark the replica"
+        );
+
+        drop(connection);
+        drop(database);
         let _ = std::fs::remove_dir_all(&directory);
     }
 

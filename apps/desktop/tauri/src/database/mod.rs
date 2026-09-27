@@ -1,5 +1,5 @@
 pub mod commands;
-mod corrupt;
+pub(crate) mod corrupt;
 pub mod proxy;
 #[cfg(test)]
 mod test;
@@ -51,16 +51,21 @@ pub struct Pulled {
 
 /// [`Database::replicate`] over the engine alone, so a test can hold a replica against a
 /// scripted remote without a `Database` around it.
-pub(crate) async fn replicate_engine(database: &turso::sync::Database) -> Replicated {
+///
+/// `watch` records damage either half reports beside the replica (`corrupt.rs`).
+pub(crate) async fn replicate_engine(
+    database: &turso::sync::Database,
+    watch: &corrupt::Watch,
+) -> Replicated {
     let mut refusal = SyncRefusal::None;
-    let pushed = match database.push().await {
+    let pushed = match watch.note(database.push().await) {
         Ok(()) => true,
         Err(error) => {
             refusal = read_sync_refusal(&error);
             false
         }
     };
-    let pulled = match database.pull().await {
+    let pulled = match watch.note(database.pull().await) {
         Ok(brought) => Some(brought),
         Err(error) => {
             if refusal == SyncRefusal::None {
@@ -102,6 +107,9 @@ pub enum Engine {
 
 pub struct Database {
     engine: Option<Engine>,
+    /// where the replica the `Workspace` arm holds lies, so damage met on it after it opened is
+    /// recorded beside it (`corrupt.rs`). Empty on the `Local` arm and with no engine.
+    watch: corrupt::Watch,
     settings: Arc<RwLock<Persisted<Settings>>>,
 }
 
@@ -111,6 +119,7 @@ impl Database {
     pub fn new(settings: Arc<RwLock<Persisted<Settings>>>) -> Self {
         Database {
             engine: None,
+            watch: corrupt::Watch::default(),
             settings,
         }
     }
@@ -146,6 +155,7 @@ impl Database {
             .await?;
 
         self.engine = Some(Engine::Local(pool));
+        self.watch = corrupt::Watch::default();
 
         Ok(())
     }
@@ -201,6 +211,7 @@ impl Database {
         self.engine = Some(Engine::Workspace(
             Self::open_replica(&db_path, remote_url, auth_token).await?,
         ));
+        self.watch = corrupt::Watch::over(&db_path);
 
         Ok(())
     }
@@ -258,12 +269,14 @@ impl Database {
 
     /// One replica's file and every file the engine keeps beside it, as far as they exist, and
     /// the one place the sidecar list is spelled. What removes a replica and what sets a damaged
-    /// one aside (`corrupt.rs`) both walk this.
+    /// one aside (`corrupt.rs`) both walk this. The application's own marker of damage met after
+    /// the open, `corrupt::MARKER`, goes with them.
     fn replica_files(replica: &Path) -> Vec<PathBuf> {
         let mut files: Vec<PathBuf> = std::iter::once(replica.to_path_buf())
             .chain(
                 Self::REPLICA_SIDECARS
                     .iter()
+                    .chain(std::iter::once(&corrupt::MARKER))
                     .map(|suffix| PathBuf::from(format!("{}{suffix}", replica.display()))),
             )
             .filter(|file| file.exists())
@@ -306,7 +319,7 @@ impl Database {
     /// than a promise anybody had to keep.
     pub async fn push_replica(&self) -> bool {
         match self.engine.as_ref() {
-            Some(Engine::Workspace(database)) => database.push().await.is_ok(),
+            Some(Engine::Workspace(database)) => self.watch.note(database.push().await).is_ok(),
             Some(Engine::Local(_)) | None => false,
         }
     }
@@ -326,7 +339,7 @@ impl Database {
             // behind every mutation, forever, with nothing having arrived. The call succeeding is
             // still an answer of its own: the remote was reached, which is the moment the
             // standing block records.
-            Some(Engine::Workspace(database)) => match database.pull().await {
+            Some(Engine::Workspace(database)) => match self.watch.note(database.pull().await) {
                 Ok(brought) => Pulled {
                     completed: true,
                     brought,
@@ -353,7 +366,7 @@ impl Database {
     /// the one reported, because both are about the same database and the same credential.
     pub async fn replicate(&self) -> Replicated {
         match self.engine.as_ref() {
-            Some(Engine::Workspace(database)) => replicate_engine(database).await,
+            Some(Engine::Workspace(database)) => replicate_engine(database, &self.watch).await,
             Some(Engine::Local(_)) | None => Replicated {
                 pushed: false,
                 received: false,
@@ -374,7 +387,9 @@ impl Database {
     /// every one is rebuilt the same way: the file and its sidecars renamed to
     /// `<name>.corrupt-<ms>`, a warning naming them and what was lost, and an empty replica that
     /// the caller's first pull fills from its remote, as it fills a replica made for the first
-    /// time. `corrupt.rs` says what counts as damaged and why.
+    /// time. `corrupt.rs` says what counts as damaged and why. Damage the engine reports after this
+    /// has answered is recorded beside the replica by the reads that meet it, and set aside here at
+    /// the next open.
     pub async fn open_replica<F, Fut>(
         db_path: &Path,
         remote_url: Option<String>,
@@ -443,6 +458,8 @@ impl Database {
     /// Taking the engine rather than closing it is what matters on the replica arm: there is no
     /// close to call, and the file is held for exactly as long as the engine is.
     pub async fn disconnect(&mut self) {
+        self.watch = corrupt::Watch::default();
+
         match self.engine.take() {
             Some(Engine::Local(pool)) => pool.close().await,
             Some(Engine::Workspace(_)) | None => {}
@@ -571,7 +588,7 @@ impl Database {
             // The engine arms change capture on every connection it opens, so one taken here is
             // one whose writes can be pushed — and one taken any other way is not.
             Engine::Workspace(database) => {
-                proxy::workspace_execute_single_sql(&database.connect().await?, query).await
+                proxy::workspace_execute_single_sql(&self.watched(database).await?, query).await
             }
         }
     }
@@ -583,9 +600,20 @@ impl Database {
         match self.engine.as_ref().ok_or_else(Self::not_connected)? {
             Engine::Local(pool) => proxy::execute_batch_sql(pool, queries).await,
             Engine::Workspace(database) => {
-                proxy::workspace_execute_batch_sql(&database.connect().await?, queries).await
+                proxy::workspace_execute_batch_sql(&self.watched(database).await?, queries).await
             }
         }
+    }
+
+    /// A connection to the replica whose reads record the damage they meet (`corrupt.rs`).
+    async fn watched(
+        &self,
+        database: &turso::sync::Database,
+    ) -> Result<corrupt::Watched, turso::Error> {
+        Ok(corrupt::Watched::new(
+            self.watch.note(database.connect().await)?,
+            self.watch.clone(),
+        ))
     }
 }
 
@@ -698,7 +726,7 @@ mod tests {
         .await
         .expect("replica engine");
 
-        let replicated = super::replicate_engine(&database).await;
+        let replicated = super::replicate_engine(&database, &Default::default()).await;
 
         assert!(!replicated.pushed);
         assert!(!replicated.received);
@@ -746,7 +774,7 @@ mod tests {
         .await
         .expect("replica engine");
 
-        let unreached = super::replicate_engine(&offline).await;
+        let unreached = super::replicate_engine(&offline, &Default::default()).await;
 
         assert_eq!(unreached.refusal, SyncRefusal::None);
 

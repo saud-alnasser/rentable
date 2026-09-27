@@ -19,6 +19,13 @@
 //! amount for the two to disagree over. The sheets are the ones `TRANSFER_COLUMNS` in
 //! `src/lib/workspace/workspace.ts` writes, in `TRANSFER_CONCEPTS`' order, and
 //! `src/lib/workspace/tests/earlier.json` is what a test on each side holds them to.
+//!
+//! **A record whose parent is missing is left out, and counted.** A unit whose complex, a contract
+//! whose tenant, or a payment whose contract is not in the file has nothing the import could
+//! attach it to, and the import refuses a whole file over a reference nothing answers to, so the
+//! read leaves it out as `workspace.get` does. How many of each were left out is written in the
+//! `earlier.read` line, which is a warning where any was, so the records a person does not find
+//! brought over are accounted for somewhere.
 
 use std::{
     collections::HashMap,
@@ -30,7 +37,8 @@ use sqlx::{ConnectOptions, Connection, SqliteConnection, sqlite::SqliteConnectOp
 use tauri::State;
 
 use crate::{
-    backup, diagnostics,
+    backup,
+    diagnostics::{self, DiagnosticRecord},
     error::Error,
     export::{self, Cell, Sheet},
     import::{self, Table},
@@ -232,13 +240,33 @@ fn sheet(name: &str, headers: &[&str], rows: Vec<Vec<Cell>>) -> Sheet {
     }
 }
 
+/// How many records of each kind the read left out for a parent the file does not hold.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct LeftOut {
+    /// units whose complex is missing.
+    units: usize,
+    /// contracts whose tenant is missing.
+    contracts: usize,
+    /// payments whose contract is missing, or was itself left out.
+    payments: usize,
+}
+
+impl LeftOut {
+    fn any(self) -> bool {
+        self.units + self.contracts + self.payments > 0
+    }
+}
+
 /// The five sheets of the whole-workspace export, read out of what 0.12.0 or 0.13.0 left.
 ///
 /// **The same statements at both versions.** Schema 3 added only `history`, and the export has no
 /// sheet for it: the history of a record is not something a workspace hands over. Each read is
 /// ordered as `workspace.get` orders it, and each value is cast to what the export writes, so a
 /// value an earlier version happened to store in another storage class still reads.
-async fn sheets(connection: &mut SqliteConnection) -> Result<Vec<Sheet>, Error> {
+///
+/// The joins leave out a record whose parent is missing; how many of each is counted beside the
+/// sheets ([`LeftOut`]).
+async fn sheets(connection: &mut SqliteConnection) -> Result<(Vec<Sheet>, LeftOut), Error> {
     let tenants: Vec<(String, String, String)> = sqlx::query_as(
         "SELECT CAST(name AS TEXT), CAST(national_id AS TEXT), CAST(phone AS TEXT) \
          FROM tenant ORDER BY name, id",
@@ -300,6 +328,12 @@ async fn sheets(connection: &mut SqliteConnection) -> Result<Vec<Sheet>, Error> 
     .fetch_all(&mut *connection)
     .await?;
 
+    let (all_units, all_contracts): (i64, i64) =
+        sqlx::query_as("SELECT (SELECT count(*) FROM unit), (SELECT count(*) FROM contract)")
+            .fetch_one(&mut *connection)
+            .await?;
+    let all_payments = payments.len();
+
     let mut units_of: HashMap<i64, Vec<String>> = HashMap::new();
 
     for (contract, complex, unit) in &assignments {
@@ -344,7 +378,31 @@ async fn sheets(connection: &mut SqliteConnection) -> Result<Vec<Sheet>, Error> 
         )
         .collect();
 
-    Ok(vec![
+    let units_read = units.len();
+    let contracts_read = contracts.len();
+
+    // a payment whose contract is gone is left out, as `workspace.get` leaves it out: the import
+    // refuses a whole file over a reference nothing answers to.
+    let payment_rows: Vec<Vec<Cell>> = payments
+        .into_iter()
+        .filter_map(|(date, amount, contract)| {
+            reference_of
+                .get(&contract)
+                .map(|reference| vec![text(reference.as_str()), day(date), money(amount)])
+        })
+        .collect();
+
+    let left_out = LeftOut {
+        units: usize::try_from(all_units)
+            .unwrap_or_default()
+            .saturating_sub(units_read),
+        contracts: usize::try_from(all_contracts)
+            .unwrap_or_default()
+            .saturating_sub(contracts_read),
+        payments: all_payments - payment_rows.len(),
+    };
+
+    let sheets = vec![
         sheet(
             "Tenants",
             &["Name", "National ID", "Phone"],
@@ -377,21 +435,27 @@ async fn sheets(connection: &mut SqliteConnection) -> Result<Vec<Sheet>, Error> 
             ],
             contract_rows,
         ),
-        // a payment whose contract is gone is left out, as `workspace.get` leaves it out: the
-        // import refuses a whole file over a reference nothing answers to.
-        sheet(
-            "Payments",
-            &["Contract", "Date", "Amount"],
-            payments
-                .into_iter()
-                .filter_map(|(date, amount, contract)| {
-                    reference_of
-                        .get(&contract)
-                        .map(|reference| vec![text(reference.as_str()), day(date), money(amount)])
-                })
-                .collect(),
-        ),
-    ])
+        sheet("Payments", &["Contract", "Date", "Amount"], payment_rows),
+    ];
+
+    Ok((sheets, left_out))
+}
+
+/// The line the log keeps of a read: the version, the workbook, and how many records of each kind
+/// were left out for a missing parent, as a warning where any was.
+fn read_record(version: Version, workbook: &str, left_out: LeftOut) -> DiagnosticRecord {
+    let record = if left_out.any() {
+        diagnostics::warn("earlier.read")
+    } else {
+        diagnostics::info("earlier.read")
+    };
+
+    record
+        .with("version", version.name())
+        .with("workbook", workbook)
+        .with("unitsLeftOut", left_out.units.to_string())
+        .with("contractsLeftOut", left_out.contracts.to_string())
+        .with("paymentsLeftOut", left_out.payments.to_string())
 }
 
 /// Where the workbook of `version`'s records is written, under `directory`, the directory
@@ -429,7 +493,7 @@ pub async fn read(path: &Path) -> Result<Read, Error> {
 
     connection.close().await?;
 
-    let (version, sheets) = answered?.ok_or_else(not_found)?;
+    let (version, (sheets, left_out)) = answered?.ok_or_else(not_found)?;
     let directory = path.parent().unwrap_or_else(|| Path::new("."));
     let workbook = workbook_path(directory, version);
 
@@ -443,10 +507,7 @@ pub async fn read(path: &Path) -> Result<Read, Error> {
         export::export_write_workbook(workbook.to_string_lossy().into_owned(), sheets).await?;
     let tables = import::import_read_book(written.clone()).await?;
 
-    diagnostics::info("earlier.read")
-        .with("version", version.name())
-        .with("workbook", written.as_str())
-        .write();
+    read_record(version, &written, left_out).write();
 
     Ok(Read {
         version,
@@ -829,6 +890,70 @@ mod tests {
                 version.name()
             );
         }
+    }
+
+    // a unit whose complex, a contract whose tenant and a payment whose contract is missing are
+    // left out of the sheets, and each is counted by kind in the line the log keeps.
+    #[tokio::test]
+    async fn records_left_out_for_a_missing_parent_are_counted_by_kind() {
+        let path = left_by(Version::Thirteen).await;
+        let mut connection = writable(&path).await;
+
+        // as a file an earlier version wrote without its foreign keys enforced might hold them.
+        sqlx::query("PRAGMA foreign_keys = OFF")
+            .execute(&mut connection)
+            .await
+            .expect("the pragma");
+        for statement in [
+            // unit 3, 101 of the second complex.
+            "DELETE FROM complex WHERE id = 2",
+            // contract 2 and its two payments.
+            "DELETE FROM tenant WHERE id = 2",
+            "INSERT INTO payment (id, date, amount, contract_id) VALUES (4, 0, 10.0, 99)",
+        ] {
+            sqlx::query(statement)
+                .execute(&mut connection)
+                .await
+                .expect(statement);
+        }
+
+        let (sheets, left_out) = sheets(&mut connection).await.expect("the sheets");
+        connection.close().await.expect("the file closed");
+
+        assert_eq!(
+            left_out,
+            LeftOut {
+                units: 1,
+                contracts: 1,
+                payments: 3,
+            }
+        );
+        let rows = |name: &str| {
+            sheets
+                .iter()
+                .find(|sheet| sheet.name.as_deref() == Some(name))
+                .map(|sheet| sheet.rows.len())
+                .expect(name)
+        };
+        assert_eq!(
+            (rows("Units"), rows("Contracts"), rows("Payments")),
+            (2, 1, 1)
+        );
+
+        let line = read_record(Version::Thirteen, "workspace-0.13.0.xlsx", left_out);
+        assert_eq!(line.event, "earlier.read");
+        assert_eq!(line.level, diagnostics::DiagnosticLevel::Warn);
+        assert_eq!(line.fields["unitsLeftOut"], "1");
+        assert_eq!(line.fields["contractsLeftOut"], "1");
+        assert_eq!(line.fields["paymentsLeftOut"], "3");
+
+        let whole = read_record(
+            Version::Thirteen,
+            "workspace-0.13.0.xlsx",
+            LeftOut::default(),
+        );
+        assert_eq!(whole.level, diagnostics::DiagnosticLevel::Info);
+        assert_eq!(whole.fields["paymentsLeftOut"], "0");
     }
 
     #[tokio::test]

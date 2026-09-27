@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(desktop): damage found after the open is set aside at the next open
@@ -19,14 +19,14 @@ of the earlier records are counted in the log.
 
 Traces requirement 17 and requirement 18 of [[efforts/838-permissions-are-a-role-and-an-override/spec]].
 
-- [ ] A query on an open replica answering `Corrupt` or `NotAdb` records the replica as damaged
+- [x] A query on an open replica answering `Corrupt` or `NotAdb` records the replica as damaged
       beside it and logs it; the next open sets it aside as a damaged open does. A test covers it.
-- [ ] Where the sync engine's replace-base marker stands beside a replica, the truncation check
+- [x] Where the sync engine's replace-base marker stands beside a replica, the truncation check
       leaves it to the engine. A test covers it.
-- [ ] The earlier records' reader logs how many units, contracts and payments it left out for a
+- [x] The earlier records' reader logs how many units, contracts and payments it left out for a
       missing parent, by kind. A test covers it.
-- [ ] `database/corrupt.rs` spells SQLite's magic with its escape, with no raw NUL in the source.
-- [ ] `cargo test`, `pnpm check`, `pnpm test` and `pnpm lint` pass.
+- [x] `database/corrupt.rs` spells SQLite's magic with its escape, with no raw NUL in the source.
+- [x] `cargo test`, `pnpm check`, `pnpm test` and `pnpm lint` pass.
 
 ## Relevant areas
 

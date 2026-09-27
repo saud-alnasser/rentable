@@ -524,7 +524,7 @@ file with the same `CREATE` statements, through `sqlx` as the rest of the plain 
   kind on the first read; a truncated file is never reported as corrupt (a short read, a `Busy`, or
   an open that never returns), so a truncated main file is found before the engine is given it,
   from the header's page size and count against the file's length, where no write-ahead log holds
-  the rest (`database/corrupt.rs`). Damage met after the first read is not handled here.*
+  the rest (`database/corrupt.rs`). Damage met after the first read was not handled here until ticket 39, below.*
   *Review round one of tickets 32 to 37: the schema check compares structure, not statement text,
   as Room's `TableInfo` does: each table by its columns' names, declared types, `NOT NULL` and
   primary key positions, whatever their order or defaults; each index by its name, uniqueness and

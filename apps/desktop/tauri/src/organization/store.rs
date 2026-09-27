@@ -38,7 +38,7 @@ use std::{
 
 use crate::{
     backup,
-    database::Database,
+    database::{Database, corrupt},
     diagnostics,
     error::{Error, RefusalReason},
     schema,
@@ -663,7 +663,9 @@ pub struct Signer<'a> {
 /// `Debug` says which file it is over and nothing about the rows, which is all a log line needs.
 pub struct OrganizationStore {
     database: turso::sync::Database,
-    connection: turso::Connection,
+    /// the replica's connection, whose reads record the damage they meet beside the replica
+    /// (`database/corrupt.rs`), so that its next open sets it aside.
+    connection: corrupt::Watched,
     /// where the replica is, which is what says where the application's data directory is.
     path: PathBuf,
 }
@@ -707,7 +709,8 @@ impl OrganizationStore {
         }
 
         let database = Database::open_replica(path, remote_url, auth_token).await?;
-        let connection = database.connect().await?;
+        let watch = corrupt::Watch::over(path);
+        let connection = corrupt::Watched::new(watch.note(database.connect().await)?, watch);
 
         Ok(Self {
             database,
@@ -748,7 +751,10 @@ impl OrganizationStore {
     /// earlier build captured under columns the remote has since dropped are refused for good
     /// (effort 838, ticket 25; [`OrganizationStore::format_one_reshape`] records the measurement).
     pub async fn pushed(&self) -> Result<(), turso::Error> {
-        self.database.push().await.map(|_| ())
+        self.connection
+            .watch()
+            .note(self.database.push().await)
+            .map(|_| ())
     }
 
     /// Bring what the remote has, and say whether anything arrived.
@@ -764,7 +770,7 @@ impl OrganizationStore {
     /// organization rather than about this machine's connection, and it is the only way a machine
     /// learns the owner deleted it (effort 828, requirement 18).
     pub async fn pulled(&self) -> Result<bool, turso::Error> {
-        let arrived = self.database.pull().await?;
+        let arrived = self.connection.watch().note(self.database.pull().await)?;
 
         // a replica made by an earlier build lacks the tables the schema gained since, and the
         // remote lacks them too, because the schema is issued once, on the machine that created
