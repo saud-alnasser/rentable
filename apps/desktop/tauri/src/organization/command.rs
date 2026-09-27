@@ -1171,13 +1171,21 @@ pub async fn workspace_open(
         store.pull().await;
 
         let workspaces = store.workspaces(&member.verifying_key).await?;
-        let (mut facts, credential) = workspace::openable(member, &workspaces, &workspace_id)?
-            .ok_or_else(|| {
-                Error::refused(
-                    RefusalReason::NoGrant,
-                    "you hold no grant on that workspace",
-                )
-            })?;
+        // what is switched for the member there is a fact the answer draws, read off every member
+        // row; a directory refusing that read refuses the members list by name, and is not a
+        // reason to refuse opening a workspace the member holds a grant on, which it never was.
+        let workspace_overrides = store
+            .workspace_overrides(&member.verifying_key)
+            .await
+            .unwrap_or_default();
+        let (mut facts, credential) =
+            workspace::openable(member, &workspaces, &workspace_overrides, &workspace_id)?
+                .ok_or_else(|| {
+                    Error::refused(
+                        RefusalReason::NoGrant,
+                        "you hold no grant on that workspace",
+                    )
+                })?;
 
         // a workspace this build was not written against is refused here, before the replica is
         // named, and nothing of it is read.
@@ -1697,6 +1705,26 @@ pub async fn member_set_override(
     store.pull().await;
 
     role::set_override(store, member, &member_id, override_mask, timestamp::now()).await
+}
+
+/// Set what is switched for a member in one workspace, over what they may do across the
+/// organization (effort 838, requirement 12 as amended a third time); `overrideMask` on the wire,
+/// for the reason `member_create` gives, and zero clears it. `overrideMember`, the member below
+/// the actor's rank and in that workspace, never the actor's own row nor the owner's, record flags
+/// alone, only flags the actor holds, and nothing written there that the member cannot view.
+#[tauri::command]
+pub async fn member_set_workspace_override(
+    app_state: tauri::State<'_, AppState>,
+    member_id: String,
+    workspace_id: String,
+    override_mask: i64,
+) -> Result<MemberFacts, Error> {
+    let mut member = app_state.member.write().await;
+    let store = app_state.organization.read().await;
+    let (member, store) = signed_in(&mut member, &store)?;
+    store.pull().await;
+
+    role::set_workspace_override(store, member, &member_id, &workspace_id, override_mask).await
 }
 
 /// Offer the organization to another account: the first of the two acts a handover is (effort
@@ -2575,6 +2603,12 @@ mod tests {
     async fn a_held_replica_of_another_format_is_refused_at_the_launch_and_nothing_is_written() {
         let _turn = a_turn().await;
 
+        // a format past the one this build ships, whichever that is.
+        let newer = format!(
+            "UPDATE \"format\" SET \"version\" = {}",
+            crate::organization::store::FORMAT_VERSION + 1
+        );
+
         for (name, change, reason) in [
             (
                 "older",
@@ -2583,7 +2617,7 @@ mod tests {
             ),
             (
                 "newer",
-                "UPDATE \"format\" SET \"version\" = 3",
+                newer.as_str(),
                 crate::error::RefusalReason::OrganizationNewer,
             ),
         ] {
@@ -3549,6 +3583,10 @@ mod tests {
         // member carries (`role::assign_role`).
         ("member_assign_role", Gate::Flag(Flag::AssignRole)),
         ("member_set_override", Gate::Flag(Flag::OverrideMember)),
+        (
+            "member_set_workspace_override",
+            Gate::Flag(Flag::OverrideMember),
+        ),
         (
             "member_offer_ownership",
             Gate::Owner(Flag::TransferOwnership),

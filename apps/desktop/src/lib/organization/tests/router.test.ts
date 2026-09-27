@@ -600,7 +600,7 @@ test('making an account is inviteMember and unsetting a password is resetPasswor
 						username,
 						roleId,
 						override,
-						workspaces,
+						workspaces: workspaces.map((grant) => ({ ...grant, override: 0, permissions: 0 })),
 						createdAt: 1_757_000_000_000
 					});
 				},

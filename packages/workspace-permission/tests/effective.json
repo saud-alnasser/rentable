@@ -305,6 +305,64 @@
 			"readOnly": 73300967423
 		}
 	],
+	"workspaceCases": [
+		{
+			"name": "the member role with no workspace override",
+			"permissions": 513104936960,
+			"workspaceOverride": 0,
+			"effective": 513104936960,
+			"readOnly": 73300705280
+		},
+		{
+			"name": "the member role with every add and edit switched off: read only",
+			"permissions": 513104936960,
+			"workspaceOverride": 439804231680,
+			"effective": 73300705280,
+			"readOnly": 73300705280
+		},
+		{
+			"name": "the member role adding and editing payments no more, and deleting them",
+			"permissions": 513104936960,
+			"workspaceOverride": 962072674304,
+			"effective": 650543890432,
+			"readOnly": 73300705280
+		},
+		{
+			"name": "the manager role without deleting contracts",
+			"permissions": 1099510580223,
+			"workspaceOverride": 34359738368,
+			"effective": 1065150841855,
+			"readOnly": 73300706303
+		},
+		{
+			"name": "the manager role with an administration flag named, which is not switched",
+			"permissions": 1099510580223,
+			"workspaceOverride": 16777221,
+			"effective": 1099493803007,
+			"readOnly": 73283929087
+		},
+		{
+			"name": "the manager role with every write switched off: read only",
+			"permissions": 1099510580223,
+			"workspaceOverride": 1026209873920,
+			"effective": 73300706303,
+			"readOnly": 73300706303
+		},
+		{
+			"name": "nothing across the organization, and viewing and editing payments here",
+			"permissions": 0,
+			"workspaceOverride": 343597383680,
+			"effective": 343597383680,
+			"readOnly": 68719476736
+		},
+		{
+			"name": "the owner's every flag with no workspace override",
+			"permissions": 1099510841343,
+			"workspaceOverride": 0,
+			"effective": 1099510841343,
+			"readOnly": 73300967423
+		}
+	],
 	"writeWithoutView": [
 		{
 			"name": "nothing",

@@ -16,6 +16,7 @@ import {
 	BUILT_IN,
 	WRITE_FLAGS,
 	effectiveIn,
+	effectiveInWorkspace,
 	maskOf,
 	permits
 } from '@rentable/workspace-permission';
@@ -302,4 +303,53 @@ test('where the open workspace cannot be said, the writes are cleared and nothin
 
 		assert.equal(actor?.permissions, effectiveIn(BUILT_IN.manager.mask, 'read-only'), `${open}`);
 	}
+});
+
+/**
+ * **What a member may do in the workspace open is switched by their override for it, and then
+ * folded by its grant** (effort 838, requirement 12 as amended a third time). The organization's
+ * own flags are not a workspace's to switch, and a read-only grant clears a write the override
+ * turned on.
+ */
+test("the workspace open switches what its override names, and the organization's flags stay", async () => {
+	const tailored = fakeOrganizationSession({
+		role: 'manager',
+		roleId: BUILT_IN.manager.id,
+		rank: BUILT_IN.manager.rank,
+		permissions: BUILT_IN.manager.mask,
+		workspaces: [
+			fakeOrganizationWorkspace({
+				id: 'north',
+				accessLevel: 'full-access',
+				override: maskOf('deleteContract', 'assignRole')
+			}),
+			fakeOrganizationWorkspace({
+				id: 'south',
+				accessLevel: 'read-only',
+				override: maskOf('deleteContract')
+			})
+		]
+	});
+	const inNorth = await actorFrom({
+		db: createMemoryDatabase(),
+		clock: { now: () => 0 },
+		host: shellOpenOn('north', tailored)
+	});
+	const north = inNorth?.permissions ?? 0;
+
+	assert.equal(north, effectiveInWorkspace(BUILT_IN.manager.mask, maskOf('deleteContract')));
+	assert.ok(!permits(north, 'deleteContract'), 'what north switches off was held there');
+	assert.ok(permits(north, 'deletePayment'), 'what north leaves alone was switched');
+	assert.ok(permits(north, 'assignRole'), 'an organization flag was switched in a workspace');
+
+	const inSouth = await actorFrom({
+		db: createMemoryDatabase(),
+		clock: { now: () => 0 },
+		host: shellOpenOn('south', tailored)
+	});
+
+	assert.equal(
+		inSouth?.permissions,
+		effectiveIn(effectiveInWorkspace(BUILT_IN.manager.mask, maskOf('deleteContract')), 'read-only')
+	);
 });

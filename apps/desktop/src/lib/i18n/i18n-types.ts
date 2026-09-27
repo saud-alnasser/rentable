@@ -1226,6 +1226,10 @@ type RootTranslation = {
 				 */
 				paymentNeedsViewing: string
 				/**
+				 * a​ ​w​o​r​k​s​p​a​c​e​ ​c​h​a​n​g​e​s​ ​o​n​l​y​ ​w​h​a​t​ ​m​a​y​ ​b​e​ ​d​o​n​e​ ​t​o​ ​i​t​s​ ​r​e​c​o​r​d​s​.​ ​s​e​t​ ​t​h​e​ ​r​e​s​t​ ​a​c​r​o​s​s​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.
+				 */
+				recordFlagsOnly: string
+				/**
 				 * y​o​u​ ​a​r​e​ ​t​h​e​ ​o​w​n​e​r​ ​a​l​r​e​a​d​y​.​ ​c​h​o​o​s​e​ ​t​h​e​ ​a​c​c​o​u​n​t​ ​t​h​a​t​ ​i​s​ ​t​o​ ​h​a​v​e​ ​i​t​.
 				 */
 				alreadyOwner: string
@@ -5629,6 +5633,10 @@ export type TranslationFunctions = {
 				 * adding, editing or deleting payments needs viewing them. turn on viewing payments first.
 				 */
 				paymentNeedsViewing: () => LocalizedString
+				/**
+				 * a workspace changes only what may be done to its records. set the rest across the organization.
+				 */
+				recordFlagsOnly: () => LocalizedString
 				/**
 				 * you are the owner already. choose the account that is to have it.
 				 */

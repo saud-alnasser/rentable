@@ -662,6 +662,12 @@ mod tests {
     /// records nothing.
     #[tokio::test]
     async fn an_organization_of_another_format_is_refused_at_the_connect_and_nothing_is_written() {
+        // a format past the one this build ships, whichever that is.
+        let newer = format!(
+            "UPDATE \"format\" SET \"version\" = {}",
+            crate::organization::store::FORMAT_VERSION + 1
+        );
+
         for (name, change, reason) in [
             (
                 "today",
@@ -670,7 +676,7 @@ mod tests {
             ),
             (
                 "newer",
-                "UPDATE \"format\" SET \"version\" = 3",
+                newer.as_str(),
                 crate::error::RefusalReason::OrganizationNewer,
             ),
         ] {

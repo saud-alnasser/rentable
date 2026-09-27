@@ -492,6 +492,10 @@ pub(crate) async fn retire_member(
 
     store.delete_open_machine_links_of(member_id).await?;
 
+    // and whatever was switched for them in any workspace, the grants' own above included: a
+    // person made an account again starts from their role (effort 838, ticket 53).
+    store.delete_workspace_overrides_of(member_id).await?;
+
     Ok(())
 }
 

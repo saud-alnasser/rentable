@@ -13,10 +13,11 @@ import type { TranslationFunctions } from '$lib/i18n/i18n-types';
  *
  * The interface's half of requirement 10 of effort 838: a record control whose flag the member
  * lacks is refused, and says which flag; a kind they may not view is left out. What decides it is
- * the value the tRPC context decides by, the session's permissions folded for the workspace open
- * (`effectiveIn`, over the access `api/context.ts` reads with `accessIn`), so a control and the
- * procedure behind it answer the same question from the same number. The procedure refuses again,
- * naming the flag, and the signed row in Rust is the authority; this is the courtesy.
+ * the value the tRPC context decides by, the session's permissions in the workspace open folded
+ * by its grant (`effectiveIn`, over what `api/context.ts` reads with `workspacePermissionsIn`
+ * and `accessIn`), so a control and the procedure behind it answer the same question from the
+ * same number. The procedure refuses again, naming the flag, and the signed row in Rust is the
+ * authority; this is the courtesy.
  *
  * **Plain rather than a rune module**, so the concepts' act lists, the create group and the undo
  * stack can read it under Node's runner, which cannot load one. It is still reactive where it is
@@ -65,10 +66,11 @@ export const IMPORT_FLAGS = [
 ] as const satisfies readonly RecordFlag[];
 
 /**
- * Where the reader stands in the workspace open: what they may do across the organization, and how
- * their grant reaches this workspace. Both are kept, rather than the folded value alone, because
- * they give two different reasons: a flag the role and override do not carry, and a flag a
- * read-only grant took away.
+ * Where the reader stands in the workspace open: what they may do in it before the grant is read
+ * (their permissions across the organization with what is switched for them there,
+ * `workspacePermissionsIn`), and how their grant reaches this workspace. Both are kept, rather
+ * than the folded value alone, because they give two different reasons: a flag the role and
+ * overrides do not carry, and a flag a read-only grant took away.
  */
 export type Standing = { permissions: number; accessLevel: AccessLevel };
 

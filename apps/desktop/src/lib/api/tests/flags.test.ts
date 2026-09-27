@@ -349,3 +349,68 @@ test('on a read-only grant every create, edit and delete is refused', async () =
 	// and reading is not a write: the same member lists what the workspace holds.
 	assert.deepEqual(await api.tenant.search({ term: 'nobody' }), []);
 });
+
+/**
+ * TAILORED FOR ONE WORKSPACE
+ *
+ * Effort 838, criterion 12 as amended a third time: a record procedure answers by what the member
+ * may do in the workspace open, which is what they may do across the organization with what is
+ * switched for them there. A manager whose override for north takes adding complexes away, and
+ * viewing tenants with everything viewing them is needed for, is refused both in north and
+ * neither in south, where nothing is switched. The identity is resolved off the shell's session
+ * and the workspace it has open, so the switch is the context's and not the test's.
+ */
+function managerTailoredIn(open: string): Host {
+	const session = fakeOrganizationSession({
+		role: 'manager',
+		roleId: BUILT_IN.manager.id,
+		rank: BUILT_IN.manager.rank,
+		permissions: BUILT_IN.manager.mask,
+		workspaces: [
+			fakeOrganizationWorkspace({
+				id: 'north',
+				override: maskOf('createComplex', ...FAMILIES.tenant)
+			}),
+			fakeOrganizationWorkspace({ id: 'south' })
+		]
+	});
+	const state = fakeOrganizationState({ session });
+
+	return fakeHost({
+		organization: { ...fakeHost().organization, getState: async () => state },
+		remoteSync: {
+			...fakeHost().remoteSync,
+			getState: async () => fakeSyncState({ workspace: fakeWorkspace({ remoteId: open }) })
+		}
+	});
+}
+
+test('a record procedure answers by what is switched for the member in the workspace open', async () => {
+	const inNorth = caller(appRouter)(
+		await context({
+			db: createMemoryDatabase(),
+			clock: { now: () => NOW },
+			host: managerTailoredIn('north')
+		})
+	);
+	const adding = await refusalFrom(inNorth.complex.create({ name: 'north', location: 'riyadh' }));
+	const reading = await refusalFrom(inNorth.tenant.search({ term: 'nobody' }));
+
+	assert.equal(adding?.code, 'FORBIDDEN');
+	assert.ok(adding?.message?.endsWith('createComplex in this workspace'), adding?.message);
+	assert.equal(reading?.code, 'FORBIDDEN');
+	assert.ok(reading?.message?.endsWith('viewTenant in this workspace'), reading?.message);
+	// what north does not switch stays as the organization has it.
+	assert.deepEqual(await inNorth.complex.search({ term: 'nobody' }), []);
+
+	const inSouth = caller(appRouter)(
+		await context({
+			db: createMemoryDatabase(),
+			clock: { now: () => NOW },
+			host: managerTailoredIn('south')
+		})
+	);
+
+	await inSouth.complex.create({ name: 'south', location: 'riyadh' });
+	assert.deepEqual(await inSouth.tenant.search({ term: 'nobody' }), []);
+});

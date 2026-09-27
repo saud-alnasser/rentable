@@ -48,16 +48,16 @@ use super::{
     authority::{
         Authority, Certificate, Chain, FormatOneCertificate, GrantAuthority, InvitationAuthority,
         MarkAuthority, MemberAuthority, Reading, Revocation, RoleAuthority, VERIFYING_KEY_BYTES,
-        WorkspaceAuthority, covers, needed_for, sign,
+        WorkspaceAuthority, WorkspaceOverrideAuthority, covers, needed_for, sign,
     },
     permission::{self, OWNER_ROLE},
     transition::TRANSITIONS,
     vault::{KDF_SALT_BYTES, KdfParams, PUBLIC_KEY_BYTES, Vault},
 };
 
-/// The fourteen tables, in the order the schema creates them. A test pins this list against what
+/// The fifteen tables, in the order the schema creates them. A test pins this list against what
 /// the database reports, so a table added anywhere is added here or fails there.
-pub const TABLES: [&str; 14] = [
+pub const TABLES: [&str; 15] = [
     "format",
     "organization",
     "role",
@@ -72,7 +72,12 @@ pub const TABLES: [&str; 14] = [
     "machine",
     "succession",
     "mark",
+    "workspace_override",
 ];
+
+/// How many of [`TABLES`] format 2 held: every one but `workspace_override`, which format 3 adds
+/// (`transition/three.rs`), and which is last in the schema for that reason.
+const FORMAT_TWO_TABLES: usize = 14;
 
 /// How long a machine counts as connected after it was last seen: seven days (effort 828,
 /// requirement 15).
@@ -120,7 +125,7 @@ const FIRST_FORMAT_WITH_A_ROW: i64 = 2;
 ///
 /// `grant` is quoted everywhere because it is a keyword in most dialects, and a statement that
 /// works in SQLite and fails elsewhere is a statement worth spelling defensively once.
-const SCHEMA: [&str; 14] = [
+const SCHEMA: [&str; 15] = [
     // one row, the organization format (see [`FORMAT_VERSION`]).
     "CREATE TABLE IF NOT EXISTS \"format\" (\
         \"id\" TEXT PRIMARY KEY NOT NULL, \
@@ -249,6 +254,17 @@ const SCHEMA: [&str; 14] = [
         \"updated_at\" INTEGER NOT NULL, \
         \"certificate_id\" TEXT NOT NULL, \
         \"signature\" BLOB NOT NULL)",
+    // what is switched for one member in one workspace (effort 838, requirement 12 as amended a
+    // third time): record flags alone, over what they may do across the organization. Signed by a
+    // holder of `overrideMember` who outranks them, and keyed on the pair, so a member carries one
+    // in each workspace they are in. Format 3's, and so last.
+    "CREATE TABLE IF NOT EXISTS \"workspace_override\" (\
+        \"member_id\" TEXT NOT NULL, \
+        \"workspace_id\" TEXT NOT NULL, \
+        \"mask\" INTEGER NOT NULL, \
+        \"certificate_id\" TEXT NOT NULL, \
+        \"signature\" BLOB NOT NULL, \
+        PRIMARY KEY (\"member_id\", \"workspace_id\"))",
 ];
 
 /// The key of the one `mark` row: an organization keeps one mark.
@@ -497,6 +513,16 @@ pub struct WorkspaceRecord {
     pub updated_at: i64,
 }
 
+/// A `workspace_override` row (effort 838, requirement 12 as amended a third time): the record
+/// flags switched for one member in one workspace, over what they may do across the organization.
+/// The whole of it is under signature. A mask of zero is no row at all.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WorkspaceOverrideRecord {
+    pub member_id: String,
+    pub workspace_id: String,
+    pub mask: i64,
+}
+
 /// A `migration_lease` row: which member is upgrading a workspace, and the moment after which
 /// nobody is, whatever became of them.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -740,6 +766,18 @@ impl OrganizationStore {
         install(&self.connection).await
     }
 
+    /// Create the tables of format 2 where they do not exist, and none a later format adds: what
+    /// the change from format 1 creates (`transition/two.rs`), leaving the rest to the changes
+    /// after it.
+    pub async fn install_format_two_schema(&self) -> Result<(), Error> {
+        install_format_two(&self.connection).await
+    }
+
+    /// Create what format 3 adds where it does not exist (`transition/three.rs`).
+    pub async fn install_format_three_schema(&self) -> Result<(), Error> {
+        install_format_three(&self.connection).await
+    }
+
     /// Send what this machine wrote. A failure is an answer, as `Database::push_replica` says:
     /// what could not be sent stays captured and goes with the next push.
     pub async fn push(&self) -> bool {
@@ -924,15 +962,29 @@ impl OrganizationStore {
     /// owner's next sign-in writes the row back as it did before the changes were split. Read as
     /// written, it made format 1's change due over a directory holding a root, which refuses it,
     /// and everybody was locked out.
+    ///
+    /// **And one with no row, or a row below 2, and no `workspace_override` table is format 2**
+    /// (effort 838, ticket 53): format 3 adds that table and nothing else, so a directory without
+    /// it whose row is gone has not been through format 3's change, which creates it where it is
+    /// missing and runs again with nothing lost. With the table it is the shipped format, as
+    /// before, and only its row is written.
     pub async fn format_as_it_stands(&self, shipped: i64) -> Result<i64, Error> {
         if self.carries_format_one().await? {
             return Ok(1);
         }
 
-        Ok(self
-            .format()
-            .await?
-            .map_or(shipped, |version| version.max(FIRST_FORMAT_WITH_A_ROW)))
+        match self.format().await? {
+            Some(version) if version >= FIRST_FORMAT_WITH_A_ROW => Ok(version),
+            _ if !self
+                .tables()
+                .await?
+                .iter()
+                .any(|table| table == TABLES[FORMAT_TWO_TABLES]) =>
+            {
+                Ok(shipped.min(FIRST_FORMAT_WITH_A_ROW))
+            }
+            _ => Ok(shipped),
+        }
     }
 
     /// Refuse an organization of another format, by name, before anything else is read from it
@@ -1173,21 +1225,37 @@ impl OrganizationStore {
         signer: &Signer<'_>,
         authority: Authority<'_>,
     ) -> Result<(), Error> {
-        let (roles, certified_rank) = match authority {
-            Authority::Member(member) => {
-                let certified_rank = match self.organization().await? {
-                    Some(organization) => {
-                        let (certificates, revocations) = self.chain_rows().await?;
+        let about = match authority {
+            Authority::Member(member) => Some(member.id),
+            Authority::WorkspaceOverride(workspace_override) => Some(workspace_override.member_id),
+            _ => None,
+        };
+        let organization = match about {
+            Some(_) => self.organization().await?,
+            None => None,
+        };
+        let certified_rank = match (&organization, about) {
+            (Some(organization), Some(member_id)) => {
+                let (certificates, revocations) = self.chain_rows().await?;
 
-                        Chain::new(&organization.verifying_key, &certificates, &revocations)
-                            .certified_rank_of(member.id)
-                    }
-                    None => None,
-                };
-
-                (standings(&self.roles_unverified().await?), certified_rank)
+                Chain::new(&organization.verifying_key, &certificates, &revocations)
+                    .certified_rank_of(member_id)
             }
-            _ => (HashMap::new(), None),
+            _ => None,
+        };
+        let roles = match about {
+            Some(_) => standings(&self.roles_unverified().await?),
+            None => HashMap::new(),
+        };
+        // the member a workspace override is about, as their row reads under the organization
+        // row's key: in, and granted something, or nobody to override (effort 838, ticket 53).
+        let member_rank = match (&organization, authority) {
+            (Some(organization), Authority::WorkspaceOverride(workspace_override)) => self
+                .member(&organization.verifying_key, workspace_override.member_id)
+                .await?
+                .filter(|member| member.covered && member.removed_at.is_none())
+                .and_then(|member| rank_in(&member.role_id, &roles)),
+            _ => None,
         };
 
         if covers(
@@ -1195,6 +1263,7 @@ impl OrganizationStore {
             authority,
             |role_id| roles.get(role_id).copied(),
             |_| certified_rank,
+            |_| member_rank,
         ) {
             return Ok(());
         }
@@ -2132,6 +2201,177 @@ impl OrganizationStore {
         Ok(grants)
     }
 
+    // workspace overrides
+
+    /// Write a member's override for one workspace, signed by `signer` over the whole of it
+    /// (effort 838, requirement 12 as amended a third time). Refused, with nothing written, where
+    /// the signer's certificate does not cover it: `overrideMember`, a rank above the member, every
+    /// flag it switches, record flags alone, and not the signer's own
+    /// ([`OrganizationStore::refuse_uncovered`]).
+    pub async fn write_workspace_override(
+        &self,
+        signer: &Signer<'_>,
+        workspace_override: &WorkspaceOverrideRecord,
+    ) -> Result<(), Error> {
+        self.refuse_uncovered(signer, workspace_override_authority(workspace_override))
+            .await?;
+        self.insert_workspace_override(signer, workspace_override)
+            .await
+    }
+
+    /// [`OrganizationStore::write_workspace_override`] around its check, for a test writing the
+    /// row somebody holding the credential writes around the store: what every reader has to
+    /// leave out.
+    #[cfg(test)]
+    pub(crate) async fn write_workspace_override_around_the_check(
+        &self,
+        signer: &Signer<'_>,
+        workspace_override: &WorkspaceOverrideRecord,
+    ) -> Result<(), Error> {
+        self.insert_workspace_override(signer, workspace_override)
+            .await
+    }
+
+    async fn insert_workspace_override(
+        &self,
+        signer: &Signer<'_>,
+        workspace_override: &WorkspaceOverrideRecord,
+    ) -> Result<(), Error> {
+        let signature = sign(
+            signer.key,
+            signer.certificate,
+            workspace_override_authority(workspace_override),
+        )?;
+
+        self.connection
+            .execute(
+                "INSERT OR REPLACE INTO \"workspace_override\" \
+                 (\"member_id\", \"workspace_id\", \"mask\", \"certificate_id\", \"signature\") \
+                 VALUES (?, ?, ?, ?, ?)",
+                vec![
+                    turso::Value::Text(workspace_override.member_id.clone()),
+                    turso::Value::Text(workspace_override.workspace_id.clone()),
+                    turso::Value::Integer(workspace_override.mask),
+                    turso::Value::Text(signer.certificate.id.clone()),
+                    turso::Value::Blob(signature),
+                ],
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// Remove a member's override for one workspace, which is what setting it to nothing is.
+    pub async fn delete_workspace_override(
+        &self,
+        member_id: &str,
+        workspace_id: &str,
+    ) -> Result<(), Error> {
+        self.connection
+            .execute(
+                "DELETE FROM \"workspace_override\" \
+                 WHERE \"member_id\" = ? AND \"workspace_id\" = ?",
+                vec![
+                    turso::Value::Text(member_id.to_string()),
+                    turso::Value::Text(workspace_id.to_string()),
+                ],
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// Remove every workspace override a member carries: what giving them another role, resetting
+    /// them to their role and removing them do (effort 838, requirement 12 as amended a third
+    /// time).
+    pub async fn delete_workspace_overrides_of(&self, member_id: &str) -> Result<(), Error> {
+        self.connection
+            .execute(
+                "DELETE FROM \"workspace_override\" WHERE \"member_id\" = ?",
+                vec![turso::Value::Text(member_id.to_string())],
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// Every workspace override that verifies. One that does not is left out and logged, and the
+    /// rest are read, as a grant is ([`read_or_left_out`]): a row left out switches nothing, so the
+    /// member it was about holds what they hold across the organization there.
+    pub async fn workspace_overrides(
+        &self,
+        organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
+    ) -> Result<Vec<WorkspaceOverrideRecord>, Error> {
+        Ok(self
+            .signed_workspace_overrides(organization_verifying_key)
+            .await?
+            .into_iter()
+            .map(|(_, workspace_override)| workspace_override)
+            .collect())
+    }
+
+    /// Every workspace override, each verified, paired with the id of the certificate that signed
+    /// it. Judged by the rank each member stands at by the role their verified row names, so the
+    /// members are read first.
+    async fn signed_workspace_overrides(
+        &self,
+        organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
+    ) -> Result<Vec<(String, WorkspaceOverrideRecord)>, Error> {
+        let roles = self.roles(organization_verifying_key).await?;
+        let members = self.members(organization_verifying_key).await?;
+        let (certificates, revocations) = self.chain_rows().await?;
+        let chain = Chain::new(organization_verifying_key, &certificates, &revocations)
+            .with_roles(standings(&roles))
+            .with_members(ranks_of_members(&members, &roles));
+
+        Ok(self
+            .workspace_override_rows()
+            .await?
+            .into_iter()
+            .filter(|row| {
+                read_or_left_out(
+                    &chain,
+                    "workspace_override",
+                    &format!("{}/{}", row.record.member_id, row.record.workspace_id),
+                    &row.certificate_id,
+                    workspace_override_authority(&row.record),
+                    &row.signature,
+                )
+            })
+            .map(|row| (row.certificate_id, row.record))
+            .collect())
+    }
+
+    /// Every workspace override row as it lies, verified by nobody.
+    async fn workspace_override_rows(
+        &self,
+    ) -> Result<Vec<SignedRow<WorkspaceOverrideRecord>>, Error> {
+        let mut rows = self
+            .connection
+            .query(
+                "SELECT \"member_id\", \"workspace_id\", \"mask\", \"certificate_id\", \
+                        \"signature\" \
+                 FROM \"workspace_override\" ORDER BY \"member_id\", \"workspace_id\"",
+                (),
+            )
+            .await?;
+        let mut workspace_overrides = Vec::new();
+
+        while let Some(row) = rows.next().await? {
+            workspace_overrides.push(SignedRow {
+                record: WorkspaceOverrideRecord {
+                    member_id: text(&row, 0)?,
+                    workspace_id: text(&row, 1)?,
+                    mask: integer(&row, 2)?,
+                },
+                certificate_id: text(&row, 3)?,
+                signature: blob(&row, 4)?,
+            });
+        }
+
+        Ok(workspace_overrides)
+    }
+
     // invitations
 
     /// Write an invitation row, signed by `signer`. Refused, with nothing written, where the
@@ -2648,7 +2888,32 @@ impl OrganizationStore {
 
     /// Remove one grant: what a reset does with a grant it cannot re-seal, because the vault it
     /// was sealed to is gone and a grant nobody can open is a sign-in that fails.
+    ///
+    /// **The member's override for that workspace goes with it** (effort 838, ticket 53): it is
+    /// set only on a workspace the member is in, and a grant given again later starts from what
+    /// they may do across the organization.
     pub async fn delete_grant(&self, member_id: &str, workspace_id: &str) -> Result<(), Error> {
+        self.connection
+            .execute(
+                "DELETE FROM \"grant\" WHERE \"member_id\" = ? AND \"workspace_id\" = ?",
+                vec![
+                    turso::Value::Text(member_id.to_string()),
+                    turso::Value::Text(workspace_id.to_string()),
+                ],
+            )
+            .await?;
+
+        self.delete_workspace_override(member_id, workspace_id)
+            .await
+    }
+
+    /// Remove one grant row and nothing beside it: what the change from format 1 drops, in an
+    /// organization that holds no workspace overrides yet (`transition/two.rs`).
+    pub async fn delete_grant_alone(
+        &self,
+        member_id: &str,
+        workspace_id: &str,
+    ) -> Result<(), Error> {
         self.connection
             .execute(
                 "DELETE FROM \"grant\" WHERE \"member_id\" = ? AND \"workspace_id\" = ?",
@@ -2662,12 +2927,37 @@ impl OrganizationStore {
         Ok(())
     }
 
-    /// Remove a workspace's row and every grant on it, for the one moment requirement 4 permits
-    /// it; the database it names is the port's to remove first.
+    /// Remove a workspace's row and every grant on it and nothing else, as
+    /// [`OrganizationStore::delete_grant_alone`] does for a grant.
+    pub async fn delete_workspace_alone(&self, workspace_id: &str) -> Result<(), Error> {
+        self.connection
+            .execute(
+                "DELETE FROM \"grant\" WHERE \"workspace_id\" = ?",
+                vec![turso::Value::Text(workspace_id.to_string())],
+            )
+            .await?;
+        self.connection
+            .execute(
+                "DELETE FROM \"workspace\" WHERE \"id\" = ?",
+                vec![turso::Value::Text(workspace_id.to_string())],
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// Remove a workspace's row, every grant on it and every override for it, for the one moment
+    /// requirement 4 permits it; the database it names is the port's to remove first.
     pub async fn delete_workspace(&self, workspace_id: &str) -> Result<(), Error> {
         self.connection
             .execute(
                 "DELETE FROM \"grant\" WHERE \"workspace_id\" = ?",
+                vec![turso::Value::Text(workspace_id.to_string())],
+            )
+            .await?;
+        self.connection
+            .execute(
+                "DELETE FROM \"workspace_override\" WHERE \"workspace_id\" = ?",
                 vec![turso::Value::Text(workspace_id.to_string())],
             )
             .await?;
@@ -2785,6 +3075,13 @@ impl OrganizationStore {
             .await?
             .filter(|(signed_by, _)| of(signed_by))
             .map(|(_, mark)| mark);
+        let workspace_overrides: Vec<WorkspaceOverrideRecord> = self
+            .signed_workspace_overrides(organization_verifying_key)
+            .await?
+            .into_iter()
+            .filter(|(signed_by, _)| of(signed_by))
+            .map(|(_, workspace_override)| workspace_override)
+            .collect();
 
         // a member row its certificate no longer covers is not signed again under anybody: that
         // would make the role somebody below the member named real under a signer who covers it
@@ -2802,9 +3099,11 @@ impl OrganizationStore {
         // every row judged before the first is written. The masks and the ranks are every role's
         // as it stands, so a member row is judged by the role it names.
         let all_roles = self.roles(organization_verifying_key).await?;
+        let all_members = self.members(organization_verifying_key).await?;
         let (certificates, revocations) = self.chain_rows().await?;
         let chain = Chain::new(organization_verifying_key, &certificates, &revocations)
-            .with_roles(standings(&all_roles));
+            .with_roles(standings(&all_roles))
+            .with_members(ranks_of_members(&all_members, &all_roles));
         let authorities = roles
             .iter()
             .map(role_authority)
@@ -2812,7 +3111,8 @@ impl OrganizationStore {
             .chain(workspaces.iter().map(workspace_authority))
             .chain(grants.iter().map(grant_authority))
             .chain(invitations.iter().map(invitation_authority))
-            .chain(mark.iter().map(mark_authority));
+            .chain(mark.iter().map(mark_authority))
+            .chain(workspace_overrides.iter().map(workspace_override_authority));
 
         for authority in authorities {
             if !chain.covers(signer.certificate, authority) {
@@ -2851,12 +3151,18 @@ impl OrganizationStore {
             self.write_mark(signer, mark).await?;
         }
 
+        for workspace_override in &workspace_overrides {
+            self.write_workspace_override(signer, workspace_override)
+                .await?;
+        }
+
         Ok(roles.len()
             + members.len()
             + workspaces.len()
             + grants.len()
             + invitations.len()
-            + usize::from(mark.is_some()))
+            + usize::from(mark.is_some())
+            + workspace_overrides.len())
     }
 
     // successions
@@ -3317,12 +3623,33 @@ impl OrganizationStore {
     }
 }
 
-/// Create the fourteen tables on `connection` where they do not exist: what
+/// Create the fifteen tables on `connection` where they do not exist: what
 /// [`OrganizationStore::install_schema`] runs on the replica, and what a change of format arriving
 /// at this format builds a fresh organization with, to check an upgraded one against
 /// (`transition::Transition::built`, ticket 33).
 pub(crate) async fn install(connection: &turso::Connection) -> Result<(), Error> {
     for statement in SCHEMA {
+        connection.execute(statement, ()).await?;
+    }
+
+    Ok(())
+}
+
+/// Create the tables of format 2 on `connection`: every one but what format 3 added. What the
+/// change arriving at format 2 builds a fresh organization with, where a walk ends there
+/// (`transition/two.rs`), and what a test builds an organization of format 2 from.
+pub(crate) async fn install_format_two(connection: &turso::Connection) -> Result<(), Error> {
+    for statement in &SCHEMA[..FORMAT_TWO_TABLES] {
+        connection.execute(statement, ()).await?;
+    }
+
+    Ok(())
+}
+
+/// Create what format 3 adds, where it is missing: the `workspace_override` table (effort 838,
+/// ticket 53), and nothing else. What `transition/three.rs` runs.
+pub(crate) async fn install_format_three(connection: &turso::Connection) -> Result<(), Error> {
+    for statement in &SCHEMA[FORMAT_TWO_TABLES..] {
         connection.execute(statement, ()).await?;
     }
 
@@ -3427,6 +3754,17 @@ pub(super) fn mark_authority(mark: &MarkRecord) -> Authority<'_> {
     })
 }
 
+/// What a workspace override row puts under signature, from the record.
+pub(super) fn workspace_override_authority(
+    workspace_override: &WorkspaceOverrideRecord,
+) -> Authority<'_> {
+    Authority::WorkspaceOverride(WorkspaceOverrideAuthority {
+        member_id: &workspace_override.member_id,
+        workspace_id: &workspace_override.workspace_id,
+        mask: workspace_override.mask,
+    })
+}
+
 /// What a role row puts under signature, from the record.
 pub(super) fn role_authority(role: &RoleRecord) -> Authority<'_> {
     Authority::Role(RoleAuthority {
@@ -3443,6 +3781,29 @@ fn standings(roles: &[RoleRecord]) -> HashMap<String, (i64, i64)> {
     roles
         .iter()
         .map(|role| (role.id.clone(), (role.mask, role.rank)))
+        .collect()
+}
+
+/// The rank of a role by id: the owner's constant, or the role row's. `None` for a role nobody
+/// holds.
+fn rank_in(role_id: &str, roles: &HashMap<String, (i64, i64)>) -> Option<i64> {
+    if role_id == permission::OWNER {
+        return Some(OWNER_ROLE.rank);
+    }
+
+    roles.get(role_id).map(|(_, rank)| *rank)
+}
+
+/// The rank each member in stands at by the role their verified row names, by id, as a [`Chain`]
+/// judges a workspace override by: a removed member, and one whose row grants nothing, are left
+/// out, and nobody overrides them.
+fn ranks_of_members(members: &[MemberRecord], roles: &[RoleRecord]) -> HashMap<String, i64> {
+    let roles = standings(roles);
+
+    members
+        .iter()
+        .filter(|member| member.covered && member.removed_at.is_none())
+        .filter_map(|member| rank_in(&member.role_id, &roles).map(|rank| (member.id.clone(), rank)))
         .collect()
 }
 
@@ -3930,11 +4291,17 @@ mod tests {
 
         store
             .connection
-            .execute("UPDATE \"format\" SET \"version\" = 3", ())
+            .execute(
+                "UPDATE \"format\" SET \"version\" = ?",
+                vec![turso::Value::Integer(FORMAT_VERSION + 1)],
+            )
             .await
             .expect("a newer format");
 
-        assert_eq!(store.format().await.expect("the format"), Some(3));
+        assert_eq!(
+            store.format().await.expect("the format"),
+            Some(FORMAT_VERSION + 1)
+        );
         assert!(matches!(
             store.refuse_another_format().await,
             Err(Error::Refused {
@@ -3976,7 +4343,10 @@ mod tests {
 
         newer
             .connection
-            .execute("INSERT INTO \"format\" VALUES ('format', 3)", ())
+            .execute(
+                "INSERT INTO \"format\" VALUES ('format', ?)",
+                vec![turso::Value::Integer(FORMAT_VERSION + 1)],
+            )
             .await
             .expect("a newer format");
         newer

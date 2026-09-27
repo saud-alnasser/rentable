@@ -266,6 +266,7 @@ pub fn run() {
             organization::role_delete,
             organization::member_assign_role,
             organization::member_set_override,
+            organization::member_set_workspace_override,
             organization::member_offer_ownership,
             organization::member_withdraw_offer,
             organization::ownership_accept,

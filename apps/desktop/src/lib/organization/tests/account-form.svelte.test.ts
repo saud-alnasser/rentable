@@ -54,7 +54,9 @@ const workspaces = [
 		databaseName: 'ws-1',
 		databaseHostname: 'ws-1.turso.io',
 		schemaVersion: 1,
-		accessLevel: 'full-access'
+		accessLevel: 'full-access',
+		override: 0,
+		permissions: 0
 	}
 ];
 

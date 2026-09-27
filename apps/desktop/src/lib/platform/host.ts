@@ -295,6 +295,17 @@ export type OrganizationWorkspace = {
 	schemaVersion: number;
 	/** what the member's grant is good for, `full-access` or `read-only`. */
 	accessLevel: string;
+	/**
+	 * the record flags switched for this member in this workspace, over what they may do across
+	 * the organization (effort 838, requirement 12 as amended a third time). `0` where nothing is.
+	 */
+	override: number;
+	/**
+	 * what this member may do in this workspace before the grant is read: their permissions across
+	 * the organization with `override` switched, which `effectiveInWorkspace` computes from the
+	 * same two. A read-only grant clears the writes of it, which `effectiveIn` folds.
+	 */
+	permissions: number;
 };
 
 /**
@@ -319,8 +330,9 @@ export type OrganizationSession = {
 	override: number;
 	/**
 	 * what this member may do across the organization: their role's mask with their override
-	 * switched, read off the verified row. **Not yet what they may do in a workspace**: a
-	 * read-only grant clears the writes there, which `effectiveIn` folds for the workspace open.
+	 * switched, read off the verified row. **Not yet what they may do in a workspace**: that is
+	 * the workspace's own `permissions`, and a read-only grant clears the writes there, which
+	 * `effectiveIn` folds for the workspace open. This still answers for administration.
 	 */
 	permissions: number;
 	workspaces: OrganizationWorkspace[];
@@ -350,6 +362,17 @@ export type LinkKind = 'invitation' | 'machine';
  * reports a member already holds.
  */
 export type WorkspaceGrant = { id: string; access: 'full-access' | 'read-only' };
+
+/**
+ * one workspace a member is in, as the members list draws them: the access their grant holds, and
+ * what is switched for them there (effort 838, requirement 12 as amended a third time).
+ */
+export type MemberWorkspace = WorkspaceGrant & {
+	/** the record flags switched for them in this workspace. `0` where nothing is. */
+	override: number;
+	/** what they may do there before the grant is read: their permissions with `override` switched. */
+	permissions: number;
+};
 
 /** what a lock-out costs, said before it runs: which workspaces rotate, and how many members stop syncing. */
 export type LockOutCost = {
@@ -444,8 +467,8 @@ export type OrganizationMember = {
 	override: number;
 	/** what this member may do: their role's mask with their override switched. */
 	permissions: number;
-	/** the workspaces this member holds, with the access on each. */
-	workspaces: WorkspaceGrant[];
+	/** the workspaces this member holds, with the access on each and what is switched there. */
+	workspaces: MemberWorkspace[];
 	createdAt: number;
 	/**
 	 * whether the organization has been offered to this account and not yet accepted (effort 828,
@@ -858,6 +881,17 @@ export type Host = {
 			 * `overrideMember`, on the same lines as `assignRole`; the owner carries none.
 			 */
 			setOverride: (memberId: string, override: number) => Promise<OrganizationMember>;
+			/**
+			 * set what is switched for a member in one workspace they are in: record flags only, over
+			 * what they may do across the organization, and `0` clears it (effort 838, requirement 12
+			 * as amended a third time). `overrideMember`, on the same lines as `setOverride`, and
+			 * nothing written there that they cannot view.
+			 */
+			setWorkspaceOverride: (
+				memberId: string,
+				workspaceId: string,
+				override: number
+			) => Promise<OrganizationMember>;
 			/**
 			 * offer the organization to another account: the first of the two acts a handover is
 			 * (effort 828, requirement 22). Nothing about the organization moves, and the owner can

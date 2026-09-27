@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [52]
 ---
 
@@ -17,21 +17,21 @@ and by the frontend context for the workspace open.
 Traces requirements 6, 7, 8, 10 and 12 of
 [[efforts/838-permissions-are-a-role-and-an-override/spec]], and requirement 14.
 
-- [ ] `transition/three.rs` adds `workspace_override`; `FORMAT_VERSION` is 3; the runner walks a
+- [x] `transition/three.rs` adds `workspace_override`; `FORMAT_VERSION` is 3; the runner walks a
       format 2 organization to 3 with its copy, and the format 1 walk still passes.
-- [ ] `Authority::WorkspaceOverride` covers as the plan says; a row written around the command
+- [x] `Authority::WorkspaceOverride` covers as the plan says; a row written around the command
       beyond its signer's ceiling or rank, naming an administration flag, or about the signer's
       own member, is left out on read.
-- [ ] `set_workspace_override` sets, replaces and clears (zero deletes) the row, and refuses an
+- [x] `set_workspace_override` sets, replaces and clears (zero deletes) the row, and refuses an
       administration flag, a flag the actor does not hold, a member at or above the actor, oneself,
       a workspace the member holds no grant on, and a result with a write and not its view; each
       refusal is named and tested.
-- [ ] `assign_role`, a deleted role's holders, `set_override` to zero, `withdraw_grant`, removal
+- [x] `assign_role`, a deleted role's holders, `set_override` to zero, `withdraw_grant`, removal
       and `delete_workspace` clear the member's workspace overrides; tested.
-- [ ] The session and the member facts carry each workspace's override and permissions; the shared
+- [x] The session and the member facts carry each workspace's override and permissions; the shared
       effective table gains workspace cases, read by the Rust and the package tests
       (`effectiveInWorkspace`).
-- [ ] The frontend context answers record procedures by the open workspace's permissions folded by
+- [x] The frontend context answers record procedures by the open workspace's permissions folded by
       its level; a test.
-- [ ] A Tauri command and a `platform` binding for the act; the host types carry the new fields.
-- [ ] `cargo test`, `pnpm check`, `pnpm test` and `pnpm lint` pass.
+- [x] A Tauri command and a `platform` binding for the act; the host types carry the new fields.
+- [x] `cargo test`, `pnpm check`, `pnpm test` and `pnpm lint` pass.

@@ -116,7 +116,9 @@ const workspaces: OrganizationWorkspace[] = [
 		databaseName: 'ws-1',
 		databaseHostname: 'ws-1.turso.io',
 		schemaVersion: 1,
-		accessLevel: 'full-access'
+		accessLevel: 'full-access',
+		override: 0,
+		permissions: 0
 	},
 	{
 		id: 'ws-2',
@@ -124,7 +126,9 @@ const workspaces: OrganizationWorkspace[] = [
 		databaseName: 'ws-2',
 		databaseHostname: 'ws-2.turso.io',
 		schemaVersion: 1,
-		accessLevel: 'read-only'
+		accessLevel: 'read-only',
+		override: 0,
+		permissions: 0
 	}
 ];
 
@@ -137,17 +141,21 @@ const members = [
 		username: 'olivia',
 		role: 'owner',
 		workspaces: [
-			{ id: 'ws-1', access: 'full-access' },
-			{ id: 'ws-2', access: 'full-access' }
+			{ id: 'ws-1', access: 'full-access', override: 0, permissions: 0 },
+			{ id: 'ws-2', access: 'full-access', override: 0, permissions: 0 }
 		]
 	}),
 	member({
 		id: 'ada',
 		username: 'ada',
 		role: 'manager',
-		workspaces: [{ id: 'ws-1', access: 'full-access' }]
+		workspaces: [{ id: 'ws-1', access: 'full-access', override: 0, permissions: 0 }]
 	}),
-	member({ id: 'sami', username: 'sami', workspaces: [{ id: 'ws-1', access: 'read-only' }] })
+	member({
+		id: 'sami',
+		username: 'sami',
+		workspaces: [{ id: 'ws-1', access: 'read-only', override: 0, permissions: 0 }]
+	})
 ];
 
 const list = (

@@ -1,4 +1,8 @@
-import { effectiveIn, type AccessLevel } from '@rentable/workspace-permission';
+import {
+	effectiveIn,
+	effectiveInWorkspace,
+	type AccessLevel
+} from '@rentable/workspace-permission';
 import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy';
 
 import type { Host, OrganizationSession } from '$lib/platform/host';
@@ -71,11 +75,13 @@ export type Identity = {
 	 * what this member may do in the workspace this machine has open, as the flags every
 	 * `procedure.permitted` gate reads.
 	 *
-	 * **Their effective permissions, folded for that workspace.** The session carries what their
-	 * role and override come to across the organization, off their verified row, and `effectiveIn`
-	 * clears every create, edit and delete where their grant on the workspace open is read-only, or
-	 * where there is no grant or no workspace open to read. The organization's own flags are not a
-	 * workspace's to clear and pass through as the session has them.
+	 * **Their effective permissions in that workspace, folded by its grant.** The session carries
+	 * what their role and override come to across the organization, off their verified row, and
+	 * what is switched for them in each workspace they are in; `effectiveInWorkspace` switches the
+	 * record flags of the workspace open, and `effectiveIn` clears every create, edit and delete
+	 * where their grant on it is read-only, or where there is no grant or no workspace open to
+	 * read. The organization's own flags are not a workspace's to switch or clear and pass through
+	 * as the session has them ([`permissionsIn`]).
 	 *
 	 * **Here because it is a fact about who is acting**, which is what `Identity` is for, and not
 	 * on the context beside `db` and `host`, which carry ambient capabilities and never business
@@ -142,37 +148,66 @@ async function actingIdentity(host: Host): Promise<Identity | null> {
 		session && {
 			accountId: session.memberId,
 			username: session.username,
-			// **Off the same answer, folded for the workspace open** (effort 838, requirement 10).
+			// **Off the same answer, for the workspace open** (effort 838, requirements 10 and 12).
 			// What this member may do across the organization is on their verified row, and the
-			// session carries it; in the workspace this machine has open, a read-only grant clears
-			// every create, edit and delete whatever the role and the override say.
-			permissions: effectiveIn(session.permissions, await accessToOpenWorkspace(host, session))
+			// session carries it with what is switched for them in each workspace; in the workspace
+			// this machine has open, that switch applies, and a read-only grant clears every create,
+			// edit and delete whatever the role and the overrides say.
+			permissions: permissionsIn(session, await openWorkspace(host))
 		}
 	);
 }
 
 /**
- * how the acting member reaches the workspace this machine has open: the access on their grant
- * for it.
+ * the workspace this machine has open, by id, or `null` where the shell cannot say or none is.
  *
- * **Read-only wherever that cannot be said**: a shell that cannot say which workspace is open, a
- * machine with none open, and a workspace the session holds no grant on. It is the safe direction,
- * and it costs nothing a caller could want, since there are no records to write without an open
- * workspace, and the organization's own flags are not a workspace's to clear.
+ * **Read-only wherever that cannot be said** ([`accessIn`]): a shell that cannot say which
+ * workspace is open, a machine with none open, and a workspace the session holds no grant on. It
+ * is the safe direction, and it costs nothing a caller could want, since there are no records to
+ * write without an open workspace, and the organization's own flags are not a workspace's to clear.
  */
-async function accessToOpenWorkspace(
-	host: Host,
-	session: OrganizationSession
-): Promise<AccessLevel> {
-	let open: string | null = null;
-
+async function openWorkspace(host: Host): Promise<string | null> {
 	try {
-		open = (await host.remoteSync.getState()).workspace.remoteId;
+		return (await host.remoteSync.getState()).workspace.remoteId;
 	} catch {
-		// said below: no workspace that can be named is read-only.
+		// said above: no workspace that can be named is read-only.
+		return null;
 	}
+}
 
-	return accessIn(session, open);
+/**
+ * what a member may do in one workspace before its grant is read, from their session and the
+ * workspace's id: their permissions across the organization with the record flags of their
+ * override for that workspace switched (effort 838, requirement 12 as amended a third time), and
+ * those permissions as they are where there is no workspace or no grant.
+ *
+ * **Computed from the override by the one routine** (`effectiveInWorkspace`), rather than read off
+ * the workspace's `permissions`: the two are the same number, which the shared table holds Rust
+ * and the package to, and this way the organization's own flags always come from the session.
+ * Exported so the interface reads the same value a procedure is answered by.
+ */
+export function workspacePermissionsIn(
+	session: OrganizationSession,
+	openWorkspaceId: string | null
+): number {
+	const grant = session.workspaces.find((workspace) => workspace.id === openWorkspaceId);
+
+	return effectiveInWorkspace(session.permissions, grant?.override ?? 0);
+}
+
+/**
+ * what a member may do in one workspace, from their session and the workspace's id: what they may
+ * do there ([`workspacePermissionsIn`]) folded by how their grant reaches it ([`accessIn`]). What
+ * every `procedure.permitted` gate is answered by.
+ */
+export function permissionsIn(
+	session: OrganizationSession,
+	openWorkspaceId: string | null
+): number {
+	return effectiveIn(
+		workspacePermissionsIn(session, openWorkspaceId),
+		accessIn(session, openWorkspaceId)
+	);
 }
 
 /**

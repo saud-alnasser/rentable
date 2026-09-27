@@ -806,7 +806,9 @@ const workspaceOf = (id: string): OrganizationWorkspace => ({
 	databaseName: id,
 	databaseHostname: `${id}.turso.io`,
 	schemaVersion: 1,
-	accessLevel: 'full-access'
+	accessLevel: 'full-access',
+	override: 0,
+	permissions: 0
 });
 
 /** the readers a workspace's card is read by; ws-1 is the one open on this machine. */

@@ -6,6 +6,7 @@ import {
 	BUILT_IN,
 	effective,
 	effectiveIn,
+	effectiveInWorkspace,
 	firstWriteWithoutView,
 	maskOf,
 	permits,
@@ -22,6 +23,13 @@ import {
 type Table = {
 	builtIn: Record<keyof typeof BUILT_IN, { id: string; rank: number; mask: number }>;
 	cases: { role: string; mask: number; override: number; effective: number; readOnly: number }[];
+	workspaceCases: {
+		name: string;
+		permissions: number;
+		workspaceOverride: number;
+		effective: number;
+		readOnly: number;
+	}[];
 	writeWithoutView: { name: string; mask: number; kind: RecordKind | null }[];
 };
 
@@ -45,6 +53,37 @@ test('every case in the shared table reads the effective permissions it names', 
 			`${role} with override ${override}, read-only`
 		);
 	}
+});
+
+test('every workspace case in the shared table reads the permissions it names there', () => {
+	assert.ok(table.workspaceCases.length > 0, 'the table holds no workspace cases');
+
+	for (const {
+		name,
+		permissions,
+		workspaceOverride,
+		effective: expected,
+		readOnly
+	} of table.workspaceCases) {
+		const inWorkspace = effectiveInWorkspace(permissions, workspaceOverride);
+
+		assert.equal(inWorkspace, expected, name);
+		assert.equal(effectiveIn(inWorkspace, 'full-access'), expected, name);
+		assert.equal(effectiveIn(inWorkspace, 'read-only'), readOnly, `${name}, read-only`);
+	}
+});
+
+test("a workspace override switches record flags and leaves the organization's own alone", () => {
+	const manager = BUILT_IN.manager.mask;
+	const inWorkspace = effectiveInWorkspace(
+		manager,
+		maskOf('inviteMember', 'assignRole', 'deleteContract')
+	);
+
+	assert.equal(permits(inWorkspace, 'inviteMember'), true, 'an administration flag was switched');
+	assert.equal(permits(inWorkspace, 'assignRole'), true, 'an administration flag was switched');
+	assert.equal(permits(inWorkspace, 'deleteContract'), false);
+	assert.equal(effectiveInWorkspace(manager, 0), manager, 'an empty override changes nothing');
 });
 
 test('an override turns a flag off where the role carries it, and on where it does not', () => {

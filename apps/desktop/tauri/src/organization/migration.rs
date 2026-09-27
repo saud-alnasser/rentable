@@ -839,7 +839,7 @@ mod tests {
             .await
             .expect("the workspaces");
 
-        openable(session, &workspaces, workspace_id)
+        openable(session, &workspaces, &[], workspace_id)
             .expect("openable")
             .expect("a grant")
     }

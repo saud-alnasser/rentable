@@ -188,6 +188,7 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 				rename: refuse('organization.member.rename'),
 				assignRole: refuse('organization.member.assignRole'),
 				setOverride: refuse('organization.member.setOverride'),
+				setWorkspaceOverride: refuse('organization.member.setWorkspaceOverride'),
 				offerOwnership: refuse('organization.member.offerOwnership'),
 				withdrawOffer: refuse('organization.member.withdrawOffer'),
 				endSessions: refuse('organization.member.endSessions')
@@ -233,6 +234,8 @@ export function fakeOrganizationWorkspace(
 		databaseHostname: 'ws-north-acme.aws-eu-west-1.turso.io',
 		schemaVersion: 5,
 		accessLevel: 'full-access',
+		override: 0,
+		permissions: 0,
 		...overrides
 	};
 }

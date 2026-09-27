@@ -270,7 +270,7 @@ pub(crate) async fn with_password(
 /// [`with_password`] over `transitions`, the changes of format this runner walks and counts the
 /// format it ships from: [`TRANSITIONS`] in production, and a list of a test's own under test.
 #[allow(clippy::too_many_arguments)]
-async fn with_password_over(
+pub(crate) async fn with_password_over(
     transitions: &[Transition],
     store: &OrganizationStore,
     remote: &impl Replication,
@@ -2253,11 +2253,15 @@ mod tests {
 
         // ticket 27: the connect's upgrade was copied first, on this machine and on the account
         // the connect holds, protected there; neither refused connect copied anything.
-        let copy = crate::backup::remote_name("org-7f3a", "format-1-to-2", NOW / 1000);
+        let copy = crate::backup::remote_name(
+            "org-7f3a",
+            &format!("format-1-to-{FORMAT_VERSION}"),
+            NOW / 1000,
+        );
 
         assert_eq!(
             copies_in(&older),
-            vec![format!("format-1-to-2-{NOW}.sqlite")]
+            vec![format!("format-1-to-{FORMAT_VERSION}-{NOW}.sqlite")]
         );
         assert!(copies_in(&first).is_empty());
         assert!(copies_in(&offline).is_empty());
@@ -2302,7 +2306,12 @@ mod tests {
         )
         .await
         .expect("the upgrade");
-        run(&store, "UPDATE \"format\" SET \"version\" = 3", Vec::new()).await;
+        run(
+            &store,
+            "UPDATE \"format\" SET \"version\" = ?",
+            vec![turso::Value::Integer(FORMAT_VERSION + 1)],
+        )
+        .await;
 
         let before = contents(&store).await;
         let remote = online();
@@ -2640,11 +2649,12 @@ mod tests {
     }
 
     /// **Ticket 29's first criterion.** A `format` row set to 1, 0 or below on an upgraded
-    /// organization, with nothing of format 1 left, reads as format 2: no change is due, the
-    /// owner's sign-in writes the row back and nothing else, takes no copy, and signs in, on a
-    /// machine that has read the organization in this format and on one that has not. *Read as
-    /// written after ticket 26, it made format 1's change due, which the machine's record or the
-    /// root refused, and everybody was locked out.*
+    /// organization, with nothing of format 1 left, reads as the shipped format where every table
+    /// of it stands (ticket 53): no change is due, the owner's sign-in writes the row back and
+    /// nothing else, takes no copy, and signs in, on a machine that has read the organization in
+    /// this format and on one that has not. *Read as written after ticket 26, it made format 1's
+    /// change due, which the machine's record or the root refused, and everybody was locked out;
+    /// it read as format 2 until format 3 was added.*
     #[tokio::test]
     async fn a_format_row_below_two_with_nothing_of_format_one_left_is_written_back() {
         for row in [1, 0, -1] {
@@ -2670,7 +2680,7 @@ mod tests {
                         .format_as_it_stands(FORMAT_VERSION)
                         .await
                         .expect("the format"),
-                    2,
+                    FORMAT_VERSION,
                     "{row}"
                 );
 
@@ -3683,12 +3693,12 @@ mod tests {
         assert_eq!(remote.asked(), vec!["push", "pull", "copy", "push"]);
         assert_eq!(
             copies_in(&older),
-            vec![format!("format-1-to-2-{NOW}.sqlite")]
+            vec![format!("format-1-to-{FORMAT_VERSION}-{NOW}.sqlite")]
         );
 
         let copy = backup::contents_of(
             &backup::directory_of(&older.directory, "org-7f3a")
-                .join(format!("format-1-to-2-{NOW}.sqlite")),
+                .join(format!("format-1-to-{FORMAT_VERSION}-{NOW}.sqlite")),
         )
         .await;
 
@@ -3700,7 +3710,11 @@ mod tests {
             "the upgrade changed nothing, so the copy proves nothing"
         );
 
-        let name = crate::backup::remote_name("org-7f3a", "format-1-to-2", NOW / 1000);
+        let name = crate::backup::remote_name(
+            "org-7f3a",
+            &format!("format-1-to-{FORMAT_VERSION}"),
+            NOW / 1000,
+        );
 
         assert_eq!(
             platform.copies(),
@@ -3797,7 +3811,7 @@ mod tests {
         assert!(platform.copies().is_empty());
         assert_eq!(
             copies_in(&older),
-            vec![format!("format-1-to-2-{NOW}.sqlite")]
+            vec![format!("format-1-to-{FORMAT_VERSION}-{NOW}.sqlite")]
         );
         assert_upgraded(&store, &older, &older.pinned()).await;
     }

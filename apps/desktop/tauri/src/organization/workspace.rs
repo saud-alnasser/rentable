@@ -44,7 +44,10 @@ use super::{
     migrate::{self, Pipeline},
     permission::{self, Flag},
     session::{MemberSession, WorkspaceCredential, WorkspaceFacts, permissions_on_row},
-    store::{GrantRecord, MemberRecord, OrganizationStore, Signer, WorkspaceRecord},
+    store::{
+        GrantRecord, MemberRecord, OrganizationStore, Signer, WorkspaceOverrideRecord,
+        WorkspaceRecord,
+    },
     vault::{open_content, seal_content, seal_to_public_key},
 };
 
@@ -254,6 +257,9 @@ async fn finish_workspace<P: TursoPlatform>(
         database_hostname: hostname.to_string(),
         schema_version: version,
         access_level: AccessLevel::FullAccess.as_str().to_string(),
+        // a workspace is created by its owner, and nothing is overridden for the owner.
+        override_mask: 0,
+        permissions: session.permissions,
     })
 }
 
@@ -741,9 +747,12 @@ pub async fn renew_credentials<P: TursoPlatform>(
 
 /// The workspace a member is about to open, with the name opened and the credential their vault
 /// holds for it. `None` is a workspace this member holds no grant on, which is not theirs to open.
+/// `workspace_overrides` are the organization's, verified, of which the member's for this
+/// workspace is what is switched for them there (effort 838, ticket 53).
 pub fn openable(
     session: &MemberSession,
     workspaces: &[WorkspaceRecord],
+    workspace_overrides: &[WorkspaceOverrideRecord],
     workspace_id: &str,
 ) -> Result<Option<(WorkspaceFacts, WorkspaceCredential)>, Error> {
     let Some(held) = session.workspace_credentials.get(workspace_id) else {
@@ -763,6 +772,13 @@ pub fn openable(
     .map_err(|_| Error::Integrity {
         message: "the workspace name did not open as text".to_string(),
     })?;
+    let override_mask = workspace_overrides
+        .iter()
+        .find(|workspace_override| {
+            workspace_override.member_id == session.member_id
+                && workspace_override.workspace_id == workspace.id
+        })
+        .map_or(0, |workspace_override| workspace_override.mask);
 
     Ok(Some((
         WorkspaceFacts {
@@ -772,6 +788,8 @@ pub fn openable(
             database_hostname: workspace.database_hostname.clone(),
             schema_version: workspace.schema_version,
             access_level: held.access.as_str().to_string(),
+            override_mask,
+            permissions: permission::effective_in_workspace(session.permissions, override_mask),
         },
         held.clone(),
     )))
@@ -1250,7 +1268,7 @@ mod tests {
         assert_eq!(workspaces.len(), 2);
 
         for id in &ids {
-            let (facts, credential) = openable(&owner, &workspaces, id)
+            let (facts, credential) = openable(&owner, &workspaces, &[], id)
                 .expect("the open")
                 .expect("a grant the owner holds");
             let replica = crate::database::Database::open_replica(
@@ -2198,7 +2216,7 @@ mod tests {
             "a full-access grant is the granter's own credential, re-sealed"
         );
         assert!(
-            openable(&member, &workspaces, &second.id)
+            openable(&member, &workspaces, &[], &second.id)
                 .expect("the open")
                 .is_some()
         );

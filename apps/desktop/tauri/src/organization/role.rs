@@ -64,6 +64,7 @@ use super::{
     setup::{ADMINISTRATOR_KEY_PURPOSE, ORGANIZATION_KEY_PURPOSE, owner_key_from},
     store::{
         MemberRecord, OrganizationRecord, OrganizationStore, RoleRecord, Signer, SuccessionRecord,
+        WorkspaceOverrideRecord,
     },
     vault::{
         MemberSecretKey, SECRET_KEY_BYTES, Vault, open_content, open_vault, seal_content,
@@ -1562,6 +1563,10 @@ struct Change {
     roles: Vec<RoleRecord>,
     deleted: Vec<String>,
     members: Vec<(String, String, i64)>,
+    /// the members whose overrides in every workspace go with the act: one given another role or
+    /// reset to their role (effort 838, requirement 12 as amended a third time). A holder of a
+    /// deleted role is among them without being named here.
+    cleared: Vec<String>,
 }
 
 /// One member row an act rewrites, and where its holder stands before and after.
@@ -1597,6 +1602,11 @@ struct Moved {
 /// role, its override, what it grants or its rank moves. A removed member's row grants nothing
 /// before and after, is re-signed where its role or its rank moves, and holds no certificate to
 /// follow.
+///
+/// **Their workspace overrides go with the organization layer** (effort 838, requirement 12 as
+/// amended a third time): every one a member the change clears carries, and every one a holder of
+/// a deleted role carries, deleted in the same transaction. Each flag that switches for them in a
+/// workspace is one the actor holds, as every flag the act moves is.
 ///
 /// **A row its certificate no longer covers is never saved** (effort 838, the re-check of ticket
 /// 20): nothing the directory holds says which of its fields are genuine, so its content is never
@@ -1733,6 +1743,32 @@ async fn apply(
         });
     }
 
+    // the members whose workspace overrides go with the act: those it clears, and every holder of
+    // a role it deletes whose row it moves. What each of those overrides switches, it switches
+    // back, so every flag of it is one the actor holds (requirement 7).
+    let cleared: Vec<&str> = change
+        .cleared
+        .iter()
+        .map(String::as_str)
+        .chain(
+            moved
+                .iter()
+                .filter(|moving| change.deleted.contains(&moving.row.role_id))
+                .map(|moving| moving.row.id.as_str()),
+        )
+        .collect();
+
+    if !cleared.is_empty() {
+        for workspace_override in store
+            .workspace_overrides(&session.verifying_key)
+            .await?
+            .iter()
+            .filter(|workspace_override| cleared.contains(&workspace_override.member_id.as_str()))
+        {
+            refuse_unheld(actor, workspace_override.mask)?;
+        }
+    }
+
     let (key, certificate) = signer_of(store, session).await?;
     let signer = Signer {
         key: &key,
@@ -1784,6 +1820,10 @@ async fn apply(
     }
 
     in_one_transaction(store, async {
+        for member_id in &cleared {
+            store.delete_workspace_overrides_of(member_id).await?;
+        }
+
         for moving in &moved {
             store
                 .write_member(
@@ -2234,6 +2274,9 @@ pub async fn assign_role(
         &actor,
         Change {
             members: vec![(member.id.clone(), role_id.to_string(), override_mask)],
+            // and their overrides in every workspace go with it: they hold the role exactly
+            // (requirement 12, as amended a third time).
+            cleared: vec![member.id.clone()],
             ..Change::default()
         },
         now,
@@ -2255,7 +2298,9 @@ pub async fn assign_role(
     member_facts(store, session, member_id).await
 }
 
-/// Set a member's override: the flags switched for them alone (requirement 6). Zero clears it.
+/// Set a member's override: the flags switched for them alone (requirement 6). Zero clears it,
+/// which is resetting them to their role, and their overrides in every workspace go with it
+/// (requirement 12, as amended a third time).
 ///
 /// **`overrideMember`, the rank of the member, never yourself, and only flags you hold**
 /// (requirement 7): every flag whose value the member ends up with differently is one the actor
@@ -2294,6 +2339,13 @@ pub async fn set_override(
         &actor,
         Change {
             members: vec![(member.id.clone(), member.role_id.clone(), override_mask)],
+            // clearing it is resetting them to their role, and their overrides in every workspace
+            // go with it (requirement 12, as amended a third time).
+            cleared: if override_mask == 0 {
+                vec![member.id.clone()]
+            } else {
+                Vec::new()
+            },
             ..Change::default()
         },
         now,
@@ -2309,6 +2361,145 @@ pub async fn set_override(
     .await;
     diagnostics::info("organization.member.overrideSet")
         .with("member", member_id)
+        .write();
+
+    member_facts(store, session, member_id).await
+}
+
+/// Set a member's override for one workspace: the record flags switched for them there, over what
+/// they may do across the organization (effort 838, requirement 12 as amended a third time). Zero
+/// deletes it, and they hold there what they hold across the organization.
+///
+/// **Under the organization override's rules** (requirements 6 and 7): `overrideMember`, the
+/// member ranked below the actor, never the actor's own row nor the owner's, and only flags the
+/// actor holds, which here are the flags whose value the member ends up with differently in that
+/// workspace. **And three of its own**: record flags alone, a workspace the member is in (their
+/// grant on it verifies), and nothing added, edited or deleted there that they cannot view. The
+/// row is signed under the actor's certificate, which carries every flag it switches, the ones
+/// it only keeps included, as a member row's override is.
+pub async fn set_workspace_override(
+    store: &OrganizationStore,
+    session: &MemberSession,
+    member_id: &str,
+    workspace_id: &str,
+    override_mask: i64,
+) -> Result<MemberFacts, Error> {
+    session.settled()?;
+
+    let actor = actor(store, session).await?;
+
+    permission::require(actor.row.effective, Flag::OverrideMember)?;
+
+    let rows = store.members(&session.verifying_key).await?;
+    let member = acted_on(
+        &rows,
+        session,
+        member_id,
+        "the owner carries every flag in every workspace, and nothing is overridden for them",
+    )?;
+
+    actor.outranks(
+        rank_of(store, session, member).await?,
+        "that member's role is not below yours, so what they may do in a workspace is set by \
+         somebody who ranks above them",
+    )?;
+
+    if let Some(flag) = permission::first_beyond_records(override_mask) {
+        return Err(Error::refused(
+            RefusalReason::RecordFlagsOnly,
+            format!(
+                "{flag} is not a record flag, and a workspace changes only what may be done to its \
+                 records. nothing was changed"
+            ),
+        ));
+    }
+
+    // the directory grant is how a member reads the organization at all, and it is not a
+    // workspace.
+    if workspace_id == session.organization_id {
+        return Err(Error::refused(
+            RefusalReason::WorkspaceMissing,
+            "that is the organization itself, not a workspace",
+        ));
+    }
+
+    if !store
+        .grants(&session.verifying_key)
+        .await?
+        .iter()
+        .any(|grant| grant.member_id == member.id && grant.workspace_id == workspace_id)
+    {
+        return Err(Error::refused(
+            RefusalReason::GrantMissing,
+            "that member holds no grant on that workspace, so nothing is set for them there",
+        ));
+    }
+
+    let before = store
+        .workspace_overrides(&session.verifying_key)
+        .await?
+        .into_iter()
+        .find(|workspace_override| {
+            workspace_override.member_id == member.id
+                && workspace_override.workspace_id == workspace_id
+        })
+        .map_or(0, |workspace_override| workspace_override.mask);
+
+    refuse_unheld(&actor, before ^ override_mask)?;
+
+    // what they end up with there adds, edits or deletes no kind of record they cannot view
+    // (requirement 6, as amended 2026-09-27).
+    if before != override_mask {
+        permission::refuse_write_without_view(
+            permission::effective_in_workspace(member.effective, override_mask),
+            "this member's permissions in that workspace",
+        )?;
+    }
+
+    if override_mask == 0 {
+        store
+            .delete_workspace_override(&member.id, workspace_id)
+            .await?;
+    } else {
+        let (key, certificate) = signer_of(store, session).await?;
+
+        // the row is signed under the actor's certificate, which carries every flag it switches,
+        // the ones this act leaves where they were included (the row-kind table).
+        if let Some(flag) = permission::first_not_held(certificate.ceiling, override_mask) {
+            return Err(Error::refused(
+                RefusalReason::RoleLacksAct,
+                format!(
+                    "this member has {flag} switched for them in that workspace, and you do not \
+                     hold it, so the row cannot be signed by you. nothing was changed"
+                ),
+            ));
+        }
+
+        store
+            .write_workspace_override(
+                &Signer {
+                    key: &key,
+                    certificate: &certificate,
+                },
+                &WorkspaceOverrideRecord {
+                    member_id: member.id.clone(),
+                    workspace_id: workspace_id.to_string(),
+                    mask: override_mask,
+                },
+            )
+            .await?;
+    }
+
+    sent(
+        store,
+        "organization.member.workspaceOverrideNotYetSent",
+        "member",
+        member_id,
+    )
+    .await;
+    diagnostics::info("organization.member.workspaceOverrideSet")
+        .with("member", member_id)
+        .with("workspace", workspace_id)
         .write();
 
     member_facts(store, session, member_id).await
@@ -2346,7 +2537,10 @@ mod tests {
                 ADMINISTRATOR_KEY_PURPOSE, CreateOrganization, Remote, create_organization,
                 owner_key_from,
             },
-            store::{GrantRecord, MemberRecord, OrganizationStore, Signer, TABLES},
+            store::{
+                GrantRecord, MemberRecord, OrganizationStore, Signer, TABLES,
+                WorkspaceOverrideRecord,
+            },
             vault::{KdfParams, seal_to_public_key},
             workspace::{create_workspace, grant_workspace, signer_of},
         },
@@ -8458,6 +8652,671 @@ mod tests {
         assert!(
             every_row(&store).await == before,
             "a refusal wrote something"
+        );
+    }
+
+    // -------------------------------------------------------------------------------------
+    // Effort 838, requirement 12 as amended a third time (ticket 53): a member's override for one
+    // workspace, set under the organization override's rules and cleared with it.
+    // -------------------------------------------------------------------------------------
+
+    /// The member's override for one workspace as the verified reader finds it, or zero.
+    async fn workspace_override_of(
+        store: &OrganizationStore,
+        pinned: &[u8; VERIFYING_KEY_BYTES],
+        member_id: &str,
+        workspace_id: &str,
+    ) -> i64 {
+        store
+            .workspace_overrides(pinned)
+            .await
+            .expect("the workspace overrides")
+            .into_iter()
+            .find(|workspace_override| {
+                workspace_override.member_id == member_id
+                    && workspace_override.workspace_id == workspace_id
+            })
+            .map_or(0, |workspace_override| workspace_override.mask)
+    }
+
+    /// Whether a workspace override row about this pair is in the table at all, verified or not.
+    async fn a_row_stands(store: &OrganizationStore, member_id: &str, workspace_id: &str) -> bool {
+        let mut rows = store
+            .connection()
+            .query(
+                "SELECT 1 FROM \"workspace_override\" \
+                 WHERE \"member_id\" = ? AND \"workspace_id\" = ?",
+                vec![
+                    turso::Value::Text(member_id.to_string()),
+                    turso::Value::Text(workspace_id.to_string()),
+                ],
+            )
+            .await
+            .expect("the rows");
+
+        rows.next().await.expect("a row").is_some()
+    }
+
+    /// A lead: a custom role below the manager holding the member's mask and `overrideMember`,
+    /// given to a new member of the workspace.
+    async fn an_overrider(
+        store: &OrganizationStore,
+        owner: &MemberSession,
+        link: &Locator,
+        username: &'static str,
+        workspace_id: &str,
+    ) -> MemberSession {
+        let lead = a_role(
+            store,
+            owner,
+            "Lead",
+            permission::MEMBER_ROLE.mask | permission::mask_of(&[Flag::OverrideMember]),
+            permission::MANAGER,
+        )
+        .await;
+
+        holding_role(store, owner, link, username, &lead, workspace_id).await
+    }
+
+    /// **Ticket 53's third criterion, the act.** The owner sets a member's override for the
+    /// workspace, replaces it and clears it; each answer is the member as the list shows them,
+    /// with the override and what it leaves them there, and the member's own facts carry the same.
+    /// The row verifies on another machine, and a mask of zero leaves no row at all.
+    #[tokio::test]
+    async fn a_workspace_override_is_set_replaced_and_cleared_and_read_everywhere() {
+        let directory = scratch("workspace-override");
+        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (sami, sami_session) = a_member(
+            &store,
+            &owner,
+            &link,
+            "sami",
+            permission::MEMBER,
+            &workspace_id,
+        )
+        .await;
+        let read_only = permission::mask_of(&[
+            Flag::CreateComplex,
+            Flag::EditComplex,
+            Flag::CreateUnit,
+            Flag::EditUnit,
+            Flag::CreateTenant,
+            Flag::EditTenant,
+            Flag::CreateContract,
+            Flag::EditContract,
+            Flag::CreatePayment,
+            Flag::EditPayment,
+        ]);
+
+        let set = super::set_workspace_override(
+            &store,
+            &owner,
+            &sami.member_id,
+            &workspace_id,
+            read_only,
+        )
+        .await
+        .expect("the owner set it");
+        let held = set
+            .workspaces
+            .iter()
+            .find(|workspace| workspace.id == workspace_id)
+            .expect("the workspace on the card");
+
+        assert_eq!(held.override_mask, read_only);
+        assert_eq!(
+            held.permissions,
+            permission::effective_in_workspace(permission::MEMBER_ROLE.mask, read_only)
+        );
+        assert_eq!(
+            set.permissions,
+            permission::MEMBER_ROLE.mask,
+            "the organization layer moved"
+        );
+        assert!(!permission::permits(held.permissions, Flag::CreatePayment));
+        assert!(permission::permits(held.permissions, Flag::ViewPayment));
+
+        // the member's own session reads the same off the replica.
+        let facts = crate::organization::session::facts_of(&store, &sami_session)
+            .await
+            .expect("sami's facts");
+        let theirs = facts
+            .workspaces
+            .iter()
+            .find(|workspace| workspace.id == workspace_id)
+            .expect("the workspace in sami's facts");
+
+        assert_eq!(theirs.override_mask, read_only);
+        assert_eq!(theirs.permissions, held.permissions);
+        assert_eq!(facts.permissions, permission::MEMBER_ROLE.mask);
+
+        // replaced: deleting payments here, which the member role does not carry.
+        let deleting = permission::mask_of(&[Flag::DeletePayment]);
+
+        super::set_workspace_override(&store, &owner, &sami.member_id, &workspace_id, deleting)
+            .await
+            .expect("the owner replaced it");
+
+        let elsewhere = another_machine(&directory, &owner.organization_id).await;
+
+        assert_eq!(
+            workspace_override_of(
+                &elsewhere,
+                &owner.verifying_key,
+                &sami.member_id,
+                &workspace_id
+            )
+            .await,
+            deleting,
+            "another machine does not read the override"
+        );
+
+        // cleared: no row, and the member holds there what they hold across the organization.
+        let cleared =
+            super::set_workspace_override(&store, &owner, &sami.member_id, &workspace_id, 0)
+                .await
+                .expect("the owner cleared it");
+
+        assert!(!a_row_stands(&store, &sami.member_id, &workspace_id).await);
+        assert_eq!(
+            cleared.workspaces[0].permissions,
+            permission::MEMBER_ROLE.mask
+        );
+        assert_eq!(cleared.workspaces[0].override_mask, 0);
+    }
+
+    /// **Ticket 53's third criterion, the refusals.** Each is refused by name, and nothing is
+    /// written: an administration flag; a flag the actor does not hold; a member not ranked below
+    /// the actor; the actor's own row, and the owner's; a workspace the member holds no grant on,
+    /// and the organization's own directory; a result that writes a kind it does not view; and an
+    /// actor without `overrideMember`.
+    #[tokio::test]
+    async fn every_refusal_of_a_workspace_override_is_named_and_writes_nothing() {
+        let directory = scratch("workspace-override-refused");
+        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let lena = an_overrider(&store, &owner, &link, "lena", &workspace_id).await;
+        let (sami, sami_session) = a_member(
+            &store,
+            &owner,
+            &link,
+            "sami",
+            permission::MEMBER,
+            &workspace_id,
+        )
+        .await;
+        let (ada, _) = a_member(
+            &store,
+            &owner,
+            &link,
+            "ada",
+            permission::MANAGER,
+            &workspace_id,
+        )
+        .await;
+        let before = every_row(&store).await;
+        let refused = |outcome: Result<crate::organization::invite::MemberFacts, Error>,
+                       reason: RefusalReason,
+                       case: &str| {
+            let error = outcome.expect_err(case);
+
+            assert_eq!(reason_of(&error), reason, "{case}: {error}");
+        };
+
+        refused(
+            super::set_workspace_override(
+                &store,
+                &owner,
+                &sami.member_id,
+                &workspace_id,
+                permission::mask_of(&[Flag::ViewUnit, Flag::AssignRole]),
+            )
+            .await,
+            RefusalReason::RecordFlagsOnly,
+            "an administration flag",
+        );
+        refused(
+            super::set_workspace_override(
+                &store,
+                &lena,
+                &sami.member_id,
+                &workspace_id,
+                permission::mask_of(&[Flag::DeleteContract]),
+            )
+            .await,
+            RefusalReason::RoleLacksAct,
+            "a flag the actor does not hold",
+        );
+        refused(
+            super::set_workspace_override(
+                &store,
+                &lena,
+                &ada.member_id,
+                &workspace_id,
+                permission::mask_of(&[Flag::EditUnit]),
+            )
+            .await,
+            RefusalReason::RankNotAbove,
+            "a member not ranked below the actor",
+        );
+        refused(
+            super::set_workspace_override(
+                &store,
+                &lena,
+                &lena.member_id,
+                &workspace_id,
+                permission::mask_of(&[Flag::EditUnit]),
+            )
+            .await,
+            RefusalReason::NotYourself,
+            "the actor's own row",
+        );
+        refused(
+            super::set_workspace_override(
+                &store,
+                &owner,
+                &owner.member_id,
+                &workspace_id,
+                permission::mask_of(&[Flag::EditUnit]),
+            )
+            .await,
+            RefusalReason::OwnerProtected,
+            "the owner's row",
+        );
+        refused(
+            super::set_workspace_override(
+                &store,
+                &owner,
+                &sami.member_id,
+                "a-workspace-nobody-holds",
+                permission::mask_of(&[Flag::EditUnit]),
+            )
+            .await,
+            RefusalReason::GrantMissing,
+            "a workspace the member holds no grant on",
+        );
+        refused(
+            super::set_workspace_override(
+                &store,
+                &owner,
+                &sami.member_id,
+                &owner.organization_id,
+                permission::mask_of(&[Flag::EditUnit]),
+            )
+            .await,
+            RefusalReason::WorkspaceMissing,
+            "the organization's own directory",
+        );
+        refused(
+            super::set_workspace_override(
+                &store,
+                &owner,
+                &sami.member_id,
+                &workspace_id,
+                permission::mask_of(&[Flag::ViewPayment]),
+            )
+            .await,
+            RefusalReason::PaymentNeedsViewing,
+            "adding and editing payments without viewing them",
+        );
+        refused(
+            super::set_workspace_override(
+                &store,
+                &sami_session,
+                &ada.member_id,
+                &workspace_id,
+                permission::mask_of(&[Flag::EditUnit]),
+            )
+            .await,
+            RefusalReason::RoleLacksAct,
+            "an actor without overrideMember",
+        );
+
+        assert_eq!(every_row(&store).await, before, "a refusal wrote something");
+
+        // and the lead, within everything above, sets one.
+        super::set_workspace_override(
+            &store,
+            &lena,
+            &sami.member_id,
+            &workspace_id,
+            permission::mask_of(&[Flag::EditUnit]),
+        )
+        .await
+        .expect("the lead set what they hold on somebody below them");
+    }
+
+    /// The owner lets `member_id` delete units in `workspace_id`, which the member role does not.
+    async fn deleting_units(
+        store: &OrganizationStore,
+        owner: &MemberSession,
+        member_id: &str,
+        workspace_id: &str,
+    ) {
+        super::set_workspace_override(
+            store,
+            owner,
+            member_id,
+            workspace_id,
+            permission::mask_of(&[Flag::DeleteUnit]),
+        )
+        .await
+        .unwrap_or_else(|error| panic!("the owner set it: {error:?}"));
+    }
+
+    /// **Ticket 53's fourth criterion.** A member's workspace overrides go with their organization
+    /// layer and with the grant: given another role, reset to their role, holding a role that is
+    /// deleted, the grant withdrawn, removed, and the workspace deleted. An override given with a
+    /// role that is not zero keeps them, since that is no reset.
+    #[tokio::test]
+    async fn a_workspace_override_goes_with_the_role_the_reset_the_grant_the_removal_and_the_workspace()
+     {
+        let directory = scratch("workspace-override-cleared");
+        let (store, mut owner, link, workspace_id) = owned(&directory).await;
+        let (sami, _) = a_member(
+            &store,
+            &owner,
+            &link,
+            "sami",
+            permission::MEMBER,
+            &workspace_id,
+        )
+        .await;
+
+        // another role.
+        deleting_units(&store, &owner, &sami.member_id, &workspace_id).await;
+        assign_role(
+            &store,
+            &owner,
+            &sami.member_id,
+            permission::MANAGER,
+            None,
+            NOW + 1,
+        )
+        .await
+        .expect("the assignment");
+        assert!(
+            !a_row_stands(&store, &sami.member_id, &workspace_id).await,
+            "another role"
+        );
+
+        // an override that is not zero keeps it; the reset takes it.
+        assign_role(
+            &store,
+            &owner,
+            &sami.member_id,
+            permission::MEMBER,
+            None,
+            NOW + 2,
+        )
+        .await
+        .expect("back to member");
+        deleting_units(&store, &owner, &sami.member_id, &workspace_id).await;
+        set_override(
+            &store,
+            &owner,
+            &sami.member_id,
+            permission::mask_of(&[Flag::DeleteComplex]),
+            NOW + 3,
+        )
+        .await
+        .expect("an override");
+        assert!(a_row_stands(&store, &sami.member_id, &workspace_id).await);
+        set_override(&store, &owner, &sami.member_id, 0, NOW + 4)
+            .await
+            .expect("the reset");
+        assert!(
+            !a_row_stands(&store, &sami.member_id, &workspace_id).await,
+            "the reset"
+        );
+
+        // a deleted role's holder.
+        let clerk = a_role(
+            &store,
+            &owner,
+            "Clerk",
+            permission::MEMBER_ROLE.mask,
+            permission::MANAGER,
+        )
+        .await;
+        let cleo = holding_role(&store, &owner, &link, "cleo", &clerk, &workspace_id).await;
+
+        deleting_units(&store, &owner, &cleo.member_id, &workspace_id).await;
+        delete_role(&store, &owner, &clerk, NOW + 5)
+            .await
+            .expect("the deletion");
+        assert!(
+            !a_row_stands(&store, &cleo.member_id, &workspace_id).await,
+            "a deleted role"
+        );
+
+        // the grant withdrawn.
+        deleting_units(&store, &owner, &cleo.member_id, &workspace_id).await;
+        crate::organization::workspace::withdraw_grant(
+            &store,
+            &owner,
+            &workspace_id,
+            &cleo.member_id,
+        )
+        .await
+        .expect("the withdrawal");
+        assert!(
+            !a_row_stands(&store, &cleo.member_id, &workspace_id).await,
+            "a withdrawal"
+        );
+
+        // removed.
+        deleting_units(&store, &owner, &sami.member_id, &workspace_id).await;
+        removal::remove_member(
+            &store,
+            &mut owner,
+            no_platform(),
+            "org-database",
+            &sami.member_id,
+            false,
+            NOW + 6,
+        )
+        .await
+        .expect("the removal");
+        assert!(
+            !a_row_stands(&store, &sami.member_id, &workspace_id).await,
+            "a removal"
+        );
+
+        // the workspace deleted: a second one, made and granted here on an account of its own.
+        let platform = Arc::new(InMemoryPlatform::new("an-org"));
+        let pipeline = crate::sync::test::pipeline::LocalPipeline::start().await;
+        let south = create_workspace(
+            &store,
+            &mut owner,
+            &platform,
+            |_| Pipeline::at(&pipeline.url("")),
+            "South",
+            NOW + 7,
+        )
+        .await
+        .expect("the second workspace");
+        let (tom, _) = a_member(&store, &owner, &link, "tom", permission::MEMBER, &south.id).await;
+
+        deleting_units(&store, &owner, &tom.member_id, &south.id).await;
+        crate::organization::workspace::delete_workspace(&store, &mut owner, &platform, &south.id)
+            .await
+            .expect("the deletion");
+        assert!(
+            !a_row_stands(&store, &tom.member_id, &south.id).await,
+            "a deleted workspace"
+        );
+    }
+
+    /// **Ticket 53's second criterion.** A lead holding `overrideMember` writes workspace
+    /// overrides around the command: beyond their ceiling, about somebody at or above their rank,
+    /// naming an administration flag, and about themselves. The store refuses each by name and
+    /// writes nothing; written around it, every other machine leaves each out on read, and the
+    /// one the lead may write reads.
+    #[tokio::test]
+    async fn a_workspace_override_written_around_the_command_beyond_its_signer_is_left_out() {
+        let directory = scratch("workspace-override-around");
+        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let lena = an_overrider(&store, &owner, &link, "lena", &workspace_id).await;
+        let (sami, _) = a_member(
+            &store,
+            &owner,
+            &link,
+            "sami",
+            permission::MEMBER,
+            &workspace_id,
+        )
+        .await;
+        let (ada, _) = a_member(
+            &store,
+            &owner,
+            &link,
+            "ada",
+            permission::MANAGER,
+            &workspace_id,
+        )
+        .await;
+        let (key, certificate) = signer_of(&store, &lena).await.expect("lena signs");
+        let signer = Signer {
+            key: &key,
+            certificate: &certificate,
+        };
+        let row = |member_id: &str, mask: i64| WorkspaceOverrideRecord {
+            member_id: member_id.to_string(),
+            workspace_id: workspace_id.clone(),
+            mask,
+        };
+        let beyond = [
+            (
+                "beyond the ceiling",
+                row(&sami.member_id, permission::mask_of(&[Flag::DeleteUnit])),
+            ),
+            (
+                "at or above the signer",
+                row(&ada.member_id, permission::mask_of(&[Flag::EditUnit])),
+            ),
+            (
+                "an administration flag",
+                row(
+                    &sami.member_id,
+                    permission::mask_of(&[Flag::EditUnit, Flag::InviteMember]),
+                ),
+            ),
+            (
+                "the signer's own",
+                row(&lena.member_id, permission::mask_of(&[Flag::EditUnit])),
+            ),
+        ];
+
+        for (case, forged) in &beyond {
+            let before = every_row(&store).await;
+            let refused = store
+                .write_workspace_override(&signer, forged)
+                .await
+                .expect_err(case);
+
+            assert_eq!(reason_of(&refused), RefusalReason::RoleLacksAct, "{case}");
+            assert_eq!(every_row(&store).await, before, "{case}: the store wrote");
+
+            store
+                .write_workspace_override_around_the_check(&signer, forged)
+                .await
+                .unwrap_or_else(|error| panic!("{case}: around the store: {error:?}"));
+
+            let elsewhere = another_machine(&directory, &owner.organization_id).await;
+
+            assert_eq!(
+                workspace_override_of(
+                    &elsewhere,
+                    &owner.verifying_key,
+                    &forged.member_id,
+                    &workspace_id
+                )
+                .await,
+                0,
+                "{case}: another machine read it"
+            );
+
+            store
+                .delete_workspace_override(&forged.member_id, &workspace_id)
+                .await
+                .expect("the row taken back");
+        }
+
+        // what the lead may write, written the same way, reads.
+        let allowed = row(&sami.member_id, permission::mask_of(&[Flag::EditUnit]));
+
+        store
+            .write_workspace_override_around_the_check(&signer, &allowed)
+            .await
+            .expect("written around the store");
+
+        let elsewhere = another_machine(&directory, &owner.organization_id).await;
+
+        assert_eq!(
+            workspace_override_of(
+                &elsewhere,
+                &owner.verifying_key,
+                &sami.member_id,
+                &workspace_id
+            )
+            .await,
+            allowed.mask
+        );
+    }
+
+    /// A workspace override a lead set is signed again with the rest of their rows when their
+    /// certificate is issued again, so narrowing the lead in some other way leaves the member's
+    /// override standing on every machine.
+    #[tokio::test]
+    async fn a_workspace_override_is_signed_again_when_its_signers_certificate_is() {
+        let directory = scratch("workspace-override-resigned");
+        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let lena = an_overrider(&store, &owner, &link, "lena", &workspace_id).await;
+        let (sami, _) = a_member(
+            &store,
+            &owner,
+            &link,
+            "sami",
+            permission::MEMBER,
+            &workspace_id,
+        )
+        .await;
+        let editing = permission::mask_of(&[Flag::EditUnit]);
+
+        super::set_workspace_override(&store, &lena, &sami.member_id, &workspace_id, editing)
+            .await
+            .expect("the lead set it");
+
+        let before = the_certificate(&store, &owner, &lena.member_id).await;
+
+        set_override(
+            &store,
+            &owner,
+            &lena.member_id,
+            permission::mask_of(&[Flag::EditPayment]),
+            NOW + 1,
+        )
+        .await
+        .expect("the lead narrowed");
+
+        assert_ne!(
+            the_certificate(&store, &owner, &lena.member_id).await.id,
+            before.id,
+            "the lead's certificate was not issued again"
+        );
+
+        let elsewhere = another_machine(&directory, &owner.organization_id).await;
+
+        assert_eq!(
+            workspace_override_of(
+                &elsewhere,
+                &owner.verifying_key,
+                &sami.member_id,
+                &workspace_id
+            )
+            .await,
+            editing,
+            "the override did not follow its signer's certificate"
         );
     }
 }

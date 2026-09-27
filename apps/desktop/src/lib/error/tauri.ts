@@ -87,6 +87,7 @@ export const TAURI_REFUSAL_REASONS = [
 	'tenantNeedsViewing',
 	'contractNeedsViewing',
 	'paymentNeedsViewing',
+	'recordFlagsOnly',
 	'alreadyOwner',
 	'accountNotSetUp',
 	'offerPending',

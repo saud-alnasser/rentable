@@ -360,6 +360,16 @@ pub struct WorkspaceFacts {
     pub schema_version: i64,
     /// what this member's grant on it is good for, `full-access` or `read-only`.
     pub access_level: String,
+    /// the record flags switched for this member in this workspace, over what they may do across
+    /// the organization (effort 838, requirement 12 as amended a third time). Zero where nothing
+    /// is.
+    #[serde(rename = "override")]
+    pub override_mask: i64,
+    /// what this member may do in this workspace before the grant is read: their permissions
+    /// across the organization with that override switched
+    /// (`permission::effective_in_workspace`). What the web layer answers a record procedure by,
+    /// with a read-only grant's writes cleared.
+    pub permissions: i64,
 }
 
 /// What the web layer is told about a signed-in member.
@@ -385,8 +395,9 @@ pub struct SessionFacts {
     #[serde(rename = "override")]
     pub override_mask: i64,
     /// what the member may do across the organization: their role's mask exclusive-or'd with their
-    /// override, read off the verified row now. What they may do in one workspace is this with a
-    /// read-only grant's writes cleared, which the web layer folds for the workspace it has open.
+    /// override, read off the verified row now. What they may do in one workspace is that
+    /// workspace's own `permissions` with a read-only grant's writes cleared, which the web layer
+    /// folds for the workspace it has open; this still answers for administration.
     pub permissions: i64,
     /// the workspaces this member holds a grant on, and only those.
     pub workspaces: Vec<WorkspaceFacts>,
@@ -1265,6 +1276,7 @@ pub async fn facts_of(
         })?;
     let grants = store.grants(key).await?;
     let workspaces = store.workspaces(key).await?;
+    let workspace_overrides = store.workspace_overrides(key).await?;
     let role = super::role::held_role(session, &store.roles(key).await?, &member.role_id)?;
 
     // what this member holds a grant on, with the names opened for the screen. The grant on the
@@ -1281,6 +1293,14 @@ pub async fn facts_of(
                 .map(|workspace| (grant, workspace))
         })
         .map(|(grant, workspace)| {
+            let override_mask = workspace_overrides
+                .iter()
+                .find(|workspace_override| {
+                    workspace_override.member_id == member.id
+                        && workspace_override.workspace_id == workspace.id
+                })
+                .map_or(0, |workspace_override| workspace_override.mask);
+
             Ok(WorkspaceFacts {
                 id: workspace.id.clone(),
                 name: opened(
@@ -1292,6 +1312,11 @@ pub async fn facts_of(
                 database_hostname: workspace.database_hostname.clone(),
                 schema_version: workspace.schema_version,
                 access_level: grant.access_level.clone(),
+                override_mask,
+                permissions: super::permission::effective_in_workspace(
+                    member.effective,
+                    override_mask,
+                ),
             })
         })
         .collect::<Result<Vec<_>, Error>>()?;

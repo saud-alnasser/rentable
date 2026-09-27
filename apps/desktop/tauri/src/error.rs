@@ -193,6 +193,10 @@ pub enum RefusalReason {
     ContractNeedsViewing,
     /// the same, for payments.
     PaymentNeedsViewing,
+    /// a member's override for one workspace names a flag that is not a record flag: a workspace
+    /// changes only what may be done to its records (effort 838, requirement 12 as amended a third
+    /// time).
+    RecordFlagsOnly,
 
     // handing the organization over.
     /// the owner offered the organization to themselves.

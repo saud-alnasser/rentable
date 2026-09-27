@@ -57,7 +57,7 @@ use crate::{
         store::{
             FormatOneDirectory, FormatOneMemberRow, FormatOneReshape, GrantRecord,
             InvitationRecord, MarkRecord, MemberRecord, OrganizationStore, RoleRecord, SignedRow,
-            Signer, WorkspaceRecord, grant_authority, install, invitation_authority,
+            Signer, WorkspaceRecord, grant_authority, install_format_two, invitation_authority,
             mark_authority, role_authority, workspace_authority,
         },
         upgrade::{Opened, signing_key_of},
@@ -80,10 +80,12 @@ pub(crate) const TRANSITION: Transition = Transition {
     kept: &["organization_mark"],
 };
 
-/// A fresh organization of format 2: the schema this build installs. Only the last change's is
-/// read (`upgrade.rs`), so the next format's change builds its own and this one is not read again.
+/// A fresh organization of format 2: every table of this build's schema but what a later format
+/// added. Only the last change's is read (`upgrade.rs`), so it is read where a walk ends at format
+/// 2, as a test seeding an organization of format 2 walks (`transition/three.rs`), and never where
+/// a walk goes on. *It was the schema this build installs until format 3 added a table to it.*
 fn built(connection: &turso::Connection) -> Pending<'_, ()> {
-    Box::pin(install(connection))
+    Box::pin(install_format_two(connection))
 }
 
 /// Every member row as it lies, read with whichever authority columns the table has now, so a
@@ -320,7 +322,8 @@ fn format_one_certificate_id(member_id: &str) -> String {
 pub(crate) enum Step {
     /// one statement of the member table's reshape, which the table still needs.
     Reshape(FormatOneReshape),
-    /// every table of this format, where it does not stand yet.
+    /// every table of this format, where it does not stand yet: format 2's, and none a later
+    /// format adds, which that format's change creates.
     Schema,
     /// a row that verified under neither format.
     Drop(Dropped),
@@ -532,14 +535,14 @@ pub(crate) async fn applied(
     for step in steps {
         match step {
             Step::Reshape(statement) => store.reshape_format_one(*statement).await?,
-            Step::Schema => store.install_schema().await?,
+            Step::Schema => store.install_format_two_schema().await?,
             Step::Drop(dropped) => match &dropped.row {
                 Row::Member(id) => store.delete_format_one_member(id).await?,
-                Row::Workspace(id) => store.delete_workspace(id).await?,
+                Row::Workspace(id) => store.delete_workspace_alone(id).await?,
                 Row::Grant {
                     member_id,
                     workspace_id,
-                } => store.delete_grant(member_id, workspace_id).await?,
+                } => store.delete_grant_alone(member_id, workspace_id).await?,
                 Row::Invitation(id) => store.delete_invitation(id).await?,
                 Row::Mark => store.clear_mark().await?,
                 Row::Role(id) => store.delete_role(id).await?,
@@ -1413,6 +1416,11 @@ mod tests {
                 applied(&store, &key, plan.root.as_ref(), &plan.steps[written..])
                     .await
                     .unwrap_or_else(|error| panic!("{written}: the rest of the upgrade: {error}"));
+                // and the changes after this one, which the same walk ran on that machine.
+                store
+                    .install_format_three_schema()
+                    .await
+                    .unwrap_or_else(|error| panic!("{written}: format 3: {error}"));
                 store
                     .write_format()
                     .await

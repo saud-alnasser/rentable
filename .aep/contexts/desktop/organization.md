@@ -24,22 +24,24 @@ change, the link and the Turso account, keep their history.*
 ## Language
 
 **Organization**:
-One database on the owner's Turso account, `org-<id>`, holding fourteen tables (`store::TABLES`):
+One database on the owner's Turso account, `org-<id>`, holding fifteen tables (`store::TABLES`):
 its format, the organization, the roles, the members, the certificates, the revocations, the
 workspaces, the grants, the invitations, the migration lease, the machine links, the register of
-the machines that hold it, the successions a handover writes, and its mark. Every username and name
+the machines that hold it, the successions a handover writes, its mark, and the workspace
+overrides. Every username and name
 in it is sealed under the content key; every authority field is signed along a chain rooted at a
 key the member's machine pinned. Every member's machine keeps a replica.
 _Avoid_: "the control plane" and "the account" for it. There is no service of ours, and the
 account is Turso's.
 
 **Format**:
-The one `format` row, version 2, written when an organization is made. An organization made before
+The one `format` row, version 3, written when an organization is made. An organization made before
 effort 838 has no `format` table, which is format 1, and its owner's machine upgrades it in place at
 their sign-in, their resume or their connect on the Turso account: every row is judged under the
 old rules, carried into this format signed from the root, and the row is written last. The runner
 is `organization/upgrade.rs`; each change of format is a file under `organization/transition/`
-(format 1 to 2 is `two.rs`), listed in order in `transition/mod.rs` with the readers that find the
+(format 1 to 2 is `two.rs`; 2 to 3, which adds the `workspace_override` table and nothing else, is
+`three.rs`), listed in order in `transition/mod.rs` with the readers that find the
 owner in the format it starts from, and the version this build ships is counted from that list.
 Before the change the owner's machine writes a copy of the organization to
 `backups/org-<id>/`, and to their Turso account where it holds it; a copy that cannot be taken
@@ -60,7 +62,9 @@ fails rolls the whole walk back, writes nothing, and refuses with `ShapeNotAsBui
 says to update the application and try again and that the diagnostics log says why, which it does:
 `schema.notAsBuilt` names every difference. A workspace migration is checked the same way
 (`organization/migrate.rs`).
-A `format` row below 2 where nothing of format 1 is left reads as 2 and is written back. The owner
+A `format` row below 2, or none, where nothing of format 1 is left reads as 2 where the
+`workspace_override` table is missing and as the shipped format where it stands, and the owner's
+next sign-in finishes it. The owner
 is whoever's vault derives the organization key, and nothing else on a row decides it. The upgrade runs only online, after what the machine held is pushed and a pull has
 completed; otherwise nothing is written and the owner is asked for a connection. An upgrade cut short
 has no row either, reads as older, and the owner's next sign-in, resume or connect finishes it from any machine. Each
@@ -127,6 +131,19 @@ a shared table of cases). The owner carries none. Set from the member's card by 
 `overrideMember`. **Assigning a role clears it** unless an override is sent with the role in the
 same write (`assign_role`), and so does deleting the role the member held.
 
+**Workspace override**:
+A signed row of its own (`workspace_override`, format 3) switching **record flags only** for one
+member in one workspace they hold a grant on: what they may do there is their effective
+permissions with it switched (`permission::effective_in_workspace`, `effectiveInWorkspace` in the
+package, held to the same shared table), then folded by the grant (`effectiveIn`). Set by
+`role::set_workspace_override` under the override's rules (`overrideMember`, a rank above the
+member, never oneself or the owner, only flags the actor holds, and no write without its view in
+the result); a mask of zero deletes the row. It goes with the organization layer (another role, the
+reset to the role, a deleted role) and with the grant (a withdrawal, a removal, a deleted
+workspace). The session and the members list carry each workspace's override and permissions, and
+the tRPC context answers a record procedure by the open workspace's (`api/context.ts`,
+`permissionsIn`). *Effort 838, requirement 12 as amended a third time, ticket 53.*
+
 **Rank**:
 How high a role stands: the owner 2,000,000, the manager 1,000,000, the custom roles between, the
 member 0. **Nobody acts on a role or a member at or above their own rank, nobody changes their own
@@ -187,7 +204,9 @@ and a certificate that is not the member's own, or the root, and a row naming th
 the root about its own holder, with no override; a role row `manageRoles`, a rank above the role and
 every flag its mask carries; a grant `grantWorkspace`, a read-only one the root; a workspace row
 `renameWorkspace` or `grantWorkspace`; an invitation `inviteMember` or `resetPassword`; the mark
-`manageMark`. So a member holding the credential who signs around a command gets no further than
+`manageMark`; a workspace override record flags alone, about a member who is in and not the
+certificate's own, and `overrideMember`, a rank above that member and every flag it switches, or
+the root. So a member holding the credential who signs around a command gets no further than
 their certificate: rows of the kinds its ceiling names, about people ranked below them, switching
 for nobody a flag the ceiling lacks, and never their own. Which flags inside it they may switch, and
 which role they may give, is the command's to refuse. A member row's signer chooses its role and its

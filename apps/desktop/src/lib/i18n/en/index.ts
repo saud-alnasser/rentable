@@ -373,6 +373,8 @@ const en = {
 					'adding, editing or deleting contracts needs viewing them. turn on viewing contracts first.',
 				paymentNeedsViewing:
 					'adding, editing or deleting payments needs viewing them. turn on viewing payments first.',
+				recordFlagsOnly:
+					'a workspace changes only what may be done to its records. set the rest across the organization.',
 				alreadyOwner: 'you are the owner already. choose the account that is to have it.',
 				accountNotSetUp:
 					'that account has no password of its own yet. once they open their link and choose one, offer it again.',

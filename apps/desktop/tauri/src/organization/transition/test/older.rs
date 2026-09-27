@@ -924,9 +924,9 @@ pub(crate) fn expected_effective(id: &str) -> i64 {
 }
 
 /// Everything a finished upgrade of the fixture leaves, read as this format reads it, here and
-/// on another machine holding no key but the pinned one: format 2 and nothing of format 1;
-/// every member where they could stand before; one live certificate each, under the id format
-/// 1 gave it; and every workspace, grant, invitation and the mark verified.
+/// on another machine holding no key but the pinned one: the shipped format and nothing of
+/// format 1; every member where they could stand before; one live certificate each, under the id
+/// format 1 gave it; and every workspace, grant, invitation and the mark verified.
 pub(crate) async fn assert_upgraded(store: &OrganizationStore, older: &Older, pinned: &[u8; 32]) {
     assert_eq!(
         store.format().await.expect("the format"),

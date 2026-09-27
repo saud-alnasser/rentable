@@ -20,7 +20,7 @@
 //!
 //! **The next format is added in five moves**:
 //!
-//! 1. a file here, named for the format it makes, one word as every Rust file is (`three.rs`);
+//! 1. a file here, named for the format it makes, one word as every Rust file is (`four.rs`);
 //! 2. in it, the change and a `TRANSITION` built from it, reading the format it starts from,
 //!    building a fresh organization of the format it makes, and naming the tables it leaves alone,
 //!    which the check before the commit reads (`schema.rs`, ticket 33); a table it reshapes in
@@ -49,11 +49,12 @@ use super::{
 
 #[cfg(test)]
 pub(crate) mod test;
+pub mod three;
 pub mod two;
 
 /// Every change of format, in order: the one starting from format 1 first, and each after it
 /// starting where the one before it ends.
-pub(crate) const TRANSITIONS: &[Transition] = &[two::TRANSITION];
+pub(crate) const TRANSITIONS: &[Transition] = &[two::TRANSITION, three::TRANSITION];
 
 /// What a change of format hands the runner to await, borrowing what it was given.
 pub(crate) type Pending<'a, T> = Pin<Box<dyn Future<Output = Result<T, Error>> + Send + 'a>>;

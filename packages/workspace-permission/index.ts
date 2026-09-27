@@ -6,7 +6,9 @@
  * Three families share the mask: the organization's administration on bits 0 to 9, the acts only
  * the owner performs on bits 10 to 17, and, for each record kind, viewing, creating, editing and
  * deleting on bits 20 to 39. Bits 18, 19 and 40 to 52 are free. A member's permissions are their
- * role's mask exclusive-or'd with their own override, which is [`effective`].
+ * role's mask exclusive-or'd with their own override, which is [`effective`]; in one workspace,
+ * that with the record flags of their override for that workspace switched, which is
+ * [`effectiveInWorkspace`].
  *
  * **Each name maps to a bit index, and no index may reach 53.** Decision 04 chose one
  * `INTEGER` column over four alternatives on the strength of a guard that fails loudly at the
@@ -157,6 +159,14 @@ export const WRITE_FLAGS: readonly Flag[] = [
 ];
 
 /**
+ * Viewing, creating, editing and deleting every record kind: what a workspace override may switch,
+ * and nothing else (effort 838, requirement 12 as amended a third time).
+ */
+export const RECORD_FLAGS: readonly Flag[] = RECORD_KINDS.flatMap(
+	(kind) => FAMILIES[kind] as readonly Flag[]
+);
+
+/**
  * One act at least.
  *
  * **A gate that names no acts is a caller mistake, not a gate that lets everybody through.**
@@ -239,6 +249,26 @@ export const firstWriteWithoutView = (mask: number): RecordKind | null =>
 
 		return !permits(mask, view) && writes.some((flag) => permits(mask, flag));
 	}) ?? null;
+
+/**
+ * A member's permissions in one workspace, before its grant is read: what they may do across the
+ * organization, with every record flag their override for that workspace names switched (effort
+ * 838, requirement 12 as amended a third time). A flag set in it turns a record flag off where
+ * the member holds it across the organization, and on where they do not.
+ *
+ * **Record flags only.** A workspace override naming any other bit is refused where it is written
+ * and where it is read, and a bit outside [`RECORD_FLAGS`] is not switched here either, so the
+ * organization's own flags pass through as they are. [`effectiveIn`] then folds the result by the
+ * grant's level. Rust's `effective_in_workspace` is held to this by the shared table.
+ */
+export const effectiveInWorkspace = (permissions: number, workspaceOverride: number): number =>
+	xorOf(
+		permissions,
+		RECORD_FLAGS.reduce(
+			(mask, name) => (permits(workspaceOverride, name) ? mask + 2 ** FLAGS[name] : mask),
+			0
+		)
+	);
 
 /** How a member reaches one workspace, in the spelling a grant row stores. */
 export type AccessLevel = 'full-access' | 'read-only';

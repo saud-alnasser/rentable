@@ -1054,6 +1054,7 @@ mod tests {
     async fn as_format_one(store: &OrganizationStore) {
         for statement in [
             "DROP TABLE \"format\"",
+            "DROP TABLE \"workspace_override\"",
             "DROP TABLE \"role\"",
             "DROP TABLE \"certificate\"",
             "DROP TABLE \"revocation\"",

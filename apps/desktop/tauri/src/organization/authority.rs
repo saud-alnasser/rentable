@@ -172,6 +172,10 @@ const INVITATION_DOMAIN: &[u8] = b"rentable.organization.authority.invitation.v2
 /// Domain separation for the `mark` row: the organization's signature or seal (effort 835).
 const MARK_DOMAIN: &[u8] = b"rentable.organization.authority.mark.v1";
 
+/// Separates a `workspace_override` row's preimage from every other row's (effort 838,
+/// requirement 12 as amended a third time).
+const WORKSPACE_OVERRIDE_DOMAIN: &[u8] = b"rentable.organization.authority.workspace-override.v1";
+
 /// The first check's refusal: the row does not carry the signature the
 /// certificate it names would have produced.
 const FORGED_ROW: &str = "the row is not signed by the certificate it names";
@@ -278,6 +282,25 @@ pub enum Authority<'a> {
     Invitation(InvitationAuthority<'a>),
     /// The `mark` row: the organization's signature or seal.
     Mark(MarkAuthority<'a>),
+    /// A `workspace_override` row: what is switched for one member in one workspace (effort 838,
+    /// requirement 12 as amended a third time).
+    WorkspaceOverride(WorkspaceOverrideAuthority<'a>),
+}
+
+/// What a `workspace_override` row puts under signature, which is the whole of the row: whose it
+/// is, which workspace, and the record flags it switches for them there (effort 838, requirement
+/// 12 as amended a third time). Its own row rather than a column of the grant, because a grant is
+/// signed under `grantWorkspace` and carries a sealed credential, and this is set by a holder of
+/// `overrideMember`, who may hold no grant rights at all.
+#[derive(Clone, Copy, Debug)]
+pub struct WorkspaceOverrideAuthority<'a> {
+    /// Whose permissions it switches.
+    pub member_id: &'a str,
+    /// In which workspace.
+    pub workspace_id: &'a str,
+    /// The record flags switched, over what the member may do across the organization. Record
+    /// flags alone: a row naming any other bit is covered by nobody.
+    pub mask: i64,
 }
 
 /// What a `role` row puts under signature: which role, what kind, what it is called, what it
@@ -739,6 +762,7 @@ pub fn sign(
 /// | `workspace` | hold `renameWorkspace` or `grantWorkspace` |
 /// | `invitation` | hold `inviteMember` or `resetPassword` |
 /// | `mark` | hold `manageMark` |
+/// | `workspace_override` | switch record flags alone, be about a member who is in and is not the certificate's own, and hold `overrideMember`, outrank that member as a member row's signer does, and hold every flag the mask switches; or be the root |
 ///
 /// Certificates and revocations are judged by the walk, and a succession by the organization key,
 /// so neither is here. **The root is not waved through** except where the table says so: it holds
@@ -772,12 +796,21 @@ pub fn sign(
 /// `standing_of_role` answers for a role id with its `(mask, rank)`: the verified role row's for
 /// any role but the owner's, and `None` for a role nobody holds, which covers nothing. Only the
 /// rank is read. `certified_rank_of` answers for a member id with the highest rank of the live
-/// certificates they hold, and `None` for a member who holds none.
+/// certificates they hold, and `None` for a member who holds none. `rank_of_member` answers for a
+/// member id with the rank of the role their verified row names, and `None` for a member who is
+/// not in, removed or granted nothing by their row: only a workspace override reads it.
+///
+/// **A workspace override is judged as the override on a member row is** (effort 838, requirement
+/// 12 as amended a third time): its signer outranks the member, as they stand by their role and as
+/// they are certified, holds `overrideMember` and every flag it switches, and is not the member.
+/// It names record flags alone, whoever signs it, the root included, and it is about a member who
+/// is in: a row about anybody else grants nothing and is covered by nobody.
 pub fn covers(
     certificate: &Certificate,
     authority: Authority<'_>,
     standing_of_role: impl Fn(&str) -> Option<(i64, i64)>,
     certified_rank_of: impl Fn(&str) -> Option<i64>,
+    rank_of_member: impl Fn(&str) -> Option<i64>,
 ) -> bool {
     let holds = |flag: Flag| permission::permits(certificate.ceiling, flag);
     let holds_any = |flags: &[Flag]| flags.iter().any(|flag| holds(*flag));
@@ -808,6 +841,19 @@ pub fn covers(
         Authority::Workspace(_) => holds_any(&[Flag::RenameWorkspace, Flag::GrantWorkspace]),
         Authority::Invitation(_) => holds_any(&[Flag::InviteMember, Flag::ResetPassword]),
         Authority::Mark(_) => holds(Flag::ManageMark),
+        Authority::WorkspaceOverride(workspace_override) => {
+            permission::first_beyond_records(workspace_override.mask).is_none()
+                && certificate.member_id != workspace_override.member_id
+                && (certificate.is_root()
+                    || (holds(Flag::OverrideMember)
+                        && workspace_override.mask & !certificate.ceiling == 0))
+                && rank_of_member(workspace_override.member_id).is_some_and(|rank| {
+                    certificate.is_root()
+                        || (certificate.rank > rank
+                            && certified_rank_of(workspace_override.member_id)
+                                .is_none_or(|certified| certificate.rank > certified))
+                })
+        }
     }
 }
 
@@ -862,6 +908,10 @@ pub fn needed_for(authority: Authority<'_>) -> &'static str {
         Authority::Workspace(_) => "renameWorkspace or grantWorkspace",
         Authority::Invitation(_) => "inviteMember or resetPassword",
         Authority::Mark(_) => "manageMark",
+        Authority::WorkspaceOverride(_) => {
+            "overrideMember, a rank above the member, every flag the override switches, record \
+             flags alone, and not to be the member's own"
+        }
     }
 }
 
@@ -879,6 +929,7 @@ pub struct Chain<'a> {
     certificates: HashMap<&'a str, &'a Certificate>,
     revocations: &'a [Revocation],
     roles: HashMap<String, (i64, i64)>,
+    members: HashMap<String, i64>,
     walked: RefCell<HashMap<String, Result<(), String>>>,
     revoked: OnceCell<HashSet<String>>,
 }
@@ -899,6 +950,7 @@ impl<'a> Chain<'a> {
                 .collect(),
             revocations,
             roles: HashMap::new(),
+            members: HashMap::new(),
             walked: RefCell::new(HashMap::new()),
             revoked: OnceCell::new(),
         }
@@ -913,6 +965,21 @@ impl<'a> Chain<'a> {
     pub fn with_roles(mut self, roles: HashMap<String, (i64, i64)>) -> Self {
         self.roles = roles;
         self
+    }
+
+    /// The same chain, knowing the rank each member in stands at by the role their verified row
+    /// names, by id: what a workspace override is judged by, since whom it is about stands there
+    /// (effort 838, requirement 12 as amended a third time). The ranks are the caller's to have
+    /// read from member rows this chain judged; a member removed, or whose row grants nothing, is
+    /// left out, and a workspace override about them is covered by nobody.
+    pub fn with_members(mut self, members: HashMap<String, i64>) -> Self {
+        self.members = members;
+        self
+    }
+
+    /// The rank a member in stands at by their role, where the chain knows it.
+    pub fn rank_of_member(&self, member_id: &str) -> Option<i64> {
+        self.members.get(member_id).copied()
     }
 
     /// The mask and the rank of a role, where the chain knows it.
@@ -932,6 +999,7 @@ impl<'a> Chain<'a> {
             authority,
             |role_id| self.standing_of_role(role_id),
             |member_id| self.certified_rank_of(member_id),
+            |member_id| self.rank_of_member(member_id),
         )
     }
 
@@ -1373,6 +1441,17 @@ fn preimage(certificate_id: &str, authority: Authority<'_>) -> Vec<u8> {
             field(&mut message, updated_by.as_bytes());
             field(&mut message, &updated_at.to_be_bytes());
         }
+        Authority::WorkspaceOverride(WorkspaceOverrideAuthority {
+            member_id,
+            workspace_id,
+            mask,
+        }) => {
+            message.extend_from_slice(WORKSPACE_OVERRIDE_DOMAIN);
+            field(&mut message, certificate_id.as_bytes());
+            field(&mut message, member_id.as_bytes());
+            field(&mut message, workspace_id.as_bytes());
+            field(&mut message, &mask.to_be_bytes());
+        }
     }
 
     message
@@ -1545,6 +1624,15 @@ pub fn verify_format_one(
     if matches!(row, FormatOneRow::Unchanged(Authority::Role(_))) {
         return Err(Error::Integrity {
             message: "an organization of format 1 holds no role rows".to_string(),
+        });
+    }
+
+    if matches!(
+        row,
+        FormatOneRow::Unchanged(Authority::WorkspaceOverride(_))
+    ) {
+        return Err(Error::Integrity {
+            message: "an organization of format 1 holds no workspace overrides".to_string(),
         });
     }
 
@@ -3467,6 +3555,122 @@ mod tests {
                 &by_root
             ),
             Ok(())
+        );
+    }
+
+    /// **A workspace override is covered as a member row's override is** (effort 838, ticket 53):
+    /// the root or a holder of `overrideMember`, above the member as they stand by their role and
+    /// as they are certified, holding every flag it switches, never about its own member, and
+    /// record flags alone whoever signs it. A member the reader does not know as in is overridden
+    /// by nobody. Signed, it verifies through the chain like every other row.
+    #[test]
+    fn a_workspace_override_is_covered_as_a_members_override_is() {
+        let organization = an_organization();
+        let overrider_ceiling = MEMBER_ROLE.mask | permission::mask_of(&[Flag::OverrideMember]);
+        let (overrider_key, overrider) = delegate(
+            &organization.administrator_key,
+            &organization.certificate,
+            "lead",
+            overrider_ceiling,
+            500_000,
+        );
+        let (_, clerk) = delegate(
+            &organization.administrator_key,
+            &organization.certificate,
+            "clerk",
+            MEMBER_ROLE.mask,
+            500_000,
+        );
+        let about = |member_id: &'static str, mask: i64| {
+            Authority::WorkspaceOverride(WorkspaceOverrideAuthority {
+                member_id,
+                workspace_id: "workspace-a",
+                mask,
+            })
+        };
+        let ranks = |member_id: &str| match member_id {
+            "member-sami" => Some(MEMBER_ROLE.rank),
+            "member-ada" => Some(MANAGER_ROLE.rank),
+            "member-lead" => Some(500_000),
+            "member-a" => Some(OWNER_ROLE.rank),
+            _ => None,
+        };
+        let covered = |certificate: &Certificate, authority: Authority<'_>| {
+            covers(certificate, authority, |_| None, |_| None, ranks)
+        };
+        let editing = permission::mask_of(&[Flag::EditUnit]);
+
+        assert!(covered(
+            &organization.certificate,
+            about("member-sami", editing)
+        ));
+        assert!(covered(
+            &organization.certificate,
+            about("member-ada", editing)
+        ));
+        assert!(covered(&overrider, about("member-sami", editing)));
+
+        // record flags alone, whoever signs it.
+        let administration = editing | permission::mask_of(&[Flag::InviteMember]);
+
+        assert!(!covered(
+            &organization.certificate,
+            about("member-sami", administration)
+        ));
+        assert!(!covered(&overrider, about("member-sami", administration)));
+        // never about its own member, the root's included.
+        assert!(!covered(
+            &organization.certificate,
+            about("member-a", editing)
+        ));
+        assert!(!covered(&overrider, about("member-lead", editing)));
+        // above the member, by their role and as they are certified.
+        assert!(!covered(&overrider, about("member-ada", editing)));
+        assert!(!covers(
+            &overrider,
+            about("member-sami", editing),
+            |_| None,
+            |_| Some(500_000),
+            ranks
+        ));
+        // holding overrideMember, and every flag it switches.
+        assert!(!covered(&clerk, about("member-sami", editing)));
+        assert!(!covered(
+            &overrider,
+            about("member-sami", permission::mask_of(&[Flag::DeleteUnit]))
+        ));
+        // about a member the reader knows as in.
+        assert!(!covered(
+            &organization.certificate,
+            about("member-gone", editing)
+        ));
+
+        // and signed, it verifies through the chain, which knows the member's rank.
+        let certificates = [organization.certificate.clone(), overrider.clone()];
+        let authority = about("member-sami", editing);
+        let signature = sign(&overrider_key, &overrider, authority).expect("failed to sign");
+        let chain = Chain::new(&organization.verifying_key, &certificates, &[])
+            .with_roles(built_in_roles())
+            .with_members(HashMap::from([(
+                "member-sami".to_string(),
+                MEMBER_ROLE.rank,
+            )]));
+
+        assert_eq!(chain.verify(&overrider.id, authority, &signature), Ok(()));
+        assert_eq!(
+            chain.verify(
+                &overrider.id,
+                about("member-sami", permission::mask_of(&[Flag::EditTenant])),
+                &signature
+            ),
+            Err(integrity(FORGED_ROW))
+        );
+        assert_eq!(
+            Chain::new(&organization.verifying_key, &certificates, &[])
+                .with_roles(built_in_roles())
+                .verify(&overrider.id, authority, &signature),
+            Err(integrity(BEYOND_ITS_CERTIFICATE)),
+            "a chain that does not know the member overrode them"
         );
     }
 

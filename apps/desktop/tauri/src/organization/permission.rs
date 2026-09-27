@@ -413,6 +413,25 @@ pub fn effective_in(permissions: i64, access: AccessLevel) -> i64 {
     }
 }
 
+/// A member's permissions in one workspace, before its grant is read: `permissions`, what they may
+/// do across the organization, with every record flag `workspace_override` names switched (effort
+/// 838, requirement 12 as amended a third time). [`effective_in`] then folds it by the grant.
+///
+/// **Record flags only.** A workspace override naming any other bit is refused where it is written
+/// and where it is read ([`first_beyond_records`]), and a bit outside [`RECORD_FLAGS`] is not
+/// switched here either, so the organization's own flags pass through as they are. Held to the
+/// package's `effectiveInWorkspace` by the shared table both read.
+pub fn effective_in_workspace(permissions: i64, workspace_override: i64) -> i64 {
+    permissions ^ (workspace_override & mask_of(&RECORD_FLAGS))
+}
+
+/// The first flag `mask` carries that is not a record flag, by the package's name for it, or
+/// `None` where it carries record flags alone: what no workspace override may name (effort 838,
+/// requirement 12 as amended a third time). A bit no flag sits on is named as what it is.
+pub fn first_beyond_records(mask: i64) -> Option<&'static str> {
+    first_not_held(mask_of(&RECORD_FLAGS), mask)
+}
+
 /// The mask of these acts: each flag's bit, or'd.
 pub fn mask_of<A: Act>(acts: &[A]) -> i64 {
     acts.iter()
@@ -533,8 +552,8 @@ mod tests {
     use super::{
         BUILT_IN, BuiltIn, Family, Flag, MANAGER, MANAGER_ROLE, MEMBER_ADMINISTRATION, MEMBER_ROLE,
         OWNER, OWNER_ONLY, OWNER_ROLE, RECORD_FLAGS, WRITE_FLAGS, effective, effective_in,
-        first_not_held, first_owner_only, first_write_without_view, mask_of, permits,
-        refuse_write_without_view, require,
+        effective_in_workspace, first_beyond_records, first_not_held, first_owner_only,
+        first_write_without_view, mask_of, permits, refuse_write_without_view, require,
     };
     use crate::{
         error::{Error, RefusalReason},
@@ -811,6 +830,58 @@ mod tests {
                 "{case}, read-only"
             );
         }
+    }
+
+    /// The workspace layer's cases of the same table (effort 838, requirement 12 as amended a
+    /// third time), which the package's `tests/effective.test.ts` reads too.
+    #[test]
+    fn every_workspace_case_in_the_shared_table_reads_the_permissions_it_names_there() {
+        let table = shared_table();
+        let cases = table["workspaceCases"]
+            .as_array()
+            .expect("the shared table's workspace cases");
+
+        assert!(
+            !cases.is_empty(),
+            "the shared table holds no workspace cases"
+        );
+
+        for case in cases {
+            let expected = number(case, "effective");
+            let in_workspace = effective_in_workspace(
+                number(case, "permissions"),
+                number(case, "workspaceOverride"),
+            );
+
+            assert_eq!(in_workspace, expected, "{case}");
+            assert_eq!(
+                effective_in(in_workspace, AccessLevel::FullAccess),
+                expected
+            );
+            assert_eq!(
+                effective_in(in_workspace, AccessLevel::ReadOnly),
+                number(case, "readOnly"),
+                "{case}, read-only"
+            );
+        }
+    }
+
+    #[test]
+    fn a_workspace_override_names_record_flags_alone() {
+        assert_eq!(first_beyond_records(0), None);
+        assert_eq!(first_beyond_records(mask_of(&RECORD_FLAGS)), None);
+        assert_eq!(
+            first_beyond_records(mask_of(&[Flag::ViewUnit, Flag::AssignRole])),
+            Some("assignRole")
+        );
+        assert_eq!(
+            first_beyond_records(mask_of(&[Flag::DeleteOrganization])),
+            Some("deleteOrganization")
+        );
+        assert_eq!(
+            first_beyond_records(1 << 45),
+            Some("a flag this version does not name")
+        );
     }
 
     #[test]

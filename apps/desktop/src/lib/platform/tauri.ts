@@ -68,6 +68,7 @@ export type {
 	MadeLink,
 	MemberRemoved,
 	MemberStanding,
+	MemberWorkspace,
 	MigrationNotice,
 	OrganizationConsentResult,
 	OrganizationConsentStart,
@@ -346,6 +347,12 @@ export const tauri = {
 				}),
 			setOverride: (memberId: string, override: number) =>
 				invoke<OrganizationMember>('member_set_override', { memberId, overrideMask: override }),
+			setWorkspaceOverride: (memberId: string, workspaceId: string, override: number) =>
+				invoke<OrganizationMember>('member_set_workspace_override', {
+					memberId,
+					workspaceId,
+					overrideMask: override
+				}),
 			offerOwnership: (memberId: string, password: string) =>
 				invoke<OrganizationMember>('member_offer_ownership', { memberId, password }),
 			withdrawOffer: () => invoke<void>('member_withdraw_offer'),
