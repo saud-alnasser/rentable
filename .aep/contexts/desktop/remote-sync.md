@@ -33,6 +33,9 @@ organization on the customer's own Turso account answers everything the two answ
 > **Local backup is gone** (#569, 2026-08-19). Requirement 17 of
 > [[efforts/a-workspace-follows-its-user/spec]], directed by the human: Turso holds the record and
 > carries its own point-in-time restore, so the application keeps no snapshot files.
+> *Narrowed by effort 838, requirement 13: a copy is taken again, only before a change of shape
+> (a workspace migration, an organization's format), read out row by row by `tauri/src/backup.rs`
+> rather than copied as a file; nothing restores it in the application.*
 
 ## Language
 
@@ -126,7 +129,10 @@ sentence from both.
 - **Network clients are built in one place**, `tauri/src/http.rs`. reqwest carries no crypto
   provider here, deliberately, to keep one provider in the tree, so a client built any other way
   panics rather than failing. This is why there is a builder for a two-line construction.
-- **Nothing here writes a workspace file any more.** Backup was the last thing that did, and its
+- **Nothing here writes a workspace file but the copy before a migration.** The old backup's
   retirement is why `Database::create_backup` and `Database::restore_backup` are gone rather than
   merely refused on a replica. What an update leaves behind is a version number and a release
-  URL, in `update.rs`, and no copy of anything.
+  URL, in `update.rs`. The member holding a workspace's migration lease writes a copy of it, read
+  over the pipeline in one transaction, to `backups/ws-<id>/` before the first statement
+  (`organization/migration.rs`, `backup.rs`), and one on the owner's account where that machine is
+  the owner's; a copy that cannot be taken releases the lease and applies nothing.

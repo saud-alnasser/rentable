@@ -465,6 +465,12 @@ file with the same `CREATE` statements, through `sqlx` as the rest of the plain 
   workspace is copied over the pipeline the migration uses, labelled `schema-<from>-to-<to>`; the
   remote copy where this machine holds the account. A local copy that fails releases the lease,
   as a failed migration does.
+- *As built, ticket 30: every index, view and trigger is copied with the tables, after the rows;
+  what the engine owns is one filter, `backup::NOT_THE_ENGINES`; each table's rows are compared
+  with the source's own `COUNT(*)` in the same read transaction; a workspace is read in one
+  transaction over one pipeline stream, a page of rows at a time; the copy just written is never
+  the one retention removes; and a copy on the account is named `copy-<id prefix>-<label>-<s>`,
+  forty characters at most, so no reader takes it for an organization or a workspace.*
 - **A new refusal, `CopyNotTaken`**, in English and Arabic: the copy before the upgrade could not be
   written, nothing was changed, and it names the directory. A remote copy refused is
   `backup.remoteCopyRefused` in the log and nothing else.

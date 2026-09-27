@@ -58,8 +58,15 @@ machine that has signed in on no account opens the plain file `connect()` makes,
 sees is behind it.*
 
 **Snapshot**:
-A point-in-time copy of a workspace database. **The application keeps none** since #569: the
-copies that exist are Turso's, taken and restored by whoever administers the account.
+A point-in-time copy of a database. **The application takes one before it changes a database's
+shape, and at no other time** (effort 838, requirement 13, `tauri/src/backup.rs`): before an
+organization's format changes and before a workspace migration, a logical copy of every table,
+index, view and trigger is written to `<data dir>/backups/<database>/`, the three newest kept, and
+where the machine holds the owner's Turso account a protected copy named `copy-...` is made there,
+which only the owner removes. Nothing in the application restores one; that is by hand or on the
+account, where Turso's own point-in-time restore also stands. *It said the application kept none
+since #569 until effort 838; the file copy #569 retired stays retired, since the engine refuses to
+copy a replica's file, and the copy is read out row by row instead.*
 _Avoid_: using it for the local replica, which is a live copy rather than a point in time
 
 **Reconcile**:

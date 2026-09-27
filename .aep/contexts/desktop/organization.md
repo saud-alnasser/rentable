@@ -36,9 +36,15 @@ account is Turso's.
 **Format**:
 The one `format` row, version 2, written when an organization is made. An organization made before
 effort 838 has no `format` table, which is format 1, and its owner's machine upgrades it in place at
-their sign-in, their resume or their connect on the Turso account (`organization/upgrade.rs`): every
-row is judged under the old rules, carried into this format signed from the root, and the row is
-written last. The owner is whoever's vault derives the organization key, and nothing else on a row
+their sign-in, their resume or their connect on the Turso account: every row is judged under the
+old rules, carried into this format signed from the root, and the row is written last. The runner
+is `organization/upgrade.rs`; each change of format is a file under `organization/transition/`
+(format 1 to 2 is `two.rs`), listed in order in `transition/mod.rs` with the readers that find the
+owner in the format it starts from, and the version this build ships is counted from that list.
+Before the change the owner's machine writes a copy of the organization to
+`backups/org-<id>/`, and to their Turso account where it holds it; a copy that cannot be written
+refuses the upgrade with `CopyNotTaken` and nothing is changed (838, requirements 13 and 14).
+A `format` row below 2 where nothing of format 1 is left reads as 2 and is written back. The owner is whoever's vault derives the organization key, and nothing else on a row
 decides it. The upgrade runs only online, after what the machine held is pushed and a pull has
 completed; otherwise nothing is written and the owner is asked for a connection. An upgrade cut short
 has no row either, reads as older, and the owner's next sign-in, resume or connect finishes it from any machine. Each
@@ -287,7 +293,8 @@ refused unless what it yields is the key this machine pinned, and the directory 
   delete rows they cannot forge, a revocation included, which reinstates what it revoked; the answer
   is Turso's point-in-time restore, on the customer's account.
 - **A migration reaches a workspace under a lease taken at the primary**, by whichever member
-  opens it, and an older build refuses a newer workspace before reading anything.
+  opens it, and an older build refuses a newer workspace before reading anything. The lease holder
+  copies the workspace first (`backup.rs`), and a copy not taken applies nothing.
 - **Live tests reach the human's account only when asked**, each creating and removing its own
   database; [[rules/testing]] under *Tests that reach a live remote* admits them, and
   [[references/turso]] under *Never run* bounds them.
