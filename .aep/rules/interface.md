@@ -552,6 +552,14 @@ directory's records and nothing else. Its import shows a line per sheet
 (`workspace/component/import-dialog.svelte`), and a reference nothing in the file answers refuses
 the whole file.
 
+**A stated exception: the earlier records skip choosing a file.** Where this machine still holds
+the records of 0.12.0 or 0.13.0, a callout in the settings workspace group, above the transfer
+controls (`workspace/component/earlier-records.svelte`), opens the same workspace import review
+over those records as the shell reads them from the earlier version's database, rather than over
+a file the person chose. There is no file for the person to choose, since the records sit in the
+earlier version's own data, and nothing the pattern protects is lost: the plan is still shown,
+sheet by sheet, before anything is written.
+
 *Why: the export was an icon that could say export and nothing else, so a second format had nowhere
 to be named and the other direction had nowhere to go.*
 

@@ -17,11 +17,11 @@
 	 * The records 0.12.0 or 0.13.0 left on this machine, offered for this workspace (effort 838,
 	 * requirement 18).
 	 *
-	 * **A callout above the transfer row, in the same group, since it is the same act.** Bringing them in is the
-	 * workspace import over a file this build wrote from `app.db`, so it sits with the import and
-	 * opens the same dialog: the plan is shown, sheet by sheet, before anything is written. A notice
-	 * standing on a surface is a callout ([[rules/interface]], *Feedback*), and it is `info`,
-	 * since nothing is wrong.
+	 * **A callout above the transfer row, in the same group, since it is the same act.** Bringing
+	 * them in is the workspace import over a file this build wrote from `app.db`, so it sits with
+	 * the import and opens the same dialog: the plan is shown, sheet by sheet, before anything is
+	 * written. A notice standing on a surface is a callout ([[rules/interface]], *Feedback*), and
+	 * it is `info`, since nothing is wrong.
 	 *
 	 * **It names the workbook it keeps.** Reading the records writes them as the export's workbook
 	 * beside this machine's other copies, which is the copy the person keeps whatever they decide
@@ -72,7 +72,7 @@
 {#if offered}
 	<Callout tone="info" class="flex flex-col gap-3" data-earlier-records={offered.version}>
 		<div class="flex items-start gap-3">
-			<ArchiveRestoreIcon class="mt-0.5 size-4 shrink-0" />
+			<ArchiveRestoreIcon class="mt-1 size-4 shrink-0" />
 			<div class="min-w-0 space-y-1">
 				<p class="font-medium first-letter:uppercase">
 					{$LL.earlier.title({ version: offered.version })}
@@ -80,7 +80,8 @@
 				<p>{$LL.earlier.description()}</p>
 				<p class="text-xs">
 					{$LL.earlier.kept()}
-					<!-- a machine string, read left to right in both locales ([[rules/frontend]], *i18n*). -->
+					<!-- a machine string, read left to right in both locales
+					     ([[rules/frontend]], *i18n*). -->
 					<span dir="ltr" class="break-all" data-earlier-workbook>{workbook}</span>
 				</p>
 			</div>

@@ -34,11 +34,11 @@ export const earlierKeys = {
  * damaged file from a release this build does not run, and the person has nothing to act on.
  * It is written to the diagnostics so whoever is asked about it later can see it.
  */
-async function findEarlierRecords(): Promise<EarlierRecords | null> {
+export async function findEarlierRecords(): Promise<EarlierRecords | null> {
 	try {
 		return await tauri.earlier.find();
 	} catch (failure) {
-		recordDiagnosticWarning('earlier_records_unreadable', {
+		recordDiagnosticWarning('earlier.unreadable', {
 			reason: failure instanceof Error ? failure.message : String(failure)
 		});
 

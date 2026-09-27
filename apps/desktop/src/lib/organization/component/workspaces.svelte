@@ -319,7 +319,8 @@
 			{$LL.organization.dashboard.transferTitle({ workspace: open.name })}
 		</Field.Legend>
 		<!-- the records an earlier version left on this machine, offered here until they are
-		     brought in or dismissed, above the import they go through (effort 838, requirement 18). -->
+		     brought in or dismissed, above the import they go through (effort 838,
+		     requirement 18). -->
 		<EarlierRecords />
 		<WorkspaceTransfer />
 	</Field.Set>

@@ -4360,7 +4360,7 @@ type RootTranslation = {
 	}
 	earlier: {
 		/**
-		 * r​e​c​o​r​d​s​ ​f​r​o​m​ ​v​e​r​s​i​o​n​ ​{​v​e​r​s​i​o​n​}​ ​a​r​e​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​,​ ​a​n​d​ ​w​i​l​l​ ​b​e​ ​b​r​o​u​g​h​t​ ​i​n​ ​o​n​c​e​ ​t​h​e​r​e​ ​i​s​ ​a​ ​w​o​r​k​s​p​a​c​e​.
+		 * r​e​c​o​r​d​s​ ​f​r​o​m​ ​v​e​r​s​i​o​n​ ​{​v​e​r​s​i​o​n​}​ ​a​r​e​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​.​ ​b​r​i​n​g​ ​t​h​e​m​ ​i​n​ ​f​r​o​m​ ​s​e​t​t​i​n​g​s​ ​o​n​c​e​ ​t​h​e​r​e​ ​i​s​ ​a​ ​w​o​r​k​s​p​a​c​e​.
 		 * @param {string} version
 		 */
 		wayIn: RequiredParams<'version'>
@@ -8573,7 +8573,7 @@ export type TranslationFunctions = {
 	}
 	earlier: {
 		/**
-		 * records from version {version} are on this machine, and will be brought in once there is a workspace.
+		 * records from version {version} are on this machine. bring them in from settings once there is a workspace.
 		 */
 		wayIn: (arg: { version: string }) => LocalizedString
 		/**

@@ -1360,7 +1360,7 @@ const ar = {
 	// the records 0.12.0 and 0.13.0 left on this machine, offered on the way in and in the settings
 	// area's workspace group until they are brought in or put aside (effort 838, requirement 18).
 	earlier: {
-		wayIn: 'سجلات الإصدار {version} موجودة على هذا الجهاز، وستُنقل حين توجد مساحة عمل.',
+		wayIn: 'سجلات الإصدار {version} موجودة على هذا الجهاز. انقلها من الإعدادات حين توجد مساحة عمل.',
 		title: 'سجلات الإصدار {version}',
 		description: 'ما زالت على هذا الجهاز. راجع ما ستضيفه، ثم انقلها إلى مساحة العمل هذه.',
 		kept: 'تُحفظ نسخة منها في مصنف:',

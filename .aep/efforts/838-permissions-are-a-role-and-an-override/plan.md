@@ -547,6 +547,9 @@ file with the same `CREATE` statements, through `sqlx` as the rest of the plain 
   workspace exists; and, once the person holds a workspace they may import into, as a callout in
   the workspace group of settings beside the transfer controls, until they have brought them in
   or dismissed it. Nothing writes to `app.db`.
+  *As built (ticket 40): the callout shows to anyone with the workspace open, and refuses the
+  bring-in at its control without the import flags, saying why; dismissing is not gated, and it
+  settles the offer for the machine.*
 - **A rule for shipping migrations**, `rules/migrations`: add before removing, so an older build
   keeps working while a newer one migrates; a migration never edited once shipped; each shipped
   version seeded in the tests.

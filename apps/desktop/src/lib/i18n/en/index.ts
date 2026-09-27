@@ -1493,7 +1493,7 @@ const en = {
 	// area's workspace group until they are brought in or put aside (effort 838, requirement 18).
 	earlier: {
 		wayIn:
-			'records from version {version:string} are on this machine, and will be brought in once there is a workspace.',
+			'records from version {version:string} are on this machine. bring them in from settings once there is a workspace.',
 		title: 'records from version {version:string}',
 		description:
 			'they are still on this machine. review what they would add, then bring them into this workspace.',
