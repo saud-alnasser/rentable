@@ -4364,6 +4364,24 @@ type RootTranslation = {
 			 */
 			administers: string
 		}
+		foreseen: {
+			/**
+			 * t​h​i​s​ ​r​o​l​e​ ​c​h​a​n​g​e​s​ ​w​h​e​t​h​e​r​ ​t​h​e​y​ ​m​a​y​ ​{​f​l​a​g​}​,​ ​a​n​d​ ​y​o​u​ ​m​a​y​ ​n​o​t​.
+			 * @param {string} flag
+			 */
+			roleMoves: RequiredParams<'flag'>
+			/**
+			 * d​e​l​e​t​i​n​g​ ​i​t​ ​c​h​a​n​g​e​s​ ​w​h​e​t​h​e​r​ ​{​u​s​e​r​n​a​m​e​}​ ​m​a​y​ ​{​f​l​a​g​}​,​ ​a​n​d​ ​y​o​u​ ​m​a​y​ ​n​o​t​.
+			 * @param {string} flag
+			 * @param {string} username
+			 */
+			deleteMoves: RequiredParams<'flag' | 'username'>
+			/**
+			 * {​n​a​m​e​s​}​ ​w​o​u​l​d​ ​a​d​d​,​ ​e​d​i​t​ ​o​r​ ​d​e​l​e​t​e​ ​r​e​c​o​r​d​s​ ​t​h​e​y​ ​c​a​n​n​o​t​ ​v​i​e​w​.​ ​r​e​s​e​t​ ​t​h​e​m​ ​t​o​ ​t​h​i​s​ ​r​o​l​e​ ​o​n​ ​t​h​e​i​r​ ​c​a​r​d​ ​f​i​r​s​t​.
+			 * @param {string} names
+			 */
+			holdersBlind: RequiredParams<'names'>
+		}
 		levels: {
 			full: {
 				/**
@@ -8642,6 +8660,20 @@ export type TranslationFunctions = {
 			 * administers
 			 */
 			administers: () => LocalizedString
+		}
+		foreseen: {
+			/**
+			 * this role changes whether they may {flag}, and you may not.
+			 */
+			roleMoves: (arg: { flag: string }) => LocalizedString
+			/**
+			 * deleting it changes whether {username} may {flag}, and you may not.
+			 */
+			deleteMoves: (arg: { flag: string, username: string }) => LocalizedString
+			/**
+			 * {names} would add, edit or delete records they cannot view. reset them to this role on their card first.
+			 */
+			holdersBlind: (arg: { names: string }) => LocalizedString
 		}
 		levels: {
 			full: {

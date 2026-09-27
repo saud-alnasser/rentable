@@ -6,11 +6,12 @@ import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import Roles from '$lib/organization/component/roles.svelte';
 import { organizationHostState, resetOrganizationHost } from '$lib/organization/host.svelte';
 import {
+	fakeOrganizationMember,
 	fakeOrganizationRole,
 	fakeOrganizationRoles,
 	fakeOrganizationSession
 } from '$lib/platform/tests/testing';
-import type { OrganizationRole } from '$lib/platform/host';
+import type { OrganizationMember, OrganizationRole } from '$lib/platform/host';
 import en from '$lib/i18n/en';
 import ar from '$lib/i18n/ar';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
@@ -75,10 +76,10 @@ const OWNER: RoleReader = {
 	permissions: BUILT_IN.owner.mask
 };
 
-const block = (reader = OWNER, answersSearchKey?: boolean) =>
+const block = (reader = OWNER, answersSearchKey?: boolean, members: OrganizationMember[] = []) =>
 	render(
 		Roles,
-		{ roles: fakeOrganizationRoles(), reader, answersSearchKey },
+		{ roles: fakeOrganizationRoles(), members, reader, answersSearchKey },
 		{ wrapper: HostProviders, wrapperProps: { strings, direction: 'ltr' as const } }
 	);
 
@@ -504,6 +505,97 @@ test('in the editor, a flag the reader does not hold is refused at its switch', 
 		en.organization.switches.notHeld
 	);
 	expect(document.querySelector('#role-flag-deletePayment')?.hasAttribute('aria-disabled')).toBe(
+		false
+	);
+});
+
+// ticket 45: a new role is made of flags its maker holds, so it opens on the member's less the ones
+// the maker does not hold, and saving it untouched is not refused.
+test('a new role opens on the member flags less the ones its maker does not hold', async () => {
+	const held = BUILT_IN.manager.mask - maskOf('editPayment');
+
+	hostAnswers.session = fakeOrganizationSession({ permissions: held });
+	block({ rank: BUILT_IN.manager.rank, canManageRoles: true, permissions: held });
+
+	await fireEvent.click(document.querySelector<HTMLElement>('[data-role-add]')!);
+
+	expect(document.querySelector('#role-flag-editPayment')?.getAttribute('aria-checked')).toBe(
+		'false'
+	);
+	expect(document.querySelector('#role-flag-viewPayment')?.getAttribute('aria-checked')).toBe(
+		'true'
+	);
+
+	await fireEvent.input(document.querySelector<HTMLInputElement>('input[name=role-name]')!, {
+		target: { value: 'cashier' }
+	});
+	await fireEvent.submit(document.querySelector('form')!);
+
+	await waitFor(() => {
+		expect(written('useCreateRole')).toEqual([
+			{
+				name: 'cashier',
+				mask: BUILT_IN.member.mask - maskOf('editPayment'),
+				afterRoleId: 'collector'
+			}
+		]);
+	});
+});
+
+/** lina holds the collector's role, with deleting tenants switched on for her alone. */
+const lina = fakeOrganizationMember({
+	id: 'lina',
+	username: 'lina',
+	role: 'custom',
+	roleId: 'collector',
+	override: maskOf('deleteTenant')
+});
+
+// ticket 45, requirements 6 and 7: deleting a role gives its holders the member role exactly, so
+// lina loses deleting tenants; a reader who does not hold it may not take it, and the delete says
+// so, naming her and the flag, before anything is asked.
+test('a delete that would move a holder flag the reader does not hold is refused, naming both', async () => {
+	const held = BUILT_IN.manager.mask - maskOf('deleteTenant');
+
+	block({ rank: BUILT_IN.manager.rank, canManageRoles: true, permissions: held }, undefined, [
+		lina
+	]);
+
+	const remove = (await openTo('collector', 'role.delete'))!;
+
+	expect(remove.getAttribute('aria-disabled')).toBe('true');
+	expect(await reasonOf(remove)).toContain(
+		en.organization.foreseen.deleteMoves
+			.replace('{username:string}', 'lina')
+			.replace(
+				'{flag:string}',
+				`${en.organization.flagVerbs.delete} ${en.organization.families.tenant}`
+			)
+	);
+	await fireEvent.click(remove);
+	expect(organizationHostState.role.deleting).toBeNull();
+});
+
+// ticket 45, requirement 6 as amended: turning the collector's view of tenants off would leave
+// lina deleting tenants she cannot see, which Rust refuses on save; the switch says so first,
+// naming her, and the way on.
+test('in the editor, a view a holder needs is refused at its switch, naming the holder', async () => {
+	block(OWNER, undefined, [lina]);
+
+	await fireEvent.click((await openTo('collector', 'role.edit'))!);
+
+	const view = document.querySelector<HTMLElement>('#role-flag-viewTenant')!;
+
+	expect(view.getAttribute('aria-disabled')).toBe('true');
+	expect(document.querySelector('#role-flag-viewTenant-reason')?.textContent?.trim()).toBe(
+		en.organization.foreseen.holdersBlind.replace('{names:string}', 'lina')
+	);
+
+	await fireEvent.click(view);
+
+	expect(view.getAttribute('aria-checked')).toBe('true');
+	// a kind her own change does not reach is the reader's to turn.
+	expect(document.querySelector('#role-flag-viewPayment')?.hasAttribute('aria-disabled')).toBe(
 		false
 	);
 });

@@ -640,7 +640,11 @@ switch turned writes the override that makes the member end up with what the swi
 override itself is never shown. A switch that differs from the role carries a dot naming it; where
 any does, the role's name reads *custom* in the tray and the switches' head offers *reset to* the
 role, which clears the override. Picking another role makes the member that role exactly, clearing
-the override as the shell's `assignRole` does. A switch the reader does not hold is dimmed and says
+the override as the shell's `assignRole` does; picking their own role again puts it back. A role
+whose pick would move a flag the reader does not hold is drawn refused in the list with that reason
+under its name, naming the flag, and the save of a changed role sends the override the switches
+come to whenever it is not nothing, since the shell clears what is not sent (ticket 45 of effort
+838). A switch the reader does not hold is dimmed and says
 why at the control, and one sentence above the list says why once; where the reader may not change
 the role or the override at all, the whole section is refused with the reason, the flag they lack
 or that the card is their own. On a member's card both sections are drawn for every reader, since
@@ -691,7 +695,11 @@ organization's did.
 and a member's card draw one list of them (`organization/component/permission-switches.svelte`),
 each kind of record a group whose view is its switch, with add, edit and delete as mini switches
 beneath it while view is on; the changes wait for the surface's save, as Discord's role editor
-holds its switches until *Save Changes*. Everything else that is saved with its form keeps the
+holds its switches until *Save Changes*. A switch whose save would be refused is refused at the
+switch, with the reason: in the role editor, one that would leave a holder adding, editing or
+deleting records they cannot view, naming the holder and the reset on their card as the way on; and
+a role's delete that would move a holder's flag the reader does not hold names the holder and the
+flag (ticket 45 of effort 838). Everything else that is saved with its form keeps the
 control its kind names above, and a checkbox stays the control for a setting that waits for a
 save. *The human's call on the running application, 2026-09-27
 ([[efforts/838-permissions-are-a-role-and-an-override/spec]], requirement 12 as amended), against

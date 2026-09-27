@@ -1,6 +1,6 @@
 import type { RecordAct } from '$lib/design/acts';
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
-import { flagPhrase, moveOf } from '$lib/organization/role';
+import { firstUnheldMoved, flagPhrase, moveOf } from '$lib/organization/role';
 import type {
 	MemberStanding,
 	OrganizationMember,
@@ -8,7 +8,7 @@ import type {
 	OrganizationSession,
 	OrganizationWorkspace
 } from '$lib/platform/host';
-import { permits, type Flag } from '@rentable/workspace-permission';
+import { effective, permits, type Flag } from '@rentable/workspace-permission';
 import ArrowDownIcon from '@lucide/svelte/icons/arrow-down';
 import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
 import CrownIcon from '@lucide/svelte/icons/crown';
@@ -453,6 +453,11 @@ export type RoleActRecord = {
 	role: OrganizationRole;
 	/** every role, which is what a move is placed among. */
 	roles: readonly OrganizationRole[];
+	/**
+	 * every member, whose holders of the role a delete moves to the member role and an edit of
+	 * the role changes (ticket 45 of effort 838).
+	 */
+	members: readonly OrganizationMember[];
 	reader: RoleReader;
 	pending: RolePending;
 };
@@ -488,6 +493,39 @@ const roleRefusal = ({ role, reader }: RoleActRecord, t: TranslationFunctions) =
 	if (!reader.canManageRoles) return lacking(t, 'manageRoles');
 
 	return role.rank >= reader.rank ? t.organization.roleList.notBelowYou() : undefined;
+};
+
+/**
+ * why a delete cannot run, where the role could otherwise be deleted: its holders move to the
+ * member role and hold it exactly (requirement 6 as amended 2026-09-27), and each flag that moves
+ * for one of them is one the reader must hold (requirement 7), as Rust asks on the press. The
+ * first holder and flag are named.
+ */
+const deleteRefusal = (record: RoleActRecord, t: TranslationFunctions) => {
+	const refused = roleRefusal(record, t);
+
+	if (refused) return refused;
+
+	const memberMask = record.roles.find((role) => role.kind === 'member')?.mask ?? 0;
+
+	for (const holder of record.members) {
+		if (holder.roleId !== record.role.id) continue;
+
+		const flag = firstUnheldMoved(
+			record.reader.permissions,
+			effective(record.role.mask, holder.override),
+			memberMask
+		);
+
+		if (flag) {
+			return t.organization.foreseen.deleteMoves({
+				username: holder.username,
+				flag: flagPhrase(t, flag)
+			});
+		}
+	}
+
+	return undefined;
 };
 
 /** why a move cannot run, where the role could otherwise be moved. */
@@ -556,7 +594,7 @@ export function declareRoleActs(host: RoleHostRequests): RoleAct[] {
 			group: 'destructive',
 			confirmation: 'irreversible',
 			appliesTo: ({ role }) => role.kind === 'custom',
-			unavailable: roleRefusal,
+			unavailable: deleteRefusal,
 			run: host.confirmDelete
 		}
 	];

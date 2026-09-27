@@ -1002,6 +1002,34 @@ test('a changed role and a changed override are saved in one call', async () => 
 	});
 });
 
+// ticket 45: the shell clears an override the assignment does not send, so a role changed with
+// the very override the member had still sends it, and the member keeps what the card showed.
+test('a changed role with the override the member had sends that override', async () => {
+	hostAnswers.roles = fakeOrganizationRoles();
+	hostAnswers.members = members.map((each) =>
+		each.id === 'sami' ? { ...each, override: maskOf('renameMember') } : each
+	);
+	list({ members: hostAnswers.members });
+
+	await press('sami', 'edit');
+
+	await openSelect(document.querySelector<HTMLElement>('#member-role')!);
+	await chooseOption(
+		document.querySelector<HTMLElement>('[data-slot=select-item][data-role="supervisor"]')!
+	);
+	// the pick made them the supervisor exactly; renaming members is switched on again.
+	await fireEvent.click(document.querySelector<HTMLElement>('[data-switches-fold]')!);
+	await fireEvent.click(document.querySelector<HTMLElement>('#member-override-renameMember')!);
+	await fireEvent.submit(document.querySelector('form')!);
+
+	await waitFor(() => {
+		expect(written('useAssignRole')).toEqual([
+			{ memberId: 'sami', roleId: 'supervisor', override: maskOf('renameMember') }
+		]);
+	});
+	expect(written('useSetOverride')).toEqual([]);
+});
+
 // and the one act refused marks both the sections it was asked from, having written neither.
 test('the one act refused marks the role and the override', async () => {
 	hostAnswers.roles = fakeOrganizationRoles();

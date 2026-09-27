@@ -1499,6 +1499,19 @@ const en = {
 			administers: 'administers'
 		},
 
+		/**
+		 * what a control on a role or a member's card says where its save would be refused (effort
+		 * 838, requirements 6 and 7, ticket 45): the flag it would move that the reader does not
+		 * hold, or the holders it would leave writing records they cannot view.
+		 */
+		foreseen: {
+			roleMoves: 'this role changes whether they may {flag:string}, and you may not.',
+			deleteMoves:
+				'deleting it changes whether {username:string} may {flag:string}, and you may not.',
+			holdersBlind:
+				'{names:string} would add, edit or delete records they cannot view. reset them to this role on their card first.'
+		},
+
 		/** what each access level is good for, beside the level's own name. */
 		levels: {
 			full: { does: 'reads and writes everything in it.' },

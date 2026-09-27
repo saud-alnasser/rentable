@@ -342,6 +342,66 @@ test('picking another role makes them that role exactly', async () => {
 	]);
 });
 
+// ticket 45: their own role picked again is them as they are, with what was changed for them, so
+// the card neither reads as the role exactly nor saves them so.
+test('picking their own role again puts back what was changed for them', async () => {
+	const saved: { roleId: string; override: number }[] = [];
+
+	sheet({ override: maskOf('editPayment'), onSave: (edit) => saved.push(edit) });
+
+	await openSelect(roleTrigger());
+	await chooseOption(roleOption('supervisor')!);
+
+	expect(customMark()).toBeNull();
+
+	await openSelect(roleTrigger());
+	await chooseOption(roleOption('member')!);
+
+	expect(isOn('editPayment')).toBe(false);
+	expect(customMark()).not.toBeNull();
+
+	await submit();
+
+	expect(saved.map(({ roleId, override }) => ({ roleId, override }))).toEqual([
+		{ roleId: 'member', override: maskOf('editPayment') }
+	]);
+});
+
+// ticket 45, requirement 7: a role whose pick would move a flag the reader does not hold (here,
+// the one the member's own change gives them, which every other role takes away) is refused in
+// the list, naming the flag, and their own role is not.
+test('a role whose pick moves a flag the reader does not hold is refused, naming it', async () => {
+	sheet({
+		override: maskOf('renameMember'),
+		readerPermissions: BUILT_IN.manager.mask - maskOf('renameMember')
+	});
+
+	await openSelect(roleTrigger());
+
+	const reason = en.organization.foreseen.roleMoves.replace(
+		'{flag:string}',
+		en.organization.flags.renameMember
+	);
+
+	for (const id of ['supervisor', 'collector']) {
+		expect(roleOption(id)?.hasAttribute('data-disabled')).toBe(true);
+		expect(roleOption(id)?.querySelector('[data-role-item-refusal]')?.textContent?.trim()).toBe(
+			reason
+		);
+	}
+	expect(roleOption('member')?.hasAttribute('data-disabled')).toBe(false);
+	expect(roleOption('member')?.querySelector('[data-role-item-refusal]')).toBeNull();
+});
+
+test('a reader holding every flag a pick moves may pick any role below them', async () => {
+	sheet({ override: maskOf('renameMember') });
+
+	await openSelect(roleTrigger());
+
+	expect(roleOption('supervisor')?.hasAttribute('data-disabled')).toBe(false);
+	expect(document.querySelector('[data-role-item-refusal]')).toBeNull();
+});
+
 // requirement 7: a flag the reader does not hold is theirs neither to give nor to take, so its
 // switch is dimmed, says why at the control, and one sentence above the list says why.
 test('a flag the reader does not hold is dimmed, saying so, and does not turn', async () => {

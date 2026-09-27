@@ -62,6 +62,7 @@
 		onChange,
 		held,
 		refusal = null,
+		refusalOf = () => null,
 		disabled,
 		baseline = null
 	}: {
@@ -74,6 +75,11 @@
 		held: number;
 		/** why the reader may turn none of them, or `null` where they may. */
 		refusal?: string | null;
+		/**
+		 * why the mask a switch would turn the list to is refused for a reason beyond the reader's
+		 * flags, or `null` where it is not: the role editor's holders (ticket 45 of effort 838).
+		 */
+		refusalOf?: (next: number) => string | null;
 		/** whether the surface is saving, when nothing is turned. */
 		disabled: boolean;
 		/** the role the switches are compared against, where they differ from it. */
@@ -106,7 +112,7 @@
 		if (kind && isOn(flag) && writesOf(kind).some((write) => isOn(write) && !permits(held, write)))
 			return $LL.organization.switches.writesNotHeld();
 
-		return null;
+		return refusalOf(switchedTo(mask, flag, !isOn(flag)));
 	};
 
 	const anyRefused = $derived(refusal !== null || offered.some((flag) => !permits(held, flag)));

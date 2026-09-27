@@ -25,7 +25,10 @@
 	 * role at or above the reader's own rank is given by somebody above it (requirement 7). Where the
 	 * reader may not give a role at all, the whole control is refused with the reason the caller
 	 * hands in: the flag they lack, or that the card is their own. The reason stands in the tray,
-	 * under the control it is about. *It stood under the tray until ticket 19 of effort 838.*
+	 * under the control it is about. *It stood under the tray until ticket 19 of effort 838.* A
+	 * role refused for a reason of its own, which the caller answers through `refusalOf` (a flag
+	 * the pick would move that the reader does not hold), is drawn refused with that reason under
+	 * its name in the list, since it differs from role to role (ticket 45 of effort 838).
 	 *
 	 * **Where what the member may do differs from their role, the role reads as custom**, beside
 	 * its name (effort 838, requirement 12 as amended 2026-09-27), with the dot each differing
@@ -43,6 +46,7 @@
 		onPick,
 		readerRank,
 		refusal = null,
+		refusalOf = () => null,
 		custom = false,
 		disabled,
 		error = null
@@ -58,6 +62,8 @@
 		readerRank: number;
 		/** why the reader may not choose a role at all, or `null` where they may. */
 		refusal?: string | null;
+		/** why one role in particular may not be chosen, or `null` where it may. */
+		refusalOf?: (role: OrganizationRole) => string | null;
 		/** whether what the member may do differs from the role chosen. */
 		custom?: boolean;
 		disabled: boolean;
@@ -111,13 +117,23 @@
 				</Select.Trigger>
 				<Select.Content>
 					{#each offered as role (role.id)}
+						{@const reason = outOfReach(role) ? null : refusalOf(role)}
 						<Select.Item
 							value={role.id}
 							label={nameOf(role)}
-							disabled={outOfReach(role)}
+							disabled={outOfReach(role) || reason !== null}
 							data-role={role.id}
 						>
-							{nameOf(role)}
+							{#if reason}
+								<div class="flex min-w-0 flex-col">
+									<span>{nameOf(role)}</span>
+									<span class="text-xs text-muted-foreground" data-role-item-refusal>
+										{reason}
+									</span>
+								</div>
+							{:else}
+								{nameOf(role)}
+							{/if}
 						</Select.Item>
 					{/each}
 				</Select.Content>

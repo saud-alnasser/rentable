@@ -1,8 +1,11 @@
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
-import type { OrganizationRole } from '$lib/platform/host';
+import type { OrganizationMember, OrganizationRole } from '$lib/platform/host';
 import {
 	BUILT_IN,
+	EVERY_FLAG,
 	FAMILIES,
+	effective,
+	firstWriteWithoutView,
 	maskOf,
 	permits,
 	xorOf,
@@ -289,3 +292,92 @@ export function moveOf(
 
 	return { afterRoleId: ordered[index - 2].id };
 }
+
+/**
+ * The first flag a change moves that the reader does not hold, or `null` where they hold every
+ * one it moves (requirement 7). **A flag switched off is as moved as one switched on**, which is
+ * how Rust's `refuse_unheld` reads a change: over what the member ends up with before and after.
+ * The interface asks it before the press, so the control that would be refused says so.
+ */
+export const firstUnheldMoved = (held: number, before: number, after: number): Flag | null =>
+	EVERY_FLAG.find(
+		(flag) => permits(before, flag) !== permits(after, flag) && !permits(held, flag)
+	) ?? null;
+
+/**
+ * What a new role opens on: what a member carries, less every flag its maker does not hold, since
+ * a role is made only of flags its maker holds (requirement 7). A kind whose view that leaves out
+ * loses its add, edit and delete with it, since writing a record needs seeing it (requirement 6
+ * as amended 2026-09-27). The owner holds every flag, so the owner's new role is the member's.
+ */
+export const newRoleMask = (held: number): number => {
+	const kept = EVERY_FLAG.filter(
+		(flag) => permits(BUILT_IN.member.mask, flag) && permits(held, flag)
+	);
+
+	return maskOf(
+		...kept.filter((flag) => {
+			const kind = RECORD_KINDS.find((each) => each === familyOf(flag));
+
+			return !kind || kept.includes(viewOf(kind));
+		})
+	);
+};
+
+/**
+ * The holders a role's new mask would leave adding, editing or deleting a kind of record they
+ * cannot view, through what is changed for them alone (requirement 6 as amended 2026-09-27).
+ * Rust refuses such a mask on save; a holder the change leaves as they were is not asked, as
+ * Rust does not ask them.
+ */
+export const holdersWritingBlind = (
+	holders: readonly Pick<OrganizationMember, 'username' | 'override'>[],
+	savedMask: number,
+	nextMask: number
+): string[] =>
+	holders
+		.filter((holder) => {
+			const after = effective(nextMask, holder.override);
+
+			return (
+				after !== effective(savedMask, holder.override) && firstWriteWithoutView(after) !== null
+			);
+		})
+		.map((holder) => holder.username);
+
+/** what a member's card has on it at a save, and what their row holds. */
+type MemberChoice = { roleId: string; override: number };
+
+/**
+ * What one save of a member's card writes of their role and override (effort 838, requirements
+ * 5 and 6).
+ *
+ * - **A changed role is one act, with the override the switches come to** wherever that is not
+ *   nothing and the reader may override. Rust's `assign_role` clears the override where none is
+ *   sent (requirement 6 as amended 2026-09-27), so an override equal to the one the member had
+ *   is still sent: it is no longer what the new role leaves them with.
+ * - **An override changed on its own is its own write.**
+ */
+export const memberWritesOf = (
+	saved: MemberChoice,
+	edit: MemberChoice,
+	may: { canAssignRole: boolean; canOverride: boolean }
+): {
+	assign: { roleId: string; override: number | undefined } | null;
+	override: number | null;
+} => {
+	if (may.canAssignRole && edit.roleId !== saved.roleId) {
+		return {
+			assign: {
+				roleId: edit.roleId,
+				override: may.canOverride && edit.override !== 0 ? edit.override : undefined
+			},
+			override: null
+		};
+	}
+
+	return {
+		assign: null,
+		override: may.canOverride && edit.override !== saved.override ? edit.override : null
+	};
+};

@@ -22,9 +22,10 @@
 	import MemberRole from '$lib/organization/component/member-role.svelte';
 	import MemberSectionHead from '$lib/organization/component/member-section-head.svelte';
 	import MemberWorkspaces from '$lib/organization/component/member-workspaces.svelte';
-	import { roleNameOf } from '$lib/organization/role';
+	import { firstUnheldMoved, flagPhrase, roleNameOf } from '$lib/organization/role';
 	import { usernameSchema } from '$lib/organization/username-form';
 	import type { OrganizationRole } from '$lib/platform/host';
+	import { effective } from '@rentable/workspace-permission';
 	import SaveIcon from '@lucide/svelte/icons/save';
 	import UserIcon from '@lucide/svelte/icons/user';
 
@@ -53,7 +54,11 @@
 	 * **Picking another role makes them that role exactly** (requirement 6 as amended
 	 * 2026-09-27): what was changed for them was changed against the old role, and the shell's
 	 * assignRole clears it the same way. The switches read the new role at once, and anything
-	 * changed after the pick rides with it as one act.
+	 * changed after the pick rides with it as one act. Picking the role their row names again puts
+	 * back what was changed for them, since nothing about them has changed. **A role whose pick
+	 * would move a flag the reader does not hold is refused in the list, naming the flag**
+	 * (requirement 7): what the member ends up with before and after is what Rust asks the reader
+	 * to hold every difference of.
 	 *
 	 * **The name is a section of this surface, not a surface of its own** (effort 832, requirement
 	 * 6), under the one schema in `organization/username-form.ts`. Whether a username is taken is
@@ -152,6 +157,20 @@
 	const roleMask = $derived(chosen?.mask ?? 0);
 	const roleName = $derived(chosen ? roleNameOf($LL, chosen) : '');
 
+	/** what the member ends up with on the row, which a pick is measured from. */
+	const savedEffective = $derived(
+		effective(roles.find((role) => role.id === roleId)?.mask ?? 0, override)
+	);
+
+	/** why picking a role would be refused for a flag the reader does not hold, or `null`. */
+	const pickRefusal = (role: OrganizationRole) => {
+		if (role.id === roleId) return null;
+
+		const flag = firstUnheldMoved(readerPermissions, savedEffective, role.mask);
+
+		return flag ? $LL.organization.foreseen.roleMoves({ flag: flagPhrase($LL, flag) }) : null;
+	};
+
 	const pickAccess = (id: string, value: AccessChoice) => {
 		access[id] = value;
 	};
@@ -239,11 +258,14 @@
 			value={chosenRole}
 			onPick={(next) => {
 				// a member given another role is that role exactly, as the shell's assignRole
-				// leaves them: what was changed for them was changed against the old one.
-				if (next !== chosenRole) chosenOverride = 0;
+				// leaves them: what was changed for them was changed against the old one. Their
+				// own role again is them as they are.
+				if (next === roleId) chosenOverride = override;
+				else if (next !== chosenRole) chosenOverride = 0;
 				chosenRole = next;
 			}}
 			{readerRank}
+			refusalOf={pickRefusal}
 			custom={chosenOverride !== 0}
 			refusal={canAssignRole ? null : lacking($LL, 'assignRole')}
 			disabled={isSaving}

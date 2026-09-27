@@ -1359,6 +1359,13 @@ const ar = {
 			administers: 'يدير'
 		},
 
+		foreseen: {
+			roleMoves: 'هذا الدور يغيّر صلاحية {flag}، ولا يحق لك ذلك.',
+			deleteMoves: 'حذفه يغيّر صلاحية {username} في {flag}، ولا يحق لك ذلك.',
+			holdersBlind:
+				'سيضيف {names} أو يعدّل أو يحذف سجلات لا يراها. أعِده إلى هذا الدور من بطاقته أولًا.'
+		},
+
 		levels: {
 			full: { does: 'يقرأ كل ما فيها ويكتب.' },
 			readOnly: { does: 'يقرأها ولا يكتب فيها شيئًا.' },

@@ -436,7 +436,12 @@
 			     everybody and changed by whoever holds the flag to (effort 838, requirement 12). The
 			     section answers the search key once, and where the people are drawn below, it is
 			     theirs, the set a reader searches ([[rules/interface]], *Search*). -->
-			<OrganizationRoles {roles} reader={roleReaderOf(session)} answersSearchKey={!administers} />
+			<OrganizationRoles
+				{roles}
+				{members}
+				reader={roleReaderOf(session)}
+				answersSearchKey={!administers}
+			/>
 
 			<Separator />
 

@@ -26,7 +26,7 @@
 		type KindLevel,
 		type RecordKind
 	} from '$lib/organization/role';
-	import type { OrganizationRole } from '$lib/platform/host';
+	import type { OrganizationMember, OrganizationRole } from '$lib/platform/host';
 	import { getIntlLocale } from '$lib/platform/locale';
 	import { recordOf, ROLE_PARAM, withSection } from '$lib/settings/section';
 	import CrownIcon from '@lucide/svelte/icons/crown';
@@ -80,11 +80,17 @@
 	 */
 	let {
 		roles,
+		members = [],
 		reader,
 		answersSearchKey = true
 	}: {
 		/** every role the organization has. */
 		roles: readonly OrganizationRole[];
+		/**
+		 * every member, whose holders of a role its delete and its editor answer for (ticket 45 of
+		 * effort 838).
+		 */
+		members?: readonly OrganizationMember[];
 		/** who is reading, as the role acts are gated on it. */
 		reader: RoleReader;
 		/**
@@ -117,6 +123,7 @@
 	const recordOfRole = (role: OrganizationRole): RoleActRecord => ({
 		role,
 		roles,
+		members,
 		reader,
 		pending: rolePending()
 	});

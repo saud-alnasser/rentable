@@ -1022,10 +1022,15 @@ const ROLE_READERS = {
 	member: { rank: 0, canManageRoles: false, permissions: BUILT_IN.member.mask }
 };
 
-const roleRecord = (id: string, reader: keyof typeof ROLE_READERS): RoleActRecord => ({
+const roleRecord = (
+	id: string,
+	reader: keyof typeof ROLE_READERS | RoleActRecord['reader'],
+	members: OrganizationMember[] = []
+): RoleActRecord => ({
 	role: ROLES.find((role) => role.id === id)!,
 	roles: ROLES,
-	reader: ROLE_READERS[reader],
+	members,
+	reader: typeof reader === 'string' ? ROLE_READERS[reader] : reader,
 	pending: { moving: false }
 });
 
@@ -1109,6 +1114,49 @@ test('a role act the reader may not take says why: the flag they lack, or a role
 	// where nothing stands in the way, nothing is said.
 	assert.equal(reason('member', 'owner', 'role.edit'), undefined);
 	assert.equal(reason('supervisor', 'manager', 'role.delete'), undefined);
+});
+
+// ticket 45 of effort 838, requirements 6 and 7: deleting a role moves its holders to the member
+// role exactly, and a flag that moves for any of them is one the reader must hold. Rust refuses
+// the press otherwise, so the delete says so first, naming the holder and the flag.
+test('a delete that would move a holder flag the reader does not hold is refused, naming both', () => {
+	const acts = declareRoleActs(recordingRoleHost().host);
+	const reason = (reader: RoleActRecord['reader'], members: OrganizationMember[]) =>
+		toCardActions(acts, roleRecord('supervisor', reader, members), translations).find(
+			(action) => action.attributes?.['data-act'] === 'role.delete'
+		)?.unavailable;
+	const holder = (username: string, override: number) =>
+		fakeOrganizationMember({
+			id: username,
+			username,
+			role: 'custom',
+			roleId: 'supervisor',
+			override
+		});
+	const lackingRename = {
+		...ROLE_READERS.manager,
+		permissions: BUILT_IN.manager.mask - maskOf('renameMember')
+	};
+
+	// the supervisor carries what a member does; lina's own change gives her renaming members,
+	// which the member role does not, so deleting takes it away. The reader lacks it.
+	assert.equal(
+		reason(lackingRename, [holder('omar', 0), holder('lina', maskOf('renameMember'))]),
+		translations.organization.foreseen.deleteMoves({
+			username: 'lina',
+			flag: translations.organization.flags.renameMember()
+		})
+	);
+	// a reader who holds it may delete, and so may anybody where no holder moves a flag.
+	assert.equal(reason(ROLE_READERS.manager, [holder('lina', maskOf('renameMember'))]), undefined);
+	assert.equal(reason(lackingRename, [holder('omar', 0)]), undefined);
+	// a member of another role is not moved by it.
+	assert.equal(
+		reason(lackingRename, [
+			fakeOrganizationMember({ id: 'sami', username: 'sami', override: maskOf('renameMember') })
+		]),
+		undefined
+	);
 });
 
 test('a move is placed directly below the role it passes, and the edges say why they stop', () => {

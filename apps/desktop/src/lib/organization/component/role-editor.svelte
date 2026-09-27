@@ -9,12 +9,12 @@
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import * as InputGroup from '@rentable/design/primitive/input-group/index.js';
 	import { onSubmit } from '$lib/design/form';
-	import { LL } from '$lib/i18n/i18n-svelte';
+	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import MemberSectionHead from '$lib/organization/component/member-section-head.svelte';
 	import PermissionSwitches from '$lib/organization/component/permission-switches.svelte';
-	import { roleNameOf } from '$lib/organization/role';
-	import type { OrganizationRole } from '$lib/platform/host';
-	import { BUILT_IN } from '@rentable/workspace-permission';
+	import { holdersWritingBlind, newRoleMask, roleNameOf } from '$lib/organization/role';
+	import type { OrganizationMember, OrganizationRole } from '$lib/platform/host';
+	import { getIntlLocale } from '$lib/platform/locale';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import SaveIcon from '@lucide/svelte/icons/save';
 	import ShieldIcon from '@lucide/svelte/icons/shield';
@@ -40,6 +40,12 @@
 	 *
 	 * **A new role opens on what a member carries**, since a role is usually a member with a little
 	 * more or a little less, and it goes in just above the member; its card moves it from there.
+	 * Less whatever of it the maker does not hold (`newRoleMask`), which is not theirs to give.
+	 *
+	 * **A switch whose mask would leave a holder writing records they cannot view is refused**,
+	 * naming the holders and the way on (requirement 6 as amended 2026-09-27): what is changed for
+	 * a member alone is laid over the role, so turning a view off can leave an add of theirs
+	 * standing, and Rust refuses that save. Resetting them on their card is the way on.
 	 *
 	 * **The mutations are the caller's.** This owns the surface and what is chosen on it.
 	 */
@@ -47,6 +53,7 @@
 		open,
 		onOpenChange,
 		role,
+		holders = [],
 		readerPermissions,
 		isSaving,
 		nameRefusal,
@@ -57,6 +64,8 @@
 		onOpenChange: (value: boolean) => void;
 		/** the role edited, or `null` for one not made yet. */
 		role: OrganizationRole | null;
+		/** the members holding the role, whose own changes it is laid under. */
+		holders?: readonly OrganizationMember[];
 		/** what the reader may do: a flag outside it is not theirs to switch. */
 		readerPermissions: number;
 		isSaving: boolean;
@@ -76,9 +85,22 @@
 		if (open) {
 			chosenName = role?.kind === 'custom' ? role.name : '';
 			nameInvalid = null;
-			mask = role?.mask ?? BUILT_IN.member.mask;
+			mask = role?.mask ?? newRoleMask(readerPermissions);
 		}
 	});
+
+	const names = $derived(new Intl.ListFormat(getIntlLocale($locale), { type: 'conjunction' }));
+
+	/** why the mask a switch would turn the role to is refused for its holders, or `null`. */
+	const holdersRefusal = (next: number) => {
+		if (!role) return null;
+
+		const blind = holdersWritingBlind(holders, role.mask, next);
+
+		return blind.length > 0
+			? $LL.organization.foreseen.holdersBlind({ names: names.format(blind) })
+			: null;
+	};
 
 	const named = $derived(role === null || role.kind === 'custom');
 	const nameError = $derived(nameInvalid ?? nameRefusal);
@@ -157,6 +179,7 @@
 					mask = next;
 				}}
 				held={readerPermissions}
+				refusalOf={holdersRefusal}
 				disabled={isSaving}
 			/>
 

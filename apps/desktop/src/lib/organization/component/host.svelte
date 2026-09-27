@@ -8,7 +8,7 @@
 	} from '$lib/organization/component/access-dialog.svelte';
 	import MemberSheet, { type MemberEdit } from '$lib/organization/component/member-sheet.svelte';
 	import RoleEditor, { type RoleEdit } from '$lib/organization/component/role-editor.svelte';
-	import { newRolePlace, roleNameOf } from '$lib/organization/role';
+	import { memberWritesOf, newRolePlace, roleNameOf } from '$lib/organization/role';
 	import OfferOwnership from '$lib/organization/component/offer-ownership.svelte';
 	import { showMadeLink } from '$lib/organization/dialogs.svelte';
 	import {
@@ -146,7 +146,9 @@
 	 * **A role and an override changed together are one act** (ticket 14 of effort 838): the
 	 * override rides with the role, so the flags the reader must hold are the ones the two move
 	 * together, and neither is written without the other. A refusal of it marks both sections. An
-	 * override changed alone, or by a reader who may not give roles, is its own write.
+	 * override changed alone, or by a reader who may not give roles, is its own write. **With a
+	 * changed role, the override the switches come to is sent whenever it is not nothing**, even
+	 * where it equals the one the member had: the shell clears what is not sent (ticket 45).
 	 *
 	 * **A refusal keeps the sheet open and marks its section** ([[rules/interface]], *Validation
 	 * errors*), rather than reaching the reader as a toast over a surface that has already closed.
@@ -176,23 +178,24 @@
 			}
 		}
 
-		const roleChanged = context.canAssignRole && edit.roleId !== saved.roleId;
-		const overrideChanged = context.canOverride && edit.override !== saved.override;
+		const writes = memberWritesOf(saved, edit, context);
 
-		if (roleChanged) {
+		if (writes.assign) {
+			const { override } = writes.assign;
+
 			try {
 				await assignRole.mutateAsync({
 					memberId: saved.id,
-					roleId: edit.roleId,
-					override: overrideChanged ? edit.override : undefined
+					roleId: writes.assign.roleId,
+					override
 				});
 			} catch (error) {
 				roleRefusal = toErrorText(error, $LL);
-				overrideRefusal = overrideChanged ? roleRefusal : null;
+				overrideRefusal = override !== undefined ? roleRefusal : null;
 			}
-		} else if (overrideChanged) {
+		} else if (writes.override !== null) {
 			try {
-				await setOverride.mutateAsync({ memberId: saved.id, override: edit.override });
+				await setOverride.mutateAsync({ memberId: saved.id, override: writes.override });
 			} catch (error) {
 				overrideRefusal = toErrorText(error, $LL);
 			}
@@ -594,6 +597,7 @@
 		if (!open && !isSavingRole) closeRoleEditor();
 	}}
 	role={role.editing?.role ?? null}
+	holders={role.editing?.members.filter((held) => held.roleId === role.editing?.role.id) ?? []}
 	readerPermissions={session?.permissions ?? 0}
 	isSaving={isSavingRole}
 	nameRefusal={roleNameRefusal}
