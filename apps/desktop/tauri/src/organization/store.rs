@@ -41,6 +41,7 @@ use crate::{
     database::Database,
     diagnostics,
     error::{Error, RefusalReason},
+    schema,
 };
 
 use super::{
@@ -733,11 +734,7 @@ impl OrganizationStore {
     /// 2026-09-26, and the one upgrade that alters a table says under what condition
     /// ([`OrganizationStore::format_one_reshape`]).
     pub async fn install_schema(&self) -> Result<(), Error> {
-        for statement in SCHEMA {
-            self.connection.execute(statement, ()).await?;
-        }
-
-        Ok(())
+        install(&self.connection).await
     }
 
     /// Send what this machine wrote. A failure is an answer, as `Database::push_replica` says:
@@ -3301,11 +3298,29 @@ impl OrganizationStore {
         Ok(names)
     }
 
+    /// What the check before a change of format commits reads of this replica, inside that change's
+    /// transaction (effort 838, ticket 33; `schema.rs`).
+    pub(crate) async fn found(&self) -> Result<schema::Found, Error> {
+        schema::read_engine(&self.connection).await
+    }
+
     /// The connection, for a test that has to write a row the store would never write.
     #[cfg(test)]
     pub(crate) fn connection(&self) -> &turso::Connection {
         &self.connection
     }
+}
+
+/// Create the fourteen tables on `connection` where they do not exist: what
+/// [`OrganizationStore::install_schema`] runs on the replica, and what a change of format arriving
+/// at this format builds a fresh organization with, to check an upgraded one against
+/// (`transition::Transition::built`, ticket 33).
+pub(crate) async fn install(connection: &turso::Connection) -> Result<(), Error> {
+    for statement in SCHEMA {
+        connection.execute(statement, ()).await?;
+    }
+
+    Ok(())
 }
 
 /// The replica as a copy reads it, before its format changes (effort 838, tickets 27 and 30): one

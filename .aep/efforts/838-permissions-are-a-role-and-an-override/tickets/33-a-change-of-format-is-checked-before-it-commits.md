@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [32]
 ---
 
@@ -16,11 +16,13 @@ allowed. A check that fails rolls the whole walk back and refuses with `ShapeNot
 
 Traces requirement 15 of [[efforts/838-permissions-are-a-role-and-an-override/spec]].
 
-- [ ] `upgrade::walked` runs the check after the last change and the `format` row, inside the
+- [x] `upgrade::walked` runs the check after the last change and the `format` row, inside the
       transaction. A test with a change that leaves a column behind finds the organization as it
       was and the refusal given.
-- [ ] The format 1 fixture upgraded passes the check.
-- [ ] `cargo test`, `pnpm check`, `pnpm test` and `pnpm lint` pass.
+- [x] The format 1 fixture upgraded passes the check. *0.14.0, 0.15.0 and main create `member`
+      with the same statement and never alter it, so the fixture's shape is every real format 1
+      organization's.*
+- [x] `cargo test`, `pnpm check`, `pnpm test` and `pnpm lint` pass.
 
 ## Relevant areas
 

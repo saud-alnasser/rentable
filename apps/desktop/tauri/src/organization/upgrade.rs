@@ -68,10 +68,18 @@
 //! ([`Replication::copied`]). A local copy that cannot be taken refuses the upgrade with
 //! `CopyNotTaken`, and nothing is written; a copy the account refuses is logged, and the upgrade
 //! goes on. The runner takes it, so every change of format listed after this one is copied too.
+//!
+//! **And the organization is checked before the transaction commits** (ticket 33, requirement
+//! 15): after the last change and the `format` row, SQLite's structural check passes and the
+//! schema is the one a fresh organization of the format it arrives at is built with, less the
+//! tables a change leaves alone, and with each table a change reshapes in place read as that
+//! change says the engine records it ([`checked`], `schema.rs`). A check that fails rolls the whole
+//! walk back and refuses with `ShapeNotAsBuilt`.
 
 use crate::{
     backup, diagnostics,
     error::{Error, RefusalReason},
+    schema,
     sync::turso::platform::{AccessLevel, PlatformApi, TursoPlatform},
 };
 
@@ -699,9 +707,51 @@ async fn walked(
             (transition.run)(upgrading).await?;
         }
 
-        store.write_format_version(to).await
+        store.write_format_version(to).await?;
+
+        checked(store, transitions, to).await
     })
     .await
+}
+
+/// Refuse with `ShapeNotAsBuilt` unless the organization, read inside the walk's transaction, is
+/// what a fresh organization of format `to` is (ticket 33): built on an empty in-memory database
+/// by the last of `transitions`, the list the runner was handed, so a test's own list is checked
+/// against its own format. The tables any change of the list leaves alone are left out on both
+/// sides, and a table a change reshapes in place may read as that change declares, the last
+/// declaration for a table standing. Built each time rather than kept: it runs once an upgrade.
+async fn checked(
+    store: &OrganizationStore,
+    transitions: &[Transition],
+    to: i64,
+) -> Result<(), Error> {
+    let last = transitions.last().ok_or_else(|| Error::Internal {
+        message: "a walk with no change of format has no format to be checked against".to_string(),
+    })?;
+    let fresh_database = turso::Builder::new_local(":memory:").build().await?;
+    let fresh_connection = fresh_database.connect()?;
+
+    (last.built)(&fresh_connection).await?;
+
+    let kept: Vec<&str> = transitions
+        .iter()
+        .flat_map(|transition| transition.kept.iter().copied())
+        .collect();
+    let fresh = transitions
+        .iter()
+        .flat_map(|transition| transition.reshaped.iter())
+        .fold(
+            schema::read_engine(&fresh_connection).await?.shape,
+            |shape, (table, statement)| shape.or(table, statement),
+        )
+        .without(&kept);
+    let found = store.found().await?;
+    let found = schema::Found {
+        shape: found.shape.without(&kept),
+        ..found
+    };
+
+    schema::as_built(&format!("the organization at format {to}"), &found, &fresh)
 }
 
 /// What the machine's own credential on the organization database comes to, before the pull
@@ -938,8 +988,8 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        ItsRemote, Pushed, Replication, classified, signing_key_of, vault_opened_by, walked,
-        with_password, with_password_over, with_remembered_key, with_the_owners_password,
+        ItsRemote, Pushed, Replication, checked, classified, signing_key_of, vault_opened_by,
+        walked, with_password, with_password_over, with_remembered_key, with_the_owners_password,
     };
     use crate::{
         backup,
@@ -959,7 +1009,7 @@ mod tests {
                 CredentialSlot, Resumption, refused_by_name, remember, resume, sign_in_by_username,
             },
             setup::{Remote, connect_existing},
-            store::{FORMAT_VERSION, GrantRecord, OrganizationStore, SuccessionRecord},
+            store::{self, FORMAT_VERSION, GrantRecord, OrganizationStore, SuccessionRecord},
             transition::{
                 Pending, Sought, TRANSITIONS, Transition, Unjudged, Upgrading,
                 test::{
@@ -971,11 +1021,13 @@ mod tests {
                     },
                     remote::{Answering, online},
                 },
+                two::MEMBER_AS_RESHAPED,
             },
             vault::{MemberSecretKey, open_content},
             workspace::grant_workspace,
         },
         persisted::Persisted,
+        schema,
         sync::{
             RemoteSyncStore,
             test::server::{ScriptedResponse, ScriptedServer},
@@ -3084,7 +3136,13 @@ mod tests {
         grant: the_next_formats_grant,
         refused: nothing_refused,
         run: the_next_format,
+        built: the_next_format_fresh,
+        kept: &[],
+        reshaped: &[],
     };
+
+    /// The next format's one table.
+    const NEXT_TABLE: &str = "CREATE TABLE \"next\" (\"id\" TEXT PRIMARY KEY NOT NULL)";
 
     thread_local! {
         /// How often the next format's readers were asked, on this test's thread.
@@ -3137,16 +3195,37 @@ mod tests {
     /// The next format's table, and its one row.
     fn the_next_format<'a>(upgrading: &'a Upgrading<'a>) -> Pending<'a, ()> {
         Box::pin(async move {
-            run(
-                upgrading.store,
-                "CREATE TABLE \"next\" (\"id\" TEXT PRIMARY KEY NOT NULL)",
-                Vec::new(),
-            )
-            .await;
+            run(upgrading.store, NEXT_TABLE, Vec::new()).await;
             run(
                 upgrading.store,
                 "INSERT INTO \"next\" (\"id\") VALUES (?)",
                 vec![text("next")],
+            )
+            .await;
+
+            Ok(())
+        })
+    }
+
+    /// A fresh organization of the next format: this build's, and the next format's table.
+    fn the_next_format_fresh(connection: &turso::Connection) -> Pending<'_, ()> {
+        Box::pin(async move {
+            store::install(connection).await?;
+            connection.execute(NEXT_TABLE, ()).await?;
+
+            Ok(())
+        })
+    }
+
+    /// The next format's writes, and a column it leaves behind on `machine`, which no fresh
+    /// organization of the next format has.
+    fn the_next_format_leaving_a_column<'a>(upgrading: &'a Upgrading<'a>) -> Pending<'a, ()> {
+        Box::pin(async move {
+            the_next_format(upgrading).await?;
+            run(
+                upgrading.store,
+                "ALTER TABLE \"machine\" ADD COLUMN \"left_behind\" INTEGER",
+                Vec::new(),
             )
             .await;
 
@@ -3309,6 +3388,107 @@ mod tests {
             "{refused:?}"
         );
         assert_eq!(contents(&store).await, before, "a refused change wrote");
+    }
+
+    /// **Ticket 33's first criterion.** A change that leaves a column behind is checked after it
+    /// and the `format` row, inside the transaction: the organization is not what a fresh one of
+    /// the format it arrives at is, so the whole walk is rolled back, the `format` row and the
+    /// change's own table with it, and the refusal is `ShapeNotAsBuilt`, naming the table.
+    #[tokio::test]
+    async fn a_change_that_leaves_a_column_behind_is_rolled_back_and_refused() {
+        let (older, store) = upgraded("a-column-left-behind").await;
+        let before = contents(&store).await;
+        let refused = walked_by_the_owner(
+            &older,
+            &store,
+            &and_then(Transition {
+                run: the_next_format_leaving_a_column,
+                ..NEXT
+            }),
+        )
+        .await;
+
+        assert!(
+            matches!(
+                &refused,
+                Err(Error::Refused { reason: RefusalReason::ShapeNotAsBuilt, message })
+                    if message.contains("table machine is not as a fresh database has it")
+            ),
+            "{refused:?}"
+        );
+        assert_eq!(
+            contents(&store).await,
+            before,
+            "the refused walk left something"
+        );
+        assert!(
+            !store
+                .columns_of("machine")
+                .await
+                .expect("the columns")
+                .iter()
+                .any(|column| column == "left_behind"),
+            "the column was kept"
+        );
+        assert_eq!(
+            store.format().await.expect("the format"),
+            Some(FORMAT_VERSION)
+        );
+
+        walked_by_the_owner(&older, &store, &and_then(NEXT))
+            .await
+            .expect("the same walk without the column left behind");
+    }
+
+    /// **Ticket 33's second criterion.** The format 1 organization upgraded by its owner's sign-in
+    /// passes the check, and its `member` table is recorded exactly as format 2's change declares
+    /// the engine records it once reshaped in place, which is what pins that statement; against a
+    /// fresh organization read strictly, that table is the one difference.
+    #[tokio::test]
+    async fn the_format_one_organization_upgraded_is_as_a_fresh_one_is_built() {
+        let (_, store) = upgraded("checked-from-format-one").await;
+        let mut rows = store
+            .connection()
+            .query(
+                "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'member'",
+                (),
+            )
+            .await
+            .expect("the member table");
+        let recorded = match rows
+            .next()
+            .await
+            .expect("a row")
+            .map(|row| row.get_value(0))
+        {
+            Some(Ok(turso::Value::Text(statement))) => statement,
+            other => panic!("the member table's statement: {other:?}"),
+        };
+
+        assert_eq!(
+            schema::normalised(&recorded),
+            schema::normalised(MEMBER_AS_RESHAPED),
+            "the engine records the reshaped member table otherwise than format 2's change says"
+        );
+
+        checked(&store, TRANSITIONS, FORMAT_VERSION)
+            .await
+            .expect("the upgraded organization is as a fresh one is built");
+
+        let strict = Transition {
+            reshaped: &[],
+            ..TRANSITIONS[0]
+        };
+        let refused = checked(&store, &[strict], FORMAT_VERSION).await;
+
+        assert!(
+            matches!(
+                &refused,
+                Err(Error::Refused { reason: RefusalReason::ShapeNotAsBuilt, message })
+                    if message.contains(": table member is not as a fresh database has it.")
+            ),
+            "{refused:?}"
+        );
     }
 
     /// **Ticket 29's third criterion, the owner.** The owner's sign-in, handed every change this

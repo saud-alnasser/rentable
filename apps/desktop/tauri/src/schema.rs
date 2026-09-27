@@ -26,6 +26,20 @@
 //! the whole of what SQLite keeps: defaults, checks, collations and constraints are in it and not
 //! all of them are in any pragma. A table the caller keeps outside what a version builds, the
 //! organization's allowed extras say, is named with [`Shape::without`] on both sides.
+//!
+//! **A table reshaped in place may read one other way** (ticket 33). The organization cannot be
+//! rebuilt by a drop and a rename, which does not replicate, so a change of format alters a table
+//! in place, and the engine records that table as it rewrote the statement: added columns last,
+//! with the defaults a `NOT NULL` addition needs. The change declares that statement, and
+//! [`Shape::or`] accepts it for that table alone; everything else is compared strictly.
+//!
+//! **The organization is read on the turso engine** ([`read_engine`]), which answers
+//! `PRAGMA quick_check` and does not know `PRAGMA foreign_key_check`: an unknown pragma is
+//! silently ignored there, as SQLite ignores one, so it answers no rows whatever the rows are.
+//! Read as it answers, that is a pass nobody checked. So the pragma is run only where the engine
+//! lists it in `PRAGMA pragma_list`, and otherwise the log says it could not be checked and no
+//! violation is counted, which the organization's schema makes safe: it declares no foreign key
+//! (`organization/store.rs`), and a schema equal to a fresh one declares none either.
 
 use std::collections::BTreeMap;
 
@@ -35,6 +49,9 @@ use crate::{
     backup, diagnostics,
     error::{Error, RefusalReason},
 };
+
+/// How the turso engine names `foreign_key_check` in `PRAGMA pragma_list`, where it knows it.
+const FOREIGN_KEY_CHECK_NAME: &str = "foreign_key_check";
 
 /// SQLite's check of the file's structure: one row, `ok`, where nothing is wrong.
 pub const QUICK_CHECK: &str = "PRAGMA quick_check";
@@ -50,6 +67,8 @@ const NAMED: usize = 5;
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Shape {
     objects: BTreeMap<(String, String), String>,
+    /// for a table reshaped in place, the one other statement it may read as, [`normalised`].
+    reshaped: BTreeMap<String, String>,
 }
 
 impl Shape {
@@ -64,7 +83,18 @@ impl Shape {
                 .into_iter()
                 .map(|(kind, name, statement)| ((kind, name), normalised(&statement)))
                 .collect(),
+            reshaped: BTreeMap::new(),
         }
+    }
+
+    /// This shape, with `table` read as `statement` as well as the way this shape has it: for a
+    /// table a change of shape alters in place, whose statement the engine rewrites. A second
+    /// call for the same table replaces the first.
+    pub fn or(mut self, table: &str, statement: &str) -> Self {
+        self.reshaped
+            .insert(table.to_ascii_lowercase(), normalised(statement));
+
+        self
     }
 
     /// This shape without the tables named, and without any index or trigger on them: for a
@@ -79,8 +109,21 @@ impl Shape {
                     || statement.contains(&format!(" on {table}("))
             })
         });
+        self.reshaped
+            .retain(|table, _| !tables.iter().any(|kept| kept.eq_ignore_ascii_case(table)));
 
         self
+    }
+
+    /// Whether `statement`, what a database has for the `kind` named `name`, is what this shape
+    /// has for it, or the statement it may read as once reshaped in place.
+    fn accepts(&self, kind: &str, name: &str, built: &str, statement: &str) -> bool {
+        built == statement
+            || (kind == "table"
+                && self
+                    .reshaped
+                    .get(&name.to_ascii_lowercase())
+                    .is_some_and(|reshaped| reshaped == statement))
     }
 
     /// What this shape has that `fresh` does not, what `fresh` has that it lacks, and what both
@@ -91,7 +134,7 @@ impl Shape {
         for ((kind, name), statement) in &self.objects {
             match fresh.objects.get(&(kind.clone(), name.clone())) {
                 None => differences.push(format!("{kind} {name} is not in a fresh database")),
-                Some(built) if built != statement => {
+                Some(built) if !fresh.accepts(kind, name, built, statement) => {
                     differences.push(format!("{kind} {name} is not as a fresh database has it"))
                 }
                 Some(_) => {}
@@ -199,6 +242,79 @@ pub async fn read(connection: &mut SqliteConnection) -> Result<Found, Error> {
         foreign_key_violations,
         shape: Shape::of(listed),
     })
+}
+
+/// What the check reads of a turso connection: the organization's replica inside the transaction
+/// that changed its format, or the fresh organization it is compared with. `PRAGMA
+/// foreign_key_check` is run only where the engine lists it, as this module's comment says.
+pub async fn read_engine(connection: &turso::Connection) -> Result<Found, Error> {
+    let quick_check = texts(connection, QUICK_CHECK, 1)
+        .await?
+        .into_iter()
+        .map(|mut row| row.remove(0))
+        .collect();
+    let listed = texts(connection, "PRAGMA pragma_list", 1)
+        .await?
+        .into_iter()
+        .any(|row| row[0].eq_ignore_ascii_case(FOREIGN_KEY_CHECK_NAME));
+    let foreign_key_violations = if listed {
+        let mut rows = connection.query(FOREIGN_KEY_CHECK, ()).await?;
+        let mut violations = 0;
+
+        while rows.next().await?.is_some() {
+            violations += 1;
+        }
+
+        violations
+    } else {
+        // the engine does not know the pragma and would answer nothing: not a pass, so it is
+        // logged as not checked, and the schema compared below declares no foreign key.
+        diagnostics::info("schema.foreignKeysNotCheckable")
+            .with("pragma", FOREIGN_KEY_CHECK)
+            .write();
+
+        0
+    };
+    let listing = texts(connection, &backup::listing(), 3)
+        .await?
+        .into_iter()
+        .map(|mut row| {
+            let statement = row.remove(2);
+            let name = row.remove(1);
+
+            (row.remove(0), name, statement)
+        });
+
+    Ok(Found {
+        quick_check,
+        foreign_key_violations,
+        shape: Shape::of(listing),
+    })
+}
+
+/// The first `columns` of every row `sql` answers on `connection`, each as text.
+async fn texts(
+    connection: &turso::Connection,
+    sql: &str,
+    columns: usize,
+) -> Result<Vec<Vec<String>>, Error> {
+    let mut rows = connection.query(sql, ()).await?;
+    let mut answered = Vec::new();
+
+    while let Some(row) = rows.next().await? {
+        answered.push(
+            (0..columns)
+                .map(|index| match row.get_value(index)? {
+                    turso::Value::Text(text) => Ok(text),
+                    other => Err(Error::Internal {
+                        message: format!("{sql} answered {other:?} where text was expected"),
+                    }),
+                })
+                .collect::<Result<Vec<String>, Error>>()?,
+        );
+    }
+
+    Ok(answered)
 }
 
 /// A statement as the check compares it: identifier quotes (`"`, `` ` ``, `[`, `]`) dropped, every
@@ -400,5 +516,40 @@ mod tests {
         };
 
         as_built("a test database", &kept, &fresh.without(&["kept"])).expect("as built");
+    }
+
+    /// A table reshaped in place is accepted as the statement declared for it, and only that
+    /// table: another table differing the same way is still refused.
+    #[tokio::test]
+    async fn a_table_reshaped_in_place_reads_as_declared_and_nothing_else_does() {
+        let fresh = built(&[
+            "CREATE TABLE note (id integer PRIMARY KEY, body text)",
+            "CREATE TABLE tag (id integer PRIMARY KEY, name text)",
+        ])
+        .await
+        .shape
+        .or(
+            "note",
+            "CREATE TABLE note (id integer PRIMARY KEY, body text DEFAULT '')",
+        );
+        let reshaped = built(&[
+            "CREATE TABLE note (id integer PRIMARY KEY, body text DEFAULT '')",
+            "CREATE TABLE tag (id integer PRIMARY KEY, name text)",
+        ])
+        .await;
+
+        as_built("a test database", &reshaped, &fresh).expect("the declared reshape");
+
+        let elsewhere = built(&[
+            "CREATE TABLE note (id integer PRIMARY KEY, body text)",
+            "CREATE TABLE tag (id integer PRIMARY KEY, name text DEFAULT '')",
+        ])
+        .await;
+
+        assert!(matches!(
+            as_built("a test database", &elsewhere, &fresh),
+            Err(Error::Refused { reason: RefusalReason::ShapeNotAsBuilt, ref message })
+                if message.contains("table tag is not as a fresh database has it")
+        ));
     }
 }

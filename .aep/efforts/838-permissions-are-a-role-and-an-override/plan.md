@@ -502,6 +502,16 @@ file with the same `CREATE` statements, through `sqlx` as the rest of the plain 
   applied to an in-memory SQLite; for the organization it is `install_schema` on a fresh store,
   with the tables the upgrade leaves alone named once as allowed extras. A mismatch refuses with
   `ShapeNotAsBuilt`, in English and Arabic.
+  *Measured at ticket 33 on turso 0.8.0-pre.12: an organization upgraded in place records its
+  `member` table as the engine rewrote it after the ALTERs (the added columns last, with the
+  defaults a `NOT NULL` ADD COLUMN needs, quotes dropped), which is not the statement a fresh store
+  records, and a drop-and-rename does not replicate (2026-08-20, 2026-09-26). So a change of
+  format also declares the statement the engine records for each table it reshapes in place, and
+  the check accepts that or the fresh one for that table alone, strict everywhere else; a change
+  names the tables it leaves alone (`organization_mark`) and each entry builds the fresh
+  organization of the format it arrives at. `PRAGMA quick_check` answers on the engine;
+  `foreign_key_check` is not in its `pragma_list` and is silently ignored, so it is logged as not
+  checkable, which the organization's schema, declaring no foreign key, makes safe.*
 - **Every version in the tests.** One seed per shipped workspace version, the rows a database of
   that version holds, is walked by the same `apply_between` against a local stand-in for the
   pipeline, and a test fails a shipped version with no seed. The format 1 organization already

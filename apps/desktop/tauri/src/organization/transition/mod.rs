@@ -21,7 +21,10 @@
 //! **The next format is added in five moves**:
 //!
 //! 1. a file here, named for the format it makes, one word as every Rust file is (`three.rs`);
-//! 2. in it, the change and a `TRANSITION` built from it, reading the format it starts from;
+//! 2. in it, the change and a `TRANSITION` built from it, reading the format it starts from,
+//!    building a fresh organization of the format it makes, and naming the tables it leaves alone
+//!    and the statement the engine records for each table it reshapes in place, which the check
+//!    before the commit reads (`schema.rs`, ticket 33);
 //! 3. that entry at the end of [`TRANSITIONS`], which moves the shipped format on by one;
 //! 4. the tables the new format adds in `store::install_schema`, so an organization this build
 //!    creates starts in it, and in `store::format_as_it_stands` the shape of the format before it,
@@ -119,6 +122,17 @@ pub(crate) struct Transition {
     /// the change, planned over the directory as the changes before it left it and applied,
     /// inside the runner's transaction.
     pub(crate) run: for<'a> fn(&'a Upgrading<'a>) -> Pending<'a, ()>,
+    /// a fresh organization of the format it makes, built on an empty database: what the runner
+    /// checks the organization against before its transaction commits, from the last change of
+    /// the list it is handed (ticket 33).
+    pub(crate) built: for<'a> fn(&'a turso::Connection) -> Pending<'a, ()>,
+    /// the tables it leaves alone that a fresh organization does not have, left out of that check
+    /// for every walk after it too, since an organization it changed keeps them.
+    pub(crate) kept: &'static [&'static str],
+    /// each table it reshapes in place, with the statement the engine records for it once
+    /// reshaped, which the check accepts for that table beside a fresh organization's. A later
+    /// change declaring the same table replaces it.
+    pub(crate) reshaped: &'static [(&'static str, &'static str)],
 }
 
 #[cfg(test)]

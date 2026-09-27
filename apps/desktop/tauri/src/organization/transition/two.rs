@@ -57,8 +57,8 @@ use crate::{
         store::{
             FormatOneDirectory, FormatOneMemberRow, FormatOneReshape, GrantRecord,
             InvitationRecord, MarkRecord, MemberRecord, OrganizationStore, RoleRecord, SignedRow,
-            Signer, WorkspaceRecord, grant_authority, invitation_authority, mark_authority,
-            role_authority, workspace_authority,
+            Signer, WorkspaceRecord, grant_authority, install, invitation_authority,
+            mark_authority, role_authority, workspace_authority,
         },
         upgrade::{Opened, signing_key_of},
         vault::MemberSecretKey,
@@ -76,7 +76,43 @@ pub(crate) const TRANSITION: Transition = Transition {
     grant,
     refused,
     run,
+    built,
+    kept: &["organization_mark"],
+    reshaped: &[("member", MEMBER_AS_RESHAPED)],
 };
+
+/// The `member` table as the turso engine records it once format 1's is reshaped in place
+/// (`store::FORMAT_ONE_RESHAPE`): the engine rewrites the statement, unquoted, `id`'s constraints
+/// in its own order, and the three added columns last with the defaults a `NOT NULL` addition
+/// needs. It is not the statement a fresh organization records, and it cannot be, since a drop and
+/// a rename does not replicate; so the check before the commit accepts it for this table alone.
+/// Measured on turso 0.8.0-pre.12 at ticket 33, and pinned by the test that upgrades the format 1
+/// organization.
+pub(crate) const MEMBER_AS_RESHAPED: &str = "CREATE TABLE member (\
+    id TEXT NOT NULL PRIMARY KEY, \
+    username_sealed BLOB NOT NULL, \
+    public_key BLOB NOT NULL, \
+    signing_public_key BLOB NOT NULL, \
+    sealed_secret_key BLOB NOT NULL, \
+    sealed_content_key BLOB NOT NULL, \
+    kdf_salt BLOB NOT NULL, \
+    kdf_params TEXT NOT NULL, \
+    must_change_password INTEGER NOT NULL, \
+    certificate_id TEXT NOT NULL, \
+    signature BLOB NOT NULL, \
+    created_at INTEGER NOT NULL, \
+    updated_at INTEGER NOT NULL, \
+    session_epoch INTEGER NOT NULL DEFAULT 0, \
+    owner_seed_sealed BLOB, \
+    role_id TEXT NOT NULL DEFAULT 'member', \
+    override INTEGER NOT NULL DEFAULT 0, \
+    removed_at INTEGER)";
+
+/// A fresh organization of format 2: the schema this build installs. Only the last change's is
+/// read (`upgrade.rs`), so the next format's change builds its own and this one is not read again.
+fn built(connection: &turso::Connection) -> Pending<'_, ()> {
+    Box::pin(install(connection))
+}
 
 /// Every member row as it lies, read with whichever authority columns the table has now, so a
 /// table of format 1, one part way through the reshape, and one of format 2 all read.
