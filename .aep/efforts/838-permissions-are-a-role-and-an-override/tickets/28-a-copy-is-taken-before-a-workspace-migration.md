@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [27]
 ---
 
@@ -18,15 +18,15 @@ holds it. A local copy that cannot be written releases the lease, refuses, and a
 
 Traces requirement 13 of [[efforts/838-permissions-are-a-role-and-an-override/spec]].
 
-- [ ] `backup.rs` reads a workspace through `migrate::Pipeline` as its second source, and
+- [x] `backup.rs` reads a workspace through `migrate::Pipeline` as its second source, and
       `migration::upgrade` takes the copy once the lease is held and before `apply_between`,
       labelled with the two versions.
-- [ ] A test applies a pending migration against the pipeline test double and finds a local copy
+- [x] A test applies a pending migration against the pipeline test double and finds a local copy
       holding the workspace as it was before, and the protected copy where the account is held.
-- [ ] A local copy that cannot be written releases the lease and refuses with `CopyNotTaken`, and
+- [x] A local copy that cannot be written releases the lease and refuses with `CopyNotTaken`, and
       nothing is applied. A test covers it.
-- [ ] A remote copy the account refuses is logged and the migration goes on. A test covers it.
-- [ ] `cargo test`, `pnpm check`, `pnpm test` and `pnpm lint` pass.
+- [x] A remote copy the account refuses is logged and the migration goes on. A test covers it.
+- [x] `cargo test`, `pnpm check`, `pnpm test` and `pnpm lint` pass.
 
 ## Relevant areas
 

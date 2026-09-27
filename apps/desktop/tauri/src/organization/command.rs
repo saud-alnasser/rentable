@@ -1207,6 +1207,10 @@ pub async fn workspace_open(
             };
             let lease =
                 PipelineLease::new(Pipeline::of(&organization_host), &organization_credential);
+            // the owner's account, where this machine holds its authority: the workspace is
+            // copied there as well as here before the migration (effort 838, ticket 28). A
+            // member's machine holds none and copies to this machine alone.
+            let account = owner_platform(&app_state).await;
             let notice = |phase: MigrationPhase| {
                 let _ = app.emit(
                     MIGRATION_EVENT,
@@ -1224,6 +1228,7 @@ pub async fn workspace_open(
                     facts: &facts,
                     held: &credential,
                     pipeline: &Pipeline::of(&facts.database_hostname),
+                    account: account.as_ref(),
                 },
                 &lease,
                 || tokio::time::sleep(migration::LEASE_POLL_INTERVAL),

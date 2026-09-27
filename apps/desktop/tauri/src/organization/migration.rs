@@ -30,6 +30,17 @@
 //! puts the phase on the loading screen: applying, or waiting on another member's lease. It is
 //! the one moment the local replica is not enough, and the screen says so rather than sitting
 //! still.
+//!
+//! **A copy is taken before the first statement** (effort 838, requirement 13, ticket 28). A
+//! pending migration drops and renames tables on the database every member reads, and one that
+//! finished wrong would leave nothing to go back to. So once the lease is held, and before the
+//! migrations are applied, the holder reads the workspace over the same pipeline, with the same
+//! credential, into a file of its own under the data directory, labelled
+//! `schema-<from>-to-<to>` (`backup.rs`); and where this machine holds the owner's Turso account,
+//! makes a protected copy of the workspace database there as well. A member's machine holds no
+//! account and makes only the first. A local copy that cannot be written releases the lease, as a
+//! failed migration does, and refuses with `CopyNotTaken`: nothing is applied. A copy the account
+//! refuses is logged, and the migration goes on with the local copy.
 
 use std::{future::Future, time::Duration};
 
@@ -37,14 +48,14 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use crate::{
-    diagnostics,
+    backup, diagnostics,
     error::{Error, RefusalReason},
     http::build_client,
-    sync::turso::platform::AccessLevel,
+    sync::turso::platform::{AccessLevel, TursoPlatform},
 };
 
 use super::{
-    migrate::{self, Pipeline},
+    migrate::{self, OverThePipeline, Pipeline},
     session::{MemberSession, WorkspaceCredential, WorkspaceFacts},
     store::{MigrationLeaseRecord, OrganizationStore},
 };
@@ -351,13 +362,16 @@ pub fn is_pending(facts: &WorkspaceFacts) -> bool {
 }
 
 /// What is being upgraded: the workspace as `openable` handed it over, the member opening it,
-/// the credential they hold on it, and where its database takes statements.
-pub struct Pending<'a> {
+/// the credential they hold on it, where its database takes statements, and the owner's Turso
+/// account where this machine holds it, which the copy before the migration is made on too.
+pub struct Pending<'a, P> {
     pub store: &'a OrganizationStore,
     pub session: &'a MemberSession,
     pub facts: &'a WorkspaceFacts,
     pub held: &'a WorkspaceCredential,
     pub pipeline: &'a Pipeline,
+    /// `None` on a member's machine, which makes the copy on this machine alone.
+    pub account: Option<&'a P>,
 }
 
 /// Bring a workspace up to the shipped schema, under a lease, or wait while another member does.
@@ -366,8 +380,11 @@ pub struct Pending<'a> {
 /// any member may hold the lease. `wait` is how the client sleeps between looks while somebody
 /// else holds it, and `report` is told each phase. Answers the version the workspace is at when
 /// it returns, which is the shipped one unless the wait ran out.
-pub async fn upgrade<L, W, F, R>(
-    pending: Pending<'_>,
+///
+/// The workspace is copied once the lease is held and before anything is applied (ticket 28): a
+/// copy that cannot be written releases the lease and refuses with `CopyNotTaken`.
+pub async fn upgrade<L, W, F, R, P>(
+    pending: Pending<'_, P>,
     lease: &L,
     wait: W,
     report: R,
@@ -378,6 +395,7 @@ where
     W: Fn() -> F,
     F: Future<Output = ()>,
     R: Fn(MigrationPhase),
+    P: TursoPlatform,
 {
     let Pending {
         store,
@@ -385,6 +403,7 @@ where
         facts,
         held,
         pipeline,
+        account,
     } = pending;
     let shipped = migrate::shipped_version();
     let mut current = facts.schema_version;
@@ -422,6 +441,35 @@ where
                     .with("to", shipped.to_string().as_str())
                     .with("until", until.to_string().as_str())
                     .write();
+
+                // the workspace as it stands, before the first statement, over the pipeline and
+                // with the credential the migrations go over. A copy that could not be written
+                // releases the lease at once, as a failed migration does, and nothing is applied.
+                let label = format!("schema-{current}-to-{shipped}");
+                let copied = backup::local_copy(
+                    &OverThePipeline {
+                        pipeline,
+                        token: &held.token,
+                    },
+                    store.directory(),
+                    &facts.database_name,
+                    &label,
+                    taken_at,
+                )
+                .await;
+
+                if let Err(refusal) = copied {
+                    lease.release(&facts.id, &session.member_id).await?;
+
+                    return Err(refusal);
+                }
+
+                // refused or made, the account's copy is logged where it is made, and the
+                // migration goes on with the local copy either way.
+                if let Some(account) = account {
+                    let _ =
+                        backup::remote_copy(account, &facts.database_name, &label, taken_at).await;
+                }
 
                 let applied = migrate::apply_between(
                     pipeline,
@@ -538,7 +586,8 @@ mod tests {
         StoreLease, is_pending, refuse_newer, upgrade,
     };
     use crate::{
-        error::Error,
+        backup,
+        error::{Error, RefusalReason},
         organization::{
             HeldOrganization,
             invite::{AccountAndLink, Invitation, WorkspaceGrant, locator, make_account_and_link},
@@ -556,7 +605,7 @@ mod tests {
             test::server::{ScriptedResponse, ScriptedServer},
             turso::{
                 discovery::McpEndpoint,
-                platform::{AccessLevel, InMemoryPlatform},
+                platform::{AccessLevel, InMemoryPlatform, PlatformError},
             },
         },
     };
@@ -744,6 +793,123 @@ mod tests {
             .expect("a grant")
     }
 
+    /// The workspace on the account as it stood before its migration: two tables and a value of
+    /// every storage class, in the order the listing names them and each row in the order it was
+    /// written. The scripted pipeline answers the copy's reads with it, so it is exactly what the
+    /// copy has to hold.
+    fn workspace_before() -> Vec<(String, String, Vec<Vec<turso::Value>>)> {
+        vec![
+            (
+                "contract".to_string(),
+                "CREATE TABLE `contract` (`id` text PRIMARY KEY NOT NULL, `rent` real, \
+                 `months` integer, `scan` blob, `note` text)"
+                    .to_string(),
+                vec![
+                    vec![
+                        turso::Value::Text("c-1".to_string()),
+                        turso::Value::Real(1250.5),
+                        turso::Value::Integer(12),
+                        turso::Value::Blob(vec![0, 1, 2, 3]),
+                        turso::Value::Null,
+                    ],
+                    vec![
+                        turso::Value::Text("c-2".to_string()),
+                        turso::Value::Real(-0.25),
+                        turso::Value::Integer(i64::MAX),
+                        turso::Value::Blob(Vec::new()),
+                        turso::Value::Text("a note".to_string()),
+                    ],
+                ],
+            ),
+            (
+                "tenant".to_string(),
+                "CREATE TABLE `tenant` (`id` integer PRIMARY KEY, `name` text)".to_string(),
+                vec![vec![
+                    turso::Value::Integer(7),
+                    turso::Value::Text("Sami".to_string()),
+                ]],
+            ),
+        ]
+    }
+
+    /// How many reads the copy of [`workspace_before`] makes: the listing, and one per table.
+    const READS: usize = 3;
+
+    /// The pipeline's answer to one statement: `rows`, each value a typed cell as the database
+    /// sends it, blobs in base64 with their padding.
+    fn answering(rows: &[Vec<turso::Value>]) -> ScriptedResponse {
+        let cell = |value: &turso::Value| match value {
+            turso::Value::Null => json!({ "type": "null" }),
+            turso::Value::Integer(integer) => {
+                json!({ "type": "integer", "value": integer.to_string() })
+            }
+            turso::Value::Real(real) => json!({ "type": "float", "value": real }),
+            turso::Value::Text(text) => json!({ "type": "text", "value": text }),
+            turso::Value::Blob(bytes) => json!({
+                "type": "blob",
+                "base64": base64::Engine::encode(&base64::engine::general_purpose::STANDARD, bytes)
+            }),
+        };
+        let rows: Vec<Vec<serde_json::Value>> = rows
+            .iter()
+            .map(|row| row.iter().map(cell).collect())
+            .collect();
+
+        ScriptedResponse::new(
+            200,
+            json!({ "results": [
+                { "type": "ok", "response": { "type": "execute", "result": { "cols": [], "rows": rows } } },
+                { "type": "ok", "response": { "type": "close" } }
+            ] })
+            .to_string(),
+        )
+    }
+
+    /// The copy's reads of [`workspace_before`], answered in the order they are asked.
+    fn as_it_stood() -> Vec<ScriptedResponse> {
+        let workspace = workspace_before();
+        let listing: Vec<Vec<turso::Value>> = workspace
+            .iter()
+            .map(|(name, statement, _)| {
+                vec![
+                    turso::Value::Text(name.clone()),
+                    turso::Value::Text(statement.clone()),
+                ]
+            })
+            .collect();
+
+        std::iter::once(answering(&listing))
+            .chain(workspace.iter().map(|(_, _, rows)| answering(rows)))
+            .collect()
+    }
+
+    /// The copy's reads, then the migration applied.
+    fn copied_then_applied() -> Vec<ScriptedResponse> {
+        as_it_stood()
+            .into_iter()
+            .chain([ScriptedResponse::new(
+                200,
+                json!({ "results": [] }).to_string(),
+            )])
+            .collect()
+    }
+
+    /// The name of every copy of `facts`'s workspace on the machine whose data is in `directory`.
+    fn copies_of(directory: &std::path::Path, facts: &WorkspaceFacts) -> Vec<String> {
+        let mut names: Vec<String> =
+            std::fs::read_dir(backup::directory_of(directory, &facts.database_name))
+                .map(|entries| {
+                    entries
+                        .flatten()
+                        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+                        .collect()
+                })
+                .unwrap_or_default();
+
+        names.sort();
+        names
+    }
+
     /// Two clients race for one lease: one holds it, the other is told who does and until when;
     /// once it is released the other takes it; and a lease whose deadline has passed is anybody's.
     #[tokio::test]
@@ -862,11 +1028,7 @@ mod tests {
         assert!(is_pending(&facts));
         refuse_newer(&facts).expect("a pending workspace is not a newer one");
 
-        let pipeline = ScriptedServer::start(vec![ScriptedResponse::new(
-            200,
-            json!({ "results": [] }).to_string(),
-        )])
-        .await;
+        let pipeline = ScriptedServer::start(copied_then_applied()).await;
         let phases = Mutex::new(Vec::new());
         let lease = StoreLease::new(&store);
         let clock = Mutex::new(AT + 1);
@@ -878,6 +1040,7 @@ mod tests {
                 facts: &facts,
                 held: &held,
                 pipeline: &Pipeline::at(&pipeline.url("")),
+                account: no_platform(),
             },
             &lease,
             || async {},
@@ -903,9 +1066,11 @@ mod tests {
             ]
         );
 
-        // one pipeline request, carrying the last migration's statements and a close, under the
-        // member's own credential.
-        let request = pipeline.request(0);
+        // after the copy's reads, one pipeline request, carrying the last migration's statements
+        // and a close, under the member's own credential.
+        assert_eq!(pipeline.request_count(), READS + 1);
+
+        let request = pipeline.request(READS);
         let body: serde_json::Value = serde_json::from_str(&request.body).expect("json");
         let sent = body["requests"].as_array().expect("requests").len();
 
@@ -930,6 +1095,9 @@ mod tests {
                 .expect("the row")
                 .is_none()
         );
+
+        // a member's machine holds no account, and copies the workspace to itself alone.
+        assert_eq!(copies_of(&directory, &facts).len(), 1);
     }
 
     /// A second client arriving while the first holds the lease waits, told whose lease and until
@@ -971,6 +1139,7 @@ mod tests {
                 facts: &facts,
                 held: &held,
                 pipeline: &Pipeline::at("http://127.0.0.1:1/never"),
+                account: no_platform(),
             },
             &lease,
             || async {
@@ -1020,10 +1189,16 @@ mod tests {
             .await
             .expect("the older version again");
 
-        let refusing = ScriptedServer::start(vec![ScriptedResponse::new(
-            200,
-            json!({ "results": [{ "type": "error", "error": { "message": "no" } }] }).to_string(),
-        )])
+        let refusing = ScriptedServer::start(
+            as_it_stood()
+                .into_iter()
+                .chain([ScriptedResponse::new(
+                    200,
+                    json!({ "results": [{ "type": "error", "error": { "message": "no" } }] })
+                        .to_string(),
+                )])
+                .collect(),
+        )
         .await;
         let (facts, held) = facts_of(&store, &member, &workspace_id).await;
         let failed = upgrade(
@@ -1033,6 +1208,7 @@ mod tests {
                 facts: &facts,
                 held: &held,
                 pipeline: &Pipeline::at(&refusing.url("")),
+                account: no_platform(),
             },
             &lease,
             || async {},
@@ -1170,5 +1346,229 @@ mod tests {
             !is_pending(&facts),
             "a newer workspace is not a pending migration"
         );
+    }
+
+    /// **Ticket 28's second criterion.** A member holding the lease copies the workspace before
+    /// the first statement: over the pipeline and under the credential the migration goes over,
+    /// to a file of its own, which opened as a plain SQLite file holds every table and row the
+    /// workspace held; and on the owner's account, where this machine holds it, a protected copy
+    /// seeded from the workspace database.
+    #[tokio::test]
+    async fn a_pending_migration_copies_the_workspace_as_it_stood_before_applying() {
+        let directory = scratch("copied");
+        let (store, owner, _, workspace_id) = organization(&directory).await;
+        let shipped = migrate::shipped_version();
+
+        store
+            .record_schema_version(&workspace_id, shipped - 1, AT)
+            .await
+            .expect("the older version");
+
+        let (facts, held) = facts_of(&store, &owner, &workspace_id).await;
+        let platform = InMemoryPlatform::new("an-org");
+
+        platform.holding_unprotected(&facts.database_name);
+
+        let pipeline = ScriptedServer::start(copied_then_applied()).await;
+        let reached = upgrade(
+            Pending {
+                store: &store,
+                session: &owner,
+                facts: &facts,
+                held: &held,
+                pipeline: &Pipeline::at(&pipeline.url("")),
+                account: Some(&platform),
+            },
+            &StoreLease::new(&store),
+            || async {},
+            |_| {},
+            || AT + 1,
+        )
+        .await
+        .expect("the upgrade failed");
+
+        assert_eq!(reached, shipped);
+
+        // the reads came first, each a select under the member's own credential, and then the
+        // migration.
+        assert_eq!(pipeline.request_count(), READS + 1);
+
+        for index in 0..READS {
+            let request = pipeline.request(index);
+            let body: serde_json::Value = serde_json::from_str(&request.body).expect("json");
+
+            assert!(
+                body["requests"][0]["stmt"]["sql"]
+                    .as_str()
+                    .expect("sql")
+                    .starts_with("SELECT"),
+                "request {index} was not a read: {}",
+                request.body
+            );
+            assert_eq!(
+                request.header("authorization"),
+                Some(format!("Bearer {}", held.token).as_str())
+            );
+        }
+
+        let label = format!("schema-{}-to-{shipped}", shipped - 1);
+        let name = format!("{label}-{}.sqlite", AT + 1);
+
+        assert_eq!(copies_of(&directory, &facts), vec![name.clone()]);
+
+        let copy = backup::contents_of(
+            &backup::directory_of(&directory, &facts.database_name).join(&name),
+        )
+        .await;
+        let before: Vec<(String, Vec<Vec<turso::Value>>)> = workspace_before()
+            .into_iter()
+            .map(|(table, _, rows)| (table, rows))
+            .collect();
+
+        assert_eq!(copy, before, "the copy is not the workspace as it stood");
+
+        let remote = backup::remote_name(&facts.database_name, &label, (AT + 1) / 1000);
+
+        assert_eq!(
+            platform.copies(),
+            vec![(facts.database_name.clone(), remote.clone())]
+        );
+        assert!(
+            platform
+                .databases()
+                .iter()
+                .any(|database| database.name == remote && database.delete_protection),
+            "the copy on the account is not protected"
+        );
+    }
+
+    /// **Ticket 28's third criterion.** A copy that cannot be written releases the lease and
+    /// refuses with `CopyNotTaken`: no statement of the migration reaches the workspace, its
+    /// version stays where it was, and nothing is asked of the account.
+    #[tokio::test]
+    async fn a_copy_that_cannot_be_written_releases_the_lease_and_applies_nothing() {
+        let directory = scratch("copy-refused");
+        let (store, owner, _, workspace_id) = organization(&directory).await;
+        let shipped = migrate::shipped_version();
+
+        store
+            .record_schema_version(&workspace_id, shipped - 1, AT)
+            .await
+            .expect("the older version");
+
+        // a file where the directory of copies would go, so nothing can be made under it.
+        std::fs::write(directory.join(backup::DIRECTORY_NAME), b"in the way")
+            .expect("the obstacle");
+
+        let (facts, held) = facts_of(&store, &owner, &workspace_id).await;
+        let platform = InMemoryPlatform::new("an-org");
+
+        platform.holding_unprotected(&facts.database_name);
+
+        let pipeline = ScriptedServer::start(copied_then_applied()).await;
+        let refused = upgrade(
+            Pending {
+                store: &store,
+                session: &owner,
+                facts: &facts,
+                held: &held,
+                pipeline: &Pipeline::at(&pipeline.url("")),
+                account: Some(&platform),
+            },
+            &StoreLease::new(&store),
+            || async {},
+            |_| {},
+            || AT + 1,
+        )
+        .await;
+
+        assert!(
+            matches!(
+                &refused,
+                Err(Error::Refused { reason: RefusalReason::CopyNotTaken, message })
+                    if message.contains(
+                        &backup::directory_of(&directory, &facts.database_name)
+                            .display()
+                            .to_string()
+                    )
+            ),
+            "{refused:?}"
+        );
+
+        let migration = migrate::statements_between(shipped as usize - 1, shipped as usize);
+
+        for index in 0..pipeline.request_count() {
+            let body = pipeline.request(index).body;
+
+            assert!(
+                migration
+                    .iter()
+                    .all(|statement| !body.contains(statement.as_str())),
+                "a statement of the migration was sent: {body}"
+            );
+        }
+
+        assert!(
+            store
+                .migration_lease(&workspace_id)
+                .await
+                .expect("the row")
+                .is_none(),
+            "the lease was held over a copy that failed"
+        );
+
+        let (facts, _) = facts_of(&store, &owner, &workspace_id).await;
+
+        assert_eq!(facts.schema_version, shipped - 1);
+        assert!(platform.copies().is_empty());
+    }
+
+    /// **Ticket 28's fourth criterion.** A copy the account refuses is logged, as
+    /// `backup.remoteCopyRefused`, and the migration goes on with the copy on this machine.
+    #[tokio::test]
+    async fn a_copy_the_account_refuses_leaves_the_migration_going_on() {
+        let directory = scratch("remote-copy-refused");
+        let (store, owner, _, workspace_id) = organization(&directory).await;
+        let shipped = migrate::shipped_version();
+
+        store
+            .record_schema_version(&workspace_id, shipped - 1, AT)
+            .await
+            .expect("the older version");
+
+        let (facts, held) = facts_of(&store, &owner, &workspace_id).await;
+        let platform = InMemoryPlatform::new("an-org");
+
+        platform.holding_unprotected(&facts.database_name);
+        platform.refuse_next(PlatformError::AccountRefused {
+            what: "copy the database",
+        });
+
+        let pipeline = ScriptedServer::start(copied_then_applied()).await;
+        let reached = upgrade(
+            Pending {
+                store: &store,
+                session: &owner,
+                facts: &facts,
+                held: &held,
+                pipeline: &Pipeline::at(&pipeline.url("")),
+                account: Some(&platform),
+            },
+            &StoreLease::new(&store),
+            || async {},
+            |_| {},
+            || AT + 1,
+        )
+        .await
+        .expect("a refused copy on the account stopped the migration");
+
+        assert_eq!(reached, shipped);
+        assert_eq!(pipeline.request_count(), READS + 1);
+        assert!(platform.copies().is_empty());
+        assert_eq!(copies_of(&directory, &facts).len(), 1);
+
+        let (facts, _) = facts_of(&store, &owner, &workspace_id).await;
+
+        assert_eq!(facts.schema_version, shipped);
     }
 }

@@ -4791,65 +4791,6 @@ mod tests {
         names
     }
 
-    /// Everything a copy holds, table by table and row by row, read from it as a plain SQLite
-    /// file and spelled as [`contents`] spells what the replica holds.
-    async fn contents_of_the_copy(path: &Path) -> Vec<(String, Vec<Vec<turso::Value>>)> {
-        use sqlx::{
-            ConnectOptions, Connection, Row, TypeInfo, ValueRef, sqlite::SqliteConnectOptions,
-        };
-
-        let mut plain = SqliteConnectOptions::new()
-            .filename(path)
-            .read_only(true)
-            .connect()
-            .await
-            .expect("the copy opens as a plain file");
-        let tables: Vec<String> = sqlx::query_scalar(
-            "SELECT name FROM sqlite_master WHERE type = 'table' \
-             AND name NOT LIKE 'sqlite_%' ORDER BY name",
-        )
-        .fetch_all(&mut plain)
-        .await
-        .expect("the tables");
-        let mut contents = Vec::new();
-
-        for table in tables {
-            let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
-                "SELECT * FROM \"{table}\" ORDER BY rowid"
-            )))
-            .fetch_all(&mut plain)
-            .await
-            .expect("the rows");
-            let values = rows
-                .iter()
-                .map(|row| {
-                    (0..row.len())
-                        .map(|index| {
-                            let raw = row.try_get_raw(index).expect("a value");
-
-                            if raw.is_null() {
-                                return turso::Value::Null;
-                            }
-
-                            match raw.type_info().name() {
-                                "INTEGER" => turso::Value::Integer(row.get(index)),
-                                "REAL" => turso::Value::Real(row.get(index)),
-                                "TEXT" => turso::Value::Text(row.get(index)),
-                                _ => turso::Value::Blob(row.get(index)),
-                            }
-                        })
-                        .collect()
-                })
-                .collect();
-
-            contents.push((table, values));
-        }
-
-        plain.close().await.expect("closed");
-
-        contents
-    }
-
     /// **Ticket 27's third criterion.** The owner's upgrade copies the organization before it
     /// changes anything: the copy on this machine, opened as a plain SQLite file, holds every table
     /// and row the organization held before and none of the changes, and the account the machine
@@ -4885,7 +4826,7 @@ mod tests {
             vec![format!("format-1-to-2-{NOW}.sqlite")]
         );
 
-        let copy = contents_of_the_copy(
+        let copy = backup::contents_of(
             &backup::directory_of(&older.directory, "org-7f3a")
                 .join(format!("format-1-to-2-{NOW}.sqlite")),
         )

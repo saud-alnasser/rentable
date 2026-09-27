@@ -16,12 +16,20 @@
 //! What is here is the runner. Which client applies a *pending* migration to a workspace that
 //! already has rows, and under what lease, is the migration ticket's; creating a workspace already
 //! at the current schema is this.
+//!
+//! **The same pipeline is what a workspace is copied over** before a pending migration changes it
+//! (effort 838, ticket 28). [`OverThePipeline`] answers `backup.rs` the workspace's tables and
+//! rows with the credential the migration goes over, each value decoded from the pipeline's typed
+//! JSON into the storage class the database holds it in, so the copy keeps integers, reals, text,
+//! blobs and nulls apart.
 
 use std::time::Duration;
 
+use base64::Engine as _;
 use serde_json::{Value, json};
 
 use crate::{
+    backup,
     error::{Error, RefusalReason},
     http::build_client,
 };
@@ -160,6 +168,159 @@ pub async fn apply_between(
     }
 
     Ok(())
+}
+
+/// A workspace as a copy reads it before a pending migration changes it (effort 838, ticket 28):
+/// the tables and rows the database behind `pipeline` answers, read with `token`, the credential
+/// the migration goes over, and never written.
+///
+/// One request per answer, a statement and a close, as the lease's own requests are.
+pub(crate) struct OverThePipeline<'a> {
+    pub(crate) pipeline: &'a Pipeline,
+    pub(crate) token: &'a str,
+}
+
+impl OverThePipeline<'_> {
+    /// The rows `sql` answers, each a list of the pipeline's typed cells.
+    async fn answered(&self, sql: &str) -> Result<Vec<Value>, Error> {
+        let client = build_client(MIGRATION_TIMEOUT)?;
+        let response = client
+            .post(&self.pipeline.url)
+            .bearer_auth(self.token)
+            .json(&json!({ "requests": [
+                { "type": "execute", "stmt": { "sql": sql } },
+                { "type": "close" },
+            ] }))
+            .send()
+            .await
+            .map_err(|error| Error::Network {
+                message: format!(
+                    "the workspace database could not be reached to copy it ({error})"
+                ),
+            })?;
+        let status = response.status();
+
+        if !status.is_success() {
+            return Err(Error::refused(
+                RefusalReason::DatabaseRefused,
+                format!("the workspace database refused to be read for its copy ({status})"),
+            ));
+        }
+
+        let answered: Value = response.json().await.map_err(|_| Error::Integrity {
+            message: "the workspace database answered its copy with something this application \
+                      cannot read"
+                .to_string(),
+        })?;
+        let first = answered
+            .pointer("/results/0")
+            .ok_or_else(|| Error::Integrity {
+                message: "the workspace database answered its copy with no result".to_string(),
+            })?;
+
+        if first.get("type").and_then(Value::as_str) == Some("error") {
+            return Err(Error::refused(
+                RefusalReason::DatabaseRefused,
+                "the workspace database refused to be read for its copy",
+            ));
+        }
+
+        Ok(first
+            .pointer("/response/result/rows")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default())
+    }
+}
+
+impl backup::Source for OverThePipeline<'_> {
+    async fn tables(&self) -> Result<Vec<backup::Table>, Error> {
+        self.answered(backup::LISTING)
+            .await?
+            .iter()
+            .map(|row| {
+                let cells = decoded_row(row)?;
+
+                match cells.as_slice() {
+                    [turso::Value::Text(name), turso::Value::Text(statement)] => {
+                        Ok(backup::Table {
+                            name: name.clone(),
+                            statement: statement.clone(),
+                        })
+                    }
+                    _ => Err(Error::Integrity {
+                        message: "the workspace database listed a table this application cannot \
+                                  read"
+                            .to_string(),
+                    }),
+                }
+            })
+            .collect()
+    }
+
+    async fn rows(&self, table: &str) -> Result<Vec<Vec<turso::Value>>, Error> {
+        self.answered(&backup::selecting(table))
+            .await?
+            .iter()
+            .map(decoded_row)
+            .collect()
+    }
+}
+
+/// One row of the pipeline's answer, each cell as the value the database holds.
+fn decoded_row(row: &Value) -> Result<Vec<turso::Value>, Error> {
+    row.as_array()
+        .ok_or_else(|| unreadable("a row"))?
+        .iter()
+        .map(decoded)
+        .collect()
+}
+
+/// A typed cell as the pipeline sends it: `null`; `integer` with its value as a string, since
+/// JSON cannot carry every 64-bit integer; `float` as a number; `text`; and `blob` as base64,
+/// with or without its padding.
+fn decoded(cell: &Value) -> Result<turso::Value, Error> {
+    let value = cell.get("value");
+
+    match cell.get("type").and_then(Value::as_str) {
+        Some("null") => Ok(turso::Value::Null),
+        Some("integer") => value
+            .and_then(|value| {
+                value
+                    .as_str()
+                    .and_then(|text| text.parse().ok())
+                    .or_else(|| value.as_i64())
+            })
+            .map(turso::Value::Integer)
+            .ok_or_else(|| unreadable("an integer")),
+        Some("float") => value
+            .and_then(Value::as_f64)
+            .map(turso::Value::Real)
+            .ok_or_else(|| unreadable("a real")),
+        Some("text") => value
+            .and_then(Value::as_str)
+            .map(|text| turso::Value::Text(text.to_string()))
+            .ok_or_else(|| unreadable("a text")),
+        Some("blob") => cell
+            .get("base64")
+            .and_then(Value::as_str)
+            .and_then(|encoded| {
+                base64::engine::general_purpose::STANDARD_NO_PAD
+                    .decode(encoded.trim_end_matches('='))
+                    .ok()
+            })
+            .map(turso::Value::Blob)
+            .ok_or_else(|| unreadable("a blob")),
+        _ => Err(unreadable("a value")),
+    }
+}
+
+fn unreadable(what: &str) -> Error {
+    Error::Integrity {
+        message: format!(
+            "the workspace database answered its copy with {what} this application cannot read"
+        ),
+    }
 }
 
 #[cfg(test)]

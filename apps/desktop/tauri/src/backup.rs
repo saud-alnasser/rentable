@@ -1,5 +1,5 @@
 //! a copy of a database, taken before anything changes its shape (effort 838, requirement 13,
-//! ticket 27).
+//! tickets 27 and 28).
 //!
 //! **Before an organization changes format, and before a workspace takes a migration, the machine
 //! making the change writes down what it is about to change.** An upgrade rewrites and re-signs
@@ -28,7 +28,11 @@
 //! goes on with the local copy.
 //!
 //! **What is copied is behind [`Source`]**, because two things are: the organization replica's
-//! connection, and a workspace over the `/v2/pipeline` its migration goes over (ticket 28).
+//! connection (`OrganizationStore`, in `organization/store.rs`), and a workspace over the
+//! `/v2/pipeline` its migration goes over, with the credential the migration is applied under
+//! (`migrate::OverThePipeline`, ticket 28). Each lives beside what it reads, and both read with
+//! [`LISTING`] and [`selecting`]. A workspace's copies are under `backups/ws-<workspace id>/`,
+//! labelled `schema-<from>-to-<to>`, beside the organization's under `backups/org-<id>/`.
 
 use std::path::{Path, PathBuf};
 
@@ -319,6 +323,65 @@ pub(crate) fn remote_name(database: &str, label: &str, at_seconds: i64) -> Strin
 /// `name` as an SQL identifier.
 fn quoted(name: &str) -> String {
     format!("\"{}\"", name.replace('"', "\"\""))
+}
+
+/// Everything the copy at `path` holds, table by table and row by row, read from it as a plain
+/// SQLite file, each value in the storage class it lies in: what a test compares with what the
+/// database held before its change (tickets 27 and 28).
+#[cfg(test)]
+pub(crate) async fn contents_of(path: &Path) -> Vec<(String, Vec<Vec<turso::Value>>)> {
+    use sqlx::{ConnectOptions, Connection, Row, TypeInfo, ValueRef, sqlite::SqliteConnectOptions};
+
+    let mut plain = SqliteConnectOptions::new()
+        .filename(path)
+        .read_only(true)
+        .connect()
+        .await
+        .expect("the copy opens as a plain file");
+    let tables: Vec<String> = sqlx::query_scalar(
+        "SELECT name FROM sqlite_master WHERE type = 'table' \
+         AND name NOT LIKE 'sqlite_%' ORDER BY name",
+    )
+    .fetch_all(&mut plain)
+    .await
+    .expect("the tables");
+    let mut contents = Vec::new();
+
+    for table in tables {
+        let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
+            "SELECT * FROM \"{table}\" ORDER BY rowid"
+        )))
+        .fetch_all(&mut plain)
+        .await
+        .expect("the rows");
+        let values = rows
+            .iter()
+            .map(|row| {
+                (0..row.len())
+                    .map(|index| {
+                        let raw = row.try_get_raw(index).expect("a value");
+
+                        if raw.is_null() {
+                            return turso::Value::Null;
+                        }
+
+                        match raw.type_info().name() {
+                            "INTEGER" => turso::Value::Integer(row.get(index)),
+                            "REAL" => turso::Value::Real(row.get(index)),
+                            "TEXT" => turso::Value::Text(row.get(index)),
+                            _ => turso::Value::Blob(row.get(index)),
+                        }
+                    })
+                    .collect()
+            })
+            .collect();
+
+        contents.push((table, values));
+    }
+
+    plain.close().await.expect("closed");
+
+    contents
 }
 
 #[cfg(test)]
