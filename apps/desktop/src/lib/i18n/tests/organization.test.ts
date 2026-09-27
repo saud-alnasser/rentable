@@ -129,17 +129,18 @@ test('both locales say where an account stands, in three lines that differ', () 
 
 // effort 826, requirement 5: granting read only stays in words rather than in a hidden control,
 // and names the owner, in both languages. *Handing out an act that signs a row was the owner's too
-// until effort 838 let a manager put one into effect (requirement 9).*
+// until effort 838 let a manager put one into effect (requirement 9). The sentence was the access
+// dialog's own until ticket 49 of that effort drew the dialog from the lock's switches.*
 test('both locales name the owner where an act belongs to nobody else', () => {
 	for (const [name, translation] of locales) {
 		assert.ok(
-			translation.organization.dashboard.readOnlyIsTheOwners.length > 0,
+			translation.organization.workspaceSwitches.lockIsTheOwners.length > 0,
 			`${name} says nothing about who may grant read only`
 		);
 	}
 
-	assert.match(en.organization.dashboard.readOnlyIsTheOwners, /only the owner/);
-	assert.match(ar.organization.dashboard.readOnlyIsTheOwners, /المالك وحده/);
+	assert.match(en.organization.workspaceSwitches.lockIsTheOwners, /only the owner/);
+	assert.match(ar.organization.workspaceSwitches.lockIsTheOwners, /المالك وحده/);
 });
 
 // effort 838, requirement 3: the manager replaced the administrator, so no sentence a person reads
@@ -265,7 +266,12 @@ const RETIRED = [
 	'settings.section.diagnostics',
 	// what each access level was good for, said under a member's workspace until ticket 48 of
 	// effort 838 made each workspace a switch with a lock to read only.
-	'organization.levels'
+	'organization.levels',
+	// the levels a workspace's own dialog offered each member, and why read only was refused
+	// there, until ticket 49 of effort 838 drew its people as the same switches.
+	'organization.dashboard.accessNone',
+	'organization.dashboard.accessReadOnly',
+	'organization.dashboard.readOnlyIsTheOwners'
 ] as const;
 
 test('both locales have let go of every string the retired pages read', () => {
@@ -279,6 +285,8 @@ test('both locales have let go of every string the retired pages read', () => {
 // requirement 18, the other half: one name per thing. Each term the requirement names is one
 // english key, spelled the same wherever a screen draws it, and its arabic is written rather
 // than left in english; and the words the requirement retires are in no english sentence.
+// *Read only was a term of its own, `dashboard.accessReadOnly`, until ticket 49 of effort 838 left
+// no level to name: it is said now only as the lock's name, `workspaceSwitches.lock`.*
 const TERMS = [
 	['sign in', 'common.actions.signIn'],
 	['sign out', 'common.actions.signOut'],
@@ -286,7 +294,6 @@ const TERMS = [
 	['forget Turso account', 'organization.dashboard.forgetAccount'],
 	['link and code', 'organization.dashboard.linkTitle'],
 	['full access', 'organization.dashboard.accessFull'],
-	['read only', 'organization.dashboard.accessReadOnly'],
 	['members', 'organization.dashboard.membersTitle'],
 	['workspaces', 'settings.section.workspaces']
 ] as const;

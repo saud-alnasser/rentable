@@ -1212,21 +1212,18 @@ const ar = {
 			noWorkspaces: 'لا مساحة عمل بعد.',
 			workspacesHeld: '{count|number} {{مساحة عمل|مساحات عمل}}',
 			accessFull: 'وصول كامل',
-			accessReadOnly: 'قراءة فقط',
-			accessNone: 'لا وصول',
 			accessTakenBack: 'سحب مساحة عمل لا يصدر شيئًا، فما يحمله الآن يعمل حتى تنتهي صلاحيته.',
 			memberWorkspacesDescription: 'مساحات العمل التي يستطيع فتحها. شغّل مفتاح أي منها ليدخلها.',
 			accessSaved: 'حُفظت مساحات العمل.',
 			workspaceAccessTitle: 'الأعضاء والوصول',
 			workspaceAccessDescription:
-				'من يحمل {workspace} وما يستطيع كل منهم فعله فيها. الوصول المسحوب يبقى حتى تنتهي صلاحيته.',
+				'من يستطيع فتح {workspace}. شغّل مفتاح أي منهم ليدخلها. الوصول المسحوب يبقى حتى تنتهي صلاحيته.',
 			deleteWorkspace: 'احذف مساحة العمل',
 			deleteWorkspaceDescription:
 				'تُحذف مساحة العمل وكل سجل فيها من Turso ومن كل جهاز يزامنها. لا شيء يعيدها.',
 			workspaceDeleted: 'حُذفت مساحة العمل.',
 			transferTitle: 'تصدير واستيراد {workspace}',
 			forgetAccount: 'انسَ حساب Turso',
-			readOnlyIsTheOwners: 'المالك وحده يمنح وصول القراءة فقط، من جهازه هو.',
 			memberSheetDescription: 'ما يستطيع {username} فعله في هذه المؤسسة.',
 			roleChanged: 'حُفظ الدور.',
 			overrideSaved: 'حُفظ ما يستطيع فعله.',
@@ -1364,6 +1361,7 @@ const ar = {
 		workspaceSwitches: {
 			lock: 'قفل على القراءة فقط',
 			lockNamed: 'قفل {workspace} على القراءة فقط',
+			lockMemberNamed: 'قفل {member} على القراءة فقط',
 			locked: 'لا يستطيع تغيير أي شيء في مساحة العمل هذه، حتى خارج التطبيق.',
 			lockIsTheOwners: 'حساب Turso الذي يملكه المالك وحده يصدر وصول القراءة فقط.',
 			notHeld: 'تحمل مساحة العمل هذه للقراءة فقط، فلا تستطيع منحها.'

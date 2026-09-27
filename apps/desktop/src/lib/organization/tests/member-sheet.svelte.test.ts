@@ -490,7 +490,7 @@ test('each workspace is one switch, in or out, with the lock beneath one that is
 	const words = section('workspaces')?.textContent ?? '';
 
 	expect(words).not.toContain(en.organization.dashboard.accessFull);
-	expect(words).not.toContain(en.organization.dashboard.accessNone);
+	expect(words).not.toContain('no access');
 	expect(document.querySelector('[data-access-row] [data-slot=toggle-group-item]')).toBeNull();
 	// the owner reading, so nothing is dimmed and no reason is said.
 	expect(workspaceReasons()).toEqual([]);

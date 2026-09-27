@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [48]
 ---
 
@@ -17,11 +17,11 @@ as [[efforts/838-permissions-are-a-role-and-an-override/plan]], *A workspace is 
 
 Traces requirement 12 of [[efforts/838-permissions-are-a-role-and-an-override/spec]].
 
-- [ ] `access-dialog.svelte` draws each member as a switch, in or out, with the owner-only lock
+- [x] `access-dialog.svelte` draws each member as a switch, in or out, with the owner-only lock
       beneath one who is in, the same refusals at the same controls, and no level choice; it shares
       the member card's row, not a second copy.
-- [ ] `rules/interface` drops the exception ticket 48 recorded for this dialog.
-- [ ] Component tests in English and Arabic; `pnpm check`, `pnpm test` and `pnpm lint` pass.
+- [x] `rules/interface` drops the exception ticket 48 recorded for this dialog.
+- [x] Component tests in English and Arabic; `pnpm check`, `pnpm test` and `pnpm lint` pass.
 
 ## Relevant areas
 

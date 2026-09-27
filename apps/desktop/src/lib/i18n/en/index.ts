@@ -1310,8 +1310,6 @@ const en = {
 			// ones, and what each is good for, is the surface the card's own menu opens.
 			workspacesHeld: '{count|number} {{workspace|workspaces}}',
 			accessFull: 'full access',
-			accessReadOnly: 'read only',
-			accessNone: 'no access',
 			accessTakenBack:
 				'taking a workspace back mints nothing, so what they already hold works until it runs out.',
 			// the line under the workspaces on the sheet that adds a member.
@@ -1319,14 +1317,13 @@ const en = {
 			accessSaved: 'the workspaces were saved.',
 			workspaceAccessTitle: 'members and access',
 			workspaceAccessDescription:
-				'who holds {workspace:string} and what each can do there. access taken back lasts until it runs out.',
+				'who can open {workspace:string}. switch someone on to let them in. access taken back lasts until it runs out.',
 			deleteWorkspace: 'delete workspace',
 			deleteWorkspaceDescription:
 				'the workspace and every record in it are deleted from Turso and from every machine that syncs it. nothing puts it back.',
 			workspaceDeleted: 'the workspace was deleted.',
 			transferTitle: 'export and import {workspace:string}',
 			forgetAccount: 'forget Turso account',
-			readOnlyIsTheOwners: "only the owner can grant read only access, on the owner's own machine.",
 			memberSheetDescription: 'what {username:string} may do in this organization.',
 			roleChanged: 'the role was saved.',
 			overrideSaved: 'what they may do was saved.',
@@ -1510,13 +1507,15 @@ const en = {
 		},
 
 		/**
-		 * a member's workspaces on their card and on the sheet that adds them (effort 838,
-		 * requirement 12 as amended again 2026-09-27): each workspace a switch, in or out, and
-		 * under one they are in, the owner's lock to read only and what it means.
+		 * a member's workspaces on their card and on the sheet that adds them, and a workspace's
+		 * people in its own dialog (effort 838, requirement 12 as amended again 2026-09-27): each
+		 * a switch, in or out, and under one that is in, the owner's lock to read only and what it
+		 * means.
 		 */
 		workspaceSwitches: {
 			lock: 'lock to read only',
 			lockNamed: 'lock {workspace:string} to read only',
+			lockMemberNamed: 'lock {member:string} to read only',
 			locked: 'they cannot change anything in this workspace, even outside the app.',
 			lockIsTheOwners: "only the owner's Turso account can issue a read only credential.",
 			notHeld: 'you hold this workspace read only, so you cannot give it.'

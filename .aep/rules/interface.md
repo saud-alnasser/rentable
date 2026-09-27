@@ -673,10 +673,13 @@ credential re-sealed (a withdrawal stays theirs); and the lock for anybody but t
 only the owner's account mints a read-only credential, a lock already on staying drawn on. A
 member ranked at or above the reader is refused at the card's edit act, which opens nothing. The
 acts are the grants that exist (`useChangeAccess`), sent only for the workspaces that changed.
-*The human's call on the running application, 2026-09-27
-([[efforts/838-permissions-are-a-role-and-an-override/spec]], requirement 12 as amended again;
-ticket 48): each workspace was a row of three levels beside the role, which read as a second
-permission system. The workspace's own dialog, which lists who holds it, keeps its three levels.*
+**A workspace's own dialog draws its people the same way**, a switch per member with the lock
+beneath one who is in and the same refusals at the same controls, from the one list both surfaces
+share (`access-switches.svelte`), so the two cannot refuse differently; the member's person is its
+glyph, and the owner and the reader are not listed. *The human's call on the running application,
+2026-09-27 ([[efforts/838-permissions-are-a-role-and-an-override/spec]], requirement 12 as amended
+again; tickets 48 and 49): each workspace was a row of three levels beside the role, which read as
+a second permission system, and the workspace's dialog offered the same three per member.*
 
 **A submit is labelled with its verb, and carries the verb's glyph before the label.** Every submit
 does, the domain forms' as well as the organization's and the startup screens': *create* takes the
@@ -732,10 +735,9 @@ weighed, finding 6a, is the risk it takes: a reader who turns one and leaves thi
 effect, which the surface's footer save and the member's custom mark answer.*
 
 **No form uses a select for a choice of four or fewer.** Such a choice is a toggle group, the
-chosen segment pressed: the contract's cycle (four), a member's access in a workspace's own
-dialog (three) and the language (two), as the appearance (three) already was. A segment carries a
-label and at most an icon, so where an option needs a sentence, the sentence of the option chosen
-stands under the control. An option the
+chosen segment pressed: the contract's cycle (four) and the language (two), as the appearance
+(three) already was. A segment carries a label and at most an icon, so where an option needs a
+sentence, the sentence of the option chosen stands under the control. An option the
 reader may not choose is drawn refused on its segment, never removed, exactly as it was in the
 menu. `design/tests/few-options.test.ts` fails on a `Select` whose written options number four or
 fewer, and on one drawn from a list that its allowlist does not explain as more than a few. The one

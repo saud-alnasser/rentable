@@ -339,11 +339,16 @@
 
 	// ----- the workspaces
 
-	/** the rows the access dialog draws for a workspace: everybody who could hold it. */
+	/**
+	 * the rows the access dialog draws for a workspace: everybody who could hold it, and whether
+	 * the reader holds it at full access, which is what putting any of them in gives.
+	 */
 	const workspaceRows = $derived.by(() => {
 		const opened = workspace.changingAccess;
 
 		if (!opened) return [];
+
+		const givable = opened.workspace.accessLevel === 'full-access';
 
 		return (membersQuery.data ?? [])
 			.filter((candidate) => candidate.role !== 'owner' && candidate.id !== session?.memberId)
@@ -351,7 +356,8 @@
 				id: candidate.id,
 				name: candidate.username,
 				access: (candidate.workspaces.find((held) => held.id === opened.workspace.id)?.access ??
-					'none') as AccessChoice
+					'none') as AccessChoice,
+				givable
 			}));
 	});
 

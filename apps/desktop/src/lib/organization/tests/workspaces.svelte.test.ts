@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
+import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { beforeEach, expect, test, vi } from 'vitest';
 
 import { setLocale } from '$lib/i18n/i18n-svelte';
@@ -285,7 +285,7 @@ test('the open one is marked by a disc carrying its word, and no card says an ac
 	expect(document.querySelector('[data-workspace-access]')).toBeNull();
 	for (const id of ['ws-1', 'ws-2']) {
 		expect(card(id)?.textContent, id).not.toContain(en.organization.dashboard.accessFull);
-		expect(card(id)?.textContent, id).not.toContain(en.organization.dashboard.accessReadOnly);
+		expect(card(id)?.textContent, id).not.toContain('read only');
 	}
 });
 
@@ -508,22 +508,38 @@ test('the members act opens the access dialog on the people who could hold that 
 test('the members act hands up the rows that changed, as member ids on that workspace', async () => {
 	list();
 
-	await press('ws-2', 'grant');
-	await fireEvent.click(
-		within(document.querySelector<HTMLElement>('#access-ada')!).getByRole('radio', {
-			name: en.organization.dashboard.accessFull
-		})
-	);
+	await press('ws-1', 'grant');
+	// ada is in it, and her switch takes her out.
+	await fireEvent.click(document.querySelector<HTMLElement>('#access-ada')!);
 	await fireEvent.submit(document.querySelector('form')!);
 
 	await waitFor(() => {
 		expect(hostAnswers.writes).toEqual([
 			{
 				hook: 'useChangeAccess',
-				input: { changes: [{ workspaceId: 'ws-2', memberId: 'ada', access: 'full-access' }] }
+				input: { changes: [{ workspaceId: 'ws-1', memberId: 'ada', access: 'none' }] }
 			}
 		]);
 	});
+});
+
+// full access is the reader's own credential re-sealed, and the reader holds Jeddah read only,
+// so the host hands the dialog rows nobody can be put in on, and the switch says why.
+test('the members act on a workspace the reader holds read only puts nobody in', async () => {
+	list();
+
+	await press('ws-2', 'grant');
+
+	const ada = document.querySelector<HTMLElement>('#access-ada')!;
+
+	expect(ada.getAttribute('aria-disabled')).toBe('true');
+	expect(document.querySelector('#access-ada-reason')?.textContent?.trim()).toBe(
+		en.organization.workspaceSwitches.notHeld
+	);
+
+	await fireEvent.click(ada);
+
+	expect(ada.getAttribute('aria-checked')).toBe('false');
 });
 
 // criterion 21: delete asks once and names what is lost, and it is the owner's.

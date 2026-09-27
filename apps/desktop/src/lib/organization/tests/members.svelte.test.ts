@@ -353,7 +353,7 @@ test('a card says how many workspaces are held, in one line, and names none of t
 	// and no workspace is named on a card any more, nor what it is good for.
 	expect(document.querySelector('[data-member-workspace]')).toBeNull();
 	expect(document.body.textContent).not.toContain('Riyadh');
-	expect(document.body.textContent).not.toContain(en.organization.dashboard.accessReadOnly);
+	expect(document.body.textContent).not.toContain('read only');
 });
 
 // criterion 19: the three standings, each said in one line, read from the members query joined to

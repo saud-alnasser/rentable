@@ -3892,14 +3892,6 @@ type RootTranslation = {
 			 */
 			accessFull: string
 			/**
-			 * r​e​a​d​ ​o​n​l​y
-			 */
-			accessReadOnly: string
-			/**
-			 * n​o​ ​a​c​c​e​s​s
-			 */
-			accessNone: string
-			/**
 			 * t​a​k​i​n​g​ ​a​ ​w​o​r​k​s​p​a​c​e​ ​b​a​c​k​ ​m​i​n​t​s​ ​n​o​t​h​i​n​g​,​ ​s​o​ ​w​h​a​t​ ​t​h​e​y​ ​a​l​r​e​a​d​y​ ​h​o​l​d​ ​w​o​r​k​s​ ​u​n​t​i​l​ ​i​t​ ​r​u​n​s​ ​o​u​t​.
 			 */
 			accessTakenBack: string
@@ -3916,7 +3908,7 @@ type RootTranslation = {
 			 */
 			workspaceAccessTitle: string
 			/**
-			 * w​h​o​ ​h​o​l​d​s​ ​{​w​o​r​k​s​p​a​c​e​}​ ​a​n​d​ ​w​h​a​t​ ​e​a​c​h​ ​c​a​n​ ​d​o​ ​t​h​e​r​e​.​ ​a​c​c​e​s​s​ ​t​a​k​e​n​ ​b​a​c​k​ ​l​a​s​t​s​ ​u​n​t​i​l​ ​i​t​ ​r​u​n​s​ ​o​u​t​.
+			 * w​h​o​ ​c​a​n​ ​o​p​e​n​ ​{​w​o​r​k​s​p​a​c​e​}​.​ ​s​w​i​t​c​h​ ​s​o​m​e​o​n​e​ ​o​n​ ​t​o​ ​l​e​t​ ​t​h​e​m​ ​i​n​.​ ​a​c​c​e​s​s​ ​t​a​k​e​n​ ​b​a​c​k​ ​l​a​s​t​s​ ​u​n​t​i​l​ ​i​t​ ​r​u​n​s​ ​o​u​t​.
 			 * @param {string} workspace
 			 */
 			workspaceAccessDescription: RequiredParams<'workspace'>
@@ -3941,10 +3933,6 @@ type RootTranslation = {
 			 * f​o​r​g​e​t​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t
 			 */
 			forgetAccount: string
-			/**
-			 * o​n​l​y​ ​t​h​e​ ​o​w​n​e​r​ ​c​a​n​ ​g​r​a​n​t​ ​r​e​a​d​ ​o​n​l​y​ ​a​c​c​e​s​s​,​ ​o​n​ ​t​h​e​ ​o​w​n​e​r​'​s​ ​o​w​n​ ​m​a​c​h​i​n​e​.
-			 */
-			readOnlyIsTheOwners: string
 			/**
 			 * w​h​a​t​ ​{​u​s​e​r​n​a​m​e​}​ ​m​a​y​ ​d​o​ ​i​n​ ​t​h​i​s​ ​o​r​g​a​n​i​z​a​t​i​o​n​.
 			 * @param {string} username
@@ -4372,6 +4360,11 @@ type RootTranslation = {
 			 * @param {string} workspace
 			 */
 			lockNamed: RequiredParams<'workspace'>
+			/**
+			 * l​o​c​k​ ​{​m​e​m​b​e​r​}​ ​t​o​ ​r​e​a​d​ ​o​n​l​y
+			 * @param {string} member
+			 */
+			lockMemberNamed: RequiredParams<'member'>
 			/**
 			 * t​h​e​y​ ​c​a​n​n​o​t​ ​c​h​a​n​g​e​ ​a​n​y​t​h​i​n​g​ ​i​n​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​,​ ​e​v​e​n​ ​o​u​t​s​i​d​e​ ​t​h​e​ ​a​p​p​.
 			 */
@@ -8182,14 +8175,6 @@ export type TranslationFunctions = {
 			 */
 			accessFull: () => LocalizedString
 			/**
-			 * read only
-			 */
-			accessReadOnly: () => LocalizedString
-			/**
-			 * no access
-			 */
-			accessNone: () => LocalizedString
-			/**
 			 * taking a workspace back mints nothing, so what they already hold works until it runs out.
 			 */
 			accessTakenBack: () => LocalizedString
@@ -8206,7 +8191,7 @@ export type TranslationFunctions = {
 			 */
 			workspaceAccessTitle: () => LocalizedString
 			/**
-			 * who holds {workspace} and what each can do there. access taken back lasts until it runs out.
+			 * who can open {workspace}. switch someone on to let them in. access taken back lasts until it runs out.
 			 */
 			workspaceAccessDescription: (arg: { workspace: string }) => LocalizedString
 			/**
@@ -8229,10 +8214,6 @@ export type TranslationFunctions = {
 			 * forget Turso account
 			 */
 			forgetAccount: () => LocalizedString
-			/**
-			 * only the owner can grant read only access, on the owner's own machine.
-			 */
-			readOnlyIsTheOwners: () => LocalizedString
 			/**
 			 * what {username} may do in this organization.
 			 */
@@ -8647,6 +8628,10 @@ export type TranslationFunctions = {
 			 * lock {workspace} to read only
 			 */
 			lockNamed: (arg: { workspace: string }) => LocalizedString
+			/**
+			 * lock {member} to read only
+			 */
+			lockMemberNamed: (arg: { member: string }) => LocalizedString
 			/**
 			 * they cannot change anything in this workspace, even outside the app.
 			 */

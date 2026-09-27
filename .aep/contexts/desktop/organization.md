@@ -159,7 +159,8 @@ the owner's. A grant is what says a member is in a workspace, and removing it is
 not. On a read-only grant a member holds no create, edit or delete flag in that workspace, whatever
 their role says (`effectiveIn`). A member's card and the sheet that adds one draw each workspace as
 a switch, in (a full-access grant) or out (none), with *lock to read only* beneath one that is in,
-the owner's alone (`member-workspaces.svelte`, ticket 48 of effort 838).
+the owner's alone (`member-workspaces.svelte`, ticket 48 of effort 838); a workspace's own dialog
+draws each member the same way, from the same list (`access-switches.svelte`, ticket 49).
 
 **Chain**:
 *Built by effort 838 ([[efforts/838-permissions-are-a-role-and-an-override/spec]], requirement 9;
