@@ -1206,6 +1206,26 @@ type RootTranslation = {
 				 */
 				ownerRoleNotAssigned: string
 				/**
+				 * a​d​d​i​n​g​,​ ​e​d​i​t​i​n​g​ ​o​r​ ​d​e​l​e​t​i​n​g​ ​c​o​m​p​l​e​x​e​s​ ​n​e​e​d​s​ ​v​i​e​w​i​n​g​ ​t​h​e​m​.​ ​t​u​r​n​ ​o​n​ ​v​i​e​w​i​n​g​ ​c​o​m​p​l​e​x​e​s​ ​f​i​r​s​t​.
+				 */
+				complexNeedsViewing: string
+				/**
+				 * a​d​d​i​n​g​,​ ​e​d​i​t​i​n​g​ ​o​r​ ​d​e​l​e​t​i​n​g​ ​u​n​i​t​s​ ​n​e​e​d​s​ ​v​i​e​w​i​n​g​ ​t​h​e​m​.​ ​t​u​r​n​ ​o​n​ ​v​i​e​w​i​n​g​ ​u​n​i​t​s​ ​f​i​r​s​t​.
+				 */
+				unitNeedsViewing: string
+				/**
+				 * a​d​d​i​n​g​,​ ​e​d​i​t​i​n​g​ ​o​r​ ​d​e​l​e​t​i​n​g​ ​t​e​n​a​n​t​s​ ​n​e​e​d​s​ ​v​i​e​w​i​n​g​ ​t​h​e​m​.​ ​t​u​r​n​ ​o​n​ ​v​i​e​w​i​n​g​ ​t​e​n​a​n​t​s​ ​f​i​r​s​t​.
+				 */
+				tenantNeedsViewing: string
+				/**
+				 * a​d​d​i​n​g​,​ ​e​d​i​t​i​n​g​ ​o​r​ ​d​e​l​e​t​i​n​g​ ​c​o​n​t​r​a​c​t​s​ ​n​e​e​d​s​ ​v​i​e​w​i​n​g​ ​t​h​e​m​.​ ​t​u​r​n​ ​o​n​ ​v​i​e​w​i​n​g​ ​c​o​n​t​r​a​c​t​s​ ​f​i​r​s​t​.
+				 */
+				contractNeedsViewing: string
+				/**
+				 * a​d​d​i​n​g​,​ ​e​d​i​t​i​n​g​ ​o​r​ ​d​e​l​e​t​i​n​g​ ​p​a​y​m​e​n​t​s​ ​n​e​e​d​s​ ​v​i​e​w​i​n​g​ ​t​h​e​m​.​ ​t​u​r​n​ ​o​n​ ​v​i​e​w​i​n​g​ ​p​a​y​m​e​n​t​s​ ​f​i​r​s​t​.
+				 */
+				paymentNeedsViewing: string
+				/**
 				 * y​o​u​ ​a​r​e​ ​t​h​e​ ​o​w​n​e​r​ ​a​l​r​e​a​d​y​.​ ​c​h​o​o​s​e​ ​t​h​e​ ​a​c​c​o​u​n​t​ ​t​h​a​t​ ​i​s​ ​t​o​ ​h​a​v​e​ ​i​t​.
 				 */
 				alreadyOwner: string
@@ -4238,7 +4258,7 @@ type RootTranslation = {
 			 */
 			deleteTitle: string
 			/**
-			 * e​v​e​r​y​b​o​d​y​ ​h​o​l​d​i​n​g​ ​i​t​ ​h​o​l​d​s​ ​t​h​e​ ​m​e​m​b​e​r​ ​r​o​l​e​ ​i​n​s​t​e​a​d​,​ ​k​e​e​p​i​n​g​ ​a​n​y​t​h​i​n​g​ ​c​h​a​n​g​e​d​ ​f​o​r​ ​t​h​e​m​ ​a​l​o​n​e​.
+			 * e​v​e​r​y​b​o​d​y​ ​h​o​l​d​i​n​g​ ​i​t​ ​b​e​c​o​m​e​s​ ​a​ ​m​e​m​b​e​r​,​ ​w​i​t​h​ ​e​x​a​c​t​l​y​ ​w​h​a​t​ ​t​h​e​ ​m​e​m​b​e​r​ ​r​o​l​e​ ​g​i​v​e​s​.
 			 */
 			deleteDescription: string
 			/**
@@ -5591,6 +5611,26 @@ export type TranslationFunctions = {
 				 * the owner's role moves only when the owner hands the organization over.
 				 */
 				ownerRoleNotAssigned: () => LocalizedString
+				/**
+				 * adding, editing or deleting complexes needs viewing them. turn on viewing complexes first.
+				 */
+				complexNeedsViewing: () => LocalizedString
+				/**
+				 * adding, editing or deleting units needs viewing them. turn on viewing units first.
+				 */
+				unitNeedsViewing: () => LocalizedString
+				/**
+				 * adding, editing or deleting tenants needs viewing them. turn on viewing tenants first.
+				 */
+				tenantNeedsViewing: () => LocalizedString
+				/**
+				 * adding, editing or deleting contracts needs viewing them. turn on viewing contracts first.
+				 */
+				contractNeedsViewing: () => LocalizedString
+				/**
+				 * adding, editing or deleting payments needs viewing them. turn on viewing payments first.
+				 */
+				paymentNeedsViewing: () => LocalizedString
 				/**
 				 * you are the owner already. choose the account that is to have it.
 				 */
@@ -8501,7 +8541,7 @@ export type TranslationFunctions = {
 			 */
 			deleteTitle: () => LocalizedString
 			/**
-			 * everybody holding it holds the member role instead, keeping anything changed for them alone.
+			 * everybody holding it becomes a member, with exactly what the member role gives.
 			 */
 			deleteDescription: () => LocalizedString
 			/**

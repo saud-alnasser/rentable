@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # feat(organization): writing a record needs viewing it, and a new role clears the override
@@ -16,14 +16,14 @@ member's override, as [[efforts/838-permissions-are-a-role-and-an-override/plan]
 
 Traces requirement 6 and requirement 12 of [[efforts/838-permissions-are-a-role-and-an-override/spec]].
 
-- [ ] `packages/workspace-permission` exports the check (each kind's write flags need its view
+- [x] `packages/workspace-permission` exports the check (each kind's write flags need its view
       flag) and a test covers every kind; the TS routers refuse a role or override that breaks it.
-- [ ] Rust's `role::apply`, `set_override` and role creation refuse the same, naming the kind, in
+- [x] Rust's `role::apply`, `set_override` and role creation refuse the same, naming the kind, in
       English and Arabic. A test covers a role mask and an override.
-- [ ] `assign_role` clears the member's override in the same signed write; a test finds a member
+- [x] `assign_role` clears the member's override in the same signed write; a test finds a member
       with an override given another role holding it exactly.
-- [ ] The built-in masks pass the check.
-- [ ] `cargo test`, `pnpm check`, `pnpm test` and `pnpm lint` pass.
+- [x] The built-in masks pass the check.
+- [x] `cargo test`, `pnpm check`, `pnpm test` and `pnpm lint` pass.
 
 ## Relevant areas
 

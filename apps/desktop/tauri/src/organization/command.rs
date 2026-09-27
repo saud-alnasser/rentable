@@ -1628,7 +1628,8 @@ pub async fn role_move(
     role::move_role(store, member, &role_id, &after_role_id, timestamp::now()).await
 }
 
-/// Delete a custom role; everybody who held it holds the member role from here on. `manageRoles`,
+/// Delete a custom role; everybody who held it holds the member role from here on, exactly, the
+/// override they carried cleared (effort 838, requirement 6 as amended 2026-09-27). `manageRoles`,
 /// below the actor's rank, and only flags the actor holds, over what moving the holders changes.
 #[tauri::command]
 pub async fn role_delete(
@@ -1651,8 +1652,9 @@ pub async fn role_delete(
 ///
 /// `overrideMask`, where given, is the override they carry from here on, set in the same act
 /// (requirement 6), so "flags held" is asked of the role and the override together rather than of
-/// the state between two commands; `overrideMember` as well, where it is not the override they
-/// carry already. Left out, their override stays.
+/// the state between two commands; `overrideMember` as well, where it is not zero. Left out, the
+/// override they carried is cleared, so they hold the role exactly (requirement 6, as amended
+/// 2026-09-27).
 /// *It was `member_change_role`, which wrote a role's word and seven acts, until effort 838.*
 #[tauri::command]
 pub async fn member_assign_role(

@@ -2,7 +2,15 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-import { BUILT_IN, effective, effectiveIn, maskOf, permits } from '../index.ts';
+import {
+	BUILT_IN,
+	effective,
+	effectiveIn,
+	firstWriteWithoutView,
+	maskOf,
+	permits,
+	type RecordKind
+} from '../index.ts';
 
 /**
  * The shared table of cases (criteria 6 and 8 of effort 838).
@@ -14,6 +22,7 @@ import { BUILT_IN, effective, effectiveIn, maskOf, permits } from '../index.ts';
 type Table = {
 	builtIn: Record<keyof typeof BUILT_IN, { id: string; rank: number; mask: number }>;
 	cases: { role: string; mask: number; override: number; effective: number; readOnly: number }[];
+	writeWithoutView: { name: string; mask: number; kind: RecordKind | null }[];
 };
 
 const table = JSON.parse(
@@ -49,4 +58,12 @@ test('an override turns a flag off where the role carries it, and on where it do
 
 	assert.equal(effective(member, 0), member, 'an empty override changes nothing');
 	assert.equal(effective(member, member), 0, 'an override of the whole mask clears it');
+});
+
+test('every case in the shared table names the kind it writes without viewing, or none', () => {
+	assert.ok(table.writeWithoutView.length > 0, 'the table holds no such cases');
+
+	for (const { name, mask, kind } of table.writeWithoutView) {
+		assert.equal(firstWriteWithoutView(mask), kind, name);
+	}
 });

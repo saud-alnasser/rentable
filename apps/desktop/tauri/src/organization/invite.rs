@@ -360,6 +360,10 @@ pub async fn create_account<P: TursoPlatform>(
         ));
     }
 
+    // what the account ends up with adds, edits or deletes no kind of record it cannot view
+    // (requirement 6, as amended 2026-09-27).
+    permission::refuse_write_without_view(standing.effective, "the account this makes")?;
+
     refuse_taken_username(store, session, username, None).await?;
 
     let member_id = random_id()?;
@@ -4229,6 +4233,64 @@ mod tests {
             Err(Error::Refused { reason, message }) => (reason, message),
             other => panic!("{what}: {other:?}"),
         }
+    }
+
+    /// Effort 838, requirement 6 as amended 2026-09-27, at the account: **an account whose role
+    /// and override add, edit or delete a kind of record without viewing it is not made**, and the
+    /// refusal names the kind. Nothing is written, and the same role with the view kept is made.
+    #[tokio::test]
+    async fn an_account_writing_a_kind_it_cannot_view_is_not_made() {
+        let directory = scratch("unviewed");
+        let (store, owner, _, _, _) = owned(&directory).await;
+        let members = store
+            .members(&owner.verifying_key)
+            .await
+            .expect("the members")
+            .len();
+
+        // the member's role views and writes contracts; switching the view off leaves the writes.
+        let (reason, message) = refused_with(
+            made(
+                &store,
+                &owner,
+                "xavier",
+                permission::MEMBER,
+                permission::mask_of(&[permission::Flag::ViewContract]),
+            )
+            .await,
+            "an account was made writing contracts it cannot view",
+        );
+
+        assert_eq!(reason, RefusalReason::ContractNeedsViewing, "{message}");
+        assert!(message.contains("contract"), "{message}");
+        assert_eq!(
+            store
+                .members(&owner.verifying_key)
+                .await
+                .expect("the members")
+                .len(),
+            members,
+            "a refusal wrote a member row"
+        );
+
+        let kept = made(
+            &store,
+            &owner,
+            "xavier",
+            permission::MEMBER,
+            permission::mask_of(&[
+                permission::Flag::ViewContract,
+                permission::Flag::CreateContract,
+                permission::Flag::EditContract,
+            ]),
+        )
+        .await
+        .expect("an account without contracts at all was not made");
+
+        assert!(!permission::permits(
+            kept.permissions,
+            permission::Flag::EditContract
+        ));
     }
 
     /// Effort 838, criterion 7 at the account: **an account is made in a role strictly below the

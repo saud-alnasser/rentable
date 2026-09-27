@@ -304,5 +304,72 @@
 			"effective": 1099510841343,
 			"readOnly": 73300967423
 		}
+	],
+	"writeWithoutView": [
+		{
+			"name": "nothing",
+			"mask": 0,
+			"kind": null
+		},
+		{
+			"name": "the owner's role",
+			"mask": 1099510841343,
+			"kind": null
+		},
+		{
+			"name": "the manager's role",
+			"mask": 1099510580223,
+			"kind": null
+		},
+		{
+			"name": "the member's role",
+			"mask": 513104936960,
+			"kind": null
+		},
+		{
+			"name": "the manager's role without viewing payments",
+			"mask": 1030791103487,
+			"kind": "payment"
+		},
+		{
+			"name": "the member's role without viewing contracts",
+			"mask": 508809969664,
+			"kind": "contract"
+		},
+		{
+			"name": "editing contracts alone",
+			"mask": 17179869184,
+			"kind": "contract"
+		},
+		{
+			"name": "viewing complexes and adding units",
+			"mask": 34603008,
+			"kind": "unit"
+		},
+		{
+			"name": "viewing and deleting payments",
+			"mask": 618475290624,
+			"kind": null
+		},
+		{
+			"name": "adding tenants and deleting complexes",
+			"mask": 545259520,
+			"kind": "complex"
+		},
+		{
+			"name": "adding, editing and deleting complexes",
+			"mask": 14680064,
+			"kind": "complex"
+		},
+		{
+			"name": "viewing and deleting every kind",
+			"mask": 659706347520,
+			"kind": null
+		},
+		{
+			"name": "inviting members",
+			"mask": 1,
+			"kind": null
+		}
 	]
 }

@@ -757,7 +757,10 @@ export type Host = {
 			setMask: (roleId: string, mask: number) => Promise<OrganizationRole>;
 			/** move a custom role to directly below `afterRoleId`, the manager or another custom role. */
 			move: (roleId: string, afterRoleId: string) => Promise<OrganizationRole>;
-			/** delete a custom role; everybody who held it holds the member role from here on. */
+			/**
+			 * delete a custom role; everybody who held it holds the member role from here on, exactly:
+			 * the override they carried is cleared (effort 838, requirement 6 as amended 2026-09-27).
+			 */
 			remove: (roleId: string) => Promise<void>;
 		};
 		workspace: {
@@ -842,8 +845,8 @@ export type Host = {
 			 *
 			 * `override`, where given, is set in the same act, so the flags the change moves are the
 			 * ones the role and the override move together rather than each on its own; one that is
-			 * not the override the member carries is held to `overrideMember` as well. Left out, the
-			 * override they carry stays.
+			 * not zero is held to `overrideMember` as well. Left out, the override they carried is
+			 * cleared, so they hold the role exactly (effort 838, requirement 6 as amended 2026-09-27).
 			 */
 			assignRole: (
 				memberId: string,

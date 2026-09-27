@@ -108,6 +108,14 @@ export const FAMILIES = {
 
 export type Family = keyof typeof FAMILIES;
 
+/** A kind of record: every family but the organization's administration and the owner's acts. */
+export type RecordKind = Exclude<Family, 'administration' | 'owner'>;
+
+/** Every kind of record, in the order `FAMILIES` holds them. */
+export const RECORD_KINDS = (Object.keys(FAMILIES) as Family[]).filter(
+	(family): family is RecordKind => family !== 'administration' && family !== 'owner'
+);
+
 /**
  * The flags only the owner holds (requirement 2). Each needs the Turso authority, which sits in
  * the owner's keyring and in no row, or is the handover of the organization itself; no role and
@@ -214,6 +222,23 @@ export const xorOf = (left: number, right: number): number => {
  * shared table in `./tests/effective.json`.
  */
 export const effective = (roleMask: number, override: number): number => xorOf(roleMask, override);
+
+/**
+ * The first kind of record a mask lets somebody add, edit or delete without viewing it, or `null`
+ * where every kind it writes it also views (requirement 6, as amended 2026-09-27).
+ *
+ * **Read off `FAMILIES`**: each record kind's first flag is viewing it and the three after it are
+ * what viewing it is needed for, so a kind added there is covered here without a second list. No
+ * role mask and no member's effective permissions that fail this is ever written, here or in Rust
+ * (`organization/permission.rs`, `first_write_without_view`), and the two are held to the same
+ * cases in `./tests/effective.json`.
+ */
+export const firstWriteWithoutView = (mask: number): RecordKind | null =>
+	RECORD_KINDS.find((kind) => {
+		const [view, ...writes] = FAMILIES[kind] as readonly Flag[];
+
+		return !permits(mask, view) && writes.some((flag) => permits(mask, flag));
+	}) ?? null;
 
 /** How a member reaches one workspace, in the spelling a grant row stores. */
 export type AccessLevel = 'full-access' | 'read-only';

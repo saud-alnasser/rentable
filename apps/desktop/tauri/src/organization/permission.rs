@@ -126,6 +126,20 @@ impl Family {
             .filter(|flag| flag.family() == self)
             .collect()
     }
+
+    /// The refusal for adding, editing or deleting this kind of record without viewing it, or
+    /// `None` for the two families that are not a kind of record: the administration and the
+    /// owner's acts.
+    pub fn viewing_needed(self) -> Option<RefusalReason> {
+        match self {
+            Self::Administration | Self::Owner => None,
+            Self::Complex => Some(RefusalReason::ComplexNeedsViewing),
+            Self::Unit => Some(RefusalReason::UnitNeedsViewing),
+            Self::Tenant => Some(RefusalReason::TenantNeedsViewing),
+            Self::Contract => Some(RefusalReason::ContractNeedsViewing),
+            Self::Payment => Some(RefusalReason::PaymentNeedsViewing),
+        }
+    }
 }
 
 impl Flag {
@@ -476,14 +490,56 @@ pub fn first_owner_only(mask: i64) -> Option<&'static str> {
         .map(|flag| flag.name())
 }
 
+/// The first kind of record `mask` lets somebody add, edit or delete without viewing it, or `None`
+/// where every kind it writes it also views (requirement 6, as amended 2026-09-27).
+///
+/// **Read off the families**, as the package's `firstWriteWithoutView` reads `FAMILIES`: a kind of
+/// record's first flag is viewing it and the three after it are what viewing it is needed for. The
+/// two are held to the same cases in the package's `tests/effective.json`.
+pub fn first_write_without_view(mask: i64) -> Option<Family> {
+    Family::ALL
+        .into_iter()
+        .filter(|family| family.viewing_needed().is_some())
+        .find(|family| match family.flags().split_first() {
+            Some((view, writes)) => {
+                !permits(mask, *view) && writes.iter().any(|flag| permits(mask, *flag))
+            }
+            None => false,
+        })
+}
+
+/// Refuse a mask that adds, edits or deletes a kind of record without viewing it, naming the kind:
+/// no role mask and no member's effective permissions of that shape is written (requirement 6, as
+/// amended 2026-09-27). `whose` says in the developer's description what the mask is.
+pub fn refuse_write_without_view(mask: i64, whose: &str) -> Result<(), Error> {
+    let Some((family, reason)) = first_write_without_view(mask)
+        .and_then(|family| family.viewing_needed().map(|reason| (family, reason)))
+    else {
+        return Ok(());
+    };
+
+    Err(Error::refused(
+        reason,
+        format!(
+            "{whose} would add, edit or delete {kind} records without viewing them. viewing \
+             {kind} records is switched on first",
+            kind = family.name()
+        ),
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         BUILT_IN, BuiltIn, Family, Flag, MANAGER, MANAGER_ROLE, MEMBER_ADMINISTRATION, MEMBER_ROLE,
         OWNER, OWNER_ONLY, OWNER_ROLE, RECORD_FLAGS, WRITE_FLAGS, effective, effective_in,
-        first_not_held, first_owner_only, mask_of, permits, require,
+        first_not_held, first_owner_only, first_write_without_view, mask_of, permits,
+        refuse_write_without_view, require,
     };
-    use crate::sync::turso::platform::AccessLevel;
+    use crate::{
+        error::{Error, RefusalReason},
+        sync::turso::platform::AccessLevel,
+    };
 
     /// A file of the package, read rather than imported: this crate cannot import TypeScript, and
     /// two tables of one vocabulary are held together by nothing but this.
@@ -848,6 +904,104 @@ mod tests {
         assert_eq!(
             first_owner_only(mask_of(&[Flag::ViewUnit, Flag::MintReadOnly])),
             Some("mintReadOnly")
+        );
+    }
+
+    #[test]
+    fn every_write_without_view_case_in_the_shared_table_names_its_kind() {
+        let table = shared_table();
+        let cases = table["writeWithoutView"]
+            .as_array()
+            .expect("the shared table's write-without-view cases");
+
+        assert!(!cases.is_empty(), "the shared table holds no such cases");
+
+        for case in cases {
+            assert_eq!(
+                first_write_without_view(number(case, "mask")).map(Family::name),
+                case["kind"].as_str(),
+                "{case}"
+            );
+        }
+    }
+
+    /// Requirement 6, as amended 2026-09-27: each kind of record is added, edited or deleted only
+    /// where it is viewed, and the refusal names the kind by its own reason.
+    #[test]
+    fn each_kind_of_record_is_written_only_where_it_is_viewed() {
+        let records: Vec<Family> = Family::ALL
+            .into_iter()
+            .filter(|family| family.viewing_needed().is_some())
+            .collect();
+
+        assert_eq!(
+            records,
+            [
+                Family::Complex,
+                Family::Unit,
+                Family::Tenant,
+                Family::Contract,
+                Family::Payment,
+            ]
+        );
+        assert_eq!(
+            records
+                .iter()
+                .filter_map(|family| family.viewing_needed())
+                .collect::<Vec<_>>(),
+            [
+                RefusalReason::ComplexNeedsViewing,
+                RefusalReason::UnitNeedsViewing,
+                RefusalReason::TenantNeedsViewing,
+                RefusalReason::ContractNeedsViewing,
+                RefusalReason::PaymentNeedsViewing,
+            ]
+        );
+
+        for family in records {
+            let flags = family.flags();
+            let (view, writes) = flags.split_first().expect("a kind of record has flags");
+
+            assert_eq!(writes.len(), 3, "{}", family.name());
+            assert_eq!(first_write_without_view(mask_of(&[*view])), None);
+            assert_eq!(first_write_without_view(mask_of(&flags)), None);
+
+            for write in writes {
+                assert_eq!(
+                    first_write_without_view(mask_of(&[*write])),
+                    Some(family),
+                    "{} without {}",
+                    write.name(),
+                    view.name()
+                );
+                assert_eq!(first_write_without_view(mask_of(&[*view, *write])), None);
+
+                let refusal = refuse_write_without_view(mask_of(&[*write]), "this role")
+                    .expect_err("a write without its view was let through");
+
+                assert!(
+                    matches!(
+                        &refusal,
+                        Error::Refused { reason, message }
+                            if Some(*reason) == family.viewing_needed()
+                                && message.contains(family.name())
+                    ),
+                    "{refusal:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn the_built_in_roles_view_every_kind_they_write() {
+        for role in BUILT_IN {
+            assert_eq!(first_write_without_view(role.mask), None, "{}", role.id);
+            assert!(refuse_write_without_view(role.mask, role.id).is_ok());
+        }
+
+        assert_eq!(
+            first_write_without_view(effective(MEMBER_ROLE.mask, mask_of(&[Flag::ViewContract]))),
+            Some(Family::Contract)
         );
     }
 }

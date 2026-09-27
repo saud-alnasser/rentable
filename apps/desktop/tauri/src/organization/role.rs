@@ -1632,10 +1632,17 @@ async fn apply(
     };
 
     for role in &change.roles {
-        let was = standing_in(&before, &role.id).map_or(0, |(mask, _)| mask);
+        let was = standing_in(&before, &role.id).map(|(mask, _)| mask);
 
         refuse_owner_only(role.mask)?;
-        refuse_unheld(actor, was ^ role.mask)?;
+        refuse_unheld(actor, was.unwrap_or(0) ^ role.mask)?;
+
+        // a role made or given another mask adds, edits or deletes no kind of record it does not
+        // view (requirement 6, as amended 2026-09-27); one only renamed or renumbered is signed
+        // again as it stands.
+        if was != Some(role.mask) {
+            permission::refuse_write_without_view(role.mask, "this role")?;
+        }
     }
 
     let mut moved = Vec::new();
@@ -1670,8 +1677,10 @@ async fn apply(
             .find(|(member_id, _, _)| *member_id == row.id)
             .map(|(_, role_id, override_mask)| (role_id.clone(), *override_mask))
             .unwrap_or_else(|| {
+                // a holder of a deleted role is given the member role, and holds it exactly: the
+                // override they carried is cleared with it (requirement 6, as amended 2026-09-27).
                 if change.deleted.contains(&row.role_id) {
-                    (permission::MEMBER.to_string(), row.override_mask)
+                    (permission::MEMBER.to_string(), 0)
                 } else {
                     (row.role_id.clone(), row.override_mask)
                 }
@@ -1706,6 +1715,13 @@ async fn apply(
         if row.removed_at.is_none() {
             refuse_owner_only(override_mask | effective_after)?;
             refuse_unheld(actor, effective_before ^ effective_after)?;
+
+            // and what the member ends up with adds, edits or deletes no kind of record they
+            // cannot view, whether their role or their override moved it (requirement 6, as
+            // amended 2026-09-27).
+            if effective_before != effective_after {
+                permission::refuse_write_without_view(effective_after, "a member this changes")?;
+            }
         }
 
         moved.push(Moved {
@@ -2052,7 +2068,9 @@ pub async fn move_role(
 }
 
 /// Delete a custom role (requirement 4): every member who held it holds the member role from here
-/// on, reading the member role's mask exclusive-or'd with the override they carry.
+/// on, exactly: the override they carried is cleared in the same signed write, since they are given
+/// another role (requirement 6, as amended 2026-09-27). *They kept it, read against the member
+/// role's mask, until that amendment.*
 ///
 /// **`manageRoles`, and below your rank.** Moving the holders changes their effective permissions,
 /// so every flag that changes for any of them is one the actor holds, and every holder's certificate
@@ -2144,12 +2162,15 @@ fn acted_on<'a>(
 }
 
 /// Give a member a role (requirement 5), and with it, where `override_mask` is given, their
-/// override (requirement 6). With none, the override they carry stays, and is read against the new
-/// role's mask from here on (the spec's *Risks*).
+/// override (requirement 6). **With none, the override they carried is cleared in the same signed
+/// write**, so they hold the role exactly (requirement 6, as amended 2026-09-27). *It stayed, read
+/// against the new role's mask, until that amendment: an override switching one role's flags
+/// switched different ones on the next.*
 ///
 /// **`assignRole`, the rank of the member and of the role, never yourself, and only flags you
-/// hold** (requirement 7); and **`overrideMember` too, where the override given is not the one they
-/// carry**. The role and the override are one act, so "flags held" is asked of the member's
+/// hold** (requirement 7); and **`overrideMember` too, where the act leaves them an override**.
+/// Clearing one is part of assigning, so it asks nothing more. The role and the override are one
+/// act, so "flags held" is asked of the member's
 /// effective permissions before and after both together: a role whose mask carries a flag the actor
 /// lacks, given with an override switching it back, moves nothing the actor does not hold, where
 /// the two asked one after the other would each be refused on the state between them (converge,
@@ -2179,9 +2200,11 @@ pub async fn assign_role(
         "the owner's role is not changed. the organization is theirs",
     )?;
 
-    let override_mask = override_mask.unwrap_or(member.override_mask);
+    // a member given a role holds it exactly: the override they carried is cleared in the same
+    // signed write, unless the act gives one with the role (requirement 6, as amended 2026-09-27).
+    let override_mask = override_mask.unwrap_or(0);
 
-    if override_mask != member.override_mask {
+    if override_mask != 0 {
         permission::require(actor.row.effective, Flag::OverrideMember)?;
     }
 
@@ -2899,7 +2922,8 @@ mod tests {
         assert_eq!(facts.override_mask, switched);
         assert_eq!(facts.permissions, effective);
 
-        // the manager crosses as its kind, where the word used to be `administrator`.
+        // the manager crosses as its kind, where the word used to be `administrator`, and the
+        // override is cleared by the assignment (requirement 6, as amended 2026-09-27).
         assign_role(
             &store,
             &owner,
@@ -2947,7 +2971,8 @@ mod tests {
                 "a certificate or a key crossed: {keys:?}"
             );
         }
-        assert_eq!(crossed["override"], json!(switched));
+        assert_eq!(crossed["override"], json!(0));
+        assert_eq!(crossed_member["override"], json!(switched));
     }
 
     /// The refusals, each before anything is written: nobody changes their own row, nobody changes
@@ -3542,8 +3567,9 @@ mod tests {
 
     /// **Criterion 4, the lifecycle.** A custom role is made, renamed, re-masked, re-ranked and
     /// deleted; it ranks strictly between member and manager every time, a renumbering included,
-    /// and after the deletion every member who held it holds member and reads the member role's
-    /// mask exclusive-or'd with their override.
+    /// and after the deletion every member who held it holds member exactly, their override
+    /// cleared, and the row verifies on another machine. *They read the member role's mask
+    /// exclusive-or'd with the override they kept until requirement 6 was amended on 2026-09-27.*
     #[tokio::test]
     async fn a_custom_role_lives_between_member_and_manager_and_its_holders_fall_to_member() {
         let directory = scratch("lifecycle");
@@ -3692,7 +3718,14 @@ mod tests {
             .await
             .expect("every member row verifies after the renumbering");
 
-        // deleted: sami holds member, and reads the member mask with their override.
+        // deleted: sami, who carried an override, holds member exactly.
+        assert_eq!(
+            member_row(&store, &owner, &sami.member_id)
+                .await
+                .override_mask,
+            turned,
+            "sami carried no override into the deletion"
+        );
         delete_role(&store, &owner, &collector, NOW + 5)
             .await
             .expect("the deletion failed");
@@ -3700,11 +3733,29 @@ mod tests {
         let row = member_row(&store, &owner, &sami.member_id).await;
 
         assert_eq!(row.role_id, permission::MEMBER);
-        assert_eq!(row.override_mask, turned);
+        assert_eq!(row.override_mask, 0, "the override outlived the role");
+        assert_eq!(row.effective, permission::MEMBER_ROLE.mask);
         assert_eq!(
-            row.effective,
-            permission::effective(permission::MEMBER_ROLE.mask, turned)
+            the_certificate(&store, &owner, &sami.member_id)
+                .await
+                .ceiling,
+            permission::MEMBER_ROLE.mask
         );
+
+        let elsewhere = another_machine(&directory, &owner.organization_id).await;
+        let theirs = member_row(&elsewhere, &owner, &sami.member_id).await;
+
+        assert_eq!(
+            (theirs.role_id, theirs.override_mask, theirs.effective),
+            (
+                permission::MEMBER.to_string(),
+                0,
+                permission::MEMBER_ROLE.mask
+            ),
+            "another machine reads the member otherwise"
+        );
+
+        drop(elsewhere);
         assert_eq!(
             the_certificate(&store, &owner, &sami.member_id).await.rank,
             permission::MEMBER_ROLE.rank
@@ -3718,8 +3769,12 @@ mod tests {
     }
 
     /// **Criteria 5 and 6.** Every member row names one role; assigning the owner's role is
-    /// refused, whoever asks; each other role is assigned and the member reads its mask XOR their
-    /// override back; and the owner's row refuses an override, from the owner and from a manager.
+    /// refused, whoever asks; each other role is assigned and the member reads its mask back, the
+    /// override they carried cleared; and the owner's row refuses an override, from the owner and
+    /// from a manager.
+    ///
+    /// *The member read each role's mask XOR their override until requirement 6 was amended on
+    /// 2026-09-27, and the override switched viewing payments off, which that amendment refuses.*
     #[tokio::test]
     async fn the_owners_role_is_not_assigned_and_the_owners_row_carries_no_override() {
         let directory = scratch("assign");
@@ -3750,7 +3805,7 @@ mod tests {
             &workspace_id,
         )
         .await;
-        let turned = permission::mask_of(&[Flag::ViewPayment]);
+        let turned = permission::mask_of(&[Flag::DeletePayment]);
 
         set_override(&store, &owner, &sami.member_id, turned, NOW + 1)
             .await
@@ -3787,11 +3842,8 @@ mod tests {
                 .await
                 .unwrap_or_else(|error| panic!("{role} was not assigned: {error:?}"));
 
-            assert_eq!(
-                facts.permissions,
-                permission::effective(mask, turned),
-                "{role}"
-            );
+            assert_eq!(facts.permissions, mask, "{role}");
+            assert_eq!(facts.override_mask, 0, "{role}");
             assert_eq!(
                 member_row(&store, &owner, &sami.member_id).await.role_id,
                 role
@@ -6362,7 +6414,10 @@ mod tests {
         )
         .await;
         let delete_contract = permission::mask_of(&[Flag::DeleteContract]);
-        let view_complex = permission::mask_of(&[Flag::ViewComplex]);
+        // a flag manny holds, switched on: switching viewing complexes off instead left the member
+        // adding and editing complexes they cannot view, which requirement 6 as amended on
+        // 2026-09-27 refuses before this test's refusal is reached.
+        let delete_complex = permission::mask_of(&[Flag::DeleteComplex]);
 
         set_role_mask(
             &store,
@@ -6395,7 +6450,7 @@ mod tests {
         };
 
         names_the_flag(
-            set_override(&store, &manny, &sami.member_id, view_complex, NOW + 3)
+            set_override(&store, &manny, &sami.member_id, delete_complex, NOW + 3)
                 .await
                 .map(|_| ()),
             "an override leaving sami a flag manny lacks",
@@ -6405,7 +6460,7 @@ mod tests {
                 &store,
                 &manny,
                 permission::MEMBER,
-                (permission::MEMBER_ROLE.mask ^ view_complex) | delete_contract,
+                (permission::MEMBER_ROLE.mask ^ delete_complex) | delete_contract,
                 NOW + 3,
             )
             .await
@@ -8088,5 +8143,321 @@ mod tests {
             assert_eq!(row.vault.public_key, signed_in.secret.public_key());
             assert_eq!(row.owner_seed_sealed, None);
         }
+    }
+
+    // -------------------------------------------------------------------------------------
+    // Effort 838, requirement 6 as amended 2026-09-27: writing a kind of record needs viewing
+    // it, and a member given another role holds it exactly.
+    // -------------------------------------------------------------------------------------
+
+    /// **A member with an override given another role holds it exactly**: the override is cleared
+    /// in the same signed write, what they end up with is the new role's mask, their certificate
+    /// carries it, and the row verifies on a second store.
+    #[tokio::test]
+    async fn a_member_given_another_role_holds_it_exactly() {
+        let directory = scratch("exactly");
+        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (invited, _) = a_member(
+            &store,
+            &owner,
+            &link,
+            "sami.staff",
+            permission::MEMBER,
+            &workspace_id,
+        )
+        .await;
+        let collector = a_role(
+            &store,
+            &owner,
+            "collector",
+            permission::mask_of(&[Flag::ViewPayment, Flag::CreatePayment]),
+            permission::MANAGER,
+        )
+        .await;
+        let override_mask = permission::mask_of(&[Flag::DeletePayment, Flag::InviteMember]);
+
+        set_override(&store, &owner, &invited.member_id, override_mask, NOW + 1)
+            .await
+            .expect("the override was not set");
+
+        assert_eq!(
+            member_row(&store, &owner, &invited.member_id)
+                .await
+                .override_mask,
+            override_mask
+        );
+
+        let given = assign_role(
+            &store,
+            &owner,
+            &invited.member_id,
+            &collector,
+            None,
+            NOW + 2,
+        )
+        .await
+        .expect("the role was not given");
+        let mask = permission::mask_of(&[Flag::ViewPayment, Flag::CreatePayment]);
+
+        assert_eq!(given.permissions, mask);
+
+        let row = member_row(&store, &owner, &invited.member_id).await;
+
+        assert_eq!(row.role_id, collector);
+        assert_eq!(row.override_mask, 0, "the override outlived the role");
+        assert_eq!(row.effective, mask);
+        assert_eq!(
+            the_certificate(&store, &owner, &invited.member_id)
+                .await
+                .ceiling,
+            mask
+        );
+
+        let elsewhere = another_machine(&directory, &owner.organization_id).await;
+        let theirs = member_row(&elsewhere, &owner, &invited.member_id).await;
+
+        assert_eq!(
+            (theirs.role_id, theirs.override_mask, theirs.effective),
+            (collector.clone(), 0, mask),
+            "another machine reads the member otherwise"
+        );
+
+        drop(elsewhere);
+
+        // and given the role they already hold, the override they were given since goes too: the
+        // role, exactly.
+        set_override(
+            &store,
+            &owner,
+            &invited.member_id,
+            permission::mask_of(&[Flag::EditPayment]),
+            NOW + 3,
+        )
+        .await
+        .expect("the override was not set");
+        assign_role(
+            &store,
+            &owner,
+            &invited.member_id,
+            &collector,
+            None,
+            NOW + 4,
+        )
+        .await
+        .expect("the role was not given again");
+
+        assert_eq!(
+            row_of(&store, &owner, &invited.member_id).await,
+            (collector, mask)
+        );
+    }
+
+    /// **Clearing an override is part of assigning**: a manager holding `assignRole` and not
+    /// `overrideMember` gives a member with an override another role, and it is cleared; leaving
+    /// them an override is what asks `overrideMember`.
+    #[tokio::test]
+    async fn clearing_an_override_asks_nothing_more_than_assigning() {
+        let directory = scratch("clearing");
+        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let lead = a_role(
+            &store,
+            &owner,
+            "lead",
+            permission::MEMBER_ROLE.mask | permission::mask_of(&[Flag::AssignRole]),
+            permission::MANAGER,
+        )
+        .await;
+        let assigner = holding_role(&store, &owner, &link, "ada.lead", &lead, &workspace_id).await;
+        let (invited, _) = a_member(
+            &store,
+            &owner,
+            &link,
+            "sami.staff",
+            permission::MEMBER,
+            &workspace_id,
+        )
+        .await;
+        let collector = a_role(
+            &store,
+            &owner,
+            "collector",
+            permission::mask_of(&[Flag::ViewPayment]),
+            &lead,
+        )
+        .await;
+
+        set_override(
+            &store,
+            &owner,
+            &invited.member_id,
+            permission::mask_of(&[Flag::EditPayment]),
+            NOW + 1,
+        )
+        .await
+        .expect("the override was not set");
+
+        let refused = assign_role(
+            &store,
+            &assigner,
+            &invited.member_id,
+            &collector,
+            Some(permission::mask_of(&[Flag::CreatePayment])),
+            NOW + 2,
+        )
+        .await
+        .expect_err("an override was left without overrideMember");
+
+        assert_eq!(
+            reason_of(&refused),
+            RefusalReason::RoleLacksAct,
+            "{refused:?}"
+        );
+
+        assign_role(
+            &store,
+            &assigner,
+            &invited.member_id,
+            &collector,
+            None,
+            NOW + 3,
+        )
+        .await
+        .expect("assigning alone cleared nothing");
+
+        let row = member_row(&store, &owner, &invited.member_id).await;
+
+        assert_eq!(
+            (row.role_id, row.override_mask, row.effective),
+            (collector, 0, permission::mask_of(&[Flag::ViewPayment]))
+        );
+    }
+
+    /// **No role mask and no member's effective permissions that add, edit or delete a kind of
+    /// record without viewing it is written**, by making a role, editing one, setting an override,
+    /// or giving a role with one; the refusal names the kind, and nothing is written. An edit of a
+    /// role is refused too where it would leave a holder's override doing so.
+    #[tokio::test]
+    async fn a_role_or_an_override_writing_a_kind_it_cannot_view_is_refused_by_kind() {
+        let directory = scratch("unviewed");
+        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let collector = a_role(
+            &store,
+            &owner,
+            "collector",
+            permission::mask_of(&[Flag::ViewUnit, Flag::ViewPayment]),
+            permission::MANAGER,
+        )
+        .await;
+        let holder = holding_role(
+            &store,
+            &owner,
+            &link,
+            "noor.collector",
+            &collector,
+            &workspace_id,
+        )
+        .await;
+
+        set_override(
+            &store,
+            &owner,
+            &holder.member_id,
+            permission::mask_of(&[Flag::CreateUnit]),
+            NOW + 1,
+        )
+        .await
+        .expect("an override writing units the role views was refused");
+
+        let (plain, _) = a_member(
+            &store,
+            &owner,
+            &link,
+            "sami.staff",
+            permission::MEMBER,
+            &workspace_id,
+        )
+        .await;
+        let before = every_row(&store).await;
+
+        let refusals = [
+            (
+                "a role made editing contracts alone",
+                create_role(
+                    &store,
+                    &owner,
+                    "clerk",
+                    permission::mask_of(&[Flag::EditContract]),
+                    permission::MANAGER,
+                    NOW + 2,
+                )
+                .await
+                .map(|_| ()),
+                RefusalReason::ContractNeedsViewing,
+            ),
+            (
+                "the member's role adding tenants without viewing them",
+                set_role_mask(
+                    &store,
+                    &owner,
+                    permission::MEMBER,
+                    permission::MEMBER_ROLE.mask & !permission::mask_of(&[Flag::ViewTenant]),
+                    NOW + 2,
+                )
+                .await
+                .map(|_| ()),
+                RefusalReason::TenantNeedsViewing,
+            ),
+            (
+                "an override switching viewing payments off the member's role",
+                set_override(
+                    &store,
+                    &owner,
+                    &plain.member_id,
+                    permission::mask_of(&[Flag::ViewPayment]),
+                    NOW + 2,
+                )
+                .await
+                .map(|_| ()),
+                RefusalReason::PaymentNeedsViewing,
+            ),
+            (
+                "a role given with an override deleting complexes",
+                assign_role(
+                    &store,
+                    &owner,
+                    &plain.member_id,
+                    &collector,
+                    Some(permission::mask_of(&[Flag::DeleteComplex])),
+                    NOW + 2,
+                )
+                .await
+                .map(|_| ()),
+                RefusalReason::ComplexNeedsViewing,
+            ),
+            (
+                "a role edit leaving its holder adding units without viewing them",
+                set_role_mask(
+                    &store,
+                    &owner,
+                    &collector,
+                    permission::mask_of(&[Flag::ViewPayment]),
+                    NOW + 2,
+                )
+                .await
+                .map(|_| ()),
+                RefusalReason::UnitNeedsViewing,
+            ),
+        ];
+
+        for (what, outcome, reason) in refusals {
+            let refused = outcome.expect_err(what);
+
+            assert_eq!(reason_of(&refused), reason, "{what}: {refused:?}");
+        }
+
+        assert!(
+            every_row(&store).await == before,
+            "a refusal wrote something"
+        );
     }
 }

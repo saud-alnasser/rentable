@@ -21,7 +21,9 @@ import { TRPCError } from '@trpc/server';
  *
  * Each concept names its own refusals beside the rules that raise them, and this is their union.
  * `host` is the shell's: a Rust refusal carries its reason, and the reason is named here the way a
- * router's code is, so one lookup finds either sentence. No procedure raises one.
+ * router's code is, so one lookup finds either sentence. A procedure raises one only as the earlier
+ * of two refusals of the same thing: the organization router refuses a role or an override that
+ * writes a kind of record without viewing it with the code Rust refuses it with.
  */
 export type RefusalCode =
 	| ComplexRefusalCode

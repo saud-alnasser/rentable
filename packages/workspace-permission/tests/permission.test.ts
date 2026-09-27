@@ -9,8 +9,11 @@ import {
 	HIGHEST_USABLE_BIT,
 	MEMBER_ADMINISTRATION,
 	OWNER_ONLY,
+	RECORD_KINDS,
 	WRITE_FLAGS,
+	effective,
 	effectiveIn,
+	firstWriteWithoutView,
 	maskOf,
 	permits,
 	xorOf,
@@ -303,5 +306,53 @@ test('a mask carries exactly the flags it was built from', () => {
 	assert.equal(
 		mask,
 		2 ** FLAGS.removeMember + 2 ** FLAGS.grantWorkspace + 2 ** FLAGS.deletePayment
+	);
+});
+
+test('the record kinds are every family but the administration and the owner, in order', () => {
+	assert.deepEqual(RECORD_KINDS, ['complex', 'unit', 'tenant', 'contract', 'payment']);
+});
+
+// effort 838, requirement 6 as amended 2026-09-27: adding, editing or deleting a kind of record
+// needs viewing it. Every kind, and every write flag of it alone, with and without its view.
+test('each kind of record is added, edited or deleted only where it is viewed', () => {
+	for (const kind of RECORD_KINDS) {
+		const [view, ...writes] = FAMILIES[kind] as readonly Flag[];
+
+		assert.equal(firstWriteWithoutView(maskOf(view)), null, `${view} alone`);
+		assert.equal(firstWriteWithoutView(maskOf(...FAMILIES[kind])), null, `all of ${kind}`);
+		assert.equal(writes.length, 3, `${kind} has three write flags`);
+
+		for (const write of writes) {
+			assert.equal(firstWriteWithoutView(maskOf(write)), kind, `${write} without ${view}`);
+			assert.equal(firstWriteWithoutView(maskOf(view, write)), null, `${write} with ${view}`);
+		}
+
+		// every other kind viewed and written in full does not stand in for this one's view.
+		const others = RECORD_KINDS.filter((other) => other !== kind).flatMap(
+			(other) => FAMILIES[other] as readonly Flag[]
+		);
+
+		assert.equal(firstWriteWithoutView(maskOf(...others, ...writes)), kind, `${kind} among others`);
+	}
+
+	assert.equal(firstWriteWithoutView(0), null);
+	assert.equal(firstWriteWithoutView(maskOf(...FAMILIES.administration)), null);
+});
+
+test('the built-in roles pass, and an override taking a view away from one does not', () => {
+	for (const role of Object.values(BUILT_IN)) {
+		assert.equal(firstWriteWithoutView(role.mask), null, role.id);
+	}
+
+	assert.equal(
+		firstWriteWithoutView(effective(BUILT_IN.member.mask, maskOf('viewTenant'))),
+		'tenant'
+	);
+	assert.equal(
+		firstWriteWithoutView(
+			effective(BUILT_IN.member.mask, maskOf('viewTenant', 'createTenant', 'editTenant'))
+		),
+		null
 	);
 });

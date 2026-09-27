@@ -13,7 +13,8 @@ import {
 	fakeOrganizationState
 } from '$lib/platform/tests/testing.ts';
 import { fakeIdentity } from '$lib/api/tests/testing.ts';
-import { EVERY_FLAG, maskOf, type Flag } from '@rentable/workspace-permission';
+import { BUILT_IN, EVERY_FLAG, maskOf, type Flag } from '@rentable/workspace-permission';
+import { readRefusal } from '$lib/api/refusal.ts';
 import type { Host } from '$lib/platform/host.ts';
 import type { AnyProcedure } from '@trpc/server';
 import { readFileSync } from 'node:fs';
@@ -179,13 +180,19 @@ test('an empty name, a username outside the rules, a password under the floor or
 // effort 838, requirements 5 and 6: a role, an override and a withdrawal each reach the host behind
 // their own flag, and a caller whose row carries none of them is refused before the round trip.
 // What is refused on the rows themselves (rank, the caller's own row, flags not held) is Rust's.
+// *The roles and the member list were added by ticket 42, when the router began reading the role's
+// mask to refuse an override that writes a kind of record without viewing it.*
 test('assigning a role, setting an override and withdrawing a grant each need their flag', async () => {
 	const asked: string[] = [];
 	const host = fakeHost({
 		organization: {
 			...fakeHost().organization,
+			roles: async () => [
+				{ id: 'role-7', kind: 'custom', name: 'collector', mask: 0, rank: 500_000, holders: 1 }
+			],
 			member: {
 				...fakeHost().organization.member,
+				list: async () => [fakeOrganizationMember({ id: 'member-2', roleId: 'role-7' })],
 				assignRole: async (memberId, roleId, override) => {
 					asked.push(`assignRole:${memberId}:${roleId}:${override}`);
 
@@ -582,6 +589,7 @@ test('making an account is inviteMember and unsetting a password is resetPasswor
 	const host = fakeHost({
 		organization: {
 			...fakeHost().organization,
+			roles: async () => [{ ...BUILT_IN.member, kind: 'member', name: '', holders: 0 }],
 			member: {
 				...fakeHost().organization.member,
 				create: async (username, roleId, override, workspaces) => {
@@ -1205,4 +1213,130 @@ test('an owner act or a change of the mark is refused, by name, to a caller lack
 		remover.app.organization.member.remove({ memberId: 'member-2', lockOut: true })
 	);
 	assert.deepEqual(asked, ['member.remove']);
+});
+
+// effort 838, requirement 6 as amended 2026-09-27: adding, editing or deleting a kind of record
+// needs viewing it. A role mask, and what a role and an override give a member, that write a kind
+// without viewing it are refused before the host is asked to write, naming the kind by the code
+// Rust refuses it with. Rust refuses the same again, and whether a new mask leaves a holder's
+// override doing so is Rust's alone.
+test('a role or an override that writes a kind of record without viewing it is refused by kind', async () => {
+	const asked: string[] = [];
+	const host = fakeHost({
+		organization: {
+			...fakeHost().organization,
+			roles: async () => [
+				{ ...BUILT_IN.member, kind: 'member', name: '', holders: 1 },
+				{ id: 'role-7', kind: 'custom', name: 'collector', mask: 0, rank: 500_000, holders: 1 }
+			],
+			role: {
+				...fakeHost().organization.role,
+				create: async (name, mask) => {
+					asked.push(`create:${mask}`);
+
+					return { id: 'role-8', kind: 'custom', name, mask, rank: 250_000, holders: 0 };
+				},
+				setMask: async (roleId, mask) => {
+					asked.push(`setMask:${roleId}:${mask}`);
+
+					return { id: roleId, kind: 'custom', name: 'collector', mask, rank: 0, holders: 0 };
+				}
+			},
+			member: {
+				...fakeHost().organization.member,
+				list: async () => [fakeOrganizationMember({ id: 'member-2', roleId: 'member' })],
+				create: async (username, roleId, override) => {
+					asked.push(`create:${username}:${roleId}:${override}`);
+
+					return fakeOrganizationMember({ username, roleId, override });
+				},
+				assignRole: async (memberId, roleId, override) => {
+					asked.push(`assignRole:${memberId}:${roleId}:${override}`);
+
+					return fakeOrganizationMember({ id: memberId, roleId });
+				},
+				setOverride: async (memberId, override) => {
+					asked.push(`setOverride:${memberId}:${override}`);
+
+					return fakeOrganizationMember({ id: memberId, override });
+				}
+			}
+		}
+	});
+	const api = await permittedApi(
+		host,
+		'manageRoles',
+		'assignRole',
+		'overrideMember',
+		'inviteMember',
+		'grantWorkspace'
+	);
+	const refusedAs = async (call: Promise<unknown>, code: string): Promise<void> => {
+		await assert.rejects(call, (error: unknown) => {
+			assert.equal(readRefusal(error)?.code, code);
+
+			return true;
+		});
+	};
+
+	await refusedAs(
+		api.app.organization.role.create({
+			name: 'collector',
+			mask: maskOf('editContract'),
+			afterRoleId: 'manager'
+		}),
+		'host.contractNeedsViewing'
+	);
+	await refusedAs(
+		api.app.organization.role.setMask({
+			roleId: 'role-7',
+			mask: maskOf('viewUnit', 'createTenant')
+		}),
+		'host.tenantNeedsViewing'
+	);
+	// the member's role views payments; an override switching that view off leaves them writing
+	// payments they cannot see.
+	await refusedAs(
+		api.app.organization.member.setOverride({
+			memberId: 'member-2',
+			override: maskOf('viewPayment')
+		}),
+		'host.paymentNeedsViewing'
+	);
+	await refusedAs(
+		api.app.organization.member.assignRole({
+			memberId: 'member-2',
+			roleId: 'role-7',
+			override: maskOf('deleteComplex')
+		}),
+		'host.complexNeedsViewing'
+	);
+	await refusedAs(
+		api.app.organization.member.create({
+			username: 'sami.staff',
+			roleId: 'member',
+			override: maskOf('viewUnit'),
+			workspaces: []
+		}),
+		'host.unitNeedsViewing'
+	);
+	assert.deepEqual(asked, [], 'the host was asked to write a mask the router refuses');
+
+	// and the same acts go through where every kind written is viewed.
+	await api.app.organization.role.create({
+		name: 'collector',
+		mask: maskOf('viewContract', 'editContract'),
+		afterRoleId: 'manager'
+	});
+	await api.app.organization.member.setOverride({
+		memberId: 'member-2',
+		override: maskOf('viewPayment', 'createPayment', 'editPayment')
+	});
+	await api.app.organization.member.assignRole({ memberId: 'member-2', roleId: 'role-7' });
+
+	assert.deepEqual(asked, [
+		`create:${maskOf('viewContract', 'editContract')}`,
+		`setOverride:member-2:${maskOf('viewPayment', 'createPayment', 'editPayment')}`,
+		'assignRole:member-2:role-7:undefined'
+	]);
 });

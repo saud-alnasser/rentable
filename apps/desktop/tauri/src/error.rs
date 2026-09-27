@@ -181,6 +181,18 @@ pub enum RefusalReason {
     NoRankBelow,
     /// the owner's role is not assigned; the owner hands the organization over.
     OwnerRoleNotAssigned,
+    /// a role or a member's permissions would add, edit or delete complexes without viewing them
+    /// (effort 838, requirement 6 as amended 2026-09-27). One word per kind of record, so the
+    /// sentence names the kind in the reader's language.
+    ComplexNeedsViewing,
+    /// the same, for units.
+    UnitNeedsViewing,
+    /// the same, for tenants.
+    TenantNeedsViewing,
+    /// the same, for contracts.
+    ContractNeedsViewing,
+    /// the same, for payments.
+    PaymentNeedsViewing,
 
     // handing the organization over.
     /// the owner offered the organization to themselves.

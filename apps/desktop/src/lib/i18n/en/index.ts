@@ -363,6 +363,16 @@ const en = {
 				noRankBelow: 'there is no room left below your role. ask somebody who ranks above you.',
 				ownerRoleNotAssigned:
 					"the owner's role moves only when the owner hands the organization over.",
+				complexNeedsViewing:
+					'adding, editing or deleting complexes needs viewing them. turn on viewing complexes first.',
+				unitNeedsViewing:
+					'adding, editing or deleting units needs viewing them. turn on viewing units first.',
+				tenantNeedsViewing:
+					'adding, editing or deleting tenants needs viewing them. turn on viewing tenants first.',
+				contractNeedsViewing:
+					'adding, editing or deleting contracts needs viewing them. turn on viewing contracts first.',
+				paymentNeedsViewing:
+					'adding, editing or deleting payments needs viewing them. turn on viewing payments first.',
 				alreadyOwner: 'you are the owner already. choose the account that is to have it.',
 				accountNotSetUp:
 					'that account has no password of its own yet. once they open their link and choose one, offer it again.',
@@ -1440,7 +1450,7 @@ const en = {
 			create: 'add the role',
 			deleteTitle: 'delete role',
 			deleteDescription:
-				'everybody holding it holds the member role instead, keeping anything changed for them alone.',
+				'everybody holding it becomes a member, with exactly what the member role gives.',
 			created: 'the role was added.',
 			saved: 'the role was saved.',
 			moved: 'the role was moved.',

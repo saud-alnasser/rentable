@@ -15,7 +15,10 @@ import type {
 	SessionsEnded,
 	UnreachableWorkspace
 } from '$lib/platform/tauri';
+import type { Host } from '$lib/platform/host';
+import { refuse } from '$lib/api/refusal';
 import { procedure, router } from '$lib/api/trpc';
+import { effective, firstWriteWithoutView } from '@rentable/workspace-permission';
 import z from 'zod';
 
 import { CODE_LENGTH } from './connect';
@@ -42,6 +45,47 @@ const ROLE_NAME = z.string().trim().min(1);
 
 /** a set of flags as the one number a row stores, which never reaches bit 53. */
 const MASK = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
+
+/**
+ * Refuse a mask that adds, edits or deletes a kind of record without viewing it, naming the kind by
+ * its own code (effort 838, requirement 6 as amended 2026-09-27). The rule is the package's
+ * `firstWriteWithoutView`; this is the earlier of the two refusals, and Rust refuses the same with
+ * the same reason whatever reaches it.
+ */
+function refuseWriteWithoutView(mask: number): void {
+	const kind = firstWriteWithoutView(mask);
+
+	if (kind) {
+		throw refuse(`host.${kind}NeedsViewing`);
+	}
+}
+
+/**
+ * The mask of a role by id, or `null` where the organization holds none by that id, which Rust
+ * refuses by name.
+ */
+async function roleMask(host: Host, roleId: string): Promise<number | null> {
+	const roles = await host.organization.roles();
+
+	return roles.find((role) => role.id === roleId)?.mask ?? null;
+}
+
+/**
+ * Refuse a role and an override whose effective permissions add, edit or delete a kind of record
+ * without viewing it. Where the role is not one the organization holds, Rust's refusal is the one
+ * that names it.
+ */
+async function refuseEffectiveWriteWithoutView(
+	host: Host,
+	roleId: string,
+	override: number
+): Promise<void> {
+	const mask = await roleMask(host, roleId);
+
+	if (mask !== null) {
+		refuseWriteWithoutView(effective(mask, override));
+	}
+}
 
 /**
  * ORGANIZATION ROUTER
@@ -303,6 +347,8 @@ export const organization = router({
 				})
 			)
 			.mutation(async ({ input, ctx }): Promise<OrganizationMember> => {
+				await refuseEffectiveWriteWithoutView(ctx.host, input.roleId, input.override);
+
 				return ctx.host.organization.member.create(
 					input.username,
 					input.roleId,
@@ -384,9 +430,11 @@ export const organization = router({
 		 * read. *It was `changeRole`, which wrote a word and seven acts together, until effort 838.*
 		 *
 		 * **An override may ride with the role**, and then the two are one act, so the flags held
-		 * are asked of both together (ticket 14 of effort 838). Whether it changes the override the
-		 * member carries, and so whether `overrideMember` is asked too, is Rust's for the same
-		 * reason.
+		 * are asked of both together (ticket 14 of effort 838). **Left out, the override the member
+		 * carried is cleared**, so they hold the role exactly (requirement 6, as amended
+		 * 2026-09-27); one left standing asks `overrideMember` too, in Rust for the same reason.
+		 * What the member ends up with is refused here where it adds, edits or deletes a kind of
+		 * record without viewing it.
 		 */
 		assignRole: procedure
 			.permitted('assignRole')
@@ -398,6 +446,8 @@ export const organization = router({
 				})
 			)
 			.mutation(async ({ input, ctx }): Promise<OrganizationMember> => {
+				await refuseEffectiveWriteWithoutView(ctx.host, input.roleId, input.override ?? 0);
+
 				return ctx.host.organization.member.assignRole(
 					input.memberId,
 					input.roleId,
@@ -406,12 +456,22 @@ export const organization = router({
 			}),
 		/**
 		 * The flags switched for one member alone (requirement 6), held to `overrideMember` here and
-		 * to the rest of requirement 7 in Rust, as `assignRole` is.
+		 * to the rest of requirement 7 in Rust, as `assignRole` is. What the member ends up with,
+		 * their role's mask with the override switched, is refused here where it adds, edits or
+		 * deletes a kind of record without viewing it; a member this side does not find is Rust's to
+		 * refuse by name.
 		 */
 		setOverride: procedure
 			.permitted('overrideMember')
 			.input(z.object({ memberId: z.string().trim().min(1), override: MASK }))
 			.mutation(async ({ input, ctx }): Promise<OrganizationMember> => {
+				const members = await ctx.host.organization.member.list();
+				const member = members.find((held) => held.id === input.memberId);
+
+				if (member) {
+					await refuseEffectiveWriteWithoutView(ctx.host, member.roleId, input.override);
+				}
+
 				return ctx.host.organization.member.setOverride(input.memberId, input.override);
 			}),
 		/**
@@ -473,7 +533,9 @@ export const organization = router({
 	 * a secret from the people who hold them. **Every write is `manageRoles`'s here and again in
 	 * Rust**, where the rest of requirement 7 is decided on verified rows: the role ranks below the
 	 * caller, a built-in role is not renamed, moved or deleted, and a mask carries only flags the
-	 * caller holds and none of the owner's.
+	 * caller holds and none of the owner's. A mask that adds, edits or deletes a kind of record
+	 * without viewing it is refused here as well as there (requirement 6, as amended 2026-09-27);
+	 * whether a new mask leaves a holder's override doing so is Rust's, on the rows.
 	 */
 	role: {
 		list: procedure.member.query(async ({ ctx }): Promise<OrganizationRole[]> => {
@@ -483,6 +545,8 @@ export const organization = router({
 			.permitted('manageRoles')
 			.input(z.object({ name: ROLE_NAME, mask: MASK, afterRoleId: ROLE_ID }))
 			.mutation(async ({ input, ctx }): Promise<OrganizationRole> => {
+				refuseWriteWithoutView(input.mask);
+
 				return ctx.host.organization.role.create(input.name, input.mask, input.afterRoleId);
 			}),
 		rename: procedure
@@ -495,6 +559,8 @@ export const organization = router({
 			.permitted('manageRoles')
 			.input(z.object({ roleId: ROLE_ID, mask: MASK }))
 			.mutation(async ({ input, ctx }): Promise<OrganizationRole> => {
+				refuseWriteWithoutView(input.mask);
+
 				return ctx.host.organization.role.setMask(input.roleId, input.mask);
 			}),
 		move: procedure
