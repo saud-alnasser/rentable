@@ -130,7 +130,7 @@ Start at [[protocol]].
 | 828-the-link-needs-a-code-and-the-settings-area-guides | implemented | [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]] | 5 | 0 | 29 |
 | 832-the-interface-speaks-one-language-and-guides | accepted | [[efforts/832-the-interface-speaks-one-language-and-guides/spec]] | 3 | 4 | 43 |
 | 835-the-rent-is-receipted-scheduled-and-chased | implemented | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]] | 1 | 0 | 19 |
-| 838-permissions-are-a-role-and-an-override | implemented | [[efforts/838-permissions-are-a-role-and-an-override/spec]] | 0 | 0 | 25 |
+| 838-permissions-are-a-role-and-an-override | accepted | [[efforts/838-permissions-are-a-role-and-an-override/spec]] | 0 | 0 | 28 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -362,3 +362,6 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/838-permissions-are-a-role-and-an-override/tickets/23-the-upgrade-happens-once-online-and-every-machine-follows-it]] fix(organization): the upgrade happens once, online, and every machine follows it | 838-permissions-are-a-role-and-an-override | resolved | 22 |
 | [[efforts/838-permissions-are-a-role-and-an-override/tickets/24-the-upgrade-shares-the-stores-readers-and-signers]] refactor(organization): the upgrade shares the store's readers and signers | 838-permissions-are-a-role-and-an-override | resolved | 23 |
 | [[efforts/838-permissions-are-a-role-and-an-override/tickets/25-an-upgraded-organization-is-never-upgraded-again]] fix(organization): an upgraded organization is never upgraded again | 838-permissions-are-a-role-and-an-override | resolved | 24 |
+| [[efforts/838-permissions-are-a-role-and-an-override/tickets/26-each-format-change-is-a-file-of-its-own]] refactor(organization): each format change is a file of its own | 838-permissions-are-a-role-and-an-override | open | — |
+| [[efforts/838-permissions-are-a-role-and-an-override/tickets/27-a-copy-is-taken-before-the-organization-changes-format]] feat(organization): a copy is taken before the organization changes format | 838-permissions-are-a-role-and-an-override | open | 26 |
+| [[efforts/838-permissions-are-a-role-and-an-override/tickets/28-a-copy-is-taken-before-a-workspace-migration]] feat(organization): a copy is taken before a workspace migration | 838-permissions-are-a-role-and-an-override | open | 27 |

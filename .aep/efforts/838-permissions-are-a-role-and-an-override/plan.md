@@ -406,6 +406,63 @@ captured is pushed before the upgrade runs.*
 A machine still on the old build after the upgrade reads a directory it cannot parse. That is the
 cost of the owner updating first; the old build is not changed.
 
+## Each format change is a file (spec, requirement 14)
+
+*Amended 2026-09-27, the human's call.* `upgrade.rs` today is the runner and the format 1 to 2
+change in one file. It splits in two, with no change of behaviour:
+
+- **`organization/transition/mod.rs`** holds the list, `TRANSITIONS`, in order, and the shape one
+  entry has: the format it starts from, a name for the log, a refusal check over the directory as it
+  stands (format 1 to 2's is `holds_a_root`), and the plan it makes and applies inside the
+  runner's transaction. A table of plain `fn` items returning boxed futures, not an `async` trait
+  object, because `async fn` in a trait is not object safe on this toolchain and the list is
+  static. `FORMAT_VERSION` becomes `TRANSITIONS.len() as i64 + 1`, a `const`, so a change added is
+  the shipped format moved, the way `build.rs` counts the workspace migrations. A test fails a list
+  whose `from` values are not 1, 2, 3 in order.
+- **`organization/transition/format_1_to_2.rs`** takes what is format 1's alone: `Judge`,
+  `Carried`, `carried_by`, `planned`, `applied`, `Step`, the format 1 readers the upgrade calls, and
+  `holds_a_root`.
+- **`upgrade.rs` stays the runner**: the vault, the settled key, the owner, the grant and the mint,
+  following the owner, the push and pull, `known_format`, then the copy (below), then one
+  transaction that walks `TRANSITIONS` from the format read to the shipped one and writes the
+  `format` row last, then the push. The format read is the `format` row, or 1 where no such table
+  stands. `known_format` refuses any entry whose `from` is below it, which generalises ticket 25's
+  guard.
+- The module comment of `transition/mod.rs` says in five lines how the next format is added: a file,
+  a line in the list, the new tables in `install_schema`, and a test in the file. A test-only entry
+  from the shipped format to the next proves it (spec, criterion 14).
+
+## A copy before every change (spec, requirement 13)
+
+*Amended 2026-09-27, the human's call: both copies, and the workspaces too.* The engine refuses to
+copy a replica's file (#569, `update.rs`), so the local copy is **logical**: every table in
+`sqlite_master` but SQLite's own and the engine's, read row by row, written into a new plain SQLite
+file with the same `CREATE` statements, through `sqlx` as the rest of the plain files are.
+
+- **`tauri/src/backup.rs`**, one module both paths call:
+  - `local_copy(source, directory, label) -> Result<PathBuf, Error>`: `source` is a trait with two
+    implementations, the organization replica's connection and a workspace's `/v2/pipeline`
+    (`migrate::Pipeline`), each answering the table list and the rows. The file is written as
+    `<name>.partial`, every table's row count read back and compared with the source's, then renamed
+    to `<data_dir>/backups/<database>/<label>-<unix ms>.sqlite`. The three newest per database are
+    kept, the rest removed after the new one stands.
+  - `remote_copy(platform, database, label) -> Result<String, PlatformError>`: a new
+    `TursoPlatform::copy_database`, a `POST /databases` with `seed: {type: "database", name}` in the
+    same group, then delete protection, as `create_database` does (a copy that cannot be protected
+    is removed). The name is `<database>-<label>-<unix s>`, cut to Turso's 64 characters. Every copy
+    is kept; the owner removes them on the account.
+- **Organization**: in the owner's upgrade, after the pull and the refusal checks and before the
+  transaction, the replica is copied, labelled `format-<from>-to-<to>`. The remote copy is made
+  where `ItsRemote::account` is present. A new `Replication::copied` carries it so the test double
+  records it.
+- **Workspace**: in `migration::upgrade`, once the lease is `Held` and before `apply_between`, the
+  workspace is copied over the pipeline the migration uses, labelled `schema-<from>-to-<to>`; the
+  remote copy where this machine holds the account. A local copy that fails releases the lease,
+  as a failed migration does.
+- **A new refusal, `CopyNotTaken`**, in English and Arabic: the copy before the upgrade could not be
+  written, nothing was changed, and it names the directory. A remote copy refused is
+  `backup.remoteCopyRefused` in the log and nothing else.
+
 # Testing Strategy
 
 | Criterion | Checked by |
@@ -422,6 +479,8 @@ cost of the owner updating first; the old build is not changed.
 | 10 | TS: for each record flag, the procedure refuses without it; component tests on each concept's acts for the reason text; navigation, search and dashboard leave out a kind without its view flag; a read-only grant refuses every write |
 | 11 | Rust: a format 1 organization written by the main-branch shape (owner, narrowed administrator, member with administration flags, removed member, pending invitation, both grant levels, mark) upgraded by the owner's sign-in, then every member's effective permissions compared with the old and every row verified from a second store; the upgrade cut short before `format` still reads as format 1 and completes on the next sign-in; a member first refused naming the owner, nothing written; `format` version 3 refused naming the update, nothing written. *Tickets 23 and 25 add:* offline, or a failed push or pull, nothing written; a member pulling first and following the owner; every partial state finished; a second owner machine writing nothing; a late old-build row read verified; the owner found by key alone; a format 2 organization made to look older never transformed |
 | 12 | the human, on the running application, at the close |
+| 13 | Rust: the format 1 fixture upgraded, then its local copy opened as a plain file and every table and row compared with a copy read before the upgrade; the in-memory platform recording one protected copy; a directory that cannot be written refusing with `CopyNotTaken` and the organization unchanged; a pending workspace migration against the pipeline test double leaving its copy; a refused remote copy logged and the change done; retention keeping three |
+| 14 | Rust: the list's `from` values contiguous from 1 and `FORMAT_VERSION` equal to its length plus one; a test-only entry from the shipped format to the next, walked by the runner with the copy, the transaction and the `format` row; the format 1 to 2 tests unchanged and green after the split |
 
 # Operational Considerations
 
@@ -447,5 +506,9 @@ cost of the owner updating first; the old build is not changed.
 - **Unverifiable rows refuse the whole read.** A manager whose certificate is revoked while their
   signed rows are still arriving could make a member's directory refuse until the re-signed rows
   land. The re-sign is in the same transaction as the revocation for that reason.
+- **A copy holds the organization's sealed and signed rows as they lie.** It is no more exposed
+  than the replica beside it on the same disk, and the remote copy is on the owner's own account;
+  neither holds a key. Copies on the account are never deleted by the application, so they collect,
+  one per change, which is rare.
 - **The alias window in step 1** lets old names linger; step 9 removes them, and a lint-level grep in
   that ticket's criteria holds it.

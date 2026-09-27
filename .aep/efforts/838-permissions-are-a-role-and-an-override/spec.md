@@ -1,5 +1,5 @@
 ---
-status: implemented
+status: accepted
 ---
 
 # Problem
@@ -52,6 +52,9 @@ rank, without the owner present.
 - Enforcement of every flag, in the interface and at the command or router that performs the act.
 - An in-place upgrade of an organization in the format that exists today, run by its owner, and a
   clear refusal of a newer format.
+- A copy of the organization database taken before its format changes, and of a workspace database
+  before a migration changes its schema.
+- The organization's format transitions written one to a file, so the next format is one file added.
 - The surfaces in the settings area where roles are defined and a member's role and override are
   set.
 
@@ -128,6 +131,23 @@ rank, without the owner present.
     holder of the flag create, rename, re-rank, edit and delete them. A member's card sets their role
     and their override, and shows, flag by flag, what their role gives, what the override changes,
     and what they end up with. Where the viewer may not change something, the control says why.
+13. **Nothing changes an organization's format or a workspace's schema without a copy of it first.**
+    Before the owner's machine transforms the organization, and before the member holding a
+    workspace's lease applies a pending migration to it, the machine writes a copy of every table
+    the database holds, as it stands at that moment, to a file of its own on this machine. Where the
+    machine also holds the owner's Turso account, it makes a copy of the database on that account
+    too, protected from deletion. The change starts only once the local copy is written and read
+    back complete. A local copy that cannot be written stops the change, writes nothing to the
+    database, and says so. A copy on the account that cannot be made is logged, and the change goes
+    on with the local copy. The log names where each copy is. *The human's call, 2026-09-27: both
+    copies, and workspace migrations as well as the organization.*
+14. **An organization's next format is one file added.** Each change of format, from one version to
+    the next, is written in a file of its own and listed, in order, in one place. The upgrade walks
+    that list from the format the organization is in to the one this build ships, in one
+    transaction, and writes the `format` row last. What every change of format needs (finding the
+    owner, the push and pull before it, the copy, the refusal of a directory that was once newer,
+    the transaction and the `format` row) is written once, outside those files, and the version the
+    build ships is counted from the list. *The human's call, 2026-09-27.*
 
 # Acceptance Criteria
 
@@ -176,6 +196,17 @@ rank, without the owner present.
     refused, naming the update, and written to not at all.
 12. On the running application, the roles list, the role editor and a member's card show and change
     what requirement 12 says, and a control the viewer may not use says why. Checked by the human.
+13. A test upgrades a format 1 organization and finds a local copy holding every table and row the
+    organization held before, and none of the changes; one where the account is reachable finds a
+    protected copy made on it from the organization database. A test whose local copy cannot be
+    written finds the organization and the workspace unchanged and the refusal given. A test
+    applies a pending workspace migration and finds the same two copies of the workspace as it was.
+    A copy the account refuses leaves the change going on and a line in the log.
+14. The format 1 to 2 change sits in a file of its own. The version the build ships equals the count
+    of changes listed plus one, and a test fails a list that skips or repeats a version. A test
+    registers a change from the shipped format to the next, under test only, and an organization
+    in the shipped format is walked through it by the same upgrade, with the copy, the transaction
+    and the `format` row, and no other code touched.
 
 # Constraints
 
@@ -219,6 +250,9 @@ rank, without the owner present.
 - **An audit log** of who changed which role or override.
 - **Giving anyone but the owner the Turso authority**, or the acts that need it.
 - **A 54th flag**, and the row-per-flag migration decision 04 names for it.
+- **Restoring a copy from inside the application.** A copy is the record to restore from, by hand
+  or on the Turso account; a restore button, and deciding what a restore does to the machines that
+  moved on, are a later effort's.
 
 # Assumptions
 
