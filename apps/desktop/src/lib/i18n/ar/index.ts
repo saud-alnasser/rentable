@@ -1341,6 +1341,14 @@ const ar = {
 			resetNotHeld: 'الإعادة تغيّر صلاحية لا تحملها أنت.'
 		},
 
+		roleCard: {
+			edit: 'يستطيع التعديل',
+			add: 'يستطيع الإضافة',
+			view: 'عرض فقط',
+			everything: 'كل شيء',
+			administers: 'يدير'
+		},
+
 		levels: {
 			full: { does: 'يقرأ كل ما فيها ويكتب.' },
 			readOnly: { does: 'يقرأها ولا يكتب فيها شيئًا.' },

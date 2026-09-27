@@ -4322,6 +4322,28 @@ type RootTranslation = {
 			 */
 			resetNotHeld: string
 		}
+		roleCard: {
+			/**
+			 * c​a​n​ ​e​d​i​t
+			 */
+			edit: string
+			/**
+			 * c​a​n​ ​a​d​d
+			 */
+			add: string
+			/**
+			 * v​i​e​w​ ​o​n​l​y
+			 */
+			view: string
+			/**
+			 * e​v​e​r​y​t​h​i​n​g
+			 */
+			everything: string
+			/**
+			 * a​d​m​i​n​i​s​t​e​r​s
+			 */
+			administers: string
+		}
 		levels: {
 			full: {
 				/**
@@ -8558,6 +8580,28 @@ export type TranslationFunctions = {
 			 * resetting would change a permission you do not hold yourself.
 			 */
 			resetNotHeld: () => LocalizedString
+		}
+		roleCard: {
+			/**
+			 * can edit
+			 */
+			edit: () => LocalizedString
+			/**
+			 * can add
+			 */
+			add: () => LocalizedString
+			/**
+			 * view only
+			 */
+			view: () => LocalizedString
+			/**
+			 * everything
+			 */
+			everything: () => LocalizedString
+			/**
+			 * administers
+			 */
+			administers: () => LocalizedString
 		}
 		levels: {
 			full: {

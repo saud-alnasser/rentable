@@ -1475,6 +1475,20 @@ const en = {
 			resetNotHeld: 'resetting would change a permission you do not hold yourself.'
 		},
 
+		/**
+		 * a role's card in the roles block, summed by kind of record (effort 838, requirement 12 as
+		 * amended 2026-09-27): each kind the role can see under the one word for how much it may do
+		 * with it, the owner as everything, and how many of the organization's ten it holds. The top
+		 * of the ladder is `dashboard.accessFull`, the one key that says full access.
+		 */
+		roleCard: {
+			edit: 'can edit',
+			add: 'can add',
+			view: 'view only',
+			everything: 'everything',
+			administers: 'administers'
+		},
+
 		/** what each access level is good for, beside the level's own name. */
 		levels: {
 			full: { does: 'reads and writes everything in it.' },

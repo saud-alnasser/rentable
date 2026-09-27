@@ -14,16 +14,22 @@
 	import DirectoryTray from '$lib/organization/component/directory-tray.svelte';
 	import { toRoleDirectory } from '$lib/organization/directory';
 	import { roleActs, roleHost, rolePending } from '$lib/organization/host.svelte';
+	import { ADMINISTRATION_GLYPH, KIND_GLYPH } from '$lib/organization/glyph';
 	import {
-		carriedIn,
+		ADMINISTRATION_TOTAL,
+		administrationHeld,
 		familyName,
-		flagName,
-		LISTED_FAMILIES,
-		roleNameOf
+		levelOf,
+		levelWord,
+		RECORD_KINDS,
+		roleNameOf,
+		type KindLevel,
+		type RecordKind
 	} from '$lib/organization/role';
 	import type { OrganizationRole } from '$lib/platform/host';
 	import { getIntlLocale } from '$lib/platform/locale';
 	import { recordOf, ROLE_PARAM, withSection } from '$lib/settings/section';
+	import CrownIcon from '@lucide/svelte/icons/crown';
 	import XIcon from '@lucide/svelte/icons/x';
 
 	/**
@@ -54,9 +60,19 @@
 	 * **The one create stands last at the end of the bar** ([[rules/interface]], *Create*), refused
 	 * with the flag it needs where the reader lacks it.
 	 *
-	 * **A card says what the role carries, a line per family**, the family's name and then each
-	 * flag it carries in that family, and how many hold it. A family it carries nothing of is left
-	 * out, so a card is as long as the role is wide.
+	 * **A card sums the role by kind of record, a line per level** (requirement 12 as amended
+	 * 2026-09-27): the level's word (`levelWord`: *full access*, *can edit*, *can add*, *view
+	 * only*) and then each kind on it under its glyph, *can edit* then complexes, units, tenants.
+	 * A kind it cannot see is left out; the owner reads *everything*, under its crown; and where
+	 * the role holds any of the organization's ten, one line says how many, in the words the
+	 * switch list's folded group uses. How many hold it sits beside the name, and the rank is the
+	 * list's order.
+	 *
+	 * *Lines by level rather than a row per kind*, because a role is mostly one or two levels: the
+	 * member is one line and the manager one line and a count, where rows would be five apiece and
+	 * the card would stop being scannable in a list of them. The reader reads the level first and
+	 * the kinds after it, the way sharing products put the level before the people it applies to.
+	 * A mix off the ladder is its own line, named by its verbs.
 	 *
 	 * **Drawn for everybody signed in**, since what each role may do is not a secret from the people
 	 * who hold them. An act the reader may not take is refused with its reason (the flag they lack,
@@ -107,21 +123,31 @@
 
 	const list = $derived(new Intl.ListFormat(getIntlLocale($locale), { type: 'unit' }));
 
-	/** a line per family the role carries anything of: the family, and the flags it carries in it. */
-	const carriesOf = (role: OrganizationRole) =>
-		LISTED_FAMILIES.flatMap((family) => {
-			const carried = carriedIn(role.mask, family);
+	/** the order the lines go in: the widest level first, and any mix off the ladder last. */
+	const LEVEL_ORDER: readonly KindLevel[] = ['full', 'edit', 'add', 'view', 'mixed'];
 
-			return carried.length === 0
-				? []
-				: [
-						{
-							family,
-							name: familyName($LL, family),
-							flags: list.format(carried.map((flag) => flagName($LL, flag)))
-						}
-					];
-		});
+	/**
+	 * a line per level the role has any kind on: the level's words and the kinds on it, in the
+	 * switch list's order. Kinds on the same mix share a line, since they read the same words.
+	 */
+	const levelsOf = (role: OrganizationRole) => {
+		const lines: { level: KindLevel; word: string; kinds: RecordKind[] }[] = [];
+
+		for (const kind of RECORD_KINDS) {
+			const word = levelWord($LL, list, role.mask, kind);
+
+			if (word === null) continue;
+
+			const line = lines.find((each) => each.word === word);
+
+			if (line) line.kinds.push(kind);
+			else lines.push({ level: levelOf(role.mask, kind), word, kinds: [kind] });
+		}
+
+		return lines.sort(
+			(one, other) => LEVEL_ORDER.indexOf(one.level) - LEVEL_ORDER.indexOf(other.level)
+		);
+	};
 
 	// the role the address names is opened and then cleared out of it, as the members directory does.
 	$effect(() => {
@@ -200,19 +226,55 @@
 								</span>
 							</div>
 
-							{#each carriesOf(role) as line (line.family)}
+							{#if role.kind === 'owner'}
 								<p
-									class="text-xs leading-snug text-muted-foreground"
-									data-role-carries={line.family}
+									class="flex items-center gap-1.5 text-xs leading-snug font-medium"
+									data-role-everything
 								>
-									<span class="font-medium text-foreground">{line.name}</span>
-									{line.flags}
+									<CrownIcon class="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+									{$LL.organization.roleCard.everything()}
 								</p>
 							{:else}
-								<p class="text-xs text-muted-foreground" data-role-carries-nothing>
-									{$LL.organization.roleList.carriesNothing()}
-								</p>
-							{/each}
+								{@const held = administrationHeld(role.mask)}
+								{#each levelsOf(role) as line (line.word)}
+									<div
+										class="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs leading-snug"
+										data-role-level={line.level}
+									>
+										<span class="font-medium" data-role-level-word>{line.word}</span>
+										<ul class="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-muted-foreground">
+											{#each line.kinds as kind (kind)}
+												{@const Glyph = KIND_GLYPH[kind]}
+												<li class="flex items-center gap-1" data-role-kind-line={kind}>
+													<Glyph class="size-3.5 shrink-0" aria-hidden="true" />
+													{familyName($LL, kind)}
+												</li>
+											{/each}
+										</ul>
+									</div>
+								{:else}
+									{#if held === 0}
+										<p class="text-xs text-muted-foreground" data-role-carries-nothing>
+											{$LL.organization.roleList.carriesNothing()}
+										</p>
+									{/if}
+								{/each}
+								{#if held > 0}
+									<p
+										class="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs leading-snug"
+										data-role-administers
+									>
+										<span class="font-medium">{$LL.organization.roleCard.administers()}</span>
+										<span class="flex items-center gap-1 text-muted-foreground tabular-nums">
+											<ADMINISTRATION_GLYPH class="size-3.5 shrink-0" aria-hidden="true" />
+											{$LL.organization.switches.folded({
+												count: held,
+												total: ADMINISTRATION_TOTAL
+											})}
+										</span>
+									</p>
+								{/if}
+							{/if}
 						</div>
 					{/snippet}
 				</RecordCard>

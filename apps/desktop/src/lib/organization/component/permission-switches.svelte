@@ -5,9 +5,12 @@
 	import { Switch } from '@rentable/design/primitive/switch/index.js';
 	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
+	import { ADMINISTRATION_GLYPH, KIND_GLYPH } from '$lib/organization/glyph';
 	import {
+		ADMINISTRATION_TOTAL,
 		EDITABLE_FAMILIES,
 		RECORD_KINDS,
+		administrationHeld,
 		familyName,
 		flagName,
 		switchedTo,
@@ -17,13 +20,7 @@
 	} from '$lib/organization/role';
 	import { FAMILIES, permits, type Flag } from '@rentable/workspace-permission';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
-	import CoinsIcon from '@lucide/svelte/icons/coins';
 	import CrownIcon from '@lucide/svelte/icons/crown';
-	import HouseIcon from '@lucide/svelte/icons/house';
-	import LayoutGridIcon from '@lucide/svelte/icons/layout-grid';
-	import ScrollTextIcon from '@lucide/svelte/icons/scroll-text';
-	import UserIcon from '@lucide/svelte/icons/user';
-	import UsersIcon from '@lucide/svelte/icons/users';
 
 	/**
 	 * What a role carries, or what a member ends up with, as one list of switches (effort 838,
@@ -38,14 +35,14 @@
 	 * than by lines between rows. *A mask stored before view was needed can carry a write without
 	 * its view; its switches stay drawn while any is on, so nothing live is out of sight.*
 	 *
-	 * **The glyphs are the ones each kind already has**: the house, the unit grid of the complexes
-	 * row, the person, the scroll and the coins, and the organization's people for the
-	 * administration ([[rules/frontend]]: a concept keeps one glyph everywhere it appears).
+	 * **The glyphs are the ones each kind already has** (`organization/glyph.ts`), which a role's
+	 * card draws too ([[rules/frontend]]: a concept keeps one glyph everywhere it appears).
 	 *
-	 * **The organization's ten fold to a count** ("4 of 10") behind one disclosure, since most
-	 * roles hold few of them and a reader opens them to change them. The owner's own acts are no
-	 * switch at all: no role and no override can carry one, so they are one quiet line with the
-	 * owner's crown ([[rules/interface]], *Guidance*: an act that does not apply is not offered).
+	 * **The organization's ten fold to a count** ("4 of 10", `administrationHeld`, which a role's
+	 * card counts with too) behind one disclosure, since most roles hold few of them and a reader
+	 * opens them to change them. The owner's own acts are no switch at all: no role and no
+	 * override can carry one, so they are one quiet line with the owner's crown
+	 * ([[rules/interface]], *Guidance*: an act that does not apply is not offered).
 	 *
 	 * **A switch the reader may not turn is dimmed, and says why on hover and focus**, the way an
 	 * act that cannot run does (`unavailableControl`): marked `aria-disabled` rather than
@@ -82,14 +79,6 @@
 		/** the role the switches are compared against, where they differ from it. */
 		baseline?: { mask: number; name: string } | null;
 	} = $props();
-
-	const GLYPHS = {
-		complex: HouseIcon,
-		unit: LayoutGridIcon,
-		tenant: UserIcon,
-		contract: ScrollTextIcon,
-		payment: CoinsIcon
-	} as const satisfies Record<RecordKind, typeof HouseIcon>;
 
 	const VERBS = { 1: 'add', 2: 'edit', 3: 'delete' } as const;
 
@@ -146,7 +135,7 @@
 		}
 	};
 
-	const administrationOn = $derived(ADMINISTRATION.filter(isOn).length);
+	const administrationOn = $derived(administrationHeld(mask));
 </script>
 
 {#snippet mark(flag: Flag)}
@@ -208,7 +197,7 @@
 	{/if}
 
 	{#each RECORD_KINDS as kind (kind)}
-		{@const Glyph = GLYPHS[kind]}
+		{@const Glyph = KIND_GLYPH[kind]}
 		{@const view = viewOf(kind)}
 		{@const writes = writesOf(kind)}
 		<div
@@ -259,7 +248,7 @@
 			class="flex min-h-8 w-full items-center gap-2 rounded-xl text-start outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
 			data-switches-fold
 		>
-			<UsersIcon class="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+			<ADMINISTRATION_GLYPH class="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
 			<span class="min-w-0 flex-1 text-sm font-medium">
 				{familyName($LL, 'administration')}
 			</span>
@@ -274,7 +263,7 @@
 			<span class="text-xs text-muted-foreground tabular-nums" data-switches-summary>
 				{$LL.organization.switches.folded({
 					count: administrationOn,
-					total: ADMINISTRATION.length
+					total: ADMINISTRATION_TOTAL
 				})}
 			</span>
 			<ChevronDownIcon

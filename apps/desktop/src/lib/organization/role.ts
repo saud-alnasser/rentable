@@ -120,6 +120,78 @@ export const switchedTo = (mask: number, flag: Flag, on: boolean): number => {
 	);
 };
 
+/**
+ * How much of a kind of record a role gives, as one step on a ladder (effort 838, requirement 12
+ * as amended 2026-09-27): each step is the one below it and one verb more, the way sharing
+ * products name access (Notion's *full access*, *can edit*, *can view*).
+ *
+ * - `full`: view, add, edit and delete;
+ * - `edit`: view, add and edit;
+ * - `add`: view and add;
+ * - `view`: view alone;
+ * - `none`: nothing of the kind;
+ * - `mixed`: anything else, such as view and delete without add.
+ *
+ * **A mix off the ladder is not rounded to a step.** Rounding view and delete down to *view only*
+ * would hide a delete the role holds, and rounding it up would claim an add it does not, so a mix
+ * reads as the verbs it carries (`levelWord`). A write without its view is refused since
+ * requirement 6 was amended, but a mask stored before then can still carry one, and it reads the
+ * same way.
+ */
+export type KindLevel = 'full' | 'edit' | 'add' | 'view' | 'none' | 'mixed';
+
+/** the ladder's steps, by how many of a kind's verbs they carry from the view up. */
+const LADDER = ['none', 'view', 'add', 'edit', 'full'] as const satisfies readonly KindLevel[];
+
+/** what each of a kind's four switches is called, in the order `FAMILIES` holds them. */
+const SWITCH_VERBS = ['view', 'add', 'edit', 'delete'] as const;
+
+/** the step a mask stands on for one kind of record. */
+export const levelOf = (mask: number, kind: RecordKind): KindLevel => {
+	const carried = FAMILIES[kind].map((flag) => permits(mask, flag));
+	const gap = carried.indexOf(false);
+	const reached = gap === -1 ? carried.length : gap;
+
+	return carried.slice(reached).some(Boolean) ? 'mixed' : LADDER[reached];
+};
+
+/**
+ * the words a role card and a folded group say for a kind: `can edit`, `view only`. A mix off the
+ * ladder is its verbs as the switches name them (`view, delete`), joined by the reader's list
+ * format; a kind the mask carries nothing of has no words, and is left out where it would be.
+ */
+export const levelWord = (
+	t: TranslationFunctions,
+	list: Intl.ListFormat,
+	mask: number,
+	kind: RecordKind
+): string | null => {
+	const level = levelOf(mask, kind);
+
+	switch (level) {
+		case 'none':
+			return null;
+		case 'mixed':
+			return list.format(
+				FAMILIES[kind].flatMap((flag, index) =>
+					permits(mask, flag) ? [t.organization.switches[SWITCH_VERBS[index]]()] : []
+				)
+			);
+		// one name per thing: full access is what a workspace grant calls the same thing.
+		case 'full':
+			return t.organization.dashboard.accessFull();
+		default:
+			return t.organization.roleCard[level]();
+	}
+};
+
+/** how many of the organization's own flags a mask carries: what its folded group counts. */
+export const administrationHeld = (mask: number): number =>
+	carriedIn(mask, 'administration').length;
+
+/** how many there are to hold. */
+export const ADMINISTRATION_TOTAL = FAMILIES.administration.length;
+
 /** the flags of one family that a mask carries, in the family's order. */
 export const carriedIn = (mask: number, family: Family): Flag[] =>
 	(FAMILIES[family] as readonly Flag[]).filter((flag) => permits(mask, flag));

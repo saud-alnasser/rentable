@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [43]
 ---
 
@@ -17,11 +17,12 @@ switches*, gives it.
 
 Traces requirement 12 of [[efforts/838-permissions-are-a-role-and-an-override/spec]].
 
-- [ ] The card shows each kind the role can see with its icon and level word, the kinds it cannot
+- [x] The card shows each kind the role can see with its icon and level word, the kinds it cannot
       see left out, holders and rank as today.
-- [ ] Owner reads everything; the administration line counts what the role holds.
-- [ ] One helper gives the level word, used by the card and the switch list's folded groups.
-- [ ] Component tests in English and Arabic; `pnpm check`, `pnpm test` and `pnpm lint` pass.
+- [x] Owner reads everything; the administration line counts what the role holds.
+- [x] One helper gives the level word, used by the card and the switch list's folded groups.
+      *The switch list folds only administration, so what the two share is its count and words.*
+- [x] Component tests in English and Arabic; `pnpm check`, `pnpm test` and `pnpm lint` pass.
 
 ## Relevant areas
 
