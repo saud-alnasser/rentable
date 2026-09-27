@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { HeldOrganization } from '$lib/platform/host';
+	import type { EarlierRecords, HeldOrganization } from '$lib/platform/host';
 	import StandaloneSurface from '@rentable/design/block/standalone-surface.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Callout } from '@rentable/design/primitive/callout/index.js';
@@ -104,6 +104,7 @@
 		isSigningIn,
 		errorMessage,
 		errorDetail = null,
+		earlier = null,
 		onSignIn,
 		onDisconnect,
 		onSetUpOrganization,
@@ -121,6 +122,11 @@
 		errorMessage: string | null;
 		/** what the shell said behind `errorMessage`, kept behind a closed disclosure. */
 		errorDetail?: string | null;
+		/**
+		 * the records an earlier version left on this machine and still on offer, said in one
+		 * quiet line; `null` where there are none (effort 838, requirement 18).
+		 */
+		earlier?: EarlierRecords | null;
 		onSignIn: (username: string, password: string) => void;
 		/** forget the held organization on this machine, once the person has confirmed it. */
 		onDisconnect: () => Promise<void> | void;
@@ -169,6 +175,18 @@
 		onSignIn(username, password);
 	};
 </script>
+
+<!-- one quiet line, and nothing to press: the records are brought in from the settings area once
+     there is a workspace to bring them into, and until then all a person needs is to know they
+     are not lost (effort 838, requirement 18). Muted, and after the way in, so it never competes
+     with it. -->
+{#snippet earlierLine()}
+	{#if earlier}
+		<p class="text-center text-sm text-muted-foreground" data-sign-in-earlier={earlier.version}>
+			{$LL.earlier.wayIn({ version: earlier.version })}
+		</p>
+	{/if}
+{/snippet}
 
 <StandaloneSurface tone="neutral" title={heading} description={subtitle} busy={isSigningIn}>
 	<!-- the extra step above what the surface gives every screen: with the card down to a heading,
@@ -220,6 +238,8 @@
 					{$LL.layout.signIn.connectByLinkDescription()}
 				</p>
 			</div>
+
+			{@render earlierLine()}
 		{:else}
 			<form
 				class="space-y-4"
@@ -278,6 +298,8 @@
 				     bar: too short to fill one, too long to show nothing. -->
 				<p class="text-center text-sm text-muted-foreground">{$LL.layout.signIn.unlocking()}</p>
 			{/if}
+
+			{@render earlierLine()}
 
 			<!-- the foot, and the whole of what is not the way in. Muted and a step below the form
 			     in weight, so the reader who can sign in never has to decide whether it concerns

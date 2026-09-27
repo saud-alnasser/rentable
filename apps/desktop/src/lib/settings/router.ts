@@ -25,14 +25,16 @@ export default router({
 			z.object({
 				endingSoonNoticeDays: z.number().int().optional(),
 				locale: z.string().optional(),
-				appearance: z.enum(APPEARANCES).optional()
+				appearance: z.enum(APPEARANCES).optional(),
+				earlierRecordsSettled: z.boolean().optional()
 			})
 		)
 		.mutation(async ({ input, ctx }) => {
 			return ctx.host.settings.set({
 				endingSoonNoticeDays: input.endingSoonNoticeDays,
 				locale: input.locale,
-				appearance: input.appearance
+				appearance: input.appearance,
+				earlierRecordsSettled: input.earlierRecordsSettled
 			} satisfies SettingsChangeset);
 		})
 });

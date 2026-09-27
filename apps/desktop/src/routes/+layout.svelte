@@ -38,6 +38,7 @@
 	import { createStartup } from '$lib/layout/startup';
 	import { provideStartup } from '$lib/layout/startup-context';
 	import { useCreateWorkspace } from '$lib/organization/query';
+	import { useEarlierRecords } from '$lib/workspace/earlier';
 	import { browserStartupPorts } from '$lib/layout/startup-ports';
 	import { DesignProvider, type DesignStrings } from '@rentable/design/strings.js';
 	import { toRefusalText } from '$lib/error/refusal';
@@ -146,6 +147,9 @@
 	 * what failed startup before the window was shown.
 	 */
 	const createWorkspace = useCreateWorkspace(queryClient);
+	// the records an earlier version left on this machine, which the way in mentions in one line
+	// until they are brought in or dismissed (effort 838, requirement 18).
+	const earlier = useEarlierRecords(queryClient);
 
 	const createFirstWorkspace = async (name: string) => {
 		try {
@@ -405,6 +409,7 @@
 									isSigningIn={shellState.isSigningIn}
 									errorMessage={shellState.error}
 									errorDetail={shellState.errorDetail}
+									earlier={earlier.offered}
 									onSignIn={(username, password) => void startup.signIn(username, password)}
 									onDisconnect={() => startup.disconnect()}
 									onSetUpOrganization={() => void goto(resolve(THE_FIRST_RUN))}

@@ -1487,6 +1487,19 @@ const en = {
 			"Turso is refusing the organization's account. work goes on here; fix it at app.turso.tech to send it.",
 		transferDescription:
 			'write every record to one workbook, or read one in. records name each other, so the file opens on any machine.'
+	},
+
+	// the records 0.12.0 and 0.13.0 left on this machine, offered on the way in and in the settings
+	// area's workspace group until they are brought in or put aside (effort 838, requirement 18).
+	earlier: {
+		wayIn:
+			'records from version {version:string} are on this machine, and will be brought in once there is a workspace.',
+		title: 'records from version {version:string}',
+		description:
+			'they are still on this machine. review what they would add, then bring them into this workspace.',
+		kept: 'a copy is kept as a workbook:',
+		bringIn: 'bring them in...',
+		dismiss: 'dismiss'
 	}
 } satisfies BaseTranslation;
 

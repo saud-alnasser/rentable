@@ -19,6 +19,7 @@
 	import { workspaceActs, workspaceHost } from '$lib/organization/host.svelte';
 	import { recordOf, withSection, WORKSPACE_PARAM } from '$lib/settings/section';
 	import WorkspaceTransfer from '$lib/workspace/component/transfer.svelte';
+	import EarlierRecords from '$lib/workspace/component/earlier-records.svelte';
 	import DiscIcon from '$lib/design/cell/disc.svelte';
 	import XIcon from '@lucide/svelte/icons/x';
 
@@ -317,6 +318,9 @@
 		<Field.Legend>
 			{$LL.organization.dashboard.transferTitle({ workspace: open.name })}
 		</Field.Legend>
+		<!-- the records an earlier version left on this machine, offered here until they are
+		     brought in or dismissed, above the import they go through (effort 838, requirement 18). -->
+		<EarlierRecords />
 		<WorkspaceTransfer />
 	</Field.Set>
 {/if}

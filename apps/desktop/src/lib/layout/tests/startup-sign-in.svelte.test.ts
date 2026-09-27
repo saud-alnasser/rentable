@@ -465,3 +465,36 @@ test('and in arabic', () => {
 
 	setLocale('en');
 });
+
+// effort 838, criterion 18: where this machine's `app.db` holds the records of an earlier version,
+// the way in says so in one quiet line, whichever situation the wall is in, and says nothing
+// where it does not.
+test('the earlier records are one line on the wall, and only where there are some', () => {
+	const earlierLine = () => document.querySelector<HTMLElement>('[data-sign-in-earlier]');
+
+	for (const [locale, strings] of [
+		['en', en],
+		['ar', ar]
+	] as const) {
+		loadLocale(locale);
+		setLocale(locale);
+
+		for (const situation of ['noOrganization', 'locked'] as const) {
+			const without = card(situation);
+
+			expect(earlierLine()).toBeNull();
+			without.unmount();
+
+			const withRecords = card(situation, { earlier: { version: '0.13.0' } });
+			const line = earlierLine();
+
+			expect(line?.textContent?.trim()).toBe(
+				strings.earlier.wayIn.replace(/{version(:string)?}/, '0.13.0')
+			);
+			expect(line?.dataset.signInEarlier).toBe('0.13.0');
+			// a line and nothing to press: the records are brought in from the settings area.
+			expect(line?.querySelector('button, a')).toBeNull();
+			withRecords.unmount();
+		}
+	}
+});

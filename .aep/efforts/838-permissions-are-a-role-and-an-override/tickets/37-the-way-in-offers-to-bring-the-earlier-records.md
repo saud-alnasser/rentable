@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [36]
 ---
 
@@ -17,12 +17,12 @@ bring them in, through the existing import dialog, until they are brought in or 
 
 Traces requirement 18 of [[efforts/838-permissions-are-a-role-and-an-override/spec]].
 
-- [ ] The way in shows the line only where the file holds records. A component test covers both.
-- [ ] The callout opens the import dialog over the earlier records, with the plan shown before
+- [x] The way in shows the line only where the file holds records. A component test covers both.
+- [x] The callout opens the import dialog over the earlier records, with the plan shown before
       anything is written, and names the workbook kept in `backups/app/`. It needs the import
       flags; without them it says why. Brought in or dismissed, it goes, and stays gone.
-- [ ] English and Arabic; the design follows `rules/interface` and the design system.
-- [ ] `pnpm check`, `pnpm test` and `pnpm lint` pass; `cargo test` passes.
+- [x] English and Arabic; the design follows `rules/interface` and the design system.
+- [x] `pnpm check`, `pnpm test` and `pnpm lint` pass; `cargo test` passes.
 
 ## Relevant areas
 

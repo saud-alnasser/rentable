@@ -31,6 +31,7 @@ export function fakeSettings(overrides: Partial<Settings> = {}): Settings {
 		locale: 'en',
 		appearance: 'system',
 		version: '0.0.0-test',
+		earlierRecordsSettled: false,
 		...overrides
 	};
 }

@@ -4358,6 +4358,34 @@ type RootTranslation = {
 		 */
 		transferDescription: string
 	}
+	earlier: {
+		/**
+		 * r​e​c​o​r​d​s​ ​f​r​o​m​ ​v​e​r​s​i​o​n​ ​{​v​e​r​s​i​o​n​}​ ​a​r​e​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​,​ ​a​n​d​ ​w​i​l​l​ ​b​e​ ​b​r​o​u​g​h​t​ ​i​n​ ​o​n​c​e​ ​t​h​e​r​e​ ​i​s​ ​a​ ​w​o​r​k​s​p​a​c​e​.
+		 * @param {string} version
+		 */
+		wayIn: RequiredParams<'version'>
+		/**
+		 * r​e​c​o​r​d​s​ ​f​r​o​m​ ​v​e​r​s​i​o​n​ ​{​v​e​r​s​i​o​n​}
+		 * @param {string} version
+		 */
+		title: RequiredParams<'version'>
+		/**
+		 * t​h​e​y​ ​a​r​e​ ​s​t​i​l​l​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​.​ ​r​e​v​i​e​w​ ​w​h​a​t​ ​t​h​e​y​ ​w​o​u​l​d​ ​a​d​d​,​ ​t​h​e​n​ ​b​r​i​n​g​ ​t​h​e​m​ ​i​n​t​o​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​.
+		 */
+		description: string
+		/**
+		 * a​ ​c​o​p​y​ ​i​s​ ​k​e​p​t​ ​a​s​ ​a​ ​w​o​r​k​b​o​o​k​:
+		 */
+		kept: string
+		/**
+		 * b​r​i​n​g​ ​t​h​e​m​ ​i​n​.​.​.
+		 */
+		bringIn: string
+		/**
+		 * d​i​s​m​i​s​s
+		 */
+		dismiss: string
+	}
 }
 
 export type TranslationFunctions = {
@@ -8542,6 +8570,32 @@ export type TranslationFunctions = {
 		 * write every record to one workbook, or read one in. records name each other, so the file opens on any machine.
 		 */
 		transferDescription: () => LocalizedString
+	}
+	earlier: {
+		/**
+		 * records from version {version} are on this machine, and will be brought in once there is a workspace.
+		 */
+		wayIn: (arg: { version: string }) => LocalizedString
+		/**
+		 * records from version {version}
+		 */
+		title: (arg: { version: string }) => LocalizedString
+		/**
+		 * they are still on this machine. review what they would add, then bring them into this workspace.
+		 */
+		description: () => LocalizedString
+		/**
+		 * a copy is kept as a workbook:
+		 */
+		kept: () => LocalizedString
+		/**
+		 * bring them in...
+		 */
+		bringIn: () => LocalizedString
+		/**
+		 * dismiss
+		 */
+		dismiss: () => LocalizedString
 	}
 }
 

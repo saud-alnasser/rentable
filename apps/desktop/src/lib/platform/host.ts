@@ -24,6 +24,11 @@ export type Settings = {
 	/** light, dark, or following the system; a file written before it existed reads as system. */
 	appearance: AppearanceSetting;
 	version: string;
+	/**
+	 * whether the records an earlier version left on this machine were brought in or put aside,
+	 * so they are offered no more. A file written before it existed reads as not yet.
+	 */
+	earlierRecordsSettled: boolean;
 };
 
 /**
@@ -92,6 +97,7 @@ export type SettingsChangeset = {
 	endingSoonNoticeDays?: number;
 	locale?: string;
 	appearance?: AppearanceSetting;
+	earlierRecordsSettled?: boolean;
 };
 
 /**
