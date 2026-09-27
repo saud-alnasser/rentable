@@ -384,7 +384,7 @@ test('a role whose pick moves a flag the reader does not hold is refused, naming
 	);
 
 	for (const id of ['supervisor', 'collector']) {
-		expect(roleOption(id)?.hasAttribute('data-disabled')).toBe(true);
+		expect(roleOption(id)?.getAttribute('aria-disabled')).toBe('true');
 		expect(roleOption(id)?.querySelector('[data-role-item-refusal]')?.textContent?.trim()).toBe(
 			reason
 		);

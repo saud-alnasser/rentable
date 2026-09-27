@@ -21,7 +21,7 @@ const en = {
 			copyDetails: 'copy details',
 			details: 'details',
 			chooseFile: 'choose a file...',
-			create: 'add',
+			create: 'create',
 			creating: 'creating...',
 			customizeColumns: 'customize columns',
 			delete: 'delete',
@@ -1397,7 +1397,7 @@ const en = {
 		},
 		flagVerbs: {
 			view: 'view',
-			create: 'create',
+			create: 'add',
 			edit: 'edit',
 			delete: 'delete'
 		},

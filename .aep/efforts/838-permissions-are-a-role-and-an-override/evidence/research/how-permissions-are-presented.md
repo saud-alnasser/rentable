@@ -309,7 +309,7 @@ evidence of speed.
   decision for statuses; NN/g's visible-label guidance and HIG's alternative-text guidance are the
   sources for everything else.
 - (interpretation) Resource glyphs already exist for four of the five kinds (house, user,
-  scroll-text, coins) and "one glyph per concept" makes reusing them the rule, not a choice; units
+  scroll-text, coins) and "one glyph per concept" makes reusing them the rule, not a choice; units *(payments' glyph is `banknote`; see the correction under the observation above.)*
   need one chosen. Action glyphs exist for three verbs (plus, square-pen, trash-2); *view* has none
   (eye is the common metaphor; unused here). Administrative acts are ten distinct ideas; by NN/g's
   five-second rule most would not earn a glyph. The owner's acts have a natural shared glyph in the
@@ -332,7 +332,7 @@ evidence of speed.
   progress or order; "People expect universal symbols and marks like the checkmark to have a
   consistent appearance, so avoid flipping them." (interpretation) A table under `dir="rtl"` flips
   its column order by itself, so view reads first at the right; the verb order is an order, so it
-  should flip, and it does. None of the proposed glyphs (house, user, scroll-text, coins, plus,
+  should flip, and it does. None of the proposed glyphs (house, user, scroll-text, coins, plus, *(payments' glyph is `banknote`; see the correction under the observation above.)*
   square-pen, trash-2, eye, crown, check) is directional under `frontend.md`'s list.
 - **Arabic length.** (observation) The four verbs are one short word each in Arabic (عرض، إنشاء،
   تعديل، حذف) and the kinds are one word each, so a 5 by 4 grid's headers fit; the administrative
@@ -472,7 +472,7 @@ the human decides).**
 1. **One switch list, shared by the role editor and the override editor.** Six groups, in the
    order the app already uses:
    - **Five record-kind groups.** Each group's head is the kind's glyph and name (house, a glyph
-     for units still to choose, user, scroll-text, coins) with **view as the group's primary
+     for units still to choose, user, scroll-text, coins) with **view as the group's primary *(payments' glyph is `banknote`; see the correction under the observation above.)*
      switch** on the same row. Create, edit and delete sit under it as smaller, indented switches,
      drawn only while view is on (the HIG's primary and mini switches; Screen Time's "Don't Allow"
      first). Labels are one word under the kind ("add", "edit", "delete"), with a one-line
@@ -521,7 +521,7 @@ the human decides).**
    list when any switch is refused, instead of "you do not hold this yourself" under every row.
 6. **Roles directory card: level words per kind, grouped by level.** Line 1: name and holders.
    Line 2: kinds grouped by level, each as glyph plus name, e.g. "can edit: [house] complexes,
-   units, [user] tenants, [scroll-text] contracts. view only: [coins] payments"; no-access kinds
+   units, [user] tenants, [scroll-text] contracts. view only: [coins] payments"; no-access kinds *(payments' glyph is `banknote`; see the correction under the observation above.)*
    left out. Owner: "everything", with the crown. Manager: "everything but the owner's acts". Line
    3, only where the role administers anything: the same summary the editor's administration head
    uses ("4 of 10", or the names when three or fewer). The level words should also be what a record

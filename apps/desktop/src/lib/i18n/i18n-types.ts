@@ -79,7 +79,7 @@ type RootTranslation = {
 			 */
 			chooseFile: string
 			/**
-			 * a​d​d
+			 * c​r​e​a​t​e
 			 */
 			create: string
 			/**
@@ -4080,7 +4080,7 @@ type RootTranslation = {
 			 */
 			view: string
 			/**
-			 * c​r​e​a​t​e
+			 * a​d​d
 			 */
 			create: string
 			/**
@@ -4519,7 +4519,7 @@ export type TranslationFunctions = {
 			 */
 			chooseFile: () => LocalizedString
 			/**
-			 * add
+			 * create
 			 */
 			create: () => LocalizedString
 			/**
@@ -8363,7 +8363,7 @@ export type TranslationFunctions = {
 			 */
 			view: () => LocalizedString
 			/**
-			 * create
+			 * add
 			 */
 			create: () => LocalizedString
 			/**

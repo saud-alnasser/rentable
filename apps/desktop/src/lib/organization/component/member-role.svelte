@@ -92,7 +92,11 @@
 				type="single"
 				{value}
 				onValueChange={(next) => {
-					if (next) onPick(next);
+					const role = offered.find((candidate) => candidate.id === next);
+
+					// a role refused for a flag stays in the keyboard's path with its reason, as
+					// every refused act does (`rules/interface`); the pick itself is what is refused.
+					if (next && role && !outOfReach(role) && refusalOf(role) === null) onPick(next);
 				}}
 				disabled={disabled || refusal !== null}
 			>
@@ -121,7 +125,8 @@
 						<Select.Item
 							value={role.id}
 							label={nameOf(role)}
-							disabled={outOfReach(role) || reason !== null}
+							disabled={outOfReach(role)}
+							aria-disabled={reason !== null ? 'true' : undefined}
 							data-role={role.id}
 						>
 							{#if reason}

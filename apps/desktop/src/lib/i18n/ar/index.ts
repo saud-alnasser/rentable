@@ -20,7 +20,7 @@ const ar = {
 			copyDetails: 'نسخ التفاصيل',
 			details: 'التفاصيل',
 			chooseFile: 'اختر ملفاً...',
-			create: 'إضافة',
+			create: 'إنشاء',
 			creating: 'جاري الإنشاء...',
 			customizeColumns: 'تخصيص الأعمدة',
 			delete: 'حذف',
@@ -1275,7 +1275,7 @@ const ar = {
 		},
 		flagVerbs: {
 			view: 'عرض',
-			create: 'إنشاء',
+			create: 'إضافة',
 			edit: 'تعديل',
 			delete: 'حذف'
 		},
@@ -1358,7 +1358,7 @@ const ar = {
 			roleMoves: 'هذا الدور يغيّر صلاحية {flag}، ولا يحق لك ذلك.',
 			deleteMoves: 'حذفه يغيّر صلاحية {username} في {flag}، ولا يحق لك ذلك.',
 			holdersBlind:
-				'سيضيف {names} أو يعدّل أو يحذف سجلات لا يراها. أعِده إلى هذا الدور من بطاقته أولًا.'
+				'{names}: إضافة سجلات أو تعديلها أو حذفها دون رؤيتها. أعِد كل واحد إلى هذا الدور من بطاقته أولًا.'
 		},
 
 		levels: {

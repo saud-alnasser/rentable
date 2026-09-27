@@ -90,6 +90,10 @@ test('each kind of record is a group under its name, with view as its switch', (
 		en.organization.flagVerbs.edit,
 		en.organization.flagVerbs.delete
 	]);
+	// the words themselves, and not only the keys: a create flag reads *add*, while the
+	// application's own create action, which every create form submits with, still reads create.
+	expect(en.organization.flagVerbs.create).toBe('add');
+	expect(en.common.actions.create).toBe('create');
 	expect(control('createComplex')?.getAttribute('data-size')).toBe('sm');
 	expect(control('createComplex')?.getAttribute('aria-label')).toBe(
 		`${en.organization.flagVerbs.create} ${en.organization.families.complex}`
