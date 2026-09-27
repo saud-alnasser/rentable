@@ -42,10 +42,10 @@ is `organization/upgrade.rs`; each change of format is a file under `organizatio
 (format 1 to 2 is `two.rs`), listed in order in `transition/mod.rs` with the readers that find the
 owner in the format it starts from, and the version this build ships is counted from that list.
 Before the change the owner's machine writes a copy of the organization to
-`backups/org-<id>/`, and to their Turso account where it holds it; a copy that cannot be written
+`backups/org-<id>/`, and to their Turso account where it holds it; a copy that cannot be taken
 refuses the upgrade with `CopyNotTaken` and nothing is changed (838, requirements 13 and 14).
-A `format` row below 2 where nothing of format 1 is left reads as 2 and is written back. The owner is whoever's vault derives the organization key, and nothing else on a row
-decides it. The upgrade runs only online, after what the machine held is pushed and a pull has
+A `format` row below 2 where nothing of format 1 is left reads as 2 and is written back. The owner
+is whoever's vault derives the organization key, and nothing else on a row decides it. The upgrade runs only online, after what the machine held is pushed and a pull has
 completed; otherwise nothing is written and the owner is asked for a connection. An upgrade cut short
 has no row either, reads as older, and the owner's next sign-in, resume or connect finishes it from any machine. Each
 certificate the upgrade issues keeps format 1's id, `cert-<member>`, and its key, so a row an old

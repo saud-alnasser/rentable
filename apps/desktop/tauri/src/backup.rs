@@ -28,7 +28,8 @@
 //! `<label>-<unix ms>.sqlite` under `<data directory>/backups/<database>/`. A copy that cannot be
 //! taken refuses the change with `CopyNotTaken`, naming the directory, and nothing has been
 //! written to the database. The log tells a source that could not be read
-//! (`backup.localCopyNotRead`) from a file that could not be written (`backup.localCopyNotWritten`).
+//! (`backup.localCopyNotRead`) from a file that could not be written
+//! (`backup.localCopyNotWritten`).
 //! The three newest per database are kept, the one just written always among them, and the rest
 //! removed once the new one stands.
 //!
@@ -722,7 +723,7 @@ mod tests {
             .expect("the source");
 
         for statement in [
-            "CREATE TABLE \"note\" (\"id\" INTEGER PRIMARY KEY, \"body\" TEXT, \"weight\" REAL,              \"sealed\" BLOB, \"gone\" TEXT)",
+            "CREATE TABLE \"note\" (\"id\" INTEGER PRIMARY KEY, \"body\" TEXT, \"weight\" REAL, \"sealed\" BLOB, \"gone\" TEXT)",
             "CREATE UNIQUE INDEX \"note_body_unique\" ON \"note\" (\"body\")",
             "CREATE VIEW \"heavy\" AS SELECT \"id\" FROM \"note\" WHERE \"weight\" > 1",
             "INSERT INTO \"note\" VALUES (1, 'first', 1.5, x'000102', NULL)",
@@ -749,7 +750,7 @@ mod tests {
         }
 
         sqlx::query(
-            "CREATE TRIGGER \"marked\" AFTER INSERT ON \"note\" BEGIN              UPDATE \"note\" SET \"gone\" = 'marked' WHERE \"id\" = NEW.\"id\"; END",
+            "CREATE TRIGGER \"marked\" AFTER INSERT ON \"note\" BEGIN UPDATE \"note\" SET \"gone\" = 'marked' WHERE \"id\" = NEW.\"id\"; END",
         )
         .execute(&mut connection)
         .await

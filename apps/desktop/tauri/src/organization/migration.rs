@@ -443,7 +443,7 @@ where
                     .write();
 
                 // the workspace as it stands, before the first statement, over the pipeline and
-                // with the credential the migrations go over. A copy that could not be written
+                // with the credential the migrations go over. A copy that could not be taken
                 // releases the lease at once, as a failed migration does, and nothing is applied.
                 let label = format!("schema-{current}-to-{shipped}");
                 let copied = backup::local_copy(

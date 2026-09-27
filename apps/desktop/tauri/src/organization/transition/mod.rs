@@ -24,7 +24,9 @@
 //! 2. in it, the change and a `TRANSITION` built from it, reading the format it starts from;
 //! 3. that entry at the end of [`TRANSITIONS`], which moves the shipped format on by one;
 //! 4. the tables the new format adds in `store::install_schema`, so an organization this build
-//!    creates starts in it;
+//!    creates starts in it, and in `store::format_as_it_stands` the shape of the format before it,
+//!    since a directory whose unsigned `format` row is gone is otherwise read as the shipped
+//!    format and given its row without the change running;
 //! 5. a test at the foot of the file that walks an organization of the format before it through
 //!    the change.
 //!

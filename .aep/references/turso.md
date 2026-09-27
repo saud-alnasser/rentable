@@ -72,7 +72,7 @@ first documented for it while it was `apps/control-plane/src/workspace/turso.ts`
 provisions and destroys a database per test so that two replicas have something to diverge against,
 and it is `#[cfg(test)]` and `#[ignore]`d ([[rules/testing]], under *Tests that reach a live
 remote*, is what bounds it). The Rust port is the first thing in the shipping desktop binary to
-reach this API. It adds the configuration call below to the three `turso.ts` makes, and its
+reach this API. It adds the configuration call and the seeded create below to the three `turso.ts` makes, and its
 deletion is behind a caller-stated intent rather than a method that merely exists.
 
 ```

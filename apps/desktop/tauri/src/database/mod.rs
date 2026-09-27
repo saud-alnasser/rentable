@@ -502,7 +502,9 @@ impl Database {
     /// the table it names, so it would agree with a name nothing else in the product used any
     /// more.
     ///
-    /// The three prefixes are turso's own, read off a freshly built replica at 0.8.0-pre.4:
+    /// The same three prefixes are `backup::NOT_THE_ENGINES`, which a copy leaves out; a prefix the
+    /// engine adds is added to both. They are turso's own, read off a freshly built replica at
+    /// 0.8.0-pre.4 and turso_core's `RESERVED_TABLE_PREFIXES` at 0.8:
     /// `sqlite_sequence`, `turso_cdc`, `turso_cdc_version`, and
     /// `__turso_internal_seq___turso_internal_autoincrement_turso_cdc`. That is knowledge of a
     /// pre-release crate's internals and it will move — which is why the staleness is the other

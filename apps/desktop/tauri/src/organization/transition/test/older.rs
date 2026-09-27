@@ -37,7 +37,7 @@ pub(crate) const ORGANIZATION_CREDENTIAL: &str = "the-organization-credential";
 /// which grant a machine pulled with.
 pub(crate) const MINAS_CREDENTIAL: &str = "minas-organization-credential";
 
-/// The schema of format 1, as `origin/main` creates it: every table the build before effort
+/// The schema of format 1, as the build before effort 838 creates it: every table the build before effort
 /// 838 made, the role word and the seven-act mask on the member row, and
 /// `administrator_certificate` with its unsigned `revoked_at`. Written out rather than read
 /// from anywhere, because nothing in this build writes it any more.
@@ -136,7 +136,7 @@ pub(crate) const FORMAT_ONE_SCHEMA: [&str; 11] = [
         \"signature\" BLOB NOT NULL)",
 ];
 
-// the seven acts of format 1, as `origin/main`'s `permission::Administration` numbered them.
+// the seven acts of format 1, as the build before effort 838 numbered them in `permission::Administration`.
 pub(crate) const INVITE_MEMBER: i64 = 1 << 0;
 pub(crate) const REMOVE_MEMBER: i64 = 1 << 1;
 pub(crate) const CHANGE_ROLE: i64 = 1 << 2;

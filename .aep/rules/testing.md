@@ -262,6 +262,13 @@ A helper that is genuinely shared scaffolding rather than a fixture — the loop
 `sync/test/server.rs`, say — is a module of its own under a `test/` directory, not a test
 module.
 
+*Admitted 2026-09-27, the human's call (effort 838, ticket 31): a builder that stands in for a
+database an older build wrote, which nothing in this build writes any more, is scaffolding of that
+kind, not a fixture, when it is too large to write out twice. The format 1 organization under
+`organization/transition/test/older.rs`, some eleven hundred lines, is the case; a fix to the old
+shape made in two copies is the drift the rule's cost does not buy. Anything cheaper beside it is
+still written out in each module.*
+
 **The asymmetry with TypeScript above is deliberate**, and was settled on 2026-08-18 when the
 TypeScript half moved. Rust has a module system doing real work here: `mod tests` is a child of
 the module it covers, `use super::*` reaches everything in it including what is private, and a

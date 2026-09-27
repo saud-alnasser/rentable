@@ -433,7 +433,12 @@ change in one file. It splits in two, with no change of behaviour:
   format where no row stands; so ticket 25's stray row still reads as unfinished and a directory
   with nothing of format 1 left is only given its `format` row. The next format whose row can go
   missing adds its own shape check there. The file is `two.rs`, named for the format it makes,
-  since a Rust file name is one word (`rules/module-layout`).*
+  since a Rust file name is one word (`rules/module-layout`).* *Ticket 29: a row below 2 where
+  nothing of format 1 is left reads as 2 and is written back, as before the split; each entry
+  carries the readers that find the owner's vault and grant in the format it starts from; and the
+  runner counts the shipped format from the list it is handed, so a test walks a whole sign-in
+  through a test-only next format. A missing row still reads as the shipped format, which is why
+  the next format adds the shape of the one before it to `format_as_it_stands`.*
 - The module comment of `transition/mod.rs` says in five lines how the next format is added: a file,
   a line in the list, the new tables in `install_schema`, and a test in the file. A test-only entry
   from the shipped format to the next proves it (spec, criterion 14).
@@ -446,9 +451,10 @@ copy a replica's file (#569, `update.rs`), so the local copy is **logical**: eve
 file with the same `CREATE` statements, through `sqlx` as the rest of the plain files are.
 
 - **`tauri/src/backup.rs`**, one module both paths call:
-  - `local_copy(source, directory, label) -> Result<PathBuf, Error>`: `source` is a trait with two
-    implementations, the organization replica's connection and a workspace's `/v2/pipeline`
-    (`migrate::Pipeline`), each answering the table list and the rows. The file is written as
+  - `local_copy(source, data_directory, database, label, at) -> Result<PathBuf, Error>`: `source`
+    is a trait of `begin`, `read` and `end` whose statements `backup.rs` owns, with two
+    implementations, the organization replica's connection and a workspace's pipeline stream
+    (`migrate::OverThePipeline`). The file is written as
     `<name>.partial`, every table's row count read back and compared with the source's, then renamed
     to `<data_dir>/backups/<database>/<label>-<unix ms>.sqlite`. The three newest per database are
     kept, the rest removed after the new one stands.
@@ -472,7 +478,8 @@ file with the same `CREATE` statements, through `sqlx` as the rest of the plain 
   the one retention removes; and a copy on the account is named `copy-<id prefix>-<label>-<s>`,
   forty characters at most, so no reader takes it for an organization or a workspace.*
 - **A new refusal, `CopyNotTaken`**, in English and Arabic: the copy before the upgrade could not be
-  written, nothing was changed, and it names the directory. A remote copy refused is
+  taken, its source unread or its file unwritten (told apart in the log), nothing was changed, and
+  the Rust message names the directory. A remote copy refused is
   `backup.remoteCopyRefused` in the log and nothing else.
 
 # Testing Strategy

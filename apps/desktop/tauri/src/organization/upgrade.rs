@@ -65,7 +65,7 @@
 //! run, and before the first write, the organization as it stands after the pull is copied to a
 //! file of its own under the data directory, labelled `format-<from>-to-<to>` (`backup.rs`), and
 //! where this machine holds the owner's Turso account, to a protected database there as well
-//! ([`Replication::copied`]). A local copy that cannot be written refuses the upgrade with
+//! ([`Replication::copied`]). A local copy that cannot be taken refuses the upgrade with
 //! `CopyNotTaken`, and nothing is written; a copy the account refuses is logged, and the upgrade
 //! goes on. The runner takes it, so every change of format listed after this one is copied too.
 

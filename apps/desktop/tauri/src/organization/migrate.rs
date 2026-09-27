@@ -245,7 +245,7 @@ impl<'a> OverThePipeline<'a> {
         }
 
         let answered: Value = response.json().await.map_err(|_| Error::Integrity {
-            message: "the workspace database answered its copy with something this application                       cannot read"
+            message: "the workspace database answered its copy with something this application \n                 cannot read"
                 .to_string(),
         })?;
         let baton = answered
