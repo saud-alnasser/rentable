@@ -106,6 +106,10 @@ pub const MACHINE_PRESENCE_WINDOW: i64 = 7 * 24 * 60 * 60 * 1000;
 /// counts the workspace migrations.
 pub const FORMAT_VERSION: i64 = TRANSITIONS.len() as i64 + 1;
 
+/// The first format that writes a `format` row: format 1 wrote none, so a row is never read as
+/// lower than this (`OrganizationStore::format_as_it_stands`, ticket 29).
+const FIRST_FORMAT_WITH_A_ROW: i64 = 2;
+
 /// The schema, as the plan's data model gives it.
 ///
 /// **No foreign keys and no `UNIQUE` on an owner.** The first for the reason the workspace schema
@@ -899,21 +903,30 @@ impl OrganizationStore {
     }
 
     /// The format the organization is in as it stands, which its owner's upgrade walks the changes
-    /// of format from (ticket 26): 1 wherever anything of format 1 is left, and otherwise the
-    /// `format` row.
+    /// of format from (ticket 26), where the upgrade ships format `shipped`: 1 wherever anything of
+    /// format 1 is left, and otherwise the `format` row, read as no lower than 2.
     ///
     /// **A row beside format 1's table or columns is not believed** (ticket 25): the row is
     /// unsigned, and that directory is format 1, part way through its upgrade or written over.
-    /// **And one carrying nothing of format 1 with no row is of this build's format**: an upgrade
+    /// **And one carrying nothing of format 1 with no row is of the shipped format**: an upgrade
     /// that wrote everything but the row, or an organization whose row somebody took away, and the
     /// row is all that is left to write, which is what [`OrganizationStore::carries_format_one`]
     /// already says of it.
-    pub async fn format_as_it_stands(&self) -> Result<i64, Error> {
+    ///
+    /// **Nor is a row below 2 believed where nothing of format 1 is left** (ticket 29): format 1
+    /// wrote no row, so whatever a member wrote there, the directory is at least format 2, and the
+    /// owner's next sign-in writes the row back as it did before the changes were split. Read as
+    /// written, it made format 1's change due over a directory holding a root, which refuses it,
+    /// and everybody was locked out.
+    pub async fn format_as_it_stands(&self, shipped: i64) -> Result<i64, Error> {
         if self.carries_format_one().await? {
             return Ok(1);
         }
 
-        Ok(self.format().await?.unwrap_or(FORMAT_VERSION))
+        Ok(self
+            .format()
+            .await?
+            .map_or(shipped, |version| version.max(FIRST_FORMAT_WITH_A_ROW)))
     }
 
     /// Refuse an organization of another format, by name, before anything else is read from it
@@ -2961,13 +2974,20 @@ impl OrganizationStore {
     /// one written into a remote still in format 1's shape had the owner conclude that another of
     /// their machines had finished, and every sign-in then failed on a column the table lacked.*
     pub async fn is_older(&self) -> Result<bool, Error> {
+        self.is_older_than(FORMAT_VERSION).await
+    }
+
+    /// Whether this is an organization of a format earlier than `shipped`, as
+    /// [`OrganizationStore::is_older`] says of this build's: what the owner's upgrade asks, since
+    /// it counts the format it ships from the changes it is handed (ticket 29).
+    pub async fn is_older_than(&self, shipped: i64) -> Result<bool, Error> {
         if self.columns_of("member").await?.is_empty() {
             return Ok(false);
         }
 
         match self.format().await? {
-            Some(version) if version > FORMAT_VERSION => Ok(false),
-            Some(FORMAT_VERSION) => self.carries_format_one().await,
+            Some(version) if version > shipped => Ok(false),
+            Some(version) if version == shipped => self.carries_format_one().await,
             _ => Ok(true),
         }
     }

@@ -65,15 +65,96 @@ use crate::{
     },
 };
 
-use super::{Pending, Transition, Upgrading};
+use super::{Pending, Sought, Transition, Unjudged, Upgrading};
 
 /// The change from format 1, as [`super::TRANSITIONS`] lists it.
 pub(crate) const TRANSITION: Transition = Transition {
     from: 1,
     name: "format 1 to 2",
+    members,
+    signed_as_its_own: own,
+    grant,
     refused,
     run,
 };
+
+/// Every member row as it lies, read with whichever authority columns the table has now, so a
+/// table of format 1, one part way through the reshape, and one of format 2 all read.
+fn members(store: &OrganizationStore) -> Pending<'_, Vec<Unjudged>> {
+    Box::pin(async move {
+        Ok(store
+            .format_one_members()
+            .await?
+            .into_iter()
+            .map(|member| Unjudged {
+                id: member.id,
+                username_sealed: member.username_sealed,
+                vault: member.vault,
+                sealed_content_key: member.sealed_content_key,
+                session_epoch: member.session_epoch,
+            })
+            .collect())
+    })
+}
+
+/// Whether the row of the member sought is signed as its own ([`signed_as_its_own`]).
+fn own<'a>(sought: &'a Sought<'a>, secret: &'a MemberSecretKey) -> Pending<'a, bool> {
+    Box::pin(async move {
+        let certificates = sought.store.format_one_certificates().await?;
+
+        Ok(sought
+            .store
+            .format_one_members()
+            .await?
+            .iter()
+            .filter(|member| member.id == sought.member_id)
+            .any(|member| signed_as_its_own(sought.key, &certificates, member, secret)))
+    })
+}
+
+/// The grant of the member sought on the organization database `organization_id`, where one
+/// verifies under the rules of the format that signed it ([`Judge::row`]).
+///
+/// `owners_signing_key` is the owner's, where the member sought is the owner: their certificate
+/// is judged by its key alone, so an unsigned `revoked_at` on it revokes nothing.
+fn grant<'a>(
+    sought: &'a Sought<'a>,
+    organization_id: &'a str,
+    owners_signing_key: Option<&'a [u8; VERIFYING_KEY_BYTES]>,
+) -> Pending<'a, Option<GrantRecord>> {
+    Box::pin(async move {
+        let store = sought.store;
+        let directory = store.format_one_directory().await?;
+        let (certificates, revocations) = store.chain_rows_if_any().await?;
+        let role_rows = store.role_rows_if_any().await?;
+        let judge = Judge::new(
+            sought.key,
+            &directory,
+            owners_signing_key,
+            &certificates,
+            &revocations,
+            &role_rows,
+        );
+
+        Ok(directory
+            .grants
+            .iter()
+            .find(|grant| {
+                grant.record.member_id == sought.member_id
+                    && grant.record.workspace_id == organization_id
+            })
+            .filter(|grant| {
+                judge
+                    .row(
+                        &grant.certificate_id,
+                        grant_authority(&grant.record),
+                        &grant.signature,
+                    )
+                    .is_ok()
+            })
+            .map(|grant| grant.record.clone()))
+    })
+}
 
 /// Why a directory as it stands is not transformed, where it is not: one that holds a root.
 fn refused<'a>(upgrading: &'a Upgrading<'a>) -> Pending<'a, Option<&'static str>> {
@@ -130,7 +211,7 @@ const FORMAT_ONE_CHANGE_ROLE: i64 = 1 << 2;
 /// Whether `member`'s format 1 signature is its own member's: made under the format 1
 /// certificate `key` issued to that very row, naming the signing key `secret` derives, with that
 /// certificate's unsigned `revoked_at` not read, as the owner's never is.
-pub(crate) fn signed_as_its_own(
+fn signed_as_its_own(
     key: &[u8; VERIFYING_KEY_BYTES],
     certificates: &[FormatOneCertificate],
     member: &FormatOneMemberRow,
@@ -585,7 +666,7 @@ fn acts_of(acts: i64) -> i64 {
 /// What judges a row of an older organization: format 1's certificates while they stand, and this
 /// format's chain where an upgrade cut short already issued some. A row is genuine where either
 /// accepts it, which is every row as the format that signed it would read it.
-pub(crate) struct Judge<'a> {
+struct Judge<'a> {
     pinned: &'a [u8; VERIFYING_KEY_BYTES],
     format_one: Vec<FormatOneCertificate>,
     chain: Chain<'a>,
@@ -605,7 +686,7 @@ impl<'a> Judge<'a> {
     /// `owners_signing_key` is the owner's, where the caller holds it: a format 1 certificate
     /// naming it is judged by its key and signature alone, and the unsigned `revoked_at` on it is
     /// not read.
-    pub(crate) fn new(
+    fn new(
         pinned: &'a [u8; VERIFYING_KEY_BYTES],
         directory: &FormatOneDirectory,
         owners_signing_key: Option<&[u8; VERIFYING_KEY_BYTES]>,
@@ -681,7 +762,7 @@ impl<'a> Judge<'a> {
     /// workspace database nobody can reach again, every grant on it with it. What the row says is
     /// the database it names, which only its creator's signature put there. Grants, invitations
     /// and the mark still follow the revocation, since each hands somebody something.
-    pub(crate) fn row(
+    fn row(
         &self,
         certificate_id: &str,
         authority: Authority<'_>,
@@ -940,4 +1021,568 @@ fn judged<'a>(judge: &Judge<'_>, directory: &'a FormatOneDirectory, owner_id: &s
     }
 
     judged
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::{Arc, Mutex};
+
+    use super::{FORMAT_ONE_ACTS, Step, applied, carried_by, planned};
+    use crate::{
+        error::{Error, RefusalReason},
+        organization::{
+            permission::{self, Flag, MANAGER_ROLE, MEMBER_ROLE, OWNER_ROLE},
+            role::in_one_transaction,
+            session::CredentialSlot,
+            store::{OrganizationStore, RoleRecord, Signer},
+            transition::test::{
+                older::{
+                    CHANGE_ROLE, GRANT_WORKSPACE, INVITE_MEMBER, NOW, Older, RENAME_MEMBER,
+                    RENAME_WORKSPACE, another_machine, assert_upgraded, made_to_look_older, mask,
+                    older, records, run,
+                },
+                remote::online,
+            },
+            upgrade::{signing_key_of, with_password},
+            vault::seal_content,
+        },
+    };
+
+    /// A credential slot holding nothing yet.
+    fn slot() -> CredentialSlot {
+        Arc::new(Mutex::new(None))
+    }
+
+    /// Everything the organization database holds, table by table and row by row: a write
+    /// anywhere changes it.
+    async fn contents(store: &OrganizationStore) -> Vec<(String, Vec<Vec<turso::Value>>)> {
+        let mut contents = Vec::new();
+
+        for table in store.tables().await.expect("the tables") {
+            let mut rows = store
+                .connection()
+                .query(&format!("SELECT * FROM \"{table}\" ORDER BY rowid"), ())
+                .await
+                .expect("the rows");
+            let mut values = Vec::new();
+
+            while let Some(row) = rows.next().await.expect("a row") {
+                values.push(
+                    (0..row.column_count())
+                        .map(|index| row.get_value(index).expect("a value"))
+                        .collect(),
+                );
+            }
+
+            contents.push((table, values));
+        }
+
+        contents
+    }
+
+    /// The reason a result was refused for, where it was refused.
+    fn reason_of<T>(result: &Result<T, Error>) -> Option<RefusalReason> {
+        match result {
+            Err(Error::Refused { reason, .. }) => Some(*reason),
+            _ => None,
+        }
+    }
+
+    /// The fixture, upgraded by the owner's sign-in online.
+    async fn upgraded(name: &str) -> (Older, OrganizationStore) {
+        let older = older(name).await;
+        let store = older.open().await;
+        let owner = older.person("owner");
+
+        with_password(
+            &store,
+            &online(),
+            &older.held,
+            owner.username,
+            owner.password,
+            &slot(),
+            NOW,
+        )
+        .await
+        .expect("the upgrade");
+
+        (older, store)
+    }
+
+    /// The mapping itself, one case per kind of member format 1 had: exactly what each could do,
+    /// every record act included, as a role and an override.
+    #[test]
+    fn each_member_of_format_one_keeps_exactly_what_they_could_do() {
+        let owner = carried_by("owner", FORMAT_ONE_ACTS, true);
+
+        assert_eq!(
+            (owner.role_id.as_str(), owner.override_mask, owner.effective),
+            ("owner", 0, OWNER_ROLE.mask)
+        );
+
+        // an administrator the owner narrowed: their acts, `changeRole` as two, every record act,
+        // and the mark and the roles.
+        let narrowed = carried_by(
+            "administrator",
+            INVITE_MEMBER | CHANGE_ROLE | RENAME_MEMBER,
+            false,
+        );
+
+        assert_eq!(narrowed.role_id, "manager");
+        assert_eq!(
+            narrowed.effective,
+            mask(&[
+                Flag::InviteMember,
+                Flag::AssignRole,
+                Flag::OverrideMember,
+                Flag::RenameMember,
+                Flag::ManageMark,
+                Flag::ManageRoles,
+            ]) | records()
+        );
+        assert_eq!(
+            permission::effective(MANAGER_ROLE.mask, narrowed.override_mask),
+            narrowed.effective
+        );
+
+        // an administrator with every act is a manager with nothing switched.
+        let whole = carried_by("administrator", FORMAT_ONE_ACTS, false);
+
+        assert_eq!(whole.effective, MANAGER_ROLE.mask);
+        assert_eq!(whole.override_mask, 0);
+
+        // a member granted administration acts: a manager holding exactly those, and the records.
+        let lead = carried_by("member", GRANT_WORKSPACE | RENAME_WORKSPACE, false);
+
+        assert_eq!(lead.role_id, "manager");
+        assert_eq!(
+            lead.effective,
+            mask(&[Flag::GrantWorkspace, Flag::RenameWorkspace]) | records()
+        );
+        assert_eq!(
+            permission::effective(MANAGER_ROLE.mask, lead.override_mask),
+            lead.effective
+        );
+
+        // a plain member: the member role, with delete switched on for every kind.
+        let member = carried_by("member", 0, false);
+
+        assert_eq!(member.role_id, "member");
+        assert_eq!(member.effective, records());
+        assert_eq!(
+            member.override_mask,
+            mask(&[
+                Flag::DeleteComplex,
+                Flag::DeleteUnit,
+                Flag::DeleteTenant,
+                Flag::DeleteContract,
+                Flag::DeletePayment,
+            ])
+        );
+
+        // a removed member: a member, removed, with nothing.
+        let removed = carried_by("removed", 0, false);
+
+        assert_eq!(
+            (
+                removed.role_id.as_str(),
+                removed.override_mask,
+                removed.removed
+            ),
+            ("member", 0, true)
+        );
+
+        // **ticket 23's seventh criterion**: a row saying owner that is not the key holder's is
+        // read as the old build read it, its acts off its own `permissions` column, and the mark
+        // and the roles an administrator keeps.
+        let forged_owner = carried_by("owner", INVITE_MEMBER, false);
+
+        assert_eq!(forged_owner.role_id, "manager");
+        assert_eq!(
+            forged_owner.effective,
+            mask(&[Flag::InviteMember, Flag::ManageMark, Flag::ManageRoles]) | records()
+        );
+        assert_eq!(
+            carried_by("owner", 0, false).effective,
+            mask(&[Flag::ManageMark, Flag::ManageRoles]) | records()
+        );
+
+        // nothing any of them ends with is the owner's.
+        for standing in [narrowed, whole, lead, member, forged_owner] {
+            assert_eq!(
+                standing.effective & mask(&permission::OWNER_ONLY),
+                0,
+                "{standing:?}"
+            );
+        }
+    }
+
+    /// **Ticket 22's fifth criterion.** An upgrade cut short on this machine before the `format`
+    /// row, inside its transaction, leaves the organization exactly as it was, still older, and
+    /// the owner's next sign-in completes it.
+    #[tokio::test]
+    async fn an_upgrade_cut_short_in_its_transaction_leaves_nothing_and_the_next_sign_in_completes_it()
+     {
+        let older = older("cut-short").await;
+        let store = older.open().await;
+        let owner = older.person("owner");
+        let before = contents(&store).await;
+        let opened = older.owners_vault();
+        let key = signing_key_of(&opened.secret).expect("the signing key");
+        let plan = planned(&store, &older.organization_key, &key, &opened, NOW)
+            .await
+            .expect("the plan");
+        // the plan is everything before the `format` row, which the runner writes after it.
+        let before_the_format = &plan.steps;
+        let cut = in_one_transaction(&store, async {
+            applied(&store, &key, plan.root.as_ref(), before_the_format).await?;
+
+            Err::<(), _>(Error::Internal {
+                message: "the upgrade was cut short before the format row".to_string(),
+            })
+        })
+        .await;
+
+        assert!(
+            matches!(&cut, Err(Error::Internal { message }) if message.contains("cut short")),
+            "the upgrade was not cut short where the test cut it: {cut:?}"
+        );
+        assert!(store.is_older().await.expect("the format"));
+        assert_eq!(store.format().await.expect("the format"), None);
+        assert_eq!(
+            contents(&store).await,
+            before,
+            "the cut left something behind"
+        );
+
+        with_password(
+            &store,
+            &online(),
+            &older.held,
+            owner.username,
+            owner.password,
+            &slot(),
+            NOW,
+        )
+        .await
+        .expect("the next sign-in did not complete the upgrade");
+
+        assert_upgraded(&store, &older, &older.pinned()).await;
+    }
+
+    /// **Ticket 23's third criterion.** Every state the upgrade's order can leave behind it, on
+    /// this machine or on a remote a push reached part of: each prefix of its writes, from the
+    /// first statement of the reshape to everything but the `format` row, committed as it stands.
+    ///
+    /// Each is recognised as unfinished: it reads as older, never as format 2 and never as a
+    /// stranger's. A member's sign-in is told the organization waits for its owner, and writes
+    /// nothing. The owner's next sign-in, a minute later and from any machine, since nothing in it
+    /// is this machine's, finishes it into exactly what a whole upgrade leaves, and runs no
+    /// statement of the reshape twice; except, since ticket 25, a state that already holds the
+    /// root and still carries format 1, which no machine transforms and the upgrading machine's
+    /// own push completes.
+    #[tokio::test]
+    async fn every_partial_state_the_upgrade_can_leave_is_recognised_and_the_owner_finishes_it() {
+        let steps = {
+            let older = older("partial-plan").await;
+            let store = older.open().await;
+            let opened = older.owners_vault();
+            let key = signing_key_of(&opened.secret).expect("the signing key");
+
+            planned(&store, &older.organization_key, &key, &opened, NOW)
+                .await
+                .expect("the plan")
+                .steps
+                .len()
+        };
+
+        // every step of the plan written is everything but the `format` row, which the runner
+        // writes after it.
+        for written in 1..=steps {
+            let older = older(&format!("partial-{written}")).await;
+            let store = older.open().await;
+            let opened = older.owners_vault();
+            let key = signing_key_of(&opened.secret).expect("the signing key");
+            let plan = planned(&store, &older.organization_key, &key, &opened, NOW)
+                .await
+                .expect("the plan");
+
+            assert_eq!(plan.steps.len(), steps);
+
+            applied(&store, &key, plan.root.as_ref(), &plan.steps[..written])
+                .await
+                .unwrap_or_else(|error| panic!("{written}: the partial upgrade: {error}"));
+
+            assert!(
+                store.is_older().await.expect("the format"),
+                "{written}: a partial upgrade read as this format"
+            );
+            assert_eq!(
+                reason_of(&store.refuse_another_format().await),
+                Some(RefusalReason::OrganizationOlder),
+                "{written}"
+            );
+
+            // a member meeting it waits for the owner, and nothing is written.
+            let before = contents(&store).await;
+            let mina = older.person("mina");
+            let refused = with_password(
+                &store,
+                &online(),
+                &older.held_by("mina"),
+                mina.username,
+                mina.password,
+                &slot(),
+                NOW + 60_000,
+            )
+            .await;
+
+            assert_eq!(
+                reason_of(&refused),
+                Some(RefusalReason::OrganizationOlder),
+                "{written}: {refused:?}"
+            );
+            assert_eq!(contents(&store).await, before, "{written}: a member wrote");
+
+            // the owner finishes it, running only what the table still needs.
+            let reshape_done = plan
+                .steps
+                .iter()
+                .take(written)
+                .filter(|step| matches!(step, Step::Reshape(_)))
+                .count();
+            let reshape_left = store
+                .format_one_reshape()
+                .await
+                .expect("what the reshape still needs")
+                .len();
+
+            assert_eq!(
+                reshape_done + reshape_left,
+                plan.steps
+                    .iter()
+                    .filter(|step| matches!(step, Step::Reshape(_)))
+                    .count(),
+                "{written}: a statement of the reshape would run twice"
+            );
+
+            let owner = older.person("owner");
+            let rooted = plan.steps[..written].iter().any(
+                |step| matches!(step, Step::Certificate(certificate) if certificate.is_root()),
+            );
+            let carries = store
+                .carries_format_one()
+                .await
+                .expect("what is left of format 1");
+            let finished = with_password(
+                &store,
+                &online(),
+                &older.held,
+                owner.username,
+                owner.password,
+                &slot(),
+                NOW + 60_000,
+            )
+            .await;
+
+            if rooted && carries {
+                // **ticket 25's second criterion narrows this one**: past the root, a machine
+                // that has not read the organization in this format transforms nothing, since a
+                // root is what an organization of this format holds, and a member can make one
+                // look older. The rest arrives with the push of the machine that made the upgrade,
+                // which holds all of it.
+                assert_eq!(
+                    reason_of(&finished),
+                    Some(RefusalReason::OrganizationOlder),
+                    "{written}: {finished:?}"
+                );
+                assert_eq!(
+                    contents(&store).await,
+                    before,
+                    "{written}: the owner's machine transformed an organization holding a root"
+                );
+
+                applied(&store, &key, plan.root.as_ref(), &plan.steps[written..])
+                    .await
+                    .unwrap_or_else(|error| panic!("{written}: the rest of the upgrade: {error}"));
+                store
+                    .write_format()
+                    .await
+                    .unwrap_or_else(|error| panic!("{written}: the format row: {error}"));
+            } else {
+                finished.unwrap_or_else(|error| {
+                    panic!("{written}: the owner did not finish it: {error}")
+                });
+            }
+
+            assert_upgraded(&store, &older, &older.pinned()).await;
+
+            drop(store);
+
+            let elsewhere = another_machine(&older.directory).await;
+
+            assert_upgraded(&elsewhere, &older, &older.pinned()).await;
+        }
+    }
+
+    /// **Ticket 25's third criterion.** A member holding a custom role, in an organization whose
+    /// `role` table holds that role's verified row: the upgrade judges members against the role
+    /// rows that verify, so the holder is carried in their role, the role row is signed again
+    /// from the root, and they read afterwards with what the role gives. The plan is made directly,
+    /// since the owner's sign-in refuses an organization holding a root before it plans.
+    #[tokio::test]
+    async fn the_holder_of_a_custom_role_is_carried_in_it() {
+        let (older, store) = upgraded("custom-role").await;
+        let owner = older.person("owner");
+        let pinned = older.pinned();
+        let root = store
+            .live_certificate(&pinned, "owner", &owner.signing.verifying_key())
+            .await
+            .expect("the chain")
+            .expect("the root");
+        let signer = Signer {
+            key: &owner.signing,
+            certificate: &root,
+        };
+        let leasing = RoleRecord {
+            id: "role-leasing".to_string(),
+            kind: "custom".to_string(),
+            name_sealed: seal_content(&older.content_key, "role.name_sealed", b"Leasing")
+                .expect("the name"),
+            mask: MEMBER_ROLE.mask | mask(&[Flag::InviteMember]),
+            rank: 500_000,
+        };
+
+        store.write_role(&signer, &leasing).await.expect("the role");
+
+        let pia = store
+            .member(&pinned, "pia")
+            .await
+            .expect("the member")
+            .expect("pia");
+
+        store
+            .write_member(
+                &signer,
+                &crate::organization::store::MemberRecord {
+                    role_id: leasing.id.clone(),
+                    override_mask: 0,
+                    ..pia
+                },
+            )
+            .await
+            .expect("pia in the custom role");
+
+        made_to_look_older(&older, &store).await;
+
+        let opened = older.owners_vault();
+        let key = signing_key_of(&opened.secret).expect("the signing key");
+        let plan = planned(&store, &older.organization_key, &key, &opened, NOW + 60_000)
+            .await
+            .expect("the plan");
+
+        assert!(
+            plan.steps.iter().any(|step| matches!(
+                step,
+                Step::Member(member) if member.id == "pia" && member.role_id == "role-leasing"
+            )),
+            "the holder of a custom role was not carried in it"
+        );
+        assert!(
+            !plan
+                .steps
+                .iter()
+                .any(|step| matches!(step, Step::Drop(dropped) if dropped.row.id() == "pia")),
+            "the holder of a custom role was dropped"
+        );
+        assert!(
+            plan.steps.iter().any(
+                |step| matches!(step, Step::Role(role) if role.id == "role-leasing" && role.rank == 500_000)
+            ),
+            "the custom role was not signed again"
+        );
+
+        in_one_transaction(
+            &store,
+            applied(&store, &key, plan.root.as_ref(), &plan.steps),
+        )
+        .await
+        .expect("the plan applied");
+
+        let pia = store
+            .members(&pinned)
+            .await
+            .expect("the members")
+            .into_iter()
+            .find(|member| member.id == "pia")
+            .expect("pia");
+
+        assert_eq!(pia.role_id, "role-leasing");
+        assert_eq!(pia.effective, leasing.mask);
+        assert!(pia.covered);
+    }
+
+    /// **Ticket 25's tenth criterion.** An organization whose replica has no `succession` table,
+    /// which a build before effort 828 made: the plan meets it the way `settled` does, with no
+    /// offer to withdraw, and the owner's sign-in upgrades it.
+    #[tokio::test]
+    async fn the_plan_meets_a_replica_without_a_succession_table() {
+        let older = older("no-succession").await;
+        let store = older.open().await;
+        let owner = older.person("owner");
+
+        run(&store, "DROP TABLE \"succession\"", Vec::new()).await;
+
+        let opened = older.owners_vault();
+        let key = signing_key_of(&opened.secret).expect("the signing key");
+        let plan = planned(&store, &older.organization_key, &key, &opened, NOW)
+            .await
+            .expect("a replica without a succession table could not be planned");
+
+        assert!(
+            !plan
+                .steps
+                .iter()
+                .any(|step| matches!(step, Step::WithdrawOffer(_)))
+        );
+
+        with_password(
+            &store,
+            &online(),
+            &older.held,
+            owner.username,
+            owner.password,
+            &slot(),
+            NOW,
+        )
+        .await
+        .expect("the upgrade");
+
+        assert_upgraded(&store, &older, &older.pinned()).await;
+    }
+
+    /// What ticket 25's refusal keeps from happening, planned directly: over an upgraded
+    /// organization made to look older, the promotion replayed onto mina's row reads as an
+    /// administrator of format 1, and the plan would sign it from the root as a manager. The
+    /// runner never plans over it (`upgrade.rs`, whose tests show the refusal).
+    #[tokio::test]
+    async fn a_promotion_replayed_onto_an_upgraded_organization_would_be_carried() {
+        let (older, store) = upgraded("replayed-promotion").await;
+
+        made_to_look_older(&older, &store).await;
+
+        let opened = older.owners_vault();
+        let key = signing_key_of(&opened.secret).expect("the signing key");
+        let plan = planned(&store, &older.organization_key, &key, &opened, NOW)
+            .await
+            .expect("the plan");
+
+        assert!(
+            plan.steps.iter().any(|step| matches!(
+                step,
+                Step::Member(member) if member.id == "mina" && member.role_id == "manager"
+            )),
+            "the replayed promotion would not have been carried"
+        );
+    }
 }

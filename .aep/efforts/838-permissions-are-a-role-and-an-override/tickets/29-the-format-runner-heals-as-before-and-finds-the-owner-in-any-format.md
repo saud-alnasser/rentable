@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [28]
 ---
 
@@ -22,20 +22,20 @@ runs a test-only next format end to end.
 
 Traces requirement 14, and requirement 11, of [[efforts/838-permissions-are-a-role-and-an-override/spec]].
 
-- [ ] Where nothing of format 1 is left, a `format` row of 1, 0 or below reads as 2, so no format
+- [x] Where nothing of format 1 is left, a `format` row of 1, 0 or below reads as 2, so no format
       1 change is due and only the row is written. A test sets the row to 1 on an upgraded
       organization, with the owner's machine holding `known_format` and without it, and the
       owner's next sign-in writes 2 and signs in.
-- [ ] Each entry of `TRANSITIONS` carries the readers that find the owner's vault and their own
+- [x] Each entry of `TRANSITIONS` carries the readers that find the owner's vault and their own
       grant in the format it starts from; `upgrade.rs` imports nothing of `transition/two.rs`.
-- [ ] The runner is given its list end to end (the shipped format is the list's length plus one),
+- [x] The runner is given its list end to end (the shipped format is the list's length plus one),
       and a test runs the owner's sign-in and a member's through `with_password` over a list
       with a test-only next entry: the owner's walks the organization to the next format with the
       copy and the `format` row, and the member's waits and then follows.
-- [ ] The tests of `carried_by`, `planned` and `applied` sit at the foot of `transition/two.rs`
+- [x] The tests of `carried_by`, `planned` and `applied` sit at the foot of `transition/two.rs`
       (`rules/testing`), and the module comment of `transition/mod.rs` names every move a next
       format takes, its lines wrapped at 100.
-- [ ] `cargo test`, `pnpm check`, `pnpm test` and `pnpm lint` pass.
+- [x] `cargo test`, `pnpm check`, `pnpm test` and `pnpm lint` pass.
 
 ## Relevant areas
 
