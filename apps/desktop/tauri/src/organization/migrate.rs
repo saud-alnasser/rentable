@@ -2,36 +2,65 @@
 //!
 //! **A client applies migrations again, and it applies them the way the retired control plane did.** The
 //! shipped `.sql` files are embedded by `build.rs` in the order `drizzle-kit` numbers them, split at
-//! its statement breakpoints, and posted as one pipeline to the database's own HTTP endpoint,
-//! which is `packages/turso-platform/migration.ts` in one function. A sync connection
-//! cannot carry them: `0003` drops and renames tables, and the push that follows fails with *no
-//! such table*, measured on 2026-08-20 (#552). So they go over `/v2/pipeline`, which
-//! `database/test/workspace.rs` had already proved for its own tests, and which is promoted here
-//! rather than written a second time.
+//! its statement breakpoints, and posted to the database's own HTTP endpoint, which is
+//! `packages/turso-platform/migration.ts` in one function. A sync connection cannot carry them:
+//! `0003` drops and renames tables, and the push that follows fails with *no such table*, measured
+//! on 2026-08-20 (#552). So they go over `/v2/pipeline`, which `database/test/workspace.rs` had
+//! already proved for its own tests, and which is promoted here rather than written a second time.
 //!
-//! **The pipeline answers 200 with a per-statement result**, so a refused statement is in the body
-//! rather than in the status, and reading it is the difference between a schema that was applied
-//! and one that was merely sent.
+//! **A migration commits whole, checked, with its version inside, or not at all** (effort 838,
+//! requirement 15, ticket 32). The statements used to go as one pipeline request with no
+//! transaction, and the pipeline runs every request of a request whatever the one before it
+//! answered, so a statement refused part way left the ones before it committed and the ones after
+//! it tried; the version was kept only in the organization, a different database from the schema,
+//! and a retry replayed a tail that was half there. Now [`apply_between`] holds one stream by its
+//! baton ([`OverThePipeline`]) and sends, in order:
+//!
+//! 1. `BEGIN`, the one-row [`VERSION_TABLE`] made where it is missing, and its row read. The
+//!    workspace's own row is the version it is at; a workspace migrated before the table existed
+//!    has none, and is at the version its caller says, which is the organization's record.
+//! 2. Where that version is already the one asked for, `ROLLBACK`: nothing is applied, and the
+//!    caller brings the organization's record up. Where it is above, `ROLLBACK` and
+//!    `WorkspaceNewer`, as an older build opening a newer workspace is refused.
+//! 3. Otherwise the tail after it as one batch, each statement run only where the one before it
+//!    answered `ok`, so nothing runs after a refusal; and the check's reads (`schema.rs`):
+//!    `quick_check`, `foreign_key_check`, and the schema, compared with a fresh database of the
+//!    version asked for, which is the embedded migrations applied to an in-memory SQLite
+//!    ([`fresh`]).
+//! 4. The version row written and `COMMIT`, and the stream closed.
+//!
+//! Every answer is read statement by statement, since the pipeline answers 200 with a refusal
+//! inside, and any failure sends `ROLLBACK` and closes the stream: the workspace is then exactly
+//! as it was, and a second attempt applies the whole tail. *Whether libSQL's server takes every
+//! statement of `0003` inside one explicit transaction was not measured when this was written; the
+//! `#[ignore]`d live test in `database/test/workspace.rs` does so, and is the human's to run.*
 //!
 //! What is here is the runner. Which client applies a *pending* migration to a workspace that
-//! already has rows, and under what lease, is the migration ticket's; creating a workspace already
-//! at the current schema is this.
+//! already has rows, and under what lease, is `organization/migration.rs`; creating a workspace
+//! already at the current schema is [`apply`], which is the same transaction from nothing.
 //!
-//! **The same pipeline is what a workspace is copied over** before a pending migration changes it
+//! **The same stream is what a workspace is copied over** before a pending migration changes it
 //! (effort 838, tickets 28 and 30). [`OverThePipeline`] answers `backup.rs` the workspace's schema
 //! and rows with the credential the migration goes over, in one transaction on one stream held
 //! across requests, each value decoded from the pipeline's typed JSON into the storage class the
 //! database holds it in, so the copy keeps integers, reals, text, blobs and nulls apart.
 
-use std::{sync::PoisonError, time::Duration};
+use std::{
+    collections::HashMap,
+    str::FromStr,
+    sync::{Mutex, OnceLock, PoisonError},
+    time::Duration,
+};
 
 use base64::Engine as _;
 use serde_json::{Value, json};
+use sqlx::{ConnectOptions, sqlite::SqliteConnectOptions};
 
 use crate::{
-    backup,
+    backup, diagnostics,
     error::{Error, RefusalReason},
     http::build_client,
+    schema::{self, Found, Shape},
 };
 
 include!(concat!(env!("OUT_DIR"), "/workspace-migrations.rs"));
@@ -41,6 +70,27 @@ const STATEMENT_BREAKPOINT: &str = "--> statement-breakpoint";
 
 /// The whole shipped schema has to arrive; a pipeline that hung would leave a workspace half built.
 const MIGRATION_TIMEOUT: Duration = Duration::from_secs(120);
+
+/// The one-row table a workspace keeps its own schema version in, the application's and not the
+/// engine's: a copy carries it as it carries every other table.
+pub const VERSION_TABLE: &str = "schema_version";
+
+/// The version table, made where it is missing. Part of every version's shape from ticket 32 on,
+/// so [`fresh`] makes it too.
+const VERSION_MADE: &str = "CREATE TABLE IF NOT EXISTS \"schema_version\" (\
+                            \"id\" INTEGER PRIMARY KEY CHECK (\"id\" = 1), \
+                            \"version\" INTEGER NOT NULL)";
+
+/// The workspace's own version: one row, or none before the table was first written.
+const VERSION_READ: &str = "SELECT \"version\" FROM \"schema_version\" WHERE \"id\" = 1";
+
+/// The row saying the workspace is at `version`, written in the transaction that brought it there.
+fn version_written(version: usize) -> String {
+    format!(
+        "INSERT INTO \"schema_version\" (\"id\", \"version\") VALUES (1, {version}) \
+         ON CONFLICT(\"id\") DO UPDATE SET \"version\" = excluded.\"version\""
+    )
+}
 
 /// How many migrations ship, which is what a workspace created here is recorded as being at.
 pub fn shipped_version() -> i64 {
@@ -66,6 +116,47 @@ pub fn statements_between(from: usize, up_to: usize) -> Vec<String> {
                 .collect::<Vec<String>>()
         })
         .collect()
+}
+
+/// The shape a fresh workspace database at `version` is built with: the first `version` shipped
+/// migrations and the version table, applied to an in-memory SQLite. Built once per version per
+/// process, since it is the same every time.
+pub async fn fresh(version: usize) -> Result<Shape, Error> {
+    static BUILT: OnceLock<Mutex<HashMap<usize, Shape>>> = OnceLock::new();
+
+    let built = BUILT.get_or_init(Mutex::default);
+
+    if let Some(shape) = built
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .get(&version)
+    {
+        return Ok(shape.clone());
+    }
+
+    let mut connection = SqliteConnectOptions::from_str("sqlite::memory:")?
+        .foreign_keys(false)
+        .connect()
+        .await?;
+
+    for statement in statements(version)
+        .iter()
+        .map(String::as_str)
+        .chain([VERSION_MADE])
+    {
+        sqlx::query(sqlx::AssertSqlSafe(statement))
+            .execute(&mut connection)
+            .await?;
+    }
+
+    let shape = schema::read(&mut connection).await?.shape;
+
+    built
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .insert(version, shape.clone());
+
+    Ok(shape)
 }
 
 /// Where a database's pipeline endpoint is. A value so a test can point the runner at a scripted
@@ -96,98 +187,270 @@ impl Pipeline {
     }
 }
 
-/// Apply the first `up_to` shipped migrations to the database behind `pipeline`, with `token`.
-///
-/// One request carrying every statement and a close, in order. The token is the short-lived
-/// credential minted for the migration and nothing else, and it is spent here and dropped.
-pub async fn apply(pipeline: &Pipeline, token: &str, up_to: usize) -> Result<(), Error> {
-    apply_between(pipeline, token, 0, up_to).await
+/// What [`apply_between`] found and did.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Migrated {
+    /// the tail after `from` was applied, checked and committed with the version row at `to`.
+    Applied { from: usize, to: usize },
+    /// the workspace's own row already said this version, and nothing was applied.
+    AlreadyAt(usize),
 }
 
-/// Apply the shipped migrations after the first `from` and up to `up_to`: what a workspace
-/// already at `from` needs. `token` is whatever credential the caller holds on the database; a
-/// pending migration is applied under the member's own full-access credential, because any member
-/// may hold the lease (`organization/migration.rs`).
+/// Apply the first `up_to` shipped migrations to the database behind `pipeline`, with `token`:
+/// a workspace being created, in the one transaction [`apply_between`] runs.
+///
+/// The token is the short-lived credential minted for the migration and nothing else, and it is
+/// spent here and dropped.
+pub async fn apply(pipeline: &Pipeline, token: &str, up_to: usize) -> Result<(), Error> {
+    apply_between(pipeline, token, 0, up_to).await.map(|_| ())
+}
+
+/// Bring the workspace behind `pipeline` to `up_to` shipped migrations, in one transaction with
+/// its version row and the check, or not at all. `from` is the version its caller holds it at,
+/// which the workspace's own row, read first inside the transaction, overrules where it has one.
+/// `token` is whatever credential the caller holds on the database; a pending migration is
+/// applied under the member's own full-access credential, because any member may hold the lease
+/// (`organization/migration.rs`).
 pub async fn apply_between(
     pipeline: &Pipeline,
     token: &str,
     from: usize,
     up_to: usize,
-) -> Result<(), Error> {
-    let client = build_client(MIGRATION_TIMEOUT)?;
+) -> Result<Migrated, Error> {
+    let stream = OverThePipeline::migrating(pipeline, token);
+    let migrated = migrated_on(&stream, from, up_to).await;
 
-    let mut requests: Vec<Value> = statements_between(from, up_to)
-        .into_iter()
-        .map(|sql| json!({ "type": "execute", "stmt": { "sql": sql } }))
-        .collect();
+    if migrated.is_err() {
+        stream.abandoned().await;
+    }
 
-    requests.push(json!({ "type": "close" }));
+    migrated
+}
 
-    let response = client
-        .post(&pipeline.url)
-        .bearer_auth(token)
-        .json(&json!({ "requests": requests }))
-        .send()
-        .await
-        .map_err(|error| Error::Network {
-            message: format!(
-                "the workspace database could not be reached to apply its schema ({error})"
-            ),
-        })?;
+/// The transaction [`apply_between`] runs on `stream`, which it rolls back where this fails.
+async fn migrated_on(
+    stream: &OverThePipeline<'_>,
+    from: usize,
+    up_to: usize,
+) -> Result<Migrated, Error> {
+    let opened = stream
+        .exchanged(
+            vec![
+                execute("BEGIN"),
+                execute(VERSION_MADE),
+                execute(VERSION_READ),
+            ],
+            false,
+        )
+        .await?;
 
-    let status = response.status();
-
-    if !status.is_success() {
+    if let Some(index) = refused_at(&opened) {
         return Err(Error::refused(
             RefusalReason::DatabaseRefused,
             format!(
-                "the workspace database refused its schema ({status}). the workspace was not created"
+                "the workspace database refused request {index} opening its migration, and \
+                 nothing was changed"
             ),
         ));
     }
 
-    let answered: Value = response.json().await.map_err(|_| Error::Integrity {
-        message: "the workspace database answered the schema with something this application \
-                  cannot read"
-            .to_string(),
-    })?;
+    let recorded = rows_of(&opened, 2)
+        .first()
+        .and_then(|row| row.as_array())
+        .and_then(|row| row.first())
+        .map(decoded)
+        .transpose()?;
+    let at = match recorded {
+        Some(turso::Value::Integer(version)) if version >= 0 => version as usize,
+        Some(_) => {
+            return Err(Error::Integrity {
+                message: "the workspace database holds a schema version this application cannot \
+                          read"
+                    .to_string(),
+            });
+        }
+        None => from,
+    };
 
-    if let Some(results) = answered.get("results").and_then(Value::as_array) {
-        for (index, result) in results.iter().enumerate() {
-            if result.get("type").and_then(Value::as_str) == Some("error") {
-                // the statement is not quoted: it is the shipped SQL, and the index names it.
-                return Err(Error::refused(
-                    RefusalReason::DatabaseRefused,
-                    format!(
-                        "statement {index} of the workspace schema was refused by the database. \
-                         the workspace was not created"
-                    ),
-                ));
-            }
+    if at > up_to {
+        return Err(Error::refused(
+            RefusalReason::WorkspaceNewer,
+            format!(
+                "the workspace was upgraded by a newer rentable (schema {at}, and this one knows \
+                 {up_to}). update rentable to open it; nothing was changed"
+            ),
+        ));
+    }
+
+    if at == up_to {
+        let ended = stream.exchanged(vec![execute("ROLLBACK")], true).await?;
+
+        if refused_at(&ended).is_some() {
+            diagnostics::warn("organization.migrate.rollbackRefused").write();
+        }
+
+        return Ok(Migrated::AlreadyAt(at));
+    }
+
+    let tail = statements_between(at, up_to);
+    let steps: Vec<Value> = tail
+        .iter()
+        .enumerate()
+        .map(|(index, sql)| {
+            json!({
+                "stmt": { "sql": sql },
+                "condition": index.checked_sub(1).map(|before| json!({ "type": "ok", "step": before })),
+            })
+        })
+        .collect();
+    let applied = stream
+        .exchanged(
+            vec![
+                json!({ "type": "batch", "batch": { "steps": steps } }),
+                execute(schema::QUICK_CHECK),
+                execute(schema::FOREIGN_KEY_CHECK),
+                execute(&backup::listing()),
+            ],
+            false,
+        )
+        .await?;
+
+    if applied.first().and_then(|result| result.get("type")) != Some(&json!("ok")) {
+        return Err(Error::refused(
+            RefusalReason::DatabaseRefused,
+            format!(
+                "the workspace database refused the migration from {at} to {up_to}, and nothing \
+                 was changed"
+            ),
+        ));
+    }
+
+    let batch = applied[0].pointer("/response/result");
+
+    for index in 0..tail.len() {
+        let answered = |field: &str| {
+            batch
+                .and_then(|batch| batch.get(field))
+                .and_then(|answers| answers.get(index))
+                .filter(|answer| !answer.is_null())
+        };
+
+        if answered("step_errors").is_some() || answered("step_results").is_none() {
+            // the statement is not quoted: it is the shipped SQL, and the index names it.
+            return Err(Error::refused(
+                RefusalReason::DatabaseRefused,
+                format!(
+                    "statement {index} of the migration from {at} to {up_to} was refused by the \
+                     database, and nothing of it was kept"
+                ),
+            ));
         }
     }
 
-    Ok(())
+    if let Some(index) = refused_at(&applied) {
+        return Err(Error::refused(
+            RefusalReason::DatabaseRefused,
+            format!(
+                "the workspace database refused check {index} of the migration from {at} to \
+                 {up_to}, and nothing of it was kept"
+            ),
+        ));
+    }
+
+    let found = Found {
+        quick_check: rows_of(&applied, 1)
+            .iter()
+            .map(|row| match decoded_row(row)?.into_iter().next() {
+                Some(turso::Value::Text(text)) => Ok(text),
+                _ => Err(unreadable("a quick_check row")),
+            })
+            .collect::<Result<Vec<String>, Error>>()?,
+        foreign_key_violations: rows_of(&applied, 2).len(),
+        shape: Shape::of(
+            rows_of(&applied, 3)
+                .iter()
+                .map(|row| match decoded_row(row)?.as_slice() {
+                    [
+                        turso::Value::Text(kind),
+                        turso::Value::Text(name),
+                        turso::Value::Text(sql),
+                    ] => Ok((kind.clone(), name.clone(), sql.clone())),
+                    _ => Err(unreadable("a schema row")),
+                })
+                .collect::<Result<Vec<(String, String, String)>, Error>>()?,
+        ),
+    };
+
+    schema::as_built(
+        &format!("the workspace migrated from {at} to {up_to}"),
+        &found,
+        &fresh(up_to).await?,
+    )?;
+
+    let committed = stream
+        .exchanged(
+            vec![execute(&version_written(up_to)), execute("COMMIT")],
+            true,
+        )
+        .await?;
+
+    if let Some(index) = refused_at(&committed) {
+        return Err(Error::refused(
+            RefusalReason::DatabaseRefused,
+            format!(
+                "the workspace database refused request {index} committing the migration from \
+                 {at} to {up_to}, and nothing of it was kept"
+            ),
+        ));
+    }
+
+    Ok(Migrated::Applied {
+        from: at,
+        to: up_to,
+    })
 }
 
-/// A workspace as a copy reads it before a pending migration changes it (effort 838, tickets 28
-/// and 30): what the database behind `pipeline` answers, read with `token`, the credential the
-/// migration goes over, and never written.
+/// One statement, as the pipeline takes it.
+fn execute(sql: &str) -> Value {
+    json!({ "type": "execute", "stmt": { "sql": sql } })
+}
+
+/// Which of `results` the database refused first, where it refused one.
+fn refused_at(results: &[Value]) -> Option<usize> {
+    results
+        .iter()
+        .position(|result| result.get("type").and_then(Value::as_str) != Some("ok"))
+}
+
+/// The rows the `index`th of `results` read, each a list of the pipeline's typed cells.
+fn rows_of(results: &[Value], index: usize) -> Vec<Value> {
+    results
+        .get(index)
+        .and_then(|result| result.pointer("/response/result/rows"))
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default()
+}
+
+/// A workspace read or migrated over its pipeline, on one stream held by its baton.
 ///
 /// **One stream, held across requests by its baton.** The pipeline keeps a stream open between
 /// requests when a request does not close it, and answers a baton naming it, which the next
-/// request hands back; so `BEGIN` in the first request and every read after it are one transaction,
-/// and the copy is of one moment however many requests it takes. Where an answer names a
-/// `base_url`, the requests after it go there, which is how the stream stays on the server holding
-/// it. The last request rolls back and closes. Nothing else here holds a stream: every other
-/// request to a pipeline is one request, closed.
+/// request hands back; so `BEGIN` in the first request and everything after it are one
+/// transaction, however many requests it takes. Where an answer names a `base_url`, the requests
+/// after it go there, which is how the stream stays on the server holding it. A copy reads over
+/// it (effort 838, tickets 28 and 30), and its last request rolls back and closes; a migration
+/// writes over it ([`apply_between`]), and its last request commits and closes. Nothing else here
+/// holds a stream: every other request to a pipeline is one request, closed.
 pub(crate) struct OverThePipeline<'a> {
     pipeline: &'a Pipeline,
     token: &'a str,
     stream: std::sync::Mutex<Stream>,
+    /// what the stream is for, as the failures say it: `its copy` or `its migration`.
+    doing: &'static str,
 }
 
-/// Where the stream a copy reads over stands between two requests.
+/// Where a stream stands between two requests.
 #[derive(Default)]
 struct Stream {
     /// what the last answer named the stream by; none before the first request.
@@ -197,17 +460,29 @@ struct Stream {
 }
 
 impl<'a> OverThePipeline<'a> {
+    /// A stream a copy reads the workspace over.
     pub(crate) fn new(pipeline: &'a Pipeline, token: &'a str) -> Self {
+        Self::doing(pipeline, token, "its copy")
+    }
+
+    /// A stream a migration is applied over.
+    fn migrating(pipeline: &'a Pipeline, token: &'a str) -> Self {
+        Self::doing(pipeline, token, "its migration")
+    }
+
+    fn doing(pipeline: &'a Pipeline, token: &'a str, doing: &'static str) -> Self {
         Self {
             pipeline,
             token,
             stream: std::sync::Mutex::new(Stream::default()),
+            doing,
         }
     }
 
-    /// Send `sql` on the stream, closing it after where `close` says, and answer the rows it
-    /// read, each a list of the pipeline's typed cells.
-    async fn sent(&self, sql: &str, close: bool) -> Result<Vec<Value>, Error> {
+    /// Send `requests` on the stream, closing it after them where `close` says, and answer the
+    /// result of each, in order, for the caller to read statement by statement.
+    async fn exchanged(&self, requests: Vec<Value>, close: bool) -> Result<Vec<Value>, Error> {
+        let doing = self.doing;
         let (url, baton) = {
             let stream = self.stream.lock().unwrap_or_else(PoisonError::into_inner);
             let url = stream.base_url.as_deref().map_or_else(
@@ -217,7 +492,7 @@ impl<'a> OverThePipeline<'a> {
 
             (url, stream.baton.clone())
         };
-        let mut requests = vec![json!({ "type": "execute", "stmt": { "sql": sql } })];
+        let mut requests = requests;
 
         if close {
             requests.push(json!({ "type": "close" }));
@@ -232,62 +507,108 @@ impl<'a> OverThePipeline<'a> {
             .await
             .map_err(|error| Error::Network {
                 message: format!(
-                    "the workspace database could not be reached to copy it ({error})"
+                    "the workspace database could not be reached for {doing} ({error})"
                 ),
             })?;
         let status = response.status();
 
         if !status.is_success() {
+            // the stream is gone with a request the server would not take.
+            *self.stream.lock().unwrap_or_else(PoisonError::into_inner) = Stream::default();
+
             return Err(Error::refused(
                 RefusalReason::DatabaseRefused,
-                format!("the workspace database refused to be read for its copy ({status})"),
+                format!("the workspace database refused {doing} ({status})"),
             ));
         }
 
         let answered: Value = response.json().await.map_err(|_| Error::Integrity {
-            message: "the workspace database answered its copy with something this application \n                 cannot read"
-                .to_string(),
+            message: format!(
+                "the workspace database answered {doing} with something this application cannot \
+                 read"
+            ),
         })?;
         let baton = answered
             .get("baton")
             .and_then(Value::as_str)
             .map(str::to_string);
-
-        if baton.is_none() && !close {
-            return Err(Error::Integrity {
-                message: "the workspace database closed the copy's read before it was done"
-                    .to_string(),
-            });
-        }
+        let results = answered
+            .get("results")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
 
         {
             let mut stream = self.stream.lock().unwrap_or_else(PoisonError::into_inner);
 
-            stream.baton = baton;
+            stream.baton = baton.clone();
 
             if let Some(base_url) = answered.get("base_url").and_then(Value::as_str) {
                 stream.base_url = Some(base_url.to_string());
             }
         }
 
-        let first = answered
-            .pointer("/results/0")
-            .ok_or_else(|| Error::Integrity {
-                message: "the workspace database answered its copy with no result".to_string(),
-            })?;
+        // a refusal is the caller's to read and say; a stream that closed with nothing refused
+        // is one the rest of the work has nowhere to go.
+        if baton.is_none() && !close && refused_at(&results).is_none() {
+            return Err(Error::Integrity {
+                message: format!(
+                    "the workspace database closed the stream of {doing} before it was done"
+                ),
+            });
+        }
 
-        if first.get("type").and_then(Value::as_str) == Some("error") {
+        if results.len() < requests.len() && refused_at(&results).is_none() {
+            return Err(Error::Integrity {
+                message: format!(
+                    "the workspace database answered {doing} with fewer results than it was sent"
+                ),
+            });
+        }
+
+        Ok(results)
+    }
+
+    /// Send `sql` on the stream, closing it after where `close` says, and answer the rows it
+    /// read, each a list of the pipeline's typed cells.
+    async fn sent(&self, sql: &str, close: bool) -> Result<Vec<Value>, Error> {
+        let results = self.exchanged(vec![execute(sql)], close).await?;
+
+        if refused_at(&results) == Some(0) {
             return Err(Error::refused(
                 RefusalReason::DatabaseRefused,
-                "the workspace database refused to be read for its copy",
+                format!(
+                    "the workspace database refused to be read for {}",
+                    self.doing
+                ),
             ));
         }
 
-        Ok(first
-            .pointer("/response/result/rows")
-            .and_then(Value::as_array)
-            .cloned()
-            .unwrap_or_default())
+        Ok(rows_of(&results, 0))
+    }
+
+    /// Whether the server holds the stream open for another request.
+    fn open(&self) -> bool {
+        self.stream
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .baton
+            .is_some()
+    }
+
+    /// Roll back and close a stream a migration failed on, where it is open: the workspace is then
+    /// as it was. A rollback that cannot be sent is logged and not raised over the failure that
+    /// caused it; the server rolls back a stream it lets go of in any case.
+    async fn abandoned(&self) {
+        if !self.open() {
+            return;
+        }
+
+        if let Err(error) = self.exchanged(vec![execute("ROLLBACK")], true).await {
+            diagnostics::warn("organization.migrate.rollbackNotSent")
+                .with("error", error.to_string())
+                .write();
+        }
     }
 }
 
@@ -309,14 +630,7 @@ impl backup::Source for OverThePipeline<'_> {
     async fn end(&self) -> Result<(), Error> {
         // a stream that was never opened, or that the server has already let go, has nothing to
         // roll back.
-        let opened = self
-            .stream
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .baton
-            .is_some();
-
-        if opened {
+        if self.open() {
             self.sent("ROLLBACK", true).await?;
         }
 
@@ -372,13 +686,12 @@ fn decoded(cell: &Value) -> Result<turso::Value, Error> {
     }
 }
 
-/// The failure of a copy's read that answered `what` in a shape this application cannot read: a
-/// row, a cell of a storage class it does not know, or a value that does not parse as its class
-/// says.
+/// The failure of a read that answered `what` in a shape this application cannot read: a row, a
+/// cell of a storage class it does not know, or a value that does not parse as its class says.
 fn unreadable(what: &str) -> Error {
     Error::Integrity {
         message: format!(
-            "the workspace database answered its copy with {what} this application cannot read"
+            "the workspace database answered with {what} this application cannot read"
         ),
     }
 }
@@ -387,13 +700,20 @@ fn unreadable(what: &str) -> Error {
 mod tests {
     use serde_json::json;
 
-    use crate::sync::test::server::{ScriptedResponse, ScriptedServer};
+    use crate::sync::test::{
+        pipeline::LocalPipeline,
+        server::{ScriptedResponse, ScriptedServer},
+    };
 
     use super::{
-        OverThePipeline, Pipeline, WORKSPACE_MIGRATIONS, apply, shipped_version, statements,
-        statements_between,
+        Migrated, OverThePipeline, Pipeline, VERSION_READ, WORKSPACE_MIGRATIONS, apply,
+        apply_between, fresh, shipped_version, statements, statements_between, version_written,
     };
-    use crate::backup;
+    use crate::{
+        backup,
+        error::{Error, RefusalReason},
+        schema::{self, Shape},
+    };
 
     /// A workspace at version `from` needs exactly the migrations after it, and none of the ones
     /// it already has; the whole set is the same as starting from nothing.
@@ -450,52 +770,302 @@ mod tests {
         assert_eq!(statements(0), Vec::<String>::new());
     }
 
-    #[tokio::test]
-    async fn the_schema_goes_as_one_pipeline_with_the_credential_and_a_close() {
-        let server = ScriptedServer::start(vec![ScriptedResponse::new(
-            200,
-            json!({ "results": [{ "type": "ok" }, { "type": "ok" }] }).to_string(),
-        )])
-        .await;
-
-        apply(&Pipeline::at(&server.url("")), "a-migration-token", 1)
+    /// The shape of the database behind `pipeline`, and every row it holds, read as a plain file.
+    async fn as_it_is(pipeline: &LocalPipeline) -> (Shape, Vec<(String, Vec<Vec<turso::Value>>)>) {
+        let mut connection = pipeline.connection().await;
+        let shape = schema::read(&mut connection)
             .await
-            .expect("the schema was refused");
+            .expect("the shape")
+            .shape;
 
-        let request = server.request(0);
-        let body: serde_json::Value = serde_json::from_str(&request.body).expect("json");
-        let requests = body["requests"].as_array().expect("requests");
+        sqlx::Connection::close(connection).await.expect("closed");
 
-        assert_eq!(request.method, "POST");
-        assert_eq!(request.target, "/v2/pipeline");
-        assert_eq!(
-            request.header("authorization"),
-            Some("Bearer a-migration-token")
-        );
-        assert_eq!(requests.len(), statements(1).len() + 1);
-        assert_eq!(requests.last().expect("a close")["type"], "close");
-        assert_eq!(requests[0]["type"], "execute");
+        (shape, backup::contents_of(pipeline.path()).await)
     }
 
-    /// The pipeline answers 200 with a refusal inside, and that is a failure here.
-    #[tokio::test]
-    async fn a_refused_statement_inside_a_200_is_a_failure_that_names_the_statement() {
-        let server = ScriptedServer::start(vec![ScriptedResponse::new(
-            200,
-            json!({ "results": [{ "type": "ok" }, { "type": "error", "error": { "message": "no such table" } }] })
-                .to_string(),
-        )])
-        .await;
+    /// The version the workspace's own row says, where it has one.
+    async fn recorded(pipeline: &LocalPipeline) -> Option<i64> {
+        let mut connection = pipeline.connection().await;
+        let exists: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'schema_version'",
+        )
+        .fetch_one(&mut connection)
+        .await
+        .expect("the listing");
 
-        let error = apply(&Pipeline::at(&server.url("")), "t", 1)
+        if exists == 0 {
+            return None;
+        }
+
+        sqlx::query_scalar(VERSION_READ)
+            .fetch_optional(&mut connection)
             .await
-            .expect_err("a refused statement was read as applied");
+            .expect("the row")
+    }
 
-        assert!(error.to_string().contains("statement 1"), "{error}");
-        assert!(
-            !error.to_string().contains("no such table"),
-            "the database's words reached the message"
+    /// A workspace at version 2, as a build before ticket 32 left it: no version row, and a row
+    /// in two of its tables.
+    async fn at_version_two() -> LocalPipeline {
+        let pipeline = LocalPipeline::start().await;
+
+        pipeline
+            .holding(
+                &[
+                    statements(2),
+                    vec![
+                        "INSERT INTO `complex` (`id`, `name`, `location`) \
+                         VALUES (1, 'North', 'Riyadh')"
+                            .to_string(),
+                        "INSERT INTO `payment` (`id`, `date`, `amount`, `contract_id`) \
+                         VALUES (1, 1757000000000, 1250.5, 1)"
+                            .to_string(),
+                    ],
+                ]
+                .concat(),
+            )
+            .await;
+
+        pipeline
+    }
+
+    /// The statements the `index`th request to `pipeline` carried, as the database was sent
+    /// them: an execute's own, and a batch's steps.
+    fn sent(pipeline: &LocalPipeline, index: usize) -> Vec<String> {
+        let body: serde_json::Value =
+            serde_json::from_str(&pipeline.request(index).body).expect("json");
+
+        body["requests"]
+            .as_array()
+            .expect("requests")
+            .iter()
+            .flat_map(|request| match request["type"].as_str() {
+                Some("execute") => vec![request["stmt"]["sql"].as_str().expect("sql").to_string()],
+                Some("batch") => request["batch"]["steps"]
+                    .as_array()
+                    .expect("steps")
+                    .iter()
+                    .map(|step| step["stmt"]["sql"].as_str().expect("sql").to_string())
+                    .collect(),
+                _ => Vec::new(),
+            })
+            .collect()
+    }
+
+    /// A workspace is created in the one transaction a migration runs: `BEGIN` and the version
+    /// read, the whole schema as one batch with the check's reads, then the version row and
+    /// `COMMIT`, all on one stream under the migration's credential. The result is the shape a
+    /// fresh database of the shipped version has, and says so in its own row.
+    #[tokio::test]
+    async fn a_workspace_is_created_in_one_transaction_with_its_version_row() {
+        let pipeline = LocalPipeline::start().await;
+        let shipped = shipped_version() as usize;
+
+        apply(
+            &Pipeline::at(&pipeline.url("")),
+            "a-migration-token",
+            shipped,
+        )
+        .await
+        .expect("the schema was refused");
+
+        assert_eq!(pipeline.request_count(), 3);
+
+        let bodies: Vec<serde_json::Value> = (0..3)
+            .map(|index| serde_json::from_str(&pipeline.request(index).body).expect("json"))
+            .collect();
+
+        assert_eq!(bodies[0]["baton"], serde_json::Value::Null);
+        assert!(bodies[1..].iter().all(|body| body["baton"].is_string()));
+        assert_eq!(sent(&pipeline, 0)[0], "BEGIN");
+        assert_eq!(
+            bodies[1]["requests"][0]["batch"]["steps"]
+                .as_array()
+                .expect("steps")
+                .len(),
+            statements(shipped).len()
         );
+        assert_eq!(
+            sent(&pipeline, 2).last().map(String::as_str),
+            Some("COMMIT")
+        );
+        assert_eq!(
+            bodies[2]["requests"]
+                .as_array()
+                .expect("requests")
+                .last()
+                .expect("a close")["type"],
+            "close"
+        );
+
+        for index in 0..3 {
+            let request = pipeline.request(index);
+
+            assert_eq!(request.target, "/v2/pipeline");
+            assert_eq!(
+                request.header("authorization"),
+                Some("Bearer a-migration-token")
+            );
+        }
+
+        assert_eq!(recorded(&pipeline).await, Some(shipped as i64));
+        assert_eq!(
+            as_it_is(&pipeline).await.0,
+            fresh(shipped).await.expect("the fresh shape")
+        );
+    }
+
+    /// **Ticket 32's first criterion.** A statement refused in the middle of the tail leaves the
+    /// workspace exactly as it was, every table and every row, with no version row; the refusal
+    /// names the statement and not the database's words. The retry applies the whole tail and
+    /// commits it with the version.
+    #[tokio::test]
+    async fn a_statement_refused_part_way_leaves_every_table_as_it_was_and_a_retry_applies_all() {
+        let pipeline = at_version_two().await;
+        let shipped = shipped_version() as usize;
+        let tail = statements_between(2, shipped);
+        let middle = tail.len() / 2;
+        let before = as_it_is(&pipeline).await;
+
+        assert!(middle > 0 && middle < tail.len() - 1);
+        pipeline.refusing(&tail[middle]).await;
+
+        let refused = apply_between(&Pipeline::at(&pipeline.url("")), "t", 2, shipped).await;
+
+        assert!(
+            matches!(
+                &refused,
+                Err(Error::Refused { reason: RefusalReason::DatabaseRefused, message })
+                    if message.contains(&format!("statement {middle} "))
+                        && !message.contains("refused by the test")
+            ),
+            "{refused:?}"
+        );
+        assert_eq!(
+            as_it_is(&pipeline).await,
+            before,
+            "the workspace was changed"
+        );
+        assert_eq!(recorded(&pipeline).await, None);
+
+        // the stream was rolled back and closed.
+        let last = pipeline.request_count() - 1;
+
+        assert_eq!(sent(&pipeline, last), vec!["ROLLBACK".to_string()]);
+
+        let retried = apply_between(&Pipeline::at(&pipeline.url("")), "t", 2, shipped)
+            .await
+            .expect("the retry");
+
+        assert_eq!(
+            retried,
+            Migrated::Applied {
+                from: 2,
+                to: shipped
+            }
+        );
+        assert_eq!(sent(&pipeline, last + 2)[..tail.len()], tail[..]);
+        assert_eq!(recorded(&pipeline).await, Some(shipped as i64));
+        assert_eq!(
+            as_it_is(&pipeline).await.0,
+            fresh(shipped).await.expect("the fresh shape")
+        );
+    }
+
+    /// **Ticket 32's second criterion.** The workspace's own row is read first, inside the
+    /// transaction: where it already says the version asked for, nothing is applied, even though
+    /// the caller's record is behind; and where it says a newer one, the workspace is refused as
+    /// newer and nothing is changed.
+    #[tokio::test]
+    async fn the_workspaces_own_version_is_read_first_and_nothing_is_applied_twice() {
+        let shipped = shipped_version() as usize;
+        let pipeline = LocalPipeline::start().await;
+
+        apply(&Pipeline::at(&pipeline.url("")), "t", shipped)
+            .await
+            .expect("the schema");
+
+        let before = as_it_is(&pipeline).await;
+        let requests = pipeline.request_count();
+        let again = apply_between(&Pipeline::at(&pipeline.url("")), "t", shipped - 1, shipped)
+            .await
+            .expect("the second run");
+
+        assert_eq!(again, Migrated::AlreadyAt(shipped));
+        assert_eq!(pipeline.request_count(), requests + 2);
+        assert_eq!(sent(&pipeline, requests + 1), vec!["ROLLBACK".to_string()]);
+        assert!(
+            (requests..requests + 2)
+                .all(|index| !pipeline.request(index).body.contains("\"batch\"")),
+            "a statement of the tail was sent again"
+        );
+        assert_eq!(as_it_is(&pipeline).await, before);
+
+        pipeline.holding(&[version_written(shipped + 1)]).await;
+
+        let newer =
+            apply_between(&Pipeline::at(&pipeline.url("")), "t", shipped - 1, shipped).await;
+
+        assert!(
+            matches!(
+                newer,
+                Err(Error::Refused {
+                    reason: RefusalReason::WorkspaceNewer,
+                    ..
+                })
+            ),
+            "{newer:?}"
+        );
+        assert_eq!(recorded(&pipeline).await, Some(shipped as i64 + 1));
+    }
+
+    /// **Ticket 32's third criterion, for a workspace.** A tail that runs and leaves a schema other
+    /// than a fresh database's of that version is refused with `ShapeNotAsBuilt`, naming what
+    /// differs, and rolled back: none of the tail and no version row is kept.
+    #[tokio::test]
+    async fn a_check_that_fails_rolls_the_migration_back_with_shape_not_as_built() {
+        let shipped = shipped_version() as usize;
+        let pipeline = LocalPipeline::start().await;
+
+        pipeline
+            .holding(
+                &[
+                    statements(shipped - 1),
+                    vec!["CREATE TABLE `stray` (`id` integer)".to_string()],
+                ]
+                .concat(),
+            )
+            .await;
+
+        let before = as_it_is(&pipeline).await;
+        let refused =
+            apply_between(&Pipeline::at(&pipeline.url("")), "t", shipped - 1, shipped).await;
+
+        assert!(
+            matches!(
+                &refused,
+                Err(Error::Refused { reason: RefusalReason::ShapeNotAsBuilt, message })
+                    if message.contains("table stray is not in a fresh database")
+            ),
+            "{refused:?}"
+        );
+        assert_eq!(
+            as_it_is(&pipeline).await,
+            before,
+            "the workspace was changed"
+        );
+        assert_eq!(recorded(&pipeline).await, None);
+    }
+
+    /// The fresh shape of every shipped version builds, the same each time, and each carries the
+    /// version table.
+    #[tokio::test]
+    async fn a_fresh_database_of_every_shipped_version_builds() {
+        for version in 0..=shipped_version() as usize {
+            let shape = fresh(version).await.expect("the fresh shape");
+
+            assert_eq!(shape, fresh(version).await.expect("the second read"));
+            assert!(format!("{shape:?}").contains("schema_version"));
+        }
     }
 
     #[tokio::test]

@@ -1298,6 +1298,10 @@ type RootTranslation = {
 				 */
 				copyNotTaken: string
 				/**
+				 * t​h​e​ ​u​p​g​r​a​d​e​ ​w​a​s​ ​c​h​e​c​k​e​d​ ​b​e​f​o​r​e​ ​i​t​ ​w​a​s​ ​s​a​v​e​d​ ​a​n​d​ ​d​i​d​ ​n​o​t​ ​c​o​m​e​ ​o​u​t​ ​r​i​g​h​t​,​ ​s​o​ ​n​o​t​h​i​n​g​ ​w​a​s​ ​c​h​a​n​g​e​d​.
+				 */
+				shapeNotAsBuilt: string
+				/**
 				 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​i​s​ ​n​o​t​ ​c​o​n​n​e​c​t​e​d​ ​t​o​ ​t​h​e​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​.​ ​c​o​n​n​e​c​t​ ​i​t​ ​a​n​d​ ​t​r​y​ ​a​g​a​i​n​.
 				 */
 				tursoNotConnected: string
@@ -5604,6 +5608,10 @@ export type TranslationFunctions = {
 				 * no copy was taken before upgrading, so nothing was changed. check the connection and the backups folder, then try again.
 				 */
 				copyNotTaken: () => LocalizedString
+				/**
+				 * the upgrade was checked before it was saved and did not come out right, so nothing was changed.
+				 */
+				shapeNotAsBuilt: () => LocalizedString
 				/**
 				 * this machine is not connected to the Turso account. connect it and try again.
 				 */

@@ -5,4 +5,5 @@
 //! Google sign-in, when the server it holds outlived the tests it was written for: every
 //! organization test that scripts a Turso answer stands on it.*
 
+pub(crate) mod pipeline;
 pub(crate) mod server;

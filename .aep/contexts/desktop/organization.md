@@ -294,7 +294,10 @@ refused unless what it yields is the key this machine pinned, and the directory 
   is Turso's point-in-time restore, on the customer's account.
 - **A migration reaches a workspace under a lease taken at the primary**, by whichever member
   opens it, and an older build refuses a newer workspace before reading anything. The lease holder
-  copies the workspace first (`backup.rs`), and a copy not taken applies nothing.
+  copies the workspace first (`backup.rs`), and a copy not taken applies nothing. The tail, a check
+  of what it made (`schema.rs`) and the workspace's own version row commit in one transaction or
+  not at all (`migrate.rs`); the organization's record is written after the commit, and where the
+  workspace's row is already at the shipped version only the record is brought up.
 - **Live tests reach the human's account only when asked**, each creating and removing its own
   database; [[rules/testing]] under *Tests that reach a live remote* admits them, and
   [[references/turso]] under *Never run* bounds them.

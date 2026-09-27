@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(organization): a workspace migration commits whole, checked, with its version inside
@@ -17,17 +17,17 @@ change of format uses too (ticket 33).
 
 Traces requirement 15 of [[efforts/838-permissions-are-a-role-and-an-override/spec]].
 
-- [ ] `apply_between` runs `BEGIN`, the version read, the tail, the check and the version row on one
+- [x] `apply_between` runs `BEGIN`, the version read, the tail, the check and the version row on one
       baton-held stream, then `COMMIT`, and `ROLLBACK` on any failure. A test fails a middle
       statement and finds every table as it was and the retry applying the whole tail.
-- [ ] The workspace keeps its version in a one-row table; where it already says the shipped version
+- [x] The workspace keeps its version in a one-row table; where it already says the shipped version
       nothing is applied and only the organization's record is brought up. A test covers it.
-- [ ] `tauri/src/schema.rs` holds the check: `quick_check`, `foreign_key_check`, and the schema
+- [x] `tauri/src/schema.rs` holds the check: `quick_check`, `foreign_key_check`, and the schema
       compared with a fresh database's of that version. A mismatch refuses with `ShapeNotAsBuilt`
       in English and Arabic, rolled back. A test covers it.
-- [ ] An `#[ignore]`d live test applies every shipped migration inside one explicit transaction on
+- [x] An `#[ignore]`d live test applies every shipped migration inside one explicit transaction on
       a real Turso database, for the human to run.
-- [ ] `cargo test`, `pnpm check`, `pnpm test` and `pnpm lint` pass.
+- [x] `cargo test`, `pnpm check`, `pnpm test` and `pnpm lint` pass.
 
 ## Relevant areas
 

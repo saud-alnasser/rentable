@@ -400,6 +400,8 @@ const en = {
 					'a newer version of rentable made this organization. update rentable to open it.',
 				copyNotTaken:
 					'no copy was taken before upgrading, so nothing was changed. check the connection and the backups folder, then try again.',
+				shapeNotAsBuilt:
+					'the upgrade was checked before it was saved and did not come out right, so nothing was changed.',
 				tursoNotConnected:
 					'this machine is not connected to the Turso account. connect it and try again.',
 				consentNeededAgain:

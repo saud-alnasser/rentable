@@ -305,11 +305,7 @@ mod tests {
         let mut owner = sign_in(&store, &joined, OWNER_PASSWORD, &slot())
             .await
             .expect("the owner did not sign in");
-        let pipeline = ScriptedServer::start(vec![
-            ScriptedResponse::new(200, json!({ "results": [] }).to_string()),
-            ScriptedResponse::new(200, json!({ "results": [] }).to_string()),
-        ])
-        .await;
+        let pipeline = crate::sync::test::pipeline::LocalPipeline::start().await;
         let north = create_workspace(
             &store,
             &mut owner,

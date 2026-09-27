@@ -882,13 +882,8 @@ mod tests {
     }
 
     /// A pipeline that applies every statement it is sent.
-    async fn applying_pipeline() -> ScriptedServer {
-        ScriptedServer::start(vec![
-            ScriptedResponse::new(200, json!({ "results": [] }).to_string()),
-            ScriptedResponse::new(200, json!({ "results": [] }).to_string()),
-            ScriptedResponse::new(200, json!({ "results": [] }).to_string()),
-        ])
-        .await
+    async fn applying_pipeline() -> crate::sync::test::pipeline::LocalPipeline {
+        crate::sync::test::pipeline::LocalPipeline::start().await
     }
 
     /// An organization a first run made on this machine, its owner signed in, and the fake
@@ -2609,7 +2604,16 @@ mod tests {
         .await
         .expect_err("a workspace with no schema was reported");
 
-        assert!(error.to_string().contains("was not created"), "{error}");
+        assert!(
+            matches!(
+                error,
+                crate::error::Error::Refused {
+                    reason: crate::error::RefusalReason::DatabaseRefused,
+                    ..
+                }
+            ),
+            "{error}"
+        );
         assert_eq!(platform.deleted().len(), 1);
         assert_eq!(
             platform.deleted()[0].1,

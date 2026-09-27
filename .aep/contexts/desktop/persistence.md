@@ -72,7 +72,10 @@ router test can pass over a conversion that is broken in the running application
   partial edit.
 - **Nothing on this machine applies a migration to the replica.** A workspace's schema is applied
   to its database over the wire, at creation and under a lease when a build ships more migrations
-  than the workspace is recorded at, and the replica receives it as replicated pages. The
+  than the workspace is recorded at, and the replica receives it as replicated pages. It is applied
+  in one transaction with the workspace's own `schema_version` row and a check against a fresh
+  database of that version, or not at all (`organization/migrate.rs`, `schema.rs`); inside that
+  transaction a `PRAGMA foreign_keys` would be a no-op, which is one more reason none ships. The
   TypeScript side here generates migrations and never runs them against the app's database;
   `tauri/migrations/` is a build-time mirror `build.rs` counts to produce
   `WORKSPACE_SCHEMA_VERSION` and embeds for the runner, and a build older than a workspace's

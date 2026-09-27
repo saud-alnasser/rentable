@@ -13,6 +13,7 @@ mod keyring;
 pub mod organization;
 pub mod persisted;
 pub mod print;
+pub mod schema;
 pub mod settings;
 pub mod state;
 pub mod sync;

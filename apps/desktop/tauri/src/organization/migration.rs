@@ -41,6 +41,17 @@
 //! account and makes only the first. A local copy that cannot be written releases the lease, as a
 //! failed migration does, and refuses with `CopyNotTaken`: nothing is applied. A copy the account
 //! refuses is logged, and the migration goes on with the local copy.
+//!
+//! **The workspace keeps its own version, and the organization's record follows it** (effort 838,
+//! requirement 15, ticket 32). The tail, the check of what it made and the workspace's own
+//! version row commit in one transaction on the workspace database (`migrate.rs`), or none of it
+//! does, and a failure anywhere releases the lease with the workspace exactly as it was. The
+//! organization's record stays what is read before a replica is opened, and is written after the
+//! commit as it always was. Where the two disagree, the workspace's row wins: a migration that
+//! committed and was never recorded, the machine gone between the two, is found at the shipped
+//! version by the next member to open it, who applies nothing and brings only the record up. The
+//! copy is still taken first, since which of the two it is can only be read inside the
+//! transaction.
 
 use std::{future::Future, time::Duration};
 
@@ -479,13 +490,31 @@ where
                 // the version is recorded and sent before the lease goes: a waiting client
                 // breaks its wait the moment the lease is free and reads the version to decide
                 // whether to take it, so a lease released first is a window in which the same
-                // statements are applied twice. A migration that failed releases at once, since
-                // it is somebody's to try again and a lease held over a failure would make them
-                // wait out the deadline.
-                if let Err(refusal) = applied {
-                    lease.release(&facts.id, &session.member_id).await?;
+                // statements are applied twice. A migration that failed was rolled back whole and
+                // releases at once, since it is somebody's to try again and a lease held over a
+                // failure would make them wait out the deadline.
+                match applied {
+                    Err(refusal) => {
+                        lease.release(&facts.id, &session.member_id).await?;
 
-                    return Err(refusal);
+                        return Err(refusal);
+                    }
+                    // the workspace's own row already said the shipped version: a migration that
+                    // committed and was never recorded, and only the record is brought up.
+                    Ok(migrate::Migrated::AlreadyAt(version)) => {
+                        diagnostics::info("organization.migration.alreadyAt")
+                            .with("workspace", facts.id.as_str())
+                            .with("recorded", current.to_string().as_str())
+                            .with("at", version.to_string().as_str())
+                            .write();
+                    }
+                    Ok(migrate::Migrated::Applied { from, to }) => {
+                        diagnostics::info("organization.migration.applied")
+                            .with("workspace", facts.id.as_str())
+                            .with("from", from.to_string().as_str())
+                            .with("to", to.to_string().as_str())
+                            .write();
+                    }
                 }
 
                 store
@@ -599,7 +628,10 @@ mod tests {
         persisted::Persisted,
         sync::{
             RemoteSyncStore,
-            test::server::{ScriptedResponse, ScriptedServer},
+            test::{
+                pipeline::LocalPipeline,
+                server::{ScriptedResponse, ScriptedServer},
+            },
             turso::{
                 discovery::McpEndpoint,
                 platform::{AccessLevel, InMemoryPlatform, PlatformError},
@@ -726,11 +758,7 @@ mod tests {
         let mut owner = sign_in(&store, &joined, OWNER_PASSWORD, &slot())
             .await
             .expect("the owner did not sign in");
-        let pipeline = ScriptedServer::start(vec![ScriptedResponse::new(
-            200,
-            json!({ "results": [] }).to_string(),
-        )])
-        .await;
+        let pipeline = LocalPipeline::start().await;
         let workspace = create_workspace(
             &store,
             &mut owner,
@@ -905,16 +933,23 @@ mod tests {
         script
     }
 
-    /// The copy's reads, then the migration applied.
-    fn copied_then_applied() -> Vec<ScriptedResponse> {
-        as_it_stood()
-            .into_iter()
-            .chain([ScriptedResponse::new(
-                200,
-                json!({ "results": [] }).to_string(),
-            )])
-            .collect()
+    /// The copy's reads, answered from [`as_it_stood`], then the migration run against a real
+    /// database one migration short of the shipped version: the stand-in pipeline (ticket 32).
+    async fn copied_then_applied() -> LocalPipeline {
+        let pipeline = LocalPipeline::after(as_it_stood()).await;
+
+        pipeline
+            .holding(&migrate::statements(
+                migrate::shipped_version() as usize - 1,
+            ))
+            .await;
+
+        pipeline
     }
+
+    /// How many requests a migration makes after the copy: `BEGIN` and the version read, the
+    /// tail and the check, and the version row and `COMMIT`.
+    const MIGRATING: usize = 3;
 
     /// The name of every copy of `facts`'s workspace on the machine whose data is in `directory`.
     fn copies_of(directory: &std::path::Path, facts: &WorkspaceFacts) -> Vec<String> {
@@ -1050,7 +1085,7 @@ mod tests {
         assert!(is_pending(&facts));
         refuse_newer(&facts).expect("a pending workspace is not a newer one");
 
-        let pipeline = ScriptedServer::start(copied_then_applied()).await;
+        let pipeline = copied_then_applied().await;
         let phases = Mutex::new(Vec::new());
         let lease = StoreLease::new(&store);
         let clock = Mutex::new(AT + 1);
@@ -1088,22 +1123,30 @@ mod tests {
             ]
         );
 
-        // after the copy's reads, one pipeline request, carrying the last migration's statements
-        // and a close, under the member's own credential.
-        assert_eq!(pipeline.request_count(), READS + 1);
+        // after the copy's reads, one transaction on one stream, its second request carrying the
+        // last migration's statements as one batch, all under the member's own credential.
+        assert_eq!(pipeline.request_count(), READS + MIGRATING);
 
-        let request = pipeline.request(READS);
+        let request = pipeline.request(READS + 1);
         let body: serde_json::Value = serde_json::from_str(&request.body).expect("json");
-        let sent = body["requests"].as_array().expect("requests").len();
+        let steps: Vec<&str> = body["requests"][0]["batch"]["steps"]
+            .as_array()
+            .expect("the tail")
+            .iter()
+            .map(|step| step["stmt"]["sql"].as_str().expect("sql"))
+            .collect();
 
         assert_eq!(
-            sent,
-            migrate::statements_between(shipped as usize - 1, shipped as usize).len() + 1
+            steps,
+            migrate::statements_between(shipped as usize - 1, shipped as usize)
         );
-        assert_eq!(
-            request.header("authorization"),
-            Some(format!("Bearer {}", held.token).as_str())
-        );
+
+        for index in READS..READS + MIGRATING {
+            assert_eq!(
+                pipeline.request(index).header("authorization"),
+                Some(format!("Bearer {}", held.token).as_str())
+            );
+        }
 
         // recorded, released, and nothing pending for the next client.
         let (facts, _) = facts_of(&store, &owner, &workspace_id).await;
@@ -1120,6 +1163,70 @@ mod tests {
 
         // a member's machine holds no account, and copies the workspace to itself alone.
         assert_eq!(copies_of(&directory, &facts).len(), 1);
+    }
+
+    /// **Ticket 32's second criterion, at the upgrade.** A migration that committed on the
+    /// workspace and was never recorded in the organization: the workspace's own row says the
+    /// shipped version and the organization's record is one behind. The next member to open it
+    /// applies nothing, and only the organization's record is brought up.
+    #[tokio::test]
+    async fn a_workspace_already_at_the_shipped_version_brings_up_only_the_record() {
+        let directory = scratch("already-at");
+        let (store, _, member, workspace_id) = organization(&directory).await;
+        let shipped = migrate::shipped_version();
+        let pipeline = LocalPipeline::start().await;
+
+        migrate::apply(&Pipeline::at(&pipeline.url("")), "t", shipped as usize)
+            .await
+            .expect("the migration that committed");
+        store
+            .record_schema_version(&workspace_id, shipped - 1, AT)
+            .await
+            .expect("the record left behind");
+
+        let (facts, held) = facts_of(&store, &member, &workspace_id).await;
+        let before = pipeline.request_count();
+
+        assert!(is_pending(&facts));
+
+        let reached = upgrade(
+            Pending {
+                store: &store,
+                session: &member,
+                facts: &facts,
+                held: &held,
+                pipeline: &Pipeline::at(&pipeline.url("")),
+                account: no_platform(),
+            },
+            &StoreLease::new(&store),
+            || async {},
+            |_| {},
+            || AT + 1,
+        )
+        .await
+        .expect("the upgrade failed");
+
+        assert_eq!(reached, shipped);
+
+        // the copy's reads, then the transaction opened, the row read, and rolled back: no
+        // statement of the tail was sent.
+        for index in before..pipeline.request_count() {
+            let body = pipeline.request(index).body;
+
+            assert!(!body.contains("\"batch\""), "the tail was sent: {body}");
+            assert!(!body.contains("COMMIT"), "something was committed: {body}");
+        }
+
+        let (facts, _) = facts_of(&store, &member, &workspace_id).await;
+
+        assert_eq!(facts.schema_version, shipped);
+        assert!(
+            store
+                .migration_lease(&workspace_id)
+                .await
+                .expect("the row")
+                .is_none()
+        );
     }
 
     /// A second client arriving while the first holds the lease waits, told whose lease and until
@@ -1391,7 +1498,7 @@ mod tests {
 
         platform.holding_unprotected(&facts.database_name);
 
-        let pipeline = ScriptedServer::start(copied_then_applied()).await;
+        let pipeline = copied_then_applied().await;
         let reached = upgrade(
             Pending {
                 store: &store,
@@ -1413,7 +1520,7 @@ mod tests {
 
         // the reads came first, one transaction on one stream under the member's own credential,
         // and then the migration.
-        assert_eq!(pipeline.request_count(), READS + 1);
+        assert_eq!(pipeline.request_count(), READS + MIGRATING);
 
         for index in 0..READS {
             let request = pipeline.request(index);
@@ -1495,7 +1602,7 @@ mod tests {
 
         platform.holding_unprotected(&facts.database_name);
 
-        let pipeline = ScriptedServer::start(copied_then_applied()).await;
+        let pipeline = copied_then_applied().await;
         let refused = upgrade(
             Pending {
                 store: &store,
@@ -1574,7 +1681,7 @@ mod tests {
             what: "copy the database",
         });
 
-        let pipeline = ScriptedServer::start(copied_then_applied()).await;
+        let pipeline = copied_then_applied().await;
         let reached = upgrade(
             Pending {
                 store: &store,
@@ -1593,7 +1700,7 @@ mod tests {
         .expect("a refused copy on the account stopped the migration");
 
         assert_eq!(reached, shipped);
-        assert_eq!(pipeline.request_count(), READS + 1);
+        assert_eq!(pipeline.request_count(), READS + MIGRATING);
         assert!(platform.copies().is_empty());
         assert_eq!(copies_of(&directory, &facts).len(), 1);
 

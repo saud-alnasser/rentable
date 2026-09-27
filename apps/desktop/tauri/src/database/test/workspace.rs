@@ -307,15 +307,19 @@ pub(in crate::database) async fn apply_schema(connection: &turso::Connection, up
 
 /// The tables a workspace holds, read from the database rather than listed here.
 ///
-/// Engine and ledger tables are excluded by prefix; everything else is a concept, `history`
-/// included. **Listing them in a constant is what would let coverage shrink in silence** when
-/// the schema grows a table nobody added to the list.
+/// Engine and ledger tables are excluded by prefix, and the workspace's own version table by its
+/// name, since it holds the one row a migration writes and no record; everything else is a
+/// concept, `history` included. **Listing them in a constant is what would let coverage shrink in
+/// silence** when the schema grows a table nobody added to the list.
 pub(in crate::database) async fn concepts(connection: &turso::Connection) -> Vec<String> {
     let mut rows = connection
         .query(
-            "SELECT name FROM sqlite_master WHERE type = 'table' \
-             AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'turso_%' \
-             AND name NOT LIKE '\\_\\_%' ESCAPE '\\' ORDER BY name",
+            &format!(
+                "SELECT name FROM sqlite_master WHERE type = 'table' \
+                 AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'turso_%' \
+                 AND name NOT LIKE '\\_\\_%' ESCAPE '\\' AND name != '{}' ORDER BY name",
+                crate::organization::migrate::VERSION_TABLE
+            ),
             (),
         )
         .await
@@ -393,5 +397,50 @@ pub(in crate::database) async fn text(connection: &turso::Connection, sql: &str)
         turso::Value::Text(value) => Some(value),
         turso::Value::Null => None,
         other => panic!("expected text from {sql}, got {other:?}"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::organization::migrate::{Migrated, Pipeline, apply_between, shipped_version};
+
+    use super::LiveWorkspace;
+
+    /// **Live, and the human's to run** (effort 838, ticket 32). Every shipped migration, `0003`'s
+    /// drops and renames among them, applied to a fresh database on the account inside one
+    /// explicit transaction over the pipeline, with the check and the version row, then committed;
+    /// and a second run reading the version row back and applying nothing. Whether libSQL's server
+    /// takes all of it in one transaction was not measured when the transaction was written; where
+    /// it does not, the plan's fallback is one transaction per migration file.
+    ///
+    /// ```text
+    /// TURSO_API_TOKEN=... TURSO_ORG=... TURSO_GROUP=... \
+    ///   cargo test --manifest-path ./apps/desktop/tauri/Cargo.toml migration_live -- \
+    ///   --test-threads=1 --ignored --nocapture
+    /// ```
+    #[tokio::test]
+    #[ignore = "reaches a live Turso account and creates a database; see the doc comment"]
+    async fn migration_live_every_shipped_migration_commits_in_one_transaction() {
+        let workspace = LiveWorkspace::create("t32").await;
+        let pipeline = Pipeline::of(
+            workspace
+                .url
+                .strip_prefix("libsql://")
+                .expect("a libsql:// workspace url"),
+        );
+        let shipped = shipped_version() as usize;
+        let applied = apply_between(&pipeline, &workspace.token, 0, shipped).await;
+        let again = apply_between(&pipeline, &workspace.token, 0, shipped).await;
+
+        workspace.destroy().await;
+
+        assert_eq!(
+            applied.expect("the whole schema in one transaction"),
+            Migrated::Applied {
+                from: 0,
+                to: shipped
+            }
+        );
+        assert_eq!(again.expect("the second run"), Migrated::AlreadyAt(shipped));
     }
 }

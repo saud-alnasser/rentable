@@ -239,10 +239,15 @@ pub enum RefusalReason {
     /// the organization was made by a newer version of rentable, which this one is updated to.
     OrganizationNewer,
 
-    // a copy before a change (effort 838, requirement 13).
+    // a copy and a check before a change of shape (effort 838, requirements 13 and 15).
     /// the copy of the organization or the workspace taken before it changes shape could not be
     /// written to the data directory's `backups`, so nothing was changed (ticket 27).
     CopyNotTaken,
+    /// a change of shape, a workspace migration or an organization's change of format, was
+    /// checked before it committed and the database was not what a fresh one of that version is:
+    /// SQLite's own checks failed or the schema differs. It was rolled back, so nothing was
+    /// changed (ticket 32).
+    ShapeNotAsBuilt,
 
     // Turso: the consent, the group and the account.
     /// this machine holds no Turso authority.
