@@ -5,14 +5,14 @@ import { resolve } from 'node:path';
 
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
-import MemberSheet from '$lib/organization/component/member-sheet.svelte';
+import MemberSheet, { type MemberEdit } from '$lib/organization/component/member-sheet.svelte';
 import en from '$lib/i18n/en';
 import { toTitleCase } from '@rentable/design/title-case.js';
 import ar from '$lib/i18n/ar';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import { chooseOption, openSelect } from '$lib/design/tests/select';
 import { fakeOrganizationRoles } from '$lib/platform/tests/testing';
-import { BUILT_IN, maskOf } from '@rentable/workspace-permission';
+import { BUILT_IN, WRITE_FLAGS, maskOf, permits } from '@rentable/workspace-permission';
 
 import Providers from './providers.svelte';
 
@@ -28,6 +28,11 @@ import Providers from './providers.svelte';
  * amended 2026-09-27). A switch that differs from their role is marked, the role reads as custom
  * where any does, and a reset puts them back on the role. The override is never shown: the save
  * hands back the one the switches come to.
+ *
+ * **Beneath a workspace the member is in, what they may do there is tailored** (requirement 12 as
+ * amended a third time): the record switches, measured against what they may do across the
+ * organization, with a reset and a read only preset, and a grant minted read only drawn with its
+ * writes off. No lock is drawn: read only is those switches.
  *
  * **A control the reader may not use says why**: a role at or above the reader's rank, a flag the
  * reader does not hold, or a section whose flag the reader lacks.
@@ -45,9 +50,15 @@ const inProvider = (direction: 'ltr' | 'rtl' = 'ltr') => ({
 });
 
 const rows = [
-	{ id: 'ws-1', name: 'Riyadh', access: 'full-access' as const, givable: true },
-	{ id: 'ws-2', name: 'Jeddah', access: 'none' as const, givable: true }
+	{ id: 'ws-1', name: 'Riyadh', access: 'full-access' as const, override: 0, givable: true },
+	{ id: 'ws-2', name: 'Jeddah', access: 'none' as const, override: 0, givable: true }
 ];
+
+/** a grant the owner minted read only before the lock left, with nothing switched there. */
+const minted = { ...rows[0], access: 'read-only' as const };
+
+/** every add, edit and delete the member role carries: what read only turns off. */
+const MEMBER_WRITES = maskOf(...WRITE_FLAGS.filter((flag) => permits(BUILT_IN.member.mask, flag)));
 
 const sheet = (
 	overrides: Partial<Parameters<typeof render<typeof MemberSheet>>[1]> = {},
@@ -70,7 +81,6 @@ const sheet = (
 			canAssignRole: true,
 			canOverride: true,
 			canGrantWorkspace: true,
-			canGrantReadOnly: true,
 			isSaving: false,
 			nameRefusal: null,
 			roleRefusal: null,
@@ -105,15 +115,35 @@ const rustUsernameRules = () => {
 	return declared[1];
 };
 
-/** a workspace's switch, the lock beneath it, and whether either is on or dimmed. */
+/** a workspace's switch, and whether it is on or dimmed. */
 const inSwitch = (id: string) => document.querySelector<HTMLElement>(`#access-${id}`);
-const lockSwitch = (id: string) => document.querySelector<HTMLElement>(`#access-${id}-lock`);
 const checked = (element: HTMLElement | null) => element?.getAttribute('aria-checked') === 'true';
 const dimmed = (element: HTMLElement | null) => element?.getAttribute('aria-disabled') === 'true';
 const workspaceReasons = () =>
 	Array.from(document.querySelectorAll('[data-access-refusal]')).map((line) =>
 		line.textContent?.trim()
 	);
+
+/** a workspace's tailoring: its fold, its custom mark, its switches and its two presets. */
+const tailorFold = (id: string) =>
+	document.querySelector<HTMLElement>(`[data-tailor="access-${id}-tailor"] [data-tailor-fold]`);
+const tailorCustom = (id: string) =>
+	document.querySelector(`[data-tailor="access-${id}-tailor"] [data-tailor-custom]`);
+const tailorSwitch = (id: string, flag: string) =>
+	document.querySelector<HTMLElement>(`#access-${id}-tailor-${flag}`);
+const tailorOn = (id: string, flag: string) => checked(tailorSwitch(id, flag));
+const readOnlyPreset = (id: string) =>
+	document.querySelector<HTMLElement>(
+		`[data-tailor="access-${id}-tailor"] [data-tailor-preset="read-only"]`
+	);
+const resetPreset = (id: string) =>
+	document.querySelector<HTMLElement>(
+		`[data-tailor="access-${id}-tailor"] [data-tailor-preset="reset"]`
+	);
+
+const openTailoring = async (id: string) => {
+	await fireEvent.click(tailorFold(id)!);
+};
 
 /** the role's chooser, and each role it offers once opened. */
 const roleTrigger = () => document.querySelector<HTMLElement>('#member-role')!;
@@ -458,10 +488,10 @@ test('a section whose flag the reader lacks is drawn, refused, naming the flag',
 	expect(isOn('viewComplex')).toBe(true);
 });
 
-// ticket 48 of effort 838, requirement 12 as amended again 2026-09-27: a workspace is one switch,
-// in or out, and no level is offered beside the role. The lock sits under a workspace the member
-// is in, and nowhere else, with what it means under its name.
-test('each workspace is one switch, in or out, with the lock beneath one that is in', () => {
+// ticket 48 of effort 838, requirement 12 as amended again and a third time 2026-09-27: a
+// workspace is one switch, in or out, and no level is offered beside the role. Beneath one the
+// member is in, what they may do there is tailored behind one folded line; no lock is drawn.
+test('each workspace is one switch, in or out, with its tailoring folded beneath one that is in', () => {
 	sheet();
 
 	expect(
@@ -475,149 +505,337 @@ test('each workspace is one switch, in or out, with the lock beneath one that is
 	expect(checked(inSwitch('ws-1'))).toBe(true);
 	expect(checked(inSwitch('ws-2'))).toBe(false);
 
-	// the lock, off, under the workspace they are in, and not under the one they are out of.
-	expect(checked(lockSwitch('ws-1'))).toBe(false);
-	expect(lockSwitch('ws-1')?.getAttribute('data-size')).toBe('sm');
-	expect(lockSwitch('ws-2')).toBeNull();
-	expect(document.querySelector('[data-access-lock-row="ws-1"]')?.textContent).toContain(
-		en.organization.workspaceSwitches.lock
-	);
-	expect(document.querySelector('[data-access-says="ws-1"]')?.textContent?.trim()).toBe(
-		en.organization.workspaceSwitches.locked
-	);
+	// the fold, under the workspace they are in and not under the one they are out of, and
+	// nothing tailored, so nothing reads custom and no switch is drawn until it is opened.
+	expect(tailorFold('ws-1')?.textContent).toContain(en.organization.workspaceSwitches.tailor);
+	expect(tailorFold('ws-2')).toBeNull();
+	expect(tailorCustom('ws-1')).toBeNull();
+	expect(tailorSwitch('ws-1', 'viewPayment')).toBeNull();
 
-	// the level words have left the card, and no segment is drawn.
+	// no lock, and neither the level words nor a segment.
 	const words = section('workspaces')?.textContent ?? '';
 
+	expect(document.querySelector('[data-access-lock], [data-access-lock-row]')).toBeNull();
+	expect(words).not.toContain('lock');
 	expect(words).not.toContain(en.organization.dashboard.accessFull);
 	expect(words).not.toContain('no access');
 	expect(document.querySelector('[data-access-row] [data-slot=toggle-group-item]')).toBeNull();
-	// the owner reading, so nothing is dimmed and no reason is said.
 	expect(workspaceReasons()).toEqual([]);
 });
 
-// in: switching a workspace on is a full-access grant, and the lock appears under it.
+// in: switching a workspace on is a full-access grant, and its tailoring appears under it.
 test('switching a workspace on puts them in it at full access', async () => {
-	const saved: { changes: unknown }[] = [];
+	const saved: MemberEdit[] = [];
 
 	sheet({ onSave: (edit) => saved.push(edit) });
 
 	await fireEvent.click(inSwitch('ws-2')!);
 
 	expect(checked(inSwitch('ws-2'))).toBe(true);
-	expect(lockSwitch('ws-2')).not.toBeNull();
+	expect(tailorFold('ws-2')).not.toBeNull();
 
 	await submit();
 
 	expect(saved.map((edit) => edit.changes)).toEqual([[{ id: 'ws-2', access: 'full-access' }]]);
+	expect(saved.map((edit) => edit.tailored)).toEqual([[]]);
 });
 
-// out: switching it off withdraws it, and the lock goes with it.
+// out: switching it off withdraws it, and its tailoring goes with it.
 test('switching a workspace off takes them out of it', async () => {
-	const saved: { changes: unknown }[] = [];
+	const saved: MemberEdit[] = [];
 
 	sheet({ onSave: (edit) => saved.push(edit) });
 
 	await fireEvent.click(inSwitch('ws-1')!);
 
 	expect(checked(inSwitch('ws-1'))).toBe(false);
-	expect(lockSwitch('ws-1')).toBeNull();
+	expect(tailorFold('ws-1')).toBeNull();
 
 	await submit();
 
 	expect(saved.map((edit) => edit.changes)).toEqual([[{ id: 'ws-1', access: 'none' }]]);
 });
 
-// lock: the owner locks a workspace to read only, which grants it again read only.
-test('locking a workspace grants it read only', async () => {
-	const saved: { changes: unknown }[] = [];
+// opened, the tailoring is the record groups of the shared list, set to what the member may do
+// across the organization, with the one line that says what it is measured against. The
+// organization's ten and the owner's line are not a workspace's to switch.
+test('opened, the tailoring is the record groups, measured against what they may do across the organization', async () => {
+	sheet();
+
+	await openTailoring('ws-1');
+
+	expect(
+		Array.from(
+			document.querySelectorAll('[data-tailor-open="access-ws-1-tailor"] [data-switches-group]')
+		).map((group) => group.getAttribute('data-switches-group'))
+	).toEqual(['complex', 'unit', 'tenant', 'contract', 'payment']);
+	expect(
+		document.querySelector('[data-tailor-open="access-ws-1-tailor"] [data-switches-owner]')
+	).toBeNull();
+	expect(document.querySelector('[data-tailor-says]')?.textContent?.trim()).toBe(
+		en.organization.workspaceSwitches.tailorSays
+	);
+	// the member role: payments viewed, added and edited, not deleted.
+	expect(tailorOn('ws-1', 'viewPayment')).toBe(true);
+	expect(tailorOn('ws-1', 'editPayment')).toBe(true);
+	expect(tailorOn('ws-1', 'deletePayment')).toBe(false);
+	// the read only preset is up, and there is nothing to reset.
+	expect(readOnlyPreset('ws-1')?.getAttribute('aria-pressed')).toBe('false');
+	expect(readOnlyPreset('ws-1')?.textContent?.trim()).toBe(
+		en.organization.workspaceSwitches.readOnly
+	);
+	expect(resetPreset('ws-1')).toBeNull();
+});
+
+// a switch turned there differs from what they may do across the organization: it carries the
+// dot naming that, the fold reads custom, and the save writes the override for that workspace.
+test('a switch turned there is marked, reads custom, and the save writes that workspace alone', async () => {
+	const saved: MemberEdit[] = [];
 
 	sheet({ onSave: (edit) => saved.push(edit) });
 
-	await fireEvent.click(lockSwitch('ws-1')!);
+	await openTailoring('ws-1');
+	await fireEvent.click(tailorSwitch('ws-1', 'deletePayment')!);
 
-	expect(checked(lockSwitch('ws-1'))).toBe(true);
-	expect(checked(inSwitch('ws-1'))).toBe(true);
+	expect(tailorOn('ws-1', 'deletePayment')).toBe(true);
+	expect(
+		document
+			.querySelector('[data-tailor-open="access-ws-1-tailor"] [data-differs="deletePayment"]')
+			?.getAttribute('aria-label')
+	).toBe(
+		en.organization.switches.differs.replace(
+			'{role:string}',
+			en.organization.workspaceSwitches.acrossOrganization
+		)
+	);
+	expect(tailorCustom('ws-1')?.textContent?.trim()).toBe(en.organization.switches.custom);
+	expect(resetPreset('ws-1')).not.toBeNull();
 
 	await submit();
 
-	expect(saved.map((edit) => edit.changes)).toEqual([[{ id: 'ws-1', access: 'read-only' }]]);
+	expect(saved).toEqual([
+		{
+			username: 'ada',
+			roleId: 'member',
+			override: 0,
+			changes: [],
+			tailored: [{ id: 'ws-1', override: maskOf('deletePayment') }]
+		}
+	]);
 });
 
-// unlock: a workspace held read only, unlocked, is granted again at full access. Switched off and
-// on again, it is back to what it held, and nothing is written.
-test('unlocking grants full access again, and off and on again changes nothing', async () => {
-	const saved: { changes: unknown }[] = [];
-	const locked = [{ id: 'ws-1', name: 'Riyadh', access: 'read-only' as const, givable: true }];
+// the read only preset: every add, edit and delete off there, every view as it was, and pressed
+// while it holds. No grant is written: read only is these switches, enforced by the application.
+test('read only turns every add, edit and delete off there, and grants nothing', async () => {
+	const saved: MemberEdit[] = [];
 
-	const first = sheet({ rows: locked, onSave: (edit) => saved.push(edit) });
+	sheet({ onSave: (edit) => saved.push(edit) });
 
-	expect(checked(lockSwitch('ws-1'))).toBe(true);
+	await openTailoring('ws-1');
+	await fireEvent.click(readOnlyPreset('ws-1')!);
 
-	await fireEvent.click(lockSwitch('ws-1')!);
-	expect(checked(lockSwitch('ws-1'))).toBe(false);
-	await submit();
-
-	first.unmount();
-	sheet({ rows: locked, onSave: (edit) => saved.push(edit) });
-
-	await fireEvent.click(inSwitch('ws-1')!);
-	await fireEvent.click(inSwitch('ws-1')!);
-	expect(checked(lockSwitch('ws-1'))).toBe(true);
-	await submit();
-
-	expect(saved.map((edit) => edit.changes)).toEqual([[{ id: 'ws-1', access: 'full-access' }], []]);
-});
-
-// requirement 5 of effort 826: only the owner's Turso account mints a read-only credential, so for
-// anybody else the lock is drawn dimmed with the reason, never hidden, and a lock already on
-// stays on.
-test('for anybody but the owner the lock is dimmed and says why', async () => {
-	const saved: { changes: unknown }[] = [];
-
-	sheet({
-		canGrantReadOnly: false,
-		rows: [
-			{ id: 'ws-1', name: 'Riyadh', access: 'full-access' as const, givable: true },
-			{ id: 'ws-2', name: 'Jeddah', access: 'read-only' as const, givable: true }
-		],
-		onSave: (edit) => saved.push(edit)
-	});
-
-	const reason = en.organization.workspaceSwitches.lockIsTheOwners;
-
-	expect(dimmed(lockSwitch('ws-1'))).toBe(true);
-	expect(dimmed(lockSwitch('ws-2'))).toBe(true);
-	expect(checked(lockSwitch('ws-2'))).toBe(true);
-	expect(document.querySelector('#access-ws-1-lock-reason')?.textContent?.trim()).toBe(reason);
-	expect(workspaceReasons()).toEqual([reason]);
-	// the workspace itself is still theirs to switch, but for the one the owner locked: switched
-	// out and in again it would come back unlocked, so that is the owner's too.
-	expect(dimmed(inSwitch('ws-1'))).toBe(false);
-	expect(dimmed(inSwitch('ws-2'))).toBe(true);
-	expect(document.querySelector('#access-ws-2-reason')?.textContent?.trim()).toBe(reason);
-
-	await fireEvent.click(lockSwitch('ws-1')!);
-	await fireEvent.click(lockSwitch('ws-2')!);
-
-	expect(checked(lockSwitch('ws-1'))).toBe(false);
-	expect(checked(lockSwitch('ws-2'))).toBe(true);
+	expect(readOnlyPreset('ws-1')?.getAttribute('aria-pressed')).toBe('true');
+	expect(tailorOn('ws-1', 'viewPayment')).toBe(true);
+	expect(tailorOn('ws-1', 'createPayment')).toBe(false);
+	expect(tailorOn('ws-1', 'editContract')).toBe(false);
+	expect(tailorCustom('ws-1')).not.toBeNull();
 
 	await submit();
 
 	expect(saved.map((edit) => edit.changes)).toEqual([[]]);
+	expect(saved.map((edit) => edit.tailored)).toEqual([[{ id: 'ws-1', override: MEMBER_WRITES }]]);
+});
+
+// the reset clears what is changed there, and the workspace reads as the organization again.
+test('reset clears what is changed in the workspace', async () => {
+	const saved: MemberEdit[] = [];
+
+	sheet({
+		rows: [{ ...rows[0], override: maskOf('editPayment') }],
+		onSave: (edit) => saved.push(edit)
+	});
+
+	expect(tailorCustom('ws-1')).not.toBeNull();
+
+	await openTailoring('ws-1');
+
+	expect(tailorOn('ws-1', 'editPayment')).toBe(false);
+
+	await fireEvent.click(resetPreset('ws-1')!);
+
+	expect(tailorOn('ws-1', 'editPayment')).toBe(true);
+	expect(tailorCustom('ws-1')).toBeNull();
+	expect(resetPreset('ws-1')).toBeNull();
+
+	await submit();
+
+	expect(saved.map((edit) => edit.tailored)).toEqual([[{ id: 'ws-1', override: 0 }]]);
+});
+
+// requirement 12 as amended a third time: a grant minted read only reads with its writes off and
+// the preset on, and turning a write back on makes it a full-access grant, with the override that
+// leaves every other write off.
+test('a grant minted read only reads as read only, and a write turned on grants it full access', async () => {
+	const saved: MemberEdit[] = [];
+
+	sheet({ rows: [minted], readerIsOwner: true, onSave: (edit) => saved.push(edit) });
+
+	await openTailoring('ws-1');
+
+	expect(readOnlyPreset('ws-1')?.getAttribute('aria-pressed')).toBe('true');
+	expect(tailorOn('ws-1', 'viewPayment')).toBe(true);
+	expect(tailorOn('ws-1', 'createPayment')).toBe(false);
+	expect(tailorCustom('ws-1')).not.toBeNull();
+
+	await fireEvent.click(tailorSwitch('ws-1', 'createPayment')!);
+
+	expect(tailorOn('ws-1', 'createPayment')).toBe(true);
+	expect(readOnlyPreset('ws-1')?.getAttribute('aria-pressed')).toBe('false');
+
+	await submit();
+
+	expect(saved.map((edit) => edit.changes)).toEqual([[{ id: 'ws-1', access: 'full-access' }]]);
+	expect(saved.map((edit) => edit.tailored)).toEqual([
+		[{ id: 'ws-1', override: MEMBER_WRITES - maskOf('createPayment') }]
+	]);
+});
+
+// a view turned off over a grant minted read only keeps it read only: the grant still clears the
+// writes, and the override takes that kind's writes with its view, since nothing is written that
+// cannot be viewed.
+test('a view turned off over a grant minted read only keeps it read only', async () => {
+	const saved: MemberEdit[] = [];
+
+	sheet({ rows: [minted], readerIsOwner: true, onSave: (edit) => saved.push(edit) });
+
+	await openTailoring('ws-1');
+	await fireEvent.click(tailorSwitch('ws-1', 'viewPayment')!);
+	await submit();
+
+	expect(saved.map((edit) => edit.changes)).toEqual([[]]);
+	expect(saved.map((edit) => edit.tailored)).toEqual([
+		[{ id: 'ws-1', override: maskOf('viewPayment', 'createPayment', 'editPayment') }]
+	]);
+});
+
+// Rust keeps a grant minted read only the owner's to change, so for anybody else its switch out
+// and every write beneath it are dimmed, saying why; its views are still theirs to turn.
+test("for anybody but the owner, a grant minted read only is the owner's to change, saying so", async () => {
+	const saved: MemberEdit[] = [];
+
+	sheet({ rows: [minted], onSave: (edit) => saved.push(edit) });
+
+	const reason = en.organization.workspaceSwitches.ownerMadeReadOnly;
+
+	expect(dimmed(inSwitch('ws-1'))).toBe(true);
+	expect(document.querySelector('#access-ws-1-reason')?.textContent?.trim()).toBe(reason);
+	expect(workspaceReasons()).toEqual([reason]);
+
+	await openTailoring('ws-1');
+
+	expect(dimmed(tailorSwitch('ws-1', 'createPayment'))).toBe(true);
+	expect(
+		document.querySelector('#access-ws-1-tailor-createPayment-reason')?.textContent?.trim()
+	).toBe(reason);
+	expect(dimmed(resetPreset('ws-1'))).toBe(true);
+	expect(dimmed(tailorSwitch('ws-1', 'viewPayment'))).toBe(false);
+
+	await fireEvent.click(inSwitch('ws-1')!);
+	await fireEvent.click(tailorSwitch('ws-1', 'createPayment')!);
+
+	expect(checked(inSwitch('ws-1'))).toBe(true);
+	expect(tailorOn('ws-1', 'createPayment')).toBe(false);
+
+	await submit();
+
+	expect(saved.map((edit) => [edit.changes, edit.tailored])).toEqual([[[], []]]);
+});
+
+// full access is the reader's own credential re-sealed, so the owner holding the workspace read
+// only may not turn a write back on over a grant minted read only either.
+test('a write over a grant minted read only is refused where the reader holds the workspace read only', async () => {
+	sheet({ rows: [{ ...minted, givable: false }], readerIsOwner: true });
+
+	await openTailoring('ws-1');
+
+	expect(dimmed(tailorSwitch('ws-1', 'createPayment'))).toBe(true);
+	expect(
+		document.querySelector('#access-ws-1-tailor-createPayment-reason')?.textContent?.trim()
+	).toBe(en.organization.workspaceSwitches.notHeld);
+});
+
+// requirement 7: a flag the reader does not hold is theirs neither to give nor to take in a
+// workspace, and the preset that would move it is refused too, saying so.
+test('in a workspace, a flag the reader does not hold is dimmed, and so is a preset that moves it', async () => {
+	sheet({ readerPermissions: BUILT_IN.manager.mask - maskOf('editPayment') });
+
+	await openTailoring('ws-1');
+
+	expect(dimmed(tailorSwitch('ws-1', 'editPayment'))).toBe(true);
+	expect(dimmed(readOnlyPreset('ws-1'))).toBe(true);
+	expect(document.querySelector('#access-ws-1-tailor-read-only-reason')?.textContent?.trim()).toBe(
+		en.organization.workspaceSwitches.movesNotHeld
+	);
+});
+
+// overrideMember: without it every switch and preset there is dimmed, and the list says why,
+// naming the flag, as the switches across the organization do.
+test('without overrideMember, the tailoring is drawn and refused, naming the flag', async () => {
+	sheet({ canOverride: false, rows: [{ ...rows[0], override: maskOf('editPayment') }] });
+
+	await openTailoring('ws-1');
+
+	const reason = en.organization.dashboard.lacksFlag.replace(
+		'{flag:string}',
+		en.organization.flags.overrideMember
+	);
+	const open = document.querySelector('[data-tailor-open="access-ws-1-tailor"]')!;
+
+	expect(open.querySelector('[data-switches-refusal]')?.textContent?.trim()).toBe(reason);
+	expect(
+		Array.from(open.querySelectorAll('[data-switch]')).every(
+			(each) => each.getAttribute('aria-disabled') === 'true'
+		)
+	).toBe(true);
+	expect(dimmed(readOnlyPreset('ws-1'))).toBe(true);
+	expect(dimmed(resetPreset('ws-1'))).toBe(true);
+});
+
+// the shell clears what is changed in every workspace with another role, so the card reads the
+// same at once and saves nothing for them; their own role again puts it back.
+test('picking another role clears what is tailored in every workspace, and their own puts it back', async () => {
+	const saved: MemberEdit[] = [];
+
+	sheet({
+		rows: [{ ...rows[0], override: maskOf('editPayment') }],
+		onSave: (edit) => saved.push(edit)
+	});
+
+	expect(tailorCustom('ws-1')).not.toBeNull();
+
+	await openSelect(roleTrigger());
+	await chooseOption(roleOption('supervisor')!);
+
+	expect(tailorCustom('ws-1')).toBeNull();
+
+	await submit();
+
+	await openSelect(roleTrigger());
+	await chooseOption(roleOption('member')!);
+
+	expect(tailorCustom('ws-1')).not.toBeNull();
+
+	await submit();
+
+	expect(saved.map((edit) => edit.tailored)).toEqual([[], []]);
 });
 
 // ticket 50: switching a workspace back to what the member held writes nothing, so a reader
 // holding it read only, who could not put them in afresh, may still turn it off and on again.
 test('a reader holding a workspace read only switches the member out and back in, writing nothing', async () => {
-	const saved: { changes: unknown }[] = [];
+	const saved: MemberEdit[] = [];
 
-	sheet({
-		canGrantReadOnly: false,
-		rows: [{ id: 'ws-1', name: 'Riyadh', access: 'full-access' as const, givable: false }],
-		onSave: (edit) => saved.push(edit)
-	});
+	sheet({ rows: [{ ...rows[0], givable: false }], onSave: (edit) => saved.push(edit) });
 
 	await fireEvent.click(inSwitch('ws-1')!);
 	expect(checked(inSwitch('ws-1'))).toBe(false);
@@ -625,44 +843,6 @@ test('a reader holding a workspace read only switches the member out and back in
 
 	await fireEvent.click(inSwitch('ws-1')!);
 	expect(checked(inSwitch('ws-1'))).toBe(true);
-
-	await submit();
-
-	expect(saved.map((edit) => edit.changes)).toEqual([[]]);
-});
-
-// the owner on a machine without the Turso authority, where Rust refuses a read-only grant: the
-// lock is dimmed with the sentence that says this machine is not connected.
-test('for the owner on a machine without the Turso authority the lock says so', () => {
-	sheet({ canGrantReadOnly: false, readerIsOwner: true });
-
-	const reason = en.common.refusals.host.tursoNotConnected;
-
-	expect(dimmed(lockSwitch('ws-1'))).toBe(true);
-	expect(workspaceReasons()).toEqual([reason]);
-	expect(lockSwitch('ws-1')?.getAttribute('aria-describedby')).toBe(
-		'access-ws-1-lock-says access-ws-1-lock-reason'
-	);
-});
-
-// unlocking needs no Turso authority, and locking again what the row held writes nothing, so the
-// owner on such a machine may undo an unlock before saving.
-test('the owner without the Turso authority unlocks, and may lock again what was locked', async () => {
-	const saved: { changes: unknown }[] = [];
-
-	sheet({
-		canGrantReadOnly: false,
-		readerIsOwner: true,
-		rows: [{ id: 'ws-1', name: 'Riyadh', access: 'read-only' as const, givable: true }],
-		onSave: (edit) => saved.push(edit)
-	});
-
-	await fireEvent.click(lockSwitch('ws-1')!);
-	expect(checked(lockSwitch('ws-1'))).toBe(false);
-	expect(dimmed(lockSwitch('ws-1'))).toBe(false);
-
-	await fireEvent.click(lockSwitch('ws-1')!);
-	expect(checked(lockSwitch('ws-1'))).toBe(true);
 
 	await submit();
 
@@ -683,7 +863,6 @@ test('without grantWorkspace the workspaces are drawn, every switch dimmed with 
 	expect(workspaceReasons()).toEqual([reason]);
 	expect(dimmed(inSwitch('ws-1'))).toBe(true);
 	expect(dimmed(inSwitch('ws-2'))).toBe(true);
-	expect(dimmed(lockSwitch('ws-1'))).toBe(true);
 
 	await fireEvent.click(inSwitch('ws-1')!);
 	await fireEvent.click(inSwitch('ws-2')!);
@@ -697,10 +876,9 @@ test('without grantWorkspace the workspaces are drawn, every switch dimmed with 
 // theirs, since a withdrawal re-seals nothing.
 test('a workspace the reader holds read only is refused on its switch, and can still be withdrawn', async () => {
 	sheet({
-		canGrantReadOnly: false,
 		rows: [
-			{ id: 'ws-1', name: 'Riyadh', access: 'full-access' as const, givable: false },
-			{ id: 'ws-2', name: 'Jeddah', access: 'none' as const, givable: false }
+			{ ...rows[0], givable: false },
+			{ ...rows[1], givable: false }
 		]
 	});
 
@@ -718,20 +896,36 @@ test('a workspace the reader holds read only is refused on its switch, and can s
 	expect(checked(inSwitch('ws-1'))).toBe(false);
 });
 
-test('the workspaces read in arabic, the lock and its reason in their own words', () => {
+test('the workspaces read in arabic, the tailoring and its presets in their own words', async () => {
 	loadLocale('ar');
 	setLocale('ar');
-	sheet({ canGrantReadOnly: false }, 'rtl');
+	sheet({ rows: [minted] }, 'rtl');
 
-	expect(document.querySelector('[data-access-says="ws-1"]')?.textContent?.trim()).toBe(
-		ar.organization.workspaceSwitches.locked
+	expect(tailorFold('ws-1')?.textContent).toContain(ar.organization.workspaceSwitches.tailor);
+	expect(ar.organization.workspaceSwitches.tailor).not.toBe(
+		en.organization.workspaceSwitches.tailor
 	);
-	expect(ar.organization.workspaceSwitches.locked).not.toBe(
-		en.organization.workspaceSwitches.locked
+	expect(tailorCustom('ws-1')?.textContent?.trim()).toBe(ar.organization.switches.custom);
+	expect(workspaceReasons()).toEqual([ar.organization.workspaceSwitches.ownerMadeReadOnly]);
+
+	await openTailoring('ws-1');
+
+	expect(document.querySelector('[data-tailor-says]')?.textContent?.trim()).toBe(
+		ar.organization.workspaceSwitches.tailorSays
 	);
-	expect(workspaceReasons()).toEqual([ar.organization.workspaceSwitches.lockIsTheOwners]);
-	expect(lockSwitch('ws-1')?.getAttribute('aria-label')).toBe(
-		ar.organization.workspaceSwitches.lockNamed.replace('{workspace}', 'Riyadh')
+	expect(readOnlyPreset('ws-1')?.textContent?.trim()).toBe(
+		ar.organization.workspaceSwitches.readOnly
+	);
+	expect(resetPreset('ws-1')?.textContent).toContain(ar.organization.workspaceSwitches.reset);
+	expect(
+		document
+			.querySelector('[data-tailor-open="access-ws-1-tailor"] [data-differs]')
+			?.getAttribute('aria-label')
+	).toBe(
+		ar.organization.switches.differs.replace(
+			'{role}',
+			ar.organization.workspaceSwitches.acrossOrganization
+		)
 	);
 
 	setLocale('en');
@@ -748,7 +942,7 @@ test('the refusals read in arabic too: the flag, and a workspace the reader hold
 	]);
 	first.unmount();
 
-	sheet({ rows: [{ id: 'ws-2', name: 'Jeddah', access: 'none' as const, givable: false }] }, 'rtl');
+	sheet({ rows: [{ ...rows[1], givable: false }] }, 'rtl');
 
 	expect(workspaceReasons()).toEqual([ar.organization.workspaceSwitches.notHeld]);
 
@@ -770,7 +964,8 @@ test('one save hands back the role, the override and the workspaces that changed
 			username: 'ada',
 			roleId: 'member',
 			override: maskOf('deletePayment'),
-			changes: [{ id: 'ws-2', access: 'full-access' }]
+			changes: [{ id: 'ws-2', access: 'full-access' }],
+			tailored: []
 		}
 	]);
 });

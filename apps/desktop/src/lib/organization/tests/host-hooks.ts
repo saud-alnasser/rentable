@@ -85,6 +85,7 @@ export const hostHooks = {
 	useRenameMember: mutation('useRenameMember'),
 	useAssignRole: mutation('useAssignRole'),
 	useSetOverride: mutation('useSetOverride'),
+	useSetWorkspaceOverride: mutation('useSetWorkspaceOverride'),
 	useCreateRole: mutation('useCreateRole'),
 	useRenameRole: mutation('useRenameRole'),
 	useSetRoleMask: mutation('useSetRoleMask'),

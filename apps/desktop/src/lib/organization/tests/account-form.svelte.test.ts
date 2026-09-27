@@ -73,7 +73,6 @@ const form = (
 			roles: fakeOrganizationRoles(),
 			readerRank: BUILT_IN.owner.rank,
 			readerPermissions: BUILT_IN.owner.mask,
-			canGrantReadOnly: true,
 			isCreating: false,
 			onCreate: noop,
 			...overrides
@@ -227,10 +226,8 @@ test('a maker without the flag to override members changes nothing for the accou
 	);
 });
 
-/** a workspace's switch on the form, the lock beneath it, and whether either is on or dimmed. */
+/** a workspace's switch on the form, and whether it is on or dimmed. */
 const inSwitch = (id: string) => document.querySelector<HTMLElement>(`#account-access-${id}`);
-const lockSwitch = (id: string) =>
-	document.querySelector<HTMLElement>(`#account-access-${id}-lock`);
 const checked = (element: HTMLElement | null) => element?.getAttribute('aria-checked') === 'true';
 const dimmed = (element: HTMLElement | null) => element?.getAttribute('aria-disabled') === 'true';
 const workspaceReasons = () =>
@@ -238,36 +235,34 @@ const workspaceReasons = () =>
 		line.textContent?.trim()
 	);
 
-// effort 826, requirement 8, as ticket 48 of effort 838 draws it: every workspace the maker holds
-// is one switch starting off, which is what not granting it is. On puts the member in it, and the
-// lock beneath locks it to read only, with what that means under its name.
-test('each workspace starts off, and is switched in and locked', async () => {
+// effort 826, requirement 8, as tickets 48 and 54 of effort 838 draw it: every workspace the maker
+// holds is one switch starting off, which is what not granting it is, and on puts the member in it
+// at full access. Nothing is drawn beneath it: no lock, since the interface makes no read-only
+// grant, and no tailoring, which is the member's card's once they are in.
+test('each workspace starts off, and is switched in and out, with nothing beneath it', async () => {
 	loadLocale('en');
 	setLocale('en');
 	form();
 
 	expect(inSwitch('ws-1')?.getAttribute('role')).toBe('switch');
 	expect(checked(inSwitch('ws-1'))).toBe(false);
-	expect(lockSwitch('ws-1')).toBeNull();
 	expect(document.querySelector('[data-access-row] [data-slot=toggle-group-item]')).toBeNull();
 
 	await fireEvent.click(inSwitch('ws-1')!);
 
 	expect(checked(inSwitch('ws-1'))).toBe(true);
-	expect(checked(lockSwitch('ws-1'))).toBe(false);
-	expect(document.querySelector('[data-access-says="ws-1"]')?.textContent?.trim()).toBe(
-		en.organization.workspaceSwitches.locked
+	expect(
+		document.querySelector('[data-access-row="ws-1"] [data-slot=switch]:not(#account-access-ws-1)')
+	).toBeNull();
+	expect(
+		document.querySelector('[data-access-lock], [data-access-lock-row], [data-tailor]')
+	).toBeNull();
+	expect(document.querySelector('[data-sheet-section="workspaces"]')?.textContent).not.toContain(
+		'lock'
 	);
-
-	await fireEvent.click(lockSwitch('ws-1')!);
-	expect(checked(lockSwitch('ws-1'))).toBe(true);
-
-	await fireEvent.click(lockSwitch('ws-1')!);
-	expect(checked(lockSwitch('ws-1'))).toBe(false);
 
 	await fireEvent.click(inSwitch('ws-1')!);
 	expect(checked(inSwitch('ws-1'))).toBe(false);
-	expect(lockSwitch('ws-1')).toBeNull();
 });
 
 // full access is the maker's own credential re-sealed, so a workspace they hold read only is not
@@ -275,7 +270,7 @@ test('each workspace starts off, and is switched in and locked', async () => {
 test('a workspace the maker holds read only is refused on its switch', async () => {
 	loadLocale('en');
 	setLocale('en');
-	form({ canGrantReadOnly: false, workspaces: [{ ...workspaces[0], accessLevel: 'read-only' }] });
+	form({ workspaces: [{ ...workspaces[0], accessLevel: 'read-only' }] });
 
 	expect(dimmed(inSwitch('ws-1'))).toBe(true);
 	expect(workspaceReasons()).toEqual([en.organization.workspaceSwitches.notHeld]);
@@ -293,51 +288,15 @@ test('with no workspace to grant, the section says so', () => {
 	expect(screen.getByText(en.organization.dashboard.noWorkspaceToGrant)).toBeDefined();
 });
 
-// requirement 5: minting a read-only credential is the owner's, so for anybody else the lock is
-// drawn dimmed, never hidden, and the sentence names the owner's Turso account.
-test('the lock is dimmed for anybody but the owner, in words rather than by hiding it', async () => {
-	loadLocale('en');
-	setLocale('en');
-	form({ canGrantReadOnly: false });
-
-	await fireEvent.click(inSwitch('ws-1')!);
-
-	expect(checked(inSwitch('ws-1'))).toBe(true);
-	expect(dimmed(inSwitch('ws-1'))).toBe(false);
-	expect(dimmed(lockSwitch('ws-1'))).toBe(true);
-	expect(document.querySelector('#account-access-ws-1-lock-reason')?.textContent?.trim()).toBe(
-		en.organization.workspaceSwitches.lockIsTheOwners
-	);
-	expect(workspaceReasons()).toEqual([en.organization.workspaceSwitches.lockIsTheOwners]);
-
-	await fireEvent.click(lockSwitch('ws-1')!);
-	expect(checked(lockSwitch('ws-1'))).toBe(false);
-});
-
-// the owner on a machine without the Turso authority: the lock is dimmed, saying this machine is
-// not connected, since Rust refuses a read-only invitation there.
-test('for the owner on a machine without the Turso authority the lock says so', async () => {
-	loadLocale('en');
-	setLocale('en');
-	form({ canGrantReadOnly: false, readerIsOwner: true });
-
-	await fireEvent.click(inSwitch('ws-1')!);
-
-	expect(dimmed(lockSwitch('ws-1'))).toBe(true);
-	expect(workspaceReasons()).toEqual([en.common.refusals.host.tursoNotConnected]);
-});
-
-test('the lock and its reason read in arabic', async () => {
+test('a workspace the maker holds read only says so in arabic', () => {
 	loadLocale('ar');
 	setLocale('ar');
-	form({ canGrantReadOnly: false }, 'rtl');
+	form({ workspaces: [{ ...workspaces[0], accessLevel: 'read-only' }] }, 'rtl');
 
-	await fireEvent.click(inSwitch('ws-1')!);
-
-	expect(document.querySelector('[data-access-lock-row="ws-1"]')?.textContent).toContain(
-		ar.organization.workspaceSwitches.lock
+	expect(workspaceReasons()).toEqual([ar.organization.workspaceSwitches.notHeld]);
+	expect(ar.organization.workspaceSwitches.notHeld).not.toBe(
+		en.organization.workspaceSwitches.notHeld
 	);
-	expect(workspaceReasons()).toEqual([ar.organization.workspaceSwitches.lockIsTheOwners]);
 
 	setLocale('en');
 });
@@ -433,14 +392,13 @@ const editSheet = (direction: 'ltr' | 'rtl' = 'ltr') =>
 			roleId: 'member',
 			override: 0,
 			roles: fakeOrganizationRoles(),
-			rows: [{ id: 'ws-1', name: 'Riyadh', access: 'none' as const, givable: true }],
+			rows: [{ id: 'ws-1', name: 'Riyadh', access: 'none' as const, override: 0, givable: true }],
 			readerRank: BUILT_IN.owner.rank,
 			readerPermissions: BUILT_IN.owner.mask,
 			canRename: true,
 			canAssignRole: true,
 			canOverride: true,
 			canGrantWorkspace: true,
-			canGrantReadOnly: true,
 			isSaving: false,
 			nameRefusal: null,
 			roleRefusal: null,

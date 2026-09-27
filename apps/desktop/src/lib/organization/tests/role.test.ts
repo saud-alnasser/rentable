@@ -3,7 +3,15 @@ import test from 'node:test';
 
 import { i18nObject } from '../../i18n/i18n-util.ts';
 import { loadLocale } from '../../i18n/i18n-util.sync.ts';
-import { BUILT_IN, maskOf, permits, type Flag } from '@rentable/workspace-permission';
+import {
+	BUILT_IN,
+	WRITE_FLAGS,
+	effectiveIn,
+	effectiveInWorkspace,
+	maskOf,
+	permits,
+	type Flag
+} from '@rentable/workspace-permission';
 
 import {
 	administrationHeld,
@@ -13,6 +21,13 @@ import {
 	levelWord,
 	memberWritesOf,
 	newRoleMask,
+	firstUnheldTailored,
+	isTailored,
+	readOnlyOf,
+	recordsOf,
+	resetTailoring,
+	tailoredShown,
+	tailoredTo,
 	type KindLevel
 } from '../role.ts';
 
@@ -176,4 +191,86 @@ test('the holders a new mask leaves writing records they cannot view are named',
 	// sami's own change gives him the view the role lacks; the role giving it too takes it away,
 	// and leaves his add.
 	assert.deepEqual(holdersWritingBlind(holders, 0, mask), ['sami']);
+});
+
+/**
+ * WHAT ONE WORKSPACE'S SWITCHES COME TO
+ *
+ * Requirement 12 of [[efforts/838-permissions-are-a-role-and-an-override/spec]] as amended a third
+ * time (ticket 54): the card draws what a member may do in a workspace and hands up the grant and
+ * the override the switches come to. What is drawn is what the member then holds there, by the
+ * package's own arithmetic, and a grant minted read only is granted full access again only where a
+ * write is turned on.
+ */
+const MEMBER = BUILT_IN.member.mask;
+const MEMBER_WRITES = maskOf(...WRITE_FLAGS.filter((flag) => permits(MEMBER, flag)));
+
+test('what a workspace comes to is what the member then holds there', () => {
+	const held = { access: 'full-access' as const, override: 0 };
+
+	for (const shown of [
+		recordsOf(MEMBER),
+		readOnlyOf(recordsOf(MEMBER)),
+		recordsOf(MEMBER) + maskOf('deletePayment'),
+		recordsOf(MEMBER) - maskOf('viewUnit', 'createUnit', 'editUnit')
+	]) {
+		const next = tailoredTo(MEMBER, held, shown);
+
+		assert.equal(next.access, 'full-access');
+		assert.equal(tailoredShown(MEMBER, next), shown);
+		assert.equal(
+			recordsOf(effectiveIn(effectiveInWorkspace(MEMBER, next.override), next.access)),
+			shown
+		);
+	}
+
+	assert.equal(tailoredTo(MEMBER, held, recordsOf(MEMBER)).override, 0);
+	assert.equal(tailoredTo(MEMBER, held, readOnlyOf(recordsOf(MEMBER))).override, MEMBER_WRITES);
+});
+
+test('a grant minted read only stays read only until a write is turned on', () => {
+	const minted = { access: 'read-only' as const, override: 0 };
+
+	assert.equal(tailoredShown(MEMBER, minted), readOnlyOf(recordsOf(MEMBER)));
+	assert.ok(isTailored(MEMBER, minted));
+	assert.ok(!isTailored(MEMBER, { access: 'full-access', override: 0 }));
+
+	// a view off keeps it read only, and takes that kind's writes with it.
+	const viewOff = tailoredTo(MEMBER, minted, readOnlyOf(recordsOf(MEMBER)) - maskOf('viewPayment'));
+
+	assert.deepEqual(viewOff, {
+		access: 'read-only',
+		override: maskOf('viewPayment', 'createPayment', 'editPayment')
+	});
+
+	// a write on is a full-access grant, with every other write left off.
+	assert.deepEqual(
+		tailoredTo(MEMBER, minted, readOnlyOf(recordsOf(MEMBER)) + maskOf('createPayment')),
+		{ access: 'full-access', override: MEMBER_WRITES - maskOf('createPayment') }
+	);
+
+	// the reset is the organization's, which gives the member writes, so full access.
+	assert.deepEqual(resetTailoring(MEMBER, minted), { access: 'full-access', override: 0 });
+	assert.deepEqual(resetTailoring(maskOf('viewPayment'), minted), {
+		access: 'read-only',
+		override: 0
+	});
+});
+
+test('writing an override needs every flag it moves, and every flag it carries, held', () => {
+	const all = BUILT_IN.manager.mask;
+
+	assert.equal(firstUnheldTailored(all, 0, MEMBER_WRITES), null);
+	assert.equal(firstUnheldTailored(all - maskOf('editPayment'), 0, MEMBER_WRITES), 'editPayment');
+	// carried and left where it was, still signed under the reader's certificate.
+	assert.equal(
+		firstUnheldTailored(
+			all - maskOf('editPayment'),
+			maskOf('editPayment'),
+			maskOf('editPayment', 'editUnit')
+		),
+		'editPayment'
+	);
+	// nothing changes, so nothing is written, and nothing is asked.
+	assert.equal(firstUnheldTailored(0, maskOf('editPayment'), maskOf('editPayment')), null);
 });

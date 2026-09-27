@@ -60,12 +60,14 @@
 	 * **An account is made in one role with one override** (effort 838, requirement 5), and opens
 	 * on the member role with nothing changed, which is what most people are made as. Who may hand
 	 * out what is decided by the shared pieces, as on the member's sheet: a role below the maker's
-	 * rank, a flag the maker holds (requirement 7), a workspace the maker holds at full access, and
-	 * the lock to read only is the owner's to mint.
+	 * rank, a flag the maker holds (requirement 7), and a workspace the maker holds at full access.
 	 *
 	 * **A workspace switched off is one not granted.** Every workspace the maker holds is a switch
-	 * starting off, and each one switched on becomes a grant, read only where it is locked: what
-	 * the account is made with is what the member's row will carry (requirement 8 of effort 826).
+	 * starting off, and each one switched on becomes a full-access grant: what the account is made
+	 * with is what the member's row will carry (requirement 8 of effort 826). What the person may
+	 * do in one workspace is tailored on their card once they are in it (effort 838, requirement
+	 * 12 as amended a third time), so this sheet draws in and out alone. *A lock to read only sat
+	 * beneath a workspace switched on, the owner's to mint, until that amendment retired it.*
 	 *
 	 * **The mutation is the host's.** This component owns the `superForm` and the surface and
 	 * hands what was chosen up through `onCreate`; `layout/component/organization-dialogs.svelte`
@@ -78,8 +80,6 @@
 		roles,
 		readerRank,
 		readerPermissions,
-		canGrantReadOnly,
-		readerIsOwner = false,
 		isCreating,
 		onCreate
 	}: {
@@ -93,13 +93,6 @@
 		readerRank: number;
 		/** what the maker may do: a flag outside it is not theirs to switch. */
 		readerPermissions: number;
-		/**
-		 * whether the reader may lock a workspace to read only: they are the owner, and this
-		 * machine holds the Turso authority, which is what mints a read only credential.
-		 */
-		canGrantReadOnly: boolean;
-		/** whether the reader is the owner, which names why the lock is refused where it is. */
-		readerIsOwner?: boolean;
 		isCreating: boolean;
 		onCreate: (
 			username: string,
@@ -123,7 +116,7 @@
 	 * the level chosen per workspace, held beside the form rather than in it.
 	 *
 	 * A superforms field carries what a schema can refuse, and this is a choice with no refusal
-	 * of its own: a workspace is in, in and locked, or out, and out is not granting it.
+	 * of its own: a workspace is in or out, and out is not granting it.
 	 */
 	let access = $state<Record<string, AccessChoice>>({});
 
@@ -144,17 +137,16 @@
 			id: workspace.id,
 			name: workspace.name,
 			access: 'none',
+			override: 0,
 			givable: workspace.accessLevel === 'full-access'
 		}))
 	);
 
-	/** a grant for every row switched on, at the level it was left on. */
+	/** a full-access grant for every row switched on. */
 	const grants = (): WorkspaceGrant[] =>
-		rows.flatMap((row) => {
-			const level = access[row.id] ?? row.access;
-
-			return level === 'none' ? [] : [{ id: row.id, access: level }];
-		});
+		rows.flatMap((row) =>
+			(access[row.id] ?? row.access) === 'none' ? [] : [{ id: row.id, access: 'full-access' }]
+		);
 
 	let { form, constraints, errors, enhance, reset, ...rest } = superForm<AccountForm>(
 		defaults(blank, zod4(AccountSchema)),
@@ -264,8 +256,6 @@
 			{rows}
 			{access}
 			onPick={pickAccess}
-			{canGrantReadOnly}
-			{readerIsOwner}
 			disabled={isCreating}
 		/>
 	</div>

@@ -2,10 +2,11 @@
 	import type { AccessSwitchRow } from '$lib/organization/component/access-switches.svelte';
 
 	/**
-	 * one workspace a member can be put in: what they hold on it today, and whether the reader
-	 * holds it at full access themselves, which is what putting somebody in gives.
+	 * one workspace a member can be put in: what they hold on it today, what is switched for them
+	 * there, and whether the reader holds it at full access themselves, which is what putting
+	 * somebody in gives.
 	 */
-	export type MemberWorkspaceRow = AccessSwitchRow;
+	export type MemberWorkspaceRow = AccessSwitchRow & { override: number };
 </script>
 
 <script lang="ts">
@@ -15,17 +16,20 @@
 	import AccessSwitches from '$lib/organization/component/access-switches.svelte';
 	import MemberSectionHead from '$lib/organization/component/member-section-head.svelte';
 	import BuildingIcon from '@lucide/svelte/icons/building';
+	import type { Snippet } from 'svelte';
 
 	/**
 	 * The workspaces a member is in, as one switch each (effort 838, requirement 12 as amended
-	 * again 2026-09-27, the human's call on the running application).
+	 * again and a third time 2026-09-27, the human's calls on the running application).
 	 *
-	 * **A workspace is in or out**, with the owner's lock to read only beneath one that is in, as
-	 * `access-switches.svelte` draws every grant; the workspace's own dialog draws its people from
-	 * the same list. So the card reads as the member's role and the places they can open, and not
-	 * as a second set of permissions beside the role. *Each workspace was a row of three levels,
-	 * full access, read only and no access, until the human saw it beside the switch list and read
-	 * it as a second permission system.*
+	 * **A workspace is in or out**, as `access-switches.svelte` draws every grant; the workspace's
+	 * own dialog draws its people from the same list. Beneath one that is in, the member's card
+	 * tailors what they may do there (`beneath`, `workspace-tailoring.svelte`); the sheet that adds
+	 * a member draws in and out alone. So the card reads as the member's role and the places they
+	 * can open, and not as a second set of permissions beside the role. *Each workspace was a row
+	 * of three levels, full access, read only and no access, until the human saw it beside the
+	 * switch list and read it as a second permission system; then a switch with the owner's lock
+	 * to read only beneath it, until read only became a preset of the tailoring.*
 	 *
 	 * **The glyph is the workspaces section's building** ([[rules/frontend]]: a concept keeps one
 	 * glyph everywhere it appears), and this is the section of the card around the list: its head,
@@ -39,15 +43,15 @@
 		rows,
 		access,
 		onPick,
-		canGrantReadOnly,
 		readerIsOwner = false,
 		refusal = null,
 		disabled,
-		error = null
+		error = null,
+		beneath
 	}: {
 		/** the section's name in the document: its head is `<id>` and its legend `<id>-legend`. */
 		id: string;
-		/** what each row's switch is named by: `<rowPrefix>-<workspace id>`, and its lock `-lock`. */
+		/** what each row's switch is named by: `<rowPrefix>-<workspace id>`. */
 		rowPrefix: string;
 		/** the one sentence under the section's name, which is the moment's own. */
 		description: string;
@@ -58,18 +62,15 @@
 		/** the level chosen per workspace, where it differs from the row's own. */
 		access: Record<string, AccessChoice>;
 		onPick: (id: string, value: AccessChoice) => void;
-		/**
-		 * whether the reader may lock a workspace to read only: they are the owner, and this
-		 * machine holds the Turso authority, which is what mints a read only credential.
-		 */
-		canGrantReadOnly: boolean;
-		/** whether the reader is the owner, which names why the lock is refused where it is. */
+		/** whether the reader is the owner, who alone changes a grant minted read only. */
 		readerIsOwner?: boolean;
 		/** why the reader may turn none of them, or `null` where they may. */
 		refusal?: string | null;
 		disabled: boolean;
 		/** what the grants were refused with, or `null`. */
 		error?: string | null;
+		/** what is drawn beneath a workspace the member is in: the card's tailoring. */
+		beneath?: Snippet<[AccessSwitchRow]>;
 	} = $props();
 </script>
 
@@ -85,12 +86,11 @@
 		{rows}
 		{access}
 		{onPick}
-		{canGrantReadOnly}
 		{readerIsOwner}
 		icon={BuildingIcon}
-		lockLabel={(row) => $LL.organization.workspaceSwitches.lockNamed({ workspace: row.name })}
 		{refusal}
 		{disabled}
+		{beneath}
 	/>
 
 	{#if error}

@@ -1512,16 +1512,23 @@ const en = {
 
 		/**
 		 * a member's workspaces on their card and on the sheet that adds them, and a workspace's
-		 * people in its own dialog (effort 838, requirement 12 as amended again 2026-09-27): each
-		 * a switch, in or out, and under one that is in, the owner's lock to read only and what it
-		 * means.
+		 * people in its own dialog (effort 838, requirement 12 as amended a third time 2026-09-27):
+		 * each a switch, in or out, and under one that is in on the card, what the member may do
+		 * there, tailored against what they may do across the organization, with a reset and a read
+		 * only preset.
 		 */
 		workspaceSwitches: {
-			lock: 'lock to read only',
-			lockNamed: 'lock {workspace:string} to read only',
-			lockMemberNamed: 'lock {member:string} to read only',
-			locked: 'once locked, they cannot change anything in this workspace, even outside the app.',
-			lockIsTheOwners: "only the owner's Turso account can grant read only access.",
+			tailor: 'tailor for this workspace',
+			tailorSays:
+				'what they may do in this workspace alone, measured against what they may do across the organization.',
+			acrossOrganization: 'what they may do across the organization',
+			readOnly: 'read only',
+			readOnlySays: 'turns every add, edit and delete off in this workspace.',
+			reset: 'reset',
+			customHere: 'custom here',
+			movesNotHeld: 'this changes a permission here that you do not hold yourself.',
+			ownerMadeReadOnly:
+				'only the owner changes this, since the owner made this workspace read only for them.',
 			notHeld: 'you hold this workspace read only, so you cannot give it.'
 		}
 	},

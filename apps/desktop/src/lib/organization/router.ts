@@ -18,7 +18,14 @@ import type {
 import type { Host } from '$lib/platform/host';
 import { refuse } from '$lib/api/refusal';
 import { procedure, router } from '$lib/api/trpc';
-import { effective, firstWriteWithoutView } from '@rentable/workspace-permission';
+import {
+	RECORD_FLAGS,
+	effective,
+	effectiveInWorkspace,
+	firstWriteWithoutView,
+	maskOf,
+	permits
+} from '@rentable/workspace-permission';
 import z from 'zod';
 
 import { CODE_LENGTH } from './connect';
@@ -473,6 +480,43 @@ export const organization = router({
 				}
 
 				return ctx.host.organization.member.setOverride(input.memberId, input.override);
+			}),
+		/**
+		 * What is switched for one member in one workspace they are in (effort 838, requirement 12
+		 * as amended a third time), held to `overrideMember` here and to the rest in Rust, as
+		 * `setOverride` is; `0` clears it. A mask naming a flag that is not a record flag is
+		 * refused here first, and so is what the member would end up with there where it adds,
+		 * edits or deletes a kind of record without viewing it. Whether they hold a grant on the
+		 * workspace is Rust's to refuse by name.
+		 */
+		setWorkspaceOverride: procedure
+			.permitted('overrideMember')
+			.input(
+				z.object({
+					memberId: z.string().trim().min(1),
+					workspaceId: z.string().trim().min(1),
+					override: MASK
+				})
+			)
+			.mutation(async ({ input, ctx }): Promise<OrganizationMember> => {
+				if (
+					input.override !== maskOf(...RECORD_FLAGS.filter((flag) => permits(input.override, flag)))
+				) {
+					throw refuse('host.recordFlagsOnly');
+				}
+
+				const members = await ctx.host.organization.member.list();
+				const member = members.find((held) => held.id === input.memberId);
+
+				if (member) {
+					refuseWriteWithoutView(effectiveInWorkspace(member.permissions, input.override));
+				}
+
+				return ctx.host.organization.member.setWorkspaceOverride(
+					input.memberId,
+					input.workspaceId,
+					input.override
+				);
 			}),
 		/**
 		 * Offer the organization to another account: the first of the two acts a handover is

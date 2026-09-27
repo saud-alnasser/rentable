@@ -255,6 +255,88 @@ test('assigning a role, setting an override and withdrawing a grant each need th
 	assert.deepEqual(asked, done);
 });
 
+// effort 838, requirement 12 as amended a third time: what is switched for a member in one
+// workspace is `overrideMember`'s, like their override across the organization. A mask naming a
+// flag that is not a record flag, and one leaving them writing a kind of record they cannot view
+// there, are refused before the round trip; the rest (rank, the grant, flags not held) is Rust's.
+test('tailoring a member in a workspace needs overrideMember, and asks for record flags a member can view', async () => {
+	const asked: string[] = [];
+	const host = fakeHost({
+		organization: {
+			...fakeHost().organization,
+			member: {
+				...fakeHost().organization.member,
+				list: async () => [
+					fakeOrganizationMember({ id: 'member-2', permissions: BUILT_IN.member.mask })
+				],
+				setWorkspaceOverride: async (memberId, workspaceId, override) => {
+					asked.push(`setWorkspaceOverride:${memberId}:${workspaceId}:${override}`);
+
+					return fakeOrganizationMember({ id: memberId });
+				}
+			}
+		}
+	});
+
+	const overriding = await permittedApi(host, 'overrideMember');
+	const granting = await permittedApi(host, 'grantWorkspace', 'assignRole');
+	const readOnly = maskOf('createPayment', 'editPayment');
+
+	await overriding.app.organization.member.setWorkspaceOverride({
+		memberId: 'member-2',
+		workspaceId: 'workspace-1',
+		override: readOnly
+	});
+	await overriding.app.organization.member.setWorkspaceOverride({
+		memberId: 'member-2',
+		workspaceId: 'workspace-1',
+		override: 0
+	});
+
+	const done = [
+		`setWorkspaceOverride:member-2:workspace-1:${readOnly}`,
+		'setWorkspaceOverride:member-2:workspace-1:0'
+	];
+
+	assert.deepEqual(asked, done);
+
+	const refusedAs = async (call: Promise<unknown>, code: string): Promise<void> => {
+		await assert.rejects(call, (error: unknown) => {
+			assert.equal(readRefusal(error)?.code, code);
+
+			return true;
+		});
+	};
+
+	// no other flag stands in for it.
+	await assert.rejects(
+		granting.app.organization.member.setWorkspaceOverride({
+			memberId: 'member-2',
+			workspaceId: 'workspace-1',
+			override: readOnly
+		})
+	);
+	// the organization's own flags are not a workspace's to switch.
+	await refusedAs(
+		overriding.app.organization.member.setWorkspaceOverride({
+			memberId: 'member-2',
+			workspaceId: 'workspace-1',
+			override: maskOf('inviteMember')
+		}),
+		'host.recordFlagsOnly'
+	);
+	// the member views payments; switching that view off there leaves them adding payments unseen.
+	await refusedAs(
+		overriding.app.organization.member.setWorkspaceOverride({
+			memberId: 'member-2',
+			workspaceId: 'workspace-1',
+			override: maskOf('viewPayment')
+		}),
+		'host.paymentNeedsViewing'
+	);
+	assert.deepEqual(asked, done);
+});
+
 // effort 838, requirement 4: every write to a role is `manageRoles`'s, and listing them is any
 // signed-in member's. What each write refuses on the rows (rank, a built-in role, flags not held)
 // is Rust's.
@@ -364,6 +446,7 @@ test('nothing here asks the host to list organizations', () => {
 		'member.remove',
 		'member.rename',
 		'member.setOverride',
+		'member.setWorkspaceOverride',
 		'member.standings',
 		'member.unsetPassword',
 		'member.withdrawOffer',
@@ -1007,6 +1090,7 @@ const COMMAND_OF: Record<string, string> = {
 	'member.remove': 'member_remove',
 	'member.rename': 'member_rename',
 	'member.setOverride': 'member_set_override',
+	'member.setWorkspaceOverride': 'member_set_workspace_override',
 	'member.unsetPassword': 'member_password_unset',
 	'member.withdrawOffer': 'member_withdraw_offer',
 	ownershipAccept: 'ownership_accept',

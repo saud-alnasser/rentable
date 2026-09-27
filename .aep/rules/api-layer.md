@@ -85,13 +85,14 @@ use-when: "adding or changing a router, a domain module, a database client or tr
   somebody, `member` is still the one to reach for by habit over `public`: a procedure written
   without thinking about who calls it should be the safe one.
 
-  **Counted 2026-09-25 the way the walk counts:** every entry of `appRouter._def.procedures`,
-  sorted by its `meta`. There are 112: 82 `permitted`, 1 `permittedAny`, 3 `permittedBy`, 12
-  `member` and 14 `public`, so 98 need somebody signed in and 86 of those name a flag. *It was 75,
+  **Counted 2026-09-28 the way the walk counts:** every entry of `appRouter._def.procedures`,
+  sorted by its `meta`. There are 113: 83 `permitted`, 1 `permittedAny`, 3 `permittedBy`, 12
+  `member` and 14 `public`, so 99 need somebody signed in and 87 of those name a flag. *It was 75,
   1, 2, 20 and 14, and a third kind of `member` stood above, an act whose check was Rust's alone:
   the owner's acts and setting and clearing the mark. Ticket 17 of
   [[efforts/838-permissions-are-a-role-and-an-override/spec]] gave each the flag its Rust command
-  checks.*
+  checks. Ticket 54 added `organization.member.setWorkspaceOverride`, `permitted`, to the 112
+  counted on 2026-09-25.*
 
   *This read "**Two procedure kinds, and `member` is the default.** `procedure.member` refuses a
   machine nobody is signed in on; `procedure.public` does not", and nothing counted the member

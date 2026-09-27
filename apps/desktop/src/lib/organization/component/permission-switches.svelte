@@ -18,7 +18,7 @@
 		viewOf,
 		writesOf
 	} from '$lib/organization/role';
-	import { FAMILIES, permits, type Flag } from '@rentable/workspace-permission';
+	import { FAMILIES, RECORD_FLAGS, permits, type Flag } from '@rentable/workspace-permission';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import CrownIcon from '@lucide/svelte/icons/crown';
 
@@ -56,6 +56,11 @@
 	 *
 	 * **Nothing is written from here.** It hands the mask its switches come to up through
 	 * `onChange`, and the surface's own save writes it.
+	 *
+	 * **A workspace draws the record groups alone** (`records`; effort 838, requirement 12 as
+	 * amended a third time): what is changed for a member in one workspace switches record flags
+	 * and nothing else, so the organization's ten and the owner's line are not drawn there, and
+	 * the switches are compared against what the member may do across the organization.
 	 */
 	let {
 		id,
@@ -65,7 +70,8 @@
 		refusal = null,
 		refusalOf = () => null,
 		disabled,
-		baseline = null
+		baseline = null,
+		records = false
 	}: {
 		/** what each switch is named by in the document: `<id>-<flag>`. */
 		id: string;
@@ -83,8 +89,13 @@
 		refusalOf?: (next: number) => string | null;
 		/** whether the surface is saving, when nothing is turned. */
 		disabled: boolean;
-		/** the role the switches are compared against, where they differ from it. */
+		/**
+		 * what the switches are compared against, where they differ from it: a role, or what a
+		 * member may do across the organization, named by `name` in each difference's label.
+		 */
 		baseline?: { mask: number; name: string } | null;
+		/** whether to draw the record groups alone, as a workspace tailors them. */
+		records?: boolean;
 	} = $props();
 
 	const ADMINISTRATION = FAMILIES.administration as readonly Flag[];
@@ -92,7 +103,11 @@
 	let administrationOpen = $state(false);
 
 	/** every flag a switch is drawn for, whether or not it is on screen. */
-	const offered = EDITABLE_FAMILIES.flatMap((family) => FAMILIES[family] as readonly Flag[]);
+	const offered = $derived(
+		records
+			? RECORD_FLAGS
+			: EDITABLE_FAMILIES.flatMap((family) => FAMILIES[family] as readonly Flag[])
+	);
 
 	const isOn = (flag: Flag) => permits(mask, flag);
 
@@ -199,8 +214,12 @@
 		{@const Glyph = KIND_GLYPH[kind]}
 		{@const view = viewOf(kind)}
 		{@const writes = writesOf(kind)}
+		<!-- inside a workspace's own ring the groups are set apart by space alone, so no ring sits
+		     inside another. -->
 		<div
-			class="flex flex-col gap-1 rounded-2xl px-3 py-2 ring-1 ring-foreground/5"
+			class={records
+				? 'flex flex-col gap-1'
+				: 'flex flex-col gap-1 rounded-2xl px-3 py-2 ring-1 ring-foreground/5'}
 			data-switches-group={kind}
 		>
 			<div class="flex min-h-8 items-center gap-2">
@@ -237,64 +256,67 @@
 		</div>
 	{/each}
 
-	<!-- the organization's ten, folded to how many are on: opened to be changed. -->
-	<Collapsible.Root
-		bind:open={administrationOpen}
-		class="flex flex-col gap-1 rounded-2xl px-3 py-2 ring-1 ring-foreground/5"
-		data-switches-group="administration"
-	>
-		<Collapsible.Trigger
-			class="flex min-h-8 w-full items-center gap-2 rounded-xl text-start outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
-			data-switches-fold
+	<!-- the organization's ten, folded to how many are on: opened to be changed. A workspace
+	     switches none of them, so it draws neither them nor the owner's line. -->
+	{#if !records}
+		<Collapsible.Root
+			bind:open={administrationOpen}
+			class="flex flex-col gap-1 rounded-2xl px-3 py-2 ring-1 ring-foreground/5"
+			data-switches-group="administration"
 		>
-			<ADMINISTRATION_GLYPH class="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-			<span class="min-w-0 flex-1 text-sm font-medium first-letter:uppercase">
-				{familyName($LL, 'administration')}
-			</span>
-			{#if baseline && ADMINISTRATION.some(differs)}
-				<span
-					role="img"
-					aria-label={$LL.organization.switches.differs({ role: baseline.name })}
-					class="size-2 shrink-0 rounded-full bg-primary"
-					data-differs="administration"
-				></span>
-			{/if}
-			<span class="text-xs text-muted-foreground tabular-nums" data-switches-summary>
-				{$LL.organization.switches.folded({
-					count: administrationOn,
-					total: ADMINISTRATION_TOTAL
-				})}
-			</span>
-			<ChevronDownIcon
-				class="size-4 shrink-0 text-muted-foreground transition-transform duration-quick ease-move {administrationOpen
-					? 'rotate-180'
-					: ''}"
-				aria-hidden="true"
-			/>
-		</Collapsible.Trigger>
+			<Collapsible.Trigger
+				class="flex min-h-8 w-full items-center gap-2 rounded-xl text-start outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
+				data-switches-fold
+			>
+				<ADMINISTRATION_GLYPH class="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+				<span class="min-w-0 flex-1 text-sm font-medium first-letter:uppercase">
+					{familyName($LL, 'administration')}
+				</span>
+				{#if baseline && ADMINISTRATION.some(differs)}
+					<span
+						role="img"
+						aria-label={$LL.organization.switches.differs({ role: baseline.name })}
+						class="size-2 shrink-0 rounded-full bg-primary"
+						data-differs="administration"
+					></span>
+				{/if}
+				<span class="text-xs text-muted-foreground tabular-nums" data-switches-summary>
+					{$LL.organization.switches.folded({
+						count: administrationOn,
+						total: ADMINISTRATION_TOTAL
+					})}
+				</span>
+				<ChevronDownIcon
+					class="size-4 shrink-0 text-muted-foreground transition-transform duration-quick ease-move {administrationOpen
+						? 'rotate-180'
+						: ''}"
+					aria-hidden="true"
+				/>
+			</Collapsible.Trigger>
 
-		<Collapsible.Content>
-			<!-- drawn only while open, so what nobody opened reaches neither a reader nor a screen
+			<Collapsible.Content>
+				<!-- drawn only while open, so what nobody opened reaches neither a reader nor a screen
 			     reader. -->
-			{#if administrationOpen}
-				<div class="flex flex-col gap-1 ps-6 pt-1" data-switches-writes="administration">
-					{#each ADMINISTRATION as flag (flag)}
-						<div class="flex min-h-7 items-center gap-2">
-							<Field.Label for={`${id}-${flag}`} class="min-w-0 flex-1 font-normal">
-								{flagName($LL, flag)}
-							</Field.Label>
-							{@render mark(flag)}
-							{@render toggle(flag, flagName($LL, flag), 'sm')}
-						</div>
-					{/each}
-				</div>
-			{/if}
-		</Collapsible.Content>
-	</Collapsible.Root>
+				{#if administrationOpen}
+					<div class="flex flex-col gap-1 ps-6 pt-1" data-switches-writes="administration">
+						{#each ADMINISTRATION as flag (flag)}
+							<div class="flex min-h-7 items-center gap-2">
+								<Field.Label for={`${id}-${flag}`} class="min-w-0 flex-1 font-normal">
+									{flagName($LL, flag)}
+								</Field.Label>
+								{@render mark(flag)}
+								{@render toggle(flag, flagName($LL, flag), 'sm')}
+							</div>
+						{/each}
+					</div>
+				{/if}
+			</Collapsible.Content>
+		</Collapsible.Root>
 
-	<!-- the owner's own acts, which no role and no override carries: said, not offered. -->
-	<p class="flex items-center gap-2 px-3 text-xs text-muted-foreground" data-switches-owner>
-		<CrownIcon class="size-3.5 shrink-0" aria-hidden="true" />
-		<span>{$LL.organization.switches.owner()}</span>
-	</p>
+		<!-- the owner's own acts, which no role and no override carries: said, not offered. -->
+		<p class="flex items-center gap-2 px-3 text-xs text-muted-foreground" data-switches-owner>
+			<CrownIcon class="size-3.5 shrink-0" aria-hidden="true" />
+			<span>{$LL.organization.switches.owner()}</span>
+		</p>
+	{/if}
 </div>

@@ -1,11 +1,20 @@
 <script lang="ts" module>
-	/** what the sheet hands back on a save: the name, the role, the override, and the grants that changed. */
+	/**
+	 * what the sheet hands back on a save: the name, the role, the override, the grants that
+	 * changed, and what is switched in each workspace whose override changed.
+	 */
 	export type MemberEdit = {
 		/** the username, trimmed; the one they hold where the reader may not rename them. */
 		username: string;
 		roleId: string;
 		override: number;
 		changes: { id: string; access: AccessChoice }[];
+		/**
+		 * each workspace the member is in whose override the save writes, against what it holds
+		 * once the role and the override are written: another role, or a reset to the role,
+		 * clears every one (Rust's `assign_role` and `set_override`).
+		 */
+		tailored: { id: string; override: number }[];
 	};
 </script>
 
@@ -24,10 +33,17 @@
 	import MemberWorkspaces, {
 		type MemberWorkspaceRow
 	} from '$lib/organization/component/member-workspaces.svelte';
-	import { firstUnheldMoved, flagPhrase, roleNameOf } from '$lib/organization/role';
+	import WorkspaceTailoring from '$lib/organization/component/workspace-tailoring.svelte';
+	import {
+		firstUnheldMoved,
+		flagPhrase,
+		roleNameOf,
+		type WorkspaceTailoring as Tailoring
+	} from '$lib/organization/role';
 	import { usernameSchema } from '$lib/organization/username-form';
 	import type { OrganizationRole } from '$lib/platform/host';
 	import { effective } from '@rentable/workspace-permission';
+	import { untrack } from 'svelte';
 	import SaveIcon from '@lucide/svelte/icons/save';
 	import UserIcon from '@lucide/svelte/icons/user';
 
@@ -72,6 +88,14 @@
 	 * its own section ([[rules/interface]], *Validation errors*); a role and an override changed
 	 * together are one act, and its refusal marks both.
 	 *
+	 * **Beneath each workspace the member is in, what they may do there is tailored** (effort 838,
+	 * requirement 12 as amended a third time; `workspace-tailoring.svelte`), measured against what
+	 * they may do across the organization as the sheet has it. Picking another role, or putting
+	 * them back on their role, clears what is changed in every workspace, as Rust's
+	 * `assign_role` and `set_override` do, so the tailoring reads the same at once; picking their
+	 * own role again puts it back. Only a workspace whose override changes is written, after the
+	 * grants, since an override is set only on a workspace the member is in.
+	 *
 	 * **Its sections are the ones the sheet that adds a member draws** (ticket 42 of effort 832):
 	 * `member-role.svelte`, `member-override.svelte` and `member-workspaces.svelte`, so adding a
 	 * member and editing one read as one surface in two moments.
@@ -93,7 +117,6 @@
 		canAssignRole,
 		canOverride,
 		canGrantWorkspace,
-		canGrantReadOnly,
 		readerIsOwner = false,
 		isSaving,
 		nameRefusal,
@@ -112,7 +135,10 @@
 		override: number;
 		/** every role the organization has, which is what the tray chooses among. */
 		roles: readonly OrganizationRole[];
-		/** every workspace a grant can be held on, with what this member holds on it today. */
+		/**
+		 * every workspace a grant can be held on, with what this member holds on it today and what
+		 * is switched for them there.
+		 */
 		rows: MemberWorkspaceRow[];
 		/** how high the reader's role stands: a role at or above it is not theirs to give. */
 		readerRank: number;
@@ -126,12 +152,7 @@
 		canOverride: boolean;
 		/** `grantWorkspace`: the workspaces. */
 		canGrantWorkspace: boolean;
-		/**
-		 * whether the reader may lock a workspace to read only: they are the owner, and this
-		 * machine holds the Turso authority, which is what mints a read only credential.
-		 */
-		canGrantReadOnly: boolean;
-		/** whether the reader is the owner, which names why the lock is refused where it is. */
+		/** whether the reader is the owner, who alone changes a grant minted read only. */
 		readerIsOwner?: boolean;
 		isSaving: boolean;
 		/** what the rename was refused with, or `null`. */
@@ -151,6 +172,8 @@
 	let chosenRole = $state('');
 	let chosenOverride = $state(0);
 	let access = $state<Record<string, AccessChoice>>({});
+	/** what each workspace is tailored to, where the switches beneath it were turned. */
+	let tailoring = $state<Record<string, Tailoring>>({});
 
 	// a fresh open starts on what the row holds, with nothing left over from the last member.
 	$effect(() => {
@@ -160,6 +183,7 @@
 			chosenRole = roleId;
 			chosenOverride = override;
 			access = Object.fromEntries(rows.map((row) => [row.id, row.access]));
+			tailoring = {};
 		}
 	});
 
@@ -183,6 +207,47 @@
 
 	const pickAccess = (id: string, value: AccessChoice) => {
 		access[id] = value;
+	};
+
+	/** what the member may do across the organization as the sheet has it now. */
+	const organizationWide = $derived(effective(roleMask, chosenOverride));
+
+	/**
+	 * whether the save clears what is changed in every workspace: another role, or a reset of what
+	 * is changed across the organization, which is how Rust reads an override written as nothing.
+	 */
+	const cleared = $derived(chosenRole !== roleId || (override !== 0 && chosenOverride === 0));
+
+	// what was tailored against the layer the save clears is measured again from nothing, and a
+	// pick that puts the layer back puts back what each workspace held.
+	$effect(() => {
+		void cleared;
+		untrack(() => {
+			tailoring = {};
+		});
+	});
+
+	/** what a workspace holds once the role and the override are written. */
+	const heldIn = (row: MemberWorkspaceRow): Tailoring => ({
+		access: row.access === 'read-only' ? 'read-only' : 'full-access',
+		override: cleared ? 0 : row.override
+	});
+
+	const tailoringOf = (row: MemberWorkspaceRow): Tailoring => tailoring[row.id] ?? heldIn(row);
+
+	/** the grant a workspace comes to: out, or in at the level its tailoring needs. */
+	const levelOf = (row: MemberWorkspaceRow): AccessChoice =>
+		(access[row.id] ?? row.access) === 'none' ? 'none' : tailoringOf(row).access;
+
+	/**
+	 * why re-granting a workspace minted read only at full access would be refused, as Rust
+	 * refuses it: the act, the owner's, and a workspace the reader holds at full access.
+	 */
+	const regrantRefusalOf = (row: MemberWorkspaceRow): string | null => {
+		if (!canGrantWorkspace) return lacking($LL, 'grantWorkspace');
+		if (!readerIsOwner) return $LL.organization.workspaceSwitches.ownerMadeReadOnly();
+
+		return row.givable ? null : $LL.organization.workspaceSwitches.notHeld();
 	};
 
 	// built when this component is, past the locale gate, for the reason
@@ -214,8 +279,13 @@
 			roleId: chosenRole,
 			override: chosenOverride,
 			changes: rows
-				.filter((row) => (access[row.id] ?? row.access) !== row.access)
-				.map((row) => ({ id: row.id, access: access[row.id] ?? row.access }))
+				.filter((row) => levelOf(row) !== row.access)
+				.map((row) => ({ id: row.id, access: levelOf(row) })),
+			tailored: rows
+				.filter(
+					(row) => levelOf(row) !== 'none' && tailoringOf(row).override !== heldIn(row).override
+				)
+				.map((row) => ({ id: row.id, override: tailoringOf(row).override }))
 		});
 	});
 </script>
@@ -301,12 +371,30 @@
 			{rows}
 			{access}
 			onPick={pickAccess}
-			{canGrantReadOnly}
 			{readerIsOwner}
 			refusal={canGrantWorkspace ? null : lacking($LL, 'grantWorkspace')}
 			disabled={isSaving}
 			error={workspacesRefusal}
-		/>
+		>
+			{#snippet beneath(switched)}
+				{@const row = rows.find((each) => each.id === switched.id)}
+				{#if row}
+					<WorkspaceTailoring
+						id={`access-${row.id}-tailor`}
+						{organizationWide}
+						held={heldIn(row)}
+						value={tailoringOf(row)}
+						onChange={(next) => {
+							tailoring[row.id] = next;
+						}}
+						{readerPermissions}
+						refusal={canOverride ? null : lacking($LL, 'overrideMember')}
+						regrantRefusal={regrantRefusalOf(row)}
+						disabled={isSaving}
+					/>
+				{/if}
+			{/snippet}
+		</MemberWorkspaces>
 	</div>
 
 	{#snippet actions()}

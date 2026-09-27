@@ -772,6 +772,40 @@ export function useSetOverride(
 }
 
 /**
+ * set what is switched for one member in one workspace they are in, `0` clearing it (effort 838,
+ * requirement 12 as amended a third time). The member's card writes one per workspace it tailored.
+ * The members are read again, since each carries what is switched for it per workspace.
+ */
+export function useSetWorkspaceOverride(
+	opts: MutationOptions = {
+		toast: {
+			success: () => get(LL).organization.dashboard.overrideSaved(),
+			error: true,
+			unexpected: () => get(LL).common.messages.unexpectedError()
+		}
+	}
+) {
+	const client = useQueryClient();
+
+	return createMutation(() => ({
+		mutationFn: ({
+			memberId,
+			workspaceId,
+			override
+		}: {
+			memberId: string;
+			workspaceId: string;
+			override: number;
+		}) => api.app.organization.member.setWorkspaceOverride({ memberId, workspaceId, override }),
+		onSuccess: async () => {
+			await rolesAndMembersChanged(client);
+			onMutationSuccess(opts);
+		},
+		onError: (e) => onMutationError(opts, e)
+	}));
+}
+
+/**
  * every role, highest rank first, with what each carries and how many hold it (effort 838,
  * requirement 12). Any signed-in member reads it.
  */

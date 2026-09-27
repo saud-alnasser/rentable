@@ -45,10 +45,6 @@
 	const session = $derived(stateQuery.data?.session ?? null);
 	// the roles an account can be made in, read while the form that makes one is open.
 	const rolesQuery = useFetchRoles(() => organizationDialog.open === 'account');
-	const isOwner = $derived(session?.role === 'owner');
-	// a read-only grant is minted with the Turso authority, which an owner restored on this machine
-	// does not hold until they connect the account again; Rust refuses the lock without it.
-	const canGrantReadOnly = $derived(isOwner && stateQuery.data?.holdsTursoAuthority === true);
 
 	// the form names each workspace with the access it is granted at, which is what the command
 	// takes. Nothing comes back to show: an account holds no password until a link is made for it,
@@ -99,8 +95,6 @@
 			roles={rolesQuery.data ?? []}
 			readerRank={session.rank}
 			readerPermissions={session.permissions}
-			{canGrantReadOnly}
-			readerIsOwner={isOwner}
 			isCreating={createAccount.isPending}
 			onCreate={(username, roleId, override, workspaces) =>
 				void create(username, roleId, override, workspaces)}

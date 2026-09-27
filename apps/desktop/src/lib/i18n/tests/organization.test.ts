@@ -127,20 +127,20 @@ test('both locales say where an account stands, in three lines that differ', () 
 	assert.match(ar.organization.dashboard.invitationExpires, /\{date\}/);
 });
 
-// effort 826, requirement 5: granting read only stays in words rather than in a hidden control,
-// and names the owner, in both languages. *Handing out an act that signs a row was the owner's too
-// until effort 838 let a manager put one into effect (requirement 9). The sentence was the access
-// dialog's own until ticket 49 of that effort drew the dialog from the lock's switches.*
+// effort 826, requirement 5, as effort 838 left it: a grant the owner minted read only is the
+// owner's to change, and a control refused for that says so in words and names the owner, in both
+// languages. *It named the owner's Turso account as what grants read only until ticket 54 of
+// effort 838 retired the lock that granted it (requirement 12 as amended a third time).*
 test('both locales name the owner where an act belongs to nobody else', () => {
 	for (const [name, translation] of locales) {
 		assert.ok(
-			translation.organization.workspaceSwitches.lockIsTheOwners.length > 0,
-			`${name} says nothing about who may grant read only`
+			translation.organization.workspaceSwitches.ownerMadeReadOnly.length > 0,
+			`${name} says nothing about who changes a grant made read only`
 		);
 	}
 
-	assert.match(en.organization.workspaceSwitches.lockIsTheOwners, /only the owner/);
-	assert.match(ar.organization.workspaceSwitches.lockIsTheOwners, /المالك وحده/);
+	assert.match(en.organization.workspaceSwitches.ownerMadeReadOnly, /only the owner/);
+	assert.match(ar.organization.workspaceSwitches.ownerMadeReadOnly, /المالك وحده/);
 });
 
 // effort 838, requirement 3: the manager replaced the administrator, so no sentence a person reads
@@ -271,7 +271,15 @@ const RETIRED = [
 	// there, until ticket 49 of effort 838 drew its people as the same switches.
 	'organization.dashboard.accessNone',
 	'organization.dashboard.accessReadOnly',
-	'organization.dashboard.readOnlyIsTheOwners'
+	'organization.dashboard.readOnlyIsTheOwners',
+	// the owner's lock to read only beneath a workspace that was in, its names, what locking did,
+	// and why it was refused, until ticket 54 of effort 838 made read only a preset of the switches
+	// that tailor a workspace.
+	'organization.workspaceSwitches.lock',
+	'organization.workspaceSwitches.lockNamed',
+	'organization.workspaceSwitches.lockMemberNamed',
+	'organization.workspaceSwitches.locked',
+	'organization.workspaceSwitches.lockIsTheOwners'
 ] as const;
 
 test('both locales have let go of every string the retired pages read', () => {
@@ -286,7 +294,7 @@ test('both locales have let go of every string the retired pages read', () => {
 // english key, spelled the same wherever a screen draws it, and its arabic is written rather
 // than left in english; and the words the requirement retires are in no english sentence.
 // *Read only was a term of its own, `dashboard.accessReadOnly`, until ticket 49 of effort 838 left
-// no level to name. It is still said in several keys, the lock's names and refusals
+// no level to name. It is still said in several keys, the tailoring's preset and its refusals
 // (`workspaceSwitches`), its flag (`organization.flags.mintReadOnly`) and a reader's own
 // read only workspace (`common.permission.readOnly`), none of them a term the table holds; the
 // test below holds its spelling, one way wherever an organization string says it.*

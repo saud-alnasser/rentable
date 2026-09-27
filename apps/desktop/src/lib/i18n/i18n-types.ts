@@ -4360,27 +4360,41 @@ type RootTranslation = {
 		}
 		workspaceSwitches: {
 			/**
-			 * l​o​c​k​ ​t​o​ ​r​e​a​d​ ​o​n​l​y
+			 * t​a​i​l​o​r​ ​f​o​r​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e
 			 */
-			lock: string
+			tailor: string
 			/**
-			 * l​o​c​k​ ​{​w​o​r​k​s​p​a​c​e​}​ ​t​o​ ​r​e​a​d​ ​o​n​l​y
-			 * @param {string} workspace
+			 * w​h​a​t​ ​t​h​e​y​ ​m​a​y​ ​d​o​ ​i​n​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​a​l​o​n​e​,​ ​m​e​a​s​u​r​e​d​ ​a​g​a​i​n​s​t​ ​w​h​a​t​ ​t​h​e​y​ ​m​a​y​ ​d​o​ ​a​c​r​o​s​s​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.
 			 */
-			lockNamed: RequiredParams<'workspace'>
+			tailorSays: string
 			/**
-			 * l​o​c​k​ ​{​m​e​m​b​e​r​}​ ​t​o​ ​r​e​a​d​ ​o​n​l​y
-			 * @param {string} member
+			 * w​h​a​t​ ​t​h​e​y​ ​m​a​y​ ​d​o​ ​a​c​r​o​s​s​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n
 			 */
-			lockMemberNamed: RequiredParams<'member'>
+			acrossOrganization: string
 			/**
-			 * o​n​c​e​ ​l​o​c​k​e​d​,​ ​t​h​e​y​ ​c​a​n​n​o​t​ ​c​h​a​n​g​e​ ​a​n​y​t​h​i​n​g​ ​i​n​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​,​ ​e​v​e​n​ ​o​u​t​s​i​d​e​ ​t​h​e​ ​a​p​p​.
+			 * r​e​a​d​ ​o​n​l​y
 			 */
-			locked: string
+			readOnly: string
 			/**
-			 * o​n​l​y​ ​t​h​e​ ​o​w​n​e​r​'​s​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​ ​c​a​n​ ​g​r​a​n​t​ ​r​e​a​d​ ​o​n​l​y​ ​a​c​c​e​s​s​.
+			 * t​u​r​n​s​ ​e​v​e​r​y​ ​a​d​d​,​ ​e​d​i​t​ ​a​n​d​ ​d​e​l​e​t​e​ ​o​f​f​ ​i​n​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​.
 			 */
-			lockIsTheOwners: string
+			readOnlySays: string
+			/**
+			 * r​e​s​e​t
+			 */
+			reset: string
+			/**
+			 * c​u​s​t​o​m​ ​h​e​r​e
+			 */
+			customHere: string
+			/**
+			 * t​h​i​s​ ​c​h​a​n​g​e​s​ ​a​ ​p​e​r​m​i​s​s​i​o​n​ ​h​e​r​e​ ​t​h​a​t​ ​y​o​u​ ​d​o​ ​n​o​t​ ​h​o​l​d​ ​y​o​u​r​s​e​l​f​.
+			 */
+			movesNotHeld: string
+			/**
+			 * o​n​l​y​ ​t​h​e​ ​o​w​n​e​r​ ​c​h​a​n​g​e​s​ ​t​h​i​s​,​ ​s​i​n​c​e​ ​t​h​e​ ​o​w​n​e​r​ ​m​a​d​e​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​r​e​a​d​ ​o​n​l​y​ ​f​o​r​ ​t​h​e​m​.
+			 */
+			ownerMadeReadOnly: string
 			/**
 			 * y​o​u​ ​h​o​l​d​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​r​e​a​d​ ​o​n​l​y​,​ ​s​o​ ​y​o​u​ ​c​a​n​n​o​t​ ​g​i​v​e​ ​i​t​.
 			 */
@@ -8637,25 +8651,41 @@ export type TranslationFunctions = {
 		}
 		workspaceSwitches: {
 			/**
-			 * lock to read only
+			 * tailor for this workspace
 			 */
-			lock: () => LocalizedString
+			tailor: () => LocalizedString
 			/**
-			 * lock {workspace} to read only
+			 * what they may do in this workspace alone, measured against what they may do across the organization.
 			 */
-			lockNamed: (arg: { workspace: string }) => LocalizedString
+			tailorSays: () => LocalizedString
 			/**
-			 * lock {member} to read only
+			 * what they may do across the organization
 			 */
-			lockMemberNamed: (arg: { member: string }) => LocalizedString
+			acrossOrganization: () => LocalizedString
 			/**
-			 * once locked, they cannot change anything in this workspace, even outside the app.
+			 * read only
 			 */
-			locked: () => LocalizedString
+			readOnly: () => LocalizedString
 			/**
-			 * only the owner's Turso account can grant read only access.
+			 * turns every add, edit and delete off in this workspace.
 			 */
-			lockIsTheOwners: () => LocalizedString
+			readOnlySays: () => LocalizedString
+			/**
+			 * reset
+			 */
+			reset: () => LocalizedString
+			/**
+			 * custom here
+			 */
+			customHere: () => LocalizedString
+			/**
+			 * this changes a permission here that you do not hold yourself.
+			 */
+			movesNotHeld: () => LocalizedString
+			/**
+			 * only the owner changes this, since the owner made this workspace read only for them.
+			 */
+			ownerMadeReadOnly: () => LocalizedString
 			/**
 			 * you hold this workspace read only, so you cannot give it.
 			 */

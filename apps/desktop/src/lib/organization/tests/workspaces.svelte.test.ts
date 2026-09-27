@@ -8,6 +8,7 @@ import Workspaces from '$lib/organization/component/workspaces.svelte';
 import { organizationDialog, resetOrganizationDialogs } from '$lib/organization/dialogs.svelte';
 import { organizationHostState, resetOrganizationHost } from '$lib/organization/host.svelte';
 import { fakeOrganizationMember, fakeOrganizationSession } from '$lib/platform/tests/testing';
+import { BUILT_IN, maskOf } from '@rentable/workspace-permission';
 import type { OrganizationMember, OrganizationWorkspace } from '$lib/platform/host';
 import en from '$lib/i18n/en';
 import { toTitleCase } from '@rentable/design/title-case.js';
@@ -544,29 +545,36 @@ test('the members act hands up the rows that changed, as member ids on that work
 	});
 });
 
-// the lock mints a read only credential on the owner's Turso account, so the host offers it only
-// where this machine holds that authority, and unlocking, which re-seals the owner's own full
-// access, stays open without it (effort 838, tickets 50 and 51).
-test('the owner is offered the lock only where this machine holds the Turso authority', async () => {
-	const lockOf = (id: string) =>
-		document.querySelector<HTMLElement>(`#access-${id}-lock`) ??
-		document.querySelector<HTMLElement>(`[id^="access-${id}"][id$="lock"]`);
-
-	hostAnswers.holdsTursoAuthority = false;
-	const without = list();
-
-	await press('ws-1', 'grant');
-	await waitFor(() => expect(document.querySelector('[data-access-form]')).not.toBeNull());
-	expect(lockOf('ada')?.getAttribute('aria-disabled')).toBe('true');
-	expect(document.body.textContent).toContain(en.common.refusals.host.tursoNotConnected);
-	without.unmount();
-
-	hostAnswers.holdsTursoAuthority = true;
+// requirement 12 as amended a third time: the dialog marks a person whose permissions in that
+// workspace differ from theirs across the organization, read off the members' facts, and draws no
+// lock (ticket 54 of effort 838).
+test('the members act marks a person tailored in that workspace, and draws no lock', async () => {
+	hostAnswers.members = [
+		members[0],
+		{
+			...members[1],
+			permissions: BUILT_IN.manager.mask,
+			workspaces: [
+				{
+					id: 'ws-1',
+					access: 'full-access',
+					override: maskOf('deletePayment'),
+					permissions: BUILT_IN.manager.mask - maskOf('deletePayment')
+				}
+			]
+		},
+		members[2]
+	];
 	list();
 
 	await press('ws-1', 'grant');
 	await waitFor(() => expect(document.querySelector('[data-access-form]')).not.toBeNull());
-	expect(lockOf('ada')?.getAttribute('aria-disabled')).not.toBe('true');
+
+	expect(document.querySelector('[data-access-mark="ada"]')?.textContent?.trim()).toBe(
+		en.organization.workspaceSwitches.customHere
+	);
+	expect(document.querySelector('[data-access-mark="sami"]')).toBeNull();
+	expect(document.querySelector('[id$="-lock"]')).toBeNull();
 });
 
 // full access is the reader's own credential re-sealed, and the reader holds Jeddah read only,

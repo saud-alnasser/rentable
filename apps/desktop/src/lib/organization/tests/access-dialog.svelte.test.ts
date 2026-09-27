@@ -13,11 +13,12 @@ import Providers from './providers.svelte';
 /**
  * A WORKSPACE'S PEOPLE, RENDERED
  *
- * The dialog a workspace's card opens: every member who could hold it, each a switch, in or out,
- * with the owner's lock to read only beneath one who is in (effort 838, requirement 12 as amended
- * again; ticket 49). It is the member's card read from the other end, drawn from the same list
- * (`access-switches.svelte`), so the refusals and their reasons are the card's: the lock for
- * anybody but the owner, and putting somebody in a workspace the reader holds read only.
+ * The dialog a workspace's card opens: every member who could hold it, each a switch, in or out
+ * (effort 838, requirement 12 as amended again and a third time; tickets 49 and 54). It is the
+ * member's card read from the other end, drawn from the same list (`access-switches.svelte`), so
+ * the refusals and their reasons are the card's: putting somebody in a workspace the reader holds
+ * read only, and taking out somebody whose grant the owner minted read only. A person tailored
+ * here is marked *custom here*; the tailoring itself is on their card. No lock is drawn.
  *
  * **What comes back is what changed**, by row id, so the caller writes one grant per change and
  * leaves the rest alone: a dialog that answered with its whole state would have every open of it
@@ -37,8 +38,8 @@ const inProvider = (direction: 'ltr' | 'rtl' = 'ltr') => ({
 });
 
 const rows = [
-	{ id: 'ada', name: 'ada', access: 'full-access' as const, givable: true },
-	{ id: 'sami', name: 'sami', access: 'none' as const, givable: true }
+	{ id: 'ada', name: 'ada', access: 'full-access' as const, tailored: false, givable: true },
+	{ id: 'sami', name: 'sami', access: 'none' as const, tailored: false, givable: true }
 ];
 
 const dialog = (
@@ -56,7 +57,6 @@ const dialog = (
 				'Riyadh'
 			),
 			rows,
-			canGrantReadOnly: true,
 			isSaving: false,
 			onSave: noop,
 			...overrides
@@ -66,7 +66,7 @@ const dialog = (
 
 const surface = () => document.querySelector('[data-slot=form-surface]');
 const inSwitch = (id: string) => document.querySelector<HTMLElement>(`#access-${id}`);
-const lockSwitch = (id: string) => document.querySelector<HTMLElement>(`#access-${id}-lock`);
+const mark = (id: string) => document.querySelector<HTMLElement>(`[data-access-mark="${id}"]`);
 const checked = (element: HTMLElement | null) => element?.getAttribute('aria-checked') === 'true';
 const dimmed = (element: HTMLElement | null) => element?.getAttribute('aria-disabled') === 'true';
 const reasons = () =>
@@ -101,26 +101,22 @@ test('the dialog is a light surface with a switch per member, opened on what eac
 	expect(checked(inSwitch('ada'))).toBe(true);
 	expect(checked(inSwitch('sami'))).toBe(false);
 	expect(inSwitch('ada')?.getAttribute('role')).toBe('switch');
-	// the lock stands beneath the member who is in, and only there, saying what it is.
-	expect(lockSwitch('ada')?.getAttribute('data-size')).toBe('sm');
-	expect(checked(lockSwitch('ada'))).toBe(false);
-	expect(lockSwitch('sami')).toBeNull();
-	expect(document.querySelector('[data-access-says="ada"]')?.textContent?.trim()).toBe(
-		en.organization.workspaceSwitches.locked
-	);
-	expect(lockSwitch('ada')?.getAttribute('aria-label')).toBe(
-		en.organization.workspaceSwitches.lockMemberNamed.replace('{member:string}', 'ada')
-	);
+	// in or out, and nothing beneath: no lock, and no tailoring, which is the member's card's.
+	expect(document.querySelector('[data-access-lock], [data-access-lock-row]')).toBeNull();
+	expect(document.querySelector('[data-tailor]')).toBeNull();
+	expect(document.querySelectorAll('[role=switch]').length).toBe(2);
+	expect(surface()?.textContent).not.toContain('lock');
 	// no level is offered: no segment, and none of the words a level went by.
 	expect(document.querySelector('[data-slot=toggle-group-item]')).toBeNull();
 	expect(document.querySelector('[role=radio]')).toBeNull();
 	expect(surface()?.textContent).not.toContain(en.organization.dashboard.accessFull);
 	expect(surface()?.textContent).not.toContain('no access');
-	// the owner reading, so nothing is dimmed and no reason is said.
+	// nobody is tailored and nothing is refused, so nothing is marked and no reason is said.
+	expect(mark('ada')).toBeNull();
 	expect(reasons()).toEqual([]);
 });
 
-// in: switching a member on is a full-access grant, and the lock appears beneath them.
+// in: switching a member on is a full-access grant.
 test('switching a member on puts them in at full access, and only that comes back', async () => {
 	const saved: { id: string; access: string }[][] = [];
 
@@ -129,7 +125,6 @@ test('switching a member on puts them in at full access, and only that comes bac
 	await fireEvent.click(inSwitch('sami')!);
 
 	expect(checked(inSwitch('sami'))).toBe(true);
-	expect(lockSwitch('sami')).not.toBeNull();
 
 	await submit();
 
@@ -137,7 +132,7 @@ test('switching a member on puts them in at full access, and only that comes bac
 	expect(saved).toEqual([[{ id: 'sami', access: 'full-access' }]]);
 });
 
-// out: switching a member off withdraws the grant, and the lock goes with it.
+// out: switching a member off withdraws the grant.
 test('switching a member off takes them out', async () => {
 	const saved: { id: string; access: string }[][] = [];
 
@@ -146,84 +141,65 @@ test('switching a member off takes them out', async () => {
 	await fireEvent.click(inSwitch('ada')!);
 
 	expect(checked(inSwitch('ada'))).toBe(false);
-	expect(lockSwitch('ada')).toBeNull();
 
 	await submit();
 
 	expect(saved).toEqual([[{ id: 'ada', access: 'none' }]]);
 });
 
-// lock: the owner locks a member to read only, which grants the workspace again read only.
-test('locking a member grants them the workspace read only', async () => {
+// requirement 12 as amended a third time: a person whose permissions here differ from theirs
+// across the organization is marked, beside their name and read with their switch; the mark goes
+// while they are switched out.
+test('a person tailored here is marked custom here, read with their switch', async () => {
+	dialog({ rows: [{ ...rows[0], tailored: true }, rows[1]] });
+
+	expect(mark('ada')?.textContent?.trim()).toBe(en.organization.workspaceSwitches.customHere);
+	expect(inSwitch('ada')?.getAttribute('aria-describedby')).toBe('access-ada-mark');
+	expect(mark('sami')).toBeNull();
+
+	await fireEvent.click(inSwitch('ada')!);
+
+	expect(mark('ada')).toBeNull();
+});
+
+// a grant the owner minted before the lock left keeps working and is drawn in. Switched off and
+// on again it is back to what it held, and nothing is written.
+test('a grant minted read only is in, and off and on again changes nothing', async () => {
 	const saved: { id: string; access: string }[][] = [];
+	const minted = [{ ...rows[0], access: 'read-only' as const, tailored: true }];
 
-	dialog({ onSave: (changes) => saved.push(changes) });
+	dialog({ rows: minted, readerIsOwner: true, onSave: (changes) => saved.push(changes) });
 
-	await fireEvent.click(lockSwitch('ada')!);
-
-	expect(checked(lockSwitch('ada'))).toBe(true);
 	expect(checked(inSwitch('ada'))).toBe(true);
-
-	await submit();
-
-	expect(saved).toEqual([[{ id: 'ada', access: 'read-only' }]]);
-});
-
-// unlock: a member held read only, unlocked, is granted full access again. Switched off and on
-// again, they are back to what they held, and nothing is written.
-test('unlocking grants full access again, and off and on again changes nothing', async () => {
-	const saved: { id: string; access: string }[][] = [];
-	const locked = [{ id: 'ada', name: 'ada', access: 'read-only' as const, givable: true }];
-
-	const first = dialog({ rows: locked, onSave: (changes) => saved.push(changes) });
-
-	expect(checked(lockSwitch('ada'))).toBe(true);
-
-	await fireEvent.click(lockSwitch('ada')!);
-	expect(checked(lockSwitch('ada'))).toBe(false);
-	await submit();
-
-	first.unmount();
-	dialog({ rows: locked, onSave: (changes) => saved.push(changes) });
+	expect(mark('ada')).not.toBeNull();
 
 	await fireEvent.click(inSwitch('ada')!);
 	await fireEvent.click(inSwitch('ada')!);
-	expect(checked(lockSwitch('ada'))).toBe(true);
 	await submit();
 
-	expect(saved).toEqual([[{ id: 'ada', access: 'full-access' }], []]);
+	expect(saved).toEqual([[]]);
 });
 
-// requirement 5 of effort 826: only the owner's Turso account mints a read-only credential, so for
-// anybody else the lock is drawn dimmed with the reason, never hidden, and a lock already on
-// stays on.
-test('for anybody but the owner the lock is dimmed and says why', async () => {
+// Rust keeps a grant minted read only the owner's to withdraw, so for anybody else its switch is
+// dimmed, saying why.
+test('for anybody but the owner, taking out a grant minted read only is refused, saying why', async () => {
 	const saved: { id: string; access: string }[][] = [];
 
 	dialog({
-		canGrantReadOnly: false,
-		rows: [
-			{ id: 'ada', name: 'ada', access: 'full-access' as const, givable: true },
-			{ id: 'sami', name: 'sami', access: 'read-only' as const, givable: true }
-		],
+		rows: [rows[0], { ...rows[1], access: 'read-only' as const }],
 		onSave: (changes) => saved.push(changes)
 	});
 
-	const reason = en.organization.workspaceSwitches.lockIsTheOwners;
+	const reason = en.organization.workspaceSwitches.ownerMadeReadOnly;
 
-	expect(dimmed(lockSwitch('ada'))).toBe(true);
-	expect(dimmed(lockSwitch('sami'))).toBe(true);
-	expect(checked(lockSwitch('sami'))).toBe(true);
-	expect(document.querySelector('#access-ada-lock-reason')?.textContent?.trim()).toBe(reason);
+	expect(dimmed(inSwitch('sami'))).toBe(true);
+	expect(document.querySelector('#access-sami-reason')?.textContent?.trim()).toBe(reason);
 	expect(reasons()).toEqual([reason]);
-	// the member themselves is still the reader's to switch.
 	expect(dimmed(inSwitch('ada'))).toBe(false);
 
-	await fireEvent.click(lockSwitch('ada')!);
-	await fireEvent.click(lockSwitch('sami')!);
+	await fireEvent.click(inSwitch('sami')!);
 
-	expect(checked(lockSwitch('ada'))).toBe(false);
-	expect(checked(lockSwitch('sami'))).toBe(true);
+	expect(checked(inSwitch('sami'))).toBe(true);
 
 	await submit();
 
@@ -237,10 +213,9 @@ test('a workspace the reader holds read only puts nobody in, and still withdraws
 	const saved: { id: string; access: string }[][] = [];
 
 	dialog({
-		canGrantReadOnly: false,
 		rows: [
-			{ id: 'ada', name: 'ada', access: 'full-access' as const, givable: false },
-			{ id: 'sami', name: 'sami', access: 'none' as const, givable: false }
+			{ ...rows[0], givable: false },
+			{ ...rows[1], givable: false }
 		],
 		onSave: (changes) => saved.push(changes)
 	});
@@ -269,8 +244,7 @@ test('a reader holding the workspace read only switches a member out and back in
 	const saved: { id: string; access: string }[][] = [];
 
 	dialog({
-		canGrantReadOnly: false,
-		rows: [{ id: 'ada', name: 'ada', access: 'full-access' as const, givable: false }],
+		rows: [{ ...rows[0], givable: false }],
 		onSave: (changes) => saved.push(changes)
 	});
 
@@ -285,69 +259,6 @@ test('a reader holding the workspace read only switches a member out and back in
 	await submit();
 
 	expect(saved).toEqual([[]]);
-});
-
-// the owner on a machine without the Turso authority: Rust refuses a read-only grant there, so
-// the lock is dimmed with the sentence that says this machine is not connected, not the owner's.
-test('for the owner on a machine without the Turso authority the lock says so', async () => {
-	const saved: { id: string; access: string }[][] = [];
-
-	dialog({
-		canGrantReadOnly: false,
-		readerIsOwner: true,
-		onSave: (changes) => saved.push(changes)
-	});
-
-	const reason = en.common.refusals.host.tursoNotConnected;
-
-	expect(dimmed(lockSwitch('ada'))).toBe(true);
-	expect(document.querySelector('#access-ada-lock-reason')?.textContent?.trim()).toBe(reason);
-	expect(reasons()).toEqual([reason]);
-
-	await fireEvent.click(lockSwitch('ada')!);
-	expect(checked(lockSwitch('ada'))).toBe(false);
-
-	await submit();
-
-	expect(saved).toEqual([[]]);
-});
-
-// unlocking is a full-access grant, the owner's own credential re-sealed, which needs no Turso
-// authority, so the owner on such a machine may still unlock (effort 838, ticket 51).
-test('the owner on a machine without the Turso authority may still unlock', async () => {
-	const saved: { id: string; access: string }[][] = [];
-	const locked = [{ id: 'ada', name: 'ada', access: 'read-only' as const, givable: true }];
-
-	dialog({
-		rows: locked,
-		canGrantReadOnly: false,
-		readerIsOwner: true,
-		onSave: (changes) => saved.push(changes)
-	});
-
-	expect(dimmed(lockSwitch('ada'))).toBe(false);
-	await fireEvent.click(lockSwitch('ada')!);
-	await submit();
-
-	expect(saved).toEqual([[{ id: 'ada', access: 'full-access' }]]);
-});
-
-// the lock's line says what locking does, and is read with the lock, beside any reason it is
-// refused for.
-test('the lock is described by what locking does, and by its reason where it has one', () => {
-	const first = dialog();
-
-	expect(document.querySelector('#access-ada-lock-says')?.textContent?.trim()).toBe(
-		en.organization.workspaceSwitches.locked
-	);
-	expect(lockSwitch('ada')?.getAttribute('aria-describedby')).toBe('access-ada-lock-says');
-
-	first.unmount();
-	dialog({ canGrantReadOnly: false });
-
-	expect(lockSwitch('ada')?.getAttribute('aria-describedby')).toBe(
-		'access-ada-lock-says access-ada-lock-reason'
-	);
 });
 
 // the save carries save's glyph, as the member's sheet and the role editor do, and members are
@@ -378,12 +289,15 @@ test('a closed dialog puts nothing in the document', () => {
 	expect(surface()).toBeNull();
 });
 
-test('and in arabic the lock and its reason read in their own words, right to left', () => {
+test('and in arabic the mark and the reasons read in their own words, right to left', () => {
 	loadLocale('ar');
 	setLocale('ar');
 	dialog(
 		{
-			canGrantReadOnly: false,
+			rows: [
+				{ ...rows[0], tailored: true },
+				{ ...rows[1], access: 'read-only' as const }
+			],
 			title: ar.organization.dashboard.workspaceAccessTitle,
 			description: ar.organization.dashboard.workspaceAccessDescription.replace(
 				'{workspace}',
@@ -395,41 +309,25 @@ test('and in arabic the lock and its reason read in their own words, right to le
 
 	expect(surface()?.getAttribute('dir')).toBe('rtl');
 	expect(screen.getByText(ar.organization.dashboard.workspaceAccessTitle)).toBeDefined();
-	expect(document.querySelector('[data-access-says="ada"]')?.textContent?.trim()).toBe(
-		ar.organization.workspaceSwitches.locked
+	expect(mark('ada')?.textContent?.trim()).toBe(ar.organization.workspaceSwitches.customHere);
+	expect(ar.organization.workspaceSwitches.customHere).not.toBe(
+		en.organization.workspaceSwitches.customHere
 	);
-	expect(lockSwitch('ada')?.getAttribute('aria-label')).toBe(
-		ar.organization.workspaceSwitches.lockMemberNamed.replace('{member}', 'ada')
-	);
-	expect(dimmed(lockSwitch('ada'))).toBe(true);
-	expect(reasons()).toEqual([ar.organization.workspaceSwitches.lockIsTheOwners]);
-	expect(ar.organization.workspaceSwitches.lockIsTheOwners).not.toBe(
-		en.organization.workspaceSwitches.lockIsTheOwners
+	expect(reasons()).toEqual([ar.organization.workspaceSwitches.ownerMadeReadOnly]);
+	expect(ar.organization.workspaceSwitches.ownerMadeReadOnly).not.toBe(
+		en.organization.workspaceSwitches.ownerMadeReadOnly
 	);
 
 	setLocale('en');
 });
 
-test('and in arabic a workspace the reader holds read only says so at the switch', () => {
+test('and in arabic a workspace the reader holds read only, and nobody to list, read in arabic', () => {
 	loadLocale('ar');
 	setLocale('ar');
-	dialog({ rows: [{ id: 'sami', name: 'sami', access: 'none' as const, givable: false }] }, 'rtl');
+	const first = dialog({ rows: [{ ...rows[1], givable: false }] }, 'rtl');
 
 	expect(dimmed(inSwitch('sami'))).toBe(true);
 	expect(reasons()).toEqual([ar.organization.workspaceSwitches.notHeld]);
-
-	setLocale('en');
-});
-
-test('and in arabic the owner without the Turso authority, and nobody to list, read in arabic', () => {
-	loadLocale('ar');
-	setLocale('ar');
-	const first = dialog({ canGrantReadOnly: false, readerIsOwner: true }, 'rtl');
-
-	expect(reasons()).toEqual([ar.common.refusals.host.tursoNotConnected]);
-	expect(ar.common.refusals.host.tursoNotConnected).not.toBe(
-		en.common.refusals.host.tursoNotConnected
-	);
 
 	first.unmount();
 	dialog({ rows: [] }, 'rtl');

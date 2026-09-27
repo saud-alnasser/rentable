@@ -28,7 +28,7 @@ import {
 	searchGlass,
 	typeSearch
 } from '$lib/design/tests/search';
-import { BUILT_IN, maskOf } from '@rentable/workspace-permission';
+import { BUILT_IN, WRITE_FLAGS, maskOf, permits } from '@rentable/workspace-permission';
 
 import { layOutLists } from '#tests/permission.ts';
 
@@ -976,6 +976,59 @@ test('one save writes the override and the grants through the acts that exist', 
 	expect(written('useRenameMember')).toEqual([]);
 	expect(written('useAssignRole')).toEqual([]);
 	// nothing was refused, so the sheet closed on what it wrote.
+	await waitFor(() => {
+		expect(surface()).toBeNull();
+	});
+});
+
+// ticket 54 of effort 838, requirement 12 as amended a third time: what is tailored beneath a
+// workspace is written after the grants, since an override is set only on a workspace the member
+// is in, one write per workspace whose override changed.
+test('what is tailored in a workspace is written after the grants, one write per workspace', async () => {
+	hostAnswers.roles = fakeOrganizationRoles();
+	list();
+
+	await press('sami', 'edit');
+
+	// ws-1: read only there; ws-2: put in, and deleting payments given there.
+	await fireEvent.click(
+		document.querySelector<HTMLElement>('[data-tailor="access-ws-1-tailor"] [data-tailor-fold]')!
+	);
+	await fireEvent.click(
+		document.querySelector<HTMLElement>(
+			'[data-tailor="access-ws-1-tailor"] [data-tailor-preset="read-only"]'
+		)!
+	);
+	await fireEvent.click(document.querySelector<HTMLElement>('#access-ws-2')!);
+	await fireEvent.click(
+		document.querySelector<HTMLElement>('[data-tailor="access-ws-2-tailor"] [data-tailor-fold]')!
+	);
+	await fireEvent.click(document.querySelector<HTMLElement>('#access-ws-2-tailor-deletePayment')!);
+	await fireEvent.submit(document.querySelector('form')!);
+
+	const readOnly = maskOf(...WRITE_FLAGS.filter((flag) => permits(BUILT_IN.member.mask, flag)));
+
+	await waitFor(() => {
+		expect(
+			hostAnswers.writes
+				.filter(({ hook }) => hook === 'useChangeAccess' || hook === 'useSetWorkspaceOverride')
+				.map(({ hook, input }) => ({ hook, input }))
+		).toEqual([
+			{
+				hook: 'useChangeAccess',
+				input: { changes: [{ workspaceId: 'ws-2', memberId: 'sami', access: 'full-access' }] }
+			},
+			{
+				hook: 'useSetWorkspaceOverride',
+				input: { memberId: 'sami', workspaceId: 'ws-1', override: readOnly }
+			},
+			{
+				hook: 'useSetWorkspaceOverride',
+				input: { memberId: 'sami', workspaceId: 'ws-2', override: maskOf('deletePayment') }
+			}
+		]);
+	});
+	expect(written('useSetOverride')).toEqual([]);
 	await waitFor(() => {
 		expect(surface()).toBeNull();
 	});

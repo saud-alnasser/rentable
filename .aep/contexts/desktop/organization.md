@@ -142,7 +142,12 @@ the result); a mask of zero deletes the row. It goes with the organization layer
 reset to the role, a deleted role) and with the grant (a withdrawal, a removal, a deleted
 workspace). The session and the members list carry each workspace's override and permissions, and
 the tRPC context answers a record procedure by the open workspace's (`api/context.ts`,
-`permissionsIn`). *Effort 838, requirement 12 as amended a third time, ticket 53.*
+`permissionsIn`). A member's card tailors it beneath each workspace the member is in
+(`workspace-tailoring.svelte`, the record groups of the shared switch list measured against what
+the member may do across the organization, with a reset and a *read only* preset), and writes it
+through `organization.member.setWorkspaceOverride`; the arithmetic of what the switches come to is
+`organization/role.ts` (`tailoredTo`). *Effort 838, requirement 12 as amended a third time,
+tickets 53 and 54.*
 
 **Rank**:
 How high a role stands: the owner 2,000,000, the manager 1,000,000, the custom roles between, the
@@ -174,10 +179,17 @@ A credential for one workspace, sealed to one member's public key. Full access i
 credential re-sealed, so whoever grants gives only what they reach; read-only is minted, which is
 the owner's. A grant is what says a member is in a workspace, and removing it is what says they are
 not. On a read-only grant a member holds no create, edit or delete flag in that workspace, whatever
-their role says (`effectiveIn`). A member's card and the sheet that adds one draw each workspace as
-a switch, in (a full-access grant) or out (none), with *lock to read only* beneath one that is in,
-the owner's alone (`member-workspaces.svelte`, ticket 48 of effort 838); a workspace's own dialog
-draws each member the same way, from the same list (`access-switches.svelte`, ticket 49).
+their role says (`effectiveIn`). **The interface makes no new read-only grant** (effort 838,
+requirement 12 as amended a third time, ticket 54): read only is a preset of the workspace
+override, enforced by the application. A grant minted read only before then keeps working and
+renewing, reads on the card with its writes off and the preset on, and is granted again at full
+access when a write is turned back on; Rust keeps withdrawing it, or granting it again at full
+access, the owner's (`withdraw_grant`, `grant_workspace`). A member's card and the sheet that adds
+one draw each workspace as a switch, in (a full-access grant) or out (none)
+(`member-workspaces.svelte`, ticket 48 of effort 838), the card with the workspace's tailoring
+beneath one that is in; a workspace's own dialog draws each member the same way, from the same list
+(`access-switches.svelte`, ticket 49), marking one tailored there *custom here*. *The owner's lock
+to read only sat beneath a workspace that was in until ticket 54.*
 
 **Chain**:
 *Built by effort 838 ([[efforts/838-permissions-are-a-role-and-an-override/spec]], requirement 9;
