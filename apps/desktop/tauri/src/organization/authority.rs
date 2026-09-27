@@ -1495,9 +1495,9 @@ const FORMAT_ONE_MEMBER_DOMAIN: &[u8] = b"rentable.organization.authority.member
 /// ticket 22): signed by the organization key every time, and revoked by a column nobody signed.
 ///
 /// **Read by the upgrade and by nothing else.** An organization of this format is upgraded by its
-/// owner's machine before anything else reads it (`upgrade.rs`), and what the upgrade needs from
-/// these rows is which of the rows they sign are genuine; the certificates themselves are not
-/// carried.
+/// owner's machine before anything else reads it (`transition/two.rs`), and what the
+/// upgrade needs from these rows is which of the rows they sign are genuine; the certificates
+/// themselves are not carried.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FormatOneCertificate {
     pub id: String,

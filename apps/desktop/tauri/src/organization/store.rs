@@ -49,6 +49,7 @@ use super::{
         WorkspaceAuthority, covers, needed_for, sign,
     },
     permission::{self, OWNER_ROLE},
+    transition::TRANSITIONS,
     vault::{KDF_SALT_BYTES, KdfParams, PUBLIC_KEY_BYTES, Vault},
 };
 
@@ -98,7 +99,11 @@ pub const MACHINE_PRESENCE_WINDOW: i64 = 7 * 24 * 60 * 60 * 1000;
 ///
 /// **Unsigned.** Rewriting the number achieves nothing the credential does not already allow: a
 /// holder who changes it makes the organization refuse to open, as deleting its rows would.
-pub const FORMAT_VERSION: i64 = 2;
+///
+/// **Counted from the changes of format this build holds** (ticket 26): the one after the last
+/// change `transition::TRANSITIONS` lists, so adding a change is what moves it, the way `build.rs`
+/// counts the workspace migrations.
+pub const FORMAT_VERSION: i64 = TRANSITIONS.len() as i64 + 1;
 
 /// The schema, as the plan's data model gives it.
 ///
@@ -836,13 +841,21 @@ impl OrganizationStore {
     /// and a `format` table somebody dropped would otherwise fail that step at every sign-in
     /// (effort 838, ticket 25).
     pub async fn write_format(&self) -> Result<(), Error> {
+        self.write_format_version(FORMAT_VERSION).await
+    }
+
+    /// Record that this organization is of format `version`: the row the owner's upgrade writes
+    /// last, naming the format its walk ended at (`upgrade.rs`, ticket 26), which is this build's
+    /// except where a test walks a list of its own. The table is created where it is missing, as
+    /// [`OrganizationStore::write_format`] says.
+    pub async fn write_format_version(&self, version: i64) -> Result<(), Error> {
         self.connection.execute(SCHEMA[0], ()).await?;
         self.connection
             .execute(
                 "INSERT OR REPLACE INTO \"format\" (\"id\", \"version\") VALUES (?, ?)",
                 vec![
                     turso::Value::Text(FORMAT_ID.to_string()),
-                    turso::Value::Integer(FORMAT_VERSION),
+                    turso::Value::Integer(version),
                 ],
             )
             .await?;
@@ -872,6 +885,24 @@ impl OrganizationStore {
             Some(row) => Ok(Some(integer(&row, 0)?)),
             None => Ok(None),
         }
+    }
+
+    /// The format the organization is in as it stands, which its owner's upgrade walks the changes
+    /// of format from (ticket 26): 1 wherever anything of format 1 is left, and otherwise the
+    /// `format` row.
+    ///
+    /// **A row beside format 1's table or columns is not believed** (ticket 25): the row is
+    /// unsigned, and that directory is format 1, part way through its upgrade or written over.
+    /// **And one carrying nothing of format 1 with no row is of this build's format**: an upgrade
+    /// that wrote everything but the row, or an organization whose row somebody took away, and the
+    /// row is all that is left to write, which is what [`OrganizationStore::carries_format_one`]
+    /// already says of it.
+    pub async fn format_as_it_stands(&self) -> Result<i64, Error> {
+        if self.carries_format_one().await? {
+            return Ok(1);
+        }
+
+        Ok(self.format().await?.unwrap_or(FORMAT_VERSION))
     }
 
     /// Refuse an organization of another format, by name, before anything else is read from it

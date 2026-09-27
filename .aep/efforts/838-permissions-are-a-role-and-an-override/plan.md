@@ -419,7 +419,7 @@ change in one file. It splits in two, with no change of behaviour:
   static. `FORMAT_VERSION` becomes `TRANSITIONS.len() as i64 + 1`, a `const`, so a change added is
   the shipped format moved, the way `build.rs` counts the workspace migrations. A test fails a list
   whose `from` values are not 1, 2, 3 in order.
-- **`organization/transition/format_1_to_2.rs`** takes what is format 1's alone: `Judge`,
+- **`organization/transition/two.rs`** takes what is format 1's alone: `Judge`,
   `Carried`, `carried_by`, `planned`, `applied`, `Step`, the format 1 readers the upgrade calls, and
   `holds_a_root`.
 - **`upgrade.rs` stays the runner**: the vault, the settled key, the owner, the grant and the mint,
@@ -428,6 +428,12 @@ change in one file. It splits in two, with no change of behaviour:
   `format` row last, then the push. The format read is the `format` row, or 1 where no such table
   stands. `known_format` refuses any entry whose `from` is below it, which generalises ticket 25's
   guard.
+  *As built, ticket 26 (`store::format_as_it_stands`): the format read is 1 wherever anything of
+  format 1 is left, whatever row stands beside it, and otherwise the `format` row, or the shipped
+  format where no row stands; so ticket 25's stray row still reads as unfinished and a directory
+  with nothing of format 1 left is only given its `format` row. The next format whose row can go
+  missing adds its own shape check there. The file is `two.rs`, named for the format it makes,
+  since a Rust file name is one word (`rules/module-layout`).*
 - The module comment of `transition/mod.rs` says in five lines how the next format is added: a file,
   a line in the list, the new tables in `install_schema`, and a test in the file. A test-only entry
   from the shipped format to the next proves it (spec, criterion 14).

@@ -283,7 +283,7 @@ pub const WRITE_FLAGS: [Flag; 15] = [
 
 /// Viewing, creating, editing and deleting every record kind: the five record families, and what
 /// the upgrade of an older organization gives every member it carries, since that build gated no
-/// record act (`upgrade.rs`).
+/// record act (`transition/two.rs`).
 pub const RECORD_FLAGS: [Flag; 20] = [
     Flag::ViewComplex,
     Flag::CreateComplex,
