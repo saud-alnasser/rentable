@@ -1,4 +1,3 @@
-import { DesignProvider } from '@rentable/design/strings.js';
 import { fireEvent, render, screen, within } from '@testing-library/svelte';
 import { beforeEach, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -15,17 +14,20 @@ import { chooseOption, openSelect } from '$lib/design/tests/select';
 import { fakeOrganizationRoles } from '$lib/platform/tests/testing';
 import { BUILT_IN, maskOf } from '@rentable/workspace-permission';
 
+import Providers from './providers.svelte';
+
 /**
  * ONE MEMBER, ON ONE SURFACE
  *
  * Criterion 23 of [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]] and
  * requirement 12 of [[efforts/838-permissions-are-a-role-and-an-override/spec]] from the sheet's
- * own side: the name, the role in the tray, what the member may do flag by flag, and the
+ * own side: the name, the role in the tray, what the member may do as switches, and the
  * workspaces, with one save that hands the four back together.
  *
- * **What the member may do is three columns**: what their role gives, what is changed for them
- * alone, and what they end up with. A flag the override switches reads as the opposite of the
- * role, either way round.
+ * **What the member may do is the switches set to what they end up with** (requirement 12 as
+ * amended 2026-09-27). A switch that differs from their role is marked, the role reads as custom
+ * where any does, and a reset puts them back on the role. The override is never shown: the save
+ * hands back the one the switches come to.
  *
  * **A control the reader may not use says why**: a role at or above the reader's rank, a flag the
  * reader does not hold, or a section whose flag the reader lacks.
@@ -36,8 +38,9 @@ import { BUILT_IN, maskOf } from '@rentable/workspace-permission';
 
 const noop = () => {};
 
+// the design and tooltip providers: a switch the reader may not turn says why in a tooltip.
 const inProvider = (direction: 'ltr' | 'rtl' = 'ltr') => ({
-	wrapper: DesignProvider,
+	wrapper: Providers,
 	wrapperProps: { strings, direction }
 });
 
@@ -111,16 +114,18 @@ const roleTrigger = () => document.querySelector<HTMLElement>('#member-role')!;
 const roleOption = (id: string) =>
 	document.querySelector<HTMLElement>(`[data-slot=select-item][data-role="${id}"]`);
 
-/** what a flag's row says in each column: the role's value, whether it is changed, the result. */
-const flagRow = (flag: string) => ({
-	role: document.querySelector(`[data-override-role="${flag}"]`)?.textContent?.trim(),
-	changed: document.querySelector(`#member-override-${flag}`)?.getAttribute('data-state'),
-	result: document.querySelector(`[data-override-result="${flag}"]`)?.textContent?.trim()
-});
+/** a flag's switch, whether it is on, and a press on it. */
+const control = (flag: string) => document.querySelector<HTMLElement>(`#member-override-${flag}`);
+const isOn = (flag: string) => control(flag)?.getAttribute('aria-checked') === 'true';
 
-const change = async (flag: string) => {
-	await fireEvent.click(document.querySelector<HTMLElement>(`#member-override-${flag}`)!);
+const turn = async (flag: string) => {
+	await fireEvent.click(control(flag)!);
 };
+
+/** the dot a switch that differs from the role carries, the custom mark, and the reset. */
+const differs = (flag: string) => document.querySelector(`[data-differs="${flag}"]`);
+const customMark = () => document.querySelector('[data-role-custom]');
+const resetControl = () => document.querySelector<HTMLElement>('[data-role-reset]');
 
 const submit = async () => {
 	await fireEvent.submit(document.querySelector('form')!);
@@ -193,46 +198,130 @@ test('the role chooser offers every role but the owner, and refuses one not belo
 	).toBe(en.organization.dashboard.roleOutOfReach);
 });
 
-// requirement 12: role, override and result, flag by flag, for a flag the override flips each
-// way. The member role carries editing a payment and not deleting one.
-test('a flag the override switches reads as the opposite of the role, either way round', async () => {
+// requirement 12 as amended: the switches read what the member ends up with, never the sum. The
+// member role carries editing a payment and not deleting one.
+test('the switches show what they end up with, and each that differs from the role is marked', async () => {
 	sheet({ override: maskOf('editPayment') });
 
-	// the role gives editing, the override takes it away: changed, and the member may not.
-	expect(flagRow('editPayment')).toEqual({
-		role: en.organization.override.yes,
-		changed: 'checked',
-		result: en.organization.override.no
-	});
+	// the role gives editing, and it was taken from them: off, marked as differing from the role.
+	expect(isOn('editPayment')).toBe(false);
+	expect(differs('editPayment')?.getAttribute('aria-label')).toBe(
+		en.organization.switches.differs.replace('{role:string}', en.layout.signIn.roleMember)
+	);
+	expect(control('editPayment')?.getAttribute('aria-describedby')).toContain(
+		'member-override-editPayment-differs'
+	);
+	// so they read as custom beside the role's name, with the reset in the switches' head.
+	expect(customMark()?.textContent?.trim()).toBe(en.organization.switches.custom);
+	expect(roleTrigger().contains(customMark())).toBe(true);
+	expect(resetControl()?.textContent?.trim()).toBe(
+		en.organization.switches.reset.replace('{role:string}', en.layout.signIn.roleMember)
+	);
 
-	// the role does not give deleting; nothing changed yet, so neither may they.
-	expect(flagRow('deletePayment')).toEqual({
-		role: en.organization.override.no,
-		changed: 'unchecked',
-		result: en.organization.override.no
-	});
+	// the role does not give deleting, and nor does anything else: off, and nothing marked.
+	expect(isOn('deletePayment')).toBe(false);
+	expect(differs('deletePayment')).toBeNull();
 
-	await change('deletePayment');
+	await turn('deletePayment');
 
-	// the override gives it them: changed, and now they may.
-	expect(flagRow('deletePayment')).toEqual({
-		role: en.organization.override.no,
-		changed: 'checked',
-		result: en.organization.override.yes
-	});
+	expect(isOn('deletePayment')).toBe(true);
+	expect(differs('deletePayment')).not.toBeNull();
 
-	// every flag is grouped under its family, and the owner's own family is not offered.
+	// every kind is a group under its glyph, the organization's last, and nothing of the owner's is
+	// a switch: it is one line.
 	expect(
-		Array.from(document.querySelectorAll('[data-override-family]')).map((table) =>
-			table.getAttribute('data-override-family')
+		Array.from(document.querySelectorAll('[data-switches-group]')).map((group) =>
+			group.getAttribute('data-switches-group')
 		)
-	).toEqual(['administration', 'complex', 'unit', 'tenant', 'contract', 'payment']);
-	expect(document.querySelector('[data-override-flag="lockOut"]')).toBeNull();
+	).toEqual(['complex', 'unit', 'tenant', 'contract', 'payment', 'administration']);
+	expect(document.querySelector('[data-switch="lockOut"]')).toBeNull();
+	expect(document.querySelector('[data-switches-owner]')?.textContent?.trim()).toBe(
+		en.organization.switches.owner
+	);
 });
 
-// requirement 6 and the spec's risk: picking another role keeps the override, and the result is
-// read against the new role at once.
-test('picking another role keeps the override and reads the result against the new role', async () => {
+// the save hands back the override the switches come to: the role exclusive-or'd with them.
+test('the save writes the override the switches come to', async () => {
+	const saved: { override: number }[] = [];
+
+	sheet({ onSave: (edit) => saved.push(edit) });
+
+	expect(customMark()).toBeNull();
+	expect(resetControl()).toBeNull();
+
+	await turn('editPayment');
+	await turn('deletePayment');
+	await submit();
+
+	expect(saved.map((edit) => edit.override)).toEqual([maskOf('editPayment', 'deletePayment')]);
+});
+
+// requirement 6 as amended: turning a kind's view off turns its writes off with it, and hides
+// them; what is saved is the override that takes all three away.
+test('turning a view off turns its add, edit and delete off, and hides them', async () => {
+	const saved: { override: number }[] = [];
+
+	sheet({ onSave: (edit) => saved.push(edit) });
+
+	expect(document.querySelector('[data-switches-writes="contract"]')).not.toBeNull();
+
+	await turn('viewContract');
+
+	expect(isOn('viewContract')).toBe(false);
+	expect(document.querySelector('[data-switches-writes="contract"]')).toBeNull();
+
+	await submit();
+
+	expect(saved.map((edit) => edit.override)).toEqual([
+		maskOf('viewContract', 'createContract', 'editContract')
+	]);
+});
+
+// the reset clears the override: the member is their role exactly again, and reads so.
+test('reset puts them back on their role exactly', async () => {
+	const saved: { override: number }[] = [];
+
+	sheet({ override: maskOf('editPayment', 'deleteTenant'), onSave: (edit) => saved.push(edit) });
+
+	expect(isOn('deleteTenant')).toBe(true);
+
+	await fireEvent.click(resetControl()!);
+
+	expect(isOn('editPayment')).toBe(true);
+	expect(isOn('deleteTenant')).toBe(false);
+	expect(document.querySelector('[data-differs]')).toBeNull();
+	expect(customMark()).toBeNull();
+	expect(resetControl()).toBeNull();
+
+	await submit();
+
+	expect(saved.map((edit) => edit.override)).toEqual([0]);
+});
+
+// requirement 7: a reset that would change a permission the reader does not hold is not theirs,
+// and says so.
+test('a reset that changes a permission the reader does not hold is refused, saying so', async () => {
+	sheet({
+		override: maskOf('deletePayment'),
+		readerPermissions: BUILT_IN.manager.mask - maskOf('deletePayment')
+	});
+
+	const reset = resetControl()!;
+
+	expect(reset.getAttribute('aria-disabled')).toBe('true');
+	expect(reset.querySelector('.sr-only')?.textContent?.trim()).toBe(
+		en.organization.switches.resetNotHeld
+	);
+
+	await fireEvent.click(reset);
+
+	expect(isOn('deletePayment')).toBe(true);
+	expect(customMark()).not.toBeNull();
+});
+
+// requirement 6 as amended, and the shell's assignRole: picking another role makes them that role
+// exactly, so nothing changed against the old one follows them to the new one.
+test('picking another role makes them that role exactly', async () => {
 	const saved: { roleId: string; override: number }[] = [];
 
 	sheet({ override: maskOf('editPayment'), onSave: (edit) => saved.push(edit) });
@@ -243,35 +332,42 @@ test('picking another role keeps the override and reads the result against the n
 	expect(roleTrigger().textContent?.trim()).toBe('supervisor');
 	// a role the organization made has no who-line of its own.
 	expect(tray('member-role-tray')?.querySelector('[data-role-who]')).toBeNull();
-	expect(flagRow('editPayment').changed).toBe('checked');
+	expect(isOn('editPayment')).toBe(true);
+	expect(customMark()).toBeNull();
 
 	await submit();
 
 	expect(saved.map(({ roleId, override }) => ({ roleId, override }))).toEqual([
-		{ roleId: 'supervisor', override: maskOf('editPayment') }
+		{ roleId: 'supervisor', override: 0 }
 	]);
 });
 
-// requirement 7: a flag the reader does not hold is theirs neither to give nor to take, so its box
-// is refused with the reason on its row.
-test('a flag the reader does not hold is refused on its row, saying so', () => {
+// requirement 7: a flag the reader does not hold is theirs neither to give nor to take, so its
+// switch is dimmed, says why at the control, and one sentence above the list says why.
+test('a flag the reader does not hold is dimmed, saying so, and does not turn', async () => {
 	sheet({ readerPermissions: BUILT_IN.manager.mask - maskOf('deletePayment') });
 
-	const box = document.querySelector<HTMLElement>('#member-override-deletePayment')!;
+	const refused = control('deletePayment')!;
 
-	expect(box.hasAttribute('disabled')).toBe(true);
-	expect(
-		document.querySelector('[data-override-reason="deletePayment"]')?.textContent?.trim()
-	).toBe(en.organization.dashboard.notHeld);
-	expect(box.getAttribute('aria-describedby')).toBe('member-override-deletePayment-reason');
-	// a flag they do hold is theirs.
-	expect(document.querySelector('#member-override-editPayment')?.hasAttribute('disabled')).toBe(
-		false
+	expect(refused.getAttribute('aria-disabled')).toBe('true');
+	expect(refused.hasAttribute('disabled')).toBe(false);
+	expect(refused.getAttribute('aria-describedby')).toBe('member-override-deletePayment-reason');
+	expect(document.querySelector('#member-override-deletePayment-reason')?.textContent?.trim()).toBe(
+		en.organization.dashboard.notHeld
 	);
+	expect(document.querySelector('[data-switches-refusal]')?.textContent?.trim()).toBe(
+		en.organization.switches.notHeld
+	);
+
+	await turn('deletePayment');
+
+	expect(isOn('deletePayment')).toBe(false);
+	// a flag they do hold is theirs.
+	expect(control('editPayment')?.hasAttribute('aria-disabled')).toBe(false);
 });
 
 // the flag: a reader without assignRole reads the role and may not change it, and one without
-// overrideMember reads the three columns and may change none of them. Each says which flag.
+// overrideMember reads the switches and may turn none of them. Each says which flag.
 test('a section whose flag the reader lacks is drawn, refused, naming the flag', () => {
 	sheet({ canAssignRole: false, canOverride: false });
 
@@ -281,19 +377,19 @@ test('a section whose flag the reader lacks is drawn, refused, naming the flag',
 		en.organization.dashboard.lacksFlag.replace('{flag:string}', en.organization.flags.assignRole)
 	);
 	expect(roleTrigger().hasAttribute('disabled')).toBe(true);
-	expect(document.querySelector('[data-override-refusal]')?.textContent?.trim()).toBe(
+	expect(document.querySelector('[data-switches-refusal]')?.textContent?.trim()).toBe(
 		en.organization.dashboard.lacksFlag.replace(
 			'{flag:string}',
 			en.organization.flags.overrideMember
 		)
 	);
 	expect(
-		Array.from(document.querySelectorAll('[data-override-change]')).every((box) =>
-			box.hasAttribute('disabled')
+		Array.from(document.querySelectorAll('[data-switch]')).every(
+			(each) => each.getAttribute('aria-disabled') === 'true'
 		)
 	).toBe(true);
 	// the facts are still there to read.
-	expect(flagRow('viewComplex').result).toBe(en.organization.override.yes);
+	expect(isOn('viewComplex')).toBe(true);
 });
 
 // criterion 23: one row per workspace, the level named and said, and the fullest first.
@@ -328,7 +424,7 @@ test('one save hands back the role, the override and the workspaces that changed
 	sheet({ onSave: (edit) => saved.push(edit) });
 
 	await fireEvent.click(levelItem('ws-2', 'full-access')!);
-	await change('deletePayment');
+	await turn('deletePayment');
 	await submit();
 
 	expect(saved).toEqual([
@@ -425,13 +521,21 @@ test('a closed sheet puts nothing in the document', () => {
 test('and in arabic every sentence reads in its own words, right to left', () => {
 	loadLocale('ar');
 	setLocale('ar');
-	sheet({}, 'rtl');
+	sheet({ override: maskOf('editPayment') }, 'rtl');
 
 	expect(surface()?.getAttribute('dir')).toBe('rtl');
 	expect(screen.getByText(ar.organization.override.legend)).toBeDefined();
 	expect(ar.organization.override.legend).not.toBe(en.organization.override.legend);
 	expect(tray('member-role-tray')?.textContent).toContain(ar.organization.roles.member.who);
-	expect(roleTrigger().textContent?.trim()).toBe(ar.layout.signIn.roleMember);
+	expect(roleTrigger().textContent).toContain(ar.layout.signIn.roleMember);
+	// custom, and the reset back to the role, in the reader's words.
+	expect(customMark()?.textContent?.trim()).toBe(ar.organization.switches.custom);
+	expect(resetControl()?.textContent?.trim()).toBe(
+		ar.organization.switches.reset.replace('{role}', ar.layout.signIn.roleMember)
+	);
+	expect(control('editPayment')?.getAttribute('aria-label')).toBe(
+		`${ar.organization.switches.edit} ${ar.organization.families.payment}`
+	);
 
 	setLocale('en');
 });

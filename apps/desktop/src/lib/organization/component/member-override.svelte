@@ -1,47 +1,41 @@
 <script lang="ts">
-	import { Checkbox } from '@rentable/design/primitive/checkbox/index.js';
+	import { unavailableControl } from '@rentable/design/block/record-action-control.svelte';
+	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
+	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import MemberSectionHead from '$lib/organization/component/member-section-head.svelte';
-	import { EDITABLE_FAMILIES, familyName, flagName, flagPhrase } from '$lib/organization/role';
-	import {
-		FAMILIES,
-		effective,
-		maskOf,
-		permits,
-		xorOf,
-		type Flag
-	} from '@rentable/workspace-permission';
-	import CheckIcon from '@lucide/svelte/icons/check';
-	import MinusIcon from '@lucide/svelte/icons/minus';
+	import PermissionSwitches from '$lib/organization/component/permission-switches.svelte';
+	import { EVERY_FLAG, effective, permits, xorOf } from '@rentable/workspace-permission';
+	import RotateCcwIcon from '@lucide/svelte/icons/rotate-ccw';
 
 	/**
-	 * What a member may do, flag by flag: what their role gives, what is changed for them alone,
-	 * and what they end up with (effort 838, requirements 6 and 12).
+	 * What a member may do, as the switches their role's editor draws, set to what they end up
+	 * with (effort 838, requirement 12 as amended 2026-09-27).
 	 *
-	 * **Three columns, and the middle one is the control.** A member's permissions are their role's
-	 * mask exclusive-or'd with their override, so a flag ticked in the middle column turns the role's
-	 * flag off where the role carries it and on where it does not, and the last column says which.
-	 * Showing all three is what the spec leans on against the override's drift: when the role picked
-	 * above changes, the first column changes under a middle column that stays, and the reader sees
-	 * the result move before anything is saved.
+	 * **The switches show the result, never the arithmetic.** A member's permissions are their
+	 * role's mask exclusive-or'd with their override, and the override stays out of sight: a
+	 * switch turned here writes the override that makes the member end up with what the switches
+	 * say (the role exclusive-or'd with them). A switch that differs from the role carries a dot
+	 * naming it, and where any does the member reads as custom beside their role in the tray
+	 * above (`member-role.svelte`). *It was three columns, the role, a box meaning "changed" and
+	 * the result, until the human saw the reader working the sum out on the running build.*
 	 *
-	 * **Grouped by family**, the organization's first and then each record kind, in the order the
-	 * roles list and the role editor read them. The owner's own family is not here: no override can
-	 * carry one of its flags.
+	 * **Reset puts them back on their role exactly**, clearing the override; it is drawn only
+	 * where they are custom. Like the switches, it is the reader's only where every permission it
+	 * would change is one they hold themselves, and it says why where it is not
+	 * ([[rules/interface]], *Guidance*). Discord's *Sync Now* is the precedent.
 	 *
-	 * **A flag the reader does not hold is theirs neither to give nor to take** (requirement 7), so
-	 * its box is drawn refused with the reason on its row. Where the reader may not change anybody's
-	 * override at all, every box is refused and the head says why, once.
-	 *
-	 * **Shared by the sheet that adds a member and the sheet that edits one**, in place of the list
-	 * of acts beyond a role both drew until effort 838 (`member-acts.svelte`, retired).
+	 * **Shared by the sheet that adds a member and the sheet that edits one.** Where the reader
+	 * may not change anybody's permissions at all, every switch is refused and the list says why,
+	 * once.
 	 *
 	 * **Nothing is written from here.** The sheet's own submit writes the override.
 	 */
 	let {
 		id,
 		roleMask,
+		roleName,
 		override = $bindable(),
 		held,
 		refusal = null,
@@ -52,6 +46,8 @@
 		id: string;
 		/** what the role chosen carries. */
 		roleMask: number;
+		/** what the role chosen is called, which the reset and the marks name. */
+		roleName: string;
 		/** the flags switched for this member alone. */
 		override: number;
 		/** what the reader may do: a flag outside it is not theirs to switch. */
@@ -65,92 +61,72 @@
 
 	const result = $derived(effective(roleMask, override));
 
-	const flip = (flag: Flag) => {
-		override = xorOf(override, maskOf(flag));
+	/** why the reset will not run, or `null` where it will. */
+	const resetRefused = $derived(
+		refusal ??
+			(EVERY_FLAG.some((flag) => permits(override, flag) && !permits(held, flag))
+				? $LL.organization.switches.resetNotHeld()
+				: null)
+	);
+
+	const resetReasonId = $props.id();
+
+	const reset = () => {
+		if (resetRefused || disabled) return;
+
+		override = 0;
 	};
 </script>
 
-{#snippet mark(yes: boolean)}
-	{#if yes}
-		<CheckIcon class="mx-auto size-4" aria-hidden="true" />
-	{:else}
-		<MinusIcon class="mx-auto size-4 text-muted-foreground" aria-hidden="true" />
-	{/if}
-	<span class="sr-only">
-		{yes ? $LL.organization.override.yes() : $LL.organization.override.no()}
-	</span>
+{#snippet resetControl()}
+	<Tooltip.Root disabled={!resetRefused}>
+		<Tooltip.Trigger>
+			{#snippet child({ props })}
+				<Button
+					{...props}
+					type="button"
+					variant="ghost"
+					size="sm"
+					class={resetRefused ? unavailableControl : undefined}
+					aria-disabled={resetRefused ? 'true' : undefined}
+					aria-describedby={resetRefused ? resetReasonId : undefined}
+					data-unavailable={resetRefused ? '' : undefined}
+					{disabled}
+					onclick={reset}
+					data-role-reset
+				>
+					<RotateCcwIcon class="size-4" />
+					{$LL.organization.switches.reset({ role: roleName })}
+					{#if resetRefused}
+						<span id={resetReasonId} class="sr-only">{resetRefused}</span>
+					{/if}
+				</Button>
+			{/snippet}
+		</Tooltip.Trigger>
+		<Tooltip.Content side="top" sideOffset={8}>
+			<span data-unavailable-reason>{resetRefused}</span>
+		</Tooltip.Content>
+	</Tooltip.Root>
 {/snippet}
 
 <Field.Set class="gap-3" aria-labelledby={`${id}-legend`} data-sheet-section="override">
 	<MemberSectionHead
 		{id}
 		legend={$LL.organization.override.legend()}
-		description={$LL.organization.override.description()}
+		control={override !== 0 ? resetControl : null}
 	/>
 
-	{#if refusal}
-		<Field.Description data-override-refusal>{refusal}</Field.Description>
-	{/if}
-
-	<div class="flex flex-col gap-4">
-		{#each EDITABLE_FAMILIES as family (family)}
-			<table class="w-full border-collapse text-sm" data-override-family={family}>
-				<thead>
-					<tr class="border-b border-border/60 text-xs text-muted-foreground">
-						<th scope="col" class="py-1.5 text-start font-medium text-foreground">
-							{familyName($LL, family)}
-						</th>
-						<th scope="col" class="w-16 py-1.5 text-center font-medium">
-							{$LL.organization.override.role()}
-						</th>
-						<th scope="col" class="w-20 py-1.5 text-center font-medium">
-							{$LL.organization.override.changed()}
-						</th>
-						<th scope="col" class="w-16 py-1.5 text-center font-medium">
-							{$LL.organization.override.result()}
-						</th>
-					</tr>
-				</thead>
-				<tbody>
-					{#each FAMILIES[family] as flag (flag)}
-						{@const notHeld = !permits(held, flag)}
-						{@const changed = permits(override, flag)}
-						<tr class="border-b border-border/40" data-override-flag={flag}>
-							<th scope="row" class="py-1.5 text-start font-normal">
-								<span class="block leading-snug">{flagName($LL, flag)}</span>
-								{#if notHeld && !refusal}
-									<span
-										id={`${id}-${flag}-reason`}
-										class="block text-xs text-muted-foreground"
-										data-override-reason={flag}
-									>
-										{$LL.organization.dashboard.notHeld()}
-									</span>
-								{/if}
-							</th>
-							<td class="py-1.5 text-center" data-override-role={flag}>
-								{@render mark(permits(roleMask, flag))}
-							</td>
-							<td class="py-1.5 text-center">
-								<Checkbox
-									id={`${id}-${flag}`}
-									checked={changed}
-									aria-label={$LL.organization.override.change({ flag: flagPhrase($LL, flag) })}
-									aria-describedby={notHeld && !refusal ? `${id}-${flag}-reason` : undefined}
-									disabled={disabled || refusal !== null || notHeld}
-									onCheckedChange={() => flip(flag)}
-									data-override-change={flag}
-								/>
-							</td>
-							<td class="py-1.5 text-center" data-override-result={flag}>
-								{@render mark(permits(result, flag))}
-							</td>
-						</tr>
-					{/each}
-				</tbody>
-			</table>
-		{/each}
-	</div>
+	<PermissionSwitches
+		{id}
+		mask={result}
+		onChange={(next) => {
+			override = xorOf(roleMask, next);
+		}}
+		{held}
+		{refusal}
+		{disabled}
+		baseline={{ mask: roleMask, name: roleName }}
+	/>
 
 	{#if error}
 		<Field.Error data-sheet-error="override">{error}</Field.Error>

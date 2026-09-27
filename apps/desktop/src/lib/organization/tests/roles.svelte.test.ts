@@ -189,13 +189,22 @@ test('the create opens the editor, and adding the role writes it just above the 
 	await fireEvent.click(document.querySelector<HTMLElement>('[data-role-add]')!);
 
 	expect(surface()).not.toBeNull();
-	// a new role opens on what a member carries, grouped by family, the owner's family not offered.
+	// a new role opens on what a member carries, as the switch list grouped by kind, the owner's
+	// acts a line rather than switches.
 	expect(
-		Array.from(document.querySelectorAll('[data-role-family]')).map((family) =>
-			family.getAttribute('data-role-family')
+		Array.from(document.querySelectorAll('[data-switches-group]')).map((group) =>
+			group.getAttribute('data-switches-group')
 		)
-	).toEqual(['administration', 'complex', 'unit', 'tenant', 'contract', 'payment']);
+	).toEqual(['complex', 'unit', 'tenant', 'contract', 'payment', 'administration']);
+	expect(document.querySelector('#role-flag-viewComplex')?.getAttribute('aria-checked')).toBe(
+		'true'
+	);
 	expect(document.querySelector('#role-flag-lockOut')).toBeNull();
+	expect(document.querySelector('[data-switches-owner]')).not.toBeNull();
+	// the checkboxes and the sentence explaining them are gone.
+	expect(document.querySelector('[data-role-editor] [data-slot=checkbox]')).toBeNull();
+	// compared against nothing: a role is what it is.
+	expect(document.querySelector('[data-differs]')).toBeNull();
 
 	await fireEvent.input(document.querySelector<HTMLInputElement>('input[name=role-name]')!, {
 		target: { value: ' bookkeeper ' }
@@ -356,8 +365,8 @@ test('a role not below the reader is refused, saying so', async () => {
 });
 
 // the flag again, inside the editor: a flag the reader does not hold is theirs neither to give a
-// role nor to take from it, and its box says so on its row.
-test('in the editor, a flag the reader does not hold is refused on its row', async () => {
+// role nor to take from it, so its switch is dimmed, saying why, and the list says so once.
+test('in the editor, a flag the reader does not hold is refused at its switch', async () => {
 	hostAnswers.session = fakeOrganizationSession({
 		permissions: BUILT_IN.manager.mask - maskOf('deleteContract')
 	});
@@ -369,11 +378,18 @@ test('in the editor, a flag the reader does not hold is refused on its row', asy
 
 	await fireEvent.click((await openTo('collector', 'role.edit'))!);
 
-	expect(document.querySelector('#role-flag-deleteContract')?.hasAttribute('disabled')).toBe(true);
-	expect(
-		document.querySelector('[data-role-flag-reason="deleteContract"]')?.textContent?.trim()
-	).toBe(en.organization.dashboard.notHeld);
-	expect(document.querySelector('#role-flag-deletePayment')?.hasAttribute('disabled')).toBe(false);
+	expect(document.querySelector('#role-flag-deleteContract')?.getAttribute('aria-disabled')).toBe(
+		'true'
+	);
+	expect(document.querySelector('#role-flag-deleteContract-reason')?.textContent?.trim()).toBe(
+		en.organization.dashboard.notHeld
+	);
+	expect(document.querySelector('[data-switches-refusal]')?.textContent?.trim()).toBe(
+		en.organization.switches.notHeld
+	);
+	expect(document.querySelector('#role-flag-deletePayment')?.hasAttribute('aria-disabled')).toBe(
+		false
+	);
 });
 
 // [[rules/interface]], *Row activation*, and its noted deviation for the settings directories: a

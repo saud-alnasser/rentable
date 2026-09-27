@@ -1437,7 +1437,6 @@ const en = {
 			nameDescription: 'what the role is called on every card.',
 			builtInName: 'every organization has this role, so its name stays.',
 			flagsTitle: 'what it may do',
-			flagsDescription: 'what is ticked is on for everybody who holds the role.',
 			create: 'add the role',
 			deleteTitle: 'delete role',
 			deleteDescription:
@@ -1448,20 +1447,32 @@ const en = {
 			deleted: 'the role was deleted.'
 		},
 
-		/**
-		 * what a member may do, on their card: their role's value, what is changed for them alone,
-		 * and what they end up with, flag by flag (effort 838, requirement 12).
-		 */
+		/** what a member may do, on their card (effort 838, requirement 12). */
 		override: {
-			legend: 'what they may do',
-			description:
-				'the first column is what their role gives. change a flag for them alone, and the last column is what they may do.',
-			role: 'role',
-			changed: 'changed',
-			result: 'they may',
-			yes: 'yes',
-			no: 'no',
-			change: 'change {flag:string} for them alone'
+			legend: 'what they may do'
+		},
+
+		/**
+		 * the switch list a role's editor and a member's card share (effort 838, requirement 12 as
+		 * amended 2026-09-27). A kind of record's view is its group's main switch, and add, edit
+		 * and delete sit under it; the organization's switches fold to a count. On a member's card
+		 * a switch that differs from their role is marked, and the member reads as custom.
+		 */
+		switches: {
+			view: 'view',
+			add: 'add',
+			edit: 'edit',
+			delete: 'delete',
+			contractEdit: 'including ending, renewing and restoring.',
+			folded: '{count|number} of {total|number}',
+			owner:
+				'creating and deleting workspaces, the Turso account and handing over stay with the owner.',
+			notHeld: 'a dimmed switch is one you do not hold yourself, so it is not yours to change.',
+			writesNotHeld: 'turning this off turns off one beneath it that you do not hold yourself.',
+			differs: 'differs from {role:string}',
+			custom: 'custom',
+			reset: 'reset to {role:string}',
+			resetNotHeld: 'resetting would change a permission you do not hold yourself.'
 		},
 
 		/** what each access level is good for, beside the level's own name. */

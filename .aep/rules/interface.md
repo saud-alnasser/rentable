@@ -631,23 +631,28 @@ cannot gate differently. *Settled by ticket 42 of
 side in the running build, the add sheet drawing an uppercase label, seven checkboxes and a checkbox
 per workspace, and asked for it to read like the edit sheet.*
 
-**The role picker chooses among the organization's roles, and the override editor shows what
-follows from it.** The picker is a select over every role but the owner's, highest rank first,
-with the sentence a built-in role means under it; a role at or above the reader's own rank is drawn
-refused in the list, and the tray says why. The override editor is a table, flag by flag and
-grouped by family, of three columns: what the role gives, what is changed for this member alone,
-and what they end up with, which is the role's mask exclusive-or'd with the override. The middle
-column is the control. Picking another role leaves the override where it is and re-reads the other
-two columns at once, so the reader sees what the change does before it is saved. A flag the reader
-does not hold is refused on its row; where the reader may not change the role or the override at
-all, the whole section is refused with the reason, the flag they lack or that the card is their
-own. On a member's card both sections are drawn for every reader, since they are what the card is
-for, and its save sends a changed role and a changed override as one act, whose refusal marks both;
-an override changed alone is its own write.
+**The role picker chooses among the organization's roles, and the switches under it show what
+the member ends up with.** The picker is a select over every role but the owner's, highest rank
+first, with the sentence a built-in role means under it; a role at or above the reader's own rank
+is drawn refused in the list, and the tray says why. Under it is the switch list the role editor
+draws (`permission-switches.svelte`), set to the role's mask exclusive-or'd with the override; a
+switch turned writes the override that makes the member end up with what the switches say, and the
+override itself is never shown. A switch that differs from the role carries a dot naming it; where
+any does, the role's name reads *custom* in the tray and the switches' head offers *reset to* the
+role, which clears the override. Picking another role makes the member that role exactly, clearing
+the override as the shell's `assignRole` does. A switch the reader does not hold is dimmed and says
+why at the control, and one sentence above the list says why once; where the reader may not change
+the role or the override at all, the whole section is refused with the reason, the flag they lack
+or that the card is their own. On a member's card both sections are drawn for every reader, since
+they are what the card is for, and its save sends a changed role and a changed override as one
+act, whose refusal marks both; an override changed alone is its own write.
 *Revised by ticket 16 of [[efforts/838-permissions-are-a-role-and-an-override/spec]], requirements
 6, 7 and 12: the role was a toggle of two and the sheets drew what a member may do beyond their
 role as a list with a picker (`member-acts.svelte`, retired by effort 838); the role and the
-override were saved as two writes until ticket 14 of the same effort made them one.*
+override were saved as two writes until ticket 14 of the same effort made them one. The override
+editor was a table of three columns, what the role gives, a box meaning "changed" and the result,
+until ticket 43 of that effort, the human's call on the running application of 2026-09-27
+(requirement 12 as amended).*
 
 **A submit is labelled with its verb, and carries the verb's glyph before the label.** Every submit
 does, the domain forms' as well as the organization's and the startup screens': *create* takes the
@@ -673,6 +678,7 @@ organization's did.
 | --- | --- |
 | a choice of two to four, exclusive | toggle group |
 | a setting that takes effect at once | switch |
+| a permission, in a role's editor or on a member's card | switch |
 | a choice of five or more | select, or a combobox when searched |
 | another record | combobox over its search |
 | a date | the popover calendar, given the reader's locale |
@@ -680,6 +686,21 @@ organization's did.
 | a phone | country select plus number, `dir="ltr"` |
 | a status | the status icon cell |
 | a count | the count cell |
+
+**A permission is a switch, although it takes effect when its editor is saved.** The role editor
+and a member's card draw one list of them (`organization/component/permission-switches.svelte`),
+each kind of record a group whose view is its switch, with add, edit and delete as mini switches
+beneath it while view is on; the changes wait for the surface's save, as Discord's role editor
+holds its switches until *Save Changes*. Everything else that is saved with its form keeps the
+control its kind names above, and a checkbox stays the control for a setting that waits for a
+save. *The human's call on the running application, 2026-09-27
+([[efforts/838-permissions-are-a-role-and-an-override/spec]], requirement 12 as amended), against
+the switch's usual reading that it acts at once: a list of thirty checkboxes read as arithmetic,
+and Apple's Human Interface Guidelines give a primary switch with mini switches under it for a
+hierarchy of settings in a grouped form (*Toggles*). What
+[[efforts/838-permissions-are-a-role-and-an-override/evidence/research/how-permissions-are-presented]]
+weighed, finding 6a, is the risk it takes: a reader who turns one and leaves thinking it took
+effect, which the surface's footer save and the member's custom mark answer.*
 
 **No form uses a select for a choice of four or fewer.** Such a choice is a toggle group, the
 chosen segment pressed: the contract's cycle (four), a workspace's access (two or three) and the

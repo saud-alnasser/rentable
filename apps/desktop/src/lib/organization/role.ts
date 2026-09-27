@@ -3,7 +3,9 @@ import type { OrganizationRole } from '$lib/platform/host';
 import {
 	BUILT_IN,
 	FAMILIES,
+	maskOf,
 	permits,
+	xorOf,
 	type Family,
 	type Flag,
 	type RoleKind
@@ -80,6 +82,42 @@ export const flagPhrase = (t: TranslationFunctions, flag: Flag): string => {
 	return verb
 		? `${t.organization.flagVerbs[verb]()} ${familyName(t, familyOf(flag))}`
 		: t.organization.flags[flag as NamedFlag]();
+};
+
+/**
+ * The record kinds, in the order the switch list groups them (effort 838, requirement 12 as
+ * amended 2026-09-27). Each kind's first flag is its view, the group's main switch.
+ */
+export const RECORD_KINDS = [
+	'complex',
+	'unit',
+	'tenant',
+	'contract',
+	'payment'
+] as const satisfies readonly Family[];
+
+export type RecordKind = (typeof RECORD_KINDS)[number];
+
+/** the flag that lets a person see a kind at all: the switch its group is headed by. */
+export const viewOf = (kind: RecordKind): Flag => FAMILIES[kind][0];
+
+/** a kind's add, edit and delete, which sit under its view and need it. */
+export const writesOf = (kind: RecordKind): Flag[] => FAMILIES[kind].slice(1);
+
+/**
+ * a mask with one switch turned on or off. **Turning a kind's view off turns its add, edit and
+ * delete off with it**, since writing a record needs seeing it (requirement 6 as amended
+ * 2026-09-27), so no switch that is out of sight is left on.
+ */
+export const switchedTo = (mask: number, flag: Flag, on: boolean): number => {
+	const family = familyOf(flag);
+	const turned: readonly Flag[] =
+		!on && verbOf(flag) === 'view' ? (FAMILIES[family] as readonly Flag[]) : [flag];
+
+	return turned.reduce(
+		(next, each) => (permits(next, each) === on ? next : xorOf(next, maskOf(each))),
+		mask
+	);
 };
 
 /** the flags of one family that a mask carries, in the family's order. */

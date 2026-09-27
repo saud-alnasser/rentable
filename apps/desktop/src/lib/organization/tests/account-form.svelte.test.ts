@@ -1,4 +1,3 @@
-import { DesignProvider } from '@rentable/design/strings.js';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import { beforeEach, expect, test } from 'vitest';
 
@@ -15,11 +14,13 @@ import { chooseOption, openSelect } from '$lib/design/tests/select';
 import { fakeOrganizationRoles } from '$lib/platform/tests/testing';
 import { BUILT_IN, maskOf } from '@rentable/workspace-permission';
 
+import Providers from './providers.svelte';
+
 /**
  * THE ACCOUNT FORM, RENDERED
  *
  * What the account form puts in the document once it is open: a username, a role, what the person
- * may do flag by flag and the workspaces, and no email or display name, since an account is a username
+ * may do as switches and the workspaces, and no email or display name, since an account is a username
  * (requirement 22 of effort 824); the username field leading with its subject's glyph and refused
  * under the one rule every username field reads.
  *
@@ -40,8 +41,9 @@ import { BUILT_IN, maskOf } from '@rentable/workspace-permission';
 
 const noop = () => {};
 
+// the design and tooltip providers: a switch the maker may not turn says why in a tooltip.
 const inProvider = (direction: 'ltr' | 'rtl') => ({
-	wrapper: DesignProvider,
+	wrapper: Providers,
 	wrapperProps: { strings, direction }
 });
 
@@ -145,8 +147,8 @@ test('an account opens on the member role with nothing changed, and a role picke
 
 	expect(trigger.textContent?.trim()).toBe(en.layout.signIn.roleMember);
 	expect(
-		document.querySelector('[data-override-result="deletePayment"]')?.textContent?.trim()
-	).toBe(en.organization.override.no);
+		document.querySelector('#account-override-deletePayment')?.getAttribute('aria-checked')
+	).toBe('false');
 
 	await openSelect(trigger);
 	await chooseOption(
@@ -157,8 +159,8 @@ test('an account opens on the member role with nothing changed, and a role picke
 	expect(screen.getByText(en.organization.roles.manager.who)).toBeDefined();
 	await waitFor(() => {
 		expect(
-			document.querySelector('[data-override-result="deletePayment"]')?.textContent?.trim()
-		).toBe(en.organization.override.yes);
+			document.querySelector('#account-override-deletePayment')?.getAttribute('aria-checked')
+		).toBe('true');
 	});
 });
 
@@ -186,15 +188,20 @@ test('a maker gives no role at or above their own, and no flag they do not hold'
 			?.textContent?.trim()
 	).toBe(en.organization.dashboard.roleOutOfReach);
 
-	expect(document.querySelector('#account-override-deletePayment')?.hasAttribute('disabled')).toBe(
-		true
+	// the switch is dimmed rather than disabled, so its reason stays reachable, and one sentence
+	// above the list says why.
+	expect(
+		document.querySelector('#account-override-deletePayment')?.getAttribute('aria-disabled')
+	).toBe('true');
+	expect(
+		document.querySelector('#account-override-deletePayment-reason')?.textContent?.trim()
+	).toBe(en.organization.dashboard.notHeld);
+	expect(document.querySelector('[data-switches-refusal]')?.textContent?.trim()).toBe(
+		en.organization.switches.notHeld
 	);
 	expect(
-		document.querySelector('[data-override-reason="deletePayment"]')?.textContent?.trim()
-	).toBe(en.organization.dashboard.notHeld);
-	expect(document.querySelector('#account-override-editPayment')?.hasAttribute('disabled')).toBe(
-		false
-	);
+		document.querySelector('#account-override-editPayment')?.hasAttribute('aria-disabled')
+	).toBe(false);
 });
 
 // effort 826, requirement 8: a workspace is granted at an access. Every workspace the maker holds
@@ -388,8 +395,8 @@ const shapeOnScreen = () => ({
 	role: document
 		.querySelector('[data-sheet-section="role"] [data-role-chosen]')
 		?.getAttribute('data-role-chosen'),
-	flags: Array.from(document.querySelectorAll('[data-override-flag]')).map((row) =>
-		row.getAttribute('data-override-flag')
+	flags: Array.from(document.querySelectorAll('[data-switch]')).map((control) =>
+		control.getAttribute('data-switch')
 	),
 	levels: Array.from(
 		document.querySelectorAll('[data-access-row] [data-slot=toggle-group-item]')

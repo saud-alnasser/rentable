@@ -6,15 +6,15 @@
 <script lang="ts">
 	import FormSurface, { insetControl } from '@rentable/design/block/form-surface.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
-	import { Checkbox } from '@rentable/design/primitive/checkbox/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import * as InputGroup from '@rentable/design/primitive/input-group/index.js';
 	import { onSubmit } from '$lib/design/form';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import MemberSectionHead from '$lib/organization/component/member-section-head.svelte';
-	import { EDITABLE_FAMILIES, familyName, flagName, roleNameOf } from '$lib/organization/role';
+	import PermissionSwitches from '$lib/organization/component/permission-switches.svelte';
+	import { roleNameOf } from '$lib/organization/role';
 	import type { OrganizationRole } from '$lib/platform/host';
-	import { BUILT_IN, FAMILIES, maskOf, permits, xorOf } from '@rentable/workspace-permission';
+	import { BUILT_IN } from '@rentable/workspace-permission';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import SaveIcon from '@lucide/svelte/icons/save';
 	import ShieldIcon from '@lucide/svelte/icons/shield';
@@ -27,15 +27,16 @@
 	 * has. A role is heavy because its save writes more than the role: every holder's certificate
 	 * is issued again from the new mask, in the same act ([[rules/interface]], *Form surface*,
 	 * which names the role editor for that reason). The tray is the role's name, the one fact about
-	 * the whole role; the records are its flags, one list per family, in the order the roles list
-	 * reads them. The owner's own family is not offered: no role can carry one of its flags.
+	 * the whole role; below it are its permissions, as the switch list a member's card shares
+	 * (`permission-switches.svelte`, effort 838, requirement 12 as amended 2026-09-27). The owner's
+	 * own acts are a line there, not switches: no role can carry one of them.
 	 *
 	 * **The manager's and the member's names are the interface's**, said in the reader's language,
 	 * so the tray reads the name and says why it stays rather than offering a field Rust refuses.
 	 *
 	 * **A flag the reader does not hold is theirs neither to give nor to take** (requirement 7), so
-	 * its box is drawn refused, with the reason on its row, rather than left out: the role still
-	 * carries it or not, and the reader should see which.
+	 * its switch is drawn refused, saying why, rather than left out: the role still carries it or
+	 * not, and the reader should see which.
 	 *
 	 * **A new role opens on what a member carries**, since a role is usually a member with a little
 	 * more or a little less, and it goes in just above the member; its card moves it from there.
@@ -147,48 +148,17 @@
 		</Field.Set>
 
 		<Field.Set class="gap-3" aria-labelledby="role-flags-legend" data-sheet-section="flags">
-			<MemberSectionHead
-				id="role-flags"
-				legend={$LL.organization.roleList.flagsTitle()}
-				description={$LL.organization.roleList.flagsDescription()}
+			<MemberSectionHead id="role-flags" legend={$LL.organization.roleList.flagsTitle()} />
+
+			<PermissionSwitches
+				id="role-flag"
+				{mask}
+				onChange={(next) => {
+					mask = next;
+				}}
+				held={readerPermissions}
+				disabled={isSaving}
 			/>
-
-			{#each EDITABLE_FAMILIES as family (family)}
-				<Field.Set class="gap-1.5" data-role-family={family}>
-					<Field.Legend variant="label" class="mb-0 text-xs text-muted-foreground">
-						{familyName($LL, family)}
-					</Field.Legend>
-
-					{#each FAMILIES[family] as flag (flag)}
-						{@const notHeld = !permits(readerPermissions, flag)}
-						<Field.Field orientation="horizontal" class="gap-2" data-role-flag={flag}>
-							<Checkbox
-								id={`role-flag-${flag}`}
-								checked={permits(mask, flag)}
-								disabled={isSaving || notHeld}
-								aria-describedby={notHeld ? `role-flag-${flag}-reason` : undefined}
-								onCheckedChange={() => {
-									mask = xorOf(mask, maskOf(flag));
-								}}
-							/>
-							<div class="flex min-w-0 flex-col">
-								<Field.Label for={`role-flag-${flag}`} class="font-normal">
-									{flagName($LL, flag)}
-								</Field.Label>
-								{#if notHeld}
-									<span
-										id={`role-flag-${flag}-reason`}
-										class="text-xs text-muted-foreground"
-										data-role-flag-reason={flag}
-									>
-										{$LL.organization.dashboard.notHeld()}
-									</span>
-								{/if}
-							</div>
-						</Field.Field>
-					{/each}
-				</Field.Set>
-			{/each}
 
 			{#if flagsRefusal}
 				<Field.Error data-sheet-error="flags">{flagsRefusal}</Field.Error>

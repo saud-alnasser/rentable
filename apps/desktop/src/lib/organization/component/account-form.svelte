@@ -13,6 +13,7 @@
 	import MemberRole from '$lib/organization/component/member-role.svelte';
 	import MemberSectionHead from '$lib/organization/component/member-section-head.svelte';
 	import MemberWorkspaces from '$lib/organization/component/member-workspaces.svelte';
+	import { roleNameOf } from '$lib/organization/role';
 	import type { OrganizationRole } from '$lib/platform/host';
 	import { BUILT_IN } from '@rentable/workspace-permission';
 	import UserIcon from '@lucide/svelte/icons/user';
@@ -29,7 +30,7 @@
 	 * **Laid out as the member's sheet is** (ticket 42 of effort 832). Adding a member and editing
 	 * one are one surface in two moments, so this draws the sections `member-sheet.svelte` draws,
 	 * in its order and from the same pieces: the username under its head, the role in its tray
-	 * (`member-role.svelte`), what they may do flag by flag (`member-override.svelte`), and a row
+	 * (`member-role.svelte`), what they may do as switches (`member-override.svelte`), and a row
 	 * per workspace with its three levels
 	 * (`member-workspaces.svelte`). *It drew an uppercase label, a bare role control the width of
 	 * the panel, seven checkboxes and a checkbox per workspace until the human saw the two sheets
@@ -121,7 +122,9 @@
 	let chosenRole = $state<string>(BUILT_IN.member.id);
 	let chosenOverride = $state(0);
 
-	const roleMask = $derived(roles.find((role) => role.id === chosenRole)?.mask ?? 0);
+	const chosen = $derived(roles.find((role) => role.id === chosenRole) ?? null);
+	const roleMask = $derived(chosen?.mask ?? 0);
+	const roleName = $derived(chosen ? roleNameOf($LL, chosen) : '');
 
 	/** every workspace the maker can grant, as a row that holds nothing yet. */
 	const rows: AccessRow[] = $derived(
@@ -216,15 +219,20 @@
 			{roles}
 			value={chosenRole}
 			onPick={(next) => {
+				// a member given another role is that role exactly, as the shell's assignRole
+				// leaves them: what was changed for them was changed against the old one.
+				if (next !== chosenRole) chosenOverride = 0;
 				chosenRole = next;
 			}}
 			{readerRank}
+			custom={chosenOverride !== 0}
 			disabled={isCreating}
 		/>
 
 		<MemberOverride
 			id="account-override"
 			{roleMask}
+			{roleName}
 			bind:override={chosenOverride}
 			held={readerPermissions}
 			disabled={isCreating}

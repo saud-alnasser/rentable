@@ -22,6 +22,7 @@
 	import MemberRole from '$lib/organization/component/member-role.svelte';
 	import MemberSectionHead from '$lib/organization/component/member-section-head.svelte';
 	import MemberWorkspaces from '$lib/organization/component/member-workspaces.svelte';
+	import { roleNameOf } from '$lib/organization/role';
 	import { usernameSchema } from '$lib/organization/username-form';
 	import type { OrganizationRole } from '$lib/platform/host';
 	import SaveIcon from '@lucide/svelte/icons/save';
@@ -40,7 +41,7 @@
 	 *
 	 * **It reads as a directory: a tray on top, records below** (the human's second look). The
 	 * tray carries the role, which is the one choice about the whole person, with the sentence that
-	 * role means under it. Under the tray sit the lists: what the member may do, flag by flag, and
+	 * role means under it. Under the tray sit the lists: what the member may do, as switches, and
 	 * the workspaces they hold. *The save stays in the surface's own footer, where every write here
 	 * keeps it.*
 	 *
@@ -49,9 +50,10 @@
 	 * use is refused with its reason, the flag they lack, rather than taken away. The name and the
 	 * workspaces are drawn for whoever may write them, as before (effort 826, requirement 15).
 	 *
-	 * **Picking another role leaves the override where it is** (requirement 6). What the member
-	 * ends up with is read against the new role at once, so the reader sees what the change does to
-	 * them before it is saved.
+	 * **Picking another role makes them that role exactly** (requirement 6 as amended
+	 * 2026-09-27): what was changed for them was changed against the old role, and the shell's
+	 * assignRole clears it the same way. The switches read the new role at once, and anything
+	 * changed after the pick rides with it as one act.
 	 *
 	 * **The name is a section of this surface, not a surface of its own** (effort 832, requirement
 	 * 6), under the one schema in `organization/username-form.ts`. Whether a username is taken is
@@ -146,7 +148,9 @@
 		}
 	});
 
-	const roleMask = $derived(roles.find((role) => role.id === chosenRole)?.mask ?? 0);
+	const chosen = $derived(roles.find((role) => role.id === chosenRole) ?? null);
+	const roleMask = $derived(chosen?.mask ?? 0);
+	const roleName = $derived(chosen ? roleNameOf($LL, chosen) : '');
 
 	const pickAccess = (id: string, value: AccessChoice) => {
 		access[id] = value;
@@ -234,9 +238,13 @@
 			{roles}
 			value={chosenRole}
 			onPick={(next) => {
+				// a member given another role is that role exactly, as the shell's assignRole
+				// leaves them: what was changed for them was changed against the old one.
+				if (next !== chosenRole) chosenOverride = 0;
 				chosenRole = next;
 			}}
 			{readerRank}
+			custom={chosenOverride !== 0}
 			refusal={canAssignRole ? null : lacking($LL, 'assignRole')}
 			disabled={isSaving}
 			error={roleRefusal}
@@ -245,6 +253,7 @@
 		<MemberOverride
 			id="member-override"
 			{roleMask}
+			{roleName}
 			bind:override={chosenOverride}
 			held={readerPermissions}
 			refusal={canOverride ? null : lacking($LL, 'overrideMember')}

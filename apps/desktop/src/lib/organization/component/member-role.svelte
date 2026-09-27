@@ -27,6 +27,11 @@
 	 * hands in: the flag they lack, or that the card is their own. The reason stands in the tray,
 	 * under the control it is about. *It stood under the tray until ticket 19 of effort 838.*
 	 *
+	 * **Where what the member may do differs from their role, the role reads as custom**, beside
+	 * its name (effort 838, requirement 12 as amended 2026-09-27), with the dot each differing
+	 * switch below carries, so the mark says what the dots are. The reset is in the head of the
+	 * switches, beside what it puts back.
+	 *
 	 * **The tray is the directory's shape on a surface that is not a page** (the human's second
 	 * look, effort 828): a card-coloured bar would be wrong inside a panel that is already one, so
 	 * the shape is drawn here rather than borrowed from `directory-tray.svelte`.
@@ -38,6 +43,7 @@
 		onPick,
 		readerRank,
 		refusal = null,
+		custom = false,
 		disabled,
 		error = null
 	}: {
@@ -52,6 +58,8 @@
 		readerRank: number;
 		/** why the reader may not choose a role at all, or `null` where they may. */
 		refusal?: string | null;
+		/** whether what the member may do differs from the role chosen. */
+		custom?: boolean;
 		disabled: boolean;
 		/** what the role was refused with, or `null`. */
 		error?: string | null;
@@ -88,7 +96,18 @@
 					class={cn('w-full sm:w-56', insetControl)}
 					data-role-chosen={value}
 				>
-					{chosen ? nameOf(chosen) : ''}
+					<span class="flex min-w-0 items-center gap-2">
+						<span class="truncate">{chosen ? nameOf(chosen) : ''}</span>
+						{#if custom}
+							<span
+								class="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground"
+								data-role-custom
+							>
+								<span class="size-2 rounded-full bg-primary" aria-hidden="true"></span>
+								{$LL.organization.switches.custom()}
+							</span>
+						{/if}
+					</span>
 				</Select.Trigger>
 				<Select.Content>
 					{#each offered as role (role.id)}

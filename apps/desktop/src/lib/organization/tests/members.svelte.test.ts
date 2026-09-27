@@ -947,6 +947,8 @@ test('one save writes the override and the grants through the acts that exist', 
 
 	// sami holds ws-1 and nothing else, and nothing is changed for them. Renaming members is
 	// switched on for them alone, and the role is left where it is.
+	// the organization's switches are folded until opened.
+	await fireEvent.click(document.querySelector<HTMLElement>('[data-switches-fold]')!);
 	await fireEvent.click(document.querySelector<HTMLElement>('#member-override-renameMember')!);
 	await fireEvent.click(
 		document.querySelector<HTMLElement>('#access-ws-2 [data-level="full-access"]')!
@@ -984,6 +986,8 @@ test('a changed role and a changed override are saved in one call', async () => 
 	await chooseOption(
 		document.querySelector<HTMLElement>('[data-slot=select-item][data-role="supervisor"]')!
 	);
+	// the organization's switches are folded until opened.
+	await fireEvent.click(document.querySelector<HTMLElement>('[data-switches-fold]')!);
 	await fireEvent.click(document.querySelector<HTMLElement>('#member-override-renameMember')!);
 	await fireEvent.submit(document.querySelector('form')!);
 
@@ -1010,6 +1014,8 @@ test('the one act refused marks the role and the override', async () => {
 	await chooseOption(
 		document.querySelector<HTMLElement>('[data-slot=select-item][data-role="supervisor"]')!
 	);
+	// the organization's switches are folded until opened.
+	await fireEvent.click(document.querySelector<HTMLElement>('[data-switches-fold]')!);
 	await fireEvent.click(document.querySelector<HTMLElement>('#member-override-renameMember')!);
 	await fireEvent.submit(document.querySelector('form')!);
 
@@ -1078,7 +1084,7 @@ test('the edit opens the name on the sheet, and a reader holding only renameMemb
 			block.getAttribute('data-sheet-section')
 		)
 	).toEqual(['name', 'role', 'override']);
-	expect(document.querySelector('[data-override-refusal]')).not.toBeNull();
+	expect(document.querySelector('[data-switches-refusal]')).not.toBeNull();
 });
 
 test('a new name is written through the rename, and what Rust refuses marks the name', async () => {

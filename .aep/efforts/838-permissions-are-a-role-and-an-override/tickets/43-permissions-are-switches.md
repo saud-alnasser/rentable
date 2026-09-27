@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # feat(desktop): permissions are switches, and a custom member resets to their role
@@ -16,20 +16,20 @@ anything does, and resets to the role, as [[efforts/838-permissions-are-a-role-a
 
 Traces requirement 12 of [[efforts/838-permissions-are-a-role-and-an-override/spec]].
 
-- [ ] `permission-switches.svelte` groups each kind under its icon with view as the main switch and
+- [x] `permission-switches.svelte` groups each kind under its icon with view as the main switch and
       add, edit and delete beneath it only while view is on; administration folds to a summary;
       the owner's acts are one line. The role editor and the member's card both use it, and the
       checkboxes and the three-column table are gone.
-- [ ] The member's card names the role, marks each switch that differs from it, shows *custom* when
+- [x] The member's card names the role, marks each switch that differs from it, shows *custom* when
       any does, and *reset to <role>* clears the override. Saving writes the override the switches
       come to.
-- [ ] A switch the reader may not change is dimmed with its reason; one sentence at the top says
+- [x] A switch the reader may not change is dimmed with its reason; one sentence at the top says
       why; the rank and self reasons still read where they did.
-- [ ] `rules/interface`'s *Field kinds* names a permission as a switch, by the human's call; the
+- [x] `rules/interface`'s *Field kinds* names a permission as a switch, by the human's call; the
       design system's switch slides the right way in Arabic.
-- [ ] Component tests cover the groups, the view dependency, the custom mark and the reset, in
+- [x] Component tests cover the groups, the view dependency, the custom mark and the reset, in
       English and Arabic.
-- [ ] `pnpm check`, `pnpm test` and `pnpm lint` pass.
+- [x] `pnpm check`, `pnpm test` and `pnpm lint` pass.
 
 ## Relevant areas
 

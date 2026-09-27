@@ -4230,10 +4230,6 @@ type RootTranslation = {
 			 */
 			flagsTitle: string
 			/**
-			 * w​h​a​t​ ​i​s​ ​t​i​c​k​e​d​ ​i​s​ ​o​n​ ​f​o​r​ ​e​v​e​r​y​b​o​d​y​ ​w​h​o​ ​h​o​l​d​s​ ​t​h​e​ ​r​o​l​e​.
-			 */
-			flagsDescription: string
-			/**
 			 * a​d​d​ ​t​h​e​ ​r​o​l​e
 			 */
 			create: string
@@ -4267,35 +4263,64 @@ type RootTranslation = {
 			 * w​h​a​t​ ​t​h​e​y​ ​m​a​y​ ​d​o
 			 */
 			legend: string
+		}
+		switches: {
 			/**
-			 * t​h​e​ ​f​i​r​s​t​ ​c​o​l​u​m​n​ ​i​s​ ​w​h​a​t​ ​t​h​e​i​r​ ​r​o​l​e​ ​g​i​v​e​s​.​ ​c​h​a​n​g​e​ ​a​ ​f​l​a​g​ ​f​o​r​ ​t​h​e​m​ ​a​l​o​n​e​,​ ​a​n​d​ ​t​h​e​ ​l​a​s​t​ ​c​o​l​u​m​n​ ​i​s​ ​w​h​a​t​ ​t​h​e​y​ ​m​a​y​ ​d​o​.
+			 * v​i​e​w
 			 */
-			description: string
+			view: string
 			/**
-			 * r​o​l​e
+			 * a​d​d
 			 */
-			role: string
+			add: string
 			/**
-			 * c​h​a​n​g​e​d
+			 * e​d​i​t
 			 */
-			changed: string
+			edit: string
 			/**
-			 * t​h​e​y​ ​m​a​y
+			 * d​e​l​e​t​e
 			 */
-			result: string
+			'delete': string
 			/**
-			 * y​e​s
+			 * i​n​c​l​u​d​i​n​g​ ​e​n​d​i​n​g​,​ ​r​e​n​e​w​i​n​g​ ​a​n​d​ ​r​e​s​t​o​r​i​n​g​.
 			 */
-			yes: string
+			contractEdit: string
 			/**
-			 * n​o
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​o​f​ ​{​t​o​t​a​l​|​n​u​m​b​e​r​}
+			 * @param {unknown} count
+			 * @param {unknown} total
 			 */
-			no: string
+			folded: RequiredParams<'count|number' | 'total|number'>
 			/**
-			 * c​h​a​n​g​e​ ​{​f​l​a​g​}​ ​f​o​r​ ​t​h​e​m​ ​a​l​o​n​e
-			 * @param {string} flag
+			 * c​r​e​a​t​i​n​g​ ​a​n​d​ ​d​e​l​e​t​i​n​g​ ​w​o​r​k​s​p​a​c​e​s​,​ ​t​h​e​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​ ​a​n​d​ ​h​a​n​d​i​n​g​ ​o​v​e​r​ ​s​t​a​y​ ​w​i​t​h​ ​t​h​e​ ​o​w​n​e​r​.
 			 */
-			change: RequiredParams<'flag'>
+			owner: string
+			/**
+			 * a​ ​d​i​m​m​e​d​ ​s​w​i​t​c​h​ ​i​s​ ​o​n​e​ ​y​o​u​ ​d​o​ ​n​o​t​ ​h​o​l​d​ ​y​o​u​r​s​e​l​f​,​ ​s​o​ ​i​t​ ​i​s​ ​n​o​t​ ​y​o​u​r​s​ ​t​o​ ​c​h​a​n​g​e​.
+			 */
+			notHeld: string
+			/**
+			 * t​u​r​n​i​n​g​ ​t​h​i​s​ ​o​f​f​ ​t​u​r​n​s​ ​o​f​f​ ​o​n​e​ ​b​e​n​e​a​t​h​ ​i​t​ ​t​h​a​t​ ​y​o​u​ ​d​o​ ​n​o​t​ ​h​o​l​d​ ​y​o​u​r​s​e​l​f​.
+			 */
+			writesNotHeld: string
+			/**
+			 * d​i​f​f​e​r​s​ ​f​r​o​m​ ​{​r​o​l​e​}
+			 * @param {string} role
+			 */
+			differs: RequiredParams<'role'>
+			/**
+			 * c​u​s​t​o​m
+			 */
+			custom: string
+			/**
+			 * r​e​s​e​t​ ​t​o​ ​{​r​o​l​e​}
+			 * @param {string} role
+			 */
+			reset: RequiredParams<'role'>
+			/**
+			 * r​e​s​e​t​t​i​n​g​ ​w​o​u​l​d​ ​c​h​a​n​g​e​ ​a​ ​p​e​r​m​i​s​s​i​o​n​ ​y​o​u​ ​d​o​ ​n​o​t​ ​h​o​l​d​ ​y​o​u​r​s​e​l​f​.
+			 */
+			resetNotHeld: string
 		}
 		levels: {
 			full: {
@@ -8446,10 +8471,6 @@ export type TranslationFunctions = {
 			 */
 			flagsTitle: () => LocalizedString
 			/**
-			 * what is ticked is on for everybody who holds the role.
-			 */
-			flagsDescription: () => LocalizedString
-			/**
 			 * add the role
 			 */
 			create: () => LocalizedString
@@ -8483,34 +8504,60 @@ export type TranslationFunctions = {
 			 * what they may do
 			 */
 			legend: () => LocalizedString
+		}
+		switches: {
 			/**
-			 * the first column is what their role gives. change a flag for them alone, and the last column is what they may do.
+			 * view
 			 */
-			description: () => LocalizedString
+			view: () => LocalizedString
 			/**
-			 * role
+			 * add
 			 */
-			role: () => LocalizedString
+			add: () => LocalizedString
 			/**
-			 * changed
+			 * edit
 			 */
-			changed: () => LocalizedString
+			edit: () => LocalizedString
 			/**
-			 * they may
+			 * delete
 			 */
-			result: () => LocalizedString
+			'delete': () => LocalizedString
 			/**
-			 * yes
+			 * including ending, renewing and restoring.
 			 */
-			yes: () => LocalizedString
+			contractEdit: () => LocalizedString
 			/**
-			 * no
+			 * {count|number} of {total|number}
 			 */
-			no: () => LocalizedString
+			folded: (arg: { count: unknown, total: unknown }) => LocalizedString
 			/**
-			 * change {flag} for them alone
+			 * creating and deleting workspaces, the Turso account and handing over stay with the owner.
 			 */
-			change: (arg: { flag: string }) => LocalizedString
+			owner: () => LocalizedString
+			/**
+			 * a dimmed switch is one you do not hold yourself, so it is not yours to change.
+			 */
+			notHeld: () => LocalizedString
+			/**
+			 * turning this off turns off one beneath it that you do not hold yourself.
+			 */
+			writesNotHeld: () => LocalizedString
+			/**
+			 * differs from {role}
+			 */
+			differs: (arg: { role: string }) => LocalizedString
+			/**
+			 * custom
+			 */
+			custom: () => LocalizedString
+			/**
+			 * reset to {role}
+			 */
+			reset: (arg: { role: string }) => LocalizedString
+			/**
+			 * resetting would change a permission you do not hold yourself.
+			 */
+			resetNotHeld: () => LocalizedString
 		}
 		levels: {
 			full: {
