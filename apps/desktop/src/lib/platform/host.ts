@@ -62,6 +62,26 @@ export type ImportTable = {
 	rows: string[][];
 };
 
+/**
+ * A release before organizations that kept every record in `app.db`, named as the release was.
+ * 0.12.0 left the file at workspace schema 2, and 0.13.0 at schema 3.
+ */
+export type EarlierVersion = '0.12.0' | '0.13.0';
+
+/** The records of an earlier version, found in `app.db`. */
+export type EarlierRecords = {
+	version: EarlierVersion;
+};
+
+/** The records of an earlier version, read as the whole-workspace export. */
+export type EarlierRead = {
+	version: EarlierVersion;
+	/** where the export's workbook was written, which is the copy the person keeps. */
+	path: string;
+	/** that workbook's sheets, as `import.readBook` hands over a file the person chose. */
+	tables: ImportTable[];
+};
+
 export type DiagnosticRecord = {
 	level: 'info' | 'warn' | 'error';
 	event: string;
@@ -562,6 +582,19 @@ export type Host = {
 		 * because a reader who dragged the tabs about handed over the same workspace.
 		 */
 		readBook: (path: string) => Promise<ImportTable[]>;
+	};
+	earlier: {
+		/**
+		 * Whether this machine's `app.db` holds the records of 0.12.0 or 0.13.0, and which, or
+		 * nothing. The file is opened read-only and never created.
+		 */
+		find: () => Promise<EarlierRecords | null>;
+		/**
+		 * Read those records as the whole-workspace export, write them as its workbook under
+		 * `backups/app/`, and hand back that workbook's sheets for the workspace import to plan
+		 * over. Nothing is written to `app.db`; a file holding no such records is refused.
+		 */
+		read: () => Promise<EarlierRead>;
 	};
 	dialog: {
 		/** Ask the user for a file, answering its path or nothing where they walked away. */

@@ -2,6 +2,7 @@ pub mod backup;
 pub mod bootstrap;
 pub mod database;
 pub mod diagnostics;
+pub mod earlier;
 pub mod error;
 pub mod export;
 pub mod http;
@@ -289,6 +290,8 @@ pub fn run() {
             print::print_page,
             import::import_read,
             import::import_read_book,
+            earlier::earlier_find,
+            earlier::earlier_read,
             update::update_prepare,
             bootstrap::bootstrap,
         ])

@@ -110,6 +110,10 @@ export function fakeHost(overrides: Partial<Host> = {}): Host {
 			read: refuse('import.read'),
 			readBook: refuse('import.readBook')
 		},
+		earlier: {
+			find: refuse('earlier.find'),
+			read: refuse('earlier.read')
+		},
 		dialog: {
 			openFile: refuse('dialog.openFile'),
 			openImage: refuse('dialog.openImage'),

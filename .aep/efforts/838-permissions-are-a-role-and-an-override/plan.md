@@ -513,7 +513,7 @@ file with the same `CREATE` statements, through `sqlx` as the rest of the plain 
   and organization format 1 on are seeded and walked in the tests (ticket 34). *The human's call,
   2026-09-27.*
 - **Before Turso, a guided move** (spec, requirement 18). 0.12.0 and 0.13.0 kept records in
-  `app.db`, at workspace schema 2 and 3 (`_sqlx_migrations` names which). A new command reads that
+  `app.db`, at workspace schema 2 and 3 (their own runner's `__migrations__` ledger names which, exactly {0000, 0001} or {0000, 0001, 0002}; ticket 36). A new command reads that
   file read-only, whatever of the two it is, into the tables `import_read_book` returns, in the
   whole-workspace export's columns (`TRANSFER_COLUMNS`), and writes the same tables as the export
   workbook to `backups/app/workspace-<version>.xlsx` through `export_write_workbook`'s writer.

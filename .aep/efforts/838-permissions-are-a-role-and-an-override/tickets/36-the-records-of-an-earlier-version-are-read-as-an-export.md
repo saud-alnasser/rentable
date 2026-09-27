@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # feat(desktop): the records of an earlier version are read as an export
@@ -16,14 +16,14 @@ in front of the person.
 
 Traces requirement 18 of [[efforts/838-permissions-are-a-role-and-an-override/spec]].
 
-- [ ] A command answers whether `app.db` holds records of an earlier version, and which, without
+- [x] A command answers whether `app.db` holds records of an earlier version, and which, without
       writing to it.
-- [ ] A command reads them into the tables `import_read_book` returns, in `TRANSFER_COLUMNS`, and
+- [x] A command reads them into the tables `import_read_book` returns, in `TRANSFER_COLUMNS`, and
       writes them as the export workbook to `backups/app/workspace-<version>.xlsx`. Tests build
       the file at schema 2 and 3 from the migrations 0.12.0 and 0.13.0 shipped, with a record of
       every kind, and find every record in the tables and the workbook written.
-- [ ] A TS test runs `planWorkspaceImport` over those tables and finds every record created.
-- [ ] `cargo test`, `pnpm check`, `pnpm test` and `pnpm lint` pass.
+- [x] A TS test runs `planWorkspaceImport` over those tables and finds every record created.
+- [x] `cargo test`, `pnpm check`, `pnpm test` and `pnpm lint` pass.
 
 ## Relevant areas
 

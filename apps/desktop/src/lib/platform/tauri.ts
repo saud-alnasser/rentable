@@ -10,6 +10,8 @@ import { check, type Update as TauriUpdate } from '@tauri-apps/plugin-updater';
 import type {
 	AvailableUpdate,
 	DiagnosticRecord,
+	EarlierRead,
+	EarlierRecords,
 	ExportSheet,
 	GroupState,
 	Host,
@@ -52,6 +54,9 @@ import { withExtension } from '$lib/platform/path';
 export type {
 	AvailableUpdate,
 	DiagnosticRecord,
+	EarlierRead,
+	EarlierRecords,
+	EarlierVersion,
 	ExportCell,
 	ExportSheet,
 	GroupState,
@@ -176,6 +181,23 @@ export const tauri = {
 		 * because a reader who dragged the tabs about handed over the same workspace.
 		 */
 		readBook: (path: string) => invoke<ImportTable[]>('import_read_book', { path })
+	},
+	earlier: {
+		/**
+		 * Whether this machine's `app.db` holds the records of 0.12.0 or 0.13.0, and which.
+		 *
+		 * Those releases kept every record in that one file, and this build never reads it; the
+		 * file is opened read-only and never created (`tauri/src/earlier.rs`).
+		 */
+		find: () => invoke<EarlierRecords | null>('earlier_find'),
+		/**
+		 * Read those records as the whole-workspace export, and write them as its workbook under
+		 * `backups/app/`.
+		 *
+		 * The tables are that workbook read back, so the workspace import is handed exactly what it
+		 * would be had the person chosen the file themselves.
+		 */
+		read: () => invoke<EarlierRead>('earlier_read')
 	},
 	dialog: {
 		/**
