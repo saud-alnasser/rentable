@@ -3687,6 +3687,10 @@ type RootTranslation = {
 			 */
 			noWorkspaceToGrant: string
 			/**
+			 * n​o​ ​m​e​m​b​e​r​ ​t​o​ ​p​u​t​ ​i​n​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​y​e​t​.
+			 */
+			noMemberToGrant: string
+			/**
 			 * a​d​d​ ​a​ ​m​e​m​b​e​r
 			 */
 			addMember: string
@@ -4366,11 +4370,11 @@ type RootTranslation = {
 			 */
 			lockMemberNamed: RequiredParams<'member'>
 			/**
-			 * t​h​e​y​ ​c​a​n​n​o​t​ ​c​h​a​n​g​e​ ​a​n​y​t​h​i​n​g​ ​i​n​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​,​ ​e​v​e​n​ ​o​u​t​s​i​d​e​ ​t​h​e​ ​a​p​p​.
+			 * o​n​c​e​ ​l​o​c​k​e​d​,​ ​t​h​e​y​ ​c​a​n​n​o​t​ ​c​h​a​n​g​e​ ​a​n​y​t​h​i​n​g​ ​i​n​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​,​ ​e​v​e​n​ ​o​u​t​s​i​d​e​ ​t​h​e​ ​a​p​p​.
 			 */
 			locked: string
 			/**
-			 * o​n​l​y​ ​t​h​e​ ​o​w​n​e​r​'​s​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​ ​c​a​n​ ​i​s​s​u​e​ ​a​ ​r​e​a​d​ ​o​n​l​y​ ​c​r​e​d​e​n​t​i​a​l​.
+			 * o​n​l​y​ ​t​h​e​ ​o​w​n​e​r​'​s​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​ ​c​a​n​ ​g​r​a​n​t​ ​r​e​a​d​ ​o​n​l​y​ ​a​c​c​e​s​s​.
 			 */
 			lockIsTheOwners: string
 			/**
@@ -7979,6 +7983,10 @@ export type TranslationFunctions = {
 			 */
 			noWorkspaceToGrant: () => LocalizedString
 			/**
+			 * no member to put in this workspace yet.
+			 */
+			noMemberToGrant: () => LocalizedString
+			/**
 			 * add a member
 			 */
 			addMember: () => LocalizedString
@@ -8633,11 +8641,11 @@ export type TranslationFunctions = {
 			 */
 			lockMemberNamed: (arg: { member: string }) => LocalizedString
 			/**
-			 * they cannot change anything in this workspace, even outside the app.
+			 * once locked, they cannot change anything in this workspace, even outside the app.
 			 */
 			locked: () => LocalizedString
 			/**
-			 * only the owner's Turso account can issue a read only credential.
+			 * only the owner's Turso account can grant read only access.
 			 */
 			lockIsTheOwners: () => LocalizedString
 			/**

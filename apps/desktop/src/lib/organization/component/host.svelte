@@ -68,6 +68,9 @@
 	const role = $derived(organizationHostState.role);
 
 	const session = $derived(stateQuery.data?.session ?? null);
+	// a read-only grant is minted with the Turso authority, which an owner restored on this machine
+	// does not hold until they connect the account again; Rust refuses the lock without it.
+	const holdsTursoAuthority = $derived(stateQuery.data?.holdsTursoAuthority === true);
 
 	// the members are read only while the one surface that lists them is open: the settings route
 	// reads them already, so this is the same cache rather than a second request.
@@ -511,7 +514,8 @@
 	canAssignRole={member.editing?.context.canAssignRole ?? false}
 	canOverride={member.editing?.context.canOverride ?? false}
 	canGrantWorkspace={member.editing?.context.canGrantWorkspace ?? false}
-	canGrantReadOnly={member.editing?.context.isOwner ?? false}
+	canGrantReadOnly={(member.editing?.context.isOwner ?? false) && holdsTursoAuthority}
+	readerIsOwner={member.editing?.context.isOwner ?? false}
 	isSaving={isSavingMember}
 	{nameRefusal}
 	{roleRefusal}
@@ -580,7 +584,8 @@
 		workspace: workspace.changingAccess?.workspace.name ?? ''
 	})}
 	rows={workspaceRows}
-	canGrantReadOnly={session?.role === 'owner'}
+	canGrantReadOnly={session?.role === 'owner' && holdsTursoAuthority}
+	readerIsOwner={session?.role === 'owner'}
 	isSaving={changeAccess.isPending}
 	onSave={(changes) => void changeWorkspaceAccess(changes)}
 />

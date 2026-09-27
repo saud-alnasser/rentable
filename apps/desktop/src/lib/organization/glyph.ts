@@ -1,4 +1,5 @@
 import BanknoteIcon from '@lucide/svelte/icons/banknote';
+import CircleUserIcon from '@lucide/svelte/icons/circle-user';
 import HouseIcon from '@lucide/svelte/icons/house';
 import LayoutGridIcon from '@lucide/svelte/icons/layout-grid';
 import ScrollTextIcon from '@lucide/svelte/icons/scroll-text';
@@ -25,3 +26,10 @@ export const KIND_GLYPH = {
 
 /** the administration's glyph: the organization's people. */
 export const ADMINISTRATION_GLYPH = UsersIcon;
+
+/**
+ * one member of the organization, where a list draws people rather than records: an account, so
+ * the account section's glyph. The plain person is the tenant's (`KIND_GLYPH.tenant`, the tenants
+ * page), and a member is not a tenant.
+ */
+export const MEMBER_GLYPH = CircleUserIcon;

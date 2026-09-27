@@ -46,9 +46,15 @@
 	 * and each distinct reason said once above the list. The reasons are the refusals Rust makes:
 	 * every switch where the caller says the reader may turn none (`refusal`, the card's reader
 	 * without `grantWorkspace`); putting somebody in a workspace the reader holds read only, since
-	 * full access is the reader's own credential re-sealed; and the lock for anybody but the
-	 * owner, since only the owner's account mints a read-only credential. A lock already on stays
-	 * drawn on: what is refused is changing it, not reading it.
+	 * full access is the reader's own credential re-sealed, unless it puts back what the row held,
+	 * which writes nothing; and the lock for anybody but the owner, since only the owner's Turso
+	 * account mints a read-only credential, and for the owner on a machine that does not hold that
+	 * account's authority, which Rust refuses the same way. A lock already on stays drawn on: what
+	 * is refused is changing it, not reading it.
+	 *
+	 * **The lock's line is read with it.** What locking does is said under its name, tied to the
+	 * lock by `aria-describedby` beside any reason it is refused for, so a screen reader hears what
+	 * the switch would do before it is turned.
 	 */
 	let {
 		rowPrefix,
@@ -56,6 +62,7 @@
 		access,
 		onPick,
 		canGrantReadOnly,
+		readerIsOwner = false,
 		icon: Icon,
 		lockLabel,
 		refusal = null,
@@ -68,8 +75,17 @@
 		/** the level chosen per row, where it differs from the row's own. */
 		access: Record<string, AccessChoice>;
 		onPick: (id: string, value: AccessChoice) => void;
-		/** whether the reader is the owner, which is who mints a read only credential. */
+		/**
+		 * whether the reader may lock a row: they are the owner, and this machine holds the Turso
+		 * authority, which is what mints a read only credential.
+		 */
 		canGrantReadOnly: boolean;
+		/**
+		 * whether the reader is the owner, which names why the lock is refused where
+		 * `canGrantReadOnly` is false: this machine is not connected to the Turso account, rather
+		 * than the lock being somebody else's.
+		 */
+		readerIsOwner?: boolean;
 		/** the glyph every row leads with: the concept each row is. */
 		icon: typeof BuildingIcon;
 		/** the lock's accessible name on a row, which names what the row is. */
@@ -96,6 +112,9 @@
 		// off is a withdrawal, which every holder of the act may make.
 		if (isIn(row)) return null;
 
+		// back on is what the row held, which is no change and writes nothing.
+		if (inLevel(row) === row.access && row.access !== 'none') return null;
+
 		return inLevel(row) === 'full-access' && !row.givable
 			? $LL.organization.workspaceSwitches.notHeld()
 			: null;
@@ -105,7 +124,11 @@
 	const lockReason = (row: AccessSwitchRow): string | null => {
 		if (refusal) return refusal;
 
-		if (!canGrantReadOnly) return $LL.organization.workspaceSwitches.lockIsTheOwners();
+		if (!canGrantReadOnly) {
+			return readerIsOwner
+				? $LL.common.refusals.host.tursoNotConnected()
+				: $LL.organization.workspaceSwitches.lockIsTheOwners();
+		}
 
 		return isLocked(row) && !row.givable ? $LL.organization.workspaceSwitches.notHeld() : null;
 	};
@@ -150,7 +173,8 @@
 	size: 'default' | 'sm',
 	reason: string | null,
 	onTurn: (on: boolean) => void,
-	data: Record<string, string>
+	data: Record<string, string>,
+	describedBy: string | null = null
 )}
 	<Tooltip.Root disabled={!reason}>
 		<Tooltip.Trigger>
@@ -167,7 +191,9 @@
 					{disabled}
 					aria-label={label}
 					aria-disabled={reason ? 'true' : undefined}
-					aria-describedby={reason ? `${controlId}-reason` : undefined}
+					aria-describedby={[describedBy, reason ? `${controlId}-reason` : null]
+						.filter(Boolean)
+						.join(' ') || undefined}
 					class={reason ? unavailableControl : undefined}
 					data-unavailable={reason ? '' : undefined}
 				/>
@@ -219,7 +245,11 @@
 					<Field.Label for={`${controlId}-lock`} class="font-normal">
 						{$LL.organization.workspaceSwitches.lock()}
 					</Field.Label>
-					<span class="text-xs leading-snug text-muted-foreground" data-access-says={row.id}>
+					<span
+						id={`${controlId}-lock-says`}
+						class="text-xs leading-snug text-muted-foreground"
+						data-access-says={row.id}
+					>
 						{$LL.organization.workspaceSwitches.locked()}
 					</span>
 				</div>
@@ -230,7 +260,8 @@
 					'sm',
 					lockReason(row),
 					(on) => turnLock(row, on),
-					{ 'data-access-lock': row.id }
+					{ 'data-access-lock': row.id },
+					`${controlId}-lock-says`
 				)}
 			</div>
 		{/if}

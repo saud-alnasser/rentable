@@ -569,7 +569,7 @@ test('unlocking grants full access again, and off and on again changes nothing',
 	expect(saved.map((edit) => edit.changes)).toEqual([[{ id: 'ws-1', access: 'full-access' }], []]);
 });
 
-// requirement 5 of effort 826: only the owner's account mints a read-only credential, so for
+// requirement 5 of effort 826: only the owner's Turso account mints a read-only credential, so for
 // anybody else the lock is drawn dimmed with the reason, never hidden, and a lock already on
 // stays on.
 test('for anybody but the owner the lock is dimmed and says why', async () => {
@@ -603,6 +603,43 @@ test('for anybody but the owner the lock is dimmed and says why', async () => {
 	await submit();
 
 	expect(saved.map((edit) => edit.changes)).toEqual([[]]);
+});
+
+// ticket 50: switching a workspace back to what the member held writes nothing, so a reader
+// holding it read only, who could not put them in afresh, may still turn it off and on again.
+test('a reader holding a workspace read only switches the member out and back in, writing nothing', async () => {
+	const saved: { changes: unknown }[] = [];
+
+	sheet({
+		canGrantReadOnly: false,
+		rows: [{ id: 'ws-1', name: 'Riyadh', access: 'full-access' as const, givable: false }],
+		onSave: (edit) => saved.push(edit)
+	});
+
+	await fireEvent.click(inSwitch('ws-1')!);
+	expect(checked(inSwitch('ws-1'))).toBe(false);
+	expect(dimmed(inSwitch('ws-1'))).toBe(false);
+
+	await fireEvent.click(inSwitch('ws-1')!);
+	expect(checked(inSwitch('ws-1'))).toBe(true);
+
+	await submit();
+
+	expect(saved.map((edit) => edit.changes)).toEqual([[]]);
+});
+
+// the owner on a machine without the Turso authority, where Rust refuses a read-only grant: the
+// lock is dimmed with the sentence that says this machine is not connected.
+test('for the owner on a machine without the Turso authority the lock says so', () => {
+	sheet({ canGrantReadOnly: false, readerIsOwner: true });
+
+	const reason = en.common.refusals.host.tursoNotConnected;
+
+	expect(dimmed(lockSwitch('ws-1'))).toBe(true);
+	expect(workspaceReasons()).toEqual([reason]);
+	expect(lockSwitch('ws-1')?.getAttribute('aria-describedby')).toBe(
+		'access-ws-1-lock-says access-ws-1-lock-reason'
+	);
 });
 
 // grantWorkspace: a reader without it reads the workspaces, every switch dimmed, and the reason

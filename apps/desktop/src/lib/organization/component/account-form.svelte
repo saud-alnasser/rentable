@@ -78,6 +78,7 @@
 		readerRank,
 		readerPermissions,
 		canGrantReadOnly,
+		readerIsOwner = false,
 		isCreating,
 		onCreate
 	}: {
@@ -91,8 +92,13 @@
 		readerRank: number;
 		/** what the maker may do: a flag outside it is not theirs to switch. */
 		readerPermissions: number;
-		/** whether this machine holds the Turso authority, which is what mints a read-only credential. */
+		/**
+		 * whether the reader may lock a workspace to read only: they are the owner, and this
+		 * machine holds the Turso authority, which is what mints a read only credential.
+		 */
 		canGrantReadOnly: boolean;
+		/** whether the reader is the owner, which names why the lock is refused where it is. */
+		readerIsOwner?: boolean;
 		isCreating: boolean;
 		onCreate: (
 			username: string,
@@ -257,6 +263,7 @@
 			{access}
 			onPick={pickAccess}
 			{canGrantReadOnly}
+			{readerIsOwner}
 			disabled={isCreating}
 		/>
 	</div>

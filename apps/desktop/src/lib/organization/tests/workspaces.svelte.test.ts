@@ -363,7 +363,10 @@ test('an owner holding every gate is offered members and delete on each card, an
 	expect(await actsOn('ws-2')).toEqual(['grant', 'delete']);
 });
 
-test('a member holding no act is offered no menu at all, and no create control', () => {
+// ticket 50 of effort 838: who is in a workspace is offered to every reader and refused, naming
+// the flag, without `grantWorkspace`, as the member's card refuses its workspaces section, so the
+// two ends of a grant refuse the same way. Nothing else is offered, and there is no create.
+test('a member holding no act is offered only who is in each workspace, refused naming the flag', async () => {
 	list({
 		canCreate: false,
 		canDelete: false,
@@ -372,8 +375,17 @@ test('a member holding no act is offered no menu at all, and no create control',
 	});
 
 	for (const id of ['ws-1', 'ws-2']) {
-		expect(control(id), id).toBeNull();
+		expect(await actsOn(id), id).toEqual(['grant']);
 	}
+
+	await fireEvent.click(control('ws-1')!);
+
+	const grant = on('grant', 'ws-1');
+
+	expect(grant?.getAttribute('aria-disabled')).toBe('true');
+	await fireEvent.click(grant!);
+	expect(organizationHostState.workspace.changingAccess).toBeNull();
+
 	expect(document.querySelector('[data-workspace-create]')).toBeNull();
 	expect(document.querySelector('[data-workspace-refusal]')).toBeNull();
 });
@@ -397,12 +409,13 @@ test('each act is drawn by its own gate and by no other', async () => {
 		rendered.unmount();
 	};
 
-	await only({ canRename: true }, 'ws-1', ['edit']);
-	await only({ canRename: true }, 'ws-2', []);
+	// who is in a workspace is on every card, refused where the reader lacks the flag.
+	await only({ canRename: true }, 'ws-1', ['edit', 'grant']);
+	await only({ canRename: true }, 'ws-2', ['grant']);
 	await only({ canGrantWorkspace: true }, 'ws-1', ['grant']);
 	await only({ canGrantWorkspace: true }, 'ws-2', ['grant']);
-	await only({ canDelete: true }, 'ws-1', ['delete']);
-	await only({ canDelete: true }, 'ws-2', ['delete']);
+	await only({ canDelete: true }, 'ws-1', ['grant', 'delete']);
+	await only({ canDelete: true }, 'ws-2', ['grant', 'delete']);
 });
 
 // [[rules/interface]], *Row activation*: activating a card opens its record, which for a workspace

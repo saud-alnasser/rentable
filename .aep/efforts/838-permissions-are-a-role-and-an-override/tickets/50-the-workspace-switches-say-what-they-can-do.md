@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [49]
 ---
 
@@ -18,19 +18,19 @@ glyph there, and the read-only act has two names. After this each is as the crit
 
 Traces requirement 12 of [[efforts/838-permissions-are-a-role-and-an-override/spec]].
 
-- [ ] Switching a row back to what it held is never refused; a test switches a full-access member
+- [x] Switching a row back to what it held is never refused; a test switches a full-access member
       out and in as a reader holding the workspace read only, and nothing is written.
-- [ ] The lock is offered only where the reader is the owner and this machine holds the Turso
+- [x] The lock is offered only where the reader is the owner and this machine holds the Turso
       authority; otherwise it is dimmed with the reason. `canGrantReadOnly` means that at every
       caller and its doc says so.
-- [ ] The lock's line is tied to the lock by `aria-describedby` and says what locking does.
-- [ ] The dialog's save carries the save glyph, its empty line names people, and the workspace
+- [x] The lock's line is tied to the lock by `aria-describedby` and says what locking does.
+- [x] The dialog's save carries the save glyph, its empty line names people, and the workspace
       card's act that opens it is refused with its reason rather than hidden.
-- [ ] Members are drawn with a glyph of their own, not the tenant's; one name for the read-only act
+- [x] Members are drawn with a glyph of their own, not the tenant's; one name for the read-only act
       in both languages; "the owner's Turso account" where prose says whose account; the i18n
       test comment and the plan agree with the spelling in use; `acts.ts`'s member.edit doc says
       what the sheet draws.
-- [ ] Tests in English and Arabic; `pnpm check`, `pnpm test` and `pnpm lint` pass.
+- [x] Tests in English and Arabic; `pnpm check`, `pnpm test` and `pnpm lint` pass.
 
 ## Relevant areas
 

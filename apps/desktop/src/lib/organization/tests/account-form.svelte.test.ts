@@ -271,7 +271,7 @@ test('with no workspace to grant, the section says so', () => {
 });
 
 // requirement 5: minting a read-only credential is the owner's, so for anybody else the lock is
-// drawn dimmed, never hidden, and the sentence names the owner's account.
+// drawn dimmed, never hidden, and the sentence names the owner's Turso account.
 test('the lock is dimmed for anybody but the owner, in words rather than by hiding it', async () => {
 	loadLocale('en');
 	setLocale('en');
@@ -289,6 +289,19 @@ test('the lock is dimmed for anybody but the owner, in words rather than by hidi
 
 	await fireEvent.click(lockSwitch('ws-1')!);
 	expect(checked(lockSwitch('ws-1'))).toBe(false);
+});
+
+// the owner on a machine without the Turso authority: the lock is dimmed, saying this machine is
+// not connected, since Rust refuses a read-only invitation there.
+test('for the owner on a machine without the Turso authority the lock says so', async () => {
+	loadLocale('en');
+	setLocale('en');
+	form({ canGrantReadOnly: false, readerIsOwner: true });
+
+	await fireEvent.click(inSwitch('ws-1')!);
+
+	expect(dimmed(lockSwitch('ws-1'))).toBe(true);
+	expect(workspaceReasons()).toEqual([en.common.refusals.host.tursoNotConnected]);
 });
 
 test('the lock and its reason read in arabic', async () => {

@@ -858,7 +858,7 @@ for (const [reader, context] of Object.entries(WORKSPACE_READERS)) {
 	}
 }
 
-test('a workspace is edited only where it is open, and the owner alone deletes one', () => {
+test('a workspace is edited only where it is open, its people refused without the flag, and the owner alone deletes one', () => {
 	const acts = declareWorkspaceActs(recordingOrganizationHost().workspace);
 	const idsFor = (id: string, reader: string) =>
 		toPageActions(
@@ -874,9 +874,27 @@ test('a workspace is edited only where it is open, and the owner alone deletes o
 	]);
 	assert.deepEqual(idsFor('ws-2', 'owner'), ['workspace.members', 'workspace.delete']);
 	assert.deepEqual(idsFor('ws-1', 'manager'), ['workspace.edit', 'workspace.members']);
-	assert.deepEqual(idsFor('ws-1', 'member widened by renameWorkspace'), ['workspace.edit']);
-	assert.deepEqual(idsFor('ws-2', 'member widened by renameWorkspace'), []);
-	assert.deepEqual(idsFor('ws-1', 'member holding nothing'), []);
+	// who is in a workspace is offered to every reader and refused without `grantWorkspace`,
+	// naming it, as the member's card refuses its workspaces section (ticket 50 of effort 838).
+	assert.deepEqual(idsFor('ws-1', 'member widened by renameWorkspace'), [
+		'workspace.edit',
+		'workspace.members'
+	]);
+	assert.deepEqual(idsFor('ws-2', 'member widened by renameWorkspace'), ['workspace.members']);
+	assert.deepEqual(idsFor('ws-1', 'member holding nothing'), ['workspace.members']);
+
+	const membersRefusal = (reader: string) =>
+		toPageActions(
+			acts,
+			{ workspace: workspaceOf('ws-1'), context: WORKSPACE_READERS[reader] },
+			translations
+		).find((act) => act.id === 'workspace.members')?.unavailable;
+
+	assert.equal(membersRefusal('manager'), undefined);
+	assert.equal(
+		membersRefusal('member holding nothing'),
+		lackingFlag(translations, 'grantWorkspace')
+	);
 
 	const edit = acts.find((act) => act.id === 'workspace.edit')!;
 

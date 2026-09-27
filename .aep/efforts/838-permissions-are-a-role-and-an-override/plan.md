@@ -590,12 +590,14 @@ file with the same `CREATE` statements, through `sqlx` as the rest of the plain 
 
 *The human's call.* The member's card and the add-member form list the organization's
 workspaces as switches: on is a full-access grant, off is none. Beneath a workspace switched on,
-the owner sees *lock to read-only*, a smaller switch whose line says the member cannot change
+the owner sees *lock to read only*, a smaller switch whose line says the member cannot change
 anything in it, even outside the application; for anyone else it is shown, dimmed, with the reason
-(only the owner's account mints a read-only credential). The words *full access*, *read-only* and
-*no access* leave the card; *read-only* stays as the lock's name and on the workspace's own
-readers. Behaviour is unchanged: switching on grants, off withdraws, locking re-grants read-only,
-unlocking re-grants full access, each through the acts that exist.
+(only the owner's Turso account mints a read-only credential). The words *full access*, *read
+only* and *no access* leave the card; *read only* stays as the lock's name and on the workspace's
+own readers. Behaviour is unchanged: switching on grants, off withdraws, locking re-grants read
+only, unlocking re-grants full access, each through the acts that exist. *Ticket 50: the lock is
+offered to the owner only on a machine holding the Turso authority, and switching a workspace back
+to what it held is never refused.*
 
 # Testing Strategy
 

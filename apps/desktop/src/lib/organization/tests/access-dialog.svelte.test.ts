@@ -194,7 +194,7 @@ test('unlocking grants full access again, and off and on again changes nothing',
 	expect(saved).toEqual([[{ id: 'ada', access: 'full-access' }], []]);
 });
 
-// requirement 5 of effort 826: only the owner's account mints a read-only credential, so for
+// requirement 5 of effort 826: only the owner's Turso account mints a read-only credential, so for
 // anybody else the lock is drawn dimmed with the reason, never hidden, and a lock already on
 // stays on.
 test('for anybody but the owner the lock is dimmed and says why', async () => {
@@ -263,6 +263,95 @@ test('a workspace the reader holds read only puts nobody in, and still withdraws
 	expect(saved).toEqual([[{ id: 'ada', access: 'none' }]]);
 });
 
+// ticket 50: turning a member back to what they held writes nothing, so it is never refused, even
+// by a reader holding the workspace read only, who could not put them in afresh.
+test('a reader holding the workspace read only switches a member out and back in, writing nothing', async () => {
+	const saved: { id: string; access: string }[][] = [];
+
+	dialog({
+		canGrantReadOnly: false,
+		rows: [{ id: 'ada', name: 'ada', access: 'full-access' as const, givable: false }],
+		onSave: (changes) => saved.push(changes)
+	});
+
+	await fireEvent.click(inSwitch('ada')!);
+	expect(checked(inSwitch('ada'))).toBe(false);
+	expect(dimmed(inSwitch('ada'))).toBe(false);
+	expect(reasons()).not.toContain(en.organization.workspaceSwitches.notHeld);
+
+	await fireEvent.click(inSwitch('ada')!);
+	expect(checked(inSwitch('ada'))).toBe(true);
+
+	await submit();
+
+	expect(saved).toEqual([[]]);
+});
+
+// the owner on a machine without the Turso authority: Rust refuses a read-only grant there, so
+// the lock is dimmed with the sentence that says this machine is not connected, not the owner's.
+test('for the owner on a machine without the Turso authority the lock says so', async () => {
+	const saved: { id: string; access: string }[][] = [];
+
+	dialog({
+		canGrantReadOnly: false,
+		readerIsOwner: true,
+		onSave: (changes) => saved.push(changes)
+	});
+
+	const reason = en.common.refusals.host.tursoNotConnected;
+
+	expect(dimmed(lockSwitch('ada'))).toBe(true);
+	expect(document.querySelector('#access-ada-lock-reason')?.textContent?.trim()).toBe(reason);
+	expect(reasons()).toEqual([reason]);
+
+	await fireEvent.click(lockSwitch('ada')!);
+	expect(checked(lockSwitch('ada'))).toBe(false);
+
+	await submit();
+
+	expect(saved).toEqual([[]]);
+});
+
+// the lock's line says what locking does, and is read with the lock, beside any reason it is
+// refused for.
+test('the lock is described by what locking does, and by its reason where it has one', () => {
+	const first = dialog();
+
+	expect(document.querySelector('#access-ada-lock-says')?.textContent?.trim()).toBe(
+		en.organization.workspaceSwitches.locked
+	);
+	expect(lockSwitch('ada')?.getAttribute('aria-describedby')).toBe('access-ada-lock-says');
+
+	first.unmount();
+	dialog({ canGrantReadOnly: false });
+
+	expect(lockSwitch('ada')?.getAttribute('aria-describedby')).toBe(
+		'access-ada-lock-says access-ada-lock-reason'
+	);
+});
+
+// the save carries save's glyph, as the member's sheet and the role editor do, and members are
+// drawn with a member's glyph rather than the tenant's person.
+test('the save carries the save glyph, and each member the member glyph', () => {
+	dialog();
+
+	const save = document.querySelector('button[type=submit]');
+
+	expect(save?.querySelector('svg')?.classList.contains('lucide-save')).toBe(true);
+	expect(
+		document.querySelector('[data-access-row="ada"] svg')?.classList.contains('lucide-circle-user')
+	).toBe(true);
+	expect(document.querySelector('[data-access-row="ada"] svg.lucide-user')).toBeNull();
+});
+
+test('with nobody to list it says there is no member to put in', () => {
+	dialog({ rows: [] });
+
+	expect(document.querySelector('[data-access-empty]')?.textContent?.trim()).toBe(
+		en.organization.dashboard.noMemberToGrant
+	);
+});
+
 test('a closed dialog puts nothing in the document', () => {
 	dialog({ open: false });
 
@@ -308,6 +397,29 @@ test('and in arabic a workspace the reader holds read only says so at the switch
 
 	expect(dimmed(inSwitch('sami'))).toBe(true);
 	expect(reasons()).toEqual([ar.organization.workspaceSwitches.notHeld]);
+
+	setLocale('en');
+});
+
+test('and in arabic the owner without the Turso authority, and nobody to list, read in arabic', () => {
+	loadLocale('ar');
+	setLocale('ar');
+	const first = dialog({ canGrantReadOnly: false, readerIsOwner: true }, 'rtl');
+
+	expect(reasons()).toEqual([ar.common.refusals.host.tursoNotConnected]);
+	expect(ar.common.refusals.host.tursoNotConnected).not.toBe(
+		en.common.refusals.host.tursoNotConnected
+	);
+
+	first.unmount();
+	dialog({ rows: [] }, 'rtl');
+
+	expect(document.querySelector('[data-access-empty]')?.textContent?.trim()).toBe(
+		ar.organization.dashboard.noMemberToGrant
+	);
+	expect(ar.organization.dashboard.noMemberToGrant).not.toBe(
+		en.organization.dashboard.noMemberToGrant
+	);
 
 	setLocale('en');
 });

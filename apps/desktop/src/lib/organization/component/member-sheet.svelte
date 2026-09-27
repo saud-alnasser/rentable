@@ -94,6 +94,7 @@
 		canOverride,
 		canGrantWorkspace,
 		canGrantReadOnly,
+		readerIsOwner = false,
 		isSaving,
 		nameRefusal,
 		roleRefusal,
@@ -125,8 +126,13 @@
 		canOverride: boolean;
 		/** `grantWorkspace`: the workspaces. */
 		canGrantWorkspace: boolean;
-		/** whether the reader is the owner, which is who mints a read only credential. */
+		/**
+		 * whether the reader may lock a workspace to read only: they are the owner, and this
+		 * machine holds the Turso authority, which is what mints a read only credential.
+		 */
 		canGrantReadOnly: boolean;
+		/** whether the reader is the owner, which names why the lock is refused where it is. */
+		readerIsOwner?: boolean;
 		isSaving: boolean;
 		/** what the rename was refused with, or `null`. */
 		nameRefusal: string | null;
@@ -296,6 +302,7 @@
 			{access}
 			onPick={pickAccess}
 			{canGrantReadOnly}
+			{readerIsOwner}
 			refusal={canGrantWorkspace ? null : lacking($LL, 'grantWorkspace')}
 			disabled={isSaving}
 			error={workspacesRefusal}

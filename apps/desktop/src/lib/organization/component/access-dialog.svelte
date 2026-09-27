@@ -15,8 +15,8 @@
 	import AccessSwitches, {
 		type AccessSwitchRow
 	} from '$lib/organization/component/access-switches.svelte';
-	import KeyIcon from '@lucide/svelte/icons/key-round';
-	import UserIcon from '@lucide/svelte/icons/user';
+	import { MEMBER_GLYPH } from '$lib/organization/glyph';
+	import SaveIcon from '@lucide/svelte/icons/save';
 
 	/**
 	 * Who holds a workspace, one switch per member: in or out, and the owner's lock to read only
@@ -29,18 +29,21 @@
 	 *
 	 * **It draws a grant as a member's card does** (`access-switches.svelte`), read from the
 	 * other end: the card lists the workspaces a member is in, this lists the people a workspace
-	 * has, and the switches, their refusals and their reasons are the one list's. The glyph is the
-	 * member's person, the one their sheet leads with. *It offered full access, read only and no
+	 * has, and the switches, their refusals and their reasons are the one list's. The glyph is a
+	 * member's (`MEMBER_GLYPH`), not the tenant's person. *It offered full access, read only and no
 	 * access per member, as a toggle group of three, until the card's switches made those words
 	 * the ones the human had retired.*
 	 *
 	 * **The refusals are the list's own.** Putting somebody in is the reader's full-access
 	 * credential re-sealed, so a reader holding this workspace read only may take people out and
-	 * put nobody in; the lock is the owner's, because minting a read-only credential needs the
-	 * Turso authority on the owner's machine (requirement 5), drawn dimmed with the reason for
-	 * anybody else, and a lock already on stays drawn on. Rust refuses both again. Who is listed
-	 * is the caller's: never the owner, whose grant is never withdrawn, and never the reader, who
-	 * does not write their own row. The dialog opens only for a reader holding `grantWorkspace`.
+	 * put nobody in, save back what somebody held; the lock is the owner's, because minting a
+	 * read-only credential needs the Turso authority on the owner's machine (requirement 5), drawn
+	 * dimmed with the reason for anybody else and for the owner on a machine without it, and a
+	 * lock already on stays drawn on. Rust refuses both again. Who is listed is the caller's:
+	 * never the owner, whose grant is never withdrawn, and never the reader, who does not write
+	 * their own row. The workspace card's act that opens this is refused, naming `grantWorkspace`,
+	 * for a reader without it, as the member's card refuses its workspaces section, so the dialog
+	 * opens only for a reader holding it.
 	 *
 	 * **Taking a grant back mints nothing**, so the credential the member already holds works
 	 * until it expires. Cutting somebody off at once is the lock-out on a removal, and that is the
@@ -56,6 +59,7 @@
 		description,
 		rows,
 		canGrantReadOnly,
+		readerIsOwner = false,
 		isSaving,
 		onSave
 	}: {
@@ -69,8 +73,13 @@
 		 * holds the workspace at full access, which is what putting somebody in gives.
 		 */
 		rows: AccessSwitchRow[];
-		/** whether the reader is the owner, which is who mints a read-only credential. */
+		/**
+		 * whether the reader may lock a member: they are the owner, and this machine holds the
+		 * Turso authority, which is what mints a read only credential.
+		 */
 		canGrantReadOnly: boolean;
+		/** whether the reader is the owner, which names why the lock is refused where it is. */
+		readerIsOwner?: boolean;
 		isSaving: boolean;
 		/** the rows whose access changed, and what each one should become. */
 		onSave: (changes: { id: string; access: AccessChoice }[]) => void;
@@ -104,7 +113,7 @@
 	<div class="flex flex-col gap-3" data-access-form>
 		{#if rows.length === 0}
 			<Field.Description data-access-empty>
-				{$LL.organization.dashboard.noWorkspaces()}
+				{$LL.organization.dashboard.noMemberToGrant()}
 			</Field.Description>
 		{/if}
 
@@ -114,7 +123,8 @@
 			access={chosen}
 			onPick={pick}
 			{canGrantReadOnly}
-			icon={UserIcon}
+			{readerIsOwner}
+			icon={MEMBER_GLYPH}
 			lockLabel={(row) => $LL.organization.workspaceSwitches.lockMemberNamed({ member: row.name })}
 			disabled={isSaving}
 		/>
@@ -124,9 +134,9 @@
 		<Button type="button" variant="outline" disabled={isSaving} onclick={() => onOpenChange(false)}>
 			{$LL.common.actions.cancel()}
 		</Button>
-		<!-- the verb's glyph before its label, as every primary here carries one. -->
+		<!-- save's glyph before its label, as the member's sheet and the role editor carry it. -->
 		<Button type="submit" disabled={isSaving}>
-			<KeyIcon class="size-4" />
+			<SaveIcon class="size-4" />
 			{isSaving ? $LL.common.actions.working() : $LL.common.actions.save()}
 		</Button>
 	{/snippet}

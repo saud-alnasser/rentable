@@ -35,7 +35,8 @@ import PaletteHarness from '#tests/palette-harness.svelte';
  * **What the reader may not do is not offered.** Their gates are known before a record is named,
  * so an act no record admits for this reader is absent, and once an act is chosen only the records
  * it admits are listed. One waiting on a write already running is listed and refused with the
- * reason.
+ * reason, and so is who is in a workspace for a reader without `grantWorkspace`, since the card
+ * refuses it rather than leaving it out.
  *
  * **The reads are the mock**: the session, the members, where each stands and the machine's sync
  * record reach a shell this runner has none of. The host's `run` is spied on rather than stood in
@@ -235,13 +236,17 @@ test('a workspace act reaches the organization host with the workspace the reade
 	expect(organizationHostState.workspace.changingAccess?.workspace).toEqual(north);
 });
 
-test('a workspace act the reader may not take is not offered', async () => {
+test('a workspace act the reader may not take is not offered, and who is in one is refused', async () => {
+	const north = fakeOrganizationWorkspace({ id: 'north', name: 'North Properties' });
+
 	// a member whose row carries nothing an act is gated on.
 	answers.session = fakeOrganizationSession({
 		memberId: 'sami',
 		role: 'member',
-		permissions: 0
+		permissions: 0,
+		workspaces: [north]
 	});
+	const run = vi.spyOn(workspaceHost, 'run');
 
 	await openPalette();
 
@@ -250,10 +255,22 @@ test('a workspace act the reader may not take is not offered', async () => {
 		expect(document.querySelectorAll('[data-slot=command-item]').length).toBeGreaterThan(0)
 	);
 
-	for (const act of ['workspace.edit', 'workspace.members', 'workspace.delete']) {
+	for (const act of ['workspace.edit', 'workspace.delete']) {
 		expect(row(act), act).toBeNull();
 	}
 
 	// nor anything of a member's, since sami's row writes nobody.
 	expect(document.querySelector('[data-value^="member."]')).toBeNull();
+
+	// who is in a workspace is refused naming the flag rather than left out, as the member's card
+	// refuses its workspaces section (ticket 50 of effort 838).
+	await waitFor(() => expect(row('workspace.members')).not.toBeNull());
+	await fireEvent.click(row('workspace.members')!);
+	await waitFor(() => expect(row('north')).not.toBeNull());
+	expect(row('north')!.getAttribute('aria-disabled')).toBe('true');
+
+	await fireEvent.click(row('north')!);
+
+	expect(run).not.toHaveBeenCalled();
+	expect(organizationHostState.workspace.changingAccess).toBeNull();
 });

@@ -40,6 +40,7 @@
 		access,
 		onPick,
 		canGrantReadOnly,
+		readerIsOwner = false,
 		refusal = null,
 		disabled,
 		error = null
@@ -57,8 +58,13 @@
 		/** the level chosen per workspace, where it differs from the row's own. */
 		access: Record<string, AccessChoice>;
 		onPick: (id: string, value: AccessChoice) => void;
-		/** whether the reader is the owner, which is who mints a read only credential. */
+		/**
+		 * whether the reader may lock a workspace to read only: they are the owner, and this
+		 * machine holds the Turso authority, which is what mints a read only credential.
+		 */
 		canGrantReadOnly: boolean;
+		/** whether the reader is the owner, which names why the lock is refused where it is. */
+		readerIsOwner?: boolean;
 		/** why the reader may turn none of them, or `null` where they may. */
 		refusal?: string | null;
 		disabled: boolean;
@@ -80,6 +86,7 @@
 		{access}
 		{onPick}
 		{canGrantReadOnly}
+		{readerIsOwner}
 		icon={BuildingIcon}
 		lockLabel={(row) => $LL.organization.workspaceSwitches.lockNamed({ workspace: row.name })}
 		{refusal}

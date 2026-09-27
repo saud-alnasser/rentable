@@ -286,7 +286,10 @@ test('both locales have let go of every string the retired pages read', () => {
 // english key, spelled the same wherever a screen draws it, and its arabic is written rather
 // than left in english; and the words the requirement retires are in no english sentence.
 // *Read only was a term of its own, `dashboard.accessReadOnly`, until ticket 49 of effort 838 left
-// no level to name: it is said now only as the lock's name, `workspaceSwitches.lock`.*
+// no level to name. It is still said in several keys, the lock's names and refusals
+// (`workspaceSwitches`), its flag (`organization.flags.mintReadOnly`) and a reader's own
+// read only workspace (`common.permission.readOnly`), none of them a term the table holds; the
+// test below holds its spelling, one way wherever an organization string says it.*
 const TERMS = [
 	['sign in', 'common.actions.signIn'],
 	['sign out', 'common.actions.signOut'],

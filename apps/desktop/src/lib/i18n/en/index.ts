@@ -1235,6 +1235,8 @@ const en = {
 				'a username, a role and the workspaces they hold. no password until they open a link you make.',
 			role: 'role',
 			noWorkspaceToGrant: 'no workspace to grant yet. they can be granted one later.',
+			// the workspace's own dialog with nobody to list: the owner and the reader are not.
+			noMemberToGrant: 'no member to put in this workspace yet.',
 			addMember: 'add a member',
 			cannotSend:
 				'rentable sends nothing: copy the link below, hand it over, and give the code separately. it works once.',
@@ -1307,7 +1309,7 @@ const en = {
 				'you do not hold {workspaces}, so the link could not carry it over. a manager who does can grant it again.',
 			noWorkspaces: 'no workspace yet.',
 			// what a card says about the workspaces somebody holds: how many, and not which. Which
-			// ones, and what each is good for, is the surface the card's own menu opens.
+			// ones, and which of them are locked to read only, is the sheet the card's edit opens.
 			workspacesHeld: '{count|number} {{workspace|workspaces}}',
 			accessFull: 'full access',
 			accessTakenBack:
@@ -1516,8 +1518,8 @@ const en = {
 			lock: 'lock to read only',
 			lockNamed: 'lock {workspace:string} to read only',
 			lockMemberNamed: 'lock {member:string} to read only',
-			locked: 'they cannot change anything in this workspace, even outside the app.',
-			lockIsTheOwners: "only the owner's Turso account can issue a read only credential.",
+			locked: 'once locked, they cannot change anything in this workspace, even outside the app.',
+			lockIsTheOwners: "only the owner's Turso account can grant read only access.",
 			notHeld: 'you hold this workspace read only, so you cannot give it.'
 		}
 	},

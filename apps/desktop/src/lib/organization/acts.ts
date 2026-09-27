@@ -260,7 +260,9 @@ export function declareMemberActs(host: MemberHostRequests): MemberAct[] {
 		},
 		{
 			// one edit where the name, the role and the workspaces were two entries: they are one
-			// person's standing, and the sheet draws whichever of them this reader may write.
+			// person's standing. The sheet draws the role, the override and the workspaces for every
+			// reader, each refused with its reason where the reader may not write it; only the name
+			// is gated, drawn only for a reader who may rename.
 			id: 'member.edit',
 			label: (t) => t.common.actions.edit(),
 			icon: SquarePenIcon,
@@ -414,12 +416,15 @@ export function declareWorkspaceActs(host: WorkspaceHostRequests): WorkspaceAct[
 			run: host.edit
 		},
 		{
-			// the directory's own word: who is in a workspace is what this opens.
+			// the directory's own word: who is in a workspace is what this opens. Offered to every
+			// reader and refused, naming the flag, without it, as the member's card draws its
+			// workspaces for every reader and refuses them the same way: the two ends of a grant.
 			id: 'workspace.members',
 			label: (t) => t.organization.dashboard.membersTitle(),
 			icon: UsersIcon,
 			group: 'primary',
-			appliesTo: ({ context }) => context.canGrantWorkspace,
+			unavailable: ({ context }, t) =>
+				context.canGrantWorkspace ? undefined : lacking(t, 'grantWorkspace'),
 			run: host.changeAccess
 		},
 		{

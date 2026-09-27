@@ -662,24 +662,30 @@ until ticket 43 of that effort, the human's call on the running application of 2
 **A member's workspaces are in or out, and the one limit a role cannot give is a lock.** Each
 workspace the reader holds is a switch headed by the workspaces' building glyph: on is a
 full-access grant, off is none. Beneath one that is on, a mini switch, *lock to read only*, grants
-it read only when on and full access again when off, with the one line under it saying the member
-cannot change anything in that workspace, even outside the application. Turning a workspace off
-and on again puts back what it held. The words *full access* and *no access* are not on the card;
-*read only* is the lock's name. Refusals are drawn as the switch list draws them, dimmed with the
-reason at the switch and each reason said once above the list: every switch without
-`grantWorkspace`, naming it, on the member's card, which draws the section for every reader; the
-workspace's own switch where the reader holds it read only, since full access is their own
-credential re-sealed (a withdrawal stays theirs); and the lock for anybody but the owner, since
-only the owner's account mints a read-only credential, a lock already on staying drawn on. A
-member ranked at or above the reader is refused at the card's edit act, which opens nothing. The
-acts are the grants that exist (`useChangeAccess`), sent only for the workspaces that changed.
-**A workspace's own dialog draws its people the same way**, a switch per member with the lock
-beneath one who is in and the same refusals at the same controls, from the one list both surfaces
-share (`access-switches.svelte`), so the two cannot refuse differently; the member's person is its
-glyph, and the owner and the reader are not listed. *The human's call on the running application,
-2026-09-27 ([[efforts/838-permissions-are-a-role-and-an-override/spec]], requirement 12 as amended
-again; tickets 48 and 49): each workspace was a row of three levels beside the role, which read as
-a second permission system, and the workspace's dialog offered the same three per member.*
+it read only when on and full access again when off, with the one line under it saying what
+locking does, that the member cannot change anything in that workspace, even outside the
+application, tied to the lock by `aria-describedby`. Turning a workspace off and on again puts back
+what it held, and is never refused, since it writes nothing. The words *full access* and *no
+access* are not on the card; *read only* is the lock's name. Refusals are drawn as the switch list
+draws them, dimmed with the reason at the switch and each reason said once above the list: every
+switch without `grantWorkspace`, naming it, on the member's card, which draws the section for
+every reader; the workspace's own switch where the reader holds it read only, since full access is
+their own credential re-sealed (a withdrawal stays theirs); and the lock for anybody but the
+owner, since only the owner's Turso account mints a read-only credential, and for the owner on a
+machine that does not hold that account's authority, saying this machine is not connected to it,
+a lock already on staying drawn on. A member ranked at or above the reader is refused at the
+card's edit act, which opens nothing. The acts are the grants that exist (`useChangeAccess`), sent
+only for the workspaces that changed. **A workspace's own dialog draws its people the same way**,
+a switch per member with the lock beneath one who is in and the same refusals at the same
+controls, from the one list both surfaces share (`access-switches.svelte`), so the two cannot
+refuse differently; a member is drawn with the member's glyph (`organization/glyph.ts`,
+`circle-user`, the account's), never the tenant's person, and the owner and the reader are not
+listed. The workspace card's act that opens it is refused without `grantWorkspace`, naming it, as
+the member's card refuses its section, rather than hidden. *The human's call on the running
+application, 2026-09-27 ([[efforts/838-permissions-are-a-role-and-an-override/spec]], requirement
+12 as amended again; tickets 48, 49 and 50): each workspace was a row of three levels beside the
+role, which read as a second permission system, and the workspace's dialog offered the same three
+per member.*
 
 **A submit is labelled with its verb, and carries the verb's glyph before the label.** Every submit
 does, the domain forms' as well as the organization's and the startup screens': *create* takes the
