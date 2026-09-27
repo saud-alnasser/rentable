@@ -101,7 +101,10 @@ organization's administration on bits 0 to 9 (`inviteMember`, `removeMember`, `a
 `deleteWorkspace`, `mintReadOnly`, `lockOut`, `renewCredentials`, `tursoAccount`,
 `transferOwnership`, `deleteOrganization`, together `OWNER_ONLY`), and viewing, creating, editing
 and deleting each record kind on 20 to 39. Arithmetic, never `&` or `^` in TypeScript: bitwise
-operators keep 32 bits and bit 39 is past them.
+operators keep 32 bits and bit 39 is past them. **Writing a kind needs viewing it**: no role mask
+and no member's effective permissions carry a kind's add, edit or delete without its view (838,
+requirement 6 as amended 2026-09-27), refused by the package's `firstWriteWithoutView`, Rust's
+`refuse_write_without_view` and, first, the organization router.
 _Avoid_: "act" for the flag and "permission" for the mask in the same sentence as each other.
 
 **Role**:
@@ -111,8 +114,9 @@ carries every flag but the owner's, **member** carries viewing every record kind
 editing records; both are rows written with the organization and signed by the owner's root, and
 their masks are editable. **Custom** roles rank strictly between member (0) and manager
 (1,000,000), strictly ordered among themselves, and are made, renamed, re-masked, moved and deleted
-from the settings area's organization section. Deleting one moves its holders to member
-(`role.rs`, 838 requirements 3 and 4).
+from the settings area's organization section. Deleting one moves its holders to member and clears
+their override, so they hold the member role exactly (`role.rs`, 838 requirements 3, 4 and 6 as
+amended 2026-09-27).
 _Avoid_: "administrator", which the manager replaced.
 
 **Override**:
@@ -120,7 +124,8 @@ One mask on one member's row, empty by default, switching flags of their role fo
 member's **effective permissions** are their role's mask exclusive-or'd with their override
 (`permission::effective`, and `effective` in the package, one routine per language held equal by
 a shared table of cases). The owner carries none. Set from the member's card by a holder of
-`overrideMember`.
+`overrideMember`. **Assigning a role clears it** unless an override is sent with the role in the
+same write (`assign_role`), and so does deleting the role the member held.
 
 **Rank**:
 How high a role stands: the owner 2,000,000, the manager 1,000,000, the custom roles between, the

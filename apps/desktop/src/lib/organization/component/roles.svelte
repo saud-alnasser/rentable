@@ -245,11 +245,11 @@
 								{@const held = administrationHeld(role.mask)}
 								{#each levelsOf(role) as line (line.word)}
 									<div
-										class="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs leading-snug"
+										class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs leading-snug"
 										data-role-level={line.level}
 									>
 										<span class="font-medium" data-role-level-word>{line.word}</span>
-										<ul class="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-muted-foreground">
+										<ul class="flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground">
 											{#each line.kinds as kind (kind)}
 												{@const Glyph = KIND_GLYPH[kind]}
 												<li class="flex items-center gap-1" data-role-kind-line={kind}>
@@ -268,7 +268,7 @@
 								{/each}
 								{#if held > 0}
 									<p
-										class="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs leading-snug"
+										class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs leading-snug"
 										data-role-administers
 									>
 										<span class="font-medium">{$LL.organization.roleCard.administers()}</span>

@@ -623,7 +623,8 @@ holders. *The editor declared the weight before this paragraph named it; ticket 
 (`organization/component/account-form.svelte`) and the sheet that edits one (`member-sheet.svelte`)
 draw the same sections, in the same order, with the same legends and control shapes, from the same
 pieces: the username under its head, the role picker in its tray (`member-role.svelte`), the
-override editor under it (`member-override.svelte`), and a row per workspace with its three levels
+switch list under it (`member-override.svelte`, which draws `permission-switches.svelte` with
+the role to compare against and the reset), and a row per workspace with its three levels
 (`member-workspaces.svelte`), where *no access* is what not granting it is. Only the sentences that
 belong to the moment differ, and who may hand out what is decided in the shared pieces, so the two
 cannot gate differently. *Settled by ticket 42 of

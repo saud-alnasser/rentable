@@ -13,10 +13,10 @@
 		administrationHeld,
 		familyName,
 		flagName,
+		flagPhrase,
 		switchedTo,
 		viewOf,
-		writesOf,
-		type RecordKind
+		writesOf
 	} from '$lib/organization/role';
 	import { FAMILIES, permits, type Flag } from '@rentable/workspace-permission';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
@@ -47,7 +47,8 @@
 	 * **A switch the reader may not turn is dimmed, and says why on hover and focus**, the way an
 	 * act that cannot run does (`unavailableControl`): marked `aria-disabled` rather than
 	 * disabled, so the reason stays reachable, and refusing the press. One sentence at the top
-	 * says why when any is, in place of a line under every row.
+	 * says why when any is, in place of a line under every row, and it is the sentence a switch
+	 * dimmed for the same reason says: the whole list's refusal, or `switches.notHeld`.
 	 *
 	 * **Compared against a role, a switch that differs is marked with a dot**, whose label names
 	 * the role, and a folded group with such a switch inside carries the dot on its head. The dot
@@ -86,8 +87,6 @@
 		baseline?: { mask: number; name: string } | null;
 	} = $props();
 
-	const VERBS = { 1: 'add', 2: 'edit', 3: 'delete' } as const;
-
 	const ADMINISTRATION = FAMILIES.administration as readonly Flag[];
 
 	let administrationOpen = $state(false);
@@ -104,7 +103,7 @@
 	const reasonOf = (flag: Flag): string | null => {
 		if (refusal) return refusal;
 
-		if (!permits(held, flag)) return $LL.organization.dashboard.notHeld();
+		if (!permits(held, flag)) return $LL.organization.switches.notHeld();
 
 		// turning a view off turns its writes off too, and each of those is the reader's to turn.
 		const kind = RECORD_KINDS.find((each) => viewOf(each) === flag);
@@ -116,13 +115,6 @@
 	};
 
 	const anyRefused = $derived(refusal !== null || offered.some((flag) => !permits(held, flag)));
-
-	/** the switch's whole name, since a group's head is not part of it: `add contracts`. */
-	const phraseOf = (kind: RecordKind, index: number) => {
-		const verb = index === 0 ? 'view' : VERBS[index as 1 | 2 | 3];
-
-		return `${$LL.organization.switches[verb]()} ${familyName($LL, kind)}`;
-	};
 
 	const turn = (flag: Flag, on: boolean) => {
 		if (disabled || reasonOf(flag) !== null) return;
@@ -195,7 +187,8 @@
 
 <div class="flex flex-col gap-3" data-switches={id}>
 	<!-- why a switch is dimmed, once, above them all: the whole list, or the ones the reader does
-	     not hold. The same line is in each dimmed switch's tooltip. -->
+	     not hold. A switch dimmed for either reason says the same sentence in its tooltip; one
+	     dimmed for a reason of its own says that, and only there. -->
 	{#if anyRefused}
 		<Field.Description data-switches-refusal>
 			{refusal ?? $LL.organization.switches.notHeld()}
@@ -212,23 +205,23 @@
 		>
 			<div class="flex min-h-8 items-center gap-2">
 				<Glyph class="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-				<label for={`${id}-${view}`} class="min-w-0 flex-1 text-sm font-medium">
+				<Field.Label for={`${id}-${view}`} class="block min-w-0 flex-1 first-letter:uppercase">
 					{familyName($LL, kind)}
-				</label>
+				</Field.Label>
 				{@render mark(view)}
-				{@render toggle(view, phraseOf(kind, 0), 'default')}
+				{@render toggle(view, flagPhrase($LL, view), 'default')}
 			</div>
 
 			<!-- beneath the view, and only while it is on: what the reader can do with what they see.
 			     Indented to the name, so the glyph's column stays the group's. -->
 			{#if isOn(view) || writes.some(isOn)}
 				<div class="flex flex-col gap-1 ps-6" data-switches-writes={kind}>
-					{#each writes as flag, index (flag)}
+					{#each writes as flag (flag)}
 						<div class="flex min-h-7 items-center gap-2">
 							<div class="flex min-w-0 flex-1 flex-col">
-								<label for={`${id}-${flag}`} class="text-sm">
-									{$LL.organization.switches[VERBS[(index + 1) as 1 | 2 | 3]]()}
-								</label>
+								<Field.Label for={`${id}-${flag}`} class="font-normal">
+									{flagName($LL, flag)}
+								</Field.Label>
 								{#if flag === 'editContract'}
 									<span class="text-xs text-muted-foreground" data-switch-says={flag}>
 										{$LL.organization.switches.contractEdit()}
@@ -236,7 +229,7 @@
 								{/if}
 							</div>
 							{@render mark(flag)}
-							{@render toggle(flag, phraseOf(kind, index + 1), 'sm')}
+							{@render toggle(flag, flagPhrase($LL, flag), 'sm')}
 						</div>
 					{/each}
 				</div>
@@ -255,7 +248,7 @@
 			data-switches-fold
 		>
 			<ADMINISTRATION_GLYPH class="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-			<span class="min-w-0 flex-1 text-sm font-medium">
+			<span class="min-w-0 flex-1 text-sm font-medium first-letter:uppercase">
 				{familyName($LL, 'administration')}
 			</span>
 			{#if baseline && ADMINISTRATION.some(differs)}
@@ -287,9 +280,9 @@
 				<div class="flex flex-col gap-1 ps-6 pt-1" data-switches-writes="administration">
 					{#each ADMINISTRATION as flag (flag)}
 						<div class="flex min-h-7 items-center gap-2">
-							<label for={`${id}-${flag}`} class="min-w-0 flex-1 text-sm">
+							<Field.Label for={`${id}-${flag}`} class="min-w-0 flex-1 font-normal">
 								{flagName($LL, flag)}
-							</label>
+							</Field.Label>
 							{@render mark(flag)}
 							{@render toggle(flag, flagName($LL, flag), 'sm')}
 						</div>

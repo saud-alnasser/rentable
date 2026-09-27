@@ -148,6 +148,10 @@ UI; where a finding is about what a screen looks like rather than what a page sa
   glyph of their own. Acts: create `plus`, edit `square-pen`, delete `trash-2`; `eye` is used
   nowhere. `crown` (4 uses), `lock`, `shield` (1, the role name field), `rotate-ccw` exist.
   `frontend.md`: "A concept keeps one glyph everywhere it appears."
+  *Corrected 2026-09-27, in review round one of tickets 42 to 44: `coins` is the dashboard's
+  outstanding figure, not payments. A payment is drawn with `banknote`
+  (`contract/component/record.svelte`), which the switch list and the roles card now use. Units
+  took `layout-grid`, the unit grid the complexes row already draws.*
 - **Repository rules that bind any redesign.** `interface.md` *Field kinds*: "a setting that takes
   effect at once | switch", "a choice of two to four, exclusive | toggle group", "a choice of five or
   more | select". *Guidance*: an act that does not apply is hidden; one that applies and cannot run

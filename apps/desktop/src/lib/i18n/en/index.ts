@@ -21,7 +21,7 @@ const en = {
 			copyDetails: 'copy details',
 			details: 'details',
 			chooseFile: 'choose a file...',
-			create: 'create',
+			create: 'add',
 			creating: 'creating...',
 			customizeColumns: 'customize columns',
 			delete: 'delete',
@@ -1336,7 +1336,6 @@ const en = {
 			yourOwn:
 				'this is you: your role and permissions are changed by somebody who ranks above you.',
 			lacksFlag: 'you may not {flag:string}.',
-			notHeld: 'you do not hold this yourself.',
 			roleOutOfReach: 'a role at or above your own is given by somebody who ranks above it.',
 			// the foot of the organization section: the two acts that end something, under one quiet
 			// word so that a reader scanning the section knows what the last block is before they
@@ -1384,6 +1383,8 @@ const en = {
 		 * what each flag is called where a role or a member's permissions list it (effort 838,
 		 * requirement 12), grouped under its family. A record kind's four read as the verb alone,
 		 * under the kind's name; the organization's and the owner's read as what the person does.
+		 * The four verbs are the switch list's, the role card's and a refusal's alike, so a create
+		 * flag reads *add* everywhere it is named.
 		 */
 		families: {
 			administration: 'the organization',
@@ -1469,10 +1470,6 @@ const en = {
 		 * a switch that differs from their role is marked, and the member reads as custom.
 		 */
 		switches: {
-			view: 'view',
-			add: 'add',
-			edit: 'edit',
-			delete: 'delete',
 			contractEdit: 'including ending, renewing and restoring.',
 			folded: '{count|number} of {total|number}',
 			owner:

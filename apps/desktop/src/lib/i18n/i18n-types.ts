@@ -79,7 +79,7 @@ type RootTranslation = {
 			 */
 			chooseFile: string
 			/**
-			 * c​r​e​a​t​e
+			 * a​d​d
 			 */
 			create: string
 			/**
@@ -3972,10 +3972,6 @@ type RootTranslation = {
 			 */
 			lacksFlag: RequiredParams<'flag'>
 			/**
-			 * y​o​u​ ​d​o​ ​n​o​t​ ​h​o​l​d​ ​t​h​i​s​ ​y​o​u​r​s​e​l​f​.
-			 */
-			notHeld: string
-			/**
 			 * a​ ​r​o​l​e​ ​a​t​ ​o​r​ ​a​b​o​v​e​ ​y​o​u​r​ ​o​w​n​ ​i​s​ ​g​i​v​e​n​ ​b​y​ ​s​o​m​e​b​o​d​y​ ​w​h​o​ ​r​a​n​k​s​ ​a​b​o​v​e​ ​i​t​.
 			 */
 			roleOutOfReach: string
@@ -4286,22 +4282,6 @@ type RootTranslation = {
 		}
 		switches: {
 			/**
-			 * v​i​e​w
-			 */
-			view: string
-			/**
-			 * a​d​d
-			 */
-			add: string
-			/**
-			 * e​d​i​t
-			 */
-			edit: string
-			/**
-			 * d​e​l​e​t​e
-			 */
-			'delete': string
-			/**
 			 * i​n​c​l​u​d​i​n​g​ ​e​n​d​i​n​g​,​ ​r​e​n​e​w​i​n​g​ ​a​n​d​ ​r​e​s​t​o​r​i​n​g​.
 			 */
 			contractEdit: string
@@ -4539,7 +4519,7 @@ export type TranslationFunctions = {
 			 */
 			chooseFile: () => LocalizedString
 			/**
-			 * create
+			 * add
 			 */
 			create: () => LocalizedString
 			/**
@@ -8275,10 +8255,6 @@ export type TranslationFunctions = {
 			 */
 			lacksFlag: (arg: { flag: string }) => LocalizedString
 			/**
-			 * you do not hold this yourself.
-			 */
-			notHeld: () => LocalizedString
-			/**
 			 * a role at or above your own is given by somebody who ranks above it.
 			 */
 			roleOutOfReach: () => LocalizedString
@@ -8586,22 +8562,6 @@ export type TranslationFunctions = {
 			legend: () => LocalizedString
 		}
 		switches: {
-			/**
-			 * view
-			 */
-			view: () => LocalizedString
-			/**
-			 * add
-			 */
-			add: () => LocalizedString
-			/**
-			 * edit
-			 */
-			edit: () => LocalizedString
-			/**
-			 * delete
-			 */
-			'delete': () => LocalizedString
 			/**
 			 * including ending, renewing and restoring.
 			 */

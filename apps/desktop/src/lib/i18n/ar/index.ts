@@ -20,7 +20,7 @@ const ar = {
 			copyDetails: 'نسخ التفاصيل',
 			details: 'التفاصيل',
 			chooseFile: 'اختر ملفاً...',
-			create: 'إنشاء',
+			create: 'إضافة',
 			creating: 'جاري الإنشاء...',
 			customizeColumns: 'تخصيص الأعمدة',
 			delete: 'حذف',
@@ -1233,7 +1233,6 @@ const ar = {
 			notBelowYou: 'ليس أدنى منك رتبة، فيفعل هذا من هو أعلى منه.',
 			yourOwn: 'هذا أنت: يغيّر دورك وصلاحياتك من هو أعلى منك رتبة.',
 			lacksFlag: 'لا يحق لك {flag}.',
-			notHeld: 'لا تملك هذا أنت نفسك.',
 			roleOutOfReach: 'الدور الذي في رتبتك أو فوقها يمنحه من هو أعلى منه.',
 			leavingTitle: 'المغادرة',
 			disconnectForgets: 'يسجّل خروجك ويحذف نسخة المؤسسة من هذا الجهاز. لا يتغير شيء على Turso.',
@@ -1336,10 +1335,6 @@ const ar = {
 		},
 
 		switches: {
-			view: 'عرض',
-			add: 'إضافة',
-			edit: 'تعديل',
-			delete: 'حذف',
 			contractEdit: 'بما في ذلك الإنهاء والتجديد والاستعادة.',
 			folded: '{count|number} من {total|number}',
 			owner: 'إنشاء مساحات العمل وحذفها وحساب Turso وتسليم المؤسسة تبقى للمالك.',

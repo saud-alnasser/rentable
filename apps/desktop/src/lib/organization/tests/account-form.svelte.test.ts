@@ -195,7 +195,7 @@ test('a maker gives no role at or above their own, and no flag they do not hold'
 	).toBe('true');
 	expect(
 		document.querySelector('#account-override-deletePayment-reason')?.textContent?.trim()
-	).toBe(en.organization.dashboard.notHeld);
+	).toBe(en.organization.switches.notHeld);
 	expect(document.querySelector('[data-switches-refusal]')?.textContent?.trim()).toBe(
 		en.organization.switches.notHeld
 	);

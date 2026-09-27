@@ -76,7 +76,7 @@ test('each kind of record is a group under its name, with view as its switch', (
 	);
 	expect(control('viewComplex')?.getAttribute('role')).toBe('switch');
 	expect(control('viewComplex')?.getAttribute('aria-label')).toBe(
-		`${en.organization.switches.view} ${en.organization.families.complex}`
+		`${en.organization.flagVerbs.view} ${en.organization.families.complex}`
 	);
 	expect(control('viewComplex')?.getAttribute('data-size')).toBe('default');
 
@@ -86,13 +86,13 @@ test('each kind of record is a group under its name, with view as its switch', (
 			label.textContent?.trim()
 		)
 	).toEqual([
-		en.organization.switches.add,
-		en.organization.switches.edit,
-		en.organization.switches.delete
+		en.organization.flagVerbs.create,
+		en.organization.flagVerbs.edit,
+		en.organization.flagVerbs.delete
 	]);
 	expect(control('createComplex')?.getAttribute('data-size')).toBe('sm');
 	expect(control('createComplex')?.getAttribute('aria-label')).toBe(
-		`${en.organization.switches.add} ${en.organization.families.complex}`
+		`${en.organization.flagVerbs.create} ${en.organization.families.complex}`
 	);
 	// editing a contract covers ending, renewing and restoring it, and says so.
 	expect(document.querySelector('[data-switch-says="editContract"]')?.textContent?.trim()).toBe(
@@ -199,7 +199,7 @@ test('a switch the reader does not hold is dimmed, says why, and does not turn',
 	expect(refused.hasAttribute('disabled')).toBe(false);
 	expect(refused.getAttribute('data-unavailable')).toBe('');
 	expect(document.querySelector('#role-flag-deleteUnit-reason')?.textContent?.trim()).toBe(
-		en.organization.dashboard.notHeld
+		en.organization.switches.notHeld
 	);
 	// once, above the list, for every dimmed switch.
 	expect(document.querySelector('[data-switches-refusal]')?.textContent?.trim()).toBe(
@@ -286,7 +286,7 @@ test('and in arabic the list reads in its own words, and its thumbs run right to
 		ar.organization.families.unit
 	);
 	expect(control('createUnit')?.getAttribute('aria-label')).toBe(
-		`${ar.organization.switches.add} ${ar.organization.families.unit}`
+		`${ar.organization.flagVerbs.create} ${ar.organization.families.unit}`
 	);
 	expect(document.querySelector('[data-switches-owner]')?.textContent?.trim()).toBe(
 		ar.organization.switches.owner

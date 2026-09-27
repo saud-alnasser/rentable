@@ -413,7 +413,7 @@ test('a flag the reader does not hold is dimmed, saying so, and does not turn', 
 	expect(refused.hasAttribute('disabled')).toBe(false);
 	expect(refused.getAttribute('aria-describedby')).toBe('member-override-deletePayment-reason');
 	expect(document.querySelector('#member-override-deletePayment-reason')?.textContent?.trim()).toBe(
-		en.organization.dashboard.notHeld
+		en.organization.switches.notHeld
 	);
 	expect(document.querySelector('[data-switches-refusal]')?.textContent?.trim()).toBe(
 		en.organization.switches.notHeld
@@ -594,7 +594,7 @@ test('and in arabic every sentence reads in its own words, right to left', () =>
 		ar.organization.switches.reset.replace('{role}', ar.layout.signIn.roleMember)
 	);
 	expect(control('editPayment')?.getAttribute('aria-label')).toBe(
-		`${ar.organization.switches.edit} ${ar.organization.families.payment}`
+		`${ar.organization.flagVerbs.edit} ${ar.organization.families.payment}`
 	);
 
 	setLocale('en');

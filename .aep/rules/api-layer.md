@@ -194,6 +194,18 @@ alone). *Revised 2026-09-25 by ticket 37 of the same effort: a toast showed the 
 description, and `toErrorText` joined it onto the sentence.* *Added 2026-09-24 by the same requirement: the shell's refusals crossed as English prose
 the interface showed raw or matched by phrase.*
 
+**A router raises a `host.*` code only for an act it foresees on the shell's behalf.** A
+procedure's refusals are its concept's codes, with one exception: where a router refuses first
+what the shell refuses anyway, it throws the shell's own code rather than a second one for the
+same thing. The organization router refuses a role mask, or a role and an override, that adds,
+edits or deletes a kind of record without viewing it with `host.<kind>NeedsViewing`
+(`refuseWriteWithoutView` in `organization/router.ts`), the reason Rust's
+`refuse_write_without_view` gives. *Why: it is one rule, the package's `firstWriteWithoutView`,
+asked twice; two codes would be two sentences for it in each locale, and a reader would read one
+or the other depending on which side refused first. Added 2026-09-27 by ticket 46 of
+[[efforts/838-permissions-are-a-role-and-an-override/spec]], where it was stated only in
+`api/refusal.ts`.*
+
 ## One database client type
 
 **Every database client is the same type, and reaches the engine through the same row mapping.**

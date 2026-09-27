@@ -499,7 +499,7 @@ test('in the editor, a flag the reader does not hold is refused at its switch', 
 		'true'
 	);
 	expect(document.querySelector('#role-flag-deleteContract-reason')?.textContent?.trim()).toBe(
-		en.organization.dashboard.notHeld
+		en.organization.switches.notHeld
 	);
 	expect(document.querySelector('[data-switches-refusal]')?.textContent?.trim()).toBe(
 		en.organization.switches.notHeld

@@ -4,6 +4,7 @@ import {
 	BUILT_IN,
 	EVERY_FLAG,
 	FAMILIES,
+	RECORD_KINDS,
 	effective,
 	firstWriteWithoutView,
 	maskOf,
@@ -11,8 +12,17 @@ import {
 	xorOf,
 	type Family,
 	type Flag,
+	type RecordKind,
 	type RoleKind
 } from '@rentable/workspace-permission';
+
+/**
+ * The record kinds, in the order the switch list groups them, and each kind's first flag is its
+ * view, the group's main switch (effort 838, requirement 12 as amended 2026-09-27). The package
+ * holds them, since its `firstWriteWithoutView` walks the same kinds; they are handed on from here
+ * so the interface reads them beside the rest of what it says about a role.
+ */
+export { RECORD_KINDS, type RecordKind };
 
 /**
  * ROLES AND FLAGS, AS A READER IS TOLD ABOUT THEM
@@ -42,7 +52,10 @@ export const EDITABLE_FAMILIES = [
 /** every family, in the order a role's card lists what it carries. */
 export const LISTED_FAMILIES = Object.keys(FAMILIES) as Family[];
 
-/** the four verbs a record kind's flags are named by, in the order `FAMILIES` holds them. */
+/**
+ * the four verbs a record kind's flags are named by, in the order `FAMILIES` holds them: one set,
+ * which a refusal, a switch and a role card's mix all read (`organization.flagVerbs`).
+ */
 const RECORD_VERBS = ['view', 'create', 'edit', 'delete'] as const;
 
 type RecordVerb = (typeof RECORD_VERBS)[number];
@@ -86,20 +99,6 @@ export const flagPhrase = (t: TranslationFunctions, flag: Flag): string => {
 		? `${t.organization.flagVerbs[verb]()} ${familyName(t, familyOf(flag))}`
 		: t.organization.flags[flag as NamedFlag]();
 };
-
-/**
- * The record kinds, in the order the switch list groups them (effort 838, requirement 12 as
- * amended 2026-09-27). Each kind's first flag is its view, the group's main switch.
- */
-export const RECORD_KINDS = [
-	'complex',
-	'unit',
-	'tenant',
-	'contract',
-	'payment'
-] as const satisfies readonly Family[];
-
-export type RecordKind = (typeof RECORD_KINDS)[number];
 
 /** the flag that lets a person see a kind at all: the switch its group is headed by. */
 export const viewOf = (kind: RecordKind): Flag => FAMILIES[kind][0];
@@ -146,9 +145,6 @@ export type KindLevel = 'full' | 'edit' | 'add' | 'view' | 'none' | 'mixed';
 /** the ladder's steps, by how many of a kind's verbs they carry from the view up. */
 const LADDER = ['none', 'view', 'add', 'edit', 'full'] as const satisfies readonly KindLevel[];
 
-/** what each of a kind's four switches is called, in the order `FAMILIES` holds them. */
-const SWITCH_VERBS = ['view', 'add', 'edit', 'delete'] as const;
-
 /** the step a mask stands on for one kind of record. */
 export const levelOf = (mask: number, kind: RecordKind): KindLevel => {
 	const carried = FAMILIES[kind].map((flag) => permits(mask, flag));
@@ -159,9 +155,13 @@ export const levelOf = (mask: number, kind: RecordKind): KindLevel => {
 };
 
 /**
- * the words a role card and a folded group say for a kind: `can edit`, `view only`. A mix off the
- * ladder is its verbs as the switches name them (`view, delete`), joined by the reader's list
- * format; a kind the mask carries nothing of has no words, and is left out where it would be.
+ * the words a role's card says for a kind: `can edit`, `view only`. A mix off the ladder is its
+ * verbs as the switches name them (`view, delete`), joined by the reader's list format; a kind the
+ * mask carries nothing of has no words, and is left out where it would be.
+ *
+ * **A role's card is what says it.** The switch list names no level: its folded administration
+ * group shares with the card only the count of the organization's flags (`administrationHeld`)
+ * and the words that count is said in.
  */
 export const levelWord = (
 	t: TranslationFunctions,
@@ -176,9 +176,7 @@ export const levelWord = (
 			return null;
 		case 'mixed':
 			return list.format(
-				FAMILIES[kind].flatMap((flag, index) =>
-					permits(mask, flag) ? [t.organization.switches[SWITCH_VERBS[index]]()] : []
-				)
+				FAMILIES[kind].flatMap((flag) => (permits(mask, flag) ? [flagName(t, flag)] : []))
 			);
 		// one name per thing: full access is what a workspace grant calls the same thing.
 		case 'full':

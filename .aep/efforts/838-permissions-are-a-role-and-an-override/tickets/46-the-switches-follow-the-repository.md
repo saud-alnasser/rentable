@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [45]
 ---
 
@@ -18,20 +18,20 @@ rule.
 
 Traces requirement 12 of [[efforts/838-permissions-are-a-role-and-an-override/spec]].
 
-- [ ] Payments are drawn with `banknote`, the glyph they already have; the plan and the research's
+- [x] Payments are drawn with `banknote`, the glyph they already have; the plan and the research's
       observation say so.
-- [ ] One verb set: `flagVerbs.create` reads *add* in both languages, and the switches and level
+- [x] One verb set: `flagVerbs.create` reads *add* in both languages, and the switches and level
       words read `flagVerbs`; the duplicate keys go.
-- [ ] `gap-y-0.5` becomes a ladder step; group heads use `Field.Label` and render in sentence case.
-- [ ] `role.ts` takes `RECORD_KINDS` and `RecordKind` from the package.
-- [ ] The dimmed switch's tooltip and the header read one string, and `levelWord`'s doc says what
+- [x] `gap-y-0.5` becomes a ladder step; group heads use `Field.Label` and render in sentence case.
+- [x] `role.ts` takes `RECORD_KINDS` and `RecordKind` from the package.
+- [x] The dimmed switch's tooltip and the header read one string, and `levelWord`'s doc says what
       uses it.
-- [ ] `rules/api-layer` *Errors* states that the organization router raises the shell's
+- [x] `rules/api-layer` *Errors* states that the organization router raises the shell's
       `host.*` codes for acts it foresees, and why.
-- [ ] `contexts/desktop/organization` says a new role and a deleted role clear the override and
+- [x] `contexts/desktop/organization` says a new role and a deleted role clear the override and
       that writing a kind needs viewing it; `rules/interface` names the switch list; the plan's
       *Permissions as switches* says what was built.
-- [ ] `pnpm check`, `pnpm test` and `pnpm lint` pass.
+- [x] `pnpm check`, `pnpm test` and `pnpm lint` pass.
 
 ## Relevant areas
 
