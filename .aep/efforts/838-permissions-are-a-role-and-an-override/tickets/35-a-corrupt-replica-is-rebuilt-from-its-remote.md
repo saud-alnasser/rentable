@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(desktop): a corrupt replica is rebuilt from its remote
@@ -14,11 +14,11 @@ so, the log names what was lost, and the database is pulled again from its remot
 
 Traces requirement 17 of [[efforts/838-permissions-are-a-role-and-an-override/spec]].
 
-- [ ] Opening or first reading a workspace or organization replica that answers `Corrupt` or
+- [x] Opening or first reading a workspace or organization replica that answers `Corrupt` or
       `NotADB` renames it and its sync metadata to `<name>.corrupt-<ms>`, logs it, and opens it
       again from its remote. Tests cover a file that is not a database and a truncated one.
-- [ ] The rebuild happens once per open; a second failure is refused as today.
-- [ ] `cargo test`, `pnpm check`, `pnpm test` and `pnpm lint` pass.
+- [x] The rebuild happens once per open; a second failure is refused as today.
+- [x] `cargo test`, `pnpm check`, `pnpm test` and `pnpm lint` pass.
 
 ## Relevant areas
 

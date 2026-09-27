@@ -688,7 +688,8 @@ impl OrganizationStore {
     /// **A second `turso::sync::Database`, not a second `Engine` arm.** Built through
     /// [`Database::open_replica`] so that the crypto-provider guard and `bootstrap_if_empty(false)`
     /// are the ones the workspace already runs under, and so that whatever that function learns
-    /// about the engine, this one learns too.
+    /// about the engine, this one learns too. A damaged `org-<id>.db` is one of those things: it is
+    /// set aside there and opened again empty, and the sign-in's or the resume's pull fills it.
     pub async fn open<F, Fut>(
         path: &Path,
         remote_url: Option<String>,

@@ -509,12 +509,18 @@ file with the same `CREATE` statements, through `sqlx` as the rest of the plain 
 - **A corrupt replica rebuilt.** Where opening or reading a replica answers the engine's `Corrupt`
   or `NotADB`, the file and its sync metadata are renamed to `<name>.corrupt-<ms>`, the log says
   what was set aside, and the replica is opened again from its remote.
+  *Measured at ticket 35 on turso 0.8.0-pre.12: a file that is not a database fails the open with
+  the kind flattened to text by the sync kit, so it is matched there by turso_core's wording, and by
+  kind on the first read; a truncated file is never reported as corrupt (a short read, a `Busy`, or
+  an open that never returns), so a truncated main file is found before the engine is given it,
+  from the header's page size and count against the file's length, where no write-ahead log holds
+  the rest (`database/corrupt.rs`). Damage met after the first read is not handled here.*
 - **What is carried forward.** Releases from 0.14.0 on, the first on Turso: workspace schema 5 on
   and organization format 1 on are seeded and walked in the tests (ticket 34). *The human's call,
   2026-09-27.*
 - **Before Turso, a guided move** (spec, requirement 18). 0.12.0 and 0.13.0 kept records in
-  `app.db`, at workspace schema 2 and 3 (their own runner's `__migrations__` ledger names which, exactly {0000, 0001} or {0000, 0001, 0002}; ticket 36). A new command reads that
-  file read-only, whatever of the two it is, into the tables `import_read_book` returns, in the
+  `app.db`, at workspace schema 2 and 3 (their own runner's `__migrations__` ledger names which,
+  exactly {0000, 0001} or {0000, 0001, 0002}; ticket 36). A new command reads that file read-only, whatever of the two it is, into the tables `import_read_book` returns, in the
   whole-workspace export's columns (`TRANSFER_COLUMNS`), and writes the same tables as the export
   workbook to `backups/app/workspace-<version>.xlsx` through `export_write_workbook`'s writer.
   The interface takes those tables into the existing `planWorkspaceImport` and import dialog, as

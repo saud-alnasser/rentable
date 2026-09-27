@@ -83,7 +83,7 @@ sentence from both.
   and is persisted, because it is what lets a machine open its replica offline.
 - **The replica's file is named for its workspace, never for the machine.** One member signing out
   and another signing in would otherwise open the second's replica over the first's rows. `app.db`
-  stays what the seeded and test paths use; a workspace is `workspace-<id>.db` beside it, and the
+  stays what the seeded and test paths use; a workspace is `ws-<id>.db` beside it, and the
   organization's own replica is `org-<id>.db`.
 - **A pull that brought rows is announced, and that is what makes the query cache safe.** Derived
   state is computed from rows, so rows from another device can make a status that was right wrong;
@@ -106,6 +106,14 @@ sentence from both.
   on the next statement.** Opening does not block on a pull, which is requirement 7, but a first
   run has nothing to read until one succeeds, so the startup path pulls once and then asks whether
   the replica is ready.
+- **A replica found damaged is set aside and pulled again, once.** *Effort 838, requirement 17,
+  Firefox's practice.* Where the engine says a replica, a workspace's or the organization's, is not
+  a database or is corrupt, or where the file is shorter than its own header says (turso reports a
+  truncated file as neither, and some cuts hang its open), `Database::open_replica` renames the file
+  and every sidecar to `<name>.corrupt-<ms>`, keeps them, logs `replica.corrupt.setAside` naming
+  them and that anything not yet sent from it is lost, and opens the replica again empty; the first
+  pull fills it as it fills a new one. A second failure is refused as any open is.
+  `database/corrupt.rs` holds what counts as damaged and the measurements behind it.
 - **A refused credential is collected again, and nobody is told to do anything.** When a dispatch
   comes back refused as the credential's, the shell pulls the organization replica, reads the
   member's grants again, hands the sync engine whatever moved, and tries the same dispatch once

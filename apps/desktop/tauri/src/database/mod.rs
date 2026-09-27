@@ -1,4 +1,5 @@
 pub mod commands;
+mod corrupt;
 pub mod proxy;
 #[cfg(test)]
 mod test;
@@ -246,24 +247,33 @@ impl Database {
     }
 
     /// Remove one replica's file and everything the engine keeps beside it, whatever the replica
-    /// is a replica of. The organization replica goes the same way as a workspace's, and this is
-    /// the one place the sidecar list is spelled.
+    /// is a replica of. The organization replica goes the same way as a workspace's.
     pub(crate) fn remove_replica_files(replica: &Path) -> bool {
-        let mut removed = std::fs::remove_file(replica).is_ok();
+        Self::replica_files(replica)
+            .into_iter()
+            .filter(|file| std::fs::remove_file(file).is_ok())
+            .count()
+            > 0
+    }
 
-        for suffix in Self::REPLICA_SIDECARS {
-            let path = PathBuf::from(format!("{}{suffix}", replica.display()));
+    /// One replica's file and every file the engine keeps beside it, as far as they exist, and
+    /// the one place the sidecar list is spelled. What removes a replica and what sets a damaged
+    /// one aside (`corrupt.rs`) both walk this.
+    fn replica_files(replica: &Path) -> Vec<PathBuf> {
+        let mut files: Vec<PathBuf> = std::iter::once(replica.to_path_buf())
+            .chain(
+                Self::REPLICA_SIDECARS
+                    .iter()
+                    .map(|suffix| PathBuf::from(format!("{}{suffix}", replica.display()))),
+            )
+            .filter(|file| file.exists())
+            .collect();
 
-            if std::fs::remove_file(&path).is_ok() {
-                removed = true;
-            }
-        }
-
-        // **The transient markers are named per attempt**, so they are swept by prefix rather than
+        // **The transient markers are named per attempt**, so they are found by prefix rather than
         // by name. A directory that cannot be read leaves them, which is the same outcome as a file
-        // that will not delete: reported by the caller finding the replica still tracked.
+        // that will not move: reported by the caller finding the replica still tracked.
         let (Some(parent), Some(stem)) = (replica.parent(), replica.file_name()) else {
-            return removed;
+            return files;
         };
 
         let transient = format!(
@@ -272,19 +282,16 @@ impl Database {
             Self::REPLICA_TRANSIENT_PREFIX
         );
 
-        let Ok(entries) = std::fs::read_dir(parent) else {
-            return removed;
-        };
-
-        for entry in entries.flatten() {
-            if entry.file_name().to_string_lossy().starts_with(&transient)
-                && std::fs::remove_file(entry.path()).is_ok()
-            {
-                removed = true;
-            }
+        if let Ok(entries) = std::fs::read_dir(parent) {
+            files.extend(
+                entries
+                    .flatten()
+                    .filter(|entry| entry.file_name().to_string_lossy().starts_with(&transient))
+                    .map(|entry| entry.path()),
+            );
         }
 
-        removed
+        files
     }
 
     /// Send what this machine has written since the last push.
@@ -361,6 +368,13 @@ impl Database {
     /// Separate from [`Database::connect_workspace`] so a caller can hold an engine without
     /// holding a `Database` — which is what the proxy's both-engines test needs, and it is the
     /// only test that can hold this arm to the other one.
+    ///
+    /// **A replica found damaged is set aside and opened once more, empty** (effort 838,
+    /// requirement 17). Every replica, a workspace's and the organization's, is opened here, so
+    /// every one is rebuilt the same way: the file and its sidecars renamed to
+    /// `<name>.corrupt-<ms>`, a warning naming them and what was lost, and an empty replica that
+    /// the caller's first pull fills from its remote, as it fills a replica made for the first
+    /// time. `corrupt.rs` says what counts as damaged and why.
     pub async fn open_replica<F, Fut>(
         db_path: &Path,
         remote_url: Option<String>,
@@ -379,15 +393,49 @@ impl Database {
         // this is one more of the construction sites it is made from.
         crate::http::install_crypto_provider();
 
-        let mut builder = turso::sync::Builder::new_remote(&db_path.to_string_lossy())
-            .bootstrap_if_empty(false)
-            .with_auth_token_fn(auth_token);
+        // **Held behind one handle so the open can be made twice**: a replica found damaged is
+        // set aside and opened once more, empty, and that open needs the same credential.
+        let auth_token = Arc::new(auth_token);
 
-        if let Some(remote_url) = remote_url {
-            builder = builder.with_remote_url(remote_url);
-        }
+        // **A replica found damaged is set aside and opened again, once** (effort 838,
+        // requirement 17), which `corrupt.rs` says the whole of. The first read is part of the
+        // open because that is where the engine reports a damaged page it did not meet opening
+        // the file; any other answer to it is left for the caller's own reads, as it was.
+        Ok(corrupt::opened_once_more(db_path, || {
+            let auth_token = Arc::clone(&auth_token);
+            let remote_url = remote_url.clone();
 
-        Ok(builder.build().await?)
+            async move {
+                let mut builder = turso::sync::Builder::new_remote(&db_path.to_string_lossy())
+                    .bootstrap_if_empty(false)
+                    .with_auth_token_fn(move || auth_token());
+
+                if let Some(remote_url) = remote_url {
+                    builder = builder.with_remote_url(remote_url);
+                }
+
+                let database = builder.build().await?;
+
+                if let Err(error) = Self::first_read(&database).await
+                    && corrupt::reported(&error).is_some()
+                {
+                    return Err(error);
+                }
+
+                Ok(database)
+            }
+        })
+        .await?)
+    }
+
+    /// Read the schema once, which is where a damaged first page shows itself.
+    async fn first_read(database: &turso::sync::Database) -> Result<(), turso::Error> {
+        let connection = database.connect().await?;
+        let mut rows = connection
+            .query("SELECT count(*) FROM sqlite_master", ())
+            .await?;
+
+        rows.next().await.map(|_| ())
     }
 
     /// Let go of the file.

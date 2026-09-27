@@ -298,6 +298,11 @@ refused unless what it yields is the key this machine pinned, and the directory 
   of what it made (`schema.rs`) and the workspace's own version row commit in one transaction or
   not at all (`migrate.rs`); the organization's record is written after the commit, and where the
   workspace's row is already at the shipped version only the record is brought up.
+- **A damaged organization replica is rebuilt from the remote, not repaired.** `org-<id>.db` opens
+  through the workspace's own `Database::open_replica`, so one the engine finds corrupt, not a
+  database, or cut short is set aside as `<name>.corrupt-<ms>` with its sidecars and opened again
+  empty, and the sign-in's or resume's pull fills it ([[contexts/desktop/remote-sync]]). What this
+  machine wrote to it and had not pushed is lost, and the log says so.
 - **Live tests reach the human's account only when asked**, each creating and removing its own
   database; [[rules/testing]] under *Tests that reach a live remote* admits them, and
   [[references/turso]] under *Never run* bounds them.
