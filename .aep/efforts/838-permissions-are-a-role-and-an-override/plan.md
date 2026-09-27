@@ -556,6 +556,33 @@ file with the same `CREATE` statements, through `sqlx` as the rest of the plain 
   keeps working while a newer one migrates; a migration never edited once shipped; each shipped
   version seeded in the tests.
 
+## Permissions as switches (spec, requirements 6 and 12, as amended 2026-09-27)
+
+*The human's calls on the running application, from [[efforts/838-permissions-are-a-role-and-an-override/evidence/research/how-permissions-are-presented]].*
+
+- **One switch list**, `organization/component/permission-switches.svelte`, used by the role editor
+  and the member's card. Each kind of record is a group headed by its lucide icon (complexes
+  `house`, units a new one, tenants `user`, contracts `scroll-text`, payments `coins`) with
+  *view* as the group's main switch and *add*, *edit*, *delete* as smaller switches beneath it,
+  shown only while view is on; turning view off turns them off. Administration is one group that
+  folds to a summary (`4 of 10`). The owner's acts are one quiet line with the crown icon.
+  A switch the reader may not change is dimmed with its reason in a tooltip, and one sentence at
+  the top says why when any is; the per-row refusal lines go.
+- **The member's card** names the role at the top; the switches show the member's effective
+  permissions; a switch that differs from the role carries a small mark; where any does, the role
+  reads with a *custom* mark and a *reset to <role>* button clears the override. The override is
+  computed from the switches (role XOR effective) when saved, and never shown.
+- **The roles card** sums the role by level per kind, with icons: *full access*, *can edit* (view,
+  add, edit), *can add* (view, add), *view only*, or nothing; the owner reads *everything*, and
+  administration gets a short line where the role holds any. The editor's folded groups use the
+  same words.
+- **Rules.** `rules/interface`'s *Field kinds* row for a switch is amended: a permission is a
+  switch even though it takes effect when the editor is saved, as Discord's role editor does, by
+  the human's call. The design system's switch is made to slide the right way in Arabic.
+- **Behaviour** (requirement 6 as amended): the package and Rust refuse a role mask, and an
+  effective result of an override, that carries a kind's add, edit or delete without its view;
+  `assign_role` clears the member's override.
+
 # Testing Strategy
 
 | Criterion | Checked by |

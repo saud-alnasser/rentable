@@ -131,7 +131,7 @@ Start at [[protocol]].
 | 828-the-link-needs-a-code-and-the-settings-area-guides | implemented | [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]] | 5 | 0 | 29 |
 | 832-the-interface-speaks-one-language-and-guides | accepted | [[efforts/832-the-interface-speaks-one-language-and-guides/spec]] | 3 | 4 | 43 |
 | 835-the-rent-is-receipted-scheduled-and-chased | implemented | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]] | 1 | 0 | 19 |
-| 838-permissions-are-a-role-and-an-override | implemented | [[efforts/838-permissions-are-a-role-and-an-override/spec]] | 1 | 0 | 41 |
+| 838-permissions-are-a-role-and-an-override | accepted | [[efforts/838-permissions-are-a-role-and-an-override/spec]] | 2 | 0 | 44 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -379,3 +379,6 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/838-permissions-are-a-role-and-an-override/tickets/39-damage-found-later-is-set-aside-at-the-next-open]] fix(desktop): damage found after the open is set aside at the next open | 838-permissions-are-a-role-and-an-override | resolved | — |
 | [[efforts/838-permissions-are-a-role-and-an-override/tickets/40-the-earlier-records-say-what-they-do]] fix(desktop): the earlier records say what they do | 838-permissions-are-a-role-and-an-override | resolved | — |
 | [[efforts/838-permissions-are-a-role-and-an-override/tickets/41-review-round-two-of-the-whole-checked-change-is-settled]] fix(organization): review round two of the whole, checked change is settled | 838-permissions-are-a-role-and-an-override | resolved | 38, 39, 40 |
+| [[efforts/838-permissions-are-a-role-and-an-override/tickets/42-writing-needs-viewing-and-a-new-role-clears-the-override]] feat(organization): writing a record needs viewing it, and a new role clears the override | 838-permissions-are-a-role-and-an-override | open | — |
+| [[efforts/838-permissions-are-a-role-and-an-override/tickets/43-permissions-are-switches]] feat(desktop): permissions are switches, and a custom member resets to their role | 838-permissions-are-a-role-and-an-override | open | — |
+| [[efforts/838-permissions-are-a-role-and-an-override/tickets/44-a-roles-card-says-what-the-role-can-do]] feat(desktop): a roles card says what the role can do | 838-permissions-are-a-role-and-an-override | open | 43 |

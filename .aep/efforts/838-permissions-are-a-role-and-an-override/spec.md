@@ -1,5 +1,5 @@
 ---
-status: implemented
+status: accepted
 ---
 
 # Problem
@@ -91,7 +91,10 @@ rank, without the owner present.
    is a bitmask, empty by default. A member's effective permissions are their role's mask
    exclusive-or'd with their override: a flag set in the override turns the role's flag off where
    the role carries it, and on where it does not. The owner carries no override. A holder of the
-   flag to override members sets and clears it.
+   flag to override members sets and clears it. *Amended 2026-09-27, the human's call: a member
+   given another role loses their override and holds the new role exactly; and adding, editing or
+   deleting a kind of record needs viewing it, so no role mask or effective permissions that carry
+   one of those without the kind's view flag is ever written.*
 7. **Nobody reaches above themselves or grants what they do not hold.** Roles are ranked owner,
    manager, the custom roles in order, member. A member acts on a role (editing, re-ranking,
    deleting, assigning it) only where that role ranks below their own, and on another member
@@ -135,6 +138,16 @@ rank, without the owner present.
     holder of the flag create, rename, re-rank, edit and delete them. A member's card sets their role
     and their override, and shows, flag by flag, what their role gives, what the override changes,
     and what they end up with. Where the viewer may not change something, the control says why.
+    *Amended 2026-09-27, the human's call on the running application, from [[efforts/838-permissions-are-a-role-and-an-override/evidence/research/how-permissions-are-presented]]:
+    each permission is a switch, in one list the role editor and the member's card share, grouped
+    by kind of record under its icon with viewing as the group's main switch and adding, editing
+    and deleting beneath it only while viewing is on, and administration as one group that folds
+    to a summary. A member's card names their role above the switches, which show what the member
+    ends up with; where any differs from the role the member reads as custom, each difference is
+    marked, and a reset puts them back to the role exactly. The override stays out of sight. The
+    owner's own acts are one quiet line, not switches. A roles card says, by kind of record and
+    with its icon, what the role can do in plain words (full access, can edit, view only), with a
+    short line for administration where it has any.*
 13. **Nothing changes an organization's format or a workspace's schema without a copy of it first.**
     Before the owner's machine transforms the organization, and before the member holding a
     workspace's lease applies a pending migration to it, the machine writes a copy of every table
@@ -230,6 +243,10 @@ rank, without the owner present.
     refused, naming the update, and written to not at all.
 12. On the running application, the roles list, the role editor and a member's card show and change
     what requirement 12 says, and a control the viewer may not use says why. Checked by the human.
+    Component tests cover the switch list's groups, the view dependency, the custom mark, the
+    reset and the roles card's words; a Rust and a TypeScript test refuse a role mask and an
+    override leaving a write flag without its view flag; a test gives a member with an override
+    another role and finds the override gone.
 13. A test upgrades a format 1 organization and finds a local copy holding every table and row the
     organization held before, and none of the changes; one where the account is reachable finds a
     protected copy made on it from the organization database. A test whose local copy cannot be
