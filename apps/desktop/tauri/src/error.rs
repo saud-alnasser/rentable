@@ -239,6 +239,11 @@ pub enum RefusalReason {
     /// the organization was made by a newer version of rentable, which this one is updated to.
     OrganizationNewer,
 
+    // a copy before a change (effort 838, requirement 13).
+    /// the copy of the organization or the workspace taken before it changes shape could not be
+    /// written to the data directory's `backups`, so nothing was changed (ticket 27).
+    CopyNotTaken,
+
     // Turso: the consent, the group and the account.
     /// this machine holds no Turso authority.
     TursoNotConnected,

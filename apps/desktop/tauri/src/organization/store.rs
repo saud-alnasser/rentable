@@ -37,6 +37,7 @@ use std::{
 };
 
 use crate::{
+    backup,
     database::Database,
     diagnostics,
     error::{Error, RefusalReason},
@@ -658,6 +659,8 @@ pub struct Signer<'a> {
 pub struct OrganizationStore {
     database: turso::sync::Database,
     connection: turso::Connection,
+    /// where the replica is, which is what says where the application's data directory is.
+    path: PathBuf,
 }
 
 impl std::fmt::Debug for OrganizationStore {
@@ -703,7 +706,15 @@ impl OrganizationStore {
         Ok(Self {
             database,
             connection,
+            path: path.to_path_buf(),
         })
+    }
+
+    /// The directory the replica lives in: the application's data directory, beside `app.db`, as
+    /// [`Self::replica_path`] puts it. A copy taken before a change of format goes under it
+    /// (`backup.rs`).
+    pub(crate) fn directory(&self) -> &Path {
+        self.path.parent().unwrap_or_else(|| Path::new("."))
     }
 
     /// Create the ten tables where they do not exist.
@@ -3271,6 +3282,39 @@ impl OrganizationStore {
     #[cfg(test)]
     pub(crate) fn connection(&self) -> &turso::Connection {
         &self.connection
+    }
+}
+
+/// The replica as a copy reads it, before its format changes (effort 838, ticket 27): the tables
+/// and rows the replica holds as they lie, read and never written.
+impl backup::Source for OrganizationStore {
+    async fn tables(&self) -> Result<Vec<backup::Table>, Error> {
+        let mut rows = self.connection.query(backup::LISTING, ()).await?;
+        let mut tables = Vec::new();
+
+        while let Some(row) = rows.next().await? {
+            tables.push(backup::Table {
+                name: text(&row, 0)?,
+                statement: text(&row, 1)?,
+            });
+        }
+
+        Ok(tables)
+    }
+
+    async fn rows(&self, table: &str) -> Result<Vec<Vec<turso::Value>>, Error> {
+        let mut rows = self.connection.query(&backup::selecting(table), ()).await?;
+        let mut values = Vec::new();
+
+        while let Some(row) = rows.next().await? {
+            values.push(
+                (0..row.column_count())
+                    .map(|index| row.get_value(index))
+                    .collect::<Result<Vec<_>, _>>()?,
+            );
+        }
+
+        Ok(values)
     }
 }
 

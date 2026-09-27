@@ -1,3 +1,4 @@
+pub mod backup;
 pub mod bootstrap;
 pub mod database;
 pub mod diagnostics;

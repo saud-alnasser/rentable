@@ -398,6 +398,8 @@ const en = {
 					"this machine's access to the organization has lapsed. ask your organization for a new link to connect it again.",
 				organizationNewer:
 					'a newer version of rentable made this organization. update rentable to open it.',
+				copyNotTaken:
+					'no copy could be saved before upgrading, so nothing changed. check the backups folder can be written, then try again.',
 				tursoNotConnected:
 					'this machine is not connected to the Turso account. connect it and try again.',
 				consentNeededAgain:

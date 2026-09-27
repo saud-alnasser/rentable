@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [26]
 ---
 
@@ -20,23 +20,23 @@ change*, gives the shape.
 
 Traces requirement 13 of [[efforts/838-permissions-are-a-role-and-an-override/spec]].
 
-- [ ] `tauri/src/backup.rs` writes a logical copy: every table but SQLite's own and the engine's,
+- [x] `tauri/src/backup.rs` writes a logical copy: every table but SQLite's own and the engine's,
       created with its own statement and filled row by row, written as a `.partial` file, each
       table's row count compared with the source's, then renamed into
       `<data_dir>/backups/<database>/`. The three newest per database are kept.
-- [ ] `TursoPlatform::copy_database` makes a copy seeded from a database in the same group,
+- [x] `TursoPlatform::copy_database` makes a copy seeded from a database in the same group,
       protected from deletion, and removes one it cannot protect; the in-memory platform records
       it. The name fits Turso's 64 characters.
-- [ ] The owner's upgrade takes the local copy, and the remote one where `ItsRemote::account` is
+- [x] The owner's upgrade takes the local copy, and the remote one where `ItsRemote::account` is
       present, after the pull and the refusal checks and before the transaction; a test opens the
       local copy as a plain file and finds every table and row the organization held before and
       none of the changes, and finds the protected copy on the in-memory account.
-- [ ] A local copy that cannot be written refuses with `CopyNotTaken`, in English and Arabic,
+- [x] A local copy that cannot be written refuses with `CopyNotTaken`, in English and Arabic,
       naming the directory, and the organization is unchanged. A test covers it.
-- [ ] A remote copy the account refuses is logged as `backup.remoteCopyRefused` and the upgrade
+- [x] A remote copy the account refuses is logged as `backup.remoteCopyRefused` and the upgrade
       goes on. A test covers it.
-- [ ] The log names where each copy is.
-- [ ] `cargo test`, `pnpm check`, `pnpm test` and `pnpm lint` pass.
+- [x] The log names where each copy is.
+- [x] `cargo test`, `pnpm check`, `pnpm test` and `pnpm lint` pass.
 
 ## Relevant areas
 

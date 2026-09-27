@@ -56,9 +56,17 @@
 //! the pull, the refusal of an organization this machine has read in a later format, then one
 //! transaction that walks the list from the format the organization is in to the one this build
 //! ships ([`walked`]), with the `format` row last, then the push.
+//!
+//! **A copy is taken before the transaction** (ticket 27). Once every change due has said it may
+//! run, and before the first write, the organization as it stands after the pull is copied to a
+//! file of its own under the data directory, labelled `format-<from>-to-<to>` (`backup.rs`), and
+//! where this machine holds the owner's Turso account, to a protected database there as well
+//! ([`Replication::copied`]). A local copy that cannot be written refuses the upgrade with
+//! `CopyNotTaken`, and nothing is written; a copy the account refuses is logged, and the upgrade
+//! goes on. The runner takes it, so every change of format listed after this one is copied too.
 
 use crate::{
-    diagnostics,
+    backup, diagnostics,
     error::{Error, RefusalReason},
     sync::turso::platform::{AccessLevel, PlatformApi, TursoPlatform},
 };
@@ -104,7 +112,8 @@ pub(crate) enum Pushed {
 ///
 /// **A seam, because the upgrade's answer depends on the remote's.** Production hands in
 /// [`ItsRemote`], the remote the replica was opened against and the owner's Turso account where
-/// this machine holds its authority, or `setup::Remote` on the connect; a test hands in a remote
+/// this machine holds its authority, or `setup::OnTheAccount` on the connect, which carries the
+/// account the connect was consented on; a test hands in a remote
 /// that answers as it is told, since there is no remote here to reach.
 pub(crate) trait Replication {
     /// Send what `store` holds to its remote, and say what came of it.
@@ -115,6 +124,10 @@ pub(crate) trait Replication {
     /// `setup::connect_existing` mints one, or `None` where this machine holds no authority or the
     /// account would not mint.
     async fn minted(&self, database_name: &str) -> Option<String>;
+    /// A protected copy of `database_name` made on the owner's own Turso account before its format
+    /// changes, labelled `label` and stamped `at`, and what it is called; `None` where this machine
+    /// holds no authority or the account would not make one, which the upgrade goes on from.
+    async fn copied(&self, database_name: &str, label: &str, at: i64) -> Option<String>;
 }
 
 /// The remote the replica was opened against, and the Turso account `account` reaches where this
@@ -155,6 +168,15 @@ impl<P: TursoPlatform + Sync> Replication for ItsRemote<P> {
                 None
             }
         }
+    }
+
+    /// A copy seeded from the organization database, as `backup::remote_copy` makes one.
+    async fn copied(&self, database_name: &str, label: &str, at: i64) -> Option<String> {
+        let account = self.account.as_ref()?;
+
+        backup::remote_copy(account, database_name, label, at)
+            .await
+            .ok()
     }
 }
 
@@ -531,7 +553,14 @@ async fn upgrade(
         now,
     };
 
-    walked(&upgrading, TRANSITIONS, organization_id, known_format).await?;
+    walked(
+        &upgrading,
+        remote,
+        TRANSITIONS,
+        organization_id,
+        known_format,
+    )
+    .await?;
 
     if remote.push(store).await != Pushed::Went {
         diagnostics::warn("organization.upgrade.notYetSent")
@@ -559,8 +588,15 @@ async fn upgrade(
 /// this machine has read in a later format than a change starts from, by `known_format`, its own
 /// record, has been made to look older, from rows a member can put back; each change's own check
 /// refuses the directory as it stands on grounds of its own. Either refusal writes nothing.
+///
+/// **Then a copy, before the transaction** (ticket 27): the organization as it stands, to a file
+/// under the data directory, and where `remote` holds the owner's account, to a protected database
+/// there. A local copy that cannot be written refuses the walk with `CopyNotTaken` and nothing is
+/// written. An organization walked through nothing is not copied: all that is written is the
+/// `format` row, which says what its directory already is.
 async fn walked(
     upgrading: &Upgrading<'_>,
+    remote: &impl Replication,
     transitions: &[Transition],
     organization_id: &str,
     known_format: Option<i64>,
@@ -585,6 +621,14 @@ async fn walked(
         if let Some(why) = (transition.refused)(upgrading).await? {
             return Err(upgraded_already(organization_id, transition.name, why));
         }
+    }
+
+    if !due.is_empty() {
+        let database = format!("{ORGANIZATION_DATABASE_PREFIX}{organization_id}");
+        let label = format!("format-{from}-to-{to}");
+
+        backup::local_copy(store, store.directory(), &database, &label, upgrading.now).await?;
+        remote.copied(&database, &label, upgrading.now).await;
     }
 
     in_one_transaction(store, async {
@@ -838,6 +882,7 @@ mod tests {
         walked, with_password, with_remembered_key, with_the_owners_password,
     };
     use crate::{
+        backup,
         error::{Error, RefusalReason},
         keyring::take_the_credential_store,
         organization::{
@@ -1022,11 +1067,13 @@ mod tests {
     }
 
     /// A remote that answers every push and every pull as it is told, mints what it is told to on
-    /// the owner's account, and says which were asked for, in order.
+    /// the owner's account, copies on the account it holds, and says which were asked for, in
+    /// order.
     struct Answering {
         push: Pushed,
         pull: bool,
         mint: Option<&'static str>,
+        account: Option<Arc<InMemoryPlatform>>,
         asked: Mutex<Vec<&'static str>>,
     }
 
@@ -1038,7 +1085,16 @@ mod tests {
                 push: if push { Pushed::Went } else { Pushed::DidNotGo },
                 pull,
                 mint: None,
+                account: None,
                 asked: Mutex::new(Vec::new()),
+            }
+        }
+
+        /// The same remote, on a machine holding `account`, which the copy is made on.
+        fn holding(self, account: &Arc<InMemoryPlatform>) -> Self {
+            Self {
+                account: Some(Arc::clone(account)),
+                ..self
             }
         }
 
@@ -1079,6 +1135,15 @@ mod tests {
             self.asked.lock().expect("the record").push("mint");
             self.mint.map(str::to_string)
         }
+
+        /// Records the copy, and makes it as production does on the account it holds.
+        async fn copied(&self, database_name: &str, label: &str, at: i64) -> Option<String> {
+            self.asked.lock().expect("the record").push("copy");
+
+            backup::remote_copy(self.account.as_ref()?, database_name, label, at)
+                .await
+                .ok()
+        }
     }
 
     /// A machine online: every push and pull goes.
@@ -1106,6 +1171,11 @@ mod tests {
         /// A member's machine mints nothing: it holds no account.
         async fn minted(&self, _: &str) -> Option<String> {
             panic!("a member's machine asked the owner's account for a credential")
+        }
+
+        /// A member's machine copies nothing: it never upgrades.
+        async fn copied(&self, _: &str, _: &str, _: i64) -> Option<String> {
+            panic!("a member's machine copied the organization on the owner's account")
         }
 
         /// Records the credential the pull was made with, runs the owner's upgrade where it is set
@@ -2236,7 +2306,7 @@ mod tests {
         .await
         .expect("the owner's sign-in did not upgrade the organization");
 
-        assert_eq!(remote.asked(), vec!["push", "pull", "push"]);
+        assert_eq!(remote.asked(), vec!["push", "pull", "copy", "push"]);
 
         store
             .refuse_another_format()
@@ -3525,6 +3595,28 @@ mod tests {
             replica.format().await.expect("the format"),
             Some(FORMAT_VERSION)
         );
+
+        // ticket 27: the connect's upgrade was copied first, on this machine and on the account
+        // the connect holds, protected there; neither refused connect copied anything.
+        let copy = format!("org-7f3a-format-1-to-2-{}", NOW / 1000);
+
+        assert_eq!(
+            copies_in(&older),
+            vec![format!("format-1-to-2-{NOW}.sqlite")]
+        );
+        assert!(copies_in(&first).is_empty());
+        assert!(copies_in(&offline).is_empty());
+        assert_eq!(
+            platform.copies(),
+            vec![("org-7f3a".to_string(), copy.clone())]
+        );
+        assert!(
+            platform
+                .databases()
+                .iter()
+                .any(|database| database.name == copy && database.delete_protection),
+            "the connect's copy on the account is not protected"
+        );
         assert_eq!(
             replica
                 .members(&older.pinned())
@@ -4092,8 +4184,11 @@ mod tests {
             .unwrap_or_else(|error| panic!("{case}: {error}"));
 
             let (asked, held) = match case {
-                "living" => (vec!["push", "pull", "push"], ORGANIZATION_CREDENTIAL),
-                _ => (vec!["mint", "push", "pull", "push"], MINTED),
+                "living" => (
+                    vec!["push", "pull", "copy", "push"],
+                    ORGANIZATION_CREDENTIAL,
+                ),
+                _ => (vec!["mint", "push", "pull", "copy", "push"], MINTED),
             };
 
             assert_eq!(remote.asked(), asked, "{case}");
@@ -4579,6 +4674,7 @@ mod tests {
 
         walked(
             &upgrading,
+            &online(),
             transitions,
             ORGANIZATION_ID,
             Some(FORMAT_VERSION),
@@ -4617,6 +4713,16 @@ mod tests {
                 .map(|(_, rows)| rows),
             Some(vec![vec![text("next")]]),
             "the next format's change did not run"
+        );
+        assert!(
+            copies_in(&older)
+                .iter()
+                .any(|copy| copy.starts_with(&format!(
+                    "format-{FORMAT_VERSION}-to-{}-",
+                    FORMAT_VERSION + 1
+                ))),
+            "the runner took no copy before the next format: {:?}",
+            copies_in(&older)
         );
         assert_eq!(
             contents_but_the_next(&store).await,
@@ -4667,5 +4773,231 @@ mod tests {
             "{refused:?}"
         );
         assert_eq!(contents(&store).await, before, "a refused change wrote");
+    }
+
+    /// The name of every copy on this machine of the organization `older` holds.
+    fn copies_in(older: &Older) -> Vec<String> {
+        let directory = backup::directory_of(&older.directory, &format!("org-{ORGANIZATION_ID}"));
+        let mut names: Vec<String> = std::fs::read_dir(directory)
+            .map(|entries| {
+                entries
+                    .flatten()
+                    .map(|entry| entry.file_name().to_string_lossy().into_owned())
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        names.sort();
+        names
+    }
+
+    /// Everything a copy holds, table by table and row by row, read from it as a plain SQLite
+    /// file and spelled as [`contents`] spells what the replica holds.
+    async fn contents_of_the_copy(path: &Path) -> Vec<(String, Vec<Vec<turso::Value>>)> {
+        use sqlx::{
+            ConnectOptions, Connection, Row, TypeInfo, ValueRef, sqlite::SqliteConnectOptions,
+        };
+
+        let mut plain = SqliteConnectOptions::new()
+            .filename(path)
+            .read_only(true)
+            .connect()
+            .await
+            .expect("the copy opens as a plain file");
+        let tables: Vec<String> = sqlx::query_scalar(
+            "SELECT name FROM sqlite_master WHERE type = 'table' \
+             AND name NOT LIKE 'sqlite_%' ORDER BY name",
+        )
+        .fetch_all(&mut plain)
+        .await
+        .expect("the tables");
+        let mut contents = Vec::new();
+
+        for table in tables {
+            let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
+                "SELECT * FROM \"{table}\" ORDER BY rowid"
+            )))
+            .fetch_all(&mut plain)
+            .await
+            .expect("the rows");
+            let values = rows
+                .iter()
+                .map(|row| {
+                    (0..row.len())
+                        .map(|index| {
+                            let raw = row.try_get_raw(index).expect("a value");
+
+                            if raw.is_null() {
+                                return turso::Value::Null;
+                            }
+
+                            match raw.type_info().name() {
+                                "INTEGER" => turso::Value::Integer(row.get(index)),
+                                "REAL" => turso::Value::Real(row.get(index)),
+                                "TEXT" => turso::Value::Text(row.get(index)),
+                                _ => turso::Value::Blob(row.get(index)),
+                            }
+                        })
+                        .collect()
+                })
+                .collect();
+
+            contents.push((table, values));
+        }
+
+        plain.close().await.expect("closed");
+
+        contents
+    }
+
+    /// **Ticket 27's third criterion.** The owner's upgrade copies the organization before it
+    /// changes anything: the copy on this machine, opened as a plain SQLite file, holds every table
+    /// and row the organization held before and none of the changes, and the account the machine
+    /// holds has a protected copy seeded from the organization database. The copy comes after the
+    /// pull and before the push of the upgrade.
+    #[tokio::test]
+    async fn the_owners_upgrade_copies_the_organization_as_it_stood_before_changing_it() {
+        let older = older("copied").await;
+        let store = older.open().await;
+        let owner = older.person("owner");
+        let platform = Arc::new(InMemoryPlatform::new("an-org"));
+
+        platform.holding_unprotected("org-7f3a");
+
+        let before = contents(&store).await;
+        let remote = online().holding(&platform);
+
+        with_password(
+            &store,
+            &remote,
+            &older.held,
+            owner.username,
+            owner.password,
+            &slot(),
+            NOW,
+        )
+        .await
+        .expect("the upgrade");
+
+        assert_eq!(remote.asked(), vec!["push", "pull", "copy", "push"]);
+        assert_eq!(
+            copies_in(&older),
+            vec![format!("format-1-to-2-{NOW}.sqlite")]
+        );
+
+        let copy = contents_of_the_copy(
+            &backup::directory_of(&older.directory, "org-7f3a")
+                .join(format!("format-1-to-2-{NOW}.sqlite")),
+        )
+        .await;
+
+        assert_eq!(before.len(), FORMAT_ONE_SCHEMA.len());
+        assert_eq!(copy, before, "the copy is not the organization as it stood");
+        assert_ne!(
+            contents(&store).await,
+            copy,
+            "the upgrade changed nothing, so the copy proves nothing"
+        );
+
+        let name = format!("org-7f3a-format-1-to-2-{}", NOW / 1000);
+
+        assert_eq!(
+            platform.copies(),
+            vec![("org-7f3a".to_string(), name.clone())]
+        );
+        assert!(
+            platform
+                .databases()
+                .iter()
+                .any(|database| database.name == name && database.delete_protection),
+            "the copy on the account is not protected"
+        );
+    }
+
+    /// **Ticket 27's fourth criterion.** A copy that cannot be written on this machine refuses the
+    /// upgrade with `CopyNotTaken`, naming the directory, and the organization is as it was: still
+    /// of format 1, every row unchanged, and nothing asked of the account.
+    #[tokio::test]
+    async fn a_copy_that_cannot_be_written_refuses_the_upgrade_and_changes_nothing() {
+        let older = older("copy-refused").await;
+        let store = older.open().await;
+        let owner = older.person("owner");
+        let platform = Arc::new(InMemoryPlatform::new("an-org"));
+
+        platform.holding_unprotected("org-7f3a");
+
+        // a file where the directory of copies would go, so nothing can be made under it.
+        std::fs::write(older.directory.join(backup::DIRECTORY_NAME), b"in the way")
+            .expect("the obstacle");
+
+        let before = contents(&store).await;
+        let remote = online().holding(&platform);
+        let refused = with_password(
+            &store,
+            &remote,
+            &older.held,
+            owner.username,
+            owner.password,
+            &slot(),
+            NOW,
+        )
+        .await;
+
+        assert_eq!(
+            reason_of(&refused),
+            Some(RefusalReason::CopyNotTaken),
+            "{refused:?}"
+        );
+        assert!(
+            refused.expect_err("refused").to_string().contains(
+                &backup::directory_of(&older.directory, "org-7f3a")
+                    .display()
+                    .to_string()
+            ),
+            "the refusal does not name the directory"
+        );
+        assert_eq!(remote.asked(), vec!["push", "pull"]);
+        assert!(store.is_older().await.expect("the format"));
+        assert_eq!(contents(&store).await, before, "a refused upgrade wrote");
+        assert!(platform.copies().is_empty());
+    }
+
+    /// **Ticket 27's fifth criterion.** A copy the account refuses is logged, as
+    /// `backup.remoteCopyRefused`, and the upgrade goes on with the copy on this machine.
+    #[tokio::test]
+    async fn a_copy_the_account_refuses_leaves_the_upgrade_going_on() {
+        let older = older("remote-copy-refused").await;
+        let store = older.open().await;
+        let owner = older.person("owner");
+        let platform = Arc::new(InMemoryPlatform::new("an-org"));
+
+        platform.holding_unprotected("org-7f3a");
+        platform.refuse_next(
+            crate::sync::turso::platform::PlatformError::AccountRefused {
+                what: "copy the database",
+            },
+        );
+
+        let remote = online().holding(&platform);
+
+        with_password(
+            &store,
+            &remote,
+            &older.held,
+            owner.username,
+            owner.password,
+            &slot(),
+            NOW,
+        )
+        .await
+        .expect("a refused copy on the account stopped the upgrade");
+
+        assert_eq!(remote.asked(), vec!["push", "pull", "copy", "push"]);
+        assert!(platform.copies().is_empty());
+        assert_eq!(
+            copies_in(&older),
+            vec![format!("format-1-to-2-{NOW}.sqlite")]
+        );
+        assert_upgraded(&store, &older, &older.pinned()).await;
     }
 }

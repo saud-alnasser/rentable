@@ -104,6 +104,7 @@ export const TAURI_REFUSAL_REASONS = [
 	'organizationChangesUnsendable',
 	'organizationCredentialLapsed',
 	'organizationNewer',
+	'copyNotTaken',
 	'tursoNotConnected',
 	'consentNeededAgain',
 	'consentGone',

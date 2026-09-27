@@ -1294,6 +1294,10 @@ type RootTranslation = {
 				 */
 				organizationNewer: string
 				/**
+				 * n​o​ ​c​o​p​y​ ​c​o​u​l​d​ ​b​e​ ​s​a​v​e​d​ ​b​e​f​o​r​e​ ​u​p​g​r​a​d​i​n​g​,​ ​s​o​ ​n​o​t​h​i​n​g​ ​c​h​a​n​g​e​d​.​ ​c​h​e​c​k​ ​t​h​e​ ​b​a​c​k​u​p​s​ ​f​o​l​d​e​r​ ​c​a​n​ ​b​e​ ​w​r​i​t​t​e​n​,​ ​t​h​e​n​ ​t​r​y​ ​a​g​a​i​n​.
+				 */
+				copyNotTaken: string
+				/**
 				 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​i​s​ ​n​o​t​ ​c​o​n​n​e​c​t​e​d​ ​t​o​ ​t​h​e​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​.​ ​c​o​n​n​e​c​t​ ​i​t​ ​a​n​d​ ​t​r​y​ ​a​g​a​i​n​.
 				 */
 				tursoNotConnected: string
@@ -5596,6 +5600,10 @@ export type TranslationFunctions = {
 				 * a newer version of rentable made this organization. update rentable to open it.
 				 */
 				organizationNewer: () => LocalizedString
+				/**
+				 * no copy could be saved before upgrading, so nothing changed. check the backups folder can be written, then try again.
+				 */
+				copyNotTaken: () => LocalizedString
 				/**
 				 * this machine is not connected to the Turso account. connect it and try again.
 				 */
