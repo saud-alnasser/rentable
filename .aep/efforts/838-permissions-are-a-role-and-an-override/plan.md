@@ -482,6 +482,37 @@ file with the same `CREATE` statements, through `sqlx` as the rest of the plain 
   the Rust message names the directory. A remote copy refused is
   `backup.remoteCopyRefused` in the log and nothing else.
 
+## Whole, checked, tested from every version, and rebuilt (spec, requirements 15 to 17)
+
+*Amended 2026-09-27, the human's call, from [[efforts/838-permissions-are-a-role-and-an-override/evidence/research/how-updates-migrate-and-fall-back]].*
+
+- **The workspace tail is one transaction.** `migrate::apply_between` sends `BEGIN`, every
+  statement of the tail, the checks below and the version row on one Hrana stream held by its
+  baton, then `COMMIT`; any failure sends `ROLLBACK`. The version is kept in a one-row table in the
+  workspace database, read first inside the same transaction: where it already says the shipped
+  version, nothing is applied and only the organization's record is brought up. The
+  organization's record stays the gate read before a replica is opened, and is written after the
+  commit as today. *Whether libSQL's server takes every statement of `0003` inside one explicit
+  transaction is not measured; the live test that does so is `#[ignore]`d and the human's, and
+  where it does not, one transaction per migration file with its version row is the fallback.*
+- **The check before commit**, one function in a new `tauri/src/schema.rs`, used by both paths:
+  `PRAGMA quick_check` answering `ok`, `PRAGMA foreign_key_check` answering nothing, and the schema
+  read from `sqlite_master` (tables, columns, indexes, views, triggers, normalised) equal to a
+  fresh database's of the same version. For a workspace the fresh one is the embedded migrations
+  applied to an in-memory SQLite; for the organization it is `install_schema` on a fresh store,
+  with the tables the upgrade leaves alone named once as allowed extras. A mismatch refuses with
+  `ShapeNotAsBuilt`, in English and Arabic.
+- **Every version in the tests.** One seed per shipped workspace version, the rows a database of
+  that version holds, is walked by the same `apply_between` against a local stand-in for the
+  pipeline, and a test fails a shipped version with no seed. The format 1 organization already
+  has its builder.
+- **A corrupt replica rebuilt.** Where opening or reading a replica answers the engine's `Corrupt`
+  or `NotADB`, the file and its sync metadata are renamed to `<name>.corrupt-<ms>`, the log says
+  what was set aside, and the replica is opened again from its remote.
+- **A rule for shipping migrations**, `rules/migrations`: add before removing, so an older build
+  keeps working while a newer one migrates; a migration never edited once shipped; each shipped
+  version seeded in the tests.
+
 # Testing Strategy
 
 | Criterion | Checked by |
@@ -499,6 +530,9 @@ file with the same `CREATE` statements, through `sqlx` as the rest of the plain 
 | 11 | Rust: a format 1 organization written by the main-branch shape (owner, narrowed administrator, member with administration flags, removed member, pending invitation, both grant levels, mark) upgraded by the owner's sign-in, then every member's effective permissions compared with the old and every row verified from a second store; the upgrade cut short before `format` still reads as format 1 and completes on the next sign-in; a member first refused naming the owner, nothing written; `format` version 3 refused naming the update, nothing written. *Tickets 23 and 25 add:* offline, or a failed push or pull, nothing written; a member pulling first and following the owner; every partial state finished; a second owner machine writing nothing; a late old-build row read verified; the owner found by key alone; a format 2 organization made to look older never transformed |
 | 12 | the human, on the running application, at the close |
 | 13 | Rust: the format 1 fixture upgraded, then its local copy opened as a plain file and every table and row compared with a copy read before the upgrade; the in-memory platform recording one protected copy; a directory that cannot be written refusing with `CopyNotTaken` and the organization unchanged; a pending workspace migration against the pipeline test double leaving its copy; a refused remote copy logged and the change done; retention keeping three |
+| 15 | Rust: a tail failing at a middle statement against the local stand-in, the workspace unchanged and the retry whole; a failing check rolling back each path; the version row read first |
+| 16 | Rust: every shipped version seeded and walked; a missing seed failing |
+| 17 | Rust: a not-a-database and a truncated replica each set aside and pulled again; the human on the running application |
 | 14 | Rust: the list's `from` values contiguous from 1 and `FORMAT_VERSION` equal to its length plus one; a test-only entry from the shipped format to the next, walked by the runner with the copy, the transaction and the `format` row; the format 1 to 2 tests unchanged and green after the split |
 
 # Operational Considerations

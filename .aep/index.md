@@ -26,6 +26,7 @@ Start at [[protocol]].
 | [[rules/data]] | a read, a write, a cached query, derived state, or undo is in question | apps/desktop/src/lib/design/**, apps/desktop/src/lib/api/**, apps/desktop/src/lib/platform/database/**, apps/desktop/src/lib/payment/**, apps/desktop/src/lib/contract/reconcile.ts, apps/desktop/tauri/src/database/** | — |
 | [[rules/frontend]] | writing or changing Svelte components, routes, styles, or client state | apps/desktop/src/lib/**, apps/desktop/src/routes/**, apps/desktop/src/app.css, packages/design/src/**, packages/design/components.json | — |
 | [[rules/interface]] | a surface is being placed, built, or restyled — a screen, a block, a list row, a form, or a cell | apps/desktop/src/lib/**/component/**, apps/desktop/src/lib/design/block/**, apps/desktop/src/lib/design/cell/**, apps/desktop/src/lib/dashboard/**, apps/desktop/src/lib/contract/**, apps/desktop/src/lib/payment/component/**, apps/desktop/src/routes/**, apps/desktop/src/app.css, packages/design/src/lib/block/**, packages/design/src/lib/primitive/**, packages/design/src/lib/tokens.css | — |
+| [[rules/migrations]] | adding or changing a workspace migration or an organization's change of format | apps/desktop/tauri/migrations/**, packages/workspace-migrations/**, apps/desktop/tauri/src/organization/transition/** | — |
 | [[rules/module-layout]] | adding a module, a file, or a directory under src/ or tauri/src/, including throwaway prototype code | apps/desktop/src/**, apps/desktop/tauri/src/**, packages/turso-platform/**, packages/design/src/** | — |
 | [[rules/testing]] | writing or changing a test, or deciding what a change must be tested at | apps/desktop/src/**, apps/desktop/tauri/src/**, packages/design/src/**, packages/turso-platform/** | — |
 | [[rules/tracker]] | creating, reading, claiming, or labelling a ticket, or deciding whether work is a ticket at all | — | — |
@@ -130,7 +131,7 @@ Start at [[protocol]].
 | 828-the-link-needs-a-code-and-the-settings-area-guides | implemented | [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]] | 5 | 0 | 29 |
 | 832-the-interface-speaks-one-language-and-guides | accepted | [[efforts/832-the-interface-speaks-one-language-and-guides/spec]] | 3 | 4 | 43 |
 | 835-the-rent-is-receipted-scheduled-and-chased | implemented | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]] | 1 | 0 | 19 |
-| 838-permissions-are-a-role-and-an-override | implemented | [[efforts/838-permissions-are-a-role-and-an-override/spec]] | 1 | 0 | 31 |
+| 838-permissions-are-a-role-and-an-override | accepted | [[efforts/838-permissions-are-a-role-and-an-override/spec]] | 1 | 0 | 35 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -368,3 +369,7 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/838-permissions-are-a-role-and-an-override/tickets/29-the-format-runner-heals-as-before-and-finds-the-owner-in-any-format]] fix(organization): the format runner heals as before and finds the owner in any format | 838-permissions-are-a-role-and-an-override | resolved | 28 |
 | [[efforts/838-permissions-are-a-role-and-an-override/tickets/30-a-copy-is-whole-stands-and-says-what-failed]] fix(organization): a copy is whole, stands, and says what failed | 838-permissions-are-a-role-and-an-override | resolved | 28 |
 | [[efforts/838-permissions-are-a-role-and-an-override/tickets/31-review-round-two-is-settled]] fix(organization): review round two of the copy and the runner is settled | 838-permissions-are-a-role-and-an-override | resolved | 29, 30 |
+| [[efforts/838-permissions-are-a-role-and-an-override/tickets/32-a-workspace-migration-commits-whole-and-checked]] fix(organization): a workspace migration commits whole, checked, with its version inside | 838-permissions-are-a-role-and-an-override | open | — |
+| [[efforts/838-permissions-are-a-role-and-an-override/tickets/33-a-change-of-format-is-checked-before-it-commits]] fix(organization): a change of format is checked before it commits | 838-permissions-are-a-role-and-an-override | open | 32 |
+| [[efforts/838-permissions-are-a-role-and-an-override/tickets/34-every-shipped-version-is-migrated-in-the-tests]] test(organization): every shipped version is migrated in the tests | 838-permissions-are-a-role-and-an-override | open | 32 |
+| [[efforts/838-permissions-are-a-role-and-an-override/tickets/35-a-corrupt-replica-is-rebuilt-from-its-remote]] fix(desktop): a corrupt replica is rebuilt from its remote | 838-permissions-are-a-role-and-an-override | open | — |

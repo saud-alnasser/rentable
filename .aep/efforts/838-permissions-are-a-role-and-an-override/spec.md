@@ -1,5 +1,5 @@
 ---
-status: implemented
+status: accepted
 ---
 
 # Problem
@@ -55,6 +55,8 @@ rank, without the owner present.
 - A copy of the organization database taken before its format changes, and of a workspace database
   before a migration changes its schema.
 - The organization's format transitions written one to a file, so the next format is one file added.
+- A change of shape that commits whole with its version, is checked before it commits, and is
+  tested from every version ever shipped; a corrupt local replica rebuilt from its remote.
 - The surfaces in the settings area where roles are defined and a member's role and override are
   set.
 
@@ -148,6 +150,25 @@ rank, without the owner present.
     owner, the push and pull before it, the copy, the refusal of a directory that was once newer,
     the transaction and the `format` row) is written once, outside those files, and the version the
     build ships is counted from the list. *The human's call, 2026-09-27.*
+15. **A change of shape commits whole with its version, or not at all, and only once checked.** A
+    workspace's pending migrations, and the version they bring it to, commit in one transaction on
+    the workspace database, and the version is kept in that database as well as recorded in the
+    organization; a failure anywhere leaves the workspace exactly as it was, and a second attempt
+    finds nothing half done. Before either change of shape commits, a workspace migration or an
+    organization's change of format, the database is checked: SQLite's own structural checks
+    pass, and its schema is the one a fresh database of that version is built with. A check that
+    fails rolls the change back, writes nothing, and says so. *The human's call, 2026-09-27: the
+    practice of Android, Room, Signal Desktop and Firefox, as [[efforts/838-permissions-are-a-role-and-an-override/evidence/research/how-updates-migrate-and-fall-back]] finds it.*
+16. **Every version ever shipped is migrated in the tests.** For each workspace schema version and
+    each organization format this build can meet, a test builds a database of that version with
+    rows in it, walks it to the shipped version by the path the application takes, and finds the
+    schema a fresh build makes and every row carried. A version shipped without such a database
+    fails the tests. *The human's call, 2026-09-27, Room's practice.*
+17. **A local replica found corrupt is rebuilt from its remote.** Where the engine reports a local
+    replica of a workspace or of the organization corrupt, or not a database, the application
+    moves the file aside, keeps it under a name that says so, logs it, and pulls the database
+    again from its remote, rather than failing every open. What the damaged file held and had not
+    sent is lost, and the log says so. *The human's call, 2026-09-27, Firefox's practice.*
 
 # Acceptance Criteria
 
@@ -207,6 +228,17 @@ rank, without the owner present.
     registers a change from the shipped format to the next, under test only, and an organization
     in the shipped format is walked through it by the same upgrade, with the copy, the transaction
     and the `format` row, and no other code touched.
+15. A test fails a workspace migration part way and finds the workspace at the version it started
+    from, every table as it was, and a second attempt applying the whole tail. A test fails the
+    check after a migration, and one after a change of format, and finds each rolled back and the
+    refusal given. The workspace's version is read from the workspace database inside the
+    transaction, and a test where the organization's record is behind finds nothing applied twice.
+16. A test walks every shipped workspace version, seeded with rows, to the shipped version, and
+    the format 1 organization to format 2, comparing each with a fresh build's schema and rows.
+    Adding a migration without its seeded database fails a test.
+17. A test gives the application a replica file that is not a database, and a truncated one, and
+    finds each set aside, the database pulled again, and the log naming what was lost. Checked by
+    the human against a real replica on the running application.
 
 # Constraints
 
@@ -250,6 +282,8 @@ rank, without the owner present.
 - **An audit log** of who changed which role or override.
 - **Giving anyone but the owner the Turso authority**, or the acts that need it.
 - **A 54th flag**, and the row-per-flag migration decision 04 names for it.
+- **Down migrations.** No client read in [[efforts/838-permissions-are-a-role-and-an-override/evidence/research/how-updates-migrate-and-fall-back]] ships them; the fallback is the
+  transaction's rollback, the copy, and the rebuild from the remote.
 - **Restoring a copy from inside the application.** A copy is the record to restore from, by hand
   or on the Turso account; a restore button, and deciding what a restore does to the machines that
   moved on, are a later effort's.
