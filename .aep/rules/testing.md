@@ -388,24 +388,25 @@ no MCP server to ask. It is not an instance of the fourth property either, becau
 different server speaking a different protocol, and Turso documents this tool set for agents rather
 than for clients, which is what makes its shape a question rather than an assumption.
 
-**An eighth property: whether Turso's server takes a workspace's whole migration in one
-transaction, and answers the check before it commits.** Admitted 2026-09-27 by review round one of
-[[efforts/838-permissions-are-a-role-and-an-override/spec]], for requirement 15: ticket 32 wrote
-the test and ticket 38 armed it and moved it here.
-`migration_live_every_shipped_migration_commits_in_one_transaction`, at the foot of
-`tauri/src/organization/migrate.rs`, provisions a database through `database/test/workspace.rs`,
-applies every shipped migration, `0003`'s drops and renames among them, inside one explicit
-transaction over the pipeline with the check's reads and the version row, commits, and runs again
-to find the version row and apply nothing. The check reads `pragma_table_info`, `pragma_index_list`
-and `pragma_index_info` on the server and compares what they answer with a fresh database built on
-a plain SQLite, so a pass is also the server's word that it records the schema as that database
-does. The local stand-in (`sync/test/pipeline.rs`) is a plain SQLite behind the same HTTP shape,
-which is right for the runner's handling of every answer and says nothing of what Turso's server
-does with a transaction or a pragma, which is the subject; a `file:` database has no pipeline. It is
-a new property rather than an instance of the fourth: the subject is the database's own SQL
-endpoint, not the Platform API. It is the nearest thing to the retired admission whose property was
-whether a remote honours a transaction the client asks for, and it is admitted on its own rather
-than as that one restored, because what it asks is this runner's transaction on this server.
+**An eighth property: whether Turso's server takes a workspace's whole migration in one transaction,
+and answers the check before it commits.** Admitted by the human's call of 2026-09-27 (effort 838,
+requirement 15), taken at the effort's review round one
+([[efforts/838-permissions-are-a-role-and-an-override/spec]]): ticket 32 wrote the test and ticket
+38 armed it and moved it here. `migration_live_every_shipped_migration_commits_in_one_transaction`,
+at the foot of `tauri/src/organization/migrate.rs`, provisions a database through
+`database/test/workspace.rs`, applies every shipped migration, `0003`'s drops and renames among
+them, inside one explicit transaction over the pipeline with the check's reads and the version row,
+commits, and runs again to find the version row and apply nothing. The check reads
+`pragma_table_info`, `pragma_index_list`, `pragma_index_info` and `pragma_foreign_key_list` on the
+server and compares what they answer with a fresh database built on a plain SQLite, so a pass is
+also the server's word that it records the schema as that database does. The local stand-in
+(`sync/test/pipeline.rs`) is a plain SQLite behind the same HTTP shape, which is right for the
+runner's handling of every answer and says nothing of what Turso's server does with a transaction or
+a pragma, which is the subject; a `file:` database has no pipeline. It is a new property rather than
+an instance of the fourth: the subject is the database's own SQL endpoint, not the Platform API. It
+is the nearest thing to the retired admission whose property was whether a remote honours a
+transaction the client asks for, and it is admitted on its own rather than as that one restored,
+because what it asks is this runner's transaction on this server.
 
 *The count in the heading sentence is the thing that goes stale. Another live test is a decision
 somebody takes here, in this section, naming its property and saying whether it is a new property or

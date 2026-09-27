@@ -22,24 +22,38 @@
 //! addition needs one. Compared as text, one such difference would refuse every migration for
 //! good. So each table is compared by its columns, read with `pragma_table_info`: each column's
 //! name, declared type, `NOT NULL` and place in the primary key, whatever their order or defaults.
-//! Each index is compared by its table, its uniqueness and its columns in order, read with
-//! `pragma_index_list` and `pragma_index_info`. Views and triggers have no pragma, and are compared
-//! by their statements [`normalised`]: identifier quotes dropped, whitespace collapsed, and case
-//! folded outside string literals. What is compared is what [`backup::listing`] lists, so what
-//! the engine owns is left out by the same [`backup::NOT_THE_ENGINES`] a copy leaves out, and an
-//! index SQLite made for a constraint, which has no statement and is named `sqlite_autoindex_`,
-//! is left out on both sides; its table's primary key and columns carry it. A table the caller
-//! keeps outside what a version builds, the organization's allowed extras say, is named with
-//! [`Shape::without`] on both sides.
+//! Every index a table has is compared, SQLite's own for a `UNIQUE` or `PRIMARY KEY` constraint
+//! included (ticket 41), read with `pragma_index_list` and `pragma_index_info`: by its table, its
+//! origin (`c` for one a statement created, `u` or `pk` for a constraint's), its uniqueness,
+//! whether it is partial, and its columns in order. One a statement created is known by its name,
+//! and its predicate, where it is partial, is compared too: the `WHERE` of its statement
+//! [`normalised`]. One SQLite made is known by the rest alone, since its name,
+//! `sqlite_autoindex_<table>_<n>`, only counts the table's constraints in the order its statement
+//! declares them. Each table's foreign keys are compared by their parent table, their columns
+//! paired with the parent's in order, and their `ON UPDATE` and `ON DELETE`, read with
+//! `pragma_foreign_key_list`, whatever order the table declares them in. Views and triggers have
+//! no pragma, and are compared by their statements [`normalised`]: identifier quotes dropped,
+//! whitespace collapsed, and case folded outside string literals. What is compared is what
+//! [`backup::listing`] lists, so what the engine owns is left out by the same
+//! [`backup::NOT_THE_ENGINES`] a copy leaves out; every index on a listed table is read, whatever
+//! it is named, but one the turso engine names as its own. A table the caller keeps outside what a
+//! version builds, the organization's allowed extras say, is named with [`Shape::without`] on both
+//! sides.
 //!
-//! **Every engine reads the structure itself**, with the same three statements
-//! ([`backup::listing`], [`columns`] and [`indexes`]): the pipeline inside a workspace's
-//! migration, the turso connection for the organization, and `sqlx` for the fresh database a
-//! workspace is compared with. The turso engine answers the pragma functions joined over
-//! `sqlite_master` (measured on 0.8.0-pre.12 at ticket 38); whether Turso's server does is what the
-//! live test at the foot of `organization/migrate.rs` measures. An engine that answered nothing
-//! would make two databases look alike, so a table or an index the listing names and the pragmas
-//! answer nothing for is a difference, never a pass.
+//! **Every engine reads the structure itself**, with the same four statements
+//! ([`backup::listing`], [`columns`], [`indexes`] and [`foreign_keys`]): the pipeline inside a
+//! workspace's migration, the turso connection for the organization, and `sqlx` for the fresh
+//! database a workspace is compared with. The turso engine answers the pragma functions joined
+//! over `sqlite_master`, `pragma_index_list`'s `origin` and `partial` and every column of
+//! `pragma_foreign_key_list` among them, and makes SQLite's own indexes for a constraint under
+//! SQLite's names (measured on 0.8.0-pre.12 at tickets 38 and 41). It spells two things otherwise
+//! than SQLite, and each is read as one: a parent key a statement left to the parent's primary key
+//! is `''` where SQLite answers null, and an expression in an index is named by its text where
+//! SQLite answers null, with the column place `-1` on both. Whether Turso's server answers the
+//! same is what the live test at the foot of `organization/migrate.rs` measures. An engine that
+//! answered nothing would make two databases look alike, so a table or an index the listing names
+//! and the pragmas answer nothing for is a difference, never a pass, and so is a table whose
+//! statement declares a `REFERENCES` its foreign keys were read without.
 //!
 //! **The organization is read on the turso engine** ([`read_engine`]), which answers
 //! `PRAGMA quick_check` and does not know `PRAGMA foreign_key_check`: an unknown pragma is
@@ -83,16 +97,36 @@ pub fn columns() -> String {
     )
 }
 
-/// Every column of every index [`backup::listing`] lists, in the index's order: its index, its
-/// table, whether it is unique, and the column's name, none for an expression.
+/// Every column of every index on every table [`backup::listing`] lists, SQLite's own for a
+/// constraint included, in the index's order: its table, its index, the index's origin (`c`, `u`
+/// or `pk`), whether it is unique and whether it is partial, and the column's place in the table
+/// and its name, `-1` and none for an expression (the turso engine names one by its text).
 pub fn indexes() -> String {
     format!(
-        "SELECT i.name, i.tbl_name, l.\"unique\", c.name \
-         FROM (SELECT name, tbl_name FROM sqlite_master \
-         WHERE type = 'index' AND sql IS NOT NULL AND {}) AS i \
-         JOIN pragma_index_list(i.tbl_name) AS l ON l.name = i.name \
-         JOIN pragma_index_info(i.name) AS c \
-         ORDER BY i.name, c.seqno",
+        "SELECT t.name, l.name, l.origin, l.\"unique\", l.partial, c.cid, c.name \
+         FROM (SELECT name FROM sqlite_master \
+         WHERE type = 'table' AND sql IS NOT NULL AND {}) AS t, \
+         pragma_index_list(t.name) AS l, \
+         pragma_index_info(l.name) AS c \
+         WHERE l.name NOT LIKE 'turso!_%' ESCAPE '!' \
+         AND l.name NOT LIKE '!_!_turso!_internal!_%' ESCAPE '!' \
+         ORDER BY t.name, l.name, c.seqno",
+        backup::NOT_THE_ENGINES
+    )
+}
+
+/// Every column of every foreign key of every table [`backup::listing`] lists, in the key's
+/// order: its table, the key's number and the column's place in it, the parent table, the column,
+/// the parent's column (none, or `''` on the turso engine, where the statement left it to the
+/// parent's primary key), and the key's `ON UPDATE` and `ON DELETE`.
+pub fn foreign_keys() -> String {
+    format!(
+        "SELECT t.name, f.id, f.seq, f.\"table\", f.\"from\", f.\"to\", f.on_update, \
+         f.on_delete \
+         FROM (SELECT name FROM sqlite_master \
+         WHERE type = 'table' AND sql IS NOT NULL AND {}) AS t, \
+         pragma_foreign_key_list(t.name) AS f \
+         ORDER BY t.name, f.id, f.seq",
         backup::NOT_THE_ENGINES
     )
 }
@@ -100,8 +134,26 @@ pub fn indexes() -> String {
 /// One row [`columns`] answers: table, column, declared type, `NOT NULL`, primary key place.
 pub type ColumnRow = (String, String, String, bool, i64);
 
-/// One row [`indexes`] answers: index, table, unique, column (none for an expression).
-pub type IndexRow = (String, String, bool, Option<String>);
+/// One row [`indexes`] answers: table, index, origin, unique, partial, the column's place in the
+/// table, and its name (none for an expression).
+pub type IndexRow = (String, String, String, bool, bool, i64, Option<String>);
+
+/// One row [`foreign_keys`] answers: table, key, place in the key, parent table, column, parent's
+/// column (none where the statement left it to the parent's primary key), `ON UPDATE`,
+/// `ON DELETE`.
+pub type ForeignKeyRow = (
+    String,
+    i64,
+    i64,
+    String,
+    String,
+    Option<String>,
+    String,
+    String,
+);
+
+/// What an index's column is called where it is an expression rather than a column.
+const EXPRESSION: &str = "<expression>";
 
 /// A column as the check compares it. Its place among the table's columns and its default are
 /// not part of it.
@@ -115,51 +167,120 @@ struct Column {
 }
 
 /// An index as the check compares it.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct Index {
     table: String,
+    /// `c` for one a statement created, `u` or `pk` for one SQLite made for a constraint.
+    origin: String,
     unique: bool,
-    /// its columns in order, an expression as `<expression>`.
+    partial: bool,
+    /// the `WHERE` of the statement that created it, [`normalised`], where it has one.
+    predicate: Option<String>,
+    /// its columns in order, an expression as [`EXPRESSION`].
     columns: Vec<String>,
 }
 
 impl Index {
-    /// How a difference names it: `unique, on note(body, id)`.
+    /// How a difference names it: `unique, on note(body, id) where pinned = 1`, or for one SQLite
+    /// made, `the index of its unique constraint on (code)`.
     fn described(&self) -> String {
+        let partial = match (&self.predicate, self.partial) {
+            (Some(predicate), _) => format!(" where {predicate}"),
+            (None, true) => ", partial".to_string(),
+            (None, false) => String::new(),
+        };
+
+        match self.origin.as_str() {
+            "c" => format!(
+                "{}on {}({}){partial}",
+                if self.unique { "unique, " } else { "" },
+                self.table,
+                self.columns.join(", ")
+            ),
+            origin => format!(
+                "the index of its {} on ({}){}{partial}",
+                if origin == "pk" {
+                    "primary key"
+                } else {
+                    "unique constraint"
+                },
+                self.columns.join(", "),
+                if self.unique { "" } else { ", not unique" }
+            ),
+        }
+    }
+}
+
+/// A foreign key as the check compares it.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+struct ForeignKey {
+    parent: String,
+    /// each column and the parent's column it names, in order; the parent's is empty where the
+    /// statement left it to the parent's primary key.
+    columns: Vec<(String, String)>,
+    on_update: String,
+    on_delete: String,
+}
+
+impl ForeignKey {
+    /// How a difference names it: `(parent_id) references parent(id) on update no action on
+    /// delete cascade`.
+    fn described(&self) -> String {
+        let (own, parents): (Vec<&str>, Vec<&str>) = self
+            .columns
+            .iter()
+            .map(|(own, parent)| (own.as_str(), parent.as_str()))
+            .unzip();
+        let parent = if parents.iter().all(|column| column.is_empty()) {
+            self.parent.clone()
+        } else {
+            format!("{}({})", self.parent, parents.join(", "))
+        };
+
         format!(
-            "{}on {}({})",
-            if self.unique { "unique, " } else { "" },
-            self.table,
-            self.columns.join(", ")
+            "({}) references {parent} on update {} on delete {}",
+            own.join(", "),
+            self.on_update.to_ascii_lowercase(),
+            self.on_delete.to_ascii_lowercase()
         )
     }
 }
 
-/// A database's schema as the check compares it: each table by its columns, each index by its
-/// table, uniqueness and columns, and each view and trigger by its statement [`normalised`]. Every
-/// name is folded to lower case, as SQLite matches names.
+/// A database's schema as the check compares it: each table by its columns and its foreign keys,
+/// each index by its table, origin, uniqueness, partiality, predicate and columns, and each view
+/// and trigger by its statement [`normalised`]. Every name is folded to lower case, as SQLite
+/// matches names.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Shape {
     /// each table, its columns by name.
     tables: BTreeMap<String, BTreeMap<String, Column>>,
+    /// each index a statement created, by name.
     indexes: BTreeMap<String, Index>,
+    /// each index SQLite made for a table's constraint, by table, sorted: known by what it is and
+    /// not by its name, which only counts the table's constraints.
+    constraints: BTreeMap<String, Vec<Index>>,
+    /// each table's foreign keys, sorted, whatever order the table declares them in.
+    foreign_keys: BTreeMap<String, Vec<ForeignKey>>,
     /// each view and trigger by kind and name.
     statements: BTreeMap<(String, String), String>,
     /// each table and index, by kind and name, the listing named and the pragmas answered
-    /// nothing for: a difference wherever it is, since it was not read.
+    /// nothing for, and each table, as `foreign keys`, whose statement declares a `REFERENCES` its
+    /// foreign keys were read without: a difference wherever it is, since it was not read.
     unread: BTreeSet<(String, String)>,
 }
 
 impl Shape {
-    /// The shape of what [`backup::listing`], [`columns`] and [`indexes`] answered, read in one
-    /// transaction.
+    /// The shape of what [`backup::listing`], [`columns`], [`indexes`] and [`foreign_keys`]
+    /// answered, read in one transaction.
     pub fn of(
         listed: impl IntoIterator<Item = (String, String, String)>,
         columns: impl IntoIterator<Item = ColumnRow>,
         indexes: impl IntoIterator<Item = IndexRow>,
+        foreign_keys: impl IntoIterator<Item = ForeignKeyRow>,
     ) -> Self {
         let mut shape = Self::default();
         let mut structural = Vec::new();
+        let mut index_statements = BTreeMap::new();
 
         for (table, name, declared, not_null, primary_key) in columns {
             shape
@@ -176,40 +297,106 @@ impl Shape {
                 );
         }
 
-        for (index, table, unique, column) in indexes {
-            shape
-                .indexes
-                .entry(index.to_ascii_lowercase())
-                .or_insert_with(|| Index {
-                    table: table.to_ascii_lowercase(),
-                    unique,
-                    columns: Vec::new(),
-                })
-                .columns
-                .push(column.map_or_else(
-                    || "<expression>".to_string(),
-                    |column| column.to_ascii_lowercase(),
-                ));
-        }
-
         for (kind, name, statement) in listed {
             let name = name.to_ascii_lowercase();
+            let statement = normalised(&statement);
 
             if kind == "table" || kind == "index" {
-                structural.push((kind, name));
+                if kind == "index" {
+                    index_statements.insert(name.clone(), statement.clone());
+                }
+
+                structural.push((kind, name, statement));
             } else {
-                shape
-                    .statements
-                    .insert((kind, name), normalised(&statement));
+                shape.statements.insert((kind, name), statement);
             }
         }
 
-        for (kind, name) in structural {
+        let mut read_indexes: BTreeMap<(String, String), Index> = BTreeMap::new();
+
+        for (table, index, origin, unique, partial, place, column) in indexes {
+            let table = table.to_ascii_lowercase();
+            let index = index.to_ascii_lowercase();
+            let origin = origin.to_ascii_lowercase();
+            let predicate = if origin == "c" {
+                index_statements
+                    .get(&index)
+                    .and_then(|statement| predicate_of(statement))
+            } else {
+                None
+            };
+
+            read_indexes
+                .entry((table.clone(), index))
+                .or_insert_with(|| Index {
+                    table,
+                    origin,
+                    unique,
+                    partial,
+                    predicate,
+                    columns: Vec::new(),
+                })
+                .columns
+                .push(match column {
+                    Some(column) if place != -1 => column.to_ascii_lowercase(),
+                    _ => EXPRESSION.to_string(),
+                });
+        }
+
+        for ((table, name), index) in read_indexes {
+            if index.origin == "c" {
+                shape.indexes.insert(name, index);
+            } else {
+                shape.constraints.entry(table).or_default().push(index);
+            }
+        }
+
+        for constraints in shape.constraints.values_mut() {
+            constraints.sort();
+        }
+
+        let mut read_keys: BTreeMap<(String, i64), ForeignKey> = BTreeMap::new();
+
+        for (table, key, _, parent, column, parents, on_update, on_delete) in foreign_keys {
+            read_keys
+                .entry((table.to_ascii_lowercase(), key))
+                .or_insert_with(|| ForeignKey {
+                    parent: parent.to_ascii_lowercase(),
+                    columns: Vec::new(),
+                    on_update: on_update.to_ascii_uppercase(),
+                    on_delete: on_delete.to_ascii_uppercase(),
+                })
+                .columns
+                .push((
+                    column.to_ascii_lowercase(),
+                    parents.unwrap_or_default().to_ascii_lowercase(),
+                ));
+        }
+
+        for ((table, _), key) in read_keys {
+            shape.foreign_keys.entry(table).or_default().push(key);
+        }
+
+        for keys in shape.foreign_keys.values_mut() {
+            keys.sort();
+        }
+
+        for (kind, name, statement) in structural {
             let read = if kind == "table" {
                 shape.tables.contains_key(&name)
             } else {
                 shape.indexes.contains_key(&name)
             };
+
+            // a `REFERENCES` in a table's statement that no foreign key was read for.
+            if kind == "table"
+                && statement.contains(" references ")
+                && !shape.foreign_keys.contains_key(&name)
+            {
+                shape
+                    .unread
+                    .insert(("foreign keys".to_string(), name.clone()));
+            }
 
             if !read {
                 shape.unread.insert((kind, name));
@@ -219,12 +406,13 @@ impl Shape {
         shape
     }
 
-    /// The shape of the same three reads, each row as the engine's values: what the pipeline and
+    /// The shape of the same four reads, each row as the engine's values: what the pipeline and
     /// the turso engine answer.
     pub fn of_values(
         listed: &[Vec<turso::Value>],
         columns: &[Vec<turso::Value>],
         indexes: &[Vec<turso::Value>],
+        foreign_keys: &[Vec<turso::Value>],
     ) -> Result<Self, Error> {
         let listed = listed
             .iter()
@@ -248,16 +436,31 @@ impl Shape {
                 Ok((
                     text(row, 0)?,
                     text(row, 1)?,
-                    integer(row, 2)? != 0,
-                    match row.get(3) {
-                        Some(turso::Value::Null) => None,
-                        _ => Some(text(row, 3)?),
-                    },
+                    text(row, 2)?,
+                    integer(row, 3)? != 0,
+                    integer(row, 4)? != 0,
+                    integer(row, 5)?,
+                    optional_text(row, 6)?,
                 ))
             })
             .collect::<Result<Vec<IndexRow>, Error>>()?;
+        let foreign_keys = foreign_keys
+            .iter()
+            .map(|row| {
+                Ok((
+                    text(row, 0)?,
+                    integer(row, 1)?,
+                    integer(row, 2)?,
+                    text(row, 3)?,
+                    text(row, 4)?,
+                    optional_text(row, 5)?,
+                    text(row, 6)?,
+                    text(row, 7)?,
+                ))
+            })
+            .collect::<Result<Vec<ForeignKeyRow>, Error>>()?;
 
-        Ok(Self::of(listed, columns, indexes))
+        Ok(Self::of(listed, columns, indexes, foreign_keys))
     }
 
     /// This shape without the tables named, and without any index, view or trigger on them: for a
@@ -267,6 +470,8 @@ impl Shape {
 
         self.tables.retain(|name, _| !named(name));
         self.indexes.retain(|_, index| !named(&index.table));
+        self.constraints.retain(|table, _| !named(table));
+        self.foreign_keys.retain(|table, _| !named(table));
         self.statements.retain(|(_, name), statement| {
             !named(name)
                 && !tables.iter().any(|table| {
@@ -277,14 +482,15 @@ impl Shape {
                 })
         });
         self.unread
-            .retain(|(kind, name)| !(kind == "table" && named(name)));
+            .retain(|(kind, name)| !((kind == "table" || kind == "foreign keys") && named(name)));
 
         self
     }
 
     /// What this shape has that `fresh` does not, what `fresh` has that it lacks, and what both
-    /// have otherwise, one sentence each: tables, then indexes, then views and triggers, each by
-    /// name; and last, whatever either side could not read.
+    /// have otherwise, one sentence each: tables, then indexes, then the indexes SQLite made for a
+    /// constraint and the foreign keys, each by table, then views and triggers, each by name; and
+    /// last, whatever either side could not read.
     fn differences(&self, fresh: &Shape) -> Vec<String> {
         let mut differences = Vec::new();
 
@@ -332,6 +538,35 @@ impl Shape {
                 .map(|name| format!("index {name} is missing")),
         );
 
+        for (table, found, built) in by_table(&self.constraints, &fresh.constraints) {
+            differences.extend(unmatched(found, built).into_iter().map(|index| {
+                format!(
+                    "table {table} has {} where a fresh database does not",
+                    index.described()
+                )
+            }));
+            differences.extend(
+                unmatched(built, found)
+                    .into_iter()
+                    .map(|index| format!("table {table} is missing {}", index.described())),
+            );
+        }
+
+        for (table, found, built) in by_table(&self.foreign_keys, &fresh.foreign_keys) {
+            differences.extend(unmatched(found, built).into_iter().map(|key| {
+                format!(
+                    "table {table} has the foreign key {} where a fresh database does not",
+                    key.described()
+                )
+            }));
+            differences.extend(unmatched(built, found).into_iter().map(|key| {
+                format!(
+                    "table {table} is missing its foreign key {}",
+                    key.described()
+                )
+            }));
+        }
+
         for ((kind, name), statement) in &self.statements {
             match fresh.statements.get(&(kind.clone(), name.clone())) {
                 None => differences.push(format!("{kind} {name} is not in a fresh database")),
@@ -361,9 +596,14 @@ impl Shape {
                     .map(|object| (object, "a fresh database's")),
             )
         {
-            differences.push(format!(
-                "{whose} {kind} {name} answered nothing to its pragma, so it was not read"
-            ));
+            differences.push(if kind == "foreign keys" {
+                format!(
+                    "{whose} table {name} declares a foreign key its pragma answered nothing for, \
+                     so its foreign keys were not read"
+                )
+            } else {
+                format!("{whose} {kind} {name} answered nothing to its pragma, so it was not read")
+            });
         }
 
         differences
@@ -431,6 +671,61 @@ fn column_differences(
     );
 
     differences
+}
+
+/// Each table either side has something of, with what each side has of it, empty where it has
+/// nothing.
+fn by_table<'a, T>(
+    found: &'a BTreeMap<String, Vec<T>>,
+    fresh: &'a BTreeMap<String, Vec<T>>,
+) -> Vec<(&'a str, &'a [T], &'a [T])> {
+    found
+        .keys()
+        .chain(fresh.keys())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .map(|table| {
+            (
+                table.as_str(),
+                found.get(table).map(Vec::as_slice).unwrap_or_default(),
+                fresh.get(table).map(Vec::as_slice).unwrap_or_default(),
+            )
+        })
+        .collect()
+}
+
+/// Each of `these` that `those` has no match for, a match counted once: the two compared as
+/// lists that may hold one thing twice.
+fn unmatched<'a, T: PartialEq>(these: &'a [T], those: &[T]) -> Vec<&'a T> {
+    let mut left: Vec<&T> = those.iter().collect();
+
+    these
+        .iter()
+        .filter(|item| match left.iter().position(|other| other == item) {
+            Some(at) => {
+                left.remove(at);
+
+                false
+            }
+            None => true,
+        })
+        .collect()
+}
+
+/// The predicate of a partial index, from its statement [`normalised`]: what follows the `WHERE`
+/// after its columns, where there is one.
+fn predicate_of(statement: &str) -> Option<String> {
+    statement
+        .find(") where ")
+        .map(|at| statement[at + ") where ".len()..].to_string())
+}
+
+/// The `index`th value of `row` as text, or none where it is null.
+fn optional_text(row: &[turso::Value], index: usize) -> Result<Option<String>, Error> {
+    match row.get(index) {
+        Some(turso::Value::Null) => Ok(None),
+        _ => text(row, index).map(Some),
+    }
 }
 
 /// The `index`th value of `row` as text.
@@ -565,16 +860,36 @@ pub async fn read(connection: &mut SqliteConnection) -> Result<Found, Error> {
             Ok((
                 row.try_get(0)?,
                 row.try_get(1)?,
-                row.try_get::<i64, _>(2)? != 0,
-                row.try_get(3)?,
+                row.try_get(2)?,
+                row.try_get::<i64, _>(3)? != 0,
+                row.try_get::<i64, _>(4)? != 0,
+                row.try_get(5)?,
+                row.try_get(6)?,
             ))
         })
         .collect::<Result<Vec<IndexRow>, sqlx::Error>>()?;
+    let foreign_keys = sqlx::query(sqlx::AssertSqlSafe(foreign_keys()))
+        .fetch_all(&mut *connection)
+        .await?
+        .iter()
+        .map(|row| {
+            Ok((
+                row.try_get(0)?,
+                row.try_get(1)?,
+                row.try_get(2)?,
+                row.try_get(3)?,
+                row.try_get(4)?,
+                row.try_get(5)?,
+                row.try_get(6)?,
+                row.try_get(7)?,
+            ))
+        })
+        .collect::<Result<Vec<ForeignKeyRow>, sqlx::Error>>()?;
 
     Ok(Found {
         quick_check,
         foreign_key_violations,
-        shape: Shape::of(listed, columns, indexes),
+        shape: Shape::of(listed, columns, indexes, foreign_keys),
     })
 }
 
@@ -608,6 +923,7 @@ pub async fn read_engine(connection: &turso::Connection) -> Result<Found, Error>
         &values(connection, &backup::listing()).await?,
         &values(connection, &columns()).await?,
         &values(connection, &indexes()).await?,
+        &values(connection, &foreign_keys()).await?,
     )?;
 
     Ok(Found {
@@ -1035,6 +1351,7 @@ mod tests {
             )],
             [],
             [],
+            [],
         );
         let found = Found {
             quick_check: vec!["ok".to_string()],
@@ -1054,6 +1371,180 @@ mod tests {
             },
             &unread,
             "a fresh database's table note answered nothing to its pragma"
+        ));
+    }
+
+    /// **Ticket 41's first criterion.** A rebuild that lost an inline `UNIQUE`, a `REFERENCES` or a
+    /// partial index's predicate is each a difference, though every column and every index name is
+    /// as a fresh database has it; SQLite's own index for a constraint is compared by what it is.
+    #[tokio::test]
+    async fn a_lost_unique_a_lost_references_and_a_lost_predicate_each_differ() {
+        let parent = "CREATE TABLE parent (id text PRIMARY KEY NOT NULL)";
+        let child = "CREATE TABLE child (id integer PRIMARY KEY, \
+                     parent_id text REFERENCES parent(id) ON DELETE CASCADE, \
+                     code text UNIQUE, pinned integer)";
+        let partial = "CREATE INDEX child_pinned ON child (code) WHERE pinned = 1";
+        let fresh = built(&[parent, child, partial]).await.shape;
+        let cases = [
+            (
+                [
+                    parent,
+                    "CREATE TABLE child (id integer PRIMARY KEY, \
+                     parent_id text REFERENCES parent(id) ON DELETE CASCADE, \
+                     code text, pinned integer)",
+                    partial,
+                ],
+                "table child is missing the index of its unique constraint on (code)",
+            ),
+            (
+                [
+                    parent,
+                    "CREATE TABLE child (id integer PRIMARY KEY, parent_id text, \
+                     code text UNIQUE, pinned integer)",
+                    partial,
+                ],
+                "table child is missing its foreign key (parent_id) references parent(id) on \
+                 update no action on delete cascade",
+            ),
+            (
+                [
+                    parent,
+                    "CREATE TABLE child (id integer PRIMARY KEY, \
+                     parent_id text REFERENCES parent(id), code text UNIQUE, pinned integer)",
+                    partial,
+                ],
+                "table child is missing its foreign key (parent_id) references parent(id) on \
+                 update no action on delete cascade",
+            ),
+            (
+                [parent, child, "CREATE INDEX child_pinned ON child (code)"],
+                "index child_pinned is not as a fresh database has it (on child(code), where a \
+                 fresh one is on child(code) where pinned = 1)",
+            ),
+            (
+                [
+                    parent,
+                    child,
+                    "CREATE INDEX child_pinned ON child (code) WHERE pinned = 0",
+                ],
+                "index child_pinned is not as a fresh database has it",
+            ),
+        ];
+
+        as_built(
+            "a test database",
+            &built(&[parent, child, partial]).await,
+            &fresh,
+        )
+        .expect("the same statements");
+
+        for (statements, naming) in cases {
+            let found = built(&statements).await;
+
+            assert!(
+                refused_naming(&found, &fresh, naming),
+                "{naming}: {:?}",
+                as_built("a test database", &found, &fresh)
+            );
+        }
+    }
+
+    /// SQLite's own index for a constraint is known by what it is and not by its name, which
+    /// counts the table's constraints in the order its statement declares them; and a table's
+    /// foreign keys by what they are, whatever order it declares them in.
+    #[tokio::test]
+    async fn constraints_declared_in_another_order_compare_equal() {
+        let fresh = built(&[
+            "CREATE TABLE parent (id text PRIMARY KEY NOT NULL)",
+            "CREATE TABLE child (id text PRIMARY KEY NOT NULL, a text UNIQUE, b text UNIQUE, \
+             p text REFERENCES parent(id), q text REFERENCES parent)",
+        ])
+        .await
+        .shape;
+        let found = built(&[
+            "CREATE TABLE parent (id text PRIMARY KEY NOT NULL)",
+            "CREATE TABLE child (q text REFERENCES parent, b text UNIQUE, \
+             p text REFERENCES parent(id), a text UNIQUE, id text PRIMARY KEY NOT NULL)",
+        ])
+        .await;
+
+        as_built("a test database", &found, &fresh).expect("the same constraints, reordered");
+    }
+
+    /// **Ticket 41, the engines agree.** A table with an inline `UNIQUE`, a `REFERENCES` to a
+    /// parent's column and one to its primary key, a partial index and an index on an expression,
+    /// built on the turso engine, compares equal to the same built on a plain SQLite, though the
+    /// engine spells the implicit parent key and the expression otherwise; built without the
+    /// `UNIQUE` or the `REFERENCES` there, it differs.
+    #[tokio::test]
+    async fn constraints_keys_and_partial_indexes_read_on_the_engine_as_on_sqlite() {
+        let parent = "CREATE TABLE parent (id TEXT PRIMARY KEY NOT NULL)";
+        let indexes = [
+            "CREATE INDEX child_pinned ON child (code) WHERE pinned > 1",
+            "CREATE UNIQUE INDEX child_lower ON child (lower(code))",
+        ];
+        let child = "CREATE TABLE child (id INTEGER PRIMARY KEY, \
+                     parent_id TEXT REFERENCES parent(id) ON DELETE CASCADE, \
+                     owner TEXT REFERENCES parent, code TEXT UNIQUE, pinned INTEGER)";
+        let fresh = built(&[parent, child, indexes[0], indexes[1]]).await.shape;
+        let found = built_on_the_engine(&[parent, child, indexes[0], indexes[1]]).await;
+
+        as_built("a test database", &found, &fresh).expect("the same schema on the engine");
+
+        for (table, naming) in [
+            (
+                "CREATE TABLE child (id INTEGER PRIMARY KEY, \
+                 parent_id TEXT REFERENCES parent(id) ON DELETE CASCADE, \
+                 owner TEXT REFERENCES parent, code TEXT, pinned INTEGER)",
+                "table child is missing the index of its unique constraint on (code)",
+            ),
+            (
+                "CREATE TABLE child (id INTEGER PRIMARY KEY, \
+                 parent_id TEXT REFERENCES parent(id) ON DELETE CASCADE, \
+                 owner TEXT, code TEXT UNIQUE, pinned INTEGER)",
+                "table child is missing its foreign key (owner) references parent on update",
+            ),
+        ] {
+            let found = built_on_the_engine(&[parent, table, indexes[0], indexes[1]]).await;
+
+            assert!(
+                refused_naming(&found, &fresh, naming),
+                "{naming}: {:?}",
+                as_built("a test database", &found, &fresh)
+            );
+        }
+    }
+
+    /// A table whose statement declares a `REFERENCES` its foreign keys were read without is a
+    /// difference, so an engine that answered nothing to the pragma never reads as a pass.
+    #[test]
+    fn a_reference_the_pragma_answers_nothing_for_is_never_a_pass() {
+        let unread = Shape::of(
+            [(
+                "table".to_string(),
+                "child".to_string(),
+                "CREATE TABLE child (parent_id integer REFERENCES parent(id))".to_string(),
+            )],
+            [(
+                "child".to_string(),
+                "parent_id".to_string(),
+                "integer".to_string(),
+                false,
+                0,
+            )],
+            [],
+            [],
+        );
+        let found = Found {
+            quick_check: vec!["ok".to_string()],
+            shape: unread.clone(),
+            ..Found::default()
+        };
+
+        assert!(refused_naming(
+            &found,
+            &unread,
+            "the database's table child declares a foreign key its pragma answered nothing for"
         ));
     }
 }

@@ -502,16 +502,17 @@ file with the same `CREATE` statements, through `sqlx` as the rest of the plain 
   applied to an in-memory SQLite; for the organization it is `install_schema` on a fresh store,
   with the tables the upgrade leaves alone named once as allowed extras. A mismatch refuses with
   `ShapeNotAsBuilt`, in English and Arabic.
-  *Superseded by ticket 38, below, which compares structure: **Measured at ticket 33 on turso 0.8.0-pre.12: an organization upgraded in place records its
-  `member` table as the engine rewrote it after the ALTERs (the added columns last, with the
-  defaults a `NOT NULL` ADD COLUMN needs, quotes dropped), which is not the statement a fresh store
-  records, and a drop-and-rename does not replicate (2026-08-20, 2026-09-26). So a change of
-  format also declares the statement the engine records for each table it reshapes in place, and
-  the check accepts that or the fresh one for that table alone, strict everywhere else; a change
-  names the tables it leaves alone (`organization_mark`) and each entry builds the fresh
-  organization of the format it arrives at. `PRAGMA quick_check` answers on the engine;
-  `foreign_key_check` is not in its `pragma_list` and is silently ignored, so it is logged as not
-  checkable, which the organization's schema, declaring no foreign key, makes safe.*
+  *Superseded by ticket 38, below, which compares structure. Measured at ticket 33 on turso
+  0.8.0-pre.12: an organization upgraded in place records its `member` table as the engine rewrote
+  it after the ALTERs (the added columns last, with the defaults a `NOT NULL` ADD COLUMN needs,
+  quotes dropped), which is not the statement a fresh store records, and a drop-and-rename does not
+  replicate (2026-08-20, 2026-09-26). So a change of format also declares the statement the engine
+  records for each table it reshapes in place, and the check accepts that or the fresh one for that
+  table alone, strict everywhere else; a change names the tables it leaves alone
+  (`organization_mark`) and each entry builds the fresh organization of the format it arrives at.
+  `PRAGMA quick_check` answers on the engine; `foreign_key_check` is not in its `pragma_list` and is
+  silently ignored, so it is logged as not checkable, which the organization's schema, declaring no
+  foreign key, makes safe.*
 - **Every version in the tests.** One seed per shipped workspace version, the rows a database of
   that version holds, is walked by the same `apply_between` against a local stand-in for the
   pipeline, and a test fails a shipped version with no seed. The format 1 organization already
@@ -545,11 +546,12 @@ file with the same `CREATE` statements, through `sqlx` as the rest of the plain 
   if the person had chosen that file. It is offered on the way in, where the file holds records,
   as one line saying the earlier version's records are here and will be brought in once a
   workspace exists; and, once the person holds a workspace they may import into, as a callout in
-  the workspace group of settings beside the transfer controls, until they have brought them in
+  the workspace group of settings above the transfer controls, until they have brought them in
   or dismissed it. Nothing writes to `app.db`.
-  *As built (ticket 40): the callout shows to anyone with the workspace open, and refuses the
-  bring-in at its control without the import flags, saying why; dismissing is not gated, and it
-  settles the offer for the machine.*
+  *As built (ticket 40): the line on the way in reads "records from version X are on this
+  machine. bring them in from settings once there is a workspace." The callout shows to anyone
+  with the workspace open, and refuses the bring-in at its control without the import flags,
+  saying why; dismissing is not gated, and it settles the offer for the machine.*
 - **A rule for shipping migrations**, `rules/migrations`: add before removing, so an older build
   keeps working while a newer one migrates; a migration never edited once shipped; each shipped
   version seeded in the tests.
@@ -571,11 +573,11 @@ file with the same `CREATE` statements, through `sqlx` as the rest of the plain 
 | 11 | Rust: a format 1 organization written by the main-branch shape (owner, narrowed administrator, member with administration flags, removed member, pending invitation, both grant levels, mark) upgraded by the owner's sign-in, then every member's effective permissions compared with the old and every row verified from a second store; the upgrade cut short before `format` still reads as format 1 and completes on the next sign-in; a member first refused naming the owner, nothing written; `format` version 3 refused naming the update, nothing written. *Tickets 23 and 25 add:* offline, or a failed push or pull, nothing written; a member pulling first and following the owner; every partial state finished; a second owner machine writing nothing; a late old-build row read verified; the owner found by key alone; a format 2 organization made to look older never transformed |
 | 12 | the human, on the running application, at the close |
 | 13 | Rust: the format 1 fixture upgraded, then its local copy opened as a plain file and every table and row compared with a copy read before the upgrade; the in-memory platform recording one protected copy; a directory that cannot be written refusing with `CopyNotTaken` and the organization unchanged; a pending workspace migration against the pipeline test double leaving its copy; a refused remote copy logged and the change done; retention keeping three |
+| 14 | Rust: the list's `from` values contiguous from 1 and `FORMAT_VERSION` equal to its length plus one; a test-only entry from the shipped format to the next, walked by the runner with the copy, the transaction and the `format` row; the format 1 to 2 tests unchanged and green after the split |
 | 15 | Rust: a tail failing at a middle statement against the local stand-in, the workspace unchanged and the retry whole; a failing check rolling back each path; the version row read first |
 | 16 | Rust: every shipped version seeded and walked; a missing seed failing |
 | 17 | Rust: a not-a-database and a truncated replica each set aside and pulled again; the human on the running application |
 | 18 | Rust: `app.db` built at schema 2 and 3 from the shipped migrations, read into the transfer tables, every record present, the workbook written; TS: the import plan over those tables creates every record; the human on the running application with 0.13.0's file |
-| 14 | Rust: the list's `from` values contiguous from 1 and `FORMAT_VERSION` equal to its length plus one; a test-only entry from the shipped format to the next, walked by the runner with the copy, the transaction and the `format` row; the format 1 to 2 tests unchanged and green after the split |
 
 # Operational Considerations
 

@@ -112,13 +112,17 @@ sentence from both.
   truncated file as neither, and some cuts hang its open), `Database::open_replica` renames the file
   and every sidecar to `<name>.corrupt-<ms>`, keeps them, logs `replica.corrupt.setAside` naming
   them and that anything not yet sent from it is lost, and opens the replica again empty; the first
-  pull fills it as it fills a new one. A second failure is refused as any open is. Damage met
-  after the open, by a query on a watched connection (`corrupt::Watched`, which every workspace and
-  organization read goes through) or by a push or pull, writes `<name>-damaged` beside the replica
-  and logs `replica.corrupt.found`; the next open finds that marker and sets the replica aside the
-  same way. A file cut short beside the sync engine's `<name>-replace-base-apply` marker is left
-  to the engine, which restores it from its backups at the open. `database/corrupt.rs` holds what
-  counts as damaged and the measurements behind it.
+  pull fills it as it fills a new one. A second failure is refused as any open is. Damage the
+  engine reports by its kind (`Corrupt`, `NotAdb`) after the open writes `<name>-damaged` beside
+  the replica and logs `replica.corrupt.found`; the next open finds that marker and sets the
+  replica aside the same way. What is watched for it is the proxy's single and batch statements
+  and the organization store's own `query` and `execute`, on a `corrupt::Watched` connection, and
+  every push and pull. `Database::is_replica_ready`, `OrganizationStore::found`,
+  `lease_connection` and `install` read the engine's connection unwatched. The not-a-database
+  words are read at the open alone, since a failed push or pull is flattened text that may carry
+  the server's own. A file cut short beside the sync engine's `<name>-replace-base-apply` marker
+  is left to the engine, which restores it from its backups at the open. `database/corrupt.rs`
+  holds what counts as damaged and the measurements behind it.
 - **A refused credential is collected again, and nobody is told to do anything.** When a dispatch
   comes back refused as the credential's, the shell pulls the organization replica, reads the
   member's grants again, hands the sync engine whatever moved, and tries the same dispatch once

@@ -27,14 +27,22 @@
 //!
 //! **Damage met after the open marks the replica, and its next open sets it aside.** A data page
 //! the first read did not touch is met by a later query, a push or a pull, while the replica is
-//! held open and in use, which is no moment to rename its files. So a query answering `Corrupt` or
-//! `NotAdb`, or a push or pull answering turso_core's words for a file that is not a database,
-//! writes a marker beside the replica, `<name>-damaged`, holding what the engine said, and logs
-//! `replica.corrupt.found`. The next open finds the marker and sets the replica aside as it sets
-//! aside a damaged open. The marker is one of the files the replica is removed and set aside with
-//! (`Database::replica_files`), so it goes with the file it speaks of. Every connection the
-//! application reads a replica through is a [`Watched`] one, and a push or pull is passed through
-//! [`Watch::note`], so the kinds are matched here and nowhere else.
+//! held open and in use, which is no moment to rename its files. So a query, a push or a pull
+//! answering `Corrupt` or `NotAdb` writes a marker beside the replica, `<name>-damaged`, holding
+//! what the engine said, and logs `replica.corrupt.found`. The next open finds the marker and sets
+//! the replica aside as it sets aside a damaged open. The marker is one of the files the replica is
+//! removed and set aside with (`Database::replica_files`), so it goes with the file it speaks of.
+//! **Only the kinds mark it** ([`met`]): a push or a pull that fails is flattened to text as the
+//! open is, and that text can carry the words of the server's own SQLite about a file that is not
+//! this one, so turso_core's words are read at the open alone ([`reported`]).
+//!
+//! **What is watched is named, and it is not every read.** The proxy's single and batch statements
+//! and the organization store's own `query` and `execute` run on a [`Watched`] connection, and
+//! every push and pull is passed through [`Watch::note`], so the kinds are matched here and
+//! nowhere else. A few reads go through the engine's connection unwatched:
+//! `Database::is_replica_ready`, `OrganizationStore::found`, `lease_connection` and `install`.
+//! Damage one of them meets is refused as any error is, and marks nothing until a watched read
+//! meets it.
 //!
 //! **A replica the sync engine is restoring is left to it.** The engine replaces a replica's base
 //! by copying each of its files to a backup and writing a marker, `<name>-replace-base-apply`,
@@ -97,7 +105,9 @@ impl Damage {
     }
 }
 
-/// Whether an error from opening or reading a replica says the file is damaged.
+/// Whether an error from opening a replica says the file is damaged: the engine's kinds, and the
+/// words the open's flattened error carries (see the module comment). Only the open reads the
+/// words; [`met`] reads the kinds alone.
 pub(crate) fn reported(error: &turso::Error) -> Option<Damage> {
     match error {
         turso::Error::NotAdb(_) | turso::Error::Corrupt(_) => {
@@ -188,14 +198,19 @@ pub(crate) fn marked(replica: &Path) -> Option<Damage> {
         .map(Damage::Found)
 }
 
-/// Record beside `replica` that the engine answered `error` on it, where that answer is damage,
-/// and log it the first time. The next open sets the replica aside ([`opened_once_more`]).
+/// Record beside `replica` that the engine answered `error` on it, where that answer is one of the
+/// engine's kinds for damage, and log it the first time. The next open sets the replica aside
+/// ([`opened_once_more`]).
+///
+/// The kinds and not the words: a push or a pull that failed is text, which may carry the words
+/// of the server's own SQLite about a file that is not this replica.
 ///
 /// A marker that will not write is left unwritten: the damage is met again at the next query, and
 /// nothing about answering this one depends on it.
 pub(crate) fn met(replica: &Path, error: &turso::Error) {
-    let Some(Damage::Reported(message)) = reported(error) else {
-        return;
+    let message = match error {
+        turso::Error::NotAdb(_) | turso::Error::Corrupt(_) => error.to_string(),
+        _ => return,
     };
     let marker = beside(replica, MARKER);
 
@@ -697,6 +712,36 @@ mod tests {
             names_in(&directory),
             vec![format!("ws-north.db{MARKER}")],
             "a marker was written somewhere else"
+        );
+        let _ = std::fs::remove_dir_all(&directory);
+    }
+
+    /// A push or a pull whose flattened error carries the not-a-database words, which may be the
+    /// server's own SQLite speaking of its file, marks nothing: the words are read at the open,
+    /// never past it.
+    #[test]
+    fn a_push_or_pull_carrying_the_words_does_not_mark_the_replica() {
+        let directory = scratch("pushed");
+        let replica = directory.join("ws-north.db");
+        let failed = || {
+            turso::Error::Error(
+                "sync engine operation failed: http error: status 500: file is not a database"
+                    .to_string(),
+            )
+        };
+
+        assert!(
+            reported(&failed()).is_some(),
+            "the open no longer reads the words"
+        );
+
+        let answer = Watch::over(&replica).note::<()>(Err(failed()));
+
+        assert!(matches!(answer, Err(turso::Error::Error(_))), "{answer:?}");
+        assert_eq!(
+            marked(&replica),
+            None,
+            "a push or a pull carrying the words marked it"
         );
         let _ = std::fs::remove_dir_all(&directory);
     }

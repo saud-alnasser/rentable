@@ -50,8 +50,9 @@ requirement 15): `PRAGMA quick_check` answers `ok`, and the schema is what a fre
 the format it arrives at is built with, which the last change's `Transition::built` makes on an
 empty in-memory database, less the tables any change of the walk names in `Transition::kept`
 (`organization_mark`). The schema is compared by structure, not statement text: each table by its
-columns' names, declared types, `NOT NULL` and primary key places, each index by its table,
-uniqueness and columns, views and triggers by their normalised statements. So the `member` table,
+columns' names, declared types, `NOT NULL` and primary key places and by its foreign keys, every
+index, SQLite's own for a constraint included, by its table, origin, uniqueness, partiality,
+predicate and columns, views and triggers by their normalised statements. So the `member` table,
 which the engine records with its added columns last once it is reshaped in place, compares equal
 to a fresh one with nothing declared for it. `PRAGMA foreign_key_check` is not in the engine's
 `pragma_list` and is logged as not checkable; the schema declares no foreign key. A check that

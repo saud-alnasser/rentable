@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { mock, test } from 'node:test';
 
 // An `app.db` that cannot be read offers nothing on the way in, and says so to the diagnostics
-// under the event name the rest of the application's follow (`area.what`).
+// under an event name spelled as the rest of the application's are (`area.what`).
 type Recorded = { event: string; fields: Record<string, unknown> };
 
 const recorded: Recorded[] = [];

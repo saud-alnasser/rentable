@@ -23,9 +23,10 @@
 //! **A record whose parent is missing is left out, and counted.** A unit whose complex, a contract
 //! whose tenant, or a payment whose contract is not in the file has nothing the import could
 //! attach it to, and the import refuses a whole file over a reference nothing answers to, so the
-//! read leaves it out as `workspace.get` does. How many of each were left out is written in the
-//! `earlier.read` line, which is a warning where any was, so the records a person does not find
-//! brought over are accounted for somewhere.
+//! read leaves it out as `workspace.get` does. A contract's link to a unit that is missing, or was
+//! itself left out, goes the same way, and the unit is not on the contract's row. How many of
+//! each were left out is written in the `earlier.read` line, which is a warning where any was, so
+//! the records a person does not find brought over are accounted for somewhere.
 
 use std::{
     collections::HashMap,
@@ -249,11 +250,13 @@ struct LeftOut {
     contracts: usize,
     /// payments whose contract is missing, or was itself left out.
     payments: usize,
+    /// a contract's links to a unit that is missing, or was itself left out.
+    unit_links: usize,
 }
 
 impl LeftOut {
     fn any(self) -> bool {
-        self.units + self.contracts + self.payments > 0
+        self.units + self.contracts + self.payments + self.unit_links > 0
     }
 }
 
@@ -328,10 +331,13 @@ async fn sheets(connection: &mut SqliteConnection) -> Result<(Vec<Sheet>, LeftOu
     .fetch_all(&mut *connection)
     .await?;
 
-    let (all_units, all_contracts): (i64, i64) =
-        sqlx::query_as("SELECT (SELECT count(*) FROM unit), (SELECT count(*) FROM contract)")
-            .fetch_one(&mut *connection)
-            .await?;
+    let (all_units, all_contracts, all_unit_links): (i64, i64, i64) = sqlx::query_as(
+        "SELECT (SELECT count(*) FROM unit), (SELECT count(*) FROM contract), \
+         (SELECT count(*) FROM contract_unit)",
+    )
+    .fetch_one(&mut *connection)
+    .await?;
+    let unit_links_read = assignments.len();
     let all_payments = payments.len();
 
     let mut units_of: HashMap<i64, Vec<String>> = HashMap::new();
@@ -400,6 +406,9 @@ async fn sheets(connection: &mut SqliteConnection) -> Result<(Vec<Sheet>, LeftOu
             .unwrap_or_default()
             .saturating_sub(contracts_read),
         payments: all_payments - payment_rows.len(),
+        unit_links: usize::try_from(all_unit_links)
+            .unwrap_or_default()
+            .saturating_sub(unit_links_read),
     };
 
     let sheets = vec![
@@ -456,6 +465,7 @@ fn read_record(version: Version, workbook: &str, left_out: LeftOut) -> Diagnosti
         .with("unitsLeftOut", left_out.units.to_string())
         .with("contractsLeftOut", left_out.contracts.to_string())
         .with("paymentsLeftOut", left_out.payments.to_string())
+        .with("unitLinksLeftOut", left_out.unit_links.to_string())
 }
 
 /// Where the workbook of `version`'s records is written, under `directory`, the directory
@@ -892,8 +902,9 @@ mod tests {
         }
     }
 
-    // a unit whose complex, a contract whose tenant and a payment whose contract is missing are
-    // left out of the sheets, and each is counted by kind in the line the log keeps.
+    // a unit whose complex, a contract whose tenant, a payment whose contract and a contract's
+    // link whose unit is missing are left out of the sheets, and each is counted by kind in the
+    // line the log keeps.
     #[tokio::test]
     async fn records_left_out_for_a_missing_parent_are_counted_by_kind() {
         let path = left_by(Version::Thirteen).await;
@@ -910,6 +921,8 @@ mod tests {
             // contract 2 and its two payments.
             "DELETE FROM tenant WHERE id = 2",
             "INSERT INTO payment (id, date, amount, contract_id) VALUES (4, 0, 10.0, 99)",
+            // a link to a unit that is not there, beside the one to unit 3, now left out.
+            "INSERT INTO contract_unit (contract_id, unit_id) VALUES (1, 99)",
         ] {
             sqlx::query(statement)
                 .execute(&mut connection)
@@ -926,6 +939,7 @@ mod tests {
                 units: 1,
                 contracts: 1,
                 payments: 3,
+                unit_links: 2,
             }
         );
         let rows = |name: &str| {
@@ -946,6 +960,7 @@ mod tests {
         assert_eq!(line.fields["unitsLeftOut"], "1");
         assert_eq!(line.fields["contractsLeftOut"], "1");
         assert_eq!(line.fields["paymentsLeftOut"], "3");
+        assert_eq!(line.fields["unitLinksLeftOut"], "2");
 
         let whole = read_record(
             Version::Thirteen,
@@ -954,6 +969,17 @@ mod tests {
         );
         assert_eq!(whole.level, diagnostics::DiagnosticLevel::Info);
         assert_eq!(whole.fields["paymentsLeftOut"], "0");
+        assert_eq!(whole.fields["unitLinksLeftOut"], "0");
+
+        let links_only = read_record(
+            Version::Thirteen,
+            "workspace-0.13.0.xlsx",
+            LeftOut {
+                unit_links: 1,
+                ..LeftOut::default()
+            },
+        );
+        assert_eq!(links_only.level, diagnostics::DiagnosticLevel::Warn);
     }
 
     #[tokio::test]

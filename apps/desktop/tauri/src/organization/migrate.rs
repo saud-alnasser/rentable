@@ -315,6 +315,7 @@ async fn migrated_on(
                 execute(&backup::listing()),
                 execute(&schema::columns()),
                 execute(&schema::indexes()),
+                execute(&schema::foreign_keys()),
             ],
             false,
         )
@@ -375,6 +376,7 @@ async fn migrated_on(
             &decoded_rows(&applied, 3)?,
             &decoded_rows(&applied, 4)?,
             &decoded_rows(&applied, 5)?,
+            &decoded_rows(&applied, 6)?,
         )?,
     };
 
@@ -1561,9 +1563,9 @@ mod tests {
     /// one witness of two things the local stand-in cannot answer: whether Turso's server takes
     /// all of it in one transaction, where the plan's fallback is one transaction per migration
     /// file; and whether the server answers the check's reads, `pragma_table_info`,
-    /// `pragma_index_list` and `pragma_index_info` among them, so that the workspace it holds
-    /// compares equal to the fresh one built on a plain SQLite. [[rules/testing]] admits it under
-    /// *Tests that reach a live remote*.
+    /// `pragma_index_list`, `pragma_index_info` and `pragma_foreign_key_list` among them, so that
+    /// the workspace it holds compares equal to the fresh one built on a plain SQLite.
+    /// [[rules/testing]] admits it under *Tests that reach a live remote*.
     ///
     /// ```text
     /// RENTABLE_LIVE_TURSO=1 TURSO_API_TOKEN=... TURSO_ORG=... TURSO_GROUP=... \
