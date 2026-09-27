@@ -586,6 +586,17 @@ file with the same `CREATE` statements, through `sqlx` as the rest of the plain 
   effective result of an override, that carries a kind's add, edit or delete without its view;
   `assign_role` clears the member's override.
 
+## A workspace is in or out, with a lock (spec, requirement 12, amended again 2026-09-27)
+
+*The human's call.* The member's card and the add-member form list the organization's
+workspaces as switches: on is a full-access grant, off is none. Beneath a workspace switched on,
+the owner sees *lock to read-only*, a smaller switch whose line says the member cannot change
+anything in it, even outside the application; for anyone else it is shown, dimmed, with the reason
+(only the owner's account mints a read-only credential). The words *full access*, *read-only* and
+*no access* leave the card; *read-only* stays as the lock's name and on the workspace's own
+readers. Behaviour is unchanged: switching on grants, off withdraws, locking re-grants read-only,
+unlocking re-grants full access, each through the acts that exist.
+
 # Testing Strategy
 
 | Criterion | Checked by |

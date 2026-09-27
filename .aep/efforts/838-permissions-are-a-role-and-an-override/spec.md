@@ -1,5 +1,5 @@
 ---
-status: implemented
+status: accepted
 ---
 
 # Problem
@@ -148,6 +148,12 @@ rank, without the owner present.
     owner's own acts are one quiet line, not switches. A roles card says, by kind of record and
     with its icon, what the role can do in plain words (full access, can edit, view only), with a
     short line for administration where it has any.*
+    *Amended again 2026-09-27, the human's call on the running application: the workspaces a member
+    is in sit on their card as one switch each, in or out, and not as a level beside the role. An
+    owner-only switch beneath a workspace the member is in locks it to read-only, and says what
+    that is: nothing in it can be changed by that member, even outside the application, which is
+    the one limit a role cannot give. The grant itself, full access re-sealed or read-only minted,
+    is unchanged.*
 13. **Nothing changes an organization's format or a workspace's schema without a copy of it first.**
     Before the owner's machine transforms the organization, and before the member holding a
     workspace's lease applies a pending migration to it, the machine writes a copy of every table
