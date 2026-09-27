@@ -602,6 +602,44 @@ only, unlocking re-grants full access, each through the acts that exist. *Ticket
 offered to the owner only on a machine holding the Turso authority, and switching a workspace back
 to what it held is never refused.*
 
+## A workspace is tailored, and the lock is its preset (spec, requirement 12, amended a third time 2026-09-27)
+
+*The human's call.* What a member may do in a workspace is `effective(role, override) XOR
+workspace override`, then folded by the grant's level as today (`effectiveIn`). The workspace
+override carries record flags only (the `FAMILIES` of the five kinds); a mask naming any other bit
+is refused on write and on read.
+
+**Stored as its own signed row, not on the grant.** A grant is signed under `grantWorkspace` and
+carries a sealed credential; the override is set by a holder of `overrideMember`, who may hold no
+grant rights at all. So a new table, `workspace_override`, keyed by member and workspace, signed
+like every other row and judged by a new `Authority::WorkspaceOverride`: covered where the
+certificate is the root, or carries `overrideMember`, outranks the member (as a member row's rank
+is judged), carries every flag the mask switches, and is not the member's own. The table arrives
+by **format 3**, one file (`transition/three.rs`) added to `TRANSITIONS`, so the owner's upgrade and
+its copy run as requirement 14 built them; an empty table is the whole change.
+
+**The act.** `set_workspace_override(member, workspace, mask)`: `overrideMember`, the member ranked
+below, not oneself, the member holding a grant on that workspace, record flags only, no flag moved
+that the actor does not hold, and no write left without its view in the result. A mask of zero
+deletes the row. Cleared with the member's organization layer: `assign_role`, a deleted role's
+holders, `set_override` to zero (the reset); and with the grant: `withdraw_grant`, removal,
+`delete_workspace`.
+
+**Read.** The session carries, per workspace, `permissions`: the member's organization-wide
+effective switched by that workspace's override. The frontend context answers a record procedure by
+the open workspace's `permissions` folded by its access level; the organization-wide `permissions`
+still answers administration. A member's facts carry each grant's override, so the card can draw it.
+
+**The card.** Each workspace the member is in keeps its in/out switch; beneath it, a disclosure
+(*tailor for this workspace*, reading *custom* where it differs) opens the record groups of the
+shared switch list, measured against the member's organization-wide permissions, with the
+difference dots, a *reset* and a *read only* preset (every add, edit and delete off). The lock
+switch leaves the card, the add-member form and the workspace's dialog; the dialog marks a person
+tailored there. A grant already minted read-only is drawn with its writes off and the preset on;
+turning a write on re-grants it full access (the reader must hold the workspace at full access) and
+writes the override. The Rust read-only grant and its renewal stay, for grants already minted; the
+interface makes no new one.
+
 # Testing Strategy
 
 | Criterion | Checked by |

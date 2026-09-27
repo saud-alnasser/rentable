@@ -1,5 +1,5 @@
 ---
-status: implemented
+status: accepted
 ---
 
 # Problem
@@ -154,6 +154,17 @@ rank, without the owner present.
     that is: nothing in it can be changed by that member, even outside the application, which is
     the one limit a role cannot give. The grant itself, full access re-sealed or read-only minted,
     is unchanged.*
+    *Amended a third time 2026-09-27, the human's call: a member's permissions are three layers,
+    their role, then what is changed for them across the organization, then what is changed for
+    them in one workspace. The last changes only the kinds of record (viewing, adding, editing and
+    deleting each), is set by whoever may change the organization-wide layer, under the same
+    rules, and is cleared with it when the member is given another role or reset to their role.
+    Beneath a workspace the member is in, their card tailors it with the same switches, measured
+    against what they hold across the organization, with a reset and a *read only* preset that
+    turns every add, edit and delete off there. The owner's lock to read-only leaves the card and
+    the workspace's dialog: *read only* is those switches, enforced by the application, and a grant
+    already minted read-only keeps working, reads as read only, and becomes a full-access grant when
+    a write is turned back on.*
 13. **Nothing changes an organization's format or a workspace's schema without a copy of it first.**
     Before the owner's machine transforms the organization, and before the member holding a
     workspace's lease applies a pending migration to it, the machine writes a copy of every table
@@ -253,6 +264,13 @@ rank, without the owner present.
     reset and the roles card's words; a Rust and a TypeScript test refuse a role mask and an
     override leaving a write flag without its view flag; a test gives a member with an override
     another role and finds the override gone.
+    *Amended 2026-09-27 with the workspace layer:* the shared table of criterion 6 gains a
+    workspace override, read by both languages; a Rust test sets, refuses (an administration flag,
+    a flag not held, a rank not above, one's own, a write without its view) and clears one (another
+    role, a reset, a withdrawal, a removal, a deleted workspace), and a row written around the
+    command beyond its signer's reach is refused on read; the format 2 to 3 change is walked by the
+    runner; a TypeScript test finds a record procedure answering by the workspace's layer; component
+    tests cover the tailoring, its reset and its read only preset, and no lock anywhere.
 13. A test upgrades a format 1 organization and finds a local copy holding every table and row the
     organization held before, and none of the changes; one where the account is reachable finds a
     protected copy made on it from the organization database. A test whose local copy cannot be
