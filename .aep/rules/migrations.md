@@ -31,6 +31,8 @@ never had.*
 ## Every shipped version is seeded in the tests
 
 A new migration or change of format comes with the seeded database of the version before it, so
-the tests walk every version ever shipped to the current one.
+the tests walk every version shipped from 0.14.0 on to the current one. Releases before that,
+which kept their records in one local file, move over by the guided step of effort 838,
+requirement 18, not by migration.
 
 *Why: a step is only known to work from the versions it was run from, which is Room's practice.*

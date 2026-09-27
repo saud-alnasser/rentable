@@ -509,6 +509,20 @@ file with the same `CREATE` statements, through `sqlx` as the rest of the plain 
 - **A corrupt replica rebuilt.** Where opening or reading a replica answers the engine's `Corrupt`
   or `NotADB`, the file and its sync metadata are renamed to `<name>.corrupt-<ms>`, the log says
   what was set aside, and the replica is opened again from its remote.
+- **What is carried forward.** Releases from 0.14.0 on, the first on Turso: workspace schema 5 on
+  and organization format 1 on are seeded and walked in the tests (ticket 34). *The human's call,
+  2026-09-27.*
+- **Before Turso, a guided move** (spec, requirement 18). 0.12.0 and 0.13.0 kept records in
+  `app.db`, at workspace schema 2 and 3 (`_sqlx_migrations` names which). A new command reads that
+  file read-only, whatever of the two it is, into the tables `import_read_book` returns, in the
+  whole-workspace export's columns (`TRANSFER_COLUMNS`), and writes the same tables as the export
+  workbook to `backups/app/workspace-<version>.xlsx` through `export_write_workbook`'s writer.
+  The interface takes those tables into the existing `planWorkspaceImport` and import dialog, as
+  if the person had chosen that file. It is offered on the way in, where the file holds records,
+  as one line saying the earlier version's records are here and will be brought in once a
+  workspace exists; and, once the person holds a workspace they may import into, as a callout in
+  the workspace group of settings beside the transfer controls, until they have brought them in
+  or dismissed it. Nothing writes to `app.db`.
 - **A rule for shipping migrations**, `rules/migrations`: add before removing, so an older build
   keeps working while a newer one migrates; a migration never edited once shipped; each shipped
   version seeded in the tests.
@@ -532,6 +546,7 @@ file with the same `CREATE` statements, through `sqlx` as the rest of the plain 
 | 13 | Rust: the format 1 fixture upgraded, then its local copy opened as a plain file and every table and row compared with a copy read before the upgrade; the in-memory platform recording one protected copy; a directory that cannot be written refusing with `CopyNotTaken` and the organization unchanged; a pending workspace migration against the pipeline test double leaving its copy; a refused remote copy logged and the change done; retention keeping three |
 | 15 | Rust: a tail failing at a middle statement against the local stand-in, the workspace unchanged and the retry whole; a failing check rolling back each path; the version row read first |
 | 16 | Rust: every shipped version seeded and walked; a missing seed failing |
+| 18 | Rust: `app.db` built at schema 2 and 3 from the shipped migrations, read into the transfer tables, every record present, the workbook written; TS: the import plan over those tables creates every record; the human on the running application with 0.13.0's file |
 | 17 | Rust: a not-a-database and a truncated replica each set aside and pulled again; the human on the running application |
 | 14 | Rust: the list's `from` values contiguous from 1 and `FORMAT_VERSION` equal to its length plus one; a test-only entry from the shipped format to the next, walked by the runner with the copy, the transaction and the `format` row; the format 1 to 2 tests unchanged and green after the split |
 

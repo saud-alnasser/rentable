@@ -17,9 +17,9 @@ follows.
 
 Traces requirement 16 of [[efforts/838-permissions-are-a-role-and-an-override/spec]].
 
-- [ ] A seed per shipped workspace version, each walked to the shipped version, schema and rows
+- [ ] A seed per workspace version shipped from 0.14.0 on (schema 5 and after), each walked to the shipped version, schema and rows
       compared. `0003`'s drops and renames carry their rows.
-- [ ] A test counts the embedded migrations against the seeds and fails a version without one.
+- [ ] A test fails a shipped version from 5 on without a seed.
 - [ ] The format 1 organization walked to format 2 is compared with a fresh build's schema.
 - [ ] `cargo test`, `pnpm check`, `pnpm test` and `pnpm lint` pass.
 

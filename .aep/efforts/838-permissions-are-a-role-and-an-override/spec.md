@@ -57,6 +57,8 @@ rank, without the owner present.
 - The organization's format transitions written one to a file, so the next format is one file added.
 - A change of shape that commits whole with its version, is checked before it commits, and is
   tested from every version ever shipped; a corrupt local replica rebuilt from its remote.
+- The releases this build carries forward, 0.14.0 and after, and a guided move for a machine
+  still holding the records of 0.12.0 or 0.13.0, which kept them in one local file.
 - The surfaces in the settings area where roles are defined and a member's role and override are
   set.
 
@@ -160,7 +162,8 @@ rank, without the owner present.
     fails rolls the change back, writes nothing, and says so. *The human's call, 2026-09-27: the
     practice of Android, Room, Signal Desktop and Firefox, as [[efforts/838-permissions-are-a-role-and-an-override/evidence/research/how-updates-migrate-and-fall-back]] finds it.*
 16. **Every version ever shipped is migrated in the tests.** For each workspace schema version and
-    each organization format this build can meet, a test builds a database of that version with
+    each organization format this build can meet, which are those of 0.14.0 and after (workspace
+    schema 5 on, organization format 1 on; the human's call, 2026-09-27), a test builds a database of that version with
     rows in it, walks it to the shipped version by the path the application takes, and finds the
     schema a fresh build makes and every row carried. A version shipped without such a database
     fails the tests. *The human's call, 2026-09-27, Room's practice.*
@@ -169,6 +172,15 @@ rank, without the owner present.
     moves the file aside, keeps it under a name that says so, logs it, and pulls the database
     again from its remote, rather than failing every open. What the damaged file held and had not
     sent is lost, and the log says so. *The human's call, 2026-09-27, Firefox's practice.*
+18. **The records of 0.12.0 and 0.13.0 are moved over by a guided step, not migrated in place.**
+    Those releases came before organizations and Turso and kept every record in one local file.
+    Where this build finds such a file holding records, it says so on the way in, and once the
+    person has an organization and a workspace, it offers to bring them in: the old file is read
+    as the whole-workspace export is, written out as that export file beside the copies so the
+    person keeps it, and brought in through the workspace import the application already has, which
+    shows what would be created and what turned away before anything is written. The old file is
+    never changed or deleted. *The human's call, 2026-09-27: releases before Turso move over by an
+    export and an onboarding step.*
 
 # Acceptance Criteria
 
@@ -236,6 +248,11 @@ rank, without the owner present.
 16. A test walks every shipped workspace version, seeded with rows, to the shipped version, and
     the format 1 organization to format 2, comparing each with a fresh build's schema and rows.
     Adding a migration without its seeded database fails a test.
+18. A test builds the local file of 0.12.0 and of 0.13.0 with records, from the migrations each
+    shipped, and reads each into the whole-workspace export, every record present; the export file
+    written; and the import plan over it creating every record. On the running application, a
+    machine holding 0.13.0's file is told on the way in and brings the records into a new
+    workspace. Checked by the human.
 17. A test gives the application a replica file that is not a database, and a truncated one, and
     finds each set aside, the database pulled again, and the log naming what was lost. Checked by
     the human against a real replica on the running application.
