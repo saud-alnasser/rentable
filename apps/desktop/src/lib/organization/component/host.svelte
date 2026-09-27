@@ -123,14 +123,18 @@
 		}
 	});
 
-	/** the rows the sheet's workspaces draw: every workspace, with what this member holds on it. */
+	/**
+	 * the rows the sheet's workspaces draw: every workspace the reader holds, with what this member
+	 * holds on it, and whether the reader holds it at full access, which is what they can give.
+	 */
 	const memberRows = $derived(
 		openedOn
 			? (session?.workspaces ?? []).map((held) => ({
 					id: held.id,
 					name: held.name,
 					access: (openedOn.member.workspaces.find((grant) => grant.id === held.id)?.access ??
-						'none') as AccessChoice
+						'none') as AccessChoice,
+					givable: held.accessLevel === 'full-access'
 				}))
 			: []
 	);

@@ -8,11 +8,13 @@
 	import * as Form from '@rentable/design/primitive/form/index.js';
 	import * as InputGroup from '@rentable/design/primitive/input-group/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import type { AccessChoice, AccessRow } from '$lib/organization/component/access-dialog.svelte';
+	import type { AccessChoice } from '$lib/organization/component/access-dialog.svelte';
 	import MemberOverride from '$lib/organization/component/member-override.svelte';
 	import MemberRole from '$lib/organization/component/member-role.svelte';
 	import MemberSectionHead from '$lib/organization/component/member-section-head.svelte';
-	import MemberWorkspaces from '$lib/organization/component/member-workspaces.svelte';
+	import MemberWorkspaces, {
+		type MemberWorkspaceRow
+	} from '$lib/organization/component/member-workspaces.svelte';
 	import { roleNameOf } from '$lib/organization/role';
 	import type { OrganizationRole } from '$lib/platform/host';
 	import { BUILT_IN } from '@rentable/workspace-permission';
@@ -30,9 +32,8 @@
 	 * **Laid out as the member's sheet is** (ticket 42 of effort 832). Adding a member and editing
 	 * one are one surface in two moments, so this draws the sections `member-sheet.svelte` draws,
 	 * in its order and from the same pieces: the username under its head, the role in its tray
-	 * (`member-role.svelte`), what they may do as switches (`member-override.svelte`), and a row
-	 * per workspace with its three levels
-	 * (`member-workspaces.svelte`). *It drew an uppercase label, a bare role control the width of
+	 * (`member-role.svelte`), what they may do as switches (`member-override.svelte`), and a
+	 * switch per workspace (`member-workspaces.svelte`). *It drew an uppercase label, a bare role control the width of
 	 * the panel, seven checkboxes and a checkbox per workspace until the human saw the two sheets
 	 * side by side in the running build and asked for this one to read like the other.*
 	 *
@@ -58,11 +59,12 @@
 	 * **An account is made in one role with one override** (effort 838, requirement 5), and opens
 	 * on the member role with nothing changed, which is what most people are made as. Who may hand
 	 * out what is decided by the shared pieces, as on the member's sheet: a role below the maker's
-	 * rank, a flag the maker holds (requirement 7), and read only is the owner's to mint.
+	 * rank, a flag the maker holds (requirement 7), a workspace the maker holds at full access, and
+	 * the lock to read only is the owner's to mint.
 	 *
-	 * **No access is what not granting a workspace is.** Every workspace the maker holds is a row
-	 * starting there, and each row that left it becomes a grant at that level: what the account
-	 * is made with is what the member's row will carry (requirement 8 of effort 826).
+	 * **A workspace switched off is one not granted.** Every workspace the maker holds is a switch
+	 * starting off, and each one switched on becomes a grant, read only where it is locked: what
+	 * the account is made with is what the member's row will carry (requirement 8 of effort 826).
 	 *
 	 * **The mutation is the host's.** This component owns the `superForm` and the surface and
 	 * hands what was chosen up through `onCreate`; `layout/component/organization-dialogs.svelte`
@@ -114,7 +116,7 @@
 	 * the level chosen per workspace, held beside the form rather than in it.
 	 *
 	 * A superforms field carries what a schema can refuse, and this is a choice with no refusal
-	 * of its own: every level is one of three fixed values, and no access is not granting it.
+	 * of its own: a workspace is in, in and locked, or out, and out is not granting it.
 	 */
 	let access = $state<Record<string, AccessChoice>>({});
 
@@ -126,12 +128,20 @@
 	const roleMask = $derived(chosen?.mask ?? 0);
 	const roleName = $derived(chosen ? roleNameOf($LL, chosen) : '');
 
-	/** every workspace the maker can grant, as a row that holds nothing yet. */
-	const rows: AccessRow[] = $derived(
-		workspaces.map((workspace) => ({ id: workspace.id, name: workspace.name, access: 'none' }))
+	/**
+	 * every workspace the maker can grant, as a row that holds nothing yet. One the maker holds
+	 * read only is not theirs to give, since full access is their own credential re-sealed.
+	 */
+	const rows: MemberWorkspaceRow[] = $derived(
+		workspaces.map((workspace) => ({
+			id: workspace.id,
+			name: workspace.name,
+			access: 'none',
+			givable: workspace.accessLevel === 'full-access'
+		}))
 	);
 
-	/** a grant for every row that left no access, at the level it was left on. */
+	/** a grant for every row switched on, at the level it was left on. */
 	const grants = (): WorkspaceGrant[] =>
 		rows.flatMap((row) => {
 			const level = access[row.id] ?? row.access;

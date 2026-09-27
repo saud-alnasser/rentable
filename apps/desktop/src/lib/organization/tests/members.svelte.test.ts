@@ -950,9 +950,8 @@ test('one save writes the override and the grants through the acts that exist', 
 	// the organization's switches are folded until opened.
 	await fireEvent.click(document.querySelector<HTMLElement>('[data-switches-fold]')!);
 	await fireEvent.click(document.querySelector<HTMLElement>('#member-override-renameMember')!);
-	await fireEvent.click(
-		document.querySelector<HTMLElement>('#access-ws-2 [data-level="full-access"]')!
-	);
+	// ws-2 switched on, which is a full-access grant.
+	await fireEvent.click(document.querySelector<HTMLElement>('#access-ws-2')!);
 	await fireEvent.submit(document.querySelector('form')!);
 
 	await waitFor(() => {
@@ -1064,9 +1063,8 @@ test('a refused act marks its own section and leaves the sheet open', async () =
 
 	await press('sami', 'edit');
 
-	await fireEvent.click(
-		document.querySelector<HTMLElement>('#access-ws-2 [data-level="full-access"]')!
-	);
+	// ws-2 switched on, which is a full-access grant.
+	await fireEvent.click(document.querySelector<HTMLElement>('#access-ws-2')!);
 	await fireEvent.submit(document.querySelector('form')!);
 
 	await waitFor(() => {
@@ -1106,13 +1104,20 @@ test('the edit opens the name on the sheet, and a reader holding only renameMemb
 
 	await press('ada', 'edit');
 
-	// the role and what they may do are read by every reader of the card, and refused to this one.
+	// the role, what they may do and the workspaces are read by every reader of the card, and
+	// refused to this one (the workspaces since ticket 48 of effort 838).
 	expect(
 		Array.from(document.querySelectorAll('[data-sheet-section]')).map((block) =>
 			block.getAttribute('data-sheet-section')
 		)
-	).toEqual(['name', 'role', 'override']);
+	).toEqual(['name', 'role', 'override', 'workspaces']);
 	expect(document.querySelector('[data-switches-refusal]')).not.toBeNull();
+	expect(document.querySelector('[data-access-refusal]')?.textContent?.trim()).toBe(
+		en.organization.dashboard.lacksFlag.replace(
+			'{flag:string}',
+			en.organization.flags.grantWorkspace
+		)
+	);
 });
 
 test('a new name is written through the rename, and what Rust refuses marks the name', async () => {

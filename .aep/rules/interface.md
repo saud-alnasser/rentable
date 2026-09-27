@@ -624,8 +624,8 @@ holders. *The editor declared the weight before this paragraph named it; ticket 
 draw the same sections, in the same order, with the same legends and control shapes, from the same
 pieces: the username under its head, the role picker in its tray (`member-role.svelte`), the
 switch list under it (`member-override.svelte`, which draws `permission-switches.svelte` with
-the role to compare against and the reset), and a row per workspace with its three levels
-(`member-workspaces.svelte`), where *no access* is what not granting it is. Only the sentences that
+the role to compare against and the reset), and a switch per workspace
+(`member-workspaces.svelte`), where off is what not granting it is. Only the sentences that
 belong to the moment differ, and who may hand out what is decided in the shared pieces, so the two
 cannot gate differently. *Settled by ticket 42 of
 [[efforts/832-the-interface-speaks-one-language-and-guides/spec]]: the human saw the two side by
@@ -659,6 +659,25 @@ editor was a table of three columns, what the role gives, a box meaning "changed
 until ticket 43 of that effort, the human's call on the running application of 2026-09-27
 (requirement 12 as amended).*
 
+**A member's workspaces are in or out, and the one limit a role cannot give is a lock.** Each
+workspace the reader holds is a switch headed by the workspaces' building glyph: on is a
+full-access grant, off is none. Beneath one that is on, a mini switch, *lock to read only*, grants
+it read only when on and full access again when off, with the one line under it saying the member
+cannot change anything in that workspace, even outside the application. Turning a workspace off
+and on again puts back what it held. The words *full access* and *no access* are not on the card;
+*read only* is the lock's name. Refusals are drawn as the switch list draws them, dimmed with the
+reason at the switch and each reason said once above the list: every switch without
+`grantWorkspace`, naming it, on the member's card, which draws the section for every reader; the
+workspace's own switch where the reader holds it read only, since full access is their own
+credential re-sealed (a withdrawal stays theirs); and the lock for anybody but the owner, since
+only the owner's account mints a read-only credential, a lock already on staying drawn on. A
+member ranked at or above the reader is refused at the card's edit act, which opens nothing. The
+acts are the grants that exist (`useChangeAccess`), sent only for the workspaces that changed.
+*The human's call on the running application, 2026-09-27
+([[efforts/838-permissions-are-a-role-and-an-override/spec]], requirement 12 as amended again;
+ticket 48): each workspace was a row of three levels beside the role, which read as a second
+permission system. The workspace's own dialog, which lists who holds it, keeps its three levels.*
+
 **A submit is labelled with its verb, and carries the verb's glyph before the label.** Every submit
 does, the domain forms' as well as the organization's and the startup screens': *create* takes the
 plus, *save* and *update* the save glyph, and an act's own verb takes the glyph its act declares
@@ -684,6 +703,7 @@ organization's did.
 | a choice of two to four, exclusive | toggle group |
 | a setting that takes effect at once | switch |
 | a permission, in a role's editor or on a member's card | switch |
+| a workspace a member is in, and its lock to read only | switch |
 | a choice of five or more | select, or a combobox when searched |
 | another record | combobox over its search |
 | a date | the popover calendar, given the reader's locale |
@@ -712,10 +732,10 @@ weighed, finding 6a, is the risk it takes: a reader who turns one and leaves thi
 effect, which the surface's footer save and the member's custom mark answer.*
 
 **No form uses a select for a choice of four or fewer.** Such a choice is a toggle group, the
-chosen segment pressed: the contract's cycle (four), a workspace's access (two or three) and the
-language (two), as the appearance (three) already was. A segment carries a label and at most an
-icon, so where an option needs a sentence, the sentence of the option chosen stands under the
-control, as an access level's *what it is good for* does on the member's sheet. An option the
+chosen segment pressed: the contract's cycle (four), a member's access in a workspace's own
+dialog (three) and the language (two), as the appearance (three) already was. A segment carries a
+label and at most an icon, so where an option needs a sentence, the sentence of the option chosen
+stands under the control. An option the
 reader may not choose is drawn refused on its segment, never removed, exactly as it was in the
 menu. `design/tests/few-options.test.ts` fails on a `Select` whose written options number four or
 fewer, and on one drawn from a list that its allowlist does not explain as more than a few. The one

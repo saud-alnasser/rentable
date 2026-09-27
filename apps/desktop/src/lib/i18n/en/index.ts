@@ -1315,7 +1315,7 @@ const en = {
 			accessTakenBack:
 				'taking a workspace back mints nothing, so what they already hold works until it runs out.',
 			// the line under the workspaces on the sheet that adds a member.
-			memberWorkspacesDescription: 'the workspaces they can open, and what they can do in each.',
+			memberWorkspacesDescription: 'the workspaces they can open. switch one on to let them in.',
 			accessSaved: 'the workspaces were saved.',
 			workspaceAccessTitle: 'members and access',
 			workspaceAccessDescription:
@@ -1509,11 +1509,17 @@ const en = {
 				'{names:string} would add, edit or delete records they cannot view. reset them to this role on their card first.'
 		},
 
-		/** what each access level is good for, beside the level's own name. */
-		levels: {
-			full: { does: 'reads and writes everything in it.' },
-			readOnly: { does: 'reads it, and writes nothing.' },
-			none: { does: 'does not reach it at all.' }
+		/**
+		 * a member's workspaces on their card and on the sheet that adds them (effort 838,
+		 * requirement 12 as amended again 2026-09-27): each workspace a switch, in or out, and
+		 * under one they are in, the owner's lock to read only and what it means.
+		 */
+		workspaceSwitches: {
+			lock: 'lock to read only',
+			lockNamed: 'lock {workspace:string} to read only',
+			locked: 'they cannot change anything in this workspace, even outside the app.',
+			lockIsTheOwners: "only the owner's Turso account can issue a read only credential.",
+			notHeld: 'you hold this workspace read only, so you cannot give it.'
 		}
 	},
 

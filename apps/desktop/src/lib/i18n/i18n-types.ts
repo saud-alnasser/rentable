@@ -3904,7 +3904,7 @@ type RootTranslation = {
 			 */
 			accessTakenBack: string
 			/**
-			 * t​h​e​ ​w​o​r​k​s​p​a​c​e​s​ ​t​h​e​y​ ​c​a​n​ ​o​p​e​n​,​ ​a​n​d​ ​w​h​a​t​ ​t​h​e​y​ ​c​a​n​ ​d​o​ ​i​n​ ​e​a​c​h​.
+			 * t​h​e​ ​w​o​r​k​s​p​a​c​e​s​ ​t​h​e​y​ ​c​a​n​ ​o​p​e​n​.​ ​s​w​i​t​c​h​ ​o​n​e​ ​o​n​ ​t​o​ ​l​e​t​ ​t​h​e​m​ ​i​n​.
 			 */
 			memberWorkspacesDescription: string
 			/**
@@ -4362,25 +4362,28 @@ type RootTranslation = {
 			 */
 			holdersBlind: RequiredParams<'names'>
 		}
-		levels: {
-			full: {
-				/**
-				 * r​e​a​d​s​ ​a​n​d​ ​w​r​i​t​e​s​ ​e​v​e​r​y​t​h​i​n​g​ ​i​n​ ​i​t​.
-				 */
-				does: string
-			}
-			readOnly: {
-				/**
-				 * r​e​a​d​s​ ​i​t​,​ ​a​n​d​ ​w​r​i​t​e​s​ ​n​o​t​h​i​n​g​.
-				 */
-				does: string
-			}
-			none: {
-				/**
-				 * d​o​e​s​ ​n​o​t​ ​r​e​a​c​h​ ​i​t​ ​a​t​ ​a​l​l​.
-				 */
-				does: string
-			}
+		workspaceSwitches: {
+			/**
+			 * l​o​c​k​ ​t​o​ ​r​e​a​d​ ​o​n​l​y
+			 */
+			lock: string
+			/**
+			 * l​o​c​k​ ​{​w​o​r​k​s​p​a​c​e​}​ ​t​o​ ​r​e​a​d​ ​o​n​l​y
+			 * @param {string} workspace
+			 */
+			lockNamed: RequiredParams<'workspace'>
+			/**
+			 * t​h​e​y​ ​c​a​n​n​o​t​ ​c​h​a​n​g​e​ ​a​n​y​t​h​i​n​g​ ​i​n​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​,​ ​e​v​e​n​ ​o​u​t​s​i​d​e​ ​t​h​e​ ​a​p​p​.
+			 */
+			locked: string
+			/**
+			 * o​n​l​y​ ​t​h​e​ ​o​w​n​e​r​'​s​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​ ​c​a​n​ ​i​s​s​u​e​ ​a​ ​r​e​a​d​ ​o​n​l​y​ ​c​r​e​d​e​n​t​i​a​l​.
+			 */
+			lockIsTheOwners: string
+			/**
+			 * y​o​u​ ​h​o​l​d​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​r​e​a​d​ ​o​n​l​y​,​ ​s​o​ ​y​o​u​ ​c​a​n​n​o​t​ ​g​i​v​e​ ​i​t​.
+			 */
+			notHeld: string
 		}
 	}
 	workspace: {
@@ -8191,7 +8194,7 @@ export type TranslationFunctions = {
 			 */
 			accessTakenBack: () => LocalizedString
 			/**
-			 * the workspaces they can open, and what they can do in each.
+			 * the workspaces they can open. switch one on to let them in.
 			 */
 			memberWorkspacesDescription: () => LocalizedString
 			/**
@@ -8635,25 +8638,27 @@ export type TranslationFunctions = {
 			 */
 			holdersBlind: (arg: { names: string }) => LocalizedString
 		}
-		levels: {
-			full: {
-				/**
-				 * reads and writes everything in it.
-				 */
-				does: () => LocalizedString
-			}
-			readOnly: {
-				/**
-				 * reads it, and writes nothing.
-				 */
-				does: () => LocalizedString
-			}
-			none: {
-				/**
-				 * does not reach it at all.
-				 */
-				does: () => LocalizedString
-			}
+		workspaceSwitches: {
+			/**
+			 * lock to read only
+			 */
+			lock: () => LocalizedString
+			/**
+			 * lock {workspace} to read only
+			 */
+			lockNamed: (arg: { workspace: string }) => LocalizedString
+			/**
+			 * they cannot change anything in this workspace, even outside the app.
+			 */
+			locked: () => LocalizedString
+			/**
+			 * only the owner's Turso account can issue a read only credential.
+			 */
+			lockIsTheOwners: () => LocalizedString
+			/**
+			 * you hold this workspace read only, so you cannot give it.
+			 */
+			notHeld: () => LocalizedString
 		}
 	}
 	workspace: {

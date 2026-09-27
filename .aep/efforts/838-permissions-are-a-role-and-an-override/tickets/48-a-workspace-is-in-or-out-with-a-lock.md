@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # feat(desktop): a workspace is in or out, with a lock to read-only
@@ -16,15 +16,15 @@ that means.
 
 Traces requirement 12 of [[efforts/838-permissions-are-a-role-and-an-override/spec]].
 
-- [ ] The member's card and the add-member form draw each workspace as a switch; on grants full
+- [x] The member's card and the add-member form draw each workspace as a switch; on grants full
       access, off withdraws, through the existing acts; the level choice is gone.
-- [ ] Beneath a workspace switched on, *lock to read-only* re-grants it read-only, and unlocking
+- [x] Beneath a workspace switched on, *lock to read-only* re-grants it read-only, and unlocking
       re-grants full access; its line says the member cannot change anything there, even outside
       the application. For anyone but the owner it is dimmed with the reason.
-- [ ] Refusals (grantWorkspace, withdrawing, rank) stay at their controls with their reasons.
-- [ ] English and Arabic; `rules/interface` and `contexts/desktop/organization` say what the card
+- [x] Refusals (grantWorkspace, withdrawing, rank) stay at their controls with their reasons.
+- [x] English and Arabic; `rules/interface` and `contexts/desktop/organization` say what the card
       now draws; component tests cover in, out, lock, unlock and each refusal.
-- [ ] `pnpm check`, `pnpm test` and `pnpm lint` pass.
+- [x] `pnpm check`, `pnpm test` and `pnpm lint` pass.
 
 ## Relevant areas
 

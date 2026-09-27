@@ -17,11 +17,13 @@
 	import { onSubmit } from '$lib/design/form';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { lacking } from '$lib/organization/acts';
-	import type { AccessChoice, AccessRow } from '$lib/organization/component/access-dialog.svelte';
+	import type { AccessChoice } from '$lib/organization/component/access-dialog.svelte';
 	import MemberOverride from '$lib/organization/component/member-override.svelte';
 	import MemberRole from '$lib/organization/component/member-role.svelte';
 	import MemberSectionHead from '$lib/organization/component/member-section-head.svelte';
-	import MemberWorkspaces from '$lib/organization/component/member-workspaces.svelte';
+	import MemberWorkspaces, {
+		type MemberWorkspaceRow
+	} from '$lib/organization/component/member-workspaces.svelte';
 	import { firstUnheldMoved, flagPhrase, roleNameOf } from '$lib/organization/role';
 	import { usernameSchema } from '$lib/organization/username-form';
 	import type { OrganizationRole } from '$lib/platform/host';
@@ -46,10 +48,12 @@
 	 * the workspaces they hold. *The save stays in the surface's own footer, where every write here
 	 * keeps it.*
 	 *
-	 * **The role and what they may do are always drawn** (effort 838, requirement 12): they are what
-	 * the card is for, read even by somebody who may change neither. A control the reader may not
-	 * use is refused with its reason, the flag they lack, rather than taken away. The name and the
-	 * workspaces are drawn for whoever may write them, as before (effort 826, requirement 15).
+	 * **The role, what they may do and the workspaces are always drawn** (effort 838, requirement
+	 * 12): they are what the card is for, read even by somebody who may change none of them. A
+	 * control the reader may not use is refused with its reason, the flag they lack, rather than
+	 * taken away. The name is drawn for whoever may write it, as before (effort 826, requirement
+	 * 15). *The workspaces were drawn for whoever held `grantWorkspace` alone until ticket 48 of
+	 * effort 838 made each one a switch, refused with its reason like the rest.*
 	 *
 	 * **Picking another role makes them that role exactly** (requirement 6 as amended
 	 * 2026-09-27): what was changed for them was changed against the old role, and the shell's
@@ -108,7 +112,7 @@
 		/** every role the organization has, which is what the tray chooses among. */
 		roles: readonly OrganizationRole[];
 		/** every workspace a grant can be held on, with what this member holds on it today. */
-		rows: AccessRow[];
+		rows: MemberWorkspaceRow[];
 		/** how high the reader's role stands: a role at or above it is not theirs to give. */
 		readerRank: number;
 		/** what the reader may do: a flag outside it is not theirs to switch. */
@@ -283,20 +287,19 @@
 			error={overrideRefusal}
 		/>
 
-		{#if canGrantWorkspace}
-			<MemberWorkspaces
-				id="workspaces"
-				rowPrefix="access"
-				description={$LL.organization.dashboard.accessTakenBack()}
-				empty={$LL.organization.dashboard.noWorkspaces()}
-				{rows}
-				{access}
-				onPick={pickAccess}
-				{canGrantReadOnly}
-				disabled={isSaving}
-				error={workspacesRefusal}
-			/>
-		{/if}
+		<MemberWorkspaces
+			id="workspaces"
+			rowPrefix="access"
+			description={$LL.organization.dashboard.accessTakenBack()}
+			empty={$LL.organization.dashboard.noWorkspaces()}
+			{rows}
+			{access}
+			onPick={pickAccess}
+			{canGrantReadOnly}
+			refusal={canGrantWorkspace ? null : lacking($LL, 'grantWorkspace')}
+			disabled={isSaving}
+			error={workspacesRefusal}
+		/>
 	</div>
 
 	{#snippet actions()}

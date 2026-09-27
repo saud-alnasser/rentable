@@ -157,7 +157,9 @@ A credential for one workspace, sealed to one member's public key. Full access i
 credential re-sealed, so whoever grants gives only what they reach; read-only is minted, which is
 the owner's. A grant is what says a member is in a workspace, and removing it is what says they are
 not. On a read-only grant a member holds no create, edit or delete flag in that workspace, whatever
-their role says (`effectiveIn`).
+their role says (`effectiveIn`). A member's card and the sheet that adds one draw each workspace as
+a switch, in (a full-access grant) or out (none), with *lock to read only* beneath one that is in,
+the owner's alone (`member-workspaces.svelte`, ticket 48 of effort 838).
 
 **Chain**:
 *Built by effort 838 ([[efforts/838-permissions-are-a-role-and-an-override/spec]], requirement 9;

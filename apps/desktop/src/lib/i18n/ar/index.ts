@@ -1215,7 +1215,7 @@ const ar = {
 			accessReadOnly: 'قراءة فقط',
 			accessNone: 'لا وصول',
 			accessTakenBack: 'سحب مساحة عمل لا يصدر شيئًا، فما يحمله الآن يعمل حتى تنتهي صلاحيته.',
-			memberWorkspacesDescription: 'مساحات العمل التي يستطيع فتحها، وما يستطيع فعله في كل منها.',
+			memberWorkspacesDescription: 'مساحات العمل التي يستطيع فتحها. شغّل مفتاح أي منها ليدخلها.',
 			accessSaved: 'حُفظت مساحات العمل.',
 			workspaceAccessTitle: 'الأعضاء والوصول',
 			workspaceAccessDescription:
@@ -1361,10 +1361,12 @@ const ar = {
 				'{names}: إضافة سجلات أو تعديلها أو حذفها دون رؤيتها. أعِد كل واحد إلى هذا الدور من بطاقته أولًا.'
 		},
 
-		levels: {
-			full: { does: 'يقرأ كل ما فيها ويكتب.' },
-			readOnly: { does: 'يقرأها ولا يكتب فيها شيئًا.' },
-			none: { does: 'لا يصل إليها أصلًا.' }
+		workspaceSwitches: {
+			lock: 'قفل على القراءة فقط',
+			lockNamed: 'قفل {workspace} على القراءة فقط',
+			locked: 'لا يستطيع تغيير أي شيء في مساحة العمل هذه، حتى خارج التطبيق.',
+			lockIsTheOwners: 'حساب Turso الذي يملكه المالك وحده يصدر وصول القراءة فقط.',
+			notHeld: 'تحمل مساحة العمل هذه للقراءة فقط، فلا تستطيع منحها.'
 		}
 	},
 

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/svelte';
+import { fireEvent, render, screen } from '@testing-library/svelte';
 import { beforeEach, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -45,8 +45,8 @@ const inProvider = (direction: 'ltr' | 'rtl' = 'ltr') => ({
 });
 
 const rows = [
-	{ id: 'ws-1', name: 'Riyadh', access: 'full-access' as const },
-	{ id: 'ws-2', name: 'Jeddah', access: 'none' as const }
+	{ id: 'ws-1', name: 'Riyadh', access: 'full-access' as const, givable: true },
+	{ id: 'ws-2', name: 'Jeddah', access: 'none' as const, givable: true }
 ];
 
 const sheet = (
@@ -105,9 +105,15 @@ const rustUsernameRules = () => {
 	return declared[1];
 };
 
-/** the segment of a workspace's access control a level is offered by. */
-const levelItem = (id: string, level: string) =>
-	document.querySelector<HTMLElement>(`#access-${id} [data-level="${level}"]`);
+/** a workspace's switch, the lock beneath it, and whether either is on or dimmed. */
+const inSwitch = (id: string) => document.querySelector<HTMLElement>(`#access-${id}`);
+const lockSwitch = (id: string) => document.querySelector<HTMLElement>(`#access-${id}-lock`);
+const checked = (element: HTMLElement | null) => element?.getAttribute('aria-checked') === 'true';
+const dimmed = (element: HTMLElement | null) => element?.getAttribute('aria-disabled') === 'true';
+const workspaceReasons = () =>
+	Array.from(document.querySelectorAll('[data-access-refusal]')).map((line) =>
+		line.textContent?.trim()
+	);
 
 /** the role's chooser, and each role it offers once opened. */
 const roleTrigger = () => document.querySelector<HTMLElement>('#member-role')!;
@@ -452,8 +458,10 @@ test('a section whose flag the reader lacks is drawn, refused, naming the flag',
 	expect(isOn('viewComplex')).toBe(true);
 });
 
-// criterion 23: one row per workspace, the level named and said, and the fullest first.
-test('the workspaces are one row each, with a named level and its sentence', async () => {
+// ticket 48 of effort 838, requirement 12 as amended again 2026-09-27: a workspace is one switch,
+// in or out, and no level is offered beside the role. The lock sits under a workspace the member
+// is in, and nowhere else, with what it means under its name.
+test('each workspace is one switch, in or out, with the lock beneath one that is in', () => {
 	sheet();
 
 	expect(
@@ -462,19 +470,225 @@ test('the workspaces are one row each, with a named level and its sentence', asy
 		)
 	).toEqual(['ws-1', 'ws-2']);
 	expect(screen.getByText('Riyadh')).toBeDefined();
-	expect(document.querySelector('[data-access-says="ws-1"]')?.textContent?.trim()).toBe(
-		en.organization.levels.full.does
-	);
-	expect(
-		within(document.querySelector<HTMLElement>('#access-ws-1')!)
-			.getAllByRole('radio')
-			.map((segment) => segment.getAttribute('data-level'))
-	).toEqual(['full-access', 'read-only', 'none']);
+	expect(inSwitch('ws-1')?.getAttribute('role')).toBe('switch');
+	expect(inSwitch('ws-1')?.getAttribute('aria-label')).toBe('Riyadh');
+	expect(checked(inSwitch('ws-1'))).toBe(true);
+	expect(checked(inSwitch('ws-2'))).toBe(false);
 
-	await fireEvent.click(levelItem('ws-1', 'read-only')!);
-	expect(document.querySelector('[data-access-says="ws-1"]')?.textContent?.trim()).toBe(
-		en.organization.levels.readOnly.does
+	// the lock, off, under the workspace they are in, and not under the one they are out of.
+	expect(checked(lockSwitch('ws-1'))).toBe(false);
+	expect(lockSwitch('ws-1')?.getAttribute('data-size')).toBe('sm');
+	expect(lockSwitch('ws-2')).toBeNull();
+	expect(document.querySelector('[data-access-lock-row="ws-1"]')?.textContent).toContain(
+		en.organization.workspaceSwitches.lock
 	);
+	expect(document.querySelector('[data-access-says="ws-1"]')?.textContent?.trim()).toBe(
+		en.organization.workspaceSwitches.locked
+	);
+
+	// the level words have left the card, and no segment is drawn.
+	const words = section('workspaces')?.textContent ?? '';
+
+	expect(words).not.toContain(en.organization.dashboard.accessFull);
+	expect(words).not.toContain(en.organization.dashboard.accessNone);
+	expect(document.querySelector('[data-access-row] [data-slot=toggle-group-item]')).toBeNull();
+	// the owner reading, so nothing is dimmed and no reason is said.
+	expect(workspaceReasons()).toEqual([]);
+});
+
+// in: switching a workspace on is a full-access grant, and the lock appears under it.
+test('switching a workspace on puts them in it at full access', async () => {
+	const saved: { changes: unknown }[] = [];
+
+	sheet({ onSave: (edit) => saved.push(edit) });
+
+	await fireEvent.click(inSwitch('ws-2')!);
+
+	expect(checked(inSwitch('ws-2'))).toBe(true);
+	expect(lockSwitch('ws-2')).not.toBeNull();
+
+	await submit();
+
+	expect(saved.map((edit) => edit.changes)).toEqual([[{ id: 'ws-2', access: 'full-access' }]]);
+});
+
+// out: switching it off withdraws it, and the lock goes with it.
+test('switching a workspace off takes them out of it', async () => {
+	const saved: { changes: unknown }[] = [];
+
+	sheet({ onSave: (edit) => saved.push(edit) });
+
+	await fireEvent.click(inSwitch('ws-1')!);
+
+	expect(checked(inSwitch('ws-1'))).toBe(false);
+	expect(lockSwitch('ws-1')).toBeNull();
+
+	await submit();
+
+	expect(saved.map((edit) => edit.changes)).toEqual([[{ id: 'ws-1', access: 'none' }]]);
+});
+
+// lock: the owner locks a workspace to read only, which grants it again read only.
+test('locking a workspace grants it read only', async () => {
+	const saved: { changes: unknown }[] = [];
+
+	sheet({ onSave: (edit) => saved.push(edit) });
+
+	await fireEvent.click(lockSwitch('ws-1')!);
+
+	expect(checked(lockSwitch('ws-1'))).toBe(true);
+	expect(checked(inSwitch('ws-1'))).toBe(true);
+
+	await submit();
+
+	expect(saved.map((edit) => edit.changes)).toEqual([[{ id: 'ws-1', access: 'read-only' }]]);
+});
+
+// unlock: a workspace held read only, unlocked, is granted again at full access. Switched off and
+// on again, it is back to what it held, and nothing is written.
+test('unlocking grants full access again, and off and on again changes nothing', async () => {
+	const saved: { changes: unknown }[] = [];
+	const locked = [{ id: 'ws-1', name: 'Riyadh', access: 'read-only' as const, givable: true }];
+
+	const first = sheet({ rows: locked, onSave: (edit) => saved.push(edit) });
+
+	expect(checked(lockSwitch('ws-1'))).toBe(true);
+
+	await fireEvent.click(lockSwitch('ws-1')!);
+	expect(checked(lockSwitch('ws-1'))).toBe(false);
+	await submit();
+
+	first.unmount();
+	sheet({ rows: locked, onSave: (edit) => saved.push(edit) });
+
+	await fireEvent.click(inSwitch('ws-1')!);
+	await fireEvent.click(inSwitch('ws-1')!);
+	expect(checked(lockSwitch('ws-1'))).toBe(true);
+	await submit();
+
+	expect(saved.map((edit) => edit.changes)).toEqual([[{ id: 'ws-1', access: 'full-access' }], []]);
+});
+
+// requirement 5 of effort 826: only the owner's account mints a read-only credential, so for
+// anybody else the lock is drawn dimmed with the reason, never hidden, and a lock already on
+// stays on.
+test('for anybody but the owner the lock is dimmed and says why', async () => {
+	const saved: { changes: unknown }[] = [];
+
+	sheet({
+		canGrantReadOnly: false,
+		rows: [
+			{ id: 'ws-1', name: 'Riyadh', access: 'full-access' as const, givable: true },
+			{ id: 'ws-2', name: 'Jeddah', access: 'read-only' as const, givable: true }
+		],
+		onSave: (edit) => saved.push(edit)
+	});
+
+	const reason = en.organization.workspaceSwitches.lockIsTheOwners;
+
+	expect(dimmed(lockSwitch('ws-1'))).toBe(true);
+	expect(dimmed(lockSwitch('ws-2'))).toBe(true);
+	expect(checked(lockSwitch('ws-2'))).toBe(true);
+	expect(document.querySelector('#access-ws-1-lock-reason')?.textContent?.trim()).toBe(reason);
+	expect(workspaceReasons()).toEqual([reason]);
+	// the workspace itself is still theirs to switch.
+	expect(dimmed(inSwitch('ws-1'))).toBe(false);
+
+	await fireEvent.click(lockSwitch('ws-1')!);
+	await fireEvent.click(lockSwitch('ws-2')!);
+
+	expect(checked(lockSwitch('ws-1'))).toBe(false);
+	expect(checked(lockSwitch('ws-2'))).toBe(true);
+
+	await submit();
+
+	expect(saved.map((edit) => edit.changes)).toEqual([[]]);
+});
+
+// grantWorkspace: a reader without it reads the workspaces, every switch dimmed, and the reason
+// names the flag, as the role and what they may do say theirs.
+test('without grantWorkspace the workspaces are drawn, every switch dimmed with the reason', async () => {
+	sheet({ canGrantWorkspace: false });
+
+	const reason = en.organization.dashboard.lacksFlag.replace(
+		'{flag:string}',
+		en.organization.flags.grantWorkspace
+	);
+
+	expect(sections()).toContain('workspaces');
+	expect(workspaceReasons()).toEqual([reason]);
+	expect(dimmed(inSwitch('ws-1'))).toBe(true);
+	expect(dimmed(inSwitch('ws-2'))).toBe(true);
+	expect(dimmed(lockSwitch('ws-1'))).toBe(true);
+
+	await fireEvent.click(inSwitch('ws-1')!);
+	await fireEvent.click(inSwitch('ws-2')!);
+
+	expect(checked(inSwitch('ws-1'))).toBe(true);
+	expect(checked(inSwitch('ws-2'))).toBe(false);
+});
+
+// a granter gives only what they reach: full access is their own credential re-sealed, so a
+// workspace they hold read only is refused on its switch. Taking somebody out of it is still
+// theirs, since a withdrawal re-seals nothing.
+test('a workspace the reader holds read only is refused on its switch, and can still be withdrawn', async () => {
+	sheet({
+		canGrantReadOnly: false,
+		rows: [
+			{ id: 'ws-1', name: 'Riyadh', access: 'full-access' as const, givable: false },
+			{ id: 'ws-2', name: 'Jeddah', access: 'none' as const, givable: false }
+		]
+	});
+
+	const reason = en.organization.workspaceSwitches.notHeld;
+
+	expect(dimmed(inSwitch('ws-2'))).toBe(true);
+	expect(document.querySelector('#access-ws-2-reason')?.textContent?.trim()).toBe(reason);
+	expect(workspaceReasons()).toContain(reason);
+
+	await fireEvent.click(inSwitch('ws-2')!);
+	expect(checked(inSwitch('ws-2'))).toBe(false);
+
+	expect(dimmed(inSwitch('ws-1'))).toBe(false);
+	await fireEvent.click(inSwitch('ws-1')!);
+	expect(checked(inSwitch('ws-1'))).toBe(false);
+});
+
+test('the workspaces read in arabic, the lock and its reason in their own words', () => {
+	loadLocale('ar');
+	setLocale('ar');
+	sheet({ canGrantReadOnly: false }, 'rtl');
+
+	expect(document.querySelector('[data-access-says="ws-1"]')?.textContent?.trim()).toBe(
+		ar.organization.workspaceSwitches.locked
+	);
+	expect(ar.organization.workspaceSwitches.locked).not.toBe(
+		en.organization.workspaceSwitches.locked
+	);
+	expect(workspaceReasons()).toEqual([ar.organization.workspaceSwitches.lockIsTheOwners]);
+	expect(lockSwitch('ws-1')?.getAttribute('aria-label')).toBe(
+		ar.organization.workspaceSwitches.lockNamed.replace('{workspace}', 'Riyadh')
+	);
+
+	setLocale('en');
+});
+
+test('the refusals read in arabic too: the flag, and a workspace the reader holds read only', () => {
+	loadLocale('ar');
+	setLocale('ar');
+
+	const first = sheet({ canGrantWorkspace: false }, 'rtl');
+
+	expect(workspaceReasons()).toEqual([
+		ar.organization.dashboard.lacksFlag.replace('{flag}', ar.organization.flags.grantWorkspace)
+	]);
+	first.unmount();
+
+	sheet({ rows: [{ id: 'ws-2', name: 'Jeddah', access: 'none' as const, givable: false }] }, 'rtl');
+
+	expect(workspaceReasons()).toEqual([ar.organization.workspaceSwitches.notHeld]);
+
+	setLocale('en');
 });
 
 // one save, and the acts it runs handed back together; the workspaces only where they changed.
@@ -483,7 +697,7 @@ test('one save hands back the role, the override and the workspaces that changed
 
 	sheet({ onSave: (edit) => saved.push(edit) });
 
-	await fireEvent.click(levelItem('ws-2', 'full-access')!);
+	await fireEvent.click(inSwitch('ws-2')!);
 	await turn('deletePayment');
 	await submit();
 
@@ -517,7 +731,8 @@ test('a refusal marks its own section', () => {
 });
 
 // effort 832, requirement 6: the name is the sheet's first section, drawn by renameMember alone,
-// and the workspaces by grantWorkspace alone.
+// and the workspaces for every reader since ticket 48 of effort 838, refused without
+// grantWorkspace.
 test('the name is the first section, drawn by renameMember and opened on the name they hold', () => {
 	const renaming = sheet({ canRename: true });
 
@@ -525,9 +740,9 @@ test('the name is the first section, drawn by renameMember and opened on the nam
 	expect(usernameInput()?.value).toBe('ada');
 	renaming.unmount();
 
-	sheet({ canRename: true, canGrantWorkspace: false });
+	sheet({ canRename: false, canGrantWorkspace: false });
 
-	expect(sections()).toEqual(['name', 'role', 'override']);
+	expect(sections()).toEqual(['role', 'override', 'workspaces']);
 });
 
 test('one save hands back the new name, trimmed', async () => {

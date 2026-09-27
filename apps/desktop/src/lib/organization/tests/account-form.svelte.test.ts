@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
+import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { beforeEach, expect, test } from 'vitest';
 
 import { setLocale } from '$lib/i18n/i18n-svelte';
@@ -204,44 +204,61 @@ test('a maker gives no role at or above their own, and no flag they do not hold'
 	).toBe(false);
 });
 
-// effort 826, requirement 8: a workspace is granted at an access. Every workspace the maker holds
-// is a row of three levels, and no access is what not granting it is, so each row starts there
-// and says so under the control.
-test('each workspace starts on no access, and is granted by choosing a level', async () => {
+/** a workspace's switch on the form, the lock beneath it, and whether either is on or dimmed. */
+const inSwitch = (id: string) => document.querySelector<HTMLElement>(`#account-access-${id}`);
+const lockSwitch = (id: string) =>
+	document.querySelector<HTMLElement>(`#account-access-${id}-lock`);
+const checked = (element: HTMLElement | null) => element?.getAttribute('aria-checked') === 'true';
+const dimmed = (element: HTMLElement | null) => element?.getAttribute('aria-disabled') === 'true';
+const workspaceReasons = () =>
+	Array.from(document.querySelectorAll('[data-access-refusal]')).map((line) =>
+		line.textContent?.trim()
+	);
+
+// effort 826, requirement 8, as ticket 48 of effort 838 draws it: every workspace the maker holds
+// is one switch starting off, which is what not granting it is. On puts the member in it, and the
+// lock beneath locks it to read only, with what that means under its name.
+test('each workspace starts off, and is switched in and locked', async () => {
 	loadLocale('en');
 	setLocale('en');
 	form();
 
-	const access = document.querySelector<HTMLElement>('#account-access-ws-1')!;
+	expect(inSwitch('ws-1')?.getAttribute('role')).toBe('switch');
+	expect(checked(inSwitch('ws-1'))).toBe(false);
+	expect(lockSwitch('ws-1')).toBeNull();
+	expect(document.querySelector('[data-access-row] [data-slot=toggle-group-item]')).toBeNull();
 
-	expect(
-		within(access)
-			.getAllByRole('radio')
-			.map((segment) => segment.textContent?.trim())
-	).toEqual([
-		en.organization.dashboard.accessFull,
-		en.organization.dashboard.accessReadOnly,
-		en.organization.dashboard.accessNone
-	]);
-	expect(
-		within(access)
-			.getByRole('radio', { name: en.organization.dashboard.accessNone })
-			.getAttribute('aria-checked')
-	).toBe('true');
+	await fireEvent.click(inSwitch('ws-1')!);
+
+	expect(checked(inSwitch('ws-1'))).toBe(true);
+	expect(checked(lockSwitch('ws-1'))).toBe(false);
 	expect(document.querySelector('[data-access-says="ws-1"]')?.textContent?.trim()).toBe(
-		en.organization.levels.none.does
+		en.organization.workspaceSwitches.locked
 	);
 
-	const readOnly = within(access).getByRole('radio', {
-		name: en.organization.dashboard.accessReadOnly
-	});
+	await fireEvent.click(lockSwitch('ws-1')!);
+	expect(checked(lockSwitch('ws-1'))).toBe(true);
 
-	await fireEvent.click(readOnly);
+	await fireEvent.click(lockSwitch('ws-1')!);
+	expect(checked(lockSwitch('ws-1'))).toBe(false);
 
-	expect(readOnly.getAttribute('aria-checked')).toBe('true');
-	expect(document.querySelector('[data-access-says="ws-1"]')?.textContent?.trim()).toBe(
-		en.organization.levels.readOnly.does
-	);
+	await fireEvent.click(inSwitch('ws-1')!);
+	expect(checked(inSwitch('ws-1'))).toBe(false);
+	expect(lockSwitch('ws-1')).toBeNull();
+});
+
+// full access is the maker's own credential re-sealed, so a workspace they hold read only is not
+// theirs to give, and its switch says so.
+test('a workspace the maker holds read only is refused on its switch', async () => {
+	loadLocale('en');
+	setLocale('en');
+	form({ canGrantReadOnly: false, workspaces: [{ ...workspaces[0], accessLevel: 'read-only' }] });
+
+	expect(dimmed(inSwitch('ws-1'))).toBe(true);
+	expect(workspaceReasons()).toEqual([en.organization.workspaceSwitches.notHeld]);
+
+	await fireEvent.click(inSwitch('ws-1')!);
+	expect(checked(inSwitch('ws-1'))).toBe(false);
 });
 
 test('with no workspace to grant, the section says so', () => {
@@ -253,26 +270,40 @@ test('with no workspace to grant, the section says so', () => {
 	expect(screen.getByText(en.organization.dashboard.noWorkspaceToGrant)).toBeDefined();
 });
 
-// requirement 5: minting a read-only credential is the owner's, so for anybody else the choice is
-// drawn refused and the sentence names the owner.
-test('read only is refused for anybody but the owner, in words rather than by hiding it', () => {
+// requirement 5: minting a read-only credential is the owner's, so for anybody else the lock is
+// drawn dimmed, never hidden, and the sentence names the owner's account.
+test('the lock is dimmed for anybody but the owner, in words rather than by hiding it', async () => {
 	loadLocale('en');
 	setLocale('en');
 	form({ canGrantReadOnly: false });
 
-	const access = document.querySelector<HTMLElement>('#account-access-ws-1')!;
+	await fireEvent.click(inSwitch('ws-1')!);
 
-	expect(
-		within(access)
-			.getByRole('radio', { name: en.organization.dashboard.accessReadOnly })
-			.hasAttribute('disabled')
-	).toBe(true);
-	expect(
-		within(access)
-			.getByRole('radio', { name: en.organization.dashboard.accessFull })
-			.hasAttribute('disabled')
-	).toBe(false);
-	expect(screen.getByText(en.organization.dashboard.readOnlyIsTheOwners)).toBeDefined();
+	expect(checked(inSwitch('ws-1'))).toBe(true);
+	expect(dimmed(inSwitch('ws-1'))).toBe(false);
+	expect(dimmed(lockSwitch('ws-1'))).toBe(true);
+	expect(document.querySelector('#account-access-ws-1-lock-reason')?.textContent?.trim()).toBe(
+		en.organization.workspaceSwitches.lockIsTheOwners
+	);
+	expect(workspaceReasons()).toEqual([en.organization.workspaceSwitches.lockIsTheOwners]);
+
+	await fireEvent.click(lockSwitch('ws-1')!);
+	expect(checked(lockSwitch('ws-1'))).toBe(false);
+});
+
+test('the lock and its reason read in arabic', async () => {
+	loadLocale('ar');
+	setLocale('ar');
+	form({ canGrantReadOnly: false }, 'rtl');
+
+	await fireEvent.click(inSwitch('ws-1')!);
+
+	expect(document.querySelector('[data-access-lock-row="ws-1"]')?.textContent).toContain(
+		ar.organization.workspaceSwitches.lock
+	);
+	expect(workspaceReasons()).toEqual([ar.organization.workspaceSwitches.lockIsTheOwners]);
+
+	setLocale('en');
 });
 
 // criterion 21: the username is refused on the field with the sentence the walk's name step and
@@ -366,7 +397,7 @@ const editSheet = (direction: 'ltr' | 'rtl' = 'ltr') =>
 			roleId: 'member',
 			override: 0,
 			roles: fakeOrganizationRoles(),
-			rows: [{ id: 'ws-1', name: 'Riyadh', access: 'none' as const }],
+			rows: [{ id: 'ws-1', name: 'Riyadh', access: 'none' as const, givable: true }],
 			readerRank: BUILT_IN.owner.rank,
 			readerPermissions: BUILT_IN.owner.mask,
 			canRename: true,
@@ -398,9 +429,9 @@ const shapeOnScreen = () => ({
 	flags: Array.from(document.querySelectorAll('[data-switch]')).map((control) =>
 		control.getAttribute('data-switch')
 	),
-	levels: Array.from(
-		document.querySelectorAll('[data-access-row] [data-slot=toggle-group-item]')
-	).map((item) => item.getAttribute('data-level'))
+	workspaces: Array.from(document.querySelectorAll('[data-access-row] [data-slot=switch]')).map(
+		(control) => [control.getAttribute('data-size'), control.getAttribute('aria-checked')]
+	)
 });
 
 test('the sheet that adds a member draws the sections the sheet that edits one draws, in its order', () => {

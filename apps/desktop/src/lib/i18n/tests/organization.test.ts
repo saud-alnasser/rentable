@@ -262,7 +262,10 @@ const RETIRED = [
 	'settings.section.members',
 	'settings.section.sync',
 	'settings.section.updates',
-	'settings.section.diagnostics'
+	'settings.section.diagnostics',
+	// what each access level was good for, said under a member's workspace until ticket 48 of
+	// effort 838 made each workspace a switch with a lock to read only.
+	'organization.levels'
 ] as const;
 
 test('both locales have let go of every string the retired pages read', () => {
