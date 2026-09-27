@@ -79,6 +79,11 @@ deletion is behind a caller-stated intent rather than a method that merely exist
 POST   /v1/organizations/{org}/databases
        {"name": "ws-<workspace id>", "group": "<TURSO_GROUP>"}
 
+POST   /v1/organizations/{org}/databases
+       {"name": "copy-<id>-<label>-<unix s>", "group": "<TURSO_GROUP>",
+        "seed": {"type": "database", "name": "<the database copied>"}}
+                                            desktop only; the copy before a change of shape
+
 POST   /v1/organizations/{org}/databases/{database}/auth/tokens?expiration=3d&authorization=full-access
 
 DELETE /v1/organizations/{org}/databases/{database}
@@ -92,6 +97,20 @@ GET    /v1/organizations/{org}/databases/{database}/configuration
 is never what this repository wants. `authorization` is `full-access` or `read-only` and
 nothing finer; decision 01 found the fine-grained flags the CLI documents are not on this
 endpoint.
+
+**The seeded create is a copy** *(added 2026-09-27, effort 838, requirement 13)*. The create
+takes a `seed` naming a database, `{"type": "database", "name": <source>}`, and makes the new one
+from it; the source has to be on the account and the copy goes in the same group. Source:
+<https://docs.turso.tech/api-reference/databases/create>. `TursoPlatform::copy_database` in
+`platform.rs` makes it, then turns delete protection on as `create_database` does, and removes a
+copy it could not protect. `backup::remote_copy` calls it before the owner's machine upgrades
+the organization and before a pending migration changes a workspace, where the machine holds the
+owner's account. The name is `backup::remote_name`'s: `copy-`, the first eight characters of the
+database's id, the label and the second, at most 40 characters so the hostname's first label,
+`<name>-<slug>`, stays within DNS's 63 with room for the slug. It never begins `org-` or `ws-`, so
+`setup::held_organization_id` does not read it as an organization. **Every copy is a database on
+the owner's account and counts against its database quota, and nothing here removes one**: they
+are protected and kept, and the owner removes them on the account.
 
 ## Expected output
 

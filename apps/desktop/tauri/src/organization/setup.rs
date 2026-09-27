@@ -790,6 +790,11 @@ async fn finish<P: TursoPlatform>(
 /// `org-chart` in the owner's own group reads as one of ours, which refuses a create that would
 /// have been fine and offers a connect that then finds no rows and refuses. Both are the safe
 /// side of the mistake.
+///
+/// **A copy on the account is not one of these, and is named so it cannot read as one.** The copy
+/// taken before an organization or a workspace changes shape sits in the same group, and
+/// `backup::remote_name` begins it `copy-`, never `org-` or `ws-`, so it is neither refused as an
+/// organization nor offered to connect to (effort 838, ticket 30).
 pub fn held_organization_id(database_name: &str) -> Option<&str> {
     database_name
         .strip_prefix(ORGANIZATION_DATABASE_PREFIX)

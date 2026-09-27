@@ -447,10 +447,7 @@ where
                 // releases the lease at once, as a failed migration does, and nothing is applied.
                 let label = format!("schema-{current}-to-{shipped}");
                 let copied = backup::local_copy(
-                    &OverThePipeline {
-                        pipeline,
-                        token: &held.token,
-                    },
+                    &OverThePipeline::new(pipeline, &held.token),
                     store.directory(),
                     &facts.database_name,
                     &label,
@@ -832,11 +829,13 @@ mod tests {
         ]
     }
 
-    /// How many reads the copy of [`workspace_before`] makes: the listing, and one per table.
-    const READS: usize = 3;
+    /// How many requests the copy of [`workspace_before`] makes: the `BEGIN`, the listing, a
+    /// count and a page per table, and the `ROLLBACK` that closes the stream.
+    const READS: usize = 7;
 
-    /// The pipeline's answer to one statement: `rows`, each value a typed cell as the database
-    /// sends it, blobs in base64 with their padding.
+    /// The pipeline's answer to one statement on a stream it holds open: `rows`, each value a
+    /// typed cell as the database sends it, blobs in base64 with their padding, and the baton the
+    /// next request hands back.
     fn answering(rows: &[Vec<turso::Value>]) -> ScriptedResponse {
         let cell = |value: &turso::Value| match value {
             turso::Value::Null => json!({ "type": "null" }),
@@ -857,9 +856,8 @@ mod tests {
 
         ScriptedResponse::new(
             200,
-            json!({ "results": [
-                { "type": "ok", "response": { "type": "execute", "result": { "cols": [], "rows": rows } } },
-                { "type": "ok", "response": { "type": "close" } }
+            json!({ "baton": "a-baton", "base_url": null, "results": [
+                { "type": "ok", "response": { "type": "execute", "result": { "cols": [], "rows": rows } } }
             ] })
             .to_string(),
         )
@@ -872,15 +870,39 @@ mod tests {
             .iter()
             .map(|(name, statement, _)| {
                 vec![
+                    turso::Value::Text("table".to_string()),
                     turso::Value::Text(name.clone()),
                     turso::Value::Text(statement.clone()),
                 ]
             })
             .collect();
+        let mut script = vec![answering(&[]), answering(&listing)];
 
-        std::iter::once(answering(&listing))
-            .chain(workspace.iter().map(|(_, _, rows)| answering(rows)))
-            .collect()
+        for (_, _, rows) in &workspace {
+            let paged: Vec<Vec<turso::Value>> = rows
+                .iter()
+                .enumerate()
+                .map(|(index, row)| {
+                    std::iter::once(turso::Value::Integer(index as i64 + 1))
+                        .chain(row.iter().cloned())
+                        .collect()
+                })
+                .collect();
+
+            script.push(answering(&[vec![turso::Value::Integer(rows.len() as i64)]]));
+            script.push(answering(&paged));
+        }
+
+        script.push(ScriptedResponse::new(
+            200,
+            json!({ "baton": null, "base_url": null, "results": [
+                { "type": "ok", "response": { "type": "execute", "result": { "cols": [], "rows": [] } } },
+                { "type": "ok", "response": { "type": "close" } }
+            ] })
+            .to_string(),
+        ));
+
+        script
     }
 
     /// The copy's reads, then the migration applied.
@@ -1389,21 +1411,29 @@ mod tests {
 
         assert_eq!(reached, shipped);
 
-        // the reads came first, each a select under the member's own credential, and then the
-        // migration.
+        // the reads came first, one transaction on one stream under the member's own credential,
+        // and then the migration.
         assert_eq!(pipeline.request_count(), READS + 1);
 
         for index in 0..READS {
             let request = pipeline.request(index);
             let body: serde_json::Value = serde_json::from_str(&request.body).expect("json");
+            let sql = body["requests"][0]["stmt"]["sql"].as_str().expect("sql");
+            let expected = match index {
+                0 => "BEGIN",
+                last if last == READS - 1 => "ROLLBACK",
+                _ => "SELECT",
+            };
 
             assert!(
-                body["requests"][0]["stmt"]["sql"]
-                    .as_str()
-                    .expect("sql")
-                    .starts_with("SELECT"),
+                sql.starts_with(expected),
                 "request {index} was not a read: {}",
                 request.body
+            );
+            assert_eq!(
+                body["baton"].as_str(),
+                (index > 0).then_some("a-baton"),
+                "request {index} left the stream"
             );
             assert_eq!(
                 request.header("authorization"),

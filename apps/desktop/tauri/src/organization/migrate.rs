@@ -18,12 +18,12 @@
 //! at the current schema is this.
 //!
 //! **The same pipeline is what a workspace is copied over** before a pending migration changes it
-//! (effort 838, ticket 28). [`OverThePipeline`] answers `backup.rs` the workspace's tables and
-//! rows with the credential the migration goes over, each value decoded from the pipeline's typed
-//! JSON into the storage class the database holds it in, so the copy keeps integers, reals, text,
-//! blobs and nulls apart.
+//! (effort 838, tickets 28 and 30). [`OverThePipeline`] answers `backup.rs` the workspace's schema
+//! and rows with the credential the migration goes over, in one transaction on one stream held
+//! across requests, each value decoded from the pipeline's typed JSON into the storage class the
+//! database holds it in, so the copy keeps integers, reals, text, blobs and nulls apart.
 
-use std::time::Duration;
+use std::{sync::PoisonError, time::Duration};
 
 use base64::Engine as _;
 use serde_json::{Value, json};
@@ -170,27 +170,64 @@ pub async fn apply_between(
     Ok(())
 }
 
-/// A workspace as a copy reads it before a pending migration changes it (effort 838, ticket 28):
-/// the tables and rows the database behind `pipeline` answers, read with `token`, the credential
-/// the migration goes over, and never written.
+/// A workspace as a copy reads it before a pending migration changes it (effort 838, tickets 28
+/// and 30): what the database behind `pipeline` answers, read with `token`, the credential the
+/// migration goes over, and never written.
 ///
-/// One request per answer, a statement and a close, as the lease's own requests are.
+/// **One stream, held across requests by its baton.** The pipeline keeps a stream open between
+/// requests when a request does not close it, and answers a baton naming it, which the next
+/// request hands back; so `BEGIN` in the first request and every read after it are one transaction,
+/// and the copy is of one moment however many requests it takes. Where an answer names a
+/// `base_url`, the requests after it go there, which is how the stream stays on the server holding
+/// it. The last request rolls back and closes. Nothing else here holds a stream: every other
+/// request to a pipeline is one request, closed.
 pub(crate) struct OverThePipeline<'a> {
-    pub(crate) pipeline: &'a Pipeline,
-    pub(crate) token: &'a str,
+    pipeline: &'a Pipeline,
+    token: &'a str,
+    stream: std::sync::Mutex<Stream>,
 }
 
-impl OverThePipeline<'_> {
-    /// The rows `sql` answers, each a list of the pipeline's typed cells.
-    async fn answered(&self, sql: &str) -> Result<Vec<Value>, Error> {
+/// Where the stream a copy reads over stands between two requests.
+#[derive(Default)]
+struct Stream {
+    /// what the last answer named the stream by; none before the first request.
+    baton: Option<String>,
+    /// where the last answer said the stream's requests go, where it said.
+    base_url: Option<String>,
+}
+
+impl<'a> OverThePipeline<'a> {
+    pub(crate) fn new(pipeline: &'a Pipeline, token: &'a str) -> Self {
+        Self {
+            pipeline,
+            token,
+            stream: std::sync::Mutex::new(Stream::default()),
+        }
+    }
+
+    /// Send `sql` on the stream, closing it after where `close` says, and answer the rows it
+    /// read, each a list of the pipeline's typed cells.
+    async fn sent(&self, sql: &str, close: bool) -> Result<Vec<Value>, Error> {
+        let (url, baton) = {
+            let stream = self.stream.lock().unwrap_or_else(PoisonError::into_inner);
+            let url = stream.base_url.as_deref().map_or_else(
+                || self.pipeline.url.clone(),
+                |base| format!("{}/v2/pipeline", base.trim_end_matches('/')),
+            );
+
+            (url, stream.baton.clone())
+        };
+        let mut requests = vec![json!({ "type": "execute", "stmt": { "sql": sql } })];
+
+        if close {
+            requests.push(json!({ "type": "close" }));
+        }
+
         let client = build_client(MIGRATION_TIMEOUT)?;
         let response = client
-            .post(&self.pipeline.url)
+            .post(&url)
             .bearer_auth(self.token)
-            .json(&json!({ "requests": [
-                { "type": "execute", "stmt": { "sql": sql } },
-                { "type": "close" },
-            ] }))
+            .json(&json!({ "baton": baton, "requests": requests }))
             .send()
             .await
             .map_err(|error| Error::Network {
@@ -208,10 +245,31 @@ impl OverThePipeline<'_> {
         }
 
         let answered: Value = response.json().await.map_err(|_| Error::Integrity {
-            message: "the workspace database answered its copy with something this application \
-                      cannot read"
+            message: "the workspace database answered its copy with something this application                       cannot read"
                 .to_string(),
         })?;
+        let baton = answered
+            .get("baton")
+            .and_then(Value::as_str)
+            .map(str::to_string);
+
+        if baton.is_none() && !close {
+            return Err(Error::Integrity {
+                message: "the workspace database closed the copy's read before it was done"
+                    .to_string(),
+            });
+        }
+
+        {
+            let mut stream = self.stream.lock().unwrap_or_else(PoisonError::into_inner);
+
+            stream.baton = baton;
+
+            if let Some(base_url) = answered.get("base_url").and_then(Value::as_str) {
+                stream.base_url = Some(base_url.to_string());
+            }
+        }
+
         let first = answered
             .pointer("/results/0")
             .ok_or_else(|| Error::Integrity {
@@ -234,36 +292,35 @@ impl OverThePipeline<'_> {
 }
 
 impl backup::Source for OverThePipeline<'_> {
-    async fn tables(&self) -> Result<Vec<backup::Table>, Error> {
-        self.answered(backup::LISTING)
-            .await?
-            .iter()
-            .map(|row| {
-                let cells = decoded_row(row)?;
+    async fn begin(&self) -> Result<(), Error> {
+        self.sent("BEGIN", false).await?;
 
-                match cells.as_slice() {
-                    [turso::Value::Text(name), turso::Value::Text(statement)] => {
-                        Ok(backup::Table {
-                            name: name.clone(),
-                            statement: statement.clone(),
-                        })
-                    }
-                    _ => Err(Error::Integrity {
-                        message: "the workspace database listed a table this application cannot \
-                                  read"
-                            .to_string(),
-                    }),
-                }
-            })
-            .collect()
+        Ok(())
     }
 
-    async fn rows(&self, table: &str) -> Result<Vec<Vec<turso::Value>>, Error> {
-        self.answered(&backup::selecting(table))
+    async fn read(&self, sql: &str) -> Result<Vec<Vec<turso::Value>>, Error> {
+        self.sent(sql, false)
             .await?
             .iter()
             .map(decoded_row)
             .collect()
+    }
+
+    async fn end(&self) -> Result<(), Error> {
+        // a stream that was never opened, or that the server has already let go, has nothing to
+        // roll back.
+        let opened = self
+            .stream
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .baton
+            .is_some();
+
+        if opened {
+            self.sent("ROLLBACK", true).await?;
+        }
+
+        Ok(())
     }
 }
 
@@ -315,6 +372,9 @@ fn decoded(cell: &Value) -> Result<turso::Value, Error> {
     }
 }
 
+/// The failure of a copy's read that answered `what` in a shape this application cannot read: a
+/// row, a cell of a storage class it does not know, or a value that does not parse as its class
+/// says.
 fn unreadable(what: &str) -> Error {
     Error::Integrity {
         message: format!(
@@ -330,8 +390,10 @@ mod tests {
     use crate::sync::test::server::{ScriptedResponse, ScriptedServer};
 
     use super::{
-        Pipeline, WORKSPACE_MIGRATIONS, apply, shipped_version, statements, statements_between,
+        OverThePipeline, Pipeline, WORKSPACE_MIGRATIONS, apply, shipped_version, statements,
+        statements_between,
     };
+    use crate::backup;
 
     /// A workspace at version `from` needs exactly the migrations after it, and none of the ones
     /// it already has; the whole set is the same as starting from nothing.
@@ -452,5 +514,114 @@ mod tests {
             apply(&Pipeline::at(&dropping.url("")), "t", 1).await,
             Err(crate::error::Error::Network { .. })
         ));
+    }
+
+    /// One answer on a stream the pipeline holds open: `rows` of typed cells, the baton, and where
+    /// the stream's next requests go.
+    fn streamed(rows: Vec<Vec<serde_json::Value>>, base_url: Option<&str>) -> ScriptedResponse {
+        ScriptedResponse::new(
+            200,
+            json!({ "baton": "a-baton", "base_url": base_url, "results": [
+                { "type": "ok", "response": { "type": "execute", "result": { "cols": [], "rows": rows } } }
+            ] })
+            .to_string(),
+        )
+    }
+
+    fn integer(value: i64) -> serde_json::Value {
+        json!({ "type": "integer", "value": value.to_string() })
+    }
+
+    fn text(value: &str) -> serde_json::Value {
+        json!({ "type": "text", "value": value })
+    }
+
+    /// **Ticket 30's third criterion.** A workspace is copied in one transaction on one stream,
+    /// the baton handed back and the `base_url` followed, and a table larger than a page is read
+    /// a page at a time after the last rowid it has, so no one answer holds the whole table.
+    #[tokio::test]
+    async fn a_workspace_is_copied_in_one_transaction_a_page_at_a_time() {
+        let rows = backup::PAGE + 1;
+        let page = |ids: std::ops::Range<usize>| -> Vec<Vec<serde_json::Value>> {
+            ids.map(|id| vec![integer(id as i64), integer(id as i64)])
+                .collect()
+        };
+        // where the stream is held, which the first answer names as its `base_url`.
+        let held = ScriptedServer::start(vec![
+            streamed(
+                vec![vec![
+                    text("table"),
+                    text("note"),
+                    text("CREATE TABLE \"note\" (\"id\" INTEGER PRIMARY KEY)"),
+                ]],
+                None,
+            ),
+            streamed(vec![vec![integer(rows as i64)]], None),
+            streamed(page(1..backup::PAGE + 1), None),
+            streamed(page(backup::PAGE + 1..rows + 1), None),
+            ScriptedResponse::new(
+                200,
+                json!({ "baton": null, "base_url": null, "results": [
+                    { "type": "ok", "response": { "type": "execute", "result": { "cols": [], "rows": [] } } },
+                    { "type": "ok", "response": { "type": "close" } }
+                ] })
+                .to_string(),
+            ),
+        ])
+        .await;
+        let first = ScriptedServer::start(vec![streamed(Vec::new(), Some(&held.url("")))]).await;
+        let pipeline = Pipeline::at(&first.url(""));
+        let data = std::env::temp_dir().join(format!(
+            "rentable-migrate-paged-{:x}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|elapsed| elapsed.as_nanos())
+                .unwrap_or_default()
+        ));
+        let path = backup::local_copy(
+            &OverThePipeline::new(&pipeline, "a-token"),
+            &data,
+            "ws-1",
+            "schema-3-to-4",
+            1,
+        )
+        .await
+        .expect("the copy");
+        let copy = backup::contents_of(&path).await;
+
+        assert_eq!(copy.len(), 1);
+        assert_eq!(copy[0].1.len(), rows, "the copy is not the whole table");
+
+        // the transaction opened where the pipeline is, and everything after it went where the
+        // stream is held, with its baton.
+        assert_eq!(first.request_count(), 1);
+        assert_eq!(held.request_count(), 5);
+
+        let body = |request: crate::sync::test::server::RecordedRequest| -> serde_json::Value {
+            serde_json::from_str(&request.body).expect("json")
+        };
+        let opened = body(first.request(0));
+
+        assert_eq!(opened["baton"], serde_json::Value::Null);
+        assert_eq!(opened["requests"][0]["stmt"]["sql"], "BEGIN");
+        assert_eq!(opened["requests"].as_array().expect("requests").len(), 1);
+
+        let sent: Vec<serde_json::Value> = (0..5).map(|index| body(held.request(index))).collect();
+
+        assert!(sent.iter().all(|sent| sent["baton"] == "a-baton"));
+
+        let sql = |index: usize| {
+            sent[index]["requests"][0]["stmt"]["sql"]
+                .as_str()
+                .expect("sql")
+                .to_string()
+        };
+
+        assert!(sql(1).starts_with("SELECT COUNT(*)"), "{}", sql(1));
+        assert_eq!(sql(2), backup::paging("note", None));
+        assert_eq!(sql(3), backup::paging("note", Some(backup::PAGE as i64)));
+        assert!(sql(3).contains(&format!("LIMIT {}", backup::PAGE)));
+        assert_eq!(sql(4), "ROLLBACK");
+        assert_eq!(sent[4]["requests"][1]["type"], "close");
     }
 }

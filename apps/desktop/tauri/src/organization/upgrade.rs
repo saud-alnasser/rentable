@@ -2201,7 +2201,7 @@ mod tests {
 
         // ticket 27: the connect's upgrade was copied first, on this machine and on the account
         // the connect holds, protected there; neither refused connect copied anything.
-        let copy = format!("org-7f3a-format-1-to-2-{}", NOW / 1000);
+        let copy = crate::backup::remote_name("org-7f3a", "format-1-to-2", NOW / 1000);
 
         assert_eq!(
             copies_in(&older),
@@ -3518,7 +3518,7 @@ mod tests {
             "the upgrade changed nothing, so the copy proves nothing"
         );
 
-        let name = format!("org-7f3a-format-1-to-2-{}", NOW / 1000);
+        let name = crate::backup::remote_name("org-7f3a", "format-1-to-2", NOW / 1000);
 
         assert_eq!(
             platform.copies(),

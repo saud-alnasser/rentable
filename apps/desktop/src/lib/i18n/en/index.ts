@@ -399,7 +399,7 @@ const en = {
 				organizationNewer:
 					'a newer version of rentable made this organization. update rentable to open it.',
 				copyNotTaken:
-					'no copy could be saved before upgrading, so nothing changed. check the backups folder can be written, then try again.',
+					'no copy was taken before upgrading, so nothing was changed. check the connection and the backups folder, then try again.',
 				tursoNotConnected:
 					'this machine is not connected to the Turso account. connect it and try again.',
 				consentNeededAgain:

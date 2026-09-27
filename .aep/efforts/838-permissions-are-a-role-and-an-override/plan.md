@@ -455,8 +455,8 @@ file with the same `CREATE` statements, through `sqlx` as the rest of the plain 
   - `remote_copy(platform, database, label) -> Result<String, PlatformError>`: a new
     `TursoPlatform::copy_database`, a `POST /databases` with `seed: {type: "database", name}` in the
     same group, then delete protection, as `create_database` does (a copy that cannot be protected
-    is removed). The name is `<database>-<label>-<unix s>`, cut to Turso's 64 characters. Every copy
-    is kept; the owner removes them on the account.
+    is removed). The name is `copy-<id>-<label>-<unix s>`, at most 40 characters, never `org-` or
+    `ws-` at its start (ticket 30). Every copy is kept; the owner removes them on the account.
 - **Organization**: in the owner's upgrade, after the pull and the refusal checks and before the
   transaction, the replica is copied, labelled `format-<from>-to-<to>`. The remote copy is made
   where `ItsRemote::account` is present. A new `Replication::copied` carries it so the test double

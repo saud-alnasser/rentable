@@ -827,14 +827,16 @@ impl OrganizationStore {
     }
 
     /// The tables this database holds, read from the database rather than from [`TABLES`], which
-    /// is what lets a test compare the two.
+    /// is what lets a test compare the two. What the engine owns is left out, as a copy leaves it
+    /// out ([`backup::NOT_THE_ENGINES`]).
     pub async fn tables(&self) -> Result<Vec<String>, Error> {
         let mut rows = self
             .connection
             .query(
-                "SELECT name FROM sqlite_master WHERE type = 'table' \
-                 AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'turso_%' \
-                 AND name NOT LIKE '\\_\\_%' ESCAPE '\\' ORDER BY name",
+                &format!(
+                    "SELECT name FROM sqlite_master WHERE type = 'table' AND {} ORDER BY name",
+                    backup::NOT_THE_ENGINES
+                ),
                 (),
             )
             .await?;
@@ -3305,25 +3307,16 @@ impl OrganizationStore {
     }
 }
 
-/// The replica as a copy reads it, before its format changes (effort 838, ticket 27): the tables
-/// and rows the replica holds as they lie, read and never written.
+/// The replica as a copy reads it, before its format changes (effort 838, tickets 27 and 30): one
+/// transaction on the replica's own connection, so everything the copy reads is of one moment,
+/// rolled back at its end having written nothing.
 impl backup::Source for OrganizationStore {
-    async fn tables(&self) -> Result<Vec<backup::Table>, Error> {
-        let mut rows = self.connection.query(backup::LISTING, ()).await?;
-        let mut tables = Vec::new();
-
-        while let Some(row) = rows.next().await? {
-            tables.push(backup::Table {
-                name: text(&row, 0)?,
-                statement: text(&row, 1)?,
-            });
-        }
-
-        Ok(tables)
+    async fn begin(&self) -> Result<(), Error> {
+        OrganizationStore::begin(self).await
     }
 
-    async fn rows(&self, table: &str) -> Result<Vec<Vec<turso::Value>>, Error> {
-        let mut rows = self.connection.query(&backup::selecting(table), ()).await?;
+    async fn read(&self, sql: &str) -> Result<Vec<Vec<turso::Value>>, Error> {
+        let mut rows = self.connection.query(sql, ()).await?;
         let mut values = Vec::new();
 
         while let Some(row) = rows.next().await? {
@@ -3335,6 +3328,10 @@ impl backup::Source for OrganizationStore {
         }
 
         Ok(values)
+    }
+
+    async fn end(&self) -> Result<(), Error> {
+        self.rollback().await
     }
 }
 

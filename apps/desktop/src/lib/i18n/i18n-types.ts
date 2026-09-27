@@ -1294,7 +1294,7 @@ type RootTranslation = {
 				 */
 				organizationNewer: string
 				/**
-				 * n​o​ ​c​o​p​y​ ​c​o​u​l​d​ ​b​e​ ​s​a​v​e​d​ ​b​e​f​o​r​e​ ​u​p​g​r​a​d​i​n​g​,​ ​s​o​ ​n​o​t​h​i​n​g​ ​c​h​a​n​g​e​d​.​ ​c​h​e​c​k​ ​t​h​e​ ​b​a​c​k​u​p​s​ ​f​o​l​d​e​r​ ​c​a​n​ ​b​e​ ​w​r​i​t​t​e​n​,​ ​t​h​e​n​ ​t​r​y​ ​a​g​a​i​n​.
+				 * n​o​ ​c​o​p​y​ ​w​a​s​ ​t​a​k​e​n​ ​b​e​f​o​r​e​ ​u​p​g​r​a​d​i​n​g​,​ ​s​o​ ​n​o​t​h​i​n​g​ ​w​a​s​ ​c​h​a​n​g​e​d​.​ ​c​h​e​c​k​ ​t​h​e​ ​c​o​n​n​e​c​t​i​o​n​ ​a​n​d​ ​t​h​e​ ​b​a​c​k​u​p​s​ ​f​o​l​d​e​r​,​ ​t​h​e​n​ ​t​r​y​ ​a​g​a​i​n​.
 				 */
 				copyNotTaken: string
 				/**
@@ -5601,7 +5601,7 @@ export type TranslationFunctions = {
 				 */
 				organizationNewer: () => LocalizedString
 				/**
-				 * no copy could be saved before upgrading, so nothing changed. check the backups folder can be written, then try again.
+				 * no copy was taken before upgrading, so nothing was changed. check the connection and the backups folder, then try again.
 				 */
 				copyNotTaken: () => LocalizedString
 				/**
