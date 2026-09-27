@@ -6,7 +6,7 @@ paths:
 use-when: "adding or changing a workspace migration or an organization's change of format"
 ---
 
-# Rule: migrations
+# Rule — migrations
 
 *The human's call, 2026-09-27 (effort 838), from
 [[efforts/838-permissions-are-a-role-and-an-override/evidence/research/how-updates-migrate-and-fall-back]].*
@@ -32,7 +32,7 @@ never had.*
 
 A new migration or change of format comes with the seeded database of the version before it, so
 the tests walk every version shipped from 0.14.0 on to the current one. Releases before that,
-which kept their records in one local file, move over by the guided step of effort 838,
-requirement 18, not by migration.
+which kept their records in one local file, move over by the guided step of
+[[efforts/838-permissions-are-a-role-and-an-override/spec]], requirement 18, not by migration.
 
 *Why: a step is only known to work from the versions it was run from, which is Room's practice.*

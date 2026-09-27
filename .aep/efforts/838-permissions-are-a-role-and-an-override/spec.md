@@ -171,7 +171,8 @@ rank, without the owner present.
     replica of a workspace or of the organization corrupt, or not a database, the application
     moves the file aside, keeps it under a name that says so, logs it, and pulls the database
     again from its remote, rather than failing every open. What the damaged file held and had not
-    sent is lost, and the log says so. *The human's call, 2026-09-27, Firefox's practice.*
+    sent is lost, and the log says so. Damage the engine reports after the replica opened marks it,
+    and the next open sets it aside. *The human's call, 2026-09-27, Firefox's practice.*
 18. **The records of 0.12.0 and 0.13.0 are moved over by a guided step, not migrated in place.**
     Those releases came before organizations and Turso and kept every record in one local file.
     Where this build finds such a file holding records, it says so on the way in, and once the
@@ -248,14 +249,14 @@ rank, without the owner present.
 16. A test walks every shipped workspace version, seeded with rows, to the shipped version, and
     the format 1 organization to format 2, comparing each with a fresh build's schema and rows.
     Adding a migration without its seeded database fails a test.
+17. A test gives the application a replica file that is not a database, and a truncated one, and
+    finds each set aside, the database pulled again, and the log naming what was lost. Checked by
+    the human against a real replica on the running application.
 18. A test builds the local file of 0.12.0 and of 0.13.0 with records, from the migrations each
     shipped, and reads each into the whole-workspace export, every record present; the export file
     written; and the import plan over it creating every record. On the running application, a
     machine holding 0.13.0's file is told on the way in and brings the records into a new
     workspace. Checked by the human.
-17. A test gives the application a replica file that is not a database, and a truncated one, and
-    finds each set aside, the database pulled again, and the log naming what was lost. Checked by
-    the human against a real replica on the running application.
 
 # Constraints
 

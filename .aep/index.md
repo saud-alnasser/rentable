@@ -131,7 +131,7 @@ Start at [[protocol]].
 | 828-the-link-needs-a-code-and-the-settings-area-guides | implemented | [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]] | 5 | 0 | 29 |
 | 832-the-interface-speaks-one-language-and-guides | accepted | [[efforts/832-the-interface-speaks-one-language-and-guides/spec]] | 3 | 4 | 43 |
 | 835-the-rent-is-receipted-scheduled-and-chased | implemented | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]] | 1 | 0 | 19 |
-| 838-permissions-are-a-role-and-an-override | accepted | [[efforts/838-permissions-are-a-role-and-an-override/spec]] | 1 | 0 | 37 |
+| 838-permissions-are-a-role-and-an-override | accepted | [[efforts/838-permissions-are-a-role-and-an-override/spec]] | 1 | 0 | 40 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -375,3 +375,6 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/838-permissions-are-a-role-and-an-override/tickets/35-a-corrupt-replica-is-rebuilt-from-its-remote]] fix(desktop): a corrupt replica is rebuilt from its remote | 838-permissions-are-a-role-and-an-override | resolved | — |
 | [[efforts/838-permissions-are-a-role-and-an-override/tickets/36-the-records-of-an-earlier-version-are-read-as-an-export]] feat(desktop): the records of an earlier version are read as an export | 838-permissions-are-a-role-and-an-override | resolved | — |
 | [[efforts/838-permissions-are-a-role-and-an-override/tickets/37-the-way-in-offers-to-bring-the-earlier-records]] feat(desktop): the way in offers to bring the earlier records | 838-permissions-are-a-role-and-an-override | resolved | 36 |
+| [[efforts/838-permissions-are-a-role-and-an-override/tickets/38-the-check-compares-structure-not-text]] fix(organization): the check before a change commits compares structure, not text | 838-permissions-are-a-role-and-an-override | open | — |
+| [[efforts/838-permissions-are-a-role-and-an-override/tickets/39-damage-found-later-is-set-aside-at-the-next-open]] fix(desktop): damage found after the open is set aside at the next open | 838-permissions-are-a-role-and-an-override | open | — |
+| [[efforts/838-permissions-are-a-role-and-an-override/tickets/40-the-earlier-records-say-what-they-do]] fix(desktop): the earlier records say what they do | 838-permissions-are-a-role-and-an-override | open | — |

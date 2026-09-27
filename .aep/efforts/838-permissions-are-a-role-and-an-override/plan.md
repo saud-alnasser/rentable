@@ -525,6 +525,14 @@ file with the same `CREATE` statements, through `sqlx` as the rest of the plain 
   an open that never returns), so a truncated main file is found before the engine is given it,
   from the header's page size and count against the file's length, where no write-ahead log holds
   the rest (`database/corrupt.rs`). Damage met after the first read is not handled here.*
+  *Review round one of tickets 32 to 37: the schema check compares structure, not statement text,
+  as Room's `TableInfo` does: each table by its columns' names, declared types, `NOT NULL` and
+  primary key positions, whatever their order or defaults; each index by its name, uniqueness and
+  columns; views and triggers by their normalised text. So the reference built on local SQLite and
+  a database held by Turso's server compare equal where their text differs, and a table reshaped in
+  place needs no declared statement (ticket 38). Damage the engine reports after the open marks the
+  replica, and its next open sets it aside; a replica the sync engine is restoring (its
+  replace-base marker present) is left to the engine (ticket 39).*
 - **What is carried forward.** Releases from 0.14.0 on, the first on Turso: workspace schema 5 on
   and organization format 1 on are seeded and walked in the tests (ticket 34). *The human's call,
   2026-09-27.*
@@ -562,8 +570,8 @@ file with the same `CREATE` statements, through `sqlx` as the rest of the plain 
 | 13 | Rust: the format 1 fixture upgraded, then its local copy opened as a plain file and every table and row compared with a copy read before the upgrade; the in-memory platform recording one protected copy; a directory that cannot be written refusing with `CopyNotTaken` and the organization unchanged; a pending workspace migration against the pipeline test double leaving its copy; a refused remote copy logged and the change done; retention keeping three |
 | 15 | Rust: a tail failing at a middle statement against the local stand-in, the workspace unchanged and the retry whole; a failing check rolling back each path; the version row read first |
 | 16 | Rust: every shipped version seeded and walked; a missing seed failing |
-| 18 | Rust: `app.db` built at schema 2 and 3 from the shipped migrations, read into the transfer tables, every record present, the workbook written; TS: the import plan over those tables creates every record; the human on the running application with 0.13.0's file |
 | 17 | Rust: a not-a-database and a truncated replica each set aside and pulled again; the human on the running application |
+| 18 | Rust: `app.db` built at schema 2 and 3 from the shipped migrations, read into the transfer tables, every record present, the workbook written; TS: the import plan over those tables creates every record; the human on the running application with 0.13.0's file |
 | 14 | Rust: the list's `from` values contiguous from 1 and `FORMAT_VERSION` equal to its length plus one; a test-only entry from the shipped format to the next, walked by the runner with the copy, the transaction and the `format` row; the format 1 to 2 tests unchanged and green after the split |
 
 # Operational Considerations
