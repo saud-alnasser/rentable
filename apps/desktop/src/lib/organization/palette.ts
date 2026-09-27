@@ -40,7 +40,9 @@ import { get } from 'svelte/store';
  * **The gates are read by the builders the directories read them by** (`memberReaderOf`,
  * `toMemberActContext`, `workspaceContextOf`), from the same queries the settings route reads, so
  * the menu cannot offer an act a card does not. Every gate is today's, and Rust refuses each act
- * again on the signed row.
+ * again on the signed row. An act a card draws refused on every record, as *who is in a workspace*
+ * is to a reader without `grantWorkspace`, is not offered: it could never run from here, and
+ * `rules/interface` keeps such a row out of the menu (effort 838, ticket 51).
  *
  * **A reader's gates are known before a record is named**, which is where these two differ from a
  * contract. So an act is offered only where it applies to somebody (a manager without
@@ -75,6 +77,19 @@ type Described<T> = {
 /** whether an act applies to a record, as every projection in `design/acts.ts` reads it. */
 const applies = <T>(act: RecordAct<T>, record: T) => act.appliesTo?.(record) ?? true;
 
+/**
+ * whether an act applies to a record and the reader may run it there, which is what the menu
+ * offers: refused only by a write already running is still the reader's, so it is listed and
+ * refused, as above; refused for anything else on every record, it could never run from here.
+ */
+const admits = <T>(act: RecordAct<T>, record: T, translations: TranslationFunctions) => {
+	if (!applies(act, record)) return false;
+
+	const refusal = act.unavailable?.(record, translations);
+
+	return refusal === undefined || refusal === translations.common.actions.working();
+};
+
 function offering<T>(
 	acts: readonly RecordAct<T>[],
 	records: () => T[],
@@ -83,7 +98,7 @@ function offering<T>(
 	return {
 		offered: (translations, isAppleKeyboard) =>
 			toPaletteActs(
-				acts.filter((act) => records().some((record) => applies(act, record))),
+				acts.filter((act) => records().some((record) => admits(act, record, translations))),
 				translations,
 				isAppleKeyboard
 			),

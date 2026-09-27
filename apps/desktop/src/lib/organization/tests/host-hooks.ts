@@ -24,6 +24,8 @@ export type HostWrite = { hook: string; input: unknown };
 
 export const hostAnswers = {
 	session: null as OrganizationSession | null,
+	/** whether this machine holds the Turso authority, as the organization's state says. */
+	holdsTursoAuthority: false,
 	members: [] as OrganizationMember[],
 	roles: [] as OrganizationRole[],
 	writes: [] as HostWrite[],
@@ -33,6 +35,7 @@ export const hostAnswers = {
 
 export function resetHostAnswers() {
 	hostAnswers.session = null;
+	hostAnswers.holdsTursoAuthority = false;
 	hostAnswers.members = [];
 	hostAnswers.roles = [];
 	hostAnswers.writes = [];
@@ -59,7 +62,12 @@ const mutation = (hook: string) => () => ({
 export const hostHooks = {
 	useFetchOrganizationState: () => ({
 		get data() {
-			return hostAnswers.session ? { session: hostAnswers.session } : undefined;
+			return hostAnswers.session
+				? {
+						session: hostAnswers.session,
+						holdsTursoAuthority: hostAnswers.holdsTursoAuthority
+					}
+				: undefined;
 		},
 		refetch: async () => undefined
 	}),

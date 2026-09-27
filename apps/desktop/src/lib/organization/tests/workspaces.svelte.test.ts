@@ -536,6 +536,31 @@ test('the members act hands up the rows that changed, as member ids on that work
 	});
 });
 
+// the lock mints a read only credential on the owner's Turso account, so the host offers it only
+// where this machine holds that authority, and unlocking, which re-seals the owner's own full
+// access, stays open without it (effort 838, tickets 50 and 51).
+test('the owner is offered the lock only where this machine holds the Turso authority', async () => {
+	const lockOf = (id: string) =>
+		document.querySelector<HTMLElement>(`#access-${id}-lock`) ??
+		document.querySelector<HTMLElement>(`[id^="access-${id}"][id$="lock"]`);
+
+	hostAnswers.holdsTursoAuthority = false;
+	const without = list();
+
+	await press('ws-1', 'grant');
+	await waitFor(() => expect(document.querySelector('[data-access-form]')).not.toBeNull());
+	expect(lockOf('ada')?.getAttribute('aria-disabled')).toBe('true');
+	expect(document.body.textContent).toContain(en.common.refusals.host.tursoNotConnected);
+	without.unmount();
+
+	hostAnswers.holdsTursoAuthority = true;
+	list();
+
+	await press('ws-1', 'grant');
+	await waitFor(() => expect(document.querySelector('[data-access-form]')).not.toBeNull());
+	expect(lockOf('ada')?.getAttribute('aria-disabled')).not.toBe('true');
+});
+
 // full access is the reader's own credential re-sealed, and the reader holds Jeddah read only,
 // so the host hands the dialog rows nobody can be put in on, and the switch says why.
 test('the members act on a workspace the reader holds read only puts nobody in', async () => {

@@ -124,6 +124,12 @@
 	const lockReason = (row: AccessSwitchRow): string | null => {
 		if (refusal) return refusal;
 
+		// unlocking is a full-access grant, the owner's own credential re-sealed, which needs no
+		// Turso authority; only locking mints a read only credential on the owner's account.
+		if (!canGrantReadOnly && readerIsOwner && isLocked(row)) {
+			return row.givable ? null : $LL.organization.workspaceSwitches.notHeld();
+		}
+
 		if (!canGrantReadOnly) {
 			return readerIsOwner
 				? $LL.common.refusals.host.tursoNotConnected()

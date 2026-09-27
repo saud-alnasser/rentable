@@ -312,6 +312,26 @@ test('for the owner on a machine without the Turso authority the lock says so', 
 	expect(saved).toEqual([[]]);
 });
 
+// unlocking is a full-access grant, the owner's own credential re-sealed, which needs no Turso
+// authority, so the owner on such a machine may still unlock (effort 838, ticket 51).
+test('the owner on a machine without the Turso authority may still unlock', async () => {
+	const saved: { id: string; access: string }[][] = [];
+	const locked = [{ id: 'ada', name: 'ada', access: 'read-only' as const, givable: true }];
+
+	dialog({
+		rows: locked,
+		canGrantReadOnly: false,
+		readerIsOwner: true,
+		onSave: (changes) => saved.push(changes)
+	});
+
+	expect(dimmed(lockSwitch('ada'))).toBe(false);
+	await fireEvent.click(lockSwitch('ada')!);
+	await submit();
+
+	expect(saved).toEqual([[{ id: 'ada', access: 'full-access' }]]);
+});
+
 // the lock's line says what locking does, and is read with the lock, beside any reason it is
 // refused for.
 test('the lock is described by what locking does, and by its reason where it has one', () => {

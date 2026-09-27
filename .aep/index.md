@@ -131,7 +131,7 @@ Start at [[protocol]].
 | 828-the-link-needs-a-code-and-the-settings-area-guides | implemented | [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]] | 5 | 0 | 29 |
 | 832-the-interface-speaks-one-language-and-guides | accepted | [[efforts/832-the-interface-speaks-one-language-and-guides/spec]] | 3 | 4 | 43 |
 | 835-the-rent-is-receipted-scheduled-and-chased | implemented | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]] | 1 | 0 | 19 |
-| 838-permissions-are-a-role-and-an-override | accepted | [[efforts/838-permissions-are-a-role-and-an-override/spec]] | 2 | 0 | 50 |
+| 838-permissions-are-a-role-and-an-override | accepted | [[efforts/838-permissions-are-a-role-and-an-override/spec]] | 2 | 0 | 51 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -388,3 +388,4 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/838-permissions-are-a-role-and-an-override/tickets/48-a-workspace-is-in-or-out-with-a-lock]] feat(desktop): a workspace is in or out, with a lock to read-only | 838-permissions-are-a-role-and-an-override | resolved | — |
 | [[efforts/838-permissions-are-a-role-and-an-override/tickets/49-a-workspaces-people-are-in-or-out-with-a-lock]] feat(desktop): a workspace's people are in or out, with a lock to read-only | 838-permissions-are-a-role-and-an-override | resolved | 48 |
 | [[efforts/838-permissions-are-a-role-and-an-override/tickets/50-the-workspace-switches-say-what-they-can-do]] fix(desktop): the workspace switches offer only what they can do, and say it | 838-permissions-are-a-role-and-an-override | resolved | 49 |
+| [[efforts/838-permissions-are-a-role-and-an-override/tickets/51-review-round-two-of-the-workspace-switches-is-settled]] fix(desktop): review round two of the workspace switches is settled | 838-permissions-are-a-role-and-an-override | resolved | 50 |

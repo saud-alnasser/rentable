@@ -255,22 +255,15 @@ test('a workspace act the reader may not take is not offered, and who is in one 
 		expect(document.querySelectorAll('[data-slot=command-item]').length).toBeGreaterThan(0)
 	);
 
-	for (const act of ['workspace.edit', 'workspace.delete']) {
+	// who is in a workspace is refused on every card for a reader without `grantWorkspace`, so the
+	// menu, which offers an act only where some record admits it, leaves it out (effort 838,
+	// ticket 51): a row that could never run would answer every search for it.
+	for (const act of ['workspace.edit', 'workspace.delete', 'workspace.members']) {
 		expect(row(act), act).toBeNull();
 	}
 
 	// nor anything of a member's, since sami's row writes nobody.
 	expect(document.querySelector('[data-value^="member."]')).toBeNull();
-
-	// who is in a workspace is refused naming the flag rather than left out, as the member's card
-	// refuses its workspaces section (ticket 50 of effort 838).
-	await waitFor(() => expect(row('workspace.members')).not.toBeNull());
-	await fireEvent.click(row('workspace.members')!);
-	await waitFor(() => expect(row('north')).not.toBeNull());
-	expect(row('north')!.getAttribute('aria-disabled')).toBe('true');
-
-	await fireEvent.click(row('north')!);
-
 	expect(run).not.toHaveBeenCalled();
 	expect(organizationHostState.workspace.changingAccess).toBeNull();
 });
