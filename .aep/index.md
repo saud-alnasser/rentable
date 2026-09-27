@@ -130,7 +130,7 @@ Start at [[protocol]].
 | 828-the-link-needs-a-code-and-the-settings-area-guides | implemented | [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]] | 5 | 0 | 29 |
 | 832-the-interface-speaks-one-language-and-guides | accepted | [[efforts/832-the-interface-speaks-one-language-and-guides/spec]] | 3 | 4 | 43 |
 | 835-the-rent-is-receipted-scheduled-and-chased | implemented | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]] | 1 | 0 | 19 |
-| 838-permissions-are-a-role-and-an-override | accepted | [[efforts/838-permissions-are-a-role-and-an-override/spec]] | 0 | 0 | 28 |
+| 838-permissions-are-a-role-and-an-override | accepted | [[efforts/838-permissions-are-a-role-and-an-override/spec]] | 0 | 0 | 30 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -365,3 +365,5 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/838-permissions-are-a-role-and-an-override/tickets/26-each-format-change-is-a-file-of-its-own]] refactor(organization): each format change is a file of its own | 838-permissions-are-a-role-and-an-override | resolved | — |
 | [[efforts/838-permissions-are-a-role-and-an-override/tickets/27-a-copy-is-taken-before-the-organization-changes-format]] feat(organization): a copy is taken before the organization changes format | 838-permissions-are-a-role-and-an-override | resolved | 26 |
 | [[efforts/838-permissions-are-a-role-and-an-override/tickets/28-a-copy-is-taken-before-a-workspace-migration]] feat(organization): a copy is taken before a workspace migration | 838-permissions-are-a-role-and-an-override | resolved | 27 |
+| [[efforts/838-permissions-are-a-role-and-an-override/tickets/29-the-format-runner-heals-as-before-and-finds-the-owner-in-any-format]] fix(organization): the format runner heals as before and finds the owner in any format | 838-permissions-are-a-role-and-an-override | open | 28 |
+| [[efforts/838-permissions-are-a-role-and-an-override/tickets/30-a-copy-is-whole-stands-and-says-what-failed]] fix(organization): a copy is whole, stands, and says what failed | 838-permissions-are-a-role-and-an-override | open | 28 |
