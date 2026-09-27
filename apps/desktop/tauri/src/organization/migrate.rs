@@ -1194,4 +1194,361 @@ mod tests {
         assert_eq!(sql(4), "ROLLBACK");
         assert_eq!(sent[4]["requests"][1]["type"], "close");
     }
+
+    // every workspace version shipped from 0.14.0 on, seeded with rows and walked to the shipped
+    // version (effort 838, requirement 16, ticket 34; `rules/migrations`).
+
+    /// The first workspace version a release on Turso shipped at: 0.14.0 and 0.15.0 are both at 5.
+    /// Earlier releases kept their records in one local file, and move over by the guided step of
+    /// effort 838's requirement 18 rather than by migration.
+    const FIRST_CARRIED: usize = 5;
+
+    /// Every table and every row a database holds, as `backup::contents_of` reads it: tables by
+    /// name, rows by rowid.
+    type Contents = Vec<(String, Vec<Vec<turso::Value>>)>;
+
+    /// A workspace database as a shipped version left it, and what walking it to the shipped
+    /// version must leave.
+    struct Seed {
+        /// the version it is at: its first `version` migrations, and no version row, since no
+        /// build before ticket 32 wrote one.
+        version: usize,
+        /// the rows it holds, as that version's build wrote them.
+        rows: &'static [&'static str],
+        /// every row once it is at the shipped version, the version row included.
+        carried: fn() -> Contents,
+    }
+
+    /// **One seed per shipped version from [`FIRST_CARRIED`] up to the one before the shipped
+    /// version.** A new migration comes with the seed of the version before it, the rows a
+    /// database of that version holds, and the rows each seed here holds once the new migration
+    /// has run.
+    const SEEDS: &[Seed] = &[Seed {
+        version: 5,
+        rows: SEEDED_AT_FIVE,
+        carried: carried_from_five,
+    }];
+
+    /// A workspace as 0.14.0 and 0.15.0 wrote it: a record of every kind, a contract with a
+    /// government id and one without, a unit on both contracts and one on neither, a payment on
+    /// each contract and one of them fractional, and history naming a record by its id. `0005`
+    /// adds a payment's method, reference and note, so every payment here is one written before it.
+    const SEEDED_AT_FIVE: &[&str] = &[
+        "INSERT INTO `complex` (`id`, `name`, `location`) VALUES \
+         ('0199a000-0000-7000-8000-0000000c0001', 'North Towers', 'Riyadh, Olaya'), \
+         ('0199a000-0000-7000-8000-0000000c0002', 'برج الروضة', 'Jeddah')",
+        "INSERT INTO `tenant` (`id`, `national_id`, `name`, `phone`) VALUES \
+         ('0199a000-0000-7000-8000-000000070001', '1012345678', 'Sara Al-Harbi', '0501234567'), \
+         ('0199a000-0000-7000-8000-000000070002', '2098765432', 'خالد العتيبي', '0559876543')",
+        "INSERT INTO `unit` (`id`, `name`, `status`, `complex_id`) VALUES \
+         ('0199a000-0000-7000-8000-0000000a0001', 'A-101', 'occupied', \
+          '0199a000-0000-7000-8000-0000000c0001'), \
+         ('0199a000-0000-7000-8000-0000000a0002', 'A-102', 'occupied', \
+          '0199a000-0000-7000-8000-0000000c0001'), \
+         ('0199a000-0000-7000-8000-0000000a0003', 'B-1', 'vacant', \
+          '0199a000-0000-7000-8000-0000000c0002')",
+        "INSERT INTO `contract` (`id`, `gov_id`, `status`, `start_date`, `end_date`, \
+         `interval_in_months`, `cost_per_interval`, `paid_amount`, `expected_amount`, \
+         `tenant_id`) VALUES \
+         ('0199a000-0000-7000-8000-0000000d0001', '20250001', 'active', 1735689600000, \
+          1767225600000, '6m', 30000.5, 15000.25, 30000.5, \
+          '0199a000-0000-7000-8000-000000070001'), \
+         ('0199a000-0000-7000-8000-0000000d0002', NULL, 'expired', 1704067200000, \
+          1735603200000, '1m', 2500, 0, 0, '0199a000-0000-7000-8000-000000070002')",
+        "INSERT INTO `contract_unit` (`contract_id`, `unit_id`) VALUES \
+         ('0199a000-0000-7000-8000-0000000d0001', '0199a000-0000-7000-8000-0000000a0001'), \
+         ('0199a000-0000-7000-8000-0000000d0001', '0199a000-0000-7000-8000-0000000a0002'), \
+         ('0199a000-0000-7000-8000-0000000d0002', '0199a000-0000-7000-8000-0000000a0002')",
+        "INSERT INTO `payment` (`id`, `date`, `amount`, `contract_id`) VALUES \
+         ('0199a000-0000-7000-8000-0000000e0001', 1738368000000, 15000.25, \
+          '0199a000-0000-7000-8000-0000000d0001'), \
+         ('0199a000-0000-7000-8000-0000000e0002', 1706745600000, 2500, \
+          '0199a000-0000-7000-8000-0000000d0002')",
+        "INSERT INTO `history` (`id`, `at`, `concept`, `record_id`, `action`, `record`) VALUES \
+         ('0199a000-0000-7000-8000-0000000f0001', 1738368000000, 'payment', \
+          '0199a000-0000-7000-8000-0000000e0001', 'created', '15000.25'), \
+         ('0199a000-0000-7000-8000-0000000f0002', 1738454400000, 'tenant', \
+          '0199a000-0000-7000-8000-000000070002', 'edited', 'خالد العتيبي')",
+    ];
+
+    /// [`SEEDED_AT_FIVE`] at the shipped version: every row where it was, each payment's method,
+    /// reference and note null, and the version row.
+    fn carried_from_five() -> Contents {
+        let null = || turso::Value::Null;
+
+        vec![
+            (
+                "complex".to_string(),
+                vec![
+                    vec![
+                        cell("0199a000-0000-7000-8000-0000000c0001"),
+                        cell("North Towers"),
+                        cell("Riyadh, Olaya"),
+                    ],
+                    vec![
+                        cell("0199a000-0000-7000-8000-0000000c0002"),
+                        cell("برج الروضة"),
+                        cell("Jeddah"),
+                    ],
+                ],
+            ),
+            (
+                "contract".to_string(),
+                vec![
+                    vec![
+                        cell("0199a000-0000-7000-8000-0000000d0001"),
+                        cell("20250001"),
+                        cell("active"),
+                        turso::Value::Integer(1_735_689_600_000),
+                        turso::Value::Integer(1_767_225_600_000),
+                        cell("6m"),
+                        turso::Value::Real(30_000.5),
+                        turso::Value::Real(15_000.25),
+                        turso::Value::Real(30_000.5),
+                        cell("0199a000-0000-7000-8000-000000070001"),
+                    ],
+                    vec![
+                        cell("0199a000-0000-7000-8000-0000000d0002"),
+                        null(),
+                        cell("expired"),
+                        turso::Value::Integer(1_704_067_200_000),
+                        turso::Value::Integer(1_735_603_200_000),
+                        cell("1m"),
+                        turso::Value::Real(2_500.0),
+                        turso::Value::Real(0.0),
+                        turso::Value::Real(0.0),
+                        cell("0199a000-0000-7000-8000-000000070002"),
+                    ],
+                ],
+            ),
+            (
+                "contract_unit".to_string(),
+                vec![
+                    vec![
+                        cell("0199a000-0000-7000-8000-0000000d0001"),
+                        cell("0199a000-0000-7000-8000-0000000a0001"),
+                    ],
+                    vec![
+                        cell("0199a000-0000-7000-8000-0000000d0001"),
+                        cell("0199a000-0000-7000-8000-0000000a0002"),
+                    ],
+                    vec![
+                        cell("0199a000-0000-7000-8000-0000000d0002"),
+                        cell("0199a000-0000-7000-8000-0000000a0002"),
+                    ],
+                ],
+            ),
+            (
+                "history".to_string(),
+                vec![
+                    vec![
+                        cell("0199a000-0000-7000-8000-0000000f0001"),
+                        turso::Value::Integer(1_738_368_000_000),
+                        cell("payment"),
+                        cell("0199a000-0000-7000-8000-0000000e0001"),
+                        cell("created"),
+                        cell("15000.25"),
+                    ],
+                    vec![
+                        cell("0199a000-0000-7000-8000-0000000f0002"),
+                        turso::Value::Integer(1_738_454_400_000),
+                        cell("tenant"),
+                        cell("0199a000-0000-7000-8000-000000070002"),
+                        cell("edited"),
+                        cell("خالد العتيبي"),
+                    ],
+                ],
+            ),
+            (
+                "payment".to_string(),
+                vec![
+                    vec![
+                        cell("0199a000-0000-7000-8000-0000000e0001"),
+                        turso::Value::Integer(1_738_368_000_000),
+                        turso::Value::Real(15_000.25),
+                        cell("0199a000-0000-7000-8000-0000000d0001"),
+                        null(),
+                        null(),
+                        null(),
+                    ],
+                    vec![
+                        cell("0199a000-0000-7000-8000-0000000e0002"),
+                        turso::Value::Integer(1_706_745_600_000),
+                        turso::Value::Real(2_500.0),
+                        cell("0199a000-0000-7000-8000-0000000d0002"),
+                        null(),
+                        null(),
+                        null(),
+                    ],
+                ],
+            ),
+            (
+                "schema_version".to_string(),
+                vec![vec![
+                    turso::Value::Integer(1),
+                    turso::Value::Integer(shipped_version()),
+                ]],
+            ),
+            (
+                "tenant".to_string(),
+                vec![
+                    vec![
+                        cell("0199a000-0000-7000-8000-000000070001"),
+                        cell("1012345678"),
+                        cell("Sara Al-Harbi"),
+                        cell("0501234567"),
+                    ],
+                    vec![
+                        cell("0199a000-0000-7000-8000-000000070002"),
+                        cell("2098765432"),
+                        cell("خالد العتيبي"),
+                        cell("0559876543"),
+                    ],
+                ],
+            ),
+            (
+                "unit".to_string(),
+                vec![
+                    vec![
+                        cell("0199a000-0000-7000-8000-0000000a0001"),
+                        cell("A-101"),
+                        cell("occupied"),
+                        cell("0199a000-0000-7000-8000-0000000c0001"),
+                    ],
+                    vec![
+                        cell("0199a000-0000-7000-8000-0000000a0002"),
+                        cell("A-102"),
+                        cell("occupied"),
+                        cell("0199a000-0000-7000-8000-0000000c0001"),
+                    ],
+                    vec![
+                        cell("0199a000-0000-7000-8000-0000000a0003"),
+                        cell("B-1"),
+                        cell("vacant"),
+                        cell("0199a000-0000-7000-8000-0000000c0002"),
+                    ],
+                ],
+            ),
+        ]
+    }
+
+    /// A text value as a row holds it.
+    fn cell(value: &str) -> turso::Value {
+        turso::Value::Text(value.to_string())
+    }
+
+    /// The shipped versions from [`FIRST_CARRIED`] up to the one before `shipped` that no seed of
+    /// `seeds` is at.
+    fn unseeded(seeds: &[Seed], shipped: usize) -> Vec<usize> {
+        (FIRST_CARRIED..shipped)
+            .filter(|version| !seeds.iter().any(|seed| seed.version == *version))
+            .collect()
+    }
+
+    /// **Ticket 34's second criterion.** Every version shipped from 0.14.0 on, up to the one
+    /// before the shipped version, has a seed, and only one; a seed is never at the shipped
+    /// version or past it. So the next migration fails here until the version before it is
+    /// seeded.
+    #[test]
+    fn every_shipped_version_from_the_first_carried_has_one_seed() {
+        let shipped = shipped_version() as usize;
+
+        assert_eq!(
+            unseeded(SEEDS, shipped),
+            Vec::<usize>::new(),
+            "a shipped workspace version has no seed in SEEDS"
+        );
+
+        for (place, seed) in SEEDS.iter().enumerate() {
+            assert!(
+                (FIRST_CARRIED..shipped).contains(&seed.version),
+                "the seed at {} is not a version a workspace is walked from",
+                seed.version
+            );
+            assert!(
+                SEEDS[place + 1..]
+                    .iter()
+                    .all(|other| other.version != seed.version),
+                "two seeds at {}",
+                seed.version
+            );
+        }
+    }
+
+    /// The check above fails a shipped version with no seed: a migration added after the last
+    /// one leaves the version before it unseeded.
+    #[test]
+    fn a_shipped_version_with_no_seed_is_found() {
+        let shipped = shipped_version() as usize;
+
+        assert_eq!(unseeded(SEEDS, shipped + 1), vec![shipped]);
+        assert_eq!(
+            unseeded(&[], shipped),
+            (FIRST_CARRIED..shipped).collect::<Vec<usize>>()
+        );
+    }
+
+    /// **Ticket 34's first criterion.** Each seed is a database of its version with its rows,
+    /// holding no version row, as its build left it; walked by [`apply_between`] over the
+    /// pipeline, from the version the organization records it at, to the shipped version, it is
+    /// the schema a fresh database of the shipped version is built with, the check passing inside
+    /// the migration, and every row is carried as the seed says.
+    #[tokio::test]
+    async fn every_seeded_version_is_walked_to_the_shipped_version_with_its_rows() {
+        let shipped = shipped_version() as usize;
+
+        for seed in SEEDS {
+            let pipeline = LocalPipeline::start().await;
+
+            pipeline
+                .holding(
+                    &[
+                        statements(seed.version),
+                        seed.rows.iter().map(|row| row.to_string()).collect(),
+                    ]
+                    .concat(),
+                )
+                .await;
+
+            assert_eq!(
+                as_it_is(&pipeline).await.0,
+                fresh(seed.version)
+                    .await
+                    .expect("the fresh shape")
+                    .without(&[super::VERSION_TABLE]),
+                "the seed at {} is not a database of that version",
+                seed.version
+            );
+            assert_eq!(recorded(&pipeline).await, None);
+
+            let walked =
+                apply_between(&Pipeline::at(&pipeline.url("")), "t", seed.version, shipped)
+                    .await
+                    .unwrap_or_else(|error| panic!("the walk from {}: {error:?}", seed.version));
+
+            assert_eq!(
+                walked,
+                Migrated::Applied {
+                    from: seed.version,
+                    to: shipped
+                }
+            );
+
+            let (shape, rows) = as_it_is(&pipeline).await;
+
+            assert_eq!(
+                shape,
+                fresh(shipped).await.expect("the fresh shape"),
+                "the walk from {} left a schema a fresh database does not have",
+                seed.version
+            );
+            assert_eq!(
+                rows,
+                (seed.carried)(),
+                "the walk from {} did not carry the rows",
+                seed.version
+            );
+            assert_eq!(recorded(&pipeline).await, Some(shipped as i64));
+        }
+    }
 }
