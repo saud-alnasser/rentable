@@ -251,7 +251,7 @@ export default router({
 	 * A query rather than a mutation: it reads and writes nothing.
 	 */
 	planMany: procedure
-		.permitted('createTenant')
+		.permitted('viewTenant')
 		.input(z.object({ ids: z.array(TenantSchema.shape.id).min(1) }))
 		.query(async ({ input, ctx }) => {
 			const plan = await planTenantSelection(ctx.db, input.ids);

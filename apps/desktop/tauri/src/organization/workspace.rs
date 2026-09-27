@@ -311,6 +311,23 @@ pub async fn grant_workspace<P: TursoPlatform>(
     // covers is never saved, only removed (effort 838).
     super::session::refuse_unsettled(member)?;
 
+    refuse_removed(member)?;
+
+    // a read-only grant is the owner's lock, the one limit a role cannot give (requirement 12,
+    // as amended 2026-09-27): replacing it with full access is lifting it, and that is the owner's
+    // too, though it mints nothing.
+    if access == AccessLevel::FullAccess
+        && holds_lock(store, session, member_id, workspace_id).await?
+    {
+        require_owner(
+            store,
+            session,
+            Flag::MintReadOnly,
+            "that workspace is locked to read only for them, and only the owner lifts the lock",
+        )
+        .await?;
+    }
+
     let workspaces = store.workspaces(&session.verifying_key).await?;
     let workspace = workspaces
         .iter()
@@ -424,13 +441,37 @@ pub async fn withdraw_grant(
         ));
     }
 
+    // the directory grant is not a workspace: it is how a member reads the organization at all,
+    // and it goes with the member's removal, never on its own.
+    if workspace_id == session.organization_id {
+        return Err(Error::refused(
+            RefusalReason::WorkspaceMissing,
+            "that is the organization itself, not a workspace",
+        ));
+    }
+
     let held = store
         .grants(&session.verifying_key)
         .await?
         .into_iter()
-        .any(|grant| grant.member_id == member_id && grant.workspace_id == workspace_id);
+        .find(|grant| grant.member_id == member_id && grant.workspace_id == workspace_id);
 
-    if !held {
+    // withdrawing a locked grant and granting again would lift the lock by two acts, so a locked
+    // grant is the owner's to withdraw as it is theirs to lift.
+    if held
+        .as_ref()
+        .is_some_and(|grant| grant.access_level == AccessLevel::ReadOnly.as_str())
+    {
+        require_owner(
+            store,
+            session,
+            Flag::MintReadOnly,
+            "that workspace is locked to read only for them, and only the owner changes it",
+        )
+        .await?;
+    }
+
+    if held.is_none() {
         return Err(Error::refused(
             RefusalReason::GrantMissing,
             "that member holds no grant on that workspace",
@@ -762,6 +803,37 @@ pub(super) async fn require_owner(
     actor.require_owner(flag, RefusalReason::OwnerOnly, refusal)?;
 
     Ok(actor.row)
+}
+
+/// Whether `member_id` holds `workspace_id` locked to read only: a read-only grant row.
+async fn holds_lock(
+    store: &OrganizationStore,
+    session: &MemberSession,
+    member_id: &str,
+    workspace_id: &str,
+) -> Result<bool, Error> {
+    Ok(store
+        .grants(&session.verifying_key)
+        .await?
+        .iter()
+        .any(|grant| {
+            grant.member_id == member_id
+                && grant.workspace_id == workspace_id
+                && grant.access_level == AccessLevel::ReadOnly.as_str()
+        }))
+}
+
+/// Refuse a grant to a member who has been removed: renewal skips them, and a first grant should
+/// not reach them either.
+fn refuse_removed(member: &MemberRecord) -> Result<(), Error> {
+    if member.removed_at.is_some() {
+        return Err(Error::refused(
+            RefusalReason::MemberMissing,
+            "that member has been removed from this organization",
+        ));
+    }
+
+    Ok(())
 }
 
 fn random_id() -> Result<String, Error> {
@@ -1897,6 +1969,154 @@ mod tests {
                 .iter()
                 .any(|grant| grant.member_id == "member-b" && grant.workspace_id == workspace.id),
             "a read-only grant a manager signed verified"
+        );
+    }
+
+    /// **The owner's lock is the owner's to lift** (requirement 12, as amended 2026-09-27). A
+    /// manager holding `grantWorkspace` is refused turning a member's read-only grant into full
+    /// access, and refused withdrawing it, which with a grant after would lift it in two acts; the
+    /// grant stays locked. Nobody withdraws the organization's own directory grant as though it
+    /// were a workspace, and the owner withdraws the locked grant.
+    #[tokio::test]
+    async fn a_manager_neither_lifts_nor_withdraws_the_owners_lock() {
+        let directory = scratch("manager-lock");
+        let (_, store, _, mut owner, platform) = owned(&directory).await;
+        let pipeline = applying_pipeline().await;
+        let workspace = create_workspace(
+            &store,
+            &mut owner,
+            &platform,
+            |_| Pipeline::at(&pipeline.url("")),
+            "North",
+            1,
+        )
+        .await
+        .expect("the create failed");
+        let joined_manager = a_manager(&store, &owner).await;
+        let _ = second_member(&store, &owner).await;
+
+        grant_workspace(
+            &store,
+            &owner,
+            None::<&InMemoryPlatform>,
+            &workspace.id,
+            "member-admin",
+            AccessLevel::FullAccess,
+        )
+        .await
+        .expect("the owner could not grant the manager the workspace");
+        grant_workspace(
+            &store,
+            &owner,
+            Some(platform.as_ref()),
+            &workspace.id,
+            "member-b",
+            AccessLevel::ReadOnly,
+        )
+        .await
+        .expect("the owner could not lock the member's grant");
+
+        let manager = sign_in(&store, &joined_manager, OTHER_PASSWORD, &slot())
+            .await
+            .expect("the manager did not sign in");
+        let (owner_key, owner_certificate) =
+            super::signer_of(&store, &owner).await.expect("the root");
+
+        store
+            .write_certificate(
+                &issue_certificate(
+                    &owner_key,
+                    &owner_certificate,
+                    Issue {
+                        id: &certificate_id("member-admin", "2"),
+                        member_id: "member-admin",
+                        signing_public_key: &signing_key_of(&manager.secret),
+                        ceiling: permission::MANAGER_ROLE.mask,
+                        rank: permission::MANAGER_ROLE.rank,
+                        issued_at: "2",
+                    },
+                )
+                .expect("the manager's certificate"),
+            )
+            .await
+            .expect("the manager's certificate");
+
+        let owner_only = |refused: Error| {
+            assert!(
+                matches!(
+                    refused,
+                    Error::Refused {
+                        reason: crate::error::RefusalReason::OwnerOnly,
+                        ..
+                    }
+                ),
+                "{refused:?}"
+            );
+        };
+
+        owner_only(
+            grant_workspace(
+                &store,
+                &manager,
+                None::<&InMemoryPlatform>,
+                &workspace.id,
+                "member-b",
+                AccessLevel::FullAccess,
+            )
+            .await
+            .expect_err("a manager lifted the owner's lock"),
+        );
+        owner_only(
+            withdraw_grant(&store, &manager, &workspace.id, "member-b")
+                .await
+                .expect_err("a manager withdrew a locked grant"),
+        );
+
+        let locked = |grants: Vec<GrantRecord>| {
+            grants
+                .iter()
+                .find(|grant| grant.member_id == "member-b" && grant.workspace_id == workspace.id)
+                .map(|grant| grant.access_level.clone())
+        };
+
+        assert_eq!(
+            locked(
+                store
+                    .grants(&owner.verifying_key)
+                    .await
+                    .expect("the grants")
+            ),
+            Some(AccessLevel::ReadOnly.as_str().to_string()),
+            "the lock did not stand"
+        );
+
+        let directory_grant = withdraw_grant(&store, &owner, &owner.organization_id, "member-b")
+            .await
+            .expect_err("the directory grant was withdrawn as a workspace");
+
+        assert!(
+            matches!(
+                directory_grant,
+                Error::Refused {
+                    reason: crate::error::RefusalReason::WorkspaceMissing,
+                    ..
+                }
+            ),
+            "{directory_grant:?}"
+        );
+
+        withdraw_grant(&store, &owner, &workspace.id, "member-b")
+            .await
+            .expect("the owner could not withdraw the locked grant");
+
+        assert_eq!(
+            locked(
+                store
+                    .grants(&owner.verifying_key)
+                    .await
+                    .expect("the grants")
+            ),
+            None
         );
     }
 

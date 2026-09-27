@@ -752,6 +752,7 @@ test('a member narrowed on another machine is refused on the next call after one
 	standWith(narrowed);
 
 	const invalidatedBefore = journal.organizationInvalidated;
+	const everythingBefore = journal.invalidatedAll;
 	await startup.applySyncOutcome({ action: 'none', received: false, workspaceId: 'north' });
 
 	const refusal = await api.rename().then(
@@ -761,6 +762,15 @@ test('a member narrowed on another machine is refused on the next call after one
 
 	assert.equal(refusal?.code, 'FORBIDDEN', 'the next call acted on what the member held before');
 	assert.equal(startup.snapshot.organization?.session?.permissions, 0);
+	// what the member may do moved, so every record is read again under it, the organization's
+	// queries with them.
+	assert.equal(journal.invalidatedAll, everythingBefore + 1);
+	assert.equal(journal.organizationInvalidated, invalidatedBefore);
+
+	// a heartbeat that moves nothing reads the organization alone.
+	await startup.applySyncOutcome({ action: 'none', received: false, workspaceId: 'north' });
+
+	assert.equal(journal.invalidatedAll, everythingBefore + 1);
 	assert.equal(journal.organizationInvalidated, invalidatedBefore + 1);
 
 	// and the other way: widened again, the next heartbeat gives the act back.

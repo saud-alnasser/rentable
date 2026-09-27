@@ -206,9 +206,12 @@ password) and says so in its meta. `actingIdentity` sets `identity.permissions` 
 
 **Record routers** (complex, unit, tenant, contract, payment, history, dashboard, workspace): each
 procedure names its flag. `get`, `search`, `getMany`, `receipt`, `schedule`, `reminder` take the
-kind's `view*`; `create`, `createMany`, `planMany` `create*`; `update`, `renew`, `terminate*`,
+kind's `view*`; `create`, `createMany` `create*`; `update`, `renew`, `terminate*`,
 `unterminate*`, `restoreMany`, `contract.units.set` `editContract`; `delete`, `deleteMany`
-`delete*`. `workspace.get` (export) needs every `view*`, `importWhole` every `create*`.
+`delete*`. `workspace.get` (export) needs every `view*`, `importWhole` every `create*`. *`planMany`
+took `create*` until ticket 52, which gave it the kind's `view*`: it only reads, and it is the
+preview of a delete, a termination or a restore, which a role without `create*` may make; the act
+it previews asks its own flag. `complex.create` asks `createUnit` as well where it carries units.*
 `history.append` takes the flag of the record it logs. `contract.dashboard` stays open to every
 member and leaves out each figure whose kind the member cannot view.
 

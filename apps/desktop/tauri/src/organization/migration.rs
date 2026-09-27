@@ -385,6 +385,17 @@ pub struct Pending<'a, P> {
     pub account: Option<&'a P>,
 }
 
+/// Let go of the lease on a path that already has its answer: a failure here is logged and the
+/// answer stands, since the lease runs out at its deadline whatever happens.
+async fn release_after<L: LeaseAuthority>(lease: &L, workspace_id: &str, holder: &str) {
+    if let Err(error) = lease.release(workspace_id, holder).await {
+        diagnostics::warn("organization.migration.releaseFailed")
+            .with("workspace", workspace_id)
+            .with("error", error.to_string().as_str())
+            .write();
+    }
+}
+
 /// Bring a workspace up to the shipped schema, under a lease, or wait while another member does.
 ///
 /// The migrations go over `pending.held`, the member's own credential on the workspace, because
@@ -467,16 +478,26 @@ where
                 .await;
 
                 if let Err(refusal) = copied {
-                    lease.release(&facts.id, &session.member_id).await?;
+                    // the copy's refusal is the answer, and a release that fails too is logged
+                    // rather than put in its place; the lease runs out on its own.
+                    release_after(lease, &facts.id, &session.member_id).await;
 
                     return Err(refusal);
                 }
 
                 // refused or made, the account's copy is logged where it is made, and the
                 // migration goes on with the local copy either way.
-                if let Some(account) = account {
-                    let _ =
-                        backup::remote_copy(account, &facts.database_name, &label, taken_at).await;
+                if let Some(account) = account
+                    && !backup::remote_copy_made(store.directory(), &facts.database_name, &label)
+                    && let Ok(name) =
+                        backup::remote_copy(account, &facts.database_name, &label, taken_at).await
+                {
+                    backup::remember_remote_copy(
+                        store.directory(),
+                        &facts.database_name,
+                        &label,
+                        &name,
+                    );
                 }
 
                 let applied = migrate::apply_between(
@@ -495,7 +516,7 @@ where
                 // failure would make them wait out the deadline.
                 match applied {
                     Err(refusal) => {
-                        lease.release(&facts.id, &session.member_id).await?;
+                        release_after(lease, &facts.id, &session.member_id).await;
 
                         return Err(refusal);
                     }
@@ -517,9 +538,14 @@ where
                     }
                 }
 
-                store
-                    .record_schema_version(&facts.id, shipped, now())
-                    .await?;
+                // the migration has committed, so a record that fails still lets the lease go:
+                // held, it would keep everybody else waiting out its deadline over a workspace
+                // already at the shipped version, which the next taker finds and records.
+                if let Err(refusal) = store.record_schema_version(&facts.id, shipped, now()).await {
+                    release_after(lease, &facts.id, &session.member_id).await;
+
+                    return Err(refusal);
+                }
 
                 if !store.push().await {
                     diagnostics::warn("organization.migration.versionNotYetSent")

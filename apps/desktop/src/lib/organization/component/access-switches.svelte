@@ -49,8 +49,9 @@
 	 * full access is the reader's own credential re-sealed, unless it puts back what the row held,
 	 * which writes nothing; and the lock for anybody but the owner, since only the owner's Turso
 	 * account mints a read-only credential, and for the owner on a machine that does not hold that
-	 * account's authority, which Rust refuses the same way. A lock already on stays drawn on: what
-	 * is refused is changing it, not reading it.
+	 * account's authority, which Rust refuses the same way; and switching out a row the owner
+	 * locked, for anybody but the owner, since withdrawn and granted again it would come back
+	 * unlocked. A lock already on stays drawn on: what is refused is changing it, not reading it.
 	 *
 	 * **The lock's line is read with it.** What locking does is said under its name, tied to the
 	 * lock by `aria-describedby` beside any reason it is refused for, so a screen reader hears what
@@ -109,8 +110,13 @@
 	const inReason = (row: AccessSwitchRow): string | null => {
 		if (refusal) return refusal;
 
-		// off is a withdrawal, which every holder of the act may make.
-		if (isIn(row)) return null;
+		// off is a withdrawal, which every holder of the act may make, but for a grant the owner
+		// locked: withdrawn and granted again it would come back unlocked, so it is the owner's.
+		if (isIn(row)) {
+			return row.access === 'read-only' && !readerIsOwner
+				? $LL.organization.workspaceSwitches.lockIsTheOwners()
+				: null;
+		}
 
 		// back on is what the row held, which is no change and writes nothing.
 		if (inLevel(row) === row.access && row.access !== 'none') return null;
@@ -123,6 +129,9 @@
 	/** why the lock will not turn, or `null` where it will. */
 	const lockReason = (row: AccessSwitchRow): string | null => {
 		if (refusal) return refusal;
+
+		// locking again what the row held is no change, and writes nothing.
+		if (!isLocked(row) && row.access === 'read-only') return null;
 
 		// unlocking is a full-access grant, the owner's own credential re-sealed, which needs no
 		// Turso authority; only locking mints a read only credential on the owner's account.

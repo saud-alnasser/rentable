@@ -169,7 +169,10 @@ test('an account opens on the member role with nothing changed, and a role picke
 test('a maker gives no role at or above their own, and no flag they do not hold', async () => {
 	loadLocale('en');
 	setLocale('en');
-	form({ readerRank: 750_000, readerPermissions: BUILT_IN.member.mask + maskOf('inviteMember') });
+	form({
+		readerRank: 750_000,
+		readerPermissions: BUILT_IN.member.mask + maskOf('inviteMember', 'overrideMember')
+	});
 
 	await openSelect(document.querySelector<HTMLElement>('#account-role')!);
 
@@ -202,6 +205,24 @@ test('a maker gives no role at or above their own, and no flag they do not hold'
 	expect(
 		document.querySelector('#account-override-editPayment')?.hasAttribute('aria-disabled')
 	).toBe(false);
+});
+
+// requirement 6: an override is given by a holder of the flag to override members, when an
+// account is made as when it is changed, so without it the account is made in its role exactly.
+test('a maker without the flag to override members changes nothing for the account alone', () => {
+	loadLocale('en');
+	setLocale('en');
+	form({ readerRank: 750_000, readerPermissions: BUILT_IN.member.mask + maskOf('inviteMember') });
+
+	expect(
+		document.querySelector('#account-override-editPayment')?.getAttribute('aria-disabled')
+	).toBe('true');
+	expect(document.querySelector('[data-switches-refusal]')?.textContent?.trim()).toBe(
+		en.organization.dashboard.lacksFlag.replace(
+			'{flag:string}',
+			en.organization.flags.overrideMember
+		)
+	);
 });
 
 /** a workspace's switch on the form, the lock beneath it, and whether either is on or dimmed. */

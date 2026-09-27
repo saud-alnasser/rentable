@@ -229,6 +229,21 @@ export function hasRecoveryData(recovery: Recovery | null) {
 	);
 }
 
+/**
+ * what the member may do, as one comparable value: the session's permissions and the level of each
+ * grant, which are what the record procedures answer by (`api/context.ts`). `null` signed out.
+ */
+function standingOf(organization: OrganizationState | null): string | null {
+	const session = organization?.session;
+
+	return session
+		? JSON.stringify([
+				session.permissions,
+				session.workspaces.map((workspace) => [workspace.id, workspace.accessLevel])
+			])
+		: null;
+}
+
 export class Startup {
 	#ports: StartupPorts;
 	#snapshot: StartupSnapshot = { ...INITIAL };
@@ -878,14 +893,27 @@ export class Startup {
 	 *
 	 * A read that fails, or finds nobody in, leaves the snapshot as it was: a session ended from
 	 * another machine is the standing's to say, and it says it before this runs.
+	 *
+	 * **What the member may do changed, so is every record drawn.** A record query is read once and
+	 * held, and what it holds was answered for the permissions it was asked under: a kind no longer
+	 * viewable would go on showing where it is joined into another, and one viewable again would
+	 * go on missing. So a heartbeat that moves the permissions or a grant's level reads everything
+	 * again, as a workspace switch does, and one that moves nothing reads the organization alone.
 	 */
 	async #rereadOrganization() {
 		this.#ports.cache.forgetContext();
 
+		const before = standingOf(this.#snapshot.organization);
 		const organization = await this.#ports.organization.getState().catch(() => null);
 
 		if (organization?.session) {
 			this.#set({ organization });
+
+			if (standingOf(organization) !== before) {
+				await this.#ports.cache.invalidateAll();
+
+				return;
+			}
 		}
 
 		await this.#ports.cache.invalidateOrganization();

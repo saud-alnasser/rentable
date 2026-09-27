@@ -88,7 +88,7 @@ const PLANNED: Record<string, readonly Flag[]> = {
 	'complex.getMany': ['viewComplex'],
 	'complex.create': ['createComplex'],
 	'complex.createMany': ['createComplex'],
-	'complex.planMany': ['createComplex'],
+	'complex.planMany': ['viewComplex'],
 	'complex.update': ['editComplex'],
 	'complex.delete': ['deleteComplex'],
 	'complex.deleteMany': ['deleteComplex'],
@@ -97,7 +97,7 @@ const PLANNED: Record<string, readonly Flag[]> = {
 	'complex.units.getMany': ['viewUnit'],
 	'complex.units.create': ['createUnit'],
 	'complex.units.createMany': ['createUnit'],
-	'complex.units.planMany': ['createUnit'],
+	'complex.units.planMany': ['viewUnit'],
 	'complex.units.update': ['editUnit'],
 	'complex.units.delete': ['deleteUnit'],
 	'complex.units.deleteMany': ['deleteUnit'],
@@ -106,7 +106,7 @@ const PLANNED: Record<string, readonly Flag[]> = {
 	'tenant.getMany': ['viewTenant'],
 	'tenant.create': ['createTenant'],
 	'tenant.createMany': ['createTenant'],
-	'tenant.planMany': ['createTenant'],
+	'tenant.planMany': ['viewTenant'],
 	'tenant.update': ['editTenant'],
 	'tenant.delete': ['deleteTenant'],
 	'tenant.deleteMany': ['deleteTenant'],
@@ -116,7 +116,7 @@ const PLANNED: Record<string, readonly Flag[]> = {
 	'contract.reminder': ['viewContract'],
 	'contract.schedule': ['viewContract'],
 	'contract.create': ['createContract'],
-	'contract.planMany': ['createContract'],
+	'contract.planMany': ['viewContract'],
 	'contract.update': ['editContract'],
 	'contract.renew': ['editContract'],
 	'contract.terminate': ['editContract'],
@@ -136,7 +136,7 @@ const PLANNED: Record<string, readonly Flag[]> = {
 	'contract.payments.receipt': ['viewPayment'],
 	'contract.payments.create': ['createPayment'],
 	'contract.payments.createMany': ['createPayment'],
-	'contract.payments.planMany': ['createPayment'],
+	'contract.payments.planMany': ['viewPayment'],
 	'contract.payments.update': ['editPayment'],
 	'contract.payments.delete': ['deletePayment'],
 	'contract.payments.deleteMany': ['deletePayment'],
@@ -236,6 +236,23 @@ test('holding the flag is the whole of what changes the answer', async () => {
 
 	assert.deepEqual(await holding.tenant.search({ term: 'nobody' }), []);
 	assert.equal((await refusalFrom(lacking.tenant.search({ term: 'nobody' })))?.code, 'FORBIDDEN');
+});
+
+// a complex entered with units adds them as units, so the create asks createUnit where it carries
+// any, and not where it carries none.
+test('a complex created with units asks for createUnit as well', async () => {
+	const lacking = await createApi({
+		identity: fakeIdentity({ permissions: without('createUnit') })
+	});
+	const refusal = await refusalFrom(
+		lacking.complex.create({ name: 'north', location: 'riyadh', units: [{ name: 'a1' }] })
+	);
+
+	assert.equal(refusal?.code, 'FORBIDDEN');
+	assert.ok(refusal?.message?.includes('createUnit'), refusal?.message);
+	assert.deepEqual(await lacking.complex.search({ term: 'north' }), []);
+
+	await lacking.complex.create({ name: 'north', location: 'riyadh' });
 });
 
 test('the history asks for the flag of the record and the act an entry is about', async () => {

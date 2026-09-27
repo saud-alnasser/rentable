@@ -42,7 +42,7 @@ function refused(names: readonly Flag[]): string {
  * reading a log, and *may not renameWorkspace* is prose neither audience wants. Only the ones
  * missing, which is what the reader needs.
  */
-function refuseMissing(
+export function refuseMissing(
 	identity: Identity | null,
 	acts: readonly Flag[]
 ): asserts identity is Identity {

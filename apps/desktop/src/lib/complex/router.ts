@@ -6,7 +6,7 @@ import * as s from '$lib/platform/database/schema';
 import { ComplexSchema, UnitSchema } from '$lib/platform/database/schema';
 import { planSelection } from '$lib/api/selection';
 import { refuse } from '$lib/api/refusal';
-import { autosync, procedure, router } from '$lib/api/trpc';
+import { autosync, procedure, refuseMissing, router } from '$lib/api/trpc';
 import { addUtcDays, toUtcDay, type DateLike } from '$lib/api/date';
 import {
 	COMPLEX_SORT_COLUMN_IDS,
@@ -292,6 +292,9 @@ export default router({
 		.mutation(async ({ input, ctx }) => {
 			const { units = [], ...complex } = input;
 
+			// the units go down as units, so a complex entered with some is adding units too.
+			if (units.length > 0) refuseMissing(ctx.identity, ['createUnit']);
+
 			ensureIdFree(
 				complex.id === undefined
 					? undefined
@@ -414,7 +417,7 @@ export default router({
 	 * A query rather than a mutation: it reads and writes nothing.
 	 */
 	planMany: procedure
-		.permitted('createComplex')
+		.permitted('viewComplex')
 		.input(z.object({ ids: z.array(ComplexSchema.shape.id).min(1) }))
 		.query(async ({ input, ctx }) => {
 			const plan = await planComplexSelection(ctx.db, input.ids);
@@ -765,7 +768,7 @@ export default router({
 		 * A query rather than a mutation: it reads and writes nothing.
 		 */
 		planMany: procedure
-			.permitted('createUnit')
+			.permitted('viewUnit')
 			.input(z.object({ ids: z.array(UnitSchema.shape.id).min(1) }))
 			.query(async ({ input, ctx }) => {
 				const plan = await planUnitSelection(ctx.db, input.ids);

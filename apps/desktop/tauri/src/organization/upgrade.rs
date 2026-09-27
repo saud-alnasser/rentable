@@ -699,7 +699,11 @@ async fn walked(
         let label = format!("format-{from}-to-{to}");
 
         backup::local_copy(store, store.directory(), &database, &label, upgrading.now).await?;
-        remote.copied(&database, &label, upgrading.now).await;
+        if !backup::remote_copy_made(store.directory(), &database, &label)
+            && let Some(name) = remote.copied(&database, &label, upgrading.now).await
+        {
+            backup::remember_remote_copy(store.directory(), &database, &label, &name);
+        }
     }
 
     in_one_transaction(store, async {

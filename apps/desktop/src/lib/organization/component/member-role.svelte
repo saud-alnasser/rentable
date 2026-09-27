@@ -71,6 +71,9 @@
 		error?: string | null;
 	} = $props();
 
+	/** what the list marks as chosen: `value`, and put back on it where a pick is refused. */
+	let shown = $derived(value);
+
 	const offered = $derived(byRank(roles).filter((role) => role.kind !== 'owner'));
 	const chosen = $derived(offered.find((role) => role.id === value) ?? null);
 	const nameOf = (role: OrganizationRole) => roleNameOf($LL, role);
@@ -90,13 +93,15 @@
 
 			<Select.Root
 				type="single"
-				{value}
+				bind:value={shown}
 				onValueChange={(next) => {
 					const role = offered.find((candidate) => candidate.id === next);
 
 					// a role refused for a flag stays in the keyboard's path with its reason, as
-					// every refused act does (`rules/interface`); the pick itself is what is refused.
+					// every refused act does (`rules/interface`); the pick itself is what is refused,
+					// and the list is put back on the role chosen, or it would mark the refused one.
 					if (next && role && !outOfReach(role) && refusalOf(role) === null) onPick(next);
+					else shown = value;
 				}}
 				disabled={disabled || refusal !== null}
 			>

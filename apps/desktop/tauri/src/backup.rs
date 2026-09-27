@@ -488,6 +488,41 @@ fn kept(directory: &Path, database: &str, written: &Path) {
     }
 }
 
+/// Whether this machine has made the account's copy of `database` before `label` already: a
+/// change retried after a failure takes another local copy, which is kept to [`KEPT`], but the
+/// account's are protected and never removed, so one is made for each change and no more.
+pub(crate) fn remote_copy_made(data_directory: &Path, database: &str, label: &str) -> bool {
+    remote_marker(data_directory, database, label).exists()
+}
+
+/// Remember that the account's copy of `database` before `label` is `name`, for
+/// [`remote_copy_made`]. A marker that could not be written is logged, and costs at most one
+/// more copy.
+pub(crate) fn remember_remote_copy(data_directory: &Path, database: &str, label: &str, name: &str) {
+    let marker = remote_marker(data_directory, database, label);
+    let written = marker
+        .parent()
+        .map_or(Ok(()), std::fs::create_dir_all)
+        .and_then(|()| std::fs::write(&marker, name));
+
+    if let Err(error) = written {
+        diagnostics::warn("backup.remoteCopyNotRemembered")
+            .with("database", database)
+            .with("copy", name)
+            .with("reason", error.to_string())
+            .write();
+    }
+}
+
+/// `<data>/backups/.remote/<database>-<label>`: out of every database's own folder, so what
+/// lies there is its copies and nothing else, and named with a dot no database name starts with.
+fn remote_marker(data_directory: &Path, database: &str, label: &str) -> PathBuf {
+    data_directory
+        .join(DIRECTORY_NAME)
+        .join(".remote")
+        .join(format!("{database}-{label}"))
+}
+
 /// Make a protected copy of `database` on `platform`'s account, named for `label` and `at` (unix
 /// milliseconds) by [`remote_name`], and say what it is called. Where it is, and where it could not
 /// be made and why, is logged; a refusal is the caller's to go on from.
@@ -626,8 +661,8 @@ mod tests {
     use tokio::sync::Mutex;
 
     use super::{
-        KEPT, PAGE, REMOTE_NAME_LIMIT, Source, directory_of, local_copy, remote_copy, remote_name,
-        values_of,
+        KEPT, PAGE, REMOTE_NAME_LIMIT, Source, directory_of, local_copy, remember_remote_copy,
+        remote_copy, remote_copy_made, remote_name, values_of,
     };
     use crate::{
         error::{Error, RefusalReason},
@@ -1099,5 +1134,21 @@ mod tests {
                 .is_err()
         );
         assert_eq!(platform.copies().len(), 1);
+    }
+
+    /// A change retried makes the account's copy once: what was made is remembered per database
+    /// and change, outside the folders the local copies are listed from.
+    #[test]
+    fn the_accounts_copy_is_remembered_per_database_and_change() {
+        let data = scratch("remembered");
+
+        assert!(!remote_copy_made(&data, "org-1", "format-1-to-2"));
+
+        remember_remote_copy(&data, "org-1", "format-1-to-2", "copy-1-format-1-to-2-1");
+
+        assert!(remote_copy_made(&data, "org-1", "format-1-to-2"));
+        assert!(!remote_copy_made(&data, "org-1", "format-2-to-3"));
+        assert!(!remote_copy_made(&data, "ws-1", "format-1-to-2"));
+        assert!(!directory_of(&data, "org-1").exists());
     }
 }

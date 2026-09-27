@@ -896,7 +896,7 @@ export default router({
 	 * A query rather than a mutation: it reads and writes nothing.
 	 */
 	planMany: procedure
-		.permitted('createContract')
+		.permitted('viewContract')
 		.input(
 			z.object({
 				ids: z.array(ContractSchema.shape.id).min(1),

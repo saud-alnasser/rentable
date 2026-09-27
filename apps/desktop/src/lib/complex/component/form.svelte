@@ -9,6 +9,7 @@
 	import { fieldOfFailure, toRefusalText } from '$lib/error/refusal';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { useCreateComplex, useUpdateComplex } from '$lib/complex/query';
+	import { memberPermissions } from '$lib/workspace/permission';
 	import type { DraftUnit } from '$lib/complex/unit/name';
 	import UnitEntry from '$lib/complex/unit/component/entry.svelte';
 	import PlusIcon from '@lucide/svelte/icons/plus';
@@ -52,6 +53,10 @@
 
 	const isCreating = $derived(!value?.id);
 
+	// units entered with a complex are added as units, so the entry is drawn only for a reader
+	// who may add them; one who may not adds the complex alone.
+	const addsUnits = $derived(memberPermissions.refusal('createUnit', $LL) === undefined);
+
 	let { form, constraints, errors, enhance, reset, ...rest } = superForm<ComplexForm>(
 		defaults(zod4(ComplexFormSchema)),
 		{
@@ -77,7 +82,7 @@
 						// the list is what goes down. A line still in the entry joins the list on
 						// this press rather than being created with it, so nothing is written that
 						// the reader has not seen and had the chance to correct.
-						const names = unitEntry?.collect();
+						const names = addsUnits ? unitEntry?.collect() : [];
 
 						if (names === undefined) return;
 
@@ -162,7 +167,7 @@
 			<FieldError />
 		</Form.Field>
 
-		{#if isCreating}
+		{#if isCreating && addsUnits}
 			<div class="flex flex-col gap-2">
 				<span class="text-sm font-medium capitalize">{$LL.common.nav.units()}</span>
 

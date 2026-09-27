@@ -335,6 +335,12 @@ pub async fn create_account<P: TursoPlatform>(
     permission::require(actor.row.effective, Flag::InviteMember)?;
     require_directory_grant(&actor)?;
 
+    // an override is `set_override`'s to give, so an account made with one asks the same flag
+    // (requirement 6); the role is the invitation's own, bounded by rank below.
+    if override_mask != 0 {
+        permission::require(actor.row.effective, Flag::OverrideMember)?;
+    }
+
     let username = username.trim();
 
     validate_username(username)?;
@@ -1280,6 +1286,59 @@ async fn write_account<P: TursoPlatform>(
         }
     }
 
+    // the workspaces: full access is what the inviter reaches, re-sealed, and one they do not is
+    // refused by name rather than skipped, so an invitation never quietly grants less than it was
+    // asked to; read-only is minted, on the owner's machine, as `workspace::grant_workspace` mints
+    // one. Every credential is in hand before the certificate, the row or any grant is written, so
+    // a refusal here leaves no half-made account holding the username.
+    let known = store.workspaces(&session.verifying_key).await?;
+    let mut credentials = Vec::with_capacity(workspaces.len());
+
+    for workspace in workspaces {
+        let credential = match workspace.access {
+            AccessLevel::FullAccess => session
+                .workspace_credentials
+                .get(&workspace.id)
+                .filter(|held| held.access == AccessLevel::FullAccess)
+                .map(|held| held.token.clone())
+                .ok_or_else(|| {
+                    Error::refused(
+                        RefusalReason::GrantBeyondOwn,
+                        "you can invite into a workspace you hold full access to yourself, \
+                              and no other",
+                    )
+                })?,
+            AccessLevel::ReadOnly => {
+                let database = known
+                    .iter()
+                    .find(|known| known.id == workspace.id)
+                    .map(|known| known.database_name.clone())
+                    .ok_or_else(|| {
+                        Error::refused(
+                            RefusalReason::WorkspaceMissing,
+                            "that workspace is not in this organization",
+                        )
+                    })?;
+                let platform = platform.ok_or_else(|| {
+                    Error::refused(
+                        RefusalReason::OwnerMachineOnly,
+                        "a read-only grant is minted on the owner's machine. ask the owner",
+                    )
+                })?;
+
+                platform
+                    .mint_token(
+                        &database,
+                        WORKSPACE_CREDENTIAL_LIFETIME,
+                        AccessLevel::ReadOnly,
+                    )
+                    .await?
+            }
+        };
+
+        credentials.push((workspace, credential));
+    }
+
     // the member's vault, under a password nobody is ever shown and nothing stores. An account
     // holds it and no other until its first link is opened, and that link carries this password in
     // its sealed payload, where opening it replaces it with one the person chose (effort 828,
@@ -1374,54 +1433,8 @@ async fn write_account<P: TursoPlatform>(
         )
         .await?;
 
-    // the workspaces: full access is what the inviter reaches, re-sealed, and one they do not is
-    // refused by name rather than skipped, so an invitation never quietly grants less than it was
-    // asked to; read-only is minted, on the owner's machine, as `workspace::grant_workspace` mints
-    // one.
-    let known = store.workspaces(&session.verifying_key).await?;
-
-    for workspace in workspaces {
-        let credential = match workspace.access {
-            AccessLevel::FullAccess => session
-                .workspace_credentials
-                .get(&workspace.id)
-                .filter(|held| held.access == AccessLevel::FullAccess)
-                .map(|held| held.token.clone())
-                .ok_or_else(|| {
-                    Error::refused(
-                        RefusalReason::GrantBeyondOwn,
-                        "you can invite into a workspace you hold full access to yourself, \
-                              and no other",
-                    )
-                })?,
-            AccessLevel::ReadOnly => {
-                let database = known
-                    .iter()
-                    .find(|known| known.id == workspace.id)
-                    .map(|known| known.database_name.clone())
-                    .ok_or_else(|| {
-                        Error::refused(
-                            RefusalReason::WorkspaceMissing,
-                            "that workspace is not in this organization",
-                        )
-                    })?;
-                let platform = platform.ok_or_else(|| {
-                    Error::refused(
-                        RefusalReason::OwnerMachineOnly,
-                        "a read-only grant is minted on the owner's machine. ask the owner",
-                    )
-                })?;
-
-                platform
-                    .mint_token(
-                        &database,
-                        WORKSPACE_CREDENTIAL_LIFETIME,
-                        AccessLevel::ReadOnly,
-                    )
-                    .await?
-            }
-        };
-
+    // the workspaces, each credential resolved before anything was written (above), sealed now.
+    for (workspace, credential) in &credentials {
         store
             .write_grant(
                 &signer,
@@ -1433,7 +1446,7 @@ async fn write_account<P: TursoPlatform>(
                         credential.as_bytes(),
                     )?,
                     access_level: workspace.access.as_str().to_string(),
-                    credential_expires_at: credential_expiry(&credential),
+                    credential_expires_at: credential_expiry(credential),
                 },
             )
             .await?;
@@ -3370,6 +3383,23 @@ mod tests {
         .expect_err("an invitation granted a workspace the inviter does not hold");
 
         assert!(refusal.to_string().contains("full access"), "{refusal}");
+
+        // refused before anything was written: no half-made account holds the username.
+        make_account_and_link(
+            &store,
+            &owner,
+            no_platform(),
+            &link,
+            Invitation {
+                username: "xavier",
+                role: permission::MEMBER,
+                workspaces: &[],
+            },
+            test_cost(),
+            1,
+        )
+        .await
+        .expect("the refused invitation left its username taken");
     }
 
     /// A link for an account with no password yet re-seals its grants, and a grant the maker cannot

@@ -591,8 +591,11 @@ test('for anybody but the owner the lock is dimmed and says why', async () => {
 	expect(checked(lockSwitch('ws-2'))).toBe(true);
 	expect(document.querySelector('#access-ws-1-lock-reason')?.textContent?.trim()).toBe(reason);
 	expect(workspaceReasons()).toEqual([reason]);
-	// the workspace itself is still theirs to switch.
+	// the workspace itself is still theirs to switch, but for the one the owner locked: switched
+	// out and in again it would come back unlocked, so that is the owner's too.
 	expect(dimmed(inSwitch('ws-1'))).toBe(false);
+	expect(dimmed(inSwitch('ws-2'))).toBe(true);
+	expect(document.querySelector('#access-ws-2-reason')?.textContent?.trim()).toBe(reason);
 
 	await fireEvent.click(lockSwitch('ws-1')!);
 	await fireEvent.click(lockSwitch('ws-2')!);
@@ -640,6 +643,30 @@ test('for the owner on a machine without the Turso authority the lock says so', 
 	expect(lockSwitch('ws-1')?.getAttribute('aria-describedby')).toBe(
 		'access-ws-1-lock-says access-ws-1-lock-reason'
 	);
+});
+
+// unlocking needs no Turso authority, and locking again what the row held writes nothing, so the
+// owner on such a machine may undo an unlock before saving.
+test('the owner without the Turso authority unlocks, and may lock again what was locked', async () => {
+	const saved: { changes: unknown }[] = [];
+
+	sheet({
+		canGrantReadOnly: false,
+		readerIsOwner: true,
+		rows: [{ id: 'ws-1', name: 'Riyadh', access: 'read-only' as const, givable: true }],
+		onSave: (edit) => saved.push(edit)
+	});
+
+	await fireEvent.click(lockSwitch('ws-1')!);
+	expect(checked(lockSwitch('ws-1'))).toBe(false);
+	expect(dimmed(lockSwitch('ws-1'))).toBe(false);
+
+	await fireEvent.click(lockSwitch('ws-1')!);
+	expect(checked(lockSwitch('ws-1'))).toBe(true);
+
+	await submit();
+
+	expect(saved.map((edit) => edit.changes)).toEqual([[]]);
 });
 
 // grantWorkspace: a reader without it reads the workspaces, every switch dimmed, and the reason

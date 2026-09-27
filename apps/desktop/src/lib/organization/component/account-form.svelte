@@ -17,7 +17,8 @@
 	} from '$lib/organization/component/member-workspaces.svelte';
 	import { roleNameOf } from '$lib/organization/role';
 	import type { OrganizationRole } from '$lib/platform/host';
-	import { BUILT_IN } from '@rentable/workspace-permission';
+	import { BUILT_IN, permits } from '@rentable/workspace-permission';
+	import { lacking } from '$lib/organization/acts';
 	import UserIcon from '@lucide/svelte/icons/user';
 	import UserPlusIcon from '@lucide/svelte/icons/user-plus';
 	import { surfaceForm } from '$lib/design/form';
@@ -251,6 +252,7 @@
 			{roleName}
 			bind:override={chosenOverride}
 			held={readerPermissions}
+			refusal={permits(readerPermissions, 'overrideMember') ? null : lacking($LL, 'overrideMember')}
 			disabled={isCreating}
 		/>
 

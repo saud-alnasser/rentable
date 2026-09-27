@@ -543,7 +543,7 @@ export default router({
 	 * A query rather than a mutation: it reads and writes nothing.
 	 */
 	planMany: procedure
-		.permitted('createPayment')
+		.permitted('viewPayment')
 		.input(z.object({ ids: z.array(PaymentSchema.shape.id).min(1) }))
 		.query(async ({ input, ctx }) => {
 			const plan = await planPaymentSelection(ctx.db, input.ids);

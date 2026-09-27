@@ -167,6 +167,9 @@
 		if (!record) return;
 
 		const { member: saved, context } = record;
+		// what the row holds once each write that went through is counted, which the sheet is
+		// measured from again where one of them was refused and it stays open.
+		let written = saved;
 
 		nameRefusal = null;
 		roleRefusal = null;
@@ -178,6 +181,7 @@
 
 			try {
 				await renameMember.mutateAsync({ memberId: saved.id, username: edit.username });
+				written = { ...written, username: edit.username };
 			} catch (error) {
 				nameRefusal = toErrorText(error, $LL);
 			} finally {
@@ -196,6 +200,7 @@
 					roleId: writes.assign.roleId,
 					override
 				});
+				written = { ...written, roleId: writes.assign.roleId, override: override ?? 0 };
 			} catch (error) {
 				roleRefusal = toErrorText(error, $LL);
 				overrideRefusal = override !== undefined ? roleRefusal : null;
@@ -203,6 +208,7 @@
 		} else if (writes.override !== null) {
 			try {
 				await setOverride.mutateAsync({ memberId: saved.id, override: writes.override });
+				written = { ...written, override: writes.override };
 			} catch (error) {
 				overrideRefusal = toErrorText(error, $LL);
 			}
@@ -224,6 +230,11 @@
 
 		if (!nameRefusal && !roleRefusal && !overrideRefusal && !workspacesRefusal) {
 			organizationHostState.member.editing = null;
+		} else if (written !== saved && organizationHostState.member.editing === record) {
+			// left open over a refusal: what did go through is what the next save is measured
+			// from, or undoing it on the sheet would compare equal to the stale row and send
+			// nothing.
+			organizationHostState.member.editing = { ...record, member: written };
 		}
 	};
 

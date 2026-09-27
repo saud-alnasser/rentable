@@ -395,7 +395,9 @@ export const useDeleteContract = declareMutation({
 			records: (direction) => ({
 				concept: 'contract',
 				recordId: result.id,
-				action: direction === 'undo' ? 'created' : 'deleted',
+				// a deleted contract comes back through a restore, which is an edit, so it is recorded
+				// as one: an entry naming a creation asks the create flag the restore never needed.
+				action: direction === 'undo' ? 'unterminated' : 'deleted',
 				record: toContractName(result)
 			})
 		},
@@ -555,7 +557,7 @@ export const useDeleteManyContracts = declareMutation({
 					redo: () => api.contract.deleteMany({ ids: toContractIds(result.deleted) }),
 					records: (direction) =>
 						result.deleted.map((contract) =>
-							toContractHistoryEntry(contract, direction === 'undo' ? 'created' : 'deleted')
+							toContractHistoryEntry(contract, direction === 'undo' ? 'unterminated' : 'deleted')
 						)
 				},
 	// the names are frozen here for the reason the whole entry is: a moment later the records are
