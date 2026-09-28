@@ -7,7 +7,7 @@
 	import { complexActs } from '$lib/complex/host.svelte';
 	import { useFetchComplex, useFetchUnits } from '$lib/complex/query';
 	import { useListContracts } from '$lib/contract/query';
-	import { toPageActions } from '$lib/design/acts';
+	import { toPageActions } from '$lib/act';
 	import * as Cell from '$lib/design/cell';
 	import { formatLocaleNumber } from '$lib/platform/locale';
 	import UnitDirectory from '$lib/complex/unit/component/directory.svelte';

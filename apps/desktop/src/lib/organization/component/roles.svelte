@@ -8,7 +8,7 @@
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import type { ListSort } from '@rentable/design/sort.js';
 	import CreateControl from '$lib/design/block/create-control.svelte';
-	import { toCardActions } from '$lib/design/acts';
+	import { toCardActions } from '$lib/act';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { lacking, type RoleActRecord, type RoleReader } from '$lib/organization/acts';
 	import DirectoryTray from '$lib/organization/component/directory-tray.svelte';

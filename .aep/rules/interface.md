@@ -302,7 +302,7 @@ act the other does not. A member's name is part of its one edit, so the card off
 
 **A record's acts are declared once per concept, and every surface offering them is a projection
 of that declaration.** The concept writes one ordered list in `apps/desktop/src/lib/<concept>/acts.ts`,
-of the `RecordAct` shape in `design/acts.ts`: each act's id, label, icon, tone, group, shortcut, the
+of the `RecordAct` shape in `act/act.ts`: each act's id, label, icon, tone, group, shortcut, the
 flag a member needs to take it, and the concept's own rules for whether it applies to a record
 (hidden where it does not) and whether it is unavailable (shown, refused, with the reason). Three
 surfaces and the command menu read it:
@@ -314,7 +314,7 @@ surfaces and the command menu read it:
 | the command menu, before and after the record is named | `toPaletteActs`, `toPaletteVerbs` |
 
 So label, icon, order, tone, shortcut and availability cannot differ between them, and a card offers
-what its page offers, copy details and duplicate included. `design/tests/acts.test.ts` holds every
+what its page offers, copy details and duplicate included. `act/tests/act.test.ts` holds every
 declared concept to it, for a record in each state it can be in.
 
 **An act's `flag` is the flag its procedure names**, one of a record kind's view, create, edit and
@@ -373,7 +373,7 @@ undo control and the line saying the undo lasts while the application is open (t
 front of it.
 
 **A confirmation appears only where a delete removes more than the record, or cannot be undone.**
-Each act declares which, as its `confirmation` in `design/acts.ts`: `none`, `cascade` or
+Each act declares which, as its `confirmation` in `act/act.ts`: `none`, `cascade` or
 `irreversible`, and every act in the `destructive` group declares one
 (`design/tests/delete-and-confirm.test.ts` holds each concept to it). The host reads it through
 `toDeleteStep` and opens `packages/design/src/lib/block/delete-dialog.svelte` only when the policy
@@ -1089,7 +1089,7 @@ what it wrote to its host through `onCreated`, and the host decides where the re
 **An act that does not apply to a record is hidden; an act that applies and cannot run now is
 shown, dimmed, refused, and says why in one line on hover and focus.** The reason is the refusal
 of the act's `flag` where the reader lacks it, and otherwise the act's `unavailable`
-(`design/acts.ts`, read as *Record card actions* says; *this read "the act's `unavailable`" until
+(`act/act.ts`, read as *Record card actions* says; *this read "the act's `unavailable`" until
 ticket 16 of effort 838*), and every surface draws it from the one declaration: the card's
 two menus (`record-card.svelte`), the record page's cluster (`record-action-control.svelte`), and
 the create control (`create-control.svelte`, given the set's reason by the list's

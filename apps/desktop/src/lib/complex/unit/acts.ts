@@ -1,4 +1,4 @@
-import type { RecordAct } from '$lib/design/acts';
+import type { RecordAct } from '$lib/act';
 import type { Unit } from '$lib/platform/database/schema';
 import CopyIcon from '@lucide/svelte/icons/copy';
 import FilePlusIcon from '@lucide/svelte/icons/file-plus';
@@ -10,7 +10,7 @@ import Trash2Icon from '@lucide/svelte/icons/trash-2';
  *
  * Everything a person can do to one unit, in the order every surface offers it: the card's menu
  * and its context menu in the complex's unit directory, the unit's own page, and the command menu.
- * Each of those is a projection of this list (`design/acts.ts`), so the unit's page offers what its
+ * Each of those is a projection of this list (`act/act.ts`), so the unit's page offers what its
  * card offers.
  *
  * **No duplicate.** A unit is created from the complex holding it, by name, and a name is the one

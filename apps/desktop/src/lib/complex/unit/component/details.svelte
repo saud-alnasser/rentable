@@ -6,7 +6,7 @@
 	import * as Cell from '$lib/design/cell';
 	import { useFetchUnit } from '$lib/complex/query';
 	import { unitActs } from '$lib/complex/unit/host.svelte';
-	import { toPageActions } from '$lib/design/acts';
+	import { toPageActions } from '$lib/act';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { memberPermissions } from '$lib/permission';
 	import UnitContracts from './contracts.svelte';

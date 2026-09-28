@@ -4,7 +4,7 @@ import {
 	canUnterminateContractStatus
 } from '$lib/contract/contract';
 import { isReminderRank } from '$lib/contract/reminder';
-import type { RecordAct } from '$lib/design/acts';
+import type { RecordAct } from '$lib/act';
 import { memberPermissions } from '$lib/permission';
 import BanIcon from '@lucide/svelte/icons/ban';
 import CalendarPlusIcon from '@lucide/svelte/icons/calendar-plus';
@@ -21,7 +21,7 @@ import Trash2Icon from '@lucide/svelte/icons/trash-2';
  *
  * Everything a person can do to one contract, in the order every surface offers it: the card's
  * menu and its context menu, the contract's page, and the command menu. Each of those is a
- * projection of this list (`design/acts.ts`), so none of them can offer an act another does not,
+ * projection of this list (`act/act.ts`), so none of them can offer an act another does not,
  * or offer it under another name.
  *
  * Which acts a contract admits is the contract's own rule, called from `contract.ts` rather than

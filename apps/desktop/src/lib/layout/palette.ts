@@ -17,7 +17,7 @@ import { foldSearchText, type RecordMatch } from '$lib/platform/database/search'
  * palette needs to know about one.
  *
  * **A record's acts are not here.** Each concept declares them once, in `<concept>/acts.ts`, and
- * the palette offers them through `design/acts.ts`, as the record's card and page do: an act asks
+ * the palette offers them through `act/act.ts`, as the record's card and page do: an act asks
  * for the record it runs on, and the concept's host answers it.
  */
 

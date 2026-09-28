@@ -10,7 +10,7 @@
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import CreateControl from '$lib/design/block/create-control.svelte';
-	import { toCardActions } from '$lib/design/acts';
+	import { toCardActions } from '$lib/act';
 	import type { ListSort } from '@rentable/design/sort.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { accountInitials } from '$lib/sync/account';

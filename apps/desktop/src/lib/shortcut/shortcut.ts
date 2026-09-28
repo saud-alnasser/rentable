@@ -14,7 +14,7 @@
  *
  * **A record's acts are not registered here.** An act that runs on one record is declared once
  * by its concept (`<concept>/acts.ts`) and projected onto the card, the page and the palette by
- * `design/acts.ts`; the palette asks for the record, and the concept's host answers. *This
+ * `act/act.ts`; the palette asks for the record, and the concept's host answers. *This
  * registry held a record verb (renewing a contract) until effort 832 moved every act into those
  * declarations, so that order and per-record availability are the concept's rather than
  * whatever happened to be registered.*

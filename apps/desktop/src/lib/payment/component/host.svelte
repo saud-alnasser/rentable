@@ -5,7 +5,7 @@
 	import { back } from '@rentable/design/back.svelte.js';
 	import DeleteDialog from '@rentable/design/block/delete-dialog.svelte';
 	import { usesAppleKeyboard } from '@rentable/design/shortcut.js';
-	import { toDeleteStep, toPaletteVerbs } from '$lib/design/acts';
+	import { toDeleteStep, toPaletteVerbs } from '$lib/act';
 	import { onMutationError, onMutationSuccess } from '$lib/design/mutation';
 	import {
 		showErrorSentence,

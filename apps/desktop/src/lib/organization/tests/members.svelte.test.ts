@@ -71,7 +71,7 @@ import { unfold } from './switches';
  * in the frame, so the section is rendered with the host beside it (`./host-providers.svelte`) and
  * the host's hooks stood in for (`./host-hooks.ts`). A write a card asks for is read off what the
  * host asked of those hooks. Each entry is read by the act it projects, `data-act`, which is what
- * `design/acts.ts` marks an entry with. The username's own rule is read on the sheet, in
+ * `act/act.ts` marks an entry with. The username's own rule is read on the sheet, in
  * `member-sheet.svelte.test.ts`.
  */
 

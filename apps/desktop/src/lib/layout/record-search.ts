@@ -6,7 +6,7 @@ import { useSearchComplexes, useSearchUnits } from '$lib/complex/query';
 import { unitActs, unitHost } from '$lib/complex/unit/host.svelte';
 import { contractActs, contractHost } from '$lib/contract/host.svelte';
 import { useSearchContracts } from '$lib/contract/query';
-import { toPaletteActs, type PaletteAct, type RecordAct } from '$lib/design/acts';
+import { toPaletteActs, type PaletteAct, type RecordAct } from '$lib/act';
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 import type { RecordSearch, RecordSubject } from '$lib/layout/palette';
 import { useOrganizationOfferings } from '$lib/organization/palette';

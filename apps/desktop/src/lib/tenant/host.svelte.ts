@@ -1,4 +1,4 @@
-import { mayRun } from '$lib/design/acts';
+import { mayRun } from '$lib/act';
 import { contractHost } from '$lib/contract/host.svelte';
 import { declareTenantActs, type TenantActId, type TenantActRecord } from '$lib/tenant/acts';
 

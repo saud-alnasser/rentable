@@ -10,7 +10,7 @@
 	import { Separator } from '@rentable/design/primitive/separator/index.js';
 	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
 	import CreateControl from '$lib/design/block/create-control.svelte';
-	import { toCardActions } from '$lib/design/acts';
+	import { toCardActions } from '$lib/act';
 	import type { ListSort } from '@rentable/design/sort.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import type { WorkspaceActContext, WorkspaceActRecord } from '$lib/organization/acts';

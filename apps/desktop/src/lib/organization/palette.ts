@@ -1,4 +1,4 @@
-import { toPaletteActs, toPaletteVerbs, type PaletteAct, type RecordAct } from '$lib/design/acts';
+import { toPaletteActs, toPaletteVerbs, type PaletteAct, type RecordAct } from '$lib/act';
 import { showErrorSentence } from '$lib/notification';
 import { LL } from '$lib/i18n/i18n-svelte';
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
@@ -74,7 +74,7 @@ type Described<T> = {
 	run: (actId: string, record: T) => boolean;
 };
 
-/** whether an act applies to a record, as every projection in `design/acts.ts` reads it. */
+/** whether an act applies to a record, as every projection in `act/act.ts` reads it. */
 const applies = <T>(act: RecordAct<T>, record: T) => act.appliesTo?.(record) ?? true;
 
 /**

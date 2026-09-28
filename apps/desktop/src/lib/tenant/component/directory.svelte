@@ -15,7 +15,7 @@
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import type api from '$lib/api/caller';
 	import { toNarrowedName } from '@rentable/design/csv.js';
-	import { toCardActions } from '$lib/design/acts';
+	import { toCardActions } from '$lib/act';
 	import { tenantActs, tenantHost } from '$lib/tenant/host.svelte';
 	import {
 		useDeleteManyTenants,

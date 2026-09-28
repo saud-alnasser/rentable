@@ -6,6 +6,7 @@
 # address (an existing cycle running through a new home is still that cycle). One line per
 # violation, sorted, as `from -> to : kind`, where kind is upward, cycle, deep, import or literal;
 # the test's header says what each means.
+act -> i18n : cycle
 api -> complex : cycle
 api -> contract : cycle
 api -> history : cycle
@@ -44,6 +45,7 @@ api/router.ts -> workspace/router.ts : upward
 api/trpc.ts -> sync : import
 api/trpc.ts -> sync/event.ts : deep
 api/trpc.ts -> sync/event.ts : upward
+complex -> act : cycle
 complex -> api : cycle
 complex -> contract : cycle
 complex -> date : cycle
@@ -73,6 +75,7 @@ complex/unit/component/directory.svelte -> workspace/query.ts : deep
 complex/unit/component/directory.svelte -> workspace/workspace.ts : deep
 complex/unit/component/host.svelte -> contract/query.ts : deep
 complex/unit/host.svelte.ts -> contract/host.svelte.ts : deep
+contract -> act : cycle
 contract -> api : cycle
 contract -> complex : cycle
 contract -> dashboard : cycle
@@ -137,7 +140,6 @@ design -> i18n : cycle
 design -> notification : cycle
 design -> platform : cycle
 design -> shortcut : cycle
-design/acts.ts -> permission/index.ts : upward
 design/block/list.svelte -> notification/index.ts : upward
 design/block/list.svelte -> shortcut/index.ts : upward
 design/block/search-field.svelte -> shortcut/index.ts : upward
@@ -159,6 +161,7 @@ i18n/en/index.ts -> tenant : literal
 i18n/en/index.ts -> unit : literal
 i18n/i18n-types.ts -> contract : literal
 i18n/i18n-types.ts -> tenant : literal
+layout -> act : cycle
 layout -> api : cycle
 layout -> complex : cycle
 layout -> contract : cycle
@@ -263,6 +266,7 @@ layout/startup.ts -> sync : import
 layout/startup.ts -> sync/admission.ts : deep
 notification -> error : cycle
 notification -> platform : cycle
+organization -> act : cycle
 organization -> api : cycle
 organization -> date : cycle
 organization -> design : cycle
@@ -293,6 +297,7 @@ organization/role.ts -> payment : literal
 organization/role.ts -> tenant : literal
 organization/role.ts -> unit : literal
 organization/workspace-form.ts -> workspace/workspace.ts : deep
+payment -> act : cycle
 payment -> api : cycle
 payment -> contract : cycle
 payment -> date : cycle
@@ -367,6 +372,7 @@ sync -> i18n : cycle
 sync -> platform : cycle
 sync -> workspace : cycle
 sync/router.ts -> workspace/workspace.ts : deep
+tenant -> act : cycle
 tenant -> api : cycle
 tenant -> contract : cycle
 tenant -> design : cycle

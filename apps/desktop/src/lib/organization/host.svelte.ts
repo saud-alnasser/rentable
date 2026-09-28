@@ -11,7 +11,7 @@ import {
 	type WorkspaceActId,
 	type WorkspaceActRecord
 } from '$lib/organization/acts';
-import { mayRun, type RecordAct } from '$lib/design/acts';
+import { mayRun, type RecordAct } from '$lib/act';
 import { openOrganizationDialog } from '$lib/organization/dialogs.svelte';
 
 /**

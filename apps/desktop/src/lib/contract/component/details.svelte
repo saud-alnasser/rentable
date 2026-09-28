@@ -10,7 +10,7 @@
 	import { formatRecordDateRange } from '$lib/date';
 	import { contractActs } from '$lib/contract/host.svelte';
 	import { useFetchContract } from '$lib/contract/query';
-	import { toPageActions } from '$lib/design/acts';
+	import { toPageActions } from '$lib/act';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import PaymentLedger from '$lib/payment/component/ledger.svelte';
 	import { useFetchTenant } from '$lib/tenant/query';

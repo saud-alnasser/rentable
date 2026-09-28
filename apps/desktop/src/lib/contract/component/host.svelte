@@ -26,7 +26,7 @@
 		useUnterminateContract
 	} from '$lib/contract/query';
 	import { toWhatsAppUrl, type ContractReminder } from '$lib/contract/reminder';
-	import { toDeleteStep, toPaletteVerbs } from '$lib/design/acts';
+	import { toDeleteStep, toPaletteVerbs } from '$lib/act';
 	import { consumeCreateIntent } from '$lib/design/create-intent.svelte';
 	import { onMutationError, onMutationSuccess } from '$lib/design/mutation';
 	import {

@@ -5,7 +5,7 @@
 	import Specification from '@rentable/design/block/specification.svelte';
 	import * as Cell from '$lib/design/cell';
 	import RecordActionControl from '@rentable/design/block/record-action-control.svelte';
-	import { toPageActions } from '$lib/design/acts';
+	import { toPageActions } from '$lib/act';
 	import { paymentActs } from '$lib/payment/host.svelte';
 	import { useFetchPayment } from '$lib/payment/query';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';

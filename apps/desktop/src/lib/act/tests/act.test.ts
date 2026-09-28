@@ -35,8 +35,7 @@ for (const glyph of GLYPHS) {
 	});
 }
 
-const { toCardActions, toPageActions, toPaletteActs, toPaletteVerbs } =
-	await import('$lib/design/acts');
+const { toCardActions, toPageActions, toPaletteActs, toPaletteVerbs } = await import('$lib/act');
 const { declareContractActs } = await import('$lib/contract/acts');
 type ContractActRecord = import('$lib/contract/acts').ContractActRecord;
 type ContractConfirmation = import('$lib/contract/acts').ContractConfirmation;
@@ -322,7 +321,7 @@ const { declareUnitActs } = await import('$lib/complex/unit/acts');
 const { declarePaymentActs, toPaymentCreateUnavailable } = await import('$lib/payment/acts');
 const { UnitSchema } = await import('$lib/platform/database/schema.ts');
 
-type RecordActs<T> = import('$lib/design/acts').RecordAct<T>[];
+type RecordActs<T> = import('$lib/act').RecordAct<T>[];
 
 /** A host that records which request each act raised, and on which record. */
 function recordingRequests<K extends string>(requests: readonly K[]) {

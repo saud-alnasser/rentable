@@ -5,7 +5,7 @@
 	import RecordCard from '@rentable/design/block/record-card.svelte';
 	import { contractActs } from '$lib/contract/host.svelte';
 	import { toContractName } from '$lib/contract/contract';
-	import { toCardActions } from '$lib/design/acts';
+	import { toCardActions } from '$lib/act';
 	import * as Cell from '$lib/design/cell';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { formatRecordDateRange } from '$lib/date';

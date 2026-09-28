@@ -4,7 +4,7 @@
 	import Specification from '@rentable/design/block/specification.svelte';
 	import * as Cell from '$lib/design/cell';
 	import RecordActionControl from '@rentable/design/block/record-action-control.svelte';
-	import { toPageActions } from '$lib/design/acts';
+	import { toPageActions } from '$lib/act';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { isRecordId } from '$lib/platform/database/identity';
 	import { tenantActs } from '$lib/tenant/host.svelte';

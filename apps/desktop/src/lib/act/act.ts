@@ -63,7 +63,7 @@ export type RecordAct<T> = {
 	unavailable?: (record: T, t: TranslationFunctions) => string | undefined;
 	/**
 	 * whether the host asks before running it. Declared on every act in the `destructive` group,
-	 * which `design/tests/acts.test.ts` holds each concept to; the host reads it through
+	 * which `act/tests/act.test.ts` holds each concept to; the host reads it through
 	 * {@link toDeleteStep}.
 	 */
 	confirmation?: ConfirmationPolicy;

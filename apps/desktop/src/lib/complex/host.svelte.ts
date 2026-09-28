@@ -1,4 +1,4 @@
-import { mayRun } from '$lib/design/acts';
+import { mayRun } from '$lib/act';
 import { declareComplexActs, type ComplexActId, type ComplexActRecord } from '$lib/complex/acts';
 
 /**

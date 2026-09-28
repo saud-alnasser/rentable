@@ -7,7 +7,7 @@
 	import { AWAITING_BLOCKERS } from '@rentable/design/confirmation.js';
 	import { usesAppleKeyboard } from '@rentable/design/shortcut.js';
 	import { useListContracts } from '$lib/contract/query';
-	import { toDeleteStep, toPaletteVerbs } from '$lib/design/acts';
+	import { toDeleteStep, toPaletteVerbs } from '$lib/act';
 	import { consumeCreateIntent } from '$lib/design/create-intent.svelte';
 	import { onMutationError, onMutationSuccess } from '$lib/design/mutation';
 	import { showErrorSentence, showErrorToast, showRefusal } from '$lib/notification';

@@ -1,4 +1,4 @@
-import type { RecordAct } from '$lib/design/acts';
+import type { RecordAct } from '$lib/act';
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 import { firstUnheldMoved, flagPhrase, moveOf } from '$lib/organization/role';
 import type {
@@ -26,7 +26,7 @@ import UsersIcon from '@lucide/svelte/icons/users';
  *
  * Everything a reader can do to one member and to one workspace from the settings directories, in
  * the order every surface offers it: the card's menu and its context menu, and the command menu.
- * Each of those is a projection of these lists (`design/acts.ts`), the way a contract's are, so
+ * Each of those is a projection of these lists (`act/act.ts`), the way a contract's are, so
  * none of them can offer an act another does not, or offer it under another name.
  *
  * **What an act is gated on is the reader as much as the record.** A contract admits an act by its

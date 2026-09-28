@@ -1,4 +1,4 @@
-import type { RecordAct } from '$lib/design/acts';
+import type { RecordAct } from '$lib/act';
 import type { Complex } from '$lib/platform/database/schema';
 import CopyIcon from '@lucide/svelte/icons/copy';
 import SquarePenIcon from '@lucide/svelte/icons/square-pen';
@@ -9,7 +9,7 @@ import Trash2Icon from '@lucide/svelte/icons/trash-2';
  *
  * Everything a person can do to one complex, in the order every surface offers it: the card's menu
  * and its context menu, the complex's page, and the command menu. Each of those is a projection of
- * this list (`design/acts.ts`), so none of them can offer an act another does not.
+ * this list (`act/act.ts`), so none of them can offer an act another does not.
  *
  * **No duplicate.** A complex is its name and its location, both unique to it, so the copy would
  * carry nothing. A unit's acts are the unit's own, in `complex/unit/acts.ts`.
