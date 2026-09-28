@@ -41,7 +41,8 @@ because every feature has to edit them.
 
 A feature lives in its own directory, declares itself once, and the shell picks it up from that
 declaration. Adding a feature means adding a directory and registering it in one place; removing
-one means the reverse. Every concept has the same shape, every name says what the thing is, one
+one means the reverse. Every mechanism the features share, undo and redo among them, is one
+module with its own API, so changing how it works changes one place. Every concept has the same shape, every name says what the thing is, one
 thing is done one way, and nothing in the tree is dead. The application behaves exactly as it does
 today.
 
@@ -57,14 +58,16 @@ the `.aep/` rules and contexts that describe the layout.
    prefix, route, sidebar place, breadcrumb label, glyph, create entry, palette and search entry,
    host, acts, history concept and transfer columns — is read from the kind's own declaration.
    `RecordKind` and `HistoryConcept` are derived from one list rather than restated.
-2. **The shell holds no per-feature list.** `layout`, `api`, `design`, `history` and `workspace`
-   iterate what features declare instead of naming them.
-3. **The routers compose one way.** Every concept's router is mounted from one list at one depth,
+2. **The shell holds no per-feature list.** One composition root is the only place that names
+   every feature; the shell and every mechanism iterate what features declare instead of naming
+   them.
+3. **The routers compose one way.** Every router is mounted from the composition root's list at one depth,
    and every router is exported the same way.
-4. **Every concept has a public surface, and nothing reaches past it.** A concept is imported
-   through its entry, never through another concept's components or private modules.
-5. **No import cycles.** No two concepts import each other, and `design`, `platform` and `api`
-   import no concept. The same holds for the Rust crate's top-level modules.
+4. **Every feature and every mechanism has a public API, and nothing reaches past it.** One is
+   imported through its entry, never through another's components or private modules; features
+   talk to each other and to the user interface through those APIs.
+5. **No import cycles, and dependencies point one way.** No two modules import each other; a
+   mechanism imports no feature; `design`, `platform` and `api` import neither. The same holds for the Rust crate's top-level modules.
 6. **Every concept has one shape.** The canonical layout of a concept is written down, every
    concept follows it, and a sub-concept is a subdirectory rather than a filename prefix.
 7. **Each home holds one thing.** `layout` holds only the shell; the startup lifecycle has a home
@@ -108,22 +111,29 @@ the `.aep/` rules and contexts that describe the layout.
     tree describe the new one, and one place says what adding a feature touches.
 19. **Behaviour does not change.** Every screen, command, stored format, permission and message
     behaves as it does on `1aa8d6a5`.
+20. **Every mechanism is one module.** A mechanical concern the application applies across
+    features (undo and redo, mutation and the query cache, history, shortcuts, notifications, the
+    command menu and its search and create, record acts, lists and their filters, forms, import
+    and export, print, permission) lives in one module of its own with its own API. Features use
+    it through that API and register with it through their declaration, so changing how the
+    mechanism works changes that one module.
 
 # Acceptance Criteria
 
 1. One list of record kinds exists; `RecordKind`, `HistoryConcept` and the stored history
    `concept` enum derive from it, and a search of `src/lib` finds no second declaration of either
    type.
-2. A test fails when a file under `layout`, `api`, `design`, `history` or `workspace` names a
-   feature by import or by literal kind, outside the one registration list. Adding a record kind
+2. A test fails when a file outside the composition root names a feature by import or by literal
+   kind, other than that feature's own files. Adding a record kind
    hand-edits, outside its own directory, only that list, the permission package and its Rust
    mirror, the schema, its routes, and its locale entries — written down per requirement 18.
-3. `api/router.ts` mounts every concept from one list at the root; no router mounts another
+3. The root router mounts every router from the composition root's list at the root; no router mounts another
    concept's router; every router uses one export form.
-4. A test fails on an import of another concept's `component/` or of a module the concept does not
-   expose through its entry.
-5. A dependency check runs in the integration gate and reports zero cycles between concepts and
-   zero concept imports from `design`, `platform` or `api`; a Rust test or script does the same for
+4. A test fails on an import of another feature's or mechanism's `component/`, or of a module it
+   does not expose through its entry.
+5. A dependency check runs in the integration gate and reports zero cycles between modules, zero
+   feature imports from a mechanism, and zero feature or mechanism imports from `design`,
+   `platform` or `api`, the composition root excepted; a Rust test or script does the same for
    the crate's top-level modules.
 6. [[rules/module-layout]] states the canonical concept layout; every concept follows it or names
    its deviation there with a reason; `organization` and `contract` group their sub-concepts in
@@ -159,6 +169,9 @@ the `.aep/` rules and contexts that describe the layout.
 19. The integration gate passes on every commit of the effort's branch; no workspace migration is
     added; no persisted file, table or column changes shape; the existing tests' assertions are
     unchanged except where they name a moved path.
+20. Each mechanism named in requirement 20 is one directory with an entry; a search finds its
+    implementation nowhere else; no feature imports a mechanism's private module; a mechanism that
+    needs what features declare receives it from the composition root rather than importing them.
 
 # Constraints
 
