@@ -1,6 +1,5 @@
-import { FILTER_PERIODS } from '$lib/api/period';
+import { FILTER_PERIODS, isWithinPeriod } from '$lib/date';
 import { RecordSearchSchema, type RecordMatch } from '$lib/api/search';
-import { isPaymentWithinPeriod } from '$lib/payment/period';
 import { ensureIdFree, newId } from '$lib/platform/database/identity';
 import { matchesAnySearch } from '$lib/platform/database/search';
 import * as s from '$lib/platform/database/schema';
@@ -370,7 +369,7 @@ export default router({
 						// the same condition the landing screen's collected figure is read with, which
 						// is what makes the two agree rather than merely intend to. The clock comes
 						// from the context, so a test can ask what *last month* means on a chosen day.
-						input.period ? isPaymentWithinPeriod(input.period, ctx.clock.now()) : undefined
+						input.period ? isWithinPeriod(s.payment.date, input.period, ctx.clock.now()) : undefined
 					)
 				)
 				// a statement reads newest first unless the reader chose otherwise, and every order

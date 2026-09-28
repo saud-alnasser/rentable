@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import { isFilterPeriod, type FilterPeriod } from '$lib/api/period';
+	import { isFilterPeriod, type FilterPeriod } from '$lib/date';
 	import * as Cell from '$lib/design/cell';
 	import { PERIOD_FILTER, toFilterOptions } from '$lib/design/filter';
 	import Loading from '@rentable/design/block/loading.svelte';

@@ -1,7 +1,7 @@
 import type { ContractLike } from '$lib/contract/contract';
 import { getDueSoonCycle, type ContractRank } from '$lib/contract/rank';
 import { scheduleContract, type SchedulePaymentLike } from '$lib/contract/schedule';
-import { formatRecordDate } from '$lib/design/date';
+import { formatRecordDate } from '$lib/date';
 import type { Locales, TranslationFunctions } from '$lib/i18n/i18n-types';
 import { formatLocaleNumber } from '$lib/platform/locale';
 

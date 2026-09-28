@@ -35,7 +35,7 @@ collected by a different runner and is covered under *Component tests* below. No
 section covers moved when that runner arrived, and nothing is meant to.
 
 A test is `<name>.test.ts`, in a `tests/` directory under the directory it covers:
-`src/lib/api/period.ts` is covered by `src/lib/api/tests/period.test.ts`. It uses `node:test`
+`src/lib/date/period.ts` is covered by `src/lib/date/tests/period.test.ts`. It uses `node:test`
 and `node:assert/strict` and imports the `.ts` source directly. Tests run under `tsx`, which is
 what resolves the `$lib` alias and the `.ts` imports.
 

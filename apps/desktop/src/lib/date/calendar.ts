@@ -8,7 +8,7 @@
  * the local zone would move it across a boundary for anyone east or west of UTC.
  */
 import type { Locales } from '$lib/i18n/i18n-types';
-import { formatLocaleDate } from '$lib/platform/locale';
+import { formatRecordDate } from '$lib/platform/locale';
 import {
 	getLocalTimeZone,
 	parseDate,
@@ -16,7 +16,10 @@ import {
 	type DateFormatter
 } from '@internationalized/date';
 
-/** The UTC calendar day `value` falls on, as `YYYY-MM-DD`. */
+/**
+ * The UTC calendar day `value` falls on, as `YYYY-MM-DD`. It is also how a file spells a day:
+ * the machine form, which is what every reader agrees on.
+ */
 export const formatDateInput = (value: number | Date) =>
 	(value instanceof Date ? value : new Date(value)).toISOString().slice(0, 10);
 
@@ -26,6 +29,25 @@ export const parseDateInput = (value: string) => {
 
 	return Date.UTC(year, month - 1, day);
 };
+
+/**
+ * The day a file spells, as the instant the workspace holds, or nothing where it is not a day.
+ *
+ * Not `parseDateInput`, which trusts a value the date control produced. This one reads a cell
+ * somebody typed, so it trims, refuses anything but `YYYY-MM-DD`, and answers `undefined` rather
+ * than a number for a value the calendar cannot place.
+ */
+export function fromIsoDay(value: string) {
+	const day = value.trim();
+
+	if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) {
+		return undefined;
+	}
+
+	const parsed = Date.parse(`${day}T00:00:00.000Z`);
+
+	return Number.isNaN(parsed) ? undefined : parsed;
+}
 
 /**
  * A `YYYY-MM-DD` calendar day as a `CalendarDate`, or `undefined` when the value
@@ -52,16 +74,6 @@ export const formatCalendarDate = (
 	formatter: DateFormatter,
 	placeholder: string
 ) => (value ? formatter.format(value.toDate(getLocalTimeZone())) : placeholder);
-
-/**
- * A date as every surface here renders one.
- *
- * Medium style, so a month reads as a word and no locale's numeric order can be mistaken for
- * another's, and UTC, because the domain's days are whole UTC days. It is a function rather
- * than only the cell that shows it, so a file written from a list reads the way the list does.
- */
-export const formatRecordDate = (locale: Locales, value: number | string | Date) =>
-	formatLocaleDate(locale, value, { dateStyle: 'medium', timeZone: 'UTC' });
 
 /**
  * A period, its two ends already written, as every surface here writes one: an en dash with a

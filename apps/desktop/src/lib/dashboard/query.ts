@@ -1,5 +1,5 @@
 import api from '$lib/api/caller';
-import type { FilterPeriod } from '$lib/api/period';
+import type { FilterPeriod } from '$lib/date';
 import { workspacePrefixes } from '$lib/design/query';
 import { createQuery } from '@tanstack/svelte-query';
 

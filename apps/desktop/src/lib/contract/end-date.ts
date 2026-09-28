@@ -13,7 +13,7 @@
  * the rules deciding when an override survives.
  */
 import type { Contract } from '$lib/platform/database/schema';
-import { parseDateInput, toCalendarDate } from '$lib/design/date';
+import { parseDateInput, toCalendarDate } from '$lib/date';
 import {
 	getContractCycleCountForPeriod,
 	getContractEndDateForCycles,

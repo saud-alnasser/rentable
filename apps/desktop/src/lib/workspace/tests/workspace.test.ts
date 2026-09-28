@@ -15,10 +15,10 @@ import {
 	isWorkspaceImportable,
 	planWorkspaceImport,
 	toContractReference,
-	toIsoDay,
 	toUnitParts,
 	toUnitReference
 } from '../workspace.ts';
+import { formatDateInput } from '$lib/date';
 
 const DAY = 86_400_000;
 // the day these files are read as being. Fixed rather than the wall clock: one of the rules the
@@ -74,7 +74,7 @@ function heldWorkspace(workspace: WorkspaceTransfer): WorkspaceHeld {
 		contracts: workspace.contracts.map((contract) => contract.reference),
 		payments: workspace.payments.map((payment) => [
 			payment.contract,
-			toIsoDay(payment.date),
+			formatDateInput(payment.date),
 			String(payment.amount)
 		])
 	};
@@ -597,7 +597,7 @@ test('a payment dated after the day the file is read is turned away, naming its 
 	const plan = planWorkspaceImport(toTables(workspace), NOW, emptyHeld());
 
 	assert.deepEqual(sheetOf(plan, 'payments').rejected, [
-		{ row: 2, reason: 'invalid', detail: toIsoDay(NOW + DAY) }
+		{ row: 2, reason: 'invalid', detail: formatDateInput(NOW + DAY) }
 	]);
 	// the row is dropped and the rest of the file still reads: nothing names a payment, so there
 	// is nothing for it to take with it. That is the other half of `refusedWhole`, and it is why

@@ -1,4 +1,5 @@
-import { toUtcDay, type DateLike } from '$lib/api/date';
+import { addUtcDays, toUtcDay, type DateLike } from '$lib/date/date';
+import { and, gte, lt, type AnyColumn, type SQL } from 'drizzle-orm';
 
 /**
  * PERIOD
@@ -7,8 +8,8 @@ import { toUtcDay, type DateLike } from '$lib/api/date';
  *
  * **One vocabulary, named once.** A period is not a date range the caller assembles — it is a
  * word the reader chooses, and two surfaces asked about *this month* have to mean the same
- * days or their answers cannot be compared. That is the whole reason this sits in the API
- * layer rather than beside a control: the landing figures and the payment ledger both spend it,
+ * days or their answers cannot be compared. That is the whole reason this sits in the date
+ * capability rather than beside a control: the landing figures and the payment ledger both spend it,
  * from two different routers, and a second copy of "what this month means" is a pair of surfaces
  * that quietly disagree.
  *
@@ -66,4 +67,24 @@ export function toPeriodRange(period: FilterPeriod, now: DateLike): PeriodRange 
 				end: new Date(Date.UTC(year - 1, 11, 31))
 			};
 	}
+}
+
+/**
+ * The one condition that decides whether a stored date falls inside a period, as a query holds it.
+ *
+ * **It exists so that two surfaces cannot disagree.** The landing screen's collected figure and
+ * a contract's payment statement are read by two different routers, and the whole of acceptance
+ * criterion 6 of #529 is that asked about one period they report the same money. Two
+ * `where` clauses written to the same intention are two chances to write it differently, and the
+ * way they would differ is not obvious, because both would look right.
+ *
+ * **Half-open at the top.** A period's end is a whole UTC day and a payment is stored with
+ * whatever time of day it was given, so `date <= end` silently drops every payment made after
+ * midnight on the last day of the span. That was the shape the dashboard's own figure had before
+ * this condition: correct on most days, and quietly short on the last day of every month.
+ */
+export function isWithinPeriod(column: AnyColumn, period: FilterPeriod, now: DateLike): SQL {
+	const { start, end } = toPeriodRange(period, now);
+
+	return and(gte(column, start), lt(column, addUtcDays(end, 1))) as SQL;
 }

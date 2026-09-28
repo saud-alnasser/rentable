@@ -1,6 +1,6 @@
 import type { OrganizationState, Recovery, RemoteSyncState } from '$lib/platform/host';
 import { organizationAdmission } from '$lib/sync/admission';
-import { toUtcDay } from '$lib/api/date';
+import { toUtcDay } from '$lib/date';
 import type { StartupStage } from './startup-stage';
 
 /**

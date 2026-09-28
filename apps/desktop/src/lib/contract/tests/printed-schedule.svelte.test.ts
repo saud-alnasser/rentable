@@ -5,7 +5,7 @@ import ar from '$lib/i18n/ar';
 import en from '$lib/i18n/en';
 import type { Locales } from '$lib/i18n/i18n-types';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
-import { formatRecordDate } from '$lib/design/date';
+import { formatRecordDate } from '$lib/date';
 import { formatLocaleMoney } from '$lib/platform/locale';
 import type { ContractLike } from '$lib/contract/contract';
 import { scheduleContract, type SchedulePaymentLike } from '$lib/contract/schedule';

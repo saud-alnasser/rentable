@@ -12,7 +12,7 @@ import {
 	parseCalendarDate,
 	parseDateInput,
 	toCalendarDate
-} from '../date.ts';
+} from '../calendar.ts';
 
 test('a stored date reads as the UTC calendar day it falls on', () => {
 	assert.equal(formatDateInput(Date.UTC(2025, 0, 31)), '2025-01-31');
@@ -59,7 +59,7 @@ test('no surface joins the two ends of a period itself', () => {
 	// a dash between two interpolations or two elements: `${a} – ${b}`, `/> – <`.
 	const joined = /[}>]\s*[–—]\s*[$<{]/;
 	const offenders = sourceFiles(/\.(svelte|ts)$/)
-		.filter(({ label }) => label.startsWith('lib/') && label !== 'lib/design/date.ts')
+		.filter(({ label }) => label.startsWith('lib/') && label !== 'lib/date/calendar.ts')
 		.filter(({ file }) =>
 			readFileSync(file, 'utf8')
 				.split('\n')
@@ -67,5 +67,5 @@ test('no surface joins the two ends of a period itself', () => {
 		)
 		.map(({ label }) => label);
 
-	assert.deepEqual(offenders, [], 'join a period with joinDateRange in design/date.ts');
+	assert.deepEqual(offenders, [], 'join a period with joinDateRange in date/calendar.ts');
 });

@@ -11,10 +11,10 @@ import { ensureContractIsNotTerminated, ensureValidContractInput } from '$lib/co
 import { ensurePaymentIsNotInTheFuture, ensureValidPaymentAmount } from '$lib/payment/payment';
 import { reconcileTouched } from '$lib/contract/reconcile';
 import { newId } from '$lib/platform/database/identity';
+import { formatDateInput } from '$lib/date';
 import {
 	toContractReference,
 	toGovIdFromReference,
-	toIsoDay,
 	toTransferKey,
 	toUnitParts,
 	toUnitReference,
@@ -284,7 +284,7 @@ export default router({
 			payments: views('viewPayment')
 				? payments.map((payment) => [
 						referenceOf.get(payment.contractId) ?? '',
-						toIsoDay(payment.date),
+						formatDateInput(payment.date),
 						String(payment.amount)
 					])
 				: []

@@ -1,4 +1,4 @@
-import type { DateLike } from '$lib/api/date';
+import type { DateLike } from '$lib/date';
 import { getContractTotalCost, type ContractLike } from '$lib/contract/contract';
 import {
 	compareByAllocationOrder,

@@ -1,8 +1,7 @@
 import * as s from '$lib/platform/database/schema';
 import { type Contract } from '$lib/platform/database/schema';
-import { FILTER_PERIODS, toPeriodRange } from '$lib/api/period';
+import { FILTER_PERIODS, isWithinPeriod, toPeriodRange } from '$lib/date';
 import { procedure } from '$lib/api/trpc';
-import { isPaymentWithinPeriod } from '$lib/payment/period';
 import { getExpectedAmountBy, getExpectedAmountInRange } from '$lib/contract/contract';
 import { serializeContract } from '$lib/contract/serialize';
 import {
@@ -214,7 +213,7 @@ export default procedure.member
 			: await ctx.db
 					.select({ amount: sql<number>`coalesce(sum(${s.payment.amount}), 0)` })
 					.from(s.payment)
-					.where(isPaymentWithinPeriod(input?.period ?? 'this-month', now))
+					.where(isWithinPeriod(s.payment.date, input?.period ?? 'this-month', now))
 					.get();
 
 		const occupancy = !views('viewUnit')

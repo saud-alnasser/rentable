@@ -8,7 +8,7 @@
 	import { toCardActions } from '$lib/design/acts';
 	import * as Cell from '$lib/design/cell';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
-	import { formatRecordDateRange } from '$lib/design/date';
+	import { formatRecordDateRange } from '$lib/date';
 	import { formatLocaleMoney } from '$lib/platform/locale';
 	import BanknoteIcon from '@lucide/svelte/icons/banknote';
 

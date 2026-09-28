@@ -16,7 +16,7 @@
 		parseCalendarDate,
 		parseDateInput,
 		toCalendarDate
-	} from '$lib/design/date';
+	} from '$lib/date';
 	import { formatLocaleMoney, getIntlLocale, RIYAL } from '$lib/platform/locale';
 	import { isWholeHalalas } from '@rentable/design/money.js';
 	import { cn } from '@rentable/design/tailwind.js';

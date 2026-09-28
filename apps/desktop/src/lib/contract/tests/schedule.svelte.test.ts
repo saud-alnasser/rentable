@@ -2,7 +2,7 @@ import { render } from '@testing-library/svelte';
 import { afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest';
 
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
-import { formatRecordDate } from '$lib/design/date';
+import { formatRecordDate } from '$lib/date';
 import ar from '$lib/i18n/ar';
 import en from '$lib/i18n/en';
 import type { Locales } from '$lib/i18n/i18n-types';

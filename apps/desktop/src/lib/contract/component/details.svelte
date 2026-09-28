@@ -7,7 +7,7 @@
 	import Specification from '@rentable/design/block/specification.svelte';
 	import * as Cell from '$lib/design/cell';
 	import RecordActionControl from '@rentable/design/block/record-action-control.svelte';
-	import { formatRecordDateRange } from '$lib/design/date';
+	import { formatRecordDateRange } from '$lib/date';
 	import { contractActs } from '$lib/contract/host.svelte';
 	import { useFetchContract } from '$lib/contract/query';
 	import { toPageActions } from '$lib/design/acts';

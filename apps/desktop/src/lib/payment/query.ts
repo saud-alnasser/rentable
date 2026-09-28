@@ -1,5 +1,5 @@
 import api from '$lib/api/caller';
-import type { FilterPeriod } from '$lib/api/period';
+import type { FilterPeriod } from '$lib/date';
 import { declareMutation, describeOutcomeChange } from '$lib/design/mutation';
 import type { SelectionCall } from '@rentable/design/selection.js';
 import type { HistoryEntry } from '$lib/history/history';

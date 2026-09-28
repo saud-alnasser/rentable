@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { formatRecordDate } from '$lib/design/date.ts';
+import { formatRecordDate } from '$lib/date';
 import { i18nObject } from '$lib/i18n/i18n-util.ts';
 import { loadLocale } from '$lib/i18n/i18n-util.sync.ts';
 

@@ -4,7 +4,7 @@ import { beforeEach, expect, test, vi } from 'vitest';
 import type api from '$lib/api/caller';
 import type { ContractRankSummary } from '$lib/contract/rank';
 import Landing from '$lib/dashboard/component/landing.svelte';
-import { formatRecordDate } from '$lib/design/date';
+import { formatRecordDate } from '$lib/date';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';

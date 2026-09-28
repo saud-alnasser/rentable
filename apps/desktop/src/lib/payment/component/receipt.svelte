@@ -15,7 +15,7 @@
 </script>
 
 <script lang="ts">
-	import { formatRecordDate, formatRecordDateRange } from '$lib/design/date';
+	import { formatRecordDate, formatRecordDateRange } from '$lib/date';
 	import type { Locales, TranslationFunctions } from '$lib/i18n/i18n-types';
 	import { i18nObject } from '$lib/i18n/i18n-util';
 	import type { PaymentMethod } from '$lib/platform/database/schema';

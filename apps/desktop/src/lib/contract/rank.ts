@@ -1,5 +1,5 @@
 import type { Contract } from '$lib/platform/database/schema';
-import { addUtcDays, toUtcDay, type DateLike } from '$lib/api/date';
+import { addUtcDays, toUtcDay, type DateLike } from '$lib/date';
 import { getExpectedAmountBy, type ContractLike } from '$lib/contract/contract';
 import { scheduleContract } from '$lib/contract/schedule';
 

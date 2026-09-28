@@ -19,11 +19,11 @@ import {
 	emptyHeld,
 	isWorkspaceImportable,
 	planWorkspaceImport,
-	toIsoDay,
 	toTransferInput as toInput,
 	toUnitReference,
 	type WorkspaceTransfer
 } from '../workspace.ts';
+import { formatDateInput } from '$lib/date';
 
 /**
  * A workspace built through the ordinary procedures: a tenant, a complex with two units, a
@@ -549,7 +549,7 @@ test('payments read into a ledger move the contract they are against', async () 
 				// file carrying a future one exactly as `payments.create` refuses a typed one.
 				// It only has to be a different day from the seed payment for this test's subject,
 				// which is that the money and the derived column move together.
-				rows: [['GOV-1', 'Abby Kris', toIsoDay(monthsFromNow(-1)), '2500']]
+				rows: [['GOV-1', 'Abby Kris', formatDateInput(monthsFromNow(-1)), '2500']]
 			}
 		],
 		NOW,

@@ -7,7 +7,7 @@ import { ComplexSchema, UnitSchema } from '$lib/platform/database/schema';
 import { planSelection } from '$lib/api/selection';
 import { refuse } from '$lib/api/refusal';
 import { autosync, procedure, refuseMissing, router } from '$lib/api/trpc';
-import { addUtcDays, toUtcDay, type DateLike } from '$lib/api/date';
+import { addUtcDays, toUtcDay, type DateLike } from '$lib/date';
 import {
 	COMPLEX_SORT_COLUMN_IDS,
 	ensureComplexDeletable,

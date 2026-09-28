@@ -11,6 +11,7 @@ import {
 import type { ImportTable } from '$lib/platform/tauri';
 import { hasValidContractCost, hasValidContractPeriodForInterval } from '$lib/contract/contract';
 import { hasValidPaymentAmount, isPaymentInTheFuture } from '$lib/payment/payment';
+import { formatDateInput, fromIsoDay } from '$lib/date';
 import { identity as nationalIdPattern, phone as phonePattern } from '$lib/tenant/tenant';
 
 /**
@@ -100,24 +101,6 @@ const CONTRACT_SEPARATOR = ' @ ';
 /** the shape that fallback has, which is how a reference is told from a government number. */
 const FALLBACK_REFERENCE = /^\S+ @ \d{4}-\d{2}-\d{2}$/;
 
-/** A day, as a file spells one: the machine form, which is what every reader agrees on. */
-export function toIsoDay(value: number | Date) {
-	return new Date(value).toISOString().slice(0, 10);
-}
-
-/** The day a file spells, as the instant the workspace holds — or nothing where it is not a day. */
-export function fromIsoDay(value: string) {
-	const day = value.trim();
-
-	if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) {
-		return undefined;
-	}
-
-	const parsed = Date.parse(`${day}T00:00:00.000Z`);
-
-	return Number.isNaN(parsed) ? undefined : parsed;
-}
-
 /** What a file calls one unit: the complex holding it, and its own name. */
 export function toUnitReference(complex: string, unit: string) {
 	return `${complex.trim()}${UNIT_SEPARATOR}${unit.trim()}`;
@@ -153,7 +136,9 @@ export function toContractReference(contract: {
 }) {
 	const stated = contract.govId?.trim();
 
-	return stated || `${contract.tenant.trim()}${CONTRACT_SEPARATOR}${toIsoDay(contract.start)}`;
+	return (
+		stated || `${contract.tenant.trim()}${CONTRACT_SEPARATOR}${formatDateInput(contract.start)}`
+	);
 }
 
 /** The government number a reference carries, or nothing where it is the fallback shape. */

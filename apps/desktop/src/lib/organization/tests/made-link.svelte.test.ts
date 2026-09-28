@@ -2,7 +2,7 @@ import { DesignProvider } from '@rentable/design/strings.js';
 import { fireEvent, render, screen } from '@testing-library/svelte';
 import { expect, test } from 'vitest';
 
-import { formatRecordDate } from '$lib/design/date';
+import { formatRecordDate } from '$lib/date';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import MadeLink from '$lib/organization/component/made-link.svelte';

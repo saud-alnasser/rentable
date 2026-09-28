@@ -1,4 +1,4 @@
-import { FILTER_PERIODS } from '$lib/api/period';
+import { FILTER_PERIODS } from '$lib/date';
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 
 /**

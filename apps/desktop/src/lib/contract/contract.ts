@@ -1,5 +1,5 @@
 import type { Contract, Unit } from '$lib/platform/database/schema';
-import { addUtcDays, addUtcMonths, toUtcDay, type DateLike } from '$lib/api/date';
+import { addUtcDays, addUtcMonths, toUtcDay, type DateLike } from '$lib/date';
 import { getPaidAmount, type PaymentLike } from '$lib/payment/payment';
 import { refuse } from '$lib/api/refusal';
 

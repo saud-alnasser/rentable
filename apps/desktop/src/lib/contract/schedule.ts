@@ -1,5 +1,5 @@
 import type { Payment } from '$lib/platform/database/schema';
-import { toUtcDay, type DateLike } from '$lib/api/date';
+import { toUtcDay, type DateLike } from '$lib/date';
 import type { PaymentLike } from '$lib/payment/payment';
 import {
 	EPSILON,
