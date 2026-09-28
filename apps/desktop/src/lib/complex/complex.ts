@@ -9,25 +9,6 @@ import { refuse } from '$lib/api/refusal';
  */
 
 /**
- * Every refusal a complex rule or procedure raises, by code, and the same for a unit below it.
- * The sentences are the interface's, under `common.refusals`; see `$lib/api/refusal`.
- */
-export type ComplexRefusalCode =
-	| 'complex.holdsUnits'
-	| 'complex.nameTaken'
-	| 'complex.nameTakenNamed'
-	| 'complex.gone'
-	| 'complex.repeatedInSet';
-
-export type UnitRefusalCode =
-	| 'unit.holdsContracts'
-	| 'unit.nameTaken'
-	| 'unit.nameTakenNamed'
-	| 'unit.gone'
-	| 'unit.nameRepeated'
-	| 'unit.repeatedInSet';
-
-/**
  * Whether a complex may be deleted: no unit may belong to it.
  *
  * Exported beside the router that enforces it so a surface can say what blocks a deletion

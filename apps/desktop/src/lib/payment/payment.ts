@@ -73,17 +73,6 @@ export const whatRefusesPaymentDeletion = (status: Contract['status']) =>
 	status === 'terminated' ? ('contract-terminated' as const) : undefined;
 
 /**
- * Every refusal a payment rule or procedure raises, by code. The sentences are the interface's,
- * under `common.refusals.payment`; see `$lib/api/refusal`. A payment against a contract that is
- * not there is refused as `contract.missing`, since it is the contract that is missing.
- */
-export type PaymentRefusalCode =
-	| 'payment.amountNotPositive'
-	| 'payment.datedInFuture'
-	| 'payment.missing'
-	| 'payment.repeatedInSet';
-
-/**
  * Whether an amount is one a payment may be for.
  *
  * Above zero, and the boundary is the whole of it: a payment of nothing moves no money and a

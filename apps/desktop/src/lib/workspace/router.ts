@@ -19,9 +19,9 @@ import {
 	toUnitParts,
 	toUnitReference,
 	type WorkspaceHeld,
-	type WorkspaceRefusalCode,
 	type WorkspaceTransfer
 } from '$lib/workspace/workspace';
+import type { WorkspaceRefusalCode } from '$lib/workspace/refusal';
 import { refuse } from '$lib/api/refusal';
 import { permits, type Flag } from '@rentable/workspace-permission';
 import { asc, eq } from 'drizzle-orm';

@@ -1,7 +1,10 @@
 import { FILTER_PERIODS, isWithinPeriod } from '$lib/date';
-import { RecordSearchSchema, type RecordMatch } from '$lib/api/search';
 import { ensureIdFree, newId } from '$lib/platform/database/identity';
-import { matchesAnySearch } from '$lib/platform/database/search';
+import {
+	matchesAnySearch,
+	RecordSearchSchema,
+	type RecordMatch
+} from '$lib/platform/database/search';
 import * as s from '$lib/platform/database/schema';
 import { PaymentSchema, type Payment } from '$lib/platform/database/schema';
 import { refuse } from '$lib/api/refusal';

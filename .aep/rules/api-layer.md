@@ -150,8 +150,9 @@ have made and the domain turns away is thrown as `refuse(code, params?)` from
 person.
 
 - **The code is named by its concept**, `contract.endBeforeStart`, from the `RefusalCode` union
-  that concept declares beside the rules that raise it. `RefusalCode` in `api/refusal.ts` is their
-  union. A refusal naming a value carries it in `params`, never spliced into the code.
+  that concept declares in its own `refusal.ts`. `RefusalCode` in `api/refusal.ts` is their union,
+  imported as types alone so the plumbing loads no feature. A refusal naming a value carries it
+  in `params`, never spliced into the code.
 - **The sentence is the interface's.** `common.refusals.<concept>.<name>` holds one per code in
   both locales, written for the reader in lower case and saying what they must do.
   `error/refusal.ts` turns an error into that sentence (`toRefusalText`), and a type check there

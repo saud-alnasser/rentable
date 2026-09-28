@@ -287,7 +287,6 @@ organization/component/members.svelte -> settings/section.ts : deep
 organization/component/members.svelte -> sync/account.ts : deep
 organization/component/roles.svelte -> settings/section.ts : deep
 organization/component/standing.svelte -> settings/query.ts : deep
-organization/component/standing.svelte -> sync/refusal.ts : deep
 organization/component/standing.svelte -> workspace/sync-status.ts : deep
 organization/component/workspaces.svelte -> settings/section.ts : deep
 organization/component/workspaces.svelte -> workspace/component/earlier-records.svelte : deep

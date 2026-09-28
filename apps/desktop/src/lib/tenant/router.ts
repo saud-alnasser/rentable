@@ -1,7 +1,10 @@
 import * as s from '$lib/platform/database/schema';
 import type { Database } from '$lib/api/context';
-import { RecordSearchSchema, type RecordMatch } from '$lib/api/search';
-import { matchesAnySearch } from '$lib/platform/database/search';
+import {
+	matchesAnySearch,
+	RecordSearchSchema,
+	type RecordMatch
+} from '$lib/platform/database/search';
 import { ensureIdFree, newId } from '$lib/platform/database/identity';
 import { TenantSchema, type Contract } from '$lib/platform/database/schema';
 import { planSelection } from '$lib/api/selection';

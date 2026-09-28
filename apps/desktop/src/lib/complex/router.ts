@@ -1,6 +1,9 @@
 import type { Context, Database } from '$lib/api/context';
-import { RecordSearchSchema, type RecordMatch } from '$lib/api/search';
-import { matchesAnySearch } from '$lib/platform/database/search';
+import {
+	matchesAnySearch,
+	RecordSearchSchema,
+	type RecordMatch
+} from '$lib/platform/database/search';
 import { ensureIdFree, newId } from '$lib/platform/database/identity';
 import * as s from '$lib/platform/database/schema';
 import { ComplexSchema, UnitSchema } from '$lib/platform/database/schema';

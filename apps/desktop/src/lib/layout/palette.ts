@@ -1,8 +1,7 @@
 import { toShortcutHint } from '@rentable/design/shortcut.js';
-import type { RecordMatch } from '$lib/api/search';
 import type { ShortcutRegistration } from '$lib/shortcut';
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
-import { foldSearchText } from '$lib/platform/database/search';
+import { foldSearchText, type RecordMatch } from '$lib/platform/database/search';
 
 /**
  * PALETTE

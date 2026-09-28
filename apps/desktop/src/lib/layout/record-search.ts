@@ -1,6 +1,6 @@
 import { resolve } from '$app/paths';
 import type { ResolvedPathname } from '$app/types';
-import type { RecordMatch } from '$lib/api/search';
+import type { RecordMatch } from '$lib/platform/database/search';
 import { complexActs, complexHost } from '$lib/complex/host.svelte';
 import { useSearchComplexes, useSearchUnits } from '$lib/complex/query';
 import { unitActs, unitHost } from '$lib/complex/unit/host.svelte';

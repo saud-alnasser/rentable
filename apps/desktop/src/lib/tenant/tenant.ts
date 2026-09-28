@@ -37,19 +37,6 @@ export type TenantSortColumnId = (typeof TENANT_SORT_COLUMN_IDS)[number];
 export const identityField = (message: string) => z.string().trim().regex(identity, message);
 
 /**
- * Every refusal a tenant rule or procedure raises, by code. The sentences are the interface's,
- * under `common.refusals.tenant`; see `$lib/api/refusal`.
- */
-export type TenantRefusalCode =
-	| 'tenant.nationalIdTaken'
-	| 'tenant.nationalIdTakenNamed'
-	| 'tenant.phoneTaken'
-	| 'tenant.phoneTakenNamed'
-	| 'tenant.gone'
-	| 'tenant.holdsContracts'
-	| 'tenant.repeatedInSet';
-
-/**
  * the router passes whatever row its uniqueness query found; any row is a conflict.
  *
  * @param named the identity the conflict is over, where the caller acts on more than one tenant.

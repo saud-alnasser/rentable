@@ -220,3 +220,38 @@ export type RefusalField = (typeof REFUSAL_FIELDS)[number];
 function isRefusalField(name: string): name is RefusalField {
 	return (REFUSAL_FIELDS as readonly string[]).includes(name);
 }
+
+/**
+ * WHAT A PERSON IS TOLD WHEN THE ACCOUNT IS REFUSED
+ *
+ * Requirement 25, as two sentences. A member who is not the owner is told that the organization's
+ * Turso account needs attention and whom to tell, and nothing about quotas, plans or usage: their
+ * employer's billing state is not theirs to see. The owner is told enough to act on: Turso's own
+ * sentence about which limit, and where on Turso to go, without having to know what a group is.
+ *
+ * Plain rather than a component, so a `node:test` pins the leak the requirement forbids: the
+ * member's sentence carries no word of the detail, in either locale, whatever the detail says.
+ *
+ * The account's refusal arrives as a sync standing rather than as a code, and its sentence is here
+ * all the same: this module is the one place a refusal becomes words.
+ */
+export type AccountRefusalReader = {
+	/** whether the reader is the owner, which is who sees the detail. */
+	isOwner: boolean;
+	/** the owner's username, for the member's sentence. */
+	ownerUsername: string;
+	/** Turso's own sentence, read by the owner's machine alone; `null` for everybody else. */
+	detail: string | null;
+};
+
+export function accountRefusalSentence(reader: AccountRefusalReader, LL: TranslationFunctions) {
+	if (!reader.isOwner) {
+		return LL.workspace.accountRefusedMember({
+			owner: reader.ownerUsername || LL.layout.signIn.roleOwner()
+		});
+	}
+
+	return reader.detail
+		? LL.workspace.accountRefusedOwner({ detail: reader.detail })
+		: LL.workspace.accountRefusedOwnerNoDetail();
+}
