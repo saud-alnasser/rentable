@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [21]
 ---
 # refactor(desktop): cache prefixes come from what features declare
@@ -14,8 +14,8 @@ Each record feature's `feature.ts` declares its `kind` and cache `prefix`; `muta
 
 Traces requirements 1 and 2 of [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]], and criteria 1 and 2.
 
-- [ ] No cache prefix is listed outside a feature's own declaration (criteria 1 and 2).
-- [ ] The integration gate passes on this commit; no test assertion changes except where it names a moved path (criterion 19).
+- [x] No cache prefix is listed outside a feature's own declaration (criteria 1 and 2). Verified: `grep -rn workspacePrefixes apps/desktop/src` prints nothing; `prefix: [` appears only in the five record declarations (tenant, complex, complex/unit, contract, payment `feature.ts`); `app/cache.ts` builds the policy from the list and provides it at the root layout's second import; the child's run printed the same prefixes in the old table's order, and `app/tests/cache.test.ts` shows a key read before the policy throws.
+- [x] The integration gate passes on this commit; no test assertion changes except where it names a moved path (criterion 19). Verified: in the run's tree, after merging five `feature.ts` files with ticket 28's `pages` and narrowing `layout/navigation.ts`'s read of `pages` for the unit's declaration (the orchestrator's seam fix): check 0, eslint 0, `pnpm test` 3 of 3 tasks, build:web 0, validate 0; assertions changed only where they named `workspacePrefixes`.
 
 ## Relevant areas
 

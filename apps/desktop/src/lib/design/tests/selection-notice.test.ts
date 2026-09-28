@@ -50,6 +50,10 @@ const payment = await import('$lib/payment/query');
 const { loadLocale } = await import('$lib/i18n/i18n-util.sync');
 const { setLocale } = await import('$lib/i18n/i18n-svelte');
 
+// the cache policy the root layout provides, built from the features' declarations: a settled
+// mutation invalidates by it.
+await import('$lib/app/cache');
+
 // the notice names itself in the reader's language, so it is only assertable once a locale is
 // loaded: the same two calls the application makes at startup.
 loadLocale('en');

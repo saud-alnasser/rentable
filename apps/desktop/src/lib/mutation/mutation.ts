@@ -1,5 +1,6 @@
 import api from '$lib/api/caller';
-import { invalidateWorkspaceData, workspacePrefixes } from './cache';
+import type { features } from '$lib/app/features';
+import { invalidateWorkspaceData, sharedPrefix } from './cache';
 import { historyKeys, type HistoryEntry } from '$lib/history';
 import { recordDiagnosticError } from '$lib/platform/diagnostics';
 import { NAMED_RECORDS, unforeseenRefusals } from '@rentable/design/selection.js';
@@ -84,8 +85,17 @@ export type MutationToast<TVariables, TResult, TCaptured> = Omit<
 	success?: ToastSuccessMessage<TVariables, TResult, TCaptured>;
 };
 
-/** the workspace concepts a data mutation can write to. */
-export type WorkspaceConcept = keyof typeof workspacePrefixes;
+/** The last segment of a declared prefix, which is the concept it caches. */
+type ConceptOf<P> = P extends readonly [...unknown[], infer Last extends string] ? Last : never;
+
+/**
+ * the workspace concepts a data mutation can write to: each record feature's, named by the last
+ * segment of the prefix it declares. Known here by type alone, as `$lib/api/caller` knows the
+ * root router: the list is the composition root's, and this capability sits below it.
+ */
+export type WorkspaceConcept = ConceptOf<
+	Extract<(typeof features)[number], { prefix: unknown }>['prefix']
+>;
 
 /**
  * What varies between one data mutation and the next: the call it makes, what it writes, what
@@ -104,8 +114,11 @@ export type MutationDeclaration<TVariables, TResult, TCaptured = void> = {
 	 * whatever this names — so today the set is a statement rather than a switch. Narrowing
 	 * invalidation onto it later has to reckon with rows that *display* another concept's
 	 * data, which a write-set does not name.
+	 *
+	 * A mutation writing a whole workspace's worth, an import, says `'every'` rather than naming
+	 * each concept, so adding a kind does not edit it.
 	 */
-	touches: readonly WorkspaceConcept[];
+	touches: readonly WorkspaceConcept[] | 'every';
 	/** what the user is told. A mutation that declares none reports nothing, either way. */
 	toast?: MutationToast<TVariables, TResult, TCaptured>;
 	/**
@@ -368,7 +381,7 @@ function recordHistory(client: QueryClient, recorded: HistoryEntry | HistoryEntr
 
 	void api.history
 		.append({ entries })
-		.then(() => client.invalidateQueries({ queryKey: historyKeys.all }))
+		.then(() => client.invalidateQueries({ queryKey: historyKeys.all(sharedPrefix()) }))
 		.catch((failure) => {
 			recordDiagnosticError('history.append', {
 				concept: entries[0].concept,

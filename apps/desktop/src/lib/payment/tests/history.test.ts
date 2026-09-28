@@ -80,6 +80,10 @@ const { useCreatePayment, useUpdatePayment, useDeletePayment } = await import('$
 const { loadLocale } = await import('$lib/i18n/i18n-util.sync');
 const { setLocale } = await import('$lib/i18n/i18n-svelte');
 
+// the cache policy the root layout provides, built from the features' declarations: a settled
+// mutation invalidates by it.
+await import('$lib/app/cache');
+
 // the entry names the payment by its amount in the reader's locale, so one is loaded.
 loadLocale('en');
 setLocale('en');

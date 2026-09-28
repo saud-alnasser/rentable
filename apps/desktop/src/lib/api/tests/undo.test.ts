@@ -65,7 +65,7 @@ mock.module('$lib/platform/tauri', {
 
 const { inverseStack } = await import('$lib/undo/undo');
 const { applyUndo } = await import('$lib/undo');
-const { workspacePrefixes } = await import('$lib/mutation');
+const { prefixOf } = await import('$lib/mutation');
 const { useQueryClient } = await import('@tanstack/svelte-query');
 const { useCreateTenant, useUpdateTenant, useDeleteTenant } = await import('$lib/tenant/query');
 const {
@@ -90,6 +90,10 @@ const { getContractRenewalTerm } = await import('$lib/contract/renewal');
 const { useCreatePayment, useDeletePayment } = await import('$lib/payment/query');
 const { loadLocale } = await import('$lib/i18n/i18n-util.sync');
 const { LL, setLocale } = await import('$lib/i18n/i18n-svelte');
+
+// the cache policy the root layout provides, built from the features' declarations: a settled
+// mutation invalidates by it.
+await import('$lib/app/cache');
 
 // an inverse names itself in the reader's language, so what a control would offer is only
 // assertable once a locale is loaded — the same two calls the application makes at startup.
@@ -482,7 +486,7 @@ describe('undoing a record change', () => {
 			caller = real;
 		}
 
-		for (const prefix of [workspacePrefixes.contracts, workspacePrefixes.units]) {
+		for (const prefix of [prefixOf('contract'), prefixOf('unit')]) {
 			assert.ok(
 				refreshed.some((key) => JSON.stringify(key) === JSON.stringify(prefix)),
 				`${JSON.stringify(prefix)} was not refreshed after the undo failed`

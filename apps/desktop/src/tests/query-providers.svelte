@@ -15,7 +15,11 @@
 	 * it: complex, contract, design, layout, organization, payment and tenant tests all do, and a
 	 * test reaches it as `#tests/query-providers.svelte` through the `imports` map in
 	 * `package.json`. `[[rules/testing]]` under *Component tests* says why.
+	 *
+	 * It provides the workspace cache policy as the root layout does, by loading `$lib/app/cache`,
+	 * because a query key is read from it when a section's query runs.
 	 */
+	import '$lib/app/cache';
 	import { TooltipProvider } from '@rentable/design/primitive/tooltip/index.js';
 	import {
 		DesignProvider,

@@ -5,7 +5,7 @@ import {
 	type ComplexSortColumnId,
 	type UnitSortColumnId
 } from '$lib/complex/complex';
-import { declareMutation, describeOutcomeChange, workspacePrefixes } from '$lib/mutation';
+import { declareMutation, describeOutcomeChange, prefixOf } from '$lib/mutation';
 import type { SelectionCall } from '@rentable/design/selection.js';
 import type { HistoryEntry } from '$lib/history';
 import { isRecordId } from '$lib/platform/database/identity';
@@ -15,39 +15,35 @@ import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 import { get } from 'svelte/store';
 
 export const keys = {
-	all: workspacePrefixes.complexes,
-	get: (id: string) => [...workspacePrefixes.complexes, id],
+	get all() {
+		return prefixOf('complex');
+	},
+	get: (id: string) => [...prefixOf('complex'), id],
 	list: (search: string, sort: ListSort | null) => [
-		...workspacePrefixes.complexes,
+		...prefixOf('complex'),
 		'list',
 		search,
 		sort ? `${sort.columnId}:${sort.direction}` : 'default'
 	],
-	search: (term: string) => [...workspacePrefixes.complexes, 'search', term],
+	search: (term: string) => [...prefixOf('complex'), 'search', term],
 	// the selection itself, sorted: the same set assembled in a different order is the same
 	// question, and two cache entries for it would ask the workspace twice.
-	plan: (ids: readonly string[]) => [
-		...workspacePrefixes.complexes,
-		'plan',
-		[...ids].sort().join(',')
-	],
+	plan: (ids: readonly string[]) => [...prefixOf('complex'), 'plan', [...ids].sort().join(',')],
 	units: {
-		all: workspacePrefixes.units,
-		get: (id: string) => [...workspacePrefixes.units, 'detail', id],
-		getMany: (complexId: string) => [...workspacePrefixes.units, complexId],
+		get all() {
+			return prefixOf('unit');
+		},
+		get: (id: string) => [...prefixOf('unit'), 'detail', id],
+		getMany: (complexId: string) => [...prefixOf('unit'), complexId],
 		board: (complexId: string, search: string, sort: ListSort | null = null) => [
-			...workspacePrefixes.units,
+			...prefixOf('unit'),
 			'board',
 			complexId,
 			search,
 			sort ? `${sort.columnId}:${sort.direction}` : 'default'
 		],
-		plan: (ids: readonly string[]) => [
-			...workspacePrefixes.units,
-			'plan',
-			[...ids].sort().join(',')
-		],
-		search: (term: string) => [...workspacePrefixes.units, 'search', term]
+		plan: (ids: readonly string[]) => [...prefixOf('unit'), 'plan', [...ids].sort().join(',')],
+		search: (term: string) => [...prefixOf('unit'), 'search', term]
 	}
 } as const;
 

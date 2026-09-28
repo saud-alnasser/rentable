@@ -13,7 +13,11 @@
 	 * layout's own, and every record concept's permission tests through `permission.ts`'s
 	 * `openPalette` ([[rules/testing]], *Component tests*). A test reaches it as
 	 * `#tests/palette-harness.svelte`. *It lived in `layout/tests/` until ticket 19 of effort 838.*
+	 *
+	 * It provides the workspace cache policy as the root layout does, by loading `$lib/app/cache`,
+	 * because a query key is read from it when a screen's query runs.
 	 */
+	import '$lib/app/cache';
 	import LayoutPalette from '$lib/layout/component/palette.svelte';
 	import { ShortcutListener } from '$lib/shortcut/ui';
 	import { TooltipProvider } from '@rentable/design/primitive/tooltip/index.js';

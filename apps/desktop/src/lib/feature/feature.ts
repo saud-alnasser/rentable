@@ -9,19 +9,27 @@ import type { AnyRouter } from '@trpc/server';
  * and what the composition root in `$lib/app` reads off the list of them. It loads under Node,
  * so a declaration never imports a component.
  *
- * **The router's type is kept, not widened.** `defineFeature` infers the name as a literal and the
- * router as its own type, so {@link routersOf} can hand `router()` a record whose every key and
- * procedure is the declared one, and the typed client inferred from `appRouter` is the one a
- * hand-written record would give.
+ * **The declaration's type is kept, not widened.** `defineFeature` infers the name, the router
+ * and the prefix as the declared ones, so {@link routersOf} can hand `router()` a record whose
+ * every key and procedure is the declared one, and the typed client inferred from `appRouter` is
+ * the one a hand-written record would give.
  */
 export type Feature<N extends string = string, R extends AnyRouter = AnyRouter> = {
 	/** the key its router is mounted at */
 	name: N;
-	router: R;
+	/**
+	 * its router. A sub-concept whose procedures its parent's router serves declares none, and is
+	 * mounted nowhere: the unit is the one today, served under `complex.units`.
+	 */
+	router?: R;
 	/** the record kind it holds, on a feature that holds one */
 	kind?: RecordKind;
-	/** its workspace query-cache prefix */
-	prefix?: string;
+	/**
+	 * its workspace query-cache prefix: the segments every one of its query keys starts with, and
+	 * what the workspace invalidation names. Its last segment names the concept a mutation says it
+	 * touches.
+	 */
+	prefix?: readonly string[];
 	/** the pages it holds, which the shell's navigation reads */
 	pages?: readonly Page[];
 };
@@ -42,19 +50,20 @@ export type Page = {
 	parent?: RouteId;
 };
 
-/** Declare a feature, keeping its name as a literal and its router as its own type. */
-export const defineFeature = <const N extends string, R extends AnyRouter>(
-	feature: Feature<N, R>
-) => feature;
+/** Declare a feature, keeping every field as it was declared. */
+export const defineFeature = <const F extends Feature>(feature: F): F => feature;
 
-/** The record `router()` takes, one key per feature, typed from the list. */
+/** The listed features that carry a router of their own. */
+type Routed<F extends readonly Feature[]> = Extract<F[number], { router: AnyRouter }>;
+
+/** The record `router()` takes, one key per feature with a router, typed from the list. */
 export type RoutersOf<F extends readonly Feature[]> = {
-	[K in F[number] as K['name']]: K['router'];
+	[K in Routed<F> as K['name']]: K['router'];
 };
 
 /** Every feature's router under its name, for the root router to mount. */
 export function routersOf<const F extends readonly Feature[]>(features: F): RoutersOf<F> {
 	return Object.fromEntries(
-		features.map((feature) => [feature.name, feature.router])
+		features.flatMap((feature) => (feature.router ? [[feature.name, feature.router]] : []))
 	) as RoutersOf<F>;
 }

@@ -62,7 +62,9 @@ mock.module('@tanstack/svelte-query', {
 	}
 });
 
-const { declareMutation, describeOutcomeChange, workspacePrefixes } = await import('$lib/mutation');
+const { declareMutation, describeOutcomeChange } = await import('$lib/mutation');
+// the policy the root layout provides, built from the features' declarations.
+const { cachePolicy } = await import('$lib/app/cache');
 const { loadLocale } = await import('$lib/i18n/i18n-util.sync');
 const { setLocale } = await import('$lib/i18n/i18n-svelte');
 
@@ -106,7 +108,7 @@ describe('a declared mutation', () => {
 
 		await mutation.onSuccess(undefined, undefined, undefined);
 
-		for (const prefix of Object.values(workspacePrefixes)) {
+		for (const prefix of cachePolicy.prefixes) {
 			assert.ok(
 				invalidated.some((key) => JSON.stringify(key) === JSON.stringify(prefix)),
 				`expected the ${JSON.stringify(prefix)} prefix to be invalidated`
@@ -119,7 +121,7 @@ describe('a declared mutation', () => {
 	// resolves it towards always invalidating — a redundant local refetch costs a
 	// sub-millisecond query, where a skipped one shows a row that no longer exists.
 	it('invalidates whatever the procedure returned', async () => {
-		const prefixCount = Object.values(workspacePrefixes).length;
+		const prefixCount = cachePolicy.prefixes.length;
 
 		for (const returned of [undefined, false, { id: 4 }]) {
 			const { mutation } = bind({

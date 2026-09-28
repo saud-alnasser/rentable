@@ -1,9 +1,14 @@
 import { defineFeature } from '$lib/feature/feature';
 import router from './router';
 
+// the unit's, which `app/` reaches through here: a sub-concept is not a home of its own.
+export { default as unit } from './unit/feature';
+
 export default defineFeature({
 	name: 'complex',
 	router,
+	kind: 'complex',
+	prefix: ['complexes'],
 	pages: [
 		{ route: '/complexes', trail: true, lists: 'complex' },
 		{ route: '/complexes/[id]' },

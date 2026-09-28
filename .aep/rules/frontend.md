@@ -26,9 +26,11 @@ statements, no `export let`.
 Components never call the API directly. A concept's `query.ts` wraps it in TanStack Query,
 and components use those hooks. Query v6 takes a thunk, not an object.
 
-Each domain's query module composes its key set from the workspace prefixes in
-`$lib/mutation` and exports it, and declares each data mutation through `declareMutation` from
-the same entry. Every data mutation invalidates through the shared helper there, and a full
+Each record feature declares its workspace cache prefix once, in its own `feature.ts`;
+`$lib/app/cache` builds the cache policy from the list and provides it to `$lib/mutation`. Each
+domain's query module composes its key set from `prefixOf` in `$lib/mutation`, read when a key is
+asked for and never while the module loads, and exports it, and declares each data mutation
+through `declareMutation` from the same entry. Every data mutation invalidates through the shared helper there, and a full
 pass with no touch-set — a sync pull, a day crossing — through the root helper beside it; an
 invalidation that spells a key out inline drifts the moment the key changes. Settings
 and remote-sync keep their own keys and invalidations.

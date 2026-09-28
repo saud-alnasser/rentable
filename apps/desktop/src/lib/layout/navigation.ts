@@ -12,7 +12,9 @@ import type { RecordKind } from '$lib/permission';
  * under Node where this is tested. What a page is called and the icon it wears are the window's,
  * and its feature's surface declares them.
  */
-const pages: readonly Page[] = features.flatMap((feature) => feature.pages ?? []);
+const pages: readonly Page[] = features.flatMap((feature): readonly Page[] =>
+	'pages' in feature ? feature.pages : []
+);
 
 /**
  * Every page this application has, by its route id.

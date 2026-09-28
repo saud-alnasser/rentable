@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { describe, it, mock } from 'node:test';
+import { before, describe, it, mock } from 'node:test';
 
 import type {
 	DefaultError,
@@ -9,11 +9,16 @@ import type {
 	QueryObserverOptions
 } from '@tanstack/svelte-query';
 
+import { features } from '$lib/app/features.ts';
+import contract from '$lib/contract/feature.ts';
 import {
+	createCachePolicy,
 	invalidateRoot,
 	invalidateWorkspaceData,
-	trustWorkspaceData,
-	workspacePrefixes
+	prefixOf,
+	provideCachePolicy,
+	sharedPrefix,
+	trustWorkspaceData
 } from '../cache.ts';
 
 // `QueryClient` holds private state, so nothing assembled by hand is one — a recorder has to
@@ -54,13 +59,54 @@ function recordingClient() {
 	return new RecordingClient();
 }
 
+// what `$lib/app/cache` builds and provides as the root layout loads. It is built here rather than
+// imported, because that module reaches the mutation handlers' toaster, which this file does not
+// substitute.
+const policy = createCachePolicy(features, contract);
+
+// first, and before anything provides a policy: a read made too early is a failure, not an answer.
+describe('a read before the policy is provided', () => {
+	it('throws rather than answering with nothing', async () => {
+		const early = /read before it was provided/;
+
+		assert.throws(() => prefixOf('tenant'), early);
+		assert.throws(() => sharedPrefix(), early);
+		assert.throws(() => trustWorkspaceData(recordingClient()), early);
+		await assert.rejects(invalidateWorkspaceData(recordingClient()), early);
+	});
+});
+
+describe('the policy built from the declarations', () => {
+	it('holds each declared prefix once, in the order the features are listed', () => {
+		const declared = features.flatMap((feature) => ('prefix' in feature ? [feature.prefix] : []));
+
+		assert.deepEqual(policy.prefixes, declared);
+	});
+
+	it("keys each record kind by its feature's prefix", () => {
+		provideCachePolicy(policy);
+
+		for (const feature of features) {
+			if ('kind' in feature) {
+				assert.deepEqual(prefixOf(feature.kind), feature.prefix);
+			}
+		}
+	});
+
+	it('keeps a key of no kind of its own under the prefix it was handed', () => {
+		assert.deepEqual(policy.shared, contract.prefix);
+	});
+});
+
 describe('the workspace query cache', () => {
+	before(() => provideCachePolicy(policy));
+
 	it('a data mutation invalidates every data-concept prefix', async () => {
 		const client = recordingClient();
 
 		await invalidateWorkspaceData(client);
 
-		for (const prefix of Object.values(workspacePrefixes)) {
+		for (const prefix of policy.prefixes) {
 			assert.ok(
 				client.invalidated.some((key) => JSON.stringify(key) === JSON.stringify(prefix)),
 				`expected the ${JSON.stringify(prefix)} prefix to be invalidated`
@@ -91,7 +137,7 @@ describe('the workspace query cache', () => {
 
 		trustWorkspaceData(client);
 
-		for (const prefix of Object.values(workspacePrefixes)) {
+		for (const prefix of policy.prefixes) {
 			const entry = client.defaulted.find(
 				(candidate) => JSON.stringify(candidate.queryKey) === JSON.stringify(prefix)
 			);

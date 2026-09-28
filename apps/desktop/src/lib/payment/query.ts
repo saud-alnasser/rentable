@@ -1,6 +1,6 @@
 import api from '$lib/api/caller';
 import type { FilterPeriod } from '$lib/date';
-import { declareMutation, describeOutcomeChange, workspacePrefixes } from '$lib/mutation';
+import { declareMutation, describeOutcomeChange, prefixOf } from '$lib/mutation';
 import type { SelectionCall } from '@rentable/design/selection.js';
 import type { HistoryEntry } from '$lib/history';
 import { LL, locale } from '$lib/i18n/i18n-svelte';
@@ -12,9 +12,9 @@ import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 import { get } from 'svelte/store';
 
 export const keys = {
-	get: (id: string) => [...workspacePrefixes.payments, 'one', id],
-	receipt: (id: string) => [...workspacePrefixes.payments, 'receipt', id],
-	getMany: (contractId: string) => [...workspacePrefixes.payments, contractId],
+	get: (id: string) => [...prefixOf('payment'), 'one', id],
+	receipt: (id: string) => [...prefixOf('payment'), 'receipt', id],
+	getMany: (contractId: string) => [...prefixOf('payment'), contractId],
 	// the period is part of the key because it is part of the question: two periods are two
 	// result sets, and sharing a key would serve one of them under the other's name.
 	list: (
@@ -23,21 +23,17 @@ export const keys = {
 		period: FilterPeriod | undefined,
 		sort: ListSort | null = null
 	) => [
-		...workspacePrefixes.payments,
+		...prefixOf('payment'),
 		'list',
 		contractId,
 		search,
 		period ?? null,
 		sort ? `${sort.columnId}:${sort.direction}` : 'default'
 	],
-	search: (term: string) => [...workspacePrefixes.payments, 'search', term],
+	search: (term: string) => [...prefixOf('payment'), 'search', term],
 	// the selection itself, sorted: the same set assembled in a different order is the same
 	// question, and two cache entries for it would ask the workspace twice.
-	plan: (ids: readonly string[]) => [
-		...workspacePrefixes.payments,
-		'plan',
-		[...ids].sort().join(',')
-	]
+	plan: (ids: readonly string[]) => [...prefixOf('payment'), 'plan', [...ids].sort().join(',')]
 } as const;
 
 /** Why a payment in a selection would be turned away, read off the procedure rather than restated. */

@@ -1,8 +1,3 @@
-// the cache policy's own module rather than `$lib/mutation`: the entry loads the mutation
-// handlers, which import `$lib/history` back, so `historyKeys` below would read the prefixes before
-// they exist, and they carry a toaster no router test can load. It goes when the composition root
-// hands the prefixes over (effort 840, ticket 25).
-import { workspacePrefixes } from '$lib/mutation/cache';
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 import type { RecordKind } from '$lib/permission';
 import { FAMILIES, type Flag } from '@rentable/workspace-permission';
@@ -73,16 +68,19 @@ export function flagOfEntry(entry: { concept: HistoryConcept; action: string }):
 }
 
 /**
- * the key sits under the contract tree because the workspace invalidation covers that prefix.
+ * the key sits under the prefix the cache policy keeps for keys of no kind of their own, the
+ * contract tree, because the workspace invalidation covers that prefix. Whoever reads a key hands
+ * that prefix in (`sharedPrefix` from `$lib/mutation`): this module is loaded by the history's
+ * router, which no test can load beside the mutation handlers' toaster.
  *
  * An entry is appended *after* that invalidation has already run, though — it is deliberately
  * not awaited into the change it describes — so whoever appends one invalidates this key again
  * afterwards. Without that a surface showing the account reads it one change behind.
  */
 export const historyKeys = {
-	all: [...workspacePrefixes.contracts, 'history'],
-	getMany: (concept: HistoryConcept, recordId: string, search = '') => [
-		...workspacePrefixes.contracts,
+	all: (under: readonly string[]) => [...under, 'history'],
+	getMany: (under: readonly string[], concept: HistoryConcept, recordId: string, search = '') => [
+		...under,
 		'history',
 		concept,
 		recordId,

@@ -49,6 +49,9 @@ const handWritten = router({
 // A compile-time check: `pnpm check` fails here if the list changes a procedure's path or type.
 const sameRouter: Same<typeof appRouter._def.record, typeof handWritten._def.record> = true;
 
+/** The listed features with a router of their own; the unit's procedures are the complex's. */
+const routed = features.flatMap((feature) => ('router' in feature ? [feature] : []));
+
 /** Every procedure a router holds, under its dotted path; read as what `_def.procedures` holds. */
 const proceduresOf = (held: { _def: { procedures: object } }) =>
 	Object.entries(held._def.procedures) as [string, AnyProcedure][];
@@ -57,7 +60,7 @@ test('the root mounts each listed feature under its name, and nothing else', () 
 	assert.ok(sameRouter);
 	assert.deepEqual(
 		Object.keys(appRouter._def.record).sort(),
-		features.map((feature) => feature.name).sort()
+		routed.map((feature) => feature.name).sort()
 	);
 });
 
@@ -71,7 +74,7 @@ test('the procedures are the ones the hand-written root holds', () => {
 test("each procedure is its own feature's, one level below the root", () => {
 	for (const [path, procedure] of proceduresOf(appRouter)) {
 		const [name, ...rest] = path.split('.');
-		const owner = features.find((feature) => feature.name === name);
+		const owner = routed.find((feature) => feature.name === name);
 
 		assert.ok(owner, `${path} is under no feature`);
 		assert.equal(
@@ -83,10 +86,10 @@ test("each procedure is its own feature's, one level below the root", () => {
 });
 
 test("no feature's router mounts another feature's router", () => {
-	for (const feature of features) {
+	for (const feature of routed) {
 		const own = new Set(proceduresOf(feature.router).map(([, procedure]) => procedure));
 
-		for (const other of features.filter((candidate) => candidate !== feature)) {
+		for (const other of routed.filter((candidate) => candidate !== feature)) {
 			const borrowed = proceduresOf(other.router).filter(([, procedure]) => own.has(procedure));
 
 			assert.deepEqual(

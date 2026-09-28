@@ -7,5 +7,7 @@ import router from './router';
 export default defineFeature({
 	name: 'payment',
 	router,
+	kind: 'payment',
+	prefix: ['contracts', 'payments'],
 	pages: [{ route: '/contracts/payments/[id]', parent: '/contracts/[id]' }]
 });

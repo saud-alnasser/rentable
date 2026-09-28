@@ -21,7 +21,7 @@ import { get } from 'svelte/store';
  * A second declaration differing only in that sentence is the near-identical pair
  * ([[rules/data]], under *Mutation declaration*) exists to prevent.
  *
- * It touches all five concepts even where the file held one: reconciliation runs over what was
+ * It touches every concept even where the file held one: reconciliation runs over what was
  * written, and a file of payments moves the contracts they are against and the units those
  * contracts hold.
  *
@@ -36,7 +36,7 @@ import { get } from 'svelte/store';
 export const useImportRecords = declareMutation({
 	mutate: (transfer: Parameters<typeof api.workspace.importWhole>[0]) =>
 		api.workspace.importWhole(transfer),
-	touches: ['tenants', 'complexes', 'units', 'contracts', 'payments'],
+	touches: 'every',
 	toast: {
 		success: () => get(LL).settings.transferImportSuccess(),
 		// every failure is said by the dialog that asked for the import, which catches the

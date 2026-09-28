@@ -4,7 +4,7 @@ import {
 	toContractName as toContractRecordName,
 	type ContractSortColumnId
 } from '$lib/contract/contract';
-import { declareMutation, describeOutcomeChange, workspacePrefixes } from '$lib/mutation';
+import { declareMutation, describeOutcomeChange, prefixOf } from '$lib/mutation';
 import type { SelectionCall } from '@rentable/design/selection.js';
 import type { HistoryEntry } from '$lib/history';
 import type { ContractRank } from '$lib/contract/rank';
@@ -33,7 +33,7 @@ export type ContractListScope = {
 
 export const keys = {
 	list: (search: string, sort: ListSort | null, scope: ContractListScope = {}) => [
-		...workspacePrefixes.contracts,
+		...prefixOf('contract'),
 		'list',
 		search,
 		sort ? `${sort.columnId}:${sort.direction}` : 'default',
@@ -48,25 +48,25 @@ export const keys = {
 	// the selection itself, sorted: the same set assembled in a different order is the same
 	// question, and two cache entries for it would ask the workspace twice.
 	plan: (action: ContractSelectionAction | null, ids: readonly string[]) => [
-		...workspacePrefixes.contracts,
+		...prefixOf('contract'),
 		'plan',
 		action ?? 'none',
 		[...ids].sort().join(',')
 	],
-	get: (id: string) => [...workspacePrefixes.contracts, id],
-	getUnits: (id: string) => [...workspacePrefixes.contracts, 'units', id],
-	getSchedule: (id: string) => [...workspacePrefixes.contracts, 'schedule', id],
-	getReminder: (id: string) => [...workspacePrefixes.contracts, 'reminder', id],
-	search: (term: string) => [...workspacePrefixes.contracts, 'search', term],
+	get: (id: string) => [...prefixOf('contract'), id],
+	getUnits: (id: string) => [...prefixOf('contract'), 'units', id],
+	getSchedule: (id: string) => [...prefixOf('contract'), 'schedule', id],
+	getReminder: (id: string) => [...prefixOf('contract'), 'reminder', id],
+	search: (term: string) => [...prefixOf('contract'), 'search', term],
 	getAssignableUnits: (contractId: string, search: string) => [
-		...workspacePrefixes.contracts,
+		...prefixOf('contract'),
 		'units',
 		'assignable',
 		contractId,
 		search
 	],
 	getAssignableUnitsForTerm: (start: number, end: number, search: string) => [
-		...workspacePrefixes.contracts,
+		...prefixOf('contract'),
 		'units',
 		'assignable-for-term',
 		start,

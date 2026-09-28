@@ -17,6 +17,7 @@ app -> complex : cycle
 app -> contract : cycle
 app -> dashboard : cycle
 app -> history : cycle
+app -> mutation : cycle
 app -> organization : cycle
 app -> payment : cycle
 app -> platform : cycle
@@ -119,7 +120,6 @@ history -> i18n : cycle
 history -> list : cycle
 history -> mutation : cycle
 history -> platform : cycle
-history/history.ts -> mutation/cache.ts : deep
 i18n -> platform : cycle
 i18n/en/index.ts -> complex : literal
 i18n/en/index.ts -> contract : literal

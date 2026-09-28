@@ -1,4 +1,4 @@
-import complex from '$lib/complex/feature';
+import complex, { unit } from '$lib/complex/feature';
 import contract from '$lib/contract/feature';
 import dashboard from '$lib/dashboard/feature';
 import history from '$lib/history/feature';
@@ -14,17 +14,24 @@ import workspace from '$lib/workspace/feature';
 /**
  * THE FEATURES
  *
- * every feature and capability the root router mounts, each under its declared name. This is the
+ * every feature and capability the composition root reads, each router mounted under its
+ * declared name. This is the
  * one place that names them all: adding one is a line here, and removing one is taking it out.
  *
  * **Every router is mounted here, and at one depth.** No feature's router mounts another's, so a
  * procedure's path is always its feature's name and then the procedure (effort 840, criterion 3).
+ * The unit declares no router of its own, and is listed for what it does declare.
+ *
+ * **The order of the record features is the workspace invalidation's.** `$lib/app/cache` builds
+ * the cache policy from this list, and the prefixes are invalidated in the order their features
+ * stand here.
  */
 export const features = [
-	tenant,
-	complex,
 	contract,
 	payment,
+	tenant,
+	complex,
+	unit,
 	dashboard,
 	history,
 	workspace,
