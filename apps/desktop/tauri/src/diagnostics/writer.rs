@@ -176,17 +176,17 @@ mod tests {
             .expect("failed to open the log");
 
         let leaks = [
-            event("account.linked").with("refreshToken", "1//04dXmSecret"),
-            event("sync.push.failed").with("error", "denied for Bearer ya29.leaked"),
+            event("account.linked").with("refreshToken", "r3freshSecret"),
+            event("sync.push.failed").with("error", "denied for Bearer eyJleaked"),
             // the shape a token exchange fails in: a form body quoted whole, under
             // a field name that says nothing about what it carries.
             event("sync.token.refreshFailed").with(
                 "error",
-                "POST /token failed: grant_type=refresh_token&client_secret=GOCSPX-3fLeaked",
+                "POST /token failed: grant_type=refresh_token&client_secret=s3cretLeaked",
             ),
             // arriving from the webview, where the event name is not a literal
             // this crate wrote.
-            event("failed for ya29.leaked").with("stage", "upload"),
+            event("failed for Bearer eyJfromTheWebview").with("stage", "upload"),
         ];
 
         for leak in leaks {
@@ -197,7 +197,12 @@ mod tests {
         let contents = std::fs::read_to_string(directory.join("rentable.log"))
             .expect("failed to read the log");
 
-        for secret in ["1//04dXmSecret", "ya29.leaked", "GOCSPX-3fLeaked"] {
+        for secret in [
+            "r3freshSecret",
+            "eyJleaked",
+            "s3cretLeaked",
+            "eyJfromTheWebview",
+        ] {
             assert!(!contents.contains(secret), "{secret} reached the file");
         }
 

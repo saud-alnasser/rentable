@@ -132,9 +132,9 @@ impl Database {
     /// duplicate that work — DDL issued through the sync connection is captured as CDC and
     /// replicates, so one client's migration would reach every other replica.
     ///
-    /// `tauri/migrations/` stays in the tree as the input `build.rs` counts to produce
-    /// `WORKSPACE_SCHEMA_VERSION`, which is the number this client sends to the mint. Nothing
-    /// reads it at launch.
+    /// `tauri/migrations/` stays in the tree as what `build.rs` embeds for
+    /// `organization/migrate.rs` and counts to produce `WORKSPACE_SCHEMA_VERSION`. Nothing reads
+    /// it at launch.
     pub async fn connect(&mut self) -> Result<(), Error> {
         let settings = self.settings.read().await;
         let db_path = settings.database_path.clone();
@@ -162,10 +162,8 @@ impl Database {
 
     /// Open this machine's replica through the sync engine.
     ///
-    /// **The startup path calls this.** *It said nothing did, and that stopped being true when the
-    /// mint landed: `bootstrap.rs` reaches it with the workspace's URL and a token from the control
-    /// plane.* Corrected 2026-08-20, having misled a reader working out what renaming the replica
-    /// file would do to an installed build.
+    /// **The startup path calls this.** `bootstrap.rs` reaches it with the workspace's URL and
+    /// the credential the member's vault unsealed for it.
     ///
     /// **`bootstrap_if_empty(false)`, and it is measured rather than preferred.** Left true, an
     /// engine pointed at a remote it cannot reach leaves no usable local database at all — the
@@ -176,7 +174,7 @@ impl Database {
     /// model rests on that being a first-class API, and it is one.
     ///
     /// `remote_url` is absent until a workspace is known. An engine built without one serves the
-    /// local file and reaches nothing, which is what a machine that has minted nothing should do.
+    /// local file and reaches nothing, which is what a machine that holds no workspace should do.
     ///
     /// **The file is named for the workspace, not for the machine.** One person signing out and
     /// another signing in on the same computer would otherwise open the second account's replica
@@ -184,8 +182,8 @@ impl Database {
     /// be reading somebody else's ledger and pushing against a revision that is not theirs. A path
     /// derived from the workspace makes the binding structural rather than something a sign-out has
     /// to remember to clean up. *What it leaves behind is the previous workspace's file, and
-    /// membership is what ends that: [`Self::remove_replica`] is reached only where the control
-    /// plane says the account holding it is no longer a member.*
+    /// membership is what ends that: [`Self::remove_replica`] is reached only where the
+    /// organization says the account holding it is no longer a member.*
     pub async fn connect_workspace<F, Fut>(
         &mut self,
         workspace_id: &str,

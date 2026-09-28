@@ -4,10 +4,6 @@
 //! token grant, and the loopback address a browser hands a code back on. What is not here is
 //! any endpoint, client registration, scope or credential store, because those belong to
 //! whichever server is being asked. `sync/turso/consent.rs` is the caller and holds Turso's.
-//!
-//! *Lifted out of Google sign-in unchanged in behaviour, so that a second authorization server
-//! could be driven through the same code rather than through a second copy of it; the second
-//! server is the only one left, and the split is what let the first retire cleanly.*
 
 pub mod authorization;
 pub mod loopback;

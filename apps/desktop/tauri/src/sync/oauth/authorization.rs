@@ -14,11 +14,10 @@ use super::OAuthConfig;
 ///
 /// `provider_parameters` are whatever the server being asked defines on top of
 /// RFC 6749 and RFC 7636. They are the caller's because they are the one thing in
-/// an authorization request that is not the protocol: `access_type` and
-/// `include_granted_scopes` are Google's own spelling and mean nothing anywhere
-/// else, so a request built here with them baked in would send Google's
-/// vocabulary to every other authorization server. Everything above them is in
-/// one RFC or the other and is added for every caller.
+/// an authorization request that is not the protocol: one server's own parameter
+/// means nothing to another, so a request built here with one baked in would send
+/// that server's vocabulary to every other authorization server. Everything above
+/// them is in one RFC or the other and is added for every caller.
 pub(crate) fn build_authorization_url(
     config: &OAuthConfig,
     client_id: &str,
@@ -119,10 +118,9 @@ mod tests {
     }
 
     /// **Nothing a provider defines is added on its own**, which is the whole of what
-    /// makes this builder usable by a second authorization server. Google's three
-    /// parameters lived here until a second caller arrived, and a Turso consent
-    /// carrying `access_type=offline` would be sending Google's vocabulary to an
-    /// endpoint that has never defined it.
+    /// makes this builder usable by a second authorization server. A Turso consent
+    /// carrying another server's `access_type=offline` would be sending a parameter
+    /// to an endpoint that has never defined it.
     #[test]
     fn a_caller_that_asks_for_no_provider_parameters_is_sent_none() {
         let url = build_authorization_url(
@@ -183,8 +181,8 @@ mod tests {
     }
 
     /// the redirect and the scope list both carry characters that change meaning
-    /// unescaped, and a mis-encoded redirect is rejected by Google as a mismatch
-    /// rather than as a malformed request.
+    /// unescaped, and a mis-encoded redirect is rejected by the authorization server
+    /// as a mismatch rather than as a malformed request.
     #[test]
     fn the_authorization_url_escapes_the_values_it_carries() {
         let url = build_authorization_url(
@@ -202,7 +200,7 @@ mod tests {
             "the redirect uri was not escaped: {url}"
         );
         assert!(
-            !url.contains("drive.file email"),
+            !url.contains("openid email"),
             "the scope separator was not escaped: {url}"
         );
     }

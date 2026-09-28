@@ -8,21 +8,12 @@ use serde::Deserialize;
 
 use crate::error::{Error, RefusalReason};
 
-use super::super::store::sanitize_optional_string;
-
-/// What a grant yields. `refresh_token` is absent on the refresh grant itself,
-/// and `expires_at` is absent where the server states no lifetime. Neither is an
-/// error, and neither may overwrite what is already stored.
+/// What a grant yields: the access token, and only that. The one authorization server this
+/// application asks, Turso's, issues a token with no expiry and no refresh, so a refresh token or
+/// a lifetime in the answer is left unread rather than carried for nobody.
 #[derive(Clone, Debug)]
 pub(crate) struct OAuthTokens {
     pub(crate) access_token: String,
-    /// read by no caller today: the one authorization server this application asks, Turso's,
-    /// issues a token with no expiry and no refresh. Kept because they are the protocol's, and a
-    /// second server that issues them would read them here rather than parse the answer again.
-    #[allow(dead_code)]
-    pub(crate) refresh_token: Option<String>,
-    #[allow(dead_code)]
-    pub(crate) expires_at: Option<i64>,
 }
 
 /// The token endpoint's body, which carries either a grant or a refusal under
@@ -32,10 +23,6 @@ pub(crate) struct OAuthTokens {
 pub(crate) struct OAuthTokenResponse {
     #[serde(default)]
     pub(crate) access_token: Option<String>,
-    #[serde(default)]
-    pub(crate) refresh_token: Option<String>,
-    #[serde(default)]
-    pub(crate) expires_in: Option<i64>,
     #[serde(default)]
     pub(crate) error: Option<String>,
     #[serde(default)]
@@ -84,36 +71,10 @@ pub(crate) fn authorization_code_form(
     form
 }
 
-/// The form fields trading a refresh token for a fresh access token.
-///
-/// It sits beside the grant above rather than with its caller: the two share
-/// [`append_client_secret`], and one test covers both. No caller today, for the reason
-/// [`OAuthTokens`] gives; the protocol is kept whole.
-#[allow(dead_code)]
-pub(crate) fn refresh_token_form(
-    client_id: &str,
-    client_secret: Option<&str>,
-    refresh_token: &str,
-) -> Vec<(String, String)> {
-    let mut form = vec![
-        ("client_id".to_string(), client_id.to_string()),
-        ("grant_type".to_string(), "refresh_token".to_string()),
-        ("refresh_token".to_string(), refresh_token.to_string()),
-    ];
-
-    append_client_secret(&mut form, client_secret);
-
-    form
-}
-
 /// A token endpoint response read as either a grant or a refusal.
-///
-/// `now` is passed rather than read so the expiry arithmetic is the caller's
-/// clock, and so the boundary is testable.
 pub(crate) fn parse_token_response(
     status: u16,
     payload: OAuthTokenResponse,
-    now: i64,
 ) -> Result<OAuthTokens, Error> {
     let access_token = payload
         .access_token
@@ -127,10 +88,6 @@ pub(crate) fn parse_token_response(
 
     Ok(OAuthTokens {
         access_token: access_token.to_string(),
-        refresh_token: sanitize_optional_string(payload.refresh_token),
-        expires_at: payload
-            .expires_in
-            .map(|seconds| now.saturating_add(seconds.saturating_mul(1_000))),
     })
 }
 
@@ -190,9 +147,7 @@ mod tests {
 
     use crate::error::Error;
 
-    use super::{
-        OAuthTokenResponse, authorization_code_form, parse_token_response, refresh_token_form,
-    };
+    use super::{OAuthTokenResponse, authorization_code_form, parse_token_response};
 
     fn token_payload(fields: serde_json::Value) -> OAuthTokenResponse {
         serde_json::from_value(fields).expect("failed to build a token payload")
@@ -231,54 +186,28 @@ mod tests {
         assert_eq!(form.get("code").map(String::as_str), Some("the-code"));
     }
 
-    #[test]
-    fn the_refresh_grant_sends_only_the_refresh_token() {
-        let form = refresh_token_form("client-id", Some("client-secret"), "the-refresh-token")
-            .into_iter()
-            .collect::<HashMap<_, _>>();
-
-        assert_eq!(
-            form.get("grant_type").map(String::as_str),
-            Some("refresh_token")
-        );
-        assert_eq!(form.get("client_id").map(String::as_str), Some("client-id"));
-        assert_eq!(
-            form.get("client_secret").map(String::as_str),
-            Some("client-secret")
-        );
-        assert_eq!(
-            form.get("refresh_token").map(String::as_str),
-            Some("the-refresh-token")
-        );
-        assert_eq!(form.get("code"), None);
-        assert_eq!(form.get("redirect_uri"), None);
-    }
-
-    /// google issues the desktop client id without a secret, and sending an empty
-    /// one is a rejected request rather than an ignored field.
+    /// a public client is issued its id without a secret, and sending an empty one is a
+    /// rejected request rather than an ignored field.
     #[test]
     fn a_grant_omits_the_client_secret_when_there_is_none_configured() {
-        for form in [
-            authorization_code_form(
-                "client-id",
-                None,
-                "http://127.0.0.1/callback",
-                "v",
-                "c",
-                &[],
-            ),
-            refresh_token_form("client-id", None, "the-refresh-token"),
-        ] {
-            assert!(
-                !form.iter().any(|(key, _)| key == "client_secret"),
-                "an unconfigured client secret still reached the request: {form:?}"
-            );
-        }
+        let form = authorization_code_form(
+            "client-id",
+            None,
+            "http://127.0.0.1/callback",
+            "v",
+            "c",
+            &[],
+        );
+
+        assert!(
+            !form.iter().any(|(key, _)| key == "client_secret"),
+            "an unconfigured client secret still reached the request: {form:?}"
+        );
     }
 
     /// **the grant carries nothing a provider did not ask for**, which is what makes this
-    /// form usable by a second authorization server. A `resource` sent to Google would be
-    /// an audience Google has never defined.
+    /// form usable by a second authorization server. A `resource` sent to a server that never
+    /// asked for one would be an audience that server has never defined.
     #[test]
     fn a_grant_that_asks_for_no_provider_parameters_carries_none() {
         let names = authorization_code_form(
@@ -327,9 +256,10 @@ mod tests {
         );
     }
 
+    /// a refresh token and a lifetime in the answer are not a malformed grant: they are read
+    /// past, and the access token is what comes back.
     #[test]
-    fn a_granted_token_carries_its_expiry_as_an_absolute_instant() {
-        let now = 1_700_000_000_000;
+    fn a_grant_is_read_for_its_access_token() {
         let tokens = parse_token_response(
             200,
             token_payload(json!({
@@ -337,28 +267,10 @@ mod tests {
                 "refresh_token": "the-refresh-token",
                 "expires_in": 3599,
             })),
-            now,
         )
         .expect("a well-formed grant was rejected");
 
         assert_eq!(tokens.access_token, "the-access-token");
-        assert_eq!(tokens.refresh_token.as_deref(), Some("the-refresh-token"));
-        assert_eq!(tokens.expires_at, Some(now + 3_599_000));
-    }
-
-    /// the refresh grant returns no refresh token of its own, and no expiry is a
-    /// token google has not told us how to age out.
-    #[test]
-    fn a_grant_may_omit_the_refresh_token_and_the_expiry() {
-        let tokens = parse_token_response(
-            200,
-            token_payload(json!({ "access_token": "the-access-token" })),
-            1_700_000_000_000,
-        )
-        .expect("a well-formed grant was rejected");
-
-        assert_eq!(tokens.refresh_token, None);
-        assert_eq!(tokens.expires_at, None);
     }
 
     /// a spent or revoked grant is the one refusal the caller can act on: it means
@@ -371,7 +283,6 @@ mod tests {
                 "error": "invalid_grant",
                 "error_description": "Token has been expired or revoked.",
             })),
-            1_700_000_000_000,
         )
         .expect_err("a dead grant was accepted");
 
@@ -386,7 +297,7 @@ mod tests {
             error
                 .to_string()
                 .contains("Token has been expired or revoked."),
-            "google's own description was dropped: {error}"
+            "the server's own description was dropped: {error}"
         );
     }
 
@@ -399,7 +310,6 @@ mod tests {
                 "error_description": "The OAuth client was not found.",
                 "error_uri": "https://example.test/oauth",
             })),
-            1_700_000_000_000,
         )
         .expect_err("a refused grant was accepted");
 
@@ -424,7 +334,7 @@ mod tests {
     /// empty credential that fails at the next call instead of this one.
     #[test]
     fn a_success_status_without_a_token_is_still_a_failure() {
-        let error = parse_token_response(200, token_payload(json!({})), 1_700_000_000_000)
+        let error = parse_token_response(200, token_payload(json!({})))
             .expect_err("an empty grant was accepted");
 
         assert!(error.to_string().contains("200"));

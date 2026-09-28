@@ -181,8 +181,8 @@ pub struct ConsentedGroup {
 ///
 /// **The name is subtracted; the string is never split on a dash.** A hostname's first label is
 /// `<name>-<slug>` and both halves may contain dashes, so no split has a correct place to cut:
-/// `control-plane-rentable` is `control-plane` in `rentable` and also `control` in
-/// `plane-rentable`, and nothing in the string says which. The record supplies its own `Name`, so
+/// `rent-ledger-rentable` is `rent-ledger` in `rentable` and also `rent` in
+/// `ledger-rentable`, and nothing in the string says which. The record supplies its own `Name`, so
 /// what is left after removing it is the slug, with no guess anywhere in the derivation.
 fn slug_from_hostname(name: &str, hostname: &str) -> Option<String> {
     let host = hostname.strip_suffix(TURSO_HOSTNAME_SUFFIX)?;
@@ -1531,8 +1531,8 @@ mod tests {
     fn dashes_in_both_the_name_and_the_slug_are_not_a_parse_problem() {
         assert_eq!(
             slug_from_hostname(
-                "control-plane-live-test",
-                "control-plane-live-test-rentable-co.aws-eu-west-1.turso.io"
+                "rent-ledger-live-test",
+                "rent-ledger-live-test-rentable-co.aws-eu-west-1.turso.io"
             )
             .as_deref(),
             Some("rentable-co"),
@@ -1562,8 +1562,8 @@ mod tests {
         let server = ScriptedServer::start(vec![
             handshake(),
             listing(json!([{
-                "Name": "control-plane",
-                "hostname": "control-plane-rentable.aws-eu-west-1.turso.io",
+                "Name": "rent-ledger",
+                "hostname": "rent-ledger-rentable.aws-eu-west-1.turso.io",
                 "group": "rentable",
                 "organization_id": "d0b1f4c2-0000-4000-8000-000000000000"
             }])),
@@ -1581,7 +1581,7 @@ mod tests {
                     slug: "rentable".to_string(),
                     group: "rentable".to_string(),
                 },
-                databases: vec!["control-plane".to_string()],
+                databases: vec!["rent-ledger".to_string()],
             }
         );
         assert_eq!(
@@ -1655,8 +1655,8 @@ mod tests {
             handshake(),
             listing(json!([{
                 "DbId": "01a02c28-0000-4000-8000-000000000000",
-                "Hostname": "control-plane-rentable.aws-eu-west-1.turso.io",
-                "Name": "control-plane",
+                "Hostname": "rent-ledger-rentable.aws-eu-west-1.turso.io",
+                "Name": "rent-ledger",
                 "auth_role_id": "ca9acde8-0000-4000-8000-000000000000",
                 "block_reads": false,
                 "block_writes": false,
@@ -1664,7 +1664,7 @@ mod tests {
                 "engine": "libsql",
                 "group": "rentable",
                 "group_id": "22b43299-0000-4000-8000-000000000000",
-                "hostname": "control-plane-rentable.aws-eu-west-1.turso.io",
+                "hostname": "rent-ledger-rentable.aws-eu-west-1.turso.io",
                 "organization_id": "84b7507f-0000-4000-8000-000000000000",
                 "parent": null,
                 "primaryRegion": "aws-eu-west-1",
@@ -1684,7 +1684,7 @@ mod tests {
                     slug: "rentable".to_string(),
                     group: "rentable".to_string(),
                 },
-                databases: vec!["control-plane".to_string()],
+                databases: vec!["rent-ledger".to_string()],
             }
         );
     }

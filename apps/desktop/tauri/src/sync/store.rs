@@ -211,8 +211,9 @@ pub struct LocalReplica {
     /// the workspace's id in its organization, which is what the file is named for.
     pub workspace_id: String,
     /// the member this machine held it for. **A replica is only ever checkable while that
-    /// member's vault is open**, which is why it is recorded rather than inferred. *It was the
-    /// control plane's account id until the retirement, under the same name.*
+    /// member's vault is open**, which is why it is recorded rather than inferred. *`accountId`
+    /// survives as an alias because records written by older installs carry the field under
+    /// that name, and a record on disk is not renamed under it.*
     #[serde(alias = "accountId")]
     pub member_id: String,
     pub created_at: i64,
@@ -357,9 +358,9 @@ impl RemoteSync {
     /// The workspace a member opened from their organization: recorded as this machine's current
     /// workspace, with the credential their vault unsealed held for the replica to sync with.
     ///
-    /// What the retired control plane's mint learned in two calls arrives here in one, because the
-    /// organization replica already holds the name, the remote and what the member may do, and
-    /// the credential was sealed to them rather than minted for the occasion.
+    /// It arrives in one call because the organization replica already holds the name, the remote
+    /// and what the member may do, and the credential was sealed to them rather than minted for
+    /// the occasion.
     pub(crate) fn open_organization_workspace(
         &mut self,
         remote_id: &str,
@@ -865,9 +866,9 @@ mod tests {
         }
     }
 
-    /// A store written while the mode existed, or while Google accounts were rows in it, still
-    /// reads, and that is the whole of the migration: `provider`, `accounts` and the control
-    /// plane's session are **dropped rather than migrated**, because `RemoteSyncStore` and every
+    /// A store written by an older install, with a `provider` of `"googleDrive"` or `"hosted"`, an
+    /// `accounts` list or a `controlPlaneSession`, still reads, and that is the whole of the
+    /// migration: those spellings are **dropped rather than migrated**, because `RemoteSyncStore` and every
     /// struct under it derive `Deserialize` without `deny_unknown_fields`, so serde ignores a
     /// field no type claims. An install holding any of them loads unchanged and writes them away
     /// on its next commit; a replica tracked under an account id reads under the member's name.

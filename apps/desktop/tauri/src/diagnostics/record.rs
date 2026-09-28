@@ -24,10 +24,11 @@ const SECRET_NAME_MARKERS: [&str; 7] = [
 /// called. An error message quoting a request URL, or a header echoed back in
 /// a failure, carries a token under a field name nobody thought to guard.
 ///
-/// The three Google shapes are here because Google is the only provider this
-/// application authenticates against: an access token, a refresh token, and an
-/// OAuth client secret respectively.
-const SECRET_VALUE_MARKERS: [&str; 5] = ["bearer ", "ya29.", "1//", "gocspx-", "goog_"];
+/// Only the header scheme is listed. The tokens this application holds, Turso's Platform API
+/// token and the database tokens minted with it, carry no fixed prefix a marker could match, so
+/// what gives one away in prose is the `Bearer` it travels behind; under a field or pair name
+/// they go by the name markers above.
+const SECRET_VALUE_MARKERS: [&str; 1] = ["bearer "];
 
 /// the separators a `name=value` pair is written with in the two places a
 /// secret arrives inside prose: a query string and a form body.
@@ -224,10 +225,10 @@ mod tests {
     #[test]
     fn a_field_that_names_a_secret_is_redacted() {
         let redacted = event("account.linked")
-            .with("accessToken", "ya29.a0AfH6SM")
-            .with("refresh_token", "1//04dXm")
+            .with("accessToken", "eyJhbGciOiJFZERTQSJ9")
+            .with("refresh_token", "r3fresh")
             .with("Authorization", "Bearer abc")
-            .with("clientSecret", "GOCSPX-3f")
+            .with("clientSecret", "s3cret")
             .with("password", "hunter2")
             .with("email", "someone@example.com")
             .redacted();
@@ -258,17 +259,17 @@ mod tests {
         let redacted = event("sync.push.failed")
             .with(
                 "error",
-                "GET https://drive.googleapis.com/v3/files?token=ya29.a0AfH6SM failed",
+                "GET https://api.turso.tech/v1/organizations?token=eyJhbGciOiJFZERTQSJ9 failed",
             )
             .with("header", "authorization: Bearer 1234")
-            .with("cursor", "1//04dXmRefresh")
+            .with("cursor", "resume after bearer eyJhbGciOiJFZERTQSJ9")
             .redacted();
 
         // named in a pair, so the request survives and only its token goes — the
         // failing call is most of what makes the entry worth keeping.
         assert_eq!(
             redacted.fields.get("error").map(String::as_str),
-            Some("GET https://drive.googleapis.com/v3/files?token=[redacted] failed")
+            Some("GET https://api.turso.tech/v1/organizations?token=[redacted] failed")
         );
 
         // loose in the prose, with no pair to cut at: there is no way to take the

@@ -42,7 +42,7 @@ pub(crate) fn pkce_challenge(verifier: &str) -> String {
 mod tests {
     use super::{pkce_challenge, random_url_safe_token};
 
-    /// the worked example from RFC 7636 appendix B. Google verifies the challenge
+    /// the worked example from RFC 7636 appendix B. The server verifies the challenge
     /// against the verifier we send later, so an encoding that is merely
     /// self-consistent still fails against the live endpoint.
     #[test]

@@ -313,7 +313,7 @@ async fn workspace_batch(
     Ok(results)
 }
 
-#[allow(dead_code)]
+#[cfg(debug_assertions)]
 fn log(single: Option<&SQLQuery>, batch: Option<&[SQLQuery]>) {
     if let Some(query) = single {
         println!(

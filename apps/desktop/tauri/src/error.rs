@@ -305,36 +305,6 @@ impl Error {
             message: message.into(),
         }
     }
-
-    /// extend the rendering, keeping the discriminant. A failure met while
-    /// recovering from another one is context on the original — the caller
-    /// still has to branch on what went wrong first.
-    pub fn with_context(mut self, addition: &str) -> Self {
-        let message = self.message_mut();
-        *message = format!("{}; additionally {}", message, addition);
-
-        self
-    }
-
-    fn message_mut(&mut self) -> &mut String {
-        let (Self::NotConfigured { message }
-        | Self::InvalidInput { message }
-        | Self::NotFound { message }
-        | Self::Forbidden { message }
-        | Self::Refused { message, .. }
-        | Self::PreconditionFailed { message }
-        | Self::Busy { message }
-        | Self::TimedOut { message }
-        | Self::Cancelled { message }
-        | Self::Integrity { message }
-        | Self::Io { message }
-        | Self::Network { message }
-        | Self::Database { message }
-        | Self::Credential { message }
-        | Self::Internal { message }) = self;
-
-        message
-    }
 }
 
 impl fmt::Display for Error {
@@ -595,22 +565,6 @@ mod tests {
         };
 
         assert_eq!(error.to_string(), "oauth session not found");
-    }
-
-    #[test]
-    fn context_extends_the_message_and_keeps_the_discriminant() {
-        let error = Error::Io {
-            message: "permission denied".to_string(),
-        }
-        .with_context("failed to write the recovery record");
-
-        assert_eq!(
-            error,
-            Error::Io {
-                message: "permission denied; additionally failed to write the recovery record"
-                    .to_string()
-            }
-        );
     }
 
     #[test]

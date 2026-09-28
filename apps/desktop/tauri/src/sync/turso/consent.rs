@@ -99,11 +99,11 @@ const TURSO_CONSENT_SCOPES: [&str; 3] = ["read", "db:create", "db:mint-token"];
 
 /// Where the Platform API token is filed in the platform's credential store.
 ///
-/// Its own service, and the only one this application files now: the services Google sign-in
-/// and the control plane filed under were beside it until both retired, and a keyring service
-/// name is data on installed machines, so those two are left to age out rather than renamed
-/// over. This is a different credential from a different issuer with a different lifetime, and
-/// it has never shared a name with either.
+/// Its own service, and the only one this application files now. Older installs filed other
+/// credentials under services of their own, and a keyring service name is data on installed
+/// machines, so those are left to age out rather than renamed over. This is a different
+/// credential from a different issuer with a different lifetime, and it has never shared a name
+/// with any of them.
 ///
 /// **It is the reason the token is never a column.** Requirement 5 keeps this authority on
 /// the owner's machine and out of every database, and a credential store is the only place
@@ -673,7 +673,7 @@ async fn request_platform_token(
     // keeps that answer.
     let payload = serde_json::from_str::<OAuthTokenResponse>(&body).unwrap_or_default();
 
-    parse_token_response(status, payload, crate::timestamp::now()).map(|tokens| tokens.access_token)
+    parse_token_response(status, payload).map(|tokens| tokens.access_token)
 }
 
 /// Wait for the browser to come back, and settle the consent with what it carried.
@@ -1128,7 +1128,7 @@ mod tests {
         );
         assert!(
             !started.authorization_url.contains("access_type"),
-            "google's own parameters reached turso: {}",
+            "another server's parameters reached turso: {}",
             started.authorization_url
         );
     }

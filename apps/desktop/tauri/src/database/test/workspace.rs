@@ -280,7 +280,7 @@ pub(in crate::database) fn migration_statements(up_to: usize) -> Vec<String> {
         .collect()
 }
 
-/// How many migrations ship, which is what the client sends to the mint.
+/// How many migrations ship, which is what `WORKSPACE_SCHEMA_VERSION` counts.
 pub(in crate::database) fn shipped_migration_count() -> usize {
     std::fs::read_dir(std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("migrations"))
         .expect("the migrations directory is missing")

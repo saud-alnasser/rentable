@@ -99,8 +99,7 @@ enum WorkspaceStanding {
 /// **The credential is what the member's vault unsealed**, held for the replica by
 /// `workspace_open`, and the remote is on the signed row; nothing is minted and nothing is asked
 /// of anybody. A grant that is gone is the organization's answer that this machine should not be
-/// holding that replica any more, and the replica goes with it. *The control plane's mint stood
-/// here until the retirement; a machine reached it on every launch to be told the same thing.*
+/// holding that replica any more, and the replica goes with it.
 ///
 /// **Whatever is held is let go of first, and that is the one-file rule rather than tidiness.**
 /// `sqlx` and `turso` are in disjoint locking domains — `database/mod.rs` has the detail — so a
