@@ -39,7 +39,7 @@
 	import type { ContractPrefill } from '$lib/contract/host.svelte';
 	import { getContractRenewalTerm } from '$lib/contract/renewal';
 	import { useReadUnit } from '$lib/complex/query';
-	import { onMutationError } from '$lib/design/mutation';
+	import { onMutationError } from '$lib/mutation';
 	import {
 		useCreateContract,
 		useFetchAssignableUnitsForTerm,

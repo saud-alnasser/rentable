@@ -5,7 +5,7 @@
 	import { startWorkspaceSyncManager } from '$lib/sync/autosync';
 	import { listenForSessionEnded } from '$lib/sync/event';
 	import { listenForSignOut } from '$lib/sync/sign-out';
-	import { trustWorkspaceData } from '$lib/design/query';
+	import { trustWorkspaceData } from '$lib/mutation';
 	import { dropLandingOnNavigation } from '$lib/create';
 	import { TooltipProvider } from '@rentable/design/primitive/tooltip/index.js';
 	import { NotificationProvider } from '$lib/notification/ui';

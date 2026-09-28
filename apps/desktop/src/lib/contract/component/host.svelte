@@ -28,7 +28,7 @@
 	import { toWhatsAppUrl, type ContractReminder } from '$lib/contract/reminder';
 	import { toDeleteStep, toPaletteVerbs } from '$lib/act';
 	import { consumeCreateIntent } from '$lib/create';
-	import { onMutationError, onMutationSuccess } from '$lib/design/mutation';
+	import { onMutationError, onMutationSuccess } from '$lib/mutation';
 	import {
 		showErrorSentence,
 		showErrorToast,

@@ -14,7 +14,7 @@ import {
 	invalidateWorkspaceData,
 	trustWorkspaceData,
 	workspacePrefixes
-} from '../query.ts';
+} from '../cache.ts';
 
 // `QueryClient` holds private state, so nothing assembled by hand is one — a recorder has to
 // extend the class itself. The library reaches a `.svelte` file this harness cannot load, so

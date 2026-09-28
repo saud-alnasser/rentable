@@ -27,10 +27,11 @@ Components never call the API directly. A concept's `query.ts` wraps it in TanSt
 and components use those hooks. Query v6 takes a thunk, not an object.
 
 Each domain's query module composes its key set from the workspace prefixes in
-`design/query.ts` and exports it. Every data mutation invalidates through the shared
-helper there, and a full pass with no touch-set — a sync pull, a day crossing — through
-the root helper beside it; an invalidation that spells a key out inline drifts the moment
-the key changes. Settings and remote-sync keep their own keys and invalidations.
+`$lib/mutation` and exports it, and declares each data mutation through `declareMutation` from
+the same entry. Every data mutation invalidates through the shared helper there, and a full
+pass with no touch-set — a sync pull, a day crossing — through the root helper beside it; an
+invalidation that spells a key out inline drifts the moment the key changes. Settings
+and remote-sync keep their own keys and invalidations.
 
 Toast behaviour on a mutation goes through the shared success and error handlers, never
 through direct toast calls in a component — that is what keeps a refusal reaching the user

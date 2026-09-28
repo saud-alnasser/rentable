@@ -5,10 +5,9 @@ import {
 	type ComplexSortColumnId,
 	type UnitSortColumnId
 } from '$lib/complex/complex';
-import { declareMutation, describeOutcomeChange } from '$lib/design/mutation';
+import { declareMutation, describeOutcomeChange, workspacePrefixes } from '$lib/mutation';
 import type { SelectionCall } from '@rentable/design/selection.js';
 import type { HistoryEntry } from '$lib/history';
-import { workspacePrefixes } from '$lib/design/query';
 import { isRecordId } from '$lib/platform/database/identity';
 import type { ListSort } from '@rentable/design/sort.js';
 import { LL } from '$lib/i18n/i18n-svelte';

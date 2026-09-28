@@ -1,6 +1,6 @@
 import { isTheGroupNeeded } from './setup';
 import api, { forgetContext } from '$lib/api/caller';
-import { onMutationError, onMutationSuccess, type MutationOptions } from '$lib/design/mutation';
+import { onMutationError, onMutationSuccess, type MutationOptions } from '$lib/mutation';
 import { LL } from '$lib/i18n/i18n-svelte';
 import {
 	tauri,
@@ -39,7 +39,7 @@ const CONSENT_POLL_INTERVAL_MS = 1_500;
  * is the shared one ([[rules/frontend]], *Data access*). A caller that named its own sentence
  * keeps it.
  *
- * The alternative is the one `design/mutation.ts` already took for declared mutations: a success
+ * The alternative is the one `mutation/mutation.ts` already took for declared mutations: a success
  * that is a function of what came back, resolved where the thunk is resolved. That widening of
  * `MutationOptions` is the right home for this, and this helper goes the day it lands; it was not
  * taken here because the three hooks that need it are this concept's, and a change to the shared

@@ -4,10 +4,9 @@ import {
 	toContractName as toContractRecordName,
 	type ContractSortColumnId
 } from '$lib/contract/contract';
-import { declareMutation, describeOutcomeChange } from '$lib/design/mutation';
+import { declareMutation, describeOutcomeChange, workspacePrefixes } from '$lib/mutation';
 import type { SelectionCall } from '@rentable/design/selection.js';
 import type { HistoryEntry } from '$lib/history';
-import { workspacePrefixes } from '$lib/design/query';
 import type { ContractRank } from '$lib/contract/rank';
 import type { ListSort } from '@rentable/design/sort.js';
 import { LL } from '$lib/i18n/i18n-svelte';

@@ -6,7 +6,7 @@
 	import DeleteDialog from '@rentable/design/block/delete-dialog.svelte';
 	import { usesAppleKeyboard } from '@rentable/design/shortcut.js';
 	import { toDeleteStep, toPaletteVerbs } from '$lib/act';
-	import { onMutationError, onMutationSuccess } from '$lib/design/mutation';
+	import { onMutationError, onMutationSuccess } from '$lib/mutation';
 	import {
 		showErrorSentence,
 		showErrorToast,

@@ -369,7 +369,7 @@ and 8: contract is the first concept declared this way, and the others follow it
 **An ordinary delete happens at once and offers undo.** A record whose delete removes the record
 and nothing else is gone the moment the act is chosen, and the announcement it raises carries the
 undo control and the line saying the undo lasts while the application is open (the declaration's
-`toast.detail` in `design/mutation.ts`). Ctrl/Cmd+Z takes it back as well. There is no dialog in
+`toast.detail` in `mutation/mutation.ts`). Ctrl/Cmd+Z takes it back as well. There is no dialog in
 front of it.
 
 **A confirmation appears only where a delete removes more than the record, or cannot be undone.**
@@ -420,7 +420,7 @@ Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], re
 
 **A change to a workspace's records can be taken back while the application is open, by the
 announcement or by the key, and the two do one thing.** A mutation that declares an `inverse` in
-`design/mutation.ts` leaves it on the session's stack (`design/inverse.ts`), and its announcement
+`mutation/mutation.ts` leaves it on the session's stack (`design/inverse.ts`), and its announcement
 carries *undo*. Ctrl/Cmd+Z takes back the change on top of the stack, and Ctrl/Cmd+Shift+Z or
 Ctrl+Y applies it again (`design/undo-shortcut.ts`). Both are application shortcuts that stand down
 in a text field, where those keys are the field's own, and the command menu offers both by name,
@@ -987,7 +987,7 @@ Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], re
 ### Feedback
 
 **Every toast goes through the shared handlers.** A mutation announces through its declaration and
-the handlers in `design/mutation.ts`; anything else, a failure raised outside a mutation or a
+the handlers in `mutation/mutation.ts`; anything else, a failure raised outside a mutation or a
 success nothing declared, goes through `$lib/notification`. The handlers raise through
 `$lib/notification` too, so `notification/notification.ts` is the only importer of `toast` and
 `notification/` the only home that mounts the packaged `Toaster`; `notification/tests/reach.test.ts`

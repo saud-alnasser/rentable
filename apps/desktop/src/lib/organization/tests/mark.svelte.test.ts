@@ -46,7 +46,7 @@ vi.mock('$lib/api/caller', () => ({
 	}
 }));
 
-vi.mock('$lib/design/mutation', async (original) => ({
+vi.mock('$lib/mutation', async (original) => ({
 	...(await original<Record<string, unknown>>()),
 	onMutationError: (_: unknown, error: unknown) => host.errors.push(error)
 }));

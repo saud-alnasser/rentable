@@ -1,5 +1,5 @@
 import api from '$lib/api/caller';
-import { invalidateWorkspaceData, workspacePrefixes } from '$lib/design/query';
+import { invalidateWorkspaceData, workspacePrefixes } from './cache';
 import { historyKeys, type HistoryEntry } from '$lib/history';
 import { recordDiagnosticError } from '$lib/platform/diagnostics';
 import { inverseStack, type Inverse } from '$lib/design/inverse';

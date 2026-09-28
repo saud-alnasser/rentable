@@ -1,6 +1,6 @@
 import api from '$lib/api/caller';
 import type { FilterPeriod } from '$lib/date';
-import { workspacePrefixes } from '$lib/design/query';
+import { workspacePrefixes } from '$lib/mutation';
 import { createQuery } from '@tanstack/svelte-query';
 
 // the key sits under the contract tree because everything the landing screen shows is

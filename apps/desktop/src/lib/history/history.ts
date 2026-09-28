@@ -1,4 +1,8 @@
-import { workspacePrefixes } from '$lib/design/query';
+// the cache policy's own module rather than `$lib/mutation`: the entry loads the mutation
+// handlers, which import `$lib/history` back, so `historyKeys` below would read the prefixes before
+// they exist, and they carry a toaster no router test can load. It goes when the composition root
+// hands the prefixes over (effort 840, ticket 25).
+import { workspacePrefixes } from '$lib/mutation/cache';
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 import type { RecordKind } from '$lib/permission';
 import { FAMILIES, type Flag } from '@rentable/workspace-permission';

@@ -1,9 +1,8 @@
 import api from '$lib/api/caller';
 import type { FilterPeriod } from '$lib/date';
-import { declareMutation, describeOutcomeChange } from '$lib/design/mutation';
+import { declareMutation, describeOutcomeChange, workspacePrefixes } from '$lib/mutation';
 import type { SelectionCall } from '@rentable/design/selection.js';
 import type { HistoryEntry } from '$lib/history';
-import { workspacePrefixes } from '$lib/design/query';
 import { LL, locale } from '$lib/i18n/i18n-svelte';
 import { isPaymentSortColumnId } from '$lib/payment/payment';
 import { isRecordId } from '$lib/platform/database/identity';

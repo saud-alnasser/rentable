@@ -11,7 +11,7 @@ import { toast, type ExternalToast } from 'svelte-sonner';
  * WHERE A TOAST IS RAISED
  *
  * This module is the only one that imports `toast`, and `notification/tests/reach.test.ts` fails
- * on a second. A mutation reports through the handlers in `$lib/design/mutation`, which raise
+ * on a second. A mutation reports through the handlers in `$lib/mutation`, which raise
  * through {@link notify}; everything else a surface has to announce, which is a failure raised
  * outside a mutation or a success that no mutation stands behind, comes through the functions
  * below it.
@@ -47,7 +47,7 @@ export const notify = {
  * quotes when asked what happened, and the diagnostics file is where that question is answered.
  *
  * for failures raised outside a mutation. a mutation reports through the shared
- * handlers in `$lib/design/mutation` instead.
+ * handlers in `$lib/mutation` instead.
  */
 export function showErrorToast(error: unknown, translations: TranslationFunctions) {
 	const { title, detail } = toErrorMessage(error, translations);

@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { readRefusal, refuse } from '$lib/api/refusal.ts';
 
 import type { Inverse } from '$lib/design/inverse.ts';
-import type { MutationDeclaration } from '$lib/design/mutation.ts';
+import type { MutationDeclaration } from '$lib/mutation';
 import { bindingOf } from '$lib/design/tests/testing.ts';
 
 // both dependencies reach a `.svelte` file, which this harness cannot load. the substitutes
@@ -71,9 +71,8 @@ mock.module('@tanstack/svelte-query', {
 	}
 });
 
-const { applyRedo, applyUndo, declareMutation, describeOutcomeChange } =
-	await import('$lib/design/mutation');
-const { workspacePrefixes } = await import('$lib/design/query');
+const { applyRedo, applyUndo, declareMutation, describeOutcomeChange, workspacePrefixes } =
+	await import('$lib/mutation');
 const { inverseStack } = await import('$lib/design/inverse');
 const { memberPermissions } = await import('$lib/permission');
 const { EVERY_FLAG, maskOf } = await import('@rentable/workspace-permission');

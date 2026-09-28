@@ -1,8 +1,7 @@
 import api from '$lib/api/caller';
-import { declareMutation, describeOutcomeChange } from '$lib/design/mutation';
+import { declareMutation, describeOutcomeChange, workspacePrefixes } from '$lib/mutation';
 import type { SelectionCall } from '@rentable/design/selection.js';
 import type { HistoryEntry } from '$lib/history';
-import { workspacePrefixes } from '$lib/design/query';
 import type { ListSort } from '@rentable/design/sort.js';
 import { TENANT_SORT_COLUMN_IDS, type TenantSortColumnId } from '$lib/tenant/tenant';
 import { LL } from '$lib/i18n/i18n-svelte';

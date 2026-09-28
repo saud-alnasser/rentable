@@ -7,7 +7,7 @@ import {
 	syncWorkspaceBeforeExit,
 	syncWorkspaceNow
 } from '$lib/sync/workspace';
-import { onMutationError, onMutationSuccess, type MutationOptions } from '$lib/design/mutation';
+import { onMutationError, onMutationSuccess, type MutationOptions } from '$lib/mutation';
 import { keys as dashboardKeys } from '$lib/dashboard/query';
 import { LL } from '$lib/i18n/i18n-svelte';
 import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';

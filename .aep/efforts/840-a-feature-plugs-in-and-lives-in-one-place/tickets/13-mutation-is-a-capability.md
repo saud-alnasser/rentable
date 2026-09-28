@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [10]
 ---
 # refactor(desktop): mutation and the query cache are a capability
@@ -14,8 +14,8 @@ The spec is [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]]; the 
 
 Traces requirements 13 and 20 of [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]], and criteria 13 and 20.
 
-- [ ] `declareMutation` is imported from `$lib/mutation` everywhere (criteria 13 and 20).
-- [ ] The integration gate passes on this commit; no test assertion changes except where it names a moved path (criterion 19).
+- [x] `declareMutation` is imported from `$lib/mutation` everywhere (criteria 13 and 20). Verified: every source import of `declareMutation` (complex, contract, payment, tenant and workspace `query.ts`) is `from '$lib/mutation'`; a search for an import of it from anywhere else prints nothing, and `design/(mutation|query)` has no hit. 40 raw `createMutation` calls remain in `organization/query.ts` (32) and `settings/query.ts` (8): none invalidates workspace data, which `declareMutation` always does, so routing them would change behaviour; recorded for converge against criterion 13.
+- [x] The integration gate passes on this commit; no test assertion changes except where it names a moved path (criterion 19). Verified: in the run's tree: check 0, eslint 0, `pnpm test` 3 of 3 tasks, build:web 0, validate 0; test changes are import paths, one `vi.mock` path, and two merged duplicate dynamic imports.
 
 ## Relevant areas
 

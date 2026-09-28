@@ -1,5 +1,5 @@
 import api from '$lib/api/caller';
-import { declareMutation } from '$lib/design/mutation';
+import { declareMutation } from '$lib/mutation';
 import { LL } from '$lib/i18n/i18n-svelte';
 import { get } from 'svelte/store';
 

@@ -1,5 +1,5 @@
 import api, { forgetContext } from '$lib/api/caller';
-import { invalidateRoot } from '$lib/design/query';
+import { invalidateRoot } from '$lib/mutation';
 import { toErrorMessage, toErrorText } from '$lib/error/message';
 import LL from '$lib/i18n/i18n-svelte';
 import { setLocale } from '$lib/i18n/i18n-svelte';

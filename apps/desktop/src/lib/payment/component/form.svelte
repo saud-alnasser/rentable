@@ -22,7 +22,7 @@
 	import { cn } from '@rentable/design/tailwind.js';
 	import { getAmountDueThisCycle, getRemainingContractBalance } from '$lib/contract/contract';
 	import { useFetchContract } from '$lib/contract/query';
-	import { onMutationError } from '$lib/design/mutation';
+	import { onMutationError } from '$lib/mutation';
 	import { fieldOfFailure, toRefusalText } from '$lib/error/refusal';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { useCreatePayment, useUpdatePayment } from '$lib/payment/query';

@@ -1,6 +1,7 @@
 ---
 paths:
   - apps/desktop/src/lib/design/**
+  - apps/desktop/src/lib/mutation/**
   - apps/desktop/src/lib/api/**
   - apps/desktop/src/lib/platform/database/**
   - apps/desktop/src/lib/payment/**

@@ -143,8 +143,9 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
   package — the composites that reach past the design system, in `block/` (`record-actions`
   retired with effort 832, when copy details became a record act); the record acts' shape and
   projections in `acts.ts`, the cells, and the
-  cross-concept helpers beside them: mutation handling, the workspace query-cache policy, undo,
-  and the import helpers. The list, the `list-toolbar` and `search-field` every set draws above
+  cross-concept helpers beside them: undo and the import helpers. How a data mutation is
+  declared and announced, and the workspace query-cache policy, are the `mutation/` capability
+  since effort 840. The list, the `list-toolbar` and `search-field` every set draws above
   its records, the list's keyboard, motion and filters are the `list/` capability since effort
   840, as the shortcut registry and its one key listener are the `shortcut/` capability. The
   create control that is each set's one way to add to it, the create key and what it answers,
