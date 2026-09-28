@@ -51,7 +51,6 @@ use super::{
         WorkspaceAuthority, WorkspaceOverrideAuthority, covers, needed_for, sign,
     },
     permission::{self, OWNER_ROLE},
-    transition::TRANSITIONS,
     vault::{KDF_SALT_BYTES, KdfParams, PUBLIC_KEY_BYTES, Vault},
 };
 
@@ -76,7 +75,7 @@ pub const TABLES: [&str; 15] = [
 ];
 
 /// How many of [`TABLES`] format 2 held: every one but `workspace_override`, which format 3 adds
-/// (`transition/three.rs`), and which is last in the schema for that reason.
+/// (`upgrade/format/three.rs`), and which is last in the schema for that reason.
 const FORMAT_TWO_TABLES: usize = 14;
 
 /// How long a machine counts as connected after it was last seen: seven days (effort 828,
@@ -95,22 +94,24 @@ pub const MACHINE_PRESENCE_WINDOW: i64 = 7 * 24 * 60 * 60 * 1000;
 /// **An older organization is upgraded by its owner, and a newer one refused.** An organization
 /// this build creates carries this number in its one `format` row. Every organization made before
 /// effort 838 has no `format` table, which is what version 1 was: its owner's machine upgrades it
-/// in place at their sign-in, resume or connect, online, and writes this row last (`upgrade.rs`,
-/// tickets 22 and 23). An upgrade cut short has no row either, and its owner finishes it.
-/// Until then, and for an organization with a number above this one, nothing is read from it and
-/// nothing written to it: [`OrganizationStore::refuse_another_format`] says which, and the person
-/// is told what to do. That absence is how an older organization is told apart, and it is why
-/// [`OrganizationStore::complete_schema`] never creates the table in one. *It was a break with no
-/// upgrade until the human's call of 2026-09-26: an update replaces the build that could export,
-/// so nobody could reach an export.*
+/// in place at their sign-in, resume or connect, online, and writes this row last
+/// (`upgrade/format/runner.rs`, tickets 22 and 23). An upgrade cut short has no row either, and its
+/// owner finishes it. Until then, and for an organization with a number above this one, nothing is
+/// read from it and nothing written to it: [`OrganizationStore::refuse_another_format`] says which,
+/// and the person is told what to do. That absence is how an older organization is told apart, and
+/// it is why [`OrganizationStore::complete_schema`] never creates the table in one. *It was a break
+/// with no upgrade until the human's call of 2026-09-26: an update replaces the build that could
+/// export, so nobody could reach an export.*
 ///
 /// **Unsigned.** Rewriting the number achieves nothing the credential does not already allow: a
 /// holder who changes it makes the organization refuse to open, as deleting its rows would.
 ///
-/// **Counted from the changes of format this build holds** (ticket 26): the one after the last
-/// change `transition::TRANSITIONS` lists, so adding a change is what moves it, the way `build.rs`
-/// counts the workspace migrations.
-pub const FORMAT_VERSION: i64 = TRANSITIONS.len() as i64 + 1;
+/// **The one after the last change of format this build holds** (ticket 26): the last change
+/// `upgrade::format::TRANSITIONS` lists makes it, so adding a change moves it on by one, and the
+/// test at the foot of `upgrade/format/mod.rs` fails until it has. *Counted from that list until
+/// effort 840 (ticket 48): the store names nothing of `upgrade`, so the number is written here and
+/// the list is held to it, and a release that removes the upgrade keeps it.*
+pub const FORMAT_VERSION: i64 = 3;
 
 /// The first format that writes a `format` row: format 1 wrote none, so a row is never read as
 /// lower than this (`OrganizationStore::format_as_it_stands`, ticket 29).
@@ -799,13 +800,13 @@ impl OrganizationStore {
     }
 
     /// Create the tables of format 2 where they do not exist, and none a later format adds: what
-    /// the change from format 1 creates (`transition/two.rs`), leaving the rest to the changes
+    /// the change from format 1 creates (`upgrade/format/two.rs`), leaving the rest to the changes
     /// after it.
     pub async fn install_format_two_schema(&self) -> Result<(), Error> {
         install_format_two(&self.connection).await
     }
 
-    /// Create what format 3 adds where it does not exist (`transition/three.rs`).
+    /// Create what format 3 adds where it does not exist (`upgrade/format/three.rs`).
     pub async fn install_format_three_schema(&self) -> Result<(), Error> {
         install_format_three(&self.connection).await
     }
@@ -865,10 +866,10 @@ impl OrganizationStore {
     /// **Only an organization of this build's format is completed** (effort 838, requirement 11).
     /// One of another format is written to not at all, so this creates nothing in it and answers
     /// that nothing was created; the reader that follows is what refuses it, or its owner's
-    /// upgrade reshapes it (`upgrade.rs`). Above all it never creates `format` in an older
-    /// organization, whose missing table is one of the things that tell it apart; one carrying a
-    /// `format` row beside format 1's table or columns is older too (ticket 25), and a member's
-    /// pull creates nothing in it.
+    /// upgrade reshapes it (`upgrade/format/runner.rs`). Above all it never creates `format` in an
+    /// older organization, whose missing table is one of the things that tell it apart; one
+    /// carrying a `format` row beside format 1's table or columns is older too (ticket 25), and a
+    /// member's pull creates nothing in it.
     pub async fn complete_schema(&self) -> Result<bool, turso::Error> {
         let format = self
             .format()
@@ -936,9 +937,9 @@ impl OrganizationStore {
     }
 
     /// Record that this organization is of format `version`: the row the owner's upgrade writes
-    /// last, naming the format its walk ended at (`upgrade.rs`, ticket 26), which is this build's
-    /// except where a test walks a list of its own. The table is created where it is missing, as
-    /// [`OrganizationStore::write_format`] says.
+    /// last, naming the format its walk ended at (`upgrade/format/runner.rs`, ticket 26), which is
+    /// this build's except where a test walks a list of its own. The table is created where it is
+    /// missing, as [`OrganizationStore::write_format`] says.
     pub async fn write_format_version(&self, version: i64) -> Result<(), Error> {
         self.connection.execute(SCHEMA[0], ()).await?;
         self.connection
@@ -2943,7 +2944,7 @@ impl OrganizationStore {
     }
 
     /// Remove one grant row and nothing beside it: what the change from format 1 drops, in an
-    /// organization that holds no workspace overrides yet (`transition/two.rs`).
+    /// organization that holds no workspace overrides yet (`upgrade/format/two.rs`).
     pub async fn delete_grant_alone(
         &self,
         member_id: &str,
@@ -3661,7 +3662,7 @@ impl OrganizationStore {
 /// Create the fifteen tables on `connection` where they do not exist: what
 /// [`OrganizationStore::install_schema`] runs on the replica, and what a change of format arriving
 /// at this format builds a fresh organization with, to check an upgraded one against
-/// (`transition::Transition::built`, ticket 33).
+/// (`upgrade::format::Transition::built`, ticket 33).
 pub(crate) async fn install(connection: &turso::Connection) -> Result<(), Error> {
     for statement in SCHEMA {
         connection.execute(statement, ()).await?;
@@ -3672,7 +3673,7 @@ pub(crate) async fn install(connection: &turso::Connection) -> Result<(), Error>
 
 /// Create the tables of format 2 on `connection`: every one but what format 3 added. What the
 /// change arriving at format 2 builds a fresh organization with, where a walk ends there
-/// (`transition/two.rs`), and what a test builds an organization of format 2 from.
+/// (`upgrade/format/two.rs`), and what a test builds an organization of format 2 from.
 pub(crate) async fn install_format_two(connection: &turso::Connection) -> Result<(), Error> {
     for statement in &SCHEMA[..FORMAT_TWO_TABLES] {
         connection.execute(statement, ()).await?;
@@ -3682,7 +3683,7 @@ pub(crate) async fn install_format_two(connection: &turso::Connection) -> Result
 }
 
 /// Create what format 3 adds, where it is missing: the `workspace_override` table (effort 838,
-/// ticket 53), and nothing else. What `transition/three.rs` runs.
+/// ticket 53), and nothing else. What `upgrade/format/three.rs` runs.
 pub(crate) async fn install_format_three(connection: &turso::Connection) -> Result<(), Error> {
     for statement in &SCHEMA[FORMAT_TWO_TABLES..] {
         connection.execute(statement, ()).await?;
@@ -3752,7 +3753,7 @@ fn member_of(member: &MemberRecord) -> MemberAuthority<'_> {
 }
 
 /// What a workspace row puts under signature, from the record.
-pub(super) fn workspace_authority(workspace: &WorkspaceRecord) -> Authority<'_> {
+pub(crate) fn workspace_authority(workspace: &WorkspaceRecord) -> Authority<'_> {
     Authority::Workspace(WorkspaceAuthority {
         database_name: &workspace.database_name,
         database_hostname: &workspace.database_hostname,
@@ -3760,7 +3761,7 @@ pub(super) fn workspace_authority(workspace: &WorkspaceRecord) -> Authority<'_> 
 }
 
 /// What a grant row puts under signature, from the record.
-pub(super) fn grant_authority(grant: &GrantRecord) -> Authority<'_> {
+pub(crate) fn grant_authority(grant: &GrantRecord) -> Authority<'_> {
     Authority::Grant(GrantAuthority {
         member_id: &grant.member_id,
         workspace_id: &grant.workspace_id,
@@ -3771,7 +3772,7 @@ pub(super) fn grant_authority(grant: &GrantRecord) -> Authority<'_> {
 }
 
 /// What an invitation row puts under signature, from the record.
-pub(super) fn invitation_authority(invitation: &InvitationRecord) -> Authority<'_> {
+pub(crate) fn invitation_authority(invitation: &InvitationRecord) -> Authority<'_> {
     Authority::Invitation(InvitationAuthority {
         id: &invitation.id,
         member_id: &invitation.member_id,
@@ -3780,7 +3781,7 @@ pub(super) fn invitation_authority(invitation: &InvitationRecord) -> Authority<'
 }
 
 /// What the mark row puts under signature, from the record.
-pub(super) fn mark_authority(mark: &MarkRecord) -> Authority<'_> {
+pub(crate) fn mark_authority(mark: &MarkRecord) -> Authority<'_> {
     Authority::Mark(MarkAuthority {
         image_sealed: &mark.image_sealed,
         media_type: &mark.media_type,
@@ -3802,7 +3803,7 @@ pub(super) fn workspace_override_authority(
 }
 
 /// What a role row puts under signature, from the record.
-pub(super) fn role_authority(role: &RoleRecord) -> Authority<'_> {
+pub(crate) fn role_authority(role: &RoleRecord) -> Authority<'_> {
     Authority::Role(RoleAuthority {
         id: &role.id,
         kind: &role.kind,
@@ -4450,9 +4451,9 @@ mod tests {
         assert!(names.contains(&"database_name".to_string()));
         assert!(names.contains(&"schema_version".to_string()));
 
-        // the invitation's own columns, pinned: `sealed_secret` is what `forget::old_shape` calls
-        // a replica without the old shape by, so a schema that stopped declaring it would wipe
-        // every machine at startup rather than fail here. *`code_seal` and
+        // the invitation's own columns, pinned: `sealed_secret` is what `upgrade::shape::old_shape`
+        // calls a replica without the old shape by, so a schema that stopped declaring it would
+        // wipe every machine at startup rather than fail here. *`code_seal` and
         // `code_expires_at` sat last, added last and outside the signature, until effort 828 moved
         // the seal into the link's own text.*
         let mut columns = store
@@ -4484,7 +4485,8 @@ mod tests {
         // the member's own columns, pinned for the same two reasons: `signing_public_key` is what
         // an owner certifies when they widen somebody into an act that signs (effort 826,
         // requirement 6), `session_epoch` is what ends a session opened on another machine
-        // (requirement 22), and `forget::old_shape` calls a replica without either the old shape.
+        // (requirement 22), and `upgrade::shape::old_shape` calls a replica without either the old
+        // shape.
         // `owner_seed_sealed` is last and nullable, which is load-bearing: it is the organization
         // key's seed sealed to an owner who was given the organization (effort 828, requirement
         // 22), and it is folded into the signed preimage only where it is present, so a row

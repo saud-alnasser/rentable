@@ -15,6 +15,9 @@ import { createQuery, useQueryClient, type QueryClient } from '@tanstack/svelte-
  *
  * Apart from `query.ts` because it reads this machine's settings as well as the shell, which the
  * workspace's one mutation has no reason to import.
+ *
+ * Named for the file it reads, which `tauri/src/upgrade/record.rs` reads for it; it was
+ * `earlier.ts` until effort 840 (ticket 48).
  */
 
 /**

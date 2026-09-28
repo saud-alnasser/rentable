@@ -89,7 +89,7 @@ pub(super) struct Standing<'a> {
 /// role row, the rows of everybody who holds it, a certificate and a revocation per holder and the
 /// rows each old certificate signed; the last holder's certificate being one the actor cannot
 /// issue has to leave the first holder's as it was.
-pub(super) async fn in_one_transaction<T>(
+pub(crate) async fn in_one_transaction<T>(
     store: &OrganizationStore,
     act: impl Future<Output = Result<T, Error>>,
 ) -> Result<T, Error> {
@@ -353,7 +353,7 @@ const THE_SEAL_IS_NOT_THIS_KEY: &str = "what was sealed onto your row is not the
 /// `new_verifying_key` and `accepted_at` are `None` while the offer stands, so the offer and the
 /// completion are two preimages over one row, which is what stops a signature being lifted from
 /// one onto the other.
-pub(super) fn authority_of(succession: &SuccessionRecord) -> SuccessionAuthority<'_> {
+pub(crate) fn authority_of(succession: &SuccessionRecord) -> SuccessionAuthority<'_> {
     SuccessionAuthority {
         id: &succession.id,
         offered_member_id: &succession.offered_member_id,

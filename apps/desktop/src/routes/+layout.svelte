@@ -42,7 +42,7 @@
 	import { createStartup } from '$lib/layout/startup';
 	import { provideStartup } from '$lib/layout/startup-context';
 	import { useCreateWorkspace } from '$lib/organization/query';
-	import { useEarlierRecords } from '$lib/workspace/earlier';
+	import { useEarlierRecords } from '$lib/workspace/app-database';
 	import { browserStartupPorts } from '$lib/layout/startup-ports';
 	import { DesignProvider, type DesignStrings } from '@rentable/design/strings.js';
 	import { toRefusalText } from '$lib/error/refusal';

@@ -62,12 +62,15 @@
 //! it tells a reader is which key issues the root from now on; there is nothing
 //! behind it to forget, and it can answer about no row.
 //!
-//! [`verify_format_one`] is the other, and it is not that second verifier either
+//! [`verify_older_row`] is the other, and it is not that second verifier either
 //! (effort 838, ticket 22). It judges the rows of an organization made before this
 //! chain existed, by the rules that organization was written under, for the one
 //! caller that reads such an organization at all: the owner's upgrade, which
 //! carries what it accepts into this chain, signed again from the root, and drops
 //! what it refuses. Nothing it accepts is believed by any reader of this format.
+//! What format 1 signed, and its verifier, are `upgrade/format/signature.rs`'s
+//! since effort 840 (ticket 48); the two signature checks and the revocation stay
+//! here, in the one call.
 //!
 //! # A revocation is a signed row
 //!
@@ -1349,8 +1352,9 @@ fn verify_signature(
         .map_err(|_| refuse())
 }
 
-/// What a member signs when they sign a row.
-fn preimage(certificate_id: &str, authority: Authority<'_>) -> Vec<u8> {
+/// What a member signs when they sign a row. Reachable from outside this module for format 1's
+/// verifier (`upgrade/format/signature.rs`), whose rows other than a member's signed exactly this.
+pub(crate) fn preimage(certificate_id: &str, authority: Authority<'_>) -> Vec<u8> {
     let mut message = Vec::new();
 
     // every arm names its fields rather than taking `..`, so a column added to a
@@ -1549,7 +1553,7 @@ fn revocation_preimage(revocation: &Revocation) -> Vec<u8> {
 /// it, a grant naming member `ab` and workspace `c` produces the same bytes as one
 /// naming member `a` and workspace `bc`, so a signature over either is a signature
 /// over both.
-fn field(message: &mut Vec<u8>, bytes: &[u8]) {
+pub(crate) fn field(message: &mut Vec<u8>, bytes: &[u8]) {
     message.extend_from_slice(&(bytes.len() as u64).to_be_bytes());
     message.extend_from_slice(bytes);
 }
@@ -1569,19 +1573,15 @@ fn optional_field(message: &mut Vec<u8>, bytes: Option<&[u8]>) {
 
 // format 1: what an organization made before effort 838 signed, read once by the upgrade
 
-/// What the organization key signed when it issued a certificate in format 1.
-const FORMAT_ONE_CERTIFICATE_DOMAIN: &[u8] = b"rentable.organization.authority.certificate.v1";
-
-/// What a member row carried under signature in format 1.
-const FORMAT_ONE_MEMBER_DOMAIN: &[u8] = b"rentable.organization.authority.member.v2";
-
 /// An `administrator_certificate` row, as an organization of format 1 carries it (effort 838,
 /// ticket 22): signed by the organization key every time, and revoked by a column nobody signed.
 ///
 /// **Read by the upgrade and by nothing else.** An organization of this format is upgraded by its
-/// owner's machine before anything else reads it (`transition/two.rs`), and what the
+/// owner's machine before anything else reads it (`upgrade/format/two.rs`), and what the
 /// upgrade needs from these rows is which of the rows they sign are genuine; the certificates
-/// themselves are not carried.
+/// themselves are not carried. Here rather than beside that format's verifier
+/// (`upgrade/format/signature.rs`) because the store reads it off format 1's table, and the store
+/// names nothing of `upgrade`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FormatOneCertificate {
     pub id: String,
@@ -1593,68 +1593,37 @@ pub struct FormatOneCertificate {
     pub revoked_at: Option<String>,
 }
 
-/// What a `member` row put under signature in format 1 (`member.v2`): the keys, the role word and
-/// the seven-act mask, and the offer's seal only where one stood.
-#[derive(Clone, Copy, Debug)]
-pub struct FormatOneMember<'a> {
-    pub public_key: &'a [u8],
-    pub signing_public_key: &'a [u8],
-    pub role: &'a str,
-    pub permissions: i64,
-    pub owner_seed_sealed: Option<&'a [u8]>,
-}
-
-/// One signed row of a format 1 organization: a member row in its own shape, or a row whose
-/// preimage has not changed since (a workspace, a grant, an invitation or the mark).
-#[derive(Clone, Copy, Debug)]
-pub enum FormatOneRow<'a> {
-    Member(FormatOneMember<'a>),
-    Unchanged(Authority<'a>),
-}
-
-/// Whether a row of a format 1 organization is genuine, as that format judged it: signed by the
-/// key its certificate names, that certificate signed by the key the caller pinned, and the
-/// certificate not revoked (effort 838, ticket 22).
+/// A row of an organization of an older format, judged as that format judged one: its signature
+/// against the key its certificate names, that certificate's signature against the key the caller
+/// pinned, and the certificate not revoked, in that order. Each pair is what was signed and the
+/// signature over it, built by the older format's own verifier (`upgrade/format/signature.rs`,
+/// [`verify_format_one`](crate::upgrade::format::signature::verify_format_one)), which is the one
+/// caller.
 ///
-/// **The verifier the upgrade reads the old directory through, and the only one**: a row this
-/// refuses is not carried into the new format. It asks nothing about what the row says, because
-/// format 1 asked nothing either; what a member could do is read off the row once it is genuine.
-/// A role row names no format 1 row, and is refused.
-pub fn verify_format_one(
+/// **One call, so the certificate behind a row cannot be skipped.** That is why this is reachable
+/// from outside this module and [`verify_signature`] is not: a caller of this checks the row and
+/// its certificate together, or checks nothing.
+pub(crate) fn verify_older_row(
     organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
-    certificate: &FormatOneCertificate,
-    row: FormatOneRow<'_>,
-    signature: &[u8],
+    certificate_signing_key: &[u8; VERIFYING_KEY_BYTES],
+    (row_preimage, row_signature): (&[u8], &[u8]),
+    (certificate_preimage, certificate_signature): (&[u8], &[u8]),
+    revoked: bool,
 ) -> Result<(), Error> {
-    if matches!(row, FormatOneRow::Unchanged(Authority::Role(_))) {
-        return Err(Error::Integrity {
-            message: "an organization of format 1 holds no role rows".to_string(),
-        });
-    }
-
-    if matches!(
-        row,
-        FormatOneRow::Unchanged(Authority::WorkspaceOverride(_))
-    ) {
-        return Err(Error::Integrity {
-            message: "an organization of format 1 holds no workspace overrides".to_string(),
-        });
-    }
-
     verify_signature(
-        &certificate.signing_public_key,
-        &format_one_preimage(&certificate.id, row),
-        signature,
+        certificate_signing_key,
+        row_preimage,
+        row_signature,
         FORGED_ROW,
     )?;
     verify_signature(
         organization_verifying_key,
-        &format_one_certificate_preimage(certificate),
-        &certificate.signature_by_organization_key,
+        certificate_preimage,
+        certificate_signature,
         FORGED_CERTIFICATE,
     )?;
 
-    if certificate.revoked_at.is_some() {
+    if revoked {
         return Err(Error::Integrity {
             message: REVOKED_CERTIFICATE.to_string(),
         });
@@ -1663,97 +1632,22 @@ pub fn verify_format_one(
     Ok(())
 }
 
-/// Issue a format 1 certificate, as the build before effort 838 did: for a test building an
-/// organization of that format.
 #[cfg(test)]
-pub(crate) fn issue_format_one_certificate(
-    organization_key: &OrganizationKey,
-    id: &str,
-    member_id: &str,
-    signing_public_key: &[u8; VERIFYING_KEY_BYTES],
-    issued_at: &str,
-) -> FormatOneCertificate {
-    let mut certificate = FormatOneCertificate {
-        id: id.to_string(),
-        member_id: member_id.to_string(),
-        signing_public_key: *signing_public_key,
-        signature_by_organization_key: Vec::new(),
-        issued_at: issued_at.to_string(),
-        revoked_at: None,
-    };
-
-    certificate.signature_by_organization_key = organization_key
-        .0
-        .sign(&format_one_certificate_preimage(&certificate))
-        .to_bytes()
-        .to_vec();
-
-    certificate
-}
-
-/// Sign a row as the build before effort 838 did: for a test building an organization of that
-/// format.
-#[cfg(test)]
-pub(crate) fn sign_format_one(
-    key: &AdministratorKey,
-    certificate: &FormatOneCertificate,
-    row: FormatOneRow<'_>,
-) -> Vec<u8> {
-    key.0
-        .sign(&format_one_preimage(&certificate.id, row))
-        .to_bytes()
-        .to_vec()
-}
-
-/// What a format 1 row signed: `member.v2` for a member, and today's preimage for the rest, which
-/// has not changed since.
-fn format_one_preimage(certificate_id: &str, row: FormatOneRow<'_>) -> Vec<u8> {
-    let FormatOneMember {
-        public_key,
-        signing_public_key,
-        role,
-        permissions,
-        owner_seed_sealed,
-    } = match row {
-        FormatOneRow::Member(member) => member,
-        FormatOneRow::Unchanged(authority) => return preimage(certificate_id, authority),
-    };
-    let mut message = FORMAT_ONE_MEMBER_DOMAIN.to_vec();
-
-    field(&mut message, certificate_id.as_bytes());
-    field(&mut message, public_key);
-    field(&mut message, signing_public_key);
-    field(&mut message, role.as_bytes());
-    field(&mut message, &permissions.to_be_bytes());
-
-    // appended untagged where present and not at all where absent, as format 1 did.
-    if let Some(owner_seed_sealed) = owner_seed_sealed {
-        field(&mut message, owner_seed_sealed);
+impl OrganizationKey {
+    /// A signature over `message` as it stands: for a test building what an older format signed,
+    /// whose preimages are not this module's.
+    pub(crate) fn signed(&self, message: &[u8]) -> Vec<u8> {
+        self.0.sign(message).to_bytes().to_vec()
     }
-
-    message
 }
 
-/// What the organization key signed when it issued a format 1 certificate. `revoked_at` was not
-/// among it.
-fn format_one_certificate_preimage(certificate: &FormatOneCertificate) -> Vec<u8> {
-    let FormatOneCertificate {
-        id,
-        member_id,
-        signing_public_key,
-        signature_by_organization_key: _,
-        issued_at,
-        revoked_at: _,
-    } = certificate;
-
-    let mut message = FORMAT_ONE_CERTIFICATE_DOMAIN.to_vec();
-
-    field(&mut message, id.as_bytes());
-    field(&mut message, member_id.as_bytes());
-    field(&mut message, signing_public_key);
-    field(&mut message, issued_at.as_bytes());
-
-    message
+#[cfg(test)]
+impl AdministratorKey {
+    /// A signature over `message` as it stands: for a test building what an older format signed,
+    /// whose preimages are not this module's.
+    pub(crate) fn signed(&self, message: &[u8]) -> Vec<u8> {
+        self.0.sign(message).to_bytes().to_vec()
+    }
 }
 
 /// A signing key drawn the way this crate already draws random bytes.

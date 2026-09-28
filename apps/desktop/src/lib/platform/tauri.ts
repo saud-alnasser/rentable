@@ -142,7 +142,7 @@ export const tauri = {
 		 * Whether this machine's `app.db` holds the records of 0.12.0 or 0.13.0, and which.
 		 *
 		 * Those releases kept every record in that one file, and this build never reads it; the
-		 * file is opened read-only and never created (`tauri/src/earlier.rs`).
+		 * file is opened read-only and never created (`tauri/src/upgrade/record.rs`).
 		 */
 		find: () => invoke<EarlierRecords | null>('earlier_find'),
 		/**

@@ -1,4 +1,4 @@
-//! scaffolding the tests of the owner's upgrade share: the runner's, at the foot of `upgrade.rs`,
+//! scaffolding the tests of the owner's upgrade share: the runner's, at the foot of `runner.rs`,
 //! and each change of format's, at the foot of its own file (ticket 29).
 //!
 //! **Scaffolding and not a fixture** (`rules/testing`, as the human admitted it on 2026-09-27):

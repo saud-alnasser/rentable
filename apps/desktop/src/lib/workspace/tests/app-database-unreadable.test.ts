@@ -35,7 +35,7 @@ mock.module('@tanstack/svelte-query', {
 mock.module('$lib/api/caller', { defaultExport: {} });
 mock.module('$lib/settings/query', { exports: { keys: { settings: ['settings'] } } });
 
-const { findEarlierRecords } = await import('../earlier.ts');
+const { findEarlierRecords } = await import('../app-database.ts');
 
 test('an unreadable earlier file offers nothing and is recorded as earlier.unreadable', async () => {
 	assert.equal(await findEarlierRecords(), null);

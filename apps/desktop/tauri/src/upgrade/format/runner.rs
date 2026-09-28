@@ -53,13 +53,13 @@
 //! format 1 is left: that writes back what the directory already is.
 //!
 //! **Each change of format is a file of its own** (ticket 26), listed in order in
-//! `transition::TRANSITIONS`, and what each one does to the directory is said there. This file is
+//! [`TRANSITIONS`] in `mod.rs`, and what each one does to the directory is said there. This file is
 //! what they share: the vault, the owner, the grant and the mint, following the owner, the push and
 //! the pull, the refusal of an organization this machine has read in a later format, then one
 //! transaction that walks the list from the format the organization is in to the one this build
 //! ships ([`walked`]), with the `format` row last, then the push. It is handed the list end to end
 //! and counts the format it ships from it, so a test walks a list of its own through the same
-//! sign-in; production hands it `transition::TRANSITIONS`.
+//! sign-in; production hands it [`TRANSITIONS`].
 //!
 //! **A copy is taken before the transaction** (ticket 27). Once every change due has said it may
 //! run, and before the first write, the organization as it stands after the pull is copied to a
@@ -85,7 +85,7 @@ use crate::{
     turso::platform::{AccessLevel, PlatformApi, TursoPlatform},
 };
 
-use super::{
+use crate::organization::{
     HeldOrganization,
     authority::{AdministratorKey, VERIFYING_KEY_BYTES, verify_succession},
     role::{authority_of, in_one_transaction},
@@ -94,12 +94,13 @@ use super::{
     },
     setup::{
         ADMINISTRATOR_KEY_PURPOSE, ORGANIZATION_CREDENTIAL_LIFETIME, ORGANIZATION_DATABASE_PREFIX,
-        owner_key_from,
+        Remote, owner_key_from,
     },
     store::{OrganizationStore, waits_for_its_owner},
-    transition::{Sought, TRANSITIONS, Transition, Upgrading},
     vault::{MemberSecretKey, open_sealed_secret_key, open_vault, unseal_with_secret_key},
 };
+
+use super::{Sought, TRANSITIONS, Transition, Upgrading};
 
 /// What the remote said to a push this measured failure is in: changes captured under a column
 /// set a later statement dropped (`OrganizationStore::format_one_reshape`).
@@ -123,7 +124,7 @@ pub(crate) enum Pushed {
 ///
 /// **A seam, because the upgrade's answer depends on the remote's.** Production hands in
 /// [`ItsRemote`], the remote the replica was opened against and the owner's Turso account where
-/// this machine holds its authority, or `setup::OnTheAccount` on the connect, which carries the
+/// this machine holds its authority, or [`OnTheAccount`] on the connect, which carries the
 /// account the connect was consented on; a test hands in a remote
 /// that answers as it is told, since there is no remote here to reach.
 pub(crate) trait Replication {
@@ -186,6 +187,50 @@ impl<P: TursoPlatform + Sync> Replication for ItsRemote<P> {
         let account = self.account.as_ref()?;
 
         backup::remote_copy(account, database_name, label, at)
+            .await
+            .ok()
+    }
+}
+
+/// The connect's remote, and the owner's Turso account the connect was consented on: how the
+/// upgrade of an older organization reaches both from `setup::connect_existing` (effort 838,
+/// tickets 23 and 27). The account is the one the connect minted its credential on, so the copy
+/// taken before the upgrade is made there too, as [`ItsRemote`] makes it on a sign-in. *It was in
+/// `organization/setup.rs` until effort 840 (ticket 48).*
+pub(crate) struct OnTheAccount<'a, P> {
+    pub(crate) remote: Remote,
+    pub(crate) account: &'a P,
+}
+
+impl<P: TursoPlatform> Replication for OnTheAccount<'_, P> {
+    async fn push(&self, store: &OrganizationStore) -> Pushed {
+        match self.remote {
+            Remote::Libsql => pushed(store).await,
+            Remote::None => Pushed::DidNotGo,
+            #[cfg(test)]
+            Remote::Answering => Pushed::Went,
+        }
+    }
+
+    async fn pull(&self, store: &OrganizationStore) -> bool {
+        match self.remote {
+            Remote::Libsql => pulled(store).await,
+            Remote::None => false,
+            #[cfg(test)]
+            Remote::Answering => true,
+        }
+    }
+
+    /// Nothing: the connect has minted the credential it upgrades under already, on this same
+    /// account, before the replica was opened.
+    async fn minted(&self, _: &str) -> Option<String> {
+        None
+    }
+
+    /// A copy seeded from the organization database on the account the connect holds, as
+    /// `backup::remote_copy` makes one.
+    async fn copied(&self, database_name: &str, label: &str, at: i64) -> Option<String> {
+        backup::remote_copy(self.account, database_name, label, at)
             .await
             .ok()
     }
@@ -1015,18 +1060,6 @@ mod tests {
             },
             setup::{Remote, connect_existing},
             store::{self, FORMAT_VERSION, GrantRecord, OrganizationStore, SuccessionRecord},
-            transition::{
-                Pending, Sought, TRANSITIONS, Transition, Unjudged, Upgrading,
-                test::{
-                    older::{
-                        EARLIER, FORMAT_ONE_SCHEMA, MINAS_CREDENTIAL, NOW, ORGANIZATION_CREDENTIAL,
-                        ORGANIZATION_ID, Older, Person, another_machine, assert_upgraded,
-                        expected_effective, made_to_look_older, older, run, text, write_grant,
-                        write_invitation, write_mark, write_member, write_workspace,
-                    },
-                    remote::{Answering, online},
-                },
-            },
             vault::{MemberSecretKey, open_content},
             workspace::grant_workspace,
         },
@@ -1036,6 +1069,18 @@ mod tests {
         turso::{
             discovery::McpEndpoint,
             platform::{AccessLevel, InMemoryPlatform},
+        },
+        upgrade::format::{
+            Pending, Sought, TRANSITIONS, Transition, Unjudged, Upgrading,
+            test::{
+                older::{
+                    EARLIER, FORMAT_ONE_SCHEMA, MINAS_CREDENTIAL, NOW, ORGANIZATION_CREDENTIAL,
+                    ORGANIZATION_ID, Older, Person, another_machine, assert_upgraded,
+                    expected_effective, made_to_look_older, older, run, text, write_grant,
+                    write_invitation, write_mark, write_member, write_workspace,
+                },
+                remote::{Answering, online},
+            },
         },
     };
 
@@ -2480,7 +2525,7 @@ mod tests {
         assert!(store.is_older().await.expect("the format"));
 
         // what the refusal keeps from happening, a plan over this state carrying the replayed
-        // row as a manager signed from the root, is shown at the foot of `transition/two.rs`.
+        // row as a manager signed from the root, is shown at the foot of `two.rs`.
 
         let before = contents(&store).await;
         let remote = online();

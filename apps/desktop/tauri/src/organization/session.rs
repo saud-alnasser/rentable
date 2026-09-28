@@ -66,17 +66,24 @@ use std::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    clock,
     credential::CredentialStore,
     diagnostics,
     error::{Error, RefusalReason},
+    state::AppState,
+    upgrade::{
+        format::runner::{self, ItsRemote, OnTheAccount},
+        shape::{self, OldShape},
+    },
 };
 
-use crate::turso::platform::AccessLevel;
+use crate::turso::platform::{AccessLevel, PlatformApi, TursoPlatform};
 
 use super::{
     HeldOrganization,
     authority::VERIFYING_KEY_BYTES,
     permission::{self, Flag},
+    setup::Remote,
     store::{MemberRecord, OrganizationStore, pins_of},
     vault::{
         CONTENT_KEY_BYTES, ContentKey, MemberKey, MemberSecretKey, open_content,
@@ -1157,7 +1164,8 @@ pub(crate) fn read_entry(filed: &str) -> Result<(i64, MemberKey), Error> {
 /// The key this machine filed for a member at their last sign-in, and the epoch it was filed
 /// under: what a resume opens the vault with. Refused where nothing is filed or what is filed is
 /// not an entry this build wrote. Read by the resume, and by the owner's upgrade of an older
-/// organization on the way to it (`upgrade.rs`, effort 838, ticket 22), which reads the same key.
+/// organization on the way to it (`upgrade/format/runner.rs`, effort 838, ticket 22), which reads
+/// the same key.
 pub(crate) fn remembered(
     credentials: &dyn CredentialStore,
     organization_id: &str,
@@ -1413,7 +1421,7 @@ pub fn verifying_key_of(joined: &HeldOrganization) -> Result<[u8; VERIFYING_KEY_
 
 /// The organization content key, unsealed from the `sealed_content_key` a member's row carries
 /// with the secret their vault yielded: what makes any name legible. The row is either format's,
-/// so the upgrade of an older organization opens it the same way (`upgrade.rs`).
+/// so the upgrade of an older organization opens it the same way (`upgrade/format/runner.rs`).
 pub(crate) fn content_key_of(
     sealed_content_key: &[u8],
     secret: &MemberSecretKey,
@@ -1434,6 +1442,101 @@ pub(crate) fn opened(key: &ContentKey, column: &str, sealed: &[u8]) -> Result<St
     String::from_utf8(bytes).map_err(|_| Error::Integrity {
         message: format!("{column} did not open as text"),
     })
+}
+
+// what an older install left: the one place the organization reaches `upgrade`
+
+/// Upgrade the organization `held` names where it is of an earlier format and `password` opens its
+/// owner's vault under `username`, or follow the owner's upgrade where it opens anybody else's:
+/// the sign-in at the wall, before the format is refused (`upgrade/format/runner.rs`,
+/// `with_password`). `account` is the owner's Turso account where this machine holds its
+/// authority, which renews a lapsed grant before the upgrade pushes.
+///
+/// **Here, and every other way to the upgrade beside it, because the session is what opens an
+/// organization**: a sign-in, a resume and a connect each open a vault, and the upgrade runs on the
+/// vault they open. Nothing else in the organization names `upgrade` (effort 840, requirement 15;
+/// `guard/cycle.rs` holds it).
+pub(crate) async fn upgraded_with_password(
+    store: &OrganizationStore,
+    account: Option<PlatformApi>,
+    held: &HeldOrganization,
+    username: &str,
+    password: &str,
+    credential: &CredentialSlot,
+    now: i64,
+) -> Result<(), Error> {
+    runner::with_password(
+        store,
+        &ItsRemote { account },
+        held,
+        username,
+        password,
+        credential,
+        now,
+    )
+    .await
+}
+
+/// Upgrade the organization `held` names where it is of an earlier format and the key this machine
+/// filed for the member it names opens the owner's vault, or follow the owner's upgrade where it
+/// opens anybody else's: the launch resume, with no password (`upgrade/format/runner.rs`,
+/// `with_remembered_key`). `account` is as [`upgraded_with_password`] takes it.
+pub(crate) async fn upgraded_with_remembered_key(
+    credentials: &dyn CredentialStore,
+    store: &OrganizationStore,
+    account: Option<PlatformApi>,
+    held: &HeldOrganization,
+    credential: &CredentialSlot,
+    now: i64,
+) -> Result<(), Error> {
+    runner::with_remembered_key(
+        credentials,
+        store,
+        &ItsRemote { account },
+        held,
+        credential,
+        now,
+    )
+    .await
+}
+
+/// Upgrade the organization a machine connecting on the owner's Turso account has just pulled,
+/// where it is of an earlier format: `setup::connect_existing`, before the format is refused
+/// (`upgrade/format/runner.rs`, `with_the_owners_password`). `remote` is the connect's remote and
+/// `account` the account it was consented on; `refused` is the sentence that path gives a pair
+/// that opens nothing.
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn upgraded_on_connect<P: TursoPlatform>(
+    store: &OrganizationStore,
+    remote: Remote,
+    account: &P,
+    username: &str,
+    password: &str,
+    credential: &CredentialSlot,
+    now: i64,
+    refused: impl Fn() -> Error,
+) -> Result<(), Error> {
+    runner::with_the_owners_password(
+        store,
+        &OnTheAccount { remote, account },
+        username,
+        password,
+        credential,
+        now,
+        refused,
+    )
+    .await
+}
+
+/// Forget what the machine holds where its shape is the old one, and say which sign was read: the
+/// first thing the launch's first state read does, before a resume opens anything
+/// (`upgrade/shape.rs`).
+pub(crate) async fn forget_old_shape(
+    app_state: &AppState,
+    credentials: &dyn CredentialStore,
+    clock: &clock::Shared,
+) -> Result<Option<OldShape>, Error> {
+    shape::forget_old_shape(app_state, credentials, clock).await
 }
 
 #[cfg(test)]

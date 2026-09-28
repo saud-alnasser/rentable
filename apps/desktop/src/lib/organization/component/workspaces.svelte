@@ -19,7 +19,7 @@
 	import { workspaceActs, workspaceHost } from '$lib/organization/host.svelte';
 	import { recordOf, withSection, WORKSPACE_PARAM } from '$lib/settings/section';
 	import WorkspaceTransfer from '$lib/workspace/component/transfer.svelte';
-	import EarlierRecords from '$lib/workspace/component/earlier-records.svelte';
+	import EarlierRecords from '$lib/workspace/component/app-database-records.svelte';
 	import DiscIcon from '$lib/design/cell/disc.svelte';
 	import XIcon from '@lucide/svelte/icons/x';
 

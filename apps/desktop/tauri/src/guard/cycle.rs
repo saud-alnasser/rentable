@@ -25,14 +25,23 @@ pub(in crate::guard) mod tests {
             from: &'static str,
             to: &'static str,
         },
+        /// Nothing names `to` but the files under `callers`, each a path under `src/` without its
+        /// extension: `organization/session` admits `organization/session.rs` and everything under
+        /// `organization/session/`. A file elsewhere that names it is named in the line, since a
+        /// caller and a stranger can sit in the same top-level module.
+        Callers {
+            to: &'static str,
+            callers: &'static [&'static str],
+        },
     }
 
     /// Requirement 11 and criterion 11: `sync` imports nothing from `organization`, and
     /// `organization` nothing from `sync`'s internals.
     ///
-    /// Requirement 15 adds a rule here once `upgrade/` exists: nothing names `upgrade` but its
-    /// callers (`startup`, and `organization` for the session). It needs a third variant, the
-    /// callers a module admits, and it arrives with the module rather than before it.
+    /// Requirement 15 and criterion 15: nothing names `upgrade` but the organization's session,
+    /// which is where a sign-in, a resume, a connect and the launch's first state read reach it
+    /// (ticket 48). The composition root registers the commands `upgrade::record` answers, and is
+    /// not a module of the graph. A startup module that runs it joins `callers` when it exists.
     const RULES: &[Rule] = &[
         Rule::Never {
             from: "sync",
@@ -41,6 +50,10 @@ pub(in crate::guard) mod tests {
         Rule::Surface {
             from: "organization",
             to: "sync",
+        },
+        Rule::Callers {
+            to: "upgrade",
+            callers: &["organization/session"],
         },
     ];
 
@@ -434,10 +447,36 @@ pub(in crate::guard) mod tests {
                         }
                     }
                 }
+                Rule::Callers { to, callers } => {
+                    for ((_, into), places) in &edges {
+                        if into != to {
+                            continue;
+                        }
+
+                        for (place, _) in places {
+                            let file = place
+                                .rsplit_once(':')
+                                .map_or(place.as_str(), |(file, _)| file);
+
+                            if !callers.iter().any(|caller| admits(caller, file)) {
+                                note(format!("forbidden {file} -> {to}"), place.clone());
+                            }
+                        }
+                    }
+                }
             }
         }
 
         found
+    }
+
+    /// Whether `caller`, a path under `src/` without its extension, admits the file at `path`: the
+    /// file itself, or any file under it as a directory.
+    fn admits(caller: &str, path: &str) -> bool {
+        path.strip_suffix(".rs") == Some(caller)
+            || path
+                .strip_prefix(caller)
+                .is_some_and(|rest| rest.starts_with('/'))
     }
 
     /// The modules on a path from `start` to `goal`, both included, if there is one.
@@ -561,8 +600,8 @@ pub(in crate::guard) mod tests {
     }
 
     /// And the check itself, on a crate made up here: a cycle is named from both sides, each rule
-    /// is named where it is broken, and nothing is read from a comment, a string, a test module
-    /// or a `test/` directory.
+    /// is named where it is broken, a module its admitted callers name is not, and nothing is read
+    /// from a comment, a string, a test module or a `test/` directory.
     #[test]
     fn the_module_check_names_a_cycle_and_each_rule() {
         let file = |path: &str, text: &str| (path.to_string(), text.to_string());
@@ -570,9 +609,12 @@ pub(in crate::guard) mod tests {
             file(
                 "lib.rs",
                 "pub mod a;\npub mod b;\npub mod c;\npub mod sync;\npub mod organization;\n\
-                 #[cfg(test)]\nmod tests {}\n",
+                 pub mod upgrade;\n#[cfg(test)]\nmod tests {}\n",
             ),
-            file("a.rs", "use crate::{b::Thing, c};\n"),
+            file(
+                "a.rs",
+                "use crate::{b::Thing, c};\npub fn u() {\n    crate::upgrade::run()\n}\n",
+            ),
             file(
                 "b/mod.rs",
                 "mod inner;\npub fn f() -> u8 {\n    crate::a::g()\n}\n",
@@ -592,6 +634,9 @@ pub(in crate::guard) mod tests {
                 "organization/mod.rs",
                 "use crate::sync::{Store, turso::consent};\npub struct Held;\n",
             ),
+            file("organization/session.rs", "use crate::upgrade::format;\n"),
+            file("organization/setup.rs", "use crate::upgrade::format;\n"),
+            file("upgrade/mod.rs", "pub mod format;\npub fn run() {}\n"),
         ];
 
         let found = violations(&sources);
@@ -604,7 +649,9 @@ pub(in crate::guard) mod tests {
                 "cycle b -> a",
                 "cycle organization -> sync",
                 "cycle sync -> organization",
+                "forbidden a.rs -> upgrade",
                 "forbidden organization -> sync::turso",
+                "forbidden organization/setup.rs -> upgrade",
                 "forbidden sync -> organization",
             ]
         );
@@ -616,5 +663,11 @@ pub(in crate::guard) mod tests {
                 .contains("organization/mod.rs:1")
         );
         assert_eq!(found["forbidden organization -> sync::turso"].cycle, None);
+        assert!(found["forbidden a.rs -> upgrade"].places.contains("a.rs:3"));
+        assert!(
+            found["forbidden organization/setup.rs -> upgrade"]
+                .places
+                .contains("organization/setup.rs:1")
+        );
     }
 }

@@ -1,6 +1,10 @@
 //! the records an earlier version kept, read as the whole-workspace export (effort 838,
 //! requirement 18, ticket 36).
 //!
+//! *It was `earlier.rs` until effort 840 (ticket 48) put it here, with everything else that brings
+//! an older install forward. The commands keep their names, `earlier_find` and `earlier_read`,
+//! because the interface invokes them by those names.*
+//!
 //! **0.12.0 and 0.13.0 kept every record in `app.db`**, one plain SQLite file on the machine,
 //! migrated by the application itself with a ledger of its own, `__migrations__`, naming each
 //! migration file it applied. This build keeps records in a workspace replica and never reads
@@ -18,7 +22,7 @@
 //! the person chosen the workbook themselves, and there is no second spelling of a date or an
 //! amount for the two to disagree over. The sheets are the ones `TRANSFER_COLUMNS` in
 //! `src/lib/workspace/workspace.ts` writes, in `TRANSFER_CONCEPTS`' order, and
-//! `src/lib/workspace/tests/earlier.json` is what a test on each side holds them to.
+//! `src/lib/workspace/tests/app-database.json` is what a test on each side holds them to.
 //!
 //! **A record whose parent is missing is left out, and counted.** A unit whose complex, a contract
 //! whose tenant, or a payment whose contract is not in the file has nothing the import could
@@ -556,27 +560,27 @@ mod tests {
         (
             "0000_parched_runaways.sql",
             include_str!(
-                "../../../../packages/workspace-migrations/migrations/0000_parched_runaways.sql"
+                "../../../../../packages/workspace-migrations/migrations/0000_parched_runaways.sql"
             ),
         ),
         (
             "0001_perpetual_molly_hayes.sql",
             include_str!(
-                "../../../../packages/workspace-migrations/migrations/0001_perpetual_molly_hayes.sql"
+                "../../../../../packages/workspace-migrations/migrations/0001_perpetual_molly_hayes.sql"
             ),
         ),
         (
             "0002_puzzling_sunfire.sql",
             include_str!(
-                "../../../../packages/workspace-migrations/migrations/0002_puzzling_sunfire.sql"
+                "../../../../../packages/workspace-migrations/migrations/0002_puzzling_sunfire.sql"
             ),
         ),
     ];
 
     /// What each version's records read as: the tables the interface is handed, and the
-    /// contract between this suite and `src/lib/workspace/tests/earlier.test.ts`, which plans an
-    /// import over the same tables.
-    const TABLES: &str = include_str!("../../src/lib/workspace/tests/earlier.json");
+    /// contract between this suite and `src/lib/workspace/tests/app-database.test.ts`, which plans
+    /// an import over the same tables.
+    const TABLES: &str = include_str!("../../../src/lib/workspace/tests/app-database.json");
 
     /// Midnight UTC on the day given, in unix milliseconds, as the earlier versions stored a day.
     fn at(year: i32, month: u32, day: u32) -> i64 {

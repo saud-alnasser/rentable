@@ -80,7 +80,7 @@ pub struct HeldOrganization {
     /// **The one fact about the format that lives outside the organization database** (effort
     /// 838, ticket 25). The `format` row is unsigned and every member can write that database, so
     /// an upgraded organization can be made to look older there; a machine that has read it in
-    /// this format never transforms it again, whatever the row says (`organization/upgrade.rs`).
+    /// this format never transforms it again, whatever the row says (`upgrade/format/runner.rs`).
     pub format: Option<i64>,
 }
 
@@ -259,9 +259,11 @@ pub struct RemoteSyncStore {
     /// **Kept on the record until the startup check has seen it**, which is why it round-trips
     /// rather than being dropped on read. The organizations in it were built under the schema
     /// effort 824 replaced, and requirement 17 has the machine forget all of them at startup
-    /// (`organization/forget.rs`); a commit before that check, which `reconcile` makes on a first
+    /// (`upgrade/shape.rs`); a commit before that check, which `reconcile` makes on a first
     /// launch, would otherwise erase the one sign the check reads. Nothing writes it once it is
-    /// empty, so a record of the new shape never carries the key.
+    /// empty, so a record of the new shape never carries the key. The field is here because the
+    /// record is what reads it; the check, and the tests that hold this field and the spellings
+    /// older installs wrote, are the upgrade's.
     #[serde(rename = "organizations", skip_serializing_if = "Vec::is_empty")]
     pub organizations_of_the_old_shape: Vec<serde_json::Value>,
     /// the moment of the last replication of the workspace replica that went through: the remote
@@ -974,71 +976,6 @@ mod tests {
             credential_refusal: None,
             clock: crate::clock::System::shared(),
         }
-    }
-
-    /// A store written by an older install, with a `provider` of `"googleDrive"` or `"hosted"`, an
-    /// `accounts` list or a `controlPlaneSession`, still reads, and that is the whole of the
-    /// migration: those spellings are **dropped rather than migrated**, because `RemoteSyncStore` and every
-    /// struct under it derive `Deserialize` without `deny_unknown_fields`, so serde ignores a
-    /// field no type claims. An install holding any of them loads unchanged and writes them away
-    /// on its next commit; a replica tracked under an account id reads under the member's name.
-    ///
-    /// Asserted rather than reasoned about: adding `deny_unknown_fields` anywhere on this path
-    /// would make every store on a developer machine unreadable, and nothing else in this file
-    /// would notice.
-    #[test]
-    fn a_store_written_while_the_mode_existed_still_reads() {
-        for written in ["\"local\"", "\"googleDrive\"", "\"hosted\""] {
-            let store: RemoteSyncStore = serde_json::from_str(&format!(
-                "{{\"workspace\":{{\"id\":\"workspace-1\",\"provider\":{written},\"name\":\"Primary workspace\"}},\"accounts\":[{{\"id\":\"account-1\",\"provider\":{written},\"email\":\"person@example.com\"}}],\"controlPlaneSession\":{{\"accountId\":\"account-1\",\"expiresAt\":1}},\"replicas\":[{{\"workspaceId\":\"ws-1\",\"accountId\":\"account-1\",\"createdAt\":1}}]}}"
-            ))
-            .expect("a store written with a provider should still read");
-
-            assert_eq!(
-                store.workspace.id, "workspace-1",
-                "{written} lost the workspace"
-            );
-            assert_eq!(store.replicas.len(), 1, "{written} lost the replica");
-            assert_eq!(
-                store.replicas[0].member_id, "account-1",
-                "{written} lost who the replica was held for"
-            );
-        }
-    }
-
-    /// **A record written when a machine held a list still reads, and the list is kept as the
-    /// sign it is.** `organizations` lands in the field the startup check reads and never in
-    /// `organization`; it is written back as long as it is non-empty, so a commit made before
-    /// the check does not erase the sign; and a record of the new shape never carries the key.
-    #[test]
-    fn a_record_of_the_old_shape_keeps_its_list_as_the_sign_the_startup_check_reads() {
-        let mut store: RemoteSyncStore = serde_json::from_str(
-            r#"{"workspace":{"id":"workspace-1","name":"Riyadh"},"organizations":[{"id":"a","name":"Acme","verifyingKey":"k","remoteUrl":"libsql://a","memberId":"me","role":"owner","joinedAt":1},{"id":"b","name":"Beta","verifyingKey":"k","remoteUrl":"libsql://b","memberId":"me","role":"member","joinedAt":2}]}"#,
-        )
-        .expect("a record of the old shape did not read");
-
-        assert_eq!(
-            store.organization, None,
-            "the list was read as the one held"
-        );
-        assert_eq!(store.organizations_of_the_old_shape.len(), 2);
-
-        let written = serde_json::to_string(&store).expect("serialised");
-
-        assert!(
-            written.contains("\"organizations\":[") && written.contains("Beta"),
-            "the sign was dropped on write: {written}"
-        );
-
-        store.organizations_of_the_old_shape.clear();
-
-        let written = serde_json::to_string(&store).expect("serialised");
-
-        assert!(
-            !written.contains("organizations\""),
-            "a record of the new shape carries the old key: {written}"
-        );
-        assert!(written.contains("\"organization\":null"), "{written}");
     }
 
     /// **A held organization with an empty member id holds no member**, which is the one

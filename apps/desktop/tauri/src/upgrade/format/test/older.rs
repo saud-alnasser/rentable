@@ -1,6 +1,6 @@
 //! an organization of format 1, as the build before effort 838 left it, written the way that
 //! build wrote it: its schema, its people and their vaults, and every row signed under format 1's
-//! rules (ticket 29 moved it here from the foot of `upgrade.rs`). What a finished upgrade of it
+//! rules (ticket 29 moved it here from the foot of the runner). What a finished upgrade of it
 //! leaves is [`assert_upgraded`], and what a member does to make an upgraded one look older is
 //! [`made_to_look_older`].
 
@@ -14,21 +14,24 @@ use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD as BASE64URL}
 use crate::organization::{
     HeldOrganization,
     authority::{
-        AdministratorKey, Authority, Chain, FormatOneCertificate, FormatOneMember, FormatOneRow,
-        GrantAuthority, InvitationAuthority, MarkAuthority, OrganizationKey, SuccessionAuthority,
-        WorkspaceAuthority, issue_format_one_certificate, sign_format_one, sign_succession,
+        AdministratorKey, Authority, Chain, FormatOneCertificate, GrantAuthority,
+        InvitationAuthority, MarkAuthority, OrganizationKey, SuccessionAuthority,
+        WorkspaceAuthority, sign_succession,
     },
     permission::{self, Flag, MANAGER_ROLE, MEMBER_ROLE, OWNER_ROLE},
     setup::{ADMINISTRATOR_KEY_PURPOSE, owner_key_from},
     store::{FORMAT_VERSION, OrganizationStore, SuccessionRecord},
-    transition::two::FORMAT_ONE_ACTS,
-    upgrade::Opened,
     vault::{
         ContentKey, KdfParams, MemberKey, MemberSecretKey, Vault, create_vault_with_secret_and_key,
         generate_content_key, open_content, seal_content, seal_to_public_key,
     },
 };
 use crate::test::scratch;
+use crate::upgrade::format::{
+    runner::Opened,
+    signature::{FormatOneMember, FormatOneRow, issue_format_one_certificate, sign_format_one},
+    two::FORMAT_ONE_ACTS,
+};
 
 pub(crate) const ORGANIZATION_ID: &str = "7f3a";
 pub(crate) const NOW: i64 = 1_758_000_000_000;

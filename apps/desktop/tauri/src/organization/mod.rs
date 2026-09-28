@@ -12,12 +12,12 @@
 //! signs and verifies through the chain, so the two questions above still have one
 //! answer each.
 
-//! What follows the three is the work over them: the link a machine finds an
-//! organization by, the first run that creates one, the connect that records one on a machine
-//! without opening a vault, the machine link whoever keeps the accounts makes for a member whose
-//! password is already set, and the forget that leaves nothing of it here. And one that runs once:
-//! the owner's upgrade of an organization an earlier version made, through each change of format
-//! in order.
+//! What follows the three is the work over them: the link a machine finds an organization by, the
+//! first run that creates one, the connect that records one on a machine without opening a vault,
+//! the machine link whoever keeps the accounts makes for a member whose password is already set,
+//! and the forget that leaves nothing of it here. The owner's upgrade of an organization an earlier
+//! version made, which runs once, is not here: it is `upgrade/format/`, with everything else that
+//! brings an older install forward, and the session is what reaches it.
 
 pub mod authority;
 mod command;
@@ -37,8 +37,6 @@ pub mod role;
 pub mod session;
 pub mod setup;
 pub mod store;
-pub mod transition;
-pub mod upgrade;
 pub mod vault;
 pub mod workspace;
 

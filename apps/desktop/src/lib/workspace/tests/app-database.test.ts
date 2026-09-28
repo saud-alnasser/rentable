@@ -11,11 +11,11 @@ import {
 	planWorkspaceImport
 } from '../workspace.ts';
 
-// The records 0.12.0 and 0.13.0 left in `app.db`, as `tauri/src/earlier.rs` reads them: the tables
-// its tests find for either version, one record of every kind. The file is the contract between
-// the two suites, which cannot call each other.
+// The records 0.12.0 and 0.13.0 left in `app.db`, as `tauri/src/upgrade/record.rs` reads them:
+// the tables its tests find for either version, one record of every kind. The file is the
+// contract between the two suites, which cannot call each other.
 const tables: ImportTable[] = JSON.parse(
-	readFileSync(new URL('./earlier.json', import.meta.url), 'utf8')
+	readFileSync(new URL('./app-database.json', import.meta.url), 'utf8')
 );
 
 // the day these tables are read as being, after every payment they hold.

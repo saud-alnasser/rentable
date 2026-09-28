@@ -3,14 +3,20 @@
 //! 26).
 //!
 //! **One file for each change, and this list the one place they are named in order.** What every
-//! change needs is written once, in `upgrade.rs`: finding the owner, the push and the pull before
+//! change needs is written once, in `runner.rs`: finding the owner, the push and the pull before
 //! it, the refusal of an organization this machine has read in a later format, the copy, the one
 //! transaction, the `format` row last, and the push after. A change holds only what is its own:
 //! the readers that find a vault and a member's own grant in the format it starts from, the check
 //! that refuses the directory as it stands, and the plan it makes and applies inside that
-//! transaction. The format this build ships is counted from the list (`store::FORMAT_VERSION`),
-//! the way `build.rs` counts the workspace migrations, and the runner counts it from the list it
-//! is handed.
+//! transaction. The format this build ships, `store::FORMAT_VERSION`, is the one after the last
+//! change the list holds, and the test at the foot of this file holds the two together; the runner
+//! counts it from the list it is handed.
+//!
+//! **Beside the changes, what they share**: `runner.rs`, the owner's upgrade that walks them, and
+//! `signature.rs`, what format 1 signed and how that format judged a row. *They were
+//! `organization/transition/`, `organization/upgrade.rs` and the foot of
+//! `organization/authority.rs` until effort 840 (ticket 48) put them here, where nothing but the
+//! organization's session reaches them.*
 //!
 //! **The readers are the first due change's** (ticket 29). The runner reads the member rows and
 //! the grant through the change that starts from the format the organization is in, or, where it
@@ -25,7 +31,8 @@
 //!    building a fresh organization of the format it makes, and naming the tables it leaves alone,
 //!    which the check before the commit reads (`schema.rs`, ticket 33); a table it reshapes in
 //!    place needs nothing declared, since the check compares structure (ticket 38);
-//! 3. that entry at the end of [`TRANSITIONS`], which moves the shipped format on by one;
+//! 3. that entry at the end of [`TRANSITIONS`], and `store::FORMAT_VERSION` moved on by one to
+//!    match it, which the test at the foot of this file fails until it is;
 //! 4. the tables the new format adds in `store::install_schema`, so an organization this build
 //!    creates starts in it, and in `store::format_as_it_stands` the shape of the format before it,
 //!    since a directory whose unsigned `format` row is gone is otherwise read as the shipped
@@ -40,13 +47,16 @@ use std::{future::Future, pin::Pin};
 
 use crate::error::Error;
 
-use super::{
+use crate::organization::{
     authority::{AdministratorKey, OrganizationKey, VERIFYING_KEY_BYTES},
     store::{GrantRecord, OrganizationStore},
-    upgrade::Opened,
     vault::{MemberSecretKey, Vault},
 };
 
+use runner::Opened;
+
+pub mod runner;
+pub mod signature;
 #[cfg(test)]
 pub(crate) mod test;
 pub mod three;

@@ -1,6 +1,7 @@
 ---
 paths:
   - apps/desktop/tauri/src/organization/**
+  - apps/desktop/tauri/src/upgrade/**
   - apps/desktop/src/lib/organization/**
   - apps/desktop/src/lib/layout/startup.ts
 use-when: "the request touches an organization, its members, their roles and permissions, their vaults, or the account it lives on"
@@ -39,15 +40,18 @@ The one `format` row, version 3, written when an organization is made. An organi
 effort 838 has no `format` table, which is format 1, and its owner's machine upgrades it in place at
 their sign-in, their resume or their connect on the Turso account: every row is judged under the
 old rules, carried into this format signed from the root, and the row is written last. The runner
-is `organization/upgrade.rs`; each change of format is a file under `organization/transition/`
+is `upgrade/format/runner.rs`; each change of format is a file under `upgrade/format/`
 (format 1 to 2 is `two.rs`; 2 to 3, which adds the `workspace_override` table and nothing else, is
-`three.rs`), listed in order in `transition/mod.rs` with the readers that find the
-owner in the format it starts from, and the version this build ships is counted from that list.
+`three.rs`), listed in order in `upgrade/format/mod.rs` with the readers that find the
+owner in the format it starts from, and the version this build ships is the one after that list's
+last change, which a test there holds `store::FORMAT_VERSION` to. What format 1 signed, and how it
+judged a row, is `upgrade/format/signature.rs`. Nothing names `upgrade` but the organization's
+session (effort 840, requirement 15).
 Before the change the owner's machine writes a copy of the organization to
 `backups/org-<id>/`, and to their Turso account where it holds it; a copy that cannot be taken
 refuses the upgrade with `CopyNotTaken` and nothing is changed (838, requirements 13 and 14).
 Every change due then runs in one transaction with the `format` row last, and **the organization is
-checked before that transaction commits** (`upgrade.rs`'s `checked`, over `schema.rs`; 838,
+checked before that transaction commits** (`upgrade/format/runner.rs`'s `checked`, over `schema.rs`; 838,
 requirement 15): `PRAGMA quick_check` answers `ok`, and the schema is what a fresh organization of
 the format it arrives at is built with, which the last change's `Transition::built` makes on an
 empty in-memory database, less the tables any change of the walk names in `Transition::kept`

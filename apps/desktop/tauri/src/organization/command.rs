@@ -30,7 +30,7 @@ use super::{
     },
     setup::{self, CreateOrganization, GroupState, OrganizationCreated, Remote},
     store::{self, OrganizationStore},
-    upgrade, workspace,
+    workspace,
 };
 use crate::turso::{
     consent::{TursoConsentResult, TursoConsentStart, TursoEndpoints},
@@ -280,8 +280,8 @@ pub(crate) async fn organization_connect_existing(
 /// admits on, so requiring a signed-in caller would make it answerable only to machines whose
 /// answer is already known.
 ///
-/// **The first read of a launch checks the shape of what the machine holds** and forgets it
-/// where it was built before this build (requirement 17, `forget.rs`), before anything opens the
+/// **The first read of a launch checks the shape of what the machine holds** and forgets it where
+/// it was built before this build (requirement 17, `upgrade/shape.rs`), before anything opens the
 /// replica. Every later read, and every command that answers with the state, finds the check
 /// already made.
 ///
@@ -316,7 +316,7 @@ pub(crate) async fn state_of(
     app_state
         .old_shape_check
         .get_or_try_init(|| async {
-            forget::forget_old_shape(app_state, credentials.as_ref(), clock).await?;
+            session::forget_old_shape(app_state, credentials.as_ref(), clock).await?;
             resume_remembered(app_state, credentials, clock).await;
 
             // and the one sign that is the remote's rather than the replica's: the owner deleted
@@ -887,9 +887,9 @@ pub(crate) async fn ended_elsewhere(
 /// format refused and let go of** (effort 838, requirement 11 as amended, tickets 22 and 23). This
 /// is where a sign-in and a launch's resume both reach what the machine holds, so the owner's
 /// password, or the key their machine remembers, upgrades an older organization, or finishes an
-/// upgrade cut short, before anything else reads it, and only once a push and a pull have both
-/// gone (`upgrade.rs`). Anybody else's machine pulls first, with the credential its own grant
-/// holds, and goes on where the owner has upgraded; where the owner has not, it is refused as
+/// upgrade cut short, before anything else reads it, and only once a push and a pull have both gone
+/// (`upgrade/format/runner.rs`). Anybody else's machine pulls first, with the credential its own
+/// grant holds, and goes on where the owner has upgraded; where the owner has not, it is refused as
 /// waiting for its owner. A newer one is refused by name. Neither refusal reads a row of this
 /// format or writes anything: no registry row and no push.
 async fn open_replica(
@@ -925,15 +925,13 @@ async fn open_replica(
     // the owner's account, where this machine holds its authority: what renews a lapsed grant
     // before the owner's upgrade pushes (ticket 25). It mints only for the owner, whom the upgrade
     // finds by key, and only where the grant is lapsed or gone.
-    let remote = upgrade::ItsRemote {
-        account: owner_platform(app_state, credentials).await,
-    };
+    let account = owner_platform(app_state, credentials).await;
 
     match opening {
         Opening::Password { username, password } => {
-            upgrade::with_password(
+            session::upgraded_with_password(
                 &store,
-                &remote,
+                account,
                 held,
                 username,
                 password,
@@ -943,10 +941,10 @@ async fn open_replica(
             .await?
         }
         Opening::Remembered => {
-            upgrade::with_remembered_key(
+            session::upgraded_with_remembered_key(
                 credentials.as_ref(),
                 &store,
-                &remote,
+                account,
                 held,
                 &credential,
                 store.clock().now(),
@@ -3049,7 +3047,7 @@ mod tests {
     /// last row, which the owner finishes only against the organization's latest state (ticket
     /// 23). This machine is the owner's, and its push goes nowhere: the credential the first run
     /// minted is the in-memory platform's and no remote takes it, so the resume asks for a
-    /// connection; `upgrade.rs` tests the upgrade itself.
+    /// connection; `upgrade/format/runner.rs` tests the upgrade itself.
     ///
     /// Each of them: the launch leaves the wall up with no session and the organization
     /// still held, the replica the resume and the sign-in both open through refuses with its own

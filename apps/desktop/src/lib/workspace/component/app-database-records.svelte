@@ -8,7 +8,7 @@
 	import { useSettleEarlierRecords } from '$lib/settings/query';
 	import WorkspaceImportDialog from '$lib/workspace/component/import-dialog.svelte';
 	import { IMPORT_FLAGS, memberPermissions } from '$lib/permission';
-	import { useEarlierRecords } from '$lib/workspace/earlier';
+	import { useEarlierRecords } from '$lib/workspace/app-database';
 	import { useImportRecords } from '$lib/workspace/query';
 	import { toTransferInput } from '$lib/workspace/workspace';
 	import ArchiveRestoreIcon from '@lucide/svelte/icons/archive-restore';
@@ -26,7 +26,7 @@
 	 * **It names the workbook it keeps.** Reading the records writes them as the export's workbook
 	 * beside this machine's other copies, which is the copy the person keeps whatever they decide
 	 * in the dialog. Until it is read the name is the one it will have under `backups/app/`, where
-	 * `tauri/src/earlier.rs` writes it; once read, the path it was written to.
+	 * `tauri/src/upgrade/record.rs` writes it; once read, the path it was written to.
 	 *
 	 * **Two acts, and each ends the offer.** Brought in, or dismissed, it goes and stays gone on
 	 * this machine: the settings file records it, so the way in stops saying so too. Walking away

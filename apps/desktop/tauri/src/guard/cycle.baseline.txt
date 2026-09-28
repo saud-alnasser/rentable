@@ -24,6 +24,15 @@
 # `sync`'s commands that called into `organization` into `organization`. Nothing names `sync` now
 # but the composition root, and it names no `organization`, so it left the tangle and six modules
 # remain: bootstrap, database, organization, settings, state and update.
+#
+# Ticket 48 (2026-09-28) made the upgrade paths for older installs the top-level `upgrade` module,
+# out of `organization` (its format transitions, the owner's upgrade, format 1's signatures and the
+# startup check of the old shape) and out of the top-level `earlier`. It joins the tangle through
+# what moved with it and adds nothing new: `upgrade` reads the organization's store, chain and
+# vaults, and the organization's session runs it, both of which were one module's own until this
+# ticket and are now `organization -> upgrade` and `upgrade -> organization`; and
+# `upgrade -> state` is the startup check's and the old records' reach for the application state,
+# which was `organization -> state` and `earlier -> state` before it. Seven modules remain.
 
 cycle bootstrap -> database
 cycle bootstrap -> state
@@ -33,6 +42,7 @@ cycle database -> state
 cycle organization -> bootstrap
 cycle organization -> database
 cycle organization -> state
+cycle organization -> upgrade
 cycle settings -> state
 cycle state -> database
 cycle state -> organization
@@ -40,3 +50,5 @@ cycle state -> settings
 cycle state -> update
 cycle update -> settings
 cycle update -> state
+cycle upgrade -> organization
+cycle upgrade -> state

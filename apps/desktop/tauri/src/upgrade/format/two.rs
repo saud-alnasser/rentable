@@ -1,7 +1,7 @@
 //! the change from format 1, every organization made before effort 838, to format 2, the chain
 //! of certificates and the roles as rows (effort 838, requirement 11 as the human amended it on
 //! 2026-09-26, tickets 22 to 25). What runs it, and what every change of format shares, is
-//! `upgrade.rs`; where it sits in the order is [`super::TRANSITIONS`]. *This format*, below, is
+//! `runner.rs`; where it sits in the order is [`super::TRANSITIONS`]. *This format*, below, is
 //! format 2, the one the change arrives at.
 //!
 //! **It refuses a directory that holds a root** ([`holds_a_root`], ticket 25): a root certificate
@@ -49,9 +49,9 @@ use crate::{
     error::Error,
     organization::{
         authority::{
-            AdministratorKey, Authority, Certificate, Chain, FormatOneCertificate, FormatOneMember,
-            FormatOneRow, Issue, MemberAuthority, OrganizationKey, Reading, Revocation,
-            VERIFYING_KEY_BYTES, issue_certificate, issue_root_certificate, verify_format_one,
+            AdministratorKey, Authority, Certificate, Chain, FormatOneCertificate, Issue,
+            MemberAuthority, OrganizationKey, Reading, Revocation, VERIFYING_KEY_BYTES,
+            issue_certificate, issue_root_certificate,
         },
         permission::{self, Flag, MANAGER_ROLE, MEMBER_ROLE, OWNER_ROLE, RECORD_FLAGS},
         store::{
@@ -60,12 +60,15 @@ use crate::{
             Signer, WorkspaceRecord, grant_authority, install_format_two, invitation_authority,
             mark_authority, role_authority, workspace_authority,
         },
-        upgrade::{Opened, signing_key_of},
         vault::MemberSecretKey,
     },
 };
 
-use super::{Pending, Sought, Transition, Unjudged, Upgrading};
+use super::{
+    Pending, Sought, Transition, Unjudged, Upgrading,
+    runner::{Opened, signing_key_of},
+    signature::{FormatOneMember, FormatOneRow, verify_format_one},
+};
 
 /// The change from format 1, as [`super::TRANSITIONS`] lists it.
 pub(crate) const TRANSITION: Transition = Transition {
@@ -81,8 +84,8 @@ pub(crate) const TRANSITION: Transition = Transition {
 };
 
 /// A fresh organization of format 2: every table of this build's schema but what a later format
-/// added. Only the last change's is read (`upgrade.rs`), so it is read where a walk ends at format
-/// 2, as a test seeding an organization of format 2 walks (`transition/three.rs`), and never where
+/// added. Only the last change's is read (`runner.rs`), so it is read where a walk ends at format
+/// 2, as a test seeding an organization of format 2 walks (`three.rs`), and never where
 /// a walk goes on. *It was the schema this build installs until format 3 added a table to it.*
 fn built(connection: &turso::Connection) -> Pending<'_, ()> {
     Box::pin(install_format_two(connection))
@@ -365,7 +368,7 @@ pub(crate) struct Plan {
 /// 8. format 1's certificate table dropped, which nothing can judge a format 1 row without, so it
 ///    goes once there is none left.
 ///
-/// The `format` row follows, last, and the runner writes it (`upgrade.rs`): until it is written
+/// The `format` row follows, last, and the runner writes it (`runner.rs`): until it is written
 /// the organization reads as older everywhere. An organization that carries nothing of format 1
 /// any more had everything written but that row, and is given no step here; the runner does not
 /// walk this change over it at all.
@@ -1051,7 +1054,11 @@ mod tests {
             role::in_one_transaction,
             session::CredentialSlot,
             store::{OrganizationStore, RoleRecord, Signer},
-            transition::test::{
+            vault::seal_content,
+        },
+        upgrade::format::{
+            runner::{signing_key_of, with_password},
+            test::{
                 older::{
                     CHANGE_ROLE, GRANT_WORKSPACE, INVITE_MEMBER, NOW, Older, RENAME_MEMBER,
                     RENAME_WORKSPACE, another_machine, assert_upgraded, made_to_look_older, mask,
@@ -1059,8 +1066,6 @@ mod tests {
                 },
                 remote::online,
             },
-            upgrade::{signing_key_of, with_password},
-            vault::seal_content,
         },
     };
 
@@ -1585,7 +1590,7 @@ mod tests {
     /// What ticket 25's refusal keeps from happening, planned directly: over an upgraded
     /// organization made to look older, the promotion replayed onto mina's row reads as an
     /// administrator of format 1, and the plan would sign it from the root as a manager. The
-    /// runner never plans over it (`upgrade.rs`, whose tests show the refusal).
+    /// runner never plans over it (`runner.rs`, whose tests show the refusal).
     #[tokio::test]
     async fn a_promotion_replayed_onto_an_upgraded_organization_would_be_carried() {
         let (older, store) = upgraded("replayed-promotion").await;

@@ -5,6 +5,7 @@ paths:
   - apps/desktop/tauri/src/sync/**
   - apps/desktop/tauri/src/turso/**
   - apps/desktop/tauri/src/organization/**
+  - apps/desktop/tauri/src/upgrade/**
   - apps/desktop/src/lib/sync/**
   - apps/desktop/src/lib/organization/**
 use-when: "a credential this application holds is being stored, refreshed, or handed to somebody"

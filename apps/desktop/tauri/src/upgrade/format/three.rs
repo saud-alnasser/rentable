@@ -1,7 +1,7 @@
 //! the change from format 2 to format 3: a member's override for one workspace, as a signed row of
 //! its own holding what is pinned for them there and which of it is on (effort 838, requirement 12
 //! as amended a third time, tickets 53 and 55). What runs it, and what every change of format
-//! shares, is `upgrade.rs`; where it sits in the order is [`super::TRANSITIONS`]. *The row held
+//! shares, is `runner.rs`; where it sits in the order is [`super::TRANSITIONS`]. *The row held
 //! one mask switched over the layers beneath until review round one; format 3 had not shipped, so
 //! it was changed here rather than by a format of its own.*
 //!
@@ -38,7 +38,7 @@ pub(crate) const TRANSITION: Transition = Transition {
 };
 
 /// A fresh organization of format 3: the schema this build installs. Only the last change's is
-/// read (`upgrade.rs`), so the next format's change builds its own and this one is read only where
+/// read (`runner.rs`), so the next format's change builds its own and this one is read only where
 /// a walk ends here.
 fn built(connection: &turso::Connection) -> Pending<'_, ()> {
     Box::pin(install(connection))
@@ -64,14 +64,14 @@ mod tests {
         organization::{
             session::CredentialSlot,
             store::{FORMAT_VERSION, OrganizationStore},
-            transition::{
-                TRANSITIONS,
-                test::{
-                    older::{NOW, ORGANIZATION_ID, Older, assert_upgraded, older, run},
-                    remote::online,
-                },
+        },
+        upgrade::format::{
+            TRANSITIONS,
+            runner::{with_password, with_password_over},
+            test::{
+                older::{NOW, ORGANIZATION_ID, Older, assert_upgraded, older, run},
+                remote::online,
             },
-            upgrade::{with_password, with_password_over},
         },
     };
 

@@ -44,7 +44,7 @@ use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD as BASE64URL}
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    backup, clock,
+    clock,
     credential::CredentialStore,
     diagnostics,
     error::{Error, RefusalReason},
@@ -70,7 +70,6 @@ use super::{
         FORMAT_VERSION, GrantRecord, MemberRecord, OrganizationRecord, OrganizationStore,
         RoleRecord, Signer,
     },
-    upgrade,
     vault::{
         ContentKey, KdfParams, MemberSecretKey, create_vault_with_secret_and_key,
         generate_content_key, open_content, open_vault, seal_content, seal_to_public_key,
@@ -221,49 +220,6 @@ impl Remote {
             #[cfg(test)]
             Self::Answering => None,
         }
-    }
-}
-
-/// The connect's remote, and the owner's Turso account the connect was consented on: how the
-/// upgrade of an older organization reaches both from `connect_existing` (effort 838, tickets 23
-/// and 27). The account is the one the connect minted its credential on, so the copy taken before
-/// the upgrade is made there too, as `upgrade::ItsRemote` makes it on a sign-in.
-struct OnTheAccount<'a, P> {
-    remote: Remote,
-    account: &'a P,
-}
-
-impl<P: TursoPlatform> upgrade::Replication for OnTheAccount<'_, P> {
-    async fn push(&self, store: &OrganizationStore) -> upgrade::Pushed {
-        match self.remote {
-            Remote::Libsql => upgrade::pushed(store).await,
-            Remote::None => upgrade::Pushed::DidNotGo,
-            #[cfg(test)]
-            Remote::Answering => upgrade::Pushed::Went,
-        }
-    }
-
-    async fn pull(&self, store: &OrganizationStore) -> bool {
-        match self.remote {
-            Remote::Libsql => upgrade::pulled(store).await,
-            Remote::None => false,
-            #[cfg(test)]
-            Remote::Answering => true,
-        }
-    }
-
-    /// Nothing: the connect has minted the credential it upgrades under already, on this same
-    /// account, before the replica was opened.
-    async fn minted(&self, _: &str) -> Option<String> {
-        None
-    }
-
-    /// A copy seeded from the organization database on the account the connect holds, as
-    /// `backup::remote_copy` makes one.
-    async fn copied(&self, database_name: &str, label: &str, at: i64) -> Option<String> {
-        backup::remote_copy(self.account, database_name, label, at)
-            .await
-            .ok()
     }
 }
 
@@ -1009,12 +965,10 @@ where
         // owner's, and refused as waiting for its owner where it is anybody else's; one of another
         // format is refused before its row is read or any credential renewed in it (effort 838,
         // requirement 11 as amended, ticket 22).
-        upgrade::with_the_owners_password(
+        session::upgraded_on_connect(
             &replica,
-            &OnTheAccount {
-                remote,
-                account: &platform,
-            },
+            remote,
+            &platform,
             username,
             password,
             &credential,

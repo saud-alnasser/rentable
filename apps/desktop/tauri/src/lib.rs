@@ -6,7 +6,6 @@ pub mod clock;
 mod credential;
 pub mod database;
 pub mod diagnostics;
-pub mod earlier;
 pub mod error;
 pub mod export;
 // test-only: the structural guards, which hold the tree to rules/module-layout and ship nothing.
@@ -27,6 +26,7 @@ pub mod sync;
 mod test;
 pub mod turso;
 pub mod update;
+pub mod upgrade;
 pub mod window;
 
 use database::Database;
@@ -309,8 +309,8 @@ pub fn run() {
             print::print_page,
             import::import_read,
             import::import_read_book,
-            earlier::earlier_find,
-            earlier::earlier_read,
+            upgrade::record::earlier_find,
+            upgrade::record::earlier_read,
             update::update_prepare,
             bootstrap::bootstrap,
         ])

@@ -253,7 +253,7 @@ organization/component/roles.svelte -> settings/section.ts : deep
 organization/component/standing.svelte -> settings/query.ts : deep
 organization/component/standing.svelte -> workspace/sync-status.ts : deep
 organization/component/workspaces.svelte -> settings/section.ts : deep
-organization/component/workspaces.svelte -> workspace/component/earlier-records.svelte : deep
+organization/component/workspaces.svelte -> workspace/component/app-database-records.svelte : deep
 organization/component/workspaces.svelte -> workspace/component/transfer.svelte : deep
 organization/directory.ts -> layout/palette.ts : upward
 organization/palette.ts -> settings/query.ts : deep
@@ -379,11 +379,11 @@ workspace -> payment : cycle
 workspace -> platform : cycle
 workspace -> settings : cycle
 workspace -> tenant : cycle
-workspace/component/earlier-records.svelte -> settings/query.ts : deep
+workspace/app-database.ts -> settings/query.ts : deep
+workspace/component/app-database-records.svelte -> settings/query.ts : deep
 workspace/component/permissions.svelte -> organization/query.ts : deep
 workspace/component/permissions.svelte -> settings/query.ts : deep
 workspace/component/rename-form.svelte -> settings/query.ts : deep
-workspace/earlier.ts -> settings/query.ts : deep
 workspace/router.ts -> complex : literal
 workspace/router.ts -> contract : literal
 workspace/router.ts -> contract/contract.ts : deep

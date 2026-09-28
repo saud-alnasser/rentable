@@ -1,15 +1,13 @@
 //! a remote the owner's upgrade pushes to and pulls from, answering as a test tells it (ticket 29
-//! moved it here from the foot of `upgrade.rs`).
+//! moved it here from the foot of the runner).
 
 use std::sync::{Arc, Mutex};
 
 use crate::{
     backup,
-    organization::{
-        store::OrganizationStore,
-        upgrade::{Pushed, Replication},
-    },
+    organization::store::OrganizationStore,
     turso::platform::InMemoryPlatform,
+    upgrade::format::runner::{Pushed, Replication},
 };
 
 /// A remote that answers every push and every pull as it is told, mints what it is told to on

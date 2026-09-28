@@ -561,7 +561,7 @@ Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], re
 
 **A stated exception: the earlier records skip choosing a file.** Where this machine still holds the
 records of 0.12.0 or 0.13.0, a callout in the settings workspace group, above the transfer controls
-(`workspace/component/earlier-records.svelte`), opens the same workspace import review over those
+(`workspace/component/app-database-records.svelte`), opens the same workspace import review over those
 records as the shell reads them from the earlier version's database, rather than over a file the
 person chose. There is no file for the person to choose, since the records sit in the earlier
 version's own data, and nothing the pattern protects is lost: the plan is still shown, sheet by
