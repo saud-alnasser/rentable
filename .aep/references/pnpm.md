@@ -177,7 +177,8 @@ pnpm i18n --no-watch   # one-shot: regenerate and return
 ```
 
 The type definitions and utility files under `apps/desktop/src/lib/i18n/` are the output; edit the
-locale files under `en/` and `ar/`, then regenerate. Use the watcher while working, and
+locale files under `en/` and `ar/`, or a concept's pieces under `<concept>/i18n/` that they
+compose, then regenerate. Use the watcher while working, and
 `--no-watch` anywhere something has to wait for it to finish — pnpm forwards the flag to
 `typesafe-i18n`, verified on 5.27.1.
 

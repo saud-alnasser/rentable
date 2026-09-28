@@ -22,6 +22,11 @@
 // and `surface.ts`, which is how it lists them. `import type` is erased at runtime and is not
 // counted by any kind.
 //
+// A locale is the other place that reads every concept: `i18n/<locale>/index.ts` composes each
+// concept's `i18n/<locale>.ts` back at its key path (plan, *Integration*). Such a piece is data
+// that imports nothing at runtime, which a test below holds it to, so the locale reading it is
+// not an edge of the module graph and counts as no kind: nothing can run back through a leaf.
+//
 // The tree does not obey the rule yet, so today's violations are the baseline, and the baseline
 // can only shrink: a violation it does not list fails, and so does a line that no longer occurs,
 // so a move that removes one deletes its line in the same commit. The effort ends with it empty.
@@ -96,6 +101,16 @@ const COMPOSITION_ROOT = 'app';
 
 // What the composition root reads from a feature besides its entry (plan, *Components*).
 const DECLARATIONS = ['feature.ts', 'surface.ts'];
+
+// A concept's strings for one locale, and the locale index that composes them.
+const LOCALE_PIECE = /^(?!i18n\/)(?:[^/]+\/)+i18n\/([a-z]+)\.ts$/;
+const LOCALE_INDEX = /^i18n\/([a-z]+)\/index\.ts$/;
+
+// Whether an import is a locale index reading a piece of its own locale.
+function isLocalePiece(label: string, target: string) {
+	const locale = LOCALE_INDEX.exec(label)?.[1];
+	return locale !== undefined && LOCALE_PIECE.exec(target)?.[1] === locale;
+}
 
 function toPosix(path: string) {
 	return path.split(sep).join('/');
@@ -280,7 +295,7 @@ function violations() {
 
 			const to = moduleOf(target);
 			const toLayer = LAYERS[to];
-			if (to === from || toLayer === undefined) continue;
+			if (to === from || toLayer === undefined || isLocalePiece(label, target)) continue;
 
 			if (!edges.has(from)) edges.set(from, new Set());
 			edges.get(from)!.add(to);
@@ -338,6 +353,15 @@ test('every record kind belongs to a feature', () => {
 	for (const kind of RECORD_KINDS) {
 		assert.equal(LAYERS[KIND_OWNER[kind] ?? kind], 'feature', `the kind ${kind} has no feature`);
 	}
+});
+
+test('a locale piece imports nothing at runtime', () => {
+	const importing = libraryFiles()
+		.filter(({ label }) => LOCALE_PIECE.test(label))
+		.filter(({ file }) => valueImports(readSource(file).script).length > 0)
+		.map(({ label }) => label);
+
+	assert.deepEqual(importing, [], 'a locale piece is data; import only types into it');
 });
 
 test('the baseline is sorted and holds each violation once', () => {

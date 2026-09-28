@@ -1,4 +1,8 @@
 import type { Translation } from '../i18n-types';
+import * as complex from '../../complex/i18n/ar.js';
+import * as contract from '../../contract/i18n/ar.js';
+import * as payment from '../../payment/i18n/ar.js';
+import * as tenant from '../../tenant/i18n/ar.js';
 
 const ar = {
 	app: {
@@ -261,42 +265,8 @@ const ar = {
 		},
 
 		refusals: {
-			complex: {
-				gone: 'لم يعد هذا المجمع موجوداً في مساحة العمل. أعد التحميل لترى ما تغيّر.',
-				holdsUnits: 'ما زال هذا المجمع يضم وحدات. احذفها قبل حذفه.',
-				nameTaken: 'الاسم مرتبط بمجمع مسجل مسبقاً.',
-				nameTakenNamed: 'الاسم {named} مرتبط بمجمع مسجل مسبقاً.',
-				repeatedInSet: 'مجمعان في هذه المجموعة يطالبان بـ {value}.'
-			},
-			contract: {
-				costNotPositive: 'يجب أن تكون تكلفة الدفعة أكبر من صفر.',
-				endBeforeStart: 'يجب أن يكون تاريخ النهاية بعد تاريخ البداية.',
-				govIdTaken: 'المعرف الحكومي مرتبط بعقد آخر.',
-				govIdTakenNamed: 'المعرف الحكومي {named} مرتبط بعقد آخر.',
-				holdsPayments: 'لهذا العقد دفعات. احذفها قبل حذفه.',
-				missing: 'لم يعد هذا العقد موجوداً في مساحة العمل. أعد التحميل لترى ما تغيّر.',
-				notTerminable: 'لا يُنهى إلا العقد الساري أو المكتمل أو المنقضي.',
-				nothingToRemind:
-					'لا مستحقات على هذا العقد ولا إيجار يحلّ هذا الأسبوع، فلا شيء يُذكَّر به المستأجر.',
-				notUnterminable: 'لا يُستعاد إلا العقد المنتهي.',
-				paidInFull: 'سُدد هذا العقد بالكامل ولا يقبل دفعات أخرى.',
-				periodOffCycle:
-					'يجب أن يبقى تاريخ النهاية ضمن {days} أيام قبل أو بعد تاريخ نهاية دورة {interval} المحسوب.',
-				periodOverlapsUnits:
-					'يحتفظ عقد آخر بواحدة أو أكثر من هذه الوحدات خلال التواريخ الجديدة. اختر تواريخ أخرى.',
-				renewalBeforeEnd: 'يجب أن يبدأ التجديد بعد انتهاء العقد الذي يجدده.',
-				repeatedInSet: 'عقدان في هذه المجموعة يطالبان بـ {value}.',
-				tenantMissing: 'لم يعد المستأجر المختار موجوداً في مساحة العمل. اختر مستأجراً آخر.',
-				tenantMissingNamed: 'لا يوجد في مساحة العمل مستأجر بالمعرف {named}.',
-				terminatedLocked: 'هذا العقد منتهٍ ومقفل. استعده قبل تعديله.',
-				unitsLockedByPayments: 'لا يمكن تغيير وحدات العقد بعد تسجيل دفعات عليه.',
-				unitsMissing:
-					'لم تعد واحدة أو أكثر من هذه الوحدات موجودة في مساحة العمل. أعد التحميل لترى ما تغيّر.',
-				unitsTaken:
-					'يحتفظ عقد آخر بواحدة أو أكثر من الوحدات المختارة خلال هذه المدة. اختر وحدات أخرى أو مدة أخرى.',
-				unitsUnavailable:
-					'يحتفظ عقد آخر بواحدة أو أكثر من هذه الوحدات خلال المدة المحددة. اختر مدة أخرى.'
-			},
+			complex: complex.refusals.complex,
+			contract: contract.refusals.contract,
 			host: {
 				lapsed: 'انتهت صلاحية هذا الرابط. اطلب رابطاً جديداً ممن أرسله إليك.',
 				consumed: 'استُخدم هذا الرابط من قبل. اطلب رابطاً جديداً ممن أرسله إليك.',
@@ -404,33 +374,13 @@ const ar = {
 				tursoRefused: 'رفضت Turso الطلب. لن تفيد إعادة المحاولة.',
 				tursoAccountRefused: 'رفضت Turso الطلب بسبب الحساب نفسه. راجع خطة الحساب في Turso.'
 			},
-			payment: {
-				amountNotPositive: 'يجب أن يكون مبلغ الدفعة أكبر من صفر.',
-				datedInFuture: 'لا يمكن أن يكون تاريخ الدفعة في المستقبل.',
-				missing: 'لم تعد هذه الدفعة موجودة في مساحة العمل. أعد التحميل لترى ما تغيّر.',
-				repeatedInSet: 'دفعتان في هذه المجموعة تطالبان بـ {value}.'
-			},
+			payment: payment.refusals.payment,
 			record: {
 				idTaken: 'هناك سجل آخر يحمل هذا المعرف.',
 				idTakenNamed: 'هناك سجل آخر يحمل المعرف {named}.'
 			},
-			tenant: {
-				gone: 'لم يعد هذا المستأجر موجوداً في مساحة العمل. أعد التحميل لترى ما تغيّر.',
-				holdsContracts: 'هناك عقود تذكر هذا المستأجر، فلا يمكن حذفه.',
-				nationalIdTaken: 'الهوية الوطنية مرتبطة بمستأجر مسجل.',
-				nationalIdTakenNamed: 'الهوية الوطنية {named} مرتبطة بمستأجر مسجل.',
-				phoneTaken: 'رقم الهاتف مرتبط بمستأجر مسجل.',
-				phoneTakenNamed: 'رقم الهاتف {named} مرتبط بمستأجر مسجل.',
-				repeatedInSet: 'مستأجران في هذه المجموعة يطالبان بـ {value}.'
-			},
-			unit: {
-				gone: 'لم تعد هذه الوحدة موجودة في مساحة العمل. أعد التحميل لترى ما تغيّر.',
-				holdsContracts: 'هناك عقد يذكر هذه الوحدة، فلا يمكن حذفها.',
-				nameRepeated: 'الاسم {name} مكرر؛ لكل وحدة اسمها الخاص.',
-				nameTaken: 'الاسم مرتبط بوحدة في نفس المجمع.',
-				nameTakenNamed: 'الاسم {named} مرتبط بوحدة في نفس المجمع.',
-				repeatedInSet: 'وحدتان في هذه المجموعة تطالبان بـ {value}.'
-			},
+			tenant: tenant.refusals.tenant,
+			unit: complex.refusals.unit,
 			workspace: {
 				nothingToImport: 'لا يوجد ما يمكن استيراده.',
 				unknownComplex: 'يذكر الملف مجمعاً باسم {name}، ولا يوجد مجمع بهذا الاسم.',
@@ -742,289 +692,11 @@ const ar = {
 			}
 		}
 	},
-	complexes: {
-		empty: {
-			description: 'ستظهر هنا المجمعات التي تضيفها مع وحداتها.',
-			title: 'لا توجد مجمعات بعد'
-		},
+	complexes: complex.complexes,
 
-		hooks: {
-			createSuccess: 'تم إنشاء المجمع بنجاح!',
-			deleteManySuccess: 'تم حذف {count|number} مجمع',
-			deleteSuccess: 'تم حذف المجمع بنجاح!',
-			unitCreateManySuccess: 'تم إنشاء {count|number} وحدة',
-			unitCreateSuccess: 'تم إنشاء الوحدة بنجاح!',
-			unitDeleteManySuccess: 'تم حذف {count|number} وحدة',
-			unitDeleteSuccess: 'تم حذف الوحدة بنجاح!',
-			unitUpdateSuccess: 'تم تحديث الوحدة بنجاح!',
-			updateSuccess: 'تم تحديث المجمع بنجاح!'
-		},
+	tenants: tenant.tenants,
 
-		form: {
-			duplicateUnitName: '{name} موجود في القائمة بالفعل.',
-			noUnitNamed: 'سمِّ وحدة واحدة على الأقل.',
-			noUnitsYet: 'لا توجد وحدات بعد. أضفها هنا أو لاحقاً من المجمع نفسه.',
-			unitName: 'اسم الوحدة',
-			unitRangeEndBeforeStart: 'يجب ألا يقل الرقم الأخير عن الرقم الأول.',
-			unitRangeHint: 'اسم واحد، أو مجموعة — «أ 1-18» تضيف أ 1 حتى أ 18.',
-			unitRangeTooLarge: 'تضيف المجموعة الواحدة {max} وحدة كحد أقصى في المرة.'
-		},
-
-		selection: {
-			deleteSummary: 'سيتم حذف {count|number} مجمع',
-			deleteTitle: 'حذف المجمعات',
-			refusedHoldsUnits: '{count|number} ما زالت تحمل وحدات',
-			refusedMissing: '{count|number} لم تعد موجودة في مساحة العمل',
-			unitDeleteSummary: 'سيتم حذف {count|number} وحدة',
-			unitDeleteTitle: 'حذف الوحدات',
-			unitRefusedHoldsContracts: '{count|number} مذكورة في عقد',
-			unitRefusedMissing: '{count|number} لم تعد موجودة في مساحة العمل'
-		},
-
-		units: {
-			contractsEmptyDescription: 'ستظهر هنا العقود التي تذكر هذه الوحدة.',
-			contractsEmptyTitle: 'لا توجد عقود تذكر هذه الوحدة',
-			emptyDescription: 'ستظهر هنا الوحدات التي تضيفها إلى هذا المجمع.',
-			emptyTitle: 'لا توجد وحدات في هذا المجمع بعد',
-			management: 'إدارة الوحدات'
-		}
-	},
-
-	tenants: {
-		empty: {
-			description: 'سيظهر هنا المستأجرون الذين تضيفهم.',
-			title: 'لا يوجد مستأجرون بعد'
-		},
-
-		contracts: {
-			emptyTitle: 'لا توجد عقود بعد',
-			emptyDescription: 'ستظهر هنا العقود التي يحملها هذا المستأجر.'
-		},
-
-		hooks: {
-			createSuccess: 'تم إنشاء المستأجر بنجاح!',
-			deleteManySuccess: 'تم حذف {count|number} مستأجر',
-			deleteSuccess: 'تم حذف المستأجر بنجاح!',
-			updateSuccess: 'تم تحديث المستأجر بنجاح!'
-		},
-
-		form: {
-			phoneCountryCode: 'مفتاح الدولة',
-			invalidNationalId: 'يجب أن يبدأ رقم الهوية الوطنية بـ 1 أو 2 ويتكون من 10 أرقام.',
-			invalidPhone: 'يجب أن يكون رقم الهاتف صالحاً لمفتاح الدولة المحدد {countryCode}.',
-			phoneNumberPlaceholder: '5xxxxxxxx',
-			phonePlaceholder: 'الهاتف (+966...)'
-		},
-
-		selection: {
-			deleteSummary: 'سيتم حذف {count|number} مستأجر',
-			deleteTitle: 'حذف المستأجرين',
-			refusedHoldsContracts: '{count|number} ما زالوا يحملون عقوداً',
-			refusedMissing: '{count|number} لم يعودوا موجودين في مساحة العمل'
-		}
-	},
-
-	contracts: {
-		empty: {
-			description: 'ستظهر هنا العقود التي تنشئها، وأولها ما يحتاج إلى متابعة.',
-			title: 'لا توجد عقود بعد'
-		},
-
-		form: {
-			startDate: 'تاريخ البداية',
-			calculatedEndDate: 'تاريخ النهاية المحسوب',
-			calculatedEndDateHint:
-				'يتبع الدورة وتاريخ البداية وعدد الدورات. يمكن تحريكه حتى {days} أيام قبله أو بعده، والتواريخ المسموح بها خضراء.',
-			costDecimalPlaces: 'تقبل التكلفة منزلتين عشريتين كحد أقصى.',
-			costGreaterThanZero: 'يجب أن تكون التكلفة أكبر من صفر.',
-			costRequired: 'التكلفة مطلوبة.',
-			cyclesGreaterThanZero: 'يجب أن يكون عدد الدورات أكبر من صفر.',
-			cyclesRequired: 'عدد الدورات مطلوب.',
-			endDateRequired: 'تاريخ النهاية مطلوب.',
-			endDateShort: 'تاريخ النهاية',
-			loadingTenant: 'جاري تحميل المستأجر...',
-			loadingTenants: 'جاري تحميل المستأجرين...',
-			noTenantFound: 'لم يتم العثور على مستأجر.',
-			numberOfCycles: 'عدد الدورات',
-			totalExpectedAmount: 'إجمالي المبلغ المتوقع',
-			paymentAmountDecimalPlaces: 'يقبل مبلغ الدفع منزلتين عشريتين كحد أقصى',
-			paymentAmountGreaterThanZero: 'يجب أن يكون مبلغ الدفع أكبر من صفر',
-			paymentAmountRequired: 'مبلغ الدفع مطلوب',
-			paymentDateRequired: 'تاريخ الدفع مطلوب',
-			pickDate: 'اختر تاريخ',
-			pickDateRange: 'اختر نطاق تاريخ',
-			periodMustMatchWholeCycles:
-				'يجب أن يبقى تاريخ النهاية ضمن {days} أيام قبل أو بعد تاريخ نهاية دورة {interval} المحسوب.',
-			renewDescription:
-				'المستأجر والوحدات والدورة والتكلفة تنتقل من العقد الجاري تجديده. حدّد مدة التجديد.',
-			renewTitle: 'تجديد العقد',
-			searchAndSelectTenant: 'ابحث واختر مستأجر',
-			searchTenantPlaceholder: 'ابحث عن مستأجر بالاسم أو الهوية أو الهاتف...',
-			startDateRequired: 'تاريخ البداية مطلوب.',
-			tenantRequired: 'المستأجر مطلوب.',
-			chooseUnits: 'اختر الوحدات',
-			loadingUnits: 'جاري تحميل الوحدات...',
-			noUnitFree: 'لا توجد وحدة متاحة خلال هذه المدة.',
-			searchUnitPlaceholder: 'ابحث عن وحدة بالاسم أو المجمع...',
-			unitHeldOverTerm: 'يشغلها عقد آخر خلال هذه المدة',
-			unitsHint:
-				'تُعرض الوحدات المتاحة خلال مدة العقد فقط. يمكنك تغييرها لاحقاً من تبويب الوحدات في العقد.',
-			unitsNeedTerm: 'اختر تاريخ البداية أولاً لتظهر الوحدات المتاحة خلال المدة.',
-			unitsOptional: 'الوحدات (اختياري)'
-		},
-
-		hooks: {
-			createPaymentSuccess: 'تم إنشاء الدفعة بنجاح!',
-			createSuccess: 'تم إنشاء العقد بنجاح!',
-			deleteManyPaymentsSuccess: 'تم حذف {count|number} دفعة',
-			deleteManySuccess: 'تم حذف {count|number} عقد',
-			deletePaymentSuccess: 'تم حذف الدفعة بنجاح!',
-			deleteSuccess: 'تم حذف العقد بنجاح!',
-			renewSuccess: 'تم تجديد العقد بنجاح!',
-			restoreManySuccess: 'تمت استعادة {count|number} عقد',
-			restoreSuccess: 'تمت استعادة العقد بنجاح!',
-			terminateManySuccess: 'تم إنهاء {count|number} عقد',
-			terminateSuccess: 'تم إنهاء العقد بنجاح!',
-			updatePaymentSuccess: 'تم تحديث الدفعة بنجاح!',
-			updateSuccess: 'تم تحديث العقد بنجاح!'
-		},
-
-		intervals: {
-			annual: 'سنوي',
-			monthly: 'شهري',
-			quarterly: 'ربع سنوي',
-			semiAnnual: 'نصف سنوي'
-		},
-
-		payments: {
-			emptyTitle: 'لا توجد دفعات بعد',
-			fullyPaidNotice: 'هذا العقد مسدد بالكامل',
-			fullyPaidSummary: 'تم سداد العقد بالكامل.',
-			method: 'طريقة الدفع',
-			methodNotRecorded: 'غير مسجلة',
-			methodOptional: 'طريقة الدفع (اختياري)',
-			methods: {
-				bankTransfer: 'تحويل بنكي',
-				cash: 'نقدًا',
-				cheque: 'شيك',
-				ejar: 'إيجار'
-			},
-			monthTotal: 'الإجمالي المعروض في {month}',
-			note: 'ملاحظة',
-			noteOptional: 'ملاحظة (اختياري)',
-			percentFulfilled: '{percent}% مكتمل',
-			receipt: {
-				amount: 'المبلغ المستلم',
-				covers: 'يغطي',
-				cycle: 'الدورة {index}، تستحق في {date}',
-				print: 'طباعة السند',
-				receivedFrom: 'استلمنا من',
-				receivedOn: 'تاريخ الاستلام',
-				reference: 'رقم السند',
-				remaining: 'المتبقي من إجمالي العقد',
-				title: 'سند قبض'
-			},
-			reference: 'المرجع',
-			referenceOptional: 'المرجع (اختياري)',
-			referencePlaceholder: 'رقم التحويل أو الشيك أو سداد',
-			remaining: 'متبقٍ {amount}',
-			remainingAfter: 'المتبقي بعد هذه الدفعة',
-			remainingBalance: 'الرصيد المتبقي',
-			terminatedNotice: 'هذا العقد منتهي',
-			terminatedSummary: 'العقد منتهي والمدفوعات للقراءة فقط.',
-			title: 'المدفوعات',
-			titleFor: 'مدفوعات {govId}',
-			trackSummary: 'تتبع المدفوعات وإضافة دفعات جديدة.'
-		},
-
-		ranks: {
-			dueSoon: 'يستحق قريبًا',
-			endingSoon: 'قريب الانتهاء',
-			overdue: 'متأخر',
-			owing: 'مستحق'
-		},
-
-		reminder: {
-			comingDue:
-				'مرحبًا {tenant}، نذكّركم بأن إيجار العقد رقم {contract} بمبلغ {amount} ريال يحلّ في {date}. شكرًا لكم.',
-			comingDueNoNumber:
-				'مرحبًا {tenant}، نذكّركم بأن إيجار عقدكم بمبلغ {amount} ريال يحلّ في {date}. شكرًا لكم.',
-			language: 'لغة الرسالة',
-			noPhone: 'لا يوجد رقم جوال للمستأجر لإرسال التذكير إليه.',
-			open: 'فتح واتساب',
-			owed: 'مرحبًا {tenant}، نذكّركم بأن إيجار العقد رقم {contract} بمبلغ {amount} ريال مستحق منذ {date}. شكرًا لكم.',
-			owedNoNumber:
-				'مرحبًا {tenant}، نذكّركم بأن إيجار عقدكم بمبلغ {amount} ريال مستحق منذ {date}. شكرًا لكم.'
-		},
-
-		schedule: {
-			columns: {
-				amount: 'المبلغ المستحق',
-				covered: 'المدفوع',
-				due: 'تاريخ الاستحقاق',
-				state: 'الحالة'
-			},
-			latePart: 'متأخرة؛ دُفع {covered} من {amount}',
-			print: 'طباعة الجدول',
-			printTitle: 'جدول الدفعات',
-			stateDescriptions: {
-				due: 'تستحق اليوم ولم تُدفع بالكامل',
-				late: 'فات موعد استحقاقها ولم تُدفع بالكامل',
-				paid: 'مدفوعة بالكامل',
-				partlyPaid: 'لم يحن موعدها؛ دُفع جزء منها',
-				upcoming: 'لم يحن موعدها؛ لم يُدفع منها شيء'
-			},
-			states: {
-				due: 'مستحقة اليوم',
-				late: 'متأخرة',
-				paid: 'مدفوعة',
-				partlyPaid: 'مدفوعة جزئياً',
-				upcoming: 'قادمة'
-			},
-			title: 'جدول الدفعات'
-		},
-
-		selection: {
-			deleteSummary: 'سيتم حذف {count|number} عقد',
-			deleteTitle: 'حذف العقود',
-			paymentDeleteSummary: 'سيتم حذف {count|number} دفعة',
-			paymentDeleteTitle: 'حذف الدفعات',
-			paymentRefusedContractTerminated: '{count|number} تخص عقداً منتهياً',
-			paymentRefusedMissing: '{count|number} لم تعد موجودة في مساحة العمل',
-			refusedHoldsPayments: '{count|number} ما زالت تحمل دفعات',
-			refusedMissing: '{count|number} لم تعد موجودة في مساحة العمل',
-			refusedNotRestorable: '{count|number} ليست منتهية',
-			refusedNotTerminable: '{count|number} لا يمكن إنهاؤها يدوياً',
-			restoreSummary: 'سيتم استعادة {count|number} عقد',
-			restoreTitle: 'استعادة العقود',
-			terminateSummary: 'سيتم إنهاء {count|number} عقد',
-			terminateTitle: 'إنهاء العقود'
-		},
-
-		table: {
-			paymentsManagement: 'إدارة المدفوعات',
-			restoreDescription: 'هل تريد إزالة إنهاء العقد؟',
-			restoreTitle: 'استعادة العقد',
-			terminateDescription: 'هل تريد إنهاء العقد يدوياً؟',
-			terminateTitle: 'إنهاء العقد',
-			tenantFallback: 'مستأجر #{tenantId}',
-			unitsManagement: 'إدارة الوحدات'
-		},
-
-		units: {
-			available: 'المتاحة',
-			assigned: 'المسندة',
-
-			transferDescription:
-				'انقل الوحدة بين الجانبين، ويُحفظ كل نقل فورًا. لا تظهر الوحدات المرتبطة بعقد متداخل المدة.',
-
-			lockNoticeHasPayments: 'للعقد دفعات مسجلة، فوحداته مقفلة.',
-			lockNoticeTerminated: 'العقد منتهٍ، فوحداته مقفلة.',
-
-			noAssignedUnits: 'لا توجد وحدات مرتبطة.',
-			noAvailableUnits: 'لا توجد وحدات متاحة.'
-		}
-	},
+	contracts: { ...contract.contracts, payments: payment.payments },
 
 	print: {
 		failed: 'تعذّرت طباعة الصفحة.',

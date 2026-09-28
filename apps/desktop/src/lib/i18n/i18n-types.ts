@@ -2850,154 +2850,6 @@ type RootTranslation = {
 			 */
 			semiAnnual: string
 		}
-		payments: {
-			/**
-			 * n​o​ ​p​a​y​m​e​n​t​s​ ​y​e​t
-			 */
-			emptyTitle: string
-			/**
-			 * t​h​i​s​ ​c​o​n​t​r​a​c​t​ ​i​s​ ​p​a​i​d​ ​i​n​ ​f​u​l​l
-			 */
-			fullyPaidNotice: string
-			/**
-			 * t​h​i​s​ ​c​o​n​t​r​a​c​t​ ​h​a​s​ ​b​e​e​n​ ​f​u​l​l​y​ ​p​a​i​d​.​ ​y​o​u​ ​c​a​n​ ​e​d​i​t​ ​o​r​ ​d​e​l​e​t​e​ ​p​a​y​m​e​n​t​s​,​ ​b​u​t​ ​y​o​u​ ​c​a​n​n​o​t​ ​a​d​d​ ​m​o​r​e​.
-			 */
-			fullyPaidSummary: string
-			/**
-			 * p​a​y​m​e​n​t​ ​m​e​t​h​o​d
-			 */
-			method: string
-			/**
-			 * n​o​t​ ​r​e​c​o​r​d​e​d
-			 */
-			methodNotRecorded: string
-			/**
-			 * p​a​y​m​e​n​t​ ​m​e​t​h​o​d​ ​(​o​p​t​i​o​n​a​l​)
-			 */
-			methodOptional: string
-			methods: {
-				/**
-				 * b​a​n​k​ ​t​r​a​n​s​f​e​r
-				 */
-				bankTransfer: string
-				/**
-				 * c​a​s​h
-				 */
-				cash: string
-				/**
-				 * c​h​e​q​u​e
-				 */
-				cheque: string
-				/**
-				 * E​j​a​r
-				 */
-				ejar: string
-			}
-			/**
-			 * t​o​t​a​l​ ​s​h​o​w​n​ ​f​o​r​ ​{​m​o​n​t​h​}
-			 * @param {unknown} month
-			 */
-			monthTotal: RequiredParams<'month'>
-			/**
-			 * n​o​t​e
-			 */
-			note: string
-			/**
-			 * n​o​t​e​ ​(​o​p​t​i​o​n​a​l​)
-			 */
-			noteOptional: string
-			/**
-			 * {​p​e​r​c​e​n​t​}​%​ ​f​u​l​f​i​l​l​e​d
-			 * @param {unknown} percent
-			 */
-			percentFulfilled: RequiredParams<'percent'>
-			receipt: {
-				/**
-				 * a​m​o​u​n​t​ ​r​e​c​e​i​v​e​d
-				 */
-				amount: string
-				/**
-				 * c​o​v​e​r​s
-				 */
-				covers: string
-				/**
-				 * c​y​c​l​e​ ​{​i​n​d​e​x​}​,​ ​d​u​e​ ​{​d​a​t​e​}
-				 * @param {string} date
-				 * @param {string} index
-				 */
-				cycle: RequiredParams<'date' | 'index'>
-				/**
-				 * p​r​i​n​t​ ​r​e​c​e​i​p​t
-				 */
-				print: string
-				/**
-				 * r​e​c​e​i​v​e​d​ ​f​r​o​m
-				 */
-				receivedFrom: string
-				/**
-				 * d​a​t​e​ ​r​e​c​e​i​v​e​d
-				 */
-				receivedOn: string
-				/**
-				 * r​e​c​e​i​p​t​ ​n​u​m​b​e​r
-				 */
-				reference: string
-				/**
-				 * r​e​m​a​i​n​i​n​g​ ​o​f​ ​t​h​e​ ​c​o​n​t​r​a​c​t​ ​t​o​t​a​l
-				 */
-				remaining: string
-				/**
-				 * r​e​c​e​i​p​t
-				 */
-				title: string
-			}
-			/**
-			 * r​e​f​e​r​e​n​c​e
-			 */
-			reference: string
-			/**
-			 * r​e​f​e​r​e​n​c​e​ ​(​o​p​t​i​o​n​a​l​)
-			 */
-			referenceOptional: string
-			/**
-			 * t​r​a​n​s​f​e​r​,​ ​c​h​e​q​u​e​ ​o​r​ ​S​A​D​A​D​ ​n​u​m​b​e​r
-			 */
-			referencePlaceholder: string
-			/**
-			 * {​a​m​o​u​n​t​}​ ​r​e​m​a​i​n​i​n​g
-			 * @param {string} amount
-			 */
-			remaining: RequiredParams<'amount'>
-			/**
-			 * r​e​m​a​i​n​i​n​g​ ​a​f​t​e​r​ ​t​h​i​s​ ​p​a​y​m​e​n​t
-			 */
-			remainingAfter: string
-			/**
-			 * r​e​m​a​i​n​i​n​g​ ​b​a​l​a​n​c​e
-			 */
-			remainingBalance: string
-			/**
-			 * t​h​i​s​ ​c​o​n​t​r​a​c​t​ ​i​s​ ​t​e​r​m​i​n​a​t​e​d
-			 */
-			terminatedNotice: string
-			/**
-			 * t​h​i​s​ ​c​o​n​t​r​a​c​t​ ​i​s​ ​t​e​r​m​i​n​a​t​e​d​ ​a​n​d​ ​l​o​c​k​e​d​.​ ​p​a​y​m​e​n​t​ ​r​e​c​o​r​d​s​ ​a​r​e​ ​r​e​a​d​-​o​n​l​y​.
-			 */
-			terminatedSummary: string
-			/**
-			 * p​a​y​m​e​n​t​s
-			 */
-			title: string
-			/**
-			 * p​a​y​m​e​n​t​s​ ​f​o​r​ ​{​g​o​v​I​d​}
-			 * @param {unknown} govId
-			 */
-			titleFor: RequiredParams<'govId'>
-			/**
-			 * t​r​a​c​k​ ​c​o​n​t​r​a​c​t​ ​p​a​y​m​e​n​t​s​ ​a​n​d​ ​a​d​d​ ​n​e​w​ ​p​a​y​m​e​n​t​ ​r​e​c​o​r​d​s​ ​h​e​r​e​.
-			 */
-			trackSummary: string
-		}
 		ranks: {
 			/**
 			 * d​u​e​ ​s​o​o​n
@@ -3270,6 +3122,154 @@ type RootTranslation = {
 			 * n​o​ ​u​n​i​t​s​ ​a​r​e​ ​a​v​a​i​l​a​b​l​e​ ​f​o​r​ ​t​h​i​s​ ​c​o​n​t​r​a​c​t​ ​t​i​m​e​f​r​a​m​e​.
 			 */
 			noAvailableUnits: string
+		}
+		payments: {
+			/**
+			 * n​o​ ​p​a​y​m​e​n​t​s​ ​y​e​t
+			 */
+			emptyTitle: string
+			/**
+			 * t​h​i​s​ ​c​o​n​t​r​a​c​t​ ​i​s​ ​p​a​i​d​ ​i​n​ ​f​u​l​l
+			 */
+			fullyPaidNotice: string
+			/**
+			 * t​h​i​s​ ​c​o​n​t​r​a​c​t​ ​h​a​s​ ​b​e​e​n​ ​f​u​l​l​y​ ​p​a​i​d​.​ ​y​o​u​ ​c​a​n​ ​e​d​i​t​ ​o​r​ ​d​e​l​e​t​e​ ​p​a​y​m​e​n​t​s​,​ ​b​u​t​ ​y​o​u​ ​c​a​n​n​o​t​ ​a​d​d​ ​m​o​r​e​.
+			 */
+			fullyPaidSummary: string
+			/**
+			 * p​a​y​m​e​n​t​ ​m​e​t​h​o​d
+			 */
+			method: string
+			/**
+			 * n​o​t​ ​r​e​c​o​r​d​e​d
+			 */
+			methodNotRecorded: string
+			/**
+			 * p​a​y​m​e​n​t​ ​m​e​t​h​o​d​ ​(​o​p​t​i​o​n​a​l​)
+			 */
+			methodOptional: string
+			methods: {
+				/**
+				 * b​a​n​k​ ​t​r​a​n​s​f​e​r
+				 */
+				bankTransfer: string
+				/**
+				 * c​a​s​h
+				 */
+				cash: string
+				/**
+				 * c​h​e​q​u​e
+				 */
+				cheque: string
+				/**
+				 * E​j​a​r
+				 */
+				ejar: string
+			}
+			/**
+			 * t​o​t​a​l​ ​s​h​o​w​n​ ​f​o​r​ ​{​m​o​n​t​h​}
+			 * @param {unknown} month
+			 */
+			monthTotal: RequiredParams<'month'>
+			/**
+			 * n​o​t​e
+			 */
+			note: string
+			/**
+			 * n​o​t​e​ ​(​o​p​t​i​o​n​a​l​)
+			 */
+			noteOptional: string
+			/**
+			 * {​p​e​r​c​e​n​t​}​%​ ​f​u​l​f​i​l​l​e​d
+			 * @param {unknown} percent
+			 */
+			percentFulfilled: RequiredParams<'percent'>
+			receipt: {
+				/**
+				 * a​m​o​u​n​t​ ​r​e​c​e​i​v​e​d
+				 */
+				amount: string
+				/**
+				 * c​o​v​e​r​s
+				 */
+				covers: string
+				/**
+				 * c​y​c​l​e​ ​{​i​n​d​e​x​}​,​ ​d​u​e​ ​{​d​a​t​e​}
+				 * @param {string} date
+				 * @param {string} index
+				 */
+				cycle: RequiredParams<'date' | 'index'>
+				/**
+				 * p​r​i​n​t​ ​r​e​c​e​i​p​t
+				 */
+				print: string
+				/**
+				 * r​e​c​e​i​v​e​d​ ​f​r​o​m
+				 */
+				receivedFrom: string
+				/**
+				 * d​a​t​e​ ​r​e​c​e​i​v​e​d
+				 */
+				receivedOn: string
+				/**
+				 * r​e​c​e​i​p​t​ ​n​u​m​b​e​r
+				 */
+				reference: string
+				/**
+				 * r​e​m​a​i​n​i​n​g​ ​o​f​ ​t​h​e​ ​c​o​n​t​r​a​c​t​ ​t​o​t​a​l
+				 */
+				remaining: string
+				/**
+				 * r​e​c​e​i​p​t
+				 */
+				title: string
+			}
+			/**
+			 * r​e​f​e​r​e​n​c​e
+			 */
+			reference: string
+			/**
+			 * r​e​f​e​r​e​n​c​e​ ​(​o​p​t​i​o​n​a​l​)
+			 */
+			referenceOptional: string
+			/**
+			 * t​r​a​n​s​f​e​r​,​ ​c​h​e​q​u​e​ ​o​r​ ​S​A​D​A​D​ ​n​u​m​b​e​r
+			 */
+			referencePlaceholder: string
+			/**
+			 * {​a​m​o​u​n​t​}​ ​r​e​m​a​i​n​i​n​g
+			 * @param {string} amount
+			 */
+			remaining: RequiredParams<'amount'>
+			/**
+			 * r​e​m​a​i​n​i​n​g​ ​a​f​t​e​r​ ​t​h​i​s​ ​p​a​y​m​e​n​t
+			 */
+			remainingAfter: string
+			/**
+			 * r​e​m​a​i​n​i​n​g​ ​b​a​l​a​n​c​e
+			 */
+			remainingBalance: string
+			/**
+			 * t​h​i​s​ ​c​o​n​t​r​a​c​t​ ​i​s​ ​t​e​r​m​i​n​a​t​e​d
+			 */
+			terminatedNotice: string
+			/**
+			 * t​h​i​s​ ​c​o​n​t​r​a​c​t​ ​i​s​ ​t​e​r​m​i​n​a​t​e​d​ ​a​n​d​ ​l​o​c​k​e​d​.​ ​p​a​y​m​e​n​t​ ​r​e​c​o​r​d​s​ ​a​r​e​ ​r​e​a​d​-​o​n​l​y​.
+			 */
+			terminatedSummary: string
+			/**
+			 * p​a​y​m​e​n​t​s
+			 */
+			title: string
+			/**
+			 * p​a​y​m​e​n​t​s​ ​f​o​r​ ​{​g​o​v​I​d​}
+			 * @param {unknown} govId
+			 */
+			titleFor: RequiredParams<'govId'>
+			/**
+			 * t​r​a​c​k​ ​c​o​n​t​r​a​c​t​ ​p​a​y​m​e​n​t​s​ ​a​n​d​ ​a​d​d​ ​n​e​w​ ​p​a​y​m​e​n​t​ ​r​e​c​o​r​d​s​ ​h​e​r​e​.
+			 */
+			trackSummary: string
 		}
 	}
 	print: {
@@ -7319,148 +7319,6 @@ export type TranslationFunctions = {
 			 */
 			semiAnnual: () => LocalizedString
 		}
-		payments: {
-			/**
-			 * no payments yet
-			 */
-			emptyTitle: () => LocalizedString
-			/**
-			 * this contract is paid in full
-			 */
-			fullyPaidNotice: () => LocalizedString
-			/**
-			 * this contract has been fully paid. you can edit or delete payments, but you cannot add more.
-			 */
-			fullyPaidSummary: () => LocalizedString
-			/**
-			 * payment method
-			 */
-			method: () => LocalizedString
-			/**
-			 * not recorded
-			 */
-			methodNotRecorded: () => LocalizedString
-			/**
-			 * payment method (optional)
-			 */
-			methodOptional: () => LocalizedString
-			methods: {
-				/**
-				 * bank transfer
-				 */
-				bankTransfer: () => LocalizedString
-				/**
-				 * cash
-				 */
-				cash: () => LocalizedString
-				/**
-				 * cheque
-				 */
-				cheque: () => LocalizedString
-				/**
-				 * Ejar
-				 */
-				ejar: () => LocalizedString
-			}
-			/**
-			 * total shown for {month}
-			 */
-			monthTotal: (arg: { month: unknown }) => LocalizedString
-			/**
-			 * note
-			 */
-			note: () => LocalizedString
-			/**
-			 * note (optional)
-			 */
-			noteOptional: () => LocalizedString
-			/**
-			 * {percent}% fulfilled
-			 */
-			percentFulfilled: (arg: { percent: unknown }) => LocalizedString
-			receipt: {
-				/**
-				 * amount received
-				 */
-				amount: () => LocalizedString
-				/**
-				 * covers
-				 */
-				covers: () => LocalizedString
-				/**
-				 * cycle {index}, due {date}
-				 */
-				cycle: (arg: { date: string, index: string }) => LocalizedString
-				/**
-				 * print receipt
-				 */
-				print: () => LocalizedString
-				/**
-				 * received from
-				 */
-				receivedFrom: () => LocalizedString
-				/**
-				 * date received
-				 */
-				receivedOn: () => LocalizedString
-				/**
-				 * receipt number
-				 */
-				reference: () => LocalizedString
-				/**
-				 * remaining of the contract total
-				 */
-				remaining: () => LocalizedString
-				/**
-				 * receipt
-				 */
-				title: () => LocalizedString
-			}
-			/**
-			 * reference
-			 */
-			reference: () => LocalizedString
-			/**
-			 * reference (optional)
-			 */
-			referenceOptional: () => LocalizedString
-			/**
-			 * transfer, cheque or SADAD number
-			 */
-			referencePlaceholder: () => LocalizedString
-			/**
-			 * {amount} remaining
-			 */
-			remaining: (arg: { amount: string }) => LocalizedString
-			/**
-			 * remaining after this payment
-			 */
-			remainingAfter: () => LocalizedString
-			/**
-			 * remaining balance
-			 */
-			remainingBalance: () => LocalizedString
-			/**
-			 * this contract is terminated
-			 */
-			terminatedNotice: () => LocalizedString
-			/**
-			 * this contract is terminated and locked. payment records are read-only.
-			 */
-			terminatedSummary: () => LocalizedString
-			/**
-			 * payments
-			 */
-			title: () => LocalizedString
-			/**
-			 * payments for {govId}
-			 */
-			titleFor: (arg: { govId: unknown }) => LocalizedString
-			/**
-			 * track contract payments and add new payment records here.
-			 */
-			trackSummary: () => LocalizedString
-		}
 		ranks: {
 			/**
 			 * due soon
@@ -7706,6 +7564,148 @@ export type TranslationFunctions = {
 			 * no units are available for this contract timeframe.
 			 */
 			noAvailableUnits: () => LocalizedString
+		}
+		payments: {
+			/**
+			 * no payments yet
+			 */
+			emptyTitle: () => LocalizedString
+			/**
+			 * this contract is paid in full
+			 */
+			fullyPaidNotice: () => LocalizedString
+			/**
+			 * this contract has been fully paid. you can edit or delete payments, but you cannot add more.
+			 */
+			fullyPaidSummary: () => LocalizedString
+			/**
+			 * payment method
+			 */
+			method: () => LocalizedString
+			/**
+			 * not recorded
+			 */
+			methodNotRecorded: () => LocalizedString
+			/**
+			 * payment method (optional)
+			 */
+			methodOptional: () => LocalizedString
+			methods: {
+				/**
+				 * bank transfer
+				 */
+				bankTransfer: () => LocalizedString
+				/**
+				 * cash
+				 */
+				cash: () => LocalizedString
+				/**
+				 * cheque
+				 */
+				cheque: () => LocalizedString
+				/**
+				 * Ejar
+				 */
+				ejar: () => LocalizedString
+			}
+			/**
+			 * total shown for {month}
+			 */
+			monthTotal: (arg: { month: unknown }) => LocalizedString
+			/**
+			 * note
+			 */
+			note: () => LocalizedString
+			/**
+			 * note (optional)
+			 */
+			noteOptional: () => LocalizedString
+			/**
+			 * {percent}% fulfilled
+			 */
+			percentFulfilled: (arg: { percent: unknown }) => LocalizedString
+			receipt: {
+				/**
+				 * amount received
+				 */
+				amount: () => LocalizedString
+				/**
+				 * covers
+				 */
+				covers: () => LocalizedString
+				/**
+				 * cycle {index}, due {date}
+				 */
+				cycle: (arg: { date: string, index: string }) => LocalizedString
+				/**
+				 * print receipt
+				 */
+				print: () => LocalizedString
+				/**
+				 * received from
+				 */
+				receivedFrom: () => LocalizedString
+				/**
+				 * date received
+				 */
+				receivedOn: () => LocalizedString
+				/**
+				 * receipt number
+				 */
+				reference: () => LocalizedString
+				/**
+				 * remaining of the contract total
+				 */
+				remaining: () => LocalizedString
+				/**
+				 * receipt
+				 */
+				title: () => LocalizedString
+			}
+			/**
+			 * reference
+			 */
+			reference: () => LocalizedString
+			/**
+			 * reference (optional)
+			 */
+			referenceOptional: () => LocalizedString
+			/**
+			 * transfer, cheque or SADAD number
+			 */
+			referencePlaceholder: () => LocalizedString
+			/**
+			 * {amount} remaining
+			 */
+			remaining: (arg: { amount: string }) => LocalizedString
+			/**
+			 * remaining after this payment
+			 */
+			remainingAfter: () => LocalizedString
+			/**
+			 * remaining balance
+			 */
+			remainingBalance: () => LocalizedString
+			/**
+			 * this contract is terminated
+			 */
+			terminatedNotice: () => LocalizedString
+			/**
+			 * this contract is terminated and locked. payment records are read-only.
+			 */
+			terminatedSummary: () => LocalizedString
+			/**
+			 * payments
+			 */
+			title: () => LocalizedString
+			/**
+			 * payments for {govId}
+			 */
+			titleFor: (arg: { govId: unknown }) => LocalizedString
+			/**
+			 * track contract payments and add new payment records here.
+			 */
+			trackSummary: () => LocalizedString
 		}
 	}
 	print: {

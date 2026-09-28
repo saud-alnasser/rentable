@@ -450,6 +450,18 @@ The type definitions and utility files are **generated**. Edit the locale files,
 regenerate — see [[references/pnpm]]. Components read translations from the store,
 never from a locale module directly.
 
+**A feature's strings live with the feature** (effort 840, requirement 8). A concept's namespace
+and its `common.refusals.<concept>` entries sit in `<concept>/i18n/en.ts` and `ar.ts`, and
+`i18n/en/index.ts` and `i18n/ar/index.ts` compose them back at the same key path. A piece is a
+plain object that imports nothing but types, because the generator transpiles it with the locale;
+the locale imports it by a relative path with a `.js` extension, which the generator needs and
+bundler resolution maps to `.ts`. An english piece `satisfies BaseTranslation`, as `en/index.ts`
+does; an arabic piece satisfies its own slice of the generated `Translation`, because an imported
+object escapes the excess-key check `ar/index.ts` would otherwise give it. A key missing from the
+arabic piece, or left there after the english one lost it and the types were regenerated, fails
+`pnpm check` at the piece. `lib/tests/layers.test.ts` holds a piece to importing nothing at
+runtime.
+
 **One exception: text handed to a tenant in the language chosen for it.** The printed schedule, the
 receipt, the name a saved one is offered under, and the WhatsApp reminder are written in the
 language picked in their preview, which need not be the one the application shows, so they read it

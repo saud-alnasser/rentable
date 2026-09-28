@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [21]
 ---
 # refactor(desktop): the record features carry their own strings
@@ -14,9 +14,9 @@ Each record feature's namespace and its `common.refusals.<feature>` move to `<fe
 
 Traces requirement 8 of [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]], and criterion 8.
 
-- [ ] `i18n-types.ts` regenerates identical (criterion 8).
-- [ ] A key removed from one locale's piece fails `pnpm check` (criterion 8).
-- [ ] The integration gate passes on this commit; no test assertion changes except where it names a moved path (criterion 19).
+- [x] `i18n-types.ts` regenerates identical (criterion 8). Verified: `pnpm exec typesafe-i18n --no-watch` regenerates the committed `i18n-types.ts` byte for byte; against HEAD it holds the same lines (`diff` of the two sorted files is empty), with the `contracts.payments` block moved to the end of `contracts` because the index composes `payments` after the contract piece. The orchestrator accepted the reorder: the fully composed `en` and `ar` objects serialised before (HEAD's monolithic files) and after compare equal (`en true ar true`).
+- [x] A key removed from one locale's piece fails `pnpm check` (criterion 8). Verified: deleting `semiAnnual` from `contract/i18n/ar.ts` made `pnpm check` print `ERROR src/lib/contract/i18n/ar.ts 73:2 Property 'semiAnnual' is missing`; restored. Each piece `satisfies` its slice of the generated types.
+- [x] The integration gate passes on this commit; no test assertion changes except where it names a moved path (criterion 19). Verified: in the run's tree: check 0, eslint 0, `pnpm test` 3 of 3 tasks, build:web 0. The layer test counts a locale index reading its own locale's piece as no edge (accepted: the plan puts the composition in `i18n/`).
 
 ## Relevant areas
 
