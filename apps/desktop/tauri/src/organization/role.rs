@@ -843,6 +843,13 @@ pub async fn accept_ownership(
         &issued_at,
     );
 
+    // what was pinned for this member in a workspace goes before anything is written: the owner
+    // holds every flag and nothing is set for them anywhere, and a row about them could not be
+    // re-signed under their own root, which covers nothing about its own holder.
+    store
+        .delete_workspace_overrides_of(&session.member_id)
+        .await?;
+
     store.write_certificate(&root).await?;
 
     let signer = Signer {
@@ -5163,6 +5170,19 @@ mod tests {
         .await;
         let old_key = owner.verifying_key;
 
+        // something pinned for the member who takes the organization over: the owner holds every
+        // flag and nothing is set for them, so it goes with the handover rather than refusing it.
+        super::set_workspace_override(
+            &store,
+            &owner,
+            &ada.member_id,
+            &workspace_id,
+            permission::mask_of(&[Flag::DeleteUnit]),
+            0,
+        )
+        .await
+        .expect("the owner pinned something for the manager");
+
         offer_ownership(&store, &owner, &ada.member_id, PASSWORD, NOW + 1)
             .await
             .expect("the offer failed");
@@ -5188,6 +5208,16 @@ mod tests {
 
         // the new key is what their own vault derives, and it is not the founder's.
         let new_key = ada_session.verifying_key;
+
+        assert!(
+            store
+                .workspace_overrides(&new_key)
+                .await
+                .expect("the overrides verify under the new key")
+                .iter()
+                .all(|row| row.member_id != ada.member_id),
+            "something stayed pinned for the owner"
+        );
 
         assert_ne!(new_key, old_key);
         assert_eq!(

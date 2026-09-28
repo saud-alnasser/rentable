@@ -392,7 +392,7 @@
 			{roleMask}
 			{roleName}
 			bind:override={chosenOverride}
-			unpins={pinned}
+			unpins={override !== 0 ? pinned : 0}
 			held={readerPermissions}
 			refusal={canOverride ? null : lacking($LL, 'overrideMember')}
 			disabled={isSaving}

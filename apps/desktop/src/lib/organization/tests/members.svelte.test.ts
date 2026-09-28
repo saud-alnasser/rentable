@@ -1157,6 +1157,35 @@ test('a read-only grant is lifted only after what is pinned in it went through',
 	).toEqual(['useSetWorkspaceOverride', 'useSetWorkspaceOverride', 'useChangeAccess']);
 });
 
+// the hunt after ticket 59: a grant change that went through on a save whose other write was
+// refused is what the open sheet is measured from, so taking the workspace out is not undone by the
+// redraw and saving again sends nothing for it.
+test('a workspace taken out on a partly refused save reads as out on the sheet left open', async () => {
+	hostAnswers.roles = fakeOrganizationRoles();
+	hostAnswers.refusals.useSetOverride = new Error('refused');
+	list();
+
+	await press('sami', 'edit');
+	await fireEvent.click(document.querySelector<HTMLElement>('#access-ws-1')!);
+	await unfold('administration');
+	await fireEvent.click(document.querySelector<HTMLElement>('#member-override-renameMember')!);
+	await fireEvent.submit(document.querySelector('form')!);
+
+	await waitFor(() => {
+		expect(document.querySelector('[data-sheet-error="override"]')).not.toBeNull();
+	});
+	expect(written('useChangeAccess')).toHaveLength(1);
+	expect(document.querySelector('#access-ws-1')?.getAttribute('aria-checked')).toBe('false');
+
+	delete hostAnswers.refusals.useSetOverride;
+	await fireEvent.submit(document.querySelector('form')!);
+
+	await waitFor(() => {
+		expect(surface()).toBeNull();
+	});
+	expect(written('useChangeAccess')).toHaveLength(1);
+});
+
 // ticket 14 of effort 838: a role and an override changed on one save are one act, so the flags
 // the reader must hold are the ones the two move together, and neither is written alone.
 test('a changed role and a changed override are saved in one call', async () => {

@@ -945,6 +945,26 @@ test('switching back to the role by hand is refused where the reset would be', a
 	expect(control('editUnit')?.hasAttribute('aria-disabled')).toBe(false);
 });
 
+// the hunt after ticket 59: a member with nothing changed across the organization is at their role
+// already, so going back to it clears nothing and is not the reset. A switch turned and turned back
+// is theirs to turn, whatever is pinned in a workspace.
+test('turning a switch back is not refused where nothing was changed across the organization', async () => {
+	sheet({
+		override: 0,
+		rows: [{ ...rows[0], pinned: maskOf('deleteUnit'), granted: maskOf('deleteUnit') }],
+		pinned: maskOf('deleteUnit'),
+		readerPermissions: BUILT_IN.manager.mask - maskOf('deleteUnit')
+	});
+	await openOverride();
+
+	await fireEvent.click(control('deletePayment')!);
+	expect(isOn('deletePayment')).toBe(true);
+
+	expect(control('deletePayment')?.hasAttribute('aria-disabled')).toBe(false);
+	await fireEvent.click(control('deletePayment')!);
+	expect(isOn('deletePayment')).toBe(false);
+});
+
 // review round one: another role, or a reset to theirs, unpins what is set for the member in every
 // workspace, and Rust refuses the act where a flag pinned anywhere is one the reader does not
 // hold. So the pick and the reset are refused at the control, saying why, as Rust would.

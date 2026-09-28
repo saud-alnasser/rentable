@@ -520,7 +520,8 @@ export const tailoredShown = (organizationWide: number, tailoring: WorkspaceTail
  */
 export const isTailored = (organizationWide: number, tailoring: WorkspaceTailoring): boolean =>
 	tailoring.pinned !== 0 ||
-	tailoredShown(organizationWide, tailoring) !== recordsOf(organizationWide);
+	tailoredShown(organizationWide, tailoring) !==
+		tailoredShown(organizationWide, { access: 'full-access', pinned: 0, granted: 0 });
 
 /** the record flags two masks differ on, as a mask. */
 const differing = (left: number, right: number): number =>

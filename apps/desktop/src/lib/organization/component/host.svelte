@@ -271,6 +271,37 @@
 						access: change.access
 					}))
 				});
+				// what went through is what a sheet left open is measured from: a workspace put in
+				// is held, one taken out is not, and one lifted is held at its new level.
+				written = {
+					...written,
+					workspaces: [
+						...written.workspaces
+							.filter((held) =>
+								changes.every((change) => change.id !== held.id || change.access !== 'none')
+							)
+							.map((held) => {
+								const change = changes.find((each) => each.id === held.id);
+
+								return change && change.access !== 'none'
+									? { ...held, access: change.access }
+									: held;
+							}),
+						...changes
+							.filter(
+								(change) =>
+									change.access !== 'none' &&
+									written.workspaces.every((held) => held.id !== change.id)
+							)
+							.map((change) => ({
+								id: change.id,
+								access: change.access as 'full-access' | 'read-only',
+								pinned: 0,
+								granted: 0,
+								permissions: written.permissions
+							}))
+					]
+				};
 			} catch (error) {
 				workspacesRefusal ??= toErrorText(error, $LL);
 			}
