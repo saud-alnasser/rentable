@@ -4277,10 +4277,78 @@ type RootTranslation = {
 			legend: string
 		}
 		switches: {
+			verbSays: {
+				/**
+				 * s​e​e​ ​t​h​e​m​,​ ​i​n​ ​l​i​s​t​s​ ​a​n​d​ ​o​n​ ​t​h​e​i​r​ ​o​w​n​ ​p​a​g​e​s​.
+				 */
+				view: string
+				/**
+				 * a​d​d​ ​n​e​w​ ​o​n​e​s​.
+				 */
+				create: string
+				/**
+				 * c​h​a​n​g​e​ ​w​h​a​t​ ​t​h​e​y​ ​h​o​l​d​.
+				 */
+				edit: string
+				/**
+				 * r​e​m​o​v​e​ ​t​h​e​m​.
+				 */
+				'delete': string
+			}
+			flagSays: {
+				/**
+				 * c​h​a​n​g​e​ ​t​h​e​m​,​ ​e​n​d​i​n​g​,​ ​r​e​n​e​w​i​n​g​ ​a​n​d​ ​r​e​s​t​o​r​i​n​g​ ​i​n​c​l​u​d​e​d​.
+				 */
+				editContract: string
+				/**
+				 * b​r​i​n​g​ ​n​e​w​ ​p​e​o​p​l​e​ ​i​n​t​o​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.
+				 */
+				inviteMember: string
+				/**
+				 * t​a​k​e​ ​p​e​o​p​l​e​ ​o​u​t​ ​o​f​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.
+				 */
+				removeMember: string
+				/**
+				 * c​h​o​o​s​e​ ​t​h​e​ ​r​o​l​e​ ​e​a​c​h​ ​m​e​m​b​e​r​ ​h​o​l​d​s​.
+				 */
+				assignRole: string
+				/**
+				 * c​h​a​n​g​e​ ​w​h​a​t​ ​a​ ​w​o​r​k​s​p​a​c​e​ ​i​s​ ​c​a​l​l​e​d​.
+				 */
+				renameWorkspace: string
+				/**
+				 * l​e​t​ ​a​ ​m​e​m​b​e​r​ ​w​h​o​ ​l​o​s​t​ ​t​h​e​i​r​ ​p​a​s​s​w​o​r​d​ ​s​e​t​ ​a​ ​n​e​w​ ​o​n​e​.
+				 */
+				resetPassword: string
+				/**
+				 * c​h​a​n​g​e​ ​a​ ​m​e​m​b​e​r​'​s​ ​u​s​e​r​n​a​m​e​.
+				 */
+				renameMember: string
+				/**
+				 * p​u​t​ ​m​e​m​b​e​r​s​ ​i​n​ ​w​o​r​k​s​p​a​c​e​s​,​ ​o​r​ ​t​a​k​e​ ​t​h​e​m​ ​o​u​t​.
+				 */
+				grantWorkspace: string
+				/**
+				 * a​d​d​,​ ​e​d​i​t​,​ ​r​a​n​k​ ​a​n​d​ ​d​e​l​e​t​e​ ​r​o​l​e​s​.
+				 */
+				manageRoles: string
+				/**
+				 * g​i​v​e​ ​o​n​e​ ​m​e​m​b​e​r​ ​m​o​r​e​ ​o​r​ ​l​e​s​s​ ​t​h​a​n​ ​t​h​e​i​r​ ​r​o​l​e​ ​d​o​e​s​.
+				 */
+				overrideMember: string
+				/**
+				 * s​e​t​ ​t​h​e​ ​s​i​g​n​a​t​u​r​e​ ​o​r​ ​s​e​a​l​ ​p​r​i​n​t​e​d​ ​o​n​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​p​a​g​e​s​.
+				 */
+				manageMark: string
+			}
 			/**
-			 * i​n​c​l​u​d​i​n​g​ ​e​n​d​i​n​g​,​ ​r​e​n​e​w​i​n​g​ ​a​n​d​ ​r​e​s​t​o​r​i​n​g​.
+			 * t​u​r​n​ ​v​i​e​w​ ​o​n​ ​f​i​r​s​t​:​ ​a​d​d​i​n​g​,​ ​e​d​i​t​i​n​g​ ​o​r​ ​d​e​l​e​t​i​n​g​ ​a​ ​r​e​c​o​r​d​ ​n​e​e​d​s​ ​s​e​e​i​n​g​ ​i​t​.
 			 */
-			contractEdit: string
+			viewFirst: string
+			/**
+			 * s​o​m​e​ ​o​f​ ​t​h​e​s​e​ ​a​r​e​ ​n​o​t​ ​y​o​u​r​s​ ​t​o​ ​c​h​a​n​g​e
+			 */
+			groupRefused: string
 			/**
 			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​o​f​ ​{​t​o​t​a​l​|​n​u​m​b​e​r​}
 			 * @param {unknown} count
@@ -4418,29 +4486,17 @@ type RootTranslation = {
 		}
 		workspaceSwitches: {
 			/**
-			 * t​a​i​l​o​r​ ​f​o​r​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e
+			 * p​e​r​m​i​s​s​i​o​n​s
 			 */
-			tailor: string
+			permissions: string
 			/**
-			 * w​h​a​t​ ​t​h​e​y​ ​m​a​y​ ​d​o​ ​i​n​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​a​l​o​n​e​,​ ​m​e​a​s​u​r​e​d​ ​a​g​a​i​n​s​t​ ​w​h​a​t​ ​t​h​e​y​ ​m​a​y​ ​d​o​ ​a​c​r​o​s​s​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.
+			 * w​h​a​t​ ​t​h​e​y​ ​m​a​y​ ​d​o​ ​i​n​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​a​l​o​n​e​.​ ​a​ ​d​o​t​ ​m​a​r​k​s​ ​w​h​a​t​ ​d​i​f​f​e​r​s​ ​f​r​o​m​ ​t​h​e​ ​r​e​s​t​ ​o​f​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.
 			 */
-			tailorSays: string
+			permissionsSays: string
 			/**
-			 * s​e​t​ ​f​o​r​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e
+			 * d​i​f​f​e​r​s​ ​f​r​o​m​ ​t​h​e​ ​r​e​s​t​ ​o​f​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n
 			 */
-			pinned: string
-			/**
-			 * r​e​a​d​ ​o​n​l​y
-			 */
-			readOnly: string
-			/**
-			 * t​u​r​n​s​ ​e​v​e​r​y​ ​a​d​d​,​ ​e​d​i​t​ ​a​n​d​ ​d​e​l​e​t​e​ ​o​f​f​ ​i​n​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​.
-			 */
-			readOnlySays: string
-			/**
-			 * r​e​s​e​t
-			 */
-			reset: string
+			differs: string
 			/**
 			 * c​u​s​t​o​m​ ​h​e​r​e
 			 */
@@ -8630,10 +8686,78 @@ export type TranslationFunctions = {
 			legend: () => LocalizedString
 		}
 		switches: {
+			verbSays: {
+				/**
+				 * see them, in lists and on their own pages.
+				 */
+				view: () => LocalizedString
+				/**
+				 * add new ones.
+				 */
+				create: () => LocalizedString
+				/**
+				 * change what they hold.
+				 */
+				edit: () => LocalizedString
+				/**
+				 * remove them.
+				 */
+				'delete': () => LocalizedString
+			}
+			flagSays: {
+				/**
+				 * change them, ending, renewing and restoring included.
+				 */
+				editContract: () => LocalizedString
+				/**
+				 * bring new people into the organization.
+				 */
+				inviteMember: () => LocalizedString
+				/**
+				 * take people out of the organization.
+				 */
+				removeMember: () => LocalizedString
+				/**
+				 * choose the role each member holds.
+				 */
+				assignRole: () => LocalizedString
+				/**
+				 * change what a workspace is called.
+				 */
+				renameWorkspace: () => LocalizedString
+				/**
+				 * let a member who lost their password set a new one.
+				 */
+				resetPassword: () => LocalizedString
+				/**
+				 * change a member's username.
+				 */
+				renameMember: () => LocalizedString
+				/**
+				 * put members in workspaces, or take them out.
+				 */
+				grantWorkspace: () => LocalizedString
+				/**
+				 * add, edit, rank and delete roles.
+				 */
+				manageRoles: () => LocalizedString
+				/**
+				 * give one member more or less than their role does.
+				 */
+				overrideMember: () => LocalizedString
+				/**
+				 * set the signature or seal printed on the organization's pages.
+				 */
+				manageMark: () => LocalizedString
+			}
 			/**
-			 * including ending, renewing and restoring.
+			 * turn view on first: adding, editing or deleting a record needs seeing it.
 			 */
-			contractEdit: () => LocalizedString
+			viewFirst: () => LocalizedString
+			/**
+			 * some of these are not yours to change
+			 */
+			groupRefused: () => LocalizedString
 			/**
 			 * {count|number} of {total|number}
 			 */
@@ -8759,29 +8883,17 @@ export type TranslationFunctions = {
 		}
 		workspaceSwitches: {
 			/**
-			 * tailor for this workspace
+			 * permissions
 			 */
-			tailor: () => LocalizedString
+			permissions: () => LocalizedString
 			/**
-			 * what they may do in this workspace alone, measured against what they may do across the organization.
+			 * what they may do in this workspace alone. a dot marks what differs from the rest of the organization.
 			 */
-			tailorSays: () => LocalizedString
+			permissionsSays: () => LocalizedString
 			/**
-			 * set for this workspace
+			 * differs from the rest of the organization
 			 */
-			pinned: () => LocalizedString
-			/**
-			 * read only
-			 */
-			readOnly: () => LocalizedString
-			/**
-			 * turns every add, edit and delete off in this workspace.
-			 */
-			readOnlySays: () => LocalizedString
-			/**
-			 * reset
-			 */
-			reset: () => LocalizedString
+			differs: () => LocalizedString
 			/**
 			 * custom here
 			 */

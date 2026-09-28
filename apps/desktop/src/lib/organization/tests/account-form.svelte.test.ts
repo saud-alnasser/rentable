@@ -15,6 +15,7 @@ import { fakeOrganizationRoles } from '$lib/platform/tests/testing';
 import { BUILT_IN, maskOf } from '@rentable/workspace-permission';
 
 import Providers from './providers.svelte';
+import { unfold } from './switches';
 
 /**
  * THE ACCOUNT FORM, RENDERED
@@ -144,6 +145,7 @@ test('an account opens on the member role with nothing changed, and a role picke
 	loadLocale('en');
 	setLocale('en');
 	form();
+	await unfold('payment');
 
 	const trigger = document.querySelector<HTMLElement>('#account-role')!;
 
@@ -176,6 +178,7 @@ test('a maker gives no role at or above their own, and no flag they do not hold'
 		readerPermissions: BUILT_IN.member.mask + maskOf('inviteMember', 'overrideMember')
 	});
 
+	await unfold('payment');
 	await openSelect(document.querySelector<HTMLElement>('#account-role')!);
 
 	const disabled = (id: string) =>
@@ -211,10 +214,11 @@ test('a maker gives no role at or above their own, and no flag they do not hold'
 
 // requirement 6: an override is given by a holder of the flag to override members, when an
 // account is made as when it is changed, so without it the account is made in its role exactly.
-test('a maker without the flag to override members changes nothing for the account alone', () => {
+test('a maker without the flag to override members changes nothing for the account alone', async () => {
 	loadLocale('en');
 	setLocale('en');
 	form({ readerRank: 750_000, readerPermissions: BUILT_IN.member.mask + maskOf('inviteMember') });
+	await unfold('payment');
 
 	expect(
 		document.querySelector('#account-override-editPayment')?.getAttribute('aria-disabled')
@@ -430,6 +434,10 @@ const shapeOnScreen = () => ({
 	role: document
 		.querySelector('[data-sheet-section="role"] [data-role-chosen]')
 		?.getAttribute('data-role-chosen'),
+	groups: Array.from(document.querySelectorAll('[data-switches-fold]')).map((fold) => [
+		fold.getAttribute('data-switches-fold'),
+		fold.getAttribute('aria-expanded')
+	]),
 	flags: Array.from(document.querySelectorAll('[data-switch]')).map((control) =>
 		control.getAttribute('data-switch')
 	),

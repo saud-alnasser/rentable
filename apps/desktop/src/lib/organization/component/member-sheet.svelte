@@ -39,6 +39,8 @@
 		firstUnheldPinned,
 		flagPhrase,
 		roleNameOf,
+		tailoredShown,
+		tailoredTo,
 		type WorkspaceTailoring as Tailoring
 	} from '$lib/organization/role';
 	import { usernameSchema } from '$lib/organization/username-form';
@@ -90,13 +92,14 @@
 	 * its own section ([[rules/interface]], *Validation errors*); a role and an override changed
 	 * together are one act, and its refusal marks both.
 	 *
-	 * **Beneath each workspace the member is in, what they may do there is tailored** (effort 838,
-	 * requirement 12 as amended a third time; `workspace-tailoring.svelte`), measured against what
-	 * they may do across the organization as the sheet has it. Picking another role, or putting
-	 * them back on their role, clears what is set in every workspace, as Rust's `assign_role` and
-	 * `set_override` do, so the tailoring reads the same at once; picking their own role again
-	 * puts it back. Only a workspace whose pins change is written, after the grants, since a
-	 * workspace override is set only on a workspace the member is in.
+	 * **Beneath each workspace the member is in, its permissions fold** (effort 838, requirement
+	 * 12 as amended a third and a fourth time; `workspace-tailoring.svelte`), measured against what
+	 * they may do across the organization as the sheet has it, and what is set there is what
+	 * differs from that when the sheet is saved. Picking another role, or putting them back on
+	 * their role, clears what is set in every workspace, as Rust's `assign_role` and `set_override`
+	 * do, so the workspaces read the same at once; picking their own role again puts it back. Only
+	 * a workspace whose pins change is written, after the grants, since a workspace override is set
+	 * only on a workspace the member is in.
 	 *
 	 * **Its sections are the ones the sheet that adds a member draws** (ticket 42 of effort 832):
 	 * `member-role.svelte`, `member-override.svelte` and `member-workspaces.svelte`, so adding a
@@ -246,7 +249,18 @@
 		granted: cleared ? 0 : row.granted
 	});
 
-	const tailoringOf = (row: MemberWorkspaceRow): Tailoring => tailoring[row.id] ?? heldIn(row);
+	/**
+	 * what a workspace comes to: what it holds, or, where its switches were turned, what they show
+	 * set against what the member may do across the organization as the sheet has it now, so what
+	 * is set there is what differs when the sheet is saved, whatever was changed above it since.
+	 */
+	const tailoringOf = (row: MemberWorkspaceRow): Tailoring => {
+		const turned = tailoring[row.id];
+
+		return turned
+			? tailoredTo(organizationWide, heldIn(row).access, tailoredShown(organizationWide, turned))
+			: heldIn(row);
+	};
 
 	/** the grant a workspace comes to: out, or in at the level its tailoring needs. */
 	const levelOf = (row: MemberWorkspaceRow): AccessChoice =>

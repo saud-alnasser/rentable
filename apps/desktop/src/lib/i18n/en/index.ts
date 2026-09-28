@@ -1467,12 +1467,34 @@ const en = {
 
 		/**
 		 * the switch list a role's editor and a member's card share (effort 838, requirement 12 as
-		 * amended 2026-09-27). A kind of record's view is its group's main switch, and add, edit
-		 * and delete sit under it; the organization's switches fold to a count. On a member's card
-		 * a switch that differs from their role is marked, and the member reads as custom.
+		 * amended 2026-09-27, and a fourth time 2026-09-28). Each kind of record and the
+		 * organization is a group that folds to how many of its permissions are on, and opens to
+		 * one row per permission with a line of what it allows (`verbSays`, and `flagSays` where a
+		 * permission says more than its verb). On a member's card a switch that differs from their
+		 * role is marked, and the member reads as custom.
 		 */
 		switches: {
-			contractEdit: 'including ending, renewing and restoring.',
+			verbSays: {
+				view: 'see them, in lists and on their own pages.',
+				create: 'add new ones.',
+				edit: 'change what they hold.',
+				delete: 'remove them.'
+			},
+			flagSays: {
+				editContract: 'change them, ending, renewing and restoring included.',
+				inviteMember: 'bring new people into the organization.',
+				removeMember: 'take people out of the organization.',
+				assignRole: 'choose the role each member holds.',
+				renameWorkspace: 'change what a workspace is called.',
+				resetPassword: 'let a member who lost their password set a new one.',
+				renameMember: "change a member's username.",
+				grantWorkspace: 'put members in workspaces, or take them out.',
+				manageRoles: 'add, edit, rank and delete roles.',
+				overrideMember: 'give one member more or less than their role does.',
+				manageMark: "set the signature or seal printed on the organization's pages."
+			},
+			viewFirst: 'turn view on first: adding, editing or deleting a record needs seeing it.',
+			groupRefused: 'some of these are not yours to change',
 			folded: '{count|number} of {total|number}',
 			owner:
 				'creating and deleting workspaces, the Turso account and handing over stay with the owner.',
@@ -1533,19 +1555,16 @@ const en = {
 
 		/**
 		 * a member's workspaces on their card and on the sheet that adds them, and a workspace's
-		 * people in its own dialog (effort 838, requirement 12 as amended a third time 2026-09-27):
-		 * each a switch, in or out, and under one that is in on the card, what the member may do
-		 * there, tailored against what they may do across the organization, with a reset and a read
-		 * only preset.
+		 * people in its own dialog (effort 838, requirement 12 as amended a third time 2026-09-27,
+		 * and a fourth time 2026-09-28): each a switch, in or out, and under one that is in on the
+		 * card, its permissions folded, measured against what the member holds across the
+		 * organization.
 		 */
 		workspaceSwitches: {
-			tailor: 'tailor for this workspace',
-			tailorSays:
-				'what they may do in this workspace alone, measured against what they may do across the organization.',
-			pinned: 'set for this workspace',
-			readOnly: 'read only',
-			readOnlySays: 'turns every add, edit and delete off in this workspace.',
-			reset: 'reset',
+			permissions: 'permissions',
+			permissionsSays:
+				'what they may do in this workspace alone. a dot marks what differs from the rest of the organization.',
+			differs: 'differs from the rest of the organization',
 			customHere: 'custom here',
 			movesNotHeld: 'this changes a permission here that you do not hold yourself.',
 			notHeld: 'you hold this workspace read only, so you cannot give it.'

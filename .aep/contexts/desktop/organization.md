@@ -147,13 +147,16 @@ the reset to the role, a deleted role, each refused where a flag pinned anywhere
 does not hold) and with the grant (a withdrawal, a removal, a deleted workspace). The session and
 the members list carry each workspace's pins and permissions, and the tRPC context answers a
 record procedure by the open workspace's (`api/context.ts`, `permissionsIn`). A member's card
-tailors it beneath each workspace the member is in (`workspace-tailoring.svelte`, the record groups
-of the shared switch list, each switch turned pinned at its new value and marked as set for that
-workspace, with a reset that unpins all and a *read only* preset that pins every add, edit and
-delete off), and writes both masks through `organization.member.setWorkspaceOverride`; the
+sets it beneath each workspace the member is in, as that workspace's permissions
+(`workspace-tailoring.svelte`, the record groups of the shared switch list, folded): **what is
+pinned is exactly what the switches differ on from what the member holds across the organization
+when the card is saved**, so a switch turned back is unpinned, and each switch that differs is
+marked. The card writes both masks through `organization.member.setWorkspaceOverride`; the
 arithmetic of what the switches come to is `organization/role.ts` (`tailoredTo`). *Effort 838,
 requirement 12 as amended a third time, tickets 53 and 54; pinned rather than switched at review
-round one (ticket 55), since a switch over the layers beneath inverted when they moved.*
+round one (ticket 55), since a switch over the layers beneath inverted when they moved. A switch
+turned stayed pinned when turned back, beside a reset and a read only preset, until the fourth
+amendment (ticket 57) pinned what differs and took both away.*
 
 **Rank**:
 How high a role stands: the owner 2,000,000, the manager 1,000,000, the custom roles between, the
@@ -186,16 +189,17 @@ credential re-sealed, so whoever grants gives only what they reach; read-only is
 the owner's. A grant is what says a member is in a workspace, and removing it is what says they are
 not. On a read-only grant a member holds no create, edit or delete flag in that workspace, whatever
 their role says (`effectiveIn`). **The interface makes no new read-only grant** (effort 838,
-requirement 12 as amended a third time, ticket 54): read only is a preset of the workspace
-override, enforced by the application. A grant minted read only before then keeps working and
-renewing, reads on the card with its writes off and the preset on, and is granted again at full
-access when a write is turned back on, by anybody who may grant the workspace at full access, and
+requirement 12 as amended a third time, ticket 54): read only is every add, edit and delete
+turned off in the workspace override, enforced by the application. A grant minted read only before
+then keeps working and renewing, reads on the card with its writes off, marked as differing from
+the organization, and is granted again at full access when a write is turned back on, every write
+left off then pinned off, by anybody who may grant the workspace at full access, and
 withdrawn by anybody who may withdraw (`withdraw_grant`, `grant_workspace`). *Both were the
 owner's alone until review round one of ticket 54, when the rule went with the lock.* A member's
 card and the sheet that adds
 one draw each workspace as a switch, in (a full-access grant) or out (none)
-(`member-workspaces.svelte`, ticket 48 of effort 838), the card with the workspace's tailoring
-beneath one that is in; a workspace's own dialog draws each member the same way, from the same list
+(`member-workspaces.svelte`, ticket 48 of effort 838), the card with the workspace's
+permissions folded beneath one that is in; a workspace's own dialog draws each member the same way, from the same list
 (`access-switches.svelte`, ticket 49), marking one tailored there *custom here*. *The owner's lock
 to read only sat beneath a workspace that was in until ticket 54.*
 

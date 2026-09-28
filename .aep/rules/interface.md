@@ -627,7 +627,7 @@ pieces: the username under its head, the role picker in its tray (`member-role.s
 switch list under it (`member-override.svelte`, which draws `permission-switches.svelte` with
 the role to compare against and the reset), and a switch per workspace
 (`member-workspaces.svelte`), where off is what not granting it is. Only the sentences that
-belong to the moment differ, and the tailoring beneath a workspace that is in, which the edit
+belong to the moment differ, and the permissions beneath a workspace that is in, which the edit
 sheet alone draws, since what a person may do in a workspace is set once they are in it. Who may
 hand out what is decided in the shared pieces, so the two sheets cannot gate differently. *Settled
 by ticket 42 of
@@ -662,20 +662,20 @@ editor was a table of three columns, what the role gives, a box meaning "changed
 until ticket 43 of that effort, the human's call on the running application of 2026-09-27
 (requirement 12 as amended).*
 
-**A member's workspaces are in or out, and what they may do in one is tailored beneath it.** Each
+**A member's workspace is its access switch, with its permissions folded beneath it.** Each
 workspace the reader holds is a switch headed by the workspaces' building glyph: on is a
-full-access grant, off is none. Beneath one that is in, on the member's card, one folded line,
-*tailor for this workspace*, reads *custom* beside it where anything is set for the member there,
-or what they may do there differs from what they may do across the organization, and opens the
-record groups of the switch list (`workspace-tailoring.svelte`, drawing `permission-switches.svelte`
-with `records`), set to what they end up with there. **What is tailored is pinned**: a switch
-turned is set for that workspace at its new value and holds it however what the member may do
-across the organization moves, and each switch set there carries a dot saying so. Above the
-switches sit two presets, *read only*, which sets every add, edit and delete of every kind off
-there and reads pressed while none is on, and *reset*, which sets nothing there, drawn only where
-the workspace is custom. Read only mints nothing: it is those switches, enforced by the
-application. A grant minted read only before is drawn with its writes off
-and the preset on, and a write turned on over it grants the workspace again at full access. Picking
+full-access grant, off is none. Beneath one that is in, on the member's card, one folded row,
+*permissions*, reads *custom* beside it where what the member may do there differs from what they
+may do across the organization, and opens the record groups of the switch list
+(`workspace-tailoring.svelte`, drawing `permission-switches.svelte` with `records`), each folding
+in turn, set to what they end up with there. **What is set there is what differs**: a switch
+turned away from what the member holds across the organization is pinned for that workspace at
+its new value when the card is saved, and holds it however the organization moves; a switch turned
+back is pinned no longer. Each switch that differs carries a dot saying so. There is no read only
+and no reset button: read only is every add, edit and delete turned off, and turning the switches
+back is the reset. Read only mints nothing: it is those switches, enforced by the application. A
+grant minted read only before is drawn with its writes off, marked, and a write turned on over it
+grants the workspace again at full access, every write left off then pinned off. Picking
 another role, or putting the member back on theirs, clears what is tailored in every workspace, as
 the shell does, and is refused at the control where a flag set in any workspace is one the reader
 does not hold. Turning a workspace off and on again puts back what it held, and is never refused,
@@ -684,7 +684,7 @@ drawn as the switch list draws them, dimmed with the reason at the control and e
 above its list: every workspace switch without `grantWorkspace`, naming it, on the member's card,
 which draws the section for every reader; the workspace's own switch where the reader holds it read
 only, since full access is their own credential re-sealed (a withdrawal stays theirs); every
-tailoring switch and preset without `overrideMember`, naming it; one that would set or unset a flag
+switch beneath a workspace without `overrideMember`, naming it; one that would set or unset a flag
 the reader does not hold; and, over a grant minted read only, a write where the reader holds the
 workspace read only, since granting it again at full access is their own credential re-sealed. A
 member ranked at or above the reader is refused at the card's edit act, which opens nothing. The
@@ -705,7 +705,9 @@ offered the same three per member; then a mini switch beneath a workspace that w
 lock to read only, which the human found odd beside the switches and made a preset of them. At
 review round one of ticket 54 the human made what is tailored pinned, since switching against the
 layer beneath inverted when that layer moved, and the owner-only rule for a grant minted read only
-went with the lock.*
+went with the lock. On 2026-09-28 (requirement 12 as amended a fourth time, ticket 57) the human
+asked for the workspace to be "a main switch to access and permissions" with the read only and
+reset buttons gone, so what is pinned became what differs.*
 
 **A submit is labelled with its verb, and carries the verb's glyph before the label.** Every submit
 does, the domain forms' as well as the organization's and the startup screens': *create* takes the
@@ -742,9 +744,13 @@ organization's did.
 | a count | the count cell |
 
 **A permission is a switch, although it takes effect when its editor is saved.** The role editor
-and a member's card draw one list of them (`organization/component/permission-switches.svelte`),
-each kind of record a group whose view is its switch, with add, edit and delete as mini switches
-beneath it while view is on; the changes wait for the surface's save, as Discord's role editor
+and a member's card draw one list of them (`organization/component/permission-switches.svelte`):
+each kind of record, and the organization, is a group that folds to its glyph, its name, how many
+of its permissions are on and a chevron, and a folded head carries a dot where a switch inside
+differs and a lock where one is not the reader's to turn. Opened, a group is one row per
+permission, its own glyph (`organization/glyph.ts`), its name, one line of what it allows, and its
+switch; adding, editing and deleting a kind are refused, saying why, while viewing it is off, and
+turning the view off turns them off with it. The changes wait for the surface's save, as Discord's role editor
 holds its switches until *Save Changes*. A switch whose save would be refused is refused at the
 switch, with the reason: in the role editor, one that would leave a holder adding, editing or
 deleting records they cannot view, naming the holder and the reset on their card as the way on; and
@@ -755,7 +761,11 @@ save. *The human's call on the running application, 2026-09-27
 ([[efforts/838-permissions-are-a-role-and-an-override/spec]], requirement 12 as amended), against
 the switch's usual reading that it acts at once: a list of thirty checkboxes read as arithmetic,
 and Apple's Human Interface Guidelines give a primary switch with mini switches under it for a
-hierarchy of settings in a grouped form (*Toggles*). What
+hierarchy of settings in a grouped form (*Toggles*). The view was each group's switch, with its
+writes as mini switches beneath it, until the human asked on 2026-09-28 for "a list of groups and
+below them list of permissions with icons and descriptions", every group folding as the
+organization's did (requirement 12 as amended a fourth time, ticket 57), which is the Guidelines'
+disclosure (*Disclosure controls*). What
 [[efforts/838-permissions-are-a-role-and-an-override/evidence/research/how-permissions-are-presented]]
 weighed, finding 6a, is the risk it takes: a reader who turns one and leaves thinking it took
 effect, which the surface's footer save and the member's custom mark answer.*

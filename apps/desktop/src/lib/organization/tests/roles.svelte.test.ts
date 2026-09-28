@@ -31,6 +31,7 @@ import { layOutLists } from '#tests/permission.ts';
 
 import { hostAnswers, resetHostAnswers } from './host-hooks';
 import HostProviders from './host-providers.svelte';
+import { unfold } from './switches';
 
 /**
  * THE ROLES, AS A LIST OF CARDS, AND THE EDITOR THEY OPEN
@@ -216,6 +217,7 @@ test('the create opens the editor, and adding the role writes it just above the 
 	await fireEvent.click(document.querySelector<HTMLElement>('[data-role-add]')!);
 
 	expect(surface()).not.toBeNull();
+	await unfold();
 	// a new role opens on what a member carries, as the switch list grouped by kind, the owner's
 	// acts a line rather than switches.
 	expect(
@@ -272,6 +274,7 @@ test('the edit renames a role and changes what it carries, each through its own 
 	block();
 
 	await fireEvent.click((await openTo('collector', 'role.edit'))!);
+	await unfold();
 
 	expect(document.querySelector<HTMLInputElement>('input[name=role-name]')?.value).toBe(
 		'collector'
@@ -295,6 +298,7 @@ test('a built-in role is edited for what it carries and keeps its name', async (
 	block();
 
 	await fireEvent.click((await openTo('member', 'role.edit'))!);
+	await unfold();
 
 	expect(document.querySelector('input[name=role-name]')).toBeNull();
 	expect(document.querySelector('[data-role-fixed-name]')?.textContent?.trim()).toBe(
@@ -404,6 +408,7 @@ test('in the editor, a flag the reader does not hold is refused at its switch', 
 	});
 
 	await fireEvent.click((await openTo('collector', 'role.edit'))!);
+	await unfold();
 
 	expect(document.querySelector('#role-flag-deleteContract')?.getAttribute('aria-disabled')).toBe(
 		'true'
@@ -428,6 +433,7 @@ test('a new role opens on the member flags less the ones its maker does not hold
 	block({ rank: BUILT_IN.manager.rank, canManageRoles: true, permissions: held });
 
 	await fireEvent.click(document.querySelector<HTMLElement>('[data-role-add]')!);
+	await unfold();
 
 	expect(document.querySelector('#role-flag-editPayment')?.getAttribute('aria-checked')).toBe(
 		'false'
@@ -493,6 +499,7 @@ test('in the editor, a view a holder needs is refused at its switch, naming the 
 	block(OWNER, undefined, [lina]);
 
 	await fireEvent.click((await openTo('collector', 'role.edit'))!);
+	await unfold();
 
 	const view = document.querySelector<HTMLElement>('#role-flag-viewTenant')!;
 

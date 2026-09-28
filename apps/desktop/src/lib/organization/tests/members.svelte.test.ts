@@ -28,12 +28,13 @@ import {
 	searchGlass,
 	typeSearch
 } from '$lib/design/tests/search';
-import { BUILT_IN, WRITE_FLAGS, maskOf } from '@rentable/workspace-permission';
+import { BUILT_IN, WRITE_FLAGS, maskOf, type Flag } from '@rentable/workspace-permission';
 
 import { layOutLists } from '#tests/permission.ts';
 
 import { hostAnswers, resetHostAnswers } from './host-hooks';
 import HostProviders from './host-providers.svelte';
+import { unfold } from './switches';
 
 /**
  * THE MEMBERS, AS A DIRECTORY OF CARDS
@@ -958,7 +959,7 @@ test('one save writes the override and the grants through the acts that exist', 
 	// sami holds ws-1 and nothing else, and nothing is changed for them. Renaming members is
 	// switched on for them alone, and the role is left where it is.
 	// the organization's switches are folded until opened.
-	await fireEvent.click(document.querySelector<HTMLElement>('[data-switches-fold]')!);
+	await unfold('administration');
 	await fireEvent.click(document.querySelector<HTMLElement>('#member-override-renameMember')!);
 	// ws-2 switched on, which is a full-access grant.
 	await fireEvent.click(document.querySelector<HTMLElement>('#access-ws-2')!);
@@ -983,6 +984,14 @@ test('one save writes the override and the grants through the acts that exist', 
 	});
 });
 
+/** opens a workspace's permissions on the open sheet, and every group inside them. */
+const openWorkspace = async (id: string) => {
+	await fireEvent.click(
+		document.querySelector<HTMLElement>(`[data-tailor="access-${id}-tailor"] [data-tailor-fold]`)!
+	);
+	await unfold(undefined, document.querySelector(`[data-tailor-open="access-${id}-tailor"]`)!);
+};
+
 // ticket 54 of effort 838, requirement 12 as amended a third time: what is tailored beneath a
 // workspace is written after the grants, since a workspace override is set only on a workspace
 // the member is in, one write per workspace whose pins changed, carrying both masks.
@@ -992,23 +1001,27 @@ test('what is tailored in a workspace is written after the grants, one write per
 
 	await press('sami', 'edit');
 
-	// ws-1: read only there; ws-2: put in, and deleting payments given there.
-	await fireEvent.click(
-		document.querySelector<HTMLElement>('[data-tailor="access-ws-1-tailor"] [data-tailor-fold]')!
-	);
-	await fireEvent.click(
-		document.querySelector<HTMLElement>(
-			'[data-tailor="access-ws-1-tailor"] [data-tailor-preset="read-only"]'
-		)!
-	);
+	// ws-1: every add, edit and delete turned off there; ws-2: put in, and deleting payments given
+	// there.
+	await openWorkspace('ws-1');
+
+	const turnedOff: Flag[] = [];
+
+	for (const flag of WRITE_FLAGS) {
+		const control = document.querySelector<HTMLElement>(`#access-ws-1-tailor-${flag}`)!;
+
+		if (control.getAttribute('aria-checked') === 'true') {
+			turnedOff.push(flag);
+			await fireEvent.click(control);
+		}
+	}
+
 	await fireEvent.click(document.querySelector<HTMLElement>('#access-ws-2')!);
-	await fireEvent.click(
-		document.querySelector<HTMLElement>('[data-tailor="access-ws-2-tailor"] [data-tailor-fold]')!
-	);
+	await openWorkspace('ws-2');
 	await fireEvent.click(document.querySelector<HTMLElement>('#access-ws-2-tailor-deletePayment')!);
 	await fireEvent.submit(document.querySelector('form')!);
 
-	const readOnly = maskOf(...WRITE_FLAGS);
+	const readOnly = maskOf(...turnedOff);
 	const deleting = maskOf('deletePayment');
 
 	await waitFor(() => {
@@ -1120,9 +1133,7 @@ test('a read-only grant is lifted only after what is pinned in it went through',
 	list({ members: hostAnswers.members });
 
 	await press('sami', 'edit');
-	await fireEvent.click(
-		document.querySelector<HTMLElement>('[data-tailor="access-ws-1-tailor"] [data-tailor-fold]')!
-	);
+	await openWorkspace('ws-1');
 	await fireEvent.click(document.querySelector<HTMLElement>('#access-ws-1-tailor-createUnit')!);
 	await fireEvent.submit(document.querySelector('form')!);
 
@@ -1159,7 +1170,7 @@ test('a changed role and a changed override are saved in one call', async () => 
 		document.querySelector<HTMLElement>('[data-slot=select-item][data-role="supervisor"]')!
 	);
 	// the organization's switches are folded until opened.
-	await fireEvent.click(document.querySelector<HTMLElement>('[data-switches-fold]')!);
+	await unfold('administration');
 	await fireEvent.click(document.querySelector<HTMLElement>('#member-override-renameMember')!);
 	await fireEvent.submit(document.querySelector('form')!);
 
@@ -1190,7 +1201,7 @@ test('a changed role with the override the member had sends that override', asyn
 		document.querySelector<HTMLElement>('[data-slot=select-item][data-role="supervisor"]')!
 	);
 	// the pick made them the supervisor exactly; renaming members is switched on again.
-	await fireEvent.click(document.querySelector<HTMLElement>('[data-switches-fold]')!);
+	await unfold('administration');
 	await fireEvent.click(document.querySelector<HTMLElement>('#member-override-renameMember')!);
 	await fireEvent.submit(document.querySelector('form')!);
 
@@ -1215,7 +1226,7 @@ test('the one act refused marks the role and the override', async () => {
 		document.querySelector<HTMLElement>('[data-slot=select-item][data-role="supervisor"]')!
 	);
 	// the organization's switches are folded until opened.
-	await fireEvent.click(document.querySelector<HTMLElement>('[data-switches-fold]')!);
+	await unfold('administration');
 	await fireEvent.click(document.querySelector<HTMLElement>('#member-override-renameMember')!);
 	await fireEvent.submit(document.querySelector('form')!);
 

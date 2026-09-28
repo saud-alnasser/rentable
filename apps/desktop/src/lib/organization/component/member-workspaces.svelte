@@ -20,16 +20,17 @@
 
 	/**
 	 * The workspaces a member is in, as one switch each (effort 838, requirement 12 as amended
-	 * again and a third time 2026-09-27, the human's calls on the running application).
+	 * again, a third and a fourth time, the human's calls on the running application).
 	 *
-	 * **A workspace is in or out**, as `access-switches.svelte` draws every grant; the workspace's
-	 * own dialog draws its people from the same list. Beneath one that is in, the member's card
-	 * tailors what they may do there (`beneath`, `workspace-tailoring.svelte`); the sheet that adds
-	 * a member draws in and out alone. So the card reads as the member's role and the places they
-	 * can open, and not as a second set of permissions beside the role. *Each workspace was a row
-	 * of three levels, full access, read only and no access, until the human saw it beside the
-	 * switch list and read it as a second permission system; then a switch with the owner's lock
-	 * to read only beneath it, until read only became a preset of the tailoring.*
+	 * **A workspace is its access switch, in or out**, as `access-switches.svelte` draws every
+	 * grant; the workspace's own dialog draws its people from the same list. Beneath one that is
+	 * in, the member's card folds the permissions they hold there (`beneath`,
+	 * `workspace-tailoring.svelte`); the sheet that adds a member draws in and out alone. So the
+	 * card reads as the member's role and the places they can open, and not as a second set of
+	 * permissions beside the role. *Each workspace was a row of three levels, full access, read
+	 * only and no access, until the human saw it beside the switch list and read it as a second
+	 * permission system; then a switch with the owner's lock to read only beneath it, until read
+	 * only became a preset of the tailoring, and the fourth amendment took the preset away.*
 	 *
 	 * **The glyph is the workspaces section's building** ([[rules/frontend]]: a concept keeps one
 	 * glyph everywhere it appears), and this is the section of the card around the list: its head,
@@ -66,7 +67,7 @@
 		disabled: boolean;
 		/** what the grants were refused with, or `null`. */
 		error?: string | null;
-		/** what is drawn beneath a workspace the member is in: the card's tailoring. */
+		/** what is drawn beneath a workspace the member is in: the card's permissions there. */
 		beneath?: Snippet<[AccessSwitchRow]>;
 	} = $props();
 </script>

@@ -72,7 +72,7 @@ export const familyOf = (flag: Flag): Family =>
 	LISTED_FAMILIES.find((family) => (FAMILIES[family] as readonly Flag[]).includes(flag))!;
 
 /** the verb a record flag is, or `null` for the organization's and the owner's. */
-const verbOf = (flag: Flag): RecordVerb | null => {
+export const verbOf = (flag: Flag): RecordVerb | null => {
 	const family = familyOf(flag);
 
 	if (family === 'administration' || family === 'owner') return null;
@@ -106,7 +106,26 @@ export const flagPhrase = (t: TranslationFunctions, flag: Flag): string => {
 		: t.organization.flags[flag as NamedFlag]();
 };
 
-/** the flag that lets a person see a kind at all: the switch its group is headed by. */
+type SaidFlag = keyof TranslationFunctions['organization']['switches']['flagSays'];
+
+/** the record flags whose verb covers more than its line says, which have a line of their own. */
+const SAYS_MORE: readonly Flag[] = ['editContract'] satisfies SaidFlag[];
+
+/**
+ * the one line under a permission's name in the switch list, saying what it allows (effort 838,
+ * requirement 12 as amended a fourth time). A record flag says what its verb does to the kind its
+ * group names, and a flag whose verb covers more says so (`editContract`: ending, renewing and
+ * restoring); the organization's say what the person may do.
+ */
+export const flagSays = (t: TranslationFunctions, flag: Flag): string => {
+	const verb = verbOf(flag);
+
+	return verb && !SAYS_MORE.includes(flag)
+		? t.organization.switches.verbSays[verb]()
+		: t.organization.switches.flagSays[flag as SaidFlag]();
+};
+
+/** the flag that lets a person see a kind at all: the first row of its group. */
 export const viewOf = (kind: RecordKind): Flag => FAMILIES[kind][0];
 
 /** a kind's add, edit and delete, which sit under its view and need it. */
@@ -451,25 +470,31 @@ export const memberWritesOf = (
 };
 
 /**
- * WHAT A MEMBER MAY DO IN ONE WORKSPACE, AS THEIR CARD TAILORS IT
+ * WHAT A MEMBER MAY DO IN ONE WORKSPACE, AS THEIR CARD SETS IT
  *
  * A member's permissions are three layers (effort 838, requirement 12 as amended a third time):
  * their role, what is changed for them across the organization, and what is set for them in one
- * workspace. The last pins record flags (at review round one, the human's call: what is tailored
- * is pinned): a flag pinned holds the value it was set to there however the layers beneath it
- * move, and one not pinned follows them (`effectiveInWorkspace`). Their grant then folds it: a
- * grant minted read only before the lock left clears every add, edit and delete there
- * (`effectiveIn`). The card draws the result as the switch list's record groups, and marks what is
- * pinned.
+ * workspace. The last pins record flags: a flag pinned holds the value it was set to there however
+ * the layers beneath it move, and one not pinned follows them (`effectiveInWorkspace`). Their
+ * grant then folds it: a grant minted read only before the lock left clears every add, edit and
+ * delete there (`effectiveIn`). The card draws the result as the switch list's record groups.
+ *
+ * **What is pinned is what differs** (requirement 12 as amended a fourth time 2026-09-28, the
+ * human's call on the running application): a workspace's pins are exactly the switches that
+ * differ from what the member holds across the organization when the card is saved, so a switch
+ * turned back unsets its pin rather than pinning it at the value it already follows. *At review
+ * round one of ticket 54 a switch turned was pinned at its new value and stayed pinned when turned
+ * back, with a reset and a read only preset beside the switches to clear or set them together;
+ * the fourth amendment took both presets away with that rule.*
  */
 
 /**
- * one workspace a member is in, as the card tailors it: the grant's level, the record flags
- * pinned there, and which of those are on.
+ * one workspace a member is in, as the card sets it: the grant's level, the record flags pinned
+ * there, and which of those are on.
  */
 export type WorkspaceTailoring = { access: AccessLevel; pinned: number; granted: number };
 
-/** the record flags of a mask, and nothing else: what a workspace can tailor. */
+/** the record flags of a mask, and nothing else: what a workspace can set. */
 export const recordsOf = (mask: number): number =>
 	maskOf(...RECORD_FLAGS.filter((flag) => permits(mask, flag)));
 
@@ -497,82 +522,49 @@ export const isTailored = (organizationWide: number, tailoring: WorkspaceTailori
 	tailoring.pinned !== 0 ||
 	tailoredShown(organizationWide, tailoring) !== recordsOf(organizationWide);
 
-/** `tailoring` with each of `flags` pinned to what `to` says, and every other pin as it was. */
-const pinnedTo = (
-	tailoring: WorkspaceTailoring,
-	flags: readonly Flag[],
-	to: number
-): Pick<WorkspaceTailoring, 'pinned' | 'granted'> => ({
-	pinned: maskOf(
-		...RECORD_FLAGS.filter((flag) => flags.includes(flag) || permits(tailoring.pinned, flag))
-	),
-	granted: maskOf(
-		...RECORD_FLAGS.filter((flag) =>
-			flags.includes(flag)
-				? permits(to, flag)
-				: permits(tailoring.pinned, flag) && permits(tailoring.granted, flag)
-		)
-	)
-});
-
-/** the record flags two masks differ on. */
-const differing = (left: number, right: number): Flag[] =>
-	RECORD_FLAGS.filter((flag) => permits(left, flag) !== permits(right, flag));
+/** the record flags two masks differ on, as a mask. */
+const differing = (left: number, right: number): number =>
+	maskOf(...RECORD_FLAGS.filter((flag) => permits(left, flag) !== permits(right, flag)));
 
 /**
- * What the switches of one workspace come to, from what is held there (`held`), what they stand
- * at now (`value`) and what they are turned to (`shown`, record flags).
+ * What a workspace comes to where its switches show `shown` (record flags), against what the
+ * member may do across the organization and the grant's level it holds (`held`).
  *
- * - **Every switch turned is pinned to its new value**, turning a view off with its writes
- *   pinning those too, and every other pin stays.
- * - **At full access, or where a write is turned on, it is a full-access grant.** A grant minted
- *   read only becomes one here (requirement 12 as amended a third time), and whatever the grant
- *   was clearing is pinned to what the switches show, so the member ends up with exactly that.
- * - **A grant minted read only, with every write left off, stays read only.**
+ * - **At full access, or where a write is shown on, it is a full-access grant.** A grant minted
+ *   read only becomes one here (requirement 12 as amended a third time); one with every write
+ *   left off stays read only.
+ * - **Pinned is what differs**, each at the value shown: the switches measured against what the
+ *   member holds with nothing pinned at that level, so a switch that agrees with it is not set.
+ *   Over a grant minted read only that a write turns to full access, every write it was clearing
+ *   and the organization gives now differs, and is pinned off, so the member ends up with exactly
+ *   what the switches show.
+ *
+ * *A second pass pins what a mask stored before a write needed its view makes the first miss: a
+ *   write carried without its view is dropped while nothing is pinned, and comes back when its
+ *   view is pinned on, unless it is pinned off too.*
  */
 export const tailoredTo = (
 	organizationWide: number,
-	held: WorkspaceTailoring,
-	value: WorkspaceTailoring,
+	held: AccessLevel,
 	shown: number
 ): WorkspaceTailoring => {
 	const access: AccessLevel =
-		held.access === 'full-access' || writesAny(shown) ? 'full-access' : 'read-only';
-	const turned: WorkspaceTailoring = {
+		held === 'full-access' || writesAny(shown) ? 'full-access' : 'read-only';
+	const pinnedOnly = (pinned: number): WorkspaceTailoring => ({
 		access,
-		...pinnedTo(value, differing(tailoredShown(organizationWide, value), shown), shown)
-	};
+		pinned,
+		granted: maskOf(...RECORD_FLAGS.filter((flag) => permits(pinned, flag) && permits(shown, flag)))
+	});
+	const first = pinnedOnly(
+		differing(tailoredShown(organizationWide, { access, pinned: 0, granted: 0 }), shown)
+	);
 
-	return {
-		access,
-		...pinnedTo(turned, differing(tailoredShown(organizationWide, turned), shown), shown)
-	};
+	const missed = differing(tailoredShown(organizationWide, first), shown);
+
+	return pinnedOnly(
+		maskOf(...RECORD_FLAGS.filter((flag) => permits(first.pinned, flag) || permits(missed, flag)))
+	);
 };
-
-/**
- * The read only preset: every add, edit and delete pinned off, for every kind of record, and each
- * view as it was. The grant's level is what it held, so a grant minted read only stays so.
- */
-export const readOnlyTailoring = (
-	held: WorkspaceTailoring,
-	value: WorkspaceTailoring
-): WorkspaceTailoring => ({ access: held.access, ...pinnedTo(value, WRITE_FLAGS, 0) });
-
-/**
- * The reset: nothing pinned there, so the member holds what they hold across the organization. A
- * grant minted read only becomes a full-access grant where that gives them a write.
- */
-export const resetTailoring = (
-	organizationWide: number,
-	held: WorkspaceTailoring
-): WorkspaceTailoring => ({
-	access:
-		held.access === 'read-only' && !writesAny(recordsOf(organizationWide))
-			? 'read-only'
-			: 'full-access',
-	pinned: 0,
-	granted: 0
-});
 
 /**
  * The first flag writing a workspace's pins would need the reader to hold and they do not, or

@@ -30,11 +30,11 @@
 	 * 838 drew it from this too.*
 	 *
 	 * **A row is in or out.** On is a full-access grant and off is none. Beneath a row that is in,
-	 * the caller may draw what belongs to it (`beneath`): the member's card draws what the member
-	 * may do in that workspace, tailored. A row is a quiet ring headed by its glyph, as the
-	 * permission switch list draws a kind of record; the glyph is the caller's, the thing each row
-	 * is, and a short mark may sit beside its name (`markOf`), which the workspace's dialog uses to
-	 * say a person is tailored there. *Beneath a row that was in sat the owner's lock to read only
+	 * the caller may draw what belongs to it (`beneath`): the member's card draws the member's
+	 * permissions in that workspace, folded. A row is a quiet ring headed by its glyph, as the
+	 * permission switch list draws a group; the glyph is the caller's, the thing each row is, and a
+	 * short mark may sit beside its name (`markOf`), which the workspace's dialog uses to say a
+	 * person's permissions there are their own. *Beneath a row that was in sat the owner's lock to read only
 	 * until the third amendment of requirement 12 made read only a preset of the switches.*
 	 *
 	 * **The acts are the ones that exist.** Switching on grants full access and off withdraws, each

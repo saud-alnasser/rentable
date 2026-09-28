@@ -274,7 +274,18 @@ const RETIRED = [
 	'organization.roleCard.edit',
 	'organization.roleCard.add',
 	'organization.roleCard.view',
-	'organization.roleCard.administers'
+	'organization.roleCard.administers',
+	// the fold beneath a workspace that was in, what it said, its two presets and the mark on a
+	// switch set there, until ticket 57 of effort 838 made it the workspace's permissions, set
+	// where they differ, with no preset; and the line under editing a contract, which became its
+	// row's own line.
+	'organization.workspaceSwitches.tailor',
+	'organization.workspaceSwitches.tailorSays',
+	'organization.workspaceSwitches.pinned',
+	'organization.workspaceSwitches.readOnly',
+	'organization.workspaceSwitches.readOnlySays',
+	'organization.workspaceSwitches.reset',
+	'organization.switches.contractEdit'
 ] as const;
 
 test('both locales have let go of every string the retired pages read', () => {
@@ -289,8 +300,8 @@ test('both locales have let go of every string the retired pages read', () => {
 // english key, spelled the same wherever a screen draws it, and its arabic is written rather
 // than left in english; and the words the requirement retires are in no english sentence.
 // *Read only was a term of its own, `dashboard.accessReadOnly`, until ticket 49 of effort 838 left
-// no level to name. It is still said in several keys, the tailoring's preset and its refusals
-// (`workspaceSwitches`), its flag (`organization.flags.mintReadOnly`) and a reader's own
+// no level to name. It is still said in several keys, a workspace's refusal
+// (`workspaceSwitches.notHeld`), its flag (`organization.flags.mintReadOnly`) and a reader's own
 // read only workspace (`common.permission.readOnly`), none of them a term the table holds; the
 // test below holds its spelling, one way wherever an organization string says it.*
 const TERMS = [
