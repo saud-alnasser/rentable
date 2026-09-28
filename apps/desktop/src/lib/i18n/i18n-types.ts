@@ -4268,19 +4268,19 @@ type RootTranslation = {
 		}
 		override: {
 			/**
-			 * o​r​g​a​n​i​z​a​t​i​o​n​ ​p​e​r​m​i​s​s​i​o​n​s
+			 * o​r​g​a​n​i​z​a​t​i​o​n​ ​o​v​e​r​r​i​d​e
 			 */
 			legend: string
 			/**
-			 * c​h​a​n​g​e​s​ ​t​o​ ​t​h​e​i​r​ ​r​o​l​e​,​ ​e​v​e​r​y​w​h​e​r​e​ ​i​n​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.
+			 * o​v​e​r​r​i​d​e​s​ ​t​h​e​i​r​ ​r​o​l​e​,​ ​e​v​e​r​y​w​h​e​r​e​ ​i​n​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.
 			 */
 			says: string
 			/**
-			 * w​o​r​k​s​p​a​c​e​ ​p​e​r​m​i​s​s​i​o​n​s
+			 * w​o​r​k​s​p​a​c​e​ ​o​v​e​r​r​i​d​e​s
 			 */
 			workspaces: string
 			/**
-			 * w​h​i​c​h​ ​w​o​r​k​s​p​a​c​e​s​ ​t​h​e​y​ ​c​a​n​ ​o​p​e​n​,​ ​a​n​d​ ​c​h​a​n​g​e​s​ ​f​o​r​ ​e​a​c​h​ ​o​n​e​ ​a​l​o​n​e​.
+			 * w​h​i​c​h​ ​w​o​r​k​s​p​a​c​e​s​ ​t​h​e​y​ ​c​a​n​ ​o​p​e​n​,​ ​a​n​d​ ​i​n​ ​e​a​c​h​ ​o​n​e​,​ ​o​v​e​r​r​i​d​e​s​ ​o​f​ ​t​h​e​i​r​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​p​e​r​m​i​s​s​i​o​n​s​.
 			 */
 			workspacesSays: string
 		}
@@ -8685,19 +8685,19 @@ export type TranslationFunctions = {
 		}
 		override: {
 			/**
-			 * organization permissions
+			 * organization override
 			 */
 			legend: () => LocalizedString
 			/**
-			 * changes to their role, everywhere in the organization.
+			 * overrides their role, everywhere in the organization.
 			 */
 			says: () => LocalizedString
 			/**
-			 * workspace permissions
+			 * workspace overrides
 			 */
 			workspaces: () => LocalizedString
 			/**
-			 * which workspaces they can open, and changes for each one alone.
+			 * which workspaces they can open, and in each one, overrides of their organization permissions.
 			 */
 			workspacesSays: () => LocalizedString
 		}
