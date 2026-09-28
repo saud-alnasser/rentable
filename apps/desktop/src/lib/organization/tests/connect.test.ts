@@ -27,7 +27,7 @@ import type { LinkShape } from '$lib/organization/host.ts';
  * the screen never holds more than the text and what the link said.
  *
  * An organization link ends at the wall, which is the startup unit's and is driven in
- * `layout/tests/startup.test.ts`; here it is `THE_WALL`, which is what the route acts on.
+ * `shell/tests/startup.test.ts`; here it is `THE_WALL`, which is what the route acts on.
  *
  * **A standing is a code on the rejection and never a sentence** (effort 828, requirement 1). Rust
  * answers `refused` with a `reason` beside the message, and the assertions below build rejections

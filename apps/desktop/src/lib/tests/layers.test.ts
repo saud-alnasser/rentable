@@ -96,7 +96,6 @@ const LAYERS: Record<string, Layer> = {
 
 	// 4 composition: `app/` is the composition root, the one place that names every feature
 	app: 'composition',
-	layout: 'composition',
 	prototype: 'composition',
 	shell: 'composition'
 };

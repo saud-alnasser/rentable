@@ -4,12 +4,12 @@ import { expect, test } from 'vitest';
 import en from '$lib/i18n/en';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
-import AccountMenu from '$lib/layout/component/account-menu.svelte';
-import AccountSignedOut from '$lib/layout/component/account-signed-out.svelte';
+import AccountMenu from '$lib/organization/component/account-menu.svelte';
+import AccountSignedOut from '$lib/organization/component/account-signed-out.svelte';
 import { fakeOrganizationSession } from '$lib/organization/tests/testing.ts';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 
-import RailProviders from './rail-providers.svelte';
+import RailProviders from '$lib/shell/tests/rail-providers.svelte';
 
 /**
  * THE ACCOUNT CONTROL, RENDERED
@@ -36,7 +36,7 @@ import RailProviders from './rail-providers.svelte';
 /**
  * Two browser facts the sidebar's state reaches for, neither of which jsdom carries: the shell
  * breakpoint the design package's `tokens.css` declares, read through `matchMedia`, and the
- * `ResizeObserver` floating-ui measures an anchor with. `workspace-menu.svelte.test.ts` stubs
+ * `ResizeObserver` floating-ui measures an anchor with. `workspace/tests/menu.svelte.test.ts` stubs
  * the same two, for the same reason.
  */
 function inAWideWindow() {

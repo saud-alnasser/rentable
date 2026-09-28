@@ -25,8 +25,8 @@
 	} from '$lib/organization/setup';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { toErrorDetail, toErrorText } from '$lib/error/message';
-	import { THE_WAY_IN } from '$lib/layout/shell-surface';
-	import { useStartup } from '$lib/layout/startup-context';
+	import { THE_WAY_IN } from '$lib/shell/shell-surface';
+	import { useStartup } from '$lib/shell/startup-context';
 
 	/**
 	 * The first run's address, and the one that wires the walk to the shell.
@@ -35,7 +35,7 @@
 	 * every call that reaches Rust and the state each answers with: opening the consent, polling it,
 	 * creating the organization, and handing the first workspace's creation to the loading pass. It
 	 * opens with nobody signed in,
-	 * which `layout/shell-surface.ts` decides, because it is how a person comes to be somebody here.
+	 * which `shell/shell-surface.ts` decides, because it is how a person comes to be somebody here.
 	 *
 	 * **It reads where the machine stands before asking for a consent.** A machine that already
 	 * holds Turso authority, because a person connected, went back to the wall and came here again,

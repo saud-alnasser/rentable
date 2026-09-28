@@ -70,7 +70,7 @@
 	 * beneath a workspace switched on, the owner's to mint, until that amendment retired it.*
 	 *
 	 * **The mutation is the host's.** This component owns the `superForm` and the surface and
-	 * hands what was chosen up through `onCreate`; `layout/component/organization-dialogs.svelte`
+	 * hands what was chosen up through `onCreate`; `organization/component/dialogs.svelte`
 	 * runs it. That is what keeps this renderable in a test with no query client.
 	 */
 	let {

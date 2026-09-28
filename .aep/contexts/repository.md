@@ -188,7 +188,10 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
   transfer), and `app/host.ts` composes them with the platform's part into the host the caller
   is bound with. The clock is the one capability `platform`
   does not hold, because it is read nowhere but the context that supplies it. The
-  application shell is neither primitive nor concept, so it is its own home, `layout`.
+  application shell is neither primitive nor concept, so it is its own home, `shell` (it was
+  `layout` until effort 840), and it holds only the shell: the workspace and account rows of the
+  rail and the organization's dialogs are those features' components, declared as `slots` in
+  their `surface.ts` and drawn at the places the shell names.
   `src/routes/` stays layer-first, as the framework requires. **The tree is this shape
   throughout** (#123–#126). Three directories sit outside it: `i18n`, whose path the locale
   generator fixes; `error`, which decodes failures crossing the IPC boundary and has

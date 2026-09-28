@@ -40,7 +40,7 @@
 
 	const sidebar = useSidebar();
 
-	/** physical, not logical, so it is computed. `workspace-menu` has the same note. */
+	/** physical, not logical, so it is computed. `workspace/component/menu.svelte` has the same note. */
 	const side = $derived(
 		sidebar.presentsAsDrawer
 			? 'bottom'

@@ -2,7 +2,9 @@ import { resolve } from '$app/paths';
 import type { ResolvedPathname } from '$app/types';
 import { defineSurface } from '$lib/feature/surface';
 import { RECORD_PARAM, WORKSPACE_PARAM, withSection } from '$lib/settings/section';
+import dialogs from './component/dialogs.svelte';
 import host from './component/host.svelte';
+import railRow from './component/rail-row.svelte';
 import { useOrganizationOfferings } from './palette';
 import SettingsAccount from './component/settings-account.svelte';
 import SettingsOrganization, {
@@ -24,6 +26,11 @@ import SettingsWorkspaces from './component/settings-workspaces.svelte';
  * `settings/section.ts` gives it in the address, in this order, and only while somebody is signed
  * in, which the area decides: each needs an organization to show anything. What the three read is
  * started as the area opens, by the organization section's `load`.
+ *
+ * **The account's row at the foot of the rail and the dialogs beside the frame are slots** the
+ * shell draws at its own places, so the shell names no organization component: making an account,
+ * creating a workspace and the link an account's act produces are drawn beside the frame by
+ * `component/dialogs.svelte`, and who is signed in by `component/rail-row.svelte`.
  */
 export default defineSurface({
 	name: 'organization',
@@ -72,5 +79,9 @@ export default defineSurface({
 			label: (t) => t.settings.section.workspaces(),
 			component: SettingsWorkspaces
 		}
+	],
+	slots: [
+		{ slot: 'account-menu', component: railRow },
+		{ slot: 'dialogs', component: dialogs }
 	]
 });

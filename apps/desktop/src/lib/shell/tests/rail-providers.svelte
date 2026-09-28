@@ -12,11 +12,11 @@
 	 * It takes the string contract's own props and hands them on, so a test using it as a
 	 * `wrapper` passes `wrapperProps` exactly as it would to `DesignProvider` directly, and
 	 * `rerender` still drives the subject's props rather than these. The application nests them
-	 * the same way round: `routes/+layout.svelte` holds the first and `layout/component/frame.svelte`
+	 * the same way round: `routes/+layout.svelte` holds the first and `shell/component/frame.svelte`
 	 * the second.
 	 *
 	 * Here rather than under `src/tests/`, which holds what belongs to the runner, because this
-	 * belongs to the layout's tests the way `testing.ts` beside it does.
+	 * belongs to the shell's tests the way `testing.ts` beside it does.
 	 */
 	import * as Sidebar from '@rentable/design/primitive/sidebar/index.js';
 	import {

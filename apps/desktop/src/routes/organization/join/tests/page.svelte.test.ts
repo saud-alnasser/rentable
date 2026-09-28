@@ -5,7 +5,7 @@ import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import en from '$lib/i18n/en';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
-import { harness, nowhereToGo } from '$lib/layout/tests/testing';
+import { harness, nowhereToGo } from '$lib/shell/tests/testing';
 import Providers from '$lib/organization/tests/providers.svelte';
 import {
 	fakeOrganizationSession,
@@ -27,7 +27,7 @@ import Page from '../+page.svelte';
  * Modelled on `routes/organization/new/tests/page.svelte.test.ts`. The route is rendered whole;
  * what reaches Rust is stood in for at `tauri`, the address and the navigation are mocked because
  * this runner has no router, and the startup unit is a real one, driven through the harness
- * `layout/tests/startup.test.ts` drives it with, so what the loading surface would show is what
+ * `shell/tests/startup.test.ts` drives it with, so what the loading surface would show is what
  * the unit actually reported.
  */
 
@@ -49,7 +49,7 @@ vi.mock('$app/paths', async (original) => ({
 	resolve: (path: string) => path
 }));
 
-vi.mock('$lib/layout/startup-context', () => ({
+vi.mock('$lib/shell/startup-context', () => ({
 	useStartup: () => hooks.startup
 }));
 

@@ -9,7 +9,7 @@ import {
 	THE_JOIN,
 	THE_WAY_IN,
 	wayInFrom
-} from '$lib/layout/shell-surface.ts';
+} from '$lib/shell/shell-surface.ts';
 import { fakeRecovery, harness, locked, nowhereToGo, withoutWorkspace } from './testing.ts';
 
 /**

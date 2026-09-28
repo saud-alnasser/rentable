@@ -65,27 +65,27 @@ const ALLOWED: readonly { label: string; most: number; reason: string }[] = [
 		reason: 'the "export" and "import" rows'
 	},
 	{
-		label: 'lib/layout/component/account-menu.svelte',
+		label: 'lib/organization/component/account-menu.svelte',
 		most: 2,
 		reason: '"settings" and "sign out"'
 	},
 	{
-		label: 'lib/layout/component/account-signed-out.svelte',
+		label: 'lib/organization/component/account-signed-out.svelte',
 		most: 2,
 		reason: '"sign in" and "settings"'
 	},
 	{
-		label: 'lib/layout/component/breadcrumb.svelte',
+		label: 'lib/shell/component/breadcrumb.svelte',
 		most: 2,
 		reason: 'a place’s name from the route, never a record’s'
 	},
-	{ label: 'lib/layout/component/frame.svelte', most: 1, reason: '"search"' },
+	{ label: 'lib/shell/component/frame.svelte', most: 1, reason: '"search"' },
 	{
-		label: 'lib/layout/component/sidebar.svelte',
+		label: 'lib/shell/component/sidebar.svelte',
 		most: 2,
 		reason: 'the navigation’s place names, one word each'
 	},
-	{ label: 'lib/layout/component/workspace-menu.svelte', most: 1, reason: '"workspaces"' },
+	{ label: 'lib/workspace/component/menu.svelte', most: 1, reason: '"workspaces"' },
 	{
 		label: 'lib/settings/component/appearance.svelte',
 		most: 1,

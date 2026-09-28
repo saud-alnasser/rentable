@@ -268,7 +268,7 @@
 	</Field.Field>
 
 	<!-- the two figures the reader is comparing, in one treatment, which is the treatment
-	     `layout/component/startup-recovery.svelte` gives its own pair. That screen keeps its
+	     `shell/component/startup-recovery.svelte` gives its own pair. That screen keeps its
 	     figures for the reason these are kept: a version number is a fact somebody reads off the
 	     screen and repeats. -->
 	<dl class="grid gap-2 sm:grid-cols-2">

@@ -18,7 +18,7 @@ import {
  *
  * Effort 838, requirement 10 and criterion 10: a kind the reader may not view is not a place the
  * menu goes to and is not searched, and a create the reader lacks the flag for is not offered.
- * `layout/navigation.ts`, the search and create entries each surface declares and `palette/` are
+ * `shell/navigation.ts`, the search and create entries each surface declares and `palette/` are
  * what decide it; this reads it off the menu the frame draws.
  *
  * **The searches are the mock**: each records the term it was handed, so what is asserted is the

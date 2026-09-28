@@ -17,40 +17,40 @@
 	import { NotificationProvider } from '$lib/notification/ui';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
-	import LayoutCaughtError from '$lib/layout/component/caught-error.svelte';
-	import LayoutFrame from '$lib/layout/component/frame.svelte';
-	import LayoutOrganizationDialogs from '$lib/layout/component/organization-dialogs.svelte';
+	import LayoutCaughtError from '$lib/shell/component/caught-error.svelte';
+	import LayoutFrame from '$lib/shell/component/frame.svelte';
 	import { toScreen } from '@rentable/design/back.js';
 	import { back } from '@rentable/design/back.svelte.js';
-	import LayoutStartupError from '$lib/layout/component/startup-error.svelte';
-	import LayoutStartupUnreadable from '$lib/layout/component/startup-unreadable.svelte';
-	import { CAUGHT_ERROR_EVENT, toCaughtErrorFields } from '$lib/layout/boundary';
+	import LayoutStartupError from '$lib/shell/component/startup-error.svelte';
+	import LayoutStartupUnreadable from '$lib/shell/component/startup-unreadable.svelte';
+	import { CAUGHT_ERROR_EVENT, toCaughtErrorFields } from '$lib/shell/boundary';
 	import {
 		THE_FIRST_RUN,
 		THE_JOIN,
 		addressAfterSignOut,
 		shellSurface,
 		wayInFrom
-	} from '$lib/layout/shell-surface';
+	} from '$lib/shell/shell-surface';
 	import { linkArrived } from '$lib/organization/connect';
-	import { noteMigration } from '$lib/layout/migration-notice.svelte';
-	import { startupSurfaceBeforeLocale } from '$lib/layout/startup-surface';
+	import { noteMigration } from '$lib/shell/migration-notice.svelte';
+	import { startupSurfaceBeforeLocale } from '$lib/shell/startup-surface';
 	import { recordDiagnosticError } from '$lib/platform/diagnostics';
-	import LayoutStartupLoading from '$lib/layout/component/startup-loading.svelte';
-	import LayoutStartupNoWorkspace from '$lib/layout/component/startup-no-workspace.svelte';
-	import LayoutStartupRecovery from '$lib/layout/component/startup-recovery.svelte';
-	import LayoutStartupSignIn from '$lib/layout/component/startup-sign-in.svelte';
-	import { listenForWindowCloseRequests } from '$lib/layout/event';
-	import { createStartup } from '$lib/layout/startup';
-	import { provideStartup } from '$lib/layout/startup-context';
+	import LayoutStartupLoading from '$lib/shell/component/startup-loading.svelte';
+	import LayoutStartupNoWorkspace from '$lib/shell/component/startup-no-workspace.svelte';
+	import LayoutStartupRecovery from '$lib/shell/component/startup-recovery.svelte';
+	import LayoutStartupSignIn from '$lib/shell/component/startup-sign-in.svelte';
+	import { listenForWindowCloseRequests } from '$lib/shell/event';
+	import { createStartup } from '$lib/shell/startup';
+	import { provideStartup } from '$lib/shell/startup-context';
 	import { useCreateWorkspace } from '$lib/organization/query';
 	import { useEarlierRecords } from '$lib/workspace/app-database';
-	import { browserStartupPorts } from '$lib/layout/startup-ports';
+	import { browserStartupPorts } from '$lib/shell/startup-ports';
 	import { DesignProvider, type DesignStrings } from '@rentable/design/strings.js';
 	import { toRefusalText } from '$lib/error/refusal';
 	import { QueryClient, QueryClientProvider } from '@tanstack/svelte-query';
 	import { getCurrentWindow } from '@tauri-apps/api/window';
 	import { host } from '$lib/app/host';
+	import { slotsAt } from '$lib/app/surfaces';
 	import { onMount } from 'svelte';
 	import '../app.css';
 
@@ -66,7 +66,7 @@
 
 	/**
 	 * Everything the application does between the process starting and a person being able to use
-	 * it lives in `$lib/layout/startup`, which is a plain unit a `node:test` drives with no window.
+	 * it lives in `$lib/shell/startup`, which is a plain unit a `node:test` drives with no window.
 	 *
 	 * What is left here is the route's own work: mirroring what that unit reports into something
 	 * this file can render from, deciding how much of the shell each state draws, and drawing it.
@@ -324,7 +324,7 @@
 	/**
 	 * what goes inside the frame, which is the shell's other decision and lives beside the first.
 	 *
-	 * `layout/shell-surface.ts` holds it, for the reason stated at the top of this file: this is a
+	 * `shell/shell-surface.ts` holds it, for the reason stated at the top of this file: this is a
 	 * runes file and a `node:test` cannot import one, so a chain of branches written here is a
 	 * decision nothing can drive. It was four branches on the startup state until 2026-08-21, when
 	 * the address became the second thing it reads.
@@ -334,7 +334,7 @@
 	/**
 	 * what the rail's account row does, which is put the sign-in card on screen.
 	 *
-	 * The decision is `wayInFrom`'s, in `layout/shell-surface.ts`, for the reason the surface itself
+	 * The decision is `wayInFrom`'s, in `shell/shell-surface.ts`, for the reason the surface itself
 	 * is: a runes file cannot be imported by a `node:test`, so a rule written here is a rule nothing
 	 * can drive.
 	 */
@@ -345,6 +345,12 @@
 			void goto(resolve(destination));
 		}
 	};
+
+	/**
+	 * what the features draw beside the frame, the invite and new-workspace dialogs among them:
+	 * the shell's `dialogs` place, read off `app/surfaces` in the list's order.
+	 */
+	const besideTheFrame = slotsAt('dialogs');
 
 	let { children } = $props();
 </script>
@@ -448,7 +454,9 @@
 						     Drawn while the rail is up and a session is held: that is every state in which
 						     one of their openers, the rail's menu or the organization page, can be drawn. -->
 						{#if shellState.railIsUp && shellState.organization?.session}
-							<LayoutOrganizationDialogs />
+							{#each besideTheFrame as Dialogs, index (index)}
+								<Dialogs />
+							{/each}
 						{/if}
 					</TooltipProvider>
 				</NotificationProvider>
@@ -475,7 +483,7 @@
 		loaded, and until one is every string resolves to the empty string rather than failing. So a
 		failure in the first stage of startup used to show an empty window that had been deliberately
 		made visible: nothing to press, and no way back but quitting.
-		`layout/startup-surface.ts` holds the decision and says why it is the only one made on this
+		`shell/startup-surface.ts` holds the decision and says why it is the only one made on this
 		side of the gate.
 
 		**On the bare frame, like every other startup failure.** Requirement 6 gives that state the

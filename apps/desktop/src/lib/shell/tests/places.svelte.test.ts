@@ -1,8 +1,8 @@
 import { expect, test } from 'vitest';
 
 import { places, surfaces } from '$lib/app/surfaces';
-import { primaryDestinations, secondaryDestinations } from '$lib/layout/destination';
-import { PAGE_ROUTES, TRAIL_PLACES } from '$lib/layout/navigation';
+import { primaryDestinations, secondaryDestinations } from '$lib/shell/destination';
+import { PAGE_ROUTES, TRAIL_PLACES } from '$lib/shell/navigation';
 
 /**
  * THE PLACES THE SURFACES DECLARE, AS THE SHELL READS THEM

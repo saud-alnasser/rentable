@@ -8,18 +8,18 @@
 	import { Separator } from '@rentable/design/primitive/separator/index.js';
 	import * as Sidebar from '@rentable/design/primitive/sidebar/index.js';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
-	import LayoutBreadcrumb from '$lib/layout/component/breadcrumb.svelte';
+	import LayoutBreadcrumb from '$lib/shell/component/breadcrumb.svelte';
 	import { CreateShortcut } from '$lib/create/ui';
-	import LayoutCaughtError from '$lib/layout/component/caught-error.svelte';
+	import LayoutCaughtError from '$lib/shell/component/caught-error.svelte';
 	import { Palette, PALETTE_SHORTCUT_HINT } from '$lib/palette/ui';
 	import { ShortcutListener } from '$lib/shortcut/ui';
 	import { UndoShortcut } from '$lib/undo/ui';
-	import LayoutShortcutSheet from '$lib/layout/component/shortcut-sheet.svelte';
-	import LayoutSidebar from '$lib/layout/component/sidebar.svelte';
-	import LayoutWindowControls from '$lib/layout/component/window-controls.svelte';
-	import { CAUGHT_ERROR_EVENT, toCaughtErrorFields } from '$lib/layout/boundary';
-	import { primaryDestinations, secondaryDestinations } from '$lib/layout/destination';
-	import { toBreadcrumbTrail, toViewablePlaces } from '$lib/layout/navigation';
+	import LayoutShortcutSheet from '$lib/shell/component/shortcut-sheet.svelte';
+	import LayoutSidebar from '$lib/shell/component/sidebar.svelte';
+	import LayoutWindowControls from '$lib/shell/component/window-controls.svelte';
+	import { CAUGHT_ERROR_EVENT, toCaughtErrorFields } from '$lib/shell/boundary';
+	import { primaryDestinations, secondaryDestinations } from '$lib/shell/destination';
+	import { toBreadcrumbTrail, toViewablePlaces } from '$lib/shell/navigation';
 	import { memberPermissions } from '$lib/permission';
 	import { recordDiagnosticError } from '$lib/platform/diagnostics';
 	import KeyboardIcon from '@lucide/svelte/icons/keyboard';
@@ -188,7 +188,7 @@
 <CreateShortcut />
 
 <!-- every region of the frame carries `print:hidden`, so a printed page is the sheet alone; a
-     region added here without it fails `layout/tests/frame.svelte.test.ts`. -->
+     region added here without it fails `shell/tests/frame.svelte.test.ts`. -->
 <div
 	lang={$locale}
 	dir={currentDirection}

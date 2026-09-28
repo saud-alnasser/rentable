@@ -5,15 +5,10 @@
 	import * as Sidebar from '@rentable/design/primitive/sidebar/index.js';
 	import { shortcuts } from '$lib/shortcut';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import LayoutAccountMenu from '$lib/layout/component/account-menu.svelte';
-	import LayoutAccountSignedOut from '$lib/layout/component/account-signed-out.svelte';
-	import LayoutWorkspaceLocked from '$lib/layout/component/workspace-locked.svelte';
-	import LayoutWorkspaceMenu from '$lib/layout/component/workspace-menu.svelte';
-	import { primaryDestinations, type Destination } from '$lib/layout/destination';
-	import { isActiveRoute, toViewablePlaces } from '$lib/layout/navigation';
-	import { useStartup } from '$lib/layout/startup-context';
-	import { useFetchRemoteSyncState } from '$lib/sync/query';
-	import { useFetchMembers, useFetchOrganizationState } from '$lib/organization/query';
+	import { slotsAt } from '$lib/app/surfaces';
+	import { primaryDestinations, type Destination } from '$lib/shell/destination';
+	import { isActiveRoute, toViewablePlaces } from '$lib/shell/navigation';
+	import { useStartup } from '$lib/shell/startup-context';
 	import { memberPermissions } from '$lib/permission';
 	import type { ComponentProps } from 'svelte';
 
@@ -34,8 +29,14 @@
 	 * **Neither row can be empty once signed in, and neither carries a loading state.**
 	 * `+layout.svelte` renders the full rail only at `startupState === 'ready'`, which is past
 	 * admission, so an account is held and a workspace is open whenever that is drawn; the startup
-	 * path also writes the state into this query's key before the shell mounts, so there is no
+	 * path also writes the state into the sync query's key before the shell mounts, so there is no
 	 * first frame with nothing in it.
+	 *
+	 * **The two rows are the features' own, drawn at the shell's two places** (`workspace-menu` and
+	 * `account-menu`, in `$lib/feature/surface`): the workspace's at the top and the account's at
+	 * the foot, each read off `app/surfaces` in the list's order. The rail hands each what only the
+	 * frame knows, which state it is in and what a switch or the way in runs, and each reads what it
+	 * shows for itself.
 	 */
 	let {
 		ref = $bindable(null),
@@ -55,33 +56,15 @@
 		onWayIn?: () => void;
 	} = $props();
 
-	// asking who is signed in on a machine where nobody is would be refused by design and
-	// reported as a failure, so the rail that already knows the answer does not ask.
-	const remoteSyncQuery = useFetchRemoteSyncState(() => !signedOut);
-	const organizationQuery = useFetchOrganizationState();
-	// gated the same way, and for the same reason: the rail is one instance across the wall and
-	// the application, a refused read is kept as an error that nothing retries, and a menu drawn
-	// off it would say the workspace has no members for the run of the process.
-	const membersQuery = useFetchMembers(() => !signedOut);
-
-	const workspace = $derived(remoteSyncQuery.data?.workspace);
-	const session = $derived(organizationQuery.data?.session ?? null);
-	// the workspaces the member holds a grant on, which is what the workspace menu lists; the one
-	// that is open is named by the same sync record the header takes its name from.
-	const workspaces = $derived(session?.workspaces ?? []);
-
 	/**
 	 * the startup unit, for switching workspaces. A switch is the sign-in path run again past
 	 * the wall, under the loading surface, and that path is the unit's; the rail asks for it and
 	 * draws whatever the unit reports, the way every other surface beside the wall does.
 	 */
 	const startup = useStartup();
-	// how many members hold a grant on the workspace that is open, for the workspace menu.
-	const memberCount = $derived(
-		(membersQuery.data ?? []).filter((member) =>
-			workspace?.remoteId ? member.workspaces.some((held) => held.id === workspace.remoteId) : false
-		).length
-	);
+
+	const workspaceRows = slotsAt('workspace-menu');
+	const accountRows = slotsAt('account-menu');
 
 	const sidebar = Sidebar.useSidebar();
 
@@ -144,19 +127,9 @@
 
 <Sidebar.Root bind:ref {collapsible} variant="inset" {...restProps}>
 	<Sidebar.Header>
-		{#if signedOut}
-			<LayoutWorkspaceLocked />
-		{:else if workspace}
-			<!-- the members who hold a grant on this workspace, counted from the same list the
-			     organization page draws. -->
-			<LayoutWorkspaceMenu
-				{workspace}
-				{workspaces}
-				openId={workspace.remoteId}
-				{memberCount}
-				onSwitch={(id) => void startup.switchWorkspace(id)}
-			/>
-		{/if}
+		{#each workspaceRows as WorkspaceRow, index (index)}
+			<WorkspaceRow {signedOut} onSwitch={(id) => void startup.switchWorkspace(id)} />
+		{/each}
 	</Sidebar.Header>
 
 	<Sidebar.Content>
@@ -166,10 +139,8 @@
 	</Sidebar.Content>
 
 	<Sidebar.Footer>
-		{#if signedOut}
-			<LayoutAccountSignedOut {onWayIn} />
-		{:else if session}
-			<LayoutAccountMenu {session} />
-		{/if}
+		{#each accountRows as AccountRow, index (index)}
+			<AccountRow {signedOut} {onWayIn} />
+		{/each}
 	</Sidebar.Footer>
 </Sidebar.Root>

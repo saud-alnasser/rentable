@@ -2,7 +2,7 @@ import StandaloneSurface from '@rentable/design/block/standalone-surface.svelte'
 import SurfaceAction from '@rentable/design/block/surface-action.svelte';
 import { render, screen } from '@testing-library/svelte';
 import { expect, test } from 'vitest';
-import StartupUnreadable from '$lib/layout/component/startup-unreadable.svelte';
+import StartupUnreadable from '$lib/shell/component/startup-unreadable.svelte';
 import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
 
 /**

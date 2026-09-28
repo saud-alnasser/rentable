@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { STACK_LIMIT, toCaughtErrorFields } from '$lib/layout/boundary.ts';
+import { STACK_LIMIT, toCaughtErrorFields } from '$lib/shell/boundary.ts';
 import { toDiagnosticFields } from '$lib/platform/diagnostics.ts';
 
 // --- What a caught error leaves behind -------------------------------------------------

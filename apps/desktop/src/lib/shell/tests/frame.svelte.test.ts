@@ -5,7 +5,7 @@ import { afterEach, beforeAll, expect, test, vi } from 'vitest';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import { setLocale } from '$lib/i18n/i18n-svelte';
-import Frame from '$lib/layout/component/frame.svelte';
+import Frame from '$lib/shell/component/frame.svelte';
 import QueryProviders from '#tests/query-providers.svelte';
 
 /**
@@ -33,12 +33,12 @@ vi.mock('@tauri-apps/api/window', () => ({
 
 // the rail's contents read the startup unit the root layout provides; where the rail sits is the
 // frame's, and that is what is under test, so it draws nothing here.
-vi.mock('$lib/layout/component/sidebar.svelte', () => ({ default: () => {} }));
+vi.mock('$lib/shell/component/sidebar.svelte', () => ({ default: () => {} }));
 
 beforeAll(() => {
 	loadLocale('en');
 	setLocale('en');
-	// the two browser facts the rail's state reaches for, as `account-menu.svelte.test.ts` stubs
+	// the two browser facts the rail's state reaches for, as `organization/tests/account-menu.svelte.test.ts` stubs
 	// them: the shell breakpoint the stylesheet declares, read through `matchMedia`, and the
 	// `ResizeObserver` floating-ui measures with.
 	document.documentElement.style.setProperty('--breakpoint-shell', '48rem');

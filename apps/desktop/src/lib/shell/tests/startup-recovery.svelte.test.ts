@@ -4,7 +4,7 @@ import { expect, test } from 'vitest';
 import ar from '$lib/i18n/ar';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
-import StartupRecovery from '$lib/layout/component/startup-recovery.svelte';
+import StartupRecovery from '$lib/shell/component/startup-recovery.svelte';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import QueryProviders from '#tests/query-providers.svelte';
 

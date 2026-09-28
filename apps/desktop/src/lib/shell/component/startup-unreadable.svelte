@@ -24,7 +24,7 @@
 	 * words.** They are the accessible names of two controls on a screen that exists because no
 	 * dictionary could be reached, so reaching one for them is the thing that cannot be done. They
 	 * are `settings.diagnosticsReveal` and `common.actions.retryStartup` verbatim, and
-	 * `layout/tests/startup-surface.test.ts` holds them to that rather than leaving two copies to
+	 * `shell/tests/startup-surface.test.ts` holds them to that rather than leaving two copies to
 	 * drift. A reader whose language is Arabic meets English on this screen alone.
 	 *
 	 * **Neither control carries a tooltip, and that is the difference that keeps this screen on

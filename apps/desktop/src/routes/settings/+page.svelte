@@ -14,8 +14,8 @@
 	import { showErrorToast } from '$lib/notification';
 	import { LL, locale, setLocale } from '$lib/i18n/i18n-svelte';
 	import type { Locales } from '$lib/i18n/i18n-types';
-	import { addressAfterSignOut } from '$lib/layout/shell-surface';
-	import { useStartup } from '$lib/layout/startup-context';
+	import { addressAfterSignOut } from '$lib/shell/shell-surface';
+	import { useStartup } from '$lib/shell/startup-context';
 	import { useFetchOrganizationState } from '$lib/organization/query';
 	import SettingsArea from '$lib/settings/component/area.svelte';
 	import { useFetchSettings } from '$lib/settings/query';
@@ -33,7 +33,7 @@
 	 * the frame runs them (effort 832, requirement 8).
 	 *
 	 * **The section is `?section=` on this pathname, and the pathname is load-bearing.** This is
-	 * the one address that draws with nobody signed in (`layout/shell-surface.ts`), matched
+	 * the one address that draws with nobody signed in (`shell/shell-surface.ts`), matched
 	 * exactly, and the back trail is keyed by pathname, so moving between sections is not leaving
 	 * the page. `settings/section.ts` says why that beat a segment per section.
 	 *

@@ -4,8 +4,8 @@
 	import { host } from '$lib/app/host';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { toErrorMessage } from '$lib/error/message';
-	import { THE_WAY_IN } from '$lib/layout/shell-surface';
-	import { useStartup } from '$lib/layout/startup-context';
+	import { THE_WAY_IN } from '$lib/shell/shell-surface';
+	import { useStartup } from '$lib/shell/startup-context';
 	import OrganizationConnectScreen from '$lib/organization/component/connect-screen.svelte';
 	import {
 		afterRead,
@@ -29,7 +29,7 @@
 	 * Rust, and what follows each: the way in, and the startup unit reading where the machine
 	 * stands again, which raises the wall for a link that connected the machine and enters the
 	 * application for an invitation that was accepted. It opens with nobody signed in, which
-	 * `layout/shell-surface.ts` decides.
+	 * `shell/shell-surface.ts` decides.
 	 *
 	 * **Read, then act on what the read said** (effort 828, requirements 1, 16 and 17). The form
 	 * hands over the link and the code together, and the read is a decode: which organization the

@@ -70,7 +70,10 @@ as the sentence its code stands for, in their language (`error/refusal.ts`, and
   had deleted, so `add` would have re-created the tree from nothing, outside the package and
   reachable by no import.*
 - **App-level composites go in a `block/`**, never in a `primitive/`. App-level means shared
-  by concepts; the application shell's own components are not, and live in `layout` (#257).
+  by concepts; the application shell's own components are not, and live in `shell` (#257;
+  it was `layout` until effort 840). The shell holds only the shell: a row or a dialog a feature
+  draws in it is that feature's component, declared as a `slot` in its `surface.ts` and drawn at
+  the place it names (`ShellSlot` in `feature/surface.ts`).
   **Which `block/` is decided by what the composite reaches**, and #781 sorted the fifteen that
   existed: `packages/design/src/lib/block/` holds the eleven that reach nothing but the design
   system and what the package is already allowed (`$app/*`, which `back` navigates
@@ -491,7 +494,7 @@ words and its reading direction are supplied from outside: one typed object and 
 handed to `DesignProvider` once in `src/routes/+layout.svelte`. `@rentable/design/strings.js` is
 the contract, and it holds what enforces it and why the direction travels with the words.
 *Everything above is unchanged for a component that lives in this application, and that is every
-cell, every component under a concept, a capability or `layout`, the list and two of the three
+cell, every component under a concept, a capability or `shell`, the list and two of the three
 that effort 832 added around it under `list/component/` (`list.svelte`, `list-toolbar.svelte`
 and `search-field.svelte`), and the one block left under `design/block/`,
 `language-choice.svelte`, which effort 835
@@ -552,7 +555,7 @@ itself out of `TranslationFunctions`, which is this application's generated type
 declared inside the package would be naming keys in a dictionary the package has no way to
 reach. #780 found the only instance and is where the rule comes from: `SidebarState` registered
 `sidebar.toggle` from its own constructor, and the registration moved to
-`layout/component/sidebar.svelte` while the key it answers stayed with the primitive as
+`shell/component/sidebar.svelte` while the key it answers stayed with the primitive as
 `SIDEBAR_KEYBOARD_SHORTCUT`. **A packaged component that wants a key states the key and lets its
 consumer register it**, which keeps one place the key is written down and puts the description
 where the dictionary is.
@@ -567,6 +570,6 @@ the second holds them, in the `shortcut/` capability since effort 840. *Since ef
 registered by `list/component/search-field.svelte` (`toSearchShortcut`) and the other two by the
 list (`toListShortcuts`), so the field stays with this application for the same reason, and every
 set that draws it answers `/`.* **Nothing in the package holds a registry or wants one**:
-`shortcut.ts` says so in its own header, and every other caller is under `layout/`, `list/` or
+`shortcut.ts` says so in its own header, and every other caller is under `shell/`, `list/` or
 `create/`. Read the placement rule as the rule's consequence rather than as a second rule; the
 effort's spec carries the full argument under `# Open Questions`.

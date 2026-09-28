@@ -4,7 +4,6 @@ import * as contract from '../../contract/i18n/ar.js';
 import * as create from '../../create/i18n/ar.js';
 import * as dashboard from '../../dashboard/i18n/ar.js';
 import * as history from '../../history/i18n/ar.js';
-import * as layout from '../../layout/i18n/ar.js';
 import * as list from '../../list/i18n/ar.js';
 import * as organization from '../../organization/i18n/ar.js';
 import * as palette from '../../palette/i18n/ar.js';
@@ -12,6 +11,7 @@ import * as payment from '../../payment/i18n/ar.js';
 import * as permission from '../../permission/i18n/ar.js';
 import * as print from '../../print/i18n/ar.js';
 import * as settings from '../../settings/i18n/ar.js';
+import * as shell from '../../shell/i18n/ar.js';
 import * as shortcut from '../../shortcut/i18n/ar.js';
 import * as startup from '../../startup/i18n/ar.js';
 import * as tenant from '../../tenant/i18n/ar.js';
@@ -360,7 +360,7 @@ const ar = {
 
 		undo: undo.common.undo,
 
-		window: layout.common.window,
+		window: shell.common.window,
 
 		ui: {
 			breadcrumb: 'مسار التنقل',
@@ -392,8 +392,8 @@ const ar = {
 		}
 	},
 	layout: {
-		notFound: layout.layout.notFound,
-		error: layout.layout.error,
+		notFound: shell.layout.notFound,
+		error: shell.layout.error,
 		accountMenu: organization.layout.accountMenu,
 		workspaceMenu: workspace.layout.workspaceMenu,
 		noWorkspace: workspace.layout.noWorkspace,

@@ -7,7 +7,7 @@
 	/**
 	 * The top of the rail when there is no workspace to name.
 	 *
-	 * **The same row as `workspace-menu.svelte`, holding its place rather than vanishing.** The
+	 * **The same row as `menu.svelte`, holding its place rather than vanishing.** The
 	 * mark, the two lines, the chevron: what is missing is the workspace's name, because nobody has
 	 * signed in to have one. A row that disappears and comes back is the shell changing shape,
 	 * which is the thing the signed-out rail exists not to do.

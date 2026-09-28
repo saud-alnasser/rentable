@@ -5,7 +5,7 @@
 	import { shownRecord } from '@rentable/design/shown-record.svelte.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { places } from '$lib/app/surfaces';
-	import { toBreadcrumbTrail } from '$lib/layout/navigation';
+	import { toBreadcrumbTrail } from '$lib/shell/navigation';
 
 	/**
 	 * Where the reader is: the places above this page, and the record it ends on.

@@ -4,7 +4,6 @@ import * as contract from '../../contract/i18n/en.js';
 import * as create from '../../create/i18n/en.js';
 import * as dashboard from '../../dashboard/i18n/en.js';
 import * as history from '../../history/i18n/en.js';
-import * as layout from '../../layout/i18n/en.js';
 import * as list from '../../list/i18n/en.js';
 import * as organization from '../../organization/i18n/en.js';
 import * as palette from '../../palette/i18n/en.js';
@@ -12,6 +11,7 @@ import * as payment from '../../payment/i18n/en.js';
 import * as permission from '../../permission/i18n/en.js';
 import * as print from '../../print/i18n/en.js';
 import * as settings from '../../settings/i18n/en.js';
+import * as shell from '../../shell/i18n/en.js';
 import * as shortcut from '../../shortcut/i18n/en.js';
 import * as startup from '../../startup/i18n/en.js';
 import * as tenant from '../../tenant/i18n/en.js';
@@ -380,7 +380,7 @@ const en = {
 
 		undo: undo.common.undo,
 
-		window: layout.common.window,
+		window: shell.common.window,
 
 		ui: {
 			breadcrumb: 'breadcrumb',
@@ -412,8 +412,8 @@ const en = {
 		}
 	},
 	layout: {
-		notFound: layout.layout.notFound,
-		error: layout.layout.error,
+		notFound: shell.layout.notFound,
+		error: shell.layout.error,
 		accountMenu: organization.layout.accountMenu,
 		workspaceMenu: workspace.layout.workspaceMenu,
 		noWorkspace: workspace.layout.noWorkspace,

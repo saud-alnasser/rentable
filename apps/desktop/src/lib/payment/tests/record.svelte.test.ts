@@ -6,7 +6,7 @@ import Providers from '$lib/design/cell/tests/providers.svelte';
 import en from '$lib/i18n/en';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
-import Breadcrumb from '$lib/layout/component/breadcrumb.svelte';
+import Breadcrumb from '$lib/shell/component/breadcrumb.svelte';
 import PaymentDetails from '$lib/payment/component/details.svelte';
 
 /**

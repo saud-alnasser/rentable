@@ -19,7 +19,8 @@
 	import { locale } from '$lib/i18n/i18n-svelte';
 
 	/**
-	 * The organization surfaces, mounted once for the whole shell.
+	 * The organization surfaces, mounted once for the whole shell, which draws them at its `dialogs`
+	 * place (`surface.ts`).
 	 *
 	 * Making an account and creating a workspace are each one form on the shared form surface, and
 	 * the link an account's own act produces is one panel beside them. Each is opened from a place

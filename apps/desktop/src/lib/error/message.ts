@@ -114,7 +114,7 @@ export function toErrorText(
 	const { title, detail } = toErrorMessage(error, translations, fallback);
 
 	// a title with nothing in it is a translation that is not loaded, which happens on the one
-	// screen drawn before a locale is (`layout/component/startup-unreadable.svelte`). No reader's
+	// screen drawn before a locale is (`shell/component/startup-unreadable.svelte`). No reader's
 	// language exists there to translate into, and the detail is the whole of what is known, so it
 	// is what that screen says, isolated for the reason `isolateDirection` states.
 	if (!title && detail) {

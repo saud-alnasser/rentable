@@ -8,6 +8,9 @@ import {
 	type NavigationPlace,
 	type Section,
 	type SectionTarget,
+	type ShellSlot,
+	type ShellSlotName,
+	type ShellSlotProps,
 	type Surface
 } from '$lib/feature/surface';
 import organization from '$lib/organization/surface';
@@ -16,6 +19,7 @@ import payment from '$lib/payment/surface';
 import settings from '$lib/settings/surface';
 import tenant from '$lib/tenant/surface';
 import workspace from '$lib/workspace/surface';
+import type { Component } from 'svelte';
 import type { SurfaceContributions } from './contributions';
 
 /**
@@ -72,7 +76,7 @@ export const palette = createPalette(surfaces);
  * **Its own list, because the two orders differ.** Hosts mount the workspace's permissions first;
  * the rail opens on the dashboard, where the application opens, and runs down the three
  * directories, and the command menu ends on the settings sections. A surface declaring places is
- * listed here as well as above, and `layout/tests/places.svelte.test.ts` holds it to that.
+ * listed here as well as above, and `shell/tests/places.svelte.test.ts` holds it to that.
  *
  * No glyph among these is the one the rail uses as the application's mark: the rail draws the mark
  * above its rows, so a place wearing it would show one picture twice meaning two different things,
@@ -92,4 +96,15 @@ export function sectionsOn<On extends SectionTarget>(on: On): Section<On>[] {
 		.flatMap((surface): readonly AnySection[] => surface.sections ?? [])
 		.filter((section): section is Section<On> & AnySection => section.on === on)
 		.sort((a, b) => a.order - b.order);
+}
+
+/**
+ * What every surface contributes to one of the shell's own places, in the list's order. The shell
+ * draws each where the place is, handing it the place's props, so it names no feature.
+ */
+export function slotsAt<S extends ShellSlotName>(slot: S): Component<ShellSlotProps[S]>[] {
+	return surfaces
+		.flatMap((surface): readonly ShellSlot[] => surface.slots ?? [])
+		.filter((entry) => entry.slot === slot)
+		.map((entry) => entry.component as Component<ShellSlotProps[S]>);
 }

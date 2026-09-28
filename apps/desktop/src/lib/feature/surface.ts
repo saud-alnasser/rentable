@@ -37,7 +37,7 @@ export type Surface = {
 	host?: Component;
 	/** what it contributes to a page another feature draws: a record's, or the settings area */
 	sections?: AnySection[];
-	/** what it contributes to the shell's own menus: the account menu, the workspace menu */
+	/** what it contributes to the shell's own places: the account menu, the workspace menu, dialogs */
 	slots?: ShellSlot[];
 	/**
 	 * what it contributes to the kinds it depends on in the window, keyed by the kind each serves:
@@ -231,11 +231,39 @@ export type SectionLoad<On extends SectionTarget = SectionTarget> = On extends R
 /** A section for any page: what a surface declares, and what the list of surfaces holds. */
 export type AnySection = { [On in SectionTarget]: Section<On> }[SectionTarget];
 
-/** Something drawn inside one of the shell's own menus. */
-export type ShellSlot = {
-	slot: 'account-menu' | 'workspace-menu';
-	component: Component;
+/**
+ * The places the shell draws what a feature contributes to it, and what the shell hands the
+ * component drawn at each. The shell owns the frame: which state it is in and what a switch or the
+ * way in runs, so those arrive as props; what the component shows, it reads for itself.
+ *
+ * - **`workspace-menu`** is the top of the rail, the row naming the workspace that is open.
+ * - **`account-menu`** is the foot of the rail, the row naming who is signed in.
+ * - **`dialogs`** is beside the frame, inside the providers, for surfaces opened from places that
+ *   share no parent. It is drawn while the rail is up and a session is held.
+ */
+export type ShellSlotProps = {
+	'workspace-menu': {
+		/** whether this is the rail before anybody has signed in, or with no workspace open. */
+		signedOut: boolean;
+		/** a workspace other than the open one was chosen: open it, by the path a sign-in takes. */
+		onSwitch: (workspaceId: string) => void;
+	};
+	'account-menu': {
+		/** whether this is the rail before anybody has signed in. */
+		signedOut: boolean;
+		/** the way in, which reaches the sign-in card. Only read while `signedOut`. */
+		onWayIn: () => void;
+	};
+	dialogs: Record<string, never>;
 };
+
+/** A place in the shell, by name. */
+export type ShellSlotName = keyof ShellSlotProps;
+
+/** Something drawn at one of the shell's own places, and handed that place's props. */
+export type ShellSlot = {
+	[S in ShellSlotName]: { slot: S; component: Component<ShellSlotProps[S]> };
+}[ShellSlotName];
 
 /**
  * What a surface contributes to the kinds it depends on in the window, as `$lib/feature/feature`

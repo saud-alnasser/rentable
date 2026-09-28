@@ -149,13 +149,13 @@ Three things bind a component test, and each of them is a way of passing while m
   `<family>-harness.svelte` is a subject that cannot be rendered on its own. **An application's
   fixture lives in the `tests/` directory of the module it serves**, as the TypeScript
   scaffolding above does: `organization/tests/providers.svelte` wraps a surface that needs the
-  design and tooltip providers, `layout/tests/rail-providers.svelte` the rail's. *This said every
+  design and tooltip providers, `shell/tests/rail-providers.svelte` the rail's. *This said every
   fixture lives in the package; that was true while the package held the only rendered tests,
   and effort 824 wrote the desktop's first.*
 
   **A fixture the tests of several modules render under lives in `apps/desktop/src/tests/`**,
   the application's shared `tests/` directory, and no module keeps a copy of it.
-  `query-providers.svelte` is this: complex, contract, design, layout, organization, payment and
+  `query-providers.svelte` is this: complex, contract, design, organization, payment, shell and
   tenant tests all render under it. A test reaches it through `#tests/<name>`, the same
   `imports` entry the package declares, since a relative path from four directories down reads
   as badly here as it did there. The lint tests' source scanner, `source.ts`, sits beside it for
@@ -170,7 +170,7 @@ Three things bind a component test, and each of them is a way of passing while m
   one `ResizeObserver` a component test needs where a tooltip or a list measures itself: jsdom
   implements none, and `permission.ts`'s `layOutLists` stands one in, so a test reaching a
   tooltip calls it rather than writing its own. *Both lived in module tests until ticket 19 of
-  [[efforts/838-permissions-are-a-role-and-an-override/spec]]: the harness in `layout/tests/`,
+  [[efforts/838-permissions-are-a-role-and-an-override/spec]]: the harness in `shell/tests/`,
   and a stub apiece in the new tests beside the shared one.*
 
   The package's directory is outside `src/lib/`, which is what keeps its fixtures out of the package: the

@@ -3,7 +3,7 @@ import type { StartupSnapshot } from './startup';
 /**
  * WHAT THE FRAME DRAWS INSIDE ITSELF
  *
- * The shell's other decision, and the neighbour of `layout/startup-surface.ts`: that one answers
+ * The shell's other decision, and the neighbour of `shell/startup-surface.ts`: that one answers
  * what the window draws before a locale exists, this one answers what goes inside the frame once
  * one does. Both are here rather than in the route for the same reason, which the route states in
  * its own comment: a runes file cannot be imported by a `node:test` at all, so a decision left
