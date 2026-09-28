@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [45]
 ---
 # refactor(tauri): the machine record leaves sync, and the cycle breaks
@@ -14,8 +14,8 @@ The spec is [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]]; the 
 
 Traces requirements 5 and 11 of [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]], and criteria 5 and 11.
 
-- [ ] `sync` imports nothing from `organization` and `organization` nothing from `sync` internals; the Rust baseline loses the cycle (criteria 5 and 11).
-- [ ] The integration gate passes on this commit; no test assertion changes except where it names a moved path (criterion 19).
+- [x] `sync` imports nothing from `organization` and `organization` nothing from `sync` internals; the Rust baseline loses the cycle (criteria 5 and 11). Verified: `grep -rn crate::organization src/sync` prints nothing; `grep -rn crate::sync:: src/organization` finds only `crate::sync::test::` in test code. `cycle.baseline.txt` loses `cycle bootstrap -> sync`, `organization -> sync`, `state -> sync`, `sync -> database`, `sync -> organization`, `sync -> settings`, `sync -> state` and `forbidden sync -> organization`, and gains nothing; `sync` has left the tangle. The record is `machine/record.rs`, reading the database path through a `machine::DatabasePath` port.
+- [x] The integration gate passes on this commit; no test assertion changes except where it names a moved path (criterion 19). Verified: in the run's tree: `cargo fmt --check` 0, `cargo test --lib` `637 passed; 0 failed; 11 ignored`, clippy at its seven pre-existing warnings, check 0, eslint 0, `pnpm test` 3 of 3 tasks, build:web 0. Test changes: five moved commands added to the organization command-gate table, and the two consent mutations joined `COMMAND_OF` in `router.test.ts`; same checks.
 
 ## Relevant areas
 

@@ -1450,6 +1450,7 @@ mod tests {
     };
     use crate::{
         credential::{CredentialStore, Memory},
+        machine::RemoteSyncStore,
         organization::{
             HeldOrganization,
             authority::{AdministratorKey, OrganizationKey, issue_root_certificate},
@@ -1467,10 +1468,7 @@ mod tests {
             workspace::signer_of,
         },
         persisted::Persisted,
-        sync::{
-            RemoteSyncStore,
-            test::server::{ScriptedResponse, ScriptedServer},
-        },
+        sync::test::server::{ScriptedResponse, ScriptedServer},
         turso::{discovery::McpEndpoint, platform::InMemoryPlatform},
     };
 

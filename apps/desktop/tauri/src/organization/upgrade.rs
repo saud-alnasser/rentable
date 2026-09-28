@@ -999,6 +999,7 @@ mod tests {
         backup,
         credential::Memory,
         error::{Error, RefusalReason},
+        machine::RemoteSyncStore,
         organization::{
             HeldOrganization,
             authority::{
@@ -1031,10 +1032,7 @@ mod tests {
         },
         persisted::Persisted,
         schema,
-        sync::{
-            RemoteSyncStore,
-            test::server::{ScriptedResponse, ScriptedServer},
-        },
+        sync::test::server::{ScriptedResponse, ScriptedServer},
         turso::{
             discovery::McpEndpoint,
             platform::{AccessLevel, InMemoryPlatform},

@@ -1,6 +1,7 @@
 ---
 paths:
   - apps/desktop/tauri/src/credential/**
+  - apps/desktop/tauri/src/machine/**
   - apps/desktop/tauri/src/sync/**
   - apps/desktop/tauri/src/turso/**
   - apps/desktop/tauri/src/organization/**

@@ -513,6 +513,7 @@ mod tests {
     use crate::{
         database::Database,
         error::Error,
+        machine::{RemoteSync, RemoteSyncStore},
         organization::{
             HeldOrganization,
             authority::Chain,
@@ -530,10 +531,7 @@ mod tests {
         persisted::Persisted,
         settings::Settings,
         state::AppState,
-        sync::{
-            RemoteSync, RemoteSyncStore,
-            test::server::{ScriptedResponse, ScriptedServer},
-        },
+        sync::test::server::{ScriptedResponse, ScriptedServer},
         turso::{
             consent::{TursoConsent, platform_token, store_platform_token},
             discovery::McpEndpoint,

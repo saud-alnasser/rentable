@@ -1,23 +1,92 @@
 use std::{path::PathBuf, sync::Arc};
 
 use serde::{Deserialize, Serialize};
-use tokio::sync::RwLock;
 
+use super::DatabasePath;
 use crate::{
     clock,
     error::Error,
     persisted::{Persistable, Persisted},
-    settings::Settings,
 };
 
 use crate::turso::discovery::{
     ConsentedGroup, McpEndpoint, OrganizationLookup, TursoOrganization, look_up_organization,
 };
 
-use crate::organization::{HeldOrganization, permission};
+/// The owner's role, by id and by kind: the one role that is a constant rather than a row.
+pub const OWNER: &str = "owner";
+/// The manager's role, by id and by kind.
+pub const MANAGER: &str = "manager";
+/// The member's role, by id and by kind, which every member holds until given another.
+pub const MEMBER: &str = "member";
+/// The kind every role an organization adds carries; its id is drawn when it is made.
+pub const CUSTOM: &str = "custom";
+
+/// The four kinds a role is of, which is what a session and the machine's record call the role a
+/// member holds (effort 838, the plan's *Interfaces*). A removed member is known by their row's
+/// `removed_at`, never by a kind.
+///
+/// *Here rather than in `organization/permission.rs`, which re-exports all five, since effort 840:
+/// the record drops a role that is no kind on load, and a record that asked `organization` for
+/// the kinds would be a module `organization` writes reaching back into it.*
+pub const KINDS: [&str; 4] = [OWNER, MANAGER, MEMBER, CUSTOM];
+
+/// The one organization this machine holds, as `remote-sync.json` keeps it.
+///
+/// *Here, with the record it is part of, since effort 840; `organization` re-exports it.*
+///
+/// **One or none, and the type says so** (effort 824, requirement 17): the record used to be a
+/// list of every organization the machine had joined, and the wall listed them. A machine now
+/// holds one, connected by the organization's link before anybody has signed in, and forgets it
+/// whole on a disconnect (`organization/forget.rs`).
+///
+/// The verifying key is base64url, as the link spells it, and it is **the copy every
+/// verification on this machine uses**: pinned from the link at connect, never refreshed from the
+/// database it judges.
+#[derive(Clone, Debug, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(default, rename_all = "camelCase")]
+pub struct HeldOrganization {
+    pub id: String,
+    /// what the person typed at creation, or what the link carried. Shown on the wall; the
+    /// sealed copy in the database is what every other machine reads.
+    pub name: String,
+    pub verifying_key: String,
+    pub remote_url: String,
+    /// this machine's own id in the organization's registry of connected machines (effort 828,
+    /// requirement 15), drawn once when it connected and kept for as long as it holds the
+    /// organization.
+    ///
+    /// **Empty means a record written before this field existed**, which the first launch after
+    /// the upgrade gives an id and registers: the field defaults rather than refusing, so an old
+    /// record deserialises and the machine keeps what it holds. Nothing else reads the emptiness,
+    /// and no write to the registry goes out under an empty id.
+    pub machine_id: String,
+    /// this person's member row in the organization, once a sign-in has found it. `None` on a
+    /// machine that connected by link and has not signed in yet; a sign-out keeps it.
+    pub member_id: Option<String>,
+    /// the kind of their role there, as last read: `owner`, `manager`, `member` or `custom`. A
+    /// display fact: what a member may do is what their vault holds, never this. `None` with
+    /// `member_id`, and on a record an earlier build wrote with a word that is no kind, which the
+    /// record's load drops and the next sign-in fills (effort 838, ticket 15).
+    pub role: Option<String>,
+    /// when this machine recorded the organization, whether by creating it, connecting by link,
+    /// or the join and restore paths effort 824 retires.
+    pub joined_at: i64,
+    /// the organization format this machine has read the organization in, once it has read it
+    /// in this build's (`organization::store::FORMAT_VERSION`): at the first run, a connect, a join, a sign-in or
+    /// a resume that got past the format's refusal. `None` on a record written before this field
+    /// existed, until the next of those.
+    ///
+    /// **The one fact about the format that lives outside the organization database** (effort
+    /// 838, ticket 25). The `format` row is unsigned and every member can write that database, so
+    /// an upgraded organization can be made to look older there; a machine that has read it in
+    /// this format never transforms it again, whatever the row says (`organization/upgrade.rs`).
+    pub format: Option<i64>,
+}
 
 pub struct RemoteSync {
-    pub(super) settings: Arc<RwLock<Persisted<Settings>>>,
+    /// where the workspace database lives, read on every reconcile so the record follows a move.
+    pub(super) database_path: Arc<dyn DatabasePath>,
     pub(super) store: Persisted<RemoteSyncStore>,
     /// the Turso credential the replica syncs with, for as long as this process runs.
     ///
@@ -310,7 +379,7 @@ impl Persistable for RemoteSyncStore {
             organization.role = organization
                 .role
                 .take()
-                .filter(|role| permission::KINDS.contains(&role.as_str()));
+                .filter(|role| KINDS.contains(&role.as_str()));
         }
     }
 }
@@ -319,13 +388,13 @@ impl RemoteSync {
     pub const FILENAME: &'static str = "remote-sync.json";
 
     pub async fn new(
-        settings: Arc<RwLock<Persisted<Settings>>>,
+        database_path: Arc<dyn DatabasePath>,
         path: PathBuf,
         clock: clock::Shared,
     ) -> Result<Self, Error> {
         let store = Persisted::<RemoteSyncStore>::load(path)?;
         let mut this = Self {
-            settings,
+            database_path,
             store,
             workspace_token: None,
             account_refusal: None,
@@ -619,9 +688,7 @@ impl RemoteSync {
     }
 
     pub(super) async fn current_database_path(&self) -> PathBuf {
-        let settings = self.settings.read().await;
-
-        settings.database_path.clone()
+        self.database_path.database_path().await
     }
 
     fn snapshot_state(&self) -> RemoteSyncState {
@@ -727,7 +794,7 @@ pub(super) fn sanitize_optional_string(value: Option<String>) -> Option<String> 
 ///
 /// **Here, beside the record it remembers into, rather than in `turso/discovery.rs`.** The lookup
 /// is Turso's; the remembering is this machine's, and a Turso adapter that wrote this machine's
-/// record would reach back into `sync` from the module `sync` reaches for.
+/// record would reach back into `machine` from the module `machine` reaches for.
 pub async fn consented_organization(
     store: &mut Persisted<RemoteSyncStore>,
     platform_token: &str,
@@ -908,7 +975,7 @@ mod tests {
         let settings = unique_dir("settings").join("settings.json");
 
         RemoteSync {
-            settings: Arc::new(RwLock::new(
+            database_path: Arc::new(RwLock::new(
                 Persisted::<Settings>::load(settings).expect("settings"),
             )),
             store: Persisted::<RemoteSyncStore>::load(path).expect("store"),

@@ -455,6 +455,7 @@ mod tests {
     use super::{OldShape, forget, forget_deleted_organization, forget_old_shape, is_replica_file};
     use crate::{
         database::Database,
+        machine::{RemoteSync, RemoteSyncStore},
         organization::{
             HeldOrganization,
             session::{CredentialSlot, sign_in},
@@ -465,10 +466,7 @@ mod tests {
         persisted::Persisted,
         settings::Settings,
         state::AppState,
-        sync::{
-            RemoteSync, RemoteSyncStore,
-            test::server::{ScriptedResponse, ScriptedServer},
-        },
+        sync::test::server::{ScriptedResponse, ScriptedServer},
         turso::{
             consent::{TursoConsent, platform_token, store_platform_token},
             discovery::McpEndpoint,

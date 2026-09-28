@@ -32,8 +32,8 @@ use std::sync::{Arc, Mutex};
 use crate::{
     diagnostics,
     error::{Error, RefusalReason},
+    machine::RemoteSyncStore,
     persisted::Persisted,
-    sync::RemoteSyncStore,
 };
 
 use super::{
@@ -240,6 +240,7 @@ mod tests {
     use super::connect;
     use crate::{
         error::{Error, RefusalReason},
+        machine::{RemoteSync, RemoteSyncStore},
         organization::{
             HeldOrganization,
             invite::{INVITATION_LIFETIME_MS, MadeLink, create_account, locator, make_link},
@@ -252,10 +253,7 @@ mod tests {
             vault::KdfParams,
         },
         persisted::Persisted,
-        sync::{
-            RemoteSync, RemoteSyncStore,
-            test::server::{ScriptedResponse, ScriptedServer},
-        },
+        sync::test::server::{ScriptedResponse, ScriptedServer},
         turso::{discovery::McpEndpoint, platform::InMemoryPlatform},
     };
 

@@ -642,6 +642,7 @@ mod tests {
     use crate::{
         backup,
         error::{Error, RefusalReason},
+        machine::RemoteSyncStore,
         organization::{
             HeldOrganization,
             invite::{AccountAndLink, Invitation, WorkspaceGrant, locator, make_account_and_link},
@@ -654,12 +655,9 @@ mod tests {
             workspace::{create_workspace, openable},
         },
         persisted::Persisted,
-        sync::{
-            RemoteSyncStore,
-            test::{
-                pipeline::LocalPipeline,
-                server::{ScriptedResponse, ScriptedServer},
-            },
+        sync::test::{
+            pipeline::LocalPipeline,
+            server::{ScriptedResponse, ScriptedServer},
         },
         turso::{
             discovery::McpEndpoint,

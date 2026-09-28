@@ -165,7 +165,7 @@ pub enum OrganizationLookup {
 /// The consented group, and what it was holding when this machine looked.
 ///
 /// **`databases` is `None` where nothing was asked.** The lookup happens once and is remembered
-/// (`sync::consented_organization`), so every call after the first answers out of this machine's
+/// (`machine::consented_organization`), so every call after the first answers out of this machine's
 /// own store and has no listing to report. That is not the same answer as a group holding nothing: an empty
 /// group is [`OrganizationLookup::NoDatabaseYet`] and never reaches here, so a `Some` is always
 /// at least one name.
@@ -252,7 +252,7 @@ pub async fn look_up_organization(
 /// holds, which needs the address to open a replica at.
 ///
 /// **Asked every time, and never answered from this machine's store.**
-/// `sync::consented_organization` remembers the account because the account is a fact that does
+/// `machine::consented_organization` remembers the account because the account is a fact that does
 /// not change; what the group is *holding* is the thing a caller here is deciding on, and
 /// answering that from a record written on an earlier launch would decide it on what was true
 /// then.

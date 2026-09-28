@@ -1,5 +1,6 @@
 ---
 paths:
+  - apps/desktop/tauri/src/machine/**
   - apps/desktop/tauri/src/sync/**
   - apps/desktop/tauri/src/turso/**
   - apps/desktop/tauri/src/http.rs
@@ -103,7 +104,10 @@ sentence from both.
 - **What this machine holds is tracked, and the tracking is reconciled at startup.** Each replica
   records the workspace and the member whose grant keeps it, because a machine can hold replicas
   for several members and a replica is only checkable while that member's vault is open. The
-  startup pass drops entries whose files are gone; it deletes nothing.
+  startup pass drops entries whose files are gone; it deletes nothing. The tracking is this
+  machine's record, `remote-sync.json`, kept by `tauri/src/machine/` (`sync/store.rs` until effort
+  840, when the record left `sync`, and the replication, the rename and the Turso consent's
+  commands moved to `organization` under the same command names).
 - **A replica that has never pulled has no schema, and the application says so rather than failing
   on the next statement.** Opening does not block on a pull, which is requirement 7, but a first
   run has nothing to read until one succeeds, so the startup path pulls once and then asks whether

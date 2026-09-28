@@ -122,6 +122,7 @@ mod tests {
     use crate::{
         credential::{CredentialStore, Memory},
         error::Error,
+        machine::RemoteSyncStore,
         organization::{
             HeldOrganization,
             invite::{
@@ -140,10 +141,7 @@ mod tests {
             workspace::{create_workspace, grant_workspace},
         },
         persisted::Persisted,
-        sync::{
-            RemoteSyncStore,
-            test::server::{ScriptedResponse, ScriptedServer},
-        },
+        sync::test::server::{ScriptedResponse, ScriptedServer},
         turso::{
             discovery::McpEndpoint,
             platform::{AccessLevel, InMemoryPlatform},

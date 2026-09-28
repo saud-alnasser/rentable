@@ -1682,6 +1682,7 @@ mod tests {
     };
     use crate::{
         error::{Error, RefusalReason},
+        machine::RemoteSyncStore,
         organization::{
             HeldOrganization,
             link::{HalfKind, JoinLink, LinkPayload, Locator, open_payload},
@@ -1694,10 +1695,7 @@ mod tests {
             workspace::create_workspace,
         },
         persisted::Persisted,
-        sync::{
-            RemoteSyncStore,
-            test::server::{ScriptedResponse, ScriptedServer},
-        },
+        sync::test::server::{ScriptedResponse, ScriptedServer},
         turso::{
             discovery::McpEndpoint,
             platform::{AccessLevel, InMemoryPlatform},

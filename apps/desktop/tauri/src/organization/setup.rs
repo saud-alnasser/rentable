@@ -48,8 +48,8 @@ use crate::{
     credential::CredentialStore,
     diagnostics,
     error::{Error, RefusalReason},
+    machine::{RemoteSyncStore, consented_organization},
     persisted::Persisted,
-    sync::{RemoteSyncStore, consented_organization},
     turso::{
         discovery::{self, McpEndpoint, TursoOrganization},
         platform::{AccessLevel, DeletionIntent, TursoPlatform},
@@ -1379,6 +1379,7 @@ mod tests {
     use crate::{
         credential::{CredentialStore, Memory},
         error::Error,
+        machine::RemoteSyncStore,
         organization::{
             authority::{AdministratorKey, OrganizationKey},
             invite::{AccountAndLink, Invitation, USERNAME_RULES, locator, make_account_and_link},
@@ -1394,10 +1395,7 @@ mod tests {
             workspace::WORKSPACE_CREDENTIAL_LIFETIME,
         },
         persisted::Persisted,
-        sync::{
-            RemoteSyncStore,
-            test::server::{ScriptedResponse, ScriptedServer},
-        },
+        sync::test::server::{ScriptedResponse, ScriptedServer},
         turso::{
             consent::{platform_token, store_platform_token},
             discovery::McpEndpoint,

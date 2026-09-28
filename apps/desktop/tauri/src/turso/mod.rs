@@ -10,7 +10,7 @@
 //! **A module of its own, and it reaches none of the modules that call it.** It was `sync/turso/`
 //! and `sync/oauth/` until effort 840, and everything that needed Turso reached into `sync`'s
 //! internals for it. What this machine remembers about a consent is its record's, and stays with
-//! the record: `sync::consented_organization`.
+//! the record: `machine::consented_organization`.
 
 pub mod consent;
 

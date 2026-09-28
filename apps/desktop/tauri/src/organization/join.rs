@@ -60,8 +60,8 @@ use crate::{
     credential::CredentialStore,
     diagnostics,
     error::{Error, RefusalReason},
+    machine::RemoteSyncStore,
     persisted::Persisted,
-    sync::RemoteSyncStore,
 };
 
 use super::{
@@ -374,6 +374,7 @@ mod tests {
         credential::{CredentialStore, Memory},
         database::Database,
         error::{Error, RefusalReason},
+        machine::{RemoteSync, RemoteSyncStore},
         organization::{
             HeldOrganization, connect,
             invite::{
@@ -394,10 +395,7 @@ mod tests {
         persisted::Persisted,
         settings::Settings,
         state::AppState,
-        sync::{
-            RemoteSync, RemoteSyncStore,
-            test::server::{ScriptedResponse, ScriptedServer},
-        },
+        sync::test::server::{ScriptedResponse, ScriptedServer},
         turso::{
             consent::TursoConsent,
             discovery::McpEndpoint,

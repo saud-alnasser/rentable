@@ -18,27 +18,25 @@
 # of the tangle. Everything that named it through `sync` names it directly now, so backup and
 # schema left the tangle and seven modules remain: bootstrap, database, organization, settings,
 # state, sync and update.
+#
+# Ticket 46 (2026-09-28) made this machine's record the top-level `machine` module, which reaches
+# none of the tangle (it reads the database path through a port the settings answer), and moved
+# `sync`'s commands that called into `organization` into `organization`. Nothing names `sync` now
+# but the composition root, and it names no `organization`, so it left the tangle and six modules
+# remain: bootstrap, database, organization, settings, state and update.
 
 cycle bootstrap -> database
 cycle bootstrap -> state
-cycle bootstrap -> sync
 cycle bootstrap -> update
 cycle database -> settings
 cycle database -> state
 cycle organization -> bootstrap
 cycle organization -> database
 cycle organization -> state
-cycle organization -> sync
 cycle settings -> state
 cycle state -> database
 cycle state -> organization
 cycle state -> settings
-cycle state -> sync
 cycle state -> update
-cycle sync -> database
-cycle sync -> organization
-cycle sync -> settings
-cycle sync -> state
 cycle update -> settings
 cycle update -> state
-forbidden sync -> organization

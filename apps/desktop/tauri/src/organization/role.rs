@@ -47,8 +47,8 @@ use serde::{Deserialize, Serialize};
 use crate::{
     diagnostics,
     error::{Error, RefusalReason},
+    machine::RemoteSyncStore,
     persisted::Persisted,
-    sync::RemoteSyncStore,
 };
 
 use super::{
@@ -2546,6 +2546,7 @@ mod tests {
     };
     use crate::{
         error::{Error, RefusalReason},
+        machine::RemoteSyncStore,
         organization::{
             HeldOrganization,
             authority::{
@@ -2571,10 +2572,7 @@ mod tests {
             workspace::{create_workspace, grant_workspace, signer_of},
         },
         persisted::Persisted,
-        sync::{
-            RemoteSyncStore,
-            test::server::{ScriptedResponse, ScriptedServer},
-        },
+        sync::test::server::{ScriptedResponse, ScriptedServer},
         turso::{
             discovery::McpEndpoint,
             platform::{AccessLevel, InMemoryPlatform},

@@ -3,10 +3,10 @@ use tokio::sync::RwLock;
 
 use crate::{
     database::Database,
+    machine::RemoteSync,
     organization::{session::MemberSession, store::OrganizationStore},
     persisted::Persisted,
     settings::Settings,
-    sync::RemoteSync,
     turso::consent::TursoConsent,
     update::Update,
 };

@@ -30,8 +30,8 @@
 use crate::{
     diagnostics,
     error::{Error, RefusalReason},
+    machine::RemoteSyncStore,
     persisted::Persisted,
-    sync::RemoteSyncStore,
 };
 
 use super::{
@@ -230,6 +230,7 @@ mod tests {
     use super::connect;
     use crate::{
         error::Error,
+        machine::RemoteSyncStore,
         organization::{
             HeldOrganization,
             join::admit,
@@ -241,10 +242,7 @@ mod tests {
             vault::KdfParams,
         },
         persisted::Persisted,
-        sync::{
-            RemoteSyncStore,
-            test::server::{ScriptedResponse, ScriptedServer},
-        },
+        sync::test::server::{ScriptedResponse, ScriptedServer},
         turso::{discovery::McpEndpoint, platform::InMemoryPlatform},
     };
 

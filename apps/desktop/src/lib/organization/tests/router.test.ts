@@ -1115,6 +1115,8 @@ function gatesInRust(source: string): Map<string, Gate> {
 /** Each organization mutation and the Tauri command its host call invokes. */
 const COMMAND_OF: Record<string, string> = {
 	connectExisting: 'organization_connect_existing',
+	'consent.begin': 'organization_consent_begin',
+	'consent.disconnect': 'organization_consent_disconnect',
 	create: 'organization_create',
 	delete: 'organization_delete',
 	disconnect: 'organization_disconnect',
@@ -1148,15 +1150,6 @@ const COMMAND_OF: Record<string, string> = {
 	'workspace.remove': 'workspace_delete',
 	'workspace.renewCredentials': 'organization_renew_credentials',
 	'workspace.withdraw': 'workspace_grant_withdraw'
-};
-
-/**
- * The consent's two mutations, whose commands are the sync module's and stand outside `GATES`:
- * both come before there is anybody to act as, so the router holds them `public`.
- */
-const CONSENT_COMMAND_OF: Record<string, string> = {
-	'consent.begin': 'organization_consent_begin',
-	'consent.disconnect': 'organization_consent_disconnect'
 };
 
 /**
@@ -1215,7 +1208,7 @@ test('every organization mutation names the flag its Rust command is gated on', 
 
 	assert.deepEqual(
 		organizationMutations.map(({ path }) => path).sort(),
-		[...Object.keys(COMMAND_OF), ...Object.keys(CONSENT_COMMAND_OF)].sort(),
+		Object.keys(COMMAND_OF).sort(),
 		'the mutations paired with a command are not the ones the router holds'
 	);
 
@@ -1235,15 +1228,6 @@ test('every organization mutation names the flag its Rust command is gated on', 
 	);
 
 	assert.deepEqual(named, gated);
-
-	for (const [path, command] of Object.entries(CONSENT_COMMAND_OF)) {
-		assert.ok(!gates.has(command), `${command} is in GATES now; pair ${path} with it there`);
-		assert.deepEqual(
-			organizationMutations.find((mutation) => mutation.path === path)?.meta,
-			{ public: true },
-			path
-		);
-	}
 });
 
 /**

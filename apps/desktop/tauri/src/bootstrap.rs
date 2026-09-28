@@ -243,7 +243,7 @@ pub(crate) async fn open_database(app_state: &AppState, clock: &dyn Clock) -> Op
     // first one of a session, so the standing block reads its moment before the heartbeat has
     // run (effort 828, requirement 25).
     if db.pull_replica().await.completed {
-        crate::sync::note_reached(app_state, clock).await;
+        crate::machine::note_reached(&app_state.remote_sync, clock).await;
     }
 
     if !db.is_ready().await {

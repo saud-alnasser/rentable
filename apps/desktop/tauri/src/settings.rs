@@ -1,7 +1,13 @@
-use std::path::PathBuf;
+use std::{future::Future, path::PathBuf, pin::Pin};
 
-use crate::{error::Error, persisted::Persistable, state::AppState};
+use crate::{
+    error::Error,
+    machine::DatabasePath,
+    persisted::{Persistable, Persisted},
+    state::AppState,
+};
 use serde::{Deserialize, Deserializer, Serialize};
+use tokio::sync::RwLock;
 
 const DEFAULT_ENDING_SOON_NOTICE_DAYS: u16 = 60;
 
@@ -49,6 +55,14 @@ struct SettingsStored {
     appearance: Appearance,
     version: String,
     earlier_records_settled: bool,
+}
+
+/// The machine's record reads where the workspace database lives off the settings, as they are
+/// when it asks.
+impl DatabasePath for RwLock<Persisted<Settings>> {
+    fn database_path(&self) -> Pin<Box<dyn Future<Output = PathBuf> + Send + '_>> {
+        Box::pin(async move { self.read().await.database_path.clone() })
+    }
 }
 
 impl Default for Settings {

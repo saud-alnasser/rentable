@@ -19,8 +19,6 @@
 //! the owner's upgrade of an organization an earlier version made, through each change of format
 //! in order.
 
-use serde::{Deserialize, Serialize};
-
 pub mod authority;
 mod command;
 pub mod connect;
@@ -46,53 +44,7 @@ pub mod workspace;
 
 pub use command::*;
 
-/// The one organization this machine holds, as `remote-sync.json` keeps it.
-///
-/// **One or none, and the type says so** (effort 824, requirement 17): the record used to be a
-/// list of every organization the machine had joined, and the wall listed them. A machine now
-/// holds one, connected by the organization's link before anybody has signed in, and forgets it
-/// whole on a disconnect (`forget.rs`).
-///
-/// The verifying key is base64url, as the link spells it, and it is **the copy every
-/// verification on this machine uses**: pinned from the link at connect, never refreshed from the
-/// database it judges.
-#[derive(Clone, Debug, Serialize, Deserialize, Default, PartialEq, Eq)]
-#[serde(default, rename_all = "camelCase")]
-pub struct HeldOrganization {
-    pub id: String,
-    /// what the person typed at creation, or what the link carried. Shown on the wall; the
-    /// sealed copy in the database is what every other machine reads.
-    pub name: String,
-    pub verifying_key: String,
-    pub remote_url: String,
-    /// this machine's own id in the organization's registry of connected machines (effort 828,
-    /// requirement 15), drawn once when it connected and kept for as long as it holds the
-    /// organization.
-    ///
-    /// **Empty means a record written before this field existed**, which the first launch after
-    /// the upgrade gives an id and registers: the field defaults rather than refusing, so an old
-    /// record deserialises and the machine keeps what it holds. Nothing else reads the emptiness,
-    /// and no write to the registry goes out under an empty id.
-    pub machine_id: String,
-    /// this person's member row in the organization, once a sign-in has found it. `None` on a
-    /// machine that connected by link and has not signed in yet; a sign-out keeps it.
-    pub member_id: Option<String>,
-    /// the kind of their role there, as last read: `owner`, `manager`, `member` or `custom`. A
-    /// display fact: what a member may do is what their vault holds, never this. `None` with
-    /// `member_id`, and on a record an earlier build wrote with a word that is no kind, which the
-    /// record's load drops and the next sign-in fills (effort 838, ticket 15).
-    pub role: Option<String>,
-    /// when this machine recorded the organization, whether by creating it, connecting by link,
-    /// or the join and restore paths effort 824 retires.
-    pub joined_at: i64,
-    /// the organization format this machine has read the organization in, once it has read it
-    /// in this build's (`store::FORMAT_VERSION`): at the first run, a connect, a join, a sign-in or
-    /// a resume that got past the format's refusal. `None` on a record written before this field
-    /// existed, until the next of those.
-    ///
-    /// **The one fact about the format that lives outside the organization database** (effort
-    /// 838, ticket 25). The `format` row is unsigned and every member can write that database, so
-    /// an upgraded organization can be made to look older there; a machine that has read it in
-    /// this format never transforms it again, whatever the row says (`upgrade.rs`).
-    pub format: Option<i64>,
-}
+/// The one organization this machine holds, as this machine's record keeps it. Described with
+/// the record (`machine`), which is what it is part of; named here, where the organization's own
+/// code reads and writes it.
+pub use crate::machine::HeldOrganization;

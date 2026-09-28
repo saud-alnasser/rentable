@@ -14,6 +14,7 @@ pub mod export;
 mod guard;
 pub mod http;
 mod import;
+pub mod machine;
 pub mod organization;
 pub mod persisted;
 pub mod print;
@@ -36,9 +37,9 @@ use tauri_plugin_fs::FsExt;
 use tokio::sync::RwLock;
 
 use crate::diagnostics::{DiagnosticLog, RotationLimits};
+use crate::machine::RemoteSync;
 use crate::persisted::Persisted;
 use crate::settings::Settings;
-use crate::sync::RemoteSync;
 use crate::turso::consent::TursoConsent;
 use crate::update::Update;
 
@@ -247,12 +248,12 @@ pub fn run() {
             settings::settings_set,
             diagnostics::diagnostics_write,
             sync::remote_sync_state_get,
-            sync::remote_sync_rename_workspace,
-            sync::remote_sync_replicate,
+            organization::remote_sync_rename_workspace,
+            organization::remote_sync_replicate,
             sync::remote_sync_push,
-            sync::organization_consent_begin,
-            sync::organization_consent_result,
-            sync::organization_consent_disconnect,
+            organization::organization_consent_begin,
+            organization::organization_consent_result,
+            organization::organization_consent_disconnect,
             organization::organization_create,
             organization::organization_group_inspect,
             organization::organization_connect_existing,

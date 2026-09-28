@@ -321,19 +321,11 @@ pub const RECORD_FLAGS: [Flag; 20] = [
     Flag::DeletePayment,
 ];
 
-/// The owner's role, by id and by kind: the one role that is a constant rather than a row.
-pub const OWNER: &str = "owner";
-/// The manager's role, by id and by kind.
-pub const MANAGER: &str = "manager";
-/// The member's role, by id and by kind, which every member holds until given another.
-pub const MEMBER: &str = "member";
-/// The kind every role an organization adds carries; its id is drawn when it is made.
-pub const CUSTOM: &str = "custom";
-
-/// The four kinds a role is of, which is what a session and the machine's record call the role a
-/// member holds (effort 838, the plan's *Interfaces*). A removed member is known by their row's
-/// `removed_at`, never by a kind.
-pub const KINDS: [&str; 4] = [OWNER, MANAGER, MEMBER, CUSTOM];
+/// The three built-in roles by id and by kind, the kind every added role carries, and the four
+/// kinds together. They are what this machine's record keeps a member's role as, so they are
+/// defined beside that record (`machine`), which reaches nothing of `organization`, and named
+/// here, where every rule over roles reads them.
+pub use crate::machine::{CUSTOM, KINDS, MANAGER, MEMBER, OWNER};
 
 /// One of the three roles every organization has, as the package's `BUILT_IN` gives it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

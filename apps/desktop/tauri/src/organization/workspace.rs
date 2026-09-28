@@ -833,6 +833,7 @@ mod tests {
     };
     use crate::{
         error::Error,
+        machine::RemoteSyncStore,
         organization::{
             HeldOrganization,
             authority::{AdministratorKey, Issue, certificate_id, issue_certificate},
@@ -848,10 +849,7 @@ mod tests {
             },
         },
         persisted::Persisted,
-        sync::{
-            RemoteSyncStore,
-            test::server::{ScriptedResponse, ScriptedServer},
-        },
+        sync::test::server::{ScriptedResponse, ScriptedServer},
         turso::{
             discovery::McpEndpoint,
             platform::{AccessLevel, DeletionIntent, InMemoryPlatform},

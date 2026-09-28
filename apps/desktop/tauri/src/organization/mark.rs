@@ -188,6 +188,7 @@ mod tests {
 
     use super::*;
     use crate::{
+        machine::RemoteSyncStore,
         organization::{
             HeldOrganization,
             authority::{AdministratorKey, Issue, certificate_id, issue_certificate},
@@ -197,10 +198,7 @@ mod tests {
             vault::{KdfParams, MemberSecretKey, create_vault_with_secret, seal_to_public_key},
         },
         persisted::Persisted,
-        sync::{
-            RemoteSyncStore,
-            test::server::{ScriptedResponse, ScriptedServer},
-        },
+        sync::test::server::{ScriptedResponse, ScriptedServer},
         turso::{discovery::McpEndpoint, platform::InMemoryPlatform},
     };
 
