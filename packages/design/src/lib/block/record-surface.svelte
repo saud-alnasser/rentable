@@ -7,8 +7,8 @@
 		value: string;
 		/** What the collection is called, read as its heading or as its choice. */
 		label: string;
-		/** The collection itself. */
-		content: Snippet;
+		/** The collection itself, handed its own `value`, so one snippet can draw several. */
+		content: Snippet<[value: string]>;
 	};
 </script>
 
@@ -216,7 +216,7 @@
 							aria-label={shown.label}
 							data-collection={shown.value}
 						>
-							{@render shown.content()}
+							{@render shown.content(shown.value)}
 						</section>
 					{/if}
 				</div>
@@ -224,7 +224,7 @@
 				{@const only = collections[0]}
 				<section class="flex min-h-0 flex-1 flex-col gap-3">
 					{@render heading(only.label)}
-					{@render only.content()}
+					{@render only.content(only.value)}
 				</section>
 			{/if}
 		{/if}

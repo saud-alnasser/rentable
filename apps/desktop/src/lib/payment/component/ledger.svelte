@@ -42,7 +42,7 @@
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 
 	/** The contract whose payments this statement lists. */
-	let { contractId }: { contractId: string } = $props();
+	let { recordId: contractId }: { recordId: string } = $props();
 
 	// one line of text and the breathing room around it; the shell lays rows out at this
 	// height rather than measuring them.

@@ -1,7 +1,7 @@
 import complex, { unit } from '$lib/complex/surface';
 import contract from '$lib/contract/surface';
 import dashboard from '$lib/dashboard/surface';
-import type { NavigationPlace } from '$lib/feature/surface';
+import type { AnySection, NavigationPlace, Section, SectionTarget } from '$lib/feature/surface';
 import organization from '$lib/organization/surface';
 import payment from '$lib/payment/surface';
 import settings from '$lib/settings/surface';
@@ -12,7 +12,7 @@ import workspace from '$lib/workspace/surface';
  * THE SURFACES
  *
  * every feature's surface, which is what the shell reads to draw the window: the frame mounts each
- * one's `host`. This is the one place that names them all, as `features.ts` is for the routers.
+ * one's `host`, and a page draws the `sections` they contribute to it. This is the one place that names them all, as `features.ts` is for the routers.
  *
  * **The order is load-bearing.** The frame mounts the hosts in this order, and a host may depend
  * on what mounted before it: the workspace's permissions come first, so every host below draws
@@ -51,3 +51,15 @@ export const places: readonly NavigationPlace[] = [
 	contract,
 	settings
 ].flatMap((surface) => surface.places ?? []);
+
+/**
+ * The sections every surface contributes to one page, in their `order` there, and in the list's
+ * order where two share one. A page is handed these by its route, since a feature imports nothing
+ * from here, and draws them as its own.
+ */
+export function sectionsOn<On extends SectionTarget>(on: On): Section<On>[] {
+	return surfaces
+		.flatMap((surface): readonly AnySection[] => surface.sections ?? [])
+		.filter((section): section is Section<On> & AnySection => section.on === on)
+		.sort((a, b) => a.order - b.order);
+}

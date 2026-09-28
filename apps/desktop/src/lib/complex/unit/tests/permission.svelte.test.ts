@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest';
 
+import { sectionsOn } from '$lib/app/surfaces';
 import UnitDetails from '$lib/complex/unit/component/details.svelte';
 import UnitDirectory from '$lib/complex/unit/component/directory.svelte';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
@@ -77,7 +78,8 @@ afterEach(() => {
 
 const providers = { wrapper: QueryProviders, wrapperProps: { strings, direction: 'ltr' as const } };
 
-const page = () => render(UnitDetails, { unitId: UNIT.id }, providers);
+const page = () =>
+	render(UnitDetails, { unitId: UNIT.id, sections: sectionsOn('unit') }, providers);
 
 const directory = () =>
 	render(UnitDirectory, { complexId: UNIT.complexId, complexName: UNIT.complexName }, providers);

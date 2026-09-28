@@ -1,11 +1,11 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import { RecordHistory } from '$lib/history/ui';
 	import RecordSurface from '@rentable/design/block/record-surface.svelte';
 	import Specification from '@rentable/design/block/specification.svelte';
 	import * as Cell from '$lib/design/cell';
 	import RecordActionControl from '@rentable/design/block/record-action-control.svelte';
 	import { toPageActions } from '$lib/act';
+	import type { Section } from '$lib/feature/surface';
 	import { paymentActs } from '$lib/payment/host.svelte';
 	import { useFetchPayment } from '$lib/payment/query';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
@@ -13,7 +13,14 @@
 	import type { PaymentMethod } from '$lib/platform/database/schema';
 	import type { SpecificationEntry } from '@rentable/design/block/specification.svelte';
 
-	let { paymentId }: { paymentId: string } = $props();
+	let {
+		paymentId,
+		sections = []
+	}: {
+		paymentId: string;
+		/** what is contributed to a payment's page, its history among them, handed over by the route. */
+		sections?: Section<'payment'>[];
+	} = $props();
 
 	const paymentQuery = useFetchPayment(() => paymentId);
 	const payment = $derived(paymentQuery.data);
@@ -64,6 +71,14 @@
 					href: resolve(`/contracts/${payment.contractId}`)
 				}
 			: undefined
+	);
+
+	// what hangs off a payment is what is contributed to its page, a section the reader may not see
+	// left out whole.
+	const collections = $derived(
+		sections
+			.filter((section) => section.shows?.() ?? true)
+			.map((section) => ({ value: section.value, label: section.label($LL), content: contributed }))
 	);
 </script>
 
@@ -124,10 +139,11 @@
 	/>
 {/snippet}
 
-<!-- the one collection a payment has: what was done to it, as a contract's record shows its
-     own. -->
-{#snippet history()}
-	<RecordHistory concept="payment" recordId={paymentId} />
+{#snippet contributed(value: string)}
+	{@const contribution = sections.find((section) => section.value === value)}
+	{#if contribution}
+		<contribution.component kind="payment" recordId={paymentId} />
+	{/if}
 {/snippet}
 
 <RecordSurface
@@ -141,5 +157,5 @@
 	{identity}
 	{actions}
 	{fields}
-	collections={[{ value: 'history', label: $LL.common.history.title(), content: history }]}
+	{collections}
 />

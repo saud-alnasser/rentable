@@ -105,7 +105,7 @@ const providers = { wrapper: QueryProviders, wrapperProps: { strings, direction:
 
 const page = () => render(PaymentDetails, { paymentId: payment.id }, providers);
 
-const ledger = () => render(Ledger, { contractId: 'contract-1' }, providers);
+const ledger = () => render(Ledger, { recordId: 'contract-1' }, providers);
 
 test("the payment's page refuses the acts whose flags the reader lacks, naming each flag", () => {
 	holdEveryFlagBut('editPayment', 'deletePayment', 'createPayment');

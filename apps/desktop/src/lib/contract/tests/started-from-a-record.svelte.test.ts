@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import { afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest';
 
+import { sectionsOn } from '$lib/app/surfaces';
 import UnitDetails from '$lib/complex/unit/component/details.svelte';
 import ContractHost from '$lib/contract/component/host.svelte';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
@@ -97,7 +98,7 @@ const contractForm = () => screen.findByRole('dialog');
 
 test("a tenant's page opens the contract form with the tenant chosen", async () => {
 	render(ContractHost, {}, providers);
-	render(TenantDetails, { tenantId: TENANT.id }, providers);
+	render(TenantDetails, { tenantId: TENANT.id, sections: sectionsOn('tenant') }, providers);
 
 	await fireEvent.click(newContract());
 
@@ -110,7 +111,7 @@ test("a tenant's page opens the contract form with the tenant chosen", async () 
 
 test("a unit's page opens the contract form with the unit chosen", async () => {
 	render(ContractHost, {}, providers);
-	render(UnitDetails, { unitId: UNIT.id }, providers);
+	render(UnitDetails, { unitId: UNIT.id, sections: sectionsOn('unit') }, providers);
 
 	await fireEvent.click(newContract());
 

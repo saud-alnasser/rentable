@@ -2,8 +2,8 @@
 	import type api from '$lib/api/caller';
 	import { List } from '$lib/list/ui';
 	import type { ListSort } from '@rentable/design/sort.js';
-	import ContractRecord from '$lib/contract/component/record.svelte';
-	import ContractSelectionActions from '$lib/contract/component/selection-actions.svelte';
+	import ContractRecord from './record.svelte';
+	import ContractSelectionActions from './selection-actions.svelte';
 	import { CONTRACT_SORT_COLUMN_IDS, type ContractSortColumnId } from '$lib/contract/contract';
 	import { RANK_FILTER, toChosenRank } from '$lib/contract/rank-filter';
 	import { useListContracts } from '$lib/contract/query';
@@ -13,7 +13,7 @@
 	import { memberPermissions } from '$lib/permission';
 
 	/** The unit these contracts mention. */
-	let { unitId }: { unitId: string } = $props();
+	let { recordId: unitId }: { recordId: string } = $props();
 
 	type ContractRow = Awaited<ReturnType<typeof api.contract.getMany>>[number];
 

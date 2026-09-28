@@ -1,6 +1,7 @@
 import { render, waitFor } from '@testing-library/svelte';
 import { afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest';
 
+import { sectionsOn } from '$lib/app/surfaces';
 import Providers from '$lib/design/cell/tests/providers.svelte';
 import en from '$lib/i18n/en';
 import { setLocale } from '$lib/i18n/i18n-svelte';
@@ -112,7 +113,12 @@ afterEach(() => {
 	vi.restoreAllMocks();
 });
 
-const page = () => render(PaymentDetails, { paymentId: payment.id }, { wrapper: Providers });
+const page = () =>
+	render(
+		PaymentDetails,
+		{ paymentId: payment.id, sections: sectionsOn('payment') },
+		{ wrapper: Providers }
+	);
 
 /** what an element's `aria-describedby` names, as assistive technology hears it. */
 const describedBy = (element: Element | null) =>

@@ -39,10 +39,6 @@ vi.mock('$lib/complex/query', async (importOriginal) => ({
 	useFetchUnit: () => ({ data: unit, isLoading: false })
 }));
 
-// the unit's contracts are a directory of their own, with a query client and a selection of
-// their own; none of it is what is asked here.
-vi.mock('$lib/complex/unit/component/contracts.svelte', () => ({ default: () => {} }));
-
 beforeEach(() => {
 	loadLocale('en');
 	setLocale('en');

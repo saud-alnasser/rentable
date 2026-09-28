@@ -46,13 +46,6 @@ complex/component/directory.svelte -> workspace/query.ts : deep
 complex/component/directory.svelte -> workspace/workspace.ts : deep
 complex/router.ts -> contract/contract.ts : deep
 complex/router.ts -> payment/payment.ts : deep
-complex/unit/component/contracts.svelte -> contract/component/record.svelte : deep
-complex/unit/component/contracts.svelte -> contract/component/selection-actions.svelte : deep
-complex/unit/component/contracts.svelte -> contract/contract.ts : deep
-complex/unit/component/contracts.svelte -> contract/host.svelte.ts : deep
-complex/unit/component/contracts.svelte -> contract/query.ts : deep
-complex/unit/component/contracts.svelte -> contract/rank-filter.ts : deep
-complex/unit/component/details.svelte -> contract : literal
 complex/unit/component/directory.svelte -> tenant : literal
 complex/unit/component/directory.svelte -> workspace/component/directory-import-dialog.svelte : deep
 complex/unit/component/directory.svelte -> workspace/query.ts : deep
@@ -77,8 +70,6 @@ contract -> platform : cycle
 contract -> print : cycle
 contract -> tenant : cycle
 contract -> workspace : cycle
-contract/component/details.svelte -> payment : literal
-contract/component/details.svelte -> payment/component/ledger.svelte : deep
 contract/component/details.svelte -> tenant/query.ts : deep
 contract/component/details.svelte -> unit : literal
 contract/component/directory.svelte -> payment : literal
@@ -98,6 +89,8 @@ contract/component/unit-pane.svelte -> complex/unit/host.svelte.ts : deep
 contract/contract.ts -> payment/payment.ts : deep
 contract/reconcile.ts -> payment/payment.ts : deep
 contract/router.ts -> payment/payment.ts : deep
+contract/surface.ts -> tenant : literal
+contract/surface.ts -> unit : literal
 create -> shortcut : cycle
 dashboard -> api : cycle
 dashboard -> contract : cycle
@@ -302,6 +295,7 @@ payment/receipt.ts -> contract/contract.ts : deep
 payment/receipt.ts -> contract/schedule.ts : deep
 payment/router.ts -> contract/contract.ts : deep
 payment/router.ts -> contract/reconcile.ts : deep
+payment/surface.ts -> contract : literal
 platform -> api : cycle
 platform -> i18n : cycle
 platform/database/schema.ts -> complex : literal
@@ -360,13 +354,6 @@ tenant -> mutation : cycle
 tenant -> notification : cycle
 tenant -> platform : cycle
 tenant -> workspace : cycle
-tenant/component/contracts.svelte -> contract/component/record.svelte : deep
-tenant/component/contracts.svelte -> contract/component/selection-actions.svelte : deep
-tenant/component/contracts.svelte -> contract/contract.ts : deep
-tenant/component/contracts.svelte -> contract/host.svelte.ts : deep
-tenant/component/contracts.svelte -> contract/query.ts : deep
-tenant/component/contracts.svelte -> contract/rank-filter.ts : deep
-tenant/component/details.svelte -> contract : literal
 tenant/component/directory.svelte -> contract : literal
 tenant/component/directory.svelte -> contract/contract.ts : deep
 tenant/component/directory.svelte -> workspace/component/directory-import-dialog.svelte : deep

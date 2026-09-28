@@ -33,7 +33,7 @@ export type Surface = {
 	/** mounted once by the frame, above whatever route is drawn */
 	host?: Component;
 	/** what it contributes to a page another feature draws */
-	sections?: Section[];
+	sections?: AnySection[];
 	/** what it contributes to the settings area */
 	settings?: SettingsSection[];
 	/** what it contributes to the shell's own menus: the account menu, the workspace menu */
@@ -88,12 +88,35 @@ export type SearchEntry = {
 	heading: () => string;
 };
 
-/** A section drawn on a page another feature owns, placed by `order` among that page's others. */
-export type Section = {
-	on: RecordKind | 'settings';
+/** The pages a section can be drawn on: a record's, by its kind, or the settings area. */
+export type SectionTarget = RecordKind | 'settings';
+
+/**
+ * What the page hands a section it draws. A record's page hands it the record: its kind, which is
+ * the `on` it was contributed to, and its id.
+ */
+export type SectionProps<On extends SectionTarget = SectionTarget> = On extends RecordKind
+	? { kind: On; recordId: string }
+	: Record<string, never>;
+
+/**
+ * A section drawn on a page another feature owns, placed by `order` among that page's others.
+ *
+ * On a record's page it is one of the record's collections: `value` names it in the address, and
+ * the reader chooses it by `label`. One the reader may not see, where `shows` says so, is left
+ * out whole rather than drawn empty.
+ */
+export type Section<On extends SectionTarget = SectionTarget> = {
+	on: On;
 	order: number;
-	component: Component;
+	value: string;
+	label: (t: TranslationFunctions) => string;
+	shows?: () => boolean;
+	component: Component<SectionProps<On>>;
 };
+
+/** A section for any page: what a surface declares, and what the list of surfaces holds. */
+export type AnySection = { [On in SectionTarget]: Section<On> }[SectionTarget];
 
 /** A section of the settings area, placed by `order` among the others. */
 export type SettingsSection = {

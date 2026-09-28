@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import { sectionsOn } from '$lib/app/surfaces';
 	import ContractDetails from '$lib/contract/component/details.svelte';
 	import { contractSectionOf } from '$lib/contract/section';
 
@@ -10,4 +11,4 @@
 	const section = $derived(contractSectionOf(page.url));
 </script>
 
-<ContractDetails {contractId} {section} />
+<ContractDetails {contractId} {section} sections={sectionsOn('contract')} />

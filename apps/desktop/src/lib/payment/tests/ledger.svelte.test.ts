@@ -97,7 +97,7 @@ afterEach(() => {
 const ledger = () =>
 	render(
 		Ledger,
-		{ contractId: 'contract-1' },
+		{ recordId: 'contract-1' },
 		{ wrapper: QueryProviders, wrapperProps: { strings, direction: 'ltr' as const } }
 	);
 

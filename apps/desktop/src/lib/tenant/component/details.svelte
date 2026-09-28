@@ -5,14 +5,20 @@
 	import * as Cell from '$lib/design/cell';
 	import RecordActionControl from '@rentable/design/block/record-action-control.svelte';
 	import { toPageActions } from '$lib/act';
+	import type { Section } from '$lib/feature/surface';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { isRecordId } from '$lib/platform/database/identity';
 	import { tenantActs } from '$lib/tenant/host.svelte';
 	import { useFetchTenant } from '$lib/tenant/query';
-	import { memberPermissions } from '$lib/permission';
-	import TenantContracts from './contracts.svelte';
 
-	let { tenantId }: { tenantId: string } = $props();
+	let {
+		tenantId,
+		sections = []
+	}: {
+		tenantId: string;
+		/** what other features contribute to a tenant's page, handed over by the route. */
+		sections?: Section<'tenant'>[];
+	} = $props();
 
 	const tenantQuery = useFetchTenant(() => ({
 		id: isRecordId(tenantId) ? tenantId : undefined,
@@ -24,6 +30,14 @@
 	// offers what they offer, in their order and under their names. What each act opens is the
 	// tenant host's, mounted once in the frame, so this page mounts no form and no dialog.
 	const pageActions = $derived(tenant ? toPageActions(tenantActs, tenant, $LL) : []);
+
+	// what hangs off a tenant is what other features contribute, a section the reader may not see
+	// left out whole.
+	const collections = $derived(
+		sections
+			.filter((section) => section.shows?.() ?? true)
+			.map((section) => ({ value: section.value, label: section.label($LL), content: contributed }))
+	);
 </script>
 
 {#snippet actions()}
@@ -56,8 +70,11 @@
 	/>
 {/snippet}
 
-{#snippet contracts()}
-	<TenantContracts {tenantId} />
+{#snippet contributed(value: string)}
+	{@const contribution = sections.find((section) => section.value === value)}
+	{#if contribution}
+		<contribution.component kind="tenant" recordId={tenantId} />
+	{/if}
 {/snippet}
 
 <RecordSurface
@@ -69,7 +86,5 @@
 	title={tenant?.name ?? ''}
 	{actions}
 	{fields}
-	collections={memberPermissions.views('contract')
-		? [{ value: 'contracts', label: $LL.common.nav.contracts(), content: contracts }]
-		: []}
+	{collections}
 />
