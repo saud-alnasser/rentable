@@ -36,7 +36,7 @@ use std::collections::HashMap;
 use crate::{
     diagnostics,
     error::{Error, RefusalReason},
-    sync::turso::platform::{AccessLevel, DeletionIntent, TursoPlatform},
+    turso::platform::{AccessLevel, DeletionIntent, TursoPlatform},
 };
 
 use super::{
@@ -849,10 +849,10 @@ mod tests {
         sync::{
             RemoteSyncStore,
             test::server::{ScriptedResponse, ScriptedServer},
-            turso::{
-                discovery::McpEndpoint,
-                platform::{AccessLevel, DeletionIntent, InMemoryPlatform},
-            },
+        },
+        turso::{
+            discovery::McpEndpoint,
+            platform::{AccessLevel, DeletionIntent, InMemoryPlatform},
         },
     };
 
@@ -2827,7 +2827,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "reaches a live Turso account and creates a database; see the doc comment"]
     async fn workspace_live_a_read_only_credential_is_refused_by_turso_and_a_full_one_is_not() {
-        use crate::sync::turso::{
+        use crate::turso::{
             consent::store_platform_token,
             discovery::TursoOrganization,
             platform::{PlatformApi, PlatformEndpoint, TursoPlatform},

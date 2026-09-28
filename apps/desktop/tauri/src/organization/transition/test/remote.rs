@@ -9,7 +9,7 @@ use crate::{
         store::OrganizationStore,
         upgrade::{Pushed, Replication},
     },
-    sync::turso::platform::InMemoryPlatform,
+    turso::platform::InMemoryPlatform,
 };
 
 /// A remote that answers every push and every pull as it is told, mints what it is told to on

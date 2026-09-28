@@ -140,10 +140,10 @@ mod tests {
         sync::{
             RemoteSyncStore,
             test::server::{ScriptedResponse, ScriptedServer},
-            turso::{
-                discovery::McpEndpoint,
-                platform::{AccessLevel, InMemoryPlatform},
-            },
+        },
+        turso::{
+            discovery::McpEndpoint,
+            platform::{AccessLevel, InMemoryPlatform},
         },
     };
 

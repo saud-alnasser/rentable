@@ -111,7 +111,7 @@ use std::{
 
 use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
 
-use crate::{error::Error, sync::turso::platform::AccessLevel};
+use crate::{error::Error, turso::platform::AccessLevel};
 
 use super::permission::{self, Flag, MEMBER_ADMINISTRATION, OWNER_ROLE};
 

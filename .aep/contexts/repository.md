@@ -27,7 +27,7 @@ accounts, workspaces and membership, deployed nowhere. It retired with
 organization on the customer's own Turso account took over everything it answered for, and its
 two Turso modules became a fourth package, `packages/turso-platform`.* *That package was removed
 with effort 840 (requirement 16, 2026-09-28) because nothing in the desktop imported it:
-replication and the Platform API run in the Rust crate, `tauri/src/sync/turso/`, against the
+replication and the Platform API run in the Rust crate, `tauri/src/turso/`, against the
 owner's own Turso account.* Everything below in this file describes the desktop application.
 
 **Every `src/…` and `tauri/…` path in the rest of this file, and in the rules and contexts

@@ -80,7 +80,7 @@ use crate::{
     backup, diagnostics,
     error::{Error, RefusalReason},
     schema,
-    sync::turso::platform::{AccessLevel, PlatformApi, TursoPlatform},
+    turso::platform::{AccessLevel, PlatformApi, TursoPlatform},
 };
 
 use super::{
@@ -1031,10 +1031,10 @@ mod tests {
         sync::{
             RemoteSyncStore,
             test::server::{ScriptedResponse, ScriptedServer},
-            turso::{
-                discovery::McpEndpoint,
-                platform::{AccessLevel, InMemoryPlatform},
-            },
+        },
+        turso::{
+            discovery::McpEndpoint,
+            platform::{AccessLevel, InMemoryPlatform},
         },
     };
 
@@ -3787,11 +3787,9 @@ mod tests {
         let platform = Arc::new(InMemoryPlatform::new("an-org"));
 
         platform.holding_unprotected("org-7f3a");
-        platform.refuse_next(
-            crate::sync::turso::platform::PlatformError::AccountRefused {
-                what: "copy the database",
-            },
-        );
+        platform.refuse_next(crate::turso::platform::PlatformError::AccountRefused {
+            what: "copy the database",
+        });
 
         let remote = online().holding(&platform);
 

@@ -67,7 +67,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::{diagnostics, error::Error, state::AppState, sync::turso::platform::database_is_gone};
+use crate::{diagnostics, error::Error, state::AppState, turso::platform::database_is_gone};
 
 use super::store::OrganizationStore;
 
@@ -453,11 +453,11 @@ mod tests {
         sync::{
             RemoteSync, RemoteSyncStore,
             test::server::{ScriptedResponse, ScriptedServer},
-            turso::{
-                consent::{TursoConsent, platform_token, store_platform_token},
-                discovery::McpEndpoint,
-                platform::InMemoryPlatform,
-            },
+        },
+        turso::{
+            consent::{TursoConsent, platform_token, store_platform_token},
+            discovery::McpEndpoint,
+            platform::InMemoryPlatform,
         },
         update::Update,
     };

@@ -64,7 +64,7 @@ and Rust already spends `test/` on shared scaffolding, so the two would collide.
 ## A Rust directory is rooted by `mod.rs`
 
 A module with children is a `<concept>/` directory whose root is `mod.rs` — `sync/mod.rs`,
-`sync/turso/mod.rs`, `database/mod.rs`. Never `<concept>.rs` beside `<concept>/`.
+`turso/oauth/mod.rs`, `database/mod.rs`. Never `<concept>.rs` beside `<concept>/`.
 
 The crate is on edition 2024, where both spellings compile, so this is a choice rather than a
 constraint. It is made this way because the alternative writes the concept's name twice and

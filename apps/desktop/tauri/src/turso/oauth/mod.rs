@@ -3,7 +3,7 @@
 //! What is here is the protocol: RFC 7636's proof key, RFC 6749's authorization request and
 //! token grant, and the loopback address a browser hands a code back on. What is not here is
 //! any endpoint, client registration, scope or credential store, because those belong to
-//! whichever server is being asked. `sync/turso/consent.rs` is the caller and holds Turso's.
+//! whichever server is being asked. `turso/consent.rs` is the caller and holds Turso's.
 
 pub mod authorization;
 pub mod loopback;

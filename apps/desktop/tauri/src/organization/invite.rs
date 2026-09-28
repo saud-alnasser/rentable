@@ -122,7 +122,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     diagnostics,
     error::{Error, RefusalReason},
-    sync::turso::platform::{AccessLevel, TursoPlatform},
+    turso::platform::{AccessLevel, TursoPlatform},
 };
 
 use super::{
@@ -1695,10 +1695,10 @@ mod tests {
         sync::{
             RemoteSyncStore,
             test::server::{ScriptedResponse, ScriptedServer},
-            turso::{
-                discovery::McpEndpoint,
-                platform::{AccessLevel, InMemoryPlatform},
-            },
+        },
+        turso::{
+            discovery::McpEndpoint,
+            platform::{AccessLevel, InMemoryPlatform},
         },
     };
 

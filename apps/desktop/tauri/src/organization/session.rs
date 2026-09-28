@@ -71,7 +71,7 @@ use crate::{
     keyring, timestamp,
 };
 
-use crate::sync::turso::platform::AccessLevel;
+use crate::turso::platform::AccessLevel;
 
 use super::{
     HeldOrganization,
@@ -1436,8 +1436,8 @@ mod tests {
         sync::{
             RemoteSyncStore,
             test::server::{ScriptedResponse, ScriptedServer},
-            turso::{discovery::McpEndpoint, platform::InMemoryPlatform},
         },
+        turso::{discovery::McpEndpoint, platform::InMemoryPlatform},
     };
 
     const PASSWORD: &str = "a long enough password";

@@ -391,11 +391,11 @@ mod tests {
         sync::{
             RemoteSync, RemoteSyncStore,
             test::server::{ScriptedResponse, ScriptedServer},
-            turso::{
-                consent::TursoConsent,
-                discovery::McpEndpoint,
-                platform::{AccessLevel, InMemoryPlatform},
-            },
+        },
+        turso::{
+            consent::TursoConsent,
+            discovery::McpEndpoint,
+            platform::{AccessLevel, InMemoryPlatform},
         },
         update::Update,
     };
@@ -1800,7 +1800,7 @@ mod tests {
                 store::OrganizationStore,
                 workspace::create_workspace,
             },
-            sync::turso::{
+            turso::{
                 consent::store_platform_token,
                 discovery::{McpEndpoint, TursoOrganization},
                 platform::{

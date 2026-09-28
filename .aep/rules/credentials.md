@@ -1,6 +1,7 @@
 ---
 paths:
   - apps/desktop/tauri/src/sync/**
+  - apps/desktop/tauri/src/turso/**
   - apps/desktop/tauri/src/organization/**
   - apps/desktop/src/lib/sync/**
   - apps/desktop/src/lib/organization/**
@@ -29,7 +30,7 @@ had.*
 >
 > **One section of it is still a rule.** *Client
 > boundary* was never Drive's alone — decision 09 widened it to every credential this application
-> holds — and `sync/oauth/` still holds the protocol half, which the Turso consent drives.
+> holds — and `turso/oauth/` (`sync/oauth/` until effort 840) still holds the protocol half, which the Turso consent drives.
 > *`sync/google/` held Google's until Google sign-in retired with the control plane on 2026-09-12.*
 > The other two sections describe code that no longer exists and are marked as retired where they
 > stand.

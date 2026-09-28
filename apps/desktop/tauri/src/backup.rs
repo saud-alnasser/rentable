@@ -56,7 +56,7 @@ use sqlx::{
 use crate::{
     diagnostics,
     error::{Error, RefusalReason},
-    sync::turso::platform::{PlatformError, TursoPlatform},
+    turso::platform::{PlatformError, TursoPlatform},
 };
 
 /// Where the copies live, under the application's data directory.
@@ -667,7 +667,7 @@ mod tests {
     use crate::{
         error::{Error, RefusalReason},
         organization::setup::held_organization_id,
-        sync::turso::platform::{InMemoryPlatform, PlatformError},
+        turso::platform::{InMemoryPlatform, PlatformError},
     };
 
     /// One row of `note`, as the copy is read back.

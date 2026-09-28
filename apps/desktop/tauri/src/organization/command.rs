@@ -31,7 +31,7 @@ use super::{
     store::{self, OrganizationStore},
     upgrade, workspace,
 };
-use crate::sync::turso::{
+use crate::turso::{
     discovery::McpEndpoint,
     platform::{AccessLevel, PlatformApi, PlatformEndpoint},
 };
@@ -91,7 +91,7 @@ pub struct OrganizationState {
 /// ([[rules/credentials]], *Client boundary*): the first create into an empty group may have to
 /// name the group, and `setup.rs` tries every name it can work out before the walk asks anybody
 /// for one, so this is `None` on an ordinary run. It is a name rather than a credential when it
-/// does arrive; `setup.rs` and `sync/turso/discovery.rs` say why.
+/// does arrive; `setup.rs` and `turso/discovery.rs` say why.
 ///
 /// **None of the four crosses back, and nothing else crosses at all.** The password is turned
 /// into a vault here and dropped; the organization key and the owner's signing key are derived
@@ -2229,7 +2229,7 @@ pub async fn organization_reconnect_authority(
     {
         let mut remote_sync = app_state.remote_sync.write().await;
 
-        if crate::sync::turso::discovery::organization(
+        if crate::sync::consented_organization(
             remote_sync.store_mut(),
             &platform_token,
             &McpEndpoint::production(),
@@ -2326,8 +2326,8 @@ mod tests {
         sync::{
             RemoteSync, RemoteSyncStore,
             test::server::{ScriptedResponse, ScriptedServer},
-            turso::{consent::TursoConsent, discovery::McpEndpoint, platform::InMemoryPlatform},
         },
+        turso::{consent::TursoConsent, discovery::McpEndpoint, platform::InMemoryPlatform},
         update::Update,
     };
 

@@ -53,8 +53,6 @@ use crate::{
     diagnostics,
     error::{Error, RefusalReason},
     http::build_client,
-    persisted::Persisted,
-    sync::RemoteSyncStore,
 };
 
 /// Where the MCP server lives, and the same value the consent names as its resource indicator.
@@ -167,8 +165,8 @@ pub enum OrganizationLookup {
 /// The consented group, and what it was holding when this machine looked.
 ///
 /// **`databases` is `None` where nothing was asked.** The lookup happens once and is remembered
-/// ([`organization`]), so every call after the first answers out of this machine's own store and
-/// has no listing to report. That is not the same answer as a group holding nothing: an empty
+/// (`sync::consented_organization`), so every call after the first answers out of this machine's
+/// own store and has no listing to report. That is not the same answer as a group holding nothing: an empty
 /// group is [`OrganizationLookup::NoDatabaseYet`] and never reaches here, so a `Some` is always
 /// at least one name.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -253,10 +251,11 @@ pub async fn look_up_organization(
 /// `organization/setup.rs` when a machine is connecting to an organization the group already
 /// holds, which needs the address to open a replica at.
 ///
-/// **Asked every time, and never answered from this machine's store.** [`organization`] remembers
-/// the account because the account is a fact that does not change; what the group is *holding* is
-/// the thing a caller here is deciding on, and answering that from a record written on an earlier
-/// launch would decide it on what was true then.
+/// **Asked every time, and never answered from this machine's store.**
+/// `sync::consented_organization` remembers the account because the account is a fact that does
+/// not change; what the group is *holding* is the thing a caller here is deciding on, and
+/// answering that from a record written on an earlier launch would decide it on what was true
+/// then.
 pub async fn group_databases(
     platform_token: &str,
     endpoint: &McpEndpoint,
@@ -761,41 +760,6 @@ fn organization_of(record: &DatabaseRecord) -> Result<TursoOrganization, Error> 
     })
 }
 
-/// The organization this machine's consent is over: asked for once, and remembered.
-///
-/// **Nothing asks twice.** The lookup is the one thing in this effort that depends on a surface
-/// Turso versions for agents, so every call after the first is answered from this machine's own
-/// store and no request leaves the process. `None` is an empty group rather than a failure, and
-/// the caller creates the first database and reads the slug out of what comes back.
-pub async fn organization(
-    store: &mut Persisted<RemoteSyncStore>,
-    platform_token: &str,
-    endpoint: &McpEndpoint,
-) -> Result<Option<ConsentedGroup>, Error> {
-    if let Some(known) = store.turso_organization.clone() {
-        return Ok(Some(ConsentedGroup {
-            organization: known,
-            databases: None,
-        }));
-    }
-
-    match look_up_organization(platform_token, endpoint).await? {
-        OrganizationLookup::Found {
-            organization,
-            databases,
-        } => {
-            store.turso_organization = Some(organization.clone());
-            store.commit()?;
-
-            Ok(Some(ConsentedGroup {
-                organization,
-                databases: Some(databases),
-            }))
-        }
-        OrganizationLookup::NoDatabaseYet => Ok(None),
-    }
-}
-
 /// Post one JSON-RPC message and return what came back, with any session identifier.
 ///
 /// **Three failures are three answers.** A request that never arrives is `Network`, because
@@ -946,12 +910,9 @@ mod tests {
 
     use crate::sync::test::server::{ScriptedResponse, ScriptedServer};
 
-    use crate::{persisted::Persisted, sync::store::RemoteSyncStore};
-
     use super::{
-        ConsentedGroup, FirstDatabase, McpEndpoint, OrganizationLookup, TursoOrganization,
-        create_first_database, group_from_mcp, group_uuid_of, look_up_organization, organization,
-        slug_from_hostname,
+        FirstDatabase, McpEndpoint, OrganizationLookup, TursoOrganization, create_first_database,
+        group_from_mcp, group_uuid_of, look_up_organization, slug_from_hostname,
     };
 
     const TOKEN: &str = "the-platform-api-token";
@@ -986,25 +947,6 @@ mod tests {
             })
             .to_string(),
         )
-    }
-
-    /// A directory of this machine's own, the way every other test here makes one. No crate is
-    /// added for it: `std::env::temp_dir` is what `database/mod.rs` and `export.rs` already use.
-    fn temporary_directory(name: &str) -> std::path::PathBuf {
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .expect("the clock is before the epoch")
-            .as_nanos();
-        let directory = std::env::temp_dir().join(format!("rentable-{name}-{nanos}"));
-        std::fs::create_dir_all(&directory).expect("no temporary directory");
-
-        directory
-    }
-
-    /// A store on disk, so the remembering is the real thing rather than a field in a test.
-    fn load_store(directory: &std::path::Path) -> Persisted<RemoteSyncStore> {
-        Persisted::<RemoteSyncStore>::load(directory.join("remote-sync.json"))
-            .expect("the store could not be loaded")
     }
 
     /// The first run into the empty group requirement 3 asks for: `create_database` by name and
@@ -1836,89 +1778,6 @@ mod tests {
             server.request(0).header("authorization"),
             Some(format!("Bearer {TOKEN}").as_str())
         );
-    }
-
-    /// Criterion 4: the slug is stored locally and a second provisioning call asks nothing.
-    #[tokio::test]
-    async fn the_second_call_reads_the_store_and_makes_no_request() {
-        let directory = temporary_directory("discovery-remembers");
-        let mut store = load_store(&directory);
-
-        let server = ScriptedServer::start(vec![
-            handshake(),
-            listing(json!([{
-                "Name": "ledger",
-                "hostname": "ledger-acme.aws-us-east-1.turso.io",
-                "group": "rents"
-            }])),
-        ])
-        .await;
-        let endpoint = McpEndpoint::at(&server.url(""));
-
-        let first = organization(&mut store, TOKEN, &endpoint)
-            .await
-            .expect("the first lookup failed");
-        let after_first = server.request_count();
-
-        let second = organization(&mut store, TOKEN, &endpoint)
-            .await
-            .expect("the second lookup failed");
-
-        assert_eq!(
-            first,
-            Some(ConsentedGroup {
-                organization: TursoOrganization {
-                    slug: "acme".to_string(),
-                    group: "rents".to_string(),
-                },
-                // the listing was read, so what the group holds is reported.
-                databases: Some(vec!["ledger".to_string()]),
-            })
-        );
-        assert_eq!(
-            second,
-            Some(ConsentedGroup {
-                organization: TursoOrganization {
-                    slug: "acme".to_string(),
-                    group: "rents".to_string(),
-                },
-                // and the second call asked nothing, so it has no listing to report rather
-                // than an empty one, which would read as a group holding nothing.
-                databases: None,
-            })
-        );
-        assert_eq!(
-            server.request_count(),
-            after_first,
-            "a second provisioning call reached the mcp server"
-        );
-
-        // and it survives the process, which is what makes it storage rather than a cache.
-        let reopened = load_store(&directory);
-        assert_eq!(
-            reopened
-                .turso_organization
-                .as_ref()
-                .map(|it| it.slug.as_str()),
-            Some("acme")
-        );
-    }
-
-    /// An empty group is remembered as nothing, so the next run asks again rather than believing
-    /// the account has no organization.
-    #[tokio::test]
-    async fn an_empty_group_is_not_remembered_as_an_answer() {
-        let directory = temporary_directory("discovery-empty-group");
-        let mut store = load_store(&directory);
-
-        let server = ScriptedServer::start(vec![handshake(), listing(json!([]))]).await;
-
-        let found = organization(&mut store, TOKEN, &McpEndpoint::at(&server.url("")))
-            .await
-            .expect("an empty group was reported as a failure");
-
-        assert_eq!(found, None);
-        assert_eq!(store.turso_organization, None);
     }
 
     /// **Live, and the only thing here that reaches Turso.** One real consent, one

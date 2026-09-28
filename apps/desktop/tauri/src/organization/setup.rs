@@ -7,7 +7,7 @@
 //! refusing a create that names no group and the walk asked for the group's name outright; it is
 //! a fourth thing again only where Turso has refused every name this machine can work out on its
 //! own, which [`create_into_an_empty_group`] is.* The slug is discovered
-//! (`sync/turso/discovery.rs`), the database is created here, and every key is generated or
+//! (`turso/discovery.rs`), the database is created here, and every key is generated or
 //! derived here. The consent itself happened before this is reached, in a browser, and this
 //! module spends what it filed and asks almost nothing of the person.
 //!
@@ -47,12 +47,10 @@ use crate::{
     backup, diagnostics,
     error::{Error, RefusalReason},
     persisted::Persisted,
-    sync::{
-        RemoteSyncStore,
-        turso::{
-            discovery::{self, McpEndpoint, TursoOrganization},
-            platform::{AccessLevel, DeletionIntent, TursoPlatform},
-        },
+    sync::{RemoteSyncStore, consented_organization},
+    turso::{
+        discovery::{self, McpEndpoint, TursoOrganization},
+        platform::{AccessLevel, DeletionIntent, TursoPlatform},
     },
 };
 
@@ -330,8 +328,7 @@ where
     let database_name = format!("{ORGANIZATION_DATABASE_PREFIX}{organization_id}");
 
     // the database, and the slug it is created under or read from.
-    let (organization, hostname) = match discovery::organization(store, platform_token, mcp).await?
-    {
+    let (organization, hostname) = match consented_organization(store, platform_token, mcp).await? {
         Some(consented) => {
             // **a group that was typed is checked first, and the check keeps the consent.** What
             // the consent is over is already known here, from the listing or from this machine's
@@ -1214,13 +1211,13 @@ fn one_organization_to_a_group(databases: &[String]) -> Result<(), Error> {
 /// **The token and the slug go together.** The slug is a fact about the consent that is being
 /// abandoned, and a machine that kept it would build every Platform API path of the next
 /// consent out of the account this one was over. The next run looks the slug up again, which is
-/// what [`discovery::organization`] does when the store answers nothing.
+/// what [`consented_organization`] does when the store answers nothing.
 ///
 /// Best effort in both halves: what the person reads is the refusal that brought them here, and
 /// a credential store that would not empty goes to the diagnostics log rather than taking the
 /// refusal's place on the screen.
 fn abandon_the_consent(store: &mut Persisted<RemoteSyncStore>) {
-    if let Err(error) = crate::sync::turso::consent::forget_platform_token() {
+    if let Err(error) = crate::turso::consent::forget_platform_token() {
         diagnostics::error("organization.setup.consentNotForgotten")
             .with("error", error.to_string())
             .write();
@@ -1331,7 +1328,7 @@ fn draw_these_ids_next(ids: &[&str]) {
 /// says what to do: grant the consent. Requirement 5's re-consent, at the one place a first run
 /// spends the authority.
 pub fn authority() -> Result<String, Error> {
-    crate::sync::turso::consent::platform_token().map_err(|_| {
+    crate::turso::consent::platform_token().map_err(|_| {
         Error::refused(
             RefusalReason::TursoNotConnected,
             "this machine holds no turso authority. connect the turso account first, then \
@@ -1377,11 +1374,11 @@ mod tests {
         sync::{
             RemoteSyncStore,
             test::server::{ScriptedResponse, ScriptedServer},
-            turso::{
-                consent::{platform_token, store_platform_token},
-                discovery::McpEndpoint,
-                platform::{AccessLevel, DeletionIntent, InMemoryPlatform, PlatformError},
-            },
+        },
+        turso::{
+            consent::{platform_token, store_platform_token},
+            discovery::McpEndpoint,
+            platform::{AccessLevel, DeletionIntent, InMemoryPlatform, PlatformError},
         },
     };
 

@@ -1,8 +1,8 @@
 use crate::{error::Error, state::AppState};
 
 use super::store::RemoteSyncState;
-use super::turso::consent::{TursoConsentResult, TursoConsentStart, TursoEndpoints};
-use super::turso::platform::SyncRefusal;
+use crate::turso::consent::{TursoConsentResult, TursoConsentStart, TursoEndpoints};
+use crate::turso::platform::SyncRefusal;
 
 #[tauri::command]
 pub async fn remote_sync_state_get(

@@ -21,6 +21,7 @@ pub mod settings;
 pub mod state;
 pub mod sync;
 pub mod timestamp;
+pub mod turso;
 pub mod update;
 pub mod window;
 
@@ -38,7 +39,7 @@ use crate::diagnostics::{DiagnosticLog, RotationLimits};
 use crate::persisted::Persisted;
 use crate::settings::Settings;
 use crate::sync::RemoteSync;
-use crate::sync::turso::consent::TursoConsent;
+use crate::turso::consent::TursoConsent;
 use crate::update::Update;
 
 /// The event the shell listens to for a link that arrives while it is running.

@@ -13,22 +13,22 @@
 # are all in it (organization and sync, state and every feature, database and sync, organization
 # through bootstrap to sync), and one more it did not name: organization through backup, and
 # through schema to backup, back round by sync.
+#
+# Ticket 45 (2026-09-28) made the Turso adapter the top-level `turso` module, which reaches none
+# of the tangle. Everything that named it through `sync` names it directly now, so backup and
+# schema left the tangle and seven modules remain: bootstrap, database, organization, settings,
+# state, sync and update.
 
-cycle backup -> sync
 cycle bootstrap -> database
 cycle bootstrap -> state
 cycle bootstrap -> sync
 cycle bootstrap -> update
 cycle database -> settings
 cycle database -> state
-cycle database -> sync
-cycle organization -> backup
 cycle organization -> bootstrap
 cycle organization -> database
-cycle organization -> schema
 cycle organization -> state
 cycle organization -> sync
-cycle schema -> backup
 cycle settings -> state
 cycle state -> database
 cycle state -> organization
@@ -41,5 +41,4 @@ cycle sync -> settings
 cycle sync -> state
 cycle update -> settings
 cycle update -> state
-forbidden organization -> sync::turso
 forbidden sync -> organization

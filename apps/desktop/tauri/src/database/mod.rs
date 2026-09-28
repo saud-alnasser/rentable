@@ -20,7 +20,7 @@ use crate::{
     error::Error,
     persisted::Persisted,
     settings::Settings,
-    sync::turso::platform::{SyncRefusal, read_sync_refusal},
+    turso::platform::{SyncRefusal, read_sync_refusal},
 };
 
 /// what one replication did, and why it did not where it did not.
@@ -360,7 +360,7 @@ impl Database {
     /// what they cannot say is that the remote was reached and said no, which is a different
     /// sentence for the person reading it (requirement 25) and a different act for the shell (a
     /// refused credential is collected again). The refusal is read at the response by
-    /// `sync::turso::platform::read_sync_refusal`, and the first refusal of the two halves is
+    /// `turso::platform::read_sync_refusal`, and the first refusal of the two halves is
     /// the one reported, because both are about the same database and the same credential.
     pub async fn replicate(&self) -> Replicated {
         match self.engine.as_ref() {
@@ -693,8 +693,8 @@ mod tests {
     /// distinction the requirement exists to keep.
     #[tokio::test]
     async fn a_refusal_for_the_account_is_read_as_the_accounts_and_the_replica_goes_on_serving() {
-        use crate::sync::{
-            test::server::{ScriptedResponse, ScriptedServer},
+        use crate::{
+            sync::test::server::{ScriptedResponse, ScriptedServer},
             turso::platform::SyncRefusal,
         };
 

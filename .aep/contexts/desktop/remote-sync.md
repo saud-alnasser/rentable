@@ -1,6 +1,7 @@
 ---
 paths:
   - apps/desktop/tauri/src/sync/**
+  - apps/desktop/tauri/src/turso/**
   - apps/desktop/tauri/src/http.rs
   - apps/desktop/src/lib/sync/**
 use-when: "the request touches signing in, or the credential a workspace replicates under"
@@ -26,7 +27,8 @@ organization on the customer's own Turso account answers everything the two answ
 > organization effort, and last on purpose: until everything above it landed, the control plane
 > was the only thing that signed anybody in. `sync/google/`, `sync/sign_in.rs`, `sync/session.rs`
 > and `sync/control.rs` are deleted, with the keyring services they filed under left to age out;
-> the provider-neutral OAuth core in `sync/oauth/` survived, because the Turso consent drives it.
+> the provider-neutral OAuth core in `sync/oauth/` survived, because the Turso consent drives it,
+> and effort 840 moved it into the Turso adapter as `turso/oauth/`.
 > What the control plane knew about Turso survived as `packages/turso-platform`, imported by
 > nothing, until effort 840 removed it on 2026-09-28.
 
@@ -69,7 +71,7 @@ does and what the sync manager schedules, and since the retirement nothing stand
 _Avoid_: calling the last dispatch of a session a replication: it pushes and does not pull.
 
 **Refusal**:
-Turso saying no to a dispatch, read at the response (`sync/turso/platform.rs::read_sync_refusal`).
+Turso saying no to a dispatch, read at the response (`turso/platform.rs::read_sync_refusal`).
 The account's, for quota or billing, is said to the owner in Turso's own words and to everybody
 else as the account needing attention; the credential's, a `401` or `403`, is what the reconnect
 collects a fresh credential on. A machine that reached nothing is neither, and needs a different

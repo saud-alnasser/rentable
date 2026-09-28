@@ -231,7 +231,7 @@ const TOKEN_LIFETIME = '3d';
  * organisation, which is why it lives in `.env` and why nothing shipped goes anywhere near this
  * function.
  *
- * The call is the Platform API's token mint, the one `tauri/src/sync/turso/platform.rs` makes,
+ * The call is the Platform API's token mint, the one `tauri/src/turso/platform.rs` makes,
  * written out here because a script cannot reach the crate and copying one URL is smaller than
  * building a client for it.
  */

@@ -20,7 +20,7 @@ mod tests {
             to: &'static str,
         },
         /// `from` reaches `to` only through what `to` itself exposes, never through one of `to`'s
-        /// own modules: `crate::sync::RemoteSyncStore`, not `crate::sync::turso::...`.
+        /// own modules: `crate::sync::RemoteSyncStore`, not `crate::sync::store::...`.
         Surface {
             from: &'static str,
             to: &'static str,
@@ -340,7 +340,7 @@ mod tests {
             .any(|directory| *directory == "test" || *directory == "tests")
     }
 
-    /// The top-level module a file belongs to: `sync/turso/consent.rs` is `sync`, `backup.rs` is
+    /// The top-level module a file belongs to: `turso/oauth/pkce.rs` is `turso`, `backup.rs` is
     /// `backup`.
     fn module_of(path: &str) -> &str {
         let first = path.split('/').next().unwrap_or(path);

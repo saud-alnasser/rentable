@@ -1195,8 +1195,8 @@ mod tests {
 
     use crate::keyring::{CredentialStoreTurn, take_the_credential_store};
     use crate::sync::test::server::{RecordedRequest, ScriptedResponse, ScriptedServer};
-    use crate::sync::turso::consent::store_platform_token;
-    use crate::sync::turso::discovery::TursoOrganization;
+    use crate::turso::consent::store_platform_token;
+    use crate::turso::discovery::TursoOrganization;
 
     use super::{
         AccessLevel, DeletionIntent, InMemoryPlatform, PlatformApi, PlatformEndpoint,
@@ -1994,7 +1994,7 @@ mod tests {
     async fn no_authority_is_a_refusal_before_any_request_is_made() {
         let (platform, server, _turn) = platform_answering(vec![]).await;
 
-        crate::sync::turso::consent::TursoConsent::new()
+        crate::turso::consent::TursoConsent::new()
             .disconnect()
             .expect("failed to disconnect");
 

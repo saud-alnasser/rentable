@@ -5,7 +5,7 @@ use-when: 'provisioning a workspace database, minting a token to sync with one, 
 # Turso — the Platform API
 
 **This file is yours.** It records how Turso is actually reached from
-`apps/desktop/tauri/src/sync/turso/`; correct it where the
+`apps/desktop/tauri/src/turso/`; correct it where the
 repository differs rather than deferring to what the documentation says. *It recorded the
 control plane's use until that retired on 2026-09-12, and `packages/turso-platform/`'s until effort
 840 removed that package on 2026-09-28.*
@@ -42,7 +42,7 @@ the part of the sentence that stands. *Never run* carries the delete as the thir
 
 In the shipping application, one thing: **a consent**. The owner grants the application authority
 over a group of their own account in the browser, the token is filed in the keyring, and the
-organization slug is discovered once through the MCP server (`sync/turso/discovery.rs`). Nothing
+organization slug is discovered once through the MCP server (`turso/discovery.rs`). Nothing
 is typed and no environment variable is read.
 
 The live tests read three values from the environment instead, because they have no browser:
@@ -64,7 +64,7 @@ production uses.**
 There is no CLI in this repository's path. Everything is HTTP, against `https://api.turso.tech`,
 with `Authorization: Bearer <TURSO_API_TOKEN>`.
 
-**Two callers, and one of them ships.** **`apps/desktop/tauri/src/sync/turso/platform.rs` is the
+**Two callers, and one of them ships.** **`apps/desktop/tauri/src/turso/platform.rs` is the
 one that ships, since 2026-09-11 and effort 819**: the control plane's client ported into the
 desktop with its port shape intact, spending a token a browser consent filed in the keyring, and
 reaching the customer's own account rather than ours. The endpoints below were first documented
@@ -132,7 +132,7 @@ The hostname carries no scheme. `libsql://` is prepended where it is used — th
 
 ## Verification
 
-The Rust port's tests in `sync/turso/platform.rs` run it against a scripted server and pin the
+The Rust port's tests in `turso/platform.rs` run it against a scripted server and pin the
 path, the credential, the query parameters and the shape read back. *The TypeScript client's
 tests did the same against a fake `fetch` until effort 840 removed `packages/turso-platform`.*
 

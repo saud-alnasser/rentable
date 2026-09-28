@@ -37,7 +37,7 @@ use crate::{
     diagnostics,
     error::{Error, RefusalReason},
     state::AppState,
-    sync::turso::platform::{DeletionIntent, TursoPlatform},
+    turso::platform::{DeletionIntent, TursoPlatform},
 };
 
 use super::{
@@ -529,11 +529,11 @@ mod tests {
         sync::{
             RemoteSync, RemoteSyncStore,
             test::server::{ScriptedResponse, ScriptedServer},
-            turso::{
-                consent::{TursoConsent, platform_token, store_platform_token},
-                discovery::McpEndpoint,
-                platform::{AccessLevel, DeletionIntent, InMemoryPlatform},
-            },
+        },
+        turso::{
+            consent::{TursoConsent, platform_token, store_platform_token},
+            discovery::McpEndpoint,
+            platform::{AccessLevel, DeletionIntent, InMemoryPlatform},
         },
         update::Update,
     };
@@ -1710,7 +1710,7 @@ mod tests {
     async fn removal_live_an_ordinary_removal_breaks_nobody_and_a_lock_out_is_refused_by_turso() {
         use crate::{
             organization::workspace::MIGRATION_CREDENTIAL_LIFETIME,
-            sync::turso::{
+            turso::{
                 consent::store_platform_token,
                 discovery::TursoOrganization,
                 platform::{

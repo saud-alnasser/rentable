@@ -198,8 +198,8 @@ mod tests {
         sync::{
             RemoteSyncStore,
             test::server::{ScriptedResponse, ScriptedServer},
-            turso::{discovery::McpEndpoint, platform::InMemoryPlatform},
         },
+        turso::{discovery::McpEndpoint, platform::InMemoryPlatform},
     };
 
     const PASSWORD: &str = "the owners password";

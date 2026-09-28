@@ -62,7 +62,7 @@ use crate::{
     backup, diagnostics,
     error::{Error, RefusalReason},
     http::build_client,
-    sync::turso::platform::{AccessLevel, TursoPlatform},
+    turso::platform::{AccessLevel, TursoPlatform},
 };
 
 use super::{
@@ -658,10 +658,10 @@ mod tests {
                 pipeline::LocalPipeline,
                 server::{ScriptedResponse, ScriptedServer},
             },
-            turso::{
-                discovery::McpEndpoint,
-                platform::{AccessLevel, InMemoryPlatform, PlatformError},
-            },
+        },
+        turso::{
+            discovery::McpEndpoint,
+            platform::{AccessLevel, InMemoryPlatform, PlatformError},
         },
     };
 

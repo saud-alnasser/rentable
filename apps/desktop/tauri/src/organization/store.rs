@@ -6271,11 +6271,11 @@ mod tests {
     }
 
     /// Live, at the human's request: **machine A writes, machine B reads it back**, against a
-    /// database this run provisions through `sync/turso/platform.rs` and removes at the end.
+    /// database this run provisions through `turso/platform.rs` and removes at the end.
     /// Admitted by name in [[rules/testing]] under *Tests that reach a live remote*, as the sixth
     /// property: whether the organization lives on the remote rather than on the machine that made
     /// it. `#[ignore]`, and it panics rather than skipping when its variables are absent, for the
-    /// reason `sync/turso/discovery.rs` gives.
+    /// reason `turso/discovery.rs` gives.
     ///
     /// ```text
     /// RENTABLE_LIVE_TURSO=1 TURSO_CONSENT_TOKEN=… TURSO_ORG=… TURSO_GROUP=… \
@@ -6285,7 +6285,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "reaches a live Turso account and creates a database; see the doc comment"]
     async fn organization_live_a_second_machine_reads_what_the_first_wrote() {
-        use crate::sync::turso::{
+        use crate::turso::{
             consent::store_platform_token,
             discovery::TursoOrganization,
             platform::{DeletionIntent, PlatformApi, PlatformEndpoint, TursoPlatform},
@@ -6325,11 +6325,7 @@ mod tests {
             .await
             .expect("the live create failed");
         let token = platform
-            .mint_token(
-                &name,
-                "1h",
-                crate::sync::turso::platform::AccessLevel::FullAccess,
-            )
+            .mint_token(&name, "1h", crate::turso::platform::AccessLevel::FullAccess)
             .await
             .expect("the live mint failed");
         let remote_url = format!("libsql://{}", database.hostname);

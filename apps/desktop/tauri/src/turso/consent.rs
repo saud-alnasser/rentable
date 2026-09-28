@@ -34,7 +34,7 @@ use crate::{
     keyring,
 };
 
-use super::super::oauth::{
+use super::oauth::{
     OAuthConfig,
     authorization::build_authorization_url,
     loopback::{LoopbackCallback, LoopbackWait},
@@ -1049,7 +1049,7 @@ mod tests {
 
         assert_eq!(
             named,
-            vec!["src/sync/turso/consent.rs".to_string()],
+            vec!["src/turso/consent.rs".to_string()],
             "the requested scope set is read outside the module that asks for it"
         );
     }
@@ -1292,7 +1292,7 @@ mod tests {
 
         assert_eq!(
             named,
-            vec!["src/sync/turso/consent.rs".to_string()],
+            vec!["src/turso/consent.rs".to_string()],
             "the platform token's keyring service is named outside the module that owns it"
         );
         assert_eq!(TURSO_PLATFORM_KEYRING_SERVICE, "rentable.turso-platform");

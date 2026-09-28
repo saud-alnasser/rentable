@@ -7,7 +7,7 @@ use crate::{
     persisted::Persisted,
     settings::Settings,
     sync::RemoteSync,
-    sync::turso::consent::TursoConsent,
+    turso::consent::TursoConsent,
     update::Update,
 };
 

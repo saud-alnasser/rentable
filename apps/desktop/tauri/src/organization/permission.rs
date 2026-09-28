@@ -27,7 +27,7 @@
 
 use crate::{
     error::{Error, RefusalReason},
-    sync::turso::platform::AccessLevel,
+    turso::platform::AccessLevel,
 };
 
 /// Anything a gate or a mask may name, which is a [`Flag`].
@@ -584,7 +584,7 @@ mod tests {
     };
     use crate::{
         error::{Error, RefusalReason},
-        sync::turso::platform::AccessLevel,
+        turso::platform::AccessLevel,
     };
 
     /// A file of the package, read rather than imported: this crate cannot import TypeScript, and
