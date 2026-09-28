@@ -16,7 +16,7 @@
 	 *
 	 * So it is built out of what needs no dictionary: the application's own name, which is a proper
 	 * noun in both languages; the failure as it was thrown, which is a machine's English either
-	 * way; and two glyphs. What is lost against {@link ./startup-error.svelte} is the sentence
+	 * way; and two glyphs. What is lost against {@link ./error.svelte} is the sentence
 	 * explaining that nothing recorded is at risk. What is kept is the whole of what a person can
 	 * act on, which is the way out.
 	 *
@@ -24,7 +24,7 @@
 	 * words.** They are the accessible names of two controls on a screen that exists because no
 	 * dictionary could be reached, so reaching one for them is the thing that cannot be done. They
 	 * are `settings.diagnosticsReveal` and `common.actions.retryStartup` verbatim, and
-	 * `shell/tests/startup-surface.test.ts` holds them to that rather than leaving two copies to
+	 * `startup/tests/gate.test.ts` holds them to that rather than leaving two copies to
 	 * drift. A reader whose language is Arabic meets English on this screen alone.
 	 *
 	 * **Neither control carries a tooltip, and that is the difference that keeps this screen on

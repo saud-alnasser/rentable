@@ -10,7 +10,7 @@
 	 * **The control is a glyph, and it is the same glyph the two startup-failure screens offer.**
 	 * `[[efforts/settings-and-the-workspace-finish-what-they-offer]]`, requirement 3. A person
 	 * reaching this row is usually on their way to a support message with a startup failure behind
-	 * them, and `startup-error.svelte` and `startup-unreadable.svelte` both put this same action
+	 * them, and `startup/component/error.svelte` and `unreadable.svelte` both put this same action
 	 * behind `FolderOpenIcon` with this same string as its name. A text button here was the third
 	 * appearance of one action in a second form.
 	 *

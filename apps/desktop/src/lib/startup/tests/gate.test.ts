@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { startupSurfaceBeforeLocale } from '$lib/shell/startup-surface.ts';
+import { startupSurfaceBeforeLocale } from '$lib/startup/gate.ts';
 import { isolateDirection, toErrorText } from '$lib/error/message.ts';
 import { i18nObject } from '$lib/i18n/i18n-util.ts';
 import { loadLocale } from '$lib/i18n/i18n-util.sync.ts';
-import { harness } from './testing.ts';
+import { harness } from './harness.ts';
 
 loadLocale('en');
 

@@ -40,6 +40,7 @@
 		currentDirection,
 		shell,
 		onWayIn = () => {},
+		onSwitchWorkspace = () => {},
 		children
 	}: {
 		currentDirection: 'ltr' | 'rtl' | 'auto';
@@ -56,6 +57,8 @@
 		 * `signed-out`.
 		 */
 		onWayIn?: () => void;
+		/** a switch to another workspace, chosen on the rail's workspace row. */
+		onSwitchWorkspace?: (workspaceId: string) => void;
 		children: Snippet;
 	} = $props();
 
@@ -219,7 +222,7 @@
 			<LayoutShortcutSheet bind:open={isShortcutSheetOpen} />
 		{/if}
 		<Sidebar.Provider class="h-full min-h-0 overflow-hidden">
-			<LayoutSidebar signedOut={isSignedOut} {onWayIn} />
+			<LayoutSidebar signedOut={isSignedOut} {onWayIn} {onSwitchWorkspace} />
 			<Sidebar.Inset>
 				{@render titlebar()}
 				<div class="@container/main flex min-h-0 flex-1 flex-col overflow-y-auto">

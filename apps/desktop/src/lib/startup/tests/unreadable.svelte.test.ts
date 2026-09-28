@@ -2,7 +2,7 @@ import StandaloneSurface from '@rentable/design/block/standalone-surface.svelte'
 import SurfaceAction from '@rentable/design/block/surface-action.svelte';
 import { render, screen } from '@testing-library/svelte';
 import { expect, test } from 'vitest';
-import StartupUnreadable from '$lib/shell/component/startup-unreadable.svelte';
+import StartupUnreadable from '$lib/startup/component/unreadable.svelte';
 import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
 
 /**
@@ -31,7 +31,7 @@ test('the startup screen renders with neither provider above it', () => {
 /**
  * The two below render the packaged blocks directly rather than mutating the screen, because what
  * is under test is the guard rather than the screen: each one drops exactly the prop value the
- * screen sets and asserts on the throw it was preventing. A mutation of `startup-unreadable.svelte`
+ * screen sets and asserts on the throw it was preventing. A mutation of `unreadable.svelte`
  * would prove the same thing and could not live in the suite.
  */
 

@@ -37,7 +37,7 @@ Start at [[protocol]].
 | Artifact | Load when | Paths | Owner |
 | --- | --- | --- | --- |
 | [[contexts/desktop/contract]] | the request touches contracts, payments, unit assignments, or any derived status | apps/desktop/src/lib/contract/**, apps/desktop/src/lib/payment/** | — |
-| [[contexts/desktop/organization]] | the request touches an organization, its members, their roles and permissions, their vaults, or the account it lives on | apps/desktop/tauri/src/organization/**, apps/desktop/tauri/src/upgrade/**, apps/desktop/src/lib/organization/**, apps/desktop/src/lib/shell/startup.ts | — |
+| [[contexts/desktop/organization]] | the request touches an organization, its members, their roles and permissions, their vaults, or the account it lives on | apps/desktop/tauri/src/organization/**, apps/desktop/tauri/src/upgrade/**, apps/desktop/src/lib/organization/**, apps/desktop/src/lib/startup/machine.ts, apps/desktop/src/lib/startup/wall.ts | — |
 | [[contexts/desktop/persistence]] | the request touches the schema, migrations, or how queries reach SQLite | apps/desktop/src/lib/platform/database/**, apps/desktop/tauri/src/database/**, apps/desktop/tauri/migrations/** | — |
 | [[contexts/desktop/property]] | the request touches complexes or units | apps/desktop/src/lib/complex/** | — |
 | [[contexts/desktop/remote-sync]] | the request touches signing in, or the credential a workspace replicates under | apps/desktop/tauri/src/machine/**, apps/desktop/tauri/src/sync/**, apps/desktop/tauri/src/turso/**, apps/desktop/tauri/src/http.rs, apps/desktop/src/lib/sync/** | — |
@@ -431,7 +431,7 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/30-record-pages-render-contributed-sections]] refactor(desktop): record pages render the sections other features contribute | 840-a-feature-plugs-in-and-lives-in-one-place | resolved | 27 |
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/31-settings-renders-contributed-sections]] refactor(desktop): settings renders the sections features contribute | 840-a-feature-plugs-in-and-lives-in-one-place | resolved | 27 |
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/32-the-shell-holds-only-the-shell]] refactor(desktop): the shell holds only the shell | 840-a-feature-plugs-in-and-lives-in-one-place | resolved | 27 |
-| [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/33-startup-is-its-own-feature]] refactor(desktop): startup is a feature of its own | 840-a-feature-plugs-in-and-lives-in-one-place | open | 32 |
+| [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/33-startup-is-its-own-feature]] refactor(desktop): startup is a feature of its own | 840-a-feature-plugs-in-and-lives-in-one-place | resolved | 32 |
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/34-routes-delegate]] refactor(desktop): the four fat routes delegate | 840-a-feature-plugs-in-and-lives-in-one-place | open | 33 |
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/35-record-features-carry-their-strings]] refactor(desktop): the record features carry their own strings | 840-a-feature-plugs-in-and-lives-in-one-place | resolved | 21 |
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/36-every-feature-carries-its-strings]] refactor(desktop): every other feature and capability carries its own strings | 840-a-feature-plugs-in-and-lives-in-one-place | resolved | 35 |

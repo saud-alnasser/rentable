@@ -7,7 +7,7 @@ import type { MadeLink } from '$lib/organization/host';
  * link an account's own act produces is one panel beside them; all three are mounted once in the
  * shell by `organization/component/dialogs.svelte`, and opened from places that share no
  * parent: the rail's workspace menu and the settings area. So what they share is this,
- * module-level rune state the way `shell/startup-stage.svelte.ts` is, and a request raised here
+ * module-level rune state the way `startup/stage.svelte.ts` is, and a request raised here
  * and answered there, the way `sync/sign-out.ts` is.
  *
  * **One host and not one per caller.** With an instance each, a link made from one place would be

@@ -31,7 +31,7 @@ vi.mock('@tauri-apps/api/window', () => ({
 	})
 }));
 
-// the rail's contents read the startup unit the root layout provides; where the rail sits is the
+// the rail's contents read the features' rows off `app/surfaces`; where the rail sits is the
 // frame's, and that is what is under test, so it draws nothing here.
 vi.mock('$lib/shell/component/sidebar.svelte', () => ({ default: () => {} }));
 

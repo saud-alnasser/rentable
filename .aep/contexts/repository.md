@@ -192,6 +192,9 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
   `layout` until effort 840), and it holds only the shell: the workspace and account rows of the
   rail and the organization's dialogs are those features' components, declared as `slots` in
   their `surface.ts` and drawn at the places the shell names.
+  The startup lifecycle and its screens are the `startup` feature since effort 840: the root
+  layout creates the unit and draws its screens inside the frame, and hands the rail what a
+  workspace switch runs, so the shell imports nothing of startup.
   `src/routes/` stays layer-first, as the framework requires. **The tree is this shape
   throughout** (#123–#126). Three directories sit outside it: `i18n`, whose path the locale
   generator fixes; `error`, which decodes failures crossing the IPC boundary and has

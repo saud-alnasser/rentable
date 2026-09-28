@@ -22,8 +22,8 @@ import type { SyncHost } from '$lib/sync/host';
 import type { QueryClient } from '@tanstack/svelte-query';
 import { get } from 'svelte/store';
 
-import { reportStartupComplete, reportStartupStage } from './startup-stage.svelte';
-import type { StartupPorts } from './startup';
+import { reportStartupComplete, reportStartupStage } from './stage.svelte';
+import type { StartupPorts } from './ports';
 
 /**
  * What `./startup` reaches for, wired to the machine it actually runs on.

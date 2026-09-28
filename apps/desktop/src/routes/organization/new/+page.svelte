@@ -26,7 +26,7 @@
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { toErrorDetail, toErrorText } from '$lib/error/message';
 	import { THE_WAY_IN } from '$lib/shell/shell-surface';
-	import { useStartup } from '$lib/shell/startup-context';
+	import { useStartup } from '$lib/startup/context';
 
 	/**
 	 * The first run's address, and the one that wires the walk to the shell.

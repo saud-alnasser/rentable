@@ -12,7 +12,7 @@ import { showErrorSentence, showSuccessToast } from '$lib/notification';
  * reader went somewhere else. What stands on the section now is only what is true independently
  * of anybody having pressed anything.
  *
- * Kept out of the component for the reason `shell/startup-surface.ts` is: a runes file cannot be
+ * Kept out of the component for the reason `startup/gate.ts` is: a runes file cannot be
  * imported by the test harness at all, so a decision left inline in one is a decision nothing can
  * drive. This is the decision, and its test is what the criterion asks for.
  *

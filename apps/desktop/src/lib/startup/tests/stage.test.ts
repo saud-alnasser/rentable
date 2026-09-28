@@ -9,9 +9,9 @@ import {
 	startupProgressFor,
 	startupProgressWithin,
 	type StartupStage
-} from '../startup-stage.ts';
+} from '../stage.ts';
 import { fakeOrganizationSession, fakeOrganizationState } from '$lib/organization/tests/testing.ts';
-import { harness, locked, nowhereToGo } from './testing.ts';
+import { harness, locked, nowhereToGo } from './harness.ts';
 
 /**
  * THE BAR IS A REPORT, AND THIS IS WHAT MAKES IT ONE

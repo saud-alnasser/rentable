@@ -8,8 +8,8 @@ import en from '$lib/i18n/en';
 import { toTitleCase } from '@rentable/design/title-case.js';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
-import StartupNoWorkspace from '$lib/shell/component/startup-no-workspace.svelte';
-import StartupSignIn from '$lib/shell/component/startup-sign-in.svelte';
+import StartupNoWorkspace from '$lib/startup/component/no-workspace.svelte';
+import StartupSignIn from '$lib/startup/component/sign-in.svelte';
 import { fakeHeldOrganization } from '$lib/organization/tests/testing.ts';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 

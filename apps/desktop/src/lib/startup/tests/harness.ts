@@ -1,5 +1,5 @@
-import { createStartup, type StartupPorts, type StartupSnapshot } from '$lib/shell/startup.ts';
-import type { StartupStage } from '$lib/shell/startup-stage.ts';
+import { createStartup, type StartupPorts, type StartupSnapshot } from '$lib/startup/startup.ts';
+import type { StartupStage } from '$lib/startup/stage.ts';
 import { fakeOrganizationState } from '$lib/organization/tests/testing.ts';
 import { fakeSyncState } from '$lib/sync/tests/testing.ts';
 import type { RemoteSyncState } from '$lib/sync/host.ts';

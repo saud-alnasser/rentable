@@ -8,7 +8,6 @@
 	import { slotsAt } from '$lib/app/surfaces';
 	import { primaryDestinations, type Destination } from '$lib/shell/destination';
 	import { isActiveRoute, toViewablePlaces } from '$lib/shell/navigation';
-	import { useStartup } from '$lib/shell/startup-context';
 	import { memberPermissions } from '$lib/permission';
 	import type { ComponentProps } from 'svelte';
 
@@ -43,6 +42,7 @@
 		collapsible = 'icon',
 		signedOut = false,
 		onWayIn = () => {},
+		onSwitchWorkspace = () => {},
 		...restProps
 	}: ComponentProps<typeof Sidebar.Root> & {
 		/** whether this is the rail before anybody has signed in. */
@@ -54,14 +54,14 @@
 		 * while `signedOut`.
 		 */
 		onWayIn?: () => void;
+		/**
+		 * a switch to another workspace, handed down by the root layout, which holds the startup
+		 * unit. A switch is the sign-in path run again past the wall, under the loading surface, and
+		 * that path is the unit's; the rail asks for it and draws whatever the unit reports, the way
+		 * every other surface beside the wall does.
+		 */
+		onSwitchWorkspace?: (workspaceId: string) => void;
 	} = $props();
-
-	/**
-	 * the startup unit, for switching workspaces. A switch is the sign-in path run again past
-	 * the wall, under the loading surface, and that path is the unit's; the rail asks for it and
-	 * draws whatever the unit reports, the way every other surface beside the wall does.
-	 */
-	const startup = useStartup();
 
 	const workspaceRows = slotsAt('workspace-menu');
 	const accountRows = slotsAt('account-menu');
@@ -128,7 +128,7 @@
 <Sidebar.Root bind:ref {collapsible} variant="inset" {...restProps}>
 	<Sidebar.Header>
 		{#each workspaceRows as WorkspaceRow, index (index)}
-			<WorkspaceRow {signedOut} onSwitch={(id) => void startup.switchWorkspace(id)} />
+			<WorkspaceRow {signedOut} onSwitch={onSwitchWorkspace} />
 		{/each}
 	</Sidebar.Header>
 

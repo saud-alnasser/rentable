@@ -1,4 +1,4 @@
-import type { StartupSnapshot } from './startup';
+import type { StartupSnapshot } from './snapshot';
 
 /**
  * THE STARTUP SURFACE DRAWN BEFORE A LOCALE IS

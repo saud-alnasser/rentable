@@ -41,7 +41,7 @@
 	 */
 	let { value, locale }: { value: PrintedScheduleValue; locale: Locales } = $props();
 
-	// every locale is in memory from startup on (`shell/startup.ts`), whichever one is showing.
+	// every locale is in memory from startup on (`startup/startup.ts`), whichever one is showing.
 	const t = $derived<TranslationFunctions>(i18nObject(locale));
 	const dir = $derived(locale === 'ar' ? 'rtl' : 'ltr');
 	const govId = $derived(value.contract.govId.trim());

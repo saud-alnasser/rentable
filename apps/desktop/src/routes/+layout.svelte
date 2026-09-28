@@ -21,8 +21,8 @@
 	import LayoutFrame from '$lib/shell/component/frame.svelte';
 	import { toScreen } from '@rentable/design/back.js';
 	import { back } from '@rentable/design/back.svelte.js';
-	import LayoutStartupError from '$lib/shell/component/startup-error.svelte';
-	import LayoutStartupUnreadable from '$lib/shell/component/startup-unreadable.svelte';
+	import LayoutStartupError from '$lib/startup/component/error.svelte';
+	import LayoutStartupUnreadable from '$lib/startup/component/unreadable.svelte';
 	import { CAUGHT_ERROR_EVENT, toCaughtErrorFields } from '$lib/shell/boundary';
 	import {
 		THE_FIRST_RUN,
@@ -32,19 +32,19 @@
 		wayInFrom
 	} from '$lib/shell/shell-surface';
 	import { linkArrived } from '$lib/organization/connect';
-	import { noteMigration } from '$lib/shell/migration-notice.svelte';
-	import { startupSurfaceBeforeLocale } from '$lib/shell/startup-surface';
+	import { noteMigration } from '$lib/startup/migration-notice.svelte';
+	import { startupSurfaceBeforeLocale } from '$lib/startup/gate';
 	import { recordDiagnosticError } from '$lib/platform/diagnostics';
-	import LayoutStartupLoading from '$lib/shell/component/startup-loading.svelte';
-	import LayoutStartupNoWorkspace from '$lib/shell/component/startup-no-workspace.svelte';
-	import LayoutStartupRecovery from '$lib/shell/component/startup-recovery.svelte';
-	import LayoutStartupSignIn from '$lib/shell/component/startup-sign-in.svelte';
+	import LayoutStartupLoading from '$lib/startup/component/loading.svelte';
+	import LayoutStartupNoWorkspace from '$lib/startup/component/no-workspace.svelte';
+	import LayoutStartupRecovery from '$lib/startup/component/recovery.svelte';
+	import LayoutStartupSignIn from '$lib/startup/component/sign-in.svelte';
 	import { listenForWindowCloseRequests } from '$lib/shell/event';
-	import { createStartup } from '$lib/shell/startup';
-	import { provideStartup } from '$lib/shell/startup-context';
+	import { createStartup } from '$lib/startup/startup';
+	import { provideStartup } from '$lib/startup/context';
 	import { useCreateWorkspace } from '$lib/organization/query';
 	import { useEarlierRecords } from '$lib/workspace/app-database';
-	import { browserStartupPorts } from '$lib/shell/startup-ports';
+	import { browserStartupPorts } from '$lib/startup/browser';
 	import { DesignProvider, type DesignStrings } from '@rentable/design/strings.js';
 	import { toRefusalText } from '$lib/error/refusal';
 	import { QueryClient, QueryClientProvider } from '@tanstack/svelte-query';
@@ -66,7 +66,7 @@
 
 	/**
 	 * Everything the application does between the process starting and a person being able to use
-	 * it lives in `$lib/shell/startup`, which is a plain unit a `node:test` drives with no window.
+	 * it lives in `$lib/startup/startup`, which is a plain unit a `node:test` drives with no window.
 	 *
 	 * What is left here is the route's own work: mirroring what that unit reports into something
 	 * this file can render from, deciding how much of the shell each state draws, and drawing it.
@@ -370,7 +370,7 @@
 		that branch is the one screen with no boundary above it and no way out but quitting. there
 		are two ways in, and each is held shut by a prop rather than by structure:
 
-		`startup-unreadable` draws a `StandaloneSurface`, and that block draws a packaged `Spinner`.
+		`startup/component/unreadable.svelte` draws a `StandaloneSurface`, and that block draws a packaged `Spinner`.
 		two things stop it, either of them on its own: the surface is given `tone="error"`, which
 		takes the branch that holds no spinner, and it is given no `busy`, which gates the spinner
 		inside the other branch.
@@ -411,7 +411,12 @@
 						     the card is already drawn and `wayInFrom` answers nothing, which is what keeps the
 						     reader's place. Starting the flow stays with the card below, the one surface that
 						     names the provider. -->
-						<LayoutFrame {currentDirection} {shell} onWayIn={goToTheWayIn}>
+						<LayoutFrame
+							{currentDirection}
+							{shell}
+							onWayIn={goToTheWayIn}
+							onSwitchWorkspace={(id) => void startup.switchWorkspace(id)}
+						>
 							{#if surface === 'loading'}
 								<LayoutStartupLoading />
 							{:else if surface === 'sign-in'}
@@ -483,7 +488,7 @@
 		loaded, and until one is every string resolves to the empty string rather than failing. So a
 		failure in the first stage of startup used to show an empty window that had been deliberately
 		made visible: nothing to press, and no way back but quitting.
-		`shell/startup-surface.ts` holds the decision and says why it is the only one made on this
+		`startup/gate.ts` holds the decision and says why it is the only one made on this
 		side of the gate.
 
 		**On the bare frame, like every other startup failure.** Requirement 6 gives that state the

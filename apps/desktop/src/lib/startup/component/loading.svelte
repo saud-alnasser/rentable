@@ -2,8 +2,8 @@
 	import { Progress } from '@rentable/design/primitive/progress/index.js';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { formatLocaleDate } from '$lib/platform/locale';
-	import { migrationNotice } from '$lib/shell/migration-notice.svelte';
-	import { startupProgressWithin, startupStage } from '$lib/shell/startup-stage.svelte';
+	import { migrationNotice } from '$lib/startup/migration-notice.svelte';
+	import { startupProgressWithin, startupStage } from '$lib/startup/stage.svelte';
 	import MarkIcon from '@lucide/svelte/icons/eclipse';
 
 	/**
@@ -22,7 +22,7 @@
 	 * since the reader last looked cannot be mistaken for one.
 	 *
 	 * **The stages are real**, which is what makes the bar a report — see
-	 * `$lib/shell/startup-stage.svelte`. The counter beside the stage says which of the pass's steps
+	 * `$lib/startup/stage.svelte`. The counter beside the stage says which of the pass's steps
 	 * this is, five on a launch and four on the pass that readies the first workspace, and it is the
 	 * exact figure on the screen: the bar's position is an estimate eased from
 	 * measured stage durations, so the two are deliberately different kinds of claim and the precise

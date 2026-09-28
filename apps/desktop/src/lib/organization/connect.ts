@@ -6,7 +6,7 @@ import type { LinkShape } from '$lib/organization/host';
  * CONNECTING BY A LINK
  *
  * what the connect screen is in, and how it moves: plain, so a `node:test` can drive every step
- * without a window, the way `shell/startup.ts` is driven.
+ * without a window, the way `startup/startup.ts` is driven.
  *
  * **A link arrives one of two ways, and the screen is the same for both.** The operating system
  * hands a `rentable://` link to the running process, or a person pastes one into the field; either

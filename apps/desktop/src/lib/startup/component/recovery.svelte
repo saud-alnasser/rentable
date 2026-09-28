@@ -19,7 +19,7 @@
 	 * which is the order asked for on 2026-08-20: the reader is standing on the first and was
 	 * heading for the second.
 	 *
-	 * See `startup-error.svelte` for why these two are the only screens on this block that declare
+	 * See `error.svelte` for why these two are the only screens on this block that declare
 	 * a tone, and why they do not declare the same one.
 	 */
 	let {

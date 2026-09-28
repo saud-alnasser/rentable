@@ -3,7 +3,8 @@ paths:
   - apps/desktop/tauri/src/organization/**
   - apps/desktop/tauri/src/upgrade/**
   - apps/desktop/src/lib/organization/**
-  - apps/desktop/src/lib/shell/startup.ts
+  - apps/desktop/src/lib/startup/machine.ts
+  - apps/desktop/src/lib/startup/wall.ts
 use-when: "the request touches an organization, its members, their roles and permissions, their vaults, or the account it lives on"
 ---
 

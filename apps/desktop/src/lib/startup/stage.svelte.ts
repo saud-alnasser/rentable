@@ -1,10 +1,10 @@
 import { recordDiagnosticInfo } from '$lib/platform/diagnostics';
-import { STARTUP_STAGES, stagesOfPass, type StartupStage } from './startup-stage';
+import { STARTUP_STAGES, stagesOfPass, type StartupStage } from './stage';
 
 /**
  * Where startup has got to, as the loading screen reads it.
  *
- * The vocabulary, the weights and the arithmetic are `./startup-stage`, which is a plain module so
+ * The vocabulary, the weights and the arithmetic are `./stage`, which is a plain module so
  * that a `node:test` can hold them to the route. What is here is the one reactive thing and the
  * one side effect: which stage the application is on, and the record of how long the last one took.
  */
@@ -15,8 +15,8 @@ export {
 	STARTUP_STAGE_WEIGHTS,
 	startupProgressFor,
 	startupProgressWithin
-} from './startup-stage';
-export type { StartupStage } from './startup-stage';
+} from './stage';
+export type { StartupStage } from './stage';
 
 /**
  * The stage, when it started, and the pass it is a stage of.

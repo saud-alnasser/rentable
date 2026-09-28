@@ -3,8 +3,8 @@ import { expect, test } from 'vitest';
 
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
-import StartupLoading from '$lib/shell/component/startup-loading.svelte';
-import { noteMigration } from '$lib/shell/migration-notice.svelte';
+import StartupLoading from '$lib/startup/component/loading.svelte';
+import { noteMigration } from '$lib/startup/migration-notice.svelte';
 import en from '$lib/i18n/en';
 import ar from '$lib/i18n/ar';
 

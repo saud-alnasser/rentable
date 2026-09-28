@@ -10,7 +10,13 @@ import {
 	THE_WAY_IN,
 	wayInFrom
 } from '$lib/shell/shell-surface.ts';
-import { fakeRecovery, harness, locked, nowhereToGo, withoutWorkspace } from './testing.ts';
+import {
+	fakeRecovery,
+	harness,
+	locked,
+	nowhereToGo,
+	withoutWorkspace
+} from '$lib/startup/tests/harness.ts';
 
 /**
  * WHICH ADDRESS DRAWS, AND IN WHICH STATE

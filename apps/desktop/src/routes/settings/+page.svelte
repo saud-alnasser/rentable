@@ -15,7 +15,7 @@
 	import { LL, locale, setLocale } from '$lib/i18n/i18n-svelte';
 	import type { Locales } from '$lib/i18n/i18n-types';
 	import { addressAfterSignOut } from '$lib/shell/shell-surface';
-	import { useStartup } from '$lib/shell/startup-context';
+	import { useStartup } from '$lib/startup/context';
 	import { useFetchOrganizationState } from '$lib/organization/query';
 	import SettingsArea from '$lib/settings/component/area.svelte';
 	import { useFetchSettings } from '$lib/settings/query';

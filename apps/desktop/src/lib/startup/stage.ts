@@ -9,7 +9,7 @@
  * **The five below are the awaits `routes/+layout.svelte` already performs, in the order it
  * performs them.** Nothing may be invented to fill the bar out and nothing real may be folded
  * away — a bar naming a step the application does not take is a decoration wearing a report's
- * clothes. `tests/startup-stage.test.ts` holds that to the route rather than to good intentions.
+ * clothes. `tests/stage.test.ts` holds that to the route rather than to good intentions.
  *
  * **One pass has a stage of its own before those**, `prepare`, and it is below the five rather than
  * among them because a launch never takes it: see [`PREPARE_STAGE`].
@@ -20,7 +20,7 @@
  *
  * *Plain rather than `.svelte.ts` deliberately: none of this is reactive, and a runes file cannot
  * be imported by a `node:test` at all. What is reactive is the current stage, and that is the
- * whole of `startup-stage.svelte.ts`.*
+ * whole of `stage.svelte.ts`.*
  */
 
 export const STARTUP_STAGES = ['settings', 'account', 'workspace', 'changes', 'records'] as const;
