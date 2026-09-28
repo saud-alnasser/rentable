@@ -196,7 +196,7 @@ impl LiveWorkspace {
     /// It is known to fail on some accounts, and this repository already measured why: Turso
     /// will not delete any database inside a delete-protected group, and answers `403 group
     /// <name> is delete-protected and cannot be deleted` even though the database itself is
-    /// not protected. `packages/turso-platform/index.ts` records the same finding.
+    /// not protected. `.aep/references/turso.md` records the same finding.
     ///
     /// **The first draft of this checked only whether the request was sent**, so a 403 read as
     /// a successful cleanup and four databases were left in the account with nothing said.

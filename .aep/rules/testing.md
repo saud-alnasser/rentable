@@ -3,19 +3,18 @@ paths:
   - apps/desktop/src/**
   - apps/desktop/tauri/src/**
   - packages/design/src/**
-  - packages/turso-platform/**
 use-when: "writing or changing a test, or deciding what a change must be tested at"
 ---
 
 <!--
   Path-scoped: the `paths:` frontmatter above is the authority, and the harness
-  enforces it — this rule loads when source under any of the four paths listed
+  enforces it — this rule loads when source under any of the three paths listed
   there is read, and costs nothing otherwise.
 
   The control plane was on that list from 2026-08-18 (#549) until it retired on
   2026-09-12 with [[efforts/819-an-organization-hosts-its-own-workspaces/spec]];
-  what it knew about Turso survives as `packages/turso-platform`, and **the
-  TypeScript section applies to that package word for word.**
+  what it knew about Turso survived as `packages/turso-platform`, on this list
+  too, until effort 840 removed that package, imported by nothing, on 2026-09-28.
 
   `packages/design/src/**` was added on 2026-08-23 with #775, and it is the one
   path here the TypeScript section does **not** describe word for word. Read
@@ -314,7 +313,7 @@ are **three properties, not four**, and the ticket that built each is named so a
 the file. All four are Rust.
 
 **A fourth property: whether the Platform API takes what a Rust port sends.** Ticket 05 moved the
-client that was `control-plane/src/workspace/turso.ts` (kept as `packages/turso-platform`) into
+client that was `control-plane/src/workspace/turso.ts` (kept as `packages/turso-platform` until effort 840 removed it) into
 `tauri/src/sync/turso/platform.rs`, and its live half creates a database in a group the consent named, mints a credential against that
 database, asserts delete protection is on, and deletes the database it just made once that
 protection has been lifted. **No group is created.** Nothing available to the application can make

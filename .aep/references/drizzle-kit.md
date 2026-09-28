@@ -32,9 +32,10 @@ pages. Who applies a *workspace* migration is [[contexts/desktop/persistence]]'s
 would not apply failed there rather than on a deploy.*
 
 **The desktop's `out` deliberately leaves the package** — it writes to
-`packages/workspace-migrations/`, because two runners ship the same SQL (`build.rs` embeds it for
-Rust, `packages/turso-platform/migration.ts` reads it in TypeScript) and a copy in either one is a
-second place it can change.
+`packages/workspace-migrations/`, because the SQL is not the desktop's alone (`build.rs` embeds it
+for Rust, and `memory.ts` builds the test database from it) and a copy in either one is a second
+place it can change. *A second runner, `packages/turso-platform/migration.ts`, read it in
+TypeScript until effort 840 removed that package on 2026-09-28.*
 
 *This section was wrong until 2026-08-20, in the direction that matters: it said the workspace
 migrations go to `apps/desktop/tauri/migrations/` and are applied by Rust at app startup. **Rust

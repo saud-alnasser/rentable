@@ -1,7 +1,7 @@
 //! Turso's Platform API, as this application uses it.
 //!
-//! **A port, not a client**, which is the retired control plane's `turso.ts` (now
-//! `packages/turso-platform/index.ts`) carried into Rust with its shape intact. Everything above this module reaches Turso through
+//! **A port, not a client**, which is the retired control plane's `turso.ts` carried into Rust
+//! with its shape intact. Everything above this module reaches Turso through
 //! [`TursoPlatform`], so a caller is tested against [`InMemoryPlatform`] answering in memory and
 //! the one place a live account is touched is where [`PlatformApi`] is constructed. What the
 //! in-memory stand-in cannot confirm is the contract itself, the paths, the credential, the query

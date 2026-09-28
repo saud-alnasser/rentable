@@ -3,7 +3,7 @@
 //! **A client applies migrations again, and it applies them the way the retired control plane did.** The
 //! shipped `.sql` files are embedded by `build.rs` in the order `drizzle-kit` numbers them, split at
 //! its statement breakpoints, and posted to the database's own HTTP endpoint, which is
-//! `packages/turso-platform/migration.ts` in one function. A sync connection cannot carry them:
+//! the control plane's TypeScript runner in one function. A sync connection cannot carry them:
 //! `0003` drops and renames tables, and the push that follows fails with *no such table*, measured
 //! on 2026-08-20 (#552). So they go over `/v2/pipeline`, which `database/test/workspace.rs` had
 //! already proved for its own tests, and which is promoted here rather than written a second time.

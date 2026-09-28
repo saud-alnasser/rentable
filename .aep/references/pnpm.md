@@ -13,14 +13,13 @@ or anything touching the lockfile.
 
 ## The workspace, and which tool runs what
 
-`pnpm-workspace.yaml` declares `apps/*` and `packages/*`. There are five packages, and the root
+`pnpm-workspace.yaml` declares `apps/*` and `packages/*`. There are four packages, and the root
 is a private, unversioned container named `rentable`. The scope is what keeps them distinct: the
 root holds the product's name, and every package under it is named within that scope.
 
 | Package | Where | What it is |
 | --- | --- | --- |
 | `@rentable/desktop` | `apps/desktop/` | the desktop application |
-| `@rentable/turso-platform` | `packages/turso-platform/` | Turso's Platform API and the migration runner in TypeScript, imported by nothing |
 | `@rentable/workspace-migrations` | `packages/workspace-migrations/` | the SQL a workspace database is built from |
 | `@rentable/workspace-permission` | `packages/workspace-permission/` | what a member may do to a workspace, named the same way on both sides |
 | `@rentable/design` | `packages/design/` | the interface every rentable client is drawn from |
@@ -28,7 +27,8 @@ root holds the product's name, and every package under it is named within that s
 *There was one until 2026-08-18, when #549 cut the second. This paragraph said "three packages"
 and named the first three until 2026-08-23, by which point there were five — the count is the
 part of it that goes stale, which is why it is a table now. The control plane, `apps/control-plane/`,
-retired on 2026-09-12 and its two Turso modules became `packages/turso-platform/`.*
+retired on 2026-09-12 and its two Turso modules became `packages/turso-platform/`, which effort 840
+removed on 2026-09-28 because nothing imported it.*
 
 **`pnpm install` reports six workspace projects, not five.** The root counts as one. A read that
 expects the package count to match is off by one and always will be.

@@ -18,16 +18,17 @@ sync retired (#554) and the record of truth moved.*
 `apps/desktop/`.** The root holds only what governs every package — the lockfile,
 `.changeset/`, the linting and formatting configuration, `turbo.json`, and `.aep/`.
 
-**There is one application, and four packages beside it.** `packages/workspace-migrations` is
+**There is one application, and three packages beside it.** `packages/workspace-migrations` is
 the SQL a workspace database is built from, `packages/workspace-permission` names what a member
-may do, `packages/design` is the design system, and `packages/turso-platform` is Turso's
-Platform API and the migration runner in TypeScript, imported by nothing. *`apps/control-plane/`
+may do, and `packages/design` is the design system. *`apps/control-plane/`
 stood beside the desktop from 2026-08-18 (#549) to 2026-09-12: the always-online tier holding
 accounts, workspaces and membership, deployed nowhere. It retired with
 [[efforts/819-an-organization-hosts-its-own-workspaces/spec]], requirement 19, when an
 organization on the customer's own Turso account took over everything it answered for, and its
-two Turso modules became the fourth package.* Everything below in this file describes the
-desktop application.
+two Turso modules became a fourth package, `packages/turso-platform`.* *That package was removed
+with effort 840 (requirement 16, 2026-09-28) because nothing in the desktop imported it:
+replication and the Platform API run in the Rust crate, `tauri/src/sync/turso/`, against the
+owner's own Turso account.* Everything below in this file describes the desktop application.
 
 **Every `src/…` and `tauri/…` path in the rest of this file, and in the rules and contexts
 beside it, is relative to `apps/desktop/`** unless it is written out in full. That is the one

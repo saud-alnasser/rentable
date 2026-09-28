@@ -231,9 +231,9 @@ const TOKEN_LIFETIME = '3d';
  * organisation, which is why it lives in `.env` and why nothing shipped goes anywhere near this
  * function.
  *
- * The call is `packages/turso-platform`'s `mintToken`, deliberately not imported: that module
- * builds a client around configuration this script does not have, and copying one URL is smaller
- * than reaching across a package boundary for it.
+ * The call is the Platform API's token mint, the one `tauri/src/sync/turso/platform.rs` makes,
+ * written out here because a script cannot reach the crate and copying one URL is smaller than
+ * building a client for it.
  */
 async function mintWorkspaceToken(workspaceId: string) {
 	const token = process.env.TURSO_API_TOKEN;

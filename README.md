@@ -5,14 +5,13 @@ a database on the customer's own Turso account, and syncs whenever there is a ne
 
 ## What is in here
 
-| Path                            | What it is                                                                                                  |
-| ------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `apps/desktop`                  | the application. A Tauri 2 shell in Rust around a SvelteKit 2 and Svelte 5 frontend                         |
-| `packages/workspace-migrations` | the SQL a workspace database is built from                                                                  |
-| `packages/workspace-permission` | what a member may do to a workspace, named the same way on both sides                                       |
-| `packages/design`               | the design system the frontend is drawn from                                                                |
-| `packages/turso-platform`       | Turso's Platform API and the migration runner in TypeScript, kept for a hosted tier and imported by nothing |
-| `.aep/`                         | how work is done here. `.aep/protocol.md` is the way in                                                     |
+| Path                            | What it is                                                                          |
+| ------------------------------- | ----------------------------------------------------------------------------------- |
+| `apps/desktop`                  | the application. A Tauri 2 shell in Rust around a SvelteKit 2 and Svelte 5 frontend |
+| `packages/workspace-migrations` | the SQL a workspace database is built from                                          |
+| `packages/workspace-permission` | what a member may do to a workspace, named the same way on both sides               |
+| `packages/design`               | the design system the frontend is drawn from                                        |
+| `.aep/`                         | how work is done here. `.aep/protocol.md` is the way in                             |
 
 An organization lives on a Turso account its owner holds: one database for the organization's
 own directory, sealed and signed, and one per workspace. Every member's machine keeps a replica

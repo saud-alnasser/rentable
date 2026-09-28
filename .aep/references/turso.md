@@ -5,9 +5,10 @@ use-when: 'provisioning a workspace database, minting a token to sync with one, 
 # Turso — the Platform API
 
 **This file is yours.** It records how Turso is actually reached from
-`apps/desktop/tauri/src/sync/turso/` and `packages/turso-platform/`; correct it where the
+`apps/desktop/tauri/src/sync/turso/`; correct it where the
 repository differs rather than deferring to what the documentation says. *It recorded the
-control plane's use until that retired on 2026-09-12.*
+control plane's use until that retired on 2026-09-12, and `packages/turso-platform/`'s until effort
+840 removed that package on 2026-09-28.*
 
 Docs: <https://docs.turso.tech/api-reference>
 Fetch the docs when a call you need is not listed below. **Never guess an endpoint or a
@@ -63,13 +64,13 @@ production uses.**
 There is no CLI in this repository's path. Everything is HTTP, against `https://api.turso.tech`,
 with `Authorization: Bearer <TURSO_API_TOKEN>`.
 
-**Three callers, and one of them ships.** **`apps/desktop/tauri/src/sync/turso/platform.rs` is the
+**Two callers, and one of them ships.** **`apps/desktop/tauri/src/sync/turso/platform.rs` is the
 one that ships, since 2026-09-11 and effort 819**: the control plane's client ported into the
 desktop with its port shape intact, spending a token a browser consent filed in the keyring, and
-reaching the customer's own account rather than ours. `packages/turso-platform/index.ts` is that
-client in TypeScript, kept for a hosted tier and imported by nothing; the endpoints below were
-first documented for it while it was `apps/control-plane/src/workspace/turso.ts`.
-`apps/desktop/tauri/src/database/test/workspace.rs` is the third, added 2026-08-20 by #552: it
+reaching the customer's own account rather than ours. The endpoints below were first documented
+for that client while it was `apps/control-plane/src/workspace/turso.ts`, and it was kept in
+TypeScript as `packages/turso-platform/index.ts`, imported by nothing, until effort 840 removed it.
+`apps/desktop/tauri/src/database/test/workspace.rs` is the second, added 2026-08-20 by #552: it
 provisions and destroys a database per test so that two replicas have something to diverge against,
 and, since effort 838, so that the migration's live test at the foot of `organization/migrate.rs`
 has a server to run the whole tail on; it is `#[cfg(test)]` and `#[ignore]`d ([[rules/testing]],
@@ -131,9 +132,9 @@ The hostname carries no scheme. `libsql://` is prepended where it is used — th
 
 ## Verification
 
-`packages/turso-platform/tests/platform.test.ts` runs the TypeScript client against a fake `fetch`
-and pins the path, the credential, the query parameters and the shape read back; the Rust port's
-tests in `sync/turso/platform.rs` do the same against a scripted server.
+The Rust port's tests in `sync/turso/platform.rs` run it against a scripted server and pin the
+path, the credential, the query parameters and the shape read back. *The TypeScript client's
+tests did the same against a fake `fetch` until effort 840 removed `packages/turso-platform`.*
 
 **Run live against this account 2026-08-18, at the human's request**, creating one database,
 minting a token for it, and attempting to delete it. What it settled:
@@ -208,7 +209,8 @@ applied through a *sync* connection. `0003` drops and renames its tables, and th
 fails with `no such table: main.complex`, measured 2026-08-20 against a live account. That is not a
 defect, a replica receives the schema as pages, but it does mean a replica is not a way to install
 a schema, and every runner here applies over the pipeline endpoint for that reason: #552's tests,
-the desktop's `organization/migrate.rs`, and the package's `migration.ts`.
+and the desktop's `organization/migrate.rs` (`packages/turso-platform`'s `migration.ts` did too,
+until effort 840 removed it).
 
 A live run creates a real database and is billed and quota-counted — the free tier permits 100.
 **It is the human's call**, the same standing rule as pushing.

@@ -27,8 +27,8 @@ organization on the customer's own Turso account answers everything the two answ
 > was the only thing that signed anybody in. `sync/google/`, `sync/sign_in.rs`, `sync/session.rs`
 > and `sync/control.rs` are deleted, with the keyring services they filed under left to age out;
 > the provider-neutral OAuth core in `sync/oauth/` survived, because the Turso consent drives it.
-> What the control plane knew about Turso survives as `packages/turso-platform`, imported by
-> nothing.
+> What the control plane knew about Turso survived as `packages/turso-platform`, imported by
+> nothing, until effort 840 removed it on 2026-09-28.
 
 > **Local backup is gone** (#569, 2026-08-19). Requirement 17 of
 > [[efforts/a-workspace-follows-its-user/spec]], directed by the human: Turso holds the record and

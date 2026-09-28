@@ -23,7 +23,6 @@ packages/workspace-migrations/
 | **`apps/desktop`, in Rust**       | `tauri/build.rs` mirrors the `.sql` files into `tauri/migrations/`, which is gitignored and generated, counts them into `WORKSPACE_SCHEMA_VERSION`, and embeds them for the wire runner below. Nothing applies them to a replica, and there is no local runner (#568)                  |
 | **`apps/desktop`, in TypeScript** | `src/lib/platform/database/memory.ts` builds the test database from this folder directly                                                                                                                                                                                               |
 | **`apps/desktop`, over the wire** | a workspace on the organization's account, created at the shipped version and brought up to it by whichever member opens it, under a lease: `tauri/build.rs` embeds the `.sql` files into the binary and `tauri/src/organization/migrate.rs` posts them to the database's own pipeline |
-| **`packages/turso-platform`**     | the retired control plane's runner in TypeScript, kept for a hosted tier and imported by nothing                                                                                                                                                                                       |
 
 **The desktop's `tauri/migrations/` is generated and must not be edited.** It exists because the
 Rust runner takes a directory and Tauri bundles one, and because moving it would have changed the
@@ -48,7 +47,7 @@ what points drizzle-kit here.
 
 **The count of `.sql` files here is the workspace schema version**, and every runner derives it
 from this directory rather than holding a number: `tauri/build.rs` counts them into the desktop
-binary, and `packages/turso-platform/migration.ts` counts them at runtime. A migration generated
+binary. A migration generated
 moves the version and nothing else can, which is the property the desktop depends on, since it
 compares the version it was built against with the version a workspace is recorded at, refuses
 one that is newer, and brings one that is older up under a lease.

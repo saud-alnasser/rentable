@@ -2,14 +2,13 @@
 paths:
   - apps/desktop/src/**
   - apps/desktop/tauri/src/**
-  - packages/turso-platform/**
   - packages/design/src/**
 use-when: "adding a module, a file, or a directory under src/ or tauri/src/, including throwaway prototype code"
 ---
 
 <!--
   Path-scoped: the `paths:` frontmatter above is the authority, and the harness
-  enforces it — this rule loads when source under any of the four trees listed
+  enforces it — this rule loads when source under any of the three trees listed
   there is read, and costs nothing otherwise.
 
   *Prototyping* was merged in here on 2026-08-17, from its own file. It answers
@@ -26,8 +25,8 @@ descriptive names over abbreviations.
 
 **`apps/control-plane/src/` was on the paths above from 2026-08-18 (#549) until it retired on
 2026-09-12** with [[efforts/819-an-organization-hosts-its-own-workspaces/spec]]; what it knew about
-Turso is `packages/turso-platform/`, three files and their tests, and the sections on Rust and on
-prototype code cover nothing in it.
+Turso became `packages/turso-platform/`, which was on them in turn until effort 840 removed it,
+imported by nothing, on 2026-09-28.
 
 **`packages/design/src/` joined on 2026-08-23 with #777**, with the same carve-out: it is a
 Svelte library, so the Rust sections have no subject there either. It is `src/lib/` plus

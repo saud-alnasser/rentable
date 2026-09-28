@@ -35,9 +35,9 @@ gets replaced.
 
 **The TypeScript suite will not catch either.** `memory.ts` applies migrations with
 `better-sqlite3.exec` over the raw file text, which is a third way of applying them and answers
-for no other; `packages/turso-platform/tests/migration.test.ts` runs the shipped files through
-the TypeScript runner against a real libSQL file, and the desktop's `workspace_live` test applies
-them through the Rust runner on the account.
+for no other; the desktop's `workspace_live` test applies them through the Rust runner on the
+account. *A TypeScript runner's test in `packages/turso-platform` ran them against a real libSQL
+file until effort 840 removed that package, imported by nothing.*
 
 **Transport**:
 What carries a query to the engine. Production goes through IPC to Rust; tests go through

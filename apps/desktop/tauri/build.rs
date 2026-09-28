@@ -31,8 +31,8 @@ fn main() {
 /// Where the workspace migrations actually live: `packages/workspace-migrations`.
 ///
 /// **One copy, and this crate is not where it is.** The same SQL builds a local workspace here
-/// and a hosted one over the wire, through `organization/migrate.rs` here and
-/// `packages/turso-platform` in TypeScript, so it is a package both depend on rather than a
+/// and a hosted one over the wire, through `organization/migrate.rs` here, and the frontend's
+/// test database is built from it too, so it is a package both depend on rather than a
 /// directory inside one of them. Reached by a path relative to this crate rather than through
 /// `node_modules`, because a build script that needs `pnpm install` to have run is a build script
 /// that fails on a fresh clone.
@@ -116,9 +116,9 @@ fn sql_files(folder: &Path) -> Vec<PathBuf> {
 /// literal the compiler sees: `env!` hands back a `&str`, and parsing one in a `const` context is
 /// a hand-written parser to avoid a build step that is three lines.
 ///
-/// **Counted, not parsed out of the highest filename.** The count is what
-/// `packages/turso-platform/migration.ts` derives its own version from, over the same
-/// package, and the two numbers only mean the same thing if they are derived the same way.
+/// **Counted, not parsed out of the highest filename.** Every runner this package has had derived
+/// its version the same way, so the version a workspace is recorded at means the same thing
+/// whichever runner wrote it.
 fn write_workspace_schema_version(migrations: &Path) {
     let version = sql_files(migrations).len();
     let out_dir = PathBuf::from(env::var("OUT_DIR").expect("missing out dir"));

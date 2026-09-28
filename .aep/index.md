@@ -27,8 +27,8 @@ Start at [[protocol]].
 | [[rules/frontend]] | writing or changing Svelte components, routes, styles, or client state | apps/desktop/src/lib/**, apps/desktop/src/routes/**, apps/desktop/src/app.css, packages/design/src/**, packages/design/components.json | — |
 | [[rules/interface]] | a surface is being placed, built, or restyled — a screen, a block, a list row, a form, or a cell | apps/desktop/src/lib/**/component/**, apps/desktop/src/lib/design/block/**, apps/desktop/src/lib/design/cell/**, apps/desktop/src/lib/dashboard/**, apps/desktop/src/lib/contract/**, apps/desktop/src/lib/payment/component/**, apps/desktop/src/routes/**, apps/desktop/src/app.css, packages/design/src/lib/block/**, packages/design/src/lib/primitive/**, packages/design/src/lib/tokens.css | — |
 | [[rules/migrations]] | adding or changing a workspace migration or an organization's change of format | apps/desktop/tauri/migrations/**, packages/workspace-migrations/**, apps/desktop/tauri/src/organization/transition/** | — |
-| [[rules/module-layout]] | adding a module, a file, or a directory under src/ or tauri/src/, including throwaway prototype code | apps/desktop/src/**, apps/desktop/tauri/src/**, packages/turso-platform/**, packages/design/src/** | — |
-| [[rules/testing]] | writing or changing a test, or deciding what a change must be tested at | apps/desktop/src/**, apps/desktop/tauri/src/**, packages/design/src/**, packages/turso-platform/** | — |
+| [[rules/module-layout]] | adding a module, a file, or a directory under src/ or tauri/src/, including throwaway prototype code | apps/desktop/src/**, apps/desktop/tauri/src/**, packages/design/src/** | — |
+| [[rules/testing]] | writing or changing a test, or deciding what a change must be tested at | apps/desktop/src/**, apps/desktop/tauri/src/**, packages/design/src/** | — |
 | [[rules/tracker]] | creating, reading, claiming, or labelling a ticket, or deciding whether work is a ticket at all | — | — |
 | [[rules/version-control]] | branching, committing, opening a pull request, or landing work here | — | — |
 
@@ -403,7 +403,7 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/02-the-crate-modules-are-checked]] test(tauri): the crate's modules are checked for cycles against a baseline | 840-a-feature-plugs-in-and-lives-in-one-place | resolved | 60 |
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/03-names-are-checked]] test: file and directory names are checked | 840-a-feature-plugs-in-and-lives-in-one-place | resolved | 60 |
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/04-unused-primitives-leave-the-design-package]] chore(design): the primitive families nothing imports are removed | 840-a-feature-plugs-in-and-lives-in-one-place | resolved | 01 |
-| [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/05-turso-platform-is-removed]] chore: the turso-platform package is removed | 840-a-feature-plugs-in-and-lives-in-one-place | open | 01 |
+| [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/05-turso-platform-is-removed]] chore: the turso-platform package is removed | 840-a-feature-plugs-in-and-lives-in-one-place | resolved | 01 |
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/06-dead-frontend-code-and-stale-config-are-removed]] chore(desktop): dead frontend code and stale configuration are removed | 840-a-feature-plugs-in-and-lives-in-one-place | open | 01 |
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/07-dead-rust-and-retired-vocabulary-are-removed]] chore(tauri): dead Rust items and the retired vocabulary are removed | 840-a-feature-plugs-in-and-lives-in-one-place | open | 02 |
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/08-permission-is-a-capability]] refactor(desktop): permission is a capability | 840-a-feature-plugs-in-and-lives-in-one-place | open | 01 |
