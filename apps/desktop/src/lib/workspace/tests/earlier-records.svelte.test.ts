@@ -8,7 +8,7 @@ import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import type { EarlierRead, ImportTable, Settings } from '$lib/platform/host';
 import { fakeSettings } from '$lib/platform/tests/testing';
 import EarlierRecords from '$lib/workspace/component/earlier-records.svelte';
-import { IMPORT_FLAGS } from '$lib/workspace/permission';
+import { IMPORT_FLAGS } from '$lib/permission';
 import { emptyHeld } from '$lib/workspace/workspace';
 import QueryProviders from '#tests/query-providers.svelte';
 import { forgetReader, holdEveryFlagBut, layOutLists, refusedControl } from '#tests/permission.ts';

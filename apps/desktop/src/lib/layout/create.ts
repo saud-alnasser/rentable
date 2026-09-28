@@ -2,7 +2,7 @@ import type { UnitPrefill } from '$lib/complex/unit/host.svelte';
 import type { PaymentPrefill } from '$lib/payment/host.svelte';
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 import type { RecordSubject } from '$lib/layout/palette';
-import type { RecordFlag } from '$lib/workspace/permission';
+import type { RecordFlag } from '$lib/permission';
 
 /**
  * THE COMMAND MENU'S CREATE GROUP

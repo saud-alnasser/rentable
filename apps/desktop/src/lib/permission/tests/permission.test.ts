@@ -20,7 +20,7 @@ import {
 	VIEW_FLAG,
 	type RecordFlag,
 	type RecordKind
-} from '$lib/workspace/permission';
+} from '$lib/permission';
 
 /**
  * WHAT A RECORD CONTROL IS REFUSED FOR

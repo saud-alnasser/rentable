@@ -20,7 +20,7 @@
 	import CopyXIcon from '@lucide/svelte/icons/copy-x';
 	import FileSpreadsheetIcon from '@lucide/svelte/icons/file-spreadsheet';
 	import api from '$lib/api/caller';
-	import { IMPORT_FLAGS, memberPermissions } from '$lib/workspace/permission';
+	import { IMPORT_FLAGS, memberPermissions } from '$lib/permission';
 
 	/**
 	 * Reading a file into one directory: choose it, see what it would do, then agree to it.

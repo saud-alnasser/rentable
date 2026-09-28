@@ -2,11 +2,11 @@
 	import { accessIn, workspacePermissionsIn } from '$lib/api/context';
 	import { useFetchOrganizationState } from '$lib/organization/query';
 	import { useFetchRemoteSyncState } from '$lib/settings/query';
-	import { memberPermissions } from '$lib/workspace/permission';
+	import { memberPermissions } from '$lib/permission';
 
 	/**
 	 * Where the reader stands in the workspace open, read once for the whole window and held where
-	 * every record control reads it (`workspace/permission.ts`). Draws nothing.
+	 * every record control reads it (`$lib/permission`). Draws nothing.
 	 *
 	 * **The same two reads the tRPC context folds**: the session's permissions, off the verified
 	 * row, with what is pinned for the reader in the workspace this machine has open, and that

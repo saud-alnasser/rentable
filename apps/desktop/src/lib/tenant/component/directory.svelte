@@ -26,7 +26,7 @@
 	import { TENANT_SORT_COLUMN_IDS, type TenantSortColumnId } from '$lib/tenant/tenant';
 	import { useImportRecords } from '$lib/workspace/query';
 	import { toTransferInput } from '$lib/workspace/workspace';
-	import { IMPORT_FLAGS, memberPermissions } from '$lib/workspace/permission';
+	import { IMPORT_FLAGS, memberPermissions } from '$lib/permission';
 	import { CONTRACT_ATTENTION_ORDER } from '$lib/contract/contract';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 

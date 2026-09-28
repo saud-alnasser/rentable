@@ -11,7 +11,7 @@
 	import { tauri } from '$lib/platform/tauri';
 	import WorkspaceImportDialog from '$lib/workspace/component/import-dialog.svelte';
 	import { useImportRecords } from '$lib/workspace/query';
-	import { EXPORT_FLAGS, IMPORT_FLAGS, memberPermissions } from '$lib/workspace/permission';
+	import { EXPORT_FLAGS, IMPORT_FLAGS, memberPermissions } from '$lib/permission';
 	import {
 		TRANSFER_COLUMNS,
 		TRANSFER_CONCEPTS,

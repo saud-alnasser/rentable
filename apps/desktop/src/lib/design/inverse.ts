@@ -1,6 +1,6 @@
 import type { HistoryEntry } from '$lib/history/history';
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
-import { memberPermissions, type RecordFlag } from '$lib/workspace/permission';
+import { memberPermissions, type RecordFlag } from '$lib/permission';
 
 /**
  * INVERSE

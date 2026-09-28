@@ -1,5 +1,5 @@
 import type { RouteId } from '$app/types';
-import type { RecordKind } from '$lib/workspace/permission';
+import type { RecordKind } from '$lib/permission';
 
 /**
  * Every page this application has, by its route id.

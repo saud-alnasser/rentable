@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [01]
 ---
 # refactor(desktop): permission is a capability
@@ -14,10 +14,10 @@ The spec is [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]]; the 
 
 Traces requirements 1, 7 and 20 of [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]], and criteria 1, 7 and 20.
 
-- [ ] `RecordKind` is `(typeof RECORD_KINDS)[number]` and declared nowhere else in `src/lib` (criterion 1).
-- [ ] Nothing imports `$lib/workspace/permission`; `design/` imports `$lib/permission` (criteria 7 and 20).
-- [ ] The baseline loses the `design` to `workspace` lines.
-- [ ] The integration gate passes on this commit; no test assertion changes except where it names a moved path (criterion 19).
+- [x] `RecordKind` is `(typeof RECORD_KINDS)[number]` and declared nowhere else in `src/lib` (criterion 1). Verified: `permission/permission.ts:35` declares `export type RecordKind = (typeof RECORD_KINDS)[number]`; a search of `src/lib` for a `RecordKind` declaration finds only that line (other hits import it, and `organization/role.ts` re-exports the package's own type). The derived `EXPORT_FLAGS` and `IMPORT_FLAGS` are arrays of the same union rather than fixed tuples (values and order identical; no consumer reads the tuple shape; accepted by the orchestrator).
+- [x] Nothing imports `$lib/workspace/permission`; `design/` imports `$lib/permission` (criteria 7 and 20). Verified: `grep -rn lib/workspace/permission apps/desktop/src` prints nothing; `design/acts.ts`, `design/inverse.ts` and `design/tests/inverse.test.ts` import `$lib/permission`.
+- [x] The baseline loses the `design` to `workspace` lines. Verified: `grep -c "design.*-> workspace" layers.baseline.txt` prints `0`; 34 lines removed, the two `design/{acts,inverse}.ts` upward lines rewritten to `permission/index.ts`.
+- [x] The integration gate passes on this commit; no test assertion changes except where it names a moved path (criterion 19). Verified: in the run's tree: check 0, eslint 0, `pnpm test` 3 of 3 tasks, build:web 0; no assertion line changed in any test.
 
 ## Relevant areas
 

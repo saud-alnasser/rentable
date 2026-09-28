@@ -16,7 +16,7 @@ import DirectoryImportDialog from '$lib/workspace/component/directory-import-dia
 import WorkspaceImportDialog from '$lib/workspace/component/import-dialog.svelte';
 import WorkspacePermissions from '$lib/workspace/component/permissions.svelte';
 import WorkspaceTransfer from '$lib/workspace/component/transfer.svelte';
-import { memberPermissions } from '$lib/workspace/permission';
+import { memberPermissions } from '$lib/permission';
 import QueryProviders from '#tests/query-providers.svelte';
 import { describedBy, forgetReader, holdEveryFlagBut, holdReadOnly } from '#tests/permission.ts';
 import { EVERY_FLAG, maskOf } from '@rentable/workspace-permission';

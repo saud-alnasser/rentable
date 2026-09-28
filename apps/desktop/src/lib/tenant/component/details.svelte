@@ -9,7 +9,7 @@
 	import { isRecordId } from '$lib/platform/database/identity';
 	import { tenantActs } from '$lib/tenant/host.svelte';
 	import { useFetchTenant } from '$lib/tenant/query';
-	import { memberPermissions } from '$lib/workspace/permission';
+	import { memberPermissions } from '$lib/permission';
 	import TenantContracts from './contracts.svelte';
 
 	let { tenantId }: { tenantId: string } = $props();

@@ -11,7 +11,7 @@
 	import * as Cell from '$lib/design/cell';
 	import { formatLocaleNumber } from '$lib/platform/locale';
 	import UnitDirectory from '$lib/complex/unit/component/directory.svelte';
-	import { memberPermissions } from '$lib/workspace/permission';
+	import { memberPermissions } from '$lib/permission';
 
 	let { complexId }: { complexId: string } = $props();
 

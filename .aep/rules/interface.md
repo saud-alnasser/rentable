@@ -319,7 +319,7 @@ declared concept to it, for a record in each state it can be in.
 
 **An act's `flag` is the flag its procedure names**, one of a record kind's view, create, edit and
 delete. It is read against what the reader may do in the workspace open, held once for the window
-by `workspace/component/permissions.svelte` in `workspace/permission.ts`, off the same facts the
+by `workspace/component/permissions.svelte` in the `permission/` capability, off the same facts the
 tRPC context folds: the session's permissions, what is pinned for the reader in the workspace open
 (the workspace layer, `effectiveInWorkspace`), and the grant on it. Where the reader
 lacks the flag, the act is shown refused on every record, and the reason names the flag, or the

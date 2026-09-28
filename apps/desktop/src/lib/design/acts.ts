@@ -4,7 +4,7 @@ import { toShortcutHint, type ShortcutCombination } from '@rentable/design/short
 import { get } from 'svelte/store';
 import { LL } from '$lib/i18n/i18n-svelte';
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
-import { memberPermissions, type RecordFlag } from '$lib/workspace/permission';
+import { memberPermissions, type RecordFlag } from '$lib/permission';
 
 /**
  * RECORD ACTS

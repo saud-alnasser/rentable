@@ -14,7 +14,7 @@
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import PaymentLedger from '$lib/payment/component/ledger.svelte';
 	import { useFetchTenant } from '$lib/tenant/query';
-	import { memberPermissions } from '$lib/workspace/permission';
+	import { memberPermissions } from '$lib/permission';
 	import ContractSchedule from './schedule.svelte';
 	import ContractUnits from './units.svelte';
 

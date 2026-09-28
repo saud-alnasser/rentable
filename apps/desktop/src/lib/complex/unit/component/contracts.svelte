@@ -10,7 +10,7 @@
 	import { contractHost } from '$lib/contract/host.svelte';
 	import type { FilterSelection } from '$lib/design/filter';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import { memberPermissions } from '$lib/workspace/permission';
+	import { memberPermissions } from '$lib/permission';
 
 	/** The unit these contracts mention. */
 	let { unitId }: { unitId: string } = $props();

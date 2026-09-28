@@ -26,7 +26,7 @@
 	import DirectoryImportDialog from '$lib/workspace/component/directory-import-dialog.svelte';
 	import { useImportRecords } from '$lib/workspace/query';
 	import { toTransferInput } from '$lib/workspace/workspace';
-	import { IMPORT_FLAGS, memberPermissions } from '$lib/workspace/permission';
+	import { IMPORT_FLAGS, memberPermissions } from '$lib/permission';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	// the counts of occupied and vacant units wear the glyphs the unit's own status wears, so a
 	// count and the status it counts read as the same mark.

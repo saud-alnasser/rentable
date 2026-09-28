@@ -1,9 +1,10 @@
 import {
 	effectiveIn,
+	FAMILIES,
 	permits,
+	RECORD_KINDS,
 	WRITE_FLAGS,
-	type AccessLevel,
-	type FAMILIES
+	type AccessLevel
 } from '@rentable/workspace-permission';
 import { createSubscriber } from 'svelte/reactivity';
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
@@ -23,47 +24,45 @@ import type { TranslationFunctions } from '$lib/i18n/i18n-types';
  * stack can read it under Node's runner, which cannot load one. It is still reactive where it is
  * read inside a component: `createSubscriber` is what makes a control drawn off it draw again when
  * a heartbeat brings a narrowed role or a workspace switch brings a read-only grant.
+ *
+ * **The kinds and their flags are the permission package's**, read off `RECORD_KINDS` and
+ * `FAMILIES` rather than listed again here, so a kind added there reaches every table below. Each
+ * family holds its kind's flags in the order view, create, edit, delete, which is what the first
+ * and second place are read by.
  */
 
-/** A record flag: viewing, creating, editing or deleting one kind of record. */
-export type RecordFlag = (typeof FAMILIES)[
-	'complex' | 'unit' | 'tenant' | 'contract' | 'payment'][number];
-
 /** The kinds of record a workspace holds. */
-export type RecordKind = 'complex' | 'unit' | 'tenant' | 'contract' | 'payment';
+export type RecordKind = (typeof RECORD_KINDS)[number];
+
+/** A record flag: viewing, creating, editing or deleting one kind of record. */
+export type RecordFlag = (typeof FAMILIES)[RecordKind][number];
+
+/** The flag that lets a member see records of one kind at all: its family's first. */
+type ViewFlagOf<Kind extends RecordKind> = (typeof FAMILIES)[Kind][0];
+
+/** The flag that lets a member add records of one kind: its family's second. */
+type CreateFlagOf<Kind extends RecordKind> = (typeof FAMILIES)[Kind][1];
 
 /** The flag that lets a member see records of a kind at all. */
-export const VIEW_FLAG = {
-	complex: 'viewComplex',
-	unit: 'viewUnit',
-	tenant: 'viewTenant',
-	contract: 'viewContract',
-	payment: 'viewPayment'
-} as const satisfies Record<RecordKind, RecordFlag>;
+export const VIEW_FLAG = Object.fromEntries(
+	RECORD_KINDS.map((kind) => [kind, FAMILIES[kind][0]])
+) as { readonly [Kind in RecordKind]: ViewFlagOf<Kind> } satisfies Record<RecordKind, RecordFlag>;
 
 /**
  * What an export reads, and so what it asks for: every kind's view, as `workspace.get` does, since
  * the file holds every kind and a member who may not view one is not handed it in a file.
  */
-export const EXPORT_FLAGS = [
-	'viewComplex',
-	'viewUnit',
-	'viewTenant',
-	'viewContract',
-	'viewPayment'
-] as const satisfies readonly RecordFlag[];
+export const EXPORT_FLAGS: readonly ViewFlagOf<RecordKind>[] = RECORD_KINDS.map(
+	(kind) => FAMILIES[kind][0]
+);
 
 /**
  * What an import writes, and so what it asks for: every kind's create, as `workspace.importWhole`
  * does, since one procedure takes a file of any kind and writes it all or none.
  */
-export const IMPORT_FLAGS = [
-	'createComplex',
-	'createUnit',
-	'createTenant',
-	'createContract',
-	'createPayment'
-] as const satisfies readonly RecordFlag[];
+export const IMPORT_FLAGS: readonly CreateFlagOf<RecordKind>[] = RECORD_KINDS.map(
+	(kind) => FAMILIES[kind][1]
+);
 
 /**
  * Where the reader stands in the workspace open: what they may do in it before the grant is read

@@ -9,7 +9,7 @@
 	import { fieldOfFailure, toRefusalText } from '$lib/error/refusal';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { useCreateComplex, useUpdateComplex } from '$lib/complex/query';
-	import { memberPermissions } from '$lib/workspace/permission';
+	import { memberPermissions } from '$lib/permission';
 	import type { DraftUnit } from '$lib/complex/unit/name';
 	import UnitEntry from '$lib/complex/unit/component/entry.svelte';
 	import PlusIcon from '@lucide/svelte/icons/plus';

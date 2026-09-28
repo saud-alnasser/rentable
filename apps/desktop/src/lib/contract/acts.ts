@@ -5,7 +5,7 @@ import {
 } from '$lib/contract/contract';
 import { isReminderRank } from '$lib/contract/reminder';
 import type { RecordAct } from '$lib/design/acts';
-import { memberPermissions } from '$lib/workspace/permission';
+import { memberPermissions } from '$lib/permission';
 import BanIcon from '@lucide/svelte/icons/ban';
 import CalendarPlusIcon from '@lucide/svelte/icons/calendar-plus';
 import CopyIcon from '@lucide/svelte/icons/copy';

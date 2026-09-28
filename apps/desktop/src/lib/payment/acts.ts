@@ -2,7 +2,7 @@ import { hasSatisfiedContractPaymentRequirement } from '$lib/contract/contract';
 import type { RecordAct } from '$lib/design/acts';
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 import type { Contract, Payment } from '$lib/platform/database/schema';
-import { memberPermissions } from '$lib/workspace/permission';
+import { memberPermissions } from '$lib/permission';
 import CopyIcon from '@lucide/svelte/icons/copy';
 import FilesIcon from '@lucide/svelte/icons/files';
 import PrinterIcon from '@lucide/svelte/icons/printer';

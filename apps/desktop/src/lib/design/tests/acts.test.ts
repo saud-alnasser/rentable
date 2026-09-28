@@ -1220,7 +1220,7 @@ test('a move is placed directly below the role it passes, and the edges say why 
  * the grant rather than the role.
  */
 
-const { memberPermissions } = await import('$lib/workspace/permission');
+const { memberPermissions } = await import('$lib/permission');
 const { EVERY_FLAG, WRITE_FLAGS, maskOf } = await import('@rentable/workspace-permission');
 
 type Flagged = { concept: string; acts: RecordActs<never>; record: never };

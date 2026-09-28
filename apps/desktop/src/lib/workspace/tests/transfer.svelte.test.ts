@@ -6,7 +6,7 @@ import en from '$lib/i18n/en';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import WorkspaceTransfer from '$lib/workspace/component/transfer.svelte';
-import { EXPORT_FLAGS } from '$lib/workspace/permission';
+import { EXPORT_FLAGS } from '$lib/permission';
 import QueryProviders from '#tests/query-providers.svelte';
 import { forgetReader, holdEveryFlagBut, refusedControl } from '#tests/permission.ts';
 

@@ -39,7 +39,7 @@
 	} from '$lib/layout/palette';
 	import { toViewablePlaces } from '$lib/layout/navigation';
 	import { useRecordConcepts } from '$lib/layout/record-search';
-	import { memberPermissions } from '$lib/workspace/permission';
+	import { memberPermissions } from '$lib/permission';
 	import ZapIcon from '@lucide/svelte/icons/zap';
 	import FileIcon from '@lucide/svelte/icons/file-text';
 	import PlusIcon from '@lucide/svelte/icons/plus';

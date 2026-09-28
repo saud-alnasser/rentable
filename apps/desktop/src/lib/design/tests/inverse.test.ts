@@ -5,7 +5,7 @@ import { i18nObject } from '$lib/i18n/i18n-util.ts';
 import { loadLocale } from '$lib/i18n/i18n-util.sync.ts';
 
 import { InverseStack } from '../inverse.ts';
-import { memberPermissions } from '$lib/workspace/permission.ts';
+import { memberPermissions } from '$lib/permission';
 import { EVERY_FLAG, maskOf } from '@rentable/workspace-permission';
 
 // an inverse names the change in the reader's language, and takes the whole of what a locale

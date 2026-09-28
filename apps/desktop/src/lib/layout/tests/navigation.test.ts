@@ -10,7 +10,7 @@ import {
 	toViewablePlaces,
 	type BreadcrumbCrumb
 } from '../navigation.ts';
-import type { RecordKind } from '$lib/workspace/permission.ts';
+import type { RecordKind } from '$lib/permission';
 
 test('a route is active on its own page and on anything beneath it', () => {
 	assert.equal(isActiveRoute('/tenants', '/tenants'), true);

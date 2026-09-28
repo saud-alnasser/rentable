@@ -15,7 +15,7 @@ import { useSearchPayments } from '$lib/payment/query';
 import { tenantActs, tenantHost } from '$lib/tenant/host.svelte';
 import { RECORD_PARAM, WORKSPACE_PARAM, withSection } from '$lib/settings/section';
 import { useSearchTenants } from '$lib/tenant/query';
-import { memberPermissions, type RecordKind } from '$lib/workspace/permission';
+import { memberPermissions, type RecordKind } from '$lib/permission';
 
 /**
  * RECORD SEARCH

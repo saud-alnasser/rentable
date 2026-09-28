@@ -75,7 +75,7 @@ const { applyRedo, applyUndo, declareMutation, describeOutcomeChange } =
 	await import('$lib/design/mutation');
 const { workspacePrefixes } = await import('$lib/design/query');
 const { inverseStack } = await import('$lib/design/inverse');
-const { memberPermissions } = await import('$lib/workspace/permission');
+const { memberPermissions } = await import('$lib/permission');
 const { EVERY_FLAG, maskOf } = await import('@rentable/workspace-permission');
 // reached through the library's own accessor, so the client arrives typed as the one the
 // mutation layer takes — and is the recorder above, because the library is substituted.

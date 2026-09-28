@@ -24,7 +24,7 @@
 	import FileSpreadsheetIcon from '@lucide/svelte/icons/file-spreadsheet';
 	import UnlinkIcon from '@lucide/svelte/icons/unlink';
 	import api from '$lib/api/caller';
-	import { IMPORT_FLAGS, memberPermissions } from '$lib/workspace/permission';
+	import { IMPORT_FLAGS, memberPermissions } from '$lib/permission';
 
 	/**
 	 * Reading a whole workspace out of one file: choose it, see what each sheet would do, agree.

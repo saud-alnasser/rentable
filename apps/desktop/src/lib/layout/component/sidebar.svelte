@@ -14,7 +14,7 @@
 	import { useStartup } from '$lib/layout/startup-context';
 	import { useFetchRemoteSyncState } from '$lib/settings/query';
 	import { useFetchMembers, useFetchOrganizationState } from '$lib/organization/query';
-	import { memberPermissions } from '$lib/workspace/permission';
+	import { memberPermissions } from '$lib/permission';
 	import type { ComponentProps } from 'svelte';
 
 	/**

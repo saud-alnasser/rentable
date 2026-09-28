@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
-import type { RecordFlag } from '$lib/workspace/permission';
+import type { RecordFlag } from '$lib/permission';
 import {
 	forgetReader,
 	holdEveryFlagBut,

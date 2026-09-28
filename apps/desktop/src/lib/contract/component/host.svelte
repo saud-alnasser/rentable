@@ -46,7 +46,7 @@
 	import type { Locales } from '$lib/i18n/i18n-types';
 	import { i18nObject } from '$lib/i18n/i18n-util';
 	import { useReadTenant } from '$lib/tenant/query';
-	import { memberPermissions } from '$lib/workspace/permission';
+	import { memberPermissions } from '$lib/permission';
 	import { onDestroy, untrack } from 'svelte';
 	import ContractForm from './form.svelte';
 	import PrintedSchedule, { type PrintedScheduleValue } from './printed-schedule.svelte';

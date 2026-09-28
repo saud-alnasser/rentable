@@ -7,7 +7,7 @@
 	import { tauri } from '$lib/platform/tauri';
 	import { useSettleEarlierRecords } from '$lib/settings/query';
 	import WorkspaceImportDialog from '$lib/workspace/component/import-dialog.svelte';
-	import { IMPORT_FLAGS, memberPermissions } from '$lib/workspace/permission';
+	import { IMPORT_FLAGS, memberPermissions } from '$lib/permission';
 	import { useEarlierRecords } from '$lib/workspace/earlier';
 	import { useImportRecords } from '$lib/workspace/query';
 	import { toTransferInput } from '$lib/workspace/workspace';

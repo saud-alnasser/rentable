@@ -4,7 +4,7 @@ import test from 'node:test';
 import { i18nObject } from '$lib/i18n/i18n-util.ts';
 import { loadLocale } from '$lib/i18n/i18n-util.sync.ts';
 import { declarePaletteCreates, toOfferedCreates, type PaletteCreate } from '../create.ts';
-import { refusalOfEvery, type RecordFlag, type Standing } from '$lib/workspace/permission.ts';
+import { refusalOfEvery, type RecordFlag, type Standing } from '$lib/permission';
 import { EVERY_FLAG, maskOf } from '@rentable/workspace-permission';
 import type { RecordSubject } from '../palette.ts';
 
