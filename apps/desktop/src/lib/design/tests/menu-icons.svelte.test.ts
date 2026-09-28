@@ -12,7 +12,7 @@ import {
 	fakeOrganizationSession,
 	fakeOrganizationWorkspace
 } from '$lib/organization/tests/testing.ts';
-import { fakeWorkspace } from '$lib/platform/tests/testing.ts';
+import { fakeWorkspace } from '$lib/sync/tests/testing.ts';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 
 import ListHarness from './list-harness.svelte';

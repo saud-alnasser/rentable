@@ -94,7 +94,7 @@ export type Api = Awaited<ReturnType<typeof createApi>>;
 // with, for asserting what it costs rather than only what it leaves behind.
 //
 // The identity is supplied rather than resolved, and every router test wants that: a fake host
-// refuses `remoteSync.getState` by name, and a context that had to resolve an acting user over
+// refuses `sync.getState` by name, and a context that had to resolve an acting user over
 // one would refuse every test in the suite for want of a sign-in none of them is about.
 //
 // **It administers nothing unless a test says otherwise**, which is what `identity` is for: a

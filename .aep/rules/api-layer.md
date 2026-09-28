@@ -43,11 +43,16 @@ use-when: "adding or changing a router, a domain module, a database client or tr
 - **Every `invoke` belongs in its concept's `tauri.ts` adapter**, with the two hot database
   commands as the only exception. A component or router calling `invoke` directly is a defect.
   A concept that crosses to Rust declares its port in its own `host.ts` and satisfies it in its
-  `tauri.ts` (the organization's are `organization/host.ts` and `organization/tauri.ts`); what
-  is no feature's is `platform/host.ts` and `platform/tauri.ts`. `app/host.ts` composes the
-  `Host` the request context carries from the platform's part and each feature's port, and
-  `app/caller.ts` binds it into the caller with the root router. *It read "belongs in the Tauri facade" until ticket 23
-  of effort 840 gave the organization its own port.*
+  `tauri.ts`: the organization, sync, update, settings, startup and the workspace (its records of
+  an earlier version) among the features, print and transfer among the capabilities. What is no
+  feature's, the window, the opener, the dialogs and diagnostics, is `platform/host.ts` and
+  `platform/tauri.ts`, and `platform` imports no feature. `app/host.ts` composes the `Host` the
+  request context carries from the platform's part and each port under its concept's name
+  (`ctx.host.sync`, `ctx.host.startup`), and `app/caller.ts` binds it into the caller with the
+  root router. A concept's own code imports its adapter; another concept reaches a capability's
+  through its entry (`transferHost` from `$lib/transfer`), and the shell is handed a feature's
+  port by the root layout. *It read "belongs in the Tauri facade" until ticket 23 of effort 840
+  gave the organization its own port, and ticket 24 gave every other crossing concept its own.*
 - **Ambient capabilities only in the request context** — the things that cross the process
   boundary or are nondeterministic. Business configuration is not one of them and does not
   belong there.

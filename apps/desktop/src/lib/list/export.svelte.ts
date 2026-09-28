@@ -10,6 +10,7 @@ import { isolateDirection } from '$lib/error/message';
 import { LL } from '$lib/i18n/i18n-svelte';
 import { showErrorToast, showSuccessToast } from '$lib/notification';
 import { tauri } from '$lib/platform/tauri';
+import { transferHost } from '$lib/transfer';
 
 /**
  * this application's answer to the three things an export cannot do for itself.
@@ -21,8 +22,8 @@ import { tauri } from '$lib/platform/tauri';
  */
 const writer: ExportWriter = {
 	chooseFile: (suggested) => tauri.dialog.saveFile(suggested),
-	writeText: (path, contents) => tauri.export.write(path, contents),
-	writeWorkbook: (path, sheets) => tauri.export.writeWorkbook(path, sheets)
+	writeText: (path, contents) => transferHost.export.write(path, contents),
+	writeWorkbook: (path, sheets) => transferHost.export.writeWorkbook(path, sheets)
 };
 
 /**

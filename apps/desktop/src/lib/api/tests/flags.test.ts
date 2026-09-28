@@ -13,7 +13,7 @@ import {
 	fakeOrganizationState,
 	fakeOrganizationWorkspace
 } from '$lib/organization/tests/testing.ts';
-import { fakeSyncState, fakeWorkspace } from '$lib/platform/tests/testing.ts';
+import { fakeSyncState, fakeWorkspace } from '$lib/sync/tests/testing.ts';
 import { appRouter } from '$lib/app/router.ts';
 import { caller, context, type Meta } from '../trpc.ts';
 import { createApi, fakeIdentity, NOW, unusedId } from '$lib/app/tests/testing.ts';
@@ -310,8 +310,8 @@ function managerOnReadOnly(): Host {
 
 	return fakeHost({
 		organization: { ...fakeHost().organization, getState: async () => state },
-		remoteSync: {
-			...fakeHost().remoteSync,
+		sync: {
+			...fakeHost().sync,
 			getState: async () => fakeSyncState({ workspace: fakeWorkspace({ remoteId: 'north' }) })
 		}
 	});
@@ -380,8 +380,8 @@ function managerTailoredIn(open: string): Host {
 
 	return fakeHost({
 		organization: { ...fakeHost().organization, getState: async () => state },
-		remoteSync: {
-			...fakeHost().remoteSync,
+		sync: {
+			...fakeHost().sync,
 			getState: async () => fakeSyncState({ workspace: fakeWorkspace({ remoteId: open }) })
 		}
 	});

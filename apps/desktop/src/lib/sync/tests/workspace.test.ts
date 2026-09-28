@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { mock, test } from 'node:test';
 
-import type { RemoteSyncState, ReplicationRefusal } from '$lib/platform/host.ts';
-import { fakeSyncState, fakeWorkspace } from '$lib/platform/tests/testing.ts';
+import type { RemoteSyncState, ReplicationRefusal } from '$lib/sync/host.ts';
+import { fakeSyncState, fakeWorkspace } from '$lib/sync/tests/testing.ts';
 
 /**
  * THE DISPATCH
@@ -23,21 +23,19 @@ let replicatesTo = false;
 let pushesTo = true;
 let refusesWith: ReplicationRefusal = 'none';
 
-mock.module('$lib/platform/tauri', {
+mock.module('$lib/sync/tauri', {
 	exports: {
 		tauri: {
-			remoteSync: {
-				getState: async () => shellState,
-				replicate: async () => {
-					calls.push('replicate');
+			getState: async () => shellState,
+			replicate: async () => {
+				calls.push('replicate');
 
-					return { pushed: pushesTo, received: replicatesTo, refusal: refusesWith };
-				},
-				push: async () => {
-					calls.push('push');
+				return { pushed: pushesTo, received: replicatesTo, refusal: refusesWith };
+			},
+			push: async () => {
+				calls.push('push');
 
-					return pushesTo;
-				}
+				return pushesTo;
 			}
 		}
 	}

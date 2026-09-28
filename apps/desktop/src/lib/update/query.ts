@@ -1,5 +1,7 @@
 import api from '$lib/api/caller';
-import { tauri, type RemoteSyncState } from '$lib/platform/tauri';
+import { tauri } from '$lib/platform/tauri';
+import type { RemoteSyncState } from '$lib/sync/host';
+import { tauri as update } from '$lib/update/tauri';
 import { syncWorkspaceBeforeExit } from '$lib/sync/workspace';
 import { keys as syncKeys } from '$lib/sync/query';
 import { declareMutation } from '$lib/mutation';
@@ -15,7 +17,7 @@ import { declareMutation } from '$lib/mutation';
 
 /** ask the updater whether a newer release exists. resolves to `null` when none does. */
 export const useCheckForUpdate = declareMutation({
-	mutate: () => tauri.update.check(),
+	mutate: () => update.check(),
 	touches: 'none'
 });
 

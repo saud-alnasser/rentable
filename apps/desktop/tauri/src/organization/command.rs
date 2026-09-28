@@ -2674,7 +2674,7 @@ mod tests {
     const CREATED_AT: i64 = 1_757_000_000_000;
 
     /// **What one replication answers the web layer, pinned as it crosses** (effort 840, ticket
-    /// 47): each of the three refusals, as the one word `platform/host.ts`'s `ReplicationRefusal`
+    /// 47): each of the three refusals, as the one word `sync/host.ts`'s `ReplicationRefusal`
     /// reads, and never Turso's sentence, which is the owner's alone.
     #[test]
     fn a_replication_crosses_with_its_refusal_as_one_word() {

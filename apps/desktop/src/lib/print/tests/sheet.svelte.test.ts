@@ -5,7 +5,8 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 const host = vi.hoisted(() => ({ page: vi.fn() }));
 const dialog = vi.hoisted(() => ({ saveFile: vi.fn() }));
 
-vi.mock('$lib/platform/tauri', () => ({ tauri: { print: host, dialog } }));
+vi.mock('$lib/platform/tauri', () => ({ tauri: { dialog } }));
+vi.mock('$lib/print/tauri', () => ({ tauri: host }));
 
 import Sheet from '$lib/print/component/sheet.svelte';
 import { print, printSheet, sendPage, toFileName } from '$lib/print/sheet.svelte';

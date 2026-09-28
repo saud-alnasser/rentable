@@ -11,7 +11,7 @@ import {
 	fakeOrganizationState,
 	fakeOrganizationWorkspace
 } from '$lib/organization/tests/testing.ts';
-import { fakeSyncState, fakeWorkspace } from '$lib/platform/tests/testing.ts';
+import { fakeSyncState, fakeWorkspace } from '$lib/sync/tests/testing.ts';
 import { maskOf } from '@rentable/workspace-permission';
 
 import {
@@ -727,8 +727,8 @@ test('a member narrowed on another machine is refused on the next call after one
 	let shell = widened;
 	const host = fakeHost({
 		organization: { ...fakeHost().organization, getState: async () => shell },
-		remoteSync: {
-			...fakeHost().remoteSync,
+		sync: {
+			...fakeHost().sync,
 			getState: async () => fakeSyncState({ workspace: fakeWorkspace({ remoteId: 'north' }) })
 		}
 	});

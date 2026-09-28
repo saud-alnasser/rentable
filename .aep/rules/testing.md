@@ -61,14 +61,16 @@ cleared them and took the exclusion back out of `apps/desktop/tsconfig.json` (20
 **So write a new test as though the compiler reads it, because it does** — annotations rather
 than `any`, and a fixture in the shape production actually produces.
 
-**A fixture for a declared interface is shared, not written out per file.** Seven scaffolding
+**A fixture for a declared interface is shared, not written out per file.** Scaffolding
 modules hold them: `app/tests/host.ts` composes a whole `Host` from each port's fake,
-`platform/tests/testing.ts` builds the platform's part and the remote-sync payloads it speaks in,
-`organization/tests/testing.ts` the organization's port and its payloads, `app/tests/testing.ts`
-the router caller, `design/tests/testing.ts` the
-binding a declared mutation hands the query library, `design/tests/strings.ts` the string
-contract a packaged block reads from its provider, and `workspace/tests/file.ts` the file a
-workspace transfer crosses as. **A hand-written partial of any of them is a shape nothing
+`platform/tests/testing.ts` builds the platform's part and the `refuse` every fake port is built
+from, and each crossing concept's `tests/testing.ts` its own port and its payloads (the
+organization's, `sync/tests/testing.ts` with the remote-sync state and workspace,
+`settings/tests/testing.ts` with the settings file, and print's, transfer's, update's,
+startup's and the workspace's). `app/tests/testing.ts` holds the router caller,
+`design/tests/testing.ts` the binding a declared mutation hands the query library,
+`design/tests/strings.ts` the string contract a packaged block reads from its provider, and
+`transfer/tests/file.ts` the file a workspace transfer crosses as. **A hand-written partial of any of them is a shape nothing
 produces** — a two-key `Settings`, a `TranslationFunctions` with three of its hundreds, a
 `RemoteSyncState` with a field the type does not have — and correcting those was most of what
 #561 turned out to be. A test needing the real translations loads the locale

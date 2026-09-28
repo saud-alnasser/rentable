@@ -170,7 +170,7 @@ async function actingIdentity(host: Host): Promise<Identity | null> {
  */
 async function openWorkspace(host: Host): Promise<string | null> {
 	try {
-		return (await host.remoteSync.getState()).workspace.remoteId;
+		return (await host.sync.getState()).workspace.remoteId;
 	} catch {
 		// said above: no workspace that can be named is read-only.
 		return null;

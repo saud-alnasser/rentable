@@ -10,7 +10,7 @@ import {
 	fakeOrganizationSession,
 	fakeOrganizationWorkspace
 } from '$lib/organization/tests/testing';
-import { fakeSyncState, fakeWorkspace } from '$lib/platform/tests/testing';
+import { fakeSyncState, fakeWorkspace } from '$lib/sync/tests/testing';
 import DirectoryImportDialog from '$lib/workspace/component/directory-import-dialog.svelte';
 import WorkspaceImportDialog from '$lib/workspace/component/import-dialog.svelte';
 import WorkspacePermissions from '$lib/workspace/component/permissions.svelte';

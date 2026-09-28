@@ -38,11 +38,12 @@ vi.mock('$lib/organization/tauri', () => ({
 
 vi.mock('$lib/platform/tauri', () => ({
 	tauri: {
-		print: { page: vi.fn() },
 		dialog: { saveFile: vi.fn() },
 		opener: { openUrl: vi.fn() }
 	}
 }));
+
+vi.mock('$lib/print/tauri', () => ({ tauri: { page: vi.fn() } }));
 
 vi.mock('$lib/api/caller', () => ({
 	default: {

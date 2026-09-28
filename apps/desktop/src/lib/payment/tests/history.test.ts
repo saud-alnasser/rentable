@@ -5,7 +5,7 @@ import type { CreateMutationResult } from '@tanstack/svelte-query';
 
 import { type Api, createApi, monthsFromNow, seedTenant } from '$lib/app/tests/testing.ts';
 import { bindingOf } from '$lib/design/tests/testing.ts';
-import { fakeSyncState } from '$lib/platform/tests/testing.ts';
+import { fakeSyncState } from '$lib/sync/tests/testing.ts';
 
 /**
  * A PAYMENT KEEPS A HISTORY
@@ -64,13 +64,12 @@ mock.module('svelte-sonner', {
 	exports: { toast: { success: () => {}, error: () => {}, dismiss: () => {} } }
 });
 
+mock.module('$lib/sync/tauri', {
+	exports: { tauri: { getState: async () => fakeSyncState() } }
+});
+
 mock.module('$lib/platform/tauri', {
-	exports: {
-		tauri: {
-			remoteSync: { getState: async () => fakeSyncState() },
-			diagnostics: { write: async () => {} }
-		}
-	}
+	exports: { tauri: { diagnostics: { write: async () => {} } } }
 });
 
 const { inverseStack } = await import('$lib/undo/undo');

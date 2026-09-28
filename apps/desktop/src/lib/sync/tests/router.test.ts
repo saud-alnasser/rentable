@@ -5,7 +5,7 @@ import { BUILT_IN, maskOf } from '@rentable/workspace-permission';
 
 import { createApi, fakeIdentity } from '$lib/app/tests/testing.ts';
 import { fakeHost } from '$lib/app/tests/host.ts';
-import { fakeSyncState, fakeWorkspace } from '$lib/platform/tests/testing.ts';
+import { fakeSyncState, fakeWorkspace } from '$lib/sync/tests/testing.ts';
 import { WORKSPACE_NAME_LIMIT } from '$lib/workspace/workspace.ts';
 
 /**
@@ -32,7 +32,7 @@ function hostRecordingRenames(asked: string[]) {
 	const state = fakeSyncState({ workspace: fakeWorkspace() });
 
 	return fakeHost({
-		remoteSync: {
+		sync: {
 			getState: async () => state,
 			replicate: async () => ({
 				pushed: false,

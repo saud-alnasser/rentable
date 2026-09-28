@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-import type { ImportTable } from '$lib/platform/host.ts';
+import type { ImportTable } from '$lib/transfer/host.ts';
 
 import '$lib/app/transfer.ts';
 import {

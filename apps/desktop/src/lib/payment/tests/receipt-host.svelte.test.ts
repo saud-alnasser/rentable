@@ -35,11 +35,10 @@ vi.mock('$lib/organization/tauri', () => ({
 }));
 
 vi.mock('$lib/platform/tauri', () => ({
-	tauri: {
-		print: { page: hooks.page },
-		dialog: { saveFile: vi.fn() }
-	}
+	tauri: { dialog: { saveFile: vi.fn() } }
 }));
+
+vi.mock('$lib/print/tauri', () => ({ tauri: { page: hooks.page } }));
 
 vi.mock('$lib/api/caller', () => ({
 	default: { payment: { receipt: hooks.receipt } }

@@ -5,6 +5,7 @@
  * `app/transfer.ts` for the reading and writing here), and nothing in it names a concept. This
  * file is its whole API; a concept imports `$lib/transfer` and never a file inside it.
  */
+export type { ExportCell, ExportSheet, ImportTable, TransferHost } from './host';
 export type { ImportRejection } from './import';
 export {
 	UNIT_LIST_SEPARATOR,
@@ -40,3 +41,6 @@ export {
 	type WorkspaceTransfer,
 	type Written
 } from './transfer';
+// the port's Tauri adapter: writing the file a reader chose and reading one back, which a list's
+// export and the workspace's import and export reach through this entry rather than past it.
+export { tauri as transferHost } from './tauri';

@@ -11,7 +11,7 @@
 
 import '$lib/app/transfer.ts';
 import { toSheetName } from '@rentable/design/csv.js';
-import type { ExportCell, ExportSheet, ImportTable } from '$lib/platform/host.ts';
+import type { ExportCell, ExportSheet, ImportTable } from '$lib/transfer/host.ts';
 import { toWorkbook, type WorkspaceTransfer } from '$lib/transfer/index.ts';
 
 // what `to_text` in the Rust reader answers for each kind of cell.

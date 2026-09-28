@@ -98,10 +98,13 @@ test('the database singleton is reachable only through the context', () => {
 	assert.deepEqual(offenders(pattern, []), []);
 });
 
-// The facade is the platform's adapter, and a feature that crosses to Rust has one of its own
-// (effort 840). `app/host.ts` is the one file that binds them into the host the context carries.
+// The facade is the platform's adapter, and a feature or capability that crosses to Rust has one
+// of its own (effort 840). `app/host.ts` is the one file that binds them into the host the context
+// carries.
 test('the desktop facade is reachable only through the context', () => {
-	const pattern = valueImportFrom('\\$lib/platform/tauri', '\\$lib/organization/tauri');
+	const pattern = valueImportFrom(
+		'\\$lib/(?:platform|organization|print|settings|startup|sync|transfer|update|workspace)/tauri'
+	);
 
 	assert.deepEqual(offenders(pattern, ['app/host.ts']), []);
 });

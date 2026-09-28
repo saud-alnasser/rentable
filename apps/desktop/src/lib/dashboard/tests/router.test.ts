@@ -19,7 +19,7 @@ import {
 } from '$lib/app/tests/testing.ts';
 import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
 import { fakeHost } from '$lib/app/tests/host.ts';
-import { fakeSettings } from '$lib/platform/tests/testing.ts';
+import { fakeSettings } from '$lib/settings/tests/testing.ts';
 
 import { DASHBOARD_ENTRIES_PER_RANK } from '../dashboard.ts';
 

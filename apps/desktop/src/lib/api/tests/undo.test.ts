@@ -12,7 +12,7 @@ import {
 	refusedWith
 } from '$lib/app/tests/testing.ts';
 import { bindingOf } from '$lib/design/tests/testing.ts';
-import { fakeSyncState } from '$lib/platform/tests/testing.ts';
+import { fakeSyncState } from '$lib/sync/tests/testing.ts';
 
 // The declarations live beside the query hooks, which reach `.svelte` files this harness
 // cannot load. Substituting the three dependencies leaves the declaration itself real: the
@@ -51,12 +51,17 @@ mock.module('svelte-sonner', {
 // reports is all the sync path reads.
 const remoteState = { state: fakeSyncState() };
 
+mock.module('$lib/sync/tauri', {
+	exports: {
+		tauri: {
+			getState: async () => remoteState.state
+		}
+	}
+});
+
 mock.module('$lib/platform/tauri', {
 	exports: {
 		tauri: {
-			remoteSync: {
-				getState: async () => remoteState.state
-			},
 			// a failed undo is recorded for diagnostics; what it records is not asserted here.
 			diagnostics: { write: async () => {} }
 		}

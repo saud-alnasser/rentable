@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import type api from '$lib/api/caller';
-	import type { RemoteSyncState } from '$lib/platform/host';
+	import type { RemoteSyncState } from '$lib/sync/host';
 	import type {
 		MemberStanding,
 		OrganizationMember,

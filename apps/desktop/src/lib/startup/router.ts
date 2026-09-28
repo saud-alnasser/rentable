@@ -1,4 +1,4 @@
-import type { Recovery } from '$lib/platform/tauri';
+import type { Recovery } from '$lib/update/host';
 import { procedure, router } from '$lib/api/trpc';
 
 /**
@@ -9,6 +9,6 @@ import { procedure, router } from '$lib/api/trpc';
  */
 export default router({
 	bootstrap: procedure.member.mutation(async ({ ctx }): Promise<Recovery> => {
-		return await ctx.host.bootstrap();
+		return await ctx.host.startup.bootstrap();
 	})
 });

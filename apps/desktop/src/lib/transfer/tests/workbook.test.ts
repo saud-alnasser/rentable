@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import { type Api, createApi } from '$lib/app/tests/testing.ts';
-import type { ExportSheet } from '$lib/platform/host.ts';
+import type { ExportSheet } from '$lib/transfer/host.ts';
 import { readBack } from './file.ts';
 import {
 	emptyHeld,

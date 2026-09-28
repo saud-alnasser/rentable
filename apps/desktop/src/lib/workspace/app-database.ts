@@ -1,7 +1,7 @@
 import api from '$lib/api/caller';
 import { recordDiagnosticWarning } from '$lib/platform/diagnostics';
-import type { EarlierRecords } from '$lib/platform/host';
-import { tauri } from '$lib/platform/tauri';
+import type { EarlierRecords } from '$lib/workspace/host';
+import { tauri } from '$lib/workspace/tauri';
 import { keys as settingsKeys } from '$lib/settings/query';
 import { createQuery, useQueryClient, type QueryClient } from '@tanstack/svelte-query';
 

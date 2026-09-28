@@ -17,6 +17,8 @@ import {
 	syncWorkspaceNow
 } from '$lib/sync/workspace';
 import type { OrganizationHost } from '$lib/organization/host';
+import type { SettingsHost } from '$lib/settings/host';
+import type { SyncHost } from '$lib/sync/host';
 import type { QueryClient } from '@tanstack/svelte-query';
 import { get } from 'svelte/store';
 
@@ -33,12 +35,17 @@ import type { StartupPorts } from './startup';
  * Everything here is a one-line forward. Anything with a decision in it belongs in the unit, where
  * a test can reach it.
  *
- * **The organization's port is handed in** by the root layout, off the host the composition root
- * composes (`$lib/app/host`), since it is a feature's and the shell reaches no feature's adapter.
+ * **The organization's, settings' and sync's ports are handed in** by the root layout, off the host
+ * the composition root composes (`$lib/app/host`), since each is a feature's and the shell reaches
+ * no feature's adapter.
  */
 export function browserStartupPorts(
 	queryClient: QueryClient,
-	organization: OrganizationHost
+	{
+		organization,
+		settings,
+		sync
+	}: { organization: OrganizationHost; settings: SettingsHost; sync: SyncHost }
 ): StartupPorts {
 	return {
 		window: {
@@ -46,7 +53,7 @@ export function browserStartupPorts(
 			hide: () => tauri.window.hide(),
 			close: () => tauri.window.close()
 		},
-		settings: { get: () => tauri.settings.get() },
+		settings: { get: () => settings.get() },
 		// made here, while the ports are assembled, so it follows the system from before anything
 		// is shown; startup then applies what the reader chose.
 		appearance: (() => {
@@ -55,7 +62,7 @@ export function browserStartupPorts(
 			return { apply: (setting) => appearance.apply(setting) };
 		})(),
 		remoteSync: {
-			getState: () => tauri.remoteSync.getState()
+			getState: () => sync.getState()
 		},
 		organization: {
 			getState: () => organization.getState(),

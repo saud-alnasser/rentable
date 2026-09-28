@@ -6,12 +6,13 @@
 	import { showErrorSentence, showErrorToast } from '$lib/notification';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { tauri } from '$lib/platform/tauri';
-	import type { ImportTable } from '$lib/platform/host';
 	import {
 		countTransfer,
 		isWorkspaceImportable,
 		planWorkspaceImport,
+		transferHost,
 		type ImportRejection,
+		type ImportTable,
 		type TransferConcept,
 		type WorkspacePlan,
 		type WorkspaceSheetPlan,
@@ -187,7 +188,7 @@
 				return;
 			}
 
-			await openOver(await tauri.import.readBook(path), path);
+			await openOver(await transferHost.import.readBook(path), path);
 		} catch (failure) {
 			showErrorToast(failure, $LL);
 		} finally {

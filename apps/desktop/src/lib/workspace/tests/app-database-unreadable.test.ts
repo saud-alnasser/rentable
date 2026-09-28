@@ -15,7 +15,7 @@ mock.module('$lib/platform/diagnostics', {
 	}
 });
 
-mock.module('$lib/platform/tauri', {
+mock.module('$lib/workspace/tauri', {
 	exports: {
 		tauri: {
 			earlier: {

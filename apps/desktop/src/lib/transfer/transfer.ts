@@ -2,7 +2,7 @@ import type { Contributed } from '$lib/api/contribution';
 import type { Database } from '$lib/api/context';
 import type { RefusalCode } from '$lib/api/refusal';
 import type { features } from '$lib/app/features';
-import type { ExportSheet, ImportTable } from '$lib/platform/host';
+import type { ExportSheet, ImportTable } from './host';
 import { toExportSheet, type ExportColumn } from '@rentable/design/csv.js';
 import type { Flag } from '@rentable/workspace-permission';
 import type { ZodType } from 'zod';

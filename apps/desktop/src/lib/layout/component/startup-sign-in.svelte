@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { EarlierRecords } from '$lib/platform/host';
+	import type { EarlierRecords } from '$lib/workspace/host';
 	import type { HeldOrganization } from '$lib/organization/host';
 	import StandaloneSurface from '@rentable/design/block/standalone-surface.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';

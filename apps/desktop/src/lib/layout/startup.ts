@@ -1,4 +1,5 @@
-import type { Recovery, RemoteSyncState } from '$lib/platform/host';
+import type { RemoteSyncState } from '$lib/sync/host';
+import type { Recovery } from '$lib/update/host';
 import type { OrganizationState } from '$lib/organization/host';
 import { organizationAdmission } from '$lib/sync/admission';
 import { toUtcDay } from '$lib/date';

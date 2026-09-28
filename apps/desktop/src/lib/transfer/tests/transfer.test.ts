@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import type { ImportTable } from '$lib/platform/host.ts';
+import type { ImportTable } from '$lib/transfer/host.ts';
 
 import { toTables } from './file.ts';
 import type { TransferContract } from '$lib/contract/transfer.ts';

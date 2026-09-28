@@ -1,4 +1,4 @@
-import type { Settings, SettingsChangeset } from '$lib/platform/tauri';
+import type { Settings, SettingsChangeset } from './host';
 import { procedure, router } from '$lib/api/trpc';
 import { APPEARANCES } from '$lib/platform/appearance';
 import z from 'zod';

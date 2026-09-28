@@ -5,9 +5,11 @@ import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import en from '$lib/i18n/en';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
-import type { EarlierRead, ImportTable, Settings } from '$lib/platform/host';
-import { fakeSettings } from '$lib/platform/tests/testing';
+import type { Settings } from '$lib/settings/host';
+import { fakeSettings } from '$lib/settings/tests/testing';
+import type { ImportTable } from '$lib/transfer/host';
 import EarlierRecords from '$lib/workspace/component/app-database-records.svelte';
+import type { EarlierRead } from '$lib/workspace/host';
 import { IMPORT_FLAGS } from '$lib/permission';
 import '$lib/app/transfer';
 import { emptyHeld } from '$lib/transfer';
@@ -39,11 +41,12 @@ const hooks = vi.hoisted(() => ({
 	importWhole: vi.fn()
 }));
 
+vi.mock('$lib/workspace/tauri', () => ({
+	tauri: { earlier: { find: hooks.find, read: hooks.read } }
+}));
+
 vi.mock('$lib/platform/tauri', () => ({
-	tauri: {
-		earlier: { find: hooks.find, read: hooks.read },
-		diagnostics: { write: vi.fn(async () => {}) }
-	}
+	tauri: { diagnostics: { write: vi.fn(async () => {}) } }
 }));
 
 vi.mock('$lib/api/caller', () => ({

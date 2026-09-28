@@ -134,6 +134,7 @@ list -> i18n : cycle
 list -> notification : cycle
 list -> platform : cycle
 list -> shortcut : cycle
+list -> transfer : cycle
 mutation -> api : cycle
 mutation -> error : cycle
 mutation -> history : cycle
@@ -236,7 +237,6 @@ sync -> api : cycle
 sync -> error : cycle
 sync -> i18n : cycle
 sync -> mutation : cycle
-sync -> platform : cycle
 sync -> workspace : cycle
 sync/router.ts -> workspace/workspace.ts : deep
 sync/workspace.ts -> mutation/cache.ts : deep

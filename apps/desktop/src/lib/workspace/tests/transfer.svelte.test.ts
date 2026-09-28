@@ -26,10 +26,11 @@ const hooks = vi.hoisted(() => ({ saveFile: vi.fn(), get: vi.fn() }));
 vi.mock('$lib/platform/tauri', () => ({
 	tauri: {
 		dialog: { saveFile: hooks.saveFile },
-		export: { writeWorkbook: vi.fn() },
 		opener: { revealItemInDir: vi.fn() }
 	}
 }));
+
+vi.mock('$lib/transfer/tauri', () => ({ tauri: { export: { writeWorkbook: vi.fn() } } }));
 
 vi.mock('$lib/api/caller', () => ({ default: { transfer: { get: hooks.get } } }));
 

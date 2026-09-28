@@ -71,7 +71,7 @@
 	 * What is left here is the route's own work: mirroring what that unit reports into something
 	 * this file can render from, deciding how much of the shell each state draws, and drawing it.
 	 */
-	const startup = createStartup(browserStartupPorts(queryClient, host.organization));
+	const startup = createStartup(browserStartupPorts(queryClient, host));
 
 	provideStartup(startup);
 

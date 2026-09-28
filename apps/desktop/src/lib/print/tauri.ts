@@ -1,0 +1,21 @@
+import { invoke } from '@tauri-apps/api/core';
+
+import type { PrintHost } from './host';
+
+/**
+ * printing's tauri command: its port, satisfied by the Tauri shell.
+ *
+ * **The command name and argument shape are the Rust side's**, spelled here exactly as they were
+ * in the platform facade, where they sat until effort 840 gave printing its own port.
+ */
+export const tauri = {
+	/**
+	 * Print what the window's print sheet holds: to paper through the operating system's
+	 * dialog, or to the PDF file at `path`, which on Windows is written with no dialog at all.
+	 */
+	page: (
+		request: ({ mode: 'print' } | { mode: 'pdf'; path: string }) & {
+			page?: { head: string; lang: string; dir: string; body: string };
+		}
+	) => invoke<void>('print_page', request)
+} satisfies PrintHost;

@@ -1,4 +1,4 @@
-import type { RemoteSyncState } from '$lib/platform/host';
+import type { RemoteSyncState } from '$lib/sync/host';
 import type { Locales, TranslationFunctions } from '$lib/i18n/i18n-types';
 import { DAY, formatLocaleDate, formatLocaleRelativeTime } from '$lib/platform/locale';
 

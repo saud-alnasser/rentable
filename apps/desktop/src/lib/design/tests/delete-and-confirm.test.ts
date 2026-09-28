@@ -64,8 +64,8 @@ mock.module('svelte-sonner', {
 	}
 });
 
-mock.module('$lib/platform/tauri', {
-	exports: { tauri: { remoteSync: { getState: async () => ({}) } } }
+mock.module('$lib/sync/tauri', {
+	exports: { tauri: { getState: async () => ({}) } }
 });
 
 // the acts' glyphs are Svelte components, which this runner cannot load. Only what an act

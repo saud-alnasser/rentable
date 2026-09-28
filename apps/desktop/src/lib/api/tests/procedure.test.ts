@@ -8,7 +8,7 @@ import type { Host } from '$lib/app/host.ts';
 import type { OrganizationSession } from '$lib/organization/host.ts';
 import { fakeHost } from '$lib/app/tests/host.ts';
 import { fakeOrganizationSession, fakeOrganizationState } from '$lib/organization/tests/testing.ts';
-import { fakeSyncState } from '$lib/platform/tests/testing.ts';
+import { fakeSyncState } from '$lib/sync/tests/testing.ts';
 import { appRouter } from '$lib/app/router.ts';
 import { caller, context, middleware, procedure, router } from '../trpc.ts';
 import { fakeIdentity, NOW } from '$lib/app/tests/testing.ts';
@@ -38,7 +38,7 @@ async function signedOutApi() {
 				},
 				check: async () => null
 			},
-			remoteSync: {
+			sync: {
 				getState: async () => fakeSyncState(),
 				replicate: async () => ({
 					pushed: false,
@@ -146,7 +146,7 @@ test('what the shell knows about syncing is readable either way', async () => {
 // **And the one beside it that is not.** Reading what this machine has synced is a fact about the
 // machine; renaming the workspace is a write against a row the organization guards with a
 // permission, so it needs an acting user however small the change looks. The fake host refuses
-// `remoteSync.renameWorkspace` by name, so a procedure that let this through would fail with that
+// `sync.renameWorkspace` by name, so a procedure that let this through would fail with that
 // refusal rather than this one, which is what makes the assertion say something.
 test('renaming the workspace is not, however small the write looks', async () => {
 	const api = await signedOutApi();
@@ -179,7 +179,7 @@ const permittedRouter = router({
 /**
  * A shell answering with one state, and refusing everything else by name.
  *
- * `Host['remoteSync']` is a whole object, so an override supplies all of it or none — a partial
+ * `Host['sync']` is a whole object, so an override supplies all of it or none — a partial
  * would not type-check. Written once here rather than twice below.
  */
 /** a shell answering whose vault is open, which is what a resolved identity is read off. */

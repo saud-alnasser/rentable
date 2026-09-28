@@ -3,7 +3,8 @@
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import DetailDisclosure from '$lib/error/component/detail-disclosure.svelte';
 	import SurfaceAction from '@rentable/design/block/surface-action.svelte';
-	import { tauri, type Recovery } from '$lib/platform/tauri';
+	import { tauri } from '$lib/platform/tauri';
+	import type { Recovery } from '$lib/update/host';
 	import DownloadIcon from '@lucide/svelte/icons/download';
 	import ExternalLinkIcon from '@lucide/svelte/icons/external-link';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';

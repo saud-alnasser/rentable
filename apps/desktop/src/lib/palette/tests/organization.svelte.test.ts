@@ -20,7 +20,7 @@ import {
 	fakeOrganizationSession,
 	fakeOrganizationWorkspace
 } from '$lib/organization/tests/testing';
-import { fakeSyncState, fakeWorkspace } from '$lib/platform/tests/testing';
+import { fakeSyncState, fakeWorkspace } from '$lib/sync/tests/testing';
 import { usesAppleKeyboard } from '@rentable/design/shortcut.js';
 import { maskOf } from '@rentable/workspace-permission';
 

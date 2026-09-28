@@ -11,7 +11,7 @@ import {
 	fakeOrganizationState,
 	fakeOrganizationWorkspace
 } from '$lib/organization/tests/testing.ts';
-import { fakeSyncState, fakeWorkspace } from '$lib/platform/tests/testing.ts';
+import { fakeSyncState, fakeWorkspace } from '$lib/sync/tests/testing.ts';
 import {
 	BUILT_IN,
 	WRITE_FLAGS,
@@ -242,8 +242,8 @@ function shellOpenOn(workspaceId: string | null, session: OrganizationSession): 
 
 	return fakeHost({
 		organization: { ...fakeHost().organization, getState: async () => state },
-		remoteSync: {
-			...fakeHost().remoteSync,
+		sync: {
+			...fakeHost().sync,
 			getState: async () => fakeSyncState({ workspace: fakeWorkspace({ remoteId: workspaceId }) })
 		}
 	});

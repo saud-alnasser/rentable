@@ -4,12 +4,8 @@ import api from '$lib/api/caller';
 // the cache policy's own module rather than `$lib/mutation`, whose mutation handlers carry a
 // toaster this module's tests cannot load under Node.
 import { invalidateRoot } from '$lib/mutation/cache';
-import {
-	tauri,
-	type RemoteSyncState,
-	type ReplicationRefusal,
-	type SessionStanding
-} from '$lib/platform/tauri';
+import type { RemoteSyncState, ReplicationRefusal, SessionStanding } from '$lib/sync/host';
+import { tauri } from '$lib/sync/tauri';
 
 /**
  * what a dispatch did, or declined to do.
@@ -105,8 +101,8 @@ export async function announceReceivedRows(client: QueryClient): Promise<number>
 export async function syncWorkspaceNow(
 	providedState?: RemoteSyncState | null
 ): Promise<WorkspaceSyncResult> {
-	const state = providedState ?? (await tauri.remoteSync.getState());
-	const replication = await tauri.remoteSync.replicate().catch(() => ({
+	const state = providedState ?? (await tauri.getState());
+	const replication = await tauri.replicate().catch(() => ({
 		pushed: false,
 		received: false,
 		refusal: 'none' as const,
@@ -130,8 +126,8 @@ export async function syncWorkspaceNow(
 export async function syncWorkspaceBeforeExit(
 	providedState?: RemoteSyncState | null
 ): Promise<WorkspaceSyncResult> {
-	const state = providedState ?? (await tauri.remoteSync.getState());
-	const pushed = await tauri.remoteSync.push().catch(() => false);
+	const state = providedState ?? (await tauri.getState());
+	const pushed = await tauri.push().catch(() => false);
 
 	// the last call of a session reads no standing: it pushes and does not pull, so there is
 	// nothing newer to read the row against, and the window is closing either way.

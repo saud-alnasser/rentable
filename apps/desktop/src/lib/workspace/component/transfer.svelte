@@ -11,7 +11,7 @@
 	import WorkspaceImportDialog from '$lib/workspace/component/import-dialog.svelte';
 	import { useImportRecords } from '$lib/workspace/query';
 	import { EXPORT_FLAGS, IMPORT_FLAGS, memberPermissions } from '$lib/permission';
-	import { toTransferInput, toWorkbook } from '$lib/transfer';
+	import { toTransferInput, toWorkbook, transferHost } from '$lib/transfer';
 
 	/**
 	 * A whole workspace, out as one file and back in from one.
@@ -61,7 +61,7 @@
 			// read now rather than from a cache: the file is what the workspace is at the moment
 			// the reader asked for it, and nothing on this screen was showing any of it.
 			const transfer = await api.transfer.get();
-			const path = await tauri.export.writeWorkbook(chosen, toWorkbook(transfer));
+			const path = await transferHost.export.writeWorkbook(chosen, toWorkbook(transfer));
 
 			showSuccessToast($LL.common.messages.exported({ path: isolateDirection(path) }));
 

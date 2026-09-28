@@ -9,6 +9,7 @@
 	import {
 		isWorkspaceImportable,
 		planWorkspaceImport,
+		transferHost,
 		type ImportRejection,
 		type TransferConcept,
 		type WorkspacePlan,
@@ -196,7 +197,7 @@
 
 			// every sheet, so a file that names its concept is matched by that name and a file of
 			// one table is read as the records this directory holds whatever its tab is called.
-			const tables = await tauri.import.readBook(path);
+			const tables = await transferHost.import.readBook(path);
 			// what the workspace already holds, read once for the whole file: a row duplicating a
 			// record is turned away here rather than at the write, and a reference a row makes is
 			// answered from the same read.

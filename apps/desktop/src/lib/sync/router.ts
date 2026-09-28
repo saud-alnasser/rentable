@@ -1,4 +1,4 @@
-import type { RemoteSyncState } from '$lib/platform/tauri';
+import type { RemoteSyncState } from './host';
 import { procedure, router } from '$lib/api/trpc';
 import { WORKSPACE_NAME_LIMIT } from '$lib/workspace/workspace';
 import z from 'zod';
@@ -20,7 +20,7 @@ import z from 'zod';
 
 export default router({
 	getState: procedure.public.query(async ({ ctx }): Promise<RemoteSyncState> => {
-		return ctx.host.remoteSync.getState();
+		return ctx.host.sync.getState();
 	}),
 	/**
 	 * Call this machine's workspace something else.
@@ -51,6 +51,6 @@ export default router({
 		.permitted('renameWorkspace')
 		.input(z.object({ name: z.string().trim().min(1).max(WORKSPACE_NAME_LIMIT) }))
 		.mutation(async ({ input, ctx }): Promise<RemoteSyncState> => {
-			return ctx.host.remoteSync.renameWorkspace(input.name);
+			return ctx.host.sync.renameWorkspace(input.name);
 		})
 });

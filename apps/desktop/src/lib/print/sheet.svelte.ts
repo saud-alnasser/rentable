@@ -1,4 +1,5 @@
 import { tauri } from '$lib/platform/tauri';
+import { tauri as host } from '$lib/print/tauri';
 import { tick, type Snippet } from 'svelte';
 
 /**
@@ -93,7 +94,7 @@ export function print(content: Snippet, request: PrintRequest = { mode: 'print' 
 					return;
 				}
 
-				await tauri.print.page(elsewhere ? { ...request, page: pageOnSheet() } : request);
+				await host.page(elsewhere ? { ...request, page: pageOnSheet() } : request);
 
 				// a file is done when it is written; paper here is done when the dialog says so.
 				if (request.mode === 'pdf' || elsewhere) {
