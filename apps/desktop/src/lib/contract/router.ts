@@ -44,11 +44,10 @@ import {
 } from '$lib/contract/rank';
 import { getReminderFigures, isReminderRank, type ContractReminder } from '$lib/contract/reminder';
 import { ensureRenewalFollowsPredecessor } from '$lib/contract/renewal';
-import { reconcile, reconcileTouched } from '$lib/contract/reconcile';
+import { reconcile, reconcileTouched, type Settling } from '$lib/contract/reconcile';
 import { scheduleContract } from '$lib/contract/schedule';
 import { serializeContract, type SerializedContract } from '$lib/contract/serialize';
 import { permits } from '@rentable/workspace-permission';
-import { groupPaymentsByContractId } from '$lib/payment/payment';
 import {
 	and,
 	asc,
@@ -147,11 +146,12 @@ async function selectAssignmentsForUnits(db: Database, unitIds: string[]) {
  * apply the conflict rule.
  */
 async function selectUnitsWithAssignments(
-	db: Database,
+	ctx: Settling,
 	search: string | undefined,
 	now: number,
 	viewsComplex: boolean
 ) {
+	const { db } = ctx;
 	const term = search?.trim();
 
 	const rows = await db
@@ -174,13 +174,10 @@ async function selectUnitsWithAssignments(
 	const unitIds = units.map((unit) => unit.id);
 	const assignments = await selectAssignmentsForUnits(db, unitIds);
 	const contractIds = [...new Set(assignments.map((assignment) => assignment.contractId))];
-	const payments = contractIds.length
-		? await db.select().from(s.payment).where(inArray(s.payment.contractId, contractIds))
-		: [];
 	const statusByUnitId = deriveUnitStatuses(
 		unitIds,
 		assignments,
-		groupPaymentsByContractId(payments),
+		await ctx.contributions.contract.paymentsOf(db, contractIds),
 		now
 	);
 
@@ -218,11 +215,12 @@ function withComplexName<T extends { complexName: string }>(
 // the units a contract holds, each carrying the complex holding it and its derived status —
 // the shape both the directory that reads them and the surface that writes them answer with.
 async function selectContractUnits(
-	db: Database,
+	ctx: Settling,
 	contractId: string,
 	now: number,
 	viewsComplex: boolean
 ) {
+	const { db } = ctx;
 	const rows = await db
 		.select({
 			id: s.unit.id,
@@ -248,13 +246,10 @@ async function selectContractUnits(
 
 	const assignments = await selectAssignmentsForUnits(db, unitIds);
 	const contractIds = [...new Set(assignments.map((assignment) => assignment.contractId))];
-	const payments = contractIds.length
-		? await db.select().from(s.payment).where(inArray(s.payment.contractId, contractIds))
-		: [];
 	const statusByUnitId = deriveUnitStatuses(
 		unitIds,
 		assignments,
-		groupPaymentsByContractId(payments),
+		await ctx.contributions.contract.paymentsOf(db, contractIds),
 		now
 	);
 
@@ -367,18 +362,18 @@ type ContractRefusal = { id: string; govId: string; reason: ContractRefusalReaso
  * One read per table for the whole selection, never one per record.
  */
 async function planContractSelection(
-	db: Database,
+	ctx: Settling,
 	now: number,
 	ids: readonly string[],
 	action: ContractSelectionAction
 ) {
+	const { db } = ctx;
 	const named = [...new Set(ids)];
 
 	const existing = await db.select().from(s.contract).where(inArray(s.contract.id, named));
 	const contractsById = new Map(existing.map((contract) => [contract.id, contract]));
 
-	const payments = await db.select().from(s.payment).where(inArray(s.payment.contractId, named));
-	const paymentsByContractId = groupPaymentsByContractId(payments);
+	const paymentsByContractId = await ctx.contributions.contract.paymentsOf(db, named);
 
 	// only a deletion reads assignments: the units a deleted contract held go with it, and are
 	// what putting it back has to restore.
@@ -619,7 +614,7 @@ export default router({
 			if (unitIds.length === 0) {
 				const created = await ctx.db.insert(s.contract).values(values).returning().get();
 
-				await reconcileTouched(ctx.db, now, { contractIds: [created.id] });
+				await reconcileTouched(ctx, now, { contractIds: [created.id] });
 
 				return serializeContract(created);
 			}
@@ -633,7 +628,7 @@ export default router({
 				)
 			]);
 
-			await reconcileTouched(ctx.db, now, { contractIds: [created.id], unitIds });
+			await reconcileTouched(ctx, now, { contractIds: [created.id], unitIds });
 
 			return serializeContract(created);
 		}),
@@ -726,7 +721,7 @@ export default router({
 			if (unitIds.length === 0) {
 				const created = await ctx.db.insert(s.contract).values(values).returning().get();
 
-				await reconcileTouched(ctx.db, now, { contractIds: [created.id] });
+				await reconcileTouched(ctx, now, { contractIds: [created.id] });
 
 				return serializeContract(created);
 			}
@@ -741,7 +736,7 @@ export default router({
 				)
 			]);
 
-			await reconcileTouched(ctx.db, now, { contractIds: [created.id], unitIds });
+			await reconcileTouched(ctx, now, { contractIds: [created.id], unitIds });
 
 			return serializeContract(created);
 		}),
@@ -845,7 +840,7 @@ export default router({
 				.returning()
 				.get();
 
-			await reconcileTouched(ctx.db, now, { contractIds: [input.id] });
+			await reconcileTouched(ctx, now, { contractIds: [input.id] });
 
 			return serializeContract(updated);
 		}),
@@ -878,7 +873,7 @@ export default router({
 				.returning()
 				.get();
 
-			await reconcileTouched(ctx.db, now, { contractIds: [input.id] });
+			await reconcileTouched(ctx, now, { contractIds: [input.id] });
 
 			return serializeContract(terminated);
 		}),
@@ -905,7 +900,7 @@ export default router({
 			})
 		)
 		.query(async ({ input, ctx }) => {
-			const plan = await planContractSelection(ctx.db, ctx.clock.now(), input.ids, input.action);
+			const plan = await planContractSelection(ctx, ctx.clock.now(), input.ids, input.action);
 
 			return { eligible: plan.eligible.map((contract) => contract.id), refused: plan.refused };
 		}),
@@ -930,7 +925,7 @@ export default router({
 		.input(z.object({ ids: z.array(ContractSchema.shape.id).min(1) }))
 		.mutation(async ({ input, ctx }) => {
 			const now = ctx.clock.now();
-			const plan = await planContractSelection(ctx.db, now, input.ids, 'terminate');
+			const plan = await planContractSelection(ctx, now, input.ids, 'terminate');
 			const terminableIds = plan.eligible.map((contract) => contract.id);
 
 			if (terminableIds.length) {
@@ -942,7 +937,7 @@ export default router({
 
 			// the one pass, over every contract that changed. This is the line the ticket's
 			// assertion is about, and the reason the plan above collects rather than acting.
-			await reconcileTouched(ctx.db, now, { contractIds: terminableIds });
+			await reconcileTouched(ctx, now, { contractIds: terminableIds });
 
 			return {
 				terminated: plan.eligible.map(toChangedContract),
@@ -965,7 +960,7 @@ export default router({
 		.input(z.object({ ids: z.array(ContractSchema.shape.id).min(1) }))
 		.mutation(async ({ input, ctx }) => {
 			const now = ctx.clock.now();
-			const plan = await planContractSelection(ctx.db, now, input.ids, 'restore');
+			const plan = await planContractSelection(ctx, now, input.ids, 'restore');
 
 			// each one goes back to the status its own payments and period imply, exactly as the
 			// single-record procedure does — never to whatever it happened to hold before.
@@ -982,7 +977,7 @@ export default router({
 					.where(eq(s.contract.id, contract.id));
 			}
 
-			await reconcileTouched(ctx.db, now, {
+			await reconcileTouched(ctx, now, {
 				contractIds: plan.eligible.map((contract) => contract.id)
 			});
 
@@ -1022,7 +1017,7 @@ export default router({
 				.returning()
 				.get();
 
-			await reconcileTouched(ctx.db, now, { contractIds: [input.id] });
+			await reconcileTouched(ctx, now, { contractIds: [input.id] });
 
 			return serializeContract(restored);
 		}),
@@ -1060,7 +1055,7 @@ export default router({
 			]);
 
 			// the contract is gone, so what is left to reconcile is the units it released.
-			await reconcileTouched(ctx.db, ctx.clock.now(), { contractIds: [], unitIds });
+			await reconcileTouched(ctx, ctx.clock.now(), { contractIds: [], unitIds });
 
 			// the units it held come back with the row, because undoing the deletion restores the
 			// contract holding them.
@@ -1082,7 +1077,7 @@ export default router({
 		.use(autosync())
 		.input(z.object({ ids: z.array(ContractSchema.shape.id).min(1) }))
 		.mutation(async ({ input, ctx }) => {
-			const plan = await planContractSelection(ctx.db, ctx.clock.now(), input.ids, 'delete');
+			const plan = await planContractSelection(ctx, ctx.clock.now(), input.ids, 'delete');
 			const deletableIds = plan.eligible.map((contract) => contract.id);
 			const unitIdsOf = (contractId: string) =>
 				(plan.assignmentsByContractId.get(contractId) ?? []).map((held) => held.unitId);
@@ -1096,7 +1091,7 @@ export default router({
 			}
 
 			if (released.length) {
-				await reconcileTouched(ctx.db, ctx.clock.now(), { contractIds: [], unitIds: released });
+				await reconcileTouched(ctx, ctx.clock.now(), { contractIds: [], unitIds: released });
 			}
 
 			return {
@@ -1211,7 +1206,7 @@ export default router({
 			);
 			const restored = await ctx.db.batch([first, ...rest, ...assignments]);
 
-			await reconcileTouched(ctx.db, now, { contractIds: ids, unitIds });
+			await reconcileTouched(ctx, now, { contractIds: ids, unitIds });
 
 			return (restored.slice(0, values.length) as DbContract[][]).map(([contract]) =>
 				serializeContract(contract)
@@ -1481,7 +1476,7 @@ export default router({
 			.input(ContractUnitsGetManySchema)
 			.query(async ({ input, ctx }) => {
 				return await selectContractUnits(
-					ctx.db,
+					ctx,
 					input.contractId,
 					ctx.clock.now(),
 					permits(ctx.identity.permissions, 'viewComplex')
@@ -1504,7 +1499,7 @@ export default router({
 			.query(async ({ input, ctx }) => {
 				const contract = await selectContract(ctx.db, input.contractId);
 				const { units, assignments, statusByUnitId } = await selectUnitsWithAssignments(
-					ctx.db,
+					ctx,
 					input.search,
 					ctx.clock.now(),
 					permits(ctx.identity.permissions, 'viewComplex')
@@ -1543,7 +1538,7 @@ export default router({
 			.input(TermAssignableUnitsSchema)
 			.query(async ({ input, ctx }) => {
 				const { units, assignments, statusByUnitId } = await selectUnitsWithAssignments(
-					ctx.db,
+					ctx,
 					input.search,
 					ctx.clock.now(),
 					permits(ctx.identity.permissions, 'viewComplex')
@@ -1618,13 +1613,13 @@ export default router({
 
 				// a unit that left is no longer reachable through the contract's assignments, so it
 				// is named for the reconcile that has to recompute its status.
-				await reconcileTouched(ctx.db, now, {
+				await reconcileTouched(ctx, now, {
 					contractIds: [input.contractId],
 					unitIds: [...new Set([...nextUnitIds, ...removed])]
 				});
 
 				return await selectContractUnits(
-					ctx.db,
+					ctx,
 					input.contractId,
 					now,
 					permits(ctx.identity.permissions, 'viewComplex')
@@ -1639,7 +1634,7 @@ export default router({
 	 */
 	reconcile: procedure.member.mutation(async ({ ctx }) => {
 		const reconciledAt = ctx.clock.now();
-		await reconcile(ctx.db, reconciledAt);
+		await reconcile(ctx, reconciledAt);
 
 		return { reconciledAt };
 	})

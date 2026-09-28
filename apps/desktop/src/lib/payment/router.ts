@@ -431,7 +431,7 @@ export default router({
 				.returning()
 				.get();
 
-			await reconcileTouched(ctx.db, now, { contractIds: [contract.id] });
+			await reconcileTouched(ctx, now, { contractIds: [contract.id] });
 
 			return serializePayment(created);
 		}),
@@ -491,7 +491,7 @@ export default router({
 				.returning()
 				.get();
 
-			await reconcileTouched(ctx.db, now, { contractIds: [contract.id] });
+			await reconcileTouched(ctx, now, { contractIds: [contract.id] });
 
 			return serializePayment(updated);
 		}),
@@ -531,7 +531,7 @@ export default router({
 				.returning()
 				.get();
 
-			await reconcileTouched(ctx.db, now, { contractIds: [contract.id] });
+			await reconcileTouched(ctx, now, { contractIds: [contract.id] });
 
 			return deleted ? serializePayment(deleted) : deleted;
 		}),
@@ -578,7 +578,7 @@ export default router({
 
 			if (deletableIds.length) {
 				await ctx.db.delete(s.payment).where(inArray(s.payment.id, deletableIds));
-				await reconcileTouched(ctx.db, now, {
+				await reconcileTouched(ctx, now, {
 					contractIds: [...new Set(plan.eligible.map((payment) => payment.contractId))]
 				});
 			}
@@ -668,7 +668,7 @@ export default router({
 			);
 			const created = await ctx.db.batch([first, ...rest]);
 
-			await reconcileTouched(ctx.db, now, { contractIds });
+			await reconcileTouched(ctx, now, { contractIds });
 
 			return created.map(([payment]) => serializePayment(payment));
 		})

@@ -1,4 +1,5 @@
 import type { RouteId } from '$app/types';
+import type { Contributions } from '$lib/app/contributions';
 import type { RecordKind } from '$lib/permission';
 import type { Transfer } from '$lib/transfer';
 import type { AnyRouter } from '@trpc/server';
@@ -39,7 +40,83 @@ export type Feature<N extends string = string, R extends AnyRouter = AnyRouter> 
 	 * `$lib/transfer`, which the composition root hands the list.
 	 */
 	transfer?: Transfer;
+	/**
+	 * what it contributes to the kinds it depends on, keyed by the kind each serves: what a
+	 * feature it depends on reads of it without importing it. Its router reads its own kind's
+	 * through `ctx.contributions`; see {@link Contributing}.
+	 */
+	contributes?: Contributing;
 };
+
+/**
+ * WHAT A FEATURE CONTRIBUTES
+ *
+ * **Record features depend one way**: the contract on the tenant and the unit, the payment on the
+ * contract (effort 840, plan, *A feature's reverse needs are contributions*). Where the
+ * depended-on feature needs something of the one depending on it, a tenant with contracts that
+ * may not be deleted or a contract's settlement reading its payments, it does not import it. It
+ * declares what it needs as a type in its own domain module, the depending feature declares the
+ * value under `contributes` in its `feature.ts`, keyed by the kind it serves, and the composition
+ * root merges every feature's into one object per kind (`$lib/app/contributions`).
+ *
+ * **Several features may each contribute part of one kind's need**, and a member contributed
+ * twice is refused when the list is composed. A member nobody contributes is a type error there,
+ * since the merged value is assigned to the declared {@link Contributions}.
+ *
+ * **Read at call time, never at import.** A router reads `ctx.contributions.<its kind>` inside a
+ * procedure, where `$lib/api/trpc` has put the composed value; nothing holds a contribution in a
+ * module-level constant, so the order the modules evaluate in never decides what a feature sees.
+ * The window has the same hand-over for what a page, a host or an act needs: a `surface.ts`
+ * declares it, and it is read through `contributionsTo` in `./surface`.
+ *
+ * **A declaration file is the one place a feature names another's kind**, which is what it is
+ * contributing to; `lib/tests/layers.test.ts` holds every other module to naming only its own.
+ */
+export type Contributing = { [K in keyof Contributions]?: Partial<Contributions[K]> };
+
+/** Every member of a union, as one type holding them all. */
+type Intersected<U> = (U extends unknown ? (member: U) => void : never) extends (
+	member: infer I
+) => void
+	? I
+	: never;
+
+/**
+ * What a list of declarations contributes, merged: every declaration's `contributes`, one object
+ * per kind holding each member any of them contributes to it. Typed from the list, so assigning it
+ * to the declared map is what finds a member nobody contributes.
+ */
+export type ContributionsOf<D extends readonly object[]> = Intersected<
+	D[number] extends infer Each ? (Each extends { contributes: infer C } ? C : never) : never
+>;
+
+/**
+ * Every declaration's contributions merged into one object per kind, for the composition root to
+ * hand over. Refuses a member two declarations both contribute: one of them would silently win.
+ */
+export function contributionsOf<const D extends readonly object[]>(
+	declarations: D
+): ContributionsOf<D> {
+	const merged: Record<string, Record<string, unknown>> = {};
+
+	for (const declaration of declarations) {
+		const { contributes } = declaration as { contributes?: object };
+
+		for (const [kind, members] of Object.entries(contributes ?? {})) {
+			const served = (merged[kind] ??= {});
+
+			for (const [name, member] of Object.entries(members as Record<string, unknown>)) {
+				if (name in served) {
+					throw new Error(`${kind}.${name} is contributed twice`);
+				}
+
+				served[name] = member;
+			}
+		}
+	}
+
+	return merged as ContributionsOf<D>;
+}
 
 /**
  * One page a feature holds, by its route id, and what the shell's navigation needs to know of it:

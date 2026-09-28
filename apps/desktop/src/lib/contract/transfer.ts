@@ -314,8 +314,8 @@ export default defineSheet({
 	// alone, a ledger read back into a contract would move its money and leave its paid amount and
 	// its status saying otherwise. The units follow from the contracts, which the pass closes over
 	// on its own.
-	settle: (db, now, touched) =>
-		reconcileTouched(db, now, {
+	settle: (ctx, now, touched) =>
+		reconcileTouched(ctx, now, {
 			contractIds: [...(touched.contractIds ?? [])],
 			unitIds: [...(touched.unitIds ?? [])]
 		})

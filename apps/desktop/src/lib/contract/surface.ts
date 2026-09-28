@@ -7,9 +7,10 @@ import { historySection } from '$lib/history/ui';
 import { memberPermissions } from '$lib/permission';
 import host from './component/host.svelte';
 import { contractActs, contractHost } from './host.svelte';
-import { useSearchContracts } from './query';
 import TenantContracts from './component/tenant-contracts.svelte';
 import UnitContracts from './component/unit-contracts.svelte';
+import { CONTRACT_ATTENTION_ORDER } from './contract';
+import { useListContracts, useSearchContracts } from './query';
 
 // a record's contracts, drawn on its own page wherever the reader may see contracts at all.
 const shows = () => memberPermissions.views('contract');
@@ -67,5 +68,48 @@ export default defineSurface({
 		},
 		// last on the contract's own page, after its payments, its schedule and its units.
 		historySection('contract', 40)
-	]
+	],
+	// the contract depends on the tenant, the complex and the unit, so what their pages, hosts and
+	// acts read of the contracts on them arrives from here rather than by their importing it.
+	contributes: {
+		tenant: {
+			attentionOrder: CONTRACT_ATTENTION_ORDER,
+			viewsContracts: shows,
+			useHeldContracts: (tenantId, enabled) =>
+				useListContracts(
+					() => '',
+					() => null,
+					() => ({ tenantId: tenantId() }),
+					enabled
+				),
+			newContract: (tenantId) => contractHost.create({ tenantId })
+		},
+		unit: {
+			useHeldContracts: (unitId, enabled) =>
+				useListContracts(
+					() => '',
+					() => null,
+					() => ({ unitId: unitId() }),
+					enabled
+				),
+			newContract: (unitId) => contractHost.create({ unitIds: [unitId] })
+		},
+		complex: {
+			// narrowed to the complex in the procedure: loading every contract to keep one building's
+			// would be the client-side narrowing ADR 0010 refuses.
+			useActiveContractCount: (complexId) => {
+				const complexContracts = useListContracts(
+					() => '',
+					() => null,
+					() => ({ complexId: complexId() })
+				);
+
+				return {
+					get count() {
+						return complexContracts.data?.filter((contract) => contract.status === 'active').length;
+					}
+				};
+			}
+		}
+	}
 });

@@ -1,5 +1,7 @@
 import { routersOf } from '$lib/feature/feature';
+import { bindContributions } from '$lib/api/contribution';
 import { router } from '$lib/api/trpc';
+import { contributions } from './contributions';
 import { features } from './features';
 
 /**
@@ -11,5 +13,12 @@ import { features } from './features';
  * the one a hand-written record of the same routers would give.
  */
 export const appRouter = router(routersOf(features));
+
+/**
+ * **What the features contribute is bound as the router is built**, so every caller over it, the
+ * application's and every test's, finds its procedures reading the same contributions. A
+ * procedure reads them off `ctx.contributions` when it runs (`$lib/api/contribution`).
+ */
+bindContributions(contributions);
 
 export type AppRouter = typeof appRouter;

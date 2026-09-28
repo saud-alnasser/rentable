@@ -1,13 +1,22 @@
 import complex, { unit } from '$lib/complex/surface';
 import contract from '$lib/contract/surface';
 import dashboard from '$lib/dashboard/surface';
-import type { AnySection, NavigationPlace, Section, SectionTarget } from '$lib/feature/surface';
+import { contributionsOf } from '$lib/feature/feature';
+import {
+	provideContributions,
+	type AnySection,
+	type NavigationPlace,
+	type Section,
+	type SectionTarget,
+	type Surface
+} from '$lib/feature/surface';
 import organization from '$lib/organization/surface';
 import { createPalette } from '$lib/palette';
 import payment from '$lib/payment/surface';
 import settings from '$lib/settings/surface';
 import tenant from '$lib/tenant/surface';
 import workspace from '$lib/workspace/surface';
+import type { SurfaceContributions } from './contributions';
 
 /**
  * THE SURFACES
@@ -20,7 +29,7 @@ import workspace from '$lib/workspace/surface';
  * off what the reader may do, and the rest keep the order they had when the frame named each one.
  * Adding a surface appends it unless it has a reason to stand earlier.
  */
-export const surfaces = [
+const declared = [
 	workspace,
 	tenant,
 	complex,
@@ -31,6 +40,22 @@ export const surfaces = [
 	dashboard,
 	settings
 ] as const;
+
+/**
+ * The list as the shell reads it, each one a surface: every field it may declare, whether or not
+ * this one does.
+ */
+export const surfaces: readonly Surface[] = declared;
+
+/**
+ * **What the surfaces contribute to the kinds they depend on is provided here, once**, as this
+ * module is first evaluated: the frame and every route import it, so it is in place before any
+ * page, host or act reads it (`contributionsTo` in `$lib/feature/surface`). Merged from the list
+ * as declared, so a member of `SurfaceContributions` nobody contributes fails the type check here.
+ */
+const contributions: SurfaceContributions = contributionsOf(declared);
+
+provideContributions(contributions);
 
 /**
  * The command menu, built from what every surface declares for it: the kinds it searches, the
@@ -53,13 +78,9 @@ export const palette = createPalette(surfaces);
  * above its rows, so a place wearing it would show one picture twice meaning two different things,
  * the brand and somewhere to go.
  */
-export const places: readonly NavigationPlace[] = [
-	dashboard,
-	tenant,
-	complex,
-	contract,
-	settings
-].flatMap((surface) => surface.places ?? []);
+export const places: readonly NavigationPlace[] = (
+	[dashboard, tenant, complex, contract, settings] as readonly Surface[]
+).flatMap((surface) => surface.places ?? []);
 
 /**
  * The sections every surface contributes to one page, in their `order` there, and in the list's

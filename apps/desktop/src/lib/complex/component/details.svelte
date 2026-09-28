@@ -6,7 +6,7 @@
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { complexActs } from '$lib/complex/host.svelte';
 	import { useFetchComplex, useFetchUnits } from '$lib/complex/query';
-	import { useListContracts } from '$lib/contract/query';
+	import { contributionsTo } from '$lib/feature/surface';
 	import { toPageActions } from '$lib/act';
 	import * as Cell from '$lib/design/cell';
 	import { formatLocaleNumber } from '$lib/platform/locale';
@@ -29,16 +29,10 @@
 		return { total: held.length, vacant, occupied: held.length - vacant };
 	});
 
-	// narrowed to this complex in the procedure. Loading every contract to keep this building's
-	// would be the client-side narrowing ADR 0010 refuses.
-	const complexContractsQuery = useListContracts(
-		() => '',
-		() => null,
-		() => ({ complexId })
-	);
-	const activeContractCount = $derived(
-		complexContractsQuery.data?.filter((contract) => contract.status === 'active').length
-	);
+	// how many of this building's contracts are active, which the contract contributes: it depends
+	// on the complex.
+	const activeContracts = contributionsTo('complex').useActiveContractCount(() => complexId);
+	const activeContractCount = $derived(activeContracts.count);
 
 	// a figure the reader can trust or nothing at all: a zero shown while its query is still in
 	// flight is a wrong answer rather than an incomplete one.

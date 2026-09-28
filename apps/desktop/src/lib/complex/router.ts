@@ -1,3 +1,4 @@
+import type { Contributed } from '$lib/api/contribution';
 import type { Context, Database } from '$lib/api/context';
 import {
 	matchesAnySearch,
@@ -24,10 +25,9 @@ import {
 	whatRefusesUnitDeletion,
 	UNIT_SORT_COLUMN_IDS,
 	type ComplexSortColumnId,
+	type UnitContributions,
 	type UnitSortColumnId
 } from '$lib/complex/complex';
-import { CONTRACT_OCCUPYING_STATUSES, deriveUnitStatuses } from '$lib/contract/contract';
-import { groupPaymentsByContractId } from '$lib/payment/payment';
 import { permits } from '@rentable/workspace-permission';
 import { and, asc, desc, eq, gte, inArray, lt, sql, type AnyColumn, type SQL } from 'drizzle-orm';
 import { QueryBuilder } from 'drizzle-orm/sqlite-core';
@@ -136,12 +136,13 @@ function unitOrderBy(
  * The name of the tenant occupying a unit today, or null where nobody is.
  *
  * The rule is `deriveUnitStatus`'s, expressed for the query rather than for a loaded row:
- * an assignment whose contract holds an occupying status and whose period covers today.
+ * an assignment whose contract holds an occupying status and whose period covers today. Which
+ * statuses occupy is the contract's to say, and it contributes them (`UnitContributions`).
  * `limit 1` is what keeps one unit to one row — assignments cannot legally overlap, so the
  * subquery is choosing between rows that should not both exist rather than picking a
  * winner.
  */
-function occupyingTenantName(now: DateLike) {
+function occupyingTenantName(now: DateLike, occupying: UnitContributions['occupyingStatuses']) {
 	const dayStart = toUtcDay(now);
 	const dayEnd = addUtcDays(dayStart, 1);
 	const occupant = new QueryBuilder()
@@ -152,7 +153,7 @@ function occupyingTenantName(now: DateLike) {
 		.where(
 			and(
 				eq(s.contractUnit.unitId, s.unit.id),
-				inArray(s.contract.status, CONTRACT_OCCUPYING_STATUSES),
+				inArray(s.contract.status, occupying),
 				lt(s.contract.start, dayEnd),
 				gte(s.contract.end, dayStart)
 			)
@@ -235,8 +236,12 @@ async function planUnitSelection(db: Database, ids: readonly string[]) {
 const withinComplex = (unit: { complexId: string; name: string }) =>
 	`${unit.complexId}\u0000${unit.name}`;
 
+/**
+ * The units with the status the contracts holding them derive today. The derivation is the
+ * contract's, which it contributes (`UnitContributions`), since the contract depends on the unit.
+ */
 async function getUnitsWithDerivedStatus(
-	ctx: Pick<Context, 'db' | 'clock'>,
+	ctx: Pick<Context, 'db' | 'clock'> & Contributed,
 	units: (typeof s.unit.$inferSelect)[]
 ) {
 	const unitIds = units.map((unit) => unit.id);
@@ -245,30 +250,7 @@ async function getUnitsWithDerivedStatus(
 		return units;
 	}
 
-	const assignments = await ctx.db
-		.select({
-			unitId: s.contractUnit.unitId,
-			contractId: s.contract.id,
-			status: s.contract.status,
-			start: s.contract.start,
-			end: s.contract.end,
-			interval: s.contract.interval,
-			cost: s.contract.cost
-		})
-		.from(s.contractUnit)
-		.innerJoin(s.contract, eq(s.contractUnit.contractId, s.contract.id))
-		.where(inArray(s.contractUnit.unitId, unitIds));
-
-	const contractIds = [...new Set(assignments.map((assignment) => assignment.contractId))];
-	const payments = contractIds.length
-		? await ctx.db.select().from(s.payment).where(inArray(s.payment.contractId, contractIds))
-		: [];
-	const statusByUnitId = deriveUnitStatuses(
-		unitIds,
-		assignments,
-		groupPaymentsByContractId(payments),
-		ctx.clock.now()
-	);
+	const statusByUnitId = await ctx.contributions.unit.unitStatuses(ctx, unitIds);
 
 	return units.map((unit) => ({
 		...unit,
@@ -631,7 +613,10 @@ export default router({
 			)
 			.query(async ({ input, ctx }) => {
 				const search = input.search?.trim();
-				const tenantName = occupyingTenantName(ctx.clock.now());
+				const tenantName = occupyingTenantName(
+					ctx.clock.now(),
+					ctx.contributions.unit.occupyingStatuses
+				);
 				// the occupant is named, and searched by, only for a member who may view tenants
 				// (effort 838, requirement 10).
 				const viewsTenant = permits(ctx.identity.permissions, 'viewTenant');

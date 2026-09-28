@@ -189,7 +189,7 @@ export default function transferRouter<S extends AnySheet>(declared: readonly S[
 				// what the file could not carry, recomputed over what was written: see each sheet's
 				// `settle`.
 				for (const sheet of sheets) {
-					await sheet.settle?.(ctx.db, now, touched);
+					await sheet.settle?.(ctx, now, touched);
 				}
 
 				return counts as CountOf<S>;

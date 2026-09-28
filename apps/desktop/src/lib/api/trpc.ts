@@ -2,6 +2,7 @@ import { requestWorkspaceSync } from '$lib/sync/event';
 import { FAMILIES, permits, type Flag } from '@rentable/workspace-permission';
 import { TRPCError, initTRPC } from '@trpc/server';
 import { ZodError, type z } from 'zod';
+import { contributions } from './contribution';
 import { context, type Identity } from './context';
 import { readRefusal } from './refusal';
 
@@ -132,6 +133,13 @@ export const caller = t.createCallerFactory;
  * here is a middleware and goes straight into a `.use()`.
  */
 export const middleware = {
+	/**
+	 * hands the procedure what the features contribute, as `ctx.contributions`: what a feature
+	 * reads of the ones depending on it without importing them (`$lib/feature/feature`, under
+	 * *What a feature contributes*). Every procedure starts with it, and a kind is read from the
+	 * bound value when a procedure reads it rather than when this module loads (`./contribution`).
+	 */
+	contribute: t.middleware(async ({ next }) => next({ ctx: { contributions } })),
 	/**
 	 * logs the request and the duration it took to fulfill it.
 	 */
@@ -281,9 +289,13 @@ export const procedure = {
 	 * what they may not view. An act with a flag is `permitted`, which asks this first; the owner's
 	 * acts and the mark's name theirs since effort 838's ticket 17.
 	 *
-	 * middlewares: [log, requireIdentity]
+	 * middlewares: [log, contribute, requireIdentity]
 	 */
-	member: t.procedure.meta({ member: true }).use(middleware.log).use(middleware.requireIdentity),
+	member: t.procedure
+		.meta({ member: true })
+		.use(middleware.log)
+		.use(middleware.contribute)
+		.use(middleware.requireIdentity),
 	/**
 	 * public
 	 *
@@ -294,9 +306,9 @@ export const procedure = {
 	 * touches the workspace is not public however read-only it looks, because the workspace belongs
 	 * to somebody.
 	 *
-	 * middlewares: [log]
+	 * middlewares: [log, contribute]
 	 */
-	public: t.procedure.meta({ public: true }).use(middleware.log),
+	public: t.procedure.meta({ public: true }).use(middleware.log).use(middleware.contribute),
 	/**
 	 * permitted
 	 *
@@ -313,12 +325,13 @@ export const procedure = {
 	 * **A bulk procedure names the flag of the single act**, and so does an undo's inverse: deleting
 	 * a selection is deleting, and restoring what was deleted is an edit of it (requirement 1).
 	 *
-	 * middlewares: [log, requireIdentity, requirePermission(...acts)]
+	 * middlewares: [log, contribute, requireIdentity, requirePermission(...acts)]
 	 */
 	permitted: (...acts: Acts) =>
 		t.procedure
 			.meta({ flags: [...acts] })
 			.use(middleware.log)
+			.use(middleware.contribute)
 			.use(middleware.requireIdentity)
 			.use(middleware.requirePermission(...acts)),
 	/**
@@ -331,12 +344,13 @@ export const procedure = {
 	 * cannot do it. This is for the other case, where two acts carry the same authority over the
 	 * same thing and either is enough, which is one procedure: `member.linkMake`.
 	 *
-	 * middlewares: [log, requireIdentity, requireAnyPermission(...acts)]
+	 * middlewares: [log, contribute, requireIdentity, requireAnyPermission(...acts)]
 	 */
 	permittedAny: (...acts: Acts) =>
 		t.procedure
 			.meta({ anyOf: [...acts] })
 			.use(middleware.log)
+			.use(middleware.contribute)
 			.use(middleware.requireIdentity)
 			.use(middleware.requireAnyPermission(...acts)),
 	/**
@@ -353,7 +367,7 @@ export const procedure = {
 	 * The input is read before the permission, unlike `permitted`, because the permission is read
 	 * off it; a malformed call is refused as malformed either way.
 	 *
-	 * middlewares: [log, requireIdentity, input, flagsOf(input)]
+	 * middlewares: [log, contribute, requireIdentity, input, flagsOf(input)]
 	 */
 	permittedBy: <Schema extends z.ZodType>(
 		possible: Flags,
@@ -363,6 +377,7 @@ export const procedure = {
 		t.procedure
 			.meta({ byInput: possible })
 			.use(middleware.log)
+			.use(middleware.contribute)
 			.use(middleware.requireIdentity)
 			.input(schema)
 			.use(async ({ ctx, input, next }) => {

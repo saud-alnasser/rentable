@@ -1,24 +1,19 @@
-import type { Contract, Payment } from '$lib/platform/database/schema';
+import type { Database } from '$lib/api/context';
+import type { Contract } from '$lib/platform/database/schema';
+import * as s from '$lib/platform/database/schema';
 import { toUtcDay, type DateLike } from '$lib/date';
 import { refuse } from '$lib/api/refusal';
+import { inArray } from 'drizzle-orm';
 
 /**
  * PAYMENT
  *
- * the payment domain module: what payments are worth in aggregate, how they are grouped
- * by the contract they were made against, and the one rule an amount answers on its own.
- * Anything that measures payments against a contract's arithmetic is the contract
- * domain's, and depends on this module rather than the other way round.
+ * the payment domain module: how payments are grouped by the contract they were made
+ * against, and the one rule an amount answers on its own. Anything that measures payments
+ * against a contract's arithmetic, what they add up to included, is the contract domain's:
+ * the payment depends on the contract, and what the contract needs of its payments it is
+ * handed through what the payment contributes ({@link paymentsOf}).
  */
-
-/** a payment as a caller holds it, with the date in whichever form it arrived. */
-export type PaymentLike = Omit<Pick<Payment, 'amount' | 'date'>, 'date'> & {
-	date: DateLike;
-};
-
-export function getPaidAmount(payments: PaymentLike[]) {
-	return payments.reduce((sum, payment) => sum + payment.amount, 0);
-}
 
 /** groups payment rows by their contract, preserving row order within each group. */
 export function groupPaymentsByContractId<P extends { contractId: string }>(payments: P[]) {
@@ -32,6 +27,19 @@ export function groupPaymentsByContractId<P extends { contractId: string }>(paym
 	}
 
 	return paymentsByContractId;
+}
+
+/**
+ * Every payment made against each of the contracts named, by the contract's id: what the payment
+ * contributes to the contract, whose settlement reads it (`ContractContributions` in
+ * `$lib/contract`). No contract named reads nothing.
+ */
+export async function paymentsOf(db: Database, contractIds: readonly string[]) {
+	const payments = contractIds.length
+		? await db.select().from(s.payment).where(inArray(s.payment.contractId, contractIds))
+		: [];
+
+	return groupPaymentsByContractId(payments);
 }
 
 /**

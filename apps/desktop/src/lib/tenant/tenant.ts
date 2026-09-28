@@ -1,3 +1,5 @@
+import type { ContributedRead } from '$lib/feature/surface';
+import type { Contract } from '$lib/platform/database/schema';
 import { refuse } from '$lib/api/refusal';
 import z from 'zod';
 
@@ -134,3 +136,37 @@ export type TenantRefusalReason = 'holds-contracts' | 'missing';
  */
 export const whatRefusesTenantDeletion = (contracts: unknown[]) =>
 	isTenantDeletable(contracts) ? undefined : ('holds-contracts' as const);
+
+/**
+ * What the tenant's router needs of the contracts naming it, contributed by the contract, which
+ * depends on the tenant rather than the other way round (`$lib/feature/feature`, under *What a
+ * feature contributes*).
+ */
+export type TenantContributions = {
+	/**
+	 * the statuses of a contract in force, which is what the reader means by a tenant's contracts
+	 * when they order the directory by them.
+	 */
+	inForceStatuses: readonly Contract['status'][];
+};
+
+/** What the tenant's pages, host and acts need of the contracts naming it, in the window. */
+export type TenantSurfaceContributions = {
+	/**
+	 * every status a contract can hold, in the order the contracts directory ranks them: the order
+	 * a directory row draws its six figures in.
+	 */
+	attentionOrder: readonly Contract['status'][];
+	/** whether the reader may see contracts at all, and so the counts a row carries of them. */
+	viewsContracts: () => boolean;
+	/**
+	 * every contract naming the tenant, read only while `enabled` says so: what refuses its
+	 * deletion ({@link isTenantDeletable}).
+	 */
+	useHeldContracts: (
+		tenantId: () => string | undefined,
+		enabled: () => boolean
+	) => ContributedRead<unknown[]>;
+	/** open a new contract on the tenant. */
+	newContract: (tenantId: string) => void;
+};

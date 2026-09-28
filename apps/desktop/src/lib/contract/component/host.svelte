@@ -36,8 +36,8 @@
 		showSuccessToast
 	} from '$lib/notification';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
-	import { useFetchContractPayments } from '$lib/payment/query';
 	import { writeDetailsToClipboard } from '$lib/platform/clipboard';
+	import { contributionsTo } from '$lib/feature/surface';
 	import { tauri } from '$lib/platform/tauri';
 	import { formatRecordDateRange } from '$lib/date';
 	import { PrintPreview } from '$lib/print/ui';
@@ -88,7 +88,8 @@
 	// what a deletion would be refused for, read for the record being acted on and only while a
 	// deletion is what it is being asked. Its payments alone: the units it holds go with it.
 	const isDeleting = $derived(confirming?.kind === 'delete');
-	const heldPaymentsQuery = useFetchContractPayments(
+	// the payments are the payment's to read, and it contributes the read.
+	const heldPaymentsQuery = contributionsTo('contract').useHeldPayments(
 		() => confirming?.contract.id ?? '',
 		() => isDeleting
 	);

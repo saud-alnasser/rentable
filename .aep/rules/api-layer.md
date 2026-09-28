@@ -51,6 +51,17 @@ use-when: "adding or changing a router, a domain module, a database client or tr
 - **Ambient capabilities only in the request context** — the things that cross the process
   boundary or are nondeterministic. Business configuration is not one of them and does not
   belong there.
+- **A router reads another feature only as a contribution, and never by importing it.** Record
+  features depend one way (the contract on the tenant and the unit, the payment on the contract),
+  so what a depended-on feature's procedures need of a dependent one arrives as
+  `ctx.contributions.<its kind>`, declared under `contributes` in the dependent feature's
+  `feature.ts` and typed in `app/contributions.ts`. The `contribute` middleware every procedure in
+  `api/trpc.ts` starts with adds it beside the context rather than in it: `context()` still builds
+  the four ambient members, and `app/router.ts` binds the merged contributions as it builds the
+  root router (`api/contribution.ts`). A domain helper a procedure hands its context to, such as
+  `reconcile` and `reconcileTouched`, takes the context rather than the bare database, so it can
+  read them too. *Added by ticket 62 of effort 840, carrying out the human's decision of
+  2026-09-28 (the effort's plan, "A feature's reverse needs are contributions").*
 
 ## Who may call
 

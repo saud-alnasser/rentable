@@ -23,6 +23,12 @@
 // binds the feature's host port to its adapter. `import type` is erased at runtime and is not
 // counted by any kind.
 //
+// A feature's declaration files, `feature.ts` and `surface.ts`, may spell another's kind: they
+// are where it names what it contributes to, a section drawn on a tenant's page or what a tenant's
+// router reads of the contracts naming it (plan, *A feature's reverse needs are contributions*).
+// That is one place per feature, read only by `app/`, and a kind spelled in any other module of
+// it is still a `literal` line.
+//
 // A locale is the other place that reads every concept: `i18n/<locale>/index.ts` composes each
 // concept's `i18n/<locale>.ts` back at its key path (plan, *Integration*). Such a piece is data
 // that imports nothing at runtime, which a test below holds it to, so the locale reading it is
@@ -103,6 +109,16 @@ const COMPOSITION_ROOT = 'app';
 // What the composition root reads from a feature besides its entry (plan, *Components*): its two
 // declarations, and the Tauri adapter `app/host.ts` binds its host port to.
 const DECLARATIONS = ['feature.ts', 'surface.ts', 'tauri.ts'];
+
+// A feature's or a capability's declaration files, where it names the kinds it contributes to.
+const CONTRIBUTING = ['feature.ts', 'surface.ts'];
+
+// Whether a file is one of its home's declarations, at any depth: a sub-concept declares itself
+// beside its parent's (`complex/unit/surface.ts`).
+function isDeclaration(label: string, layer: Layer) {
+	const name = label.split('/').at(-1) ?? '';
+	return (layer === 'feature' || layer === 'capability') && CONTRIBUTING.includes(name);
+}
 
 // A concept's strings for one locale, and the locale index that composes them.
 const LOCALE_PIECE = /^(?!i18n\/)(?:[^/]+\/)+i18n\/([a-z]+)\.ts$/;
@@ -319,7 +335,7 @@ function violations() {
 			}
 		}
 
-		if (from === COMPOSITION_ROOT) continue;
+		if (from === COMPOSITION_ROOT || isDeclaration(label, fromLayer)) continue;
 		for (const { kind, owner } of kinds) {
 			if (from !== owner && new RegExp(`(['"\`])${kind}\\1`).test(all)) {
 				found.add(`${label} -> ${kind} : literal`);

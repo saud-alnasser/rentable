@@ -7,6 +7,7 @@ import host from './component/host.svelte';
 import { paymentActs, paymentHost } from './host.svelte';
 import { useSearchPayments } from './query';
 import Ledger from './component/ledger.svelte';
+import { useFetchContractPayments } from './query';
 
 export default defineSurface({
 	name: 'payment',
@@ -53,5 +54,12 @@ export default defineSurface({
 		},
 		// the one collection a payment has: what was done to it, as a contract's page shows its own.
 		historySection('payment', 10)
-	]
+	],
+	// the payment depends on the contract, so the payments a contract's host weighs a deletion
+	// against arrive from here rather than by its importing them.
+	contributes: {
+		contract: {
+			useHeldPayments: (contractId, enabled) => useFetchContractPayments(contractId, enabled)
+		}
+	}
 });

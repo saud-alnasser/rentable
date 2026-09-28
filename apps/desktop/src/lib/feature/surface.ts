@@ -1,5 +1,6 @@
 import type { Pathname, ResolvedPathname, RouteId } from '$app/types';
 import type { PaletteAct } from '$lib/act';
+import type { SurfaceContributions } from '$lib/app/contributions';
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 import type { RecordSearch } from '$lib/palette';
 import type { RecordFlag, RecordKind } from '$lib/permission';
@@ -40,6 +41,12 @@ export type Surface = {
 	settings?: SettingsSection[];
 	/** what it contributes to the shell's own menus: the account menu, the workspace menu */
 	slots?: ShellSlot[];
+	/**
+	 * what it contributes to the kinds it depends on in the window, keyed by the kind each serves:
+	 * what a page, a host or an act of a feature it depends on reads of it. See
+	 * {@link contributionsTo}.
+	 */
+	contributes?: SurfaceContributing;
 };
 
 /**
@@ -212,5 +219,62 @@ export type ShellSlot = {
 	component: Component;
 };
 
-/** Declare a surface. */
-export const defineSurface = (surface: Surface) => surface;
+/**
+ * What a surface contributes to the kinds it depends on in the window, as `$lib/feature/feature`
+ * says of a feature's `contributes`: a feature needing something of one that depends on it
+ * declares the need as a type, and the depending feature's `surface.ts` declares the value.
+ */
+export type SurfaceContributing = {
+	[K in keyof SurfaceContributions]?: Partial<SurfaceContributions[K]>;
+};
+
+/**
+ * A read another feature answers for a page or a host through what it contributes: the query
+ * itself, as the query library hands it back, of which a caller reads only this much.
+ */
+export type ContributedRead<T> = {
+	readonly isPending: boolean;
+	readonly isPlaceholderData: boolean;
+	readonly data: T | undefined;
+};
+
+/**
+ * **The window's contributions are provided, never imported.** A feature sits below the
+ * composition root and may not import it, so `$lib/app/surfaces` merges every surface's
+ * `contributes` and provides the result here once, when it is first evaluated; the frame and every
+ * route import it, so it is in place before anything is drawn.
+ *
+ * **One hand-over for the whole window, not a prop per page.** A section reaches its page through
+ * the route, but what a feature needs here is also needed where no route reaches: the host the
+ * frame mounts, and an act run from the command menu. So a page, a host and an act all read
+ * through {@link contributionsTo}, at call time: in a component's script as it is created, or when
+ * an act runs.
+ */
+let provided: SurfaceContributions | null = null;
+
+/** Provide what every surface contributes, merged. Called once, by `$lib/app/surfaces`. */
+export function provideContributions(contributions: SurfaceContributions) {
+	provided = contributions;
+}
+
+/**
+ * What is contributed to one kind in the window. A feature reads its own kind's, and only at call
+ * time.
+ */
+export function contributionsTo<K extends keyof SurfaceContributions>(
+	kind: K
+): SurfaceContributions[K] {
+	if (provided === null) {
+		throw new Error(
+			'a contribution was read before the surfaces were composed: import `$lib/app/surfaces` first'
+		);
+	}
+
+	return provided[kind];
+}
+
+/**
+ * Declare a surface, keeping every field as it was declared, so the composition root can type
+ * what the list contributes from it.
+ */
+export const defineSurface = <const S extends Surface>(surface: S): S => surface;

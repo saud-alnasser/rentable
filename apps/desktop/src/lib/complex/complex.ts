@@ -1,3 +1,7 @@
+import type { Contributed } from '$lib/api/contribution';
+import type { Context } from '$lib/api/context';
+import type { ContributedRead } from '$lib/feature/surface';
+import type { Contract, Unit } from '$lib/platform/database/schema';
 import { refuse } from '$lib/api/refusal';
 
 /**
@@ -172,3 +176,44 @@ export type ComplexSortColumnId = (typeof COMPLEX_SORT_COLUMN_IDS)[number];
 export const UNIT_SORT_COLUMN_IDS = ['name', 'tenantName', 'status'] as const;
 
 export type UnitSortColumnId = (typeof UNIT_SORT_COLUMN_IDS)[number];
+
+/**
+ * What the unit's procedures, which the complex's router serves, need of the contracts holding a
+ * unit, contributed by the contract, which depends on the unit rather than the other way round
+ * (`$lib/feature/feature`, under *What a feature contributes*).
+ */
+export type UnitContributions = {
+	/** the statuses of a contract that occupies the units it holds while its period runs. */
+	occupyingStatuses: readonly Contract['status'][];
+	/**
+	 * each unit's status as the contracts holding it derive it today, by the unit's id; a unit no
+	 * contract holds is absent.
+	 */
+	unitStatuses: (
+		ctx: Pick<Context, 'db' | 'clock'> & Contributed,
+		unitIds: string[]
+	) => Promise<Map<string, Unit['status']>>;
+};
+
+/** What the unit's host and acts need of the contracts holding a unit, in the window. */
+export type UnitSurfaceContributions = {
+	/**
+	 * every contract that ever named the unit, read only while `enabled` says so: what refuses its
+	 * deletion ({@link isUnitDeletable}).
+	 */
+	useHeldContracts: (
+		unitId: () => string | undefined,
+		enabled: () => boolean
+	) => ContributedRead<unknown[]>;
+	/** open a new contract holding the unit. */
+	newContract: (unitId: string) => void;
+};
+
+/** What the complex's page needs of the contracts on its units, in the window. */
+export type ComplexSurfaceContributions = {
+	/**
+	 * how many of the complex's contracts are active, or `undefined` while that is being read. Read
+	 * as the reader reads it, so a page deriving from it follows the read.
+	 */
+	useActiveContractCount: (complexId: () => string) => { readonly count: number | undefined };
+};

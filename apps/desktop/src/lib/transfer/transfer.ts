@@ -1,3 +1,4 @@
+import type { Contributed } from '$lib/api/contribution';
 import type { Database } from '$lib/api/context';
 import type { RefusalCode } from '$lib/api/refusal';
 import type { features } from '$lib/app/features';
@@ -156,8 +157,15 @@ export type Sheet<C extends string, TRecord, TRow extends Record<string, string>
 	input: ZodType<TInput>;
 	/** its records' statements, in its turn of the one batch. */
 	write(records: TInput[], writing: Writing): Promise<Written>;
-	/** what runs once the batch has landed, over everything any sheet touched. */
-	settle?(db: Database, now: number, touched: Record<string, readonly string[]>): Promise<void>;
+	/**
+	 * what runs once the batch has landed, over everything any sheet touched. Handed the procedure's
+	 * database and what the features contribute, which a settlement may read through.
+	 */
+	settle?(
+		ctx: { db: Database } & Contributed,
+		now: number,
+		touched: Record<string, readonly string[]>
+	): Promise<void>;
 };
 
 /** Declare a sheet, keeping its concept as a literal and its records as their own type. */
@@ -196,7 +204,11 @@ export type AnySheet = {
 	toInput?(record: never): unknown;
 	input: ZodType;
 	write(records: never[], writing: Writing): Promise<Written>;
-	settle?(db: Database, now: number, touched: Record<string, readonly string[]>): Promise<void>;
+	settle?(
+		ctx: { db: Database } & Contributed,
+		now: number,
+		touched: Record<string, readonly string[]>
+	): Promise<void>;
 };
 
 /** What a feature hands the transfer: its sheets, a unit's beside its complex's. */

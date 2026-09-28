@@ -173,7 +173,13 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
   path is its feature and then the procedure: `payment.get`, `sync.getState`, `startup.bootstrap`.
   It lists what the window draws the same way, each feature's `surface.ts` in `app/surfaces.ts`,
   and the frame mounts the hosts those declare. A record page draws the sections those contribute
-  to its kind, handed it by its route, so no feature renders another feature's components.
+  to its kind, handed it by its route, so no feature renders another feature's components. Record
+  features depend one way, the contract on the tenant and the unit and the payment on the
+  contract, and what a depended-on feature needs of the one depending on it (the contracts that
+  refuse a tenant's deletion, the payments a contract's settlement reads) is a contribution that
+  feature declares under `contributes` in its `feature.ts` or `surface.ts`: `app/contributions.ts`
+  names every need, a router reads its kind's off `ctx.contributions`, and a page, host or act
+  reads its kind's through `contributionsTo` (`feature/feature.ts` says how).
   What `platform` holds of the desktop shell is only
   what is no feature's: a feature that crosses to Rust declares its own port and Tauri adapter
   (`host.ts`, `tauri.ts`, the organization's first), and `app/host.ts` composes them with the

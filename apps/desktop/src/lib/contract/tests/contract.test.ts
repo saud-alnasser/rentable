@@ -13,6 +13,7 @@ import {
 	getExpectedAmountBy,
 	getExpectedAmountInRange,
 	getOutstandingExpectedAmount,
+	getPaidAmount,
 	getRemainingContractBalance,
 	hasSameUtcDateRange,
 	hasSatisfiedContractPaymentRequirement,
@@ -20,6 +21,19 @@ import {
 	hasValidContractPeriodForInterval,
 	rangesOverlap
 } from '../contract.ts';
+
+// moved from the payment's tests with the sum it covers: what payments add up to is the contract's
+// arithmetic, since the payment depends on the contract (effort 840, ticket 62).
+test('getPaidAmount sums every payment received', () => {
+	assert.equal(
+		getPaidAmount([
+			{ amount: 250, date: 0 },
+			{ amount: 750, date: 0 }
+		]),
+		1000
+	);
+	assert.equal(getPaidAmount([]), 0);
+});
 
 test('hasSameUtcDateRange treats matching UTC calendar dates as unchanged', () => {
 	assert.equal(

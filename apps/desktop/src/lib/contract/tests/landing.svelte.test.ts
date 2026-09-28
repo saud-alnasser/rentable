@@ -1,6 +1,9 @@
 import { render, waitFor } from '@testing-library/svelte';
 import { expect, test, vi } from 'vitest';
 
+// what one feature reads of another in the window is provided as the surfaces are composed, as
+// the frame does by importing them (`contributionsTo` in `$lib/feature/surface`).
+import '$lib/app/surfaces';
 import ContractHost from '$lib/contract/component/host.svelte';
 import { contractHost } from '$lib/contract/host.svelte';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';

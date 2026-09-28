@@ -1,6 +1,9 @@
 import { render, waitFor } from '@testing-library/svelte';
 import { beforeEach, expect, test, vi } from 'vitest';
 
+// what one feature reads of another in the window is provided as the surfaces are composed, as
+// the frame does by importing them (`contributionsTo` in `$lib/feature/surface`).
+import '$lib/app/surfaces';
 import ComplexHost from '$lib/complex/component/host.svelte';
 import UnitHost from '$lib/complex/unit/component/host.svelte';
 import { complexHost } from '$lib/complex/host.svelte';

@@ -1,6 +1,7 @@
-import type { Contract, Unit } from '$lib/platform/database/schema';
+import type { Database } from '$lib/api/context';
+import type { ContributedRead } from '$lib/feature/surface';
+import type { Contract, Payment, payment, Unit } from '$lib/platform/database/schema';
 import { addUtcDays, addUtcMonths, toUtcDay, type DateLike } from '$lib/date';
-import { getPaidAmount, type PaymentLike } from '$lib/payment/payment';
 import { refuse } from '$lib/api/refusal';
 
 /**
@@ -9,8 +10,46 @@ import { refuse } from '$lib/api/refusal';
  * the contract domain module: status derivation, period and cost invariants, cycle and
  * expected-amount arithmetic, and the rules routers assert before persisting. Routers
  * fetch rows and call in. What a payment is worth on its own is `$lib/payment/payment`;
- * everything that weighs payments against a contract is here.
+ * everything that weighs payments against a contract is here, what they add up to included: the
+ * payment depends on the contract, never the other way round, so the payments a contract is weighed
+ * against arrive as rows its caller hands in, or through what the payment contributes
+ * ({@link ContractContributions}).
  */
+
+/** a payment as a caller holds it, with the date in whichever form it arrived. */
+export type PaymentLike = Omit<Pick<Payment, 'amount' | 'date'>, 'date'> & {
+	date: DateLike;
+};
+
+/** what a set of payments made against a contract adds up to. */
+export function getPaidAmount(payments: PaymentLike[]) {
+	return payments.reduce((sum, payment) => sum + payment.amount, 0);
+}
+
+/**
+ * What the contract's procedures need of the payments made against it, contributed by the payment,
+ * which depends on the contract rather than the other way round (`$lib/feature/feature`, under
+ * *What a feature contributes*).
+ */
+export type ContractContributions = {
+	/**
+	 * every payment made against each of the contracts named, by the contract's id, in the order the
+	 * rows are read; a contract nobody paid against is absent. No contract named reads nothing.
+	 */
+	paymentsOf: (
+		db: Database,
+		contractIds: readonly string[]
+	) => Promise<Map<string, (typeof payment.$inferSelect)[]>>;
+};
+
+/** What the contract's host needs of the payments made against it, in the window. */
+export type ContractSurfaceContributions = {
+	/**
+	 * every payment made against the contract, read only while `enabled` says so: what refuses its
+	 * deletion ({@link isContractDeletable}).
+	 */
+	useHeldPayments: (contractId: () => string, enabled: () => boolean) => ContributedRead<unknown[]>;
+};
 
 export type ContractLike = Omit<
 	Pick<Contract, 'status' | 'start' | 'end' | 'interval' | 'cost'>,

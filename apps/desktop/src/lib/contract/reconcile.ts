@@ -1,4 +1,5 @@
-import type { Database } from '$lib/api/context';
+import type { Contributed } from '$lib/api/contribution';
+import type { Context, Database } from '$lib/api/context';
 import * as s from '$lib/platform/database/schema';
 import {
 	deriveContractStatus,
@@ -6,7 +7,6 @@ import {
 	getContractPaymentSummary,
 	type ContractAssignment
 } from '$lib/contract/contract';
-import { groupPaymentsByContractId } from '$lib/payment/payment';
 import { eq, inArray } from 'drizzle-orm';
 
 /**
@@ -19,7 +19,14 @@ import { eq, inArray } from 'drizzle-orm';
  * while `reconcile` walks the whole table for the triggers that have no touch-set —
  * startup, a UTC-day crossing while the app runs, and a remote-sync pull. (`sync` means
  * remote exclusively; this local recomputation never is.)
+ *
+ * **The payments are read through what the payment contributes** (`paymentsOf`), since the payment
+ * depends on the contract and not the other way round: a pass is handed a procedure's context, and
+ * reads them from its contributions as it runs.
  */
+
+/** what a pass reads through: the database, and what the features contribute. */
+export type Settling = { db: Database } & Contributed;
 
 type DbContract = typeof s.contract.$inferSelect;
 type DbUnit = typeof s.unit.$inferSelect;
@@ -95,13 +102,11 @@ async function selectAssignmentsForUnits(db: Database, unitIds: string[]) {
 }
 
 /** the whole-table pass — for startup, a UTC-day crossing, and a remote-sync pull. */
-export async function reconcile(db: Database, now: number) {
+export async function reconcile(ctx: Settling, now: number) {
+	const { db } = ctx;
 	const contracts = await db.select().from(s.contract);
 	const contractIds = contracts.map((contract) => contract.id);
-	const payments = contractIds.length
-		? await db.select().from(s.payment).where(inArray(s.payment.contractId, contractIds))
-		: [];
-	const paymentsByContractId = groupPaymentsByContractId(payments);
+	const paymentsByContractId = await ctx.contributions.contract.paymentsOf(db, contractIds);
 
 	await writeContractDerivedState(db, now, contracts, paymentsByContractId);
 
@@ -125,7 +130,8 @@ export async function reconcile(db: Database, now: number) {
  * caller detached), those units' other assignments, and those assignments' payments.
  * Cost is bounded by what the mutation touched, never by table size.
  */
-export async function reconcileTouched(db: Database, now: number, touch: TouchSet) {
+export async function reconcileTouched(ctx: Settling, now: number, touch: TouchSet) {
+	const { db } = ctx;
 	const contractIds = [...new Set(touch.contractIds)];
 	const contracts = contractIds.length
 		? await db.select().from(s.contract).where(inArray(s.contract.id, contractIds))
@@ -143,10 +149,7 @@ export async function reconcileTouched(db: Database, now: number, touch: TouchSe
 		])
 	];
 
-	const payments = contractIds.length
-		? await db.select().from(s.payment).where(inArray(s.payment.contractId, contractIds))
-		: [];
-	const paymentsByContractId = groupPaymentsByContractId(payments);
+	const paymentsByContractId = await ctx.contributions.contract.paymentsOf(db, contractIds);
 
 	await writeContractDerivedState(db, now, contracts, paymentsByContractId);
 
@@ -167,13 +170,28 @@ export async function reconcileTouched(db: Database, now: number, touch: TouchSe
 				.filter((contractId) => !loadedContractIds.has(contractId))
 		)
 	];
-	const otherPayments = otherContractIds.length
-		? await db.select().from(s.payment).where(inArray(s.payment.contractId, otherContractIds))
-		: [];
+	const otherPayments = await ctx.contributions.contract.paymentsOf(db, otherContractIds);
 
-	for (const [contractId, contractPayments] of groupPaymentsByContractId(otherPayments)) {
+	for (const [contractId, contractPayments] of otherPayments) {
 		paymentsByContractId.set(contractId, contractPayments);
 	}
 
 	await writeUnitDerivedState(db, now, units, assignments, paymentsByContractId);
+}
+
+/**
+ * Each unit's status as the contracts holding it derive it now, by the unit's id: what the contract
+ * contributes to the unit, whose procedures the complex's router serves (`UnitContributions` in
+ * `$lib/complex`). A unit no contract holds is absent. The same derivation a pass writes back,
+ * read rather than written.
+ */
+export async function unitStatuses(
+	ctx: Pick<Context, 'db' | 'clock'> & Contributed,
+	unitIds: string[]
+) {
+	const assignments = await selectAssignmentsForUnits(ctx.db, unitIds);
+	const contractIds = [...new Set(assignments.map((assignment) => assignment.contractId))];
+	const paymentsByContractId = await ctx.contributions.contract.paymentsOf(ctx.db, contractIds);
+
+	return deriveUnitStatuses(unitIds, assignments, paymentsByContractId, ctx.clock.now());
 }

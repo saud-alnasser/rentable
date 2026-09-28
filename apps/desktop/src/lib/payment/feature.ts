@@ -1,4 +1,5 @@
 import { defineFeature } from '$lib/feature/feature';
+import { paymentsOf } from './payment';
 import router from './router';
 import payments from './transfer';
 
@@ -11,5 +12,8 @@ export default defineFeature({
 	kind: 'payment',
 	prefix: ['contracts', 'payments'],
 	transfer: [payments],
-	pages: [{ route: '/contracts/payments/[id]', parent: '/contracts/[id]' }]
+	pages: [{ route: '/contracts/payments/[id]', parent: '/contracts/[id]' }],
+	// the payment depends on the contract, so the payments a contract's settlement reads arrive
+	// from here rather than by its importing them.
+	contributes: { contract: { paymentsOf } }
 });
