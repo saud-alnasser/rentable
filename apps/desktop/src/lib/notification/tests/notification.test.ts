@@ -35,7 +35,7 @@ mock.module('$lib/platform/diagnostics', {
 	}
 });
 
-const { showErrorToast } = await import('$lib/error/toast');
+const { showErrorToast } = await import('$lib/notification');
 
 // the loaded locale rather than a hand-written stand-in: `showErrorToast` takes the whole of
 // `TranslationFunctions`, and the two-key object this used to pass was a shape nothing ever

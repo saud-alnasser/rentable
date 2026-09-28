@@ -8,7 +8,7 @@
 	import { trustWorkspaceData } from '$lib/design/query';
 	import { dropLandingOnNavigation } from '$lib/design/landing.svelte';
 	import { TooltipProvider } from '@rentable/design/primitive/tooltip/index.js';
-	import SonnerProvider from '$lib/design/provider/sonner.svelte';
+	import NotificationProvider from '$lib/notification/component/provider.svelte';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import LayoutCaughtError from '$lib/layout/component/caught-error.svelte';
@@ -391,7 +391,7 @@
 				recordDiagnosticError(CAUGHT_ERROR_EVENT, toCaughtErrorFields('shell', error))}
 		>
 			<QueryClientProvider client={queryClient}>
-				<SonnerProvider>
+				<NotificationProvider>
 					<TooltipProvider>
 						<!-- the rail's way in navigates, and that is the whole mechanism: signed out,
 						     `shellSurface` draws the card over every address but the ones `OPENS_SIGNED_OUT`
@@ -445,7 +445,7 @@
 							<LayoutOrganizationDialogs />
 						{/if}
 					</TooltipProvider>
-				</SonnerProvider>
+				</NotificationProvider>
 			</QueryClientProvider>
 
 			{#snippet failed(error, reset)}

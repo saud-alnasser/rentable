@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [01]
 ---
 # refactor(desktop): notifications are a capability
@@ -14,8 +14,8 @@ The spec is [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]]; the 
 
 Traces requirement 20 of [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]], and criterion 20.
 
-- [ ] No toast call reaches the design package's `Toaster` except through `notification/` (criterion 20).
-- [ ] The integration gate passes on this commit; no test assertion changes except where it names a moved path (criterion 19).
+- [x] No toast call reaches the design package's `Toaster` except through `notification/` (criterion 20). Verified: `grep -rnE "from ['\"](svelte-sonner|@rentable/design/primitive/sonner[^'\"]*)['\"]" apps/desktop/src --include=*.ts --include=*.svelte | grep -v /tests/` prints only `notification/component/provider.svelte:2` (the `Toaster`) and `notification/notification.ts:8` (`toast`); `notification/tests/reach.test.ts` fails on any other import of either.
+- [x] The integration gate passes on this commit; no test assertion changes except where it names a moved path (criterion 19). Verified: in the run's tree: check 0, eslint 0, `pnpm test` 3 of 3 tasks, build:web 0, validate 0. The provider is mounted in the same place in `routes/+layout.svelte`. The one assertion change is the reach test's `SHARED_HANDLERS` list naming the moved file.
 
 ## Relevant areas
 

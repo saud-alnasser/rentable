@@ -6,7 +6,7 @@
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import { toExportSheet } from '@rentable/design/csv.js';
 	import { isolateDirection } from '$lib/error/message';
-	import { showErrorToast, showSuccessToast } from '$lib/error/toast';
+	import { showErrorToast, showSuccessToast } from '$lib/notification';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { tauri } from '$lib/platform/tauri';
 	import WorkspaceImportDialog from '$lib/workspace/component/import-dialog.svelte';

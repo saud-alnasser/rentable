@@ -5,19 +5,38 @@ import { toRefusalText } from '$lib/error/refusal';
 import { toTauriErrorCode } from '$lib/error/tauri';
 import { recordDiagnosticError } from '$lib/platform/diagnostics';
 import { toRefusal } from '@rentable/design/confirmation.js';
-import { toast } from 'svelte-sonner';
+import { toast, type ExternalToast } from 'svelte-sonner';
 
 /**
  * WHERE A TOAST IS RAISED
  *
- * This module and `$lib/design/mutation` are the only two that import `toast`, and
- * `error/tests/toast-reach.test.ts` fails on a third. A mutation reports through the handlers in
- * `$lib/design/mutation`; everything else a surface has to announce, which is a failure raised
- * outside a mutation or a success that no mutation stands behind, comes through here.
+ * This module is the only one that imports `toast`, and `notification/tests/reach.test.ts` fails
+ * on a second. A mutation reports through the handlers in `$lib/design/mutation`, which raise
+ * through {@link notify}; everything else a surface has to announce, which is a failure raised
+ * outside a mutation or a success that no mutation stands behind, comes through the functions
+ * below it.
  *
  * *Why one path: a surface calling `toast` itself decides its own tone, duration and wording
  * rules, and the application had several that did, each a little differently.*
  */
+
+/** what a toast is identified by, so the one carrying an offer can be withdrawn. */
+export type NotificationId = string | number;
+
+/**
+ * the toaster itself, for the mutation handlers that decide a toast's tone, detail, offer and
+ * duration from a declaration. A surface does not reach for it: it announces through the
+ * functions below, or through the declaration of the mutation it calls.
+ */
+export const notify = {
+	success: (title: string, options?: ExternalToast): NotificationId =>
+		toast.success(title, options),
+	warning: (title: string): NotificationId => toast.warning(title),
+	error: (title: string): NotificationId => toast.error(title),
+	dismiss: (id: NotificationId) => {
+		toast.dismiss(id);
+	}
+};
 
 /**
  * show a thrown value as an error toast: the reader's sentence, and nothing else.

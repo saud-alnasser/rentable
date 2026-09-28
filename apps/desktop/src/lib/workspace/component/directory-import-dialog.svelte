@@ -4,7 +4,7 @@
 	import { Callout } from '@rentable/design/primitive/callout/index.js';
 	import * as Dialog from '@rentable/design/primitive/dialog/index.js';
 	import type { ImportRejection } from '$lib/design/import';
-	import { showErrorSentence, showErrorToast } from '$lib/error/toast';
+	import { showErrorSentence, showErrorToast } from '$lib/notification';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { tauri } from '$lib/platform/tauri';
 	import {

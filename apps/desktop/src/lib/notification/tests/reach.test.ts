@@ -5,16 +5,19 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 /**
- * EVERY TOAST GOES THROUGH THE SHARED HANDLERS
+ * EVERY TOAST GOES THROUGH THE NOTIFICATION CAPABILITY
  *
  * Requirement 12 of [[efforts/832-the-interface-speaks-one-language-and-guides/spec]]: a surface
  * never raises a toast itself. It reports through the mutation handlers in `design/mutation.ts`,
- * or through `error/toast.ts` for what no mutation stands behind, and those two are the only
- * modules that import `toast`. This reads the tree rather than trusting that nobody reached for
- * it again.
+ * or through `$lib/notification` for what no mutation stands behind, and the handlers raise
+ * through `$lib/notification` too (requirement 20 of
+ * [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]]). So `notification.ts` is the
+ * only module that imports `toast`, and `notification/` the only home that mounts the packaged
+ * `Toaster`. This reads the tree rather than trusting that nobody reached for either again.
  *
  * What is looked for is `toast` itself, whether named, default or a namespace. The toaster the
- * layout mounts is imported from the same package and is not a toast, so it is not caught.
+ * layout mounts is imported from the same package and is not a toast, so it is not caught by the
+ * first scan; the second looks for the packaged toaster by its path.
  */
 
 const here = fileURLToPath(import.meta.url);
@@ -23,13 +26,15 @@ const repository = join(desktop, '..', '..');
 
 const ROOTS = [join(desktop, 'src'), join(repository, 'packages', 'design', 'src')];
 
-const SHARED_HANDLERS = new Set([
-	'apps/desktop/src/lib/design/mutation.ts',
-	'apps/desktop/src/lib/error/toast.ts'
-]);
+const SHARED_HANDLERS = new Set(['apps/desktop/src/lib/notification/notification.ts']);
+
+const NOTIFICATION = 'apps/desktop/src/lib/notification/';
 
 const SKIP = new Set(['node_modules', '.svelte-kit']);
 const SOURCE = /\.(ts|js|svelte)$/;
+
+// every import of the design package's toaster, from outside the package that defines it.
+const TOASTER = /from\s+['"]@rentable\/design\/primitive\/sonner(\/[^'"]*)?['"]/;
 
 // every static import of the package, with the clause between `import` and `from`.
 const IMPORT = /import\s+([^;]*?)\s+from\s+['"]svelte-sonner['"]/g;
@@ -90,9 +95,34 @@ test('no module but the shared handlers imports toast', async () => {
 });
 
 // the check above passes as readily against a scanner that finds nothing, so it is anchored to
-// the two imports that are meant to be there.
+// the one import that is meant to be there.
 test('the shared handlers are what the scan finds', async () => {
 	assert.deepEqual((await importersOfToast()).sort(), [...SHARED_HANDLERS].sort());
+});
+
+async function importersOfToaster() {
+	const found: string[] = [];
+
+	for await (const path of files(join(desktop, 'src'))) {
+		if (path === here) continue;
+
+		if (TOASTER.test(await readFile(path, 'utf8'))) {
+			found.push(relative(repository, path).split(sep).join('/'));
+		}
+	}
+
+	return found;
+}
+
+test('only the notification capability mounts the packaged toaster', async () => {
+	const found = await importersOfToaster();
+
+	assert.notDeepEqual(found, [], 'the provider mounts the toaster, so the scan finds it');
+	assert.deepEqual(
+		found.filter((path) => !path.startsWith(NOTIFICATION)),
+		[],
+		'the packaged toaster is mounted outside notification/'
+	);
 });
 
 test('an import clause is read for toast in every shape it can take', () => {

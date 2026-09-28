@@ -64,8 +64,8 @@ vi.mock('$lib/platform/tauri', () => ({
 	tauri: { dialog: { openFile: shell.openFile, saveFile: vi.fn() } }
 }));
 
-vi.mock('$lib/error/toast', async (importOriginal) => ({
-	...(await importOriginal<typeof import('$lib/error/toast')>()),
+vi.mock('$lib/notification', async (importOriginal) => ({
+	...(await importOriginal<typeof import('$lib/notification')>()),
 	showErrorSentence: (sentence: string) => shell.refused.push(sentence)
 }));
 

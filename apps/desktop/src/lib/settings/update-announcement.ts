@@ -1,7 +1,7 @@
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 
 import { toErrorMessage } from '$lib/error/message';
-import { showErrorSentence, showSuccessToast } from '$lib/error/toast';
+import { showErrorSentence, showSuccessToast } from '$lib/notification';
 
 /**
  * WHAT THE UPDATES SECTION SAYS, AND WHERE IT SAYS IT

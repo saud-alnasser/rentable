@@ -48,7 +48,7 @@ mock.module('$lib/platform/tauri', {
 });
 
 const { useImportRecords } = await import('$lib/workspace/query');
-const { showErrorToast } = await import('$lib/error/toast');
+const { showErrorToast } = await import('$lib/notification');
 const { loadLocale } = await import('$lib/i18n/i18n-util.sync');
 const { LL, setLocale } = await import('$lib/i18n/i18n-svelte');
 const { get } = await import('svelte/store');

@@ -1,5 +1,5 @@
 import { toPaletteActs, toPaletteVerbs, type PaletteAct, type RecordAct } from '$lib/design/acts';
-import { showErrorSentence } from '$lib/error/toast';
+import { showErrorSentence } from '$lib/notification';
 import { LL } from '$lib/i18n/i18n-svelte';
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 import type { PaletteMatch, RecordSearch } from '$lib/layout/palette';

@@ -144,7 +144,7 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
   the `list-toolbar` and `search-field` every set draws above its records, and the
   `create-control` that is each set's one way to add to it (`record-actions` retired with effort
   832, when copy details became a record act); the record acts' shape and projections in
-  `acts.ts`, the cells, the toast provider that configures the packaged `Toaster`, and the
+  `acts.ts`, the cells, and the
   cross-concept helpers beside them: mutation handling, the workspace query-cache policy, undo,
   the shortcut registry and what builds the list's registrations, the list's motion
   (`list-motion`), the create key and what it answers (`create-key`, `create-target`,

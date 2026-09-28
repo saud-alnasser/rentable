@@ -40,7 +40,7 @@
 	import { selectedRecords } from '@rentable/design/selection.js';
 	import DownloadIcon from '@lucide/svelte/icons/download';
 	import { isolateDirection } from '$lib/error/message';
-	import { showErrorToast, showSuccessToast } from '$lib/error/toast';
+	import { showErrorToast, showSuccessToast } from '$lib/notification';
 	import { isEditingText } from '@rentable/design/shortcut.js';
 	import { shortcuts } from '$lib/design/shortcut-registry.svelte';
 	import type { ListSort } from '@rentable/design/sort.js';

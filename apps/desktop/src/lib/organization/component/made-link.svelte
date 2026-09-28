@@ -4,7 +4,7 @@
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import { onSubmit } from '$lib/design/form';
-	import { showErrorSentence } from '$lib/error/toast';
+	import { showErrorSentence } from '$lib/notification';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import LinkHandover from '$lib/organization/component/link-handover.svelte';
 

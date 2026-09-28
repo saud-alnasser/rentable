@@ -955,7 +955,7 @@ Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], re
 failure** (*Not found*, under *Empty*, above).
 
 - **An act refused or failed** is an error toast, raised by the mutation's declaration or through
-  `error/toast.ts` (*Feedback*, below). Its title is the reader's sentence, read from the refusal's
+  `$lib/notification` (*Feedback*, below). Its title is the reader's sentence, read from the refusal's
   code (`error/refusal.ts`), never the words a procedure or the shell wrote. A confirmation holds
   the refusal its act earned in the dialog, and a refusal that belongs to a form's field marks that
   field (*Validation errors*).
@@ -988,9 +988,10 @@ Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], re
 
 **Every toast goes through the shared handlers.** A mutation announces through its declaration and
 the handlers in `design/mutation.ts`; anything else, a failure raised outside a mutation or a
-success nothing declared, goes through `error/toast.ts`. Those two modules are the only importers
-of `toast`, and `error/tests/toast-reach.test.ts` fails on a third. [[rules/frontend]] states the
-same line for mutations under *Data access*.
+success nothing declared, goes through `$lib/notification`. The handlers raise through
+`$lib/notification` too, so `notification/notification.ts` is the only importer of `toast` and
+`notification/` the only home that mounts the packaged `Toaster`; `notification/tests/reach.test.ts`
+fails on a second. [[rules/frontend]] states the same line for mutations under *Data access*.
 
 **A notice that stands on a surface is a callout**, drawn with the callout primitive in the tone
 vocabulary above, never a hand-coloured box. The contract units lock notice is the worked example:

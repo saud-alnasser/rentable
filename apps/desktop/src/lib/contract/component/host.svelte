@@ -34,7 +34,7 @@
 		showErrorToast,
 		showRefusal,
 		showSuccessToast
-	} from '$lib/error/toast';
+	} from '$lib/notification';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { useFetchContractPayments } from '$lib/payment/query';
 	import { writeDetailsToClipboard } from '$lib/platform/clipboard';

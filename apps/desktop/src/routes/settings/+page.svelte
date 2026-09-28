@@ -10,7 +10,7 @@
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Skeleton } from '@rentable/design/primitive/skeleton/index.js';
 	import { toErrorText } from '$lib/error/message';
-	import { showErrorToast } from '$lib/error/toast';
+	import { showErrorToast } from '$lib/notification';
 	import { LL, locale, setLocale } from '$lib/i18n/i18n-svelte';
 	import type { Locales } from '$lib/i18n/i18n-types';
 	import { addressAfterSignOut } from '$lib/layout/shell-surface';

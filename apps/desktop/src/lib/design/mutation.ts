@@ -7,11 +7,11 @@ import { NAMED_RECORDS, unforeseenRefusals } from '@rentable/design/selection.js
 import { LL } from '$lib/i18n/i18n-svelte';
 import { readHostRefusal, toRefusalText, toRouterFailureText } from '$lib/error/refusal';
 import { toTauriErrorCode } from '$lib/error/tauri';
+import { notify, type NotificationId } from '$lib/notification';
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 import { createMutation, useQueryClient, type QueryClient } from '@tanstack/svelte-query';
 import { TRPCError } from '@trpc/server';
 import { get } from 'svelte/store';
-import { toast } from 'svelte-sonner';
 
 type ToastMessage = string | (() => string);
 
@@ -218,11 +218,11 @@ export type UndoOffer = { client: QueryClient; change: Inverse; direction: Offer
  * Only the change on top of the stack can be moved, so only one offer is ever live — and an
  * older announcement left standing would offer a control over somebody else's change.
  */
-let outstandingOffer: string | number | null = null;
+let outstandingOffer: NotificationId | null = null;
 
 function withdrawOutstandingOffer() {
 	if (outstandingOffer !== null) {
-		toast.dismiss(outstandingOffer);
+		notify.dismiss(outstandingOffer);
 		outstandingOffer = null;
 	}
 }
@@ -261,7 +261,7 @@ export function onMutationSuccess(opts: MutationOptions, offer?: UndoOffer) {
 	const detail = opts.toast.detail && { description: resolveToastMessage(opts.toast.detail) };
 
 	if (!offer) {
-		toast.success(message, detail || undefined);
+		notify.success(message, detail || undefined);
 
 		return;
 	}
@@ -272,12 +272,12 @@ export function onMutationSuccess(opts: MutationOptions, offer?: UndoOffer) {
 	// announced alone, without the line saying how long an undo lasts, and the key, asked for it,
 	// says why it cannot be taken back.
 	if (inverseStack.refusal(offer.direction, get(LL))) {
-		toast.success(message);
+		notify.success(message);
 
 		return;
 	}
 
-	outstandingOffer = toast.success(message, {
+	outstandingOffer = notify.success(message, {
 		...detail,
 		action: toToastAction(offer),
 		duration: OFFER_DURATION
@@ -301,7 +301,7 @@ export function onMutationSuccess(opts: MutationOptions, offer?: UndoOffer) {
  */
 function onMutationNotice(message: string | undefined) {
 	if (message) {
-		toast.warning(message);
+		notify.warning(message);
 	}
 }
 
@@ -364,17 +364,17 @@ export function onMutationError(opts: MutationOptions, e: Error) {
 	if (e instanceof TRPCError && e.code === 'BAD_REQUEST') {
 		if (errorToast === true) {
 			// a refusal crosses as a code, and this is where it becomes the reader's words.
-			toast.error(toRefusalText(e, get(LL)));
+			notify.error(toRefusalText(e, get(LL)));
 		} else if (typeof errorToast === 'string') {
-			toast.error(errorToast);
+			notify.error(errorToast);
 		}
 	} else if (readHostRefusal(e)) {
 		// the shell refuses with a reason, and its message is a developer's description: the
 		// reason is what becomes the reader's words (effort 832, requirement 23).
 		if (errorToast === true) {
-			toast.error(toRefusalText(e, get(LL)));
+			notify.error(toRefusalText(e, get(LL)));
 		} else if (typeof errorToast === 'string') {
-			toast.error(errorToast);
+			notify.error(errorToast);
 		}
 	} else {
 		// what the error was raised with is a developer's description, in English whatever the
@@ -392,15 +392,15 @@ export function onMutationError(opts: MutationOptions, e: Error) {
 			// a permission failure is not the generic failure a declaration turns off with
 			// `error: false`: that setting is about refusals a form places itself, and a caller
 			// the middlewares turned away has a sentence of its own to be told.
-			toast.error(permission);
+			notify.error(permission);
 		} else if (errorToast === true && sentence) {
-			toast.error(sentence);
+			notify.error(sentence);
 		} else if (typeof errorToast === 'string') {
-			toast.error(errorToast);
+			notify.error(errorToast);
 		} else if (opts.toast?.unexpected) {
-			toast.error(resolveToastMessage(opts.toast.unexpected));
+			notify.error(resolveToastMessage(opts.toast.unexpected));
 		} else if (errorToast === true) {
-			toast.error(translations.common.messages.unexpectedError());
+			notify.error(translations.common.messages.unexpectedError());
 		}
 	}
 }
@@ -433,7 +433,7 @@ async function applyInverse(client: QueryClient, direction: OfferDirection) {
 	const refusal = inverseStack.refusal(direction, get(LL));
 
 	if (refusal) {
-		toast.error(refusal);
+		notify.error(refusal);
 
 		return;
 	}

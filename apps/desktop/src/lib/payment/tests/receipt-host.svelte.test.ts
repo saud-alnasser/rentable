@@ -42,7 +42,7 @@ vi.mock('$lib/api/caller', () => ({
 	default: { contract: { payments: { receipt: hooks.receipt } } }
 }));
 
-vi.mock('$lib/error/toast', async (original) => ({
+vi.mock('$lib/notification', async (original) => ({
 	...(await original<Record<string, unknown>>()),
 	showErrorSentence: (sentence: string) => hooks.sentences.push(sentence)
 }));

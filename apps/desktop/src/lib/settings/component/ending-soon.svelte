@@ -3,7 +3,7 @@
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import { Input } from '@rentable/design/primitive/input/index.js';
-	import { showErrorSentence } from '$lib/error/toast';
+	import { showErrorSentence } from '$lib/notification';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { useSetEndingSoonNoticeDays } from '$lib/settings/query';
 
