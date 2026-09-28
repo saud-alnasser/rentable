@@ -219,10 +219,10 @@ mod tests {
         machine::{RemoteSync, RemoteSyncStore},
         organization::{
             HeldOrganization,
+            member::vault::KdfParams,
             session::{CredentialSlot, sign_in},
             setup::{CreateOrganization, Remote, create_organization},
             store::OrganizationStore,
-            vault::KdfParams,
         },
         persisted::Persisted,
         settings::Settings,

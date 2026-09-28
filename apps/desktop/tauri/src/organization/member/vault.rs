@@ -164,7 +164,7 @@ impl MemberKey {
 
     /// The key as base64url, for the one caller that has to hand it to something outside this
     /// process: the operating system's credential store, where a signed-in machine files what
-    /// opens its member's vault (`organization/session.rs`).
+    /// opens its member's vault (`organization/session/`).
     ///
     /// **This is the one way the bytes leave**, which is why it is a method here rather than an
     /// accessor somebody else encodes. The `String` it returns is not scrubbed on drop, so a
@@ -576,7 +576,7 @@ pub fn open_content(key: &ContentKey, column: &str, sealed: &[u8]) -> Result<Vec
 /// where the key came from and what is bound to it: a caller derives one with
 /// [`derive_member_key`] from a phrase and a salt of their choosing, and names in `context`
 /// whatever the seal must not survive being moved away from. The invitation code's seal is the
-/// one caller (`organization/invite.rs`): the phrase is the code, the salt is drawn from the
+/// one caller (`organization/invitation/`): the phrase is the code, the salt is drawn from the
 /// link's secret, and the context is the invitation and the moment the code lapses, so a seal
 /// lifted onto another invitation, or a row whose expiry was rewritten, opens for nobody.
 pub fn seal_under_member_key(

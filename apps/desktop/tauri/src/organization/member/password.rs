@@ -30,11 +30,11 @@ use crate::{
     error::{Error, RefusalReason},
 };
 
-use super::{
+use crate::organization::{
+    member::vault::{KdfParams, open_vault, reseal_vault_with_key},
     session::{MemberSession, remember},
     setup::MINIMUM_PASSWORD_LENGTH,
     store::OrganizationStore,
-    vault::{KdfParams, open_vault, reseal_vault_with_key},
 };
 
 /// Change the signed-in member's password. The current one has to open the vault first, so a
@@ -126,19 +126,19 @@ mod tests {
         machine::RemoteSyncStore,
         organization::{
             HeldOrganization,
-            invite::{
+            invitation::{
                 AccountAndLink, Invitation, WorkspaceGrant, locator, make_account_and_link,
                 reset_account,
             },
-            migrate::Pipeline,
-            permission,
+            lease::apply::Pipeline,
+            member::vault::{KdfParams, MemberKey, open_sealed_secret_key, unseal_with_secret_key},
+            role::permission,
             session::{CredentialSlot, MEMBER_KEY_SERVICE, MemberSession, read_entry, sign_in},
             setup::{
                 ADMINISTRATOR_KEY_PURPOSE, CreateOrganization, MINIMUM_PASSWORD_LENGTH,
                 ORGANIZATION_KEY_PURPOSE, Remote, create_organization,
             },
             store::{OrganizationStore, TABLES},
-            vault::{KdfParams, MemberKey, open_sealed_secret_key, unseal_with_secret_key},
             workspace::{create_workspace, grant_workspace},
         },
         persisted::Persisted,
@@ -184,7 +184,7 @@ mod tests {
     /// the other half, and it read the row's `code_seal` until effort 828 moved the seal into the
     /// link's text.*
     fn secret_of(invited: &AccountAndLink) -> String {
-        crate::organization::invite::vault_password_of(
+        crate::organization::invitation::vault_password_of(
             &invited.join_link,
             &invited.code,
             test_cost(),

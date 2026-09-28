@@ -18,13 +18,13 @@ use crate::organization::{
         InvitationAuthority, MarkAuthority, OrganizationKey, SuccessionAuthority,
         WorkspaceAuthority, sign_succession,
     },
-    permission::{self, Flag, MANAGER_ROLE, MEMBER_ROLE, OWNER_ROLE},
-    setup::{ADMINISTRATOR_KEY_PURPOSE, owner_key_from},
-    store::{FORMAT_VERSION, OrganizationStore, SuccessionRecord},
-    vault::{
+    member::vault::{
         ContentKey, KdfParams, MemberKey, MemberSecretKey, Vault, create_vault_with_secret_and_key,
         generate_content_key, open_content, seal_content, seal_to_public_key,
     },
+    role::permission::{self, Flag, MANAGER_ROLE, MEMBER_ROLE, OWNER_ROLE},
+    setup::{ADMINISTRATOR_KEY_PURPOSE, owner_key_from},
+    store::{FORMAT_VERSION, OrganizationStore, SuccessionRecord},
 };
 use crate::test::scratch;
 use crate::upgrade::format::{
@@ -273,7 +273,8 @@ impl Older {
 pub(crate) fn owner_secret(older: &Older) -> MemberSecretKey {
     let owner = older.person("owner");
 
-    crate::organization::vault::open_vault(owner.password, &owner.vault).expect("the owner's vault")
+    crate::organization::member::vault::open_vault(owner.password, &owner.vault)
+        .expect("the owner's vault")
 }
 
 /// Run one statement on the replica, as the old build or somebody around the store would.

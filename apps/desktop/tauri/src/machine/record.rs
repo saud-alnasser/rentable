@@ -26,8 +26,8 @@ pub const CUSTOM: &str = "custom";
 /// member holds (effort 838, the plan's *Interfaces*). A removed member is known by their row's
 /// `removed_at`, never by a kind.
 ///
-/// *Here rather than in `organization/permission.rs`, which re-exports all five, since effort 840:
-/// the record drops a role that is no kind on load, and a record that asked `organization` for
+/// *Here rather than in `organization/role/permission.rs`, which re-exports all five, since effort
+/// 840: the record drops a role that is no kind on load, and a record that asked `organization` for
 /// the kinds would be a module `organization` writes reaching back into it.*
 pub const KINDS: [&str; 4] = [OWNER, MANAGER, MEMBER, CUSTOM];
 
@@ -38,7 +38,7 @@ pub const KINDS: [&str; 4] = [OWNER, MANAGER, MEMBER, CUSTOM];
 /// **One or none, and the type says so** (effort 824, requirement 17): the record used to be a
 /// list of every organization the machine had joined, and the wall listed them. A machine now
 /// holds one, connected by the organization's link before anybody has signed in, and forgets it
-/// whole on a disconnect (`organization/forget.rs`).
+/// whole on a disconnect (`organization/session/forget.rs`).
 ///
 /// The verifying key is base64url, as the link spells it, and it is **the copy every
 /// verification on this machine uses**: pinned from the link at connect, never refreshed from the

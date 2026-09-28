@@ -49,8 +49,8 @@ use crate::error::Error;
 
 use crate::organization::{
     authority::{AdministratorKey, OrganizationKey, VERIFYING_KEY_BYTES},
+    member::vault::{MemberSecretKey, Vault},
     store::{GrantRecord, OrganizationStore},
-    vault::{MemberSecretKey, Vault},
 };
 
 use runner::Opened;

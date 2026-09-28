@@ -41,7 +41,7 @@
 //! **Sign-out keeps the record.** Signing out drops the keys this process held and nothing else;
 //! the record goes on naming the organization and the member, so the wall comes back up on the
 //! same organization and the next sign-in finds the same replica. Forgetting the organization is
-//! a disconnect (`forget.rs`), which is a different act.
+//! a disconnect (`session/forget.rs`), which is a different act.
 //!
 //! **How a link reaches the application.** A link is `rentable://join/...`, and the scheme is
 //! registered with the operating system: by the installer on Windows and Linux, from the
@@ -51,8 +51,8 @@
 //! puts the connect screen on with the link already in it. A person whose platform did not hand
 //! the link over, a chat client that refuses unknown schemes, a link copied as text, pastes it
 //! into the same screen; that is the fallback and not the design. Both are in
-//! `organization/command.rs`'s `locator_take` and the shell's listener, and the decision
-//! is recorded here because the join ticket made it.
+//! `organization/invitation/command.rs`'s `organization_link_take` and the shell's listener, and
+//! the decision is recorded here because the join ticket made it.
 
 use std::sync::{Arc, Mutex};
 
@@ -64,17 +64,19 @@ use crate::{
     persisted::Persisted,
 };
 
-use super::{
-    HeldOrganization, connect,
-    invite::InvitationStanding,
-    link::{HalfKind, JoinLink, open_payload},
+use crate::organization::{
+    HeldOrganization,
+    invitation::{
+        InvitationStanding, connect,
+        link::{HalfKind, JoinLink, open_payload},
+    },
+    member::vault::{KdfParams, open_vault, reseal_vault_with_key},
     session::{
         CredentialSlot, MemberSession, content_key_of, machine_seen, open_session, refused_by_name,
         remember, sign_in_by_username,
     },
     setup::MINIMUM_PASSWORD_LENGTH,
     store::{FORMAT_VERSION, InvitationRecord, MemberRecord, OrganizationStore},
-    vault::{KdfParams, open_vault, reseal_vault_with_key},
 };
 
 /// The one sentence an invitation that no longer opens is refused with: which of the three it is,
@@ -215,7 +217,7 @@ where
         None => connect::connect(store, machine, &link.locator(), &payload.credential, now).await?,
     };
 
-    let verifying_key = super::session::verifying_key_of(&held)?;
+    let verifying_key = crate::organization::session::verifying_key_of(&held)?;
     let invitations = store.invitations(&verifying_key).await?;
     let invitation: &InvitationRecord = invitations
         .iter()
@@ -373,20 +375,21 @@ mod tests {
         error::{Error, RefusalReason},
         machine::{RemoteSync, RemoteSyncStore},
         organization::{
-            HeldOrganization, connect,
-            invite::{
-                INVITATION_LIFETIME_MS, Invitation, WorkspaceGrant, locator, make_account_and_link,
+            HeldOrganization,
+            invitation::{
+                INVITATION_LIFETIME_MS, Invitation, WorkspaceGrant, connect,
+                link::{
+                    CODE_MISSING, CODE_REFUSED, Half, HalfKind, JoinLink, LinkKind, Locator,
+                    open_payload,
+                },
+                locator, make_account_and_link,
             },
-            link::{
-                CODE_MISSING, CODE_REFUSED, Half, HalfKind, JoinLink, LinkKind, Locator,
-                open_payload,
-            },
-            migrate::Pipeline,
-            permission,
+            lease::apply::Pipeline,
+            member::vault::{KdfParams, open_sealed_secret_key},
+            role::permission,
             session::{CredentialSlot, MEMBER_KEY_SERVICE, MemberSession, read_entry, sign_in},
             setup::{CreateOrganization, Remote, create_organization},
             store::OrganizationStore,
-            vault::{KdfParams, open_sealed_secret_key},
             workspace::create_workspace,
         },
         persisted::Persisted,
@@ -617,7 +620,7 @@ mod tests {
 
     /// The accept, over one machine's record and the replica this test already holds.
     ///
-    /// **The replica is handed in rather than opened.** In the application `command::reached`
+    /// **The replica is handed in rather than opened.** In the application `reached` (`command.rs`)
     /// answers with one it opened against the credential the code unsealed; here the organization
     /// is a local file every test in this module shares, and what the accept does with it is the
     /// same read either way.
@@ -682,8 +685,9 @@ mod tests {
         let directory = scratch("read");
         let (_, owner, link, invitation, _, _) = invited(&credentials, &directory).await;
 
-        let shape = crate::organization::link::read(&invitation.encode().expect("the link"))
-            .expect("the invitation link could not be read");
+        let shape =
+            crate::organization::invitation::link::read(&invitation.encode().expect("the link"))
+                .expect("the invitation link could not be read");
 
         assert_eq!(shape.organization_name, "Acme");
         assert_eq!(shape.organization_id, owner.organization_id);
@@ -705,7 +709,7 @@ mod tests {
         );
 
         assert_eq!(
-            crate::organization::link::read(&gone.encode().expect("the link"))
+            crate::organization::invitation::link::read(&gone.encode().expect("the link"))
                 .expect("the gone link could not be read")
                 .kind,
             LinkKind::Invitation
@@ -1270,7 +1274,7 @@ mod tests {
             Some((after, None))
         );
 
-        let reissued = crate::organization::invite::reset_account(
+        let reissued = crate::organization::invitation::reset_account(
             &store,
             &owner,
             no_platform(),
@@ -1349,7 +1353,7 @@ mod tests {
         let member = member.expect("the member");
         let held = held_by(&machine);
 
-        let reset = crate::organization::invite::reset_account(
+        let reset = crate::organization::invitation::reset_account(
             &store,
             &owner,
             no_platform(),
@@ -1443,7 +1447,7 @@ mod tests {
         *app_state.organization.write().await = Some(store);
         *app_state.member.write().await = Some(session);
 
-        crate::organization::sign_out(&app_state, &credentials).await;
+        crate::organization::session::sign_out(&app_state, &credentials).await;
 
         assert!(
             app_state.member.read().await.is_none(),
@@ -1476,7 +1480,7 @@ mod tests {
 
     /// The whole of the application state over one data directory, as `lib.rs` builds it, with
     /// nothing open and nobody in. `remote-sync.json` is loaded from the directory, so a test
-    /// writes the record it wants first. *`forget.rs` keeps the same builder; a fixture is
+    /// writes the record it wants first. *`session/forget.rs` keeps the same builder; a fixture is
     /// written out per module ([[rules/testing]]).*
     async fn state_over(directory: &std::path::Path) -> AppState {
         let mut settings =
@@ -1527,8 +1531,8 @@ mod tests {
     async fn the_link_secret_alone_opens_neither_the_payload_nor_the_vault() {
         let credentials = Memory::new();
         use crate::organization::{
-            link::{code_salt, payload_context},
-            vault::{derive_member_key, open_under_member_key, open_vault},
+            invitation::link::{code_salt, payload_context},
+            member::vault::{derive_member_key, open_under_member_key, open_vault},
         };
 
         let directory = scratch("code");
@@ -1745,8 +1749,11 @@ mod tests {
             .find(|row| row.id == half.id)
             .expect("the invitation row");
         let issuers_copy = String::from_utf8(
-            crate::organization::vault::unseal_with_secret_key(&owner.secret, &row.sealed_secret)
-                .expect("the issuer's copy"),
+            crate::organization::member::vault::unseal_with_secret_key(
+                &owner.secret,
+                &row.sealed_secret,
+            )
+            .expect("the issuer's copy"),
         )
         .expect("the issuer's copy is text");
         let held: Vec<&str> = issuers_copy.split('\n').collect();

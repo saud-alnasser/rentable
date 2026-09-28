@@ -6,7 +6,7 @@ export default defineConfig({
 	schema: './src/lib/platform/database/schema.ts',
 	// `packages/workspace-migrations`, which is where the SQL a workspace database is built from
 	// lives: the same set builds a local workspace here and a hosted one over the wire, through
-	// `tauri/src/organization/migrate.rs`.
+	// `tauri/src/organization/lease/apply.rs`.
 	// `tauri/migrations/` is generated from it by `tauri/build.rs` and is not written by hand or
 	// by drizzle-kit.
 	out: '../../packages/workspace-migrations/migrations',

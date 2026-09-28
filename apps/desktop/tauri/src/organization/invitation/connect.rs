@@ -20,12 +20,12 @@
 //!
 //! **What the machine learns from the link is pinned from the link.** The verifying key is
 //! written as the link spelled it and every later verification uses that copy, never one read
-//! out of the database it judges; `authority.rs` says why the key travels this way. The one read
+//! out of the database it judges; `authority/` says why the key travels this way. The one read
 //! made here, the organization row, is compared against the pinned key rather than trusted.
 //!
 //! **A machine holds one organization, so a connect while one is held is refused** before the
-//! link is looked at. Reaching another is a disconnect (`forget.rs`) and then a connect, which is
-//! requirement 17's shape and the reason the record is an `Option` rather than a list.
+//! link is looked at. Reaching another is a disconnect (`session/forget.rs`) and then a connect,
+//! which is requirement 17's shape and the reason the record is an `Option` rather than a list.
 
 use crate::{
     diagnostics,
@@ -34,10 +34,9 @@ use crate::{
     persisted::Persisted,
 };
 
-use super::{
+use crate::organization::{
     HeldOrganization,
-    invite::random_id,
-    link::Locator,
+    invitation::{link::Locator, random_id},
     store::{FORMAT_VERSION, OrganizationStore},
 };
 
@@ -234,13 +233,12 @@ mod tests {
         machine::RemoteSyncStore,
         organization::{
             HeldOrganization,
-            join::admit,
-            link::Locator,
-            permission,
+            invitation::{join::admit, link::Locator},
+            member::vault::KdfParams,
+            role::permission,
             session::{CredentialSlot, machine_seen},
             setup::{CreateOrganization, Remote, create_organization},
             store::OrganizationStore,
-            vault::KdfParams,
         },
         persisted::Persisted,
         sync::test::server::{ScriptedResponse, ScriptedServer},
@@ -436,7 +434,7 @@ mod tests {
     /// Effort 828, requirement 15: **a record written before the machine id existed still opens.**
     ///
     /// The field defaults to an empty string rather than refusing the record, which is what makes
-    /// the migration a launch rather than a disconnect: `command::state_of` draws an id for a
+    /// the migration a launch rather than a disconnect: `session::state_of` draws an id for a
     /// record carrying an empty one and registers the machine there. Nothing writes to the
     /// registry under an empty id in the meantime.
     #[test]

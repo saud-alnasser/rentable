@@ -313,7 +313,7 @@ test('an empty group is refused on a step that asked for one, and nothing is cre
  * sentence, `refusalAfterFailedCreate` keeps the walk where it is, and what the person typed is
  * still in the fields for them to correct the one word that was wrong. This is that last half,
  * which is the only half this component owns; the sentence is Rust's and `setup.test.ts` pins it
- * to what `setup.rs` formats, both group names included, and pins the walk staying put.
+ * to what `setup/` formats, both group names included, and pins the walk staying put.
  */
 test('a create refused over the group leaves the name step filled in, so the group can be corrected', async () => {
 	loadLocale('en');

@@ -35,6 +35,10 @@
 //! a member, and the directory is one of the databases a member holds a credential to. Renewing
 //! it is the ticket that renews every grant.
 
+mod command;
+
+pub use command::*;
+
 use std::{
     path::Path,
     sync::{Arc, Mutex},
@@ -62,17 +66,19 @@ use super::{
         AdministratorKey, OrganizationKey, VERIFYING_KEY_BYTES, certificate_id,
         issue_root_certificate,
     },
-    connect::{self, OrganizationFacts},
-    invite::validate_username,
-    permission,
+    invitation::{
+        connect::{self, OrganizationFacts},
+        validate_username,
+    },
+    member::vault::{
+        ContentKey, KdfParams, MemberSecretKey, create_vault_with_secret_and_key,
+        generate_content_key, open_content, open_vault, seal_content, seal_to_public_key,
+    },
+    role::permission,
     session::{self, CredentialSlot, MemberSession, content_key_of, remember, sign_in_by_username},
     store::{
         FORMAT_VERSION, GrantRecord, MemberRecord, OrganizationRecord, OrganizationStore,
         RoleRecord, Signer,
-    },
-    vault::{
-        ContentKey, KdfParams, MemberSecretKey, create_vault_with_secret_and_key,
-        generate_content_key, open_content, open_vault, seal_content, seal_to_public_key,
     },
     workspace,
 };
@@ -1066,7 +1072,7 @@ where
 /// **The comparison is the whole of what makes this the owner's.** The derived key's public half
 /// is compared with the organization row's, and every member row is read again and verified
 /// against the derived key; anybody whose vault derives something else fails both. The row's key
-/// is the thing being judged and never the judge, which is the rule `authority.rs` states and the
+/// is the thing being judged and never the judge, which is the rule `authority/` states and the
 /// one thing a way in built on a consent alone could have quietly broken.
 async fn the_owners_key(
     replica: &OrganizationStore,
@@ -1337,16 +1343,18 @@ mod tests {
         machine::RemoteSyncStore,
         organization::{
             authority::{AdministratorKey, OrganizationKey},
-            invite::{AccountAndLink, Invitation, USERNAME_RULES, locator, make_account_and_link},
-            join,
-            link::{JoinLink, Locator},
-            permission,
-            session::{self, CredentialSlot, MemberSession, sign_in},
-            store::OrganizationStore,
-            vault::{
+            invitation::{
+                AccountAndLink, Invitation, USERNAME_RULES, join,
+                link::{JoinLink, Locator},
+                locator, make_account_and_link,
+            },
+            member::vault::{
                 CONTENT_KEY_BYTES, ContentKey, KdfParams, open_content, open_vault,
                 unseal_with_secret_key,
             },
+            role::permission,
+            session::{self, CredentialSlot, MemberSession, sign_in},
+            store::OrganizationStore,
             workspace::WORKSPACE_CREDENTIAL_LIFETIME,
         },
         persisted::Persisted,
@@ -2547,8 +2555,8 @@ mod tests {
     ///
     /// **A second machine opens the same replica file**, which is what `Remote::none()` makes
     /// possible: there is no remote to pull from here, so what a consent reaches is what this
-    /// left on disk. It is the same read either way, which is the reason `join.rs` and
-    /// `machine.rs` hand their own replicas in.
+    /// left on disk. It is the same read either way, which is the reason `invitation/join.rs` and
+    /// `invitation/machine.rs` hand their own replicas in.
     async fn an_organization(
         credentials: &dyn CredentialStore,
         directory: &std::path::Path,

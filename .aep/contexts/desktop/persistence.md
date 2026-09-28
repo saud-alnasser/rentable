@@ -12,7 +12,7 @@ How data is described once and reaches SQLite. The description lives in TypeScri
 engine lives in Rust, and the two meet at Tauri's IPC boundary. **The migration runner is in
 Rust and applies over the wire**: a workspace's schema is applied to its database on the
 organization's account by whichever member creates or opens it, through the database's own
-pipeline endpoint (`tauri/src/organization/migrate.rs`), and arrives on every other machine as
+pipeline endpoint (`tauri/src/organization/lease/apply.rs`), and arrives on every other machine as
 replicated pages. *It was the control plane's, at the token mint, until 2026-09-12.*
 
 ## Language
@@ -74,7 +74,7 @@ router test can pass over a conversion that is broken in the running application
   to its database over the wire, at creation and under a lease when a build ships more migrations
   than the workspace is recorded at, and the replica receives it as replicated pages. It is applied
   in one transaction with the workspace's own `schema_version` row and a check against a fresh
-  database of that version, or not at all (`organization/migrate.rs`, `schema.rs`); inside that
+  database of that version, or not at all (`organization/lease/apply.rs`, `schema.rs`); inside that
   transaction a `PRAGMA foreign_keys` would be a no-op, which is one more reason none ships. The
   TypeScript side here generates migrations and never runs them against the app's database;
   `tauri/migrations/` is a build-time mirror `build.rs` counts to produce

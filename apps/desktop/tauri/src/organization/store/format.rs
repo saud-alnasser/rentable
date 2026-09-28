@@ -6,7 +6,7 @@ use crate::{
     error::{Error, RefusalReason},
     organization::{
         authority::{Certificate, FormatOneCertificate, Revocation, VERIFYING_KEY_BYTES},
-        vault::{KDF_SALT_BYTES, KdfParams, PUBLIC_KEY_BYTES, Vault},
+        member::vault::{KDF_SALT_BYTES, KdfParams, PUBLIC_KEY_BYTES, Vault},
     },
 };
 

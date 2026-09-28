@@ -41,12 +41,11 @@ use crate::{
     turso::platform::{DeletionIntent, TursoPlatform},
 };
 
-use super::{
-    forget,
-    permission::{self, Flag},
-    session::{MemberSession, actor, rank_of},
+use crate::organization::{
+    member::vault::{open_content, open_vault},
+    role::permission::{self, Flag},
+    session::{MemberSession, actor, forget, rank_of},
     store::{MemberRecord, OrganizationStore, Signer},
-    vault::{open_content, open_vault},
     workspace::{renew_credentials, signer_of},
 };
 
@@ -426,7 +425,7 @@ pub(crate) async fn retire_member(
     // sign under it is refused on read (F2) and revoking it bricks nothing (`role::reissue`, the
     // routine reset shares). A row the remover's own certificate could not sign refuses the
     // removal by name (effort 838).
-    super::role::reissue(store, session, &signer, member_id, None, now).await?;
+    crate::organization::role::reissue(store, session, &signer, member_id, None, now).await?;
 
     // the grants go, and the row is signed as removed by whoever removed them: a machine holding
     // a stale replica sees a verified removal rather than an unexplained absence.
@@ -445,7 +444,7 @@ pub(crate) async fn retire_member(
     // accept with and the owner can offer the organization to somebody else without withdrawing
     // an offer from a person who is no longer here. `role::accept_ownership` refuses a removed row
     // by name as well, for the replica that has not pulled this yet.
-    if let Some(offer) = super::role::standing_offer(store, &session.verifying_key)
+    if let Some(offer) = crate::organization::role::standing_offer(store, &session.verifying_key)
         .await?
         .filter(|offer| offer.offered_member_id == member_id)
     {
@@ -518,15 +517,15 @@ mod tests {
         organization::{
             HeldOrganization,
             authority::Chain,
-            invite::{
+            invitation::{
                 AccountAndLink, Invitation, WorkspaceGrant, locator, make_account_and_link, members,
             },
-            migrate::Pipeline,
-            permission,
+            lease::apply::Pipeline,
+            member::vault::KdfParams,
+            role::permission,
             session::{CredentialSlot, MemberSession, refresh_credentials, sign_in},
             setup::{CreateOrganization, Remote, create_organization},
             store::{OrganizationStore, TABLES},
-            vault::KdfParams,
             workspace::create_workspace,
         },
         persisted::Persisted,
@@ -576,7 +575,7 @@ mod tests {
     /// the other half, and it read the row's `code_seal` until effort 828 moved the seal into the
     /// link's text.*
     fn secret_of(invited: &AccountAndLink) -> String {
-        crate::organization::invite::vault_password_of(
+        crate::organization::invitation::vault_password_of(
             &invited.join_link,
             &invited.code,
             test_cost(),
@@ -1788,10 +1787,10 @@ mod tests {
             .await
             .expect("the migration mint failed");
 
-        crate::organization::migrate::apply(
+        crate::organization::lease::apply::apply(
             &Pipeline::of(&database.hostname),
             &migration,
-            crate::organization::migrate::shipped_version() as usize,
+            crate::organization::lease::apply::shipped_version() as usize,
         )
         .await
         .expect("the live migration failed");
@@ -1927,7 +1926,7 @@ mod tests {
         override_mask: i64,
         workspaces: &[WorkspaceGrant],
     ) -> MemberSession {
-        let account = crate::organization::invite::create_account(
+        let account = crate::organization::invitation::create_account(
             &org.store,
             maker,
             no_platform(),
@@ -1941,7 +1940,7 @@ mod tests {
         .await
         .expect("the account");
         let link = locator(&org.store, maker).await.expect("the link");
-        let made = crate::organization::invite::make_link(
+        let made = crate::organization::invitation::make_link(
             &org.store,
             maker,
             no_platform(),
@@ -1953,7 +1952,7 @@ mod tests {
         .await
         .expect("the link could not be made");
         let password =
-            crate::organization::invite::vault_password_of(&made.link, &made.code, test_cost());
+            crate::organization::invitation::vault_password_of(&made.link, &made.code, test_cost());
         let mut session = sign_in(
             &org.store,
             &joined_as(maker, &account.id, role_id),

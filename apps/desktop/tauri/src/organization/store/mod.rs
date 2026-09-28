@@ -12,7 +12,7 @@
 //! held to one workspace; and there is no `session` table, because requirement 18 removes the
 //! window one would exist for. Every name and address is a `_sealed` column under the organization content key,
 //! so a member holding only the database, or only what a join link carries, reads none of them.
-//! Every authority field is under a signature `organization/authority.rs` checks, so a member who
+//! Every authority field is under a signature `organization/authority/` checks, so a member who
 //! can write every row, which Turso's whole-database credential makes every member, still cannot
 //! forge one.
 //!
@@ -377,7 +377,7 @@ impl OrganizationStore {
 
     /// The columns one table carries, as the database reports them: what the startup check reads
     /// to tell a replica built under an earlier schema from one this build wrote
-    /// (`organization/forget.rs`). A table that is not there has no columns.
+    /// (`organization/session/forget.rs`). A table that is not there has no columns.
     pub async fn columns_of(&self, table: &str) -> Result<Vec<String>, Error> {
         let mut rows = self
             .connection
@@ -566,11 +566,11 @@ mod tests {
             MarkAuthority, OrganizationKey, WorkspaceAuthority, issue_certificate,
             issue_root_certificate, revoke, sign,
         },
-        permission::{Flag, MANAGER_ROLE, MEMBER_ROLE, mask_of},
-        vault::{
+        member::vault::{
             ContentKey, KdfParams, create_vault_with_secret, generate_content_key, open_content,
             seal_content, seal_to_public_key,
         },
+        role::permission::{Flag, MANAGER_ROLE, MEMBER_ROLE, mask_of},
     };
     use crate::test::scratch;
 
@@ -3042,7 +3042,7 @@ mod tests {
 
         assert_eq!(
             callers,
-            vec!["organization/setup.rs".to_string()],
+            vec!["organization/setup/mod.rs".to_string()],
             "the unverified member read is meant to have exactly one caller"
         );
     }

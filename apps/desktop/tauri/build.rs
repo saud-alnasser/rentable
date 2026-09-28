@@ -31,7 +31,7 @@ fn main() {
 /// Where the workspace migrations actually live: `packages/workspace-migrations`.
 ///
 /// **One copy, and this crate is not where it is.** The same SQL builds a local workspace here
-/// and a hosted one over the wire, through `organization/migrate.rs` here, and the frontend's
+/// and a hosted one over the wire, through `organization/lease/apply.rs` here, and the frontend's
 /// test database is built from it too, so it is a package both depend on rather than a
 /// directory inside one of them. Reached by a path relative to this crate rather than through
 /// `node_modules`, because a build script that needs `pnpm install` to have run is a build script

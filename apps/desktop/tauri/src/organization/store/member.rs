@@ -5,7 +5,7 @@ use crate::{
     error::{Error, RefusalReason},
     organization::{
         authority::{Chain, Reading, VERIFYING_KEY_BYTES, sign},
-        vault::{KDF_SALT_BYTES, KdfParams, PUBLIC_KEY_BYTES, Vault},
+        member::vault::{KDF_SALT_BYTES, KdfParams, PUBLIC_KEY_BYTES, Vault},
     },
 };
 

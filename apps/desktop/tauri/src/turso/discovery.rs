@@ -75,7 +75,7 @@ const MCP_LIST_DATABASES: &str = "list_databases";
 /// request that named none answered `HTTP 403: group-scoped tokens must specify a group in the
 /// request`. Whether that holds on every account is Turso's to say rather than this module's to
 /// assume, so the caller decides what to name and this sends what it was handed;
-/// `organization/setup.rs` holds the order the names are tried in.
+/// `organization/setup/` holds the order the names are tried in.
 const MCP_CREATE_DATABASE: &str = "create_database";
 
 /// The tool that names the groups a consent can see, where the server offers one.
@@ -152,7 +152,7 @@ pub enum OrganizationLookup {
     Found {
         organization: TursoOrganization,
         /// every database the consented group holds, by the name the listing gave it, and
-        /// nothing from any other group. It is what `organization/setup.rs` reads to refuse a
+        /// nothing from any other group. It is what `organization/setup/` reads to refuse a
         /// group that already holds an organization (requirement 21 of effort 826); the
         /// hostnames behind the names stay here, because a name is what a refusal can say out
         /// loud and a hostname is a customer's own address.
@@ -248,7 +248,7 @@ pub async fn look_up_organization(
 ///
 /// **The listing behind [`look_up_organization`], with the addresses kept.** That one drops them
 /// because what reads it is a refusal naming a database to a person; this one is read by
-/// `organization/setup.rs` when a machine is connecting to an organization the group already
+/// `organization/setup/` when a machine is connecting to an organization the group already
 /// holds, which needs the address to open a replica at.
 ///
 /// **Asked every time, and never answered from this machine's store.**
@@ -309,7 +309,7 @@ pub struct FirstDatabase {
 /// 2026-09-15 (`HTTP 403: group-scoped tokens must specify a group in the request`, where until
 /// then the tool defaulted to the token's own group), and an account it does not refuse that way
 /// is one nobody has to be asked anything. So which name to send is the caller's:
-/// `organization/setup.rs` tries no group, then Turso's own default, then [`group_uuid_of`], and
+/// `organization/setup/` tries no group, then Turso's own default, then [`group_uuid_of`], and
 /// asks the person only where every one of those was refused over the group. A name that is not
 /// the consent's group is refused by Turso, and the refusal is said in Turso's own words. Delete
 /// protection is the Platform API's to turn on afterwards, once the slug is known.

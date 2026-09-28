@@ -21,6 +21,10 @@
 //! by the command, so an image never crosses the IPC boundary on its way in; anything over 512 KB,
 //! or whose first bytes are not a PNG, a JPEG or a WebP, is refused before anything is written.
 
+mod command;
+
+pub use command::*;
+
 use serde::Serialize;
 
 use base64::Engine;
@@ -28,10 +32,10 @@ use base64::Engine;
 use crate::error::{Error, RefusalReason};
 
 use super::{
-    permission::{self, Flag},
+    member::vault::{open_content, seal_content},
+    role::permission::{self, Flag},
     session::{MemberSession, permissions_on_row},
     store::{MarkRecord, OrganizationStore, Signer},
-    vault::{open_content, seal_content},
     workspace::signer_of,
 };
 
@@ -193,10 +197,12 @@ mod tests {
         organization::{
             HeldOrganization,
             authority::{AdministratorKey, Issue, certificate_id, issue_certificate},
+            member::vault::{
+                KdfParams, MemberSecretKey, create_vault_with_secret, seal_to_public_key,
+            },
             session::{CredentialSlot, sign_in},
             setup::{CreateOrganization, Remote, create_organization},
             store::MemberRecord,
-            vault::{KdfParams, MemberSecretKey, create_vault_with_secret, seal_to_public_key},
         },
         persisted::Persisted,
         sync::test::server::{ScriptedResponse, ScriptedServer},

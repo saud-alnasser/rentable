@@ -12,7 +12,7 @@ import type { LinkShape } from '$lib/organization/host';
  * hands a `rentable://` link to the running process, or a person pastes one into the field; either
  * way it waits there for the code that came with it, and then the link is read in Rust, the
  * organization it names is recorded on this machine, and what follows is whichever kind of link it
- * was. The paste is the fallback and not the design: `tauri/src/organization/join.rs` records how
+ * was. The paste is the fallback and not the design: `tauri/src/organization/invitation/join.rs` records how
  * the scheme reaches the application on each platform.
  *
  * **One form, the link and its code, and the kind is read off the link's own text** (effort 826,

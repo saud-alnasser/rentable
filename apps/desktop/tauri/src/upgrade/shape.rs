@@ -9,7 +9,7 @@
 //! type claims any more, a `provider` of `"googleDrive"` or `"hosted"`, an `accounts` list and a
 //! `controlPlaneSession`, are dropped on read, and the tests at the foot of this file hold both.
 //! What this file holds is the check that reads those signs and forgets what the machine holds,
-//! through the one forget a disconnect uses (`organization/forget.rs`). *It was part of
+//! through the one forget a disconnect uses (`organization/session/forget.rs`). *It was part of
 //! `organization/forget.rs`, and those tests of `sync/store.rs` and then `machine/record.rs`,
 //! until effort 840 (ticket 48).*
 //!
@@ -61,7 +61,7 @@ use crate::{
     credential::CredentialStore,
     diagnostics,
     error::Error,
-    organization::{forget::forget, store::OrganizationStore},
+    organization::{session::forget::forget, store::OrganizationStore},
     state::AppState,
 };
 
@@ -276,9 +276,9 @@ mod tests {
         machine::{RemoteSync, RemoteSyncStore},
         organization::{
             HeldOrganization,
+            member::vault::KdfParams,
             setup::{CreateOrganization, Remote, create_organization},
             store::OrganizationStore,
-            vault::KdfParams,
         },
         persisted::Persisted,
         settings::Settings,

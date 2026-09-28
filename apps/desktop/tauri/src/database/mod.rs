@@ -132,13 +132,14 @@ impl Database {
     ///
     /// **It applies no migrations, and that is requirement 11 rather than an omission.** A
     /// workspace's schema is applied to its database over the wire, at creation and under a
-    /// lease (`organization/migrate.rs`); the replica receives it as replicated pages. A client that applied DDL of its own would not merely
-    /// duplicate that work — DDL issued through the sync connection is captured as CDC and
-    /// replicates, so one client's migration would reach every other replica.
+    /// lease (`organization/lease/apply.rs`); the replica receives it as replicated pages. A client
+    /// that applied DDL of its own would not merely duplicate that work — DDL issued through the
+    /// sync connection is captured as CDC and replicates, so one client's migration would reach
+    /// every other replica.
     ///
     /// `tauri/migrations/` stays in the tree as what `build.rs` embeds for
-    /// `organization/migrate.rs` and counts to produce `WORKSPACE_SCHEMA_VERSION`. Nothing reads
-    /// it at launch.
+    /// `organization/lease/apply.rs` and counts to produce `WORKSPACE_SCHEMA_VERSION`. Nothing
+    /// reads it at launch.
     pub async fn connect(&mut self) -> Result<(), Error> {
         let settings = self.settings.read().await;
         let db_path = settings.database_path.clone();
@@ -224,7 +225,7 @@ impl Database {
     /// to it. Two workspaces on one machine therefore never meet, and neither meets `app.db`.
     ///
     /// **`ws-` is the organization's own name for the database, not a local abbreviation.**
-    /// `create_workspace` in `organization/workspace.rs` builds `ws-<id>`, and
+    /// `create_workspace` in `organization/workspace/` builds `ws-<id>`, and
     /// that is what Turso holds and what the remote URL says. A local file named anything else
     /// makes a person reading a directory listing translate before they can match it against the
     /// dashboard, for no gain. *It was `workspace-<id>.db` until 2026-08-20.*

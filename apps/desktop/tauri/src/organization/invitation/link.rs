@@ -57,7 +57,7 @@
 //! nothing is published, so no holder of an old link exists to carry forward.
 //!
 //! **The verifying key rides in the link and is pinned from it**, never read out of the database
-//! it judges. `organization/authority.rs` says why: a database whose rows were rewritten could
+//! it judges. `organization/authority/` says why: a database whose rows were rewritten could
 //! rewrite the key that checks them, and every signature would pass.
 
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD as BASE64URL};
@@ -65,9 +65,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::{Error, RefusalReason};
 
-use super::{
+use crate::organization::{
     authority::VERIFYING_KEY_BYTES,
-    vault::{
+    member::vault::{
         KDF_SALT_BYTES, KdfParams, derive_member_key, open_under_member_key, seal_under_member_key,
     },
 };
@@ -465,7 +465,7 @@ mod tests {
     use super::{
         Half, HalfKind, JoinLink, LinkKind, LinkPayload, Locator, open_payload, read, seal_payload,
     };
-    use crate::organization::vault::KdfParams;
+    use crate::organization::member::vault::KdfParams;
 
     fn test_cost() -> KdfParams {
         KdfParams {

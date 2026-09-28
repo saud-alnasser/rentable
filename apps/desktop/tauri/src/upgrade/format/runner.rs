@@ -88,6 +88,7 @@ use crate::{
 use crate::organization::{
     HeldOrganization,
     authority::{AdministratorKey, VERIFYING_KEY_BYTES, verify_succession},
+    member::vault::{MemberSecretKey, open_sealed_secret_key, open_vault, unseal_with_secret_key},
     role::{authority_of, in_one_transaction},
     session::{
         CredentialSlot, content_key_of, opened, refused_by_name, remembered, verifying_key_of,
@@ -97,7 +98,6 @@ use crate::organization::{
         Remote, owner_key_from,
     },
     store::{OrganizationStore, waits_for_its_owner},
-    vault::{MemberSecretKey, open_sealed_secret_key, open_vault, unseal_with_secret_key},
 };
 
 use super::{Sought, TRANSITIONS, Transition, Upgrading};
@@ -1050,17 +1050,14 @@ mod tests {
             authority::{
                 Chain, OrganizationKey, SuccessionAuthority, WorkspaceAuthority, sign_succession,
             },
-            connect,
-            invite::rename_member,
-            link::Locator,
-            permission::OWNER_ROLE,
-            role::follow_succession,
+            invitation::{connect, link::Locator, rename_member},
+            member::vault::{MemberSecretKey, open_content},
+            role::{follow_succession, permission::OWNER_ROLE},
             session::{
                 CredentialSlot, Resumption, refused_by_name, remember, resume, sign_in_by_username,
             },
             setup::{Remote, connect_existing},
             store::{self, FORMAT_VERSION, GrantRecord, OrganizationStore, SuccessionRecord},
-            vault::{MemberSecretKey, open_content},
             workspace::grant_workspace,
         },
         persisted::Persisted,

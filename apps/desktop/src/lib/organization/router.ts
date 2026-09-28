@@ -402,7 +402,7 @@ export default router({
 		 * so the destructive path is chosen rather than fallen into by any caller.
 		 *
 		 * **`removeMember`, and the owner's `lockOut` as well where the removal locks out**, read
-		 * off the input as Rust reads it (`removal.rs`): rotating the credentials the member held
+		 * off the input as Rust reads it (`member/removal.rs`): rotating the credentials the member held
 		 * needs the platform authority only the owner's machine holds.
 		 */
 		remove: procedure

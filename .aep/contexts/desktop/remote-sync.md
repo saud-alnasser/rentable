@@ -157,5 +157,5 @@ sentence from both.
   merely refused on a replica. What an update leaves behind is a version number and a release
   URL, in `update.rs`. The member holding a workspace's migration lease writes a copy of it, read
   over the pipeline in one transaction, to `backups/ws-<id>/` before the first statement
-  (`organization/migration.rs`, `backup.rs`), and one on the owner's account where that machine is
+  (`organization/lease/`, `backup.rs`), and one on the owner's account where that machine is
   the owner's; a copy that cannot be taken releases the lease and applies nothing.

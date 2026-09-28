@@ -1,5 +1,5 @@
 //! The `certificate` and `revocation` tables: the chain every signed row is judged by, stored
-//! as issued and judged by `organization/authority.rs`, never here.
+//! as issued and judged by `organization/authority/`, never here.
 
 use crate::{
     error::Error,

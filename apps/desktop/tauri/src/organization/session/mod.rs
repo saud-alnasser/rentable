@@ -14,7 +14,7 @@
 //! removed the three-day window.
 //!
 //! **The rows are verified before they are believed.** Every member, workspace and grant passes
-//! through `organization/authority.rs` against the verifying key this machine pinned when it
+//! through `organization/authority/` against the verifying key this machine pinned when it
 //! joined, and never one read out of the database. What the row says, once verified, is the truth.
 //!
 //! **Two ways to the row, one way through it.** A first run signs the owner in to the row it
@@ -58,6 +58,11 @@
 //! machine running a minute fast would survive a sign-out meant to end it. A number only ever
 //! moves forward, and the comparison is the same on every machine that reads the row.*
 
+mod command;
+pub mod forget;
+
+pub use command::*;
+
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
@@ -82,13 +87,13 @@ use crate::turso::platform::{AccessLevel, PlatformApi, TursoPlatform};
 use super::{
     HeldOrganization,
     authority::VERIFYING_KEY_BYTES,
-    permission::{self, Flag},
-    setup::Remote,
-    store::{MemberRecord, OrganizationStore, pins_of},
-    vault::{
+    member::vault::{
         CONTENT_KEY_BYTES, ContentKey, MemberKey, MemberSecretKey, open_content,
         open_sealed_secret_key, open_vault, open_vault_with_key, unseal_with_secret_key,
     },
+    role::permission::{self, Flag},
+    setup::Remote,
+    store::{MemberRecord, OrganizationStore, pins_of},
 };
 
 /// What a remembered member key is filed under. One service for every organization a machine
@@ -568,8 +573,8 @@ pub(crate) async fn repair_own_row(store: &OrganizationStore, session: &mut Memb
 /// to the diagnostics log, the way [`remember`] does.
 ///
 /// **A record with no `machine_id` writes nothing**, which is a record from before this build on
-/// the way to its first launch under it: `command::state_of` is what gives it one, and until it
-/// has one there is no row to write.
+/// the way to its first launch under it: `state_of` (`command.rs`) is what gives it one, and until
+/// it has one there is no row to write.
 pub async fn machine_seen(
     store: &OrganizationStore,
     held: &HeldOrganization,
@@ -1351,7 +1356,7 @@ pub async fn facts_of(
                 access_level: grant.access_level.clone(),
                 pinned,
                 granted,
-                permissions: super::permission::effective_in_workspace(
+                permissions: super::role::permission::effective_in_workspace(
                     member.effective,
                     pinned,
                     granted,
@@ -1371,7 +1376,7 @@ pub async fn facts_of(
 
     let owner_username = match members
         .iter()
-        .find(|candidate| candidate.role_id == super::permission::OWNER)
+        .find(|candidate| candidate.role_id == super::role::permission::OWNER)
     {
         Some(owner) => opened(
             &session.content_key,
@@ -1558,16 +1563,16 @@ mod tests {
         organization::{
             HeldOrganization,
             authority::{AdministratorKey, OrganizationKey, issue_root_certificate},
-            permission,
+            member::vault::{
+                KdfParams, MEMBER_KEY_BYTES, MemberKey, create_vault_with_secret,
+                generate_content_key, open_sealed_secret_key, open_vault, reseal_vault,
+                seal_content, seal_to_public_key, unseal_with_secret_key,
+            },
+            role::permission,
             setup::{ADMINISTRATOR_KEY_PURPOSE, CreateOrganization, Remote, create_organization},
             store::{
                 GrantRecord, MemberRecord, OrganizationRecord, OrganizationStore, RoleRecord,
                 Signer,
-            },
-            vault::{
-                KdfParams, MEMBER_KEY_BYTES, MemberKey, create_vault_with_secret,
-                generate_content_key, open_sealed_secret_key, open_vault, reseal_vault,
-                seal_content, seal_to_public_key, unseal_with_secret_key,
             },
             workspace::signer_of,
         },
@@ -1755,7 +1760,7 @@ mod tests {
 
         // and nothing in this module can be made to answer yes: no function returns a bool, and
         // nothing compares a password against anything.
-        let source = include_str!("session.rs");
+        let source = include_str!("mod.rs");
         let shipping = source
             .split("#[cfg(test)]")
             .next()
@@ -1808,8 +1813,8 @@ mod tests {
 
     /// **A machine that holds the organization and no member yet cannot sign in this way.** A
     /// connect by link records no member; the wall's sign-in finds the row by username
-    /// (`sign_in_by_username`, tested in `join.rs`), and this one refuses a record with no
-    /// member before any row is read.
+    /// (`sign_in_by_username`, tested in `invitation/join.rs`), and this one refuses a record with
+    /// no member before any row is read.
     #[tokio::test]
     async fn a_record_with_no_member_is_refused_before_any_row_is_read() {
         let credentials = Memory::new();

@@ -41,6 +41,11 @@
 //! unchanged, until review round one found that a way back resting on that seal rests on the
 //! database it is meant to judge.*
 
+mod command;
+pub mod permission;
+
+pub use command::*;
+
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD as BASE64URL};
 use serde::{Deserialize, Serialize};
 
@@ -58,20 +63,20 @@ use super::{
         VERIFYING_KEY_BYTES, issue_certificate, issue_root_certificate, revoke, sign_succession,
         unused_certificate_id, verify_succession,
     },
-    invite::{MemberFacts, members, random_id},
-    permission::{self, CUSTOM, Flag},
+    invitation::{MemberFacts, members, random_id},
+    member::vault::{
+        MemberSecretKey, SECRET_KEY_BYTES, Vault, open_content, open_vault, seal_content,
+        seal_to_public_key, unseal_with_secret_key,
+    },
     session::{Actor, MemberSession, acting_row, actor, rank_of, verifying_key_of},
     setup::{ADMINISTRATOR_KEY_PURPOSE, ORGANIZATION_KEY_PURPOSE, owner_key_from},
     store::{
         MemberRecord, OrganizationRecord, OrganizationStore, RoleRecord, Signer, SuccessionRecord,
         WorkspaceOverrideRecord, pins_of,
     },
-    vault::{
-        MemberSecretKey, SECRET_KEY_BYTES, Vault, open_content, open_vault, seal_content,
-        seal_to_public_key, unseal_with_secret_key,
-    },
     workspace::{require_owner, signer_of},
 };
+use permission::{CUSTOM, Flag};
 
 /// Where a member stands in the chain: the one role they hold, their override, what the two give
 /// them, and the rank of the role.
@@ -1051,7 +1056,7 @@ pub async fn accept_ownership(
 /// written. A manager's machine meeting their own demoted row therefore writes nothing: an
 /// uncovered row is never saved (`session::refuse_unsettled`), and the owner removes the manager
 /// and makes them an account again. A row that is gone is a deletion,
-/// which the chain says it cannot stop (`authority.rs`): there is no vault left to keep, so nothing
+/// which the chain says it cannot stop (`authority/`): there is no vault left to keep, so nothing
 /// is written and the point-in-time restore is the answer.
 pub(super) async fn repair_owner_row(
     store: &OrganizationStore,
@@ -2554,12 +2559,18 @@ mod tests {
                 AdministratorKey, Certificate, Chain, Issue, OrganizationKey, VERIFYING_KEY_BYTES,
                 certificate_id, issue_certificate, revoke,
             },
-            invite::{AccountAndLink, Invitation, WorkspaceGrant, locator, make_account_and_link},
-            join::accept,
-            link::{JoinLink, Locator},
-            migrate::Pipeline,
-            permission::{self, Flag},
-            removal,
+            invitation::{
+                AccountAndLink, Invitation, WorkspaceGrant,
+                join::accept,
+                link::{JoinLink, Locator},
+                locator, make_account_and_link,
+            },
+            lease::apply::Pipeline,
+            member::{
+                removal,
+                vault::{KdfParams, seal_to_public_key},
+            },
+            role::permission::{self, Flag},
             session::{CredentialSlot, MemberSession, end_member_sessions, repin, sign_in},
             setup::{
                 ADMINISTRATOR_KEY_PURPOSE, CreateOrganization, Remote, create_organization,
@@ -2569,7 +2580,6 @@ mod tests {
                 GrantRecord, MemberRecord, OrganizationStore, Signer, TABLES,
                 WorkspaceOverrideRecord, pins_of,
             },
-            vault::{KdfParams, seal_to_public_key},
             workspace::{create_workspace, grant_workspace, signer_of},
         },
         persisted::Persisted,
@@ -2627,7 +2637,7 @@ mod tests {
     /// the other half, and it read the row's `code_seal` until effort 828 moved the seal into the
     /// link's text.*
     fn secret_of(invited: &AccountAndLink) -> String {
-        crate::organization::invite::vault_password_of(
+        crate::organization::invitation::vault_password_of(
             &invited.join_link,
             &invited.code,
             test_cost(),
@@ -3088,7 +3098,7 @@ mod tests {
             .find(|role| role.id == bookkeeper)
             .expect("the role is listed")
             .rank;
-        let listed = crate::organization::invite::members(&store, &owner)
+        let listed = crate::organization::invitation::members(&store, &owner)
             .await
             .expect("the members");
         let member = listed
@@ -6081,8 +6091,8 @@ mod tests {
         .expect("the first acceptance failed");
 
         // bilal's machine was signed in under the first key and follows the first succession, the
-        // way `command::succession_followed` does it: the record is re-pinned by the walk and the
-        // open session is re-pinned beside it.
+        // way `session/command.rs`'s `succession_followed` does it: the record is re-pinned by the
+        // walk and the open session is re-pinned beside it.
         assert!(
             follow_succession(&store, &mut bilal_machine)
                 .await
@@ -6382,8 +6392,8 @@ mod tests {
 
         let new_key = ada_session.verifying_key;
 
-        // the founder's session follows the succession the way `command::followed` moves it: the
-        // key, and what its own row says under it.
+        // the founder's session follows the succession the way `session/command.rs`'s `followed`
+        // moves it: the key, and what its own row says under it.
         repin(&store, &mut owner, new_key)
             .await
             .expect("the founder's session did not re-pin");
@@ -6753,7 +6763,7 @@ mod tests {
             "an edit of a role carrying a flag manny lacks",
         );
         names_the_flag(
-            crate::organization::invite::unset_password(
+            crate::organization::invitation::unset_password(
                 &store,
                 &manny,
                 no_platform(),
@@ -6770,7 +6780,7 @@ mod tests {
 
         // and what writes sami's row alone, switching nothing and issuing nothing, is manny's to
         // write: a rename, since the member role's mask is its role row's to vouch for.
-        crate::organization::invite::rename_member(
+        crate::organization::invitation::rename_member(
             &store,
             &manny,
             &sami.member_id,
@@ -7078,7 +7088,7 @@ mod tests {
         );
 
         let rows_before = every_row(&store).await;
-        let refused = crate::organization::invite::rename_member(
+        let refused = crate::organization::invitation::rename_member(
             &store,
             &lena,
             &sami.member_id,
@@ -7308,7 +7318,7 @@ mod tests {
         move_role(&store, &manny, &clerk.id, &other.id, NOW + 6)
             .await
             .expect("the manager moves the role");
-        crate::organization::invite::rename_member(
+        crate::organization::invitation::rename_member(
             &store,
             &manny,
             &sami.member_id,
@@ -7317,7 +7327,7 @@ mod tests {
         )
         .await
         .expect("the manager renames the member");
-        crate::organization::invite::unset_password(
+        crate::organization::invitation::unset_password(
             &store,
             &manny,
             no_platform(),
@@ -7419,7 +7429,7 @@ mod tests {
         )
         .await
         .expect("the lead sets an override");
-        crate::organization::invite::rename_member(
+        crate::organization::invitation::rename_member(
             &store,
             &lena,
             &sami.member_id,
@@ -7428,7 +7438,7 @@ mod tests {
         )
         .await
         .expect("the lead renames the member");
-        crate::organization::invite::unset_password(
+        crate::organization::invitation::unset_password(
             &store,
             &lena,
             no_platform(),
@@ -7915,7 +7925,7 @@ mod tests {
         let rows_before = every_row(&store).await;
 
         unsettled(
-            crate::organization::invite::rename_member(
+            crate::organization::invitation::rename_member(
                 &store,
                 &manny,
                 &sami.member_id,
@@ -7954,7 +7964,7 @@ mod tests {
             "the owner's assignment",
         );
         unsettled(
-            crate::organization::invite::rename_member(
+            crate::organization::invitation::rename_member(
                 &store,
                 &owner,
                 &tess.member_id,
@@ -8031,7 +8041,7 @@ mod tests {
         assert!(!member_row(&store, &owner, &sami.member_id).await.covered);
 
         unsettled(
-            crate::organization::invite::rename_member(
+            crate::organization::invitation::rename_member(
                 &store,
                 &owner,
                 &sami.member_id,
@@ -8968,7 +8978,7 @@ mod tests {
         )
         .await;
         let before = every_row(&store).await;
-        let refused = |outcome: Result<crate::organization::invite::MemberFacts, Error>,
+        let refused = |outcome: Result<crate::organization::invitation::MemberFacts, Error>,
                        reason: RefusalReason,
                        case: &str| {
             let error = outcome.expect_err(case);

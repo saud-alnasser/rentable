@@ -1,8 +1,8 @@
 //! whether a database is what its version is built as, checked before a change of shape commits.
 //!
 //! **One check, for both changes of shape** (effort 838, requirement 15): a workspace migration
-//! (`organization/migrate.rs`) and an organization's change of format. Each reads the database as
-//! it stands inside the transaction that changed it, before the commit, and hands this module
+//! (`organization/lease/apply.rs`) and an organization's change of format. Each reads the database
+//! as it stands inside the transaction that changed it, before the commit, and hands this module
 //! what it read and the shape a fresh database of the same version is built with. Nothing here
 //! reaches a database: where the reads go is the caller's, a pipeline for a workspace and the
 //! store's own connection for an organization, and so is how the fresh shape is built. A check
@@ -50,7 +50,7 @@
 //! than SQLite, and each is read as one: a parent key a statement left to the parent's primary key
 //! is `''` where SQLite answers null, and an expression in an index is named by its text where
 //! SQLite answers null, with the column place `-1` on both. Whether Turso's server answers the
-//! same is what the live test at the foot of `organization/migrate.rs` measures. An engine that
+//! same is what the live test at the foot of `organization/lease/apply.rs` measures. An engine that
 //! answered nothing would make two databases look alike, so a table or an index the listing names
 //! and the pragmas answer nothing for is a difference, never a pass, and so is a table whose
 //! statement declares a `REFERENCES` its foreign keys were read without.

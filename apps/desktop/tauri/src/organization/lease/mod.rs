@@ -44,7 +44,7 @@
 //!
 //! **The workspace keeps its own version, and the organization's record follows it** (effort 838,
 //! requirement 15, ticket 32). The tail, the check of what it made and the workspace's own
-//! version row commit in one transaction on the workspace database (`migrate.rs`), or none of it
+//! version row commit in one transaction on the workspace database (`apply.rs`), or none of it
 //! does, and a failure anywhere releases the lease with the workspace exactly as it was. The
 //! organization's record stays what is read before a replica is opened, and is written after the
 //! commit as it always was. Where the two disagree, the workspace's row wins: a migration that
@@ -52,6 +52,8 @@
 //! version by the next member to open it, who applies nothing and brings only the record up. The
 //! copy is still taken first, since which of the two it is can only be read inside the
 //! transaction.
+
+pub mod apply;
 
 use std::{future::Future, time::Duration};
 
@@ -66,10 +68,10 @@ use crate::{
 };
 
 use super::{
-    migrate::{self, OverThePipeline, Pipeline},
     session::{MemberSession, WorkspaceCredential, WorkspaceFacts},
     store::{MigrationLeaseRecord, OrganizationStore},
 };
+use apply::{OverThePipeline, Pipeline};
 
 /// How long a lease stands after it is taken: a migration that has not finished in this long
 /// has died, and the workspace is somebody else's to upgrade from then on. The retired control
@@ -351,7 +353,7 @@ fn outcome(holder: &str, holder_read: &str, until: i64) -> LeaseOutcome {
 /// Requirement 24: a workspace recorded above the version this build ships is refused, with the
 /// two numbers and what to do, before anything of it is read.
 pub fn refuse_newer(facts: &WorkspaceFacts) -> Result<(), Error> {
-    let shipped = migrate::shipped_version();
+    let shipped = apply::shipped_version();
 
     if facts.schema_version > shipped {
         return Err(Error::refused(
@@ -369,7 +371,7 @@ pub fn refuse_newer(facts: &WorkspaceFacts) -> Result<(), Error> {
 
 /// Whether the workspace is behind what this build ships.
 pub fn is_pending(facts: &WorkspaceFacts) -> bool {
-    facts.schema_version < migrate::shipped_version()
+    facts.schema_version < apply::shipped_version()
 }
 
 /// What is being upgraded: the workspace as `openable` handed it over, the member opening it,
@@ -427,7 +429,7 @@ where
         pipeline,
         account,
     } = pending;
-    let shipped = migrate::shipped_version();
+    let shipped = apply::shipped_version();
     let mut current = facts.schema_version;
 
     // a read-only credential cannot write the schema, so a holder of one takes no lease: the
@@ -500,13 +502,9 @@ where
                     );
                 }
 
-                let applied = migrate::apply_between(
-                    pipeline,
-                    &held.token,
-                    current as usize,
-                    shipped as usize,
-                )
-                .await;
+                let applied =
+                    apply::apply_between(pipeline, &held.token, current as usize, shipped as usize)
+                        .await;
 
                 // the version is recorded and sent before the lease goes: a waiting client
                 // breaks its wait the moment the lease is free and reads the version to decide
@@ -522,14 +520,14 @@ where
                     }
                     // the workspace's own row already said the shipped version: a migration that
                     // committed and was never recorded, and only the record is brought up.
-                    Ok(migrate::Migrated::AlreadyAt(version)) => {
+                    Ok(apply::Migrated::AlreadyAt(version)) => {
                         diagnostics::info("organization.migration.alreadyAt")
                             .with("workspace", facts.id.as_str())
                             .with("recorded", current.to_string().as_str())
                             .with("at", version.to_string().as_str())
                             .write();
                     }
-                    Ok(migrate::Migrated::Applied { from, to }) => {
+                    Ok(apply::Migrated::Applied { from, to }) => {
                         diagnostics::info("organization.migration.applied")
                             .with("workspace", facts.id.as_str())
                             .with("from", from.to_string().as_str())
@@ -646,13 +644,15 @@ mod tests {
         machine::RemoteSyncStore,
         organization::{
             HeldOrganization,
-            invite::{AccountAndLink, Invitation, WorkspaceGrant, locator, make_account_and_link},
-            migrate::{self, Pipeline},
-            permission,
+            invitation::{
+                AccountAndLink, Invitation, WorkspaceGrant, locator, make_account_and_link,
+            },
+            lease::apply::{self, Pipeline},
+            member::vault::KdfParams,
+            role::permission,
             session::{CredentialSlot, MemberSession, WorkspaceFacts, sign_in},
             setup::{CreateOrganization, Remote, create_organization},
             store::OrganizationStore,
-            vault::KdfParams,
             workspace::{create_workspace, openable},
         },
         persisted::Persisted,
@@ -701,7 +701,7 @@ mod tests {
     /// the other half, and it read the row's `code_seal` until effort 828 moved the seal into the
     /// link's text.*
     fn secret_of(invited: &AccountAndLink) -> String {
-        crate::organization::invite::vault_password_of(
+        crate::organization::invitation::vault_password_of(
             &invited.join_link,
             &invited.code,
             test_cost(),
@@ -958,9 +958,7 @@ mod tests {
         let pipeline = LocalPipeline::after(as_it_stood()).await;
 
         pipeline
-            .holding(&migrate::statements(
-                migrate::shipped_version() as usize - 1,
-            ))
+            .holding(&apply::statements(apply::shipped_version() as usize - 1))
             .await;
 
         pipeline
@@ -1093,7 +1091,7 @@ mod tests {
         let credentials = Memory::new();
         let directory = scratch("pending");
         let (store, owner, member, workspace_id) = organization(&credentials, &directory).await;
-        let shipped = migrate::shipped_version();
+        let shipped = apply::shipped_version();
 
         // the workspace was migrated by an older build: one migration short.
         store
@@ -1159,7 +1157,7 @@ mod tests {
 
         assert_eq!(
             steps,
-            migrate::statements_between(shipped as usize - 1, shipped as usize)
+            apply::statements_between(shipped as usize - 1, shipped as usize)
         );
 
         for index in READS..READS + MIGRATING {
@@ -1195,10 +1193,10 @@ mod tests {
         let credentials = Memory::new();
         let directory = scratch("already-at");
         let (store, _, member, workspace_id) = organization(&credentials, &directory).await;
-        let shipped = migrate::shipped_version();
+        let shipped = apply::shipped_version();
         let pipeline = LocalPipeline::start().await;
 
-        migrate::apply(&Pipeline::at(&pipeline.url("")), "t", shipped as usize)
+        apply::apply(&Pipeline::at(&pipeline.url("")), "t", shipped as usize)
             .await
             .expect("the migration that committed");
         store
@@ -1258,7 +1256,7 @@ mod tests {
         let credentials = Memory::new();
         let directory = scratch("waiting");
         let (store, owner, member, workspace_id) = organization(&credentials, &directory).await;
-        let shipped = migrate::shipped_version();
+        let shipped = apply::shipped_version();
 
         store
             .record_schema_version(&workspace_id, shipped - 1, AT)
@@ -1478,7 +1476,7 @@ mod tests {
         let credentials = Memory::new();
         let directory = scratch("newer");
         let (store, _, member, workspace_id) = organization(&credentials, &directory).await;
-        let shipped = migrate::shipped_version();
+        let shipped = apply::shipped_version();
 
         store
             .record_schema_version(&workspace_id, shipped + 1, AT)
@@ -1511,7 +1509,7 @@ mod tests {
         let credentials = Memory::new();
         let directory = scratch("copied");
         let (store, owner, _, workspace_id) = organization(&credentials, &directory).await;
-        let shipped = migrate::shipped_version();
+        let shipped = apply::shipped_version();
 
         store
             .record_schema_version(&workspace_id, shipped - 1, AT)
@@ -1612,7 +1610,7 @@ mod tests {
         let credentials = Memory::new();
         let directory = scratch("copy-refused");
         let (store, owner, _, workspace_id) = organization(&credentials, &directory).await;
-        let shipped = migrate::shipped_version();
+        let shipped = apply::shipped_version();
 
         store
             .record_schema_version(&workspace_id, shipped - 1, AT)
@@ -1658,7 +1656,7 @@ mod tests {
             "{refused:?}"
         );
 
-        let migration = migrate::statements_between(shipped as usize - 1, shipped as usize);
+        let migration = apply::statements_between(shipped as usize - 1, shipped as usize);
 
         for index in 0..pipeline.request_count() {
             let body = pipeline.request(index).body;
@@ -1693,7 +1691,7 @@ mod tests {
         let credentials = Memory::new();
         let directory = scratch("remote-copy-refused");
         let (store, owner, _, workspace_id) = organization(&credentials, &directory).await;
-        let shipped = migrate::shipped_version();
+        let shipped = apply::shipped_version();
 
         store
             .record_schema_version(&workspace_id, shipped - 1, AT)

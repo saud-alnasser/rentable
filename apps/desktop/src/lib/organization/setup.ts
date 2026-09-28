@@ -181,7 +181,7 @@ export type WalkRefusal = { sentence: string; detail: string | null };
  * with `groupNeeded`.
  *
  * *It matched a fixed phrase at the head of Rust's message until effort 832, and a test read the
- * phrase back out of `setup.rs` to keep the two together. The reason is that contract now, and the
+ * phrase back out of `setup/` to keep the two together. The reason is that contract now, and the
  * list it belongs to is mirrored and tested in `error/tauri.ts`.*
  */
 export function isTheGroupNeeded(error: unknown): boolean {
@@ -306,7 +306,7 @@ export function stepFor(session: OrganizationSession | null | undefined): 'leave
 /**
  * The strength floor, as characters, checked on the machine and again in Rust. There is no server
  * to slow a guess down, so the password is the only defence and length is what a guess pays for.
- * `tauri/src/organization/setup.rs` carries the same number and a test on each side pins it.
+ * `tauri/src/organization/setup/` carries the same number and a test on each side pins it.
  */
 export const PASSWORD_FLOOR = 12;
 

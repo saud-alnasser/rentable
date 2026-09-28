@@ -7,7 +7,7 @@ use crate::{
     error::{Error, RefusalReason},
     organization::{
         authority::{Chain, VERIFYING_KEY_BYTES, sign},
-        permission::{self, OWNER_ROLE},
+        role::permission::{self, OWNER_ROLE},
     },
 };
 

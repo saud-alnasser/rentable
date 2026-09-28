@@ -403,7 +403,7 @@ and answers the check before it commits.** Admitted by the human's call of 2026-
 requirement 15), taken at the effort's review round one
 ([[efforts/838-permissions-are-a-role-and-an-override/spec]]): ticket 32 wrote the test and ticket
 38 armed it and moved it here. `migration_live_every_shipped_migration_commits_in_one_transaction`,
-at the foot of `tauri/src/organization/migrate.rs`, provisions a database through
+at the foot of `tauri/src/organization/lease/apply.rs`, provisions a database through
 `database/test/workspace.rs`, applies every shipped migration, `0003`'s drops and renames among
 them, inside one explicit transaction over the pipeline with the check's reads and the version row,
 commits, and runs again to find the version row and apply nothing. The check reads

@@ -31,6 +31,10 @@
 //! **Deletion is the one moment requirement 4 permits it**, and it goes through the explicit
 //! intent the port requires. Nothing else in the organization reaches deletion.
 
+mod command;
+
+pub use command::*;
+
 use std::collections::HashMap;
 
 use crate::{
@@ -41,14 +45,14 @@ use crate::{
 
 use super::{
     authority::AdministratorKey,
-    migrate::{self, Pipeline},
-    permission::{self, Flag},
+    lease::apply::{self, Pipeline},
+    member::vault::{open_content, seal_content, seal_to_public_key},
+    role::permission::{self, Flag},
     session::{MemberSession, WorkspaceCredential, WorkspaceFacts, permissions_on_row},
     store::{
         GrantRecord, MemberRecord, OrganizationStore, Signer, WorkspaceOverrideRecord,
         WorkspaceRecord, pins_of,
     },
-    vault::{open_content, seal_content, seal_to_public_key},
 };
 
 /// How long a member's workspace credential lives before renewal has to replace it. Renewal runs
@@ -184,9 +188,9 @@ async fn finish_workspace<P: TursoPlatform>(
             AccessLevel::FullAccess,
         )
         .await?;
-    let version = migrate::shipped_version();
+    let version = apply::shipped_version();
 
-    migrate::apply(pipeline, &migration_credential, version as usize).await?;
+    apply::apply(pipeline, &migration_credential, version as usize).await?;
 
     // the owner's own credential, sealed to the owner.
     let credential = platform
@@ -838,16 +842,18 @@ mod tests {
         organization::{
             HeldOrganization,
             authority::{AdministratorKey, Issue, certificate_id, issue_certificate},
-            migrate::Pipeline,
-            permission::{self, Flag},
-            role,
-            session::{CredentialSlot, MemberSession, sign_in},
-            setup::{CreateOrganization, Remote, create_organization},
-            store::{GrantRecord, MemberRecord, OrganizationStore, Signer, TABLES},
-            vault::{
+            lease::apply::Pipeline,
+            member::vault::{
                 KdfParams, MemberSecretKey, create_vault_with_secret, seal_content,
                 seal_to_public_key,
             },
+            role::{
+                self,
+                permission::{self, Flag},
+            },
+            session::{CredentialSlot, MemberSession, sign_in},
+            setup::{CreateOrganization, Remote, create_organization},
+            store::{GrantRecord, MemberRecord, OrganizationStore, Signer, TABLES},
         },
         persisted::Persisted,
         sync::test::server::{ScriptedResponse, ScriptedServer},
@@ -1125,7 +1131,7 @@ mod tests {
         assert_eq!(facts.database_name, format!("ws-{}", facts.id));
         assert_eq!(
             facts.schema_version,
-            crate::organization::migrate::shipped_version()
+            crate::organization::lease::apply::shipped_version()
         );
         assert_eq!(facts.access_level, "full-access");
 
@@ -2437,7 +2443,7 @@ mod tests {
             .expect("the workspace row");
 
         assert_eq!(
-            crate::organization::vault::open_content(
+            crate::organization::member::vault::open_content(
                 &owner.content_key,
                 "workspace.name_sealed",
                 &workspace.name_sealed
@@ -2895,10 +2901,10 @@ mod tests {
             .await
             .expect("the migration mint failed");
 
-        crate::organization::migrate::apply(
+        crate::organization::lease::apply::apply(
             &Pipeline::of(&database.hostname),
             &migration,
-            crate::organization::migrate::shipped_version() as usize,
+            crate::organization::lease::apply::shipped_version() as usize,
         )
         .await
         .expect("the live migration failed");

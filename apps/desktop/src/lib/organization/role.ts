@@ -623,7 +623,7 @@ export const firstUnheldTailored = (
 /**
  * The first flag pinned in any workspace that the reader does not hold, or `null`: what giving the
  * member another role, or resetting them to theirs, would unpin, and Rust refuses the act for
- * (`role.rs`, the clearing in `apply`).
+ * (`role/`, the clearing in `apply`).
  */
 export const firstUnheldPinned = (held: number, pinned: number): Flag | null =>
 	RECORD_FLAGS.find((flag) => permits(pinned, flag) && !permits(held, flag)) ?? null;

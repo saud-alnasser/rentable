@@ -25,7 +25,7 @@ import type {
 
 /** the Rust side is `LINK_ARRIVED_EVENT` in `tauri/src/lib.rs`, and the two are one name. */
 const LINK_ARRIVED_EVENT = 'organization:link';
-/** the Rust side is `MIGRATION_EVENT` in `tauri/src/organization/command.rs`, one name. */
+/** the Rust side is `MIGRATION_EVENT` in `tauri/src/organization/workspace/command.rs`, one name. */
 const MIGRATION_EVENT = 'organization:migration';
 
 /**

@@ -45,7 +45,7 @@ impl OrganizationStore {
     }
 
     /// The connection, for the lease authority that runs the lease statements against a local
-    /// primary (`organization/migration.rs::StoreLease`).
+    /// primary (`organization/lease/mod.rs::StoreLease`).
     pub(crate) fn lease_connection(&self) -> &turso::Connection {
         &self.connection
     }

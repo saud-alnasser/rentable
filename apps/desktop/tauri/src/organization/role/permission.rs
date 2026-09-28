@@ -962,8 +962,8 @@ mod tests {
     ///
     /// **The owner is the only role holding the owner's flags.** The manager carries every other
     /// flag and the member no administration and no delete; what refuses the manager an owner's act
-    /// is the flag missing here and, beside it, the owner check the tests in `workspace.rs` and
-    /// `removal.rs` cover.
+    /// is the flag missing here and, beside it, the owner check the tests in `workspace/` and
+    /// `member/removal.rs` cover.
     #[test]
     fn every_flag_is_granted_or_withheld_by_role() {
         let expected = |role: &str, flag: Flag| match role {

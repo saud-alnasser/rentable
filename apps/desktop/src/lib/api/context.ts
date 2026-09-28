@@ -91,7 +91,7 @@ export type Identity = {
 	 *
 	 * **Never read as a number.** `permits` from `@rentable/workspace-permission` answers a
 	 * question about it by the name of an act; that package names the bits on this side, and
-	 * `permission.rs` carries the same bits under the same names on the Rust side.
+	 * `role/permission.rs` carries the same bits under the same names on the Rust side.
 	 *
 	 * Where the shell could not be reached or nobody is signed in there is no identity at all,
 	 * and so nothing to read this off.

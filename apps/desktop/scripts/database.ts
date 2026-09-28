@@ -61,7 +61,7 @@ const FALLBACK_URL = process.env.DATABASE_URL?.replace('file:', '') ?? './tauri/
 
 /**
  * **`ws-<id>.db`, which is the organization's own name for the database.** `create_workspace` in
- * `tauri/src/organization/workspace.rs` builds `ws-<id>`, that is what Turso holds, and
+ * `tauri/src/organization/workspace/` builds `ws-<id>`, that is what Turso holds, and
  * it is what the remote URL says — so a directory listing matches the dashboard without anybody
  * translating. `replica_path` in `database/mod.rs` is the other half of this and must agree.
  */

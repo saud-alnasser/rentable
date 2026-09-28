@@ -36,12 +36,15 @@ use crate::{
     persisted::Persisted,
 };
 
-use super::{
-    HeldOrganization, connect,
-    link::{HalfKind, JoinLink, open_payload},
+use crate::organization::{
+    HeldOrganization,
+    invitation::{
+        connect,
+        link::{HalfKind, JoinLink, open_payload},
+    },
+    member::vault::KdfParams,
     session::CredentialSlot,
     store::OrganizationStore,
-    vault::KdfParams,
 };
 
 /// The one sentence a machine link that no longer opens is refused with, said in the name of the
@@ -239,14 +242,16 @@ mod tests {
         machine::{RemoteSync, RemoteSyncStore},
         organization::{
             HeldOrganization,
-            invite::{INVITATION_LIFETIME_MS, MadeLink, create_account, locator, make_link},
-            join,
-            link::{CODE_REFUSED, JoinLink, LinkKind, LinkPayload, Locator, open_payload},
-            permission,
+            invitation::{
+                INVITATION_LIFETIME_MS, MadeLink, create_account, join,
+                link::{CODE_REFUSED, JoinLink, LinkKind, LinkPayload, Locator, open_payload},
+                locator, make_link,
+            },
+            member::vault::KdfParams,
+            role::permission,
             session::{CredentialSlot, MemberSession, sign_in, sign_in_by_username},
             setup::{CreateOrganization, Remote, create_organization, credential_expiry},
             store::{MachineLinkRecord, OrganizationStore},
-            vault::KdfParams,
         },
         persisted::Persisted,
         sync::test::server::{ScriptedResponse, ScriptedServer},
@@ -430,9 +435,9 @@ mod tests {
     /// The connect, over one machine's record and the replica this test already holds.
     ///
     /// **The replica is handed in rather than opened**, for the reason `join.rs`'s tests give: in
-    /// the application `command::reached` answers with one it opened against the credential the
-    /// code unsealed, and here the organization is a local file every test in this module shares,
-    /// which is the same read either way.
+    /// the application `reached` (`command.rs`) answers with one it opened against the credential
+    /// the code unsealed, and here the organization is a local file every test in this module
+    /// shares, which is the same read either way.
     async fn connect_on(
         machine: &mut Persisted<RemoteSyncStore>,
         store: &OrganizationStore,
@@ -485,7 +490,7 @@ mod tests {
             "a link the grant does not cut short lapses a week out"
         );
         assert_eq!(
-            crate::organization::link::read(&made.link)
+            crate::organization::invitation::link::read(&made.link)
                 .expect("the link could not be read")
                 .kind,
             LinkKind::Machine
@@ -881,7 +886,7 @@ mod tests {
         .expect("the link could not be made");
         let half = JoinLink::decode(&made.link).expect("the link").half;
 
-        crate::organization::removal::remove_member(
+        crate::organization::member::removal::remove_member(
             &store,
             &mut owner,
             no_platform(),
@@ -982,7 +987,7 @@ mod tests {
         .expect("the link could not be made");
         let half = JoinLink::decode(&made.link).expect("the link").half;
 
-        crate::organization::invite::unset_password(
+        crate::organization::invitation::unset_password(
             &store,
             &owner,
             no_platform(),

@@ -15,13 +15,21 @@
 //! today, before the session (the owner's platform), inside the act (an ownership accepted, a
 //! workspace upgraded, a credential handed to the engine) or after it (a renamed workspace), and
 //! holding it for the whole act would hold every heartbeat behind every organization act.
+//!
+//! **The owner's platform is here too** ([`owner_platform`]): the Platform API client a command
+//! builds where this machine holds the Turso authority, which the commands of five sub-concepts
+//! ask for before they act, so it is written once beside the one way they act.
+
+use std::sync::Arc;
 
 use crate::{
+    credential::Credentials,
     error::{Error, RefusalReason},
     state::AppState,
+    turso::platform::{PlatformApi, PlatformEndpoint},
 };
 
-use super::{session::MemberSession, store::OrganizationStore};
+use super::{session::MemberSession, setup, store::OrganizationStore};
 
 /// What an act is handed: the signed-in member's session, for writing, and their organization
 /// replica, both under the locks [`as_member`] took.
@@ -91,4 +99,23 @@ fn signed_out() -> Error {
         RefusalReason::SignedOut,
         "nobody is signed in to an organization on this machine",
     )
+}
+
+/// The Platform API client this machine can build, where it holds the authority and knows the
+/// organization: the owner's machine after a consent, and nobody else's. `None` is not a failure;
+/// it is what makes a read-only grant, a create and a delete the owner's, at the command.
+pub(super) async fn owner_platform(
+    app_state: &AppState,
+    credentials: &Credentials,
+) -> Option<PlatformApi> {
+    setup::authority(credentials.as_ref()).ok()?;
+
+    let mut remote_sync = app_state.remote_sync.write().await;
+    let organization = remote_sync.store_mut().turso_organization.clone()?;
+
+    Some(PlatformApi::new(
+        PlatformEndpoint::production(),
+        organization,
+        Arc::clone(credentials),
+    ))
 }

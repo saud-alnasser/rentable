@@ -65,7 +65,7 @@ to a fresh one with nothing declared for it. `PRAGMA foreign_key_check` is not i
 fails rolls the whole walk back, writes nothing, and refuses with `ShapeNotAsBuilt`, whose sentence
 says to update the application and try again and that the diagnostics log says why, which it does:
 `schema.notAsBuilt` names every difference. A workspace migration is checked the same way
-(`organization/migrate.rs`).
+(`organization/lease/apply.rs`).
 A `format` row below 2, or none, where nothing of format 1 is left reads as 2 where the
 `workspace_override` table is missing and as the shipped format where it stands, and the owner's
 next sign-in finishes it. The owner
@@ -102,7 +102,7 @@ retired the declaration.*
 **Flag**:
 One act the application performs for a member, on one bit of one mask. The vocabulary lives in
 `packages/workspace-permission` (`FLAGS`, grouped by `FAMILIES`) and is mirrored in
-`organization/permission.rs`, held equal by a test that reads the package source: the
+`organization/role/permission.rs`, held equal by a test that reads the package source: the
 organization's administration on bits 0 to 9 (`inviteMember`, `removeMember`, `assignRole`,
 `renameWorkspace`, `resetPassword`, `renameMember`, `grantWorkspace`, `manageRoles`,
 `overrideMember`, `manageMark`), the owner's acts on 10 to 17 (`createWorkspace`,
@@ -123,7 +123,7 @@ editing records; both are rows written with the organization and signed by the o
 their masks are editable. **Custom** roles rank strictly between member (0) and manager
 (1,000,000), strictly ordered among themselves, and are made, renamed, re-masked, moved and deleted
 from the settings area's organization section. Deleting one moves its holders to member and clears
-their override, so they hold the member role exactly (`role.rs`, 838 requirements 3, 4 and 6 as
+their override, so they hold the member role exactly (`role/`, 838 requirements 3, 4 and 6 as
 amended 2026-09-27).
 _Avoid_: "administrator", which the manager replaced.
 
@@ -371,7 +371,7 @@ refused unless what it yields is the key this machine pinned, and the directory 
   opens it, and an older build refuses a newer workspace before reading anything. The lease holder
   copies the workspace first (`backup.rs`), and a copy not taken applies nothing. The tail, a check
   of what it made (`schema.rs`) and the workspace's own version row commit in one transaction or
-  not at all (`migrate.rs`); the organization's record is written after the commit, and where the
+  not at all (`lease/apply.rs`); the organization's record is written after the commit, and where the
   workspace's row is already at the shipped version only the record is brought up.
 - **A damaged organization replica is rebuilt from the remote, not repaired.** `org-<id>.db` opens
   through the workspace's own `Database::open_replica`, so one the engine finds corrupt, not a

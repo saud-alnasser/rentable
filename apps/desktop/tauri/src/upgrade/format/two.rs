@@ -53,14 +53,14 @@ use crate::{
             MemberAuthority, OrganizationKey, Reading, Revocation, VERIFYING_KEY_BYTES,
             issue_certificate, issue_root_certificate,
         },
-        permission::{self, Flag, MANAGER_ROLE, MEMBER_ROLE, OWNER_ROLE, RECORD_FLAGS},
+        member::vault::MemberSecretKey,
+        role::permission::{self, Flag, MANAGER_ROLE, MEMBER_ROLE, OWNER_ROLE, RECORD_FLAGS},
         store::{
             FormatOneDirectory, FormatOneMemberRow, FormatOneReshape, GrantRecord,
             InvitationRecord, MarkRecord, MemberRecord, OrganizationStore, RoleRecord, SignedRow,
             Signer, WorkspaceRecord, grant_authority, install_format_two, invitation_authority,
             mark_authority, role_authority, workspace_authority,
         },
-        vault::MemberSecretKey,
     },
 };
 
@@ -1050,11 +1050,13 @@ mod tests {
     use crate::{
         error::{Error, RefusalReason},
         organization::{
-            permission::{self, Flag, MANAGER_ROLE, MEMBER_ROLE, OWNER_ROLE},
-            role::in_one_transaction,
+            member::vault::seal_content,
+            role::{
+                in_one_transaction,
+                permission::{self, Flag, MANAGER_ROLE, MEMBER_ROLE, OWNER_ROLE},
+            },
             session::CredentialSlot,
             store::{OrganizationStore, RoleRecord, Signer},
-            vault::seal_content,
         },
         upgrade::format::{
             runner::{signing_key_of, with_password},

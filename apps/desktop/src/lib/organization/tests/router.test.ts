@@ -1065,12 +1065,12 @@ test('a username outside the rules or a password under the floor never reaches t
  * Ticket 17 of effort 838, requirements 1 and 10: the Rust command is the gate that decides, and
  * the router's flag is the refusal in front of it, so the two name the same flag. The Rust side is
  * read as text, off the `GATES` table its own test holds every organization command to, the way
- * `permission.rs` reads the permission package. Which command each procedure calls is written out
+ * `role/permission.rs` reads the permission package. Which command each procedure calls is written out
  * here, off `organization/tauri.ts`, because the router reaches the command through the host and
  * nothing on this side can follow the call.
  */
 const COMMAND_SOURCE = readFileSync(
-	fileURLToPath(new URL('../../../../tauri/src/organization/command.rs', import.meta.url)),
+	fileURLToPath(new URL('../../../../tauri/src/organization/mod.rs', import.meta.url)),
 	'utf8'
 );
 
@@ -1101,7 +1101,7 @@ function gatesInRust(source: string): Map<string, Gate> {
 		});
 	}
 
-	assert.ok(start >= 0 && gates.size > 40, `read ${gates.size} gates off command.rs`);
+	assert.ok(start >= 0 && gates.size > 40, `read ${gates.size} gates off organization/mod.rs`);
 
 	return gates;
 }
@@ -1148,7 +1148,7 @@ const COMMAND_OF: Record<string, string> = {
 
 /**
  * A flag Rust asks inside the command, on what the input asks for, beyond the one `GATES` names:
- * a removal that locks the member out is the owner's `lockOut` as well (`removal.rs`), and the
+ * a removal that locks the member out is the owner's `lockOut` as well (`member/removal.rs`), and the
  * router reads it off the same input with `permittedBy`.
  */
 const ALSO_ON_INPUT: Record<string, readonly Flag[]> = {

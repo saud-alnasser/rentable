@@ -6,8 +6,8 @@
 //! where somebody forgot.
 //!
 //! **Nothing on this side applies a migration**: a workspace's schema is applied to its database
-//! over the wire by `organization/migrate.rs`, from the files `build.rs` embeds, and arrives at a
-//! replica as replicated pages. That module counts its own shipped version from what it embeds,
+//! over the wire by `organization/lease/apply.rs`, from the files `build.rs` embeds, and arrives at
+//! a replica as replicated pages. That module counts its own shipped version from what it embeds,
 //! and its tests hold that count equal to this one, so the two ways of counting the directory
 //! cannot drift apart unnoticed.
 

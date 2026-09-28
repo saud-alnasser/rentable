@@ -3,7 +3,7 @@
 //!
 //! **The preimages and the rules are format 1's; the checks are the chain's.** What each signature
 //! was made over is built here, byte for byte as the build before effort 838 built it, and the two
-//! signature checks and the revocation are `organization/authority.rs`'s, made in one call
+//! signature checks and the revocation are `organization/authority/`'s, made in one call
 //! (`authority::verify_older_row`) so that the certificate behind a row is never skipped. The
 //! certificate itself, as the store reads it off format 1's table, is
 //! `authority::FormatOneCertificate`, which is what the store hands the upgrade.

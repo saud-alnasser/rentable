@@ -243,7 +243,7 @@ pub trait TursoPlatform {
     /// Invalidate every credential ever minted for `database_name`, at once. Turso revokes per
     /// database and totally; nothing finer exists, which is why an ordinary removal never calls
     /// this and a lock-out does, knowing that every remaining member of that workspace stops
-    /// syncing until they collect a fresh credential (`organization/removal.rs`).
+    /// syncing until they collect a fresh credential (`organization/member/removal.rs`).
     fn rotate_credentials(
         &self,
         database_name: &str,
@@ -1870,8 +1870,8 @@ mod tests {
     /// Effort 828, requirement 18: **the one refusal that says the database is not there any
     /// more**, which is what tells a machine the owner deleted the organization. The three
     /// messages below are the engine's own, recorded from a pull against a scripted server in
-    /// `organization/forget.rs`; what a deleted Turso database itself answers has not been run
-    /// against a live account, and until it has, a status this does not recognise leaves the
+    /// `organization/session/forget.rs`; what a deleted Turso database itself answers has not been
+    /// run against a live account, and until it has, a status this does not recognise leaves the
     /// machine holding what it holds.
     #[test]
     fn a_database_that_is_not_there_is_told_from_a_credential_and_from_a_remote_that_answered_nothing()

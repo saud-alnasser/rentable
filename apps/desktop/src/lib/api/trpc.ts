@@ -319,7 +319,7 @@ export const procedure = {
 	 * neither is the authority; the signed row in Rust is, and it checks again.
 	 *
 	 * **The acts are named, never a number, a bit index or a role.**
-	 * `@rentable/workspace-permission` is where the names live and `permission.rs` carries the
+	 * `@rentable/workspace-permission` is where the names live and `role/permission.rs` carries the
 	 * same bits under the same names, and a test on each side keeps the two from drifting.
 	 *
 	 * **A bulk procedure names the flag of the single act**, and so does an undo's inverse: deleting

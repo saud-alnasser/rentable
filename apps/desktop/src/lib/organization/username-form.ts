@@ -11,7 +11,7 @@ import z from 'zod';
  * wherever it was typed, and the rule changes in one place or not at all.
  *
  * **The rule is requirement 21's, and Rust holds it too.** Three to thirty-two characters of
- * letters, digits, `.`, `_` and `-`; `tauri/src/organization/invite.rs` carries the same bounds
+ * letters, digits, `.`, `_` and `-`; `tauri/src/organization/invitation/` carries the same bounds
  * as `validate_username` and refuses with `USERNAME_RULES`, which the locale's `usernameRules`
  * repeats word for word and `members.svelte.test.ts` pins. Whether a username is already taken
  * is Rust's alone, since usernames are sealed and only an open vault can compare them; that

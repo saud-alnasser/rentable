@@ -12,7 +12,7 @@
 //!   forgotten.
 //!
 //! **Nothing names this module but the session that runs it.** The organization's session
-//! (`organization/session.rs`) is where a sign-in, a resume, a connect and the launch's first
+//! (`organization/session/`) is where a sign-in, a resume, a connect and the launch's first
 //! state read reach it, and the composition root registers the two commands `record` answers.
 //! Everything else in the crate is below it: this module reads the organization's store, its
 //! chain and its vaults, and nothing there names it back. `guard/cycle.rs` holds that, with the

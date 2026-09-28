@@ -3,7 +3,7 @@
 //! Two sets of tests go through this scaffolding. The four at the foot of `database/mod.rs`,
 //! beside the `open_replica` they go through, measure what a losing writer loses when two replicas
 //! of one workspace diverge (#552, acceptance criteria 9 and 17). The one at the foot of
-//! `organization/migrate.rs` measures whether the server takes every shipped migration in one
+//! `organization/lease/apply.rs` measures whether the server takes every shipped migration in one
 //! explicit transaction (effort 838, ticket 32). This is the part that provisions a database for
 //! them, which is the Turso-side counterpart of `sync/test/server.rs`.
 //!
@@ -165,11 +165,11 @@ impl LiveWorkspace {
         (directory, database)
     }
 
-    /// Apply the first `up_to` migrations to the **remote** database, as `organization/migrate.rs` does.
+    /// Apply the first `up_to` migrations to the **remote** database, as `organization/lease/apply.rs` does.
     ///
     /// **Promoted, not duplicated.** This posted the statements to `/v2/pipeline` itself until
     /// the migration ticket of [[efforts/819-an-organization-hosts-its-own-workspaces/spec]], and
-    /// it was the proof that the wire path works; `organization/migrate.rs` is that path in
+    /// it was the proof that the wire path works; `organization/lease/apply.rs` is that path in
     /// shipping code, and this now goes through it, so the runner the tests rely on is the runner
     /// the application ships. A sync connection cannot carry `0003`'s drops and renames, measured
     /// on 2026-08-20 by #552, which is why it was ever over the wire.
@@ -182,8 +182,8 @@ impl LiveWorkspace {
             .strip_prefix("libsql://")
             .expect("a libsql:// workspace url");
 
-        crate::organization::migrate::apply(
-            &crate::organization::migrate::Pipeline::of(host),
+        crate::organization::lease::apply::apply(
+            &crate::organization::lease::apply::Pipeline::of(host),
             &self.token,
             up_to,
         )
@@ -329,7 +329,7 @@ pub(in crate::database) async fn concepts(connection: &turso::Connection) -> Vec
                 "SELECT name FROM sqlite_master WHERE type = 'table' \
                  AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'turso_%' \
                  AND name NOT LIKE '\\_\\_%' ESCAPE '\\' AND name != '{}' ORDER BY name",
-                crate::organization::migrate::VERSION_TABLE
+                crate::organization::lease::apply::VERSION_TABLE
             ),
             (),
         )

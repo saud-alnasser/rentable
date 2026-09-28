@@ -117,6 +117,14 @@
 //! and issues their fresh certificate from the resetter's; the rows the old one signed are re-signed
 //! under the resetter first, and a row the resetter could not sign refuses the reset by name.
 
+mod command;
+pub mod connect;
+pub mod join;
+pub mod link;
+pub mod machine;
+
+pub use command::*;
+
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -127,18 +135,23 @@ use crate::{
 
 use super::{
     authority::AdministratorKey,
-    link::{Half, HalfKind, LinkPayload, Locator, seal_payload},
-    permission::{self, Flag},
-    role::{Standing, reissue},
+    member::vault::{
+        KdfParams, create_vault_with_secret, open_content, seal_content, seal_to_public_key,
+    },
+    role::{
+        Standing,
+        permission::{self, Flag},
+        reissue,
+    },
     session::{Actor, MemberSession, actor, rank_of, refuse_unsettled},
     setup::{ADMINISTRATOR_KEY_PURPOSE, SHIPPING_KDF, credential_expiry},
     store::{
         GrantRecord, InvitationRecord, MachineLinkRecord, MemberRecord, OrganizationStore, Signer,
         pins_of,
     },
-    vault::{KdfParams, create_vault_with_secret, open_content, seal_content, seal_to_public_key},
     workspace::{WORKSPACE_CREDENTIAL_LIFETIME, signer_of},
 };
+use link::{Half, HalfKind, LinkPayload, Locator, seal_payload};
 
 /// How long an invitation stands: a week, which is long enough to send a link on Friday and have
 /// it opened on Monday, and short enough that a link in an old message is not a way in.
@@ -878,7 +891,7 @@ pub async fn members(
                                 .unwrap_or(AccessLevel::FullAccess),
                             pinned,
                             granted,
-                            permissions: super::permission::effective_in_workspace(
+                            permissions: super::role::permission::effective_in_workspace(
                                 member.effective,
                                 pinned,
                                 granted,
@@ -1202,9 +1215,9 @@ pub(super) fn link_expiry(credential: &str, now: i64) -> i64 {
 /// link's own text.*
 #[cfg(test)]
 pub(crate) fn vault_password_of(join_link: &str, code: &str, kdf_params: KdfParams) -> String {
-    let link = super::link::JoinLink::decode(join_link).expect("the invitation link");
+    let link = super::invitation::link::JoinLink::decode(join_link).expect("the invitation link");
 
-    super::link::open_payload(
+    super::invitation::link::open_payload(
         code,
         &link.locator(),
         &link.half,
@@ -1436,7 +1449,7 @@ async fn write_account<P: TursoPlatform>(
                 updated_at: now,
                 // a fresh invitation has no row and starts at the first epoch. A reset keeps the
                 // member's id and rewrites their row, so what it carries is what the row already
-                // held: the number only ever moves forward (`session.rs`), and a reset that put
+                // held: the number only ever moves forward (`session/`), and a reset that put
                 // it back to zero would hand every keyring entry filed under an earlier one its
                 // first gate again.
                 session_epoch,
@@ -1651,7 +1664,7 @@ fn with_link(
     made: MadeLink,
     unreachable_workspaces: Vec<UnreachableWorkspace>,
 ) -> AccountAndLink {
-    let invitation_id = super::link::JoinLink::decode(&made.link)
+    let invitation_id = super::invitation::link::JoinLink::decode(&made.link)
         .map(|link| link.half.id)
         .unwrap_or_default();
 
@@ -1686,13 +1699,13 @@ mod tests {
         machine::RemoteSyncStore,
         organization::{
             HeldOrganization,
-            link::{HalfKind, JoinLink, LinkPayload, Locator, open_payload},
-            migrate::Pipeline,
-            permission,
+            invitation::link::{HalfKind, JoinLink, LinkPayload, Locator, open_payload},
+            lease::apply::Pipeline,
+            member::vault::KdfParams,
+            role::permission,
             session::{CredentialSlot, MemberSession, sign_in, sign_in_by_username},
             setup::{CreateOrganization, Remote, create_organization, credential_expiry},
             store::{OrganizationStore, Signer},
-            vault::KdfParams,
             workspace::create_workspace,
         },
         persisted::Persisted,
@@ -1744,7 +1757,7 @@ mod tests {
     /// the other half, and it read the row's `code_seal` until effort 828 moved the seal into the
     /// link's text.*
     fn secret_of(invited: &AccountAndLink) -> String {
-        crate::organization::invite::vault_password_of(
+        crate::organization::invitation::vault_password_of(
             &invited.join_link,
             &invited.code,
             test_cost(),
@@ -1978,7 +1991,7 @@ mod tests {
         let mut late_machine = fresh_machine(&late);
 
         assert!(
-            crate::organization::join::accept(
+            crate::organization::invitation::join::accept(
                 &credentials,
                 |_| async { Ok::<_, Error>(&store) },
                 &mut late_machine,
@@ -1997,7 +2010,7 @@ mod tests {
         // the machine it was made for, which spends it and chooses the password.
         let theirs = scratch("account-theirs");
         let mut their_machine = fresh_machine(&theirs);
-        let (_, session) = crate::organization::join::accept(
+        let (_, session) = crate::organization::invitation::join::accept(
             &credentials,
             |_| async { Ok::<_, Error>(&store) },
             &mut their_machine,
@@ -2025,7 +2038,7 @@ mod tests {
         let mut second_machine = fresh_machine(&second);
 
         assert!(
-            crate::organization::join::accept(
+            crate::organization::invitation::join::accept(
                 &credentials,
                 |_| async { Ok::<_, Error>(&store) },
                 &mut second_machine,
@@ -2166,7 +2179,7 @@ mod tests {
         .expect("the link could not be made");
         let directory = scratch(&format!("opened-{name}"));
         let mut machine = fresh_machine(&directory);
-        let (_, session) = crate::organization::join::accept(
+        let (_, session) = crate::organization::invitation::join::accept(
             credentials,
             |_| async { Ok::<_, Error>(store) },
             &mut machine,
@@ -2231,7 +2244,7 @@ mod tests {
         let theirs = scratch("standing-theirs");
         let mut their_machine = fresh_machine(&theirs);
 
-        crate::organization::join::accept(
+        crate::organization::invitation::join::accept(
             &credentials,
             |_| async { Ok::<_, Error>(&store) },
             &mut their_machine,
@@ -2337,7 +2350,7 @@ mod tests {
 
         let next = scratch("standing-next");
         let mut next_machine = fresh_machine(&next);
-        let (_, session) = crate::organization::join::accept(
+        let (_, session) = crate::organization::invitation::join::accept(
             &credentials,
             |_| async { Ok::<_, Error>(&store) },
             &mut next_machine,
@@ -2412,7 +2425,7 @@ mod tests {
         let theirs = scratch("standings-theirs");
         let mut their_machine = fresh_machine(&theirs);
 
-        crate::organization::join::accept(
+        crate::organization::invitation::join::accept(
             &credentials,
             |_| async { Ok::<_, Error>(&store) },
             &mut their_machine,
@@ -2551,8 +2564,11 @@ mod tests {
         assert_eq!(row.consumed_at, None);
         assert_eq!(row.issued_by, owner.member_id);
         let issuers_copy = String::from_utf8(
-            crate::organization::vault::unseal_with_secret_key(&owner.secret, &row.sealed_secret)
-                .expect("the owner opens the sealed secret"),
+            crate::organization::member::vault::unseal_with_secret_key(
+                &owner.secret,
+                &row.sealed_secret,
+            )
+            .expect("the owner opens the sealed secret"),
         )
         .expect("the issuer's copy is text");
         let held: Vec<&str> = issuers_copy.split('\n').collect();

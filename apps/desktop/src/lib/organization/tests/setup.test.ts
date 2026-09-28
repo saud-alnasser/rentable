@@ -175,7 +175,7 @@ test('the connect items together are shorter than the three paragraphs they repl
  */
 test('the password floor is the same number in Rust, on the form, and in both locales', async () => {
 	const rust = await readFile(
-		fileURLToPath(new URL('../../../../tauri/src/organization/setup.rs', import.meta.url)),
+		fileURLToPath(new URL('../../../../tauri/src/organization/setup/mod.rs', import.meta.url)),
 		'utf8'
 	);
 	const declared = /pub const MINIMUM_PASSWORD_LENGTH: usize = (\d+);/.exec(rust);
@@ -260,14 +260,14 @@ test('the connect step says these things, and says them in both locales', () => 
  *
  * The sentence the person reads is the locale's, from the refusal's `groupHoldsOrganization`
  * reason (effort 832, requirement 23). What Rust says is kept behind a disclosure under it, and the
- * literal below is read back out of `setup.rs` so the fixture cannot drift away from it.
+ * literal below is read back out of `setup/mod.rs` so the fixture cannot drift away from it.
  */
 const GROUP_ALREADY_HOLDS_ONE =
 	'this group already holds the organization database `org-7f3a`; a group holds one organization, so pick another group or another Turso account';
 
 test('the refusal a group already holding an organization gives is the sentence rust formats', async () => {
 	const rust = await readFile(
-		fileURLToPath(new URL('../../../../tauri/src/organization/setup.rs', import.meta.url)),
+		fileURLToPath(new URL('../../../../tauri/src/organization/setup/mod.rs', import.meta.url)),
 		'utf8'
 	);
 	// rust wraps a long literal with a trailing backslash and indents the next line; unwrapping
@@ -292,11 +292,11 @@ test('the refusal a group already holding an organization gives is the sentence 
  * created. **The refusal names both**, because the person is being asked to correct one word and
  * cannot do that without seeing what the other one is. The reader's sentence is the locale's,
  * from `groupMismatch`, and Rust's words behind it name both, so they are read back out of
- * `setup.rs` here the way the group-already-held ones are.
+ * `setup/mod.rs` here the way the group-already-held ones are.
  */
 test('the refusal a group that is not the consented one gives names both groups, and rust formats it', async () => {
 	const rust = await readFile(
-		fileURLToPath(new URL('../../../../tauri/src/organization/setup.rs', import.meta.url)),
+		fileURLToPath(new URL('../../../../tauri/src/organization/setup/mod.rs', import.meta.url)),
 		'utf8'
 	);
 	const unwrapped = rust.replace(/\\\n\s*/g, '');
@@ -347,11 +347,11 @@ test('a create refused after the consent was given back sends the walk to the co
  * holds the authority, which is what every other refusal is told apart by.
  *
  * *It was a fixed phrase at the head of Rust's message until effort 832, pinned by reading the
- * constant back out of `setup.rs`. The reason replaced it, and the phrase is gone from both sides.*
+ * constant back out of `setup/mod.rs`. The reason replaced it, and the phrase is gone from both sides.*
  */
 test('the walk asks for the group on the reason rust gives, and on no phrase', async () => {
 	const rust = await readFile(
-		fileURLToPath(new URL('../../../../tauri/src/organization/setup.rs', import.meta.url)),
+		fileURLToPath(new URL('../../../../tauri/src/organization/setup/mod.rs', import.meta.url)),
 		'utf8'
 	);
 
@@ -734,7 +734,7 @@ test('a connect refused on the account itself sends the walk to the connect step
 
 /**
  * and the words the connect refuses with, behind the reader's sentence, are Rust's, read back out
- * of `setup.rs`.
+ * of `setup/mod.rs`.
  *
  * *There were two until 2026-09-20, and the one that went pointed at a link a connected machine
  * could make. Nothing formats it now, which this asserts as well: the owner is handed no link, so
@@ -742,7 +742,7 @@ test('a connect refused on the account itself sends the walk to the connect step
  */
 test('the refusals the existing step can meet are the ones rust formats', async () => {
 	const rust = await readFile(
-		fileURLToPath(new URL('../../../../tauri/src/organization/setup.rs', import.meta.url)),
+		fileURLToPath(new URL('../../../../tauri/src/organization/setup/mod.rs', import.meta.url)),
 		'utf8'
 	);
 	const unwrapped = rust.replace(/\\\n\s*/g, '');

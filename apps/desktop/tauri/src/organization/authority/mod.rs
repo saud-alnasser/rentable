@@ -116,7 +116,7 @@ use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
 
 use crate::{error::Error, turso::platform::AccessLevel};
 
-use super::permission::{self, Flag, MEMBER_ADMINISTRATION, OWNER_ROLE};
+use super::role::permission::{self, Flag, MEMBER_ADMINISTRATION, OWNER_ROLE};
 
 /// The width of an Ed25519 signing key, at either level of the chain.
 pub const SIGNING_KEY_BYTES: usize = 32;
@@ -1666,8 +1666,8 @@ mod tests {
     use super::*;
 
     use crate::organization::{
-        permission::{MANAGER_ROLE, MEMBER_ROLE, mask_of},
-        vault::{self, KdfParams},
+        member::vault::{self, KdfParams},
+        role::permission::{MANAGER_ROLE, MEMBER_ROLE, mask_of},
     };
 
     fn hex(text: &str) -> Vec<u8> {

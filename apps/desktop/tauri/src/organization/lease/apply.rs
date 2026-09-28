@@ -38,7 +38,7 @@
 //! tests does so, armed by `RENTABLE_LIVE_TURSO=1`, and is the human's to run.*
 //!
 //! What is here is the runner. Which client applies a *pending* migration to a workspace that
-//! already has rows, and under what lease, is `organization/migration.rs`; creating a workspace
+//! already has rows, and under what lease, is `organization/lease/`; creating a workspace
 //! already at the current schema is [`apply`], which is the same transaction from nothing.
 //!
 //! **The same stream is what a workspace is copied over** before a pending migration changes it
@@ -212,7 +212,7 @@ pub async fn apply(pipeline: &Pipeline, token: &str, up_to: usize) -> Result<(),
 /// which the workspace's own row, read first inside the transaction, overrules where it has one.
 /// `token` is whatever credential the caller holds on the database; a pending migration is
 /// applied under the member's own full-access credential, because any member may hold the lease
-/// (`organization/migration.rs`).
+/// (`organization/lease/`).
 pub async fn apply_between(
     pipeline: &Pipeline,
     token: &str,

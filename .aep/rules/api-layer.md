@@ -106,9 +106,10 @@ use-when: "adding or changing a router, a domain module, a database client or tr
   reconcile. And a read open to every member: the member list and its standings, the roles, and
   the mark. The owner's acts and the mark's writes name the flag their Rust command checks, which
   `organization/tests/router.test.ts` holds each organization mutation to by reading the `GATES`
-  table in `tauri/src/organization/command.rs`. Of the ways to write a procedure that needs
-  somebody, `member` is still the one to reach for by habit over `public`: a procedure written
-  without thinking about who calls it should be the safe one.
+  table in `tauri/src/organization/mod.rs`, which every sub-concept's `command.rs` is held to. Of
+  the ways to write a procedure that needs somebody, `member` is still the one to reach for by
+  habit over `public`: a procedure written without thinking about who calls it should be the safe
+  one.
 
   **Counted 2026-09-28 the way the walk counts:** every entry of `appRouter._def.procedures`,
   sorted by its `meta`. There are 113: 83 `permitted`, 1 `permittedAny`, 3 `permittedBy`, 12

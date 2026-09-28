@@ -91,7 +91,7 @@ export async function announceReceivedRows(client: QueryClient): Promise<number>
  * **Nothing stands in front of the replication any more.** A control plane's window was renewed
  * on every dispatch until the retirement; the credential the replica syncs with is the one the
  * member's vault unsealed, and what refuses it is Turso, which the shell reads at the response
- * and collects a fresh one on (`organization/removal.rs`). Offline is the ordinary case, so a
+ * and collects a fresh one on (`organization/member/removal.rs`). Offline is the ordinary case, so a
  * replication that could not happen is reported rather than thrown, and what the caller does
  * with it is arm a retry, which is why the two halves are answered separately.
  *
