@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [48]
 ---
 # refactor(tauri): organization commands act through one helper
@@ -14,9 +14,9 @@ The spec is [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]]; the 
 
 Traces requirement 10 of [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]], and criterion 10.
 
-- [ ] No organization command calls `signed_in(` inline (criterion 10).
-- [ ] Every organization command test passes unchanged.
-- [ ] The integration gate passes on this commit; no test assertion changes except where it names a moved path (criterion 19).
+- [x] No organization command calls `signed_in(` inline (criterion 10). Verified: the only `signed_in(` calls left in `organization/command.rs` are lines 3744 and 3800, both `super::signed_in` inside `mod tests`; 35 command bodies go through `organization/act.rs` `as_member` or `if_member` (member lock for writing, organization lock for reading, the signed-out refusal, then the optional pull), and `workspace_open`, `organization_renew_due` and `organization_account_refusal_detail` keep their own order with a comment saying why. The helper reads no clock and takes no machine lock, since either would move an effect.
+- [x] Every organization command test passes unchanged. Verified: no test file changed; `cargo test --lib` `642 passed; 0 failed; 11 ignored`, including `every_organization_command_names_its_gate` and the cycle guard.
+- [x] The integration gate passes on this commit; no test assertion changes except where it names a moved path (criterion 19). Verified: in the run's tree: `cargo fmt --check` 0, the tests above, clippy at its seven pre-existing warnings; the change touches three Rust files and no TypeScript.
 
 ## Relevant areas
 

@@ -13,8 +13,12 @@ use crate::{
     state::AppState,
 };
 
+#[cfg(test)]
+use super::act::signed_in;
 use super::{
-    HeldOrganization, connect, forget,
+    HeldOrganization,
+    act::{Acting, Pull, as_member, if_member},
+    connect, forget,
     invite::{self, MadeLink, MemberFacts, MemberStanding, UnreachableWorkspace, WorkspaceGrant},
     join,
     link::{self, JoinLink, LinkShape},
@@ -1087,20 +1091,6 @@ async fn owner_platform(app_state: &AppState, credentials: &Credentials) -> Opti
     ))
 }
 
-/// The signed-in member and their organization replica, or the wall.
-fn signed_in<'a>(
-    member: &'a mut Option<MemberSession>,
-    store: &'a Option<OrganizationStore>,
-) -> Result<(&'a mut MemberSession, &'a OrganizationStore), Error> {
-    match (member.as_mut(), store.as_ref()) {
-        (Some(member), Some(store)) => Ok((member, store)),
-        _ => Err(Error::refused(
-            RefusalReason::SignedOut,
-            "nobody is signed in to an organization on this machine",
-        )),
-    }
-}
-
 /// Create a workspace on the account, migrated and granted to the owner. Owner only, at the
 /// command: anybody else is told to ask the owner, before any request.
 #[tauri::command]
@@ -1119,11 +1109,11 @@ pub(crate) async fn workspace_create(
                   account. ask the owner",
             )
         })?;
-    let mut member = app_state.member.write().await;
-    let store = app_state.organization.read().await;
-    let (member, store) = signed_in(&mut member, &store)?;
-
-    workspace::create_workspace(store, member, &platform, Pipeline::of, &name, clock.now()).await
+    as_member(&app_state, Pull::No, async |Acting { member, store }| {
+        workspace::create_workspace(store, member, &platform, Pipeline::of, &name, clock.now())
+            .await
+    })
+    .await
 }
 
 /// Grant a workspace to a member. Full access re-seals the caller's own credential; read-only is
@@ -1137,18 +1127,17 @@ pub(crate) async fn workspace_grant(
     access: AccessLevel,
 ) -> Result<(), Error> {
     let platform = owner_platform(&app_state, &credentials).await;
-    let mut member = app_state.member.write().await;
-    let store = app_state.organization.read().await;
-    let (member, store) = signed_in(&mut member, &store)?;
-
-    workspace::grant_workspace(
-        store,
-        member,
-        platform.as_ref(),
-        &workspace_id,
-        &member_id,
-        access,
-    )
+    as_member(&app_state, Pull::No, async |Acting { member, store }| {
+        workspace::grant_workspace(
+            store,
+            member,
+            platform.as_ref(),
+            &workspace_id,
+            &member_id,
+            access,
+        )
+        .await
+    })
     .await
 }
 
@@ -1161,11 +1150,10 @@ pub async fn workspace_grant_withdraw(
     workspace_id: String,
     member_id: String,
 ) -> Result<(), Error> {
-    let mut member = app_state.member.write().await;
-    let store = app_state.organization.read().await;
-    let (member, store) = signed_in(&mut member, &store)?;
-
-    workspace::withdraw_grant(store, member, &workspace_id, &member_id).await
+    as_member(&app_state, Pull::No, async |Acting { member, store }| {
+        workspace::withdraw_grant(store, member, &workspace_id, &member_id).await
+    })
+    .await
 }
 
 /// Delete a workspace: the one moment requirement 4 permits deleting a database, through the one
@@ -1185,11 +1173,10 @@ pub(crate) async fn workspace_delete(
                   account. ask the owner",
             )
         })?;
-    let mut member = app_state.member.write().await;
-    let store = app_state.organization.read().await;
-    let (member, store) = signed_in(&mut member, &store)?;
-
-    workspace::delete_workspace(store, member, &platform, &workspace_id).await
+    as_member(&app_state, Pull::No, async |Acting { member, store }| {
+        workspace::delete_workspace(store, member, &platform, &workspace_id).await
+    })
+    .await
 }
 
 /// The event the shell listens to while a workspace is being upgraded: which workspace, and where
@@ -1218,11 +1205,9 @@ pub(crate) async fn workspace_open(
     clock: tauri::State<'_, clock::Shared>,
     workspace_id: String,
 ) -> Result<WorkspaceFacts, Error> {
-    let (facts, credential) = {
-        let mut member = app_state.member.write().await;
-        let store = app_state.organization.read().await;
-        let (member, store) = signed_in(&mut member, &store)?;
-
+    // the pull is its own, after the settled check rather than before it: a member whose role
+    // is unsettled is refused before anything is asked of the remote.
+    let (facts, credential) = as_member(&app_state, Pull::No, async |Acting { member, store }| {
         member.settled()?;
 
         // requirement 24: the guard below turns on `schema_version`, and a version another machine
@@ -1311,8 +1296,9 @@ pub(crate) async fn workspace_open(
             .await?;
         }
 
-        (facts, credential)
-    };
+        Ok((facts, credential))
+    })
+    .await?;
 
     {
         let permissions = app_state
@@ -1355,22 +1341,21 @@ pub(crate) async fn organization_renew_credentials(
                 "credentials are renewed on the owner's machine, which holds the turso authority",
             )
         })?;
-    let mut member = app_state.member.write().await;
-    let store = app_state.organization.read().await;
-    let (member, store) = signed_in(&mut member, &store)?;
     // the renewal seals to every member's public key as the row carries it, so the rows are read
     // after a pull rather than off this machine's last sight of them: a vault reset on another
     // machine since would otherwise have its grants sealed to the key it no longer holds, and
     // that member could open nothing at all.
-    store.pull().await;
-    let organization_database = format!("org-{}", member.organization_id);
+    as_member(&app_state, Pull::First, async |Acting { member, store }| {
+        let organization_database = format!("org-{}", member.organization_id);
 
-    let renewed =
-        workspace::renew_credentials(store, member, &platform, &organization_database).await?;
+        let renewed =
+            workspace::renew_credentials(store, member, &platform, &organization_database).await?;
 
-    hold_renewed_token(&app_state, member).await;
+        hold_renewed_token(&app_state, member).await;
 
-    Ok(renewed)
+        Ok(renewed)
+    })
+    .await
 }
 
 /// Hand the sync engine the credential the session now holds for the open workspace, where a
@@ -1409,30 +1394,31 @@ pub(crate) async fn organization_renew_due(
     let Some(platform) = owner_platform(&app_state, &credentials).await else {
         return Ok(false);
     };
-    let mut member = app_state.member.write().await;
-    let store = app_state.organization.read().await;
-    let Ok((member, store)) = signed_in(&mut member, &store) else {
-        return Ok(false);
-    };
-    if member.settled().is_err() {
-        return Ok(false);
-    }
+    // nobody signed in answers `false` rather than the wall, and the pull is its own, after the
+    // settled check: an unsettled role answers `false` before anything is asked of the remote.
+    if_member(&app_state, Pull::No, async |Acting { member, store }| {
+        if member.settled().is_err() {
+            return Ok(false);
+        }
 
-    // after a pull, for the reason `organization_renew_credentials` gives.
-    store.pull().await;
+        // after a pull, for the reason `organization_renew_credentials` gives.
+        store.pull().await;
 
-    let now = clock.now();
-    if !workspace::credentials_due(store, member, workspace::CREDENTIAL_RENEWAL_WINDOW_MS, now)
-        .await?
-    {
-        return Ok(false);
-    }
+        let now = clock.now();
+        if !workspace::credentials_due(store, member, workspace::CREDENTIAL_RENEWAL_WINDOW_MS, now)
+            .await?
+        {
+            return Ok(false);
+        }
 
-    let organization_database = format!("org-{}", member.organization_id);
-    workspace::renew_credentials(store, member, &platform, &organization_database).await?;
-    hold_renewed_token(&app_state, member).await;
+        let organization_database = format!("org-{}", member.organization_id);
+        workspace::renew_credentials(store, member, &platform, &organization_database).await?;
+        hold_renewed_token(&app_state, member).await;
 
-    Ok(true)
+        Ok(true)
+    })
+    .await
+    .unwrap_or(Ok(false))
 }
 
 /// Make an account: a row somebody will open, and no link (effort 828, requirements 19 and 20).
@@ -1458,21 +1444,20 @@ pub(crate) async fn member_create(
     workspaces: Vec<WorkspaceGrant>,
 ) -> Result<MemberFacts, Error> {
     let platform = owner_platform(&app_state, &credentials).await;
-    let mut member = app_state.member.write().await;
-    let store = app_state.organization.read().await;
-    let (member, store) = signed_in(&mut member, &store)?;
-
-    invite::create_account(
-        store,
-        member,
-        platform.as_ref(),
-        &username,
-        &role_id,
-        override_mask,
-        &workspaces,
-        invite::INVITED_KDF,
-        clock.now(),
-    )
+    as_member(&app_state, Pull::No, async |Acting { member, store }| {
+        invite::create_account(
+            store,
+            member,
+            platform.as_ref(),
+            &username,
+            &role_id,
+            override_mask,
+            &workspaces,
+            invite::INVITED_KDF,
+            clock.now(),
+        )
+        .await
+    })
     .await
 }
 
@@ -1496,25 +1481,24 @@ pub(crate) async fn member_link_make(
     member_id: String,
 ) -> Result<MadeLink, Error> {
     let platform = owner_platform(&app_state, &credentials).await;
-    let mut member = app_state.member.write().await;
-    let store = app_state.organization.read().await;
-    let (member, store) = signed_in(&mut member, &store)?;
     // an invitation-kind link writes the account's row back whole, and that row carries the
     // session epoch, so it is read after a pull rather than off this machine's last sight of it
     // (effort 826, requirement 22). *The register this act was gated on was read from the same
     // pull until 2026-09-20; the gate is gone (828, requirement 20 as corrected).*
-    store.pull().await;
-    let locator = invite::locator(store, member).await?;
+    as_member(&app_state, Pull::First, async |Acting { member, store }| {
+        let locator = invite::locator(store, member).await?;
 
-    invite::make_link(
-        store,
-        member,
-        platform.as_ref(),
-        &locator,
-        &member_id,
-        invite::INVITED_KDF,
-        clock.now(),
-    )
+        invite::make_link(
+            store,
+            member,
+            platform.as_ref(),
+            &locator,
+            &member_id,
+            invite::INVITED_KDF,
+            clock.now(),
+        )
+        .await
+    })
     .await
 }
 
@@ -1532,21 +1516,19 @@ pub(crate) async fn member_password_unset(
     member_id: String,
 ) -> Result<Vec<UnreachableWorkspace>, Error> {
     let platform = owner_platform(&app_state, &credentials).await;
-    let mut member = app_state.member.write().await;
-    let store = app_state.organization.read().await;
-    let (member, store) = signed_in(&mut member, &store)?;
     // the row this act writes back whole carries the session epoch, so it is read after a pull
     // rather than off this machine's last sight of it (effort 826, requirement 22).
-    store.pull().await;
-
-    invite::unset_password(
-        store,
-        member,
-        platform.as_ref(),
-        &member_id,
-        invite::INVITED_KDF,
-        clock.now(),
-    )
+    as_member(&app_state, Pull::First, async |Acting { member, store }| {
+        invite::unset_password(
+            store,
+            member,
+            platform.as_ref(),
+            &member_id,
+            invite::INVITED_KDF,
+            clock.now(),
+        )
+        .await
+    })
     .await
 }
 
@@ -1643,11 +1625,10 @@ pub(crate) async fn machine_connect(
 pub async fn organization_roles(
     app_state: tauri::State<'_, AppState>,
 ) -> Result<Vec<RoleFacts>, Error> {
-    let mut member = app_state.member.write().await;
-    let store = app_state.organization.read().await;
-    let (member, store) = signed_in(&mut member, &store)?;
-
-    role::roles(store, member).await
+    as_member(&app_state, Pull::No, async |Acting { member, store }| {
+        role::roles(store, member).await
+    })
+    .await
 }
 
 /// Make a custom role, named and carrying `mask`, directly below `after_role_id` (effort 838,
@@ -1660,14 +1641,12 @@ pub async fn role_create(
     mask: i64,
     after_role_id: String,
 ) -> Result<RoleFacts, Error> {
-    let mut member = app_state.member.write().await;
-    let store = app_state.organization.read().await;
-    let (member, store) = signed_in(&mut member, &store)?;
     // making room can renumber roles somebody holds, whose rows are written back whole and carry
     // the session epoch, so they are read after a pull (effort 826, requirement 22).
-    store.pull().await;
-
-    role::create_role(store, member, &name, mask, &after_role_id, clock.now()).await
+    as_member(&app_state, Pull::First, async |Acting { member, store }| {
+        role::create_role(store, member, &name, mask, &after_role_id, clock.now()).await
+    })
+    .await
 }
 
 /// Rename a custom role. `manageRoles`, below the actor's rank; a built-in role is refused.
@@ -1678,12 +1657,10 @@ pub async fn role_rename(
     role_id: String,
     name: String,
 ) -> Result<RoleFacts, Error> {
-    let mut member = app_state.member.write().await;
-    let store = app_state.organization.read().await;
-    let (member, store) = signed_in(&mut member, &store)?;
-    store.pull().await;
-
-    role::rename_role(store, member, &role_id, &name, clock.now()).await
+    as_member(&app_state, Pull::First, async |Acting { member, store }| {
+        role::rename_role(store, member, &role_id, &name, clock.now()).await
+    })
+    .await
 }
 
 /// Change what a role carries: the manager's, the member's or a custom role's, never the owner's.
@@ -1696,13 +1673,11 @@ pub async fn role_set_mask(
     role_id: String,
     mask: i64,
 ) -> Result<RoleFacts, Error> {
-    let mut member = app_state.member.write().await;
-    let store = app_state.organization.read().await;
-    let (member, store) = signed_in(&mut member, &store)?;
     // every holder's row is written back whole, and it carries the session epoch.
-    store.pull().await;
-
-    role::set_role_mask(store, member, &role_id, mask, clock.now()).await
+    as_member(&app_state, Pull::First, async |Acting { member, store }| {
+        role::set_role_mask(store, member, &role_id, mask, clock.now()).await
+    })
+    .await
 }
 
 /// Move a custom role to directly below `after_role_id`. `manageRoles`, and both the role and the
@@ -1715,12 +1690,10 @@ pub async fn role_move(
     role_id: String,
     after_role_id: String,
 ) -> Result<RoleFacts, Error> {
-    let mut member = app_state.member.write().await;
-    let store = app_state.organization.read().await;
-    let (member, store) = signed_in(&mut member, &store)?;
-    store.pull().await;
-
-    role::move_role(store, member, &role_id, &after_role_id, clock.now()).await
+    as_member(&app_state, Pull::First, async |Acting { member, store }| {
+        role::move_role(store, member, &role_id, &after_role_id, clock.now()).await
+    })
+    .await
 }
 
 /// Delete a custom role; everybody who held it holds the member role from here on, exactly, the
@@ -1732,12 +1705,10 @@ pub async fn role_delete(
     clock: tauri::State<'_, clock::Shared>,
     role_id: String,
 ) -> Result<(), Error> {
-    let mut member = app_state.member.write().await;
-    let store = app_state.organization.read().await;
-    let (member, store) = signed_in(&mut member, &store)?;
-    store.pull().await;
-
-    role::delete_role(store, member, &role_id, clock.now()).await
+    as_member(&app_state, Pull::First, async |Acting { member, store }| {
+        role::delete_role(store, member, &role_id, clock.now()).await
+    })
+    .await
 }
 
 /// Give a member a role (effort 838, requirement 5): their row names it, re-signed, and their
@@ -1760,21 +1731,19 @@ pub async fn member_assign_role(
     role_id: String,
     override_mask: Option<i64>,
 ) -> Result<MemberFacts, Error> {
-    let mut member = app_state.member.write().await;
-    let store = app_state.organization.read().await;
-    let (member, store) = signed_in(&mut member, &store)?;
     // the row this act writes back whole carries the session epoch, so it is read after a pull
     // rather than off this machine's last sight of it (effort 826, requirement 22).
-    store.pull().await;
-
-    role::assign_role(
-        store,
-        member,
-        &member_id,
-        &role_id,
-        override_mask,
-        clock.now(),
-    )
+    as_member(&app_state, Pull::First, async |Acting { member, store }| {
+        role::assign_role(
+            store,
+            member,
+            &member_id,
+            &role_id,
+            override_mask,
+            clock.now(),
+        )
+        .await
+    })
     .await
 }
 
@@ -1789,12 +1758,10 @@ pub async fn member_set_override(
     member_id: String,
     override_mask: i64,
 ) -> Result<MemberFacts, Error> {
-    let mut member = app_state.member.write().await;
-    let store = app_state.organization.read().await;
-    let (member, store) = signed_in(&mut member, &store)?;
-    store.pull().await;
-
-    role::set_override(store, member, &member_id, override_mask, clock.now()).await
+    as_member(&app_state, Pull::First, async |Acting { member, store }| {
+        role::set_override(store, member, &member_id, override_mask, clock.now()).await
+    })
+    .await
 }
 
 /// Set what is pinned for a member in one workspace, whatever they hold across the organization,
@@ -1810,12 +1777,11 @@ pub async fn member_set_workspace_override(
     pinned: i64,
     granted: i64,
 ) -> Result<MemberFacts, Error> {
-    let mut member = app_state.member.write().await;
-    let store = app_state.organization.read().await;
-    let (member, store) = signed_in(&mut member, &store)?;
-    store.pull().await;
-
-    role::set_workspace_override(store, member, &member_id, &workspace_id, pinned, granted).await
+    as_member(&app_state, Pull::First, async |Acting { member, store }| {
+        role::set_workspace_override(store, member, &member_id, &workspace_id, pinned, granted)
+            .await
+    })
+    .await
 }
 
 /// Offer the organization to another account: the first of the two acts a handover is (effort
@@ -1838,14 +1804,12 @@ pub async fn member_offer_ownership(
     member_id: String,
     password: String,
 ) -> Result<MemberFacts, Error> {
-    let mut member = app_state.member.write().await;
-    let store = app_state.organization.read().await;
-    let (member, store) = signed_in(&mut member, &store)?;
     // the row this act writes back whole carries the session epoch, so it is read after a pull
     // rather than off this machine's last sight of it (effort 826, requirement 22).
-    store.pull().await;
-
-    role::offer_ownership(store, member, &member_id, &password, clock.now()).await
+    as_member(&app_state, Pull::First, async |Acting { member, store }| {
+        role::offer_ownership(store, member, &member_id, &password, clock.now()).await
+    })
+    .await
 }
 
 /// Take the offer back (effort 828, requirement 22).
@@ -1858,13 +1822,10 @@ pub async fn member_withdraw_offer(
     app_state: tauri::State<'_, AppState>,
     clock: tauri::State<'_, clock::Shared>,
 ) -> Result<(), Error> {
-    let mut member = app_state.member.write().await;
-    let store = app_state.organization.read().await;
-    let (member, store) = signed_in(&mut member, &store)?;
-
-    store.pull().await;
-
-    role::withdraw_offer(store, member, clock.now()).await
+    as_member(&app_state, Pull::First, async |Acting { member, store }| {
+        role::withdraw_offer(store, member, clock.now()).await
+    })
+    .await
 }
 
 /// Accept the organization: the second act, on the offered account's own machine (effort 828,
@@ -1889,14 +1850,9 @@ pub(crate) async fn ownership_accept(
     clock: tauri::State<'_, clock::Shared>,
     password: String,
 ) -> Result<OrganizationState, Error> {
-    {
-        let mut member = app_state.member.write().await;
-        let store = app_state.organization.read().await;
-        let (member, store) = signed_in(&mut member, &store)?;
-        // the rows this act writes back whole carry the session epoch, so they are read after a
-        // pull rather than off this machine's last sight of them (effort 826, requirement 22).
-        store.pull().await;
-
+    // the rows this act writes back whole carry the session epoch, so they are read after a pull
+    // rather than off this machine's last sight of them (effort 826, requirement 22).
+    as_member(&app_state, Pull::First, async |Acting { member, store }| {
         let mut remote_sync = app_state.remote_sync.write().await;
 
         role::accept_ownership(
@@ -1906,8 +1862,9 @@ pub(crate) async fn ownership_accept(
             &password,
             clock.now(),
         )
-        .await?;
-    }
+        .await
+    })
+    .await?;
 
     state_of(&app_state, &credentials, &clock).await
 }
@@ -1924,14 +1881,12 @@ pub async fn member_rename(
     member_id: String,
     username: String,
 ) -> Result<MemberFacts, Error> {
-    let mut member = app_state.member.write().await;
-    let store = app_state.organization.read().await;
-    let (member, store) = signed_in(&mut member, &store)?;
     // the row this act writes back whole carries the session epoch, so it is read after a pull
     // rather than off this machine's last sight of it (effort 826, requirement 22).
-    store.pull().await;
-
-    invite::rename_member(store, member, &member_id, &username, clock.now()).await
+    as_member(&app_state, Pull::First, async |Acting { member, store }| {
+        invite::rename_member(store, member, &member_id, &username, clock.now()).await
+    })
+    .await
 }
 
 /// The organization's mark, a signature or a seal, opened for the pages it is printed on and the
@@ -1941,11 +1896,10 @@ pub async fn member_rename(
 pub async fn organization_mark_get(
     app_state: tauri::State<'_, AppState>,
 ) -> Result<Option<mark::MarkFacts>, Error> {
-    let mut member = app_state.member.write().await;
-    let store = app_state.organization.read().await;
-    let (member, store) = signed_in(&mut member, &store)?;
-
-    mark::read_mark(store, member).await
+    as_member(&app_state, Pull::No, async |Acting { member, store }| {
+        mark::read_mark(store, member).await
+    })
+    .await
 }
 
 /// Keep the image at `path`, which the open dialog chose, as the organization's mark. It is read
@@ -1965,21 +1919,19 @@ pub async fn organization_mark_set(
     mark::check_length(tokio::fs::metadata(&path).await.map_err(unreadable)?.len())?;
 
     let image = tokio::fs::read(&path).await.map_err(unreadable)?;
-    let mut member = app_state.member.write().await;
-    let store = app_state.organization.read().await;
-    let (member, store) = signed_in(&mut member, &store)?;
-
-    mark::set_mark(store, member, &image, clock.now()).await
+    as_member(&app_state, Pull::No, async |Acting { member, store }| {
+        mark::set_mark(store, member, &image, clock.now()).await
+    })
+    .await
 }
 
 /// Remove the organization's mark; whoever carries `manageMark` does it.
 #[tauri::command]
 pub async fn organization_mark_clear(app_state: tauri::State<'_, AppState>) -> Result<(), Error> {
-    let mut member = app_state.member.write().await;
-    let store = app_state.organization.read().await;
-    let (member, store) = signed_in(&mut member, &store)?;
-
-    mark::clear_mark(store, member).await
+    as_member(&app_state, Pull::No, async |Acting { member, store }| {
+        mark::clear_mark(store, member).await
+    })
+    .await
 }
 
 /// Sign this member out of every machine but the one they are at (effort 826, requirement 22).
@@ -1998,20 +1950,17 @@ pub(crate) async fn organization_session_end_elsewhere(
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
 ) -> Result<SessionsEnded, Error> {
-    let mut member = app_state.member.write().await;
-    let store = app_state.organization.read().await;
-    let (member, store) = signed_in(&mut member, &store)?;
-
     // before the bump, as `invitation_accept` pulls before it admits: the new number is one past
     // the row's, and a row this machine has not refreshed since somebody else's sign-out is a
     // number already reached, which would write nothing and report the sessions ended. A pull
     // that could not go is the offline case and leaves the row as it stands.
-    store.pull().await;
-
-    Ok(SessionsEnded {
-        sent: session::end_elsewhere(credentials.inner().as_ref(), store, member, clock.now())
-            .await?,
+    as_member(&app_state, Pull::First, async |Acting { member, store }| {
+        Ok(SessionsEnded {
+            sent: session::end_elsewhere(credentials.inner().as_ref(), store, member, clock.now())
+                .await?,
+        })
     })
+    .await
 }
 
 /// Sign a member out of every machine, from their row: the owner's, and any holder of
@@ -2027,18 +1976,15 @@ pub async fn member_end_sessions(
     clock: tauri::State<'_, clock::Shared>,
     member_id: String,
 ) -> Result<SessionsEnded, Error> {
-    let mut member = app_state.member.write().await;
-    let store = app_state.organization.read().await;
-    let (member, store) = signed_in(&mut member, &store)?;
-
     // for the reason `organization_session_end_elsewhere` gives: the number written is one past
     // the row's, so the row has to be the organization's rather than this machine's last sight
     // of it.
-    store.pull().await;
-
-    Ok(SessionsEnded {
-        sent: session::end_member_sessions(store, member, &member_id, clock.now()).await?,
+    as_member(&app_state, Pull::First, async |Acting { member, store }| {
+        Ok(SessionsEnded {
+            sent: session::end_member_sessions(store, member, &member_id, clock.now()).await?,
+        })
     })
+    .await
 }
 
 /// What locking a member out would cost, said before it is done: which workspaces rotate and how
@@ -2048,19 +1994,18 @@ pub async fn member_lock_out_cost(
     app_state: tauri::State<'_, AppState>,
     member_id: String,
 ) -> Result<LockOutCost, Error> {
-    let mut member = app_state.member.write().await;
-    let store = app_state.organization.read().await;
-    let (member, store) = signed_in(&mut member, &store)?;
+    as_member(&app_state, Pull::No, async |Acting { member, store }| {
+        // the same gate the lock-out itself stands behind: the interface asks this before offering
+        // the act, and every command refuses again on the row rather than trusting the screen.
+        member.settled()?;
+        crate::organization::permission::require(
+            session::permissions_on_row(store, member).await?,
+            crate::organization::permission::Flag::RemoveMember,
+        )?;
 
-    // the same gate the lock-out itself stands behind: the interface asks this before offering
-    // the act, and every command refuses again on the row rather than trusting the screen.
-    member.settled()?;
-    crate::organization::permission::require(
-        session::permissions_on_row(store, member).await?,
-        crate::organization::permission::Flag::RemoveMember,
-    )?;
-
-    removal::lock_out_cost(store, member, &member_id).await
+        removal::lock_out_cost(store, member, &member_id).await
+    })
+    .await
 }
 
 /// Remove a member. `lock_out` is `false` unless the interface says otherwise, which is the
@@ -2077,31 +2022,30 @@ pub(crate) async fn member_remove(
     lock_out: Option<bool>,
 ) -> Result<Removed, Error> {
     let platform = owner_platform(&app_state, &credentials).await;
-    let mut member = app_state.member.write().await;
-    let store = app_state.organization.read().await;
-    let (member, store) = signed_in(&mut member, &store)?;
     // the row this act writes back whole carries the session epoch, so it is read after a pull
     // rather than off this machine's last sight of it (effort 826, requirement 22).
-    store.pull().await;
-    let organization_database = format!("org-{}", member.organization_id);
+    as_member(&app_state, Pull::First, async |Acting { member, store }| {
+        let organization_database = format!("org-{}", member.organization_id);
 
-    let removed = removal::remove_member(
-        store,
-        member,
-        platform.as_ref(),
-        &organization_database,
-        &member_id,
-        lock_out.unwrap_or(false),
-        clock.now(),
-    )
-    .await?;
+        let removed = removal::remove_member(
+            store,
+            member,
+            platform.as_ref(),
+            &organization_database,
+            &member_id,
+            lock_out.unwrap_or(false),
+            clock.now(),
+        )
+        .await?;
 
-    // a lock-out rotated the workspaces the member held, this one among them where the owner has
-    // it open, and the owner's session already carries the fresh credential: the engine is told,
-    // since `reconnect` finds nothing moved between the rows and this session.
-    hold_renewed_token(&app_state, member).await;
+        // a lock-out rotated the workspaces the member held, this one among them where the owner
+        // has it open, and the owner's session already carries the fresh credential: the engine is
+        // told, since `reconnect` finds nothing moved between the rows and this session.
+        hold_renewed_token(&app_state, member).await;
 
-    Ok(removed)
+        Ok(removed)
+    })
+    .await
 }
 
 /// Collect whatever the organization database holds for this member that this process does
@@ -2113,50 +2057,49 @@ pub(crate) async fn member_remove(
 /// dispatcher runs it when a replication is refused, and the next request goes out under the
 /// fresh credential. Nobody is signed out, and nobody is told to do anything.
 pub(crate) async fn reconnect(app_state: &AppState) -> bool {
-    let mut member = app_state.member.write().await;
-    let store = app_state.organization.read().await;
-    let Ok((member, store)) = signed_in(&mut member, &store) else {
-        return false;
-    };
+    // nobody signed in answers `false`, with nothing pulled.
+    if_member(app_state, Pull::First, async |Acting { member, store }| {
+        let moved = match session::refresh_credentials(store, member).await {
+            Ok(moved) => moved,
+            Err(error) => {
+                crate::diagnostics::warn("organization.credentials.refreshFailed")
+                    .with("error", error.to_string().as_str())
+                    .write();
 
-    store.pull().await;
+                return false;
+            }
+        };
 
-    let moved = match session::refresh_credentials(store, member).await {
-        Ok(moved) => moved,
-        Err(error) => {
-            crate::diagnostics::warn("organization.credentials.refreshFailed")
-                .with("error", error.to_string().as_str())
-                .write();
+        let mut remote_sync = app_state.remote_sync.write().await;
+        let current = remote_sync.workspace();
 
+        // the engine's own token is compared as well as the rows: a renewal or a lock-out made on
+        // this machine wrote the session and not the engine, so the rows and the session agree
+        // while the engine is still on the credential that was rotated away.
+        let engine_behind = current
+            .remote_id
+            .as_deref()
+            .and_then(|remote_id| member.workspace_credentials.get(remote_id))
+            .is_some_and(|held| {
+                remote_sync.workspace_token().as_deref() != Some(held.token.as_str())
+            });
+
+        if !moved && !engine_behind {
             return false;
         }
-    };
 
-    let mut remote_sync = app_state.remote_sync.write().await;
-    let current = remote_sync.workspace();
+        if let Some(remote_id) = current.remote_id.as_deref()
+            && let Some(held) = member.workspace_credentials.get(remote_id)
+        {
+            remote_sync.hold_organization_workspace_token(&held.token);
+        }
 
-    // the engine's own token is compared as well as the rows: a renewal or a lock-out made on
-    // this machine wrote the session and not the engine, so the rows and the session agree while
-    // the engine is still on the credential that was rotated away.
-    let engine_behind = current
-        .remote_id
-        .as_deref()
-        .and_then(|remote_id| member.workspace_credentials.get(remote_id))
-        .is_some_and(|held| remote_sync.workspace_token().as_deref() != Some(held.token.as_str()));
+        crate::diagnostics::info("organization.credentials.refreshed").write();
 
-    if !moved && !engine_behind {
-        return false;
-    }
-
-    if let Some(remote_id) = current.remote_id.as_deref()
-        && let Some(held) = member.workspace_credentials.get(remote_id)
-    {
-        remote_sync.hold_organization_workspace_token(&held.token);
-    }
-
-    crate::diagnostics::info("organization.credentials.refreshed").write();
-
-    true
+        true
+    })
+    .await
+    .unwrap_or(false)
 }
 
 /// Rename the workspace this machine has open, on the organization database, and on this
@@ -2177,14 +2120,10 @@ pub(crate) async fn rename_current_workspace(
         })?
     };
 
-    {
-        let mut member = app_state.member.write().await;
-        let store = app_state.organization.read().await;
-        let (member, store) = signed_in(&mut member, &store)?;
-
-        workspace::rename_workspace(store, member, &workspace_id, name, store.clock().now())
-            .await?;
-    }
+    as_member(app_state, Pull::No, async |Acting { member, store }| {
+        workspace::rename_workspace(store, member, &workspace_id, name, store.clock().now()).await
+    })
+    .await?;
 
     let mut remote_sync = app_state.remote_sync.write().await;
 
@@ -2225,6 +2164,8 @@ pub async fn remote_sync_rename_workspace(
 pub async fn organization_account_refusal_detail(
     app_state: tauri::State<'_, AppState>,
 ) -> Result<Option<String>, Error> {
+    // not through `as_member`: this reads, so it holds the session for reading where every act
+    // holds it for writing, and nobody signed in is answered with nothing rather than the wall.
     let member = app_state.member.read().await;
     let organization = app_state.organization.read().await;
 
@@ -2259,11 +2200,7 @@ pub(crate) async fn organization_change_password(
     current: String,
     new: String,
 ) -> Result<OrganizationState, Error> {
-    {
-        let mut member = app_state.member.write().await;
-        let store = app_state.organization.read().await;
-        let (member, store) = signed_in(&mut member, &store)?;
-
+    as_member(&app_state, Pull::No, async |Acting { member, store }| {
         password::change_password(
             credentials.inner().as_ref(),
             store,
@@ -2273,8 +2210,9 @@ pub(crate) async fn organization_change_password(
             setup::SHIPPING_KDF,
             clock.now(),
         )
-        .await?;
-    }
+        .await
+    })
+    .await?;
 
     state_of(&app_state, &credentials, &clock).await
 }
@@ -2287,11 +2225,10 @@ pub(crate) async fn organization_change_password(
 pub async fn organization_members(
     app_state: tauri::State<'_, AppState>,
 ) -> Result<Vec<MemberFacts>, Error> {
-    let mut member = app_state.member.write().await;
-    let store = app_state.organization.read().await;
-    let (member, store) = signed_in(&mut member, &store)?;
-
-    invite::members(store, member).await
+    as_member(&app_state, Pull::No, async |Acting { member, store }| {
+        invite::members(store, member).await
+    })
+    .await
 }
 
 /// Where each account stands, for the line the directory draws under a name (effort 828,
@@ -2307,11 +2244,10 @@ pub async fn organization_member_standings(
     app_state: tauri::State<'_, AppState>,
     clock: tauri::State<'_, clock::Shared>,
 ) -> Result<Vec<MemberStanding>, Error> {
-    let mut member = app_state.member.write().await;
-    let store = app_state.organization.read().await;
-    let (member, store) = signed_in(&mut member, &store)?;
-
-    invite::standings(store, member, clock.now()).await
+    as_member(&app_state, Pull::No, async |Acting { member, store }| {
+        invite::standings(store, member, clock.now()).await
+    })
+    .await
 }
 
 /// The link the operating system handed this process, if one is waiting: a launch with a link

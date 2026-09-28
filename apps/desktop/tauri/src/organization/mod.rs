@@ -19,6 +19,7 @@
 //! version made, which runs once, is not here: it is `upgrade/format/`, with everything else that
 //! brings an older install forward, and the session is what reaches it.
 
+mod act;
 pub mod authority;
 mod command;
 pub mod connect;
