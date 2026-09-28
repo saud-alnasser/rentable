@@ -14,9 +14,10 @@ A record page renders the sections whose `on` names its kind. Contract contribut
 
 Traces requirements 4 and 5 of [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]], and criteria 4 and 5.
 
-- [ ] No file imports another feature's `component/` (criterion 4).
-- [ ] The baseline loses the cycles between contract and tenant, complex and payment (criterion 5).
+- [ ] No record feature (tenant, complex with unit, contract, payment) imports another's `component/` (criterion 4).
 - [ ] The integration gate passes on this commit; no test assertion changes except where it names a moved path (criterion 19).
+
+*Narrowed on 2026-09-28 when the plan changed: the cycles with contract survive through domain and query imports, which ticket 62 turns into contributions; the other features' component imports belong to tickets 26, 31, 32 and 37.*
 
 ## Relevant areas
 

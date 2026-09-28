@@ -48,6 +48,16 @@ it contributes a **section** from its own `surface`, and the page renders the se
 it. This is what breaks the contract ↔ tenant, complex, payment and dashboard cycles and the
 organization ↔ settings, layout and workspace cycles without moving any behaviour.
 
+**A feature's reverse needs are contributions.** Record features depend one way: contract on tenant and
+unit, payment on contract. Where the depended-on feature needs something of the dependent one (a tenant
+with contracts cannot be deleted, a contract's settlement reads its payments), the dependent feature
+declares it under `contributes` in its `feature.ts`, keyed by the kind it serves, and `app/` hands each
+feature's contributions to it through the router context, the way sections reach a page. A declaration
+file (`feature.ts`, `surface.ts`) may name the kinds it contributes to; that is the one place a feature
+names another. *Decided by the human on 2026-09-28, during implementation, when ticket 30 showed the
+domain and query imports keep the contract cycles alive after the sections land; ticket 62 carries it
+out.*
+
 **A capability's shared components are reached through its `ui.ts`.** `index.ts` stays loadable
 under Node, so it cannot carry a component, and `component/` stays private. *Decided by the human
 on 2026-09-28, during implementation, when the list capability (ticket 17) left features importing
