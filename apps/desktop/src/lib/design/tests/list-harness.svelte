@@ -10,8 +10,8 @@
 	 * sort is already chosen, so its menu marks the chosen order; both transfer directions are
 	 * offered; and records can be selected, so the bar draws its selecting control too.
 	 */
-	import List from '$lib/design/block/list.svelte';
-	import type { FilterSelection, ListFilter } from '$lib/design/filter';
+	import List from '$lib/list/component/list.svelte';
+	import type { FilterSelection, ListFilter } from '$lib/list';
 	import type { ListSort } from '@rentable/design/sort.js';
 	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
 	import { DesignProvider } from '@rentable/design/strings.js';

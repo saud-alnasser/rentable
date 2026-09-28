@@ -11,7 +11,7 @@ import {
 	searchField,
 	searchGlass,
 	typeSearch
-} from '$lib/design/tests/search';
+} from '$lib/list/tests/search';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import en from '$lib/i18n/en';

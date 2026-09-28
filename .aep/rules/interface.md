@@ -173,7 +173,7 @@ Recorded originally as ADR 0013, *Each list gets the presentation its data is sh
 
 ### Search
 
-**Every set a person can search searches one way: `design/block/search-field.svelte`.** A leading
+**Every set a person can search searches one way: `list/component/search-field.svelte`.** A leading
 search glass, a wait of 250 ms after the last keystroke before the term becomes the search, and
 `/` to put the cursor in the field from anywhere on the surface. The list shell draws it, the
 contract's unit panes draw it, and the settings members, roles and workspaces directories draw it,
@@ -188,7 +188,7 @@ until ticket 19 of [[efforts/838-permissions-are-a-role-and-an-override/spec]] g
 block the bar and put two sets on one section.*
 
 **A set drawn as a directory opens with the list shell's own bar,
-`design/block/list-toolbar.svelte`**: the field at one end, and at the other the count, what
+`list/component/list-toolbar.svelte`**: the field at one end, and at the other the count, what
 narrows the set, the order, and what acts on it, in that order. The list shell draws it above its
 records and the settings directories above their cards. What a directory does not want it leaves
 out: the settings directories offer no export, since a dozen accounts are not a file anybody
@@ -219,7 +219,7 @@ Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], re
 ### Filter
 
 **A list narrows by what its concept declares, and the list shell draws every narrowing the same
-way.** The concept hands the shell `filterOptions`, declared in `design/filter.ts`: a choice over
+way.** The concept hands the shell `filterOptions`, declared in `list/filter.ts`: a choice over
 the concept's own values (a contract's attention rank), or the one period filter,
 `PERIOD_FILTER`, which every surface asking about a span of time offers rather than naming a
 period of its own. The shell draws each as a funnel control in the bar, after the count. Its menu
@@ -249,7 +249,7 @@ Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], re
 ### Sort
 
 **Every list offers an order, through the bar's one sort control**
-(`design/block/list-toolbar.svelte`). The concept names its orders as `sortOptions`, built from the
+(`list/component/list-toolbar.svelte`). The concept names its orders as `sortOptions`, built from the
 column ids its read orders by, so the control cannot offer an order the query would refuse. The
 control is an icon after what narrows, filled while an order is chosen, and its menu marks the
 chosen order's direction. Choosing an order starts it ascending, choosing it again reverses it,
@@ -455,7 +455,7 @@ Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], re
 
 - **The control** is `create/component/control.svelte`, and nothing else draws a create: a
   quiet plus, its words in the tooltip and on the control, with the key beside them. It stands
-  **last at the end of the bar above the records**: `design/block/list-toolbar.svelte`, which the
+  **last at the end of the bar above the records**: `list/component/list-toolbar.svelte`, which the
   list shell draws and the settings directories' tray (`organization/component/directory-tray.svelte`)
   draws too. A set
   that may not be added to right now keeps its control, refused, with its reason on hover and focus

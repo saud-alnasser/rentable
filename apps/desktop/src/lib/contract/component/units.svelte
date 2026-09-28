@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Callout } from '@rentable/design/primitive/callout/index.js';
 	import { cn } from '@rentable/design/tailwind.js';
-	import SearchField from '$lib/design/block/search-field.svelte';
+	import SearchField from '$lib/list/component/search-field.svelte';
 	import UnitPane from './unit-pane.svelte';
 	import {
 		useFetchAssignableContractUnits,

@@ -2,7 +2,7 @@
 	import { resolve } from '$app/paths';
 	import { isFilterPeriod, type FilterPeriod } from '$lib/date';
 	import * as Cell from '$lib/design/cell';
-	import { PERIOD_FILTER, toFilterOptions } from '$lib/design/filter';
+	import { PERIOD_FILTER, toFilterOptions } from '$lib/list';
 	import Loading from '@rentable/design/block/loading.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as DropdownMenu from '@rentable/design/primitive/dropdown-menu/index.js';

@@ -27,7 +27,7 @@ import {
 	searchField,
 	searchGlass,
 	typeSearch
-} from '$lib/design/tests/search';
+} from '$lib/list/tests/search';
 import { BUILT_IN, WRITE_FLAGS, maskOf, type Flag } from '@rentable/workspace-permission';
 
 import { layOutLists } from '#tests/permission.ts';

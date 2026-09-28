@@ -6,7 +6,7 @@
 	import RecordCard from '@rentable/design/block/record-card.svelte';
 	import SelectionDialog from '@rentable/design/block/selection-dialog.svelte';
 	import { toCardActions } from '$lib/act';
-	import List from '$lib/design/block/list.svelte';
+	import List from '$lib/list/component/list.svelte';
 	import * as Cell from '$lib/design/cell';
 	import { toNarrowedName } from '@rentable/design/csv.js';
 	import {
@@ -14,7 +14,7 @@
 		foreseenRefusals,
 		type SelectionPlan
 	} from '@rentable/design/selection.js';
-	import { PERIOD_FILTER, toChosenLabel, type FilterSelection } from '$lib/design/filter';
+	import { PERIOD_FILTER, toChosenLabel, type FilterSelection } from '$lib/list';
 	import { isFilterPeriod } from '$lib/date';
 	import { getRemainingContractBalance, toContractName } from '$lib/contract/contract';
 	import { useFetchContract } from '$lib/contract/query';

@@ -1,6 +1,6 @@
 import type { Pathname } from '$app/types';
 import { CONTRACT_RANKS, type ContractRank } from '$lib/contract/rank';
-import type { ChoiceFilter, FilterSelection } from '$lib/design/filter';
+import type { ChoiceFilter, FilterSelection } from '$lib/list';
 
 /**
  * CONTRACT RANK FILTER

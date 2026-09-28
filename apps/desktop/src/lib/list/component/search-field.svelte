@@ -11,11 +11,12 @@
 <script lang="ts">
 	import { Input } from '@rentable/design/primitive/input/index.js';
 	import { cn } from '@rentable/design/tailwind.js';
-	import { toSearchShortcut } from '$lib/design/list-keyboard';
 	import { shortcuts } from '$lib/shortcut';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import { untrack } from 'svelte';
+
+	import { toSearchShortcut } from '$lib/list/keyboard';
 
 	/**
 	 * The one search field, for every set a person can search.

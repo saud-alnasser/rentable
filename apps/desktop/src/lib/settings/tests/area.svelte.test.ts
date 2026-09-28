@@ -11,7 +11,7 @@ import {
 } from '$lib/platform/tests/testing.ts';
 import SettingsArea from '$lib/settings/component/area.svelte';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
-import { pressSearchKey } from '$lib/design/tests/search';
+import { pressSearchKey } from '$lib/list/tests/search';
 import { BUILT_IN } from '@rentable/workspace-permission';
 
 import Providers from './providers.svelte';

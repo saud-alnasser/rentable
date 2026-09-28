@@ -1,23 +1,15 @@
-<script lang="ts" module>
-	/** One order the set offers the reader, keyed by what the set orders by. */
-	export type ListSortOption = {
-		/** The column's id, which is what the set orders by. */
-		id: string;
-		/** The name the sort control lists it under. */
-		label: string;
-	};
-</script>
-
 <script lang="ts">
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as DropdownMenu from '@rentable/design/primitive/dropdown-menu/index.js';
 	import { nextListSort, type ListSort } from '@rentable/design/sort.js';
-	import SearchField from '$lib/design/block/search-field.svelte';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import ArrowUpDownIcon from '@lucide/svelte/icons/arrow-up-down';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import ChevronUpIcon from '@lucide/svelte/icons/chevron-up';
 	import type { Snippet } from 'svelte';
+
+	import type { ListSortOption } from '$lib/list/list';
+	import SearchField from './search-field.svelte';
 
 	/**
 	 * The bar a searchable set opens with: its search at one end, and at the other what the set

@@ -10,7 +10,7 @@ import {
 	toPositionOf,
 	toRecordRows,
 	toSearchShortcut
-} from '../list-keyboard.ts';
+} from '../keyboard.ts';
 import { listRows } from '@rentable/design/group.js';
 import { toShortcutSheetEntries } from '$lib/shortcut/shortcut.ts';
 

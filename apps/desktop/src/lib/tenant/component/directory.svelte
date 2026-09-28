@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import DirectoryImportDialog from '$lib/workspace/component/directory-import-dialog.svelte';
-	import List from '$lib/design/block/list.svelte';
+	import List from '$lib/list/component/list.svelte';
 	import RecordActionControl from '@rentable/design/block/record-action-control.svelte';
 	import RecordCard from '@rentable/design/block/record-card.svelte';
 	import SelectionDialog from '@rentable/design/block/selection-dialog.svelte';

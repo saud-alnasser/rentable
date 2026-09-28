@@ -3,7 +3,7 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import type api from '$lib/api/caller';
-	import List from '$lib/design/block/list.svelte';
+	import List from '$lib/list/component/list.svelte';
 	import type { ListSort } from '@rentable/design/sort.js';
 	import { CONTRACT_SORT_COLUMN_IDS, type ContractSortColumnId } from '$lib/contract/contract';
 	import {
@@ -13,7 +13,7 @@
 		toRankArrivalSelection
 	} from '$lib/contract/rank-filter';
 	import { useListContracts } from '$lib/contract/query';
-	import { toChosenLabel, type FilterSelection } from '$lib/design/filter';
+	import { toChosenLabel, type FilterSelection } from '$lib/list';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { toNarrowedName } from '@rentable/design/csv.js';
 	import DirectoryImportDialog from '$lib/workspace/component/directory-import-dialog.svelte';

@@ -8,7 +8,7 @@
 	 * this fixture's own prop, so a test changes the result set with `rerender` exactly as a
 	 * refetch would.
 	 */
-	import List from '$lib/design/block/list.svelte';
+	import List from '$lib/list/component/list.svelte';
 	import { dropLandingOnNavigation } from '$lib/create';
 	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
 	import { DesignProvider } from '@rentable/design/strings.js';

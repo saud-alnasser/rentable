@@ -3,9 +3,9 @@
  *
  * The pure half of how a directory moves when its result set changes: which snapshot name a record
  * travels under, whether a change moves anything at all, and where the snapshots are clipped. The
- * block keeps the half that is the document's, which is starting the transition and marking what
- * it captures, because a `.svelte` file cannot be imported by a `node:test` file and these rules
- * are the kind that regress without a sound.
+ * list keeps the half that is the document's, which is starting the transition and marking what
+ * it captures (`commit.svelte.ts`), because a rune module and a `.svelte` file cannot be imported
+ * by a `node:test` file and these rules are the kind that regress without a sound.
  *
  * The mechanism is a same-document view transition, chosen by prototype over `animate:flip`
  * (plan, *Architecture 4*): it reaches rows the virtualiser adds and removes, where `animate:flip`

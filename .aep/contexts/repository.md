@@ -140,16 +140,15 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
   reached only through the complex holding it, so it lives inside that concept rather than
   beside it. Three homes own no concept, and a domain rule lives in none of them —
   **`design`**, what is left of the frontend machinery once the shareable half became a
-  package — the three composites that reach past the design system, in `block/`: `list.svelte`
-  and the `list-toolbar` and `search-field` every set draws above its records (`record-actions`
+  package — the composites that reach past the design system, in `block/` (`record-actions`
   retired with effort 832, when copy details became a record act); the record acts' shape and
   projections in `acts.ts`, the cells, and the
   cross-concept helpers beside them: mutation handling, the workspace query-cache policy, undo,
-  what builds the list's registrations (the registry they go into, and the one key listener, are
-  the `shortcut/` capability since effort 840), the list's motion
-  (`list-motion`), and the filter, date and import helpers. The create control that is each
-  set's one way to add to it, the create key and what it answers, the `?create` intent and where
-  a create lands are the `create/` capability since effort 840.
+  and the import helpers. The list, the `list-toolbar` and `search-field` every set draws above
+  its records, the list's keyboard, motion and filters are the `list/` capability since effort
+  840, as the shortcut registry and its one key listener are the `shortcut/` capability. The
+  create control that is each set's one way to add to it, the create key and what it answers,
+  the `?create` intent and where a create lands are the `create/` capability since effort 840.
   *It holds 80 files, counted on 2026-09-25. It held 459 until 2026-08-23 and 34 just after,
   and the count read 34 until 2026-09-25 while the home grew. The 425 that left are 387
   primitives, thirteen of the fifteen composites, fifteen root modules with the class merging and `csv.ts`

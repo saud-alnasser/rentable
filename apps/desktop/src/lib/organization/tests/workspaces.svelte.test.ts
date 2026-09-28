@@ -21,7 +21,7 @@ import {
 	searchField,
 	searchGlass,
 	typeSearch
-} from '$lib/design/tests/search';
+} from '$lib/list/tests/search';
 import { expectCreateControlLast } from '$lib/create/tests/control';
 import { BAR_CONTROL, expectBarOrder } from '$lib/design/tests/set-bar';
 

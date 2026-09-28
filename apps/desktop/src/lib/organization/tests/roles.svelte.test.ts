@@ -23,7 +23,7 @@ import {
 	searchField,
 	searchGlass,
 	typeSearch
-} from '$lib/design/tests/search';
+} from '$lib/list/tests/search';
 import type { RoleReader } from '$lib/organization/acts';
 import { BUILT_IN, maskOf, type Flag } from '@rentable/workspace-permission';
 

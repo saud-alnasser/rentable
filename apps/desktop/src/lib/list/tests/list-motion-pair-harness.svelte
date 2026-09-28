@@ -7,10 +7,10 @@
 	 * this fixture's own props, so a test changes both sets in one `rerender`, the way one create
 	 * refetches both.
 	 */
-	import List from '$lib/design/block/list.svelte';
+	import List from '$lib/list/component/list.svelte';
 	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
 	import { DesignProvider } from '@rentable/design/strings.js';
-	import { placeholderStrings as strings } from './strings';
+	import { placeholderStrings as strings } from '$lib/design/tests/strings';
 
 	let { first, second }: { first: { id: string }[]; second: { id: string }[] } = $props();
 </script>

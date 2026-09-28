@@ -70,7 +70,8 @@ as the sentence its code stands for, in their language (`error/refusal.ts`, and
   existed: `packages/design/src/lib/block/` holds the eleven that reach nothing but the design
   system and what the package is already allowed (`$app/*`, which `back` navigates
   with), and `design/block/` here holds the ones that reach past it (four then, five since
-  `language-choice.svelte`, below). A new composite that
+  `language-choice.svelte`, below; the list, its bar and its search field left for the `list/`
+  capability in effort 840). A new composite that
   reaches `$lib/api`, `$lib/platform`, `$lib/error` or a concept belongs in this application; one
   that reaches none of them belongs in the package, where a second client can draw it.
 
@@ -461,9 +462,10 @@ words and its reading direction are supplied from outside: one typed object and 
 handed to `DesignProvider` once in `src/routes/+layout.svelte`. `@rentable/design/strings.js` is
 the contract, and it holds what enforces it and why the direction travels with the words.
 *Everything above is unchanged for a component that lives in this application, and that is every
-cell, every component under a concept, a capability or `layout`, the four blocks under
-`design/block/`: `list.svelte`, two of the three that effort 832 added around it,
-`list-toolbar.svelte` and `search-field.svelte`, and `language-choice.svelte`, which effort 835
+cell, every component under a concept, a capability or `layout`, the list and two of the three
+that effort 832 added around it under `list/component/` (`list.svelte`, `list-toolbar.svelte`
+and `search-field.svelte`), and the one block left under `design/block/`,
+`language-choice.svelte`, which effort 835
 added for the language a printed page or a reminder is written in and which reads this
 application's own list of languages (`localesMetadata`), and the third of effort 832's,
 the create control, which has been the create capability's own `create/component/control.svelte`
@@ -471,7 +473,7 @@ since effort 840. **They stay because each reads a module of this
 application, not a contract the package could be handed.** The create control reads the create key
 (`create/key.ts`) and registers with what answers it (`create/target.svelte.ts`),
 which is what makes it the one control [[rules/interface]] *Create* says draws a create and the one
-the key finds. `search-field` registers the list's search shortcut (`design/list-keyboard.ts`) in
+the key finds. `search-field` registers the list's search shortcut (`list/keyboard.ts`) in
 this application's shortcut capability (`$lib/shortcut`), which reaches `$lib/platform` to record a collision, and
 `list-toolbar` draws `search-field`, so both are on the application's side of the reach test under
 *Components* above. `$lib` names nothing inside the package, so none of the three could move without
@@ -527,14 +529,15 @@ consumer register it**, which keeps one place the key is written down and puts t
 where the dictionary is.
 
 **This rule decides where a component lives, not only how it is written**, and #782 is where that
-turned out to matter. `block/list.svelte` registers three shortcuts, each naming a key under
+turned out to matter. The list (`list/component/list.svelte`, `block/list.svelte` until effort
+840) registers three shortcuts, each naming a key under
 `common.table`, and no amount of inverting its other couplings would have made those
 registrations legal in the package. So the block stays with this application, and
-`design/list-keyboard.ts` and the registry stay with it: the first builds the registrations and
+`list/keyboard.ts` and the registry stay with it: the first builds the registrations and
 the second holds them, in the `shortcut/` capability since effort 840. *Since effort 832 the search key is
-registered by `design/block/search-field.svelte` (`toSearchShortcut`) and the other two by the
+registered by `list/component/search-field.svelte` (`toSearchShortcut`) and the other two by the
 list (`toListShortcuts`), so the field stays with this application for the same reason, and every
 set that draws it answers `/`.* **Nothing in the package holds a registry or wants one**:
-`shortcut.ts` says so in its own header, and every other caller is under `layout/` or
-`design/block/`. Read the placement rule as the rule's consequence rather than as a second rule; the
+`shortcut.ts` says so in its own header, and every other caller is under `layout/`, `list/` or
+`create/`. Read the placement rule as the rule's consequence rather than as a second rule; the
 effort's spec carries the full argument under `# Open Questions`.

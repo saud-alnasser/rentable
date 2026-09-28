@@ -9,7 +9,7 @@
 		usePlanManyComplexes,
 		type ComplexRefusalReason
 	} from '$lib/complex/query';
-	import List from '$lib/design/block/list.svelte';
+	import List from '$lib/list/component/list.svelte';
 	import { toNarrowedName } from '@rentable/design/csv.js';
 	import RecordActionControl from '@rentable/design/block/record-action-control.svelte';
 	import RecordCard from '@rentable/design/block/record-card.svelte';

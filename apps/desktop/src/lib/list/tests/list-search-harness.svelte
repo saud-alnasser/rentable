@@ -6,10 +6,10 @@
 	 * a snippet and needs two providers. The committed search is drawn in an `output` so a test
 	 * reads what a directory's query would have been handed, and when.
 	 */
-	import List from '$lib/design/block/list.svelte';
+	import List from '$lib/list/component/list.svelte';
 	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
 	import { DesignProvider } from '@rentable/design/strings.js';
-	import { placeholderStrings as strings } from './strings';
+	import { placeholderStrings as strings } from '$lib/design/tests/strings';
 
 	let search = $state('');
 </script>

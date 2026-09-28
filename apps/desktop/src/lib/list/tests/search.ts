@@ -1,7 +1,7 @@
 import { fireEvent, render, within } from '@testing-library/svelte';
 import { expect } from 'vitest';
 
-import { SEARCH_DEBOUNCE_MS } from '$lib/design/block/search-field.svelte';
+import { SEARCH_DEBOUNCE_MS } from '$lib/list/component/search-field.svelte';
 import ShortcutListener from '$lib/shortcut/component/listener.svelte';
 
 /**

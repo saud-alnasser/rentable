@@ -48,16 +48,21 @@ const ALLOWED: readonly { label: string; most: number; reason: string }[] = [
 		most: 1,
 		reason: 'a rank heading: "overdue", "owing" or "ending soon"'
 	},
-	{
-		label: 'lib/design/block/list.svelte',
-		most: 4,
-		reason: 'a filter’s name and options (rank and period), and the "export" and "import" rows'
-	},
 	{ label: 'lib/design/cell/status.svelte', most: 1, reason: 'a status name, one word' },
 	{
 		label: 'lib/history/component/record-history.svelte',
 		most: 1,
 		reason: 'what happened to the record: "created", "units changed", "restored"'
+	},
+	{
+		label: 'lib/list/component/filter-menu.svelte',
+		most: 2,
+		reason: 'a filter’s name and options (rank and period)'
+	},
+	{
+		label: 'lib/list/component/transfer-menu.svelte',
+		most: 2,
+		reason: 'the "export" and "import" rows'
 	},
 	{
 		label: 'lib/layout/component/account-menu.svelte',

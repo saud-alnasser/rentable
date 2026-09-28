@@ -1,7 +1,7 @@
 import { render } from '@testing-library/svelte';
 import { beforeEach, expect, test } from 'vitest';
 
-import SearchField from '$lib/design/block/search-field.svelte';
+import SearchField from '$lib/list/component/search-field.svelte';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-import { createMoveQueue, hasSameOrder, toClipPath, toTransitionName } from '../list-motion.ts';
+import { createMoveQueue, hasSameOrder, toClipPath, toTransitionName } from '../motion.ts';
 
 // what CSS accepts as a `<custom-ident>` written without escapes, and a leading letter.
 const IDENTIFIER = /^[A-Za-z][A-Za-z0-9_-]*$/;
@@ -60,7 +60,7 @@ test('a square frame is clipped square', () => {
  * alone, carried by its group, and the fades belong to the one image that has no partner.
  */
 const LIST_STYLE = (() => {
-	const source = readFileSync(new URL('../block/list.svelte', import.meta.url), 'utf8');
+	const source = readFileSync(new URL('../component/list.svelte', import.meta.url), 'utf8');
 
 	return source.slice(source.indexOf('<style>'));
 })();

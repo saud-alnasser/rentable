@@ -7,13 +7,13 @@
 	 * test reads what pressing the empty state's act put down. The transfer menu is drawn where a
 	 * test asks for it, with the import refused where the test hands a reason.
 	 */
-	import List from '$lib/design/block/list.svelte';
-	import type { FilterSelection, ListFilter } from '$lib/design/filter';
+	import List from '$lib/list/component/list.svelte';
+	import type { FilterSelection, ListFilter } from '$lib/list';
 	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
 	import { DesignProvider } from '@rentable/design/strings.js';
 	import en from '$lib/i18n/en';
 	import { untrack } from 'svelte';
-	import { placeholderStrings as strings } from './strings';
+	import { placeholderStrings as strings } from '$lib/design/tests/strings';
 
 	let {
 		initialSearch = '',
