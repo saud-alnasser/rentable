@@ -1,12 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import ComplexHost from '$lib/complex/component/host.svelte';
-	import UnitHost from '$lib/complex/unit/component/host.svelte';
-	import ContractHost from '$lib/contract/component/host.svelte';
-	import PaymentHost from '$lib/payment/component/host.svelte';
-	import TenantHost from '$lib/tenant/component/host.svelte';
-	import OrganizationHost from '$lib/organization/component/host.svelte';
-	import WorkspacePermissions from '$lib/workspace/component/permissions.svelte';
+	import { surfaces } from '$lib/app/surfaces';
 	import { PrintSheet } from '$lib/print/ui';
 	import { tauri } from '$lib/platform/tauri';
 	import { Button } from '@rentable/design/primitive/button/index.js';
@@ -200,21 +194,19 @@
 >
 	{#if hasRail}
 		{#if !isSignedOut}
-			<!-- what the reader may do to the records of the workspace open, read once and held where
-			     every record control reads it: first, so what is drawn below is drawn off it. -->
-			<WorkspacePermissions />
+			<!-- every host a surface declares, once each and in the list's order, which is
+			     load-bearing (`app/surfaces.ts`): first what the reader may do to the records of the
+			     workspace open, so what is drawn below is drawn off it, then every record form and
+			     confirmation, and every member and workspace surface. A card, a record page, the
+			     dashboard, the palette and the settings directories each ask a host for what an act
+			     opens, and what it opens has to outlive the palette closing and the reader moving
+			     between screens. -->
+			{#each surfaces as surface (surface.name)}
+				{#if surface.host}
+					<surface.host />
+				{/if}
+			{/each}
 			<LayoutPalette bind:open={isPaletteOpen} />
-			<!-- every record form and confirmation, mounted once per concept: a card, a record page,
-			     the dashboard and the palette each ask a host for what an act opens, and what it
-			     opens has to outlive the palette closing and the reader moving between screens. -->
-			<TenantHost />
-			<ComplexHost />
-			<UnitHost />
-			<ContractHost />
-			<PaymentHost />
-			<!-- and every member and workspace surface, for the same reason: the settings directories
-			     ask for them, and nothing they open is mounted twice. -->
-			<OrganizationHost />
 			<LayoutShortcutSheet bind:open={isShortcutSheetOpen} />
 		{/if}
 		<Sidebar.Provider class="h-full min-h-0 overflow-hidden">

@@ -331,10 +331,10 @@ on the same terms (`mayRun`). *Added by ticket 16 of
 [[efforts/838-permissions-are-a-role-and-an-override/spec]], requirement 10: the act carried its
 flag since ticket 10 of that effort, and this section did not name it.*
 
-**An act never opens a form or a dialog itself.** Its `run` asks the concept's host, mounted once in
-`layout/component/frame.svelte`, which owns every form and confirmation the concept's acts open and
-exposes `run(actId, record)` and `create(prefill?)` through a module store
-(`contract/host.svelte.ts` is the first). A surface mounts none of them, so there is one form per
+**An act never opens a form or a dialog itself.** Its `run` asks the concept's host, declared in its
+`surface.ts` and mounted once by `layout/component/frame.svelte`, which owns every form and
+confirmation the concept's acts open and exposes `run(actId, record)` and `create(prefill?)` through a
+module store (`contract/host.svelte.ts` is the first). A surface mounts none of them, so there is one form per
 concept in the tree, and the command menu reaches every act from any screen: choosing one asks for the
 record, and the host reads it and refuses, with a sentence, an act that record does not admit.
 
