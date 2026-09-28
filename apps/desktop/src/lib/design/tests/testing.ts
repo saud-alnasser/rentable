@@ -16,13 +16,14 @@ import type { CreateMutationResult } from '@tanstack/svelte-query';
  */
 export type MutationBinding<TVariables, TResult, TCaptured> = {
 	mutationFn: (variables: TVariables) => Promise<TResult>;
-	onMutate?: (variables: TVariables) => Promise<TCaptured>;
+	onMutate?: (variables: TVariables) => Promise<TCaptured> | TCaptured;
 	onSuccess: (
 		result: TResult,
 		variables: TVariables,
 		captured: TCaptured | undefined
 	) => Promise<void>;
-	onError: (error: Error) => void;
+	/** answers with a promise only where the declaration's `failed` does, and is awaited then. */
+	onError: (error: Error, variables?: TVariables, captured?: TCaptured) => void | Promise<void>;
 	/** what runs after success and refusal alike; only a mutation that declares one has it. */
 	onSettled?: () => Promise<void>;
 };

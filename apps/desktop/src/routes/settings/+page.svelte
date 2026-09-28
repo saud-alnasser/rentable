@@ -27,7 +27,8 @@
 		useFetchRoles
 	} from '$lib/organization/query';
 	import SettingsArea from '$lib/settings/component/area.svelte';
-	import { useFetchRemoteSyncState, useFetchSettings } from '$lib/settings/query';
+	import { useFetchSettings } from '$lib/settings/query';
+	import { useFetchRemoteSyncState } from '$lib/sync/query';
 	import { sectionOf } from '$lib/settings/section';
 
 	/**

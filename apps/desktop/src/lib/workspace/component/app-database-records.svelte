@@ -5,11 +5,10 @@
 	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { tauri } from '$lib/platform/tauri';
-	import { useSettleEarlierRecords } from '$lib/settings/query';
 	import WorkspaceImportDialog from '$lib/workspace/component/import-dialog.svelte';
 	import { IMPORT_FLAGS, memberPermissions } from '$lib/permission';
 	import { useEarlierRecords } from '$lib/workspace/app-database';
-	import { useImportRecords } from '$lib/workspace/query';
+	import { useImportRecords, useSettleEarlierRecords } from '$lib/workspace/query';
 	import { toTransferInput } from '$lib/transfer';
 	import ArchiveRestoreIcon from '@lucide/svelte/icons/archive-restore';
 

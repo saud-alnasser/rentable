@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { accessIn, workspacePermissionsIn } from '$lib/api/context';
 	import { useFetchOrganizationState } from '$lib/organization/query';
-	import { useFetchRemoteSyncState } from '$lib/settings/query';
+	import { useFetchRemoteSyncState } from '$lib/sync/query';
 	import { memberPermissions } from '$lib/permission';
 
 	/**

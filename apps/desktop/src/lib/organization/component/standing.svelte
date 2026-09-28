@@ -9,7 +9,7 @@
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { useAccountRefusalDetail } from '$lib/organization/query';
 	import { TURSO_DASHBOARD_URL } from '$lib/organization/setup';
-	import { useSyncWorkspace } from '$lib/settings/query';
+	import { useSyncWorkspace } from '$lib/sync/query';
 	import { accountRefusalSentence } from '$lib/error/refusal';
 	import { syncFaultOf, syncStandingSentence, syncStatusOf } from '$lib/workspace/sync-status';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';

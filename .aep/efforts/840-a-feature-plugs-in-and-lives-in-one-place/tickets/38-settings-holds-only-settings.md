@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [22]
 ---
 # refactor(desktop): settings holds only settings
@@ -14,8 +14,8 @@ The spec is [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]]; the 
 
 Traces requirements 7 and 13 of [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]], and criteria 7 and 13.
 
-- [ ] `settings/query.ts` holds only settings, and no raw `createMutation` remains outside `mutation/` (criteria 7 and 13).
-- [ ] The integration gate passes on this commit; no test assertion changes except where it names a moved path (criterion 19).
+- [x] `settings/query.ts` holds only settings, and no raw `createMutation` remains outside `mutation/` (criteria 7 and 13). Verified: `settings/query.ts` exports only `keys`, `useFetchSettings`, `useSetEndingSoonNoticeDays` and `useSetAppearance`; sync state is in `sync/query.ts` (key value unchanged), updates and restart in `update/query.ts`, the workspace rename and settling older records in `workspace/query.ts`. A search of `apps/desktop/src` outside `src/lib/mutation/` and tests for `createMutation(` prints nothing: all 40 raw calls (8 settings, 32 organization) are declared through new `declareMutation` options that default to the old behaviour.
+- [x] The integration gate passes on this commit; no test assertion changes except where it names a moved path (criterion 19). Verified: in the run's tree, after merging `app-database-records.svelte` with ticket 26's `$lib/transfer` import and pruning 109 stale baseline lines: check 0, eslint 0, `pnpm test` 3 of 3 tasks, build:web 0, validate 0. Test edits: the mark test spies on `toRefusalText` (its assertion unchanged), two mocks point at `$lib/sync/query`, one mock stubs `createQuery`, and new cases cover each declaration option.
 
 ## Relevant areas
 

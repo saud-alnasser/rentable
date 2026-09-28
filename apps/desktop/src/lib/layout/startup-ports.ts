@@ -10,7 +10,7 @@ import { browserAppearance } from '$lib/platform/appearance';
 import { recordDiagnosticError } from '$lib/platform/diagnostics';
 import { tauri } from '$lib/platform/tauri';
 import { keys as organizationKeys } from '$lib/organization/query';
-import { keys as settingsKeys } from '$lib/settings/query';
+import { keys as syncKeys } from '$lib/sync/query';
 import {
 	announceReceivedRows,
 	syncWorkspaceBeforeExit,
@@ -81,9 +81,8 @@ export function browserStartupPorts(
 		cache: {
 			clear: () => queryClient.clear(),
 			dropUndrawn: () => queryClient.removeQueries({ type: 'inactive' }),
-			rememberRemoteSync: (state) => queryClient.setQueryData(settingsKeys.remoteSync, state),
-			invalidateRemoteSync: () =>
-				queryClient.invalidateQueries({ queryKey: settingsKeys.remoteSync }),
+			rememberRemoteSync: (state) => queryClient.setQueryData(syncKeys.remoteSync, state),
+			invalidateRemoteSync: () => queryClient.invalidateQueries({ queryKey: syncKeys.remoteSync }),
 			invalidateAll: () => invalidateRoot(queryClient),
 			invalidateOrganization: () =>
 				queryClient.invalidateQueries({ queryKey: organizationKeys.all }),

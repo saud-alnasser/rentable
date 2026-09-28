@@ -1,6 +1,6 @@
 import { isTheGroupNeeded } from './setup';
 import api, { forgetContext } from '$lib/api/caller';
-import { onMutationError, onMutationSuccess, type MutationOptions } from '$lib/mutation';
+import { declareMutation, type MutationOptions } from '$lib/mutation';
 import { LL } from '$lib/i18n/i18n-svelte';
 import { tauri } from '$lib/organization/tauri';
 import type {
@@ -8,12 +8,7 @@ import type {
 	OrganizationConsentResult,
 	SessionsEnded
 } from '$lib/organization/host';
-import {
-	createMutation,
-	createQuery,
-	useQueryClient,
-	type QueryClient
-} from '@tanstack/svelte-query';
+import { createQuery, useQueryClient, type QueryClient } from '@tanstack/svelte-query';
 import { get } from 'svelte/store';
 
 export const keys = {
@@ -28,26 +23,6 @@ export const keys = {
 
 /** how often a pending consent is asked about, while the browser tab is open somewhere else. */
 const CONSENT_POLL_INTERVAL_MS = 1_500;
-
-/**
- * The same options with an announcement put in them, for a mutation whose sentence turns on what
- * came back.
- *
- * Those options are built before the call runs, so a sentence chosen from the answer cannot be
- * declared among them; it is chosen inside `onSuccess` and handed on here. What this keeps is the
- * thing that matters: one place raises a toast, and it is `onMutationSuccess`, so the refusal path
- * is the shared one ([[rules/frontend]], *Data access*). A caller that named its own sentence
- * keeps it.
- *
- * The alternative is the one `mutation/mutation.ts` already took for declared mutations: a success
- * that is a function of what came back, resolved where the thunk is resolved. That widening of
- * `MutationOptions` is the right home for this, and this helper goes the day it lands; it was not
- * taken here because the three hooks that need it are this concept's, and a change to the shared
- * vocabulary belongs in a change about that vocabulary.
- */
-function announcing(opts: MutationOptions, success: string): MutationOptions {
-	return { ...opts, toast: { ...opts.toast, success: opts.toast?.success ?? success } };
-}
 
 /**
  * what a sign-out of the reader's other machines says.
@@ -92,17 +67,11 @@ function removedSentence(removed: MemberRemoved) {
  * **No toast on success**, because success is a browser window opening and the screen says so
  * itself; a failure is the ordinary unexpected one.
  */
-export function useBeginConsent(
-	opts: MutationOptions = {
-		toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() }
-	}
-) {
-	return createMutation(() => ({
-		mutationFn: () => api.organization.consent.begin(),
-		onSuccess: () => onMutationSuccess(opts),
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
+export const useBeginConsent = declareMutation({
+	mutate: () => api.organization.consent.begin(),
+	touches: 'none',
+	toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() }
+});
 
 /**
  * how far a consent has got, asked again every second and a half while it is still pending and
@@ -140,52 +109,32 @@ export function useConsentResult(sessionId: () => string | null) {
  * after an owner repeats the consent on a new machine: record which account it is over, and
  * refresh where the machine stands, which now says it holds the authority.
  */
-export function useReconnectAuthority(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).organization.dashboard.authorityReconnected(),
-			error: true,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
-	}
-) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: () => tauri.reconnectAuthority(),
-		onSuccess: async () => {
-			await client.invalidateQueries({ queryKey: keys.state });
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
+export const useReconnectAuthority = declareMutation({
+	mutate: () => tauri.reconnectAuthority(),
+	touches: 'none',
+	toast: {
+		success: () => get(LL).organization.dashboard.authorityReconnected(),
+		error: true,
+		unexpected: () => get(LL).common.messages.unexpectedError()
+	},
+	invalidates: [keys.state]
+});
 
 /**
  * forget the Turso authority this machine holds, and refresh where the machine stands, which
  * the first run reads to open its connect step as granted: a walk that read the authority as
  * held would otherwise go on reading it that way after it was given back.
  */
-export function useDisconnect(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).organization.dashboard.accountForgotten(),
-			error: true,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
-	}
-) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: () => api.organization.consent.disconnect(),
-		onSuccess: async () => {
-			await client.invalidateQueries({ queryKey: keys.state });
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
+export const useDisconnect = declareMutation({
+	mutate: () => api.organization.consent.disconnect(),
+	touches: 'none',
+	toast: {
+		success: () => get(LL).organization.dashboard.accountForgotten(),
+		error: true,
+		unexpected: () => get(LL).common.messages.unexpectedError()
+	},
+	invalidates: [keys.state]
+});
 
 /**
  * forget the organization this machine holds: the shell signs out where somebody is in, deletes
@@ -197,21 +146,15 @@ export function useDisconnect(
  * nothing shows, clearing the whole cache on the way. The one confirm before it runs is the
  * screen's.
  */
-export function useDisconnectOrganization(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).organization.dashboard.disconnected(),
-			error: true,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
+export const useDisconnectOrganization = declareMutation({
+	mutate: () => api.organization.disconnect(),
+	touches: 'none',
+	toast: {
+		success: () => get(LL).organization.dashboard.disconnected(),
+		error: true,
+		unexpected: () => get(LL).common.messages.unexpectedError()
 	}
-) {
-	return createMutation(() => ({
-		mutationFn: () => api.organization.disconnect(),
-		onSuccess: () => onMutationSuccess(opts),
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
+});
 
 /**
  * delete the organization: the shell removes every workspace database and the organization's own
@@ -223,21 +166,15 @@ export function useDisconnectOrganization(
  * stands and clears the whole cache on the way. The one question before it runs is the surface's,
  * and it is where the password is typed.
  */
-export function useDeleteOrganization(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).organization.dashboard.organizationDeleted(),
-			error: true,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
+export const useDeleteOrganization = declareMutation({
+	mutate: (input: { password: string }) => api.organization.delete(input),
+	touches: 'none',
+	toast: {
+		success: () => get(LL).organization.dashboard.organizationDeleted(),
+		error: true,
+		unexpected: () => get(LL).common.messages.unexpectedError()
 	}
-) {
-	return createMutation(() => ({
-		mutationFn: (input: { password: string }) => api.organization.delete(input),
-		onSuccess: () => onMutationSuccess(opts),
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
+});
 
 /**
  * create the organization, from the name, the username and the password the walk's name step
@@ -247,41 +184,35 @@ export function useDeleteOrganization(
  * application could work out, and a group that is not the one the consent is over, are both of
  * the first kind, and the walk acts on each where it is caught.
  */
-export function useCreateOrganization(
-	opts: MutationOptions = {
-		toast: {
-			// the one refusal the walk says in place, beside the field it adds, is kept out of
-			// the toast; every other refusal is raised in its own words as before.
-			error: (error) => (isTheGroupNeeded(error) ? null : true),
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
+export const useCreateOrganization = declareMutation({
+	mutate: ({
+		name,
+		username,
+		password,
+		group
+	}: {
+		name: string;
+		username: string;
+		password: string;
+		group: string | null;
+	}) =>
+		// the router's input takes the group as optional rather than nullable, so a walk that
+		// was asked for none leaves the key out altogether.
+		api.organization.create({ name, username, password, group: group ?? undefined }),
+	touches: 'none',
+	toast: {
+		// the one refusal the walk says in place, beside the field it adds, is kept out of
+		// the toast; every other refusal is raised in its own words as before.
+		error: (error) => (isTheGroupNeeded(error) ? null : true),
+		unexpected: () => get(LL).common.messages.unexpectedError()
+	},
+	// creating the organization signs its owner in, and the held context was built while
+	// nobody was: the walk's next call, the first workspace, needs an actor, so the context
+	// is forgotten here the way the wall and a sign-out forget it (`api/caller`).
+	landed: () => {
+		forgetContext();
 	}
-) {
-	return createMutation(() => ({
-		mutationFn: ({
-			name,
-			username,
-			password,
-			group
-		}: {
-			name: string;
-			username: string;
-			password: string;
-			group: string | null;
-		}) =>
-			// the router's input takes the group as optional rather than nullable, so a walk that
-			// was asked for none leaves the key out altogether.
-			api.organization.create({ name, username, password, group: group ?? undefined }),
-		// creating the organization signs its owner in, and the held context was built while
-		// nobody was: the walk's next call, the first workspace, needs an actor, so the context
-		// is forgotten here the way the wall and a sign-out forget it (`api/caller`).
-		onSuccess: () => {
-			forgetContext();
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
+});
 
 /**
  * what the consented Turso account already holds, asked once after the consent (effort 828,
@@ -289,17 +220,11 @@ export function useCreateOrganization(
  * sign-in step on what it answers. A refusal is the shared handler's: the person is on the
  * consent step and the button is still there.
  */
-export function useInspectGroup(
-	opts: MutationOptions = {
-		toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() }
-	}
-) {
-	return createMutation(() => ({
-		mutationFn: () => api.organization.groupInspect(),
-		onSuccess: () => onMutationSuccess(opts),
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
+export const useInspectGroup = declareMutation({
+	mutate: () => api.organization.groupInspect(),
+	touches: 'none',
+	toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() }
+});
 
 /**
  * connect this machine to the organization the account already holds, with the owner's username
@@ -307,26 +232,29 @@ export function useInspectGroup(
  * group refusal is: the sentence belongs beside the fields that were typed into, and the walk is
  * what decides whether to keep the step or go back to the consent.
  */
-export function useConnectExisting(
-	opts: MutationOptions = {
-		toast: { error: () => null, unexpected: () => get(LL).common.messages.unexpectedError() }
-	}
-) {
-	const client = useQueryClient();
+export const useConnectExisting = declareMutation({
+	mutate: ({ username, password }: { username: string; password: string }) =>
+		api.organization.connectExisting({ username, password }),
+	touches: 'none',
+	toast: { error: () => null, unexpected: () => get(LL).common.messages.unexpectedError() },
+	// the connect signs the owner in, and the held context was built while nobody was: it is
+	// forgotten here the way a create forgets it, so the next call has an actor.
+	landed: () => {
+		forgetContext();
+	},
+	invalidates: [keys.state]
+});
 
-	return createMutation(() => ({
-		mutationFn: ({ username, password }: { username: string; password: string }) =>
-			api.organization.connectExisting({ username, password }),
-		// the connect signs the owner in, and the held context was built while nobody was: it is
-		// forgotten here the way a create forgets it, so the next call has an actor.
-		onSuccess: async () => {
-			forgetContext();
-			await client.invalidateQueries({ queryKey: keys.state });
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
+const createWorkspace = declareMutation({
+	mutate: ({ name }: { name: string }) => api.organization.workspace.create({ name }),
+	touches: 'none',
+	toast: {
+		success: () => get(LL).layout.noWorkspace.created(),
+		error: true,
+		unexpected: () => get(LL).common.messages.unexpectedError()
+	},
+	invalidates: [keys.state]
+});
 
 /**
  * create the first workspace, or another. The refusal a person can act on, an owner elsewhere,
@@ -339,31 +267,10 @@ export function useConnectExisting(
  * shown. Handing the client in is the same override `createMutation` offers, made explicit here
  * so the next caller above the provider does not rediscover it.
  */
-export function useCreateWorkspace(
-	queryClient?: QueryClient,
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).layout.noWorkspace.created(),
-			error: true,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
-	}
-) {
+export function useCreateWorkspace(queryClient?: QueryClient, opts?: MutationOptions) {
 	// the client the caller handed in, or the one in context: either way it is the one whose
 	// state key the rail's switcher, the page's list and the invite's checkboxes read.
-	const client = queryClient ?? useQueryClient();
-
-	return createMutation(
-		() => ({
-			mutationFn: ({ name }: { name: string }) => api.organization.workspace.create({ name }),
-			onSuccess: async () => {
-				await client.invalidateQueries({ queryKey: keys.state });
-				onMutationSuccess(opts);
-			},
-			onError: (e) => onMutationError(opts, e)
-		}),
-		() => client
-	);
+	return createWorkspace(opts, queryClient);
 }
 
 /**
@@ -378,27 +285,17 @@ export function useCreateWorkspace(
  * such list: the workspaces a member holds are part of the session the state query answers with,
  * and the rail's switcher reads the same key.
  */
-export function useDeleteWorkspace(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).organization.dashboard.workspaceDeleted(),
-			error: true,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
-	}
-) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: ({ workspaceId }: { workspaceId: string }) =>
-			api.organization.workspace.remove({ workspaceId }),
-		onSuccess: async () => {
-			await client.invalidateQueries({ queryKey: keys.state });
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
+export const useDeleteWorkspace = declareMutation({
+	mutate: ({ workspaceId }: { workspaceId: string }) =>
+		api.organization.workspace.remove({ workspaceId }),
+	touches: 'none',
+	toast: {
+		success: () => get(LL).organization.dashboard.workspaceDeleted(),
+		error: true,
+		unexpected: () => get(LL).common.messages.unexpectedError()
+	},
+	invalidates: [keys.state]
+});
 
 export function useFetchMembers(enabled: () => boolean = () => true) {
 	return createQuery(() => ({
@@ -475,81 +372,50 @@ export function useReadOrganizationMark() {
  * Keep the image at `path` as the organization's mark. The host reads it, checks it by its bytes
  * and seals it; a refusal (too large, not an image, not the reader's to change) is its sentence.
  */
-export function useSetOrganizationMark(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).organization.mark.saved(),
-			error: true,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
-	}
-) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: (path: string) => api.organization.mark.set({ path }),
-		onSuccess: async (mark) => {
-			client.setQueryData(keys.mark, mark);
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
+export const useSetOrganizationMark = declareMutation({
+	mutate: (path: string) => api.organization.mark.set({ path }),
+	touches: 'none',
+	toast: {
+		success: () => get(LL).organization.mark.saved(),
+		error: true,
+		unexpected: () => get(LL).common.messages.unexpectedError()
+	},
+	sets: ({ result }) => [{ key: keys.mark, data: result }]
+});
 
 /** Remove the organization's mark; the pages printed after it have none. */
-export function useClearOrganizationMark(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).organization.mark.removed(),
-			error: true,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
-	}
-) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: () => api.organization.mark.clear(),
-		onSuccess: async () => {
-			client.setQueryData(keys.mark, null);
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
+export const useClearOrganizationMark = declareMutation({
+	mutate: () => api.organization.mark.clear(),
+	touches: 'none',
+	toast: {
+		success: () => get(LL).organization.mark.removed(),
+		error: true,
+		unexpected: () => get(LL).common.messages.unexpectedError()
+	},
+	sets: () => [{ key: keys.mark, data: null }]
+});
 
 /**
  * make an account. It hands over nothing: the account holds no password until a link is made for
  * it, so this only refreshes the list it changed.
  */
-export function useCreateAccount(
-	opts: MutationOptions = {
-		toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() }
-	}
-) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: ({
-			username,
-			roleId,
-			override,
-			workspaces
-		}: {
-			username: string;
-			roleId: string;
-			override: number;
-			workspaces: { id: string; access: 'full-access' | 'read-only' }[];
-		}) => api.organization.member.create({ username, roleId, override, workspaces }),
-		onSuccess: async () => {
-			// a role's count of holders moves with an account made in it.
-			await client.invalidateQueries({ queryKey: keys.members });
-			await client.invalidateQueries({ queryKey: keys.roles });
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
+export const useCreateAccount = declareMutation({
+	mutate: ({
+		username,
+		roleId,
+		override,
+		workspaces
+	}: {
+		username: string;
+		roleId: string;
+		override: number;
+		workspaces: { id: string; access: 'full-access' | 'read-only' }[];
+	}) => api.organization.member.create({ username, roleId, override, workspaces }),
+	touches: 'none',
+	toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() },
+	// a role's count of holders moves with an account made in it.
+	invalidates: [keys.members, keys.roles]
+});
 
 /**
  * remove a member, at the speed the caller chose. The ordinary removal says so; a lock-out says
@@ -558,50 +424,31 @@ export function useCreateAccount(
  * **The sentence is chosen from what came back**, because which of the two it is is a fact about
  * what the removal did and not about what it was asked for.
  */
-export function useRemoveMember(
-	opts: MutationOptions = {
-		toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() }
-	}
-) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: ({ memberId, lockOut }: { memberId: string; lockOut: boolean }) =>
-			api.organization.member.remove({ memberId, lockOut }),
-		onSuccess: async (result) => {
-			await client.invalidateQueries({ queryKey: keys.members });
-			onMutationSuccess(announcing(opts, removedSentence(result)));
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
+export const useRemoveMember = declareMutation({
+	mutate: ({ memberId, lockOut }: { memberId: string; lockOut: boolean }) =>
+		api.organization.member.remove({ memberId, lockOut }),
+	touches: 'none',
+	toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() },
+	invalidates: [keys.members],
+	announces: ({ result }) => removedSentence(result)
+});
 
 /**
  * rename a member. The refusals a person can act on, a username outside the rules or one already
  * taken, arrive as `BAD_REQUEST` and are shown verbatim; the list is refreshed so the row reads
  * the new username.
  */
-export function useRenameMember(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).organization.dashboard.renamed(),
-			error: true,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
-	}
-) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: ({ memberId, username }: { memberId: string; username: string }) =>
-			api.organization.member.rename({ memberId, username }),
-		onSuccess: async () => {
-			await client.invalidateQueries({ queryKey: keys.members });
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
+export const useRenameMember = declareMutation({
+	mutate: ({ memberId, username }: { memberId: string; username: string }) =>
+		api.organization.member.rename({ memberId, username }),
+	touches: 'none',
+	toast: {
+		success: () => get(LL).organization.dashboard.renamed(),
+		error: true,
+		unexpected: () => get(LL).common.messages.unexpectedError()
+	},
+	invalidates: [keys.members]
+});
 
 /** what locking a member out would cost, read for the dialog that asks before it is done. */
 export function useLockOutCost(memberId: () => string | null) {
@@ -616,22 +463,16 @@ export function useLockOutCost(memberId: () => string | null) {
  * the signed-in member's own password, changed from the account page. The refusal a person
  * can act on, a password under the floor or a current one that did not open, is shown.
  */
-export function useChangePassword(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).settings.you.password.changed(),
-			error: true,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
+export const useChangePassword = declareMutation({
+	mutate: ({ current, next }: { current: string; next: string }) =>
+		api.organization.password.change({ current, next }),
+	touches: 'none',
+	toast: {
+		success: () => get(LL).settings.you.password.changed(),
+		error: true,
+		unexpected: () => get(LL).common.messages.unexpectedError()
 	}
-) {
-	return createMutation(() => ({
-		mutationFn: ({ current, next }: { current: string; next: string }) =>
-			api.organization.password.change({ current, next }),
-		onSuccess: () => onMutationSuccess(opts),
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
+});
 
 /**
  * end the reader's own sessions on every other machine, from the account section (effort 826,
@@ -646,22 +487,13 @@ export function useChangePassword(
  * until one of its heartbeats can. Saying *they were signed out* then would be false about the
  * one thing this act is for, so the sentence says the sign-out is pending instead.
  */
-export function useEndOtherSessions(
-	opts: MutationOptions = {
-		toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() }
-	}
-) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: () => api.organization.session.endElsewhere(),
-		onSuccess: async (result) => {
-			await client.invalidateQueries({ queryKey: keys.state });
-			onMutationSuccess(announcing(opts, endedSentence(result)));
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
+export const useEndOtherSessions = declareMutation({
+	mutate: () => api.organization.session.endElsewhere(),
+	touches: 'none',
+	toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() },
+	invalidates: [keys.state],
+	announces: ({ result }) => endedSentence(result)
+});
 
 /**
  * sign a member out of every machine, from their row.
@@ -673,23 +505,13 @@ export function useEndOtherSessions(
  * **The sentence turns on whether the bump went out**, for the reason {@link useEndOtherSessions}
  * gives.
  */
-export function useEndMemberSessions(
-	opts: MutationOptions = {
-		toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() }
-	}
-) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: ({ memberId }: { memberId: string }) =>
-			api.organization.member.endSessions({ memberId }),
-		onSuccess: async (result) => {
-			await client.invalidateQueries({ queryKey: keys.members });
-			onMutationSuccess(announcing(opts, memberSessionsEndedSentence(result)));
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
+export const useEndMemberSessions = declareMutation({
+	mutate: ({ memberId }: { memberId: string }) => api.organization.member.endSessions({ memberId }),
+	touches: 'none',
+	toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() },
+	invalidates: [keys.members],
+	announces: ({ result }) => memberSessionsEndedSentence(result)
+});
 
 /**
  * Turso's own sentence about a standing account refusal: the owner's alone, `null` for
@@ -708,10 +530,7 @@ export function useAccountRefusalDetail(refused: () => boolean) {
  * roles, and a member's effective permissions and rank are read off their role, so a change to one
  * is a change to what the other says.
  */
-async function rolesAndMembersChanged(client: QueryClient) {
-	await client.invalidateQueries({ queryKey: keys.members });
-	await client.invalidateQueries({ queryKey: keys.roles });
-}
+const rolesAndMembersChanged = [keys.members, keys.roles];
 
 /**
  * give a member a role (effort 838, requirement 5), and the override with it where one is given,
@@ -719,57 +538,37 @@ async function rolesAndMembersChanged(client: QueryClient) {
  * above the reader, a flag the reader does not hold) arrive as the shell's refusals and read as
  * their sentences.
  */
-export function useAssignRole(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).organization.dashboard.roleChanged(),
-			error: true,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
-	}
-) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: ({
-			memberId,
-			roleId,
-			override
-		}: {
-			memberId: string;
-			roleId: string;
-			override?: number;
-		}) => api.organization.member.assignRole({ memberId, roleId, override }),
-		onSuccess: async () => {
-			await rolesAndMembersChanged(client);
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
+export const useAssignRole = declareMutation({
+	mutate: ({
+		memberId,
+		roleId,
+		override
+	}: {
+		memberId: string;
+		roleId: string;
+		override?: number;
+	}) => api.organization.member.assignRole({ memberId, roleId, override }),
+	touches: 'none',
+	toast: {
+		success: () => get(LL).organization.dashboard.roleChanged(),
+		error: true,
+		unexpected: () => get(LL).common.messages.unexpectedError()
+	},
+	invalidates: rolesAndMembersChanged
+});
 
 /** set the flags switched for one member alone (effort 838, requirement 6). */
-export function useSetOverride(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).organization.dashboard.overrideSaved(),
-			error: true,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
-	}
-) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: ({ memberId, override }: { memberId: string; override: number }) =>
-			api.organization.member.setOverride({ memberId, override }),
-		onSuccess: async () => {
-			await rolesAndMembersChanged(client);
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
+export const useSetOverride = declareMutation({
+	mutate: ({ memberId, override }: { memberId: string; override: number }) =>
+		api.organization.member.setOverride({ memberId, override }),
+	touches: 'none',
+	toast: {
+		success: () => get(LL).organization.dashboard.overrideSaved(),
+		error: true,
+		unexpected: () => get(LL).common.messages.unexpectedError()
+	},
+	invalidates: rolesAndMembersChanged
+});
 
 /**
  * set what is pinned for one member in one workspace they are in, and which of it is on, nothing
@@ -777,42 +576,32 @@ export function useSetOverride(
  * one). The member's card writes one per workspace it tailored. The members are read again, since
  * each carries what is pinned for it per workspace.
  */
-export function useSetWorkspaceOverride(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).organization.dashboard.overrideSaved(),
-			error: true,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
-	}
-) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: ({
+export const useSetWorkspaceOverride = declareMutation({
+	mutate: ({
+		memberId,
+		workspaceId,
+		pinned,
+		granted
+	}: {
+		memberId: string;
+		workspaceId: string;
+		pinned: number;
+		granted: number;
+	}) =>
+		api.organization.member.setWorkspaceOverride({
 			memberId,
 			workspaceId,
 			pinned,
 			granted
-		}: {
-			memberId: string;
-			workspaceId: string;
-			pinned: number;
-			granted: number;
-		}) =>
-			api.organization.member.setWorkspaceOverride({
-				memberId,
-				workspaceId,
-				pinned,
-				granted
-			}),
-		onSuccess: async () => {
-			await rolesAndMembersChanged(client);
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
+		}),
+	touches: 'none',
+	toast: {
+		success: () => get(LL).organization.dashboard.overrideSaved(),
+		error: true,
+		unexpected: () => get(LL).common.messages.unexpectedError()
+	},
+	invalidates: rolesAndMembersChanged
+});
 
 /**
  * every role, highest rank first, with what each carries and how many hold it (effort 838,
@@ -826,82 +615,53 @@ export function useFetchRoles(enabled: () => boolean = () => true) {
 	}));
 }
 
-/** the options every role write announces with: its own sentence, and the shared refusal. */
-const roleWrite = (success: () => string): MutationOptions => ({
-	toast: { success, error: true, unexpected: () => get(LL).common.messages.unexpectedError() }
+/** what every role write announces with: its own sentence, and the shared refusal. */
+const roleWrite = (success: () => string) => ({
+	success,
+	error: true,
+	unexpected: () => get(LL).common.messages.unexpectedError()
 });
 
 /** make a custom role, directly below another. */
-export function useCreateRole(opts = roleWrite(() => get(LL).organization.roleList.created())) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: (input: { name: string; mask: number; afterRoleId: string }) =>
-			api.organization.role.create(input),
-		onSuccess: async () => {
-			await rolesAndMembersChanged(client);
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
+export const useCreateRole = declareMutation({
+	mutate: (input: { name: string; mask: number; afterRoleId: string }) =>
+		api.organization.role.create(input),
+	touches: 'none',
+	toast: roleWrite(() => get(LL).organization.roleList.created()),
+	invalidates: rolesAndMembersChanged
+});
 
 /** rename a custom role. */
-export function useRenameRole(opts = roleWrite(() => get(LL).organization.roleList.saved())) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: (input: { roleId: string; name: string }) => api.organization.role.rename(input),
-		onSuccess: async () => {
-			await rolesAndMembersChanged(client);
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
+export const useRenameRole = declareMutation({
+	mutate: (input: { roleId: string; name: string }) => api.organization.role.rename(input),
+	touches: 'none',
+	toast: roleWrite(() => get(LL).organization.roleList.saved()),
+	invalidates: rolesAndMembersChanged
+});
 
 /** change what a role carries; every holder's permissions follow. */
-export function useSetRoleMask(opts = roleWrite(() => get(LL).organization.roleList.saved())) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: (input: { roleId: string; mask: number }) => api.organization.role.setMask(input),
-		onSuccess: async () => {
-			await rolesAndMembersChanged(client);
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
+export const useSetRoleMask = declareMutation({
+	mutate: (input: { roleId: string; mask: number }) => api.organization.role.setMask(input),
+	touches: 'none',
+	toast: roleWrite(() => get(LL).organization.roleList.saved()),
+	invalidates: rolesAndMembersChanged
+});
 
 /** move a custom role to directly below another. */
-export function useMoveRole(opts = roleWrite(() => get(LL).organization.roleList.moved())) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: (input: { roleId: string; afterRoleId: string }) =>
-			api.organization.role.move(input),
-		onSuccess: async () => {
-			await rolesAndMembersChanged(client);
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
+export const useMoveRole = declareMutation({
+	mutate: (input: { roleId: string; afterRoleId: string }) => api.organization.role.move(input),
+	touches: 'none',
+	toast: roleWrite(() => get(LL).organization.roleList.moved()),
+	invalidates: rolesAndMembersChanged
+});
 
 /** delete a custom role; whoever held it holds the member role. */
-export function useDeleteRole(opts = roleWrite(() => get(LL).organization.roleList.deleted())) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: (input: { roleId: string }) => api.organization.role.delete(input),
-		onSuccess: async () => {
-			await rolesAndMembersChanged(client);
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
+export const useDeleteRole = declareMutation({
+	mutate: (input: { roleId: string }) => api.organization.role.delete(input),
+	touches: 'none',
+	toast: roleWrite(() => get(LL).organization.roleList.deleted()),
+	invalidates: rolesAndMembersChanged
+});
 
 /**
  * offer the organization to another account: the first of the two acts a handover is (effort 828,
@@ -915,49 +675,29 @@ export function useDeleteRole(opts = roleWrite(() => get(LL).organization.roleLi
  * marks it on the field ([[rules/interface]], *Validation errors*), so the caller reads the
  * rejection rather than only hearing it.
  */
-export function useOfferOwnership(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).organization.dashboard.ownershipOffered(),
-			error: true,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
-	}
-) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: ({ memberId, password }: { memberId: string; password: string }) =>
-			api.organization.member.offerOwnership({ memberId, password }),
-		onSuccess: async () => {
-			await client.invalidateQueries({ queryKey: keys.members });
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
+export const useOfferOwnership = declareMutation({
+	mutate: ({ memberId, password }: { memberId: string; password: string }) =>
+		api.organization.member.offerOwnership({ memberId, password }),
+	touches: 'none',
+	toast: {
+		success: () => get(LL).organization.dashboard.ownershipOffered(),
+		error: true,
+		unexpected: () => get(LL).common.messages.unexpectedError()
+	},
+	invalidates: [keys.members]
+});
 
 /** take the offer back, which leaves the organization exactly where it was. */
-export function useWithdrawOffer(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).organization.dashboard.ownershipOfferWithdrawn(),
-			error: true,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
-	}
-) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: () => api.organization.member.withdrawOffer(),
-		onSuccess: async () => {
-			await client.invalidateQueries({ queryKey: keys.members });
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
+export const useWithdrawOffer = declareMutation({
+	mutate: () => api.organization.member.withdrawOffer(),
+	touches: 'none',
+	toast: {
+		success: () => get(LL).organization.dashboard.ownershipOfferWithdrawn(),
+		error: true,
+		unexpected: () => get(LL).common.messages.unexpectedError()
+	},
+	invalidates: [keys.members]
+});
 
 /**
  * accept the organization that was offered to this reader (effort 828, requirement 22).
@@ -970,28 +710,16 @@ export function useWithdrawOffer(
  * The refusal a person can act on is a password that does not open their vault, and the surface
  * marks it on the field ([[rules/interface]], *Validation errors*).
  */
-export function useAcceptOwnership(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).organization.dashboard.ownershipAccepted(),
-			error: true,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
-	}
-) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: ({ password }: { password: string }) =>
-			api.organization.ownershipAccept({ password }),
-		onSuccess: async () => {
-			await client.invalidateQueries({ queryKey: keys.members });
-			await client.invalidateQueries({ queryKey: keys.state });
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
+export const useAcceptOwnership = declareMutation({
+	mutate: ({ password }: { password: string }) => api.organization.ownershipAccept({ password }),
+	touches: 'none',
+	toast: {
+		success: () => get(LL).organization.dashboard.ownershipAccepted(),
+		error: true,
+		unexpected: () => get(LL).common.messages.unexpectedError()
+	},
+	invalidates: [keys.members, keys.state]
+});
 
 /**
  * one member's access on one workspace, as a dialog hands the change back. `none` is the grant
@@ -1021,44 +749,33 @@ export type AccessChange = {
  * Both are refreshed whether the set went through or was refused part way, since what was written
  * before the refusal stands.
  */
-export function useChangeAccess(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).organization.dashboard.accessSaved(),
-			error: true,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
-	}
-) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: async ({ changes }: { changes: AccessChange[] }) => {
-			for (const change of changes) {
-				if (change.access === 'none') {
-					await api.organization.workspace.withdraw({
-						workspaceId: change.workspaceId,
-						memberId: change.memberId
-					});
-				} else {
-					await api.organization.workspace.grant({
-						workspaceId: change.workspaceId,
-						memberId: change.memberId,
-						access: change.access
-					});
-				}
+export const useChangeAccess = declareMutation({
+	mutate: async ({ changes }: { changes: AccessChange[] }) => {
+		for (const change of changes) {
+			if (change.access === 'none') {
+				await api.organization.workspace.withdraw({
+					workspaceId: change.workspaceId,
+					memberId: change.memberId
+				});
+			} else {
+				await api.organization.workspace.grant({
+					workspaceId: change.workspaceId,
+					memberId: change.memberId,
+					access: change.access
+				});
 			}
-		},
-		onSuccess: () => onMutationSuccess(opts),
-		onError: (e) => onMutationError(opts, e),
-		// on a refusal part way as much as on success: the writes before the refusal stand, and a
-		// list left as it was would show the reader an access the row no longer has.
-		onSettled: async () => {
-			await client.invalidateQueries({ queryKey: keys.members });
-			await client.invalidateQueries({ queryKey: keys.state });
 		}
-	}));
-}
+	},
+	touches: 'none',
+	toast: {
+		success: () => get(LL).organization.dashboard.accessSaved(),
+		error: true,
+		unexpected: () => get(LL).common.messages.unexpectedError()
+	},
+	// on a refusal part way as much as on success: the writes before the refusal stand, and a
+	// list left as it was would show the reader an access the row no longer has.
+	settled: [keys.members, keys.state]
+});
 
 /**
  * make the one link that admits a machine to an account (effort 828, requirement 20).
@@ -1068,40 +785,20 @@ export function useChangeAccess(
  * as long as the section is open. The list is refreshed
  * because an invitation-kind link leaves a pending mark on the account's row.
  */
-export function useMakeMemberLink(
-	opts: MutationOptions = {
-		toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() }
-	}
-) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: ({ memberId }: { memberId: string }) =>
-			api.organization.member.linkMake({ memberId }),
-		onSuccess: async (made) => {
-			await client.invalidateQueries({ queryKey: keys.members });
-
-			// a workspace the link could not carry over is said, as a reset says it: the grant is
-			// off the row, and the person opening the link would otherwise find it missing with
-			// nobody told.
-			if (made.unreachableWorkspaces.length > 0) {
-				onMutationSuccess(
-					announcing(
-						opts,
-						get(LL).organization.dashboard.linkUnreachableWorkspaces({
-							workspaces: made.unreachableWorkspaces.map((workspace) => workspace.name).join(', ')
-						})
-					)
-				);
-
-				return;
-			}
-
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
+export const useMakeMemberLink = declareMutation({
+	mutate: ({ memberId }: { memberId: string }) => api.organization.member.linkMake({ memberId }),
+	touches: 'none',
+	toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() },
+	invalidates: [keys.members],
+	// a workspace the link could not carry over is said, as a reset says it: the grant is off the
+	// row, and the person opening the link would otherwise find it missing with nobody told.
+	announces: ({ result }) =>
+		result.unreachableWorkspaces.length > 0
+			? get(LL).organization.dashboard.linkUnreachableWorkspaces({
+					workspaces: result.unreachableWorkspaces.map((workspace) => workspace.name).join(', ')
+				})
+			: undefined
+});
 
 /**
  * unset a member's password, so the next link made for them asks for a new one.
@@ -1110,23 +807,14 @@ export function useMakeMemberLink(
  * holds no full credential on is taken off the member's row, and the sentence naming those is the
  * announcement this act makes; where it carried everything over, the plain one is said.
  */
-export function useUnsetMemberPassword(
-	opts: MutationOptions = {
-		toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() }
-	}
-) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: ({ memberId }: { memberId: string }) =>
-			api.organization.member.unsetPassword({ memberId }),
-		onSuccess: async (unreachable) => {
-			await client.invalidateQueries({ queryKey: keys.members });
-			onMutationSuccess(announcing(opts, unsetSentence(unreachable)));
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
+export const useUnsetMemberPassword = declareMutation({
+	mutate: ({ memberId }: { memberId: string }) =>
+		api.organization.member.unsetPassword({ memberId }),
+	touches: 'none',
+	toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() },
+	invalidates: [keys.members],
+	announces: ({ result }) => unsetSentence(result)
+});
 
 /** what a reset says: what it carried over, or what it could not and whom to ask. */
 function unsetSentence(unreachable: { id: string; name: string }[]) {

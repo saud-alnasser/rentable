@@ -44,10 +44,20 @@ vi.mock('$lib/api/caller', () => ({
 	}
 }));
 
-vi.mock('$lib/mutation', async (original) => ({
-	...(await original<Record<string, unknown>>()),
-	onMutationError: (_: unknown, error: unknown) => host.errors.push(error)
-}));
+// the refusal reaches the mutation capability's shared handler, which turns it into the reader's
+// sentence here; what it was handed is what is read.
+vi.mock('$lib/error/refusal', async (original) => {
+	const refusal = await original<typeof import('$lib/error/refusal')>();
+
+	return {
+		...refusal,
+		toRefusalText: (...args: Parameters<typeof refusal.toRefusalText>) => {
+			host.errors.push(args[0]);
+
+			return refusal.toRefusalText(...args);
+		}
+	};
+});
 
 const MARK = { mediaType: 'image/png', data: 'iVBORw0K' };
 

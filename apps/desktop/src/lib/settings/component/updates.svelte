@@ -7,7 +7,7 @@
 	import { recordDiagnosticError } from '$lib/platform/diagnostics';
 	import { formatLocaleDate } from '$lib/platform/locale';
 	import { type AvailableUpdate, type UpdaterDownloadEvent } from '$lib/platform/tauri';
-	import { useCheckForUpdate, usePrepareUpdate, useRestartApp } from '$lib/settings/query';
+	import { useCheckForUpdate, usePrepareUpdate, useRestartApp } from '$lib/update/query';
 	import { announceUpdateOutcome } from '$lib/settings/update-announcement';
 	import DownloadIcon from '@lucide/svelte/icons/download';
 	import PowerIcon from '@lucide/svelte/icons/power';

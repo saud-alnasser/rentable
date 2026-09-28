@@ -50,8 +50,8 @@ vi.mock('$lib/organization/query', async (importOriginal) => ({
 	})
 }));
 
-vi.mock('$lib/settings/query', async (importOriginal) => ({
-	...(await importOriginal<typeof import('$lib/settings/query')>()),
+vi.mock('$lib/sync/query', async (importOriginal) => ({
+	...(await importOriginal<typeof import('$lib/sync/query')>()),
 	useFetchRemoteSyncState: () => ({
 		get data() {
 			return fakeSyncState({ workspace: fakeWorkspace({ remoteId: reads.openWorkspace }) });

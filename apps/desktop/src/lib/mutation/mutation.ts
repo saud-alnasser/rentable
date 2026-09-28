@@ -9,7 +9,13 @@ import { readHostRefusal, toRefusalText, toRouterFailureText } from '$lib/error/
 import { toTauriErrorCode } from '$lib/error/tauri';
 import { notify } from '$lib/notification';
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
-import { createMutation, useQueryClient, type QueryClient } from '@tanstack/svelte-query';
+import {
+	createMutation,
+	useQueryClient,
+	type MutationFunctionContext,
+	type QueryClient,
+	type QueryKey
+} from '@tanstack/svelte-query';
 import { TRPCError } from '@trpc/server';
 import {
 	announceWithOffer,
@@ -97,6 +103,24 @@ export type WorkspaceConcept = ConceptOf<
 	Extract<(typeof features)[number], { prefix: unknown }>['prefix']
 >;
 
+/** One key a success writes, and what it writes there. */
+export type QueryWrite = { key: QueryKey; data: unknown };
+
+/**
+ * One step of what a mutation invalidates: a key, or keys invalidated together. The steps of one
+ * list run one after another, each waiting on the refetch before it, and the keys of one step
+ * together.
+ */
+export type InvalidationStep = QueryKey | { together: readonly QueryKey[] };
+
+/** What a refusal hands a declaration before it is said. */
+export type MutationFailure<TVariables, TCaptured> = {
+	error: Error;
+	variables: TVariables;
+	/** what {@link MutationDeclaration.capture} read, or nothing where it did not get to run. */
+	captured: TCaptured | undefined;
+};
+
 /**
  * What varies between one data mutation and the next: the call it makes, what it writes, what
  * the user is told, and the call that reverses it. The hook a component calls, the cache
@@ -104,8 +128,11 @@ export type WorkspaceConcept = ConceptOf<
  * (ADR 0028).
  */
 export type MutationDeclaration<TVariables, TResult, TCaptured = void> = {
-	/** the procedure this mutation calls. */
-	mutate: (variables: TVariables) => Promise<TResult>;
+	/**
+	 * the procedure this mutation calls. The query library hands it the client it runs on as
+	 * well, for a call that reads the cache on its way out.
+	 */
+	mutate: (variables: TVariables, context: MutationFunctionContext) => Promise<TResult>;
 	/**
 	 * the workspace concepts this mutation writes to, directly or through the reconcile pass
 	 * it triggers.
@@ -117,16 +144,66 @@ export type MutationDeclaration<TVariables, TResult, TCaptured = void> = {
 	 *
 	 * A mutation writing a whole workspace's worth, an import, says `'every'` rather than naming
 	 * each concept, so adding a kind does not edit it.
+	 *
+	 * **`'none'` is the one switch**: a mutation that writes no workspace data at all (the
+	 * settings, the replica's state, the organization, the updater) leaves the workspace cache
+	 * alone and names what it does refresh in {@link sets} and {@link invalidates}.
 	 */
-	touches: readonly WorkspaceConcept[] | 'every';
-	/** what the user is told. A mutation that declares none reports nothing, either way. */
+	touches: readonly WorkspaceConcept[] | 'every' | 'none';
+	/**
+	 * what the user is told. A mutation that declares none reports nothing, either way. It is
+	 * the default: options handed to the hook replace it whole, as a hook's default parameter is
+	 * replaced.
+	 */
 	toast?: MutationToast<TVariables, TResult, TCaptured>;
+	/**
+	 * the announcement chosen from what came back, said where the options in force name no
+	 * success of their own. A caller that names one keeps it; answering with nothing says
+	 * nothing.
+	 */
+	announces?: (change: MutationChange<TVariables, TResult, TCaptured>) => string | undefined;
 	/**
 	 * read what the inverse will need, before the mutation runs: the row an edit is about to
 	 * overwrite, the row a deletion is about to remove. Whatever it resolves to reaches
-	 * {@link inverse} untouched.
+	 * {@link inverse} untouched, and {@link failed} as well.
+	 *
+	 * A choice drawn ahead of its write, the appearance, is drawn here and answers with what it
+	 * replaced, which {@link failed} puts back.
 	 */
-	capture?: (variables: TVariables) => Promise<TCaptured>;
+	capture?: (
+		variables: TVariables,
+		context: MutationFunctionContext
+	) => Promise<TCaptured> | TCaptured;
+	/**
+	 * what a success does before anything is written or invalidated, for what the cache does not
+	 * hold (a context to forget, the shell to tell) or a success whose writes turn on what came
+	 * back. Answering `false` ends the success there: nothing is written, invalidated, recorded
+	 * or announced.
+	 */
+	landed?: (
+		change: MutationChange<TVariables, TResult, TCaptured>,
+		client: QueryClient
+	) => void | false | Promise<void | false>;
+	/** the keys a success writes from what came back, before anything is invalidated. */
+	sets?: (change: MutationChange<TVariables, TResult, TCaptured>) => readonly QueryWrite[];
+	/**
+	 * the keys a success invalidates besides the workspace's, after {@link sets}, in order. A key
+	 * composed from a declared prefix is read when the success runs rather than while the module
+	 * loads, so a list holding one is given as a function answering it.
+	 */
+	invalidates?:
+		| readonly InvalidationStep[]
+		| ((change: MutationChange<TVariables, TResult, TCaptured>) => readonly InvalidationStep[]);
+	/**
+	 * the keys invalidated once the mutation has settled, landed or refused, after it is said:
+	 * for a set of writes where those before a refusal stand.
+	 */
+	settled?: readonly InvalidationStep[];
+	/** what a refusal does before it is said: put back what {@link capture} drew, refresh a key. */
+	failed?: (
+		failure: MutationFailure<TVariables, TCaptured>,
+		client: QueryClient
+	) => void | Promise<void>;
 	/**
 	 * what this mutation leaves on the undo stack, given what it was called with and what came
 	 * back. A mutation declaring none is outside undo, and nothing fails — the cost ADR 0026
@@ -407,27 +484,56 @@ const settlement: Settlement = {
 };
 
 /**
- * The invalidation is unconditional: a mutation that changed nothing costs one redundant local
- * refetch, where a mutation that changed something and skipped it shows the user a row that is
- * no longer there.
+ * The workspace invalidation is unconditional for a mutation that touches the workspace at all: a
+ * mutation that changed nothing costs one redundant local refetch, where a mutation that changed
+ * something and skipped it shows the user a row that is no longer there. One that touches none
+ * refreshes only the keys it names, in the order a success runs them: `landed`, `sets`,
+ * `invalidates`, then the announcement.
  */
 function bindMutation<TVariables, TResult, TCaptured>(
 	declaration: MutationDeclaration<TVariables, TResult, TCaptured>,
-	client: QueryClient
+	client: QueryClient,
+	options: MutationOptions | undefined
 ) {
-	// the refusal half of the declaration is the shared vocabulary unchanged; only the
+	// the options a caller handed the hook replace the declared ones whole, the way a default
+	// parameter is replaced. The refusal half is the shared vocabulary unchanged; only the
 	// announcement can read a change, and it is resolved against one below.
-	const { success, ...refusal } = declaration.toast ?? {};
+	const { success, ...refusal } = (options ? options.toast : declaration.toast) ?? {};
+	const announcement = success ?? declaration.announces;
+	const settled = declaration.settled;
 
 	return {
 		mutationFn: declaration.mutate,
 		onMutate: declaration.capture,
 		onSuccess: async (result: TResult, variables: TVariables, captured: TCaptured) => {
-			await invalidateWorkspaceData(client);
-
 			// the three things that happened, named once: what the mutation was asked for, what it
-			// answered with, and what was read before it ran. All three declarations below take it.
+			// answered with, and what was read before it ran. Every declaration below takes it.
 			const change = { variables, result, captured };
+			// awaited only where it answers with a promise, so a success that does its part at once
+			// reaches the announcement in the same turn it would have written by hand.
+			const landed = declaration.landed?.(change, client);
+
+			if ((landed instanceof Promise ? await landed : landed) === false) {
+				return;
+			}
+
+			for (const { key, data } of declaration.sets?.(change) ?? []) {
+				client.setQueryData(key, data);
+			}
+
+			const invalidates =
+				typeof declaration.invalidates === 'function'
+					? declaration.invalidates(change)
+					: declaration.invalidates;
+
+			for (const step of invalidates ?? []) {
+				await invalidateStep(client, step);
+			}
+
+			if (declaration.touches !== 'none') {
+				await invalidateWorkspaceData(client);
+			}
+
 			const inverse = declaration.inverse?.(change);
 
 			if (inverse) {
@@ -442,7 +548,7 @@ function bindMutation<TVariables, TResult, TCaptured>(
 			recordHistory(client, entry);
 
 			onMutationSuccess(
-				{ toast: { ...refusal, success: resolveAnnouncement(success, change) } },
+				{ toast: { ...refusal, success: resolveAnnouncement(announcement, change) } },
 				inverse && { client, change: inverse, direction: 'undo' }
 			);
 
@@ -452,8 +558,36 @@ function bindMutation<TVariables, TResult, TCaptured>(
 			// announcement like every other one.
 			onMutationNotice(declaration.notice?.(change));
 		},
-		onError: (e: Error) => onMutationError({ toast: refusal }, e)
+		onError: (e: Error, variables: TVariables, captured: TCaptured | undefined) => {
+			// the same rule as `landed`: waited on only where it answers with a promise.
+			const failing = declaration.failed?.({ error: e, variables, captured }, client);
+
+			if (failing instanceof Promise) {
+				return failing.then(() => onMutationError({ toast: refusal }, e));
+			}
+
+			onMutationError({ toast: refusal }, e);
+		},
+		// only where one is declared, so a mutation without it hands the library what it did before.
+		...(settled && {
+			onSettled: async () => {
+				for (const step of settled) {
+					await invalidateStep(client, step);
+				}
+			}
+		})
 	};
+}
+
+/** Invalidate one step of a declared list: a key, or keys together. */
+async function invalidateStep(client: QueryClient, step: InvalidationStep) {
+	if ('together' in step) {
+		await Promise.all(step.together.map((queryKey) => client.invalidateQueries({ queryKey })));
+
+		return;
+	}
+
+	await client.invalidateQueries({ queryKey: step });
 }
 
 /**
@@ -462,13 +596,20 @@ function bindMutation<TVariables, TResult, TCaptured>(
  * This is what a concept's query module exports for each of its mutations. Adding a data
  * mutation means writing one declaration — the call, what it touches, what the user is told,
  * and how it is taken back — and nothing about the cache or the undo stack is written by hand.
+ *
+ * The hook takes options that replace the declared toast, for a caller that says something else,
+ * and a client for a caller above the provider: the root layout draws the provider, so its own
+ * script sits above the context the hook would otherwise read the client from.
  */
-export function declareMutation<TVariables, TResult, TCaptured = void>(
+export function declareMutation<TVariables = void, TResult = unknown, TCaptured = void>(
 	declaration: MutationDeclaration<TVariables, TResult, TCaptured>
 ) {
-	return () => {
-		const client = useQueryClient();
+	return (options?: MutationOptions, queryClient?: QueryClient) => {
+		const client = queryClient ?? useQueryClient();
 
-		return createMutation(() => bindMutation(declaration, client));
+		return createMutation(
+			() => bindMutation(declaration, client, options),
+			queryClient && (() => queryClient)
+		);
 	};
 }

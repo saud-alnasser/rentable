@@ -1,22 +1,22 @@
-import { emitSessionEnded } from '$lib/sync/event';
 import api from '$lib/api/caller';
-import { tauri, type RemoteSyncState } from '$lib/platform/tauri';
 import { browserAppearance, type AppearanceSetting } from '$lib/platform/appearance';
-import {
-	announceReceivedRows,
-	syncWorkspaceBeforeExit,
-	syncWorkspaceNow
-} from '$lib/sync/workspace';
-import { onMutationError, onMutationSuccess, type MutationOptions } from '$lib/mutation';
+import { declareMutation } from '$lib/mutation';
 import { keys as dashboardKeys } from '$lib/dashboard/query';
 import { LL } from '$lib/i18n/i18n-svelte';
-import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
+import { createQuery } from '@tanstack/svelte-query';
 import { get } from 'svelte/store';
+
+/**
+ * SETTINGS QUERIES
+ *
+ * This machine's settings and the writes to them. The replica's state, the updater and the
+ * workspace's rename went to `sync/`, `update/` and `workspace/` in effort 840 (ticket 38), and
+ * settling the earlier records' offer to `workspace/`.
+ */
 
 export const keys = {
 	all: ['settings'],
-	settings: ['settings', 'data'],
-	remoteSync: ['settings', 'remote-sync']
+	settings: ['settings', 'data']
 } as const;
 
 export function useFetchSettings() {
@@ -26,86 +26,26 @@ export function useFetchSettings() {
 	}));
 }
 
-/**
- * @param enabled whether to ask at all. It defaults to asking, and the one caller that passes
- * anything is the rail with nobody signed in: this call goes through a procedure, a procedure
- * needs an acting user, and asking who is signed in on a machine where nobody is would be a
- * refusal by design reported as a failure.
- */
-export function useFetchRemoteSyncState(enabled: () => boolean = () => true) {
-	return createQuery(() => ({
-		queryKey: keys.remoteSync,
-		queryFn: () => api.sync.getState(),
-		enabled: enabled()
-	}));
-}
-
-/**
- * Call this machine's workspace something else.
- *
- * **Beside `useSyncWorkspace` rather than in `workspace/query.ts`, because of what it
- * invalidates.** `keys.remoteSync` is this module's, and the sidebar header, the workspace menu
- * and the workspace page all draw the name from the one query it holds — so one invalidation
- * covers all three, and it is written where that key is.
- *
- * The refusal is the shared handler's: the procedure's own bound raises `BAD_REQUEST`, which
- * reaches the reader as the message it was raised with, and anything else reads as an unexpected
- * failure. What a reader actually meets for a name that is empty or too long is the form's own
- * validation, on the field they typed in, before any of this runs.
- */
-export function useRenameWorkspace(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).workspace.renamed(),
-			error: true,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
-	}
-) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: ({ name }: { name: string }) => api.sync.rename({ name }),
-		onSuccess: async (state) => {
-			// written before the invalidation as well as after it: the three surfaces drawing the
-			// name are on screen while this resolves, and the refetch is a round trip they would
-			// otherwise spend showing the old one.
-			client.setQueryData(keys.remoteSync, state);
-			await client.invalidateQueries({ queryKey: keys.remoteSync });
-
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
-
-export function useSetEndingSoonNoticeDays(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).settingsHooks.endingSoonUpdated(),
-			error: true,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
-	}
-) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: ({ days }: { days: number }) => api.settings.set({ endingSoonNoticeDays: days }),
-		onSuccess: async (settings) => {
-			client.setQueryData(keys.settings, settings);
-
-			await Promise.all([
-				client.invalidateQueries({ queryKey: keys.settings }),
+export const useSetEndingSoonNoticeDays = declareMutation({
+	mutate: ({ days }: { days: number }) => api.settings.set({ endingSoonNoticeDays: days }),
+	touches: 'none',
+	toast: {
+		success: () => get(LL).settingsHooks.endingSoonUpdated(),
+		error: true,
+		unexpected: () => get(LL).common.messages.unexpectedError()
+	},
+	sets: ({ result }) => [{ key: keys.settings, data: result }],
+	// a function, because the dashboard's prefix is the cache policy's and is read once it runs.
+	invalidates: () => [
+		{
+			together: [
+				keys.settings,
 				// the prefix, so the screen is refreshed whichever period it is currently showing.
-				client.invalidateQueries({ queryKey: dashboardKeys.all })
-			]);
-
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
+				dashboardKeys.all
+			]
+		}
+	]
+});
 
 /**
  * Choose light, dark or the system's, drawn at once and then written.
@@ -114,161 +54,23 @@ export function useSetEndingSoonNoticeDays(
  * reader who pressed dark and waited on a round trip to see it would press it again; a write the
  * shell refuses puts the appearance back to what it was and says so through the shared handler.
  */
-export function useSetAppearance(
-	opts: MutationOptions = {
-		toast: {
-			error: true,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
+export const useSetAppearance = declareMutation({
+	mutate: ({ appearance }: { appearance: AppearanceSetting }) => api.settings.set({ appearance }),
+	touches: 'none',
+	toast: {
+		error: true,
+		unexpected: () => get(LL).common.messages.unexpectedError()
+	},
+	capture: ({ appearance }) => {
+		const previous = browserAppearance().setting;
+
+		browserAppearance().apply(appearance);
+
+		return { previous };
+	},
+	sets: ({ result }) => [{ key: keys.settings, data: result }],
+	invalidates: [keys.settings],
+	failed: ({ captured }) => {
+		if (captured) browserAppearance().apply(captured.previous);
 	}
-) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: ({ appearance }: { appearance: AppearanceSetting }) =>
-			api.settings.set({ appearance }),
-		onMutate: ({ appearance }) => {
-			const previous = browserAppearance().setting;
-
-			browserAppearance().apply(appearance);
-
-			return { previous };
-		},
-		onSuccess: async (settings) => {
-			client.setQueryData(keys.settings, settings);
-			await client.invalidateQueries({ queryKey: keys.settings });
-
-			onMutationSuccess(opts);
-		},
-		onError: (e, _variables, context) => {
-			if (context) browserAppearance().apply(context.previous);
-
-			onMutationError(opts, e);
-		}
-	}));
-}
-
-/**
- * Offer the earlier version's records no more on this machine: they were brought in, or the
- * person put them aside (effort 838, requirement 18).
- *
- * Says nothing on success: the offer going is what the person sees. A write the shell refuses is
- * said through the shared handler, and the offer stays.
- */
-export function useSettleEarlierRecords(
-	opts: MutationOptions = {
-		toast: {
-			error: true,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
-	}
-) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: () => api.settings.set({ earlierRecordsSettled: true }),
-		onSuccess: async (settings) => {
-			client.setQueryData(keys.settings, settings);
-			await client.invalidateQueries({ queryKey: keys.settings });
-
-			onMutationSuccess(opts);
-		},
-		onError: (e) => onMutationError(opts, e)
-	}));
-}
-
-/** ask the updater whether a newer release exists. resolves to `null` when none does. */
-export function useCheckForUpdate(opts: MutationOptions = {}) {
-	return createMutation(() => ({
-		mutationFn: () => tauri.update.check(),
-		onSuccess: () => onMutationSuccess(opts),
-		onError: (e: Error) => onMutationError(opts, e)
-	}));
-}
-
-/** put the workspace in a state an installer may replace the binary from. */
-export function usePrepareUpdate(opts: MutationOptions = {}) {
-	return createMutation(() => ({
-		mutationFn: ({ targetVersion }: { targetVersion: string }) =>
-			api.update.prepare({ targetVersion }),
-		onSuccess: () => onMutationSuccess(opts),
-		onError: (e: Error) => onMutationError(opts, e)
-	}));
-}
-
-/**
- * push the workspace to the remote, then restart.
- *
- * the push reads the remote state already in the cache rather than subscribing
- * to it: a caller that only restarts should not hold a live query open for the
- * whole time it is on screen.
- */
-export function useRestartApp(opts: MutationOptions = {}) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: async () => {
-			await syncWorkspaceBeforeExit(client.getQueryData<RemoteSyncState>(keys.remoteSync));
-			await tauri.window.restart();
-		},
-		onSuccess: () => onMutationSuccess(opts),
-		onError: (e: Error) => onMutationError(opts, e)
-	}));
-}
-
-/**
- * ask whether the workspace and its remote have diverged. resolves to `null`
- * when the workspace is not on a remote that can diverge.
- */
-/**
- * reach the workspace's remote and keep this machine replicating.
- *
- * **What a person pressing Sync asks for is both halves**: the window renewed, and this machine's
- * writes offered and the others' taken.
- *
- * *It was `useSyncGoogleDriveWorkspace` and pushed or pulled a whole workspace. Drive sync retired
- * (decision 07), and the note that replaced it read "a replica pushes its own writes, so what a
- * person pressing Sync asks for is the one thing left — the window", which was true of no build:
- * `turso::sync` holds every write until something calls `push`.*
- */
-export function useSyncWorkspace(
-	opts: MutationOptions = {
-		toast: {
-			success: () => get(LL).settingsHooks.workspaceUpToDate(),
-			error: true,
-			unexpected: () => get(LL).common.messages.unexpectedError()
-		}
-	}
-) {
-	const client = useQueryClient();
-
-	return createMutation(() => ({
-		mutationFn: () => syncWorkspaceNow(),
-		onSuccess: async (result) => {
-			// the dispatch signed the member out on the Rust side, and there is no workspace for
-			// this outcome to be about: the shell hears it and puts the wall up, and nothing here
-			// announces a workspace that is closed (effort 826, requirement 22).
-			if (result.standing === 'signedOutElsewhere') {
-				emitSessionEnded();
-
-				return;
-			}
-
-			client.setQueryData(keys.remoteSync, result.state);
-			await client.invalidateQueries({ queryKey: keys.remoteSync });
-
-			// The pull brought another device's rows, so this is a writer of workspace data and has
-			// to say so. Pressing Sync and being shown the statuses from before the sync is the
-			// shape of an unannounced writer.
-			if (result.received) {
-				await announceReceivedRows(client);
-			}
-
-			onMutationSuccess(opts);
-		},
-		onError: async (e) => {
-			await client.invalidateQueries({ queryKey: keys.remoteSync });
-			onMutationError(opts, e);
-		}
-	}));
-}
+});

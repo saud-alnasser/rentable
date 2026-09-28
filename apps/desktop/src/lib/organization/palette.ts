@@ -26,7 +26,7 @@ import {
 	useFetchMembers,
 	useFetchOrganizationState
 } from '$lib/organization/query';
-import { useFetchRemoteSyncState } from '$lib/settings/query';
+import { useFetchRemoteSyncState } from '$lib/sync/query';
 import { usesAppleKeyboard } from '@rentable/design/shortcut.js';
 import { getContext, hasContext, setContext } from 'svelte';
 import { get } from 'svelte/store';

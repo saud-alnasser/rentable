@@ -6,7 +6,7 @@ import { z } from 'zod';
 
 import { readRefusal, refuse } from '$lib/api/refusal.ts';
 
-import type { MutationDeclaration } from '$lib/mutation';
+import type { MutationDeclaration, MutationOptions } from '$lib/mutation';
 import { bindingOf } from '$lib/design/tests/testing.ts';
 
 // both dependencies reach a `.svelte` file, which this harness cannot load. the substitutes
@@ -44,21 +44,41 @@ mock.module('svelte-sonner', {
 const invalidated: (readonly unknown[] | null)[] = [];
 
 /**
+ * Everything the client was asked, in order: `set` with the key and the data, and `start` and
+ * `end` around an invalidation, so keys invalidated together read as two starts before their ends.
+ */
+const steps: string[] = [];
+
+/**
  * The client every hook is handed here.
  *
- * `invalidateQueries` is the whole of what the mutation layer asks a client for, and what it
- * was asked to invalidate is what these tests assert on.
+ * `invalidateQueries` is the whole of what a workspace mutation asks a client for, and what it
+ * was asked to invalidate is what these tests assert on; `setQueryData` is what a mutation outside
+ * the workspace writes with.
  */
 const recordingClient = {
 	invalidateQueries: async (filters?: { queryKey?: readonly unknown[] }) => {
 		invalidated.push(filters?.queryKey ?? null);
+		steps.push(`start ${JSON.stringify(filters?.queryKey)}`);
+		await Promise.resolve();
+		steps.push(`end ${JSON.stringify(filters?.queryKey)}`);
+	},
+	setQueryData: (key: readonly unknown[], data: unknown) => {
+		steps.push(`set ${JSON.stringify(key)} ${JSON.stringify(data)}`);
 	}
 };
+
+/** the client accessor the last hook handed the library, where it handed one. */
+let handedClient: (() => unknown) | undefined;
 
 mock.module('@tanstack/svelte-query', {
 	exports: {
 		useQueryClient: () => recordingClient,
-		createMutation: (options: () => unknown) => options()
+		createMutation: (options: () => unknown, client?: () => unknown) => {
+			handedClient = client;
+
+			return options();
+		}
 	}
 });
 
@@ -75,14 +95,18 @@ loadLocale('ar');
 setLocale('en');
 
 function bind<TVariables, TResult, TCaptured = void>(
-	declaration: MutationDeclaration<TVariables, TResult, TCaptured>
+	declaration: MutationDeclaration<TVariables, TResult, TCaptured>,
+	options?: MutationOptions
 ) {
 	raised.length = 0;
 	invalidated.length = 0;
+	steps.length = 0;
 
 	// the hook answers with the binding it handed the substituted library, which is what a test
 	// drives — still typed by the variables and the result the declaration made concrete.
-	return { mutation: bindingOf(declareMutation(declaration)) };
+	const hook = declareMutation(declaration);
+
+	return { mutation: bindingOf(() => hook(options)) };
 }
 
 describe('a declared mutation', () => {
@@ -468,6 +492,260 @@ describe('what a mutation could not do', () => {
 		assert.equal(
 			describeOutcomeChange([], [], (refusal: Refusal) => refusal.name),
 			undefined
+		);
+	});
+});
+
+// effort 840, ticket 38: the mutations outside the workspace (settings, the replica's state, the
+// organization, the updater) are declared too, and each keeps exactly what its hand-written hook did.
+describe('a mutation outside the workspace', () => {
+	it('leaves the workspace cache alone and reads no prefix', async () => {
+		const { mutation } = bind({
+			mutate: async () => undefined,
+			touches: 'none',
+			toast: { success: () => 'saved' }
+		});
+
+		await mutation.onSuccess(undefined, undefined, undefined);
+
+		assert.deepEqual(invalidated, []);
+		assert.deepEqual(raised, [{ level: 'success', message: 'saved' }]);
+	});
+
+	it('writes the keys it sets, then invalidates its own one after another, then announces', async () => {
+		const { mutation } = bind({
+			mutate: async () => ({ name: 'north' }),
+			touches: 'none',
+			toast: { success: () => 'renamed' },
+			sets: ({ result }) => [{ key: ['state'], data: result }],
+			invalidates: [['members'], ['state']]
+		});
+
+		await mutation.onSuccess({ name: 'north' }, undefined, undefined);
+
+		assert.deepEqual(steps, [
+			'set ["state"] {"name":"north"}',
+			'start ["members"]',
+			'end ["members"]',
+			'start ["state"]',
+			'end ["state"]'
+		]);
+		assert.deepEqual(raised, [{ level: 'success', message: 'renamed' }]);
+	});
+
+	it('invalidates the keys of one step together', async () => {
+		const { mutation } = bind({
+			mutate: async () => undefined,
+			touches: 'none',
+			invalidates: [{ together: [['settings'], ['dashboard']] }]
+		});
+
+		await mutation.onSuccess(undefined, undefined, undefined);
+
+		assert.deepEqual(steps, [
+			'start ["settings"]',
+			'start ["dashboard"]',
+			'end ["settings"]',
+			'end ["dashboard"]'
+		]);
+	});
+
+	it('reads a list given as a function when the success runs, not when it is declared', async () => {
+		let read = 0;
+		const { mutation } = bind({
+			mutate: async () => undefined,
+			touches: 'none',
+			invalidates: () => {
+				read += 1;
+
+				return [['dashboard']];
+			}
+		});
+
+		assert.equal(read, 0);
+
+		await mutation.onSuccess(undefined, undefined, undefined);
+
+		assert.equal(read, 1);
+		assert.deepEqual(invalidated, [['dashboard']]);
+	});
+
+	it('runs what it does on landing first, and a landing that answers false ends the success', async () => {
+		const landed: string[] = [];
+		const declaration = {
+			mutate: async (signedOut: boolean) => signedOut,
+			touches: 'none' as const,
+			toast: { success: () => 'up to date' },
+			landed: ({ result }: { result: boolean }) => {
+				landed.push(`landed ${steps.length}`);
+
+				if (result) return false;
+			},
+			sets: () => [{ key: ['state'], data: 1 }],
+			invalidates: [['state']]
+		};
+
+		const stopped = bind(declaration).mutation;
+
+		await stopped.onSuccess(true, true, undefined);
+
+		assert.deepEqual(steps, []);
+		assert.deepEqual(raised, []);
+
+		const went = bind(declaration).mutation;
+
+		await went.onSuccess(false, false, undefined);
+
+		assert.deepEqual(landed, ['landed 0', 'landed 0']);
+		assert.deepEqual(steps, ['set ["state"] 1', 'start ["state"]', 'end ["state"]']);
+		assert.deepEqual(raised, [{ level: 'success', message: 'up to date' }]);
+	});
+
+	it('announces what it chose from the answer where the options name no success', async () => {
+		const declaration = {
+			mutate: async () => ({ lockedOut: true }),
+			touches: 'none' as const,
+			toast: { error: true },
+			announces: ({ result }: { result: { lockedOut: boolean } }) =>
+				result.lockedOut ? 'locked out' : undefined
+		};
+
+		await bind(declaration).mutation.onSuccess({ lockedOut: true }, undefined, undefined);
+
+		assert.deepEqual(raised, [{ level: 'success', message: 'locked out' }]);
+
+		await bind(declaration).mutation.onSuccess({ lockedOut: false }, undefined, undefined);
+
+		assert.deepEqual(raised, [], 'an answer with nothing to say was announced');
+
+		// a caller that names its own sentence keeps it, and one that names none still hears the
+		// chosen one, as the hand-written hooks merged them.
+		await bind(declaration, { toast: { success: () => 'the caller’s' } }).mutation.onSuccess(
+			{ lockedOut: true },
+			undefined,
+			undefined
+		);
+
+		assert.deepEqual(raised, [{ level: 'success', message: 'the caller’s' }]);
+
+		await bind(declaration, {}).mutation.onSuccess({ lockedOut: true }, undefined, undefined);
+
+		assert.deepEqual(raised, [{ level: 'success', message: 'locked out' }]);
+	});
+
+	it('takes the options a caller hands the hook in place of the declared toast, whole', async () => {
+		const declaration = {
+			mutate: async () => undefined,
+			touches: 'none' as const,
+			toast: { success: () => 'created', error: true, unexpected: () => 'declared unexpected' }
+		};
+
+		const quiet = bind(declaration, {
+			toast: { error: true, unexpected: () => 'the caller’s unexpected' }
+		}).mutation;
+
+		await quiet.onSuccess(undefined, undefined, undefined);
+		await quiet.onError(new Error('SQLITE_BUSY'));
+
+		assert.deepEqual(raised, [{ level: 'error', message: 'the caller’s unexpected' }]);
+
+		const silent = bind(declaration, {}).mutation;
+
+		await silent.onSuccess(undefined, undefined, undefined);
+		await silent.onError(new Error('SQLITE_BUSY'));
+
+		assert.deepEqual(raised, []);
+	});
+
+	it('hands the library the client a caller above the provider gives it, and no client otherwise', () => {
+		const hook = declareMutation({ mutate: async () => undefined, touches: 'none' });
+		const client = { ...recordingClient };
+
+		hook(undefined, client as never);
+
+		assert.equal(handedClient?.(), client);
+
+		hook();
+
+		assert.equal(handedClient, undefined);
+	});
+
+	it('puts back what the capture drew before the refusal is said, and waits on a refresh', async () => {
+		const drawn: string[] = [];
+		const { mutation } = bind({
+			mutate: async (appearance: string) => appearance,
+			touches: 'none',
+			toast: { error: true, unexpected: () => 'unexpected' },
+			capture: (appearance) => {
+				drawn.push(appearance);
+
+				return { previous: 'light' };
+			},
+			failed: ({ captured }) => {
+				if (captured) drawn.push(captured.previous);
+
+				assert.deepEqual(raised, [], 'the refusal was said before the appearance was put back');
+			}
+		});
+
+		const captured = await mutation.onMutate?.('dark');
+		const answered = mutation.onError(new Error('SQLITE_BUSY'), 'dark', captured);
+
+		assert.equal(answered, undefined, 'a rollback done at once was waited on');
+		assert.deepEqual(drawn, ['dark', 'light']);
+		assert.deepEqual(raised, [{ level: 'error', message: 'unexpected' }]);
+
+		const refreshed = bind({
+			mutate: async () => undefined,
+			touches: 'none',
+			toast: { error: true, unexpected: () => 'unexpected' },
+			failed: async (_failure, client) => {
+				await client.invalidateQueries({ queryKey: ['state'] });
+			}
+		}).mutation;
+
+		await refreshed.onError(new Error('SQLITE_BUSY'));
+
+		assert.deepEqual(steps, ['start ["state"]', 'end ["state"]']);
+		assert.deepEqual(raised, [{ level: 'error', message: 'unexpected' }]);
+	});
+
+	it('invalidates what it settles on after success and refusal alike, and only where declared', async () => {
+		assert.equal(
+			bind({ mutate: async () => undefined, touches: 'none' }).mutation.onSettled,
+			undefined
+		);
+
+		const { mutation } = bind({
+			mutate: async () => undefined,
+			touches: 'none',
+			toast: { success: () => 'saved', error: true },
+			settled: [['members'], ['state']]
+		});
+
+		await mutation.onSuccess(undefined, undefined, undefined);
+
+		assert.deepEqual(invalidated, [], 'the keys were refreshed before the set had settled');
+
+		await mutation.onSettled?.();
+
+		assert.deepEqual(invalidated, [['members'], ['state']]);
+	});
+
+	it('hands the call the client it runs on', async () => {
+		const { mutation } = bind({
+			mutate: async (_: void, { client }) => client,
+			touches: 'none'
+		});
+
+		const context = { client: recordingClient, meta: undefined, mutationKey: undefined };
+
+		assert.equal(
+			await (mutation.mutationFn as (v: void, c: typeof context) => Promise<unknown>)(
+				undefined,
+				context
+			),
+			recordingClient
 		);
 	});
 });

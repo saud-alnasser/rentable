@@ -12,7 +12,7 @@
 	import { primaryDestinations, type Destination } from '$lib/layout/destination';
 	import { isActiveRoute, toViewablePlaces } from '$lib/layout/navigation';
 	import { useStartup } from '$lib/layout/startup-context';
-	import { useFetchRemoteSyncState } from '$lib/settings/query';
+	import { useFetchRemoteSyncState } from '$lib/sync/query';
 	import { useFetchMembers, useFetchOrganizationState } from '$lib/organization/query';
 	import { memberPermissions } from '$lib/permission';
 	import type { ComponentProps } from 'svelte';

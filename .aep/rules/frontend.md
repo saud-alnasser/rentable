@@ -32,8 +32,10 @@ domain's query module composes its key set from `prefixOf` in `$lib/mutation`, r
 asked for and never while the module loads, and exports it, and declares each data mutation
 through `declareMutation` from the same entry. Every data mutation invalidates through the shared helper there, and a full
 pass with no touch-set — a sync pull, a day crossing — through the root helper beside it; an
-invalidation that spells a key out inline drifts the moment the key changes. Settings
-and remote-sync keep their own keys and invalidations.
+invalidation that spells a key out inline drifts the moment the key changes. Settings,
+the replica's state, the organization and the updater keep their own keys and invalidations, and
+are declared the same way: `touches: 'none'`, with the keys each sets and invalidates named in
+its declaration. No `createMutation` is called outside `$lib/mutation`.
 
 Toast behaviour on a mutation goes through the shared success and error handlers, never
 through direct toast calls in a component — that is what keeps a refusal reaching the user

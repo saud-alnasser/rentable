@@ -35,7 +35,10 @@ mock.module('svelte-sonner', {
 mock.module('@tanstack/svelte-query', {
 	exports: {
 		useQueryClient: () => ({ invalidateQueries: async () => {} }),
-		createMutation: (options: () => unknown) => options()
+		createMutation: (options: () => unknown) => options(),
+		// the workspace's query module reads the settings' and the replica's keys, whose modules
+		// hold queries as well; none of them is created here.
+		createQuery: () => ({})
 	}
 });
 

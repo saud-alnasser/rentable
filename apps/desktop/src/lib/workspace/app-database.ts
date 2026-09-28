@@ -13,8 +13,8 @@ import { createQuery, useQueryClient, type QueryClient } from '@tanstack/svelte-
  * group offers to bring them in; both read the offer from here, so the two go together once the
  * records are brought in or dismissed.
  *
- * Apart from `query.ts` because it reads this machine's settings as well as the shell, which the
- * workspace's one mutation has no reason to import.
+ * Apart from `query.ts`, where settling the offer is declared, because the way in reads the
+ * offer and this read loads without the mutation capability behind that declaration.
  *
  * Named for the file it reads, which `tauri/src/upgrade/record.rs` reads for it; it was
  * `earlier.ts` until effort 840 (ticket 48).
