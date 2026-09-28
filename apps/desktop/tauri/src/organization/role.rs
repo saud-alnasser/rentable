@@ -2459,12 +2459,15 @@ pub async fn set_workspace_override(
         (pinned_before ^ pinned) | (granted_before ^ granted),
     )?;
 
-    // what they end up with there adds, edits or deletes no kind of record they cannot view as
-    // they stand now (requirement 6, as amended 2026-09-27). The reading drops such a write where
-    // the layers beneath move later; this refuses writing one in the first place.
+    // no add, edit or delete is turned on there for a kind of record they cannot view as they
+    // stand now (requirement 6, as amended 2026-09-27). A write the layers beneath carry without
+    // its view is dropped where it is read, so it is not refused here: a card that turns a kind's
+    // view off beside it has left it nothing to pin.
     if (pinned_before, granted_before) != (pinned, granted) {
+        let unturned = permission::mask_of(&permission::WRITE_FLAGS) & !granted;
+
         permission::refuse_write_without_view(
-            permission::pinned_in(member.effective, pinned, granted),
+            permission::pinned_in(member.effective, pinned, granted) & !unturned,
             "this member's permissions in that workspace",
         )?;
     }
@@ -8973,12 +8976,12 @@ mod tests {
                 &owner,
                 &sami.member_id,
                 &workspace_id,
-                permission::mask_of(&[Flag::ViewPayment]),
-                0,
+                permission::mask_of(&[Flag::ViewPayment, Flag::DeletePayment]),
+                permission::mask_of(&[Flag::DeletePayment]),
             )
             .await,
             RefusalReason::PaymentNeedsViewing,
-            "adding and editing payments without viewing them",
+            "deleting payments turned on there without viewing them",
         );
         refused(
             super::set_workspace_override(
@@ -9033,6 +9036,19 @@ mod tests {
         )
         .await
         .expect("the lead set what they hold on somebody below them");
+
+        // payments out of sight there, with the adding and editing the role carries left to the
+        // reading, which drops a write without its view: the card pins the view alone.
+        super::set_workspace_override(
+            &store,
+            &owner,
+            &sami.member_id,
+            &workspace_id,
+            permission::mask_of(&[Flag::ViewPayment]),
+            0,
+        )
+        .await
+        .expect("a view pinned off beside the role's writes was refused");
     }
 
     /// The owner lets `member_id` delete units in `workspace_id`, which the member role does not.

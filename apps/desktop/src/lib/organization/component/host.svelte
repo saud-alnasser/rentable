@@ -253,19 +253,30 @@
 			}
 		}
 
-		if (context.canGrantWorkspace && edit.changes.length > 0) {
+		// a grant minted read-only that a write turned on lifts to full access goes after what is
+		// pinned there: the pins are what keep its other writes off, so a pin refused leaves the
+		// grant read-only rather than open to every write the member holds across the organization.
+		const lifts = (change: (typeof edit.changes)[number]) =>
+			change.access === 'full-access' &&
+			saved.workspaces.some((held) => held.id === change.id && held.access === 'read-only');
+
+		const grant = async (changes: typeof edit.changes) => {
+			if (!context.canGrantWorkspace || changes.length === 0) return;
+
 			try {
 				await changeAccess.mutateAsync({
-					changes: edit.changes.map((change) => ({
+					changes: changes.map((change) => ({
 						workspaceId: change.id,
 						memberId: saved.id,
 						access: change.access
 					}))
 				});
 			} catch (error) {
-				workspacesRefusal = toErrorText(error, $LL);
+				workspacesRefusal ??= toErrorText(error, $LL);
 			}
-		}
+		};
+
+		await grant(edit.changes.filter((change) => !lifts(change)));
 
 		// each was measured against the role and the override the sheet saves, so a refusal of
 		// either leaves nothing to measure it from; and a grant refused leaves its workspace as it
@@ -276,8 +287,13 @@
 				: edit.tailored.filter(
 						(each) =>
 							context.canOverride &&
-							!(workspacesRefusal && edit.changes.some((change) => change.id === each.id))
+							!(
+								workspacesRefusal &&
+								edit.changes.some((change) => change.id === each.id && !lifts(change))
+							)
 					);
+
+		const unpinnable: string[] = [];
 
 		for (const each of tailored) {
 			try {
@@ -294,9 +310,12 @@
 					)
 				};
 			} catch (error) {
+				unpinnable.push(each.id);
 				workspacesRefusal ??= toErrorText(error, $LL);
 			}
 		}
+
+		await grant(edit.changes.filter((change) => lifts(change) && !unpinnable.includes(change.id)));
 
 		if (!nameRefusal && !roleRefusal && !overrideRefusal && !workspacesRefusal) {
 			organizationHostState.member.editing = null;

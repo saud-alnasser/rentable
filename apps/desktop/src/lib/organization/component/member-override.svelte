@@ -75,6 +75,16 @@
 				: null)
 	);
 
+	/**
+	 * why switching back to the role exactly is refused, or `null`: it is the reset by hand, and
+	 * clears what is set for them in each workspace with it, so it asks what the reset asks.
+	 */
+	const backToRoleRefused = (next: number) =>
+		xorOf(roleMask, next) === 0 &&
+		EVERY_FLAG.some((flag) => permits(unpins, flag) && !permits(held, flag))
+			? $LL.organization.switches.resetNotHeld()
+			: null;
+
 	const resetReasonId = $props.id();
 
 	const reset = () => {
@@ -130,6 +140,7 @@
 		}}
 		{held}
 		{refusal}
+		refusalOf={backToRoleRefused}
 		{disabled}
 		baseline={{ mask: roleMask, name: roleName }}
 	/>

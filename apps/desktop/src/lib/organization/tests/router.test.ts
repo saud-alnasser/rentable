@@ -255,10 +255,12 @@ test('assigning a role, setting an override and withdrawing a grant each need th
 	assert.deepEqual(asked, done);
 });
 
-// effort 838, requirement 12 as amended a third time: what is switched for a member in one
-// workspace is `overrideMember`'s, like their override across the organization. A mask naming a
-// flag that is not a record flag, and one leaving them writing a kind of record they cannot view
-// there, are refused before the round trip; the rest (rank, the grant, flags not held) is Rust's.
+// effort 838, requirement 12 as amended a third time: what is pinned for a member in one
+// workspace, and which of it is on, is `overrideMember`'s, like their override across the
+// organization. A pin naming a flag that is not a record flag, a flag granted and not pinned, and
+// a write turned on there for a kind of record they cannot view are refused before the round trip;
+// a write the layers beneath carry without its view is dropped where it is read, so a view pinned
+// off beside it is not refused. The rest (rank, the grant, flags not held) is Rust's.
 test('tailoring a member in a workspace needs overrideMember, and asks for record flags a member can view', async () => {
 	const asked: string[] = [];
 	const host = fakeHost({
@@ -302,10 +304,21 @@ test('tailoring a member in a workspace needs overrideMember, and asks for recor
 		granted: 0
 	});
 
+	// payments out of sight there: the member's role still adds them, which the reading drops.
+	const unseen = maskOf('viewPayment');
+
+	await overriding.app.organization.member.setWorkspaceOverride({
+		memberId: 'member-2',
+		workspaceId: 'workspace-1',
+		pinned: unseen,
+		granted: 0
+	});
+
 	const done = [
 		`setWorkspaceOverride:member-2:workspace-1:${readOnly}:0`,
 		`setWorkspaceOverride:member-2:workspace-1:${deleting}:${deleting}`,
-		'setWorkspaceOverride:member-2:workspace-1:0:0'
+		'setWorkspaceOverride:member-2:workspace-1:0:0',
+		`setWorkspaceOverride:member-2:workspace-1:${unseen}:0`
 	];
 
 	assert.deepEqual(asked, done);
@@ -347,13 +360,13 @@ test('tailoring a member in a workspace needs overrideMember, and asks for recor
 		}),
 		'host.recordFlagsOnly'
 	);
-	// the member views payments; pinning that view off there leaves them adding payments unseen.
+	// deleting payments turned on there, with their view pinned off beside it.
 	await refusedAs(
 		overriding.app.organization.member.setWorkspaceOverride({
 			memberId: 'member-2',
 			workspaceId: 'workspace-1',
-			pinned: maskOf('viewPayment'),
-			granted: 0
+			pinned: maskOf('viewPayment', 'deletePayment'),
+			granted: maskOf('deletePayment')
 		}),
 		'host.paymentNeedsViewing'
 	);

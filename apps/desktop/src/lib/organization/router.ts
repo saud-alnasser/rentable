@@ -19,7 +19,9 @@ import type { Host } from '$lib/platform/host';
 import { refuse } from '$lib/api/refusal';
 import { procedure, router } from '$lib/api/trpc';
 import {
+	EVERY_FLAG,
 	RECORD_FLAGS,
+	WRITE_FLAGS,
 	effective,
 	firstWriteWithoutView,
 	maskOf,
@@ -513,8 +515,16 @@ export const organization = router({
 				const members = await ctx.host.organization.member.list();
 				const member = members.find((held) => held.id === input.memberId);
 
+				// only a write turned on there is refused for its view: one the layers beneath carry
+				// without it is dropped where it is read, as Rust judges it.
 				if (member) {
-					refuseWriteWithoutView(pinnedIn(member.permissions, input.pinned, input.granted));
+					const result = pinnedIn(member.permissions, input.pinned, input.granted);
+					const turned = EVERY_FLAG.filter(
+						(flag) =>
+							permits(result, flag) && (!WRITE_FLAGS.includes(flag) || permits(input.granted, flag))
+					);
+
+					refuseWriteWithoutView(maskOf(...turned));
 				}
 
 				return ctx.host.organization.member.setWorkspaceOverride(

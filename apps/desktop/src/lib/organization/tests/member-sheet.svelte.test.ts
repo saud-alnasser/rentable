@@ -844,6 +844,31 @@ test('picking another role clears what is tailored in every workspace, and their
 	expect(saved.map((edit) => edit.tailored)).toEqual([[], []]);
 });
 
+// review round two: switching what is changed for them back to their role by hand is the reset,
+// and Rust clears every workspace's pins with it, so the switch that would do it is refused too.
+test('switching back to the role by hand is refused where the reset would be', async () => {
+	const saved: MemberEdit[] = [];
+
+	sheet({
+		override: maskOf('deletePayment'),
+		rows: [{ ...rows[0], pinned: maskOf('deleteUnit'), granted: maskOf('deleteUnit') }],
+		pinned: maskOf('deleteUnit'),
+		readerPermissions: BUILT_IN.manager.mask - maskOf('deleteUnit'),
+		onSave: (edit) => saved.push(edit)
+	});
+
+	expect(control('deletePayment')?.getAttribute('aria-disabled')).toBe('true');
+	expect(document.querySelector('#member-override-deletePayment-reason')?.textContent?.trim()).toBe(
+		en.organization.switches.resetNotHeld
+	);
+
+	await fireEvent.click(control('deletePayment')!);
+
+	expect(isOn('deletePayment')).toBe(true);
+	// another switch, which leaves something changed, is theirs to turn.
+	expect(control('editUnit')?.hasAttribute('aria-disabled')).toBe(false);
+});
+
 // review round one: another role, or a reset to theirs, unpins what is set for the member in every
 // workspace, and Rust refuses the act where a flag pinned anywhere is one the reader does not
 // hold. So the pick and the reset are refused at the control, saying why, as Rust would.

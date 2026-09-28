@@ -1095,6 +1095,57 @@ test('a role that went through clears what the open sheet shows set in every wor
 	expect(written('useAssignRole')).toHaveLength(1);
 });
 
+// review round two of ticket 55: a grant minted read-only that a write turned on lifts to full
+// access is written after what is pinned there, and not at all where that pin is refused, so a
+// refusal never leaves the member with every write their role carries in that workspace.
+test('a read-only grant is lifted only after what is pinned in it went through', async () => {
+	hostAnswers.roles = fakeOrganizationRoles();
+	hostAnswers.members = members.map((each) =>
+		each.id === 'sami'
+			? {
+					...each,
+					workspaces: [
+						{
+							id: 'ws-1',
+							access: 'read-only' as const,
+							pinned: 0,
+							granted: 0,
+							permissions: BUILT_IN.member.mask
+						}
+					]
+				}
+			: each
+	);
+	hostAnswers.refusals.useSetWorkspaceOverride = new Error('refused');
+	list({ members: hostAnswers.members });
+
+	await press('sami', 'edit');
+	await fireEvent.click(
+		document.querySelector<HTMLElement>('[data-tailor="access-ws-1-tailor"] [data-tailor-fold]')!
+	);
+	await fireEvent.click(document.querySelector<HTMLElement>('#access-ws-1-tailor-createUnit')!);
+	await fireEvent.submit(document.querySelector('form')!);
+
+	await waitFor(() => {
+		expect(document.querySelector('[data-sheet-error="workspaces"]')).not.toBeNull();
+	});
+	expect(written('useSetWorkspaceOverride')).toHaveLength(1);
+	expect(written('useChangeAccess')).toEqual([]);
+
+	// and once the pin goes through, the grant follows it.
+	delete hostAnswers.refusals.useSetWorkspaceOverride;
+	await fireEvent.submit(document.querySelector('form')!);
+
+	await waitFor(() => {
+		expect(surface()).toBeNull();
+	});
+	expect(
+		hostAnswers.writes
+			.filter(({ hook }) => hook === 'useChangeAccess' || hook === 'useSetWorkspaceOverride')
+			.map(({ hook }) => hook)
+	).toEqual(['useSetWorkspaceOverride', 'useSetWorkspaceOverride', 'useChangeAccess']);
+});
+
 // ticket 14 of effort 838: a role and an override changed on one save are one act, so the flags
 // the reader must hold are the ones the two move together, and neither is written alone.
 test('a changed role and a changed override are saved in one call', async () => {
