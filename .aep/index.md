@@ -132,7 +132,7 @@ Start at [[protocol]].
 | 832-the-interface-speaks-one-language-and-guides | accepted | [[efforts/832-the-interface-speaks-one-language-and-guides/spec]] | 3 | 4 | 43 |
 | 835-the-rent-is-receipted-scheduled-and-chased | implemented | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]] | 1 | 0 | 19 |
 | 838-permissions-are-a-role-and-an-override | implemented | [[efforts/838-permissions-are-a-role-and-an-override/spec]] | 2 | 0 | 60 |
-| 840-a-feature-plugs-in-and-lives-in-one-place | accepted | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]] | 2 | 0 | 60 |
+| 840-a-feature-plugs-in-and-lives-in-one-place | accepted | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]] | 2 | 0 | 61 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -459,3 +459,4 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/58-the-tree-and-its-description-agree]] docs(aep): the tree and its description agree | 840-a-feature-plugs-in-and-lives-in-one-place | open | 57, 41 |
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/59-the-feature-context-is-written]] docs(aep): the feature context says how features are handled | 840-a-feature-plugs-in-and-lives-in-one-place | open | 58 |
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/60-the-crate-builds-on-windows]] build(tauri): the crate builds on Windows against the webview it links | 840-a-feature-plugs-in-and-lives-in-one-place | resolved | — |
+| [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/61-shared-components-go-through-ui]] refactor(desktop): a capability's shared components are reached through its ui entry | 840-a-feature-plugs-in-and-lives-in-one-place | open | 17, 18 |
