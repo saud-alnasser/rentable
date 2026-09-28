@@ -52,15 +52,16 @@
 	 *
 	 * **Compared against a role, a switch that differs is marked with a dot**, whose label names
 	 * the role, and a folded group with such a switch inside carries the dot on its head. The dot
-	 * is a shape as well as a colour. The role editor compares against nothing.
+	 * is a shape as well as a colour. The role editor compares against nothing. A caller may mark
+	 * a set of flags instead, with its own words (`marked`): a workspace marks what is set there.
 	 *
 	 * **Nothing is written from here.** It hands the mask its switches come to up through
 	 * `onChange`, and the surface's own save writes it.
 	 *
 	 * **A workspace draws the record groups alone** (`records`; effort 838, requirement 12 as
-	 * amended a third time): what is changed for a member in one workspace switches record flags
-	 * and nothing else, so the organization's ten and the owner's line are not drawn there, and
-	 * the switches are compared against what the member may do across the organization.
+	 * amended a third time): what is set for a member in one workspace is record flags and
+	 * nothing else, so the organization's ten and the owner's line are not drawn there, and the
+	 * switches set there are the ones marked.
 	 */
 	let {
 		id,
@@ -71,6 +72,7 @@
 		refusalOf = () => null,
 		disabled,
 		baseline = null,
+		marked = null,
 		records = false
 	}: {
 		/** what each switch is named by in the document: `<id>-<flag>`. */
@@ -94,6 +96,11 @@
 		 * member may do across the organization, named by `name` in each difference's label.
 		 */
 		baseline?: { mask: number; name: string } | null;
+		/**
+		 * the flags to mark in place of the differences from `baseline`, and what each mark's label
+		 * says: what is set for a member in one workspace.
+		 */
+		marked?: { mask: number; label: string } | null;
 		/** whether to draw the record groups alone, as a workspace tailors them. */
 		records?: boolean;
 	} = $props();
@@ -112,7 +119,14 @@
 	const isOn = (flag: Flag) => permits(mask, flag);
 
 	const differs = (flag: Flag) =>
-		baseline !== null && permits(baseline.mask, flag) !== permits(mask, flag);
+		marked !== null
+			? permits(marked.mask, flag)
+			: baseline !== null && permits(baseline.mask, flag) !== permits(mask, flag);
+
+	/** what a mark says: the caller's words, or the role the switch differs from. */
+	const markLabel = $derived(
+		marked?.label ?? (baseline ? $LL.organization.switches.differs({ role: baseline.name }) : '')
+	);
 
 	/** why this switch will not turn, or `null` where it will. */
 	const reasonOf = (flag: Flag): string | null => {
@@ -152,11 +166,11 @@
 </script>
 
 {#snippet mark(flag: Flag)}
-	{#if baseline && differs(flag)}
+	{#if differs(flag)}
 		<span
 			id={`${id}-${flag}-differs`}
 			role="img"
-			aria-label={$LL.organization.switches.differs({ role: baseline.name })}
+			aria-label={markLabel}
 			class="size-2 shrink-0 rounded-full bg-primary"
 			data-differs={flag}
 		></span>
@@ -181,7 +195,7 @@
 					aria-disabled={reason ? 'true' : undefined}
 					aria-describedby={[
 						reason ? `${id}-${flag}-reason` : null,
-						baseline && differs(flag) ? `${id}-${flag}-differs` : null
+						differs(flag) ? `${id}-${flag}-differs` : null
 					]
 						.filter(Boolean)
 						.join(' ') || undefined}
@@ -272,10 +286,10 @@
 				<span class="min-w-0 flex-1 text-sm font-medium first-letter:uppercase">
 					{familyName($LL, 'administration')}
 				</span>
-				{#if baseline && ADMINISTRATION.some(differs)}
+				{#if ADMINISTRATION.some(differs)}
 					<span
 						role="img"
-						aria-label={$LL.organization.switches.differs({ role: baseline.name })}
+						aria-label={markLabel}
 						class="size-2 shrink-0 rounded-full bg-primary"
 						data-differs="administration"
 					></span>

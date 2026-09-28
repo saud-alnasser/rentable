@@ -296,14 +296,18 @@ export type OrganizationWorkspace = {
 	/** what the member's grant is good for, `full-access` or `read-only`. */
 	accessLevel: string;
 	/**
-	 * the record flags switched for this member in this workspace, over what they may do across
-	 * the organization (effort 838, requirement 12 as amended a third time). `0` where nothing is.
+	 * the record flags pinned for this member in this workspace, whatever they hold across the
+	 * organization (effort 838, requirement 12 as amended a third time, and at review round one).
+	 * `0` where nothing is.
 	 */
-	override: number;
+	pinned: number;
+	/** which of the pinned flags are on; the rest of them are off. */
+	granted: number;
 	/**
 	 * what this member may do in this workspace before the grant is read: their permissions across
-	 * the organization with `override` switched, which `effectiveInWorkspace` computes from the
-	 * same two. A read-only grant clears the writes of it, which `effectiveIn` folds.
+	 * the organization with what is pinned set as it is granted, which `effectiveInWorkspace`
+	 * computes from the same three. A read-only grant clears the writes of it, which `effectiveIn`
+	 * folds.
 	 */
 	permissions: number;
 };
@@ -365,12 +369,15 @@ export type WorkspaceGrant = { id: string; access: 'full-access' | 'read-only' }
 
 /**
  * one workspace a member is in, as the members list draws them: the access their grant holds, and
- * what is switched for them there (effort 838, requirement 12 as amended a third time).
+ * what is pinned for them there (effort 838, requirement 12 as amended a third time, and at review
+ * round one).
  */
 export type MemberWorkspace = WorkspaceGrant & {
-	/** the record flags switched for them in this workspace. `0` where nothing is. */
-	override: number;
-	/** what they may do there before the grant is read: their permissions with `override` switched. */
+	/** the record flags pinned for them in this workspace. `0` where nothing is. */
+	pinned: number;
+	/** which of the pinned flags are on; the rest of them are off. */
+	granted: number;
+	/** what they may do there before the grant is read: their permissions with the pins set. */
 	permissions: number;
 };
 
@@ -467,7 +474,7 @@ export type OrganizationMember = {
 	override: number;
 	/** what this member may do: their role's mask with their override switched. */
 	permissions: number;
-	/** the workspaces this member holds, with the access on each and what is switched there. */
+	/** the workspaces this member holds, with the access on each and what is pinned there. */
 	workspaces: MemberWorkspace[];
 	createdAt: number;
 	/**
@@ -882,15 +889,18 @@ export type Host = {
 			 */
 			setOverride: (memberId: string, override: number) => Promise<OrganizationMember>;
 			/**
-			 * set what is switched for a member in one workspace they are in: record flags only, over
-			 * what they may do across the organization, and `0` clears it (effort 838, requirement 12
-			 * as amended a third time). `overrideMember`, on the same lines as `setOverride`, and
-			 * nothing written there that they cannot view.
+			 * set what is pinned for a member in one workspace they are in, and which of it is on:
+			 * record flags only, `granted` within `pinned`, whatever they hold across the
+			 * organization, and nothing pinned clears it (effort 838, requirement 12 as amended a
+			 * third time, and at review round one). `overrideMember`, on the same lines as
+			 * `setOverride`, every flag pinned one the reader holds, and nothing written there that
+			 * they cannot view.
 			 */
 			setWorkspaceOverride: (
 				memberId: string,
 				workspaceId: string,
-				override: number
+				pinned: number,
+				granted: number
 			) => Promise<OrganizationMember>;
 			/**
 			 * offer the organization to another account: the first of the two acts a handover is

@@ -355,10 +355,10 @@ test('on a read-only grant every create, edit and delete is refused', async () =
  *
  * Effort 838, criterion 12 as amended a third time: a record procedure answers by what the member
  * may do in the workspace open, which is what they may do across the organization with what is
- * switched for them there. A manager whose override for north takes adding complexes away, and
- * viewing tenants with everything viewing them is needed for, is refused both in north and
- * neither in south, where nothing is switched. The identity is resolved off the shell's session
- * and the workspace it has open, so the switch is the context's and not the test's.
+ * pinned for them there. A manager with adding complexes pinned off in north, and viewing tenants
+ * with everything viewing them is needed for, is refused both in north and neither in south,
+ * where nothing is pinned. The identity is resolved off the shell's session and the workspace it
+ * has open, so the pins are the context's and not the test's.
  */
 function managerTailoredIn(open: string): Host {
 	const session = fakeOrganizationSession({
@@ -369,7 +369,8 @@ function managerTailoredIn(open: string): Host {
 		workspaces: [
 			fakeOrganizationWorkspace({
 				id: 'north',
-				override: maskOf('createComplex', ...FAMILIES.tenant)
+				pinned: maskOf('createComplex', ...FAMILIES.tenant),
+				granted: 0
 			}),
 			fakeOrganizationWorkspace({ id: 'south' })
 		]
@@ -385,7 +386,7 @@ function managerTailoredIn(open: string): Host {
 	});
 }
 
-test('a record procedure answers by what is switched for the member in the workspace open', async () => {
+test('a record procedure answers by what is pinned for the member in the workspace open', async () => {
 	const inNorth = caller(appRouter)(
 		await context({
 			db: createMemoryDatabase(),

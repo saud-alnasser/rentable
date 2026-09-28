@@ -8,7 +8,13 @@
 	} from '$lib/organization/component/access-dialog.svelte';
 	import MemberSheet, { type MemberEdit } from '$lib/organization/component/member-sheet.svelte';
 	import RoleEditor, { type RoleEdit } from '$lib/organization/component/role-editor.svelte';
-	import { isTailored, memberWritesOf, newRolePlace, roleNameOf } from '$lib/organization/role';
+	import {
+		isTailored,
+		memberWritesOf,
+		newRolePlace,
+		pinnedAcross,
+		roleNameOf
+	} from '$lib/organization/role';
 	import OfferOwnership from '$lib/organization/component/offer-ownership.svelte';
 	import { showMadeLink } from '$lib/organization/dialogs.svelte';
 	import {
@@ -39,6 +45,7 @@
 		useUnsetMemberPassword,
 		useWithdrawOffer
 	} from '$lib/organization/query';
+	import type { OrganizationMember } from '$lib/platform/host';
 	import WorkspaceRenameForm from '$lib/workspace/component/rename-form.svelte';
 	import { onDestroy, untrack } from 'svelte';
 
@@ -116,10 +123,13 @@
 	);
 
 	const openedOn = $derived(member.editing);
+	/** whose sheet is open: a save that redraws it from what it wrote keeps the same one. */
+	const openedFor = $derived(member.editing?.member.id ?? null);
 
-	// a fresh sheet starts with nothing marked from the last one.
+	// a fresh sheet starts with nothing marked from the last one, and a sheet left open over a
+	// refusal, redrawn from what did go through, keeps the refusal marked.
 	$effect(() => {
-		if (openedOn) {
+		if (openedFor) {
 			untrack(() => {
 				nameRefusal = null;
 				roleRefusal = null;
@@ -131,8 +141,8 @@
 
 	/**
 	 * the rows the sheet's workspaces draw: every workspace the reader holds, with what this member
-	 * holds on it and what is switched for them there, and whether the reader holds it at full
-	 * access, which is what they can give.
+	 * holds on it and what is set for them there, and whether the reader holds it at full access,
+	 * which is what they can give.
 	 */
 	const memberRows = $derived(
 		openedOn
@@ -143,7 +153,8 @@
 						id: held.id,
 						name: held.name,
 						access: (grant?.access ?? 'none') as AccessChoice,
-						override: grant?.override ?? 0,
+						pinned: grant?.pinned ?? 0,
+						granted: grant?.granted ?? 0,
 						givable: held.accessLevel === 'full-access'
 					};
 				})
@@ -166,10 +177,12 @@
 	 * where it equals the one the member had: the shell clears what is not sent (ticket 45).
 	 *
 	 * **What is tailored per workspace is written last** (effort 838, requirement 12 as amended a
-	 * third time), one write per workspace whose override changed: after the role and the
-	 * override, which clear every one where the role changes or the member is put back on it, and
-	 * after the grants, since an override is set only on a workspace the member is in. A
-	 * workspace whose grant was refused is not tailored. A refusal marks the workspaces.
+	 * third time), one write per workspace whose pins changed, carrying what is pinned there and
+	 * which of it is on: after the role and the override, which clear every one where the role
+	 * changes or the member is put back on it, and after the grants, since a workspace override is
+	 * set only on a workspace the member is in. A workspace whose grant was refused is not
+	 * tailored. A refusal marks the workspaces. **A clear that went through is counted on the
+	 * sheet**, so one left open over a later refusal draws every workspace with nothing set.
 	 *
 	 * **A refusal keeps the sheet open and marks its section** ([[rules/interface]], *Validation
 	 * errors*), rather than reaching the reader as a toast over a surface that has already closed.
@@ -204,6 +217,12 @@
 		}
 
 		const writes = memberWritesOf(saved, edit, context);
+		// another role, or a reset to the role, clears what is set in every workspace, as Rust
+		// does in the same act.
+		const unpinned = (member: OrganizationMember): OrganizationMember => ({
+			...member,
+			workspaces: member.workspaces.map((held) => ({ ...held, pinned: 0, granted: 0 }))
+		});
 
 		if (writes.assign) {
 			const { override } = writes.assign;
@@ -214,7 +233,11 @@
 					roleId: writes.assign.roleId,
 					override
 				});
-				written = { ...written, roleId: writes.assign.roleId, override: override ?? 0 };
+				written = unpinned({
+					...written,
+					roleId: writes.assign.roleId,
+					override: override ?? 0
+				});
 			} catch (error) {
 				roleRefusal = toErrorText(error, $LL);
 				overrideRefusal = override !== undefined ? roleRefusal : null;
@@ -223,6 +246,8 @@
 			try {
 				await setOverride.mutateAsync({ memberId: saved.id, override: writes.override });
 				written = { ...written, override: writes.override };
+
+				if (writes.override === 0) written = unpinned(written);
 			} catch (error) {
 				overrideRefusal = toErrorText(error, $LL);
 			}
@@ -259,12 +284,13 @@
 				await setWorkspaceOverride.mutateAsync({
 					memberId: saved.id,
 					workspaceId: each.id,
-					override: each.override
+					pinned: each.pinned,
+					granted: each.granted
 				});
 				written = {
 					...written,
 					workspaces: written.workspaces.map((held) =>
-						held.id === each.id ? { ...held, override: each.override } : held
+						held.id === each.id ? { ...held, pinned: each.pinned, granted: each.granted } : held
 					)
 				};
 			} catch (error) {
@@ -566,6 +592,7 @@
 	username={member.editing?.member.username ?? ''}
 	roleId={member.editing?.member.roleId ?? ''}
 	override={member.editing?.member.override ?? 0}
+	pinned={pinnedAcross(member.editing?.member.workspaces ?? [])}
 	{roles}
 	rows={memberRows}
 	readerRank={member.editing?.context.rank ?? 0}
@@ -574,7 +601,6 @@
 	canAssignRole={member.editing?.context.canAssignRole ?? false}
 	canOverride={member.editing?.context.canOverride ?? false}
 	canGrantWorkspace={member.editing?.context.canGrantWorkspace ?? false}
-	readerIsOwner={member.editing?.context.isOwner ?? false}
 	isSaving={isSavingMember}
 	{nameRefusal}
 	{roleRefusal}
@@ -643,7 +669,6 @@
 		workspace: workspace.changingAccess?.workspace.name ?? ''
 	})}
 	rows={workspaceRows}
-	readerIsOwner={session?.role === 'owner'}
 	isSaving={changeAccess.isPending}
 	onSave={(changes) => void changeWorkspaceAccess(changes)}
 />

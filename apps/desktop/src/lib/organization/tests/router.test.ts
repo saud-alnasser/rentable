@@ -269,8 +269,8 @@ test('tailoring a member in a workspace needs overrideMember, and asks for recor
 				list: async () => [
 					fakeOrganizationMember({ id: 'member-2', permissions: BUILT_IN.member.mask })
 				],
-				setWorkspaceOverride: async (memberId, workspaceId, override) => {
-					asked.push(`setWorkspaceOverride:${memberId}:${workspaceId}:${override}`);
+				setWorkspaceOverride: async (memberId, workspaceId, pinned, granted) => {
+					asked.push(`setWorkspaceOverride:${memberId}:${workspaceId}:${pinned}:${granted}`);
 
 					return fakeOrganizationMember({ id: memberId });
 				}
@@ -281,21 +281,31 @@ test('tailoring a member in a workspace needs overrideMember, and asks for recor
 	const overriding = await permittedApi(host, 'overrideMember');
 	const granting = await permittedApi(host, 'grantWorkspace', 'assignRole');
 	const readOnly = maskOf('createPayment', 'editPayment');
+	const deleting = maskOf('deletePayment');
 
 	await overriding.app.organization.member.setWorkspaceOverride({
 		memberId: 'member-2',
 		workspaceId: 'workspace-1',
-		override: readOnly
+		pinned: readOnly,
+		granted: 0
 	});
 	await overriding.app.organization.member.setWorkspaceOverride({
 		memberId: 'member-2',
 		workspaceId: 'workspace-1',
-		override: 0
+		pinned: deleting,
+		granted: deleting
+	});
+	await overriding.app.organization.member.setWorkspaceOverride({
+		memberId: 'member-2',
+		workspaceId: 'workspace-1',
+		pinned: 0,
+		granted: 0
 	});
 
 	const done = [
-		`setWorkspaceOverride:member-2:workspace-1:${readOnly}`,
-		'setWorkspaceOverride:member-2:workspace-1:0'
+		`setWorkspaceOverride:member-2:workspace-1:${readOnly}:0`,
+		`setWorkspaceOverride:member-2:workspace-1:${deleting}:${deleting}`,
+		'setWorkspaceOverride:member-2:workspace-1:0:0'
 	];
 
 	assert.deepEqual(asked, done);
@@ -313,24 +323,37 @@ test('tailoring a member in a workspace needs overrideMember, and asks for recor
 		granting.app.organization.member.setWorkspaceOverride({
 			memberId: 'member-2',
 			workspaceId: 'workspace-1',
-			override: readOnly
+			pinned: readOnly,
+			granted: 0
 		})
 	);
-	// the organization's own flags are not a workspace's to switch.
+	// the organization's own flags are not a workspace's to pin.
 	await refusedAs(
 		overriding.app.organization.member.setWorkspaceOverride({
 			memberId: 'member-2',
 			workspaceId: 'workspace-1',
-			override: maskOf('inviteMember')
+			pinned: maskOf('inviteMember'),
+			granted: 0
 		}),
 		'host.recordFlagsOnly'
 	);
-	// the member views payments; switching that view off there leaves them adding payments unseen.
+	// nothing is granted there that is not pinned.
 	await refusedAs(
 		overriding.app.organization.member.setWorkspaceOverride({
 			memberId: 'member-2',
 			workspaceId: 'workspace-1',
-			override: maskOf('viewPayment')
+			pinned: deleting,
+			granted: maskOf('deletePayment', 'deleteUnit')
+		}),
+		'host.recordFlagsOnly'
+	);
+	// the member views payments; pinning that view off there leaves them adding payments unseen.
+	await refusedAs(
+		overriding.app.organization.member.setWorkspaceOverride({
+			memberId: 'member-2',
+			workspaceId: 'workspace-1',
+			pinned: maskOf('viewPayment'),
+			granted: 0
 		}),
 		'host.paymentNeedsViewing'
 	);
@@ -683,7 +706,12 @@ test('making an account is inviteMember and unsetting a password is resetPasswor
 						username,
 						roleId,
 						override,
-						workspaces: workspaces.map((grant) => ({ ...grant, override: 0, permissions: 0 })),
+						workspaces: workspaces.map((grant) => ({
+							...grant,
+							pinned: 0,
+							granted: 0,
+							permissions: 0
+						})),
 						createdAt: 1_757_000_000_000
 					});
 				},

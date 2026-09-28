@@ -10,7 +10,9 @@ import {
 	firstWriteWithoutView,
 	maskOf,
 	permits,
-	type RecordKind
+	type RecordKind,
+	WRITE_FLAGS,
+	xorOf
 } from '../index.ts';
 
 /**
@@ -26,7 +28,8 @@ type Table = {
 	workspaceCases: {
 		name: string;
 		permissions: number;
-		workspaceOverride: number;
+		pinned: number;
+		granted: number;
 		effective: number;
 		readOnly: number;
 	}[];
@@ -61,11 +64,12 @@ test('every workspace case in the shared table reads the permissions it names th
 	for (const {
 		name,
 		permissions,
-		workspaceOverride,
+		pinned,
+		granted,
 		effective: expected,
 		readOnly
 	} of table.workspaceCases) {
-		const inWorkspace = effectiveInWorkspace(permissions, workspaceOverride);
+		const inWorkspace = effectiveInWorkspace(permissions, pinned, granted);
 
 		assert.equal(inWorkspace, expected, name);
 		assert.equal(effectiveIn(inWorkspace, 'full-access'), expected, name);
@@ -73,17 +77,36 @@ test('every workspace case in the shared table reads the permissions it names th
 	}
 });
 
-test("a workspace override switches record flags and leaves the organization's own alone", () => {
+test("a workspace override pins record flags and leaves the organization's own alone", () => {
 	const manager = BUILT_IN.manager.mask;
 	const inWorkspace = effectiveInWorkspace(
 		manager,
-		maskOf('inviteMember', 'assignRole', 'deleteContract')
+		maskOf('inviteMember', 'assignRole', 'deleteContract'),
+		maskOf('inviteMember')
 	);
 
-	assert.equal(permits(inWorkspace, 'inviteMember'), true, 'an administration flag was switched');
-	assert.equal(permits(inWorkspace, 'assignRole'), true, 'an administration flag was switched');
+	assert.equal(permits(inWorkspace, 'inviteMember'), true, 'an administration flag was pinned');
+	assert.equal(permits(inWorkspace, 'assignRole'), true, 'an administration flag was pinned');
 	assert.equal(permits(inWorkspace, 'deleteContract'), false);
-	assert.equal(effectiveInWorkspace(manager, 0), manager, 'an empty override changes nothing');
+	assert.equal(effectiveInWorkspace(manager, 0, 0), manager, 'nothing pinned changes nothing');
+});
+
+test('what is pinned holds its value whichever way the layers beneath it move', () => {
+	const readOnly = maskOf(...WRITE_FLAGS);
+	const member = BUILT_IN.member.mask;
+	const views = effectiveIn(member, 'read-only');
+
+	assert.equal(effectiveInWorkspace(member, readOnly, 0), views);
+	assert.equal(
+		effectiveInWorkspace(xorOf(member, maskOf('createPayment')), readOnly, 0),
+		views,
+		'a write taken away across the organization came back'
+	);
+	assert.equal(
+		effectiveInWorkspace(xorOf(member, maskOf('deletePayment')), readOnly, 0),
+		views,
+		'a write the role gained reached a workspace set read only'
+	);
 });
 
 test('an override turns a flag off where the role carries it, and on where it does not', () => {

@@ -282,14 +282,14 @@ pub enum Authority<'a> {
     Invitation(InvitationAuthority<'a>),
     /// The `mark` row: the organization's signature or seal.
     Mark(MarkAuthority<'a>),
-    /// A `workspace_override` row: what is switched for one member in one workspace (effort 838,
+    /// A `workspace_override` row: what is pinned for one member in one workspace (effort 838,
     /// requirement 12 as amended a third time).
     WorkspaceOverride(WorkspaceOverrideAuthority<'a>),
 }
 
 /// What a `workspace_override` row puts under signature, which is the whole of the row: whose it
-/// is, which workspace, and the record flags it switches for them there (effort 838, requirement
-/// 12 as amended a third time). Its own row rather than a column of the grant, because a grant is
+/// is, which workspace, the record flags pinned for them there and which of those are on (effort
+/// 838, requirement 12 as amended a third time, and at review round one). Its own row rather than a column of the grant, because a grant is
 /// signed under `grantWorkspace` and carries a sealed credential, and this is set by a holder of
 /// `overrideMember`, who may hold no grant rights at all.
 #[derive(Clone, Copy, Debug)]
@@ -298,9 +298,12 @@ pub struct WorkspaceOverrideAuthority<'a> {
     pub member_id: &'a str,
     /// In which workspace.
     pub workspace_id: &'a str,
-    /// The record flags switched, over what the member may do across the organization. Record
-    /// flags alone: a row naming any other bit is covered by nobody.
-    pub mask: i64,
+    /// The record flags set for the member in this workspace, whatever they hold across the
+    /// organization. Record flags alone: a row pinning any other bit is covered by nobody.
+    pub pinned: i64,
+    /// Which of the pinned flags are on; the rest of them are off. Within `pinned`: a row granting
+    /// a flag it does not pin is covered by nobody.
+    pub granted: i64,
 }
 
 /// What a `role` row puts under signature: which role, what kind, what it is called, what it
@@ -762,7 +765,7 @@ pub fn sign(
 /// | `workspace` | hold `renameWorkspace` or `grantWorkspace` |
 /// | `invitation` | hold `inviteMember` or `resetPassword` |
 /// | `mark` | hold `manageMark` |
-/// | `workspace_override` | switch record flags alone, be about a member who is in and is not the certificate's own, and hold `overrideMember`, outrank that member as a member row's signer does, and hold every flag the mask switches; or be the root |
+/// | `workspace_override` | pin record flags alone and grant none it does not pin, be about a member who is in and is not the certificate's own, and hold `overrideMember`, outrank that member as a member row's signer does, and hold every flag it pins; or be the root |
 ///
 /// Certificates and revocations are judged by the walk, and a succession by the organization key,
 /// so neither is here. **The root is not waved through** except where the table says so: it holds
@@ -802,9 +805,10 @@ pub fn sign(
 ///
 /// **A workspace override is judged as the override on a member row is** (effort 838, requirement
 /// 12 as amended a third time): its signer outranks the member, as they stand by their role and as
-/// they are certified, holds `overrideMember` and every flag it switches, and is not the member.
-/// It names record flags alone, whoever signs it, the root included, and it is about a member who
-/// is in: a row about anybody else grants nothing and is covered by nobody.
+/// they are certified, holds `overrideMember` and every flag it pins, and is not the member. It
+/// pins record flags alone and grants none it does not pin, whoever signs it, the root included,
+/// and it is about a member who is in: a row about anybody else grants nothing and is covered by
+/// nobody.
 pub fn covers(
     certificate: &Certificate,
     authority: Authority<'_>,
@@ -842,11 +846,12 @@ pub fn covers(
         Authority::Invitation(_) => holds_any(&[Flag::InviteMember, Flag::ResetPassword]),
         Authority::Mark(_) => holds(Flag::ManageMark),
         Authority::WorkspaceOverride(workspace_override) => {
-            permission::first_beyond_records(workspace_override.mask).is_none()
+            permission::first_beyond_records(workspace_override.pinned).is_none()
+                && workspace_override.granted & !workspace_override.pinned == 0
                 && certificate.member_id != workspace_override.member_id
                 && (certificate.is_root()
                     || (holds(Flag::OverrideMember)
-                        && workspace_override.mask & !certificate.ceiling == 0))
+                        && workspace_override.pinned & !certificate.ceiling == 0))
                 && rank_of_member(workspace_override.member_id).is_some_and(|rank| {
                     certificate.is_root()
                         || (certificate.rank > rank
@@ -909,8 +914,8 @@ pub fn needed_for(authority: Authority<'_>) -> &'static str {
         Authority::Invitation(_) => "inviteMember or resetPassword",
         Authority::Mark(_) => "manageMark",
         Authority::WorkspaceOverride(_) => {
-            "overrideMember, a rank above the member, every flag the override switches, record \
-             flags alone, and not to be the member's own"
+            "overrideMember, a rank above the member, every flag the override pins, record flags \
+             alone, and not to be the member's own"
         }
     }
 }
@@ -1444,13 +1449,15 @@ fn preimage(certificate_id: &str, authority: Authority<'_>) -> Vec<u8> {
         Authority::WorkspaceOverride(WorkspaceOverrideAuthority {
             member_id,
             workspace_id,
-            mask,
+            pinned,
+            granted,
         }) => {
             message.extend_from_slice(WORKSPACE_OVERRIDE_DOMAIN);
             field(&mut message, certificate_id.as_bytes());
             field(&mut message, member_id.as_bytes());
             field(&mut message, workspace_id.as_bytes());
-            field(&mut message, &mask.to_be_bytes());
+            field(&mut message, &pinned.to_be_bytes());
+            field(&mut message, &granted.to_be_bytes());
         }
     }
 
@@ -3560,8 +3567,8 @@ mod tests {
 
     /// **A workspace override is covered as a member row's override is** (effort 838, ticket 53):
     /// the root or a holder of `overrideMember`, above the member as they stand by their role and
-    /// as they are certified, holding every flag it switches, never about its own member, and
-    /// record flags alone whoever signs it. A member the reader does not know as in is overridden
+    /// as they are certified, holding every flag it pins, never about its own member, and record
+    /// flags alone, granting none it does not pin, whoever signs it. A member the reader does not know as in is overridden
     /// by nobody. Signed, it verifies through the chain like every other row.
     #[test]
     fn a_workspace_override_is_covered_as_a_members_override_is() {
@@ -3581,11 +3588,12 @@ mod tests {
             MEMBER_ROLE.mask,
             500_000,
         );
-        let about = |member_id: &'static str, mask: i64| {
+        let about = |member_id: &'static str, pinned: i64| {
             Authority::WorkspaceOverride(WorkspaceOverrideAuthority {
                 member_id,
                 workspace_id: "workspace-a",
-                mask,
+                pinned,
+                granted: pinned,
             })
         };
         let ranks = |member_id: &str| match member_id {
@@ -3618,6 +3626,28 @@ mod tests {
             about("member-sami", administration)
         ));
         assert!(!covered(&overrider, about("member-sami", administration)));
+        // granting nothing it does not pin, whoever signs it.
+        let granting_beyond = |pinned: i64, granted: i64| {
+            Authority::WorkspaceOverride(WorkspaceOverrideAuthority {
+                member_id: "member-sami",
+                workspace_id: "workspace-a",
+                pinned,
+                granted,
+            })
+        };
+        let deleting = permission::mask_of(&[Flag::DeleteUnit]);
+
+        assert!(!covered(
+            &organization.certificate,
+            granting_beyond(editing, editing | deleting)
+        ));
+        assert!(!covered(
+            &overrider,
+            granting_beyond(editing, editing | deleting)
+        ));
+        assert!(covered(&overrider, granting_beyond(editing, 0)));
+        // every flag pinned is one the signer holds, pinned off as much as on.
+        assert!(!covered(&overrider, granting_beyond(deleting, 0)));
         // never about its own member, the root's included.
         assert!(!covered(
             &organization.certificate,

@@ -389,15 +389,20 @@ export const memberWritesOf = (
  * WHAT A MEMBER MAY DO IN ONE WORKSPACE, AS THEIR CARD TAILORS IT
  *
  * A member's permissions are three layers (effort 838, requirement 12 as amended a third time):
- * their role, what is changed for them across the organization, and what is changed for them in
- * one workspace, which switches record flags alone (`effectiveInWorkspace`). Their grant then
- * folds it: a grant minted read only before the lock left clears every add, edit and delete there
- * (`effectiveIn`). The card draws the result as the switch list's record groups, measured against
- * what they may do across the organization, and never shows the override itself.
+ * their role, what is changed for them across the organization, and what is set for them in one
+ * workspace. The last pins record flags (at review round one, the human's call: what is tailored
+ * is pinned): a flag pinned holds the value it was set to there however the layers beneath it
+ * move, and one not pinned follows them (`effectiveInWorkspace`). Their grant then folds it: a
+ * grant minted read only before the lock left clears every add, edit and delete there
+ * (`effectiveIn`). The card draws the result as the switch list's record groups, and marks what is
+ * pinned.
  */
 
-/** one workspace a member is in, as the card tailors it: the grant's level and what is switched. */
-export type WorkspaceTailoring = { access: AccessLevel; override: number };
+/**
+ * one workspace a member is in, as the card tailors it: the grant's level, the record flags
+ * pinned there, and which of those are on.
+ */
+export type WorkspaceTailoring = { access: AccessLevel; pinned: number; granted: number };
 
 /** the record flags of a mask, and nothing else: what a workspace can tailor. */
 export const recordsOf = (mask: number): number =>
@@ -406,54 +411,91 @@ export const recordsOf = (mask: number): number =>
 /** whether a mask adds, edits or deletes any kind of record. */
 export const writesAny = (mask: number): boolean => WRITE_FLAGS.some((flag) => permits(mask, flag));
 
+/** every record flag pinned in any of these workspaces: what clearing all of them unpins. */
+export const pinnedAcross = (workspaces: readonly { pinned: number }[]): number =>
+	maskOf(...RECORD_FLAGS.filter((flag) => workspaces.some(({ pinned }) => permits(pinned, flag))));
+
 /** what the member may do with records in the workspace, as the switches draw it. */
 export const tailoredShown = (organizationWide: number, tailoring: WorkspaceTailoring): number =>
 	recordsOf(
-		effectiveIn(effectiveInWorkspace(organizationWide, tailoring.override), tailoring.access)
+		effectiveIn(
+			effectiveInWorkspace(organizationWide, tailoring.pinned, tailoring.granted),
+			tailoring.access
+		)
 	);
 
-/** whether the workspace differs from what the member may do across the organization. */
+/**
+ * whether anything is set for the member in the workspace, or it draws differently from what they
+ * may do across the organization, as a grant minted read only does.
+ */
 export const isTailored = (organizationWide: number, tailoring: WorkspaceTailoring): boolean =>
+	tailoring.pinned !== 0 ||
 	tailoredShown(organizationWide, tailoring) !== recordsOf(organizationWide);
 
+/** `tailoring` with each of `flags` pinned to what `to` says, and every other pin as it was. */
+const pinnedTo = (
+	tailoring: WorkspaceTailoring,
+	flags: readonly Flag[],
+	to: number
+): Pick<WorkspaceTailoring, 'pinned' | 'granted'> => ({
+	pinned: maskOf(
+		...RECORD_FLAGS.filter((flag) => flags.includes(flag) || permits(tailoring.pinned, flag))
+	),
+	granted: maskOf(
+		...RECORD_FLAGS.filter((flag) =>
+			flags.includes(flag)
+				? permits(to, flag)
+				: permits(tailoring.pinned, flag) && permits(tailoring.granted, flag)
+		)
+	)
+});
+
+/** the record flags two masks differ on. */
+const differing = (left: number, right: number): Flag[] =>
+	RECORD_FLAGS.filter((flag) => permits(left, flag) !== permits(right, flag));
+
 /**
- * What the switches of one workspace come to, from what is held there (`held`) and what they are
- * turned to (`shown`, record flags).
+ * What the switches of one workspace come to, from what is held there (`held`), what they stand
+ * at now (`value`) and what they are turned to (`shown`, record flags).
  *
- * - **At full access**, or where a write is turned on, it is a full-access grant with the
- *   override that makes the member end up with what the switches say. A grant minted read only
- *   becomes a full-access grant here (requirement 12 as amended a third time).
- * - **A grant minted read only, with every write left off, stays read only**, and its override
- *   keeps the writes the grant already clears where they were, so nothing is written that the
- *   switches do not show; a kind whose view goes off takes them with it, since nothing may be
- *   written that cannot be viewed.
+ * - **Every switch turned is pinned to its new value**, turning a view off with its writes
+ *   pinning those too, and every other pin stays.
+ * - **At full access, or where a write is turned on, it is a full-access grant.** A grant minted
+ *   read only becomes one here (requirement 12 as amended a third time), and whatever the grant
+ *   was clearing is pinned to what the switches show, so the member ends up with exactly that.
+ * - **A grant minted read only, with every write left off, stays read only.**
  */
 export const tailoredTo = (
 	organizationWide: number,
 	held: WorkspaceTailoring,
+	value: WorkspaceTailoring,
 	shown: number
 ): WorkspaceTailoring => {
-	if (held.access === 'full-access' || writesAny(shown)) {
-		return { access: 'full-access', override: recordsOf(xorOf(organizationWide, shown)) };
-	}
+	const access: AccessLevel =
+		held.access === 'full-access' || writesAny(shown) ? 'full-access' : 'read-only';
+	const turned: WorkspaceTailoring = {
+		access,
+		...pinnedTo(value, differing(tailoredShown(organizationWide, value), shown), shown)
+	};
 
-	const beneath = recordsOf(effectiveInWorkspace(organizationWide, held.override));
-	const kept = RECORD_KINDS.flatMap((kind) =>
-		permits(shown, viewOf(kind))
-			? [viewOf(kind), ...writesOf(kind).filter((flag) => permits(beneath, flag))]
-			: []
-	);
-
-	return { access: 'read-only', override: recordsOf(xorOf(organizationWide, maskOf(...kept))) };
+	return {
+		access,
+		...pinnedTo(turned, differing(tailoredShown(organizationWide, turned), shown), shown)
+	};
 };
 
-/** the read only preset: every add, edit and delete off, and every view as it is. */
-export const readOnlyOf = (shown: number): number =>
-	maskOf(...RECORD_FLAGS.filter((flag) => permits(shown, flag) && !WRITE_FLAGS.includes(flag)));
+/**
+ * The read only preset: every add, edit and delete pinned off, for every kind of record, and each
+ * view as it was. The grant's level is what it held, so a grant minted read only stays so.
+ */
+export const readOnlyTailoring = (
+	held: WorkspaceTailoring,
+	value: WorkspaceTailoring
+): WorkspaceTailoring => ({ access: held.access, ...pinnedTo(value, WRITE_FLAGS, 0) });
 
 /**
- * The reset: nothing switched there, so the member holds what they hold across the organization.
- * A grant minted read only becomes a full-access grant where that gives them a write.
+ * The reset: nothing pinned there, so the member holds what they hold across the organization. A
+ * grant minted read only becomes a full-access grant where that gives them a write.
  */
 export const resetTailoring = (
 	organizationWide: number,
@@ -463,20 +505,35 @@ export const resetTailoring = (
 		held.access === 'read-only' && !writesAny(recordsOf(organizationWide))
 			? 'read-only'
 			: 'full-access',
-	override: 0
+	pinned: 0,
+	granted: 0
 });
 
 /**
- * The first flag writing a workspace's override would need the reader to hold and they do not, or
- * `null`: every flag it switches back or forth, and every flag the row carries after, since the
- * row is signed under the reader's certificate (Rust's `set_workspace_override`). Nothing is
- * written where the override does not change.
+ * The first flag writing a workspace's pins would need the reader to hold and they do not, or
+ * `null`: every flag pinned or unpinned, every flag whose pinned value moves, and every flag the
+ * row pins after, since the row is signed under the reader's certificate (Rust's
+ * `set_workspace_override`). Nothing is written where the pins do not change.
  */
-export const firstUnheldTailored = (held: number, before: number, after: number): Flag | null =>
-	before === after
+export const firstUnheldTailored = (
+	held: number,
+	before: Pick<WorkspaceTailoring, 'pinned' | 'granted'>,
+	after: Pick<WorkspaceTailoring, 'pinned' | 'granted'>
+): Flag | null =>
+	before.pinned === after.pinned && before.granted === after.granted
 		? null
 		: (RECORD_FLAGS.find(
 				(flag) =>
-					(permits(before, flag) !== permits(after, flag) || permits(after, flag)) &&
+					(permits(before.pinned, flag) !== permits(after.pinned, flag) ||
+						permits(before.granted, flag) !== permits(after.granted, flag) ||
+						permits(after.pinned, flag)) &&
 					!permits(held, flag)
 			) ?? null);
+
+/**
+ * The first flag pinned in any workspace that the reader does not hold, or `null`: what giving the
+ * member another role, or resetting them to theirs, would unpin, and Rust refuses the act for
+ * (`role.rs`, the clearing in `apply`).
+ */
+export const firstUnheldPinned = (held: number, pinned: number): Flag | null =>
+	RECORD_FLAGS.find((flag) => permits(pinned, flag) && !permits(held, flag)) ?? null;

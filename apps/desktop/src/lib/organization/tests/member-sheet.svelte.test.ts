@@ -4,8 +4,10 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { setLocale } from '$lib/i18n/i18n-svelte';
+import { i18nObject } from '$lib/i18n/i18n-util';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import MemberSheet, { type MemberEdit } from '$lib/organization/component/member-sheet.svelte';
+import { flagPhrase } from '$lib/organization/role';
 import en from '$lib/i18n/en';
 import { toTitleCase } from '@rentable/design/title-case.js';
 import ar from '$lib/i18n/ar';
@@ -50,15 +52,25 @@ const inProvider = (direction: 'ltr' | 'rtl' = 'ltr') => ({
 });
 
 const rows = [
-	{ id: 'ws-1', name: 'Riyadh', access: 'full-access' as const, override: 0, givable: true },
-	{ id: 'ws-2', name: 'Jeddah', access: 'none' as const, override: 0, givable: true }
+	{
+		id: 'ws-1',
+		name: 'Riyadh',
+		access: 'full-access' as const,
+		pinned: 0,
+		granted: 0,
+		givable: true
+	},
+	{ id: 'ws-2', name: 'Jeddah', access: 'none' as const, pinned: 0, granted: 0, givable: true }
 ];
 
-/** a grant the owner minted read only before the lock left, with nothing switched there. */
+/** a grant the owner minted read only before the lock left, with nothing set there. */
 const minted = { ...rows[0], access: 'read-only' as const };
 
-/** every add, edit and delete the member role carries: what read only turns off. */
+/** every add, edit and delete the member role carries. */
 const MEMBER_WRITES = maskOf(...WRITE_FLAGS.filter((flag) => permits(BUILT_IN.member.mask, flag)));
+
+/** every add, edit and delete of every kind of record: what read only pins off. */
+const EVERY_WRITE = maskOf(...WRITE_FLAGS);
 
 const sheet = (
 	overrides: Partial<Parameters<typeof render<typeof MemberSheet>>[1]> = {},
@@ -587,8 +599,9 @@ test('opened, the tailoring is the record groups, measured against what they may
 	expect(resetPreset('ws-1')).toBeNull();
 });
 
-// a switch turned there differs from what they may do across the organization: it carries the
-// dot naming that, the fold reads custom, and the save writes the override for that workspace.
+// a switch turned there is set for this workspace (review round one: what is tailored is
+// pinned): it carries the dot saying so, the fold reads custom, and the save writes what is set
+// there and at what value, for that workspace alone.
 test('a switch turned there is marked, reads custom, and the save writes that workspace alone', async () => {
 	const saved: MemberEdit[] = [];
 
@@ -602,15 +615,22 @@ test('a switch turned there is marked, reads custom, and the save writes that wo
 		document
 			.querySelector('[data-tailor-open="access-ws-1-tailor"] [data-differs="deletePayment"]')
 			?.getAttribute('aria-label')
-	).toBe(
-		en.organization.switches.differs.replace(
-			'{role:string}',
-			en.organization.workspaceSwitches.acrossOrganization
-		)
-	);
+	).toBe(en.organization.workspaceSwitches.pinned);
 	expect(tailorCustom('ws-1')?.textContent?.trim()).toBe(en.organization.switches.custom);
 	expect(resetPreset('ws-1')).not.toBeNull();
 
+	// turned back, it stays set here, now off, and keeps its dot.
+	await fireEvent.click(tailorSwitch('ws-1', 'deletePayment')!);
+
+	expect(tailorOn('ws-1', 'deletePayment')).toBe(false);
+	expect(
+		document.querySelector('[data-tailor-open="access-ws-1-tailor"] [data-differs="deletePayment"]')
+	).not.toBeNull();
+	expect(
+		document.querySelector('[data-tailor-open="access-ws-1-tailor"] [data-differs="editPayment"]')
+	).toBeNull();
+
+	await fireEvent.click(tailorSwitch('ws-1', 'deletePayment')!);
 	await submit();
 
 	expect(saved).toEqual([
@@ -619,13 +639,14 @@ test('a switch turned there is marked, reads custom, and the save writes that wo
 			roleId: 'member',
 			override: 0,
 			changes: [],
-			tailored: [{ id: 'ws-1', override: maskOf('deletePayment') }]
+			tailored: [{ id: 'ws-1', pinned: maskOf('deletePayment'), granted: maskOf('deletePayment') }]
 		}
 	]);
 });
 
-// the read only preset: every add, edit and delete off there, every view as it was, and pressed
-// while it holds. No grant is written: read only is these switches, enforced by the application.
+// the read only preset: every add, edit and delete of every kind pinned off there, every view as
+// it was, and pressed while it holds. No grant is written: read only is these switches, enforced
+// by the application.
 test('read only turns every add, edit and delete off there, and grants nothing', async () => {
 	const saved: MemberEdit[] = [];
 
@@ -643,15 +664,17 @@ test('read only turns every add, edit and delete off there, and grants nothing',
 	await submit();
 
 	expect(saved.map((edit) => edit.changes)).toEqual([[]]);
-	expect(saved.map((edit) => edit.tailored)).toEqual([[{ id: 'ws-1', override: MEMBER_WRITES }]]);
+	expect(saved.map((edit) => edit.tailored)).toEqual([
+		[{ id: 'ws-1', pinned: EVERY_WRITE, granted: 0 }]
+	]);
 });
 
-// the reset clears what is changed there, and the workspace reads as the organization again.
-test('reset clears what is changed in the workspace', async () => {
+// the reset unpins everything there, and the workspace reads as the organization again.
+test('reset clears what is set in the workspace', async () => {
 	const saved: MemberEdit[] = [];
 
 	sheet({
-		rows: [{ ...rows[0], override: maskOf('editPayment') }],
+		rows: [{ ...rows[0], pinned: maskOf('editPayment'), granted: 0 }],
 		onSave: (edit) => saved.push(edit)
 	});
 
@@ -669,16 +692,16 @@ test('reset clears what is changed in the workspace', async () => {
 
 	await submit();
 
-	expect(saved.map((edit) => edit.tailored)).toEqual([[{ id: 'ws-1', override: 0 }]]);
+	expect(saved.map((edit) => edit.tailored)).toEqual([[{ id: 'ws-1', pinned: 0, granted: 0 }]]);
 });
 
 // requirement 12 as amended a third time: a grant minted read only reads with its writes off and
-// the preset on, and turning a write back on makes it a full-access grant, with the override that
-// leaves every other write off.
+// the preset on, and turning a write back on makes it a full-access grant, with every other write
+// the grant was clearing pinned off, so the member ends up with what the switches show.
 test('a grant minted read only reads as read only, and a write turned on grants it full access', async () => {
 	const saved: MemberEdit[] = [];
 
-	sheet({ rows: [minted], readerIsOwner: true, onSave: (edit) => saved.push(edit) });
+	sheet({ rows: [minted], onSave: (edit) => saved.push(edit) });
 
 	await openTailoring('ws-1');
 
@@ -696,17 +719,16 @@ test('a grant minted read only reads as read only, and a write turned on grants 
 
 	expect(saved.map((edit) => edit.changes)).toEqual([[{ id: 'ws-1', access: 'full-access' }]]);
 	expect(saved.map((edit) => edit.tailored)).toEqual([
-		[{ id: 'ws-1', override: MEMBER_WRITES - maskOf('createPayment') }]
+		[{ id: 'ws-1', pinned: MEMBER_WRITES, granted: maskOf('createPayment') }]
 	]);
 });
 
 // a view turned off over a grant minted read only keeps it read only: the grant still clears the
-// writes, and the override takes that kind's writes with its view, since nothing is written that
-// cannot be viewed.
+// writes, and the view is pinned off there.
 test('a view turned off over a grant minted read only keeps it read only', async () => {
 	const saved: MemberEdit[] = [];
 
-	sheet({ rows: [minted], readerIsOwner: true, onSave: (edit) => saved.push(edit) });
+	sheet({ rows: [minted], onSave: (edit) => saved.push(edit) });
 
 	await openTailoring('ws-1');
 	await fireEvent.click(tailorSwitch('ws-1', 'viewPayment')!);
@@ -714,47 +736,38 @@ test('a view turned off over a grant minted read only keeps it read only', async
 
 	expect(saved.map((edit) => edit.changes)).toEqual([[]]);
 	expect(saved.map((edit) => edit.tailored)).toEqual([
-		[{ id: 'ws-1', override: maskOf('viewPayment', 'createPayment', 'editPayment') }]
+		[{ id: 'ws-1', pinned: maskOf('viewPayment'), granted: 0 }]
 	]);
 });
 
-// Rust keeps a grant minted read only the owner's to change, so for anybody else its switch out
-// and every write beneath it are dimmed, saying why; its views are still theirs to turn.
-test("for anybody but the owner, a grant minted read only is the owner's to change, saying so", async () => {
+// review round one of the workspace layer: the owner-only rule went with the lock, so anybody who
+// may grant the workspace at full access turns a write on over a grant minted read only, and
+// anybody who may withdraw takes it out. Nothing is dimmed for being the owner's.
+test('a grant minted read only is changed by anybody who may grant it, and taken out', async () => {
 	const saved: MemberEdit[] = [];
 
 	sheet({ rows: [minted], onSave: (edit) => saved.push(edit) });
 
-	const reason = en.organization.workspaceSwitches.ownerMadeReadOnly;
-
-	expect(dimmed(inSwitch('ws-1'))).toBe(true);
-	expect(document.querySelector('#access-ws-1-reason')?.textContent?.trim()).toBe(reason);
-	expect(workspaceReasons()).toEqual([reason]);
+	expect(dimmed(inSwitch('ws-1'))).toBe(false);
+	expect(workspaceReasons()).toEqual([]);
 
 	await openTailoring('ws-1');
 
-	expect(dimmed(tailorSwitch('ws-1', 'createPayment'))).toBe(true);
-	expect(
-		document.querySelector('#access-ws-1-tailor-createPayment-reason')?.textContent?.trim()
-	).toBe(reason);
-	expect(dimmed(resetPreset('ws-1'))).toBe(true);
-	expect(dimmed(tailorSwitch('ws-1', 'viewPayment'))).toBe(false);
+	expect(dimmed(tailorSwitch('ws-1', 'createPayment'))).toBe(false);
+	expect(dimmed(resetPreset('ws-1'))).toBe(false);
 
 	await fireEvent.click(inSwitch('ws-1')!);
-	await fireEvent.click(tailorSwitch('ws-1', 'createPayment')!);
-
-	expect(checked(inSwitch('ws-1'))).toBe(true);
-	expect(tailorOn('ws-1', 'createPayment')).toBe(false);
-
 	await submit();
 
-	expect(saved.map((edit) => [edit.changes, edit.tailored])).toEqual([[[], []]]);
+	expect(saved.map((edit) => [edit.changes, edit.tailored])).toEqual([
+		[[{ id: 'ws-1', access: 'none' }], []]
+	]);
 });
 
-// full access is the reader's own credential re-sealed, so the owner holding the workspace read
-// only may not turn a write back on over a grant minted read only either.
+// full access is the reader's own credential re-sealed, so a reader holding the workspace read
+// only may not turn a write back on over a grant minted read only.
 test('a write over a grant minted read only is refused where the reader holds the workspace read only', async () => {
-	sheet({ rows: [{ ...minted, givable: false }], readerIsOwner: true });
+	sheet({ rows: [{ ...minted, givable: false }] });
 
 	await openTailoring('ws-1');
 
@@ -781,7 +794,7 @@ test('in a workspace, a flag the reader does not hold is dimmed, and so is a pre
 // overrideMember: without it every switch and preset there is dimmed, and the list says why,
 // naming the flag, as the switches across the organization do.
 test('without overrideMember, the tailoring is drawn and refused, naming the flag', async () => {
-	sheet({ canOverride: false, rows: [{ ...rows[0], override: maskOf('editPayment') }] });
+	sheet({ canOverride: false, rows: [{ ...rows[0], pinned: maskOf('editPayment'), granted: 0 }] });
 
 	await openTailoring('ws-1');
 
@@ -801,13 +814,14 @@ test('without overrideMember, the tailoring is drawn and refused, naming the fla
 	expect(dimmed(resetPreset('ws-1'))).toBe(true);
 });
 
-// the shell clears what is changed in every workspace with another role, so the card reads the
-// same at once and saves nothing for them; their own role again puts it back.
+// the shell clears what is set in every workspace with another role, so the card reads the same
+// at once and saves nothing for them; their own role again puts it back.
 test('picking another role clears what is tailored in every workspace, and their own puts it back', async () => {
 	const saved: MemberEdit[] = [];
 
 	sheet({
-		rows: [{ ...rows[0], override: maskOf('editPayment') }],
+		rows: [{ ...rows[0], pinned: maskOf('editPayment'), granted: 0 }],
+		pinned: maskOf('editPayment'),
 		onSave: (edit) => saved.push(edit)
 	});
 
@@ -828,6 +842,62 @@ test('picking another role clears what is tailored in every workspace, and their
 	await submit();
 
 	expect(saved.map((edit) => edit.tailored)).toEqual([[], []]);
+});
+
+// review round one: another role, or a reset to theirs, unpins what is set for the member in every
+// workspace, and Rust refuses the act where a flag pinned anywhere is one the reader does not
+// hold. So the pick and the reset are refused at the control, saying why, as Rust would.
+test('a pick or a reset that would unpin a flag the reader does not hold is refused, saying why', async () => {
+	const saved: MemberEdit[] = [];
+
+	sheet({
+		override: maskOf('renameMember'),
+		rows: [{ ...rows[0], pinned: maskOf('deleteUnit'), granted: maskOf('deleteUnit') }],
+		pinned: maskOf('deleteUnit'),
+		readerPermissions: BUILT_IN.manager.mask - maskOf('deleteUnit'),
+		onSave: (edit) => saved.push(edit)
+	});
+
+	// the reset of what is changed for them across the organization clears the workspace too.
+	const reset = resetControl()!;
+
+	expect(reset.getAttribute('aria-disabled')).toBe('true');
+	expect(reset.querySelector('.sr-only')?.textContent?.trim()).toBe(
+		en.organization.switches.resetNotHeld
+	);
+
+	await fireEvent.click(reset);
+
+	expect(customMark()).not.toBeNull();
+
+	// and so does every other role; their own clears nothing.
+	await openSelect(roleTrigger());
+
+	const reason = en.organization.foreseen.pinnedMoves.replace(
+		'{flag:string}',
+		flagPhrase(i18nObject('en'), 'deleteUnit')
+	);
+
+	for (const id of ['supervisor', 'collector']) {
+		expect(roleOption(id)?.getAttribute('aria-disabled')).toBe('true');
+		expect(roleOption(id)?.querySelector('[data-role-item-refusal]')?.textContent?.trim()).toBe(
+			reason
+		);
+	}
+	expect(roleOption('member')?.querySelector('[data-role-item-refusal]')).toBeNull();
+});
+
+// a reader holding every flag pinned may clear them: the same pick goes through.
+test('a reader holding every flag pinned may give another role, clearing them', async () => {
+	sheet({
+		rows: [{ ...rows[0], pinned: maskOf('deleteUnit'), granted: maskOf('deleteUnit') }],
+		pinned: maskOf('deleteUnit')
+	});
+
+	await openSelect(roleTrigger());
+
+	expect(roleOption('supervisor')?.hasAttribute('data-disabled')).toBe(false);
+	expect(document.querySelector('[data-role-item-refusal]')).toBeNull();
 });
 
 // ticket 50: switching a workspace back to what the member held writes nothing, so a reader
@@ -899,14 +969,17 @@ test('a workspace the reader holds read only is refused on its switch, and can s
 test('the workspaces read in arabic, the tailoring and its presets in their own words', async () => {
 	loadLocale('ar');
 	setLocale('ar');
-	sheet({ rows: [minted] }, 'rtl');
+	sheet(
+		{ rows: [{ ...minted, pinned: maskOf('viewPayment'), granted: maskOf('viewPayment') }] },
+		'rtl'
+	);
 
 	expect(tailorFold('ws-1')?.textContent).toContain(ar.organization.workspaceSwitches.tailor);
 	expect(ar.organization.workspaceSwitches.tailor).not.toBe(
 		en.organization.workspaceSwitches.tailor
 	);
 	expect(tailorCustom('ws-1')?.textContent?.trim()).toBe(ar.organization.switches.custom);
-	expect(workspaceReasons()).toEqual([ar.organization.workspaceSwitches.ownerMadeReadOnly]);
+	expect(workspaceReasons()).toEqual([]);
 
 	await openTailoring('ws-1');
 
@@ -921,11 +994,9 @@ test('the workspaces read in arabic, the tailoring and its presets in their own 
 		document
 			.querySelector('[data-tailor-open="access-ws-1-tailor"] [data-differs]')
 			?.getAttribute('aria-label')
-	).toBe(
-		ar.organization.switches.differs.replace(
-			'{role}',
-			ar.organization.workspaceSwitches.acrossOrganization
-		)
+	).toBe(ar.organization.workspaceSwitches.pinned);
+	expect(ar.organization.workspaceSwitches.pinned).not.toBe(
+		en.organization.workspaceSwitches.pinned
 	);
 
 	setLocale('en');

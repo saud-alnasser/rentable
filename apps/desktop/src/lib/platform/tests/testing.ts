@@ -234,7 +234,8 @@ export function fakeOrganizationWorkspace(
 		databaseHostname: 'ws-north-acme.aws-eu-west-1.turso.io',
 		schemaVersion: 5,
 		accessLevel: 'full-access',
-		override: 0,
+		pinned: 0,
+		granted: 0,
 		permissions: 0,
 		...overrides
 	};

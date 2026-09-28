@@ -134,6 +134,7 @@ use super::{
     setup::{ADMINISTRATOR_KEY_PURPOSE, SHIPPING_KDF, credential_expiry},
     store::{
         GrantRecord, InvitationRecord, MachineLinkRecord, MemberRecord, OrganizationStore, Signer,
+        pins_of,
     },
     vault::{KdfParams, create_vault_with_secret, open_content, seal_content, seal_to_public_key},
     workspace::{WORKSPACE_CREDENTIAL_LIFETIME, signer_of},
@@ -209,20 +210,21 @@ pub struct WorkspaceGrant {
 }
 
 /// One workspace a member is in, as the members list draws it: the access their grant holds on it,
-/// and what is switched for them there (effort 838, requirement 12 as amended a third time). No
-/// credential.
+/// and what is pinned for them there (effort 838, requirement 12 as amended a third time, and at
+/// review round one). No credential.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MemberWorkspace {
     pub id: String,
     pub access: AccessLevel,
-    /// the record flags switched for them in this workspace, over what they may do across the
+    /// the record flags pinned for them in this workspace, whatever they hold across the
     /// organization. Zero where nothing is.
-    #[serde(rename = "override")]
-    pub override_mask: i64,
+    pub pinned: i64,
+    /// which of the pinned flags are on; the rest of them are off.
+    pub granted: i64,
     /// what they may do in this workspace before the grant is read: their permissions across the
-    /// organization with that override switched (`permission::effective_in_workspace`). A
-    /// read-only grant clears the writes of it, which the web layer folds.
+    /// organization with what is pinned set as it is granted (`permission::effective_in_workspace`).
+    /// A read-only grant clears the writes of it, which the web layer folds.
     pub permissions: i64,
 }
 
@@ -822,7 +824,7 @@ pub struct MemberFacts {
     pub override_mask: i64,
     /// what the member may do: their role's mask exclusive-or'd with their override.
     pub permissions: i64,
-    /// the workspaces the member is in, each with the access on it and what is switched for them
+    /// the workspaces the member is in, each with the access on it and what is pinned for them
     /// there. *Each was a workspace and the access alone until ticket 53 of effort 838.*
     pub workspaces: Vec<MemberWorkspace>,
     pub created_at: i64,
@@ -867,22 +869,19 @@ pub async fn members(
                             && grant.workspace_id != session.organization_id
                     })
                     .map(|grant| {
-                        let override_mask = workspace_overrides
-                            .iter()
-                            .find(|workspace_override| {
-                                workspace_override.member_id == member.id
-                                    && workspace_override.workspace_id == grant.workspace_id
-                            })
-                            .map_or(0, |workspace_override| workspace_override.mask);
+                        let (pinned, granted) =
+                            pins_of(&workspace_overrides, &member.id, &grant.workspace_id);
 
                         MemberWorkspace {
                             id: grant.workspace_id.clone(),
                             access: AccessLevel::parse(&grant.access_level)
                                 .unwrap_or(AccessLevel::FullAccess),
-                            override_mask,
+                            pinned,
+                            granted,
                             permissions: super::permission::effective_in_workspace(
                                 member.effective,
-                                override_mask,
+                                pinned,
+                                granted,
                             ),
                         }
                     })

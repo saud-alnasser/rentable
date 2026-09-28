@@ -772,9 +772,10 @@ export function useSetOverride(
 }
 
 /**
- * set what is switched for one member in one workspace they are in, `0` clearing it (effort 838,
- * requirement 12 as amended a third time). The member's card writes one per workspace it tailored.
- * The members are read again, since each carries what is switched for it per workspace.
+ * set what is pinned for one member in one workspace they are in, and which of it is on, nothing
+ * pinned clearing it (effort 838, requirement 12 as amended a third time, and at review round
+ * one). The member's card writes one per workspace it tailored. The members are read again, since
+ * each carries what is pinned for it per workspace.
  */
 export function useSetWorkspaceOverride(
 	opts: MutationOptions = {
@@ -791,12 +792,20 @@ export function useSetWorkspaceOverride(
 		mutationFn: ({
 			memberId,
 			workspaceId,
-			override
+			pinned,
+			granted
 		}: {
 			memberId: string;
 			workspaceId: string;
-			override: number;
-		}) => api.app.organization.member.setWorkspaceOverride({ memberId, workspaceId, override }),
+			pinned: number;
+			granted: number;
+		}) =>
+			api.app.organization.member.setWorkspaceOverride({
+				memberId,
+				workspaceId,
+				pinned,
+				granted
+			}),
 		onSuccess: async () => {
 			await rolesAndMembersChanged(client);
 			onMutationSuccess(opts);

@@ -306,12 +306,12 @@ test('where the open workspace cannot be said, the writes are cleared and nothin
 });
 
 /**
- * **What a member may do in the workspace open is switched by their override for it, and then
- * folded by its grant** (effort 838, requirement 12 as amended a third time). The organization's
- * own flags are not a workspace's to switch, and a read-only grant clears a write the override
- * turned on.
+ * **What a member may do in the workspace open is what is pinned for them there, and then folded
+ * by its grant** (effort 838, requirement 12 as amended a third time, and at review round one).
+ * The organization's own flags are not a workspace's to pin, and a read-only grant clears a write
+ * pinned on.
  */
-test("the workspace open switches what its override names, and the organization's flags stay", async () => {
+test("the workspace open sets what is pinned there, and the organization's flags stay", async () => {
 	const tailored = fakeOrganizationSession({
 		role: 'manager',
 		roleId: BUILT_IN.manager.id,
@@ -321,12 +321,14 @@ test("the workspace open switches what its override names, and the organization'
 			fakeOrganizationWorkspace({
 				id: 'north',
 				accessLevel: 'full-access',
-				override: maskOf('deleteContract', 'assignRole')
+				pinned: maskOf('deleteContract', 'assignRole'),
+				granted: 0
 			}),
 			fakeOrganizationWorkspace({
 				id: 'south',
 				accessLevel: 'read-only',
-				override: maskOf('deleteContract')
+				pinned: maskOf('deleteContract', 'deleteUnit'),
+				granted: maskOf('deleteUnit')
 			})
 		]
 	});
@@ -337,10 +339,10 @@ test("the workspace open switches what its override names, and the organization'
 	});
 	const north = inNorth?.permissions ?? 0;
 
-	assert.equal(north, effectiveInWorkspace(BUILT_IN.manager.mask, maskOf('deleteContract')));
-	assert.ok(!permits(north, 'deleteContract'), 'what north switches off was held there');
-	assert.ok(permits(north, 'deletePayment'), 'what north leaves alone was switched');
-	assert.ok(permits(north, 'assignRole'), 'an organization flag was switched in a workspace');
+	assert.equal(north, effectiveInWorkspace(BUILT_IN.manager.mask, maskOf('deleteContract'), 0));
+	assert.ok(!permits(north, 'deleteContract'), 'what north pins off was held there');
+	assert.ok(permits(north, 'deletePayment'), 'what north leaves alone moved');
+	assert.ok(permits(north, 'assignRole'), 'an organization flag was pinned in a workspace');
 
 	const inSouth = await actorFrom({
 		db: createMemoryDatabase(),
@@ -350,6 +352,13 @@ test("the workspace open switches what its override names, and the organization'
 
 	assert.equal(
 		inSouth?.permissions,
-		effectiveIn(effectiveInWorkspace(BUILT_IN.manager.mask, maskOf('deleteContract')), 'read-only')
+		effectiveIn(
+			effectiveInWorkspace(
+				BUILT_IN.manager.mask,
+				maskOf('deleteContract', 'deleteUnit'),
+				maskOf('deleteUnit')
+			),
+			'read-only'
+		)
 	);
 });

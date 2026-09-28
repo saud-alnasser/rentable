@@ -132,22 +132,28 @@ a shared table of cases). The owner carries none. Set from the member's card by 
 same write (`assign_role`), and so does deleting the role the member held.
 
 **Workspace override**:
-A signed row of its own (`workspace_override`, format 3) switching **record flags only** for one
-member in one workspace they hold a grant on: what they may do there is their effective
-permissions with it switched (`permission::effective_in_workspace`, `effectiveInWorkspace` in the
-package, held to the same shared table), then folded by the grant (`effectiveIn`). Set by
-`role::set_workspace_override` under the override's rules (`overrideMember`, a rank above the
-member, never oneself or the owner, only flags the actor holds, and no write without its view in
-the result); a mask of zero deletes the row. It goes with the organization layer (another role, the
-reset to the role, a deleted role) and with the grant (a withdrawal, a removal, a deleted
-workspace). The session and the members list carry each workspace's override and permissions, and
-the tRPC context answers a record procedure by the open workspace's (`api/context.ts`,
-`permissionsIn`). A member's card tailors it beneath each workspace the member is in
-(`workspace-tailoring.svelte`, the record groups of the shared switch list measured against what
-the member may do across the organization, with a reset and a *read only* preset), and writes it
-through `organization.member.setWorkspaceOverride`; the arithmetic of what the switches come to is
-`organization/role.ts` (`tailoredTo`). *Effort 838, requirement 12 as amended a third time,
-tickets 53 and 54.*
+A signed row of its own (`workspace_override`, format 3) **pinning record flags only** for one
+member in one workspace they hold a grant on: `pinned`, the flags set there, and `granted`, which
+of them are on. What they may do there is their effective permissions with every pinned flag set
+as it is granted, whatever the layers beneath say, and then any add, edit or delete whose view
+that leaves off dropped, since those layers can move (`permission::effective_in_workspace`,
+`effectiveInWorkspace` in the package, held to the same shared table), then folded by the grant
+(`effectiveIn`). So a workspace set read only stays read only when a write is given or taken away
+across the organization. Set by `role::set_workspace_override` under the override's rules
+(`overrideMember`, a rank above the member, never oneself or the owner, only flags the actor
+holds, every flag pinned among them, granted within pinned, and no write without its view as the
+member stands); nothing pinned deletes the row. It goes with the organization layer (another role,
+the reset to the role, a deleted role, each refused where a flag pinned anywhere is one the actor
+does not hold) and with the grant (a withdrawal, a removal, a deleted workspace). The session and
+the members list carry each workspace's pins and permissions, and the tRPC context answers a
+record procedure by the open workspace's (`api/context.ts`, `permissionsIn`). A member's card
+tailors it beneath each workspace the member is in (`workspace-tailoring.svelte`, the record groups
+of the shared switch list, each switch turned pinned at its new value and marked as set for that
+workspace, with a reset that unpins all and a *read only* preset that pins every add, edit and
+delete off), and writes both masks through `organization.member.setWorkspaceOverride`; the
+arithmetic of what the switches come to is `organization/role.ts` (`tailoredTo`). *Effort 838,
+requirement 12 as amended a third time, tickets 53 and 54; pinned rather than switched at review
+round one (ticket 55), since a switch over the layers beneath inverted when they moved.*
 
 **Rank**:
 How high a role stands: the owner 2,000,000, the manager 1,000,000, the custom roles between, the
@@ -183,8 +189,10 @@ their role says (`effectiveIn`). **The interface makes no new read-only grant** 
 requirement 12 as amended a third time, ticket 54): read only is a preset of the workspace
 override, enforced by the application. A grant minted read only before then keeps working and
 renewing, reads on the card with its writes off and the preset on, and is granted again at full
-access when a write is turned back on; Rust keeps withdrawing it, or granting it again at full
-access, the owner's (`withdraw_grant`, `grant_workspace`). A member's card and the sheet that adds
+access when a write is turned back on, by anybody who may grant the workspace at full access, and
+withdrawn by anybody who may withdraw (`withdraw_grant`, `grant_workspace`). *Both were the
+owner's alone until review round one of ticket 54, when the rule went with the lock.* A member's
+card and the sheet that adds
 one draw each workspace as a switch, in (a full-access grant) or out (none)
 (`member-workspaces.svelte`, ticket 48 of effort 838), the card with the workspace's tailoring
 beneath one that is in; a workspace's own dialog draws each member the same way, from the same list
@@ -216,9 +224,9 @@ and a certificate that is not the member's own, or the root, and a row naming th
 the root about its own holder, with no override; a role row `manageRoles`, a rank above the role and
 every flag its mask carries; a grant `grantWorkspace`, a read-only one the root; a workspace row
 `renameWorkspace` or `grantWorkspace`; an invitation `inviteMember` or `resetPassword`; the mark
-`manageMark`; a workspace override record flags alone, about a member who is in and not the
-certificate's own, and `overrideMember`, a rank above that member and every flag it switches, or
-the root. So a member holding the credential who signs around a command gets no further than
+`manageMark`; a workspace override record flags alone and nothing granted it does not pin, about
+a member who is in and not the certificate's own, and `overrideMember`, a rank above that member
+and every flag it pins, or the root. So a member holding the credential who signs around a command gets no further than
 their certificate: rows of the kinds its ceiling names, about people ranked below them, switching
 for nobody a flag the ceiling lacks, and never their own. Which flags inside it they may switch, and
 which role they may give, is the command's to refuse. A member row's signer chooses its role and its
@@ -299,8 +307,9 @@ refused unless what it yields is the key this machine pinned, and the directory 
 - **The password and the keys never cross the IPC boundary.** Every command takes a password in
   and hands facts back; the vault, the content key, the credentials and the Turso authority stay
   in Rust ([[rules/credentials]], *Client boundary*). What crosses about a member is their role's
-  kind, id, name and rank, their override and their effective permissions; nothing about a
-  certificate crosses.
+  kind, id, name and rank, their override and their effective permissions, and for each workspace
+  they are in, what is pinned for them there, which of it is on, and their permissions there;
+  nothing about a certificate crosses.
 - **What stands between a found link and the directory is a code, on every link there is.** A link
   found in a chat weeks later names an organization and reads nothing: what a guesser meets is
   thirty-two to the sixth Argon2id passes, and the credential inside is a four-week grant that is
@@ -311,7 +320,8 @@ refused unless what it yields is the key this machine pinned, and the directory 
   themselves; every tRPC procedure names its flag in its meta and refuses an identity lacking it, a
   test walking the router failing on one that names none; the interface offers a control only where
   the flag is held and says why where it is not. The context's permissions are the row's for the
-  open workspace, with a read-only grant's writes cleared, and the organization state is re-read on
+  open workspace, with what is pinned for the member there set as it is granted and a read-only
+  grant's writes cleared, and the organization state is re-read on
   every sync heartbeat, so a change to a role or an override reaches an open session within one.
 - **Record flags are enforced at the procedure, not by the chain.** Records live in workspace
   databases the whole-database credential reaches, so a member who holds it can read or write

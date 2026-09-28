@@ -64,7 +64,7 @@ use super::{
     setup::{ADMINISTRATOR_KEY_PURPOSE, ORGANIZATION_KEY_PURPOSE, owner_key_from},
     store::{
         MemberRecord, OrganizationRecord, OrganizationStore, RoleRecord, Signer, SuccessionRecord,
-        WorkspaceOverrideRecord,
+        WorkspaceOverrideRecord, pins_of,
     },
     vault::{
         MemberSecretKey, SECRET_KEY_BYTES, Vault, open_content, open_vault, seal_content,
@@ -1605,7 +1605,7 @@ struct Moved {
 ///
 /// **Their workspace overrides go with the organization layer** (effort 838, requirement 12 as
 /// amended a third time): every one a member the change clears carries, and every one a holder of
-/// a deleted role carries, deleted in the same transaction. Each flag that switches for them in a
+/// a deleted role carries, deleted in the same transaction. Each flag pinned for them in a
 /// workspace is one the actor holds, as every flag the act moves is.
 ///
 /// **A row its certificate no longer covers is never saved** (effort 838, the re-check of ticket
@@ -1744,8 +1744,8 @@ async fn apply(
     }
 
     // the members whose workspace overrides go with the act: those it clears, and every holder of
-    // a role it deletes whose row it moves. What each of those overrides switches, it switches
-    // back, so every flag of it is one the actor holds (requirement 7).
+    // a role it deletes whose row it moves. What each of those overrides pins, it unpins, so every
+    // flag pinned is one the actor holds (requirement 7).
     let cleared: Vec<&str> = change
         .cleared
         .iter()
@@ -1765,7 +1765,7 @@ async fn apply(
             .iter()
             .filter(|workspace_override| cleared.contains(&workspace_override.member_id.as_str()))
         {
-            refuse_unheld(actor, workspace_override.mask)?;
+            refuse_unheld(actor, workspace_override.pinned)?;
         }
     }
 
@@ -2366,23 +2366,25 @@ pub async fn set_override(
     member_facts(store, session, member_id).await
 }
 
-/// Set a member's override for one workspace: the record flags switched for them there, over what
-/// they may do across the organization (effort 838, requirement 12 as amended a third time). Zero
-/// deletes it, and they hold there what they hold across the organization.
+/// Set a member's override for one workspace: the record flags `pinned` for them there, whatever
+/// they hold across the organization, and which of those are on, `granted` (effort 838,
+/// requirement 12 as amended a third time, and at review round one). Nothing pinned deletes it,
+/// and they hold there what they hold across the organization.
 ///
 /// **Under the organization override's rules** (requirements 6 and 7): `overrideMember`, the
 /// member ranked below the actor, never the actor's own row nor the owner's, and only flags the
-/// actor holds, which here are the flags whose value the member ends up with differently in that
-/// workspace. **And three of its own**: record flags alone, a workspace the member is in (their
-/// grant on it verifies), and nothing added, edited or deleted there that they cannot view. The
-/// row is signed under the actor's certificate, which carries every flag it switches, the ones
-/// it only keeps included, as a member row's override is.
+/// actor holds, which here are the flags pinned or unpinned and the flags whose pinned value
+/// moves. **And four of its own**: record flags alone, granted within pinned, a workspace the
+/// member is in (their grant on it verifies), and nothing added, edited or deleted there that
+/// they cannot view as they stand now. The row is signed under the actor's certificate, which
+/// carries every flag it pins, the ones it only keeps included, as a member row's override is.
 pub async fn set_workspace_override(
     store: &OrganizationStore,
     session: &MemberSession,
     member_id: &str,
     workspace_id: &str,
-    override_mask: i64,
+    pinned: i64,
+    granted: i64,
 ) -> Result<MemberFacts, Error> {
     session.settled()?;
 
@@ -2404,12 +2406,22 @@ pub async fn set_workspace_override(
          somebody who ranks above them",
     )?;
 
-    if let Some(flag) = permission::first_beyond_records(override_mask) {
+    if let Some(flag) = permission::first_beyond_records(pinned) {
         return Err(Error::refused(
             RefusalReason::RecordFlagsOnly,
             format!(
                 "{flag} is not a record flag, and a workspace changes only what may be done to its \
                  records. nothing was changed"
+            ),
+        ));
+    }
+
+    if let Some(flag) = permission::first_not_held(pinned, granted) {
+        return Err(Error::refused(
+            RefusalReason::RecordFlagsOnly,
+            format!(
+                "{flag} is granted in that workspace without being set there, and only what is \
+                 set there is granted. nothing was changed"
             ),
         ));
     }
@@ -2435,42 +2447,43 @@ pub async fn set_workspace_override(
         ));
     }
 
-    let before = store
-        .workspace_overrides(&session.verifying_key)
-        .await?
-        .into_iter()
-        .find(|workspace_override| {
-            workspace_override.member_id == member.id
-                && workspace_override.workspace_id == workspace_id
-        })
-        .map_or(0, |workspace_override| workspace_override.mask);
+    let (pinned_before, granted_before) = pins_of(
+        &store.workspace_overrides(&session.verifying_key).await?,
+        &member.id,
+        workspace_id,
+    );
 
-    refuse_unheld(&actor, before ^ override_mask)?;
+    // a flag pinned or unpinned is as changed as one whose pinned value moves (requirement 7).
+    refuse_unheld(
+        &actor,
+        (pinned_before ^ pinned) | (granted_before ^ granted),
+    )?;
 
-    // what they end up with there adds, edits or deletes no kind of record they cannot view
-    // (requirement 6, as amended 2026-09-27).
-    if before != override_mask {
+    // what they end up with there adds, edits or deletes no kind of record they cannot view as
+    // they stand now (requirement 6, as amended 2026-09-27). The reading drops such a write where
+    // the layers beneath move later; this refuses writing one in the first place.
+    if (pinned_before, granted_before) != (pinned, granted) {
         permission::refuse_write_without_view(
-            permission::effective_in_workspace(member.effective, override_mask),
+            permission::pinned_in(member.effective, pinned, granted),
             "this member's permissions in that workspace",
         )?;
     }
 
-    if override_mask == 0 {
+    if pinned == 0 {
         store
             .delete_workspace_override(&member.id, workspace_id)
             .await?;
     } else {
         let (key, certificate) = signer_of(store, session).await?;
 
-        // the row is signed under the actor's certificate, which carries every flag it switches,
-        // the ones this act leaves where they were included (the row-kind table).
-        if let Some(flag) = permission::first_not_held(certificate.ceiling, override_mask) {
+        // the row is signed under the actor's certificate, which carries every flag it pins, the
+        // ones this act leaves where they were included (the row-kind table).
+        if let Some(flag) = permission::first_not_held(certificate.ceiling, pinned) {
             return Err(Error::refused(
                 RefusalReason::RoleLacksAct,
                 format!(
-                    "this member has {flag} switched for them in that workspace, and you do not \
-                     hold it, so the row cannot be signed by you. nothing was changed"
+                    "this member has {flag} set for them in that workspace, and you do not hold \
+                     it, so the row cannot be signed by you. nothing was changed"
                 ),
             ));
         }
@@ -2484,7 +2497,8 @@ pub async fn set_workspace_override(
                 &WorkspaceOverrideRecord {
                     member_id: member.id.clone(),
                     workspace_id: workspace_id.to_string(),
-                    mask: override_mask,
+                    pinned,
+                    granted,
                 },
             )
             .await?;
@@ -2539,7 +2553,7 @@ mod tests {
             },
             store::{
                 GrantRecord, MemberRecord, OrganizationStore, Signer, TABLES,
-                WorkspaceOverrideRecord,
+                WorkspaceOverrideRecord, pins_of,
             },
             vault::{KdfParams, seal_to_public_key},
             workspace::{create_workspace, grant_workspace, signer_of},
@@ -8660,23 +8674,22 @@ mod tests {
     // workspace, set under the organization override's rules and cleared with it.
     // -------------------------------------------------------------------------------------
 
-    /// The member's override for one workspace as the verified reader finds it, or zero.
+    /// The member's override for one workspace as the verified reader finds it, as `(pinned,
+    /// granted)`, or `(0, 0)`.
     async fn workspace_override_of(
         store: &OrganizationStore,
-        pinned: &[u8; VERIFYING_KEY_BYTES],
+        key: &[u8; VERIFYING_KEY_BYTES],
         member_id: &str,
         workspace_id: &str,
-    ) -> i64 {
-        store
-            .workspace_overrides(pinned)
-            .await
-            .expect("the workspace overrides")
-            .into_iter()
-            .find(|workspace_override| {
-                workspace_override.member_id == member_id
-                    && workspace_override.workspace_id == workspace_id
-            })
-            .map_or(0, |workspace_override| workspace_override.mask)
+    ) -> (i64, i64) {
+        pins_of(
+            &store
+                .workspace_overrides(key)
+                .await
+                .expect("the workspace overrides"),
+            member_id,
+            workspace_id,
+        )
     }
 
     /// Whether a workspace override row about this pair is in the table at all, verified or not.
@@ -8735,18 +8748,8 @@ mod tests {
             &workspace_id,
         )
         .await;
-        let read_only = permission::mask_of(&[
-            Flag::CreateComplex,
-            Flag::EditComplex,
-            Flag::CreateUnit,
-            Flag::EditUnit,
-            Flag::CreateTenant,
-            Flag::EditTenant,
-            Flag::CreateContract,
-            Flag::EditContract,
-            Flag::CreatePayment,
-            Flag::EditPayment,
-        ]);
+        // read only: every add, edit and delete pinned off.
+        let read_only = permission::mask_of(&permission::WRITE_FLAGS);
 
         let set = super::set_workspace_override(
             &store,
@@ -8754,6 +8757,7 @@ mod tests {
             &sami.member_id,
             &workspace_id,
             read_only,
+            0,
         )
         .await
         .expect("the owner set it");
@@ -8763,10 +8767,10 @@ mod tests {
             .find(|workspace| workspace.id == workspace_id)
             .expect("the workspace on the card");
 
-        assert_eq!(held.override_mask, read_only);
+        assert_eq!((held.pinned, held.granted), (read_only, 0));
         assert_eq!(
             held.permissions,
-            permission::effective_in_workspace(permission::MEMBER_ROLE.mask, read_only)
+            permission::effective_in_workspace(permission::MEMBER_ROLE.mask, read_only, 0)
         );
         assert_eq!(
             set.permissions,
@@ -8786,16 +8790,23 @@ mod tests {
             .find(|workspace| workspace.id == workspace_id)
             .expect("the workspace in sami's facts");
 
-        assert_eq!(theirs.override_mask, read_only);
+        assert_eq!((theirs.pinned, theirs.granted), (read_only, 0));
         assert_eq!(theirs.permissions, held.permissions);
         assert_eq!(facts.permissions, permission::MEMBER_ROLE.mask);
 
         // replaced: deleting payments here, which the member role does not carry.
         let deleting = permission::mask_of(&[Flag::DeletePayment]);
 
-        super::set_workspace_override(&store, &owner, &sami.member_id, &workspace_id, deleting)
-            .await
-            .expect("the owner replaced it");
+        super::set_workspace_override(
+            &store,
+            &owner,
+            &sami.member_id,
+            &workspace_id,
+            deleting,
+            deleting,
+        )
+        .await
+        .expect("the owner replaced it");
 
         let elsewhere = another_machine(&directory, &owner.organization_id).await;
 
@@ -8807,13 +8818,13 @@ mod tests {
                 &workspace_id
             )
             .await,
-            deleting,
+            (deleting, deleting),
             "another machine does not read the override"
         );
 
         // cleared: no row, and the member holds there what they hold across the organization.
         let cleared =
-            super::set_workspace_override(&store, &owner, &sami.member_id, &workspace_id, 0)
+            super::set_workspace_override(&store, &owner, &sami.member_id, &workspace_id, 0, 0)
                 .await
                 .expect("the owner cleared it");
 
@@ -8822,14 +8833,17 @@ mod tests {
             cleared.workspaces[0].permissions,
             permission::MEMBER_ROLE.mask
         );
-        assert_eq!(cleared.workspaces[0].override_mask, 0);
+        assert_eq!(
+            (cleared.workspaces[0].pinned, cleared.workspaces[0].granted),
+            (0, 0)
+        );
     }
 
     /// **Ticket 53's third criterion, the refusals.** Each is refused by name, and nothing is
-    /// written: an administration flag; a flag the actor does not hold; a member not ranked below
-    /// the actor; the actor's own row, and the owner's; a workspace the member holds no grant on,
-    /// and the organization's own directory; a result that writes a kind it does not view; and an
-    /// actor without `overrideMember`.
+    /// written: an administration flag; a flag the actor does not hold, pinned on or off; a member
+    /// not ranked below the actor; the actor's own row, and the owner's; a workspace the member
+    /// holds no grant on, and the organization's own directory; a result that writes a kind it
+    /// does not view; a flag granted and not pinned; and an actor without `overrideMember`.
     #[tokio::test]
     async fn every_refusal_of_a_workspace_override_is_named_and_writes_nothing() {
         let directory = scratch("workspace-override-refused");
@@ -8869,6 +8883,7 @@ mod tests {
                 &sami.member_id,
                 &workspace_id,
                 permission::mask_of(&[Flag::ViewUnit, Flag::AssignRole]),
+                permission::mask_of(&[Flag::ViewUnit, Flag::AssignRole]),
             )
             .await,
             RefusalReason::RecordFlagsOnly,
@@ -8880,6 +8895,7 @@ mod tests {
                 &lena,
                 &sami.member_id,
                 &workspace_id,
+                permission::mask_of(&[Flag::DeleteContract]),
                 permission::mask_of(&[Flag::DeleteContract]),
             )
             .await,
@@ -8893,6 +8909,7 @@ mod tests {
                 &ada.member_id,
                 &workspace_id,
                 permission::mask_of(&[Flag::EditUnit]),
+                permission::mask_of(&[Flag::EditUnit]),
             )
             .await,
             RefusalReason::RankNotAbove,
@@ -8904,6 +8921,7 @@ mod tests {
                 &lena,
                 &lena.member_id,
                 &workspace_id,
+                permission::mask_of(&[Flag::EditUnit]),
                 permission::mask_of(&[Flag::EditUnit]),
             )
             .await,
@@ -8917,6 +8935,7 @@ mod tests {
                 &owner.member_id,
                 &workspace_id,
                 permission::mask_of(&[Flag::EditUnit]),
+                permission::mask_of(&[Flag::EditUnit]),
             )
             .await,
             RefusalReason::OwnerProtected,
@@ -8928,6 +8947,7 @@ mod tests {
                 &owner,
                 &sami.member_id,
                 "a-workspace-nobody-holds",
+                permission::mask_of(&[Flag::EditUnit]),
                 permission::mask_of(&[Flag::EditUnit]),
             )
             .await,
@@ -8941,6 +8961,7 @@ mod tests {
                 &sami.member_id,
                 &owner.organization_id,
                 permission::mask_of(&[Flag::EditUnit]),
+                permission::mask_of(&[Flag::EditUnit]),
             )
             .await,
             RefusalReason::WorkspaceMissing,
@@ -8953,6 +8974,7 @@ mod tests {
                 &sami.member_id,
                 &workspace_id,
                 permission::mask_of(&[Flag::ViewPayment]),
+                0,
             )
             .await,
             RefusalReason::PaymentNeedsViewing,
@@ -8961,9 +8983,36 @@ mod tests {
         refused(
             super::set_workspace_override(
                 &store,
+                &owner,
+                &sami.member_id,
+                &workspace_id,
+                permission::mask_of(&[Flag::EditUnit]),
+                permission::mask_of(&[Flag::EditUnit, Flag::DeleteUnit]),
+            )
+            .await,
+            RefusalReason::RecordFlagsOnly,
+            "granting a flag it does not pin",
+        );
+        refused(
+            super::set_workspace_override(
+                &store,
+                &lena,
+                &sami.member_id,
+                &workspace_id,
+                permission::mask_of(&[Flag::DeleteContract]),
+                0,
+            )
+            .await,
+            RefusalReason::RoleLacksAct,
+            "pinning off a flag the actor does not hold",
+        );
+        refused(
+            super::set_workspace_override(
+                &store,
                 &sami_session,
                 &ada.member_id,
                 &workspace_id,
+                permission::mask_of(&[Flag::EditUnit]),
                 permission::mask_of(&[Flag::EditUnit]),
             )
             .await,
@@ -8979,6 +9028,7 @@ mod tests {
             &lena,
             &sami.member_id,
             &workspace_id,
+            permission::mask_of(&[Flag::EditUnit]),
             permission::mask_of(&[Flag::EditUnit]),
         )
         .await
@@ -8997,6 +9047,7 @@ mod tests {
             owner,
             member_id,
             workspace_id,
+            permission::mask_of(&[Flag::DeleteUnit]),
             permission::mask_of(&[Flag::DeleteUnit]),
         )
         .await
@@ -9180,10 +9231,11 @@ mod tests {
             key: &key,
             certificate: &certificate,
         };
-        let row = |member_id: &str, mask: i64| WorkspaceOverrideRecord {
+        let row = |member_id: &str, pinned: i64| WorkspaceOverrideRecord {
             member_id: member_id.to_string(),
             workspace_id: workspace_id.clone(),
-            mask,
+            pinned,
+            granted: pinned,
         };
         let beyond = [
             (
@@ -9204,6 +9256,13 @@ mod tests {
             (
                 "the signer's own",
                 row(&lena.member_id, permission::mask_of(&[Flag::EditUnit])),
+            ),
+            (
+                "granting what it does not pin",
+                WorkspaceOverrideRecord {
+                    granted: permission::mask_of(&[Flag::EditUnit, Flag::ViewUnit]),
+                    ..row(&sami.member_id, permission::mask_of(&[Flag::EditUnit]))
+                },
             ),
         ];
 
@@ -9232,7 +9291,7 @@ mod tests {
                     &workspace_id
                 )
                 .await,
-                0,
+                (0, 0),
                 "{case}: another machine read it"
             );
 
@@ -9260,7 +9319,7 @@ mod tests {
                 &workspace_id
             )
             .await,
-            allowed.mask
+            (allowed.pinned, allowed.granted)
         );
     }
 
@@ -9283,9 +9342,16 @@ mod tests {
         .await;
         let editing = permission::mask_of(&[Flag::EditUnit]);
 
-        super::set_workspace_override(&store, &lena, &sami.member_id, &workspace_id, editing)
-            .await
-            .expect("the lead set it");
+        super::set_workspace_override(
+            &store,
+            &lena,
+            &sami.member_id,
+            &workspace_id,
+            editing,
+            editing,
+        )
+        .await
+        .expect("the lead set it");
 
         let before = the_certificate(&store, &owner, &lena.member_id).await;
 
@@ -9315,8 +9381,52 @@ mod tests {
                 &workspace_id
             )
             .await,
-            editing,
+            (editing, editing),
             "the override did not follow its signer's certificate"
         );
+    }
+
+    /// **A reset unpins only what its actor holds** (review round one): a lead holding
+    /// `overrideMember` resetting a member to their role is refused where the owner pinned a flag
+    /// for them in a workspace the lead does not hold, and the pin stands; once what is pinned is
+    /// a flag the lead holds, the reset goes through and takes it.
+    #[tokio::test]
+    async fn a_reset_that_would_unpin_a_flag_its_actor_does_not_hold_is_refused() {
+        let directory = scratch("workspace-override-reset-unheld");
+        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let lena = an_overrider(&store, &owner, &link, "lena", &workspace_id).await;
+        let (sami, _) = a_member(
+            &store,
+            &owner,
+            &link,
+            "sami",
+            permission::MEMBER,
+            &workspace_id,
+        )
+        .await;
+
+        deleting_units(&store, &owner, &sami.member_id, &workspace_id).await;
+
+        let refused = set_override(&store, &lena, &sami.member_id, 0, NOW + 1)
+            .await
+            .expect_err("the lead unpinned a flag they do not hold");
+
+        assert_eq!(
+            reason_of(&refused),
+            RefusalReason::RoleLacksAct,
+            "{refused:?}"
+        );
+        assert!(a_row_stands(&store, &sami.member_id, &workspace_id).await);
+
+        let editing = permission::mask_of(&[Flag::EditUnit]);
+
+        super::set_workspace_override(&store, &owner, &sami.member_id, &workspace_id, editing, 0)
+            .await
+            .expect("the owner pinned editing units off");
+        set_override(&store, &lena, &sami.member_id, 0, NOW + 2)
+            .await
+            .expect("the lead reset what they hold");
+
+        assert!(!a_row_stands(&store, &sami.member_id, &workspace_id).await);
     }
 }

@@ -55,7 +55,8 @@ const workspaces = [
 		databaseHostname: 'ws-1.turso.io',
 		schemaVersion: 1,
 		accessLevel: 'full-access',
-		override: 0,
+		pinned: 0,
+		granted: 0,
 		permissions: 0
 	}
 ];
@@ -392,7 +393,16 @@ const editSheet = (direction: 'ltr' | 'rtl' = 'ltr') =>
 			roleId: 'member',
 			override: 0,
 			roles: fakeOrganizationRoles(),
-			rows: [{ id: 'ws-1', name: 'Riyadh', access: 'none' as const, override: 0, givable: true }],
+			rows: [
+				{
+					id: 'ws-1',
+					name: 'Riyadh',
+					access: 'none' as const,
+					pinned: 0,
+					granted: 0,
+					givable: true
+				}
+			],
 			readerRank: BUILT_IN.owner.rank,
 			readerPermissions: BUILT_IN.owner.mask,
 			canRename: true,

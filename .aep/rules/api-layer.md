@@ -64,8 +64,9 @@ use-when: "adding or changing a router, a domain module, a database client or tr
   nobody-signed-in first and then refuses with `FORBIDDEN`, naming the flags the caller lacks.
   None of them is the authority: the Rust side refuses the same request against the member's
   signed row whatever the router says. The flags are read off `Context.identity.permissions`,
-  which `api/context.ts` folds for the workspace open: a read-only grant clears every create, edit
-  and delete.
+  which `api/context.ts` folds for the workspace open: the record flags pinned for the member in
+  that workspace are set as they are granted there (the workspace layer, `effectiveInWorkspace`),
+  and a read-only grant then clears every create, edit and delete.
 - **The walk reads the meta.** `Meta` in `api/trpc.ts` carries `flags` for `permitted`, `anyOf` for
   `permittedAny`, `byInput` for every flag `permittedBy` may ask for, and `member: true` or
   `public: true`. `api/tests/flags.test.ts` walks `appRouter._def.procedures`, which holds one

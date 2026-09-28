@@ -591,6 +591,8 @@ file with the same `CREATE` statements, through `sqlx` as the rest of the plain 
 
 ## A workspace is in or out, with a lock (spec, requirement 12, amended again 2026-09-27)
 
+*Superseded by the next section: the lock left, and read only became a preset of the tailoring.*
+
 *The human's call.* The member's card and the add-member form list the organization's
 workspaces as switches: on is a full-access grant, off is none. Beneath a workspace switched on,
 the owner sees *lock to read only*, a smaller switch whose line says the member cannot change

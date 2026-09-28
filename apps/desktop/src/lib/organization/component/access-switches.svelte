@@ -48,15 +48,14 @@
 	 * every switch where the caller says the reader may turn none (`refusal`, the card's reader
 	 * without `grantWorkspace`); putting somebody in a workspace the reader holds read only, since
 	 * full access is the reader's own credential re-sealed, unless it puts back what the row held,
-	 * which writes nothing; and switching out a row whose grant the owner minted read only, for
-	 * anybody but the owner, since Rust keeps changing such a grant the owner's.
+	 * which writes nothing. *Switching out a row whose grant the owner minted read only was the
+	 * owner's alone until review round one of the workspace layer let the rule go with the lock.*
 	 */
 	let {
 		rowPrefix,
 		rows,
 		access,
 		onPick,
-		readerIsOwner = false,
 		icon: Icon,
 		refusal = null,
 		disabled,
@@ -70,11 +69,6 @@
 		/** the level chosen per row, where it differs from the row's own. */
 		access: Record<string, AccessChoice>;
 		onPick: (id: string, value: AccessChoice) => void;
-		/**
-		 * whether the reader is the owner, who alone changes a grant minted read only: Rust asks
-		 * for the owner to withdraw one.
-		 */
-		readerIsOwner?: boolean;
 		/** the glyph every row leads with: the concept each row is. */
 		icon: typeof BuildingIcon;
 		/** why the reader may turn none of them, or `null` where they may. */
@@ -98,13 +92,8 @@
 	const inReason = (row: AccessSwitchRow): string | null => {
 		if (refusal) return refusal;
 
-		// off is a withdrawal, which every holder of the act may make, but for a grant the owner
-		// minted read only, which Rust keeps the owner's to change.
-		if (isIn(row)) {
-			return row.access === 'read-only' && !readerIsOwner
-				? $LL.organization.workspaceSwitches.ownerMadeReadOnly()
-				: null;
-		}
+		// off is a withdrawal, which every holder of the act may make.
+		if (isIn(row)) return null;
 
 		// back on is what the row held, which is no change and writes nothing.
 		if (row.access !== 'none') return null;

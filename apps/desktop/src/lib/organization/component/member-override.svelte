@@ -23,7 +23,8 @@
 	 *
 	 * **Reset puts them back on their role exactly**, clearing the override; it is drawn only
 	 * where they are custom. Like the switches, it is the reader's only where every permission it
-	 * would change is one they hold themselves, and it says why where it is not
+	 * would change is one they hold themselves, what is set for them in each workspace included,
+	 * since the reset clears that too (`unpins`), and it says why where it is not
 	 * ([[rules/interface]], *Guidance*). Discord's *Sync Now* is the precedent.
 	 *
 	 * **Shared by the sheet that adds a member and the sheet that edits one.** Where the reader
@@ -37,6 +38,7 @@
 		roleMask,
 		roleName,
 		override = $bindable(),
+		unpins = 0,
 		held,
 		refusal = null,
 		disabled,
@@ -50,6 +52,8 @@
 		roleName: string;
 		/** the flags switched for this member alone. */
 		override: number;
+		/** the record flags set for them in any workspace, which the reset clears with the rest. */
+		unpins?: number;
 		/** what the reader may do: a flag outside it is not theirs to switch. */
 		held: number;
 		/** why the reader may not change the override at all, or `null` where they may. */
@@ -64,7 +68,9 @@
 	/** why the reset will not run, or `null` where it will. */
 	const resetRefused = $derived(
 		refusal ??
-			(EVERY_FLAG.some((flag) => permits(override, flag) && !permits(held, flag))
+			(EVERY_FLAG.some(
+				(flag) => (permits(override, flag) || permits(unpins, flag)) && !permits(held, flag)
+			)
 				? $LL.organization.switches.resetNotHeld()
 				: null)
 	);

@@ -127,22 +127,6 @@ test('both locales say where an account stands, in three lines that differ', () 
 	assert.match(ar.organization.dashboard.invitationExpires, /\{date\}/);
 });
 
-// effort 826, requirement 5, as effort 838 left it: a grant the owner minted read only is the
-// owner's to change, and a control refused for that says so in words and names the owner, in both
-// languages. *It named the owner's Turso account as what grants read only until ticket 54 of
-// effort 838 retired the lock that granted it (requirement 12 as amended a third time).*
-test('both locales name the owner where an act belongs to nobody else', () => {
-	for (const [name, translation] of locales) {
-		assert.ok(
-			translation.organization.workspaceSwitches.ownerMadeReadOnly.length > 0,
-			`${name} says nothing about who changes a grant made read only`
-		);
-	}
-
-	assert.match(en.organization.workspaceSwitches.ownerMadeReadOnly, /only the owner/);
-	assert.match(ar.organization.workspaceSwitches.ownerMadeReadOnly, /المالك وحده/);
-});
-
 // effort 838, requirement 3: the manager replaced the administrator, so no sentence a person reads
 // says administrator any more. The keys that mirror Rust's refusal reasons keep their names; what
 // is held here is the words.
@@ -279,7 +263,12 @@ const RETIRED = [
 	'organization.workspaceSwitches.lockNamed',
 	'organization.workspaceSwitches.lockMemberNamed',
 	'organization.workspaceSwitches.locked',
-	'organization.workspaceSwitches.lockIsTheOwners'
+	'organization.workspaceSwitches.lockIsTheOwners',
+	// why a grant the owner minted read only was the owner's alone to change, and what a
+	// workspace's differences were measured against, until review round one of the workspace
+	// layer let the rule go with the lock and marked what is set there instead.
+	'organization.workspaceSwitches.ownerMadeReadOnly',
+	'organization.workspaceSwitches.acrossOrganization'
 ] as const;
 
 test('both locales have let go of every string the retired pages read', () => {

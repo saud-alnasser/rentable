@@ -319,8 +319,9 @@ declared concept to it, for a record in each state it can be in.
 
 **An act's `flag` is the flag its procedure names**, one of a record kind's view, create, edit and
 delete. It is read against what the reader may do in the workspace open, held once for the window
-by `workspace/component/permissions.svelte` in `workspace/permission.ts`, off the same two facts the
-tRPC context folds: the session's permissions and the grant on the workspace open. Where the reader
+by `workspace/component/permissions.svelte` in `workspace/permission.ts`, off the same facts the
+tRPC context folds: the session's permissions, what is pinned for the reader in the workspace open
+(the workspace layer, `effectiveInWorkspace`), and the grant on it. Where the reader
 lacks the flag, the act is shown refused on every record, and the reason names the flag, or the
 read-only grant where that is what clears it. That reason comes before the act's own `unavailable`,
 so a record that would refuse for its state as well is refused for the flag. The command menu does
@@ -627,8 +628,9 @@ switch list under it (`member-override.svelte`, which draws `permission-switches
 the role to compare against and the reset), and a switch per workspace
 (`member-workspaces.svelte`), where off is what not granting it is. Only the sentences that
 belong to the moment differ, and the tailoring beneath a workspace that is in, which the edit
-sheet alone draws, since what a person may do in a workspace is set once they are in it, and who may hand out what is decided in the shared pieces, so the two
-cannot gate differently. *Settled by ticket 42 of
+sheet alone draws, since what a person may do in a workspace is set once they are in it. Who may
+hand out what is decided in the shared pieces, so the two sheets cannot gate differently. *Settled
+by ticket 42 of
 [[efforts/832-the-interface-speaks-one-language-and-guides/spec]]: the human saw the two side by
 side in the running build, the add sheet drawing an uppercase label, seven checkboxes and a checkbox
 per workspace, and asked for it to read like the edit sheet.*
@@ -663,30 +665,32 @@ until ticket 43 of that effort, the human's call on the running application of 2
 **A member's workspaces are in or out, and what they may do in one is tailored beneath it.** Each
 workspace the reader holds is a switch headed by the workspaces' building glyph: on is a
 full-access grant, off is none. Beneath one that is in, on the member's card, one folded line,
-*tailor for this workspace*, reads *custom* beside it where what the member may do there differs
-from what they may do across the organization, and opens the record groups of the switch list
-(`workspace-tailoring.svelte`, drawing `permission-switches.svelte` with `records`), set to what
-they end up with there and compared against what they hold across the organization, each
-difference carrying its dot; above them sit two presets, *read only*, which turns every add, edit
-and delete off there and reads pressed while none is on, and *reset*, drawn only where something is
-changed. A switch turned writes the workspace override that makes the member end up with what the
-switches say, and the override itself is never shown. Read only mints nothing: it is those
-switches, enforced by the application. A grant minted read only before is drawn with its writes off
+*tailor for this workspace*, reads *custom* beside it where anything is set for the member there,
+or what they may do there differs from what they may do across the organization, and opens the
+record groups of the switch list (`workspace-tailoring.svelte`, drawing `permission-switches.svelte`
+with `records`), set to what they end up with there. **What is tailored is pinned**: a switch
+turned is set for that workspace at its new value and holds it however what the member may do
+across the organization moves, and each switch set there carries a dot saying so. Above the
+switches sit two presets, *read only*, which sets every add, edit and delete of every kind off
+there and reads pressed while none is on, and *reset*, which sets nothing there, drawn only where
+the workspace is custom. Read only mints nothing: it is those switches, enforced by the
+application. A grant minted read only before is drawn with its writes off
 and the preset on, and a write turned on over it grants the workspace again at full access. Picking
 another role, or putting the member back on theirs, clears what is tailored in every workspace, as
-the shell does. Turning a workspace off and on again puts back what it held, and is never refused,
+the shell does, and is refused at the control where a flag set in any workspace is one the reader
+does not hold. Turning a workspace off and on again puts back what it held, and is never refused,
 since it writes nothing. The words *full access* and *no access* are not on the card. Refusals are
 drawn as the switch list draws them, dimmed with the reason at the control and each reason said once
 above its list: every workspace switch without `grantWorkspace`, naming it, on the member's card,
 which draws the section for every reader; the workspace's own switch where the reader holds it read
 only, since full access is their own credential re-sealed (a withdrawal stays theirs); every
-tailoring switch and preset without `overrideMember`, naming it; one whose override would switch a
-flag the reader does not hold; and, over a grant minted read only, taking the member out or turning
-a write on for anybody but the owner, and a write where the reader holds the workspace read only,
-since Rust keeps changing such a grant the owner's. A member ranked at or above the reader is
-refused at the card's edit act, which opens nothing. The acts are the grants that exist
-(`useChangeAccess`), sent only for the workspaces that changed, then one workspace override per
-workspace whose override changed (`useSetWorkspaceOverride`). **A workspace's own dialog draws its
+tailoring switch and preset without `overrideMember`, naming it; one that would set or unset a flag
+the reader does not hold; and, over a grant minted read only, a write where the reader holds the
+workspace read only, since granting it again at full access is their own credential re-sealed. A
+member ranked at or above the reader is refused at the card's edit act, which opens nothing. The
+acts are the grants that exist (`useChangeAccess`), sent only for the workspaces that changed, then
+one workspace override per workspace whose pins changed, carrying what is pinned there and which
+of it is on (`useSetWorkspaceOverride`). **A workspace's own dialog draws its
 people the same way**, a switch per member, in or out, with the same refusals at the same
 controls, from the one list both surfaces share (`access-switches.svelte`), so the two cannot
 refuse differently; a person tailored there is marked *custom here* beside their name, and the
@@ -698,7 +702,10 @@ application, 2026-09-27 ([[efforts/838-permissions-are-a-role-and-an-override/sp
 12 as amended again and a third time; tickets 48, 49, 50 and 54): each workspace was a row of three
 levels beside the role, which read as a second permission system, and the workspace's dialog
 offered the same three per member; then a mini switch beneath a workspace that was in, the owner's
-lock to read only, which the human found odd beside the switches and made a preset of them.*
+lock to read only, which the human found odd beside the switches and made a preset of them. At
+review round one of ticket 54 the human made what is tailored pinned, since switching against the
+layer beneath inverted when that layer moved, and the owner-only rule for a grant minted read only
+went with the lock.*
 
 **A submit is labelled with its verb, and carries the verb's glyph before the label.** Every submit
 does, the domain forms' as well as the organization's and the startup screens': *create* takes the

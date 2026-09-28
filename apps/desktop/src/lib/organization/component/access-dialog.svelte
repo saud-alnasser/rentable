@@ -41,15 +41,17 @@
 	 * access per member, as a toggle group of three, until the card's switches made those words
 	 * the ones the human had retired.*
 	 *
-	 * **A person tailored here is marked** *custom here* beside their name: what they may do in
-	 * this workspace differs from what they may do across the organization. The tailoring itself
+	 * **A person tailored here is marked** *custom here* beside their name: something is set for
+	 * them in this workspace, or what they may do in it differs from what they may do across the
+	 * organization. The tailoring itself
 	 * is on their card, beneath this workspace, and not here. *The lock to read only sat beneath a
 	 * person who was in until read only became a preset of that tailoring.*
 	 *
 	 * **The refusals are the list's own.** Putting somebody in is the reader's full-access
 	 * credential re-sealed, so a reader holding this workspace read only may take people out and
-	 * put nobody in, save back what somebody held; and a person whose grant the owner minted read
-	 * only is the owner's to take out. Rust refuses both again. Who is listed is the caller's:
+	 * put nobody in, save back what somebody held, and Rust refuses that again. *A person whose
+	 * grant the owner minted read only was the owner's to take out until review round one of the
+	 * workspace layer.* Who is listed is the caller's:
 	 * never the owner, whose grant is never withdrawn, and never the reader, who does not write
 	 * their own row. The workspace card's act that opens this is refused, naming `grantWorkspace`,
 	 * for a reader without it, as the member's card refuses its workspaces section, so the dialog
@@ -68,7 +70,6 @@
 		title,
 		description,
 		rows,
-		readerIsOwner = false,
 		isSaving,
 		onSave
 	}: {
@@ -83,8 +84,6 @@
 		 * what putting somebody in gives.
 		 */
 		rows: AccessDialogRow[];
-		/** whether the reader is the owner, who alone changes a grant minted read only. */
-		readerIsOwner?: boolean;
 		isSaving: boolean;
 		/** the rows whose access changed, and what each one should become. */
 		onSave: (changes: { id: string; access: AccessChoice }[]) => void;
@@ -127,7 +126,6 @@
 			{rows}
 			access={chosen}
 			onPick={pick}
-			{readerIsOwner}
 			icon={MEMBER_GLYPH}
 			markOf={(row) =>
 				rows.find((each) => each.id === row.id)?.tailored &&

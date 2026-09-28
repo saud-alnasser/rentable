@@ -413,16 +413,43 @@ pub fn effective_in(permissions: i64, access: AccessLevel) -> i64 {
     }
 }
 
-/// A member's permissions in one workspace, before its grant is read: `permissions`, what they may
-/// do across the organization, with every record flag `workspace_override` names switched (effort
-/// 838, requirement 12 as amended a third time). [`effective_in`] then folds it by the grant.
+/// What a member may do across the organization, `permissions`, with the record flags `pinned` for
+/// one workspace set to what `granted` says there, and nothing dropped (effort 838, requirement 12
+/// as amended a third time, and at review round one): a flag not pinned follows the layers beneath
+/// it, and one pinned is on where `granted` carries it and off where it does not. A bit outside
+/// [`RECORD_FLAGS`] is not pinned, and a bit `granted` carries outside `pinned` is not granted.
+///
+/// What an act setting the pins judges, so that a write pinned on where its view is not held is
+/// refused rather than written; [`effective_in_workspace`] is what a reader answers by. The
+/// package's `pinnedIn`.
+pub fn pinned_in(permissions: i64, pinned: i64, granted: i64) -> i64 {
+    let pinned = pinned & mask_of(&RECORD_FLAGS);
+
+    (permissions & !pinned) | (granted & pinned)
+}
+
+/// A member's permissions in one workspace, before its grant is read: [`pinned_in`], what they may
+/// do across the organization with the record flags pinned for that workspace set as they are
+/// granted there (effort 838, requirement 12 as amended a third time, and at review round one),
+/// then any add, edit or delete whose kind's view the result does not hold dropped, since the
+/// layers beneath can take a view away under a write pinned on. A flag pinned holds its value
+/// however those layers move. [`effective_in`] then folds it by the grant.
 ///
 /// **Record flags only.** A workspace override naming any other bit is refused where it is written
 /// and where it is read ([`first_beyond_records`]), and a bit outside [`RECORD_FLAGS`] is not
-/// switched here either, so the organization's own flags pass through as they are. Held to the
+/// pinned here either, so the organization's own flags pass through as they are. Held to the
 /// package's `effectiveInWorkspace` by the shared table both read.
-pub fn effective_in_workspace(permissions: i64, workspace_override: i64) -> i64 {
-    permissions ^ (workspace_override & mask_of(&RECORD_FLAGS))
+pub fn effective_in_workspace(permissions: i64, pinned: i64, granted: i64) -> i64 {
+    Family::ALL
+        .into_iter()
+        .filter(|family| family.viewing_needed().is_some())
+        .fold(
+            pinned_in(permissions, pinned, granted),
+            |mask, family| match family.flags().split_first() {
+                Some((view, writes)) if !permits(mask, *view) => mask & !mask_of(writes),
+                _ => mask,
+            },
+        )
 }
 
 /// The first flag `mask` carries that is not a record flag, by the package's name for it, or
@@ -850,7 +877,8 @@ mod tests {
             let expected = number(case, "effective");
             let in_workspace = effective_in_workspace(
                 number(case, "permissions"),
-                number(case, "workspaceOverride"),
+                number(case, "pinned"),
+                number(case, "granted"),
             );
 
             assert_eq!(in_workspace, expected, "{case}");
@@ -864,6 +892,37 @@ mod tests {
                 "{case}, read-only"
             );
         }
+    }
+
+    /// **What is pinned holds whichever way the layers beneath move** (review round one): a
+    /// workspace set read only stays read only when a write is taken away across the organization,
+    /// and when the role gains one, where switching against those layers would invert.
+    #[test]
+    fn a_workspace_set_read_only_stays_read_only_when_the_layers_beneath_it_move() {
+        let read_only = mask_of(&WRITE_FLAGS);
+        let member = MEMBER_ROLE.mask;
+        let views = effective_in(member, AccessLevel::ReadOnly);
+
+        assert_eq!(effective_in_workspace(member, read_only, 0), views);
+        assert_eq!(
+            effective_in_workspace(member & !mask_of(&[Flag::CreatePayment]), read_only, 0),
+            views,
+            "a write taken away across the organization came back"
+        );
+        assert_eq!(
+            effective_in_workspace(member | mask_of(&[Flag::DeletePayment]), read_only, 0),
+            views,
+            "a write the role gained reached a workspace set read only"
+        );
+        assert_eq!(
+            effective_in_workspace(
+                member & !mask_of(&[Flag::ViewPayment, Flag::CreatePayment, Flag::EditPayment]),
+                mask_of(&[Flag::DeletePayment]),
+                mask_of(&[Flag::DeletePayment]),
+            ),
+            member & !mask_of(&Family::Payment.flags()),
+            "a write pinned on outlived its view"
+        );
     }
 
     #[test]

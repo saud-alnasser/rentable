@@ -7,7 +7,8 @@
 	import PermissionSwitches from '$lib/organization/component/permission-switches.svelte';
 	import {
 		firstUnheldTailored,
-		readOnlyOf,
+		isTailored,
+		readOnlyTailoring,
 		recordsOf,
 		resetTailoring,
 		tailoredShown,
@@ -27,27 +28,31 @@
 	 * only").
 	 *
 	 * **Folded by default, and one line when folded**: *tailor for this workspace*, reading
-	 * *custom* beside it where what the member may do there differs from what they may do across
-	 * the organization. Opened, it is the record groups of the switch list the role editor and the
-	 * card share (`permission-switches.svelte`, `records`), set to what the member ends up with
-	 * there and compared against what they hold across the organization, so each difference
-	 * carries its dot. That is the Human Interface Guidelines' disclosure: detail a reader asks
-	 * for, kept out of sight until then (*Disclosure controls*).
+	 * *custom* beside it where anything is set here, or what the member may do here differs from
+	 * what they may do across the organization. Opened, it is the record groups of the switch list
+	 * the role editor and the card share (`permission-switches.svelte`, `records`), set to what the
+	 * member ends up with there. That is the Human Interface Guidelines' disclosure: detail a
+	 * reader asks for, kept out of sight until then (*Disclosure controls*).
 	 *
-	 * **Two presets above the switches.** *Read only* turns every add, edit and delete off here and
-	 * leaves each view as it is; it reads pressed while no write is on, which is how a grant minted
-	 * read only before the lock left is drawn. *Reset* clears what is changed here, drawn only
-	 * where something is. Neither mints a credential: read only is these switches, enforced by the
-	 * application.
+	 * **What is tailored is pinned** (review round one, the human's call). A switch turned is set
+	 * for this workspace at its new value, and holds it whatever is later changed for the member
+	 * across the organization; a switch never turned follows that. Each switch set here carries a
+	 * dot saying so, and a folded head its *custom* mark.
 	 *
-	 * **The override stays out of sight.** A switch turned hands up what the workspace comes to
-	 * (`tailoredTo`): the override that makes the member end up with what the switches say, and a
-	 * full-access grant where a grant minted read only has a write turned on.
+	 * **Two presets above the switches.** *Read only* sets every add, edit and delete off here, for
+	 * every kind of record, and leaves each view as it is; it reads pressed while no write is on,
+	 * which is how a grant minted read only before the lock left is drawn. *Reset* sets nothing
+	 * here, drawn only where the workspace is custom. Neither mints a credential: read only is
+	 * these switches, enforced by the application.
+	 *
+	 * **A switch turned hands up what the workspace comes to** (`tailoredTo`): what is set here
+	 * and at what value, and a full-access grant where a grant minted read only has a write turned
+	 * on.
 	 *
 	 * **A control the reader may not use says why**, as the switch list's do: every one where the
-	 * reader lacks `overrideMember` (`refusal`); a change whose override would switch a flag the
-	 * reader does not hold, since Rust signs the row under the reader's certificate; and turning a
-	 * write on over a grant minted read only where re-granting it full access would be refused
+	 * reader lacks `overrideMember` (`refusal`); a change that would set or unset a flag the reader
+	 * does not hold, since Rust signs the row under the reader's certificate; and turning a write
+	 * on over a grant minted read only where re-granting it full access would be refused
 	 * (`regrantRefusal`).
 	 */
 	let {
@@ -65,7 +70,7 @@
 		id: string;
 		/** what the member may do across the organization, as the card has it now. */
 		organizationWide: number;
-		/** what the workspace holds before this save: its grant's level and its override. */
+		/** what the workspace holds before this save: its grant's level and what is set there. */
 		held: WorkspaceTailoring;
 		/** what the workspace comes to as the switches stand. */
 		value: WorkspaceTailoring;
@@ -82,8 +87,7 @@
 	let open = $state(false);
 
 	const shown = $derived(tailoredShown(organizationWide, value));
-	const baseline = $derived(recordsOf(organizationWide));
-	const custom = $derived(shown !== baseline);
+	const custom = $derived(isTailored(organizationWide, value));
 	const readOnly = $derived(!writesAny(shown));
 
 	/** why a workspace coming to `next` would be refused, beyond the flag a switch names. */
@@ -92,14 +96,14 @@
 			return regrantRefusal;
 		}
 
-		return firstUnheldTailored(readerPermissions, held.override, next.override)
+		return firstUnheldTailored(readerPermissions, held, next)
 			? $LL.organization.workspaceSwitches.movesNotHeld()
 			: null;
 	};
 
-	const planOf = (next: number) => tailoredTo(organizationWide, held, next);
+	const planOf = (next: number) => tailoredTo(organizationWide, held, value, next);
 
-	const readOnlyRefused = $derived(refusal ?? refusalOfPlan(planOf(readOnlyOf(shown))));
+	const readOnlyRefused = $derived(refusal ?? refusalOfPlan(readOnlyTailoring(held, value)));
 	const resetRefused = $derived(refusal ?? refusalOfPlan(resetTailoring(organizationWide, held)));
 
 	const press = (reason: string | null, next: () => WorkspaceTailoring) => () => {
@@ -199,7 +203,7 @@
 						$LL.organization.workspaceSwitches.readOnly(),
 						readOnly ? null : readOnlyRefused,
 						readOnly,
-						readOnly ? () => {} : press(readOnlyRefused, () => planOf(readOnlyOf(shown))),
+						readOnly ? () => {} : press(readOnlyRefused, () => readOnlyTailoring(held, value)),
 						`${id}-read-only-says`
 					)}
 					{#if custom}
@@ -222,9 +226,9 @@
 					{refusal}
 					refusalOf={(next) => refusalOfPlan(planOf(next))}
 					{disabled}
-					baseline={{
-						mask: baseline,
-						name: $LL.organization.workspaceSwitches.acrossOrganization()
+					marked={{
+						mask: recordsOf(value.pinned),
+						label: $LL.organization.workspaceSwitches.pinned()
 					}}
 					records
 				/>

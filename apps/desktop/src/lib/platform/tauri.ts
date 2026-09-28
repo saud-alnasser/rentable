@@ -347,11 +347,17 @@ export const tauri = {
 				}),
 			setOverride: (memberId: string, override: number) =>
 				invoke<OrganizationMember>('member_set_override', { memberId, overrideMask: override }),
-			setWorkspaceOverride: (memberId: string, workspaceId: string, override: number) =>
+			setWorkspaceOverride: (
+				memberId: string,
+				workspaceId: string,
+				pinned: number,
+				granted: number
+			) =>
 				invoke<OrganizationMember>('member_set_workspace_override', {
 					memberId,
 					workspaceId,
-					overrideMask: override
+					pinned,
+					granted
 				}),
 			offerOwnership: (memberId: string, password: string) =>
 				invoke<OrganizationMember>('member_offer_ownership', { memberId, password }),

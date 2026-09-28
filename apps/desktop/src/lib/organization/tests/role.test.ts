@@ -21,14 +21,17 @@ import {
 	levelWord,
 	memberWritesOf,
 	newRoleMask,
+	firstUnheldPinned,
 	firstUnheldTailored,
 	isTailored,
-	readOnlyOf,
+	pinnedAcross,
+	readOnlyTailoring,
 	recordsOf,
 	resetTailoring,
 	tailoredShown,
 	tailoredTo,
-	type KindLevel
+	type KindLevel,
+	type WorkspaceTailoring
 } from '../role.ts';
 
 /**
@@ -197,80 +200,175 @@ test('the holders a new mask leaves writing records they cannot view are named',
  * WHAT ONE WORKSPACE'S SWITCHES COME TO
  *
  * Requirement 12 of [[efforts/838-permissions-are-a-role-and-an-override/spec]] as amended a third
- * time (ticket 54): the card draws what a member may do in a workspace and hands up the grant and
- * the override the switches come to. What is drawn is what the member then holds there, by the
- * package's own arithmetic, and a grant minted read only is granted full access again only where a
- * write is turned on.
+ * time (ticket 54), and at review round one (ticket 55): the card draws what a member may do in a
+ * workspace and hands up the grant and what is pinned there. A switch turned is pinned to its new
+ * value, and holds it when what the member may do across the organization moves under it. What is
+ * drawn is what the member then holds there, by the package's own arithmetic, and a grant minted
+ * read only is granted full access again only where a write is turned on.
  */
 const MEMBER = BUILT_IN.member.mask;
 const MEMBER_WRITES = maskOf(...WRITE_FLAGS.filter((flag) => permits(MEMBER, flag)));
+const EVERY_WRITE = maskOf(...WRITE_FLAGS);
+const VIEWS = recordsOf(MEMBER) - MEMBER_WRITES;
+const NOTHING: WorkspaceTailoring = { access: 'full-access', pinned: 0, granted: 0 };
 
-test('what a workspace comes to is what the member then holds there', () => {
-	const held = { access: 'full-access' as const, override: 0 };
-
+test('what a workspace comes to is what the member then holds there, and what was turned is pinned', () => {
 	for (const shown of [
 		recordsOf(MEMBER),
-		readOnlyOf(recordsOf(MEMBER)),
+		VIEWS,
 		recordsOf(MEMBER) + maskOf('deletePayment'),
 		recordsOf(MEMBER) - maskOf('viewUnit', 'createUnit', 'editUnit')
 	]) {
-		const next = tailoredTo(MEMBER, held, shown);
+		const next = tailoredTo(MEMBER, NOTHING, NOTHING, shown);
 
 		assert.equal(next.access, 'full-access');
 		assert.equal(tailoredShown(MEMBER, next), shown);
 		assert.equal(
-			recordsOf(effectiveIn(effectiveInWorkspace(MEMBER, next.override), next.access)),
+			recordsOf(effectiveIn(effectiveInWorkspace(MEMBER, next.pinned, next.granted), next.access)),
 			shown
 		);
 	}
 
-	assert.equal(tailoredTo(MEMBER, held, recordsOf(MEMBER)).override, 0);
-	assert.equal(tailoredTo(MEMBER, held, readOnlyOf(recordsOf(MEMBER))).override, MEMBER_WRITES);
+	assert.deepEqual(tailoredTo(MEMBER, NOTHING, NOTHING, recordsOf(MEMBER)), NOTHING);
+
+	// deleting payments turned on pins it on, and nothing else.
+	const deleting = tailoredTo(
+		MEMBER,
+		NOTHING,
+		NOTHING,
+		recordsOf(MEMBER) + maskOf('deletePayment')
+	);
+
+	assert.deepEqual(deleting, {
+		access: 'full-access',
+		pinned: maskOf('deletePayment'),
+		granted: maskOf('deletePayment')
+	});
+
+	// turned back off, it stays pinned, now off.
+	assert.deepEqual(tailoredTo(MEMBER, NOTHING, deleting, recordsOf(MEMBER)), {
+		access: 'full-access',
+		pinned: maskOf('deletePayment'),
+		granted: 0
+	});
+
+	// a view turned off pins its writes off with it.
+	assert.deepEqual(
+		tailoredTo(
+			MEMBER,
+			NOTHING,
+			NOTHING,
+			recordsOf(MEMBER) - maskOf('viewUnit', 'createUnit', 'editUnit')
+		),
+		{ access: 'full-access', pinned: maskOf('viewUnit', 'createUnit', 'editUnit'), granted: 0 }
+	);
+});
+
+test('read only pins every add, edit and delete off, and holds when the organization moves', () => {
+	const readOnly = readOnlyTailoring(NOTHING, NOTHING);
+
+	assert.deepEqual(readOnly, { access: 'full-access', pinned: EVERY_WRITE, granted: 0 });
+	assert.equal(tailoredShown(MEMBER, readOnly), VIEWS);
+	// a write taken away across the organization, and one the role gains, reach it neither way.
+	assert.equal(tailoredShown(MEMBER - maskOf('createPayment'), readOnly), VIEWS);
+	assert.equal(tailoredShown(MEMBER + maskOf('deletePayment'), readOnly), VIEWS);
+
+	// a view pinned already stays pinned beside it.
+	const viewOff: WorkspaceTailoring = {
+		access: 'full-access',
+		pinned: maskOf('viewUnit'),
+		granted: 0
+	};
+
+	assert.deepEqual(readOnlyTailoring(NOTHING, viewOff), {
+		access: 'full-access',
+		pinned: EVERY_WRITE + maskOf('viewUnit'),
+		granted: 0
+	});
 });
 
 test('a grant minted read only stays read only until a write is turned on', () => {
-	const minted = { access: 'read-only' as const, override: 0 };
+	const minted: WorkspaceTailoring = { access: 'read-only', pinned: 0, granted: 0 };
 
-	assert.equal(tailoredShown(MEMBER, minted), readOnlyOf(recordsOf(MEMBER)));
+	assert.equal(tailoredShown(MEMBER, minted), VIEWS);
 	assert.ok(isTailored(MEMBER, minted));
-	assert.ok(!isTailored(MEMBER, { access: 'full-access', override: 0 }));
-
-	// a view off keeps it read only, and takes that kind's writes with it.
-	const viewOff = tailoredTo(MEMBER, minted, readOnlyOf(recordsOf(MEMBER)) - maskOf('viewPayment'));
-
-	assert.deepEqual(viewOff, {
-		access: 'read-only',
-		override: maskOf('viewPayment', 'createPayment', 'editPayment')
-	});
-
-	// a write on is a full-access grant, with every other write left off.
-	assert.deepEqual(
-		tailoredTo(MEMBER, minted, readOnlyOf(recordsOf(MEMBER)) + maskOf('createPayment')),
-		{ access: 'full-access', override: MEMBER_WRITES - maskOf('createPayment') }
+	assert.ok(!isTailored(MEMBER, NOTHING));
+	assert.ok(
+		isTailored(MEMBER, {
+			access: 'full-access',
+			pinned: maskOf('viewUnit'),
+			granted: maskOf('viewUnit')
+		}),
+		'a pin that agrees with the organization is still set here'
 	);
 
+	// a view off keeps it read only, and pins that kind's writes off with it.
+	const viewOff = tailoredTo(MEMBER, minted, minted, VIEWS - maskOf('viewPayment'));
+
+	assert.equal(viewOff.access, 'read-only');
+	assert.equal(tailoredShown(MEMBER, viewOff), VIEWS - maskOf('viewPayment'));
+	assert.ok(permits(viewOff.pinned, 'viewPayment'));
+	assert.ok(!permits(viewOff.granted, 'viewPayment'));
+
+	// a write on is a full-access grant, and every write the grant was clearing is pinned off.
+	const writing = tailoredTo(MEMBER, minted, minted, VIEWS + maskOf('createPayment'));
+
+	assert.equal(writing.access, 'full-access');
+	assert.equal(tailoredShown(MEMBER, writing), VIEWS + maskOf('createPayment'));
+	assert.equal(writing.granted, maskOf('createPayment'));
+	assert.equal(writing.pinned, MEMBER_WRITES);
+
 	// the reset is the organization's, which gives the member writes, so full access.
-	assert.deepEqual(resetTailoring(MEMBER, minted), { access: 'full-access', override: 0 });
+	assert.deepEqual(resetTailoring(MEMBER, minted), NOTHING);
 	assert.deepEqual(resetTailoring(maskOf('viewPayment'), minted), {
 		access: 'read-only',
-		override: 0
+		pinned: 0,
+		granted: 0
 	});
 });
 
-test('writing an override needs every flag it moves, and every flag it carries, held', () => {
+test('writing the pins needs every flag they move, and every flag they pin, held', () => {
 	const all = BUILT_IN.manager.mask;
+	const readOnly = { pinned: MEMBER_WRITES, granted: 0 };
+	const nothing = { pinned: 0, granted: 0 };
+	const editingPinnedOff = { pinned: maskOf('editPayment'), granted: 0 };
 
-	assert.equal(firstUnheldTailored(all, 0, MEMBER_WRITES), null);
-	assert.equal(firstUnheldTailored(all - maskOf('editPayment'), 0, MEMBER_WRITES), 'editPayment');
-	// carried and left where it was, still signed under the reader's certificate.
+	assert.equal(firstUnheldTailored(all, nothing, readOnly), null);
+	assert.equal(firstUnheldTailored(all - maskOf('editPayment'), nothing, readOnly), 'editPayment');
+	// pinned and left where it was, still signed under the reader's certificate.
 	assert.equal(
-		firstUnheldTailored(
-			all - maskOf('editPayment'),
-			maskOf('editPayment'),
-			maskOf('editPayment', 'editUnit')
-		),
+		firstUnheldTailored(all - maskOf('editPayment'), editingPinnedOff, {
+			pinned: maskOf('editPayment', 'editUnit'),
+			granted: 0
+		}),
+		'editPayment'
+	);
+	// unpinned is as moved as pinned.
+	assert.equal(
+		firstUnheldTailored(all - maskOf('editPayment'), editingPinnedOff, nothing),
+		'editPayment'
+	);
+	// a value moved under a pin that stays.
+	assert.equal(
+		firstUnheldTailored(all - maskOf('editPayment'), editingPinnedOff, {
+			pinned: maskOf('editPayment'),
+			granted: maskOf('editPayment')
+		}),
 		'editPayment'
 	);
 	// nothing changes, so nothing is written, and nothing is asked.
-	assert.equal(firstUnheldTailored(0, maskOf('editPayment'), maskOf('editPayment')), null);
+	assert.equal(firstUnheldTailored(0, readOnly, readOnly), null);
+});
+
+test('clearing every workspace needs every flag pinned in any of them held', () => {
+	const pinned = pinnedAcross([
+		{ pinned: maskOf('deleteUnit') },
+		{ pinned: maskOf('editPayment', 'deleteUnit') },
+		{ pinned: 0 }
+	]);
+
+	assert.equal(pinned, maskOf('deleteUnit', 'editPayment'));
+	assert.equal(firstUnheldPinned(BUILT_IN.manager.mask, pinned), null);
+	assert.equal(firstUnheldPinned(MEMBER, pinned), 'deleteUnit');
+	assert.equal(firstUnheldPinned(0, 0), null);
 });

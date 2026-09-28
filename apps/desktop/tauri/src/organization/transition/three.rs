@@ -1,7 +1,9 @@
 //! the change from format 2 to format 3: a member's override for one workspace, as a signed row of
-//! its own (effort 838, requirement 12 as amended a third time, ticket 53). What runs it, and what
-//! every change of format shares, is `upgrade.rs`; where it sits in the order is
-//! [`super::TRANSITIONS`].
+//! its own holding what is pinned for them there and which of it is on (effort 838, requirement 12
+//! as amended a third time, tickets 53 and 55). What runs it, and what every change of format
+//! shares, is `upgrade.rs`; where it sits in the order is [`super::TRANSITIONS`]. *The row held
+//! one mask switched over the layers beneath until review round one; format 3 had not shipped, so
+//! it was changed here rather than by a format of its own.*
 //!
 //! **An empty table is the whole change.** Format 3 adds `workspace_override` and touches nothing
 //! else, so an organization of format 2 keeps every row as it was signed, every member keeps

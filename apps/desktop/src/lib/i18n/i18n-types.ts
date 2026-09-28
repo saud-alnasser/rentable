@@ -4347,6 +4347,11 @@ type RootTranslation = {
 			 */
 			roleMoves: RequiredParams<'flag'>
 			/**
+			 * t​h​i​s​ ​r​o​l​e​ ​c​l​e​a​r​s​ ​w​h​e​t​h​e​r​ ​t​h​e​y​ ​m​a​y​ ​{​f​l​a​g​}​ ​i​n​ ​a​ ​w​o​r​k​s​p​a​c​e​,​ ​a​n​d​ ​y​o​u​ ​m​a​y​ ​n​o​t​.
+			 * @param {string} flag
+			 */
+			pinnedMoves: RequiredParams<'flag'>
+			/**
 			 * d​e​l​e​t​i​n​g​ ​i​t​ ​c​h​a​n​g​e​s​ ​w​h​e​t​h​e​r​ ​{​u​s​e​r​n​a​m​e​}​ ​m​a​y​ ​{​f​l​a​g​}​,​ ​a​n​d​ ​y​o​u​ ​m​a​y​ ​n​o​t​.
 			 * @param {string} flag
 			 * @param {string} username
@@ -4368,9 +4373,9 @@ type RootTranslation = {
 			 */
 			tailorSays: string
 			/**
-			 * w​h​a​t​ ​t​h​e​y​ ​m​a​y​ ​d​o​ ​a​c​r​o​s​s​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n
+			 * s​e​t​ ​f​o​r​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e
 			 */
-			acrossOrganization: string
+			pinned: string
 			/**
 			 * r​e​a​d​ ​o​n​l​y
 			 */
@@ -4391,10 +4396,6 @@ type RootTranslation = {
 			 * t​h​i​s​ ​c​h​a​n​g​e​s​ ​a​ ​p​e​r​m​i​s​s​i​o​n​ ​h​e​r​e​ ​t​h​a​t​ ​y​o​u​ ​d​o​ ​n​o​t​ ​h​o​l​d​ ​y​o​u​r​s​e​l​f​.
 			 */
 			movesNotHeld: string
-			/**
-			 * o​n​l​y​ ​t​h​e​ ​o​w​n​e​r​ ​c​h​a​n​g​e​s​ ​t​h​i​s​,​ ​s​i​n​c​e​ ​t​h​e​ ​o​w​n​e​r​ ​m​a​d​e​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​r​e​a​d​ ​o​n​l​y​ ​f​o​r​ ​t​h​e​m​.
-			 */
-			ownerMadeReadOnly: string
 			/**
 			 * y​o​u​ ​h​o​l​d​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​r​e​a​d​ ​o​n​l​y​,​ ​s​o​ ​y​o​u​ ​c​a​n​n​o​t​ ​g​i​v​e​ ​i​t​.
 			 */
@@ -8641,6 +8642,10 @@ export type TranslationFunctions = {
 			 */
 			roleMoves: (arg: { flag: string }) => LocalizedString
 			/**
+			 * this role clears whether they may {flag} in a workspace, and you may not.
+			 */
+			pinnedMoves: (arg: { flag: string }) => LocalizedString
+			/**
 			 * deleting it changes whether {username} may {flag}, and you may not.
 			 */
 			deleteMoves: (arg: { flag: string, username: string }) => LocalizedString
@@ -8659,9 +8664,9 @@ export type TranslationFunctions = {
 			 */
 			tailorSays: () => LocalizedString
 			/**
-			 * what they may do across the organization
+			 * set for this workspace
 			 */
-			acrossOrganization: () => LocalizedString
+			pinned: () => LocalizedString
 			/**
 			 * read only
 			 */
@@ -8682,10 +8687,6 @@ export type TranslationFunctions = {
 			 * this changes a permission here that you do not hold yourself.
 			 */
 			movesNotHeld: () => LocalizedString
-			/**
-			 * only the owner changes this, since the owner made this workspace read only for them.
-			 */
-			ownerMadeReadOnly: () => LocalizedString
 			/**
 			 * you hold this workspace read only, so you cannot give it.
 			 */

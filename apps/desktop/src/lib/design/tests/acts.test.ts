@@ -807,7 +807,8 @@ const workspaceOf = (id: string): OrganizationWorkspace => ({
 	databaseHostname: `${id}.turso.io`,
 	schemaVersion: 1,
 	accessLevel: 'full-access',
-	override: 0,
+	pinned: 0,
+	granted: 0,
 	permissions: 0
 });
 

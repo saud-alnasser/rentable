@@ -2,11 +2,11 @@
 	import type { AccessSwitchRow } from '$lib/organization/component/access-switches.svelte';
 
 	/**
-	 * one workspace a member can be put in: what they hold on it today, what is switched for them
-	 * there, and whether the reader holds it at full access themselves, which is what putting
-	 * somebody in gives.
+	 * one workspace a member can be put in: what they hold on it today, what is set for them there
+	 * and at what value, and whether the reader holds it at full access themselves, which is what
+	 * putting somebody in gives.
 	 */
-	export type MemberWorkspaceRow = AccessSwitchRow & { override: number };
+	export type MemberWorkspaceRow = AccessSwitchRow & { pinned: number; granted: number };
 </script>
 
 <script lang="ts">
@@ -43,7 +43,6 @@
 		rows,
 		access,
 		onPick,
-		readerIsOwner = false,
 		refusal = null,
 		disabled,
 		error = null,
@@ -62,8 +61,6 @@
 		/** the level chosen per workspace, where it differs from the row's own. */
 		access: Record<string, AccessChoice>;
 		onPick: (id: string, value: AccessChoice) => void;
-		/** whether the reader is the owner, who alone changes a grant minted read only. */
-		readerIsOwner?: boolean;
 		/** why the reader may turn none of them, or `null` where they may. */
 		refusal?: string | null;
 		disabled: boolean;
@@ -86,7 +83,6 @@
 		{rows}
 		{access}
 		{onPick}
-		{readerIsOwner}
 		icon={BuildingIcon}
 		{refusal}
 		{disabled}

@@ -307,58 +307,106 @@
 	],
 	"workspaceCases": [
 		{
-			"name": "the member role with no workspace override",
+			"name": "the member role with nothing pinned",
 			"permissions": 513104936960,
-			"workspaceOverride": 0,
+			"pinned": 0,
+			"granted": 0,
 			"effective": 513104936960,
 			"readOnly": 73300705280
 		},
 		{
-			"name": "the member role with every add and edit switched off: read only",
+			"name": "the member role read only: every add, edit and delete pinned off",
 			"permissions": 513104936960,
-			"workspaceOverride": 439804231680,
+			"pinned": 1026209873920,
+			"granted": 0,
 			"effective": 73300705280,
 			"readOnly": 73300705280
 		},
 		{
-			"name": "the member role adding and editing payments no more, and deleting them",
+			"name": "read only stays read only when adding payments is taken away across the organization",
+			"permissions": 375665983488,
+			"pinned": 1026209873920,
+			"granted": 0,
+			"effective": 73300705280,
+			"readOnly": 73300705280
+		},
+		{
+			"name": "read only stays read only when the role gains deleting payments",
+			"permissions": 1062860750848,
+			"pinned": 1026209873920,
+			"granted": 0,
+			"effective": 73300705280,
+			"readOnly": 73300705280
+		},
+		{
+			"name": "the member role with deleting payments pinned on",
 			"permissions": 513104936960,
-			"workspaceOverride": 962072674304,
+			"pinned": 549755813888,
+			"granted": 549755813888,
+			"effective": 1062860750848,
+			"readOnly": 73300705280
+		},
+		{
+			"name": "deleting payments pinned on stays on when the role gains it too",
+			"permissions": 1062860750848,
+			"pinned": 549755813888,
+			"granted": 549755813888,
+			"effective": 1062860750848,
+			"readOnly": 73300705280
+		},
+		{
+			"name": "deleting payments pinned on is dropped when viewing payments is taken away across the organization",
+			"permissions": 32068599808,
+			"pinned": 549755813888,
+			"granted": 549755813888,
+			"effective": 32068599808,
+			"readOnly": 4581228544
+		},
+		{
+			"name": "adding and editing payments pinned off, and deleting them pinned on",
+			"permissions": 513104936960,
+			"pinned": 962072674304,
+			"granted": 549755813888,
 			"effective": 650543890432,
 			"readOnly": 73300705280
 		},
 		{
 			"name": "the manager role without deleting contracts",
 			"permissions": 1099510580223,
-			"workspaceOverride": 34359738368,
+			"pinned": 34359738368,
+			"granted": 0,
 			"effective": 1065150841855,
 			"readOnly": 73300706303
 		},
 		{
-			"name": "the manager role with an administration flag named, which is not switched",
+			"name": "the manager role with an administration flag pinned, which is not",
 			"permissions": 1099510580223,
-			"workspaceOverride": 16777221,
-			"effective": 1099493803007,
-			"readOnly": 73283929087
-		},
-		{
-			"name": "the manager role with every write switched off: read only",
-			"permissions": 1099510580223,
-			"workspaceOverride": 1026209873920,
-			"effective": 73300706303,
+			"pinned": 34359738373,
+			"granted": 1,
+			"effective": 1065150841855,
 			"readOnly": 73300706303
 		},
 		{
-			"name": "nothing across the organization, and viewing and editing payments here",
+			"name": "a flag granted that is not pinned is not granted",
+			"permissions": 513104936960,
+			"pinned": 137438953472,
+			"granted": 137573171200,
+			"effective": 513104936960,
+			"readOnly": 73300705280
+		},
+		{
+			"name": "nothing across the organization, and viewing and editing payments pinned on here",
 			"permissions": 0,
-			"workspaceOverride": 343597383680,
+			"pinned": 343597383680,
+			"granted": 343597383680,
 			"effective": 343597383680,
 			"readOnly": 68719476736
 		},
 		{
-			"name": "the owner's every flag with no workspace override",
+			"name": "the owner's every flag with nothing pinned",
 			"permissions": 1099510841343,
-			"workspaceOverride": 0,
+			"pinned": 0,
+			"granted": 0,
 			"effective": 1099510841343,
 			"readOnly": 73300967423
 		}

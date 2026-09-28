@@ -137,7 +137,8 @@
 			id: workspace.id,
 			name: workspace.name,
 			access: 'none',
-			override: 0,
+			pinned: 0,
+			granted: 0,
 			givable: workspace.accessLevel === 'full-access'
 		}))
 	);

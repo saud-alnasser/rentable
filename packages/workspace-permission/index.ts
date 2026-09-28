@@ -7,7 +7,7 @@
  * the owner performs on bits 10 to 17, and, for each record kind, viewing, creating, editing and
  * deleting on bits 20 to 39. Bits 18, 19 and 40 to 52 are free. A member's permissions are their
  * role's mask exclusive-or'd with their own override, which is [`effective`]; in one workspace,
- * that with the record flags of their override for that workspace switched, which is
+ * that with the record flags pinned for that workspace set to what is granted there, which is
  * [`effectiveInWorkspace`].
  *
  * **Each name maps to a bit index, and no index may reach 53.** Decision 04 chose one
@@ -159,8 +159,8 @@ export const WRITE_FLAGS: readonly Flag[] = [
 ];
 
 /**
- * Viewing, creating, editing and deleting every record kind: what a workspace override may switch,
- * and nothing else (effort 838, requirement 12 as amended a third time).
+ * Viewing, creating, editing and deleting every record kind: what a workspace override may pin, and
+ * nothing else (effort 838, requirement 12 as amended a third time).
  */
 export const RECORD_FLAGS: readonly Flag[] = RECORD_KINDS.flatMap(
 	(kind) => FAMILIES[kind] as readonly Flag[]
@@ -251,23 +251,60 @@ export const firstWriteWithoutView = (mask: number): RecordKind | null =>
 	}) ?? null;
 
 /**
- * A member's permissions in one workspace, before its grant is read: what they may do across the
- * organization, with every record flag their override for that workspace names switched (effort
- * 838, requirement 12 as amended a third time). A flag set in it turns a record flag off where
- * the member holds it across the organization, and on where they do not.
+ * What a member may do across the organization with the record flags `pinned` for one workspace
+ * set to what `granted` says there, and nothing dropped (effort 838, requirement 12 as amended a
+ * third time, and at review round one): a flag `pinned` does not carry follows the layers beneath
+ * it, and one it carries is on where `granted` carries it and off where it does not. A bit outside
+ * [`RECORD_FLAGS`] is not pinned, and a bit `granted` carries outside `pinned` is not granted.
+ *
+ * What an act setting the pins judges, so that a write pinned on where its view is not held is
+ * refused rather than written; [`effectiveInWorkspace`] is what a reader answers by.
+ */
+export const pinnedIn = (permissions: number, pinned: number, granted: number): number =>
+	RECORD_FLAGS.reduce((mask, name) => {
+		if (!permits(pinned, name)) {
+			return mask;
+		}
+
+		const on = permits(granted, name);
+
+		if (on === permits(mask, name)) {
+			return mask;
+		}
+
+		return on ? mask + 2 ** FLAGS[name] : mask - 2 ** FLAGS[name];
+	}, permissions);
+
+/**
+ * A member's permissions in one workspace, before its grant is read: [`pinnedIn`], what they may
+ * do across the organization with the record flags pinned for that workspace set as they are
+ * granted there (effort 838, requirement 12 as amended a third time, and at review round one),
+ * then any add, edit or delete whose kind's view the result does not hold dropped, since the
+ * layers beneath can take a view away under a write pinned on. A flag pinned holds its value
+ * however those layers move.
  *
  * **Record flags only.** A workspace override naming any other bit is refused where it is written
- * and where it is read, and a bit outside [`RECORD_FLAGS`] is not switched here either, so the
+ * and where it is read, and a bit outside [`RECORD_FLAGS`] is not pinned here either, so the
  * organization's own flags pass through as they are. [`effectiveIn`] then folds the result by the
  * grant's level. Rust's `effective_in_workspace` is held to this by the shared table.
  */
-export const effectiveInWorkspace = (permissions: number, workspaceOverride: number): number =>
-	xorOf(
-		permissions,
-		RECORD_FLAGS.reduce(
-			(mask, name) => (permits(workspaceOverride, name) ? mask + 2 ** FLAGS[name] : mask),
-			0
-		)
+export const effectiveInWorkspace = (
+	permissions: number,
+	pinned: number,
+	granted: number
+): number =>
+	RECORD_KINDS.reduce(
+		(mask, kind) => {
+			const [view, ...writes] = FAMILIES[kind] as readonly Flag[];
+
+			return permits(mask, view)
+				? mask
+				: writes.reduce(
+						(within, flag) => (permits(within, flag) ? within - 2 ** FLAGS[flag] : within),
+						mask
+					);
+		},
+		pinnedIn(permissions, pinned, granted)
 	);
 
 /** How a member reaches one workspace, in the spelling a grant row stores. */

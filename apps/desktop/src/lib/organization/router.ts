@@ -21,10 +21,10 @@ import { procedure, router } from '$lib/api/trpc';
 import {
 	RECORD_FLAGS,
 	effective,
-	effectiveInWorkspace,
 	firstWriteWithoutView,
 	maskOf,
-	permits
+	permits,
+	pinnedIn
 } from '@rentable/workspace-permission';
 import z from 'zod';
 
@@ -482,9 +482,10 @@ export const organization = router({
 				return ctx.host.organization.member.setOverride(input.memberId, input.override);
 			}),
 		/**
-		 * What is switched for one member in one workspace they are in (effort 838, requirement 12
-		 * as amended a third time), held to `overrideMember` here and to the rest in Rust, as
-		 * `setOverride` is; `0` clears it. A mask naming a flag that is not a record flag is
+		 * What is pinned for one member in one workspace they are in, and which of it is on (effort
+		 * 838, requirement 12 as amended a third time, and at review round one), held to
+		 * `overrideMember` here and to the rest in Rust, as `setOverride` is; nothing pinned clears
+		 * it. A pin naming a flag that is not a record flag, or a flag granted and not pinned, is
 		 * refused here first, and so is what the member would end up with there where it adds,
 		 * edits or deletes a kind of record without viewing it. Whether they hold a grant on the
 		 * workspace is Rust's to refuse by name.
@@ -495,12 +496,16 @@ export const organization = router({
 				z.object({
 					memberId: z.string().trim().min(1),
 					workspaceId: z.string().trim().min(1),
-					override: MASK
+					pinned: MASK,
+					granted: MASK
 				})
 			)
 			.mutation(async ({ input, ctx }): Promise<OrganizationMember> => {
+				const records = RECORD_FLAGS.filter((flag) => permits(input.pinned, flag));
+
 				if (
-					input.override !== maskOf(...RECORD_FLAGS.filter((flag) => permits(input.override, flag)))
+					input.pinned !== maskOf(...records) ||
+					input.granted !== maskOf(...records.filter((flag) => permits(input.granted, flag)))
 				) {
 					throw refuse('host.recordFlagsOnly');
 				}
@@ -509,13 +514,14 @@ export const organization = router({
 				const member = members.find((held) => held.id === input.memberId);
 
 				if (member) {
-					refuseWriteWithoutView(effectiveInWorkspace(member.permissions, input.override));
+					refuseWriteWithoutView(pinnedIn(member.permissions, input.pinned, input.granted));
 				}
 
 				return ctx.host.organization.member.setWorkspaceOverride(
 					input.memberId,
 					input.workspaceId,
-					input.override
+					input.pinned,
+					input.granted
 				);
 			}),
 		/**

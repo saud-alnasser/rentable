@@ -1171,9 +1171,11 @@ pub async fn workspace_open(
         store.pull().await;
 
         let workspaces = store.workspaces(&member.verifying_key).await?;
-        // what is switched for the member there is a fact the answer draws, read off every member
+        // what is pinned for the member there is a fact the answer draws, read off every member
         // row; a directory refusing that read refuses the members list by name, and is not a
         // reason to refuse opening a workspace the member holds a grant on, which it never was.
+        // Nothing reads the answer's `permissions`: a record procedure is answered by the
+        // session's, which `api/context.ts` reads for the workspace open.
         let workspace_overrides = store
             .workspace_overrides(&member.verifying_key)
             .await
@@ -1707,24 +1709,25 @@ pub async fn member_set_override(
     role::set_override(store, member, &member_id, override_mask, timestamp::now()).await
 }
 
-/// Set what is switched for a member in one workspace, over what they may do across the
-/// organization (effort 838, requirement 12 as amended a third time); `overrideMask` on the wire,
-/// for the reason `member_create` gives, and zero clears it. `overrideMember`, the member below
-/// the actor's rank and in that workspace, never the actor's own row nor the owner's, record flags
-/// alone, only flags the actor holds, and nothing written there that the member cannot view.
+/// Set what is pinned for a member in one workspace, whatever they hold across the organization,
+/// and which of it is on (effort 838, requirement 12 as amended a third time, and at review round
+/// one); nothing pinned clears it. `overrideMember`, the member below the actor's rank and in that
+/// workspace, never the actor's own row nor the owner's, record flags alone, granted within
+/// pinned, only flags the actor holds, and nothing written there that the member cannot view.
 #[tauri::command]
 pub async fn member_set_workspace_override(
     app_state: tauri::State<'_, AppState>,
     member_id: String,
     workspace_id: String,
-    override_mask: i64,
+    pinned: i64,
+    granted: i64,
 ) -> Result<MemberFacts, Error> {
     let mut member = app_state.member.write().await;
     let store = app_state.organization.read().await;
     let (member, store) = signed_in(&mut member, &store)?;
     store.pull().await;
 
-    role::set_workspace_override(store, member, &member_id, &workspace_id, override_mask).await
+    role::set_workspace_override(store, member, &member_id, &workspace_id, pinned, granted).await
 }
 
 /// Offer the organization to another account: the first of the two acts a handover is (effort

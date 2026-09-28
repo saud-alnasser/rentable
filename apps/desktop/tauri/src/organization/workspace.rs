@@ -46,7 +46,7 @@ use super::{
     session::{MemberSession, WorkspaceCredential, WorkspaceFacts, permissions_on_row},
     store::{
         GrantRecord, MemberRecord, OrganizationStore, Signer, WorkspaceOverrideRecord,
-        WorkspaceRecord,
+        WorkspaceRecord, pins_of,
     },
     vault::{open_content, seal_content, seal_to_public_key},
 };
@@ -257,8 +257,9 @@ async fn finish_workspace<P: TursoPlatform>(
         database_hostname: hostname.to_string(),
         schema_version: version,
         access_level: AccessLevel::FullAccess.as_str().to_string(),
-        // a workspace is created by its owner, and nothing is overridden for the owner.
-        override_mask: 0,
+        // a workspace is created by its owner, and nothing is pinned for the owner.
+        pinned: 0,
+        granted: 0,
         permissions: session.permissions,
     })
 }
@@ -319,20 +320,9 @@ pub async fn grant_workspace<P: TursoPlatform>(
 
     refuse_removed(member)?;
 
-    // a read-only grant is the owner's lock, the one limit a role cannot give (requirement 12,
-    // as amended 2026-09-27): replacing it with full access is lifting it, and that is the owner's
-    // too, though it mints nothing.
-    if access == AccessLevel::FullAccess
-        && holds_lock(store, session, member_id, workspace_id).await?
-    {
-        require_owner(
-            store,
-            session,
-            Flag::MintReadOnly,
-            "that workspace is locked to read only for them, and only the owner lifts the lock",
-        )
-        .await?;
-    }
+    // a grant already minted read-only is granted again at full access by anybody who may grant
+    // the workspace at full access: what it limited is now the workspace's pins to say, set under
+    // `overrideMember` (requirement 12, as amended a third time, and at review round one).
 
     let workspaces = store.workspaces(&session.verifying_key).await?;
     let workspace = workspaces
@@ -462,21 +452,8 @@ pub async fn withdraw_grant(
         .into_iter()
         .find(|grant| grant.member_id == member_id && grant.workspace_id == workspace_id);
 
-    // withdrawing a locked grant and granting again would lift the lock by two acts, so a locked
-    // grant is the owner's to withdraw as it is theirs to lift.
-    if held
-        .as_ref()
-        .is_some_and(|grant| grant.access_level == AccessLevel::ReadOnly.as_str())
-    {
-        require_owner(
-            store,
-            session,
-            Flag::MintReadOnly,
-            "that workspace is locked to read only for them, and only the owner changes it",
-        )
-        .await?;
-    }
-
+    // a grant minted read-only is withdrawn as any other is (requirement 12, as amended a third
+    // time, and at review round one).
     if held.is_none() {
         return Err(Error::refused(
             RefusalReason::GrantMissing,
@@ -748,7 +725,7 @@ pub async fn renew_credentials<P: TursoPlatform>(
 /// The workspace a member is about to open, with the name opened and the credential their vault
 /// holds for it. `None` is a workspace this member holds no grant on, which is not theirs to open.
 /// `workspace_overrides` are the organization's, verified, of which the member's for this
-/// workspace is what is switched for them there (effort 838, ticket 53).
+/// workspace is what is pinned for them there (effort 838, tickets 53 and 55).
 pub fn openable(
     session: &MemberSession,
     workspaces: &[WorkspaceRecord],
@@ -772,13 +749,7 @@ pub fn openable(
     .map_err(|_| Error::Integrity {
         message: "the workspace name did not open as text".to_string(),
     })?;
-    let override_mask = workspace_overrides
-        .iter()
-        .find(|workspace_override| {
-            workspace_override.member_id == session.member_id
-                && workspace_override.workspace_id == workspace.id
-        })
-        .map_or(0, |workspace_override| workspace_override.mask);
+    let (pinned, granted) = pins_of(workspace_overrides, &session.member_id, &workspace.id);
 
     Ok(Some((
         WorkspaceFacts {
@@ -788,8 +759,9 @@ pub fn openable(
             database_hostname: workspace.database_hostname.clone(),
             schema_version: workspace.schema_version,
             access_level: held.access.as_str().to_string(),
-            override_mask,
-            permissions: permission::effective_in_workspace(session.permissions, override_mask),
+            pinned,
+            granted,
+            permissions: permission::effective_in_workspace(session.permissions, pinned, granted),
         },
         held.clone(),
     )))
@@ -821,24 +793,6 @@ pub(super) async fn require_owner(
     actor.require_owner(flag, RefusalReason::OwnerOnly, refusal)?;
 
     Ok(actor.row)
-}
-
-/// Whether `member_id` holds `workspace_id` locked to read only: a read-only grant row.
-async fn holds_lock(
-    store: &OrganizationStore,
-    session: &MemberSession,
-    member_id: &str,
-    workspace_id: &str,
-) -> Result<bool, Error> {
-    Ok(store
-        .grants(&session.verifying_key)
-        .await?
-        .iter()
-        .any(|grant| {
-            grant.member_id == member_id
-                && grant.workspace_id == workspace_id
-                && grant.access_level == AccessLevel::ReadOnly.as_str()
-        }))
 }
 
 /// Refuse a grant to a member who has been removed: renewal skips them, and a first grant should
@@ -1990,14 +1944,14 @@ mod tests {
         );
     }
 
-    /// **The owner's lock is the owner's to lift** (requirement 12, as amended 2026-09-27). A
-    /// manager holding `grantWorkspace` is refused turning a member's read-only grant into full
-    /// access, and refused withdrawing it, which with a grant after would lift it in two acts; the
-    /// grant stays locked. Nobody withdraws the organization's own directory grant as though it
-    /// were a workspace, and the owner withdraws the locked grant.
+    /// **A grant minted read-only is no longer the owner's alone** (requirement 12, as amended a
+    /// third time, and at review round one). A manager holding `grantWorkspace` and the workspace
+    /// at full access grants a member's read-only grant again at full access, and withdraws one
+    /// minted read-only. Nobody withdraws the organization's own directory grant as though it were
+    /// a workspace.
     #[tokio::test]
-    async fn a_manager_neither_lifts_nor_withdraws_the_owners_lock() {
-        let directory = scratch("manager-lock");
+    async fn a_manager_grants_a_read_only_grant_again_at_full_access_and_withdraws_one() {
+        let directory = scratch("manager-read-only");
         let (_, store, _, mut owner, platform) = owned(&directory).await;
         let pipeline = applying_pipeline().await;
         let workspace = create_workspace(
@@ -2032,7 +1986,7 @@ mod tests {
             AccessLevel::ReadOnly,
         )
         .await
-        .expect("the owner could not lock the member's grant");
+        .expect("the owner could not mint the member's grant read-only");
 
         let manager = sign_in(&store, &joined_manager, OTHER_PASSWORD, &slot())
             .await
@@ -2059,53 +2013,58 @@ mod tests {
             .await
             .expect("the manager's certificate");
 
-        let owner_only = |refused: Error| {
-            assert!(
-                matches!(
-                    refused,
-                    Error::Refused {
-                        reason: crate::error::RefusalReason::OwnerOnly,
-                        ..
-                    }
-                ),
-                "{refused:?}"
-            );
-        };
-
-        owner_only(
-            grant_workspace(
-                &store,
-                &manager,
-                None::<&InMemoryPlatform>,
-                &workspace.id,
-                "member-b",
-                AccessLevel::FullAccess,
-            )
-            .await
-            .expect_err("a manager lifted the owner's lock"),
-        );
-        owner_only(
-            withdraw_grant(&store, &manager, &workspace.id, "member-b")
-                .await
-                .expect_err("a manager withdrew a locked grant"),
-        );
-
-        let locked = |grants: Vec<GrantRecord>| {
+        let access = |grants: Vec<GrantRecord>| {
             grants
                 .iter()
                 .find(|grant| grant.member_id == "member-b" && grant.workspace_id == workspace.id)
                 .map(|grant| grant.access_level.clone())
         };
 
+        grant_workspace(
+            &store,
+            &manager,
+            None::<&InMemoryPlatform>,
+            &workspace.id,
+            "member-b",
+            AccessLevel::FullAccess,
+        )
+        .await
+        .expect("the manager could not grant the read-only grant again at full access");
+
         assert_eq!(
-            locked(
+            access(
                 store
                     .grants(&owner.verifying_key)
                     .await
                     .expect("the grants")
             ),
-            Some(AccessLevel::ReadOnly.as_str().to_string()),
-            "the lock did not stand"
+            Some(AccessLevel::FullAccess.as_str().to_string()),
+            "the grant is not full access"
+        );
+
+        grant_workspace(
+            &store,
+            &owner,
+            Some(platform.as_ref()),
+            &workspace.id,
+            "member-b",
+            AccessLevel::ReadOnly,
+        )
+        .await
+        .expect("the owner could not mint the grant read-only again");
+        withdraw_grant(&store, &manager, &workspace.id, "member-b")
+            .await
+            .expect("the manager could not withdraw a grant minted read-only");
+
+        assert_eq!(
+            access(
+                store
+                    .grants(&owner.verifying_key)
+                    .await
+                    .expect("the grants")
+            ),
+            None,
+            "the grant stands"
         );
 
         let directory_grant = withdraw_grant(&store, &owner, &owner.organization_id, "member-b")
@@ -2121,20 +2080,6 @@ mod tests {
                 }
             ),
             "{directory_grant:?}"
-        );
-
-        withdraw_grant(&store, &owner, &workspace.id, "member-b")
-            .await
-            .expect("the owner could not withdraw the locked grant");
-
-        assert_eq!(
-            locked(
-                store
-                    .grants(&owner.verifying_key)
-                    .await
-                    .expect("the grants")
-            ),
-            None
         );
     }
 

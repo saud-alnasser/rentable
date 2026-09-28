@@ -118,7 +118,8 @@ const workspaces: OrganizationWorkspace[] = [
 		databaseHostname: 'ws-1.turso.io',
 		schemaVersion: 1,
 		accessLevel: 'full-access',
-		override: 0,
+		pinned: 0,
+		granted: 0,
 		permissions: 0
 	},
 	{
@@ -128,7 +129,8 @@ const workspaces: OrganizationWorkspace[] = [
 		databaseHostname: 'ws-2.turso.io',
 		schemaVersion: 1,
 		accessLevel: 'read-only',
-		override: 0,
+		pinned: 0,
+		granted: 0,
 		permissions: 0
 	}
 ];
@@ -142,20 +144,20 @@ const members = [
 		username: 'olivia',
 		role: 'owner',
 		workspaces: [
-			{ id: 'ws-1', access: 'full-access', override: 0, permissions: 0 },
-			{ id: 'ws-2', access: 'full-access', override: 0, permissions: 0 }
+			{ id: 'ws-1', access: 'full-access', pinned: 0, granted: 0, permissions: 0 },
+			{ id: 'ws-2', access: 'full-access', pinned: 0, granted: 0, permissions: 0 }
 		]
 	}),
 	member({
 		id: 'ada',
 		username: 'ada',
 		role: 'manager',
-		workspaces: [{ id: 'ws-1', access: 'full-access', override: 0, permissions: 0 }]
+		workspaces: [{ id: 'ws-1', access: 'full-access', pinned: 0, granted: 0, permissions: 0 }]
 	}),
 	member({
 		id: 'sami',
 		username: 'sami',
-		workspaces: [{ id: 'ws-1', access: 'read-only', override: 0, permissions: 0 }]
+		workspaces: [{ id: 'ws-1', access: 'read-only', pinned: 0, granted: 0, permissions: 0 }]
 	})
 ];
 
@@ -558,7 +560,8 @@ test('the members act marks a person tailored in that workspace, and draws no lo
 				{
 					id: 'ws-1',
 					access: 'full-access',
-					override: maskOf('deletePayment'),
+					pinned: maskOf('deletePayment'),
+					granted: 0,
 					permissions: BUILT_IN.manager.mask - maskOf('deletePayment')
 				}
 			]

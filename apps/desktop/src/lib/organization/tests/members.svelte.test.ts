@@ -28,7 +28,7 @@ import {
 	searchGlass,
 	typeSearch
 } from '$lib/design/tests/search';
-import { BUILT_IN, WRITE_FLAGS, maskOf, permits } from '@rentable/workspace-permission';
+import { BUILT_IN, WRITE_FLAGS, maskOf } from '@rentable/workspace-permission';
 
 import { layOutLists } from '#tests/permission.ts';
 
@@ -115,7 +115,8 @@ const workspaces: OrganizationWorkspace[] = [
 		databaseHostname: 'ws-1.turso.io',
 		schemaVersion: 1,
 		accessLevel: 'full-access',
-		override: 0,
+		pinned: 0,
+		granted: 0,
 		permissions: 0
 	},
 	{
@@ -125,7 +126,8 @@ const workspaces: OrganizationWorkspace[] = [
 		databaseHostname: 'ws-2.turso.io',
 		schemaVersion: 1,
 		accessLevel: 'full-access',
-		override: 0,
+		pinned: 0,
+		granted: 0,
 		permissions: 0
 	}
 ];
@@ -140,14 +142,14 @@ const members = [
 		username: 'ada',
 		role: 'manager',
 		workspaces: [
-			{ id: 'ws-1', access: 'full-access', override: 0, permissions: 0 },
-			{ id: 'ws-2', access: 'read-only', override: 0, permissions: 0 }
+			{ id: 'ws-1', access: 'full-access', pinned: 0, granted: 0, permissions: 0 },
+			{ id: 'ws-2', access: 'read-only', pinned: 0, granted: 0, permissions: 0 }
 		]
 	}),
 	member({
 		id: 'sami',
 		username: 'sami',
-		workspaces: [{ id: 'ws-1', access: 'full-access', override: 0, permissions: 0 }]
+		workspaces: [{ id: 'ws-1', access: 'full-access', pinned: 0, granted: 0, permissions: 0 }]
 	})
 ];
 
@@ -330,14 +332,14 @@ test('a card says how many workspaces are held, in one line, and names none of t
 				username: 'ada',
 				role: 'manager',
 				workspaces: [
-					{ id: 'ws-1', access: 'full-access', override: 0, permissions: 0 },
-					{ id: 'ws-2', access: 'read-only', override: 0, permissions: 0 }
+					{ id: 'ws-1', access: 'full-access', pinned: 0, granted: 0, permissions: 0 },
+					{ id: 'ws-2', access: 'read-only', pinned: 0, granted: 0, permissions: 0 }
 				]
 			}),
 			member({
 				id: 'sami',
 				username: 'sami',
-				workspaces: [{ id: 'ws-1', access: 'full-access', override: 0, permissions: 0 }]
+				workspaces: [{ id: 'ws-1', access: 'full-access', pinned: 0, granted: 0, permissions: 0 }]
 			})
 		]
 	});
@@ -982,8 +984,8 @@ test('one save writes the override and the grants through the acts that exist', 
 });
 
 // ticket 54 of effort 838, requirement 12 as amended a third time: what is tailored beneath a
-// workspace is written after the grants, since an override is set only on a workspace the member
-// is in, one write per workspace whose override changed.
+// workspace is written after the grants, since a workspace override is set only on a workspace
+// the member is in, one write per workspace whose pins changed, carrying both masks.
 test('what is tailored in a workspace is written after the grants, one write per workspace', async () => {
 	hostAnswers.roles = fakeOrganizationRoles();
 	list();
@@ -1006,7 +1008,8 @@ test('what is tailored in a workspace is written after the grants, one write per
 	await fireEvent.click(document.querySelector<HTMLElement>('#access-ws-2-tailor-deletePayment')!);
 	await fireEvent.submit(document.querySelector('form')!);
 
-	const readOnly = maskOf(...WRITE_FLAGS.filter((flag) => permits(BUILT_IN.member.mask, flag)));
+	const readOnly = maskOf(...WRITE_FLAGS);
+	const deleting = maskOf('deletePayment');
 
 	await waitFor(() => {
 		expect(
@@ -1020,11 +1023,11 @@ test('what is tailored in a workspace is written after the grants, one write per
 			},
 			{
 				hook: 'useSetWorkspaceOverride',
-				input: { memberId: 'sami', workspaceId: 'ws-1', override: readOnly }
+				input: { memberId: 'sami', workspaceId: 'ws-1', pinned: readOnly, granted: 0 }
 			},
 			{
 				hook: 'useSetWorkspaceOverride',
-				input: { memberId: 'sami', workspaceId: 'ws-2', override: maskOf('deletePayment') }
+				input: { memberId: 'sami', workspaceId: 'ws-2', pinned: deleting, granted: deleting }
 			}
 		]);
 	});
@@ -1032,6 +1035,64 @@ test('what is tailored in a workspace is written after the grants, one write per
 	await waitFor(() => {
 		expect(surface()).toBeNull();
 	});
+});
+
+// review round one of ticket 54: another role clears what is set for the member in every
+// workspace, in the same act. Where a later write on the same save is refused and the sheet stays
+// open, it is drawn from what went through, so no workspace reads as set any more.
+test('a role that went through clears what the open sheet shows set in every workspace', async () => {
+	hostAnswers.roles = fakeOrganizationRoles();
+	hostAnswers.members = members.map((each) =>
+		each.id === 'sami'
+			? {
+					...each,
+					workspaces: [
+						{
+							id: 'ws-1',
+							access: 'full-access' as const,
+							pinned: maskOf('editPayment'),
+							granted: 0,
+							permissions: BUILT_IN.member.mask - maskOf('editPayment')
+						}
+					]
+				}
+			: each
+	);
+	hostAnswers.refusals.useChangeAccess = new Error('that workspace is not yours to grant');
+	list({ members: hostAnswers.members });
+
+	await press('sami', 'edit');
+
+	const custom = () =>
+		document.querySelector('[data-tailor="access-ws-1-tailor"] [data-tailor-custom]');
+
+	expect(custom()).not.toBeNull();
+
+	await openSelect(document.querySelector<HTMLElement>('#member-role')!);
+	await chooseOption(
+		document.querySelector<HTMLElement>('[data-slot=select-item][data-role="supervisor"]')!
+	);
+	// ws-2 switched on, which the shell refuses.
+	await fireEvent.click(document.querySelector<HTMLElement>('#access-ws-2')!);
+	await fireEvent.submit(document.querySelector('form')!);
+
+	await waitFor(() => {
+		expect(document.querySelector('[data-sheet-error="workspaces"]')).not.toBeNull();
+	});
+	expect(written('useAssignRole')).toHaveLength(1);
+	expect(surface()).not.toBeNull();
+	// the role went through, and with it what was set in ws-1.
+	expect(custom()).toBeNull();
+
+	// and saving again writes nothing for ws-1, which holds nothing now.
+	delete hostAnswers.refusals.useChangeAccess;
+	await fireEvent.submit(document.querySelector('form')!);
+
+	await waitFor(() => {
+		expect(surface()).toBeNull();
+	});
+	expect(written('useSetWorkspaceOverride')).toEqual([]);
+	expect(written('useAssignRole')).toHaveLength(1);
 });
 
 // ticket 14 of effort 838: a role and an override changed on one save are one act, so the flags

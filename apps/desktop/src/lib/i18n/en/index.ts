@@ -1504,6 +1504,8 @@ const en = {
 		 */
 		foreseen: {
 			roleMoves: 'this role changes whether they may {flag:string}, and you may not.',
+			pinnedMoves:
+				'this role clears whether they may {flag:string} in a workspace, and you may not.',
 			deleteMoves:
 				'deleting it changes whether {username:string} may {flag:string}, and you may not.',
 			holdersBlind:
@@ -1521,14 +1523,12 @@ const en = {
 			tailor: 'tailor for this workspace',
 			tailorSays:
 				'what they may do in this workspace alone, measured against what they may do across the organization.',
-			acrossOrganization: 'what they may do across the organization',
+			pinned: 'set for this workspace',
 			readOnly: 'read only',
 			readOnlySays: 'turns every add, edit and delete off in this workspace.',
 			reset: 'reset',
 			customHere: 'custom here',
 			movesNotHeld: 'this changes a permission here that you do not hold yourself.',
-			ownerMadeReadOnly:
-				'only the owner changes this, since the owner made this workspace read only for them.',
 			notHeld: 'you hold this workspace read only, so you cannot give it.'
 		}
 	},

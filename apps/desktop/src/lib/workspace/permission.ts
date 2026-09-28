@@ -67,7 +67,7 @@ export const IMPORT_FLAGS = [
 
 /**
  * Where the reader stands in the workspace open: what they may do in it before the grant is read
- * (their permissions across the organization with what is switched for them there,
+ * (their permissions across the organization with what is pinned for them there,
  * `workspacePermissionsIn`), and how their grant reaches this workspace. Both are kept, rather
  * than the folded value alone, because they give two different reasons: a flag the role and
  * overrides do not carry, and a flag a read-only grant took away.

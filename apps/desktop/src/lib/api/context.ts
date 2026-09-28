@@ -77,10 +77,10 @@ export type Identity = {
 	 *
 	 * **Their effective permissions in that workspace, folded by its grant.** The session carries
 	 * what their role and override come to across the organization, off their verified row, and
-	 * what is switched for them in each workspace they are in; `effectiveInWorkspace` switches the
-	 * record flags of the workspace open, and `effectiveIn` clears every create, edit and delete
-	 * where their grant on it is read-only, or where there is no grant or no workspace open to
-	 * read. The organization's own flags are not a workspace's to switch or clear and pass through
+	 * what is pinned for them in each workspace they are in; `effectiveInWorkspace` sets the
+	 * record flags pinned in the workspace open, and `effectiveIn` clears every create, edit and
+	 * delete where their grant on it is read-only, or where there is no grant or no workspace open
+	 * to read. The organization's own flags are not a workspace's to pin or clear and pass through
 	 * as the session has them ([`permissionsIn`]).
 	 *
 	 * **Here because it is a fact about who is acting**, which is what `Identity` is for, and not
@@ -150,8 +150,8 @@ async function actingIdentity(host: Host): Promise<Identity | null> {
 			username: session.username,
 			// **Off the same answer, for the workspace open** (effort 838, requirements 10 and 12).
 			// What this member may do across the organization is on their verified row, and the
-			// session carries it with what is switched for them in each workspace; in the workspace
-			// this machine has open, that switch applies, and a read-only grant clears every create,
+			// session carries it with what is pinned for them in each workspace; in the workspace
+			// this machine has open, those pins apply, and a read-only grant clears every create,
 			// edit and delete whatever the role and the overrides say.
 			permissions: permissionsIn(session, await openWorkspace(host))
 		}
@@ -177,11 +177,11 @@ async function openWorkspace(host: Host): Promise<string | null> {
 
 /**
  * what a member may do in one workspace before its grant is read, from their session and the
- * workspace's id: their permissions across the organization with the record flags of their
- * override for that workspace switched (effort 838, requirement 12 as amended a third time), and
- * those permissions as they are where there is no workspace or no grant.
+ * workspace's id: their permissions across the organization with the record flags pinned for that
+ * workspace set as they are granted there (effort 838, requirement 12 as amended a third time, and
+ * at review round one), and those permissions as they are where there is no workspace or no grant.
  *
- * **Computed from the override by the one routine** (`effectiveInWorkspace`), rather than read off
+ * **Computed from the pins by the one routine** (`effectiveInWorkspace`), rather than read off
  * the workspace's `permissions`: the two are the same number, which the shared table holds Rust
  * and the package to, and this way the organization's own flags always come from the session.
  * Exported so the interface reads the same value a procedure is answered by.
@@ -192,7 +192,7 @@ export function workspacePermissionsIn(
 ): number {
 	const grant = session.workspaces.find((workspace) => workspace.id === openWorkspaceId);
 
-	return effectiveInWorkspace(session.permissions, grant?.override ?? 0);
+	return effectiveInWorkspace(session.permissions, grant?.pinned ?? 0, grant?.granted ?? 0);
 }
 
 /**

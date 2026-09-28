@@ -254,14 +254,16 @@ const SCHEMA: [&str; 15] = [
         \"updated_at\" INTEGER NOT NULL, \
         \"certificate_id\" TEXT NOT NULL, \
         \"signature\" BLOB NOT NULL)",
-    // what is switched for one member in one workspace (effort 838, requirement 12 as amended a
-    // third time): record flags alone, over what they may do across the organization. Signed by a
-    // holder of `overrideMember` who outranks them, and keyed on the pair, so a member carries one
-    // in each workspace they are in. Format 3's, and so last.
+    // what is pinned for one member in one workspace (effort 838, requirement 12 as amended a
+    // third time, and at review round one): the record flags set there, whatever they hold across
+    // the organization, and which of those are on. Signed by a holder of `overrideMember` who
+    // outranks them, and keyed on the pair, so a member carries one in each workspace they are in.
+    // Format 3's, and so last.
     "CREATE TABLE IF NOT EXISTS \"workspace_override\" (\
         \"member_id\" TEXT NOT NULL, \
         \"workspace_id\" TEXT NOT NULL, \
-        \"mask\" INTEGER NOT NULL, \
+        \"pinned\" INTEGER NOT NULL, \
+        \"granted\" INTEGER NOT NULL, \
         \"certificate_id\" TEXT NOT NULL, \
         \"signature\" BLOB NOT NULL, \
         PRIMARY KEY (\"member_id\", \"workspace_id\"))",
@@ -513,14 +515,34 @@ pub struct WorkspaceRecord {
     pub updated_at: i64,
 }
 
-/// A `workspace_override` row (effort 838, requirement 12 as amended a third time): the record
-/// flags switched for one member in one workspace, over what they may do across the organization.
-/// The whole of it is under signature. A mask of zero is no row at all.
+/// A `workspace_override` row (effort 838, requirement 12 as amended a third time, and at review
+/// round one): the record flags pinned for one member in one workspace, whatever they hold across
+/// the organization, and which of those are on (`granted`, within `pinned`). The whole of it is
+/// under signature. Nothing pinned is no row at all.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WorkspaceOverrideRecord {
     pub member_id: String,
     pub workspace_id: String,
-    pub mask: i64,
+    pub pinned: i64,
+    pub granted: i64,
+}
+
+/// What is pinned for `member_id` in `workspace_id` among `workspace_overrides`, and which of it is
+/// on, as `(pinned, granted)`: `(0, 0)` where the member carries no row there.
+pub fn pins_of(
+    workspace_overrides: &[WorkspaceOverrideRecord],
+    member_id: &str,
+    workspace_id: &str,
+) -> (i64, i64) {
+    workspace_overrides
+        .iter()
+        .find(|workspace_override| {
+            workspace_override.member_id == member_id
+                && workspace_override.workspace_id == workspace_id
+        })
+        .map_or((0, 0), |workspace_override| {
+            (workspace_override.pinned, workspace_override.granted)
+        })
 }
 
 /// A `migration_lease` row: which member is upgrading a workspace, and the moment after which
@@ -2206,7 +2228,7 @@ impl OrganizationStore {
     /// Write a member's override for one workspace, signed by `signer` over the whole of it
     /// (effort 838, requirement 12 as amended a third time). Refused, with nothing written, where
     /// the signer's certificate does not cover it: `overrideMember`, a rank above the member, every
-    /// flag it switches, record flags alone, and not the signer's own
+    /// flag it pins, record flags alone, and not the signer's own
     /// ([`OrganizationStore::refuse_uncovered`]).
     pub async fn write_workspace_override(
         &self,
@@ -2246,12 +2268,14 @@ impl OrganizationStore {
         self.connection
             .execute(
                 "INSERT OR REPLACE INTO \"workspace_override\" \
-                 (\"member_id\", \"workspace_id\", \"mask\", \"certificate_id\", \"signature\") \
-                 VALUES (?, ?, ?, ?, ?)",
+                 (\"member_id\", \"workspace_id\", \"pinned\", \"granted\", \"certificate_id\", \
+                  \"signature\") \
+                 VALUES (?, ?, ?, ?, ?, ?)",
                 vec![
                     turso::Value::Text(workspace_override.member_id.clone()),
                     turso::Value::Text(workspace_override.workspace_id.clone()),
-                    turso::Value::Integer(workspace_override.mask),
+                    turso::Value::Integer(workspace_override.pinned),
+                    turso::Value::Integer(workspace_override.granted),
                     turso::Value::Text(signer.certificate.id.clone()),
                     turso::Value::Blob(signature),
                 ],
@@ -2261,7 +2285,7 @@ impl OrganizationStore {
         Ok(())
     }
 
-    /// Remove a member's override for one workspace, which is what setting it to nothing is.
+    /// Remove a member's override for one workspace, which is what pinning nothing is.
     pub async fn delete_workspace_override(
         &self,
         member_id: &str,
@@ -2296,7 +2320,7 @@ impl OrganizationStore {
     }
 
     /// Every workspace override that verifies. One that does not is left out and logged, and the
-    /// rest are read, as a grant is ([`read_or_left_out`]): a row left out switches nothing, so the
+    /// rest are read, as a grant is ([`read_or_left_out`]): a row left out pins nothing, so the
     /// member it was about holds what they hold across the organization there.
     pub async fn workspace_overrides(
         &self,
@@ -2349,8 +2373,8 @@ impl OrganizationStore {
         let mut rows = self
             .connection
             .query(
-                "SELECT \"member_id\", \"workspace_id\", \"mask\", \"certificate_id\", \
-                        \"signature\" \
+                "SELECT \"member_id\", \"workspace_id\", \"pinned\", \"granted\", \
+                        \"certificate_id\", \"signature\" \
                  FROM \"workspace_override\" ORDER BY \"member_id\", \"workspace_id\"",
                 (),
             )
@@ -2362,10 +2386,11 @@ impl OrganizationStore {
                 record: WorkspaceOverrideRecord {
                     member_id: text(&row, 0)?,
                     workspace_id: text(&row, 1)?,
-                    mask: integer(&row, 2)?,
+                    pinned: integer(&row, 2)?,
+                    granted: integer(&row, 3)?,
                 },
-                certificate_id: text(&row, 3)?,
-                signature: blob(&row, 4)?,
+                certificate_id: text(&row, 4)?,
+                signature: blob(&row, 5)?,
             });
         }
 
@@ -3761,7 +3786,8 @@ pub(super) fn workspace_override_authority(
     Authority::WorkspaceOverride(WorkspaceOverrideAuthority {
         member_id: &workspace_override.member_id,
         workspace_id: &workspace_override.workspace_id,
-        mask: workspace_override.mask,
+        pinned: workspace_override.pinned,
+        granted: workspace_override.granted,
     })
 }
 

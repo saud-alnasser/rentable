@@ -168,7 +168,7 @@ test('a grant minted read only is in, and off and on again changes nothing', asy
 	const saved: { id: string; access: string }[][] = [];
 	const minted = [{ ...rows[0], access: 'read-only' as const, tailored: true }];
 
-	dialog({ rows: minted, readerIsOwner: true, onSave: (changes) => saved.push(changes) });
+	dialog({ rows: minted, onSave: (changes) => saved.push(changes) });
 
 	expect(checked(inSwitch('ada'))).toBe(true);
 	expect(mark('ada')).not.toBeNull();
@@ -180,9 +180,9 @@ test('a grant minted read only is in, and off and on again changes nothing', asy
 	expect(saved).toEqual([[]]);
 });
 
-// Rust keeps a grant minted read only the owner's to withdraw, so for anybody else its switch is
-// dimmed, saying why.
-test('for anybody but the owner, taking out a grant minted read only is refused, saying why', async () => {
+// a grant minted read only is withdrawn as any other is, by whoever may withdraw (review round
+// one of the workspace layer): the rule that kept it the owner's went with the lock.
+test('a grant minted read only is taken out by anybody who may withdraw, and nothing is dimmed', async () => {
 	const saved: { id: string; access: string }[][] = [];
 
 	dialog({
@@ -190,20 +190,16 @@ test('for anybody but the owner, taking out a grant minted read only is refused,
 		onSave: (changes) => saved.push(changes)
 	});
 
-	const reason = en.organization.workspaceSwitches.ownerMadeReadOnly;
-
-	expect(dimmed(inSwitch('sami'))).toBe(true);
-	expect(document.querySelector('#access-sami-reason')?.textContent?.trim()).toBe(reason);
-	expect(reasons()).toEqual([reason]);
-	expect(dimmed(inSwitch('ada'))).toBe(false);
+	expect(dimmed(inSwitch('sami'))).toBe(false);
+	expect(reasons()).toEqual([]);
 
 	await fireEvent.click(inSwitch('sami')!);
 
-	expect(checked(inSwitch('sami'))).toBe(true);
+	expect(checked(inSwitch('sami'))).toBe(false);
 
 	await submit();
 
-	expect(saved).toEqual([[]]);
+	expect(saved).toEqual([[{ id: 'sami', access: 'none' }]]);
 });
 
 // a granter gives only what they reach: full access is their own credential re-sealed, so where
@@ -289,7 +285,7 @@ test('a closed dialog puts nothing in the document', () => {
 	expect(surface()).toBeNull();
 });
 
-test('and in arabic the mark and the reasons read in their own words, right to left', () => {
+test('and in arabic the mark reads in its own words, right to left', () => {
 	loadLocale('ar');
 	setLocale('ar');
 	dialog(
@@ -313,10 +309,7 @@ test('and in arabic the mark and the reasons read in their own words, right to l
 	expect(ar.organization.workspaceSwitches.customHere).not.toBe(
 		en.organization.workspaceSwitches.customHere
 	);
-	expect(reasons()).toEqual([ar.organization.workspaceSwitches.ownerMadeReadOnly]);
-	expect(ar.organization.workspaceSwitches.ownerMadeReadOnly).not.toBe(
-		en.organization.workspaceSwitches.ownerMadeReadOnly
-	);
+	expect(reasons()).toEqual([]);
 
 	setLocale('en');
 });

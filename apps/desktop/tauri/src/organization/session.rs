@@ -77,7 +77,7 @@ use super::{
     HeldOrganization,
     authority::VERIFYING_KEY_BYTES,
     permission::{self, Flag},
-    store::{MemberRecord, OrganizationStore},
+    store::{MemberRecord, OrganizationStore, pins_of},
     vault::{
         CONTENT_KEY_BYTES, ContentKey, MemberKey, MemberSecretKey, open_content,
         open_sealed_secret_key, open_vault, open_vault_with_key, unseal_with_secret_key,
@@ -360,13 +360,14 @@ pub struct WorkspaceFacts {
     pub schema_version: i64,
     /// what this member's grant on it is good for, `full-access` or `read-only`.
     pub access_level: String,
-    /// the record flags switched for this member in this workspace, over what they may do across
-    /// the organization (effort 838, requirement 12 as amended a third time). Zero where nothing
-    /// is.
-    #[serde(rename = "override")]
-    pub override_mask: i64,
+    /// the record flags pinned for this member in this workspace, whatever they hold across the
+    /// organization (effort 838, requirement 12 as amended a third time, and at review round one).
+    /// Zero where nothing is.
+    pub pinned: i64,
+    /// which of the pinned flags are on; the rest of them are off.
+    pub granted: i64,
     /// what this member may do in this workspace before the grant is read: their permissions
-    /// across the organization with that override switched
+    /// across the organization with what is pinned set as it is granted
     /// (`permission::effective_in_workspace`). What the web layer answers a record procedure by,
     /// with a read-only grant's writes cleared.
     pub permissions: i64,
@@ -1293,13 +1294,7 @@ pub async fn facts_of(
                 .map(|workspace| (grant, workspace))
         })
         .map(|(grant, workspace)| {
-            let override_mask = workspace_overrides
-                .iter()
-                .find(|workspace_override| {
-                    workspace_override.member_id == member.id
-                        && workspace_override.workspace_id == workspace.id
-                })
-                .map_or(0, |workspace_override| workspace_override.mask);
+            let (pinned, granted) = pins_of(&workspace_overrides, &member.id, &workspace.id);
 
             Ok(WorkspaceFacts {
                 id: workspace.id.clone(),
@@ -1312,10 +1307,12 @@ pub async fn facts_of(
                 database_hostname: workspace.database_hostname.clone(),
                 schema_version: workspace.schema_version,
                 access_level: grant.access_level.clone(),
-                override_mask,
+                pinned,
+                granted,
                 permissions: super::permission::effective_in_workspace(
                     member.effective,
-                    override_mask,
+                    pinned,
+                    granted,
                 ),
             })
         })
