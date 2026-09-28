@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [27]
 ---
 # refactor(desktop): navigation is read from surfaces
@@ -14,9 +14,9 @@ The spec is [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]]; the 
 
 Traces requirements 1 and 2 of [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]], and criteria 1 and 2.
 
-- [ ] None of the four names a feature (criterion 2).
-- [ ] The navigation tests keep their assertions.
-- [ ] The integration gate passes on this commit; no test assertion changes except where it names a moved path (criterion 19).
+- [x] None of the four names a feature (criterion 2). Verified: a search of `layout/navigation.ts`, `layout/destination.ts` and `layout/component/breadcrumb.svelte` for any feature name or a `'/x` route literal prints nothing; the pages come from each feature's `feature.ts` `pages` (Node-loadable) and the names and icons from each surface's `places`, listed in order in `app/surfaces.ts`; the baseline lost the five `layout/destination.ts` and `layout/navigation.ts` feature lines.
+- [x] The navigation tests keep their assertions. Verified: `layout/tests/navigation.test.ts` has no diff and passes with the layer test (`pass 20 / fail 0`); a new `places.svelte.test.ts` pins the rail and command menu order and that every trail place has a name.
+- [x] The integration gate passes on this commit; no test assertion changes except where it names a moved path (criterion 19). Verified: in the run's tree: check 0, eslint 0, `pnpm test` 3 of 3 tasks, build:web 0.
 
 ## Relevant areas
 

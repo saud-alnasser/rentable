@@ -185,11 +185,6 @@ layout/create.ts -> contract : literal
 layout/create.ts -> payment : literal
 layout/create.ts -> tenant : literal
 layout/create.ts -> unit : literal
-layout/destination.ts -> settings : import
-layout/destination.ts -> settings/section.ts : deep
-layout/navigation.ts -> complex : literal
-layout/navigation.ts -> contract : literal
-layout/navigation.ts -> tenant : literal
 layout/palette.ts -> complex : literal
 layout/palette.ts -> contract : literal
 layout/palette.ts -> payment : literal

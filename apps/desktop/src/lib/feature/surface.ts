@@ -1,6 +1,11 @@
+import type { Pathname, RouteId } from '$app/types';
 import type { RecordAct } from '$lib/act';
+import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 import type { RecordKind } from '$lib/permission';
+import type HouseIcon from '@lucide/svelte/icons/house';
 import type { Component } from 'svelte';
+
+type Icon = typeof HouseIcon;
 
 /**
  * THE SURFACE CONTRACT
@@ -35,14 +40,38 @@ export type Surface = {
 	slots?: ShellSlot[];
 };
 
-/** A place in navigation: the route it opens, and whether the rail and the trail show it. */
+/**
+ * A place in navigation as the window shows it: what it is called, and where the shell offers to
+ * go there. Which pages exist and how the trail and the reader's permissions treat them are the
+ * feature's `pages`, in its `feature.ts`, since navigation reads them under Node; this names and
+ * draws one of those pages.
+ */
 export type NavigationPlace = {
-	route: string;
-	/** its label, in the reader's language, wherever the shell names it */
-	label: () => string;
-	sidebar?: boolean;
-	trail?: boolean;
+	/** the page it is on, as a feature's `pages` declares it */
+	route: PlaceAddress;
+	/** its name, in the reader's language, wherever the shell names it: the trail, the rail, the menu */
+	label: (translations: TranslationFunctions) => string;
+	/**
+	 * the icon that stands for it, which makes it a destination: the command menu offers it, and
+	 * the rail too where `rail` says so. A place without one is only named, in the trail.
+	 */
+	icon?: Icon;
+	/** the address it opens, where that is more than its route: a section of the page */
+	url?: `${PlaceAddress}?${string}`;
+	/** whether the rail draws it, beside the command menu offering it */
+	rail?: boolean;
 };
+
+/**
+ * The address of a page with no identifier in it, which is what a place is: its route is an
+ * address as it stands.
+ *
+ * **Kept to the pages there are**, rather than widened to any address, because `resolve` reads the
+ * route out of the type it is handed: its argument type is a conditional over the route, which
+ * distributes into a union of tuples, and a wide type is assignable to none of them. A union of
+ * these few literal addresses, and of them carrying a search, is.
+ */
+export type PlaceAddress = Extract<Pathname, RouteId>;
 
 /** One entry of the command menu's create group. */
 export type CreateEntry = {

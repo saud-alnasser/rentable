@@ -1009,9 +1009,12 @@ Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], re
 
 ### The breadcrumb
 
-**The trail is built from the page's route id, and every crumb is a page.** `layout/navigation.ts`
-lists the pages and the places the trail names (the four directories and the settings area); a
-prefix of the route id is a crumb only where it is one of those places. An address segment is not a
+**The trail is built from the page's route id, and every crumb is a page.** Each feature declares
+its pages in its `feature.ts` (`pages`), saying which the trail names (the directories and the
+settings area), and `layout/navigation.ts` reads them off the list in `app/`; a prefix of the route
+id is a crumb only where it is one of those places. A place's name is its surface's (`places` in
+its `surface.ts`, in the order `app/surfaces.ts` gives them), which is also where the rail and the
+command menu read their places. An address segment is not a
 place: a unit's address passes through `/complexes/units`, and no page lives there.
 `layout/tests/navigation.test.ts` asks every page's trail against the routes directory itself.
 
@@ -1019,7 +1022,7 @@ place: a unit's address passes through `/complexes/units`, and no page lives the
 it shows is called (`shown-record.svelte.ts` in the design package), because only the concept
 knows: a contract is named by its tenant. A record reached through another runs its trail through
 that one: a payment's trail is its directory, its contract, then the payment
-(`RECORD_PARENTS` in `layout/navigation.ts`), and the record surface names and addresses the
+(the page's `parent` in `payment/feature.ts`, read into `RECORD_PARENTS` in `layout/navigation.ts`), and the record surface names and addresses the
 contract as its `parent`. Until the record is read the trail ends on the directory
 above it, and a record that is not there is named as unknown. The dashboard and the way in carry no
 trail: the first is where the application opens, and the second is a walk whose card says which

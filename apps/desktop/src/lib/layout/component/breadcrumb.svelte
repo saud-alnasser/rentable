@@ -3,26 +3,23 @@
 	import { page } from '$app/state';
 	import * as Breadcrumb from '@rentable/design/primitive/breadcrumb/index.js';
 	import { shownRecord } from '@rentable/design/shown-record.svelte.js';
-	import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import { toBreadcrumbTrail, type TrailPlace } from '$lib/layout/navigation';
+	import { places } from '$lib/app/surfaces';
+	import { toBreadcrumbTrail } from '$lib/layout/navigation';
 
 	/**
 	 * Where the reader is: the places above this page, and the record it ends on.
 	 *
-	 * Every place is named here, one entry to each, so a place the trail can hold and nothing
-	 * names does not compile. The record is named by the record surface showing it, which is the
-	 * only thing that knows what a record is called; until it says, the trail ends on the place
-	 * above it, and a record that is not there is named as unknown. A record reached through another
-	 * (a payment, through its contract) has that one named and addressed by the same surface, and
+	 * A place is named by the surface declaring it, by the place on its route that opens no address
+	 * of its own (a section of the page is a destination, not the page). The record is named by the
+	 * record surface showing it, which is the only thing that knows what a record is called; until it
+	 * says, the trail ends on the place above it, and a record that is not there is named as unknown.
+	 * A record reached through another has that one named and addressed by the same surface, and
 	 * its crumb waits on the surface as the record's does.
 	 */
-	const placeNames: Record<TrailPlace, (t: TranslationFunctions) => string> = {
-		'/tenants': (t) => t.common.nav.tenants(),
-		'/complexes': (t) => t.common.nav.complexes(),
-		'/contracts': (t) => t.common.nav.contracts(),
-		'/settings': (t) => t.common.nav.settings()
-	};
+	const placeNames = new Map(
+		places.filter((place) => !place.url).map((place) => [place.route, place.label])
+	);
 
 	const crumbs = $derived(
 		toBreadcrumbTrail(page.route.id).filter((crumb) => {
@@ -63,10 +60,10 @@
 						<bdi>{shownRecord.name ?? $LL.common.messages.unknown()}</bdi>
 					</Breadcrumb.Page>
 				{:else if crumb.isLast}
-					<Breadcrumb.Page class="capitalize">{placeNames[crumb.route]($LL)}</Breadcrumb.Page>
+					<Breadcrumb.Page class="capitalize">{placeNames.get(crumb.route)?.($LL)}</Breadcrumb.Page>
 				{:else}
 					<Breadcrumb.Link href={resolve(crumb.route)} class="capitalize">
-						{placeNames[crumb.route]($LL)}
+						{placeNames.get(crumb.route)?.($LL)}
 					</Breadcrumb.Link>
 				{/if}
 			</Breadcrumb.Item>

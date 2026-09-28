@@ -1,3 +1,4 @@
+import type { RouteId } from '$app/types';
 import type { RecordKind } from '$lib/permission';
 import type { AnyRouter } from '@trpc/server';
 
@@ -21,6 +22,24 @@ export type Feature<N extends string = string, R extends AnyRouter = AnyRouter> 
 	kind?: RecordKind;
 	/** its workspace query-cache prefix */
 	prefix?: string;
+	/** the pages it holds, which the shell's navigation reads */
+	pages?: readonly Page[];
+};
+
+/**
+ * One page a feature holds, by its route id, and what the shell's navigation needs to know of it:
+ * whether the trail names it, the kind of record it lists, and the record page it is reached
+ * through. These are the facts navigation reads under Node, so they live here; what the page is
+ * called and the icon it wears are the window's, and the feature's `surface.ts` declares them.
+ */
+export type Page = {
+	route: RouteId;
+	/** whether it is a place the trail names, a page a crumb can link to */
+	trail?: boolean;
+	/** the kind of record it lists, where it lists one; a reader who may not view it is not offered it */
+	lists?: RecordKind;
+	/** the record page it is reached through, where it has one */
+	parent?: RouteId;
 };
 
 /** Declare a feature, keeping its name as a literal and its router as its own type. */
