@@ -6,7 +6,18 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
-import { NOW, type Api, createApi, monthsFromNow, seedTenant } from '$lib/api/tests/testing.ts';
+import { FLAGS, type Flag } from '@rentable/workspace-permission';
+
+import {
+	EVERY_RECORD_ACT,
+	NOW,
+	type Api,
+	createApi,
+	fakeIdentity,
+	monthsFromNow,
+	seedTenant
+} from '$lib/api/tests/testing.ts';
+import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
 import { fakeHost, fakeSettings } from '$lib/platform/tests/testing.ts';
 
 import { DASHBOARD_ENTRIES_PER_RANK } from '../dashboard.ts';
@@ -315,7 +326,7 @@ test('the strip carries exactly two figures and no timestamp', async () => {
 
 	assert.deepEqual(Object.keys(dashboard.summary).sort(), ['money', 'occupancy']);
 	assert.deepEqual(Object.keys(dashboard.summary.money).sort(), ['collected', 'due']);
-	assert.deepEqual(Object.keys(dashboard.summary.occupancy).sort(), [
+	assert.deepEqual(Object.keys(dashboard.summary.occupancy ?? {}).sort(), [
 		'occupiedUnits',
 		'totalUnits'
 	]);
@@ -465,4 +476,76 @@ test('and they agree about a payment made during the last day of the period', as
 		ledger.map((payment) => payment.amount),
 		[640]
 	);
+});
+
+/**
+ * WHAT A MEMBER MAY NOT VIEW IS LEFT OUT
+ *
+ * Effort 838, requirement 10: the landing screen is open to every member, and each figure is
+ * answered only to one who may view the kind it is read from. The same workspace is read twice,
+ * by a member holding every record act and by one lacking a single view flag.
+ */
+async function portfolioReadWithout(flag: Flag) {
+	const db = createMemoryDatabase();
+
+	await seedPortfolio(await createApi({ db }));
+
+	const lacking = await createApi({
+		db,
+		identity: fakeIdentity({ permissions: EVERY_RECORD_ACT - 2 ** FLAGS[flag] })
+	});
+
+	return {
+		everything: await (await createApi({ db })).contract.dashboard(),
+		lacking: await lacking.contract.dashboard()
+	};
+}
+
+test('a member who may not view payments is told nothing collected', async () => {
+	const { everything, lacking } = await portfolioReadWithout('viewPayment');
+
+	assert.ok(everything.summary.money.collected, 'the portfolio collected nothing to leave out');
+	assert.equal('collected' in lacking.summary.money, false);
+	// what is read off the contracts and the units is still theirs to see.
+	assert.equal(lacking.summary.money.due, everything.summary.money.due);
+	assert.deepEqual(lacking.queue, everything.queue);
+	assert.deepEqual(lacking.summary.occupancy, everything.summary.occupancy);
+});
+
+test('a member who may not view contracts is told of no contract', async () => {
+	const { everything, lacking } = await portfolioReadWithout('viewContract');
+
+	assert.ok(everything.queue.length > 0, 'the portfolio queued nothing to leave out');
+	assert.deepEqual(lacking.queue, []);
+	assert.deepEqual(lacking.ranks, []);
+	assert.equal('due' in lacking.summary.money, false);
+	assert.equal(lacking.summary.money.collected, everything.summary.money.collected);
+});
+
+test('a member who may not view units is told no occupancy', async () => {
+	const { everything, lacking } = await portfolioReadWithout('viewUnit');
+
+	assert.ok(everything.summary.occupancy, 'the portfolio had no occupancy to leave out');
+	assert.equal('occupancy' in lacking.summary, false);
+});
+
+test('a member who may not view tenants is shown a queue that names nobody', async () => {
+	const { everything, lacking } = await portfolioReadWithout('viewTenant');
+
+	assert.ok(
+		everything.queue.some((entry) => entry.tenantName),
+		'the queue named no tenant'
+	);
+	assert.deepEqual(
+		lacking.queue.map((entry) => entry.id),
+		everything.queue.map((entry) => entry.id)
+	);
+
+	for (const entry of lacking.queue) {
+		assert.equal('tenantName' in entry, false);
+		assert.equal('tenantPhone' in entry, false);
+	}
+
+	// the ranks count and total what they did: nothing in them was the tenant's.
+	assert.deepEqual(lacking.ranks, everything.ranks);
 });

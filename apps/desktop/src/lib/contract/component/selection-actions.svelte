@@ -18,6 +18,7 @@
 		type ContractSelectionAction
 	} from '$lib/contract/query';
 	import { LL } from '$lib/i18n/i18n-svelte';
+	import { memberPermissions } from '$lib/workspace/permission';
 	import BanIcon from '@lucide/svelte/icons/ban';
 	import RotateCcwIcon from '@lucide/svelte/icons/rotate-ccw';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
@@ -195,17 +196,20 @@
 		label={`${$LL.common.actions.terminate()} · ${$LL.common.table.recordsSelected({ count })}`}
 		icon={BanIcon}
 		tone="error"
+		unavailable={memberPermissions.refusal('editContract', $LL)}
 		onclick={() => (confirming = { action: 'terminate', ids: [...ids] })}
 	/>
 	<RecordActionControl
 		label={`${$LL.common.actions.unterminate()} · ${$LL.common.table.recordsSelected({ count })}`}
 		icon={RotateCcwIcon}
+		unavailable={memberPermissions.refusal('editContract', $LL)}
 		onclick={() => (confirming = { action: 'restore', ids: [...ids] })}
 	/>
 	<RecordActionControl
 		label={`${$LL.common.actions.delete()} · ${$LL.common.table.recordsSelected({ count })}`}
 		icon={Trash2Icon}
 		tone="error"
+		unavailable={memberPermissions.refusal('deleteContract', $LL)}
 		onclick={() => (confirming = { action: 'delete', ids: [...ids] })}
 	/>
 {/snippet}

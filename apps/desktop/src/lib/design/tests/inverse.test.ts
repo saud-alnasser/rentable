@@ -5,6 +5,8 @@ import { i18nObject } from '$lib/i18n/i18n-util.ts';
 import { loadLocale } from '$lib/i18n/i18n-util.sync.ts';
 
 import { InverseStack } from '../inverse.ts';
+import { memberPermissions } from '$lib/workspace/permission.ts';
+import { EVERY_FLAG, maskOf } from '@rentable/workspace-permission';
 
 // an inverse names the change in the reader's language, and takes the whole of what a locale
 // answers with — so the loaded locale is what a test hands it, rather than a stand-in shape
@@ -15,6 +17,7 @@ const translations = i18nObject('en');
 function inverse(name: string, log: string[] = []) {
 	return {
 		describe: () => name,
+		flags: { undo: [], redo: [] },
 		undo: async () => log.push(`undo:${name}`),
 		redo: async () => log.push(`redo:${name}`),
 		log
@@ -87,6 +90,7 @@ describe('the inverse stack', () => {
 		const stack = new InverseStack();
 		const refused = {
 			describe: () => 'refused',
+			flags: { undo: [], redo: [] },
 			undo: async () => {
 				throw new Error('the row is gone');
 			},
@@ -109,6 +113,7 @@ describe('the inverse stack', () => {
 		stack.record(inverse('first', log));
 		stack.record({
 			describe: () => 'second',
+			flags: { undo: [], redo: [] },
 			undo: async () => {
 				log.push('undo:second');
 				await held;
@@ -147,6 +152,7 @@ describe('the inverse stack', () => {
 
 		stack.record({
 			describe: () => 'in flight',
+			flags: { undo: [], redo: [] },
 			undo: async () => {
 				await held;
 			},
@@ -172,6 +178,7 @@ describe('the inverse stack', () => {
 
 		stack.record({
 			describe: () => 'in flight',
+			flags: { undo: [], redo: [] },
 			undo: async () => {
 				log.push('undo:in flight');
 				await held;
@@ -202,5 +209,60 @@ describe('the inverse stack', () => {
 		stack.record(inverse('second'));
 
 		assert.equal(notifications, settled);
+	});
+});
+
+// effort 838, requirement 10: each direction of a change asks for the flags its procedures name,
+// and the stack says why the reader may not move the change on top.
+describe('what the reader may move', () => {
+	const deletion = (log: string[] = []) => ({
+		...inverse('deleting a payment', log),
+		flags: { undo: ['createPayment'] as const, redo: ['deletePayment'] as const }
+	});
+
+	it('refuses a direction whose flag the reader lacks, naming it, and leaves the other open', (context) => {
+		context.after(() => memberPermissions.hold(null));
+		memberPermissions.hold({
+			permissions: maskOf(...EVERY_FLAG.filter((flag) => flag !== 'createPayment')),
+			accessLevel: 'full-access'
+		});
+
+		const stack = new InverseStack();
+
+		stack.record(deletion());
+
+		assert.equal(
+			stack.refusal('undo', translations),
+			translations.common.permission.missing.createPayment()
+		);
+		// nothing to apply again yet, so nothing to refuse.
+		assert.equal(stack.refusal('redo', translations), undefined);
+	});
+
+	it('refuses both directions of any change on a read-only grant, for the grant', async (context) => {
+		context.after(() => memberPermissions.hold(null));
+
+		const log: string[] = [];
+		const stack = new InverseStack();
+
+		stack.record(deletion(log));
+		await stack.undo();
+
+		memberPermissions.hold({ permissions: maskOf(...EVERY_FLAG), accessLevel: 'read-only' });
+
+		assert.equal(stack.refusal('redo', translations), translations.common.permission.readOnly());
+	});
+
+	it('refuses nothing where the reader holds every flag, or where nothing is on the stack', (context) => {
+		context.after(() => memberPermissions.hold(null));
+		memberPermissions.hold({ permissions: maskOf(...EVERY_FLAG), accessLevel: 'full-access' });
+
+		const stack = new InverseStack();
+
+		assert.equal(stack.refusal('undo', translations), undefined);
+
+		stack.record(deletion());
+
+		assert.equal(stack.refusal('undo', translations), undefined);
 	});
 });

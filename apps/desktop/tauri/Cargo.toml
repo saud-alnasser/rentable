@@ -155,3 +155,12 @@ windows = "0.61.3"
 # about the release binary and nothing about what the schedule computes.
 [profile.dev.package.argon2]
 opt-level = 3
+
+# The same reasoning for the curve under every signature the organization checks. An
+# unoptimized verify costs milliseconds, and the upgrade of an organization cut short part
+# way (effort 838, ticket 23) finds a role word the reshape dropped by trying each value its
+# signature could have been made over, which is a few hundred verifies per row: the test of
+# every state an upgrade can leave took four minutes unoptimized and ten seconds with this.
+# Nothing about the release binary changes.
+[profile.dev.package.curve25519-dalek]
+opt-level = 3

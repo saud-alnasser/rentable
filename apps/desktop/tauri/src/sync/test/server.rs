@@ -86,6 +86,21 @@ pub(crate) struct RecordedRequest {
 }
 
 impl RecordedRequest {
+    /// a request as the stand-in pipeline beside this records it.
+    pub(super) fn new(
+        method: String,
+        target: String,
+        body: String,
+        headers: Vec<(String, String)>,
+    ) -> Self {
+        Self {
+            method,
+            target,
+            body,
+            headers,
+        }
+    }
+
     /// a header by name, matched case-insensitively as HTTP requires.
     pub(crate) fn header(&self, name: &str) -> Option<&str> {
         self.headers

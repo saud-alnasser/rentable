@@ -189,6 +189,7 @@ export const useCreateTenant = declareMutation({
 	touches: ['tenants'],
 	inverse: ({ result }) => ({
 		describe: (t) => t.common.undo.created({ record: t.common.labels.tenant() }),
+		flags: { undo: ['deleteTenant'], redo: ['createTenant'] },
 		undo: () => api.tenant.delete({ id: result.id }),
 		redo: () => api.tenant.create(result)
 	}),
@@ -206,6 +207,7 @@ export const useUpdateTenant = declareMutation({
 	inverse: ({ variables, captured }) =>
 		captured && {
 			describe: (t) => t.common.undo.edited({ record: t.common.labels.tenant() }),
+			flags: { undo: ['editTenant'], redo: ['editTenant'] },
 			undo: () => api.tenant.update(captured),
 			redo: () => api.tenant.update(variables)
 		},
@@ -238,6 +240,7 @@ export const useDeleteManyTenants = declareMutation({
 			? undefined
 			: {
 					describe: (t) => t.common.undo.deletedMany({ count: result.deleted.length }),
+					flags: { undo: ['createTenant'], redo: ['deleteTenant'] },
 					undo: () => api.tenant.createMany({ tenants: result.deleted }),
 					redo: () => api.tenant.deleteMany({ ids: toTenantIds(result.deleted) }),
 					records: (direction) =>
@@ -271,6 +274,7 @@ export const useDeleteTenant = declareMutation({
 	inverse: ({ result }) =>
 		result && {
 			describe: (t) => t.common.undo.deleted({ record: t.common.labels.tenant() }),
+			flags: { undo: ['createTenant'], redo: ['deleteTenant'] },
 			undo: () => api.tenant.create(result),
 			redo: () => api.tenant.delete({ id: result.id })
 		},

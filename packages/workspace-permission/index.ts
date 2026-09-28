@@ -1,12 +1,14 @@
 /**
  * WORKSPACE PERMISSION
  *
- * What a member may do *to* a workspace, as opposed to what they may do *in* one.
+ * What a member may do, as one bitmask of named flags (effort 838, requirement 1).
  *
- * Decision 05 settled that membership grants full access to a workspace's data, so nothing
- * here is about records. Every flag is an administrative act, and a workspace with no
- * administration still works — a lone member with a permission value of zero can read and
- * write their whole ledger.
+ * Three families share the mask: the organization's administration on bits 0 to 9, the acts only
+ * the owner performs on bits 10 to 17, and, for each record kind, viewing, creating, editing and
+ * deleting on bits 20 to 39. Bits 18, 19 and 40 to 52 are free. A member's permissions are their
+ * role's mask exclusive-or'd with their own override, which is [`effective`]; in one workspace,
+ * that with the record flags pinned for that workspace set to what is granted there, which is
+ * [`effectiveInWorkspace`].
  *
  * **Each name maps to a bit index, and no index may reach 53.** Decision 04 chose one
  * `INTEGER` column over four alternatives on the strength of a guard that fails loudly at the
@@ -16,18 +18,153 @@
  * `./tests/permission.test.ts` is that guard. Its removal condition is decision 04's: when a
  * 54th flag is genuinely wanted, this column becomes a row per granted permission, which is a
  * migration rather than a rewrite.
+ *
+ * **Every routine here is arithmetic, never `|`, `&` or `^`.** JavaScript's bitwise operators
+ * coerce to a signed 32-bit integer, so `1 << 40` is `256` and `x ^ y` silently drops everything
+ * above bit 31. The record flags start at bit 20 and end at 39, past that ceiling, so an operator
+ * that reads naturally would lose the payment flags on every row.
+ *
+ * **Rust holds a copy of every table here** (`organization/permission.rs`) and reads this file as
+ * text to prove the two agree, so the tables are written out in a shape that reading can follow:
+ * one `name: bit` per line, and flag names quoted.
  */
-export const ADMINISTRATION = {
+export const FLAGS = {
 	inviteMember: 0,
 	removeMember: 1,
-	changeRole: 2,
+	assignRole: 2,
 	renameWorkspace: 3,
 	resetPassword: 4,
 	renameMember: 5,
-	grantWorkspace: 6
+	grantWorkspace: 6,
+	manageRoles: 7,
+	overrideMember: 8,
+	manageMark: 9,
+	createWorkspace: 10,
+	deleteWorkspace: 11,
+	mintReadOnly: 12,
+	lockOut: 13,
+	renewCredentials: 14,
+	tursoAccount: 15,
+	transferOwnership: 16,
+	deleteOrganization: 17,
+	viewComplex: 20,
+	createComplex: 21,
+	editComplex: 22,
+	deleteComplex: 23,
+	viewUnit: 24,
+	createUnit: 25,
+	editUnit: 26,
+	deleteUnit: 27,
+	viewTenant: 28,
+	createTenant: 29,
+	editTenant: 30,
+	deleteTenant: 31,
+	viewContract: 32,
+	createContract: 33,
+	editContract: 34,
+	deleteContract: 35,
+	viewPayment: 36,
+	createPayment: 37,
+	editPayment: 38,
+	deletePayment: 39
 } as const;
 
-export type Administration = keyof typeof ADMINISTRATION;
+export type Flag = keyof typeof FLAGS;
+
+/** Every flag, in bit order. */
+export const EVERY_FLAG = Object.keys(FLAGS) as Flag[];
+
+/**
+ * The flags grouped the way an editor lists them: the member's administration, the owner's acts,
+ * and one family per record kind, each in the order view, create, edit, delete.
+ */
+export const FAMILIES = {
+	administration: [
+		'inviteMember',
+		'removeMember',
+		'assignRole',
+		'renameWorkspace',
+		'resetPassword',
+		'renameMember',
+		'grantWorkspace',
+		'manageRoles',
+		'overrideMember',
+		'manageMark'
+	],
+	owner: [
+		'createWorkspace',
+		'deleteWorkspace',
+		'mintReadOnly',
+		'lockOut',
+		'renewCredentials',
+		'tursoAccount',
+		'transferOwnership',
+		'deleteOrganization'
+	],
+	complex: ['viewComplex', 'createComplex', 'editComplex', 'deleteComplex'],
+	unit: ['viewUnit', 'createUnit', 'editUnit', 'deleteUnit'],
+	tenant: ['viewTenant', 'createTenant', 'editTenant', 'deleteTenant'],
+	contract: ['viewContract', 'createContract', 'editContract', 'deleteContract'],
+	payment: ['viewPayment', 'createPayment', 'editPayment', 'deletePayment']
+} as const satisfies Record<string, readonly Flag[]>;
+
+export type Family = keyof typeof FAMILIES;
+
+/** A kind of record: every family but the organization's administration and the owner's acts. */
+export type RecordKind = Exclude<Family, 'administration' | 'owner'>;
+
+/** Every kind of record, in the order `FAMILIES` holds them. */
+export const RECORD_KINDS = (Object.keys(FAMILIES) as Family[]).filter(
+	(family): family is RecordKind => family !== 'administration' && family !== 'owner'
+);
+
+/**
+ * The flags only the owner holds (requirement 2). Each needs the Turso authority, which sits in
+ * the owner's keyring and in no row, or is the handover of the organization itself; no role and
+ * no override carries one.
+ */
+export const OWNER_ONLY: readonly Flag[] = FAMILIES.owner;
+
+/**
+ * The six flags that make a member a signer of member rows: whoever holds one of them writes a
+ * row about another member, and the chain of trust asks for one of them before a certificate may
+ * issue another.
+ */
+export const MEMBER_ADMINISTRATION: readonly Flag[] = [
+	'inviteMember',
+	'removeMember',
+	'assignRole',
+	'overrideMember',
+	'renameMember',
+	'resetPassword'
+];
+
+/** Creating, editing and deleting every record kind: what a read-only grant takes away. */
+export const WRITE_FLAGS: readonly Flag[] = [
+	'createComplex',
+	'editComplex',
+	'deleteComplex',
+	'createUnit',
+	'editUnit',
+	'deleteUnit',
+	'createTenant',
+	'editTenant',
+	'deleteTenant',
+	'createContract',
+	'editContract',
+	'deleteContract',
+	'createPayment',
+	'editPayment',
+	'deletePayment'
+];
+
+/**
+ * Viewing, creating, editing and deleting every record kind: what a workspace override may pin, and
+ * nothing else (effort 838, requirement 12 as amended a third time).
+ */
+export const RECORD_FLAGS: readonly Flag[] = RECORD_KINDS.flatMap(
+	(kind) => FAMILIES[kind] as readonly Flag[]
+);
 
 /**
  * One act at least.
@@ -42,7 +179,7 @@ export type Administration = keyof typeof ADMINISTRATION;
  * nothing* and is a real value on real rows. Naming nothing is meaningful there and meaningless
  * in a gate, and the difference is why the shape is not simply pushed onto everything here.
  */
-export type NamedActs = readonly [Administration, ...Administration[]];
+export type NamedActs = readonly [Flag, ...Flag[]];
 
 /**
  * The highest bit a flag may occupy.
@@ -52,62 +189,186 @@ export type NamedActs = readonly [Administration, ...Administration[]];
  */
 export const HIGHEST_USABLE_BIT = 52;
 
-export const EVERY_ADMINISTRATION = Object.keys(ADMINISTRATION) as Administration[];
+const isSet = (value: number, bit: number): boolean => Math.floor(value / 2 ** bit) % 2 === 1;
 
 /**
- * Combine flags into the value stored on a membership row.
+ * Combine flags into the value stored on a row.
  *
- * **Addition, not `|`, and this is not a stylistic choice.** JavaScript's bitwise operators
- * coerce to a signed 32-bit integer, so `1 << 40` is `256` and `x | y` silently truncates
- * anything above bit 30 — a ceiling twenty-two bits below the one decision 04 chose. Distinct
- * powers of two sum to exactly what an OR of them would produce, without the coercion.
+ * **Addition, not `|`**, for the reason the header gives. Distinct powers of two sum to exactly
+ * what an OR of them would produce, without the coercion.
  *
  * A name given twice is counted once, which `|` would have given for free and addition does
  * not: `2 + 2` is `4`, so a repeated flag would set the bit above the one asked for.
  */
-export const maskOf = (...names: readonly Administration[]): number =>
-	[...new Set(names)].reduce((mask, name) => mask + 2 ** ADMINISTRATION[name], 0);
+export const maskOf = (...names: readonly Flag[]): number =>
+	[...new Set(names.map((name): number => FLAGS[name]))].reduce((mask, bit) => mask + 2 ** bit, 0);
 
 /** Whether a stored permission value carries one flag. Arithmetic, for the reason `maskOf` is. */
-export const permits = (permissions: number, name: Administration): boolean =>
-	Math.floor(permissions / 2 ** ADMINISTRATION[name]) % 2 === 1;
+export const permits = (permissions: number, name: Flag): boolean =>
+	isSet(permissions, FLAGS[name]);
 
 /**
- * What a membership row can be called.
+ * The exclusive-or of two masks, bit by bit up to [`HIGHEST_USABLE_BIT`].
  *
- * **Declared here rather than imported, and that is the one thing this package could not bring
- * with it.** It was `Membership['role']`, derived from the control plane's own schema, which is
- * where the column actually is. A package both applications depend on cannot depend on either of
- * them, so the union is written out and the schema is held to it by a type-level assertion in
- * `database/schema.ts` — a role added to the column and not to this line fails a typecheck rather
- * than a test.
- *
- * *Two declarations of one union is the drift this package exists to remove, in the one place it
- * cannot reach. The assertion is the whole of the mitigation, and it is not optional.*
+ * `^` would read the same and be wrong past bit 31, which is where the contract and payment flags
+ * sit.
  */
-export type Role = 'owner' | 'administrator' | 'member';
+export const xorOf = (left: number, right: number): number => {
+	let result = 0;
 
-/**
- * What each role administers by default.
- *
- * The role is what a person is called; the column is what they may do. Both are stored,
- * because an organization may want an administrator who cannot rename a member, and a role that
- * computed its own permissions on read could not express that.
- *
- * **The owner and the administrator carry every act here, and the difference between them is not
- * in this table.** *Requirement 5 of effort 826.* What separates them is the acts nobody can be
- * given: creating and deleting a workspace, minting a read-only credential, locking a member out,
- * renewing credentials, the Turso account and the organization's own link. Those need the Turso
- * authority, which lives on one machine and in no row, so they are refused in Rust by an owner
- * check rather than named here. A table that listed them would be offering a flag that granting
- * cannot deliver.
- *
- * **The column is still the truth.** A member's row is widened or narrowed one act at a time by a
- * holder of `changeRole`, so what this table gives is what a person is created with rather than
- * what they may do ever after.
- */
-export const ADMINISTRATION_BY_ROLE: Record<Role, number> = {
-	owner: maskOf(...EVERY_ADMINISTRATION),
-	administrator: maskOf(...EVERY_ADMINISTRATION),
-	member: 0
+	for (let bit = 0; bit <= HIGHEST_USABLE_BIT; bit++) {
+		if (isSet(left, bit) !== isSet(right, bit)) {
+			result += 2 ** bit;
+		}
+	}
+
+	return result;
 };
+
+/**
+ * A member's permissions: their role's mask, with every flag their override names switched
+ * (requirement 6). A flag set in the override turns the role's flag off where the role carries
+ * it, and on where it does not. The one computation, and Rust's `effective` is held to it by the
+ * shared table in `./tests/effective.json`.
+ */
+export const effective = (roleMask: number, override: number): number => xorOf(roleMask, override);
+
+/**
+ * The first kind of record a mask lets somebody add, edit or delete without viewing it, or `null`
+ * where every kind it writes it also views (requirement 6, as amended 2026-09-27).
+ *
+ * **Read off `FAMILIES`**: each record kind's first flag is viewing it and the three after it are
+ * what viewing it is needed for, so a kind added there is covered here without a second list. No
+ * role mask and no member's effective permissions that fail this is ever written, here or in Rust
+ * (`organization/permission.rs`, `first_write_without_view`), and the two are held to the same
+ * cases in `./tests/effective.json`.
+ */
+export const firstWriteWithoutView = (mask: number): RecordKind | null =>
+	RECORD_KINDS.find((kind) => {
+		const [view, ...writes] = FAMILIES[kind] as readonly Flag[];
+
+		return !permits(mask, view) && writes.some((flag) => permits(mask, flag));
+	}) ?? null;
+
+/**
+ * What a member may do across the organization with the record flags `pinned` for one workspace
+ * set to what `granted` says there, and nothing dropped (effort 838, requirement 12 as amended a
+ * third time, and at review round one): a flag `pinned` does not carry follows the layers beneath
+ * it, and one it carries is on where `granted` carries it and off where it does not. A bit outside
+ * [`RECORD_FLAGS`] is not pinned, and a bit `granted` carries outside `pinned` is not granted.
+ *
+ * What an act setting the pins judges, so that a write pinned on where its view is not held is
+ * refused rather than written; [`effectiveInWorkspace`] is what a reader answers by.
+ */
+export const pinnedIn = (permissions: number, pinned: number, granted: number): number =>
+	RECORD_FLAGS.reduce((mask, name) => {
+		if (!permits(pinned, name)) {
+			return mask;
+		}
+
+		const on = permits(granted, name);
+
+		if (on === permits(mask, name)) {
+			return mask;
+		}
+
+		return on ? mask + 2 ** FLAGS[name] : mask - 2 ** FLAGS[name];
+	}, permissions);
+
+/**
+ * A member's permissions in one workspace, before its grant is read: [`pinnedIn`], what they may
+ * do across the organization with the record flags pinned for that workspace set as they are
+ * granted there (effort 838, requirement 12 as amended a third time, and at review round one),
+ * then any add, edit or delete whose kind's view the result does not hold dropped, since the
+ * layers beneath can take a view away under a write pinned on. A flag pinned holds its value
+ * however those layers move.
+ *
+ * **Record flags only.** A workspace override naming any other bit is refused where it is written
+ * and where it is read, and a bit outside [`RECORD_FLAGS`] is not pinned here either, so the
+ * organization's own flags pass through as they are. [`effectiveIn`] then folds the result by the
+ * grant's level. Rust's `effective_in_workspace` is held to this by the shared table.
+ */
+export const effectiveInWorkspace = (
+	permissions: number,
+	pinned: number,
+	granted: number
+): number =>
+	RECORD_KINDS.reduce(
+		(mask, kind) => {
+			const [view, ...writes] = FAMILIES[kind] as readonly Flag[];
+
+			return permits(mask, view)
+				? mask
+				: writes.reduce(
+						(within, flag) => (permits(within, flag) ? within - 2 ** FLAGS[flag] : within),
+						mask
+					);
+		},
+		pinnedIn(permissions, pinned, granted)
+	);
+
+/** How a member reaches one workspace, in the spelling a grant row stores. */
+export type AccessLevel = 'full-access' | 'read-only';
+
+/**
+ * A member's permissions inside one workspace. A read-only grant clears every flag in
+ * [`WRITE_FLAGS`], whatever the role and the override say (requirement 10).
+ */
+export const effectiveIn = (permissions: number, accessLevel: AccessLevel): number =>
+	accessLevel === 'read-only'
+		? WRITE_FLAGS.reduce(
+				(mask, name) => (permits(mask, name) ? mask - 2 ** FLAGS[name] : mask),
+				permissions
+			)
+		: permissions;
+
+/** The kind of a role: one of the three every organization has, or one it made itself. */
+export type RoleKind = 'owner' | 'manager' | 'member' | 'custom';
+
+export type BuiltInRole = {
+	readonly id: Exclude<RoleKind, 'custom'>;
+	readonly rank: number;
+	readonly mask: number;
+};
+
+/**
+ * The three roles every organization has (requirement 3), each with its id, its rank and the mask
+ * it is created with.
+ *
+ * The owner carries every flag and its mask is never edited. The manager carries every flag but
+ * the owner's. The member views every record kind and creates and edits records, and deletes and
+ * administers nothing. A custom role ranks strictly between the member and the manager.
+ */
+export const BUILT_IN = {
+	owner: {
+		id: 'owner',
+		rank: 2_000_000,
+		mask: maskOf(...EVERY_FLAG)
+	},
+	manager: {
+		id: 'manager',
+		rank: 1_000_000,
+		mask: maskOf(...EVERY_FLAG.filter((flag) => !OWNER_ONLY.includes(flag)))
+	},
+	member: {
+		id: 'member',
+		rank: 0,
+		mask: maskOf(
+			'viewComplex',
+			'createComplex',
+			'editComplex',
+			'viewUnit',
+			'createUnit',
+			'editUnit',
+			'viewTenant',
+			'createTenant',
+			'editTenant',
+			'viewContract',
+			'createContract',
+			'editContract',
+			'viewPayment',
+			'createPayment',
+			'editPayment'
+		)
+	}
+} as const satisfies Record<Exclude<RoleKind, 'custom'>, BuiltInRole>;

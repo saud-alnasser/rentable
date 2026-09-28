@@ -82,12 +82,6 @@ const ALLOWED: readonly { label: string; most: number; reason: string }[] = [
 	},
 	{ label: 'lib/layout/component/workspace-menu.svelte', most: 1, reason: '"workspaces"' },
 	{
-		label: 'lib/organization/component/member-role.svelte',
-		most: 1,
-		reason: 'the role names, "member" and "administrator", for both member sheets'
-	},
-	{ label: 'lib/organization/component/role-table.svelte', most: 2, reason: 'the role names' },
-	{
 		label: 'lib/settings/component/appearance.svelte',
 		most: 1,
 		reason: '"system", "light" and "dark"'

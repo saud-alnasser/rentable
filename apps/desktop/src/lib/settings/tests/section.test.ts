@@ -125,7 +125,7 @@ test('anybody signed in is offered all four, in order', () => {
 		permissions: maskOf(
 			'inviteMember',
 			'removeMember',
-			'changeRole',
+			'assignRole',
 			'renameWorkspace',
 			'resetPassword',
 			'renameMember',
@@ -146,13 +146,14 @@ test('a member who administers nothing is offered all four, and no directory', (
 	assert.ok(!administersMembers(session));
 });
 
-// the gate is any one of the six acts that changes a row, so each of them on its own is enough:
-// a member who may only rename people still has a list of people to rename.
+// the gate is any one of the flags that changes a member's row, so each of them on its own is
+// enough: a member who may only rename people still has a list of people to rename.
 test('any single act that changes a member row is enough for the directory', () => {
 	for (const act of [
 		'inviteMember',
 		'removeMember',
-		'changeRole',
+		'assignRole',
+		'overrideMember',
 		'resetPassword',
 		'renameMember',
 		'grantWorkspace'

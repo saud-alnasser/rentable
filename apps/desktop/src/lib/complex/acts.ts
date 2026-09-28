@@ -55,6 +55,7 @@ export function declareComplexActs(host: ComplexHostRequests): ComplexAct[] {
 			label: (t) => t.common.actions.edit(),
 			icon: SquarePenIcon,
 			group: 'primary',
+			flag: 'editComplex',
 			run: host.edit
 		},
 		{
@@ -65,6 +66,7 @@ export function declareComplexActs(host: ComplexHostRequests): ComplexAct[] {
 			icon: Trash2Icon,
 			tone: 'error',
 			group: 'destructive',
+			flag: 'deleteComplex',
 			// the record is all it removes, so it runs at once and offers undo.
 			confirmation: 'none',
 			run: host.confirmDelete

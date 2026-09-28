@@ -1,0 +1,77 @@
+[
+	{
+		"name": "Tenants",
+		"headers": ["Name", "National ID", "Phone"],
+		"rows": [
+			["Abby Kris", "1234567890", "+966512345678"],
+			["عمر الحربي", "2234567891", "+966553456789"]
+		]
+	},
+	{
+		"name": "Complexes",
+		"headers": ["Name", "Location"],
+		"rows": [
+			["Al Nakheel", "Riyadh"],
+			["برج الياسمين", "جدة"]
+		]
+	},
+	{
+		"name": "Units",
+		"headers": ["Complex", "Unit", "Status"],
+		"rows": [
+			["Al Nakheel", "A1", "vacant"],
+			["Al Nakheel", "A2", "occupied"],
+			["برج الياسمين", "101", "occupied"]
+		]
+	},
+	{
+		"name": "Contracts",
+		"headers": [
+			"Contract",
+			"Tenant",
+			"Units",
+			"Start",
+			"End",
+			"Interval",
+			"Cost",
+			"Status",
+			"Paid",
+			"Expected"
+		],
+		"rows": [
+			[
+				"GOV-1",
+				"1234567890",
+				"Al Nakheel / A2",
+				"2025-01-01",
+				"2026-01-01",
+				"12m",
+				"18000",
+				"expired",
+				"18000",
+				"18000"
+			],
+			[
+				"2234567891 @ 2026-03-01",
+				"2234567891",
+				"برج الياسمين / 101",
+				"2026-03-01",
+				"2026-09-01",
+				"1m",
+				"1500.5",
+				"active",
+				"3001",
+				"9003"
+			]
+		]
+	},
+	{
+		"name": "Payments",
+		"headers": ["Contract", "Date", "Amount"],
+		"rows": [
+			["GOV-1", "2025-01-01", "18000"],
+			["2234567891 @ 2026-03-01", "2026-03-01", "1500.5"],
+			["2234567891 @ 2026-03-01", "2026-04-01", "1500.5"]
+		]
+	}
+]

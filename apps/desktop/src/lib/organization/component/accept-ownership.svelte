@@ -47,7 +47,7 @@
 		onOpenChange: (value: boolean) => void;
 		/** what the organization is called, which is what is being accepted. */
 		organizationName: string;
-		/** who offered it, which is who becomes an administrator. */
+		/** who offered it, which is who becomes a manager once this is accepted. */
 		ownerUsername: string;
 		/** the acceptance is running: a re-key and a push, which is a moment to wait on. */
 		isAccepting: boolean;

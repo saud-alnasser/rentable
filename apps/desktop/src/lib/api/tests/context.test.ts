@@ -1,15 +1,25 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import type { OrganizationSession } from '$lib/platform/host.ts';
+import type { Host, OrganizationSession } from '$lib/platform/host.ts';
 import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
 import { fakeIdentity } from '$lib/api/tests/testing.ts';
 import {
 	fakeHost,
 	fakeOrganizationSession,
-	fakeOrganizationState
+	fakeOrganizationState,
+	fakeOrganizationWorkspace,
+	fakeSyncState,
+	fakeWorkspace
 } from '$lib/platform/tests/testing.ts';
-import { maskOf, permits } from '@rentable/workspace-permission';
+import {
+	BUILT_IN,
+	WRITE_FLAGS,
+	effectiveIn,
+	effectiveInWorkspace,
+	maskOf,
+	permits
+} from '@rentable/workspace-permission';
 
 import { context } from '../context.ts';
 
@@ -220,4 +230,135 @@ test('a shell that cannot be reached carries no permissions because it carries n
 	});
 
 	assert.equal(actor, null);
+});
+
+/**
+ * **What a member may do in the workspace open is their permissions with a read-only grant's
+ * writes cleared** (effort 838, requirement 10, criterion 10). The session carries what they may
+ * do across the organization; the context folds it for the workspace this machine has open.
+ */
+function shellOpenOn(workspaceId: string | null, session: OrganizationSession): Host {
+	const state = fakeOrganizationState({ session });
+
+	return fakeHost({
+		organization: { ...fakeHost().organization, getState: async () => state },
+		remoteSync: {
+			...fakeHost().remoteSync,
+			getState: async () => fakeSyncState({ workspace: fakeWorkspace({ remoteId: workspaceId }) })
+		}
+	});
+}
+
+/** a manager holding north read-only and south with full access. */
+const managerOnTwo = () =>
+	fakeOrganizationSession({
+		role: 'manager',
+		roleId: BUILT_IN.manager.id,
+		rank: BUILT_IN.manager.rank,
+		permissions: BUILT_IN.manager.mask,
+		workspaces: [
+			fakeOrganizationWorkspace({ id: 'north', accessLevel: 'read-only' }),
+			fakeOrganizationWorkspace({ id: 'south', accessLevel: 'full-access' })
+		]
+	});
+
+test('on a read-only grant every write flag is clear, whatever the role says', async () => {
+	const actor = await actorFrom({
+		db: createMemoryDatabase(),
+		clock: { now: () => 0 },
+		host: shellOpenOn('north', managerOnTwo())
+	});
+	const permissions = actor?.permissions ?? 0;
+
+	for (const flag of WRITE_FLAGS) {
+		assert.ok(!permits(permissions, flag), `${flag} was held on a read-only grant`);
+	}
+
+	assert.equal(permissions, effectiveIn(BUILT_IN.manager.mask, 'read-only'));
+	// what the grant does not narrow stays: the organization's flags, and reading records.
+	assert.ok(permits(permissions, 'assignRole'));
+	assert.ok(permits(permissions, 'viewPayment'));
+});
+
+test('on a full-access grant the writes the role carries are held', async () => {
+	const actor = await actorFrom({
+		db: createMemoryDatabase(),
+		clock: { now: () => 0 },
+		host: shellOpenOn('south', managerOnTwo())
+	});
+
+	assert.equal(actor?.permissions, BUILT_IN.manager.mask);
+	assert.ok(permits(actor?.permissions ?? 0, 'deletePayment'));
+});
+
+// the safe direction: a machine with nothing open, or open on a workspace the session holds no
+// grant on, writes no records, and its organization flags are untouched.
+test('where the open workspace cannot be said, the writes are cleared and nothing else is', async () => {
+	for (const open of [null, 'elsewhere']) {
+		const actor = await actorFrom({
+			db: createMemoryDatabase(),
+			clock: { now: () => 0 },
+			host: shellOpenOn(open, managerOnTwo())
+		});
+
+		assert.equal(actor?.permissions, effectiveIn(BUILT_IN.manager.mask, 'read-only'), `${open}`);
+	}
+});
+
+/**
+ * **What a member may do in the workspace open is what is pinned for them there, and then folded
+ * by its grant** (effort 838, requirement 12 as amended a third time, and at review round one).
+ * The organization's own flags are not a workspace's to pin, and a read-only grant clears a write
+ * pinned on.
+ */
+test("the workspace open sets what is pinned there, and the organization's flags stay", async () => {
+	const tailored = fakeOrganizationSession({
+		role: 'manager',
+		roleId: BUILT_IN.manager.id,
+		rank: BUILT_IN.manager.rank,
+		permissions: BUILT_IN.manager.mask,
+		workspaces: [
+			fakeOrganizationWorkspace({
+				id: 'north',
+				accessLevel: 'full-access',
+				pinned: maskOf('deleteContract', 'assignRole'),
+				granted: 0
+			}),
+			fakeOrganizationWorkspace({
+				id: 'south',
+				accessLevel: 'read-only',
+				pinned: maskOf('deleteContract', 'deleteUnit'),
+				granted: maskOf('deleteUnit')
+			})
+		]
+	});
+	const inNorth = await actorFrom({
+		db: createMemoryDatabase(),
+		clock: { now: () => 0 },
+		host: shellOpenOn('north', tailored)
+	});
+	const north = inNorth?.permissions ?? 0;
+
+	assert.equal(north, effectiveInWorkspace(BUILT_IN.manager.mask, maskOf('deleteContract'), 0));
+	assert.ok(!permits(north, 'deleteContract'), 'what north pins off was held there');
+	assert.ok(permits(north, 'deletePayment'), 'what north leaves alone moved');
+	assert.ok(permits(north, 'assignRole'), 'an organization flag was pinned in a workspace');
+
+	const inSouth = await actorFrom({
+		db: createMemoryDatabase(),
+		clock: { now: () => 0 },
+		host: shellOpenOn('south', tailored)
+	});
+
+	assert.equal(
+		inSouth?.permissions,
+		effectiveIn(
+			effectiveInWorkspace(
+				BUILT_IN.manager.mask,
+				maskOf('deleteContract', 'deleteUnit'),
+				maskOf('deleteUnit')
+			),
+			'read-only'
+		)
+	);
 });

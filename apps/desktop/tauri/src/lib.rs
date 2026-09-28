@@ -1,6 +1,8 @@
+pub mod backup;
 pub mod bootstrap;
 pub mod database;
 pub mod diagnostics;
+pub mod earlier;
 pub mod error;
 pub mod export;
 pub mod http;
@@ -11,6 +13,7 @@ mod keyring;
 pub mod organization;
 pub mod persisted;
 pub mod print;
+pub mod schema;
 pub mod settings;
 pub mod state;
 pub mod sync;
@@ -255,7 +258,15 @@ pub fn run() {
             organization::member_create,
             organization::member_link_make,
             organization::member_password_unset,
-            organization::member_change_role,
+            organization::organization_roles,
+            organization::role_create,
+            organization::role_rename,
+            organization::role_set_mask,
+            organization::role_move,
+            organization::role_delete,
+            organization::member_assign_role,
+            organization::member_set_override,
+            organization::member_set_workspace_override,
             organization::member_offer_ownership,
             organization::member_withdraw_offer,
             organization::ownership_accept,
@@ -281,6 +292,8 @@ pub fn run() {
             print::print_page,
             import::import_read,
             import::import_read_book,
+            earlier::earlier_find,
+            earlier::earlier_read,
             update::update_prepare,
             bootstrap::bootstrap,
         ])

@@ -5,6 +5,7 @@ import {
 } from '$lib/contract/contract';
 import { isReminderRank } from '$lib/contract/reminder';
 import type { RecordAct } from '$lib/design/acts';
+import { memberPermissions } from '$lib/workspace/permission';
 import BanIcon from '@lucide/svelte/icons/ban';
 import CalendarPlusIcon from '@lucide/svelte/icons/calendar-plus';
 import CopyIcon from '@lucide/svelte/icons/copy';
@@ -91,6 +92,8 @@ export function declareContractActs(host: ContractHostRequests): ContractAct[] {
 			label: (t) => t.contracts.schedule.print(),
 			icon: PrinterIcon,
 			group: 'primary',
+			// the schedule is read as the contract is, and printed only by a reader who may.
+			flag: 'viewContract',
 			run: host.print
 		},
 		{
@@ -102,11 +105,15 @@ export function declareContractActs(host: ContractHostRequests): ContractAct[] {
 			label: (t) => t.common.actions.remind(),
 			icon: MessageCircleIcon,
 			group: 'primary',
+			flag: 'viewContract',
 			appliesTo: (contract) => contract.status !== 'terminated' && isReminderRank(contract.rank),
-			// every tenant has a phone today; a read that knows the tenant has none says so here
+			// a reminder is addressed to the tenant by name and phone, which a member who may not view
+			// tenants is not shown (effort 838, requirement 10), so it is refused naming that flag.
+			// Every tenant has a phone today; a read that knows the tenant has none says so here
 			// rather than opening a chat addressed to nobody.
 			unavailable: (contract, t) =>
-				contract.tenantPhone?.trim() === '' ? t.contracts.reminder.noPhone() : undefined,
+				memberPermissions.refusal('viewTenant', t) ??
+				(contract.tenantPhone?.trim() === '' ? t.contracts.reminder.noPhone() : undefined),
 			run: host.remind
 		},
 		{
@@ -116,6 +123,7 @@ export function declareContractActs(host: ContractHostRequests): ContractAct[] {
 			label: (t) => t.common.actions.duplicate(),
 			icon: FilesIcon,
 			group: 'primary',
+			flag: 'createContract',
 			run: host.duplicate
 		},
 		{
@@ -123,6 +131,8 @@ export function declareContractActs(host: ContractHostRequests): ContractAct[] {
 			label: (t) => t.common.actions.renew(),
 			icon: CalendarPlusIcon,
 			group: 'primary',
+			// a renewal continues the contract, and the procedure counts it an edit of it.
+			flag: 'editContract',
 			run: host.renew
 		},
 		{
@@ -130,6 +140,7 @@ export function declareContractActs(host: ContractHostRequests): ContractAct[] {
 			label: (t) => t.common.actions.edit(),
 			icon: SquarePenIcon,
 			group: 'primary',
+			flag: 'editContract',
 			// a terminated contract is not edited; it is restored first (`ensureContractIsNotTerminated`).
 			appliesTo: (contract) => contract.status !== 'terminated',
 			run: host.edit
@@ -140,6 +151,7 @@ export function declareContractActs(host: ContractHostRequests): ContractAct[] {
 			icon: BanIcon,
 			tone: 'error',
 			group: 'lifecycle',
+			flag: 'editContract',
 			appliesTo: (contract) => canManuallyTerminateContractStatus(contract.status),
 			run: (contract) => host.confirm('terminate', contract)
 		},
@@ -150,6 +162,7 @@ export function declareContractActs(host: ContractHostRequests): ContractAct[] {
 			label: (t) => t.common.actions.unterminate(),
 			icon: RotateCcwIcon,
 			group: 'lifecycle',
+			flag: 'editContract',
 			appliesTo: (contract) => canUnterminateContractStatus(contract.status),
 			run: (contract) => host.confirm('restore', contract)
 		},
@@ -161,6 +174,7 @@ export function declareContractActs(host: ContractHostRequests): ContractAct[] {
 			icon: Trash2Icon,
 			tone: 'error',
 			group: 'destructive',
+			flag: 'deleteContract',
 			// the record is all it removes, so it runs at once and offers undo.
 			confirmation: 'none',
 			run: (contract) => host.confirm('delete', contract)

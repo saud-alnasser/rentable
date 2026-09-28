@@ -39,7 +39,6 @@ use crate::{
 use super::{
     HeldOrganization, connect,
     link::{HalfKind, JoinLink, open_payload},
-    permission,
     session::CredentialSlot,
     store::OrganizationStore,
     vault::KdfParams,
@@ -59,8 +58,8 @@ enum Refusal {
 /// The one sentence a machine link that no longer opens is refused with, said in the name of the
 /// organization the link names, since that is the only thing the person on the new machine has.
 ///
-/// **It points at whoever keeps the accounts.** A link is made by the owner or an administrator
-/// from the account's card (effort 828, requirement 20), so a refusal has exactly one remedy and
+/// **It points at whoever keeps the accounts.** A link is made by a holder of `inviteMember` or
+/// `resetPassword` ranked above the account, from the account's card (effort 828, requirement 20), so a refusal has exactly one remedy and
 /// it is asking them for another. *It said to make another from the you section while a member
 /// made their own; the person reading this sentence is on a machine that holds nothing and has no
 /// you section to reach.*
@@ -167,6 +166,10 @@ where
     let reached = store_for(credential).await?;
     let store = reached.borrow();
 
+    // an organization another version made is refused before its link's row is read (effort 838,
+    // requirement 11).
+    store.refuse_another_format().await?;
+
     let row = store
         .machine_link(&half.id)
         .await?
@@ -199,7 +202,7 @@ where
         .find(|member| member.id == row.member_id)
         .ok_or_else(|| no_longer_a_member(&link.organization_name))?;
 
-    if member.role == permission::REMOVED {
+    if member.removed_at.is_some() {
         return Err(no_longer_a_member(&link.organization_name));
     }
 
@@ -1013,5 +1016,160 @@ mod tests {
             "{refused:?}"
         );
         assert!(machine.organization.is_none(), "the machine recorded one");
+    }
+
+    /// Everything the organization database holds, table by table and row by row, as a test
+    /// compares it before and after a refusal: a write anywhere changes it.
+    async fn contents(store: &OrganizationStore) -> Vec<(String, Vec<Vec<turso::Value>>)> {
+        let mut contents = Vec::new();
+
+        for table in store.tables().await.expect("the tables") {
+            let mut rows = store
+                .connection()
+                .query(&format!("SELECT * FROM \"{table}\" ORDER BY rowid"), ())
+                .await
+                .expect("the rows");
+            let mut values = Vec::new();
+
+            while let Some(row) = rows.next().await.expect("a row") {
+                values.push(
+                    (0..row.column_count())
+                        .map(|index| row.get_value(index).expect("a value"))
+                        .collect(),
+                );
+            }
+
+            contents.push((table, values));
+        }
+
+        contents
+    }
+
+    /// Turn this build's organization into format 1 as the main branch shapes it, keeping its
+    /// rows: no `format`, `role`, `certificate` or `revocation` table, the role word and the
+    /// seven-act mask on the member row where this format has a role, an override and a removal,
+    /// and format 1's `administrator_certificate` with its unsigned `revoked_at`. The refusal is
+    /// made before any row is read, so what the rows say does not matter; the shape is what every
+    /// way in has to recognise, and it is checked against the main branch's here.
+    async fn as_format_one(store: &OrganizationStore) {
+        for statement in [
+            "DROP TABLE \"format\"",
+            "DROP TABLE \"workspace_override\"",
+            "DROP TABLE \"role\"",
+            "DROP TABLE \"certificate\"",
+            "DROP TABLE \"revocation\"",
+            "ALTER TABLE \"member\" ADD COLUMN \"role\" TEXT NOT NULL DEFAULT 'member'",
+            "ALTER TABLE \"member\" ADD COLUMN \"permissions\" INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE \"member\" DROP COLUMN \"role_id\"",
+            "ALTER TABLE \"member\" DROP COLUMN \"override\"",
+            "ALTER TABLE \"member\" DROP COLUMN \"removed_at\"",
+            "CREATE TABLE \"administrator_certificate\" (\
+                \"id\" TEXT PRIMARY KEY NOT NULL, \
+                \"member_id\" TEXT NOT NULL, \
+                \"signing_public_key\" BLOB NOT NULL, \
+                \"signature_by_organization_key\" BLOB NOT NULL, \
+                \"issued_at\" TEXT NOT NULL, \
+                \"revoked_at\" TEXT)",
+        ] {
+            store
+                .connection()
+                .execute(statement, ())
+                .await
+                .unwrap_or_else(|error| panic!("{statement}: {error}"));
+        }
+
+        // the main branch's eleven tables, and its member row's columns.
+        assert_eq!(
+            store.tables().await.expect("the tables"),
+            vec![
+                "administrator_certificate",
+                "grant",
+                "invitation",
+                "machine",
+                "machine_link",
+                "mark",
+                "member",
+                "migration_lease",
+                "organization",
+                "succession",
+                "workspace",
+            ]
+        );
+
+        let mut columns = store.columns_of("member").await.expect("the columns");
+        let mut main = vec![
+            "id",
+            "username_sealed",
+            "public_key",
+            "signing_public_key",
+            "sealed_secret_key",
+            "sealed_content_key",
+            "kdf_salt",
+            "kdf_params",
+            "role",
+            "permissions",
+            "must_change_password",
+            "certificate_id",
+            "signature",
+            "created_at",
+            "updated_at",
+            "session_epoch",
+            "owner_seed_sealed",
+        ];
+
+        columns.sort();
+        main.sort_unstable();
+
+        assert_eq!(columns, main);
+        assert!(store.is_older().await.expect("the format"));
+    }
+
+    /// Effort 838, tickets 22 and 23, at the machine link: **an organization an earlier version
+    /// made, opened first by a member's next machine, waits for its owner, and nothing is written
+    /// to it.**
+    ///
+    /// The organization is this build's own turned into format 1 in the main branch's shape
+    /// ([`as_format_one`]). The link and its code open, and the connect is refused before the
+    /// link's row is read: the organization is as it was, the link unspent, and the machine
+    /// records nothing. *It took the `format` table away from this build's shape until ticket 23,
+    /// which is an upgrade's last row missing rather than format 1.*
+    #[tokio::test]
+    async fn an_older_organization_opened_first_by_a_machine_link_waits_for_its_owner() {
+        let directory = scratch("older");
+        let (store, owner, locator, member_id, _) = account(&directory).await;
+        let made = make_link(
+            &store,
+            &owner,
+            no_platform(),
+            &locator,
+            &member_id,
+            test_cost(),
+            ISSUED_AT + 2,
+        )
+        .await
+        .expect("the link could not be made");
+
+        as_format_one(&store).await;
+
+        let before = contents(&store).await;
+        let mut machine = fresh_machine(&scratch("older-machine"));
+        let refused = connect_on(&mut machine, &store, &made, &made.code, ISSUED_AT + 3).await;
+
+        assert!(
+            matches!(
+                &refused,
+                Err(Error::Refused {
+                    reason: RefusalReason::OrganizationOlder,
+                    message,
+                }) if message.contains("waits for its owner")
+            ),
+            "{refused:?}"
+        );
+        assert_eq!(
+            contents(&store).await,
+            before,
+            "the refusal wrote to the organization"
+        );
+        assert!(machine.organization.is_none());
     }
 }

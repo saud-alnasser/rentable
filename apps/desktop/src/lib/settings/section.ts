@@ -1,6 +1,6 @@
 import type { Pathname } from '$app/types';
 import type { OrganizationSession } from '$lib/platform/host';
-import { permits, type Administration } from '@rentable/workspace-permission';
+import { permits, type Flag } from '@rentable/workspace-permission';
 
 /**
  * THE SETTINGS AREA'S FOUR SECTIONS, AND HOW ONE IS ADDRESSED
@@ -51,6 +51,13 @@ export const RECORD_PARAM = 'member';
  * records the same way, so each reads the word for what it holds.
  */
 export const WORKSPACE_PARAM = 'workspace';
+
+/**
+ * what names one role in the organization section, whose roles block is a list of cards beside the
+ * members directory (effort 838, requirement 12). A card opens the role's editor on this address,
+ * for the reason the two above give; a name of its own, because the two lists stand on one address.
+ */
+export const ROLE_PARAM = 'role';
 
 /** the settings area's own address, carrying no section. */
 export const THE_SETTINGS_AREA = '/settings' satisfies Pathname;
@@ -128,11 +135,12 @@ export const DEFAULT_SECTION: SettingsSection = 'general';
 const MEMBER_ACTS = [
 	'inviteMember',
 	'removeMember',
-	'changeRole',
+	'assignRole',
+	'overrideMember',
 	'resetPassword',
 	'renameMember',
 	'grantWorkspace'
-] as const satisfies readonly Administration[];
+] as const satisfies readonly Flag[];
 
 /**
  * `/settings`, opened at `section`, which may be a name that is gone: the address is the live

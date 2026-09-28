@@ -56,10 +56,14 @@ workspace, so a qualifier that once picked one of two now reads as though some o
 workspace had a sync token this rule does not cover.*
 
 **What crosses is facts *about* a credential, never one.** `OrganizationState` carries whether
-this machine holds the Turso authority and `OrganizationSession` carries a member's role, permissions and
-the workspaces their grants reach; the side that draws a screen needs those facts and needs nothing
-else. *It named `RemoteSyncState`'s `tokenExpiresAt` and the session's three moments until the
-session window retired with the control plane on 2026-09-12.*
+this machine holds the Turso authority and `OrganizationSession` carries a member's identity (their
+id and username), their role (its kind, id, name and rank), their override, their effective
+permissions, the workspaces their grants reach, the owner's username and whether an offer of the
+organization stands for them; the side that draws a screen needs those facts and needs nothing
+else. **Nothing about a certificate crosses**: not its id, its key, its ceiling or its issuer
+(effort 838). *It named `RemoteSyncState`'s `tokenExpiresAt` and the session's three moments until
+the session window retired with the control plane on 2026-09-12, and a role word and a permissions
+mask of seven acts until effort 838.*
 
 **Two things cross that look like credentials and are sanctioned by the spec that made them.** The
 join link crosses both ways as a string: it carries a read-only credential over sealed rows, which

@@ -35,6 +35,11 @@ fn normalize_version(value: &str) -> String {
 /// costs nothing that is not still held remotely. Copying a replica out was refused by the
 /// engine before it was deleted, so there was nothing left to take a snapshot of either.
 ///
+/// *That is the update's snapshot, and copies are taken elsewhere now.* Before an organization
+/// changes format or a workspace takes a migration, `backup.rs` writes a logical copy of it to a
+/// plain SQLite file, and to the owner's account where the machine holds it (effort 838,
+/// requirement 13). An update installing itself still takes none.
+///
 /// **Two things still have to survive an update, and neither is a file.** The session, because
 /// requirement 1 says a version change must not put a working user behind a login page: it is
 /// persisted in `remote-sync.json` rather than held for the run of the process, and

@@ -53,9 +53,10 @@ The live tests read three values from the environment instead, because they have
 | `TURSO_GROUP` | an existing group the databases are created in |
 
 `apps/desktop/.env.example` is where they are named, beside `RENTABLE_LIVE_TURSO=1`, which arms
-the run. The older `losing_writer` tests read `TURSO_API_TOKEN` under that name. **The token is the
-human's to rotate: do not print it, do not commit it, and do not assume it is the one production
-uses.**
+the run. The tests that provision through `database/test/workspace.rs`, the older
+`losing_writer` four and the workspace migration's, read `TURSO_API_TOKEN` under that name. **The
+token is the human's to rotate: do not print it, do not commit it, and do not assume it is the one
+production uses.**
 
 ## Commands
 
@@ -70,14 +71,20 @@ client in TypeScript, kept for a hosted tier and imported by nothing; the endpoi
 first documented for it while it was `apps/control-plane/src/workspace/turso.ts`.
 `apps/desktop/tauri/src/database/test/workspace.rs` is the third, added 2026-08-20 by #552: it
 provisions and destroys a database per test so that two replicas have something to diverge against,
-and it is `#[cfg(test)]` and `#[ignore]`d ([[rules/testing]], under *Tests that reach a live
-remote*, is what bounds it). The Rust port is the first thing in the shipping desktop binary to
-reach this API. It adds the configuration call below to the three `turso.ts` makes, and its
-deletion is behind a caller-stated intent rather than a method that merely exists.
+and, since effort 838, so that the migration's live test at the foot of `organization/migrate.rs`
+has a server to run the whole tail on; it is `#[cfg(test)]` and `#[ignore]`d ([[rules/testing]],
+under *Tests that reach a live remote*, is what bounds it). The Rust port is the first thing in the
+shipping desktop binary to reach this API. It adds the configuration call and the seeded create
+below to the three `turso.ts` makes, and its deletion is behind a caller-stated intent rather than a method that merely exists.
 
 ```
 POST   /v1/organizations/{org}/databases
        {"name": "ws-<workspace id>", "group": "<TURSO_GROUP>"}
+
+POST   /v1/organizations/{org}/databases
+       {"name": "copy-<id>-<label>-<unix s>", "group": "<TURSO_GROUP>",
+        "seed": {"type": "database", "name": "<the database copied>"}}
+                                            desktop only; the copy before a change of shape
 
 POST   /v1/organizations/{org}/databases/{database}/auth/tokens?expiration=3d&authorization=full-access
 
@@ -92,6 +99,20 @@ GET    /v1/organizations/{org}/databases/{database}/configuration
 is never what this repository wants. `authorization` is `full-access` or `read-only` and
 nothing finer; decision 01 found the fine-grained flags the CLI documents are not on this
 endpoint.
+
+**The seeded create is a copy** *(added 2026-09-27, effort 838, requirement 13)*. The create
+takes a `seed` naming a database, `{"type": "database", "name": <source>}`, and makes the new one
+from it; the source has to be on the account and the copy goes in the same group. Source:
+<https://docs.turso.tech/api-reference/databases/create>. `TursoPlatform::copy_database` in
+`platform.rs` makes it, then turns delete protection on as `create_database` does, and removes a
+copy it could not protect. `backup::remote_copy` calls it before the owner's machine upgrades
+the organization and before a pending migration changes a workspace, where the machine holds the
+owner's account. The name is `backup::remote_name`'s: `copy-`, the first eight characters of the
+database's id, the label and the second, at most 40 characters so the hostname's first label,
+`<name>-<slug>`, stays within DNS's 63 with room for the slug. It never begins `org-` or `ws-`, so
+`setup::held_organization_id` does not read it as an organization. **Every copy is a database on
+the owner's account and counts against its database quota, and nothing here removes one**: they
+are protected and kept, and the owner removes them on the account.
 
 ## Expected output
 
@@ -192,10 +213,12 @@ the desktop's `organization/migrate.rs`, and the package's `migration.ts`.
 A live run creates a real database and is billed and quota-counted — the free tier permits 100.
 **It is the human's call**, the same standing rule as pushing.
 
-**It also leaves databases behind.** #552's live tests add four per run, named
-`t552-<case>-<nonce>`, and #572's add two, named `ws-<uuid>` like any other workspace. Nothing in
-this repository can remove one from a delete-protected group, and against a quota of 100 that is
-worth watching rather than assuming.
+**It also leaves databases behind.** The tests provisioning through `database/test/workspace.rs`
+add one each per run, all named `t552-<case>-<nonce>`: #552's four `losing_writer` tests, and
+effort 838's `migration_live` test, whose case is `t32`, five in all when every one is run. #572's
+add two, named `ws-<uuid>` like any other workspace. Nothing in this repository can remove one
+from a delete-protected group, and against a quota of 100 that is worth watching rather than
+assuming.
 
 *The inventory was a list of names until 2026-08-20 and is a description now, because a list that
 grows by four whenever somebody runs a test is a list that is wrong more often than it is right.*

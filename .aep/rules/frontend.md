@@ -432,7 +432,9 @@ shows is a direction along the line of text:
 - **progress**: a bar fills from the start edge, which is why `primitive/progress` sets a width
   rather than a translate;
 - **sliders**: the slider's range fills from the start edge, which is why `primitive/slider`
-  hands bits-ui `contract.direction`.
+  hands bits-ui `contract.direction`;
+- **switches**: the thumb rests at the start edge and slides toward the end when on, which is why
+  `primitive/switch` runs its translate the other way under `rtl:` (effort 838, ticket 43).
 
 A clock, a check, the search glass, the mark (the logo) and a slash never mirror, and neither does
 anything else that is a thing rather than a direction. The `ring` cell is a clock face, so its arc

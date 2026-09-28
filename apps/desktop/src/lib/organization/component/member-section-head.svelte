@@ -3,8 +3,8 @@
 	import type { Snippet } from 'svelte';
 
 	/**
-	 * The head a section of a member's sheet opens with: its name, one sentence, and the control
-	 * that adds to it where it has one.
+	 * The head a section of a member's sheet opens with: its name, one sentence where it needs
+	 * one, and the control that acts on it where it has one.
 	 *
 	 * **Plainer than the role's tray**, and deliberately: the tray is the one bar on the surface,
 	 * and a list underneath that repeats the treatment reads as a second form rather than as a
@@ -18,22 +18,30 @@
 	let {
 		id,
 		legend,
-		description,
+		description = null,
 		control = null
 	}: {
 		/** the section's name in the document: its legend is `<id>-legend`. */
 		id: string;
 		legend: string;
-		description: string;
-		/** the control that adds to the section, drawn at the end of the head. */
+		/** the one sentence under the name, where the section needs one. */
+		description?: string | null;
+		/** the control that acts on the section, drawn at the end of the head. */
 		control?: Snippet | null;
 	} = $props();
 </script>
 
-<div class="flex items-start justify-between gap-3" data-list-head={id}>
+<div
+	class="flex justify-between gap-3 {description ? 'items-start' : 'items-center'}"
+	data-list-head={id}
+>
 	<div class="min-w-0">
-		<Field.Legend id={`${id}-legend`} variant="label" class="mb-1">{legend}</Field.Legend>
-		<Field.Description>{description}</Field.Description>
+		<Field.Legend id={`${id}-legend`} variant="label" class={description ? 'mb-1' : 'mb-0'}>
+			{legend}
+		</Field.Legend>
+		{#if description}
+			<Field.Description>{description}</Field.Description>
+		{/if}
 	</div>
 
 	{#if control}

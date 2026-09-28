@@ -1,0 +1,481 @@
+{
+	"builtIn": {
+		"owner": {
+			"id": "owner",
+			"rank": 2000000,
+			"mask": 1099510841343
+		},
+		"manager": {
+			"id": "manager",
+			"rank": 1000000,
+			"mask": 1099510580223
+		},
+		"member": {
+			"id": "member",
+			"rank": 0,
+			"mask": 513104936960
+		}
+	},
+	"cases": [
+		{
+			"role": "owner",
+			"mask": 1099510841343,
+			"override": 0,
+			"effective": 1099510841343,
+			"readOnly": 73300967423
+		},
+		{
+			"role": "manager",
+			"mask": 1099510580223,
+			"override": 0,
+			"effective": 1099510580223,
+			"readOnly": 73300706303
+		},
+		{
+			"role": "manager",
+			"mask": 1099510580223,
+			"override": 1,
+			"effective": 1099510580222,
+			"readOnly": 73300706302
+		},
+		{
+			"role": "manager",
+			"mask": 1099510580223,
+			"override": 4,
+			"effective": 1099510580219,
+			"readOnly": 73300706299
+		},
+		{
+			"role": "manager",
+			"mask": 1099510580223,
+			"override": 549755813888,
+			"effective": 549754766335,
+			"readOnly": 73300706303
+		},
+		{
+			"role": "manager",
+			"mask": 1099510580223,
+			"override": 549756862465,
+			"effective": 549753717758,
+			"readOnly": 73299657726
+		},
+		{
+			"role": "manager",
+			"mask": 1099510580223,
+			"override": 586405642240,
+			"effective": 513104937983,
+			"readOnly": 73300706303
+		},
+		{
+			"role": "manager",
+			"mask": 1099510580223,
+			"override": 513104936960,
+			"effective": 586405643263,
+			"readOnly": 1023
+		},
+		{
+			"role": "manager",
+			"mask": 1099510580223,
+			"override": 1026209873920,
+			"effective": 73300706303,
+			"readOnly": 73300706303
+		},
+		{
+			"role": "manager",
+			"mask": 1099510580223,
+			"override": 1099510580223,
+			"effective": 0,
+			"readOnly": 0
+		},
+		{
+			"role": "manager",
+			"mask": 1099510580223,
+			"override": 1099510841343,
+			"effective": 261120,
+			"readOnly": 261120
+		},
+		{
+			"role": "member",
+			"mask": 513104936960,
+			"override": 0,
+			"effective": 513104936960,
+			"readOnly": 73300705280
+		},
+		{
+			"role": "member",
+			"mask": 513104936960,
+			"override": 1,
+			"effective": 513104936961,
+			"readOnly": 73300705281
+		},
+		{
+			"role": "member",
+			"mask": 513104936960,
+			"override": 4,
+			"effective": 513104936964,
+			"readOnly": 73300705284
+		},
+		{
+			"role": "member",
+			"mask": 513104936960,
+			"override": 549755813888,
+			"effective": 1062860750848,
+			"readOnly": 73300705280
+		},
+		{
+			"role": "member",
+			"mask": 513104936960,
+			"override": 549756862465,
+			"effective": 1062859702273,
+			"readOnly": 73299656705
+		},
+		{
+			"role": "member",
+			"mask": 513104936960,
+			"override": 586405642240,
+			"effective": 1099510579200,
+			"readOnly": 73300705280
+		},
+		{
+			"role": "member",
+			"mask": 513104936960,
+			"override": 513104936960,
+			"effective": 0,
+			"readOnly": 0
+		},
+		{
+			"role": "member",
+			"mask": 513104936960,
+			"override": 1026209873920,
+			"effective": 659706347520,
+			"readOnly": 73300705280
+		},
+		{
+			"role": "member",
+			"mask": 513104936960,
+			"override": 1099510580223,
+			"effective": 586405643263,
+			"readOnly": 1023
+		},
+		{
+			"role": "member",
+			"mask": 513104936960,
+			"override": 1099510841343,
+			"effective": 586405904383,
+			"readOnly": 262143
+		},
+		{
+			"role": "custom",
+			"mask": 206176256004,
+			"override": 0,
+			"effective": 206176256004,
+			"readOnly": 68737302532
+		},
+		{
+			"role": "custom",
+			"mask": 206176256004,
+			"override": 1,
+			"effective": 206176256005,
+			"readOnly": 68737302533
+		},
+		{
+			"role": "custom",
+			"mask": 206176256004,
+			"override": 4,
+			"effective": 206176256000,
+			"readOnly": 68737302528
+		},
+		{
+			"role": "custom",
+			"mask": 206176256004,
+			"override": 549755813888,
+			"effective": 755932069892,
+			"readOnly": 68737302532
+		},
+		{
+			"role": "custom",
+			"mask": 206176256004,
+			"override": 549756862465,
+			"effective": 755931021317,
+			"readOnly": 68736253957
+		},
+		{
+			"role": "custom",
+			"mask": 206176256004,
+			"override": 586405642240,
+			"effective": 792581898244,
+			"readOnly": 68737302532
+		},
+		{
+			"role": "custom",
+			"mask": 206176256004,
+			"override": 513104936960,
+			"effective": 306928680964,
+			"readOnly": 4563402756
+		},
+		{
+			"role": "custom",
+			"mask": 206176256004,
+			"override": 1026209873920,
+			"effective": 957508222980,
+			"readOnly": 68737302532
+		},
+		{
+			"role": "custom",
+			"mask": 206176256004,
+			"override": 1099510580223,
+			"effective": 893334324219,
+			"readOnly": 4563403771
+		},
+		{
+			"role": "custom",
+			"mask": 206176256004,
+			"override": 1099510841343,
+			"effective": 893334585339,
+			"readOnly": 4563664891
+		},
+		{
+			"role": "none",
+			"mask": 0,
+			"override": 0,
+			"effective": 0,
+			"readOnly": 0
+		},
+		{
+			"role": "none",
+			"mask": 0,
+			"override": 1,
+			"effective": 1,
+			"readOnly": 1
+		},
+		{
+			"role": "none",
+			"mask": 0,
+			"override": 4,
+			"effective": 4,
+			"readOnly": 4
+		},
+		{
+			"role": "none",
+			"mask": 0,
+			"override": 549755813888,
+			"effective": 549755813888,
+			"readOnly": 0
+		},
+		{
+			"role": "none",
+			"mask": 0,
+			"override": 549756862465,
+			"effective": 549756862465,
+			"readOnly": 1048577
+		},
+		{
+			"role": "none",
+			"mask": 0,
+			"override": 586405642240,
+			"effective": 586405642240,
+			"readOnly": 0
+		},
+		{
+			"role": "none",
+			"mask": 0,
+			"override": 513104936960,
+			"effective": 513104936960,
+			"readOnly": 73300705280
+		},
+		{
+			"role": "none",
+			"mask": 0,
+			"override": 1026209873920,
+			"effective": 1026209873920,
+			"readOnly": 0
+		},
+		{
+			"role": "none",
+			"mask": 0,
+			"override": 1099510580223,
+			"effective": 1099510580223,
+			"readOnly": 73300706303
+		},
+		{
+			"role": "none",
+			"mask": 0,
+			"override": 1099510841343,
+			"effective": 1099510841343,
+			"readOnly": 73300967423
+		}
+	],
+	"workspaceCases": [
+		{
+			"name": "the member role with nothing pinned",
+			"permissions": 513104936960,
+			"pinned": 0,
+			"granted": 0,
+			"effective": 513104936960,
+			"readOnly": 73300705280
+		},
+		{
+			"name": "the member role read only: every add, edit and delete pinned off",
+			"permissions": 513104936960,
+			"pinned": 1026209873920,
+			"granted": 0,
+			"effective": 73300705280,
+			"readOnly": 73300705280
+		},
+		{
+			"name": "read only stays read only when adding payments is taken away across the organization",
+			"permissions": 375665983488,
+			"pinned": 1026209873920,
+			"granted": 0,
+			"effective": 73300705280,
+			"readOnly": 73300705280
+		},
+		{
+			"name": "read only stays read only when the role gains deleting payments",
+			"permissions": 1062860750848,
+			"pinned": 1026209873920,
+			"granted": 0,
+			"effective": 73300705280,
+			"readOnly": 73300705280
+		},
+		{
+			"name": "the member role with deleting payments pinned on",
+			"permissions": 513104936960,
+			"pinned": 549755813888,
+			"granted": 549755813888,
+			"effective": 1062860750848,
+			"readOnly": 73300705280
+		},
+		{
+			"name": "deleting payments pinned on stays on when the role gains it too",
+			"permissions": 1062860750848,
+			"pinned": 549755813888,
+			"granted": 549755813888,
+			"effective": 1062860750848,
+			"readOnly": 73300705280
+		},
+		{
+			"name": "deleting payments pinned on is dropped when viewing payments is taken away across the organization",
+			"permissions": 32068599808,
+			"pinned": 549755813888,
+			"granted": 549755813888,
+			"effective": 32068599808,
+			"readOnly": 4581228544
+		},
+		{
+			"name": "adding and editing payments pinned off, and deleting them pinned on",
+			"permissions": 513104936960,
+			"pinned": 962072674304,
+			"granted": 549755813888,
+			"effective": 650543890432,
+			"readOnly": 73300705280
+		},
+		{
+			"name": "the manager role without deleting contracts",
+			"permissions": 1099510580223,
+			"pinned": 34359738368,
+			"granted": 0,
+			"effective": 1065150841855,
+			"readOnly": 73300706303
+		},
+		{
+			"name": "the manager role with an administration flag pinned, which is not",
+			"permissions": 1099510580223,
+			"pinned": 34359738373,
+			"granted": 1,
+			"effective": 1065150841855,
+			"readOnly": 73300706303
+		},
+		{
+			"name": "a flag granted that is not pinned is not granted",
+			"permissions": 513104936960,
+			"pinned": 137438953472,
+			"granted": 137573171200,
+			"effective": 513104936960,
+			"readOnly": 73300705280
+		},
+		{
+			"name": "nothing across the organization, and viewing and editing payments pinned on here",
+			"permissions": 0,
+			"pinned": 343597383680,
+			"granted": 343597383680,
+			"effective": 343597383680,
+			"readOnly": 68719476736
+		},
+		{
+			"name": "the owner's every flag with nothing pinned",
+			"permissions": 1099510841343,
+			"pinned": 0,
+			"granted": 0,
+			"effective": 1099510841343,
+			"readOnly": 73300967423
+		}
+	],
+	"writeWithoutView": [
+		{
+			"name": "nothing",
+			"mask": 0,
+			"kind": null
+		},
+		{
+			"name": "the owner's role",
+			"mask": 1099510841343,
+			"kind": null
+		},
+		{
+			"name": "the manager's role",
+			"mask": 1099510580223,
+			"kind": null
+		},
+		{
+			"name": "the member's role",
+			"mask": 513104936960,
+			"kind": null
+		},
+		{
+			"name": "the manager's role without viewing payments",
+			"mask": 1030791103487,
+			"kind": "payment"
+		},
+		{
+			"name": "the member's role without viewing contracts",
+			"mask": 508809969664,
+			"kind": "contract"
+		},
+		{
+			"name": "editing contracts alone",
+			"mask": 17179869184,
+			"kind": "contract"
+		},
+		{
+			"name": "viewing complexes and adding units",
+			"mask": 34603008,
+			"kind": "unit"
+		},
+		{
+			"name": "viewing and deleting payments",
+			"mask": 618475290624,
+			"kind": null
+		},
+		{
+			"name": "adding tenants and deleting complexes",
+			"mask": 545259520,
+			"kind": "complex"
+		},
+		{
+			"name": "adding, editing and deleting complexes",
+			"mask": 14680064,
+			"kind": "complex"
+		},
+		{
+			"name": "viewing and deleting every kind",
+			"mask": 659706347520,
+			"kind": null
+		},
+		{
+			"name": "inviting members",
+			"mask": 1,
+			"kind": null
+		}
+	]
+}

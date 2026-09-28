@@ -288,6 +288,7 @@ export const useCreateComplex = declareMutation({
 	touches: ['complexes', 'units'],
 	inverse: ({ result }) => ({
 		describe: (t) => t.common.undo.created({ record: t.common.labels.complex() }),
+		flags: { undo: ['deleteUnit', 'deleteComplex'], redo: ['createComplex'] },
 		// the units go first: a complex still holding units refuses to be deleted, which is the
 		// rule that lets an inverse be a single insert everywhere else.
 		undo: async () => {
@@ -313,6 +314,7 @@ export const useUpdateComplex = declareMutation({
 	inverse: ({ variables, captured }) =>
 		captured && {
 			describe: (t) => t.common.undo.edited({ record: t.common.labels.complex() }),
+			flags: { undo: ['editComplex'], redo: ['editComplex'] },
 			undo: () => api.complex.update(captured),
 			redo: () => api.complex.update(variables)
 		},
@@ -329,6 +331,7 @@ export const useDeleteComplex = declareMutation({
 	inverse: ({ result }) =>
 		result && {
 			describe: (t) => t.common.undo.deleted({ record: t.common.labels.complex() }),
+			flags: { undo: ['createComplex'], redo: ['deleteComplex'] },
 			undo: () => api.complex.create(result),
 			redo: () => api.complex.delete({ id: result.id })
 		},
@@ -363,6 +366,7 @@ export const useDeleteManyComplexes = declareMutation({
 			? undefined
 			: {
 					describe: (t) => t.common.undo.deletedMany({ count: result.deleted.length }),
+					flags: { undo: ['createComplex'], redo: ['deleteComplex'] },
 					undo: () => api.complex.createMany({ complexes: result.deleted }),
 					redo: () => api.complex.deleteMany({ ids: toIds(result.deleted) }),
 					records: (direction) =>
@@ -405,6 +409,7 @@ export const useDeleteManyUnits = declareMutation({
 			? undefined
 			: {
 					describe: (t) => t.common.undo.deletedMany({ count: result.deleted.length }),
+					flags: { undo: ['createUnit'], redo: ['deleteUnit'] },
 					undo: () => api.complex.units.createMany({ units: result.deleted }),
 					redo: () => api.complex.units.deleteMany({ ids: toIds(result.deleted) }),
 					records: (direction) =>
@@ -430,6 +435,7 @@ export const useCreateUnit = declareMutation({
 	touches: ['units'],
 	inverse: ({ result }) => ({
 		describe: (t) => t.common.undo.created({ record: t.common.labels.unit() }),
+		flags: { undo: ['deleteUnit'], redo: ['createUnit'] },
 		undo: () => api.complex.units.delete({ id: result.id }),
 		redo: () => api.complex.units.create(result)
 	}),
@@ -465,6 +471,7 @@ export const useCreateManyUnits = declareMutation({
 	touches: ['units', 'complexes'],
 	inverse: ({ result }) => ({
 		describe: (t) => t.common.undo.createdMany({ count: result.length }),
+		flags: { undo: ['deleteUnit'], redo: ['createUnit'] },
 		undo: () => api.complex.units.deleteMany({ ids: toIds(result) }),
 		redo: () => api.complex.units.createMany({ units: result }),
 		records: (direction) =>
@@ -489,6 +496,7 @@ export const useUpdateUnit = declareMutation({
 	inverse: ({ variables, captured }) =>
 		captured && {
 			describe: (t) => t.common.undo.edited({ record: t.common.labels.unit() }),
+			flags: { undo: ['editUnit'], redo: ['editUnit'] },
 			undo: () => api.complex.units.update(captured),
 			redo: () => api.complex.units.update(variables)
 		},
@@ -505,6 +513,7 @@ export const useDeleteUnit = declareMutation({
 	inverse: ({ result }) =>
 		result && {
 			describe: (t) => t.common.undo.deleted({ record: t.common.labels.unit() }),
+			flags: { undo: ['createUnit'], redo: ['deleteUnit'] },
 			undo: () => api.complex.units.create(result),
 			redo: () => api.complex.units.delete({ id: result.id })
 		},

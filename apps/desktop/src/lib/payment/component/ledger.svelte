@@ -38,6 +38,7 @@
 	import DirectoryImportDialog from '$lib/workspace/component/directory-import-dialog.svelte';
 	import { useImportRecords } from '$lib/workspace/query';
 	import { toTransferInput } from '$lib/workspace/workspace';
+	import { IMPORT_FLAGS, memberPermissions } from '$lib/workspace/permission';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 
 	/** The contract whose payments this statement lists. */
@@ -218,6 +219,7 @@
 			label={`${$LL.common.actions.delete()} · ${$LL.common.table.recordsSelected({ count: ids.length })}`}
 			icon={Trash2Icon}
 			tone="error"
+			unavailable={memberPermissions.refusal('deletePayment', $LL)}
 			onclick={() => (confirming = [...ids])}
 		/>
 	{/if}
@@ -265,7 +267,7 @@
 			]
 		}}
 		onImport={() => void importDialog?.choose()}
-		importUnavailable={createUnavailable}
+		importUnavailable={memberPermissions.refusalOfEvery(IMPORT_FLAGS, $LL) ?? createUnavailable}
 		onCreate={() => paymentHost.create({ contractId })}
 		createLabel={$LL.common.actions.newPayment()}
 		{createUnavailable}

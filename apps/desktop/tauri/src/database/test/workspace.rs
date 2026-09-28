@@ -1,13 +1,16 @@
 //! Reaching a live Turso workspace database from a test.
 //!
-//! What the tests over this scaffolding measure is what a losing writer loses when two replicas
-//! of one workspace diverge (#552, acceptance criteria 9 and 17). They live at the foot of
-//! `database/mod.rs`, beside the `open_replica` they go through; this is the part that provisions
-//! a database to diverge against, which is the Turso-side counterpart of `sync/test/server.rs`.
+//! Two sets of tests go through this scaffolding. The four at the foot of `database/mod.rs`,
+//! beside the `open_replica` they go through, measure what a losing writer loses when two replicas
+//! of one workspace diverge (#552, acceptance criteria 9 and 17). The one at the foot of
+//! `organization/migrate.rs` measures whether the server takes every shipped migration in one
+//! explicit transaction (effort 838, ticket 32). This is the part that provisions a database for
+//! them, which is the Turso-side counterpart of `sync/test/server.rs`.
 //!
 //! **A live account is reached, and there is no local stand-in.** The sync engine speaks HTTP to
 //! a remote; the crate's own harness wants a separate server binary, and writing one would mean
-//! implementing the replication protocol whose behaviour is the very thing under test.
+//! implementing the replication protocol whose behaviour is the very thing under test; and what
+//! the migration test asks is what Turso's own server does with a transaction.
 //! [[rules/testing]], under *Tests that reach a live remote*, is where that deviation is declared
 //! and what bounds it.
 //!
@@ -16,7 +19,9 @@
 //! skipped and then passed would report `ok` on a machine that has never reached Turso. `ignored`
 //! reaches the summary line; an `eprintln!` does not. Asking for an ignored test with no
 //! credentials **panics** rather than skipping: running one is a deliberate act, and a run that
-//! meant to be live and silently was not is the one outcome worth refusing.
+//! meant to be live and silently was not is the one outcome worth refusing. The migration test
+//! also reads `RENTABLE_LIVE_TURSO=1`, as every live test admitted since 2026-08-30 does; the four
+//! `losing_writer` tests predate that flag and are not retrofitted ([[rules/testing]]).
 //!
 //! Three variables are needed and **`apps/desktop/.env` carries only two of them**,
 //! `TURSO_API_TOKEN` and `TURSO_ORG`. `TURSO_GROUP` is named in `apps/desktop/.env.example` and
@@ -24,11 +29,15 @@
 //! teardown below cannot remove what it created.
 //!
 //! ```text
-//! TURSO_API_TOKEN=… TURSO_ORG=… TURSO_GROUP=… //!   cargo test --manifest-path ./apps/desktop/tauri/Cargo.toml losing_writer -- //!   --test-threads=1 --ignored --nocapture
+//! TURSO_API_TOKEN=... TURSO_ORG=... TURSO_GROUP=... \
+//!   cargo test --manifest-path ./apps/desktop/tauri/Cargo.toml losing_writer -- \
+//!   --test-threads=1 --ignored --nocapture
 //! ```
 //!
-//! All four test names carry `losing_writer`, so that filter selects the set rather than a subset
-//! of it. [[references/cargo]] has why the manifest path is spelled the way it is.
+//! All four `database/mod.rs` test names carry `losing_writer`, so that filter selects the set
+//! rather than a subset of it; the migration test is selected by `migration_live`, and its own
+//! comment has its command. [[references/cargo]] has why the manifest path is spelled the way it
+//! is.
 
 use std::time::Duration;
 
@@ -39,10 +48,12 @@ use super::super::Database;
 /// **Created and destroyed per test rather than reused.** A database left over from a previous
 /// run carries that run's rows, and a count assertion over it would pass or fail on history
 /// rather than on what this test did.
-pub(in crate::database) struct LiveWorkspace {
+pub(crate) struct LiveWorkspace {
     name: String,
-    url: String,
-    token: String,
+    /// `libsql://<hostname>`.
+    pub(crate) url: String,
+    /// a full-access credential on it, for an hour.
+    pub(crate) token: String,
     organization: String,
     api_token: String,
 }
@@ -54,7 +65,7 @@ impl LiveWorkspace {
     /// **Missing credentials panic.** These tests are `#[ignore]`d, so reaching this function
     /// at all means somebody asked for a live run; answering that by quietly doing nothing is
     /// how a criterion comes to look met.
-    pub(in crate::database) async fn create(label: &str) -> Self {
+    pub(crate) async fn create(label: &str) -> Self {
         let read = |name: &str| {
             std::env::var(name)
                 .ok()
@@ -154,15 +165,6 @@ impl LiveWorkspace {
         (directory, database)
     }
 
-    /// Best effort, and **a refusal is printed rather than swallowed**.
-    ///
-    /// It is known to fail on some accounts, and this repository already measured why: Turso
-    /// will not delete any database inside a delete-protected group, and answers `403 group
-    /// <name> is delete-protected and cannot be deleted` even though the database itself is
-    /// not protected. `packages/turso-platform/index.ts` records the same finding.
-    ///
-    /// **The first draft of this checked only whether the request was sent**, so a 403 read as
-    /// a successful cleanup and four databases were left in the account with nothing said.
     /// Apply the first `up_to` migrations to the **remote** database, as `organization/migrate.rs` does.
     ///
     /// **Promoted, not duplicated.** This posted the statements to `/v2/pipeline` itself until
@@ -189,7 +191,16 @@ impl LiveWorkspace {
         .expect("apply the schema remotely");
     }
 
-    pub(in crate::database) async fn destroy(self) {
+    /// Best effort, and **a refusal is printed rather than swallowed**.
+    ///
+    /// It is known to fail on some accounts, and this repository already measured why: Turso
+    /// will not delete any database inside a delete-protected group, and answers `403 group
+    /// <name> is delete-protected and cannot be deleted` even though the database itself is
+    /// not protected. `packages/turso-platform/index.ts` records the same finding.
+    ///
+    /// **The first draft of this checked only whether the request was sent**, so a 403 read as
+    /// a successful cleanup and four databases were left in the account with nothing said.
+    pub(crate) async fn destroy(self) {
         let Ok(client) = crate::http::build_client(Duration::from_secs(60)) else {
             return;
         };
@@ -287,6 +298,15 @@ pub(in crate::database) fn shipped_migration_count() -> usize {
 /// the original and renames, and the push that follows fails with `no such table: main.complex`.
 /// Measured against a live account 2026-08-20.
 ///
+/// **An alter in place does replicate**, measured against a live account on 2026-09-26 for the
+/// organization's upgrade (effort 838, ticket 22): `ALTER TABLE ... ADD COLUMN`, `ALTER TABLE ...
+/// DROP COLUMN` and `DROP TABLE` all reached a second replica and a third bootstrapped from the
+/// remote, and so did rows written in the new shape. The one failure was a row change captured
+/// under a column that a later statement in the same push dropped, which fails that push with
+/// `Number of arguments mismatch` and leaves the remote with part of it. The reading, and the
+/// order the upgrade keeps because of it, are at `organization/store.rs`,
+/// `OrganizationStore::format_one_reshape`.
+///
 /// So the shipped schema goes on through [`LiveWorkspace::apply_schema_remotely`] instead, which
 /// is the faithful path anyway: requirement 11 puts migrations over the wire, and a
 /// replica receives the schema as replicated pages rather than applying it.
@@ -298,15 +318,19 @@ pub(in crate::database) async fn apply_schema(connection: &turso::Connection, up
 
 /// The tables a workspace holds, read from the database rather than listed here.
 ///
-/// Engine and ledger tables are excluded by prefix; everything else is a concept, `history`
-/// included. **Listing them in a constant is what would let coverage shrink in silence** when
-/// the schema grows a table nobody added to the list.
+/// Engine and ledger tables are excluded by prefix, and the workspace's own version table by its
+/// name, since it holds the one row a migration writes and no record; everything else is a
+/// concept, `history` included. **Listing them in a constant is what would let coverage shrink in
+/// silence** when the schema grows a table nobody added to the list.
 pub(in crate::database) async fn concepts(connection: &turso::Connection) -> Vec<String> {
     let mut rows = connection
         .query(
-            "SELECT name FROM sqlite_master WHERE type = 'table' \
-             AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'turso_%' \
-             AND name NOT LIKE '\\_\\_%' ESCAPE '\\' ORDER BY name",
+            &format!(
+                "SELECT name FROM sqlite_master WHERE type = 'table' \
+                 AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'turso_%' \
+                 AND name NOT LIKE '\\_\\_%' ESCAPE '\\' AND name != '{}' ORDER BY name",
+                crate::organization::migrate::VERSION_TABLE
+            ),
             (),
         )
         .await

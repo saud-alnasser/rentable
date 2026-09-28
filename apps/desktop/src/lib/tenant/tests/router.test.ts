@@ -5,6 +5,7 @@ import {
 	type Api,
 	countMatching,
 	createApi,
+	identityWithout,
 	monthsFromNow,
 	seedTenant,
 	unusedId,
@@ -12,6 +13,7 @@ import {
 	refusedWith
 } from '$lib/api/tests/testing.ts';
 import { isRecordId } from '$lib/platform/database/identity.ts';
+import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
 import type { ListSort } from '@rentable/design/sort.ts';
 import type { TenantSortColumnId } from '$lib/tenant/tenant.ts';
 
@@ -842,4 +844,52 @@ test('a search answers at most the number of records it was asked for', async ()
 	for (let index = 0; index < 4; index += 1) await seedTenant(api);
 
 	assert.equal((await api.tenant.search({ term: 'Tenant', limit: 2 })).length, 2);
+});
+
+// --- What a member may not view ------------------------------------------------------------
+//
+// Effort 838, requirement 10: a tenant's row counts the tenant's contracts only for a member who
+// may view contracts.
+
+test('without viewing contracts, a tenant row counts no contracts and is not ordered by them', async () => {
+	const db = createMemoryDatabase();
+	const api = await createApi({ db });
+	const holding = await seedTenant(api);
+	const none = await seedTenant(api);
+
+	await api.contract.create({
+		tenantId: holding.id,
+		start: monthsFromNow(-1),
+		end: monthsFromNow(11),
+		interval: '12m',
+		cost: 1000
+	});
+
+	const lacking = await createApi({ db, identity: identityWithout('viewContract') });
+	const everything = await api.tenant.getMany({});
+
+	assert.equal(everything.find((tenant) => tenant.id === holding.id)?.contractsActive, 1);
+
+	const rows = await lacking.tenant.getMany({
+		sort: { columnId: 'activeContractCount', direction: 'desc' }
+	});
+
+	// the directory's own order, by name, rather than one telling who holds the most.
+	assert.deepEqual(
+		rows.map((tenant) => tenant.id),
+		[holding, none].sort((left, right) => left.name.localeCompare(right.name)).map(({ id }) => id)
+	);
+
+	for (const row of rows) {
+		for (const count of [
+			'contractsScheduled',
+			'contractsActive',
+			'contractsFulfilled',
+			'contractsDefaulted',
+			'contractsExpired',
+			'contractsTerminated'
+		]) {
+			assert.equal(count in row, false, count);
+		}
+	}
 });

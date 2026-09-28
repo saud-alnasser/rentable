@@ -4,6 +4,7 @@
 	import type { Contract } from '$lib/platform/database/schema';
 	import RecordCard from '@rentable/design/block/record-card.svelte';
 	import { contractActs } from '$lib/contract/host.svelte';
+	import { toContractName } from '$lib/contract/contract';
 	import { toCardActions } from '$lib/design/acts';
 	import * as Cell from '$lib/design/cell';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
@@ -38,8 +39,15 @@
 		'12m': $LL.contracts.intervals.annual()
 	});
 
-	// the tenant is what the card leads with, so it is what the link is called.
-	const label = $derived(contract.tenantName?.trim() || $LL.common.labels.tenant());
+	// the tenant is what the card leads with, so it is what the link is called. A reader who may not
+	// view tenants is answered with none (effort 838, requirement 10), and the card leads with the
+	// contract's own reference instead, which the line below it then does not repeat.
+	const namesTenant = $derived(contract.tenantName !== undefined);
+	const label = $derived(
+		namesTenant
+			? contract.tenantName?.trim() || $LL.common.labels.tenant()
+			: toContractName(contract, $LL.common.labels.contract())
+	);
 
 	const formatMoney = (value: number) => formatLocaleMoney($locale, value);
 </script>
@@ -49,8 +57,10 @@
 		<span class="pointer-events-none relative flex min-w-0 flex-1 flex-col gap-0.5 text-start">
 			<Cell.Text class="truncate text-sm font-medium" text={label} />
 			<span class="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-				<span class="truncate tabular-nums">{contract.govId.trim() || '—'}</span>
-				<span aria-hidden="true">&middot;</span>
+				{#if namesTenant}
+					<span class="truncate tabular-nums">{contract.govId.trim() || '—'}</span>
+					<span aria-hidden="true">&middot;</span>
+				{/if}
 				<!-- a range rather than "start → end": an arrow does not mirror in Arabic, where the
 				     two dates swap and it would then point at the wrong one. -->
 				<span class="truncate tabular-nums">
@@ -63,12 +73,15 @@
 			<!-- money rather than state: this figure sits beside a status glyph, and the two wore the
 			     same tone while meaning different things by it. Quiet at nothing, as every count on a
 			     row is — a contract with no payments has no money to report. -->
-			<Cell.Count
-				icon={BanknoteIcon}
-				count={contract.paymentCount}
-				label={$LL.common.nav.payments()}
-				tone={contract.paymentCount > 0 ? 'money' : 'settled'}
-			/>
+			<!-- a reader who may not view payments is not told how many there are. -->
+			{#if contract.paymentCount !== undefined}
+				<Cell.Count
+					icon={BanknoteIcon}
+					count={contract.paymentCount}
+					label={$LL.common.nav.payments()}
+					tone={contract.paymentCount > 0 ? 'money' : 'settled'}
+				/>
+			{/if}
 			<Cell.Status status={contract.status} />
 			<!-- the cost is per interval, so it goes to the tooltip carrying its interval with it: a
 			     bare amount beside a contract reads as what the whole contract is worth. -->

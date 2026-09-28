@@ -22,14 +22,14 @@ use super::{
     migration::{self, MigrationPhase, PipelineLease},
     password,
     removal::{self, LockOutCost, Removed},
-    role,
+    role::{self, RoleFacts},
     session::{
         self, CredentialSlot, MemberSession, Resumption, SessionFacts, SessionsEnded,
         WorkspaceFacts,
     },
     setup::{self, CreateOrganization, GroupState, OrganizationCreated, Remote},
-    store::OrganizationStore,
-    workspace,
+    store::{self, OrganizationStore},
+    upgrade, workspace,
 };
 use crate::sync::turso::{
     discovery::McpEndpoint,
@@ -45,7 +45,7 @@ pub struct HeldOrganizationFacts {
     /// this person's member row, once a sign-in has found it; `None` on a machine that connected
     /// by link and has not signed in yet.
     pub member_id: Option<String>,
-    /// their role, as last read. A display fact; `None` with `member_id`.
+    /// the kind of their role, as last read. A display fact; `None` with `member_id`.
     pub role: Option<String>,
     pub joined_at: i64,
 }
@@ -428,7 +428,15 @@ pub async fn organization_sign_in(
         sign_out(app_state.inner()).await;
     }
 
-    let (store, credential) = open_replica(app_state.inner(), &held).await?;
+    let (store, credential) = open_replica(
+        app_state.inner(),
+        &held,
+        Opening::Password {
+            username: &username,
+            password: &password,
+        },
+    )
+    .await?;
 
     // a handover accepted while this machine was at the wall left rows this machine's key cannot
     // verify, and the sign-in reads rows (effort 828, requirement 22). The succession is followed
@@ -567,7 +575,7 @@ async fn resume_remembered(app_state: &AppState) {
         return;
     };
 
-    let resumed = match open_replica(app_state, &held).await {
+    let resumed = match open_replica(app_state, &held, Opening::Remembered).await {
         Ok((store, credential)) => {
             // a replica that already holds a handover this machine has not followed: the
             // succession is followed before the remembered key opens anything, so the resume
@@ -771,6 +779,12 @@ pub(crate) async fn ended_elsewhere(app_state: &AppState) -> bool {
         // made one.
         store.push().await;
 
+        // and the owner's own row, where somebody below them demoted or removed it around the
+        // command: the owner's machine holds the root and writes it again, with nobody acting
+        // (effort 838, the human's decision after review round two). Every other machine writes
+        // nothing here.
+        session::repair_own_row(store, session).await;
+
         let standing = match session::ended_elsewhere(store, session).await {
             Ok(ended) => Ok(ended),
             Err(refusal) => {
@@ -816,9 +830,20 @@ pub(crate) async fn ended_elsewhere(app_state: &AppState) -> bool {
 /// Built through the same call as every replica, so it opens whether or not the remote is
 /// reachable; the token function answers from the slot, which is empty until a vault is open and
 /// is what stops an open replica reaching the remote before anybody is in.
+///
+/// **An organization an earlier version made is upgraded here by its owner, and one of another
+/// format refused and let go of** (effort 838, requirement 11 as amended, tickets 22 and 23). This
+/// is where a sign-in and a launch's resume both reach what the machine holds, so the owner's
+/// password, or the key their machine remembers, upgrades an older organization, or finishes an
+/// upgrade cut short, before anything else reads it, and only once a push and a pull have both
+/// gone (`upgrade.rs`). Anybody else's machine pulls first, with the credential its own grant
+/// holds, and goes on where the owner has upgraded; where the owner has not, it is refused as
+/// waiting for its owner. A newer one is refused by name. Neither refusal reads a row of this
+/// format or writes anything: no registry row and no push.
 async fn open_replica(
     app_state: &AppState,
     held: &HeldOrganization,
+    opening: Opening<'_>,
 ) -> Result<(OrganizationStore, CredentialSlot), Error> {
     let database_path = {
         let settings = app_state.settings.read().await;
@@ -842,8 +867,72 @@ async fn open_replica(
         },
     )
     .await?;
+    // the owner's account, where this machine holds its authority: what renews a lapsed grant
+    // before the owner's upgrade pushes (ticket 25). It mints only for the owner, whom the upgrade
+    // finds by key, and only where the grant is lapsed or gone.
+    let remote = upgrade::ItsRemote {
+        account: owner_platform(app_state).await,
+    };
+
+    match opening {
+        Opening::Password { username, password } => {
+            upgrade::with_password(
+                &store,
+                &remote,
+                held,
+                username,
+                password,
+                &credential,
+                timestamp::now(),
+            )
+            .await?
+        }
+        Opening::Remembered => {
+            upgrade::with_remembered_key(&store, &remote, held, &credential, timestamp::now())
+                .await?
+        }
+    }
+
+    store.refuse_another_format().await?;
+    read_in_this_format(app_state, held).await?;
 
     Ok((store, credential))
+}
+
+/// Keep on this machine's record that it has read the organization in this build's format, where
+/// the record does not say so yet: a record written before the field existed, at its first
+/// sign-in or resume past the format's refusal (effort 838, ticket 25). From then on the owner's
+/// upgrade never transforms the organization on this machine, whatever its `format` row says.
+async fn read_in_this_format(app_state: &AppState, held: &HeldOrganization) -> Result<(), Error> {
+    if held.format == Some(store::FORMAT_VERSION) {
+        return Ok(());
+    }
+
+    let mut remote_sync = app_state.remote_sync.write().await;
+    let record = remote_sync.store_mut();
+
+    if let Some(organization) = record
+        .organization
+        .as_mut()
+        .filter(|organization| organization.id == held.id)
+    {
+        organization.format = Some(store::FORMAT_VERSION);
+        record.commit()?;
+    }
+
+    Ok(())
+}
+
+/// What opens the replica: a username and password typed at the wall, or the key this machine
+/// remembers for the member its record names. Either is what the owner's upgrade of an older
+/// organization runs on.
+#[derive(Clone, Copy)]
+enum Opening<'a> {
+    Password {
+        username: &'a str,
+        password: &'a str,
+    },
+    Remembered,
 }
 
 /// Follow a handover this machine was not present for, and pin the key it left behind (effort
@@ -1082,13 +1171,23 @@ pub async fn workspace_open(
         store.pull().await;
 
         let workspaces = store.workspaces(&member.verifying_key).await?;
-        let (mut facts, credential) = workspace::openable(member, &workspaces, &workspace_id)?
-            .ok_or_else(|| {
-                Error::refused(
-                    RefusalReason::NoGrant,
-                    "you hold no grant on that workspace",
-                )
-            })?;
+        // what is pinned for the member there is a fact the answer draws, read off every member
+        // row; a directory refusing that read refuses the members list by name, and is not a
+        // reason to refuse opening a workspace the member holds a grant on, which it never was.
+        // Nothing reads the answer's `permissions`: a record procedure is answered by the
+        // session's, which `api/context.ts` reads for the workspace open.
+        let workspace_overrides = store
+            .workspace_overrides(&member.verifying_key)
+            .await
+            .unwrap_or_default();
+        let (mut facts, credential) =
+            workspace::openable(member, &workspaces, &workspace_overrides, &workspace_id)?
+                .ok_or_else(|| {
+                    Error::refused(
+                        RefusalReason::NoGrant,
+                        "you hold no grant on that workspace",
+                    )
+                })?;
 
         // a workspace this build was not written against is refused here, before the replica is
         // named, and nothing of it is read.
@@ -1118,6 +1217,10 @@ pub async fn workspace_open(
             };
             let lease =
                 PipelineLease::new(Pipeline::of(&organization_host), &organization_credential);
+            // the owner's account, where this machine holds its authority: the workspace is
+            // copied there as well as here before the migration (effort 838, ticket 28). A
+            // member's machine holds none and copies to this machine alone.
+            let account = owner_platform(&app_state).await;
             let notice = |phase: MigrationPhase| {
                 let _ = app.emit(
                     MIGRATION_EVENT,
@@ -1135,6 +1238,7 @@ pub async fn workspace_open(
                     facts: &facts,
                     held: &credential,
                     pipeline: &Pipeline::of(&facts.database_hostname),
+                    account: account.as_ref(),
                 },
                 &lease,
                 || tokio::time::sleep(migration::LEASE_POLL_INTERVAL),
@@ -1269,12 +1373,16 @@ pub async fn organization_renew_due(app_state: tauri::State<'_, AppState>) -> Re
 /// Everything the account is made of stays on this side: the vault, the content key sealed to
 /// them, and the grants. A read-only grant is minted with the owner's authority, which is why the
 /// platform is handed in where this machine holds it.
+///
+/// **One role and one override** (effort 838, requirement 5): `role_id` names the role the account
+/// holds and `override_mask` the flags switched for them alone, `roleId` and `overrideMask` on the
+/// wire. The second is not spelled `override`, which Rust keeps as a word of its own.
 #[tauri::command]
 pub async fn member_create(
     app_state: tauri::State<'_, AppState>,
     username: String,
-    role: String,
-    permissions: i64,
+    role_id: String,
+    override_mask: i64,
     workspaces: Vec<WorkspaceGrant>,
 ) -> Result<MemberFacts, Error> {
     let platform = owner_platform(&app_state).await;
@@ -1287,8 +1395,8 @@ pub async fn member_create(
         member,
         platform.as_ref(),
         &username,
-        &role,
-        permissions,
+        &role_id,
+        override_mask,
         &workspaces,
         invite::INVITED_KDF,
         timestamp::now(),
@@ -1336,8 +1444,8 @@ pub async fn member_link_make(
     .await
 }
 
-/// Unset a member's password: a fresh vault under a fresh secret, everything the resetting
-/// administrator reaches re-sealed to it, and the requirement to choose a password set, so the
+/// Unset a member's password: a fresh vault under a fresh secret, everything the resetting holder of
+/// `resetPassword` reaches re-sealed to it, and the requirement to choose a password set, so the
 /// next link asks for one. What a reset is, for a member whose password nobody knows.
 ///
 /// **It hands over nothing.** The answer names the workspaces it could not restore, and the
@@ -1446,16 +1554,124 @@ pub async fn machine_connect(
     state_of(&app_state).await
 }
 
-/// Change what a member is called and what they may do: both written on their row, re-signed, and
-/// their certificate issued or revoked to match. Nobody changes their own row or the owner's, and
-/// giving somebody an act that signs rows is the owner's, because certifying a signer needs the
-/// organization key only their vault yields. What comes back is the member as the list shows them.
+/// Every role, highest rank first: the owner's, the manager's, the custom roles in order, and the
+/// member's, each with what it carries and how many members hold it (effort 838, requirement 12).
+/// Any signed-in member reads it, off the replica; a custom role's name is opened with the content
+/// key the session holds, and nothing about a certificate crosses.
 #[tauri::command]
-pub async fn member_change_role(
+pub async fn organization_roles(
+    app_state: tauri::State<'_, AppState>,
+) -> Result<Vec<RoleFacts>, Error> {
+    let mut member = app_state.member.write().await;
+    let store = app_state.organization.read().await;
+    let (member, store) = signed_in(&mut member, &store)?;
+
+    role::roles(store, member).await
+}
+
+/// Make a custom role, named and carrying `mask`, directly below `after_role_id` (effort 838,
+/// requirement 4). `manageRoles`, below the actor's rank, and only flags the actor holds.
+#[tauri::command]
+pub async fn role_create(
+    app_state: tauri::State<'_, AppState>,
+    name: String,
+    mask: i64,
+    after_role_id: String,
+) -> Result<RoleFacts, Error> {
+    let mut member = app_state.member.write().await;
+    let store = app_state.organization.read().await;
+    let (member, store) = signed_in(&mut member, &store)?;
+    // making room can renumber roles somebody holds, whose rows are written back whole and carry
+    // the session epoch, so they are read after a pull (effort 826, requirement 22).
+    store.pull().await;
+
+    role::create_role(store, member, &name, mask, &after_role_id, timestamp::now()).await
+}
+
+/// Rename a custom role. `manageRoles`, below the actor's rank; a built-in role is refused.
+#[tauri::command]
+pub async fn role_rename(
+    app_state: tauri::State<'_, AppState>,
+    role_id: String,
+    name: String,
+) -> Result<RoleFacts, Error> {
+    let mut member = app_state.member.write().await;
+    let store = app_state.organization.read().await;
+    let (member, store) = signed_in(&mut member, &store)?;
+    store.pull().await;
+
+    role::rename_role(store, member, &role_id, &name, timestamp::now()).await
+}
+
+/// Change what a role carries: the manager's, the member's or a custom role's, never the owner's.
+/// `manageRoles`, below the actor's rank, and only flags the actor holds; every holder's
+/// certificate is issued again in the same act.
+#[tauri::command]
+pub async fn role_set_mask(
+    app_state: tauri::State<'_, AppState>,
+    role_id: String,
+    mask: i64,
+) -> Result<RoleFacts, Error> {
+    let mut member = app_state.member.write().await;
+    let store = app_state.organization.read().await;
+    let (member, store) = signed_in(&mut member, &store)?;
+    // every holder's row is written back whole, and it carries the session epoch.
+    store.pull().await;
+
+    role::set_role_mask(store, member, &role_id, mask, timestamp::now()).await
+}
+
+/// Move a custom role to directly below `after_role_id`. `manageRoles`, and both the role and the
+/// place it moves to below the actor's rank; every holder of a role whose rank moved is issued a
+/// certificate carrying the new one.
+#[tauri::command]
+pub async fn role_move(
+    app_state: tauri::State<'_, AppState>,
+    role_id: String,
+    after_role_id: String,
+) -> Result<RoleFacts, Error> {
+    let mut member = app_state.member.write().await;
+    let store = app_state.organization.read().await;
+    let (member, store) = signed_in(&mut member, &store)?;
+    store.pull().await;
+
+    role::move_role(store, member, &role_id, &after_role_id, timestamp::now()).await
+}
+
+/// Delete a custom role; everybody who held it holds the member role from here on, exactly, the
+/// override they carried cleared (effort 838, requirement 6 as amended 2026-09-27). `manageRoles`,
+/// below the actor's rank, and only flags the actor holds, over what moving the holders changes.
+#[tauri::command]
+pub async fn role_delete(
+    app_state: tauri::State<'_, AppState>,
+    role_id: String,
+) -> Result<(), Error> {
+    let mut member = app_state.member.write().await;
+    let store = app_state.organization.read().await;
+    let (member, store) = signed_in(&mut member, &store)?;
+    store.pull().await;
+
+    role::delete_role(store, member, &role_id, timestamp::now()).await
+}
+
+/// Give a member a role (effort 838, requirement 5): their row names it, re-signed, and their
+/// certificate is issued again from the actor's in the same act, so a flag that signs rows is in
+/// force on the next sync with the owner's machine off (requirement 9). `assignRole`, the member
+/// and the role both below the actor's rank, never the actor's own row, only flags the actor
+/// holds; the owner's role is not assigned. What comes back is the member as the list shows them.
+///
+/// `overrideMask`, where given, is the override they carry from here on, set in the same act
+/// (requirement 6), so "flags held" is asked of the role and the override together rather than of
+/// the state between two commands; `overrideMember` as well, where it is not zero. Left out, the
+/// override they carried is cleared, so they hold the role exactly (requirement 6, as amended
+/// 2026-09-27).
+/// *It was `member_change_role`, which wrote a role's word and seven acts, until effort 838.*
+#[tauri::command]
+pub async fn member_assign_role(
     app_state: tauri::State<'_, AppState>,
     member_id: String,
-    role: String,
-    permissions: i64,
+    role_id: String,
+    override_mask: Option<i64>,
 ) -> Result<MemberFacts, Error> {
     let mut member = app_state.member.write().await;
     let store = app_state.organization.read().await;
@@ -1464,15 +1680,54 @@ pub async fn member_change_role(
     // rather than off this machine's last sight of it (effort 826, requirement 22).
     store.pull().await;
 
-    role::change_role(
+    role::assign_role(
         store,
         member,
         &member_id,
-        &role,
-        permissions,
+        &role_id,
+        override_mask,
         timestamp::now(),
     )
     .await
+}
+
+/// Set a member's override, the flags switched for them alone (effort 838, requirement 6);
+/// `overrideMask` on the wire, for the reason `member_create` gives. `overrideMember`, the member
+/// below the actor's rank, never the actor's own row, only flags the actor holds; the owner's row
+/// carries none.
+#[tauri::command]
+pub async fn member_set_override(
+    app_state: tauri::State<'_, AppState>,
+    member_id: String,
+    override_mask: i64,
+) -> Result<MemberFacts, Error> {
+    let mut member = app_state.member.write().await;
+    let store = app_state.organization.read().await;
+    let (member, store) = signed_in(&mut member, &store)?;
+    store.pull().await;
+
+    role::set_override(store, member, &member_id, override_mask, timestamp::now()).await
+}
+
+/// Set what is pinned for a member in one workspace, whatever they hold across the organization,
+/// and which of it is on (effort 838, requirement 12 as amended a third time, and at review round
+/// one); nothing pinned clears it. `overrideMember`, the member below the actor's rank and in that
+/// workspace, never the actor's own row nor the owner's, record flags alone, granted within
+/// pinned, only flags the actor holds, and nothing written there that the member cannot view.
+#[tauri::command]
+pub async fn member_set_workspace_override(
+    app_state: tauri::State<'_, AppState>,
+    member_id: String,
+    workspace_id: String,
+    pinned: i64,
+    granted: i64,
+) -> Result<MemberFacts, Error> {
+    let mut member = app_state.member.write().await;
+    let store = app_state.organization.read().await;
+    let (member, store) = signed_in(&mut member, &store)?;
+    store.pull().await;
+
+    role::set_workspace_override(store, member, &member_id, &workspace_id, pinned, granted).await
 }
 
 /// Offer the organization to another account: the first of the two acts a handover is (effort
@@ -1564,7 +1819,8 @@ pub async fn ownership_accept(
 }
 
 /// Rename a member: their row written back with the username re-sealed and signed by whoever
-/// renamed them. The owner's or an administrator's, on any row but their own; the username is
+/// renamed them. A holder of `renameMember`'s, from above and on any row but their own and
+/// the owner's; the username is
 /// held to the same rules and the same uniqueness as an invitation's. What comes back is the
 /// member as the list shows them.
 #[tauri::command]
@@ -1598,8 +1854,8 @@ pub async fn organization_mark_get(
 }
 
 /// Keep the image at `path`, which the open dialog chose, as the organization's mark. It is read
-/// here rather than handed over, checked by its bytes, sealed, written and sent; the owner's or an
-/// administrator's to do.
+/// here rather than handed over, checked by its bytes, sealed, written and sent; whoever carries
+/// `manageMark` does it.
 #[tauri::command]
 pub async fn organization_mark_set(
     app_state: tauri::State<'_, AppState>,
@@ -1620,7 +1876,7 @@ pub async fn organization_mark_set(
     mark::set_mark(store, member, &image, timestamp::now()).await
 }
 
-/// Remove the organization's mark; the owner's or an administrator's to do.
+/// Remove the organization's mark; whoever carries `manageMark` does it.
 #[tauri::command]
 pub async fn organization_mark_clear(app_state: tauri::State<'_, AppState>) -> Result<(), Error> {
     let mut member = app_state.member.write().await;
@@ -1638,7 +1894,8 @@ pub async fn organization_mark_clear(app_state: tauri::State<'_, AppState>) -> R
 /// is closed meets it at its next launch.
 ///
 /// **What comes back says whether the bump went out.** A push that could not go leaves the other
-/// machines open until one does, and the account section says so rather than reporting the act done.
+/// machines open until one does, and the account section says so rather than reporting the act
+/// done.
 #[tauri::command]
 pub async fn organization_session_end_elsewhere(
     app_state: tauri::State<'_, AppState>,
@@ -1700,7 +1957,7 @@ pub async fn member_lock_out_cost(
     member.settled()?;
     crate::organization::permission::require(
         session::permissions_on_row(store, member).await?,
-        crate::organization::permission::Administration::RemoveMember,
+        crate::organization::permission::Flag::RemoveMember,
     )?;
 
     removal::lock_out_cost(store, member, &member_id).await
@@ -1835,13 +2092,30 @@ pub(crate) async fn rename_current_workspace(
 /// A member who is not the owner is answered with nothing rather than refused, because the
 /// screen they see says the account needs attention and whom to tell, and that is the whole of
 /// what requirement 25 lets them see.
+///
+/// **The owner is the owner's verified row**, asked for `tursoAccount` (effort 838, requirement
+/// 2), and not the role the session opened with: a founder whose session is still open after
+/// handing the organization over is a manager, and reads nothing here.
 #[tauri::command]
 pub async fn organization_account_refusal_detail(
     app_state: tauri::State<'_, AppState>,
 ) -> Result<Option<String>, Error> {
     let member = app_state.member.read().await;
+    let organization = app_state.organization.read().await;
 
-    if member.as_ref().map(|member| member.role.as_str()) != Some(super::permission::OWNER) {
+    let (Some(member), Some(store)) = (member.as_ref(), organization.as_ref()) else {
+        return Ok(None);
+    };
+
+    if workspace::require_owner(
+        store,
+        member,
+        super::permission::Flag::TursoAccount,
+        "only the owner reads what turso said about the account",
+    )
+    .await
+    .is_err()
+    {
         return Ok(None);
     }
 
@@ -2031,7 +2305,7 @@ mod tests {
     use serde_json::json;
     use tokio::sync::RwLock;
 
-    use super::{open_replica, sign_out, state_of};
+    use super::{HeldOrganization, Opening, open_replica, sign_out, state_of};
     use crate::{
         database::Database,
         error::Error,
@@ -2227,6 +2501,251 @@ mod tests {
         assert!(
             app_state.organization.read().await.is_some(),
             "the replica was not held open"
+        );
+    }
+
+    /// **Effort 838, ticket 25: the machine keeps that it has read the organization in this
+    /// format, outside the organization database.** The first run records it; a record written
+    /// before the field existed gains it at the first resume past the format's refusal; and it is
+    /// the machine's own record, which nothing replicated reaches.
+    #[tokio::test]
+    async fn the_record_keeps_that_this_machine_has_read_the_organization_in_this_format() {
+        let _turn = a_turn().await;
+        let directory = scratch("format-kept");
+        let app_state = first_run(&directory).await;
+
+        assert_eq!(
+            held(&app_state).await.format,
+            Some(crate::organization::store::FORMAT_VERSION),
+            "the first run did not keep the format it made the organization in"
+        );
+
+        // a record from before the field: the format forgotten, as an older build wrote it.
+        {
+            let mut remote_sync = app_state.remote_sync.write().await;
+            let record = remote_sync.store_mut();
+
+            if let Some(organization) = record.organization.as_mut() {
+                organization.format = None;
+            }
+
+            record.commit().expect("the record");
+        }
+
+        let state = state_of(&app_state).await.expect("the state");
+
+        assert!(state.session.is_some(), "the launch did not resume");
+        assert_eq!(
+            held(&app_state).await.format,
+            Some(crate::organization::store::FORMAT_VERSION),
+            "the resume did not keep the format it read the organization in"
+        );
+    }
+
+    /// The record this machine keeps about the organization it holds.
+    async fn held(app_state: &AppState) -> HeldOrganization {
+        let mut remote_sync = app_state.remote_sync.write().await;
+
+        remote_sync
+            .store_mut()
+            .organization
+            .clone()
+            .expect("the record names no organization")
+    }
+
+    /// Everything the replica on disk holds, table by table and row by row, read through a store
+    /// opened on the file with no remote and let go of again: a write anywhere changes it.
+    async fn contents(path: &std::path::Path) -> Vec<(String, Vec<Vec<turso::Value>>)> {
+        let store = OrganizationStore::open(path, None, || async {
+            Ok::<String, turso::Error>(String::new())
+        })
+        .await
+        .expect("the replica");
+        let mut contents = Vec::new();
+
+        for table in store.tables().await.expect("the tables") {
+            let mut rows = store
+                .connection()
+                .query(&format!("SELECT * FROM \"{table}\" ORDER BY rowid"), ())
+                .await
+                .expect("the rows");
+            let mut values = Vec::new();
+
+            while let Some(row) = rows.next().await.expect("a row") {
+                values.push(
+                    (0..row.column_count())
+                        .map(|index| row.get_value(index).expect("a value"))
+                        .collect(),
+                );
+            }
+
+            contents.push((table, values));
+        }
+
+        contents
+    }
+
+    /// Effort 838, requirement 11 and criterion 11, at the launch: **a held replica of another
+    /// format is refused by name, and nothing is written to it.**
+    ///
+    /// The machine ran the first run and stayed signed in, so the launch would resume; then the
+    /// organization's format moved under it. A newer format is format 3. An older one is the
+    /// `format` row gone from a table that is still there, which is the one way this build's own
+    /// organization comes to read as an earlier version's, and the table gone altogether over this
+    /// build's member table is the other. Both read as an upgrade that wrote everything but its
+    /// last row, which the owner finishes only against the organization's latest state (ticket
+    /// 23). This machine is the owner's, and its push goes nowhere: the credential the first run
+    /// minted is the in-memory platform's and no remote takes it, so the resume asks for a
+    /// connection; `upgrade.rs` tests the upgrade itself.
+    ///
+    /// Each of them: the launch leaves the wall up with no session and the organization
+    /// still held, the replica the resume and the sign-in both open through refuses with its own
+    /// reason, and the replica holds exactly what it held before, no registry row and no table
+    /// gained.
+    #[tokio::test]
+    async fn a_held_replica_of_another_format_is_refused_at_the_launch_and_nothing_is_written() {
+        let _turn = a_turn().await;
+
+        // a format past the one this build ships, whichever that is.
+        let newer = format!(
+            "UPDATE \"format\" SET \"version\" = {}",
+            crate::organization::store::FORMAT_VERSION + 1
+        );
+
+        for (name, change, reason) in [
+            (
+                "older",
+                "DELETE FROM \"format\"",
+                crate::error::RefusalReason::OrganizationUpgradeOffline,
+            ),
+            (
+                "newer",
+                newer.as_str(),
+                crate::error::RefusalReason::OrganizationNewer,
+            ),
+        ] {
+            let directory = scratch(&format!("format-{name}"));
+            let app_state = first_run(&directory).await;
+            let (organization_id, _) = recorded(&app_state).await;
+            let replica = OrganizationStore::replica_path(
+                &directory.join(Database::FILENAME),
+                &organization_id,
+            );
+
+            {
+                let store = OrganizationStore::open(&replica, None, || async {
+                    Ok::<String, turso::Error>(String::new())
+                })
+                .await
+                .expect("the replica");
+
+                store
+                    .connection()
+                    .execute(change, ())
+                    .await
+                    .expect("the organization of another format");
+            }
+
+            let before = contents(&replica).await;
+            let state = state_of(&app_state).await.expect("the state");
+
+            assert!(
+                state.session.is_none(),
+                "{name}: the launch resumed into an organization of another format"
+            );
+            assert_eq!(
+                state.organization.map(|held| held.id),
+                Some(organization_id.clone()),
+                "{name}: the launch forgot an organization it should refuse"
+            );
+            assert!(app_state.organization.read().await.is_none());
+
+            let held = {
+                let mut remote_sync = app_state.remote_sync.write().await;
+
+                remote_sync
+                    .store_mut()
+                    .organization
+                    .clone()
+                    .expect("the record")
+            };
+            let refused = open_replica(&app_state, &held, Opening::Remembered)
+                .await
+                .map(|_| ());
+
+            assert!(
+                matches!(refused, Err(Error::Refused { reason: refusal, .. }) if refusal == reason),
+                "{name}: {refused:?}"
+            );
+            assert_eq!(
+                contents(&replica).await,
+                before,
+                "{name}: the launch wrote to the organization"
+            );
+        }
+
+        // no `format` table at all over this build's member table: the launch keeps it now that an
+        // organization with no format table is upgraded rather than forgotten (ticket 22), and it
+        // carries nothing of format 1, so what is left of an upgrade is its last row (ticket 23).
+        // The resume is the owner's, with a push no remote takes, so it is refused as the older one
+        // above is, asking for a connection, and nothing is written.
+        let directory = scratch("format-today");
+        let app_state = first_run(&directory).await;
+        let (organization_id, _) = recorded(&app_state).await;
+        let replica =
+            OrganizationStore::replica_path(&directory.join(Database::FILENAME), &organization_id);
+
+        {
+            let store = OrganizationStore::open(&replica, None, || async {
+                Ok::<String, turso::Error>(String::new())
+            })
+            .await
+            .expect("the replica");
+
+            store
+                .connection()
+                .execute("DROP TABLE \"format\"", ())
+                .await
+                .expect("today's shape");
+        }
+
+        let before = contents(&replica).await;
+        let state = state_of(&app_state).await.expect("the state");
+
+        assert!(state.session.is_none());
+        assert_eq!(
+            state.organization.map(|held| held.id),
+            Some(organization_id),
+            "a replica with no format table was forgotten"
+        );
+
+        let held = {
+            let mut remote_sync = app_state.remote_sync.write().await;
+
+            remote_sync
+                .store_mut()
+                .organization
+                .clone()
+                .expect("the record")
+        };
+        let refused = open_replica(&app_state, &held, Opening::Remembered)
+            .await
+            .map(|_| ());
+
+        assert!(
+            matches!(
+                refused,
+                Err(Error::Refused {
+                    reason: crate::error::RefusalReason::OrganizationUpgradeOffline,
+                    ..
+                })
+            ),
+            "{refused:?}"
+        );
+        assert_eq!(
+            contents(&replica).await,
+            before,
+            "the launch wrote to the organization"
         );
     }
 
@@ -2437,7 +2956,16 @@ mod tests {
                 .clone()
                 .expect("the record")
         };
-        let (store, credential) = open_replica(&app_state, &held).await.expect("the replica");
+        let (store, credential) = open_replica(
+            &app_state,
+            &held,
+            Opening::Password {
+                username: USERNAME,
+                password: PASSWORD,
+            },
+        )
+        .await
+        .expect("the replica");
         let session = {
             let mut remote_sync = app_state.remote_sync.write().await;
 
@@ -2605,9 +3133,9 @@ mod tests {
     // Effort 828, requirement 22: the handover holds at its seams.
     // -------------------------------------------------------------------------------------
 
-    /// What the settled administrator chose when they opened their link, which is the password
+    /// What the settled manager chose when they opened their link, which is the password
     /// that becomes the organization's key when they accept it.
-    const ADMINISTRATORS_PASSWORD: &str = "the administrators password";
+    const MANAGERS_PASSWORD: &str = "the managers password";
 
     /// A verifying key as a machine's record spells it.
     fn encoded(key: [u8; VERIFYING_KEY_BYTES]) -> String {
@@ -2627,10 +3155,10 @@ mod tests {
         .expect("the other machine's replica")
     }
 
-    /// An administrator who opened their link on a machine of their own and chose a password:
+    /// A manager who opened their link on a machine of their own and chose a password:
     /// the standing an offer of the organization needs. *`role.rs` keeps the same fixture; one is
     /// written out per module ([[rules/testing]]).*
-    async fn a_settled_administrator(
+    async fn a_settled_manager(
         directory: &std::path::Path,
         store: &OrganizationStore,
         owner: &session::MemberSession,
@@ -2647,7 +3175,7 @@ mod tests {
             &link,
             invite::Invitation {
                 username,
-                role: permission::ADMINISTRATOR,
+                role: permission::MANAGER,
                 workspaces: &[],
             },
             test_cost(),
@@ -2677,7 +3205,7 @@ mod tests {
     }
 
     /// The handover, made on another machine: the founder offers the organization to a settled
-    /// administrator, who accepts on a machine of their own. Answers the key the organization is
+    /// manager, who accepts on a machine of their own. Answers the key the organization is
     /// on afterwards, which the machine under test has not followed yet.
     async fn handed_over(
         directory: &std::path::Path,
@@ -2696,14 +3224,8 @@ mod tests {
         let founder = session::sign_in(&theirs, &held, PASSWORD, &slot())
             .await
             .expect("the founder did not sign in on the other machine");
-        let (ada, mut ada_session, mut ada_machine) = a_settled_administrator(
-            directory,
-            &theirs,
-            &founder,
-            "ada.admin",
-            ADMINISTRATORS_PASSWORD,
-        )
-        .await;
+        let (ada, mut ada_session, mut ada_machine) =
+            a_settled_manager(directory, &theirs, &founder, "ada.admin", MANAGERS_PASSWORD).await;
 
         role::offer_ownership(&theirs, &founder, &ada, PASSWORD, CREATED_AT + 1)
             .await
@@ -2712,7 +3234,7 @@ mod tests {
             &theirs,
             &mut ada_session,
             &mut ada_machine,
-            ADMINISTRATORS_PASSWORD,
+            MANAGERS_PASSWORD,
             CREATED_AT + 2,
         )
         .await
@@ -2742,15 +3264,15 @@ mod tests {
         (session.verifying_key, session.role.clone())
     }
 
-    /// **Criterion 22 at its seams: the founder's open session is an administrator's after the
+    /// **Criterion 22 at its seams: the founder's open session is a manager's after the
     /// handover.** The organization is handed over on another machine while the founder's session
-    /// is open here. Before this machine has read anything, making an administrator from the
+    /// is open here. Before this machine has read anything, making a manager from the
     /// stale session is refused rather than written; the next state read follows the succession
-    /// and re-reads the founder's own row, so the session is the administrator's it now is on
-    /// every gate: deleting the organization and certifying a signer are refused by name, a plain
-    /// member is theirs to make, and the directory verifies on every machine afterwards.
+    /// and re-reads the founder's own row, so the session is the manager's it now is on
+    /// every gate: deleting the organization is refused by name and making a manager by rank, a
+    /// plain member is theirs to make, and the directory verifies on every machine afterwards.
     #[tokio::test]
-    async fn the_founders_open_session_is_an_administrators_after_a_handover_elsewhere() {
+    async fn the_founders_open_session_is_a_managers_after_a_handover_elsewhere() {
         let _turn = a_turn().await;
         let directory = scratch("founder-after-handover");
         let app_state = first_run(&directory).await;
@@ -2782,14 +3304,14 @@ mod tests {
                 &*session,
                 None::<&InMemoryPlatform>,
                 "noor.new",
-                permission::ADMINISTRATOR,
-                permission::mask_of_role(permission::ADMINISTRATOR),
+                permission::MANAGER,
+                0,
                 &[],
                 test_cost(),
                 CREATED_AT + 3,
             )
             .await
-            .expect_err("a stale session made an administrator");
+            .expect_err("a stale session made a manager");
 
             assert_eq!(
                 store.certificates().await.expect("the certificates").len(),
@@ -2801,13 +3323,10 @@ mod tests {
         // the state read follows the succession, and the session is the row's.
         let state = state_of(&app_state).await.expect("the state");
 
-        assert_eq!(
-            state.session.expect("the session was lost").role,
-            "administrator"
-        );
+        assert_eq!(state.session.expect("the session was lost").role, "manager");
         assert_eq!(
             session_holds(&app_state).await,
-            (new_key, "administrator".to_string())
+            (new_key, "manager".to_string())
         );
         assert_eq!(pinned(&app_state).await, encoded(new_key));
 
@@ -2823,7 +3342,8 @@ mod tests {
             "{refused:?}"
         );
 
-        // certifying a signer: refused by name, and a plain member is theirs to make.
+        // making a manager: refused by rank, as the manager the row now says they are, and a plain
+        // member is theirs to make, issued from their own certificate (effort 838).
         {
             let mut member = app_state.member.write().await;
             let organization = app_state.organization.read().await;
@@ -2833,17 +3353,23 @@ mod tests {
                 &*session,
                 None::<&InMemoryPlatform>,
                 "noor.new",
-                permission::ADMINISTRATOR,
-                permission::mask_of_role(permission::ADMINISTRATOR),
+                permission::MANAGER,
+                0,
                 &[],
                 test_cost(),
                 CREATED_AT + 4,
             )
             .await
-            .expect_err("an administrator certified a signer");
+            .expect_err("a manager made a manager");
 
             assert!(
-                matches!(refused, Error::Refused { reason: crate::error::RefusalReason::OwnerOnly, ref message } if message.contains("only an owner")),
+                matches!(
+                    refused,
+                    Error::Refused {
+                        reason: crate::error::RefusalReason::RankNotAbove,
+                        ..
+                    }
+                ),
                 "{refused:?}"
             );
 
@@ -2853,13 +3379,13 @@ mod tests {
                 None::<&InMemoryPlatform>,
                 "sami.staff",
                 permission::MEMBER,
-                permission::mask_of_role(permission::MEMBER),
+                0,
                 &[],
                 test_cost(),
                 CREATED_AT + 5,
             )
             .await
-            .expect("an administrator could not make a member");
+            .expect("a manager could not make a member");
         }
 
         // and the directory verifies under the key in force, here and on the other machine.
@@ -2883,7 +3409,7 @@ mod tests {
     /// **Criterion 22 at its seams: a machine closed across the handover.** The founder's key is
     /// filed and nobody is in; the organization is handed over on another machine; the launch
     /// resumes the session, pulls, follows the succession and keeps the session, under the new
-    /// key and as the administrator the row says, with no sign-out and the remembered key kept.
+    /// key and as the manager the row says, with no sign-out and the remembered key kept.
     ///
     /// The two stores share one file, so the launch meets the re-keyed rows at its first read
     /// rather than after its pull; what the pull would bring is already there. The follow after
@@ -2909,7 +3435,7 @@ mod tests {
             .expect("the launch across the handover did not resume");
 
         assert_eq!(session.member_id, member_id);
-        assert_eq!(session.role, "administrator");
+        assert_eq!(session.role, "manager");
         assert!(
             !state.signed_out_elsewhere,
             "the wall was told a sign-out that did not happen"
@@ -2920,7 +3446,7 @@ mod tests {
         );
         assert_eq!(
             session_holds(&app_state).await,
-            (new_key, "administrator".to_string())
+            (new_key, "manager".to_string())
         );
         assert_eq!(pinned(&app_state).await, encoded(new_key));
     }
@@ -2928,7 +3454,7 @@ mod tests {
     /// **Criterion 22 at its seams: a machine open across the handover.** The founder is signed in
     /// here; the organization is handed over on another machine; the heartbeat that pulls the
     /// re-keyed rows follows the succession rather than swallowing the read that refused, and the
-    /// session goes on under the new key as the administrator the row says. Nothing was ended, so
+    /// session goes on under the new key as the manager the row says. Nothing was ended, so
     /// the heartbeat says so and keeps everything it holds.
     #[tokio::test]
     async fn a_machine_open_across_a_handover_follows_it_on_the_heartbeat() {
@@ -2958,7 +3484,7 @@ mod tests {
         );
         assert_eq!(
             session_holds(&app_state).await,
-            (new_key, "administrator".to_string()),
+            (new_key, "manager".to_string()),
             "the heartbeat did not follow the succession"
         );
         assert_eq!(pinned(&app_state).await, encoded(new_key));
@@ -2974,7 +3500,360 @@ mod tests {
         // and the state read afterwards has nothing left to follow.
         let state = state_of(&app_state).await.expect("the state");
 
-        assert_eq!(state.session.expect("the session").role, "administrator");
+        assert_eq!(state.session.expect("the session").role, "manager");
         assert!(!state.signed_out_elsewhere);
+    }
+
+    // -------------------------------------------------------------------------------------
+    // Effort 838, criterion 1: every organization command names its gate.
+    // -------------------------------------------------------------------------------------
+
+    use crate::organization::permission::Flag;
+
+    /// What stands in front of an organization command before it does anything.
+    ///
+    /// **The flag is asked of the verified row by the act behind the command**, and never of the
+    /// session's snapshot; this table is the list of which, so a command added without one is a
+    /// test that fails rather than an act anybody may perform.
+    #[derive(Clone, Copy, Debug)]
+    enum Gate {
+        /// before there is anybody to act as: the first run, a connect, a link, the wall.
+        Public,
+        /// this machine's own hold on the organization, which is its to let go of: a sign-out,
+        /// a disconnect, the Turso consent it holds.
+        ThisMachine,
+        /// the signed-in member's own session or row, and nobody else's.
+        Own,
+        /// what every signed-in member reads.
+        SignedIn,
+        /// the flag, off the actor's verified row.
+        Flag(Flag),
+        /// any of the flags, off the actor's verified row.
+        AnyFlag(&'static [Flag]),
+        /// every one of the flags, off the actor's verified row: an act that writes a row a second
+        /// flag signs, as making and resetting an account write its grant on the organization
+        /// database, which is `grantWorkspace`'s (effort 838).
+        AllFlags(&'static [Flag]),
+        /// the owner's verified row, carrying the flag: the acts that need the Turso authority
+        /// or hand the organization on (`session::Actor::require_owner`).
+        Owner(Flag),
+    }
+
+    /// Every command `command.rs` declares, with its gate.
+    const GATES: &[(&str, Gate)] = &[
+        ("organization_create", Gate::Public),
+        ("organization_group_inspect", Gate::Public),
+        ("organization_connect_existing", Gate::Public),
+        ("organization_state_get", Gate::Public),
+        ("organization_disconnect", Gate::ThisMachine),
+        ("organization_delete", Gate::Owner(Flag::DeleteOrganization)),
+        ("organization_sign_in", Gate::Public),
+        ("organization_sign_out", Gate::ThisMachine),
+        ("workspace_create", Gate::Owner(Flag::CreateWorkspace)),
+        ("workspace_grant", Gate::Flag(Flag::GrantWorkspace)),
+        ("workspace_grant_withdraw", Gate::Flag(Flag::GrantWorkspace)),
+        ("workspace_delete", Gate::Owner(Flag::DeleteWorkspace)),
+        ("workspace_open", Gate::Own),
+        (
+            "organization_renew_credentials",
+            Gate::Owner(Flag::RenewCredentials),
+        ),
+        (
+            "organization_renew_due",
+            Gate::Owner(Flag::RenewCredentials),
+        ),
+        (
+            "member_create",
+            Gate::AllFlags(&[Flag::InviteMember, Flag::GrantWorkspace]),
+        ),
+        (
+            "member_link_make",
+            Gate::AnyFlag(&[Flag::InviteMember, Flag::ResetPassword]),
+        ),
+        (
+            "member_password_unset",
+            Gate::AllFlags(&[Flag::ResetPassword, Flag::GrantWorkspace]),
+        ),
+        ("invitation_accept", Gate::Public),
+        ("machine_connect", Gate::Public),
+        ("organization_roles", Gate::SignedIn),
+        ("role_create", Gate::Flag(Flag::ManageRoles)),
+        ("role_rename", Gate::Flag(Flag::ManageRoles)),
+        ("role_set_mask", Gate::Flag(Flag::ManageRoles)),
+        ("role_move", Gate::Flag(Flag::ManageRoles)),
+        ("role_delete", Gate::Flag(Flag::ManageRoles)),
+        // and `overrideMember` too, where the override given with the role is not the one the
+        // member carries (`role::assign_role`).
+        ("member_assign_role", Gate::Flag(Flag::AssignRole)),
+        ("member_set_override", Gate::Flag(Flag::OverrideMember)),
+        (
+            "member_set_workspace_override",
+            Gate::Flag(Flag::OverrideMember),
+        ),
+        (
+            "member_offer_ownership",
+            Gate::Owner(Flag::TransferOwnership),
+        ),
+        (
+            "member_withdraw_offer",
+            Gate::Owner(Flag::TransferOwnership),
+        ),
+        ("ownership_accept", Gate::Own),
+        ("member_rename", Gate::Flag(Flag::RenameMember)),
+        ("organization_mark_get", Gate::SignedIn),
+        ("organization_mark_set", Gate::Flag(Flag::ManageMark)),
+        ("organization_mark_clear", Gate::Flag(Flag::ManageMark)),
+        ("organization_session_end_elsewhere", Gate::Own),
+        ("member_end_sessions", Gate::Flag(Flag::ResetPassword)),
+        ("member_lock_out_cost", Gate::Flag(Flag::RemoveMember)),
+        ("member_remove", Gate::Flag(Flag::RemoveMember)),
+        (
+            "organization_account_refusal_detail",
+            Gate::Owner(Flag::TursoAccount),
+        ),
+        ("organization_change_password", Gate::Own),
+        ("organization_members", Gate::SignedIn),
+        ("organization_member_standings", Gate::SignedIn),
+        ("organization_link_take", Gate::Public),
+        ("organization_link_read", Gate::Public),
+        ("organization_reconnect_authority", Gate::ThisMachine),
+    ];
+
+    /// The name of every `#[tauri::command]` in a source file, in order.
+    fn declared_commands(source: &str) -> Vec<String> {
+        let lines: Vec<&str> = source.lines().collect();
+
+        lines
+            .iter()
+            .enumerate()
+            .filter(|(_, line)| line.trim() == "#[tauri::command]")
+            .filter_map(|(index, _)| {
+                let signature = lines.get(index + 1)?.trim();
+                let name = signature
+                    .strip_prefix("pub async fn ")
+                    .or_else(|| signature.strip_prefix("pub fn "))?;
+
+                Some(name.split('(').next()?.to_string())
+            })
+            .collect()
+    }
+
+    /// Every command of this module the application registers: each `organization::<name>` in
+    /// `lib.rs`'s handler list.
+    fn registered_commands(source: &str) -> Vec<String> {
+        let handlers = source
+            .split("tauri::generate_handler![")
+            .nth(1)
+            .and_then(|rest| rest.split(']').next())
+            .expect("lib.rs registers no handlers");
+
+        handlers
+            .split(',')
+            .filter_map(|entry| entry.trim().strip_prefix("organization::"))
+            .map(str::to_string)
+            .collect()
+    }
+
+    /// The commands that name no gate, and the gates that name no command.
+    fn ungated(declared: &[String], gates: &[(&str, Gate)]) -> (Vec<String>, Vec<String>) {
+        let named: Vec<&str> = gates.iter().map(|(name, _)| *name).collect();
+
+        (
+            declared
+                .iter()
+                .filter(|command| !named.contains(&command.as_str()))
+                .cloned()
+                .collect(),
+            named
+                .iter()
+                .filter(|name| !declared.iter().any(|command| command == *name))
+                .map(|name| name.to_string())
+                .collect(),
+        )
+    }
+
+    /// **Criterion 1, the Rust half.** Every command this module declares, and every one the
+    /// application registers from it, names its gate here; a command with none fails, naming it,
+    /// and so does a gate for a command that is gone. The flags named are the vocabulary's own,
+    /// so each is a bit a refusal names.
+    #[test]
+    fn every_organization_command_names_its_gate() {
+        let declared = declared_commands(include_str!("command.rs"));
+        let registered = registered_commands(include_str!("../lib.rs"));
+
+        assert!(
+            declared.len() > 40,
+            "the declarations were not read: {declared:?}"
+        );
+        assert_eq!(
+            {
+                let mut sorted = registered.clone();
+                sorted.sort();
+                sorted
+            },
+            {
+                let mut sorted = declared.clone();
+                sorted.sort();
+                sorted
+            },
+            "lib.rs registers a different set of organization commands than command.rs declares"
+        );
+
+        let (without, stale) = ungated(&declared, GATES);
+
+        assert!(without.is_empty(), "commands with no gate: {without:?}");
+        assert!(stale.is_empty(), "gates naming no command: {stale:?}");
+
+        for (name, gate) in GATES {
+            let flags: Vec<Flag> = match gate {
+                Gate::Flag(flag) | Gate::Owner(flag) => vec![*flag],
+                Gate::AnyFlag(flags) | Gate::AllFlags(flags) => flags.to_vec(),
+                Gate::Public | Gate::ThisMachine | Gate::Own | Gate::SignedIn => Vec::new(),
+            };
+
+            for flag in flags {
+                assert!(Flag::ALL.contains(&flag), "{name} names {}", flag.name());
+            }
+
+            if let Gate::Owner(flag) = gate {
+                assert!(
+                    crate::organization::permission::OWNER_ONLY.contains(flag),
+                    "{name} is the owner's under {}, which is not one of the owner's flags",
+                    flag.name()
+                );
+            }
+        }
+
+        // and the check itself: a command declared with no gate is named.
+        let (without, _) = ungated(
+            &["member_widen_everything".to_string()],
+            &[("organization_members", Gate::SignedIn)],
+        );
+
+        assert_eq!(without, vec!["member_widen_everything".to_string()]);
+    }
+
+    /// **The owner's machine repairs a forged demotion of the owner's row on the heartbeat**
+    /// (effort 838, the human's decision after review round two). A lead's certificate, issued
+    /// from the owner's root, signs the owner's row naming the member role around the store, on
+    /// another machine sharing the replica; that machine reads the owner with no permissions. One
+    /// heartbeat on the owner's machine, signed in all along, writes the row again under the root,
+    /// and every machine reads the owner as the owner with every flag.
+    #[tokio::test]
+    async fn the_owners_machine_repairs_a_forged_demotion_of_the_owners_row_on_the_heartbeat() {
+        use crate::organization::{
+            authority::{AdministratorKey, Issue, issue_certificate},
+            permission::Flag,
+            store::{MemberRecord, Signer},
+            workspace::signer_of,
+        };
+
+        let _turn = a_turn().await;
+        let directory = scratch("owner-repair-heartbeat");
+        let app_state = first_run(&directory).await;
+        let (organization_id, member_id) = recorded(&app_state).await;
+
+        assert!(
+            state_of(&app_state)
+                .await
+                .expect("the state")
+                .session
+                .is_some()
+        );
+
+        let held = {
+            let mut remote_sync = app_state.remote_sync.write().await;
+
+            remote_sync
+                .store_mut()
+                .organization
+                .clone()
+                .expect("the record names no organization")
+        };
+        let key = verifying_key_of(&held).expect("the pinned key");
+        let elsewhere = OrganizationStore::open(
+            &OrganizationStore::replica_path(&directory.join(Database::FILENAME), &organization_id),
+            None,
+            || async { Ok::<String, turso::Error>(String::new()) },
+        )
+        .await
+        .expect("the other machine's replica");
+
+        // a lead's certificate, and the owner's row signed by it naming the member role.
+        {
+            let member = app_state.member.read().await;
+            let owner = member.as_ref().expect("the owner's session");
+            let (root_key, root) = signer_of(&elsewhere, owner).await.expect("the root");
+            let lead_key = AdministratorKey::generate().expect("a key");
+            let lead = issue_certificate(
+                &root_key,
+                &root,
+                Issue {
+                    id: "cert-lead",
+                    member_id: "member-lead",
+                    signing_public_key: &lead_key.verifying_key(),
+                    ceiling: permission::MEMBER_ROLE.mask
+                        | permission::mask_of(&[Flag::InviteMember]),
+                    rank: 500_000,
+                    issued_at: "1",
+                },
+            )
+            .expect("the lead's certificate");
+
+            elsewhere
+                .write_certificate(&lead)
+                .await
+                .expect("the certificate");
+
+            let row = elsewhere
+                .member(&key, &member_id)
+                .await
+                .expect("the row reads")
+                .expect("the owner's row");
+
+            elsewhere
+                .write_member_around_the_check(
+                    &Signer {
+                        key: &lead_key,
+                        certificate: &lead,
+                    },
+                    &MemberRecord {
+                        role_id: permission::MEMBER.to_string(),
+                        ..row
+                    },
+                )
+                .await
+                .expect("written around the store");
+        }
+
+        let demoted = elsewhere
+            .member(&key, &member_id)
+            .await
+            .expect("the row reads")
+            .expect("the owner's row");
+
+        assert_eq!(demoted.effective, 0);
+
+        // one heartbeat on the owner's machine.
+        assert!(!super::ended_elsewhere(&app_state).await);
+
+        let repaired = elsewhere
+            .member(&key, &member_id)
+            .await
+            .expect("the row reads")
+            .expect("the owner's row");
+
+        assert_eq!(repaired.role_id, permission::OWNER);
+        assert_eq!(repaired.effective, permission::OWNER_ROLE.mask);
+        assert_eq!(
+            app_state
+                .member
+                .read()
+                .await
+                .as_ref()
+                .expect("still signed in")
+                .permissions,
+            permission::OWNER_ROLE.mask
+        );
     }
 }

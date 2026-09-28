@@ -1,5 +1,6 @@
 import type { HistoryEntry } from '$lib/history/history';
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
+import { memberPermissions, type RecordFlag } from '$lib/workspace/permission';
 
 /**
  * INVERSE
@@ -18,6 +19,15 @@ export type Inverse = {
 	undo: () => Promise<unknown>;
 	/** apply the mutation again, with the identity it had. */
 	redo: () => Promise<unknown>;
+	/**
+	 * the flags each direction's procedures name, every one of them (effort 838, requirement 10).
+	 *
+	 * **A direction is its own act.** Taking back a creation is a deletion and asks for the delete;
+	 * taking back a deletion puts the record back and asks for the create. So a member who may add
+	 * a tenant and not delete one can make one and cannot take it back, and the stack says so
+	 * rather than offering an undo the procedure would refuse.
+	 */
+	flags: { undo: readonly RecordFlag[]; redo: readonly RecordFlag[] };
 	/**
 	 * what moving this change leaves in the record's account, in whichever direction it moved.
 	 *
@@ -70,6 +80,19 @@ export class InverseStack {
 	/** true while an inverse is being applied, so a control can stand down rather than queue. */
 	get isApplying() {
 		return this.#isApplying;
+	}
+
+	/**
+	 * why the reader may not move the change on top in this direction, or nothing where they may,
+	 * or where there is nothing to move: the flags that direction's procedures name, as the reader
+	 * holds them in the workspace open.
+	 */
+	refusal(direction: 'undo' | 'redo', translations: TranslationFunctions): string | undefined {
+		const inverse = direction === 'undo' ? this.undoable : this.redoable;
+
+		return inverse
+			? memberPermissions.refusalOfEvery(inverse.flags[direction], translations)
+			: undefined;
 	}
 
 	/** register a listener called after every state change. Returns its own removal. */

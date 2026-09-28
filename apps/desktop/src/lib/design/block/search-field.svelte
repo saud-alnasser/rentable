@@ -35,6 +35,7 @@
 	let {
 		value = $bindable(''),
 		onSearch,
+		answersSearchKey = true,
 		class: className
 	}: {
 		/** The search, as the set reads it: what was typed, once the reader stopped typing. */
@@ -46,6 +47,11 @@
 		 * draws without motion.
 		 */
 		onSearch?: (term: string) => void;
+		/**
+		 * Whether `/` puts the cursor here. A surface answers the key once, so where it draws two
+		 * sets the one the reader searches less passes `false` ([[rules/interface]], *Search*).
+		 */
+		answersSearchKey?: boolean;
 		class?: string;
 	} = $props();
 
@@ -88,7 +94,9 @@
 
 	// registered rather than listened for: the search key reaches the application's one listener,
 	// and the sheet reads it from here without being told about it.
-	$effect(() => shortcuts.register(toSearchShortcut(() => element?.focus())));
+	$effect(() => {
+		if (answersSearchKey) return shortcuts.register(toSearchShortcut(() => element?.focus()));
+	});
 </script>
 
 <div data-search-field class={cn('relative w-full sm:max-w-sm', className)}>

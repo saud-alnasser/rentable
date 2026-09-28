@@ -23,7 +23,8 @@
 		useEndOtherSessions,
 		useFetchMemberStandings,
 		useFetchMembers,
-		useFetchOrganizationState
+		useFetchOrganizationState,
+		useFetchRoles
 	} from '$lib/organization/query';
 	import SettingsArea from '$lib/settings/component/area.svelte';
 	import { useFetchRemoteSyncState, useFetchSettings } from '$lib/settings/query';
@@ -57,6 +58,8 @@
 	// password is on the signed member row and the machine is on the register (effort 828,
 	// requirement 19).
 	const standingsQuery = useFetchMemberStandings();
+	// every role, which the organization section lists (effort 838, requirement 12).
+	const rolesQuery = useFetchRoles();
 
 	const session = $derived(stateQuery.data?.session ?? null);
 
@@ -199,6 +202,7 @@
 			syncState={remoteSyncQuery.data ?? null}
 			members={membersQuery.data ?? []}
 			standings={standingsQuery.data ?? []}
+			roles={rolesQuery.data ?? []}
 			isChangingPassword={changePassword.isPending}
 			isAcceptingOwnership={acceptOwnership.isPending}
 			isDeletingOrganization={deleteOrganization.isPending}

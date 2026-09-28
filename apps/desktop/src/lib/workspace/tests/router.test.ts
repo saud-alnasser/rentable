@@ -1,7 +1,19 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-import { type Api, createApi, monthsFromNow, NOW, refusedWith } from '$lib/api/tests/testing.ts';
+import { FLAGS } from '@rentable/workspace-permission';
+
+import {
+	type Api,
+	createApi,
+	EVERY_RECORD_ACT,
+	fakeIdentity,
+	monthsFromNow,
+	NOW,
+	refusedWith
+} from '$lib/api/tests/testing.ts';
+import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
 import { toTables } from './file.ts';
 import {
 	emptyHeld,
@@ -9,7 +21,8 @@ import {
 	planWorkspaceImport,
 	toIsoDay,
 	toTransferInput as toInput,
-	toUnitReference
+	toUnitReference,
+	type WorkspaceTransfer
 } from '../workspace.ts';
 
 /**
@@ -88,6 +101,65 @@ test('a workspace exported as a file imports into an empty one and reproduces it
 		read.contracts.map((contract) => ({ ...contract, units: [...contract.units] })),
 		written.contracts.map((contract) => ({ ...contract, units: [...contract.units] }))
 	);
+});
+
+/**
+ * What `workspace.get` answered on the build before effort 838 broke the organization format,
+ * written once from a workspace seeded through the ordinary procedures and checked in as it came
+ * out. It is the file the one existing user carries across: an organization of the older format
+ * is refused by name, so each workspace is exported there and imported into a workspace of a new
+ * organization here (effort 838, requirement 11). Read as a file rather than regenerated, so a
+ * change to either half of the transfer that would strand that export fails here.
+ */
+function exportedBeforeTheFormatBreak(): WorkspaceTransfer {
+	return JSON.parse(readFileSync(new URL('./export.json', import.meta.url), 'utf8'));
+}
+
+/** a contract as a record, without the two fields the clock derives: its status and what is due. */
+function recordOf({
+	reference,
+	tenant,
+	units,
+	start,
+	end,
+	interval,
+	cost,
+	paidAmount
+}: WorkspaceTransfer['contracts'][number]) {
+	return { reference, tenant, units, start, end, interval, cost, paidAmount };
+}
+
+test('an export written before the format break imports whole into an empty workspace', async () => {
+	const written = exportedBeforeTheFormatBreak();
+	const target = await createApi();
+	const plan = planWorkspaceImport(toTables(written), NOW, emptyHeld());
+
+	assert.ok(isWorkspaceImportable(plan), 'the earlier export is not a file this build can read');
+
+	const imported = await target.workspace.importWhole(toInput(plan.transfer));
+
+	assert.deepEqual(imported, {
+		tenants: written.tenants.length,
+		complexes: written.complexes.length,
+		units: written.units.length,
+		contracts: written.contracts.length,
+		payments: written.payments.length
+	});
+
+	const read = await target.workspace.get();
+
+	// every record, and every relationship by the names the file carried. What is derived from the
+	// clock is left out: the export was written on another day, so the expected amount and a
+	// status are what the term makes them today, and this build recomputes them rather than
+	// reading them back. The paid amount is the file's own payments summed, so it has to agree.
+	assert.deepEqual(read.tenants, written.tenants);
+	assert.deepEqual(read.complexes, written.complexes);
+	assert.deepEqual(
+		read.units.map(({ complex, name }) => ({ complex, name })),
+		written.units.map(({ complex, name }) => ({ complex, name }))
+	);
+	assert.deepEqual(read.payments, written.payments);
+	assert.deepEqual(read.contracts.map(recordOf), written.contracts.map(recordOf));
 });
 
 test('the reproduced workspace derives its own statuses rather than trusting the file', async () => {
@@ -421,6 +493,24 @@ test('what the workspace holds is reported by the names a file uses', async () =
 		['Al Nakheel', 'A1'],
 		['Al Nakheel', 'A2']
 	]);
+	assert.deepEqual(held.contracts, ['GOV-1']);
+});
+
+// effort 838, requirement 10: what an import compares a file with is open to every member, and a
+// kind they may not view is answered as holding nothing rather than refusing the directory's import.
+test('what the workspace holds leaves out a kind the member may not view', async () => {
+	const db = createMemoryDatabase();
+
+	await seedWorkspace(await createApi({ db }));
+
+	const lacking = await createApi({
+		db,
+		identity: fakeIdentity({ permissions: EVERY_RECORD_ACT - 2 ** FLAGS.viewTenant })
+	});
+	const held = await lacking.workspace.held();
+
+	assert.deepEqual(held.tenants, []);
+	assert.deepEqual(held.complexes, ['Al Nakheel']);
 	assert.deepEqual(held.contracts, ['GOV-1']);
 });
 

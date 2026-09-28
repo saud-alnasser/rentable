@@ -1,5 +1,6 @@
 import { workspacePrefixes } from '$lib/design/query';
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
+import { FAMILIES, type Flag } from '@rentable/workspace-permission';
 
 /**
  * HISTORY
@@ -38,6 +39,29 @@ export type HistoryEntry = {
 	action: HistoryAction;
 	record: string;
 };
+
+/** Every flag the history asks for: each act on each kind of record it can be about. */
+export const HISTORY_FLAGS = [
+	...FAMILIES.complex,
+	...FAMILIES.unit,
+	...FAMILIES.tenant,
+	...FAMILIES.contract,
+	...FAMILIES.payment
+] as const satisfies readonly [Flag, ...Flag[]];
+
+/** What reading a record's history takes: viewing that kind of record. */
+export const viewFlagOf = (concept: HistoryConcept): Flag => FAMILIES[concept][0];
+
+/**
+ * What appending an entry takes: the act it records, on the kind of record it is about (effort
+ * 838). A creation is creating and a deletion deleting; everything else an entry can name,
+ * renewing, ending, restoring and assigning included, is an edit of the record.
+ */
+export function flagOfEntry(entry: { concept: HistoryConcept; action: string }): Flag {
+	const [, create, edit, remove] = FAMILIES[entry.concept];
+
+	return entry.action === 'created' ? create : entry.action === 'deleted' ? remove : edit;
+}
 
 /**
  * the key sits under the contract tree because the workspace invalidation covers that prefix.

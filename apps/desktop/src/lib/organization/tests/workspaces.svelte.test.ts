@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
+import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { beforeEach, expect, test, vi } from 'vitest';
 
 import { setLocale } from '$lib/i18n/i18n-svelte';
@@ -7,7 +7,8 @@ import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import Workspaces from '$lib/organization/component/workspaces.svelte';
 import { organizationDialog, resetOrganizationDialogs } from '$lib/organization/dialogs.svelte';
 import { organizationHostState, resetOrganizationHost } from '$lib/organization/host.svelte';
-import { fakeOrganizationSession } from '$lib/platform/tests/testing';
+import { fakeOrganizationMember, fakeOrganizationSession } from '$lib/platform/tests/testing';
+import { BUILT_IN, maskOf } from '@rentable/workspace-permission';
 import type { OrganizationMember, OrganizationWorkspace } from '$lib/platform/host';
 import en from '$lib/i18n/en';
 import { toTitleCase } from '@rentable/design/title-case.js';
@@ -116,7 +117,10 @@ const workspaces: OrganizationWorkspace[] = [
 		databaseName: 'ws-1',
 		databaseHostname: 'ws-1.turso.io',
 		schemaVersion: 1,
-		accessLevel: 'full-access'
+		accessLevel: 'full-access',
+		pinned: 0,
+		granted: 0,
+		permissions: 0
 	},
 	{
 		id: 'ws-2',
@@ -124,20 +128,15 @@ const workspaces: OrganizationWorkspace[] = [
 		databaseName: 'ws-2',
 		databaseHostname: 'ws-2.turso.io',
 		schemaVersion: 1,
-		accessLevel: 'read-only'
+		accessLevel: 'read-only',
+		pinned: 0,
+		granted: 0,
+		permissions: 0
 	}
 ];
 
-const member = (overrides: Partial<OrganizationMember>): OrganizationMember => ({
-	id: 'm',
-	username: 'member',
-	role: 'member',
-	permissions: 0,
-	workspaces: [],
-	createdAt: 0,
-	offeredOwnership: false,
-	...overrides
-});
+const member = (overrides: Partial<OrganizationMember>): OrganizationMember =>
+	fakeOrganizationMember(overrides);
 
 const members = [
 	member({
@@ -145,17 +144,21 @@ const members = [
 		username: 'olivia',
 		role: 'owner',
 		workspaces: [
-			{ id: 'ws-1', access: 'full-access' },
-			{ id: 'ws-2', access: 'full-access' }
+			{ id: 'ws-1', access: 'full-access', pinned: 0, granted: 0, permissions: 0 },
+			{ id: 'ws-2', access: 'full-access', pinned: 0, granted: 0, permissions: 0 }
 		]
 	}),
 	member({
 		id: 'ada',
 		username: 'ada',
-		role: 'administrator',
-		workspaces: [{ id: 'ws-1', access: 'full-access' }]
+		role: 'manager',
+		workspaces: [{ id: 'ws-1', access: 'full-access', pinned: 0, granted: 0, permissions: 0 }]
 	}),
-	member({ id: 'sami', username: 'sami', workspaces: [{ id: 'ws-1', access: 'read-only' }] })
+	member({
+		id: 'sami',
+		username: 'sami',
+		workspaces: [{ id: 'ws-1', access: 'read-only', pinned: 0, granted: 0, permissions: 0 }]
+	})
 ];
 
 const list = (
@@ -293,7 +296,7 @@ test('the open one is marked by a disc carrying its word, and no card says an ac
 	expect(document.querySelector('[data-workspace-access]')).toBeNull();
 	for (const id of ['ws-1', 'ws-2']) {
 		expect(card(id)?.textContent, id).not.toContain(en.organization.dashboard.accessFull);
-		expect(card(id)?.textContent, id).not.toContain(en.organization.dashboard.accessReadOnly);
+		expect(card(id)?.textContent, id).not.toContain('read only');
 	}
 });
 
@@ -355,7 +358,7 @@ test('an owner whose machine lost the authority reads why in the tray, and every
 	expect(tray.contains(said)).toBe(true);
 	owner.unmount();
 
-	// an administrator never had a create to be refused, so the section says nothing about one.
+	// nobody but the owner ever had a create to be refused, so the section says nothing about one.
 	list({ canCreate: false, refusal: null });
 
 	expect(document.querySelector('[data-workspace-create]')).toBeNull();
@@ -371,7 +374,10 @@ test('an owner holding every gate is offered members and delete on each card, an
 	expect(await actsOn('ws-2')).toEqual(['grant', 'delete']);
 });
 
-test('a member holding no act is offered no menu at all, and no create control', () => {
+// ticket 50 of effort 838: who is in a workspace is offered to every reader and refused, naming
+// the flag, without `grantWorkspace`, as the member's card refuses its workspaces section, so the
+// two ends of a grant refuse the same way. Nothing else is offered, and there is no create.
+test('a member holding no act is offered only who is in each workspace, refused naming the flag', async () => {
 	list({
 		canCreate: false,
 		canDelete: false,
@@ -380,8 +386,17 @@ test('a member holding no act is offered no menu at all, and no create control',
 	});
 
 	for (const id of ['ws-1', 'ws-2']) {
-		expect(control(id), id).toBeNull();
+		expect(await actsOn(id), id).toEqual(['grant']);
 	}
+
+	await fireEvent.click(control('ws-1')!);
+
+	const grant = on('grant', 'ws-1');
+
+	expect(grant?.getAttribute('aria-disabled')).toBe('true');
+	await fireEvent.click(grant!);
+	expect(organizationHostState.workspace.changingAccess).toBeNull();
+
 	expect(document.querySelector('[data-workspace-create]')).toBeNull();
 	expect(document.querySelector('[data-workspace-refusal]')).toBeNull();
 });
@@ -405,12 +420,13 @@ test('each act is drawn by its own gate and by no other', async () => {
 		rendered.unmount();
 	};
 
-	await only({ canRename: true }, 'ws-1', ['edit']);
-	await only({ canRename: true }, 'ws-2', []);
+	// who is in a workspace is on every card, refused where the reader lacks the flag.
+	await only({ canRename: true }, 'ws-1', ['edit', 'grant']);
+	await only({ canRename: true }, 'ws-2', ['grant']);
 	await only({ canGrantWorkspace: true }, 'ws-1', ['grant']);
 	await only({ canGrantWorkspace: true }, 'ws-2', ['grant']);
-	await only({ canDelete: true }, 'ws-1', ['delete']);
-	await only({ canDelete: true }, 'ws-2', ['delete']);
+	await only({ canDelete: true }, 'ws-1', ['grant', 'delete']);
+	await only({ canDelete: true }, 'ws-2', ['grant', 'delete']);
 });
 
 // [[rules/interface]], *Row activation*: activating a card opens its record, which for a workspace
@@ -516,22 +532,71 @@ test('the members act opens the access dialog on the people who could hold that 
 test('the members act hands up the rows that changed, as member ids on that workspace', async () => {
 	list();
 
-	await press('ws-2', 'grant');
-	await fireEvent.click(
-		within(document.querySelector<HTMLElement>('#access-ada')!).getByRole('radio', {
-			name: en.organization.dashboard.accessFull
-		})
-	);
+	await press('ws-1', 'grant');
+	// ada is in it, and her switch takes her out.
+	await fireEvent.click(document.querySelector<HTMLElement>('#access-ada')!);
 	await fireEvent.submit(document.querySelector('form')!);
 
 	await waitFor(() => {
 		expect(hostAnswers.writes).toEqual([
 			{
 				hook: 'useChangeAccess',
-				input: { changes: [{ workspaceId: 'ws-2', memberId: 'ada', access: 'full-access' }] }
+				input: { changes: [{ workspaceId: 'ws-1', memberId: 'ada', access: 'none' }] }
 			}
 		]);
 	});
+});
+
+// requirement 12 as amended a third time: the dialog marks a person whose permissions in that
+// workspace differ from theirs across the organization, read off the members' facts, and draws no
+// lock (ticket 54 of effort 838).
+test('the members act marks a person tailored in that workspace, and draws no lock', async () => {
+	hostAnswers.members = [
+		members[0],
+		{
+			...members[1],
+			permissions: BUILT_IN.manager.mask,
+			workspaces: [
+				{
+					id: 'ws-1',
+					access: 'full-access',
+					pinned: maskOf('deletePayment'),
+					granted: 0,
+					permissions: BUILT_IN.manager.mask - maskOf('deletePayment')
+				}
+			]
+		},
+		members[2]
+	];
+	list();
+
+	await press('ws-1', 'grant');
+	await waitFor(() => expect(document.querySelector('[data-access-form]')).not.toBeNull());
+
+	expect(document.querySelector('[data-access-mark="ada"]')?.textContent?.trim()).toBe(
+		en.organization.workspaceSwitches.customHere
+	);
+	expect(document.querySelector('[data-access-mark="sami"]')).toBeNull();
+	expect(document.querySelector('[id$="-lock"]')).toBeNull();
+});
+
+// full access is the reader's own credential re-sealed, and the reader holds Jeddah read only,
+// so the host hands the dialog rows nobody can be put in on, and the switch says why.
+test('the members act on a workspace the reader holds read only puts nobody in', async () => {
+	list();
+
+	await press('ws-2', 'grant');
+
+	const ada = document.querySelector<HTMLElement>('#access-ada')!;
+
+	expect(ada.getAttribute('aria-disabled')).toBe('true');
+	expect(document.querySelector('#access-ada-reason')?.textContent?.trim()).toBe(
+		en.organization.workspaceSwitches.notHeld
+	);
+
+	await fireEvent.click(ada);
+
+	expect(ada.getAttribute('aria-checked')).toBe('false');
 });
 
 // criterion 21: delete asks once and names what is lost, and it is the owner's.

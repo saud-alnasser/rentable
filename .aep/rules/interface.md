@@ -176,10 +176,16 @@ Recorded originally as ADR 0013, *Each list gets the presentation its data is sh
 **Every set a person can search searches one way: `design/block/search-field.svelte`.** A leading
 search glass, a wait of 250 ms after the last keystroke before the term becomes the search, and
 `/` to put the cursor in the field from anywhere on the surface. The list shell draws it, the
-contract's unit panes draw it, and the settings members and workspaces directories draw it, and a
-set added later draws it rather than an input of its own. The key is registered by the field, so
-it exists exactly where there is something to search, and it stands down while text is being
-typed.
+contract's unit panes draw it, and the settings members, roles and workspaces directories draw it,
+and a set added later draws it rather than an input of its own. The key is registered by the field,
+so it exists exactly where there is something to search, and it stands down while text is being
+typed. **A surface answers the key once**: where it draws two sets, the one a reader searches
+holds it and the other's field is reached by pointer or by tab (`answersSearchKey`). The
+organization section's members directory holds it where it is drawn, since a dozen people are
+searched and a handful of roles are read, and the roles block holds it where the members
+directory is not drawn. *The settings directories were members and workspaces, one to a section,
+until ticket 19 of [[efforts/838-permissions-are-a-role-and-an-override/spec]] gave the roles
+block the bar and put two sets on one section.*
 
 **A set drawn as a directory opens with the list shell's own bar,
 `design/block/list-toolbar.svelte`**: the field at one end, and at the other the count, what
@@ -269,12 +275,18 @@ know which surface they are on before they know what will happen.*
 Recorded originally as ADR 0025, *A row opens its record, and does nothing else*.
 
 *Noted 2026-09-17, an accepted deviation: **in the settings directories a record's page is its
-sheet.** A member and a workspace have no page of their own, so the card in the members directory
-and in the workspaces directory opens the record's edit sheet on the same address
-(`?section=organization&member=<id>`, `?section=workspaces&workspace=<id>`), and does nothing
-else; the acts are still explicit controls on the card. Requirement 23 of
+sheet.** A member, a role and a workspace have no page of their own, so the card in the members,
+roles and workspaces directories opens the record's edit sheet on the same address
+(`?section=organization&member=<id>`, `?section=organization&role=<id>`,
+`?section=workspaces&workspace=<id>`), and does nothing else; the acts are still explicit controls
+on the card. Requirement 23 of
 [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]] is the precedent, and the
 human accepted it at that effort's review round two on 2026-09-17.*
+
+*The deviation named the members and workspaces directories alone until ticket 19 of
+[[efforts/838-permissions-are-a-role-and-an-override/spec]] added the roles directory beside them,
+for the same reason: a role became a record of the organization's own with that effort, and what
+opening it means is its editor (`organization/component/roles.svelte`).*
 
 *Kept by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 8: the two
 directories declare their acts in `organization/acts.ts` like every concept (*Record card actions*,
@@ -290,9 +302,10 @@ act the other does not. A member's name is part of its one edit, so the card off
 
 **A record's acts are declared once per concept, and every surface offering them is a projection
 of that declaration.** The concept writes one ordered list in `apps/desktop/src/lib/<concept>/acts.ts`,
-of the `RecordAct` shape in `design/acts.ts`: each act's id, label, icon, tone, group, shortcut, and
-the concept's own rules for whether it applies to a record (hidden where it does not) and whether it
-is unavailable (shown, refused, with the reason). Three surfaces and the command menu read it:
+of the `RecordAct` shape in `design/acts.ts`: each act's id, label, icon, tone, group, shortcut, the
+flag a member needs to take it, and the concept's own rules for whether it applies to a record
+(hidden where it does not) and whether it is unavailable (shown, refused, with the reason). Three
+surfaces and the command menu read it:
 
 | Surface | Projection |
 | --- | --- |
@@ -303,6 +316,20 @@ is unavailable (shown, refused, with the reason). Three surfaces and the command
 So label, icon, order, tone, shortcut and availability cannot differ between them, and a card offers
 what its page offers, copy details and duplicate included. `design/tests/acts.test.ts` holds every
 declared concept to it, for a record in each state it can be in.
+
+**An act's `flag` is the flag its procedure names**, one of a record kind's view, create, edit and
+delete. It is read against what the reader may do in the workspace open, held once for the window
+by `workspace/component/permissions.svelte` in `workspace/permission.ts`, off the same facts the
+tRPC context folds: the session's permissions, what is pinned for the reader in the workspace open
+(the workspace layer, `effectiveInWorkspace`), and the grant on it. Where the reader
+lacks the flag, the act is shown refused on every record, and the reason names the flag, or the
+read-only grant where that is what clears it. That reason comes before the act's own `unavailable`,
+so a record that would refuse for its state as well is refused for the flag. The command menu does
+not offer the act at all before a record is named, since what the reader may do is known then and a
+row that could never run would answer every search for it. A host asked for an act by id refuses it
+on the same terms (`mayRun`). *Added by ticket 16 of
+[[efforts/838-permissions-are-a-role-and-an-override/spec]], requirement 10: the act carried its
+flag since ticket 10 of that effort, and this section did not name it.*
 
 **An act never opens a form or a dialog itself.** Its `run` asks the concept's host, mounted once in
 `layout/component/frame.svelte`, which owns every form and confirmation the concept's acts open and
@@ -531,6 +558,15 @@ to be named and the other direction had nowhere to go.*
 
 Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 6.
 
+**A stated exception: the earlier records skip choosing a file.** Where this machine still holds the
+records of 0.12.0 or 0.13.0, a callout in the settings workspace group, above the transfer controls
+(`workspace/component/earlier-records.svelte`), opens the same workspace import review over those
+records as the shell reads them from the earlier version's database, rather than over a file the
+person chose. There is no file for the person to choose, since the records sit in the earlier
+version's own data, and nothing the pattern protects is lost: the plan is still shown, sheet by
+sheet, before anything is written. Settled by
+[[efforts/838-permissions-are-a-role-and-an-override/spec]], requirement 18.
+
 ### Print
 
 **A record prints through the application's own preview, then the one print sheet.** The act is a
@@ -576,20 +612,102 @@ Recorded originally as ADR 0017, *A form surface is one component that presents 
 
 **A concept's weight is decided by its create form, and holds for edit.** It is **heavy** when the
 form chooses other records or writes more than one record (contract, complex with its units, tenant
-with its phone composite, member), and **light** otherwise (payment, unit, rename, password). So a
-complex is heavy for both create and edit, and a concept never opens on two presentations.
+with its phone composite, member, role), and **light** otherwise (payment, unit, rename, password).
+So a complex is heavy for both create and edit, and a concept never opens on two presentations.
+**A role is heavy although its form holds one name and one set of flags** (`role-editor.svelte`):
+a new mask moves the permissions of everybody holding the role, so its save issues every
+holder's certificate again in the same act, and the form writes as many records as the role has
+holders. *The editor declared the weight before this paragraph named it; ticket 19 of
+[[efforts/838-permissions-are-a-role-and-an-override/spec]] wrote down why.*
 
 **A member's two sheets share one layout.** The sheet that adds a member
 (`organization/component/account-form.svelte`) and the sheet that edits one (`member-sheet.svelte`)
 draw the same sections, in the same order, with the same legends and control shapes, from the same
-pieces: the username under its head, the role in its tray (`member-role.svelte`), what a member may
-do beyond their role as a list with a picker (`member-acts.svelte`), and a row per workspace with
-its three levels (`member-workspaces.svelte`), where *no access* is what not granting it is. Only
-the sentences that belong to the moment differ, and who may hand out what is decided in the shared
-pieces, so the two cannot gate differently. *Settled by ticket 42 of
+pieces: the username under its head, the role picker in its tray (`member-role.svelte`), the
+switch list under it (`member-override.svelte`, which draws `permission-switches.svelte` with
+the role to compare against and the reset), and a switch per workspace
+(`member-workspaces.svelte`), where off is what not granting it is. Only the sentences that
+belong to the moment differ, and the permissions beneath a workspace that is in, which the edit
+sheet alone draws, since what a person may do in a workspace is set once they are in it. Who may
+hand out what is decided in the shared pieces, so the two sheets cannot gate differently. *Settled
+by ticket 42 of
 [[efforts/832-the-interface-speaks-one-language-and-guides/spec]]: the human saw the two side by
 side in the running build, the add sheet drawing an uppercase label, seven checkboxes and a checkbox
 per workspace, and asked for it to read like the edit sheet.*
+
+**The role picker chooses among the organization's roles, and the switches under it show what
+the member ends up with.** The picker is a select over every role but the owner's, highest rank
+first, with the sentence a built-in role means under it; a role at or above the reader's own rank
+is drawn refused in the list, and the tray says why. Under it is the switch list the role editor
+draws (`permission-switches.svelte`), set to the role's mask exclusive-or'd with the override; a
+switch turned writes the override that makes the member end up with what the switches say, and the
+override itself is never shown. A switch that differs from the role carries a dot naming it; where
+any does, the role's name reads *custom* in the tray and the switches' head offers *reset to* the
+role, which clears the override. Picking another role makes the member that role exactly, clearing
+the override as the shell's `assignRole` does; picking their own role again puts it back. A role
+whose pick would move a flag the reader does not hold is drawn refused in the list with that reason
+under its name, naming the flag, and the save of a changed role sends the override the switches
+come to whenever it is not nothing, since the shell clears what is not sent (ticket 45 of effort
+838). A switch the reader does not hold is dimmed and says
+why at the control, and one sentence above the list says why once; where the reader may not change
+the role or the override at all, the whole section is refused with the reason, the flag they lack
+or that the card is their own. On a member's card both sections are drawn for every reader, since
+they are what the card is for, and its save sends a changed role and a changed override as one
+act, whose refusal marks both; an override changed alone is its own write.
+*Revised by ticket 16 of [[efforts/838-permissions-are-a-role-and-an-override/spec]], requirements
+6, 7 and 12: the role was a toggle of two and the sheets drew what a member may do beyond their
+role as a list with a picker (`member-acts.svelte`, retired by effort 838); the role and the
+override were saved as two writes until ticket 14 of the same effort made them one. The override
+editor was a table of three columns, what the role gives, a box meaning "changed" and the result,
+until ticket 43 of that effort, the human's call on the running application of 2026-09-27
+(requirement 12 as amended).*
+
+**A member's workspace is its access switch, with its permissions folded beneath it.** Each
+workspace the reader holds is a switch headed by the workspaces' building glyph: on is a
+full-access grant, off is none. Beneath one that is in, on the member's card, one folded row,
+*permissions*, reads *custom* beside it where what the member may do there differs from what they
+may do across the organization, and opens the record groups of the switch list
+(`workspace-tailoring.svelte`, drawing `permission-switches.svelte` with `records`), each folding
+in turn, set to what they end up with there. **What is set there is what differs**: a switch
+turned away from what the member holds across the organization is pinned for that workspace at
+its new value when the card is saved, and holds it however the organization moves; a switch turned
+back is pinned no longer. Each switch that differs carries a dot saying so. There is no read only
+and no reset button: read only is every add, edit and delete turned off, and turning the switches
+back is the reset. Read only mints nothing: it is those switches, enforced by the application. A
+grant minted read only before is drawn with its writes off, marked, and a write turned on over it
+grants the workspace again at full access, every write left off then pinned off. Picking
+another role, or putting the member back on theirs, clears what is tailored in every workspace, as
+the shell does, and is refused at the control where a flag set in any workspace is one the reader
+does not hold. Turning a workspace off and on again puts back what it held, and is never refused,
+since it writes nothing. The words *full access* and *no access* are not on the card. Refusals are
+drawn as the switch list draws them, dimmed with the reason at the control and each reason said once
+above its list: every workspace switch without `grantWorkspace`, naming it, on the member's card,
+which draws the section for every reader; the workspace's own switch where the reader holds it read
+only, since full access is their own credential re-sealed (a withdrawal stays theirs); every
+switch beneath a workspace without `overrideMember`, naming it; one that would set or unset a flag
+the reader does not hold; and, over a grant minted read only, a write where the reader holds the
+workspace read only, since granting it again at full access is their own credential re-sealed. A
+member ranked at or above the reader is refused at the card's edit act, which opens nothing. The
+acts are the grants that exist (`useChangeAccess`), sent only for the workspaces that changed, then
+one workspace override per workspace whose pins changed, carrying what is pinned there and which
+of it is on (`useSetWorkspaceOverride`). **A workspace's own dialog draws its
+people the same way**, a switch per member, in or out, with the same refusals at the same
+controls, from the one list both surfaces share (`access-switches.svelte`), so the two cannot
+refuse differently; a person tailored there is marked *custom here* beside their name, and the
+tailoring itself is the card's. A member is drawn with the member's glyph (`organization/glyph.ts`,
+`circle-user`, the account's), never the tenant's person, and the owner and the reader are not
+listed. The workspace card's act that opens it is refused without `grantWorkspace`, naming it, as
+the member's card refuses its section, rather than hidden. *The human's calls on the running
+application, 2026-09-27 ([[efforts/838-permissions-are-a-role-and-an-override/spec]], requirement
+12 as amended again and a third time; tickets 48, 49, 50 and 54): each workspace was a row of three
+levels beside the role, which read as a second permission system, and the workspace's dialog
+offered the same three per member; then a mini switch beneath a workspace that was in, the owner's
+lock to read only, which the human found odd beside the switches and made a preset of them. At
+review round one of ticket 54 the human made what is tailored pinned, since switching against the
+layer beneath inverted when that layer moved, and the owner-only rule for a grant minted read only
+went with the lock. On 2026-09-28 (requirement 12 as amended a fourth time, ticket 57) the human
+asked for the workspace to be "a main switch to access and permissions" with the read only and
+reset buttons gone, so what is pinned became what differs.*
 
 **A submit is labelled with its verb, and carries the verb's glyph before the label.** Every submit
 does, the domain forms' as well as the organization's and the startup screens': *create* takes the
@@ -615,6 +733,8 @@ organization's did.
 | --- | --- |
 | a choice of two to four, exclusive | toggle group |
 | a setting that takes effect at once | switch |
+| a permission, in a role's editor or on a member's card | switch |
+| a workspace a member is in | switch |
 | a choice of five or more | select, or a combobox when searched |
 | another record | combobox over its search |
 | a date | the popover calendar, given the reader's locale |
@@ -623,17 +743,51 @@ organization's did.
 | a status | the status icon cell |
 | a count | the count cell |
 
+**A permission is a switch, although it takes effect when its editor is saved.** The role editor
+and a member's card draw one list of them (`organization/component/permission-switches.svelte`):
+each kind of record, and the organization, is a group that folds to its glyph, its name, how many
+of its permissions are on and a chevron, and a folded head carries a dot where a switch inside
+differs and a lock where one is not the reader's to turn. Opened, a group is one row per
+permission, its own glyph (`organization/glyph.ts`), its name, one line of what it allows, and its
+switch; adding, editing and deleting a kind are refused, saying why, while viewing it is off, and
+turning the view off turns them off with it. The changes wait for the surface's save, as Discord's role editor
+holds its switches until *Save Changes*. A switch whose save would be refused is refused at the
+switch, with the reason: in the role editor, one that would leave a holder adding, editing or
+deleting records they cannot view, naming the holder and the reset on their card as the way on; and
+a role's delete that would move a holder's flag the reader does not hold names the holder and the
+flag (ticket 45 of effort 838). Everything else that is saved with its form keeps the
+control its kind names above, and a checkbox stays the control for a setting that waits for a
+save. *The human's call on the running application, 2026-09-27
+([[efforts/838-permissions-are-a-role-and-an-override/spec]], requirement 12 as amended), against
+the switch's usual reading that it acts at once: a list of thirty checkboxes read as arithmetic,
+and Apple's Human Interface Guidelines give a primary switch with mini switches under it for a
+hierarchy of settings in a grouped form (*Toggles*). The view was each group's switch, with its
+writes as mini switches beneath it, until the human asked on 2026-09-28 for "a list of groups and
+below them list of permissions with icons and descriptions", every group folding as the
+organization's did (requirement 12 as amended a fourth time, ticket 57), which is the Guidelines'
+disclosure (*Disclosure controls*). What
+[[efforts/838-permissions-are-a-role-and-an-override/evidence/research/how-permissions-are-presented]]
+weighed, finding 6a, is the risk it takes: a reader who turns one and leaves thinking it took
+effect, which the surface's footer save and the member's custom mark answer.*
+
 **No form uses a select for a choice of four or fewer.** Such a choice is a toggle group, the
-chosen segment pressed: the contract's cycle (four), a member's role (two), a workspace's access
-(two or three) and the language (two), as the appearance (three) already was. A segment carries a
-label and at most an icon, so where an option needs a sentence, the sentence of the option chosen
-stands under the control, as a role's *who it is for* and an access level's *what it is good for*
-do on the member's sheet. An option the reader may not choose is drawn refused on its segment,
-never removed, exactly as it was in the menu. `design/tests/few-options.test.ts` fails on a
-`Select` whose written options number four or fewer, and on one drawn from a list that its
-allowlist does not explain as more than a few. The one select the map itself names, a phone's
-country half, stays one: its list is the countries the application can dial, and grows as they are
-added.
+chosen segment pressed: the contract's cycle (four) and the language (two), as the appearance
+(three) already was. A segment carries a label and at most an icon, so where an option needs a
+sentence, the sentence of the option chosen stands under the control. An option the
+reader may not choose is drawn refused on its segment, never removed, exactly as it was in the
+menu. `design/tests/few-options.test.ts` fails on a `Select` whose written options number four or
+fewer, and on one drawn from a list that its allowlist does not explain as more than a few. The one
+select the map itself names, a phone's country half, stays one: its list is the countries the
+application can dial, and grows as they are added.
+
+**A member's role is a choice among the organization's roles**, which are records the organization
+adds to itself, so it takes the control another record does: a select over them, the owner's left
+out, highest rank first (`member-role.svelte`, on the allowlist for that reason). How many there are
+is the organization's to say. The same two conventions hold for it: the sentence of a built-in role
+chosen, *who it is for*, stands under the control, and a role the reader may not give is drawn
+refused in the list, never removed. *It was a toggle group of the two roles there were until effort
+838 made roles the organization's own ([[efforts/838-permissions-are-a-role-and-an-override/spec]],
+requirements 4 and 5); revised by ticket 16 of that effort.*
 
 *Why: Apple's Human Interface Guidelines give a small set of mutually exclusive options a
 segmented control
@@ -932,8 +1086,10 @@ what it wrote to its host through `onCreated`, and the host decides where the re
 ### An act that cannot run says why at the control
 
 **An act that does not apply to a record is hidden; an act that applies and cannot run now is
-shown, dimmed, refused, and says why in one line on hover and focus.** The reason is the act's
-`unavailable` (`design/acts.ts`), and every surface draws it from the one declaration: the card's
+shown, dimmed, refused, and says why in one line on hover and focus.** The reason is the refusal
+of the act's `flag` where the reader lacks it, and otherwise the act's `unavailable`
+(`design/acts.ts`, read as *Record card actions* says; *this read "the act's `unavailable`" until
+ticket 16 of effort 838*), and every surface draws it from the one declaration: the card's
 two menus (`record-card.svelte`), the record page's cluster (`record-action-control.svelte`), and
 the create control (`create-control.svelte`, given the set's reason by the list's
 `createUnavailable`), whose key answers with the same reason, and the create an empty list offers

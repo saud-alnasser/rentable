@@ -29,10 +29,18 @@
 //! same effort gave a member a run of sessions to be signed out of (requirement 22); and its
 //! `member` table has no `owner_seed_sealed` column, which is every replica written before effort
 //! 828's requirement 22 gave the founder's key a row to be handed over in, and which every read of
-//! a member row names.
-//! The last five are a local `PRAGMA table_info`, read before any pull, so an
-//! unreachable remote does not stop the check. It runs on the first `organization_state_get` of a
-//! launch, before anything else opens the replica.
+//! a member row names. The last five are a local read of the replica's schema, before any pull,
+//! so an unreachable remote does not stop the check. It runs on the first `organization_state_get`
+//! of a launch, before anything else opens the replica.
+//!
+//! *There was a ninth sign, and effort 838 both added it and retired it (ticket 22).*
+//! A replica with no `format` table is every organization made before effort 838's format break,
+//! and the sign forgot it at launch. That was right while such an organization could only be
+//! refused; since the human's call of 2026-09-26 its owner's sign-in, resume or connect upgrades
+//! it in place (`upgrade.rs`), and a machine that had forgotten it would have nothing left to
+//! upgrade, and would have lost the Turso authority with it. So a replica of that format is kept,
+//! the owner's machine upgrades it, and every other machine pulls before it answers, going on once
+//! the upgrade has arrived and told it waits for its owner until then (ticket 23).
 //!
 //! *There was a seventh sign, and effort 828 retired it with the column it read.* An `invitation`
 //! table with no `code_seal` marked a replica written before effort 826 sealed the invited vault's
@@ -313,7 +321,6 @@ async fn old_shape(app_state: &AppState) -> Result<Option<OldShape>, Error> {
     .await?;
     let member_columns = store.columns_of("member").await?;
     let invitation_columns = store.columns_of("invitation").await?;
-
     drop(store);
 
     if !member_columns
@@ -739,7 +746,9 @@ mod tests {
     /// no `sealed_secret`, is forgotten; one whose `member` table carries no `signing_public_key`
     /// is forgotten; one whose `member` table carries no `session_epoch` is forgotten, which is
     /// requirement 22's; one whose replica is not on disk at all is forgotten the same way; and one
-    /// of this build's shape is kept, `code_seal` gone with effort 828 and all.
+    /// of this build's shape is kept, `code_seal` gone with effort 828 and all, and so is one with
+    /// no `format` table, which is every organization before effort 838's format break and which
+    /// its owner's machine upgrades (ticket 22).
     #[tokio::test]
     async fn a_replica_of_the_old_schema_or_none_at_all_is_forgotten_at_startup() {
         let _turn = crate::keyring::take_the_credential_store().await;
@@ -1035,6 +1044,8 @@ mod tests {
             "CREATE TABLE IF NOT EXISTS \"member\" (\"id\" TEXT PRIMARY KEY NOT NULL, \"username_sealed\" BLOB NOT NULL, \"public_key\" BLOB NOT NULL, \"signing_public_key\" BLOB NOT NULL, \"permissions\" INTEGER NOT NULL, \"session_epoch\" INTEGER NOT NULL DEFAULT 0, \"owner_seed_sealed\" BLOB)",
             "CREATE TABLE IF NOT EXISTS \"invitation\" (\"id\" TEXT PRIMARY KEY NOT NULL, \"member_id\" TEXT NOT NULL, \"expires_at\" INTEGER NOT NULL, \"consumed_at\" INTEGER, \"sealed_secret\" BLOB NOT NULL, \"issued_by\" TEXT NOT NULL, \"certificate_id\" TEXT NOT NULL, \"signature\" BLOB NOT NULL, \"created_at\" INTEGER NOT NULL)",
             "INSERT INTO \"member\" VALUES ('member-owner', X'00', X'00', X'00', 127, 0, NULL)",
+            "CREATE TABLE IF NOT EXISTS \"format\" (\"id\" TEXT PRIMARY KEY NOT NULL, \"version\" INTEGER NOT NULL)",
+            "INSERT INTO \"format\" VALUES ('format', 2)",
         ] {
             store
                 .connection()
@@ -1060,6 +1071,48 @@ mod tests {
                 .iter()
                 .any(|name| name == "org-nocode.db"),
             "the replica was swept"
+        );
+
+        // effort 838, ticket 22: an organization with no `format` table, which is every one made
+        // before the format break, is kept, because its owner's sign-in, resume or connect
+        // upgrades it in place and a machine that had forgotten it would have nothing left to
+        // upgrade.
+        let directory = scratch("no-format");
+        let (organization, held) = created(&directory).await;
+
+        organization
+            .connection()
+            .execute("DROP TABLE \"format\"", ())
+            .await
+            .expect("the format table taken away");
+        drop(organization);
+
+        let app_state = state_over(&directory).await;
+
+        assert_eq!(
+            forget_old_shape(&app_state)
+                .await
+                .expect("the check failed"),
+            None,
+            "an organization with no format table was read as the old shape"
+        );
+        assert!(
+            replica_files(&directory)
+                .iter()
+                .any(|name| name == &format!("org-{}.db", held.id)),
+            "the replica was swept"
+        );
+        assert_eq!(
+            app_state
+                .remote_sync
+                .write()
+                .await
+                .store_mut()
+                .organization
+                .as_ref(),
+            Some(&held),
+            "{} was forgotten",
+            held.id
         );
 
         // no replica at all behind the record.

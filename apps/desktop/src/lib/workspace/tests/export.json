@@ -1,0 +1,89 @@
+{
+	"tenants": [
+		{
+			"name": "Abby Kris",
+			"nationalId": "1234567890",
+			"phone": "+966512345678"
+		},
+		{
+			"name": "عمر الحربي",
+			"nationalId": "2234567891",
+			"phone": "+966553456789"
+		}
+	],
+	"complexes": [
+		{
+			"name": "Al Nakheel",
+			"location": "Riyadh"
+		},
+		{
+			"name": "برج الياسمين",
+			"location": "جدة"
+		}
+	],
+	"units": [
+		{
+			"complex": "Al Nakheel",
+			"name": "A1",
+			"status": "occupied"
+		},
+		{
+			"complex": "Al Nakheel",
+			"name": "A2",
+			"status": "occupied"
+		},
+		{
+			"complex": "Al Nakheel",
+			"name": "A3",
+			"status": "vacant"
+		},
+		{
+			"complex": "برج الياسمين",
+			"name": "101",
+			"status": "occupied"
+		}
+	],
+	"contracts": [
+		{
+			"reference": "GOV-1",
+			"tenant": "1234567890",
+			"units": ["Al Nakheel / A1", "Al Nakheel / A2"],
+			"start": 1782345600000,
+			"end": 1813881600000,
+			"interval": "12m",
+			"cost": 18000,
+			"status": "fulfilled",
+			"paidAmount": 18000,
+			"expectedAmount": 18000
+		},
+		{
+			"reference": "2234567891 @ 2026-07-25",
+			"tenant": "2234567891",
+			"units": ["برج الياسمين / 101"],
+			"start": 1784937600000,
+			"end": 1800835200000,
+			"interval": "1m",
+			"cost": 1500,
+			"status": "active",
+			"paidAmount": 3000,
+			"expectedAmount": 9000
+		}
+	],
+	"payments": [
+		{
+			"contract": "GOV-1",
+			"date": 1782345600000,
+			"amount": 18000
+		},
+		{
+			"contract": "2234567891 @ 2026-07-25",
+			"date": 1784937600000,
+			"amount": 1500
+		},
+		{
+			"contract": "2234567891 @ 2026-07-25",
+			"date": 1787616000000,
+			"amount": 1500
+		}
+	]
+}

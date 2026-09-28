@@ -19,6 +19,7 @@
 	import { workspaceActs, workspaceHost } from '$lib/organization/host.svelte';
 	import { recordOf, withSection, WORKSPACE_PARAM } from '$lib/settings/section';
 	import WorkspaceTransfer from '$lib/workspace/component/transfer.svelte';
+	import EarlierRecords from '$lib/workspace/component/earlier-records.svelte';
 	import DiscIcon from '$lib/design/cell/disc.svelte';
 	import XIcon from '@lucide/svelte/icons/x';
 
@@ -63,9 +64,7 @@
 	 * **Every gate is a prop, and none of them is a permission read here.** Creating and deleting a
 	 * workspace are the owner's in Rust (`require_owner`), so they are drawn from who is reading
 	 * and what this machine holds rather than from a bit on the row; renaming and granting are
-	 * acts, read by the area from the session and handed down. `workspace/component/permitted.svelte`
-	 * is deliberately not used: it subscribes to the open workspace's own permissions, which is a
-	 * different question from what this member may do in the organization.
+	 * acts, read by the area from the session and handed down.
 	 *
 	 * **The name is the open workspace's alone.** `remoteSync.rename` calls this machine's
 	 * workspace something else, and there is no command that renames one from a distance, so the
@@ -319,6 +318,10 @@
 		<Field.Legend>
 			{$LL.organization.dashboard.transferTitle({ workspace: open.name })}
 		</Field.Legend>
+		<!-- the records an earlier version left on this machine, offered here until they are
+		     brought in or dismissed, above the import they go through (effort 838,
+		     requirement 18). -->
+		<EarlierRecords />
 		<WorkspaceTransfer />
 	</Field.Set>
 {/if}

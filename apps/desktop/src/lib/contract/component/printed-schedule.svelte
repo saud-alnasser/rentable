@@ -9,8 +9,12 @@
 		/** the organization's signature or seal, printed at the foot, or nothing where none is set. */
 		mark: OrganizationMark | null;
 		contract: { govId: string; start: number; end: number };
-		tenant: { name: string };
-		units: { name: string; complexName: string }[];
+		/**
+		 * the tenant, the units and the complex holding each, each absent where the reader may not
+		 * view its kind (effort 838, requirement 10): the page then leaves the line out, label and all.
+		 */
+		tenant?: { name: string };
+		units?: { name: string; complexName?: string }[];
 		cycles: ContractScheduleCycle[];
 	};
 </script>
@@ -61,8 +65,10 @@
 	</header>
 
 	<dl class="grid grid-cols-[auto_1fr] items-baseline gap-x-8 gap-y-3">
-		<dt class="text-muted-foreground first-letter:uppercase">{t.common.labels.tenant()}</dt>
-		<dd class="font-medium" data-printed-tenant><bdi>{value.tenant.name}</bdi></dd>
+		{#if value.tenant}
+			<dt class="text-muted-foreground first-letter:uppercase">{t.common.labels.tenant()}</dt>
+			<dd class="font-medium" data-printed-tenant><bdi>{value.tenant.name}</bdi></dd>
+		{/if}
 
 		<dt class="text-muted-foreground first-letter:uppercase">
 			{t.common.labels.contractPeriod()}
@@ -71,14 +77,20 @@
 			{formatRecordDateRange(locale, value.contract.start, value.contract.end)}
 		</dd>
 
-		<dt class="text-muted-foreground first-letter:uppercase">{t.common.labels.units()}</dt>
-		<dd class="font-medium" data-printed-units>
-			{#each value.units as unit, index (index)}
-				<span class="block"><bdi>{unit.name}</bdi> · <bdi>{unit.complexName}</bdi></span>
-			{:else}
-				<span>—</span>
-			{/each}
-		</dd>
+		{#if value.units}
+			<dt class="text-muted-foreground first-letter:uppercase">{t.common.labels.units()}</dt>
+			<dd class="font-medium" data-printed-units>
+				{#each value.units as unit, index (index)}
+					{#if unit.complexName === undefined}
+						<span class="block"><bdi>{unit.name}</bdi></span>
+					{:else}
+						<span class="block"><bdi>{unit.name}</bdi> · <bdi>{unit.complexName}</bdi></span>
+					{/if}
+				{:else}
+					<span>—</span>
+				{/each}
+			</dd>
+		{/if}
 	</dl>
 
 	<table class="w-full border-collapse">

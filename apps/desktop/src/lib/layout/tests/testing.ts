@@ -73,6 +73,8 @@ export type Journal = {
 	/** every state the rail's query was seeded with, in order. */
 	remembered: RemoteSyncState[];
 	contextsForgotten: number;
+	/** how many times what is drawn from the organization was told it is stale. */
+	organizationInvalidated: number;
 	/** how many times the shell was told to forget the organization it holds. */
 	disconnected: number;
 	failures: string[];
@@ -97,6 +99,8 @@ export type Harness = {
 	/** the snapshot after every change, so a test can say what the reader saw on the way. */
 	seen: StartupSnapshot[];
 	now: { value: number };
+	/** change where the machine stands from here on, as another machine's write would. */
+	standWith: (next: OrganizationState) => void;
 };
 
 /**
@@ -123,6 +127,8 @@ export function harness(
 		disconnect?: () => Promise<void>;
 		/** what a whole-table reconcile waits on, for the path where two overlap. */
 		reconcile?: () => Promise<void>;
+		/** what else forgetting the held context does, for a test holding a real one. */
+		forgetContext?: () => void;
 	} = {}
 ): Harness {
 	const journal: Journal = {
@@ -144,6 +150,7 @@ export function harness(
 		remoteSyncInvalidated: 0,
 		remembered: [],
 		contextsForgotten: 0,
+		organizationInvalidated: 0,
 		disconnected: 0,
 		failures: [],
 		localesLoaded: [],
@@ -278,7 +285,11 @@ export function harness(
 			rememberRemoteSync: (remembered) => void journal.remembered.push(remembered),
 			invalidateRemoteSync: async () => void journal.remoteSyncInvalidated++,
 			invalidateAll: async () => void journal.invalidatedAll++,
-			forgetContext: () => void journal.contextsForgotten++
+			invalidateOrganization: async () => void journal.organizationInvalidated++,
+			forgetContext: () => {
+				journal.contextsForgotten += 1;
+				overrides.forgetContext?.();
+			}
 		},
 		describeError: (error) => (error instanceof Error ? error.message : String(error)),
 		detailError: () => null,
@@ -291,5 +302,13 @@ export function harness(
 	const startup = createStartup(ports);
 	startup.observe((snapshot) => seen.push(snapshot));
 
-	return { startup, journal, seen, now };
+	return {
+		startup,
+		journal,
+		seen,
+		now,
+		standWith: (next) => {
+			organization = next;
+		}
+	};
 }

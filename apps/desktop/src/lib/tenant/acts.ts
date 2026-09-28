@@ -59,6 +59,7 @@ export function declareTenantActs(host: TenantHostRequests): TenantAct[] {
 			label: (t) => t.common.actions.edit(),
 			icon: SquarePenIcon,
 			group: 'primary',
+			flag: 'editTenant',
 			run: host.edit
 		},
 		{
@@ -67,6 +68,8 @@ export function declareTenantActs(host: TenantHostRequests): TenantAct[] {
 			label: (t) => t.common.actions.newContract(),
 			icon: FilePlusIcon,
 			group: 'primary',
+			// the act makes a contract, so it is the contract's create the reader needs.
+			flag: 'createContract',
 			run: host.newContract
 		},
 		{
@@ -77,6 +80,7 @@ export function declareTenantActs(host: TenantHostRequests): TenantAct[] {
 			icon: Trash2Icon,
 			tone: 'error',
 			group: 'destructive',
+			flag: 'deleteTenant',
 			// the record is all it removes, so it runs at once and offers undo.
 			confirmation: 'none',
 			run: host.confirmDelete

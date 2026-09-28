@@ -30,7 +30,7 @@ const segments = (className = '') => {
 
 	return [
 		screen.getByRole('radio', { name: 'member' }),
-		screen.getByRole('radio', { name: 'administrator' })
+		screen.getByRole('radio', { name: 'manager' })
 	];
 };
 

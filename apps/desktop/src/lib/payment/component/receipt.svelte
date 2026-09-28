@@ -37,6 +37,10 @@
 	 *
 	 * It is a receipt, never a tax invoice, and says nothing that reads as one. It allocates
 	 * nothing: the cycles and the remainder are the ones the procedure answered with.
+	 *
+	 * **What the procedure left out, the page leaves out**, label and all: who paid, the contract
+	 * and what remains of it, the units, and the complex holding each, where the reader may not
+	 * view that kind (effort 838, requirement 10).
 	 */
 	let { value, locale }: { value: PrintedReceiptValue; locale: Locales } = $props();
 
@@ -53,7 +57,7 @@
 		})[method]();
 
 	const reference = $derived(value.payment.reference?.trim() ?? '');
-	const govId = $derived(value.contract.govId.trim());
+	const govId = $derived(value.contract?.govId.trim() ?? '');
 </script>
 
 {#snippet fact(label: string, name: string)}
@@ -90,11 +94,13 @@
 	</section>
 
 	<dl class="grid grid-cols-[auto_1fr] items-baseline gap-x-8 gap-y-3">
-		{@render fact(t.contracts.payments.receipt.receivedFrom(), 'tenant')}
-		<dd class="font-medium"><bdi>{value.tenant.name}</bdi></dd>
+		{#if value.tenant}
+			{@render fact(t.contracts.payments.receipt.receivedFrom(), 'tenant')}
+			<dd class="font-medium"><bdi>{value.tenant.name}</bdi></dd>
 
-		{@render fact(t.common.labels.nationalId(), 'nationalId')}
-		<dd class="font-medium"><span dir="ltr">{value.tenant.nationalId}</span></dd>
+			{@render fact(t.common.labels.nationalId(), 'nationalId')}
+			<dd class="font-medium"><span dir="ltr">{value.tenant.nationalId}</span></dd>
+		{/if}
 
 		{#if value.payment.method}
 			{@render fact(t.contracts.payments.method(), 'method')}
@@ -113,19 +119,27 @@
 
 		<!-- stated whether or not the contract has a number, so a tenant holding two contracts on
 		     one unit can tell which this receipt is for. -->
-		{@render fact(t.common.labels.contractPeriod(), 'period')}
-		<dd class="font-medium tabular-nums" data-receipt-period>
-			{formatRecordDateRange(locale, value.contract.start, value.contract.end)}
-		</dd>
+		{#if value.contract}
+			{@render fact(t.common.labels.contractPeriod(), 'period')}
+			<dd class="font-medium tabular-nums" data-receipt-period>
+				{formatRecordDateRange(locale, value.contract.start, value.contract.end)}
+			</dd>
+		{/if}
 
-		{@render fact(t.common.labels.units(), 'units')}
-		<dd class="font-medium">
-			{#each value.units as unit, index (index)}
-				<span class="block"><bdi>{unit.name}</bdi> · <bdi>{unit.complexName}</bdi></span>
-			{:else}
-				<span>—</span>
-			{/each}
-		</dd>
+		{#if value.units}
+			{@render fact(t.common.labels.units(), 'units')}
+			<dd class="font-medium">
+				{#each value.units as unit, index (index)}
+					{#if unit.complexName === undefined}
+						<span class="block"><bdi>{unit.name}</bdi></span>
+					{:else}
+						<span class="block"><bdi>{unit.name}</bdi> · <bdi>{unit.complexName}</bdi></span>
+					{/if}
+				{:else}
+					<span>—</span>
+				{/each}
+			</dd>
+		{/if}
 
 		{@render fact(t.contracts.payments.receipt.covers(), 'cycles')}
 		<dd class="font-medium" data-receipt-cycles>
@@ -142,14 +156,16 @@
 		</dd>
 	</dl>
 
-	<footer class="flex items-baseline justify-between gap-6 border-t border-border pt-4">
-		<span class="text-muted-foreground first-letter:uppercase">
-			{t.contracts.payments.receipt.remaining()}
-		</span>
-		<span class="font-semibold tabular-nums" data-receipt-remaining>
-			{formatLocaleMoney(locale, value.remaining)}
-		</span>
-	</footer>
+	{#if value.remaining !== undefined}
+		<footer class="flex items-baseline justify-between gap-6 border-t border-border pt-4">
+			<span class="text-muted-foreground first-letter:uppercase">
+				{t.contracts.payments.receipt.remaining()}
+			</span>
+			<span class="font-semibold tabular-nums" data-receipt-remaining>
+				{formatLocaleMoney(locale, value.remaining)}
+			</span>
+		</footer>
+	{/if}
 	<!-- the organization's signature or seal, at the foot where a receipt is signed; a page with
 	     none set has an empty foot (effort 835, requirement 13). -->
 	{#if value.mark}

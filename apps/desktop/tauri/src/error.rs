@@ -79,7 +79,9 @@ pub enum Error {
 ///
 /// The first four are a link's standing after its code was right (effort 828): an invitation is
 /// `Lapsed`, `Consumed` or `Revoked`, and a machine link is `Lapsed`, `Consumed` or `Replaced`.
-/// The connect screen routes on those four by name. Every other word was added by effort 832.
+/// The connect screen routes on those four by name. Every other word was added by effort 832,
+/// but the two for the organization's format, the one for a rank and the six for roles, which
+/// effort 838 added.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum RefusalReason {
@@ -133,7 +135,7 @@ pub enum RefusalReason {
     UsernameInvalid,
     /// the username is taken in this organization.
     UsernameTaken,
-    /// a role that is neither administrator nor member.
+    /// a role this organization does not hold.
     RoleUnknown,
     /// the member acted on is not in this organization.
     MemberMissing,
@@ -151,8 +153,50 @@ pub enum RefusalReason {
     OwnerMachineOnly,
     /// the reader's role does not include the act.
     RoleLacksAct,
-    /// the reader holds no administrator certificate.
+    /// the reader holds no live certificate to sign with. *Named for the administrator, the one
+    /// member who held one until effort 838; every live member holds one since, so this is a
+    /// certificate missing or revoked rather than a role.*
     NotAdministrator,
+    /// the role acted on, or the member's role, is not ranked below the reader's (effort 838,
+    /// requirement 7).
+    RankNotAbove,
+    /// the member acted on holds a row its certificate no longer covers, written by somebody
+    /// below them or before a role moved on another machine: nothing is done for them but their
+    /// removal, by somebody ranked above them, who then makes them an account again (effort 838,
+    /// the re-check of ticket 20).
+    RoleUnsettled,
+
+    // roles (effort 838, requirements 3, 4 and 5).
+    /// one of the three roles every organization has, which is not renamed, moved or deleted, and
+    /// the owner's, whose mask is not edited.
+    RoleBuiltIn,
+    /// a role was given no name.
+    RoleNameMissing,
+    /// another role is called that.
+    RoleNameTaken,
+    /// a custom role goes below the manager and above the member, and below another role than
+    /// itself.
+    RoleOutOfPlace,
+    /// no rank is left below the reader's role for another.
+    NoRankBelow,
+    /// the owner's role is not assigned; the owner hands the organization over.
+    OwnerRoleNotAssigned,
+    /// a role or a member's permissions would add, edit or delete complexes without viewing them
+    /// (effort 838, requirement 6 as amended 2026-09-27). One word per kind of record, so the
+    /// sentence names the kind in the reader's language.
+    ComplexNeedsViewing,
+    /// the same, for units.
+    UnitNeedsViewing,
+    /// the same, for tenants.
+    TenantNeedsViewing,
+    /// the same, for contracts.
+    ContractNeedsViewing,
+    /// the same, for payments.
+    PaymentNeedsViewing,
+    /// a member's override for one workspace names a flag that is not a record flag: a workspace
+    /// changes only what may be done to its records (effort 838, requirement 12 as amended a third
+    /// time).
+    RecordFlagsOnly,
 
     // handing the organization over.
     /// the owner offered the organization to themselves.
@@ -191,6 +235,35 @@ pub enum RefusalReason {
     WorkspaceBehind,
     /// the database refused a schema or a lease, and nothing was changed.
     DatabaseRefused,
+
+    // the organization's format (effort 838, requirement 11).
+    /// the organization was made by an earlier version of rentable, and waits for its owner to
+    /// open it in this version, which upgrades it (effort 838, ticket 22).
+    OrganizationOlder,
+    /// the organization waits for its owner's upgrade, and the upgrade runs only against its
+    /// latest state, which this machine could not reach; nothing was changed (effort 838, ticket
+    /// 23).
+    OrganizationUpgradeOffline,
+    /// this machine holds changes an earlier version made that the upgraded organization cannot
+    /// take, and they are dropped by disconnecting this machine and connecting it again; nothing
+    /// was changed (effort 838, ticket 25).
+    OrganizationChangesUnsendable,
+    /// this machine's own access to the organization's records has lapsed or is gone, so it
+    /// cannot learn whether the owner has upgraded; it needs a new link from its organization
+    /// (effort 838, ticket 25).
+    OrganizationCredentialLapsed,
+    /// the organization was made by a newer version of rentable, which this one is updated to.
+    OrganizationNewer,
+
+    // a copy and a check before a change of shape (effort 838, requirements 13 and 15).
+    /// the copy of the organization or the workspace taken before it changes shape could not be
+    /// written to the data directory's `backups`, so nothing was changed (ticket 27).
+    CopyNotTaken,
+    /// a change of shape, a workspace migration or an organization's change of format, was
+    /// checked before it committed and the database was not what a fresh one of that version is:
+    /// SQLite's own checks failed or the schema differs. It was rolled back, so nothing was
+    /// changed (ticket 32).
+    ShapeNotAsBuilt,
 
     // Turso: the consent, the group and the account.
     /// this machine holds no Turso authority.

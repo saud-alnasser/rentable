@@ -5,12 +5,14 @@ import {
 	type Api,
 	countMatching,
 	createApi,
+	identityWithout,
 	monthsFromNow,
 	seedTenant,
 	withStatementLog,
 	refusedWith
 } from '$lib/api/tests/testing.ts';
 import { isRecordId, newId } from '$lib/platform/database/identity.ts';
+import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
 import type { ComplexSortColumnId } from '$lib/complex/complex.ts';
 import type { ListSort } from '@rentable/design/sort.ts';
 
@@ -1186,4 +1188,105 @@ test('units are found across every complex at once', async () => {
 	await api.complex.create({ name: 'Coral Bay', location: 'Jeddah', units: [{ name: 'Shared' }] });
 
 	assert.equal((await api.complex.units.search({ term: 'Shared' })).length, 2);
+});
+
+// --- What a member may not view ------------------------------------------------------------
+//
+// Effort 838, requirement 10: a complex's and a unit's reads leave out every field of a kind the
+// member may not view. The same workspace is read by a member holding every record act and by one
+// lacking a single view flag.
+
+test('without viewing units, a complex row counts no units and is not ordered by them', async () => {
+	const db = createMemoryDatabase();
+	const api = await createApi({ db });
+	const full = await api.complex.create({ name: 'Complex B', location: 'Riyadh' });
+	const empty = await api.complex.create({ name: 'Complex A', location: 'Riyadh' });
+
+	await api.complex.units.create({ name: 'Unit 1', complexId: full.id });
+
+	const [everything] = await api.complex.getMany({
+		sort: { columnId: 'unitCount', direction: 'desc' }
+	});
+	const rows = await (
+		await createApi({ db, identity: identityWithout('viewUnit') })
+	).complex.getMany({ sort: { columnId: 'unitCount', direction: 'desc' } });
+
+	assert.equal(everything?.unitCount, 1);
+	assert.deepEqual(
+		rows.map((complex) => complex.id),
+		[empty.id, full.id]
+	);
+
+	for (const row of rows) {
+		assert.equal('unitCount' in row, false);
+		assert.equal('vacantUnitCount' in row, false);
+	}
+});
+
+test('without viewing complexes, a unit and its search name no complex', async () => {
+	const db = createMemoryDatabase();
+	const api = await createApi({ db });
+	const complex = await api.complex.create({ name: 'Al Nakheel', location: 'Riyadh' });
+	const unit = await api.complex.units.create({ name: 'A-12', complexId: complex.id });
+	const lacking = await createApi({ db, identity: identityWithout('viewComplex') });
+
+	assert.equal((await api.complex.units.get({ id: unit.id }))?.complexName, complex.name);
+
+	const read = await lacking.complex.units.get({ id: unit.id });
+
+	assert.equal(read?.id, unit.id);
+	assert.equal(read?.complexId, complex.id);
+	assert.equal('complexName' in read!, false);
+
+	assert.deepEqual(await lacking.complex.units.search({ term: 'A-12' }), [
+		{ id: unit.id, label: 'A-12', hint: '' }
+	]);
+	// nor is a unit found by the complex holding it.
+	assert.equal((await api.complex.units.search({ term: complex.name })).length, 1);
+	assert.deepEqual(await lacking.complex.units.search({ term: complex.name }), []);
+});
+
+test('without viewing tenants, a unit row names no occupant and is not found or ordered by one', async () => {
+	const db = createMemoryDatabase();
+	const api = await createApi({ db });
+	const tenant = await seedTenant(api);
+	const complex = await api.complex.create({ name: 'Al Nakheel', location: 'Riyadh' });
+	const occupied = await api.complex.units.create({ name: 'B-1', complexId: complex.id });
+	const vacant = await api.complex.units.create({ name: 'A-1', complexId: complex.id });
+
+	await api.contract.create({
+		tenantId: tenant.id,
+		start: monthsFromNow(-1),
+		end: monthsFromNow(11),
+		interval: '12m',
+		cost: 1000,
+		unitIds: [occupied.id]
+	});
+
+	const lacking = await createApi({ db, identity: identityWithout('viewTenant') });
+	const everything = await api.complex.units.getMany({ complexId: complex.id });
+
+	assert.equal(everything.find((unit) => unit.id === occupied.id)?.tenantName, tenant.name);
+
+	const rows = await lacking.complex.units.getMany({
+		complexId: complex.id,
+		sort: { columnId: 'tenantName', direction: 'desc' }
+	});
+
+	// the directory's own order, by name, rather than one telling whose the unit is.
+	assert.deepEqual(
+		rows.map((unit) => unit.id),
+		[vacant.id, occupied.id]
+	);
+
+	for (const row of rows) {
+		assert.equal('tenantName' in row, false);
+	}
+
+	// the status is the unit's own, and still says it is occupied.
+	assert.equal(rows.find((unit) => unit.id === occupied.id)?.status, 'occupied');
+	assert.deepEqual(
+		await lacking.complex.units.getMany({ complexId: complex.id, search: tenant.name }),
+		[]
+	);
 });

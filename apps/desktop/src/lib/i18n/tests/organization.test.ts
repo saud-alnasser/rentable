@@ -127,24 +127,17 @@ test('both locales say where an account stands, in three lines that differ', () 
 	assert.match(ar.organization.dashboard.invitationExpires, /\{date\}/);
 });
 
-// effort 826, requirements 5 and 6: the two refusals the spec keeps in words rather than in a
-// hidden control each name the owner, in both languages.
-test('both locales name the owner where an act belongs to nobody else', () => {
+// effort 838, requirement 3: the manager replaced the administrator, so no sentence a person reads
+// says administrator any more. The keys that mirror Rust's refusal reasons keep their names; what
+// is held here is the words.
+test('no value in either locale says administrator', () => {
 	for (const [name, translation] of locales) {
-		assert.ok(
-			translation.organization.dashboard.signingIsTheOwners.length > 0,
-			`${name} says nothing about who may hand out a signing act`
+		const saying = Object.entries(leaves(translation)).filter(([, value]) =>
+			/administrat/i.test(value)
 		);
-		assert.ok(
-			translation.organization.dashboard.readOnlyIsTheOwners.length > 0,
-			`${name} says nothing about who may grant read only`
-		);
-	}
 
-	assert.match(en.organization.dashboard.signingIsTheOwners, /only the owner/);
-	assert.match(en.organization.dashboard.readOnlyIsTheOwners, /only the owner/);
-	assert.match(ar.organization.dashboard.signingIsTheOwners, /المالك وحده/);
-	assert.match(ar.organization.dashboard.readOnlyIsTheOwners, /المالك وحده/);
+		assert.deepEqual(saying, [], `${name} still says administrator`);
+	}
 });
 
 // effort 826, requirement 8: what an invitation shows afterwards is one link, and the sentence
@@ -254,7 +247,48 @@ const RETIRED = [
 	'settings.section.members',
 	'settings.section.sync',
 	'settings.section.updates',
-	'settings.section.diagnostics'
+	'settings.section.diagnostics',
+	// what each access level was good for, said under a member's workspace until ticket 48 of
+	// effort 838 made each workspace a switch with a lock to read only.
+	'organization.levels',
+	// the levels a workspace's own dialog offered each member, and why read only was refused
+	// there, until ticket 49 of effort 838 drew its people as the same switches.
+	'organization.dashboard.accessNone',
+	'organization.dashboard.accessReadOnly',
+	'organization.dashboard.readOnlyIsTheOwners',
+	// the owner's lock to read only beneath a workspace that was in, its names, what locking did,
+	// and why it was refused, until ticket 54 of effort 838 made read only a preset of the switches
+	// that tailor a workspace.
+	'organization.workspaceSwitches.lock',
+	'organization.workspaceSwitches.lockNamed',
+	'organization.workspaceSwitches.lockMemberNamed',
+	'organization.workspaceSwitches.locked',
+	'organization.workspaceSwitches.lockIsTheOwners',
+	// why a grant the owner minted read only was the owner's alone to change, and what a
+	// workspace's differences were measured against, until review round one of the workspace
+	// layer let the rule go with the lock and marked what is set there instead.
+	'organization.workspaceSwitches.ownerMadeReadOnly',
+	'organization.workspaceSwitches.acrossOrganization',
+	// the words a role's card summed each kind of record in, and its count of the organization's
+	// ten, until ticket 58 of effort 838 made the card one line of what the role can do.
+	'organization.roleCard.edit',
+	'organization.roleCard.add',
+	'organization.roleCard.view',
+	'organization.roleCard.administers',
+	// the fold beneath a workspace that was in, what it said, its two presets and the mark on a
+	// switch set there, until ticket 57 of effort 838 made it the workspace's permissions, set
+	// where they differ, with no preset; and the line under editing a contract, which became its
+	// row's own line.
+	'organization.workspaceSwitches.tailor',
+	'organization.workspaceSwitches.tailorSays',
+	'organization.workspaceSwitches.pinned',
+	'organization.workspaceSwitches.readOnly',
+	'organization.workspaceSwitches.readOnlySays',
+	'organization.workspaceSwitches.reset',
+	'organization.switches.contractEdit',
+	// the line under a member's workspaces, until the section was titled by its scope and said
+	// what it holds instead.
+	'organization.dashboard.accessTakenBack'
 ] as const;
 
 test('both locales have let go of every string the retired pages read', () => {
@@ -268,6 +302,11 @@ test('both locales have let go of every string the retired pages read', () => {
 // requirement 18, the other half: one name per thing. Each term the requirement names is one
 // english key, spelled the same wherever a screen draws it, and its arabic is written rather
 // than left in english; and the words the requirement retires are in no english sentence.
+// *Read only was a term of its own, `dashboard.accessReadOnly`, until ticket 49 of effort 838 left
+// no level to name. It is still said in several keys, a workspace's refusal
+// (`workspaceSwitches.notHeld`), its flag (`organization.flags.mintReadOnly`) and a reader's own
+// read only workspace (`common.permission.readOnly`), none of them a term the table holds; the
+// test below holds its spelling, one way wherever an organization string says it.*
 const TERMS = [
 	['sign in', 'common.actions.signIn'],
 	['sign out', 'common.actions.signOut'],
@@ -275,7 +314,6 @@ const TERMS = [
 	['forget Turso account', 'organization.dashboard.forgetAccount'],
 	['link and code', 'organization.dashboard.linkTitle'],
 	['full access', 'organization.dashboard.accessFull'],
-	['read only', 'organization.dashboard.accessReadOnly'],
 	['members', 'organization.dashboard.membersTitle'],
 	['workspaces', 'settings.section.workspaces']
 ] as const;

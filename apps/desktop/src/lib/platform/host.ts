@@ -12,6 +12,8 @@
  * is not answered here. There is one implementation, and no second one is being built.
  */
 
+import type { RoleKind } from '@rentable/workspace-permission';
+
 import type { AppearanceSetting } from './appearance';
 
 export type Settings = {
@@ -22,6 +24,11 @@ export type Settings = {
 	/** light, dark, or following the system; a file written before it existed reads as system. */
 	appearance: AppearanceSetting;
 	version: string;
+	/**
+	 * whether the records an earlier version left on this machine were brought in or put aside,
+	 * so they are offered no more. A file written before it existed reads as not yet.
+	 */
+	earlierRecordsSettled: boolean;
 };
 
 /**
@@ -60,6 +67,26 @@ export type ImportTable = {
 	rows: string[][];
 };
 
+/**
+ * A release before organizations that kept every record in `app.db`, named as the release was.
+ * 0.12.0 left the file at workspace schema 2, and 0.13.0 at schema 3.
+ */
+export type EarlierVersion = '0.12.0' | '0.13.0';
+
+/** The records of an earlier version, found in `app.db`. */
+export type EarlierRecords = {
+	version: EarlierVersion;
+};
+
+/** The records of an earlier version, read as the whole-workspace export. */
+export type EarlierRead = {
+	version: EarlierVersion;
+	/** where the export's workbook was written, which is the copy the person keeps. */
+	path: string;
+	/** that workbook's sheets, as `import.readBook` hands over a file the person chose. */
+	tables: ImportTable[];
+};
+
 export type DiagnosticRecord = {
 	level: 'info' | 'warn' | 'error';
 	event: string;
@@ -70,6 +97,7 @@ export type SettingsChangeset = {
 	endingSoonNoticeDays?: number;
 	locale?: string;
 	appearance?: AppearanceSetting;
+	earlierRecordsSettled?: boolean;
 };
 
 /**
@@ -249,8 +277,12 @@ export type HeldOrganization = {
 	name: string;
 	/** this person's member row, once a sign-in has found it; `null` until then. */
 	memberId: string | null;
-	/** their role there, as last read. A display fact: what a member may do is what their vault holds. */
-	role: string | null;
+	/**
+	 * the kind of their role there, as last read. A display fact: what a member may do is what
+	 * their vault holds. `null` until a sign-in records it. *It was a word, `administrator` for a
+	 * manager and `removed` for a removed member, until ticket 15 of effort 838.*
+	 */
+	role: RoleKind | null;
 	joinedAt: number;
 };
 
@@ -263,6 +295,21 @@ export type OrganizationWorkspace = {
 	schemaVersion: number;
 	/** what the member's grant is good for, `full-access` or `read-only`. */
 	accessLevel: string;
+	/**
+	 * the record flags pinned for this member in this workspace, whatever they hold across the
+	 * organization (effort 838, requirement 12 as amended a third time, and at review round one).
+	 * `0` where nothing is.
+	 */
+	pinned: number;
+	/** which of the pinned flags are on; the rest of them are off. */
+	granted: number;
+	/**
+	 * what this member may do in this workspace before the grant is read: their permissions across
+	 * the organization with what is pinned set as it is granted, which `effectiveInWorkspace`
+	 * computes from the same three. A read-only grant clears the writes of it, which `effectiveIn`
+	 * folds.
+	 */
+	permissions: number;
 };
 
 /**
@@ -275,7 +322,22 @@ export type OrganizationSession = {
 	memberId: string;
 	/** the one thing that names this member; there is no address and no display name beside it. */
 	username: string;
-	role: string;
+	/** the kind of the role this member holds. *It was the word `administrator` for a manager.* */
+	role: RoleKind;
+	/** the role their row names, by id. */
+	roleId: string;
+	/** a custom role's name; empty on the three built-in roles, which the interface names. */
+	roleName: string;
+	/** how high the role stands. */
+	rank: number;
+	/** the flags switched for this member alone. `0` on the owner's row. */
+	override: number;
+	/**
+	 * what this member may do across the organization: their role's mask with their override
+	 * switched, read off the verified row. **Not yet what they may do in a workspace**: that is
+	 * the workspace's own `permissions`, and a read-only grant clears the writes there, which
+	 * `effectiveIn` folds for the workspace open. This still answers for administration.
+	 */
 	permissions: number;
 	workspaces: OrganizationWorkspace[];
 	/** the owner's username: whom a member is told to tell when the account needs attention. */
@@ -304,6 +366,20 @@ export type LinkKind = 'invitation' | 'machine';
  * reports a member already holds.
  */
 export type WorkspaceGrant = { id: string; access: 'full-access' | 'read-only' };
+
+/**
+ * one workspace a member is in, as the members list draws them: the access their grant holds, and
+ * what is pinned for them there (effort 838, requirement 12 as amended a third time, and at review
+ * round one).
+ */
+export type MemberWorkspace = WorkspaceGrant & {
+	/** the record flags pinned for them in this workspace. `0` where nothing is. */
+	pinned: number;
+	/** which of the pinned flags are on; the rest of them are off. */
+	granted: number;
+	/** what they may do there before the grant is read: their permissions with the pins set. */
+	permissions: number;
+};
 
 /** what a lock-out costs, said before it runs: which workspaces rotate, and how many members stop syncing. */
 export type LockOutCost = {
@@ -386,10 +462,20 @@ export type OrganizationState = {
 export type OrganizationMember = {
 	id: string;
 	username: string;
-	role: string;
+	/** the kind of the role this member holds. *It was the word `administrator` for a manager.* */
+	role: RoleKind;
+	/** the role their row names, by id. */
+	roleId: string;
+	/** a custom role's name; empty on the three built-in roles, which the interface names. */
+	roleName: string;
+	/** how high the role stands. */
+	rank: number;
+	/** the flags switched for this member alone. `0` on the owner's row. */
+	override: number;
+	/** what this member may do: their role's mask with their override switched. */
 	permissions: number;
-	/** the workspaces this member holds, with the access on each. */
-	workspaces: WorkspaceGrant[];
+	/** the workspaces this member holds, with the access on each and what is pinned there. */
+	workspaces: MemberWorkspace[];
 	createdAt: number;
 	/**
 	 * whether the organization has been offered to this account and not yet accepted (effort 828,
@@ -397,6 +483,23 @@ export type OrganizationMember = {
 	 * offer* on the owner's card in place of the offer.
 	 */
 	offeredOwnership: boolean;
+};
+
+/**
+ * one role as the settings area lists it (effort 838, requirement 12): the owner's, then every
+ * role row, highest rank first. No certificate crosses with it.
+ */
+export type OrganizationRole = {
+	id: string;
+	kind: RoleKind;
+	/** a custom role's name; empty on the three built-in roles, which the interface names. */
+	name: string;
+	/** what the role carries, as one number. Never read as a number: `permits` answers for it. */
+	mask: number;
+	/** how high the role stands. A custom role stands strictly between the member and the manager. */
+	rank: number;
+	/** how many members still in hold it. */
+	holders: number;
 };
 
 /**
@@ -515,6 +618,19 @@ export type Host = {
 		 * because a reader who dragged the tabs about handed over the same workspace.
 		 */
 		readBook: (path: string) => Promise<ImportTable[]>;
+	};
+	earlier: {
+		/**
+		 * Whether this machine's `app.db` holds the records of 0.12.0 or 0.13.0, and which, or
+		 * nothing. The file is opened read-only and never created.
+		 */
+		find: () => Promise<EarlierRecords | null>;
+		/**
+		 * Read those records as the whole-workspace export, write them as its workbook under
+		 * `backups/app/`, and hand back that workbook's sheets for the workspace import to plan
+		 * over. Nothing is written to `app.db`; a file holding no such records is refused.
+		 */
+		read: () => Promise<EarlierRead>;
 	};
 	dialog: {
 		/** Ask the user for a file, answering its path or nothing where they walked away. */
@@ -652,6 +768,31 @@ export type Host = {
 		 * forgets it; it never blocks sign-in, which works offline.
 		 */
 		renewDue: () => Promise<boolean>;
+		/**
+		 * every role, highest rank first, with what each carries and how many hold it. Any
+		 * signed-in member reads it; a custom role's name is opened on the other side.
+		 */
+		roles: () => Promise<OrganizationRole[]>;
+		/**
+		 * the organization's own roles (effort 838, requirement 4). Each is `manageRoles`'s, on a role
+		 * ranked below the caller's, and a mask may carry only flags the caller holds and none of the
+		 * owner's; Rust refuses each by name. What comes back is the role as the list reads it.
+		 */
+		role: {
+			/** make a custom role, named and carrying `mask`, directly below `afterRoleId`. */
+			create: (name: string, mask: number, afterRoleId: string) => Promise<OrganizationRole>;
+			/** rename a custom role; the three every organization has keep their names. */
+			rename: (roleId: string, name: string) => Promise<OrganizationRole>;
+			/** change what a role carries: the manager's, the member's or a custom one, never the owner's. */
+			setMask: (roleId: string, mask: number) => Promise<OrganizationRole>;
+			/** move a custom role to directly below `afterRoleId`, the manager or another custom role. */
+			move: (roleId: string, afterRoleId: string) => Promise<OrganizationRole>;
+			/**
+			 * delete a custom role; everybody who held it holds the member role from here on, exactly:
+			 * the override they carried is cleared (effort 838, requirement 6 as amended 2026-09-27).
+			 */
+			remove: (roleId: string) => Promise<void>;
+		};
 		workspace: {
 			/**
 			 * create a workspace on the account: a database, migrated, recorded, and granted to the
@@ -697,8 +838,8 @@ export type Host = {
 			 */
 			create: (
 				username: string,
-				role: 'administrator' | 'member',
-				permissions: number,
+				roleId: string,
+				override: number,
 				workspaces: WorkspaceGrant[]
 			) => Promise<OrganizationMember>;
 			/**
@@ -710,7 +851,7 @@ export type Host = {
 			linkMake: (memberId: string) => Promise<MadeLink>;
 			/**
 			 * unset a member's password: a fresh vault under a fresh secret, everything the
-			 * resetting administrator reaches re-sealed to it, and the requirement to choose a
+			 * resetting member reaches re-sealed to it, and the requirement to choose a
 			 * password set, so the next link asks for one. The answer names the workspaces it
 			 * could not restore, and the member's permissions are kept. The member's previous
 			 * password is not needed and not learned.
@@ -727,14 +868,39 @@ export type Host = {
 			/** what locking a member out would cost, before it is done. */
 			lockOutCost: (memberId: string) => Promise<LockOutCost>;
 			/**
-			 * change what a member is called and what they may do: both written on their row,
-			 * re-signed, and their certificate issued or revoked to match. Nobody changes their own
-			 * row or the owner's, and giving somebody an act that signs rows is the owner's.
+			 * give a member a role: their row names it, re-signed, and their certificate is issued
+			 * again from the caller's to match. `assignRole`, on a member and a role both ranked below
+			 * the caller, never their own row, and only where every flag the change moves is one the
+			 * caller holds. The owner's role is never assigned; it is handed over.
+			 *
+			 * `override`, where given, is set in the same act, so the flags the change moves are the
+			 * ones the role and the override move together rather than each on its own; one that is
+			 * not zero is held to `overrideMember` as well. Left out, the override they carried is
+			 * cleared, so they hold the role exactly (effort 838, requirement 6 as amended 2026-09-27).
 			 */
-			changeRole: (
+			assignRole: (
 				memberId: string,
-				role: 'administrator' | 'member',
-				permissions: number
+				roleId: string,
+				override?: number
+			) => Promise<OrganizationMember>;
+			/**
+			 * set a member's override: the flags switched for them alone, against their role's mask.
+			 * `overrideMember`, on the same lines as `assignRole`; the owner carries none.
+			 */
+			setOverride: (memberId: string, override: number) => Promise<OrganizationMember>;
+			/**
+			 * set what is pinned for a member in one workspace they are in, and which of it is on:
+			 * record flags only, `granted` within `pinned`, whatever they hold across the
+			 * organization, and nothing pinned clears it (effort 838, requirement 12 as amended a
+			 * third time, and at review round one). `overrideMember`, on the same lines as
+			 * `setOverride`, every flag pinned one the reader holds, and nothing written there that
+			 * they cannot view.
+			 */
+			setWorkspaceOverride: (
+				memberId: string,
+				workspaceId: string,
+				pinned: number,
+				granted: number
 			) => Promise<OrganizationMember>;
 			/**
 			 * offer the organization to another account: the first of the two acts a handover is
@@ -761,7 +927,7 @@ export type Host = {
 			endSessions: (memberId: string) => Promise<SessionsEnded>;
 			/**
 			 * rename a member: their row written back with the username re-sealed and signed by
-			 * whoever renamed them. The owner's or an administrator's, on any row but their own;
+			 * whoever renamed them. Open to a holder of `renameMember`, on a row below their rank;
 			 * the username is held to the rules and the uniqueness an invitation's is. What comes
 			 * back is the member as the list shows them.
 			 */

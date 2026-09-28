@@ -12,7 +12,7 @@ use crate::{
 
 use super::turso::discovery::TursoOrganization;
 
-use crate::organization::HeldOrganization;
+use crate::organization::{HeldOrganization, permission};
 
 pub struct RemoteSync {
     pub(super) settings: Arc<RwLock<Persisted<Settings>>>,
@@ -298,7 +298,10 @@ impl Persistable for RemoteSyncStore {
         });
 
         // a member id of nothing is no member: the same answer as a machine that has connected
-        // and not signed in, and it is spelled that way rather than two ways.
+        // and not signed in, and it is spelled that way rather than two ways. A role that is no
+        // kind of role is one an earlier build recorded, the manager's older name or `removed`
+        // (effort 838, ticket 15): it is a display fact, so it reads as none rather than being
+        // translated, and the next sign-in records the kind.
         if let Some(organization) = self.organization.as_mut() {
             organization.member_id = organization
                 .member_id
@@ -307,7 +310,7 @@ impl Persistable for RemoteSyncStore {
             organization.role = organization
                 .role
                 .take()
-                .filter(|role| !role.trim().is_empty());
+                .filter(|role| permission::KINDS.contains(&role.as_str()));
         }
     }
 }
@@ -942,6 +945,33 @@ mod tests {
 
         assert_eq!(held.member_id, None);
         assert_eq!(held.role, None);
+    }
+
+    /// **A role an earlier build recorded that is no kind of role reads as none, and a kind reads
+    /// as itself** (effort 838, ticket 15). The record kept the word a session spoke, and the
+    /// word is gone; the member id stays, so the machine still knows who signed in on it, and the
+    /// next sign-in records their role's kind.
+    #[test]
+    fn a_role_word_an_earlier_build_recorded_reads_as_none_and_a_kind_reads_as_itself() {
+        let read = |role: &str| {
+            let mut store: RemoteSyncStore = serde_json::from_str(&format!(
+                r#"{{"organization":{{"id":"a","name":"Acme","verifyingKey":"k","remoteUrl":"libsql://a","memberId":"me","role":"{role}","joinedAt":1}}}}"#
+            ))
+            .expect("the record");
+
+            store.sanitize();
+
+            store.organization.expect("the organization was dropped")
+        };
+
+        let removed = read("removed");
+
+        assert_eq!(removed.role, None);
+        assert_eq!(removed.member_id.as_deref(), Some("me"));
+
+        for kind in ["owner", "manager", "member", "custom"] {
+            assert_eq!(read(kind).role.as_deref(), Some(kind));
+        }
     }
 
     #[test]

@@ -1,9 +1,13 @@
 import {
 	declareMemberActs,
+	declareRoleActs,
 	declareWorkspaceActs,
 	type MemberActId,
 	type MemberActRecord,
 	type MemberPending,
+	type RoleActId,
+	type RoleActRecord,
+	type RolePending,
 	type WorkspaceActId,
 	type WorkspaceActRecord
 } from '$lib/organization/acts';
@@ -52,6 +56,18 @@ type OrganizationHostState = {
 		/** the workspace being asked about. */
 		deleting: WorkspaceActRecord | null;
 	};
+	role: {
+		/** the role the editor is open on. */
+		editing: RoleActRecord | null;
+		/** whether the editor is open on a role not made yet. */
+		creating: boolean;
+		/** the role being asked about. */
+		deleting: RoleActRecord | null;
+		/** a move asked for on the press, waiting for the host to run it. */
+		moving: { roleId: string; afterRoleId: string } | null;
+		/** whether a move is running. */
+		pending: RolePending;
+	};
 };
 
 const idle = (): OrganizationHostState => ({
@@ -68,7 +84,8 @@ const idle = (): OrganizationHostState => ({
 			withdrawing: false
 		}
 	},
-	workspace: { editing: null, changingAccess: null, deleting: null }
+	workspace: { editing: null, changingAccess: null, deleting: null },
+	role: { editing: null, creating: false, deleting: null, moving: null, pending: { moving: false } }
 });
 
 export const organizationHostState = $state<OrganizationHostState>(idle());
@@ -120,6 +137,24 @@ export const workspaceActs = declareWorkspaceActs({
 	}
 });
 
+/** Every role act, bound to this host. */
+export const roleActs = declareRoleActs({
+	edit: (record) => {
+		organizationHostState.role.editing = record;
+	},
+	move: (record, afterRoleId) => {
+		organizationHostState.role.moving = { roleId: record.role.id, afterRoleId };
+	},
+	confirmDelete: (record) => {
+		organizationHostState.role.deleting = record;
+	}
+});
+
+/** what is in flight, as the role acts read it to refuse a second press. */
+export function rolePending(): RolePending {
+	return { moving: organizationHostState.role.pending.moving };
+}
+
 /** run one act on a record the caller holds, where the record admits it; says whether it ran. */
 function runDeclared<T>(acts: readonly RecordAct<T>[], actId: string, record: T) {
 	const act = acts.find((declared) => declared.id === actId);
@@ -146,6 +181,15 @@ export const workspaceHost = {
 		runDeclared(workspaceActs, actId, record),
 	/** open the form that names a new workspace, mounted once in the shell. */
 	create: () => openOrganizationDialog('workspace')
+};
+
+export const roleHost = {
+	/** run one act on a role. An act the role does not admit is not run. */
+	run: (actId: RoleActId, record: RoleActRecord) => runDeclared(roleActs, actId, record),
+	/** open the role editor on a role not made yet. */
+	create: () => {
+		organizationHostState.role.creating = true;
+	}
 };
 
 /** nobody is signed in any more: nothing here outlives the session that opened it. */

@@ -125,10 +125,14 @@
 	async function copyDetails(unit: UnitActRecord) {
 		const read = await readUnit(unit.id).catch(() => undefined);
 		const status = read?.status ?? unit.status;
+		// the complex only where a read answered with it (effort 838, requirement 10).
+		const complexName = read?.complexName ?? unit.complexName;
 
 		const copied = await writeDetailsToClipboard([
 			{ label: $LL.common.labels.name(), value: read?.name ?? unit.name },
-			{ label: $LL.common.labels.complex(), value: read?.complexName ?? unit.complexName ?? '' },
+			...(complexName !== undefined
+				? [{ label: $LL.common.labels.complex(), value: complexName }]
+				: []),
 			{ label: $LL.common.labels.status(), value: $LL.common.status[status]() }
 		]);
 

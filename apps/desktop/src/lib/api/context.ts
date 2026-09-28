@@ -1,6 +1,11 @@
+import {
+	effectiveIn,
+	effectiveInWorkspace,
+	type AccessLevel
+} from '@rentable/workspace-permission';
 import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy';
 
-import type { Host } from '$lib/platform/host';
+import type { Host, OrganizationSession } from '$lib/platform/host';
 
 /**
  * DATABASE
@@ -45,8 +50,8 @@ export type { Host };
  * **So the absence is expressible again, and the refusal moved rather than went.** It is
  * `procedure.member`'s now, in `./trpc`, which is a better place for it than here: whether a call
  * needs an acting user is a property of the call, and a context is not the thing making one. What
- * is here is the fact — who is acting, or nobody — and the refusal is one middleware away for the
- * forty-six procedures that need somebody.
+ * is here is the fact, who is acting or nobody, and the refusal is one middleware away for every
+ * procedure that is not `public`.
  *
  * **This is not the shape decision 03 rejected, and the difference is the whole point of `null`.**
  * What that decision called the harder of the two failures was an *anonymous placeholder* standing
@@ -67,19 +72,27 @@ export type Identity = {
 	/** the one thing that names the member; there is no address and no display name beside it. */
 	username: string;
 	/**
-	 * what this account may do in the workspace this machine holds.
+	 * what this member may do in the workspace this machine has open, as the flags every
+	 * `procedure.permitted` gate reads.
 	 *
-	 * **Here because it is a fact about who is acting**, which is what `Identity` is for — and not
+	 * **Their effective permissions in that workspace, folded by its grant.** The session carries
+	 * what their role and override come to across the organization, off their verified row, and
+	 * what is pinned for them in each workspace they are in; `effectiveInWorkspace` sets the
+	 * record flags pinned in the workspace open, and `effectiveIn` clears every create, edit and
+	 * delete where their grant on it is read-only, or where there is no grant or no workspace open
+	 * to read. The organization's own flags are not a workspace's to pin or clear and pass through
+	 * as the session has them ([`permissionsIn`]).
+	 *
+	 * **Here because it is a fact about who is acting**, which is what `Identity` is for, and not
 	 * on the context beside `db` and `host`, which carry ambient capabilities and never business
 	 * configuration ([[rules/api-layer]], under *Where things live*).
 	 *
 	 * **Never read as a number.** `permits` from `@rentable/workspace-permission` answers a
-	 * question about it by the name of an act, and that package is the only place the bits are
-	 * named, on this side or the Rust side.
+	 * question about it by the name of an act; that package names the bits on this side, and
+	 * `permission.rs` carries the same bits under the same names on the Rust side.
 	 *
-	 * `0` where the shell could not be reached, where no session has been opened, and on
-	 * a machine nobody is signed in on. All three mean the same thing to a procedure: this caller
-	 * administers nothing.
+	 * Where the shell could not be reached or nobody is signed in there is no identity at all,
+	 * and so nothing to read this off.
 	 */
 	permissions: number;
 };
@@ -135,12 +148,83 @@ async function actingIdentity(host: Host): Promise<Identity | null> {
 		session && {
 			accountId: session.memberId,
 			username: session.username,
-			// **Off the same answer, on the same read.** What this member may administer is on
-			// their verified row, and the session carries it, so what they may do costs nothing
-			// beyond what resolving who they are already cost.
-			permissions: session.permissions
+			// **Off the same answer, for the workspace open** (effort 838, requirements 10 and 12).
+			// What this member may do across the organization is on their verified row, and the
+			// session carries it with what is pinned for them in each workspace; in the workspace
+			// this machine has open, those pins apply, and a read-only grant clears every create,
+			// edit and delete whatever the role and the overrides say.
+			permissions: permissionsIn(session, await openWorkspace(host))
 		}
 	);
+}
+
+/**
+ * the workspace this machine has open, by id, or `null` where the shell cannot say or none is.
+ *
+ * **Read-only wherever that cannot be said** ([`accessIn`]): a shell that cannot say which
+ * workspace is open, a machine with none open, and a workspace the session holds no grant on. It
+ * is the safe direction, and it costs nothing a caller could want, since there are no records to
+ * write without an open workspace, and the organization's own flags are not a workspace's to clear.
+ */
+async function openWorkspace(host: Host): Promise<string | null> {
+	try {
+		return (await host.remoteSync.getState()).workspace.remoteId;
+	} catch {
+		// said above: no workspace that can be named is read-only.
+		return null;
+	}
+}
+
+/**
+ * what a member may do in one workspace before its grant is read, from their session and the
+ * workspace's id: their permissions across the organization with the record flags pinned for that
+ * workspace set as they are granted there (effort 838, requirement 12 as amended a third time, and
+ * at review round one), and those permissions as they are where there is no workspace or no grant.
+ *
+ * **Computed from the pins by the one routine** (`effectiveInWorkspace`), rather than read off
+ * the workspace's `permissions`: the two are the same number, which the shared table holds Rust
+ * and the package to, and this way the organization's own flags always come from the session.
+ * Exported so the interface reads the same value a procedure is answered by.
+ */
+export function workspacePermissionsIn(
+	session: OrganizationSession,
+	openWorkspaceId: string | null
+): number {
+	const grant = session.workspaces.find((workspace) => workspace.id === openWorkspaceId);
+
+	return effectiveInWorkspace(session.permissions, grant?.pinned ?? 0, grant?.granted ?? 0);
+}
+
+/**
+ * what a member may do in one workspace, from their session and the workspace's id: what they may
+ * do there ([`workspacePermissionsIn`]) folded by how their grant reaches it ([`accessIn`]). What
+ * every `procedure.permitted` gate is answered by.
+ */
+export function permissionsIn(
+	session: OrganizationSession,
+	openWorkspaceId: string | null
+): number {
+	return effectiveIn(
+		workspacePermissionsIn(session, openWorkspaceId),
+		accessIn(session, openWorkspaceId)
+	);
+}
+
+/**
+ * how a member reaches one workspace, from their session and the workspace's id: the access on
+ * their grant for it, and read-only where there is no workspace or no grant.
+ *
+ * **Exported so the interface folds the same way** (effort 838, requirement 10): what a record
+ * control offers is read from the same session and the same open workspace this reads, so a
+ * control and the procedure behind it cannot disagree about a read-only grant.
+ */
+export function accessIn(
+	session: OrganizationSession,
+	openWorkspaceId: string | null
+): AccessLevel {
+	const grant = session.workspaces.find((workspace) => workspace.id === openWorkspaceId);
+
+	return grant?.accessLevel === 'full-access' ? 'full-access' : 'read-only';
 }
 
 /**
@@ -170,9 +254,11 @@ export const context = async (overrides: Partial<Context> = {}): Promise<Context
 	const clock = overrides.clock ?? systemClock;
 	const identity = overrides.identity ?? (await actingIdentity(host));
 
-	// **Answering with nobody is not the same as letting anybody through.** Forty-six procedures reach
-	// the workspace database and every one of them goes through `procedure.member`, which refuses
-	// exactly this. What is left public is host-only and has no actor to name: this machine's own
-	// settings, its updater, and what the shell knows about syncing.
+	// **Answering with nobody is not the same as letting anybody through.** Every procedure but a
+	// `public` one refuses exactly this, since `permitted`, `permittedAny` and `permittedBy` each
+	// ask `procedure.member`'s question first, and everything that reaches the workspace database
+	// is one of them. What is left public is host-only and has no actor to name: this machine's own
+	// settings, its updater, what the shell knows about syncing, and the calls that come before
+	// there is anybody to act as.
 	return { db, clock, host, identity };
 };

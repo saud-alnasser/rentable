@@ -50,7 +50,7 @@ test('the address is wa.me on the phone without its plus, with the message URL-e
 
 test('an Arabic message survives the address whole', () => {
 	const message = composeReminderMessage(OWED, arabic, 'ar');
-	const url = toWhatsAppUrl(OWED.tenantPhone, message);
+	const url = toWhatsAppUrl(OWED.tenantPhone ?? '', message);
 
 	assert.ok(url.startsWith('https://wa.me/966551234567?text='));
 	assert.equal(textOf(url), message);

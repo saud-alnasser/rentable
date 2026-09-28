@@ -161,6 +161,15 @@ Three things bind a component test, and each of them is a way of passing while m
   when `query-providers.svelte` had grown seven modules of callers from `organization/tests/`
   and `tenant/tests/` had copied it.*
 
+  `palette-harness.svelte` is the second: the command menu and the application's one keyboard
+  listener beside a screen, which the layout tests render directly and the complex, contract,
+  payment and tenant permission tests render through `permission.ts`'s `openPalette`. So is the
+  one `ResizeObserver` a component test needs where a tooltip or a list measures itself: jsdom
+  implements none, and `permission.ts`'s `layOutLists` stands one in, so a test reaching a
+  tooltip calls it rather than writing its own. *Both lived in module tests until ticket 19 of
+  [[efforts/838-permissions-are-a-role-and-an-override/spec]]: the harness in `layout/tests/`,
+  and a stub apiece in the new tests beside the shared one.*
+
   The package's directory is outside `src/lib/`, which is what keeps its fixtures out of the package: the
   `exports` map sends `./*` to `./src/lib/*`, so a fixture under the library directory is a
   component every consumer can import, and one of these throws unless something above it renders
@@ -253,6 +262,13 @@ A helper that is genuinely shared scaffolding rather than a fixture — the loop
 `sync/test/server.rs`, say — is a module of its own under a `test/` directory, not a test
 module.
 
+*Admitted 2026-09-27, the human's call (effort 838, ticket 31): a builder that stands in for a
+database an older build wrote, which nothing in this build writes any more, is scaffolding of that
+kind, not a fixture, when it is too large to write out twice. The format 1 organization under
+`organization/transition/test/older.rs`, some eleven hundred lines, is the case; a fix to the old
+shape made in two copies is the drift the rule's cost does not buy. Anything cheaper beside it is
+still written out in each module.*
+
 **The asymmetry with TypeScript above is deliberate**, and was settled on 2026-08-18 when the
 TypeScript half moved. Rust has a module system doing real work here: `mod tests` is a child of
 the module it covers, `use super::*` reaches everything in it including what is private, and a
@@ -265,10 +281,11 @@ other otherwise. See [[references/cargo]].
 
 ## Tests that reach a live remote
 
-**Seven sets are admitted, in five properties, and they are the exception rather than a second way
-of testing.** All seven exist, and every one is Rust. The four `losing_writer` tests at the foot of
+**Eight sets are admitted, in six properties, and they are the exception rather than a second way
+of testing.** All eight exist, and every one is Rust. The four `losing_writer` tests at the foot of
 `tauri/src/database/mod.rs` open two replicas of one workspace against a database they provision on
-Turso; the six admitted for the organization effort below each create and remove their own.
+Turso; the six admitted for the organization effort below, and the one admitted for effort 838 after
+them, each create and remove their own.
 Everything else in this repository is tested against a local file, a loopback HTTP server, or an
 in-memory engine, and that is not changing.
 
@@ -371,6 +388,26 @@ no MCP server to ask. It is not an instance of the fourth property either, becau
 different server speaking a different protocol, and Turso documents this tool set for agents rather
 than for clients, which is what makes its shape a question rather than an assumption.
 
+**An eighth property: whether Turso's server takes a workspace's whole migration in one transaction,
+and answers the check before it commits.** Admitted by the human's call of 2026-09-27 (effort 838,
+requirement 15), taken at the effort's review round one
+([[efforts/838-permissions-are-a-role-and-an-override/spec]]): ticket 32 wrote the test and ticket
+38 armed it and moved it here. `migration_live_every_shipped_migration_commits_in_one_transaction`,
+at the foot of `tauri/src/organization/migrate.rs`, provisions a database through
+`database/test/workspace.rs`, applies every shipped migration, `0003`'s drops and renames among
+them, inside one explicit transaction over the pipeline with the check's reads and the version row,
+commits, and runs again to find the version row and apply nothing. The check reads
+`pragma_table_info`, `pragma_index_list`, `pragma_index_info` and `pragma_foreign_key_list` on the
+server and compares what they answer with a fresh database built on a plain SQLite, so a pass is
+also the server's word that it records the schema as that database does. The local stand-in
+(`sync/test/pipeline.rs`) is a plain SQLite behind the same HTTP shape, which is right for the
+runner's handling of every answer and says nothing of what Turso's server does with a transaction or
+a pragma, which is the subject; a `file:` database has no pipeline. It is a new property rather than
+an instance of the fourth: the subject is the database's own SQL endpoint, not the Platform API. It
+is the nearest thing to the retired admission whose property was whether a remote honours a
+transaction the client asks for, and it is admitted on its own rather than as that one restored,
+because what it asks is this runner's transaction on this server.
+
 *The count in the heading sentence is the thing that goes stale. Another live test is a decision
 somebody takes here, in this section, naming its property and saying whether it is a new property or
 another instance of one already listed, and not a file that quietly appears.*
@@ -409,9 +446,9 @@ than a precedent:
   gate that provisions databases in somebody's account depends on a third party's uptime and on a
   secret every workflow can read. A live run is a case the human authorizes, one at a time, and
   [[references/turso]], under *Never run*, is where that standing rule already sat. The opt-in is
-  `#[ignore]` on the Rust side, joined by `RENTABLE_LIVE_TURSO=1` for the five admitted above, and
-  `RENTABLE_LIVE_TURSO=1` alone on the TypeScript side, because `node:test` has no equivalent of
-  `#[ignore]` to ask for by name.
+  `#[ignore]` on the Rust side, joined by `RENTABLE_LIVE_TURSO=1` for every set but the four
+  `losing_writer` tests, and `RENTABLE_LIVE_TURSO=1` alone on the TypeScript side, because
+  `node:test` has no equivalent of `#[ignore]` to ask for by name.
 - **Credentials missing is a failure, not a skip.** Asking for an ignored test is deliberate, so a
   run that meant to be live and silently was not is the one outcome worth refusing.
 

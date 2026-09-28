@@ -26,6 +26,7 @@
 	import { TENANT_SORT_COLUMN_IDS, type TenantSortColumnId } from '$lib/tenant/tenant';
 	import { useImportRecords } from '$lib/workspace/query';
 	import { toTransferInput } from '$lib/workspace/workspace';
+	import { IMPORT_FLAGS, memberPermissions } from '$lib/workspace/permission';
 	import { CONTRACT_ATTENTION_ORDER } from '$lib/contract/contract';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 
@@ -40,14 +41,23 @@
 	// The query answers with one field per status rather than a nested figure, so this is where
 	// the two shapes meet — and it is a function of the record rather than a derived value
 	// because the list hands each row to the snippet one at a time.
-	const contractCounts = (tenant: TenantRecord) => ({
-		scheduled: tenant.contractsScheduled,
-		active: tenant.contractsActive,
-		fulfilled: tenant.contractsFulfilled,
-		defaulted: tenant.contractsDefaulted,
-		expired: tenant.contractsExpired,
-		terminated: tenant.contractsTerminated
-	});
+	//
+	// Nothing where the row carries no counts: a reader who may not view contracts is answered with
+	// none (effort 838, requirement 10), and the row then draws no figures rather than six zeroes.
+	const contractCounts = (tenant: TenantRecord) =>
+		tenant.contractsScheduled === undefined
+			? undefined
+			: {
+					scheduled: tenant.contractsScheduled,
+					active: tenant.contractsActive ?? 0,
+					fulfilled: tenant.contractsFulfilled ?? 0,
+					defaulted: tenant.contractsDefaulted ?? 0,
+					expired: tenant.contractsExpired ?? 0,
+					terminated: tenant.contractsTerminated ?? 0
+				};
+
+	// the counts are offered as an order and a column of the file only to a reader shown them.
+	const viewsContract = $derived(memberPermissions.views('contract'));
 
 	let search = $state('');
 	let sort = $state<ListSort | null>(null);
@@ -121,7 +131,9 @@
 			activeContractCount: $LL.common.labels.activeContracts()
 		};
 
-		return TENANT_SORT_COLUMN_IDS.map((id) => ({ id, label: labels[id] }));
+		return TENANT_SORT_COLUMN_IDS.filter((id) => id !== 'activeContractCount' || viewsContract).map(
+			(id) => ({ id, label: labels[id] })
+		);
 	});
 </script>
 
@@ -133,6 +145,7 @@
 		label={`${$LL.common.actions.delete()} · ${$LL.common.table.recordsSelected({ count: ids.length })}`}
 		icon={Trash2Icon}
 		tone="error"
+		unavailable={memberPermissions.refusal('deleteTenant', $LL)}
 		onclick={() => (confirming = [...ids])}
 	/>
 {/snippet}
@@ -160,15 +173,17 @@
 			// The counts cross as counts. Rendered through the locale they were text, and a column
 			// of text is a column nothing can total — which is the first thing anyone does to a
 			// directory of tenants in a spreadsheet.
-			...CONTRACT_ATTENTION_ORDER.map((status) => ({
+			...(viewsContract ? CONTRACT_ATTENTION_ORDER : []).map((status) => ({
 				header: $LL.common.status[status](),
-				value: (tenant: TenantRecord) => contractCounts(tenant)[status]
+				value: (tenant: TenantRecord) => contractCounts(tenant)?.[status] ?? 0
 			}))
 		]
 	}}
 	onImport={() => void importDialog?.choose()}
+	importUnavailable={memberPermissions.refusalOfEvery(IMPORT_FLAGS, $LL)}
 	onCreate={() => tenantHost.create()}
 	createLabel={$LL.common.actions.newTenant()}
+	createUnavailable={memberPermissions.refusal('createTenant', $LL)}
 	emptyTitle={$LL.tenants.empty.title()}
 	emptyDescription={$LL.tenants.empty.description()}
 >
@@ -195,11 +210,13 @@
 				     them. Every status is shown including the ones at zero, so the six form fixed
 				     columns down the list — a cluster that varied with what each tenant happened to
 				     hold would work against exactly that. -->
-				<span class="pointer-events-none relative flex shrink-0 items-center gap-3">
-					{#each CONTRACT_ATTENTION_ORDER as status (status)}
-						<Cell.StatusCount {status} count={counts[status]} />
-					{/each}
-				</span>
+				{#if counts}
+					<span class="pointer-events-none relative flex shrink-0 items-center gap-3">
+						{#each CONTRACT_ATTENTION_ORDER as status (status)}
+							<Cell.StatusCount {status} count={counts[status]} />
+						{/each}
+					</span>
+				{/if}
 			{/snippet}
 		</RecordCard>
 	{/snippet}

@@ -149,6 +149,35 @@ export function useSetAppearance(
 	}));
 }
 
+/**
+ * Offer the earlier version's records no more on this machine: they were brought in, or the
+ * person put them aside (effort 838, requirement 18).
+ *
+ * Says nothing on success: the offer going is what the person sees. A write the shell refuses is
+ * said through the shared handler, and the offer stays.
+ */
+export function useSettleEarlierRecords(
+	opts: MutationOptions = {
+		toast: {
+			error: true,
+			unexpected: () => get(LL).common.messages.unexpectedError()
+		}
+	}
+) {
+	const client = useQueryClient();
+
+	return createMutation(() => ({
+		mutationFn: () => api.app.settings.set({ earlierRecordsSettled: true }),
+		onSuccess: async (settings) => {
+			client.setQueryData(keys.settings, settings);
+			await client.invalidateQueries({ queryKey: keys.settings });
+
+			onMutationSuccess(opts);
+		},
+		onError: (e) => onMutationError(opts, e)
+	}));
+}
+
 /** ask the updater whether a newer release exists. resolves to `null` when none does. */
 export function useCheckForUpdate(opts: MutationOptions = {}) {
 	return createMutation(() => ({

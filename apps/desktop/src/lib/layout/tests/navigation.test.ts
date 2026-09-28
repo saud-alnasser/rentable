@@ -5,9 +5,12 @@ import { sourceFiles } from '#tests/source.ts';
 import {
 	isActiveRoute,
 	PAGE_ROUTES,
+	PLACE_KINDS,
 	toBreadcrumbTrail,
+	toViewablePlaces,
 	type BreadcrumbCrumb
 } from '../navigation.ts';
+import type { RecordKind } from '$lib/workspace/permission.ts';
 
 test('a route is active on its own page and on anything beneath it', () => {
 	assert.equal(isActiveRoute('/tenants', '/tenants'), true);
@@ -113,4 +116,55 @@ test('the dashboard and the way in have no trail to show', () => {
 test('an address no route matched has no trail', () => {
 	assert.deepEqual(toBreadcrumbTrail(null), []);
 	assert.deepEqual(toBreadcrumbTrail('/nowhere'), []);
+});
+
+/*
+ * Effort 838, requirement 10 and criterion 10: a place listing a kind the reader may not view is
+ * left out of the rail and the command menu, which both read their places through this.
+ */
+
+/** the rail's places and the settings sections, by address alone, in the order they are drawn. */
+const PLACES = [
+	{ url: '/' },
+	{ url: '/tenants' },
+	{ url: '/complexes' },
+	{ url: '/contracts' },
+	{ url: '/settings?section=general' }
+];
+
+const viewingAllBut =
+	(...hidden: RecordKind[]) =>
+	(kind: RecordKind) =>
+		!hidden.includes(kind);
+
+test('without a kind the reader may view, its place is left out and every other place stays', () => {
+	for (const [url, kind] of Object.entries(PLACE_KINDS)) {
+		assert.deepEqual(
+			toViewablePlaces(PLACES, viewingAllBut(kind)).map((place) => place.url),
+			PLACES.map((place) => place.url).filter((kept) => kept !== url),
+			`without viewing ${kind}`
+		);
+	}
+});
+
+test('a reader who may view everything is offered every place', () => {
+	assert.deepEqual(
+		toViewablePlaces(PLACES, () => true),
+		PLACES
+	);
+});
+
+test('the dashboard and the settings stay for a reader who may view nothing', () => {
+	assert.deepEqual(
+		toViewablePlaces(PLACES, () => false).map((place) => place.url),
+		['/', '/settings?section=general']
+	);
+});
+
+test('units and payments have no place of their own: they are reached through their parent', () => {
+	assert.deepEqual(Object.values(PLACE_KINDS).sort(), ['complex', 'contract', 'tenant']);
+	assert.deepEqual(
+		toViewablePlaces(PLACES, viewingAllBut('unit', 'payment')).map((place) => place.url),
+		PLACES.map((place) => place.url)
+	);
 });

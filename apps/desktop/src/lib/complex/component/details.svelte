@@ -11,6 +11,7 @@
 	import * as Cell from '$lib/design/cell';
 	import { formatLocaleNumber } from '$lib/platform/locale';
 	import UnitDirectory from '$lib/complex/unit/component/directory.svelte';
+	import { memberPermissions } from '$lib/workspace/permission';
 
 	let { complexId }: { complexId: string } = $props();
 
@@ -95,5 +96,7 @@
 	{identity}
 	{actions}
 	{fields}
-	collections={[{ value: 'units', label: $LL.common.nav.units(), content: units }]}
+	collections={memberPermissions.views('unit')
+		? [{ value: 'units', label: $LL.common.nav.units(), content: units }]
+		: []}
 />

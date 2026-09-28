@@ -1,7 +1,8 @@
 pub mod commands;
+pub(crate) mod corrupt;
 pub mod proxy;
 #[cfg(test)]
-mod test;
+pub(crate) mod test;
 pub mod version;
 
 use sqlx::{
@@ -50,16 +51,21 @@ pub struct Pulled {
 
 /// [`Database::replicate`] over the engine alone, so a test can hold a replica against a
 /// scripted remote without a `Database` around it.
-pub(crate) async fn replicate_engine(database: &turso::sync::Database) -> Replicated {
+///
+/// `watch` records damage either half reports beside the replica (`corrupt.rs`).
+pub(crate) async fn replicate_engine(
+    database: &turso::sync::Database,
+    watch: &corrupt::Watch,
+) -> Replicated {
     let mut refusal = SyncRefusal::None;
-    let pushed = match database.push().await {
+    let pushed = match watch.note(database.push().await) {
         Ok(()) => true,
         Err(error) => {
             refusal = read_sync_refusal(&error);
             false
         }
     };
-    let pulled = match database.pull().await {
+    let pulled = match watch.note(database.pull().await) {
         Ok(brought) => Some(brought),
         Err(error) => {
             if refusal == SyncRefusal::None {
@@ -101,6 +107,9 @@ pub enum Engine {
 
 pub struct Database {
     engine: Option<Engine>,
+    /// where the replica the `Workspace` arm holds lies, so damage met on it after it opened is
+    /// recorded beside it (`corrupt.rs`). Empty on the `Local` arm and with no engine.
+    watch: corrupt::Watch,
     settings: Arc<RwLock<Persisted<Settings>>>,
 }
 
@@ -110,6 +119,7 @@ impl Database {
     pub fn new(settings: Arc<RwLock<Persisted<Settings>>>) -> Self {
         Database {
             engine: None,
+            watch: corrupt::Watch::default(),
             settings,
         }
     }
@@ -145,6 +155,7 @@ impl Database {
             .await?;
 
         self.engine = Some(Engine::Local(pool));
+        self.watch = corrupt::Watch::default();
 
         Ok(())
     }
@@ -200,6 +211,7 @@ impl Database {
         self.engine = Some(Engine::Workspace(
             Self::open_replica(&db_path, remote_url, auth_token).await?,
         ));
+        self.watch = corrupt::Watch::over(&db_path);
 
         Ok(())
     }
@@ -246,24 +258,35 @@ impl Database {
     }
 
     /// Remove one replica's file and everything the engine keeps beside it, whatever the replica
-    /// is a replica of. The organization replica goes the same way as a workspace's, and this is
-    /// the one place the sidecar list is spelled.
+    /// is a replica of. The organization replica goes the same way as a workspace's.
     pub(crate) fn remove_replica_files(replica: &Path) -> bool {
-        let mut removed = std::fs::remove_file(replica).is_ok();
+        Self::replica_files(replica)
+            .into_iter()
+            .filter(|file| std::fs::remove_file(file).is_ok())
+            .count()
+            > 0
+    }
 
-        for suffix in Self::REPLICA_SIDECARS {
-            let path = PathBuf::from(format!("{}{suffix}", replica.display()));
+    /// One replica's file and every file the engine keeps beside it, as far as they exist, and
+    /// the one place the sidecar list is spelled. What removes a replica and what sets a damaged
+    /// one aside (`corrupt.rs`) both walk this. The application's own marker of damage met after
+    /// the open, `corrupt::MARKER`, goes with them.
+    fn replica_files(replica: &Path) -> Vec<PathBuf> {
+        let mut files: Vec<PathBuf> = std::iter::once(replica.to_path_buf())
+            .chain(
+                Self::REPLICA_SIDECARS
+                    .iter()
+                    .chain(std::iter::once(&corrupt::MARKER))
+                    .map(|suffix| PathBuf::from(format!("{}{suffix}", replica.display()))),
+            )
+            .filter(|file| file.exists())
+            .collect();
 
-            if std::fs::remove_file(&path).is_ok() {
-                removed = true;
-            }
-        }
-
-        // **The transient markers are named per attempt**, so they are swept by prefix rather than
+        // **The transient markers are named per attempt**, so they are found by prefix rather than
         // by name. A directory that cannot be read leaves them, which is the same outcome as a file
-        // that will not delete: reported by the caller finding the replica still tracked.
+        // that will not move: reported by the caller finding the replica still tracked.
         let (Some(parent), Some(stem)) = (replica.parent(), replica.file_name()) else {
-            return removed;
+            return files;
         };
 
         let transient = format!(
@@ -272,19 +295,16 @@ impl Database {
             Self::REPLICA_TRANSIENT_PREFIX
         );
 
-        let Ok(entries) = std::fs::read_dir(parent) else {
-            return removed;
-        };
-
-        for entry in entries.flatten() {
-            if entry.file_name().to_string_lossy().starts_with(&transient)
-                && std::fs::remove_file(entry.path()).is_ok()
-            {
-                removed = true;
-            }
+        if let Ok(entries) = std::fs::read_dir(parent) {
+            files.extend(
+                entries
+                    .flatten()
+                    .filter(|entry| entry.file_name().to_string_lossy().starts_with(&transient))
+                    .map(|entry| entry.path()),
+            );
         }
 
-        removed
+        files
     }
 
     /// Send what this machine has written since the last push.
@@ -299,7 +319,7 @@ impl Database {
     /// than a promise anybody had to keep.
     pub async fn push_replica(&self) -> bool {
         match self.engine.as_ref() {
-            Some(Engine::Workspace(database)) => database.push().await.is_ok(),
+            Some(Engine::Workspace(database)) => self.watch.note(database.push().await).is_ok(),
             Some(Engine::Local(_)) | None => false,
         }
     }
@@ -319,7 +339,7 @@ impl Database {
             // behind every mutation, forever, with nothing having arrived. The call succeeding is
             // still an answer of its own: the remote was reached, which is the moment the
             // standing block records.
-            Some(Engine::Workspace(database)) => match database.pull().await {
+            Some(Engine::Workspace(database)) => match self.watch.note(database.pull().await) {
                 Ok(brought) => Pulled {
                     completed: true,
                     brought,
@@ -346,7 +366,7 @@ impl Database {
     /// the one reported, because both are about the same database and the same credential.
     pub async fn replicate(&self) -> Replicated {
         match self.engine.as_ref() {
-            Some(Engine::Workspace(database)) => replicate_engine(database).await,
+            Some(Engine::Workspace(database)) => replicate_engine(database, &self.watch).await,
             Some(Engine::Local(_)) | None => Replicated {
                 pushed: false,
                 received: false,
@@ -361,6 +381,15 @@ impl Database {
     /// Separate from [`Database::connect_workspace`] so a caller can hold an engine without
     /// holding a `Database` — which is what the proxy's both-engines test needs, and it is the
     /// only test that can hold this arm to the other one.
+    ///
+    /// **A replica found damaged is set aside and opened once more, empty** (effort 838,
+    /// requirement 17). Every replica, a workspace's and the organization's, is opened here, so
+    /// every one is rebuilt the same way: the file and its sidecars renamed to
+    /// `<name>.corrupt-<ms>`, a warning naming them and what was lost, and an empty replica that
+    /// the caller's first pull fills from its remote, as it fills a replica made for the first
+    /// time. `corrupt.rs` says what counts as damaged and why. Damage the engine reports after this
+    /// has answered is recorded beside the replica by the reads that meet it, and set aside here at
+    /// the next open.
     pub async fn open_replica<F, Fut>(
         db_path: &Path,
         remote_url: Option<String>,
@@ -379,15 +408,49 @@ impl Database {
         // this is one more of the construction sites it is made from.
         crate::http::install_crypto_provider();
 
-        let mut builder = turso::sync::Builder::new_remote(&db_path.to_string_lossy())
-            .bootstrap_if_empty(false)
-            .with_auth_token_fn(auth_token);
+        // **Held behind one handle so the open can be made twice**: a replica found damaged is
+        // set aside and opened once more, empty, and that open needs the same credential.
+        let auth_token = Arc::new(auth_token);
 
-        if let Some(remote_url) = remote_url {
-            builder = builder.with_remote_url(remote_url);
-        }
+        // **A replica found damaged is set aside and opened again, once** (effort 838,
+        // requirement 17), which `corrupt.rs` says the whole of. The first read is part of the
+        // open because that is where the engine reports a damaged page it did not meet opening
+        // the file; any other answer to it is left for the caller's own reads, as it was.
+        Ok(corrupt::opened_once_more(db_path, || {
+            let auth_token = Arc::clone(&auth_token);
+            let remote_url = remote_url.clone();
 
-        Ok(builder.build().await?)
+            async move {
+                let mut builder = turso::sync::Builder::new_remote(&db_path.to_string_lossy())
+                    .bootstrap_if_empty(false)
+                    .with_auth_token_fn(move || auth_token());
+
+                if let Some(remote_url) = remote_url {
+                    builder = builder.with_remote_url(remote_url);
+                }
+
+                let database = builder.build().await?;
+
+                if let Err(error) = Self::first_read(&database).await
+                    && corrupt::reported(&error).is_some()
+                {
+                    return Err(error);
+                }
+
+                Ok(database)
+            }
+        })
+        .await?)
+    }
+
+    /// Read the schema once, which is where a damaged first page shows itself.
+    async fn first_read(database: &turso::sync::Database) -> Result<(), turso::Error> {
+        let connection = database.connect().await?;
+        let mut rows = connection
+            .query("SELECT count(*) FROM sqlite_master", ())
+            .await?;
+
+        rows.next().await.map(|_| ())
     }
 
     /// Let go of the file.
@@ -395,6 +458,8 @@ impl Database {
     /// Taking the engine rather than closing it is what matters on the replica arm: there is no
     /// close to call, and the file is held for exactly as long as the engine is.
     pub async fn disconnect(&mut self) {
+        self.watch = corrupt::Watch::default();
+
         match self.engine.take() {
             Some(Engine::Local(pool)) => pool.close().await,
             Some(Engine::Workspace(_)) | None => {}
@@ -502,7 +567,9 @@ impl Database {
     /// the table it names, so it would agree with a name nothing else in the product used any
     /// more.
     ///
-    /// The three prefixes are turso's own, read off a freshly built replica at 0.8.0-pre.4:
+    /// The same three prefixes are `backup::NOT_THE_ENGINES`, which a copy leaves out; a prefix the
+    /// engine adds is added to both. They are turso's own, read off a freshly built replica at
+    /// 0.8.0-pre.4 and turso_core's `RESERVED_TABLE_PREFIXES` at 0.8:
     /// `sqlite_sequence`, `turso_cdc`, `turso_cdc_version`, and
     /// `__turso_internal_seq___turso_internal_autoincrement_turso_cdc`. That is knowledge of a
     /// pre-release crate's internals and it will move — which is why the staleness is the other
@@ -521,7 +588,7 @@ impl Database {
             // The engine arms change capture on every connection it opens, so one taken here is
             // one whose writes can be pushed — and one taken any other way is not.
             Engine::Workspace(database) => {
-                proxy::workspace_execute_single_sql(&database.connect().await?, query).await
+                proxy::workspace_execute_single_sql(&self.watched(database).await?, query).await
             }
         }
     }
@@ -533,9 +600,20 @@ impl Database {
         match self.engine.as_ref().ok_or_else(Self::not_connected)? {
             Engine::Local(pool) => proxy::execute_batch_sql(pool, queries).await,
             Engine::Workspace(database) => {
-                proxy::workspace_execute_batch_sql(&database.connect().await?, queries).await
+                proxy::workspace_execute_batch_sql(&self.watched(database).await?, queries).await
             }
         }
+    }
+
+    /// A connection to the replica whose reads record the damage they meet (`corrupt.rs`).
+    async fn watched(
+        &self,
+        database: &turso::sync::Database,
+    ) -> Result<corrupt::Watched, turso::Error> {
+        Ok(corrupt::Watched::new(
+            self.watch.note(database.connect().await)?,
+            self.watch.clone(),
+        ))
     }
 }
 
@@ -648,7 +726,7 @@ mod tests {
         .await
         .expect("replica engine");
 
-        let replicated = super::replicate_engine(&database).await;
+        let replicated = super::replicate_engine(&database, &Default::default()).await;
 
         assert!(!replicated.pushed);
         assert!(!replicated.received);
@@ -696,7 +774,7 @@ mod tests {
         .await
         .expect("replica engine");
 
-        let unreached = super::replicate_engine(&offline).await;
+        let unreached = super::replicate_engine(&offline, &Default::default()).await;
 
         assert_eq!(unreached.refusal, SyncRefusal::None);
 

@@ -33,6 +33,9 @@ organization on the customer's own Turso account answers everything the two answ
 > **Local backup is gone** (#569, 2026-08-19). Requirement 17 of
 > [[efforts/a-workspace-follows-its-user/spec]], directed by the human: Turso holds the record and
 > carries its own point-in-time restore, so the application keeps no snapshot files.
+> *Narrowed by effort 838, requirement 13: a copy is taken again, only before a change of shape
+> (a workspace migration, an organization's format), read out row by row by `tauri/src/backup.rs`
+> rather than copied as a file; nothing restores it in the application.*
 
 ## Language
 
@@ -80,7 +83,7 @@ sentence from both.
   and is persisted, because it is what lets a machine open its replica offline.
 - **The replica's file is named for its workspace, never for the machine.** One member signing out
   and another signing in would otherwise open the second's replica over the first's rows. `app.db`
-  stays what the seeded and test paths use; a workspace is `workspace-<id>.db` beside it, and the
+  stays what the seeded and test paths use; a workspace is `ws-<id>.db` beside it, and the
   organization's own replica is `org-<id>.db`.
 - **A pull that brought rows is announced, and that is what makes the query cache safe.** Derived
   state is computed from rows, so rows from another device can make a status that was right wrong;
@@ -103,6 +106,23 @@ sentence from both.
   on the next statement.** Opening does not block on a pull, which is requirement 7, but a first
   run has nothing to read until one succeeds, so the startup path pulls once and then asks whether
   the replica is ready.
+- **A replica found damaged is set aside and pulled again, once.** *Effort 838, requirement 17,
+  Firefox's practice.* Where the engine says a replica, a workspace's or the organization's, is not
+  a database or is corrupt, or where the file is shorter than its own header says (turso reports a
+  truncated file as neither, and some cuts hang its open), `Database::open_replica` renames the file
+  and every sidecar to `<name>.corrupt-<ms>`, keeps them, logs `replica.corrupt.setAside` naming
+  them and that anything not yet sent from it is lost, and opens the replica again empty; the first
+  pull fills it as it fills a new one. A second failure is refused as any open is. Damage the
+  engine reports by its kind (`Corrupt`, `NotAdb`) after the open writes `<name>-damaged` beside
+  the replica and logs `replica.corrupt.found`; the next open finds that marker and sets the
+  replica aside the same way. What is watched for it is the proxy's single and batch statements
+  and the organization store's own `query` and `execute`, on a `corrupt::Watched` connection, and
+  every push and pull. `Database::is_replica_ready`, `OrganizationStore::found`,
+  `lease_connection` and `install` read the engine's connection unwatched. The not-a-database
+  words are read at the open alone, since a failed push or pull is flattened text that may carry
+  the server's own. A file cut short beside the sync engine's `<name>-replace-base-apply` marker
+  is left to the engine, which restores it from its backups at the open. `database/corrupt.rs`
+  holds what counts as damaged and the measurements behind it.
 - **A refused credential is collected again, and nobody is told to do anything.** When a dispatch
   comes back refused as the credential's, the shell pulls the organization replica, reads the
   member's grants again, hands the sync engine whatever moved, and tries the same dispatch once
@@ -126,7 +146,10 @@ sentence from both.
 - **Network clients are built in one place**, `tauri/src/http.rs`. reqwest carries no crypto
   provider here, deliberately, to keep one provider in the tree, so a client built any other way
   panics rather than failing. This is why there is a builder for a two-line construction.
-- **Nothing here writes a workspace file any more.** Backup was the last thing that did, and its
+- **Nothing here writes a workspace file but the copy before a migration.** The old backup's
   retirement is why `Database::create_backup` and `Database::restore_backup` are gone rather than
   merely refused on a replica. What an update leaves behind is a version number and a release
-  URL, in `update.rs`, and no copy of anything.
+  URL, in `update.rs`. The member holding a workspace's migration lease writes a copy of it, read
+  over the pipeline in one transaction, to `backups/ws-<id>/` before the first statement
+  (`organization/migration.rs`, `backup.rs`), and one on the owner's account where that machine is
+  the owner's; a copy that cannot be taken releases the lease and applies nothing.

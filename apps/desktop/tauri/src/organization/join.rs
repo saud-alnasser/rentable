@@ -67,13 +67,12 @@ use super::{
     HeldOrganization, connect,
     invite::InvitationStanding,
     link::{HalfKind, JoinLink, open_payload},
-    permission,
     session::{
         CredentialSlot, MemberSession, content_key_of, machine_seen, open_session, refused_by_name,
         remember, sign_in_by_username,
     },
     setup::MINIMUM_PASSWORD_LENGTH,
-    store::{InvitationRecord, MemberRecord, OrganizationStore},
+    store::{FORMAT_VERSION, InvitationRecord, MemberRecord, OrganizationStore},
     vault::{KdfParams, open_vault, reseal_vault_with_key},
 };
 
@@ -200,6 +199,10 @@ where
     let reached = store_for(Arc::clone(&credential)).await?;
     let store = reached.borrow();
 
+    // an organization another version made is refused before any row of it is read (effort 838,
+    // requirement 11).
+    store.refuse_another_format().await?;
+
     let held = match machine.organization.clone() {
         Some(held) if held.id == link.organization_id => held,
         Some(held) => {
@@ -237,7 +240,7 @@ where
         .find(|member| member.id == invitation.member_id)
         .ok_or_else(|| invitation_refused(&held.name, Refusal::Revoked))?;
 
-    if member.role == permission::REMOVED {
+    if member.removed_at.is_some() {
         return Err(invitation_refused(&held.name, Refusal::Revoked));
     }
 
@@ -245,7 +248,7 @@ where
     // than a wrong password would.
     let secret =
         open_vault(&vault_password, &member.vault).map_err(|_| refused_by_name(&held.name))?;
-    let content_key = content_key_of(member, &secret)?;
+    let content_key = content_key_of(&member.sealed_content_key, &secret)?;
 
     // the rest of a sign-in: every grant the vault holds, the organization's into the slot the
     // replica pushes under from here on, over the link's credential that is in it now.
@@ -292,6 +295,7 @@ where
     machine.organization = Some(HeldOrganization {
         member_id: Some(session.member_id.clone()),
         role: Some(session.role.clone()),
+        format: Some(FORMAT_VERSION),
         ..held.clone()
     });
     machine.commit()?;
@@ -328,9 +332,12 @@ pub async fn admit(
     // has a password of its own, so nothing about the flag is acted on (effort 826, ticket 03).
     let session = sign_in_by_username(store, held, username, password, credential).await?;
 
+    // a sign-in reads the organization in this build's format and in no other, so the record keeps
+    // that it has (effort 838, ticket 25).
     let filled = HeldOrganization {
         member_id: Some(session.member_id.clone()),
         role: Some(session.role.clone()),
+        format: Some(FORMAT_VERSION),
         ..held.clone()
     };
 
@@ -518,11 +525,7 @@ mod tests {
         let mut owner = sign_in(&organization, &joined, PASSWORD, &slot())
             .await
             .expect("the owner did not sign in");
-        let pipeline = ScriptedServer::start(vec![ScriptedResponse::new(
-            200,
-            json!({ "results": [] }).to_string(),
-        )])
-        .await;
+        let pipeline = crate::sync::test::pipeline::LocalPipeline::start().await;
         let workspace = create_workspace(
             &organization,
             &mut owner,
@@ -797,7 +800,7 @@ mod tests {
         assert_eq!(their_held.joined_at, ISSUED_AT + 3);
 
         assert_eq!(member.role, permission::MEMBER);
-        assert_eq!(member.permissions, 0);
+        assert_eq!(member.permissions, permission::MEMBER_ROLE.mask);
         assert!(
             !member.must_change_password,
             "opening the link left the member with a password to change"
@@ -2107,5 +2110,156 @@ mod tests {
             member.secret.public_key()
         );
         assert!(!filed.contains(CHOSEN), "the password was filed");
+    }
+
+    /// Everything the organization database holds, table by table and row by row, as a test
+    /// compares it before and after a refusal: a write anywhere changes it.
+    async fn contents(store: &OrganizationStore) -> Vec<(String, Vec<Vec<turso::Value>>)> {
+        let mut contents = Vec::new();
+
+        for table in store.tables().await.expect("the tables") {
+            let mut rows = store
+                .connection()
+                .query(&format!("SELECT * FROM \"{table}\" ORDER BY rowid"), ())
+                .await
+                .expect("the rows");
+            let mut values = Vec::new();
+
+            while let Some(row) = rows.next().await.expect("a row") {
+                values.push(
+                    (0..row.column_count())
+                        .map(|index| row.get_value(index).expect("a value"))
+                        .collect(),
+                );
+            }
+
+            contents.push((table, values));
+        }
+
+        contents
+    }
+
+    /// Turn this build's organization into format 1 as the main branch shapes it, keeping its
+    /// rows: no `format`, `role`, `certificate` or `revocation` table, the role word and the
+    /// seven-act mask on the member row where this format has a role, an override and a removal,
+    /// and format 1's `administrator_certificate` with its unsigned `revoked_at`. The refusal is
+    /// made before any row is read, so what the rows say does not matter; the shape is what every
+    /// way in has to recognise, and it is checked against the main branch's here.
+    async fn as_format_one(store: &OrganizationStore) {
+        for statement in [
+            "DROP TABLE \"format\"",
+            "DROP TABLE \"workspace_override\"",
+            "DROP TABLE \"role\"",
+            "DROP TABLE \"certificate\"",
+            "DROP TABLE \"revocation\"",
+            "ALTER TABLE \"member\" ADD COLUMN \"role\" TEXT NOT NULL DEFAULT 'member'",
+            "ALTER TABLE \"member\" ADD COLUMN \"permissions\" INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE \"member\" DROP COLUMN \"role_id\"",
+            "ALTER TABLE \"member\" DROP COLUMN \"override\"",
+            "ALTER TABLE \"member\" DROP COLUMN \"removed_at\"",
+            "CREATE TABLE \"administrator_certificate\" (\
+                \"id\" TEXT PRIMARY KEY NOT NULL, \
+                \"member_id\" TEXT NOT NULL, \
+                \"signing_public_key\" BLOB NOT NULL, \
+                \"signature_by_organization_key\" BLOB NOT NULL, \
+                \"issued_at\" TEXT NOT NULL, \
+                \"revoked_at\" TEXT)",
+        ] {
+            store
+                .connection()
+                .execute(statement, ())
+                .await
+                .unwrap_or_else(|error| panic!("{statement}: {error}"));
+        }
+
+        // the main branch's eleven tables, and its member row's columns.
+        assert_eq!(
+            store.tables().await.expect("the tables"),
+            vec![
+                "administrator_certificate",
+                "grant",
+                "invitation",
+                "machine",
+                "machine_link",
+                "mark",
+                "member",
+                "migration_lease",
+                "organization",
+                "succession",
+                "workspace",
+            ]
+        );
+
+        let mut columns = store.columns_of("member").await.expect("the columns");
+        let mut main = vec![
+            "id",
+            "username_sealed",
+            "public_key",
+            "signing_public_key",
+            "sealed_secret_key",
+            "sealed_content_key",
+            "kdf_salt",
+            "kdf_params",
+            "role",
+            "permissions",
+            "must_change_password",
+            "certificate_id",
+            "signature",
+            "created_at",
+            "updated_at",
+            "session_epoch",
+            "owner_seed_sealed",
+        ];
+
+        columns.sort();
+        main.sort_unstable();
+
+        assert_eq!(columns, main);
+        assert!(store.is_older().await.expect("the format"));
+    }
+
+    /// Effort 838, tickets 22 and 23, at the join: **an organization an earlier version made,
+    /// opened first by an invited member, waits for its owner, and nothing is written to it.**
+    ///
+    /// The organization is this build's first run turned into format 1 in the main branch's shape
+    /// ([`as_format_one`]). The link opens, since the code is right, and the accept is refused
+    /// before any row is read: nothing on the organization moves, the invitation stands unspent,
+    /// and the machine records nothing. *It took the `format` table away from this build's shape
+    /// until ticket 23, which is an upgrade's last row missing rather than format 1.*
+    #[tokio::test]
+    async fn an_older_organization_opened_first_by_an_invited_member_waits_for_its_owner() {
+        let directory = scratch("older");
+        let (store, _, _, invitation, _, code) = invited(&directory).await;
+
+        as_format_one(&store).await;
+
+        let before = contents(&store).await;
+        let (machine, refused) = opened(
+            &scratch("older-machine"),
+            &store,
+            &invitation,
+            &code,
+            CHOSEN,
+            ISSUED_AT + 3,
+        )
+        .await;
+
+        assert!(
+            matches!(
+                &refused,
+                Err(Error::Refused {
+                    reason: RefusalReason::OrganizationOlder,
+                    message,
+                }) if message.contains("waits for its owner")
+            ),
+            "{:?}",
+            refused.map(|session| session.member_id)
+        );
+        assert_eq!(
+            contents(&store).await,
+            before,
+            "the refusal wrote to the organization"
+        );
+        assert!(machine.organization.is_none());
     }
 }

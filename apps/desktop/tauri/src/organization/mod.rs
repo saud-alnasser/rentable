@@ -15,7 +15,9 @@
 //! What follows the three is the work over them: the link a machine finds an
 //! organization by, the first run that creates one, the connect that records one on a machine
 //! without opening a vault, the machine link whoever keeps the accounts makes for a member whose
-//! password is already set, and the forget that leaves nothing of it here.
+//! password is already set, and the forget that leaves nothing of it here. And one that runs once:
+//! the owner's upgrade of an organization an earlier version made, through each change of format
+//! in order.
 
 use serde::{Deserialize, Serialize};
 
@@ -37,6 +39,8 @@ pub mod role;
 pub mod session;
 pub mod setup;
 pub mod store;
+pub mod transition;
+pub mod upgrade;
 pub mod vault;
 pub mod workspace;
 
@@ -73,10 +77,22 @@ pub struct HeldOrganization {
     /// this person's member row in the organization, once a sign-in has found it. `None` on a
     /// machine that connected by link and has not signed in yet; a sign-out keeps it.
     pub member_id: Option<String>,
-    /// their role there, as last read. A display fact: what a member may do is what their vault
-    /// holds, never this. `None` with `member_id`.
+    /// the kind of their role there, as last read: `owner`, `manager`, `member` or `custom`. A
+    /// display fact: what a member may do is what their vault holds, never this. `None` with
+    /// `member_id`, and on a record an earlier build wrote with a word that is no kind, which the
+    /// record's load drops and the next sign-in fills (effort 838, ticket 15).
     pub role: Option<String>,
     /// when this machine recorded the organization, whether by creating it, connecting by link,
     /// or the join and restore paths effort 824 retires.
     pub joined_at: i64,
+    /// the organization format this machine has read the organization in, once it has read it
+    /// in this build's (`store::FORMAT_VERSION`): at the first run, a connect, a join, a sign-in or
+    /// a resume that got past the format's refusal. `None` on a record written before this field
+    /// existed, until the next of those.
+    ///
+    /// **The one fact about the format that lives outside the organization database** (effort
+    /// 838, ticket 25). The `format` row is unsigned and every member can write that database, so
+    /// an upgraded organization can be made to look older there; a machine that has read it in
+    /// this format never transforms it again, whatever the row says (`upgrade.rs`).
+    pub format: Option<i64>,
 }

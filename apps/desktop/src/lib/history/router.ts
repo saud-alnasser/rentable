@@ -1,4 +1,5 @@
 import { procedure, router } from '$lib/api/trpc';
+import { flagOfEntry, HISTORY_FLAGS, viewFlagOf } from '$lib/history/history';
 import { newId } from '$lib/platform/database/identity';
 import { matchesAnySearch } from '$lib/platform/database/search';
 import * as s from '$lib/platform/database/schema';
@@ -34,9 +35,16 @@ export default router({
 	 * The clock is the context's rather than the caller's: an entry's time is when the
 	 * application recorded it, and a webview that is wrong about the hour should not be able to
 	 * write a record that disagrees with every other one.
+	 *
+	 * **Each entry asks for the flag of the act it records** (effort 838): recording a payment's
+	 * deletion is the payment's delete, and a set naming several kinds asks for each of them.
 	 */
-	append: procedure.member
-		.input(z.object({ entries: z.array(HistoryAppendSchema).min(1) }))
+	append: procedure
+		.permittedBy(
+			HISTORY_FLAGS,
+			z.object({ entries: z.array(HistoryAppendSchema).min(1) }),
+			(input) => input.entries.map(flagOfEntry)
+		)
 		.mutation(async ({ input, ctx }) => {
 			const at = new Date(ctx.clock.now());
 
@@ -60,26 +68,30 @@ export default router({
 	 *
 	 * Ordered by identity after time, because two entries written in the same millisecond are
 	 * otherwise in no order at all — and the one written second is the one that happened second.
+	 *
+	 * Reading one record's history asks for viewing that kind of record.
 	 */
-	getMany: procedure.member.input(HistoryReadSchema).query(async ({ input, ctx }) => {
-		const search = input.search?.trim();
-		const entries = await ctx.db
-			.select()
-			.from(s.history)
-			.where(
-				and(
-					eq(s.history.concept, input.concept),
-					eq(s.history.recordId, input.recordId),
-					// the action is matched as the key it is stored under, which is what the reader
-					// sees only after it is rendered — so searching `terminated` finds it in either
-					// language, and searching the Arabic word finds nothing. A history of one record
-					// is short enough that this is a convenience rather than the way through it.
-					search ? matchesAnySearch([s.history.action, s.history.record], search) : undefined
+	getMany: procedure
+		.permittedBy(HISTORY_FLAGS, HistoryReadSchema, (input) => [viewFlagOf(input.concept)])
+		.query(async ({ input, ctx }) => {
+			const search = input.search?.trim();
+			const entries = await ctx.db
+				.select()
+				.from(s.history)
+				.where(
+					and(
+						eq(s.history.concept, input.concept),
+						eq(s.history.recordId, input.recordId),
+						// the action is matched as the key it is stored under, which is what the reader
+						// sees only after it is rendered — so searching `terminated` finds it in either
+						// language, and searching the Arabic word finds nothing. A history of one record
+						// is short enough that this is a convenience rather than the way through it.
+						search ? matchesAnySearch([s.history.action, s.history.record], search) : undefined
+					)
 				)
-			)
-			.orderBy(desc(s.history.at), desc(s.history.id))
-			.limit(input.limit);
+				.orderBy(desc(s.history.at), desc(s.history.id))
+				.limit(input.limit);
 
-		return entries.map((entry) => ({ ...entry, at: entry.at.getTime() }));
-	})
+			return entries.map((entry) => ({ ...entry, at: entry.at.getTime() }));
+		})
 });

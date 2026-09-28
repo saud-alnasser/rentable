@@ -1,4 +1,5 @@
 import type { RouteId } from '$app/types';
+import type { RecordKind } from '$lib/workspace/permission';
 
 /**
  * Every page this application has, by its route id.
@@ -82,6 +83,35 @@ export type BreadcrumbCrumb =
 			route: PageRoute;
 			isLast: true;
 	  };
+
+/**
+ * The kind of record each place lists, where it lists one.
+ *
+ * **A place listing a kind the reader may not view is not offered at all** (effort 838,
+ * requirement 10): its directory would only be refused, and a rail row that leads to a refusal
+ * says the application has something for the reader that it does not. A unit is listed inside its
+ * complex and a payment inside its contract, so they have no place of their own here.
+ */
+export const PLACE_KINDS = {
+	'/tenants': 'tenant',
+	'/complexes': 'complex',
+	'/contracts': 'contract'
+} as const satisfies Partial<Record<TrailPlace, RecordKind>>;
+
+/**
+ * The places of a list the reader may go to: every one but those listing a kind they may not view.
+ * Anything that is not such a place, the dashboard and the settings sections among them, stays.
+ */
+export function toViewablePlaces<T extends { url: string }>(
+	places: readonly T[],
+	views: (kind: RecordKind) => boolean
+): T[] {
+	return places.filter((place) => {
+		const kind = PLACE_KINDS[place.url as keyof typeof PLACE_KINDS];
+
+		return !kind || views(kind);
+	});
+}
 
 /**
  * Whether `route` is the section the current `pathname` sits in.

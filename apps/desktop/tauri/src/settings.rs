@@ -30,6 +30,10 @@ pub struct Settings {
     pub locale: Option<String>,
     pub appearance: Appearance,
     pub version: String,
+    /// whether the records an earlier version left in `app.db` have been brought in or put
+    /// aside on this machine, so neither the way in nor the settings area offers them again.
+    /// A file written before it existed reads as not yet.
+    pub earlier_records_settled: bool,
 }
 
 #[derive(Default, Deserialize)]
@@ -44,6 +48,7 @@ struct SettingsStored {
     locale: Option<String>,
     appearance: Appearance,
     version: String,
+    earlier_records_settled: bool,
 }
 
 impl Default for Settings {
@@ -56,6 +61,7 @@ impl Default for Settings {
             locale: None,
             appearance: Appearance::System,
             version: String::new(),
+            earlier_records_settled: false,
         }
     }
 }
@@ -78,6 +84,7 @@ impl From<SettingsStored> for Settings {
             locale: value.locale,
             appearance: value.appearance,
             version: value.version,
+            earlier_records_settled: value.earlier_records_settled,
         }
     }
 }
@@ -118,6 +125,7 @@ pub struct SettingsChangeset {
     pub ending_soon_notice_days: Option<u16>,
     pub locale: Option<String>,
     pub appearance: Option<Appearance>,
+    pub earlier_records_settled: Option<bool>,
 }
 
 #[tauri::command]
@@ -158,6 +166,10 @@ pub async fn settings_set_inner(
 
     if let Some(appearance) = changeset.appearance {
         settings.appearance = appearance;
+    }
+
+    if let Some(settled) = changeset.earlier_records_settled {
+        settings.earlier_records_settled = settled;
     }
 
     settings.commit()?;
@@ -241,5 +253,31 @@ mod tests {
 
         let changeset = serde_json::from_str::<SettingsChangeset>(r#"{ "locale": "en" }"#).unwrap();
         assert_eq!(changeset.appearance, None);
+    }
+
+    /// A file written before the earlier records were offered reads as not yet settled, and the
+    /// key is written and read back in the words the webview uses.
+    #[test]
+    fn reads_and_round_trips_the_earlier_records_settled() {
+        let settings = serde_json::from_str::<Settings>(
+            r#"{ "endingSoonNoticeDays": 60, "locale": "en", "version": "0.14.0" }"#,
+        )
+        .expect("failed to deserialize settings without the key");
+        assert!(!settings.earlier_records_settled);
+
+        let json = serde_json::to_value(Settings {
+            earlier_records_settled: true,
+            ..Settings::default()
+        })
+        .expect("failed to serialize settings");
+        assert_eq!(json["earlierRecordsSettled"], true);
+
+        let read = serde_json::from_value::<Settings>(json).expect("failed to read it back");
+        assert!(read.earlier_records_settled);
+
+        let changeset =
+            serde_json::from_str::<SettingsChangeset>(r#"{ "earlierRecordsSettled": true }"#)
+                .unwrap();
+        assert_eq!(changeset.earlier_records_settled, Some(true));
     }
 }

@@ -71,6 +71,8 @@ mock.module('$lib/platform/tauri', {
 // the acts' glyphs are Svelte components, which this runner cannot load. Only what an act
 // declares about asking is read here, so each glyph is an empty stand-in.
 for (const glyph of [
+	'arrow-down',
+	'arrow-up',
 	'ban',
 	'calendar-plus',
 	'copy',
@@ -103,7 +105,8 @@ const { declareComplexActs } = await import('$lib/complex/acts');
 const { declareUnitActs } = await import('$lib/complex/unit/acts');
 const { declarePaymentActs } = await import('$lib/payment/acts');
 const { declareContractActs } = await import('$lib/contract/acts');
-const { declareMemberActs, declareWorkspaceActs } = await import('$lib/organization/acts');
+const { declareMemberActs, declareRoleActs, declareWorkspaceActs } =
+	await import('$lib/organization/acts');
 const { loadLocale } = await import('$lib/i18n/i18n-util.sync');
 const { LL, setLocale } = await import('$lib/i18n/i18n-svelte');
 const { get } = await import('svelte/store');
@@ -290,7 +293,8 @@ describe('what each concept declares about asking', () => {
 		payment: declarePaymentActs(host),
 		contract: declareContractActs(host),
 		member: declareMemberActs(host),
-		workspace: declareWorkspaceActs(host)
+		workspace: declareWorkspaceActs(host),
+		role: declareRoleActs(host)
 	};
 
 	it('every destructive act declares whether it asks', () => {
@@ -312,12 +316,14 @@ describe('what each concept declares about asking', () => {
 		assert.equal(policyOf(declared.contract, 'contract.delete'), 'none');
 	});
 
-	it('what nothing puts back asks first: a workspace, and a member removed', () => {
+	it('what nothing puts back asks first: a workspace, a member removed, and a role deleted', () => {
 		const policyOf = (acts: { id: string; confirmation?: string }[], id: string) =>
 			acts.find((act) => act.id === id)?.confirmation;
 
 		assert.equal(policyOf(declared.workspace, 'workspace.delete'), 'irreversible');
 		assert.equal(policyOf(declared.member, 'member.remove'), 'irreversible');
+		// a role deleted moves its holders to the member role, and no organization act is undone.
+		assert.equal(policyOf(declared.role, 'role.delete'), 'irreversible');
 		assert.equal(policyOf(declared.member, 'member.lockOut'), 'irreversible');
 	});
 });

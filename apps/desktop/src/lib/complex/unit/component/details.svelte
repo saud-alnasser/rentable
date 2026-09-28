@@ -8,6 +8,7 @@
 	import { unitActs } from '$lib/complex/unit/host.svelte';
 	import { toPageActions } from '$lib/design/acts';
 	import { LL } from '$lib/i18n/i18n-svelte';
+	import { memberPermissions } from '$lib/workspace/permission';
 	import UnitContracts from './contracts.svelte';
 
 	let { unitId }: { unitId: string } = $props();
@@ -56,7 +57,11 @@
 {#snippet fields()}
 	<Specification
 		entries={[
-			{ label: $LL.common.labels.complex(), value: unit?.complexName ?? '' },
+			// the complex is left out, label and all, where the read answered without it: a reader who
+			// may not view complexes is not told which one holds the unit (effort 838, requirement 10).
+			...(unit?.complexName !== undefined
+				? [{ label: $LL.common.labels.complex(), value: unit.complexName }]
+				: []),
 			{ label: $LL.common.labels.status(), value: status }
 		]}
 	/>
@@ -76,5 +81,7 @@
 	{parent}
 	{actions}
 	{fields}
-	collections={[{ value: 'contracts', label: $LL.common.nav.contracts(), content: contracts }]}
+	collections={memberPermissions.views('contract')
+		? [{ value: 'contracts', label: $LL.common.nav.contracts(), content: contracts }]
+		: []}
 />

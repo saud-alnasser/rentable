@@ -10,8 +10,8 @@
 //!
 //! A member holds an X25519 keypair. The secret half is sealed under a key
 //! derived from their password; a credential is sealed to the public half. That
-//! asymmetry is the property the whole design turns on: an administrator grants
-//! a workspace to a member whose password they do not know, so a member can join
+//! asymmetry is the property the whole design turns on: a holder of
+//! `grantWorkspace` grants a workspace to a member whose password they do not know, so a member can join
 //! a second workspace long after they joined the first.
 //!
 //! # What a wrong password does
@@ -154,7 +154,7 @@ pub const MAX_LANES: u32 = 16;
 pub struct MemberKey([u8; MEMBER_KEY_BYTES]);
 
 impl MemberKey {
-    /// Any thirty-two bytes as a member key, for the test that tries every key an administrator
+    /// Any thirty-two bytes as a member key, for the test that tries every key a member
     /// holds against a vault they did not build. Nothing outside a test makes one this way: a
     /// member key is derived from a password, and that derivation is the whole of the defence.
     #[cfg(test)]
@@ -287,7 +287,7 @@ impl MemberSecretKey {
     /// A key seed that follows from this secret and from `purpose`, and from
     /// nothing stored anywhere.
     ///
-    /// **This is where a member's signing keys come from.** An administrator's
+    /// **This is where a member's signing keys come from.** A member's
     /// signing key, and the owner's organization key, are derived from the one
     /// secret their password opens rather than kept in a column or a keyring:
     /// a password change re-seals the same secret, so the keys survive it; a new
@@ -318,7 +318,7 @@ impl MemberSecretKey {
 /// The three sealed fields travel together because the seal binds them together.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Vault {
-    /// The public half. A credential is sealed to this and an administrator needs
+    /// The public half. A credential is sealed to this and a granter needs
     /// nothing else to grant one.
     pub public_key: [u8; PUBLIC_KEY_BYTES],
     /// The nonce followed by the sealed secret half.
@@ -484,7 +484,7 @@ pub fn reseal_vault_with_key(
 /// Seals a credential to a member's public key.
 ///
 /// **The sealer holds no secret of their own and needs no password**, which is
-/// what lets an administrator grant a workspace to a member whose password they
+/// what lets a granter give a workspace to a member whose password they
 /// do not know. The output carries the ephemeral public key it was sealed with.
 pub fn seal_to_public_key(
     recipient_public_key: &[u8; PUBLIC_KEY_BYTES],
@@ -895,7 +895,7 @@ mod tests {
 
     #[test]
     fn sealing_to_a_public_key_needs_no_password_and_no_secret_of_the_sealers_own() {
-        // the administrator's half of a grant: they hold the member's public key
+        // the granter's half of a grant: they hold the member's public key
         // out of a row and nothing else, and that is enough to grant a workspace.
         let member = create_vault("the member password", test_cost()).expect("failed to create");
 
@@ -1172,7 +1172,7 @@ mod tests {
     #[test]
     fn no_key_one_member_holds_opens_another_members_sealed_secret_key() {
         // this is what stops an escrow copy arriving later as a convenience. The
-        // three keys below are every key a member or an administrator ever has,
+        // three keys below are every key a member or a manager ever has,
         // and none of them opens a vault it did not build.
         let mine = create_vault("my password", test_cost()).expect("failed to create");
         let theirs = create_vault("their password", test_cost()).expect("failed to create");
@@ -1189,7 +1189,7 @@ mod tests {
             "a member key from another password opened their vault"
         );
 
-        // my secret key, which is what an administrator holds after their own
+        // my secret key, which is what a manager holds after their own
         // sign-in and the only key a reset could be tempted to reach for
         let my_secret_key = open_vault("my password", &mine).expect("failed to open");
         assert!(

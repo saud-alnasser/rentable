@@ -1,4 +1,4 @@
-import type { OrganizationMember, OrganizationSession } from '$lib/platform/host';
+import type { OrganizationMember, OrganizationRole, OrganizationSession } from '$lib/platform/host';
 
 /**
  * THE ORGANIZATION HOST'S HOOKS, STOOD IN FOR
@@ -15,7 +15,7 @@ import type { OrganizationMember, OrganizationSession } from '$lib/platform/host
  * }));
  * ```
  *
- * `hostAnswers` is what the hooks answer: the session and members they read, and a refusal per
+ * `hostAnswers` is what the hooks answer: the session, members and roles they read, and a refusal per
  * write where a test wants one. `resetHostAnswers` belongs in a `beforeEach`.
  */
 
@@ -24,7 +24,10 @@ export type HostWrite = { hook: string; input: unknown };
 
 export const hostAnswers = {
 	session: null as OrganizationSession | null,
+	/** whether this machine holds the Turso authority, as the organization's state says. */
+	holdsTursoAuthority: false,
 	members: [] as OrganizationMember[],
+	roles: [] as OrganizationRole[],
 	writes: [] as HostWrite[],
 	/** a write the shell refuses, by hook, with what it refuses it with. */
 	refusals: {} as Record<string, Error>
@@ -32,7 +35,9 @@ export const hostAnswers = {
 
 export function resetHostAnswers() {
 	hostAnswers.session = null;
+	hostAnswers.holdsTursoAuthority = false;
 	hostAnswers.members = [];
+	hostAnswers.roles = [];
 	hostAnswers.writes = [];
 	hostAnswers.refusals = {};
 }
@@ -57,7 +62,12 @@ const mutation = (hook: string) => () => ({
 export const hostHooks = {
 	useFetchOrganizationState: () => ({
 		get data() {
-			return hostAnswers.session ? { session: hostAnswers.session } : undefined;
+			return hostAnswers.session
+				? {
+						session: hostAnswers.session,
+						holdsTursoAuthority: hostAnswers.holdsTursoAuthority
+					}
+				: undefined;
 		},
 		refetch: async () => undefined
 	}),
@@ -66,9 +76,21 @@ export const hostHooks = {
 			return hostAnswers.members;
 		}
 	}),
+	useFetchRoles: () => ({
+		get data() {
+			return hostAnswers.roles;
+		}
+	}),
 	useLockOutCost: () => ({ data: undefined }),
 	useRenameMember: mutation('useRenameMember'),
-	useChangeRole: mutation('useChangeRole'),
+	useAssignRole: mutation('useAssignRole'),
+	useSetOverride: mutation('useSetOverride'),
+	useSetWorkspaceOverride: mutation('useSetWorkspaceOverride'),
+	useCreateRole: mutation('useCreateRole'),
+	useRenameRole: mutation('useRenameRole'),
+	useSetRoleMask: mutation('useSetRoleMask'),
+	useMoveRole: mutation('useMoveRole'),
+	useDeleteRole: mutation('useDeleteRole'),
 	useChangeAccess: mutation('useChangeAccess'),
 	useOfferOwnership: mutation('useOfferOwnership'),
 	useWithdrawOffer: mutation('useWithdrawOffer'),

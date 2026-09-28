@@ -10,6 +10,7 @@ import {
 	type Api,
 	countMatching,
 	createApi,
+	identityWithout,
 	monthsFromNow,
 	seedTenant,
 	unusedId,
@@ -1015,7 +1016,7 @@ test("a payment's receipt states who paid, what for, the cycles it covers and wh
 		{ amount: 4500, date: monthsFromNow(-1), method: 'bank-transfer', reference: 'SADAD-7731' }
 	);
 	assert.deepEqual(receipt.tenant, { name: tenant.name, nationalId: tenant.nationalId });
-	assert.equal(receipt.contract.govId, '20471133');
+	assert.equal(receipt.contract?.govId, '20471133');
 	assert.deepEqual(receipt.units, [
 		{ name: 'A-12', complexName: 'Al Nakheel' },
 		{ name: 'A-13', complexName: 'Al Nakheel' }
@@ -1050,4 +1051,120 @@ test("a terminated contract's payment still has a receipt, and a missing payment
 		api.contract.payments.receipt({ id: unusedId() }),
 		refusedWith('payment.missing')
 	);
+});
+
+// --- What a member may not view ------------------------------------------------------------
+//
+// Effort 838, requirement 10: a payment's reads leave out every field of a kind the member may not
+// view. The same workspace is read by a member holding every record act and by one lacking a
+// single view flag.
+
+async function seedReceiptedPayment(api: Api) {
+	const tenant = await seedTenant(api);
+	const complex = await api.complex.create({ name: 'Al Nakheel', location: 'Riyadh' });
+	const unit = await api.complex.units.create({ name: 'A-12', complexId: complex.id });
+	const contract = await api.contract.create({
+		tenantId: tenant.id,
+		govId: '20471133',
+		start: monthsFromNow(-7),
+		end: monthsFromNow(5),
+		interval: '3m',
+		cost: 3000,
+		unitIds: [unit.id]
+	});
+	const payment = await api.contract.payments.create({
+		contractId: contract.id,
+		date: monthsFromNow(-1),
+		amount: 4500
+	});
+
+	return { tenant, complex, unit, contract, payment };
+}
+
+test('without viewing contracts, a payment carries no contract reference, status or figures', async () => {
+	const db = createMemoryDatabase();
+	const api = await createApi({ db });
+	const { tenant, contract, payment } = await seedReceiptedPayment(api);
+	const lacking = await createApi({ db, identity: identityWithout('viewContract') });
+
+	assert.equal((await api.contract.payments.get({ id: payment.id }))?.contractGovId, '20471133');
+
+	const read = await lacking.contract.payments.get({ id: payment.id });
+
+	assert.equal(read?.contractId, contract.id);
+	assert.equal(read?.tenantName, tenant.name);
+
+	for (const field of [
+		'contractGovId',
+		'contractStatus',
+		'contractPaidAmount',
+		'contractExpectedAmount'
+	]) {
+		assert.equal(field in read!, false, field);
+	}
+
+	const receipt = await lacking.contract.payments.receipt({ id: payment.id });
+
+	assert.equal('contract' in receipt, false);
+	assert.equal('remaining' in receipt, false);
+	assert.deepEqual(receipt.tenant, { name: tenant.name, nationalId: tenant.nationalId });
+	// the cycles are what the payment covers, and stay.
+	assert.ok(receipt.cycles.length > 0);
+
+	// a search places the payment by its tenant instead of by the contract's reference.
+	assert.deepEqual(
+		(await lacking.contract.payments.search({ term: '4500' })).map(({ hint }) => hint),
+		[tenant.name]
+	);
+});
+
+test('without viewing tenants, a payment and its receipt name no tenant', async () => {
+	const db = createMemoryDatabase();
+	const api = await createApi({ db });
+	const { tenant, payment } = await seedReceiptedPayment(api);
+	const lacking = await createApi({ db, identity: identityWithout('viewTenant') });
+
+	assert.equal((await api.contract.payments.get({ id: payment.id }))?.tenantName, tenant.name);
+
+	const read = await lacking.contract.payments.get({ id: payment.id });
+
+	assert.equal(read?.contractGovId, '20471133');
+	assert.equal('tenantName' in read!, false);
+	assert.equal('tenant' in (await lacking.contract.payments.receipt({ id: payment.id })), false);
+});
+
+test('a payment with no contract reference is placed by nothing where the member may not view its tenant', async () => {
+	const db = createMemoryDatabase();
+	const api = await createApi({ db });
+	const contract = await seedContract(api);
+
+	await api.contract.payments.create({ contractId: contract.id, date: NOW, amount: 777 });
+
+	const lacking = await createApi({ db, identity: identityWithout('viewTenant') });
+
+	assert.deepEqual(
+		(await lacking.contract.payments.search({ term: '777' })).map(({ hint }) => hint),
+		['']
+	);
+});
+
+test('without viewing units or complexes, a receipt lists no units, or no complex beside them', async () => {
+	const db = createMemoryDatabase();
+	const api = await createApi({ db });
+	const { payment } = await seedReceiptedPayment(api);
+
+	assert.deepEqual((await api.contract.payments.receipt({ id: payment.id })).units, [
+		{ name: 'A-12', complexName: 'Al Nakheel' }
+	]);
+
+	const withoutUnits = await createApi({ db, identity: identityWithout('viewUnit') });
+	const withoutComplexes = await createApi({ db, identity: identityWithout('viewComplex') });
+
+	assert.equal(
+		'units' in (await withoutUnits.contract.payments.receipt({ id: payment.id })),
+		false
+	);
+	assert.deepEqual((await withoutComplexes.contract.payments.receipt({ id: payment.id })).units, [
+		{ name: 'A-12' }
+	]);
 });

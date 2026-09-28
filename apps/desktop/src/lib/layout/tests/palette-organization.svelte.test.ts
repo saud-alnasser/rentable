@@ -12,6 +12,7 @@ import {
 } from '$lib/organization/host.svelte';
 import type { MemberStanding, OrganizationMember, OrganizationSession } from '$lib/platform/host';
 import {
+	fakeOrganizationMember,
 	fakeOrganizationSession,
 	fakeOrganizationWorkspace,
 	fakeSyncState,
@@ -20,7 +21,7 @@ import {
 import { usesAppleKeyboard } from '@rentable/design/shortcut.js';
 import { maskOf } from '@rentable/workspace-permission';
 
-import PaletteHarness from './palette-harness.svelte';
+import PaletteHarness from '#tests/palette-harness.svelte';
 
 /**
  * A MEMBER'S AND A WORKSPACE'S ACTS, IN THE COMMAND MENU
@@ -34,7 +35,8 @@ import PaletteHarness from './palette-harness.svelte';
  * **What the reader may not do is not offered.** Their gates are known before a record is named,
  * so an act no record admits for this reader is absent, and once an act is chosen only the records
  * it admits are listed. One waiting on a write already running is listed and refused with the
- * reason.
+ * reason, and so is who is in a workspace for a reader without `grantWorkspace`, since the card
+ * refuses it rather than leaving it out.
  *
  * **The reads are the mock**: the session, the members, where each stands and the machine's sync
  * record reach a shell this runner has none of. The host's `run` is spied on rather than stood in
@@ -73,19 +75,11 @@ vi.mock('$lib/settings/query', async (importOriginal) => ({
 	})
 }));
 
-const member = (overrides: Partial<OrganizationMember>): OrganizationMember => ({
-	id: 'm',
-	username: 'member',
-	role: 'member',
-	permissions: 0,
-	workspaces: [],
-	createdAt: 0,
-	offeredOwnership: false,
-	...overrides
-});
+const member = (overrides: Partial<OrganizationMember>): OrganizationMember =>
+	fakeOrganizationMember(overrides);
 
 const olivia = member({ id: 'owner', username: 'olivia', role: 'owner' });
-const ada = member({ id: 'ada', username: 'ada', role: 'administrator' });
+const ada = member({ id: 'ada', username: 'ada', role: 'manager' });
 const sami = member({ id: 'sami', username: 'sami' });
 
 beforeEach(() => {
@@ -115,13 +109,16 @@ afterEach(() => {
 	resetOrganizationHost();
 });
 
-/** ada, an administrator whose row carries the reset and nothing else. */
+/**
+ * ada, a manager whose row carries the reset and what a reset writes: the account's grant on the
+ * organization database, which is `grantWorkspace`'s row (effort 838).
+ */
 const readAsAda = () => {
 	answers.session = fakeOrganizationSession({
 		memberId: 'ada',
 		username: 'ada',
-		role: 'administrator',
-		permissions: maskOf('resetPassword')
+		role: 'manager',
+		permissions: maskOf('resetPassword', 'grantWorkspace')
 	});
 };
 
@@ -176,10 +173,9 @@ test('a member act the reader may not take is not offered', async () => {
 	await waitFor(() => expect(row('member.makeLink')).not.toBeNull());
 	expect(row('member.endSessions')).not.toBeNull();
 
-	// ada's row carries neither removeMember, renameMember, changeRole nor grantWorkspace, and the
-	// handover is the owner's alone.
+	// ada's row carries no removeMember, and the handover is the owner's alone. (The edit is
+	// offered: her grantWorkspace is what a member's workspaces are written with.)
 	for (const act of [
-		'member.edit',
 		'member.remove',
 		'member.lockOut',
 		'member.offerOwnership',
@@ -240,13 +236,17 @@ test('a workspace act reaches the organization host with the workspace the reade
 	expect(organizationHostState.workspace.changingAccess?.workspace).toEqual(north);
 });
 
-test('a workspace act the reader may not take is not offered', async () => {
+test('a workspace act the reader may not take is not offered, and who is in one is refused', async () => {
+	const north = fakeOrganizationWorkspace({ id: 'north', name: 'North Properties' });
+
 	// a member whose row carries nothing an act is gated on.
 	answers.session = fakeOrganizationSession({
 		memberId: 'sami',
 		role: 'member',
-		permissions: 0
+		permissions: 0,
+		workspaces: [north]
 	});
+	const run = vi.spyOn(workspaceHost, 'run');
 
 	await openPalette();
 
@@ -255,10 +255,15 @@ test('a workspace act the reader may not take is not offered', async () => {
 		expect(document.querySelectorAll('[data-slot=command-item]').length).toBeGreaterThan(0)
 	);
 
-	for (const act of ['workspace.edit', 'workspace.members', 'workspace.delete']) {
+	// who is in a workspace is refused on every card for a reader without `grantWorkspace`, so the
+	// menu, which offers an act only where some record admits it, leaves it out (effort 838,
+	// ticket 51): a row that could never run would answer every search for it.
+	for (const act of ['workspace.edit', 'workspace.delete', 'workspace.members']) {
 		expect(row(act), act).toBeNull();
 	}
 
 	// nor anything of a member's, since sami's row writes nobody.
 	expect(document.querySelector('[data-value^="member."]')).toBeNull();
+	expect(run).not.toHaveBeenCalled();
+	expect(organizationHostState.workspace.changingAccess).toBeNull();
 });

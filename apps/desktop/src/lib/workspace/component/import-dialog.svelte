@@ -3,10 +3,11 @@
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Callout } from '@rentable/design/primitive/callout/index.js';
 	import * as Dialog from '@rentable/design/primitive/dialog/index.js';
-	import { showErrorToast } from '$lib/error/toast';
+	import { showErrorSentence, showErrorToast } from '$lib/error/toast';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { tauri } from '$lib/platform/tauri';
 	import type { ImportRejection } from '$lib/design/import';
+	import type { ImportTable } from '$lib/platform/host';
 	import {
 		countTransfer,
 		isWorkspaceImportable,
@@ -23,6 +24,7 @@
 	import FileSpreadsheetIcon from '@lucide/svelte/icons/file-spreadsheet';
 	import UnlinkIcon from '@lucide/svelte/icons/unlink';
 	import api from '$lib/api/caller';
+	import { IMPORT_FLAGS, memberPermissions } from '$lib/workspace/permission';
 
 	/**
 	 * Reading a whole workspace out of one file: choose it, see what each sheet would do, agree.
@@ -138,9 +140,41 @@
 		}
 	}
 
-	/** Ask for a file, read every sheet of it, and work out what it would do — writing nothing. */
+	/**
+	 * Whether the reader may not import, telling them why where they may not.
+	 *
+	 * The procedure asks for every kind's create, whatever the file holds, so this asks the same
+	 * before anything is read: a reader who may not import is told so, and nothing is read.
+	 */
+	function refuse() {
+		const refused = memberPermissions.refusalOfEvery(IMPORT_FLAGS, $LL);
+
+		if (refused) {
+			showErrorSentence(refused);
+		}
+
+		return Boolean(refused);
+	}
+
+	/**
+	 * Work out what tables already read would do, and open over them, writing nothing.
+	 *
+	 * @param path the file the tables are, named under the title.
+	 */
+	async function openOver(tables: ImportTable[], path: string) {
+		// what the workspace already holds, read once for the whole file: a row that duplicates
+		// a record is turned away here rather than at the write, and a reference may resolve
+		// against a record that is already here as readily as against one the file creates.
+		const held = await api.workspace.held();
+
+		fileName = path.split(/[\\/]/).pop() ?? path;
+		plan = planWorkspaceImport(tables, Date.now(), held);
+		open = true;
+	}
+
+	/** Ask for a file, read every sheet of it, and work out what it would do, writing nothing. */
 	export async function choose() {
-		if (isReading) {
+		if (isReading || refuse()) {
 			return;
 		}
 
@@ -153,17 +187,39 @@
 				return;
 			}
 
-			const tables = await tauri.import.readBook(path);
-			// what the workspace already holds, read once for the whole file: a row that duplicates
-			// a record is turned away here rather than at the write, and a reference may resolve
-			// against a record that is already here as readily as against one the file creates.
-			const held = await api.workspace.held();
-
-			fileName = path.split(/[\\/]/).pop() ?? path;
-			plan = planWorkspaceImport(tables, Date.now(), held);
-			open = true;
+			await openOver(await tauri.import.readBook(path), path);
 		} catch (failure) {
 			showErrorToast(failure, $LL);
+		} finally {
+			isReading = false;
+		}
+	}
+
+	/**
+	 * Open over tables something else read, as though the reader had chosen the file they came
+	 * from: the records an earlier version left on this machine, read into the export's workbook
+	 * (effort 838, requirement 18). The plan is shown before anything is written, as for a file.
+	 *
+	 * @param read reads the tables and names the workbook they are, once the reader may import.
+	 * @returns whether the dialog opened.
+	 */
+	export async function review(read: () => Promise<{ tables: ImportTable[]; path: string }>) {
+		if (isReading || refuse()) {
+			return false;
+		}
+
+		isReading = true;
+
+		try {
+			const { tables, path } = await read();
+
+			await openOver(tables, path);
+
+			return true;
+		} catch (failure) {
+			showErrorToast(failure, $LL);
+
+			return false;
 		} finally {
 			isReading = false;
 		}

@@ -75,6 +75,8 @@ const { applyRedo, applyUndo, declareMutation, describeOutcomeChange } =
 	await import('$lib/design/mutation');
 const { workspacePrefixes } = await import('$lib/design/query');
 const { inverseStack } = await import('$lib/design/inverse');
+const { memberPermissions } = await import('$lib/workspace/permission');
+const { EVERY_FLAG, maskOf } = await import('@rentable/workspace-permission');
 // reached through the library's own accessor, so the client arrives typed as the one the
 // mutation layer takes — and is the recorder above, because the library is substituted.
 const { useQueryClient } = await import('@tanstack/svelte-query');
@@ -380,6 +382,7 @@ describe('a declared mutation', () => {
 function reversible(change: string, calls: string[] = []): Inverse {
 	return {
 		describe: () => change,
+		flags: { undo: [], redo: [] },
 		undo: async () => calls.push(`undo ${change}`),
 		redo: async () => calls.push(`redo ${change}`)
 	};
@@ -548,6 +551,101 @@ describe('the offer to take a change back', () => {
 		await applyRedo(client);
 
 		assert.deepEqual(raised, []);
+	});
+});
+
+// effort 838, requirement 10: taking a change back is an act of its own, asking for the flags its
+// procedures name, and a reader who may not take it is not offered it and is told why.
+describe('a change the reader may not take back', () => {
+	/** a tenant created, whose undo is a delete and whose redo is the create again. */
+	function created(calls: string[]): MutationDeclaration<void, undefined> {
+		return {
+			mutate: async () => undefined,
+			touches: ['tenants'],
+			toast: { success: () => 'creating a tenant done' },
+			inverse: () => ({
+				...reversible('creating a tenant', calls),
+				flags: { undo: ['deleteTenant'], redo: ['createTenant'] }
+			})
+		};
+	}
+
+	/** a reader holding every flag but these, on a full-access grant. */
+	const holdingAllBut = (...lacking: string[]) =>
+		memberPermissions.hold({
+			permissions: maskOf(...EVERY_FLAG.filter((flag) => !lacking.includes(flag))),
+			accessLevel: 'full-access'
+		});
+
+	it('is announced without the offer', async (context) => {
+		context.after(() => memberPermissions.hold(null));
+		holdingAllBut('deleteTenant');
+
+		const { mutation } = bind(created([]));
+
+		await mutation.onSuccess(undefined, undefined, undefined);
+
+		assert.deepEqual(raised, [{ level: 'success', message: 'creating a tenant done' }]);
+	});
+
+	it('is refused at the key with the flag it lacks, and nothing moves', async (context) => {
+		context.after(() => memberPermissions.hold(null));
+		holdingAllBut('deleteTenant');
+
+		const calls: string[] = [];
+		const { mutation, client } = bind(created(calls));
+
+		await mutation.onSuccess(undefined, undefined, undefined);
+		raised.length = 0;
+
+		await applyUndo(client);
+
+		assert.deepEqual(calls, []);
+		assert.deepEqual(raised, [
+			{ level: 'error', message: 'you do not have permission to delete tenants.' }
+		]);
+		assert.ok(inverseStack.undoable, 'the change stays on the stack, to be taken back later');
+	});
+
+	it('on a read-only grant, says the grant is why', async (context) => {
+		context.after(() => memberPermissions.hold(null));
+		memberPermissions.hold({ permissions: maskOf(...EVERY_FLAG), accessLevel: 'read-only' });
+
+		const calls: string[] = [];
+		const { mutation, client } = bind(created(calls));
+
+		await mutation.onSuccess(undefined, undefined, undefined);
+		raised.length = 0;
+
+		await applyUndo(client);
+
+		assert.deepEqual(calls, []);
+		assert.deepEqual(raised, [
+			{
+				level: 'error',
+				message: 'your access to this workspace is read only, so nothing in it can be changed.'
+			}
+		]);
+	});
+
+	it('is offered, and taken back, where the reader holds what it asks for', async (context) => {
+		context.after(() => memberPermissions.hold(null));
+		// the create is not the undo's to ask for, so lacking it leaves the undo open.
+		holdingAllBut('createTenant');
+
+		const calls: string[] = [];
+		const { mutation } = bind(created(calls));
+
+		await mutation.onSuccess(undefined, undefined, undefined);
+
+		const offered = raised[0];
+
+		assert.ok(offered.options, 'the undo is offered');
+		await offered.options.action.onClick();
+
+		assert.deepEqual(calls, ['undo creating a tenant']);
+		// and the redo it would offer next asks for the create, which the reader lacks.
+		assert.equal(raised.at(-1)?.options, undefined);
 	});
 });
 

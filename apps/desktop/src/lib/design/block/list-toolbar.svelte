@@ -36,6 +36,7 @@
 	let {
 		search = $bindable(''),
 		onSearch,
+		answersSearchKey = true,
 		count,
 		narrowed = false,
 		sortOptions = [],
@@ -47,6 +48,8 @@
 		search?: string;
 		/** Called at the moment a new term becomes the search. See `search-field.svelte`. */
 		onSearch?: (term: string) => void;
+		/** Whether the field answers `/`. See `search-field.svelte`. */
+		answersSearchKey?: boolean;
 		/** How many records the set is showing. */
 		count: number;
 		/**
@@ -86,7 +89,7 @@
 	data-set-bar
 	class="flex shrink-0 flex-col gap-3 rounded-2xl bg-card px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between"
 >
-	<SearchField bind:value={search} {onSearch} />
+	<SearchField bind:value={search} {onSearch} {answersSearchKey} />
 
 	<div data-set-bar-end class="flex shrink-0 flex-wrap items-center gap-3">
 		{#if isCounted}

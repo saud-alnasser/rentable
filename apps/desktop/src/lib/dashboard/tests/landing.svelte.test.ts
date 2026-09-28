@@ -9,6 +9,7 @@ import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import { formatLocaleMoney } from '$lib/platform/locale';
+import en from '$lib/i18n/en';
 import QueryProviders from '#tests/query-providers.svelte';
 
 /**
@@ -135,4 +136,31 @@ test('what falls due this week does not change the outstanding figure', () => {
 
 	expect(without).toContain(formatLocaleMoney('en', 4750));
 	expect(outstandingFigure()).toBe(without);
+});
+
+// effort 838, requirement 10: the router answers a reader who may not view tenants with a queue
+// that names nobody, and a row then leads with the contract's own reference and draws no phone.
+test('a queue row answered without its tenant leads with the contract and names nobody', () => {
+	const late: QueueEntry = {
+		id: 'late',
+		govId: 'GOV-7',
+		rank: 'overdue',
+		status: 'defaulted',
+		outstandingAmount: 4000,
+		contractEnd: Date.UTC(2026, 6, 17),
+		isEndingSoon: false
+	};
+
+	dashboard.data = answer(MONEY_RANKS.slice(0, 1), [late]);
+
+	renderLanding();
+
+	const section = screen.getByRole('heading', { name: 'overdue' }).closest('section')!;
+	const row = within(section).getByText('GOV-7').closest('div.relative');
+
+	expect(row?.textContent).not.toContain('Tenant');
+	expect(row?.textContent).not.toContain('+966');
+	expect(row?.querySelector('a')?.getAttribute('aria-label')).toBe(
+		en.dashboard.sections.openContractNumbered.replace('{number}', 'GOV-7')
+	);
 });

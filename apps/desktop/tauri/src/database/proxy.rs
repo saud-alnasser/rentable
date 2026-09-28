@@ -199,7 +199,7 @@ fn workspace_value(value: turso::Value) -> Value {
 /// the two engines are asked for the same thing differently — `SqliteRow` carries its own columns
 /// and `turso::Row` does not. A statement that matched nothing yields no rows from either, so the
 /// names never reach the web layer on their own.
-async fn workspace_rows(rows: &mut turso::Rows) -> Result<Vec<SQLRow>, Error> {
+async fn workspace_rows(rows: &mut super::corrupt::Rows) -> Result<Vec<SQLRow>, Error> {
     let columns = rows.column_names();
     let mut collected: Vec<SQLRow> = vec![];
 
@@ -237,8 +237,8 @@ fn workspace_params(params: &[Value]) -> Vec<turso::Value> {
         .collect()
 }
 
-pub async fn workspace_execute_single_sql(
-    connection: &turso::Connection,
+pub(crate) async fn workspace_execute_single_sql(
+    connection: &super::corrupt::Watched,
     query: SQLQuery,
 ) -> Result<Vec<SQLRow>, Error> {
     #[cfg(debug_assertions)]
@@ -253,8 +253,8 @@ pub async fn workspace_execute_single_sql(
     workspace_rows(&mut rows).await
 }
 
-pub async fn workspace_execute_batch_sql(
-    connection: &turso::Connection,
+pub(crate) async fn workspace_execute_batch_sql(
+    connection: &super::corrupt::Watched,
     queries: Vec<SQLQuery>,
 ) -> Result<Vec<Vec<SQLRow>>, Error> {
     #[cfg(debug_assertions)]
@@ -270,7 +270,9 @@ pub async fn workspace_execute_batch_sql(
     // instead, and there is nothing here that would nest.
     let transaction = connection.unchecked_transaction().await?;
 
-    match workspace_batch(&transaction, queries).await {
+    // the statements run on `connection`, which is the connection the transaction is open on, so
+    // that the reads inside it are watched ones (`corrupt.rs`).
+    match workspace_batch(connection, queries).await {
         Ok(results) => {
             transaction.commit().await?;
             Ok(results)
@@ -292,7 +294,7 @@ pub async fn workspace_execute_batch_sql(
 /// Split out so the caller has one place to commit and one to roll back, rather than a rollback
 /// on every early return.
 async fn workspace_batch(
-    connection: &turso::Connection,
+    connection: &super::corrupt::Watched,
     queries: Vec<SQLQuery>,
 ) -> Result<Vec<Vec<SQLRow>>, Error> {
     let mut results: Vec<Vec<SQLRow>> = vec![];
@@ -646,7 +648,10 @@ mod tests {
         let directory = scratch_directory("proxy-both-engines");
         let pool = memory_pool(BOTH_ENGINES_FIXTURE).await;
         let replica = replica_holding(&directory.join("app.db"), BOTH_ENGINES_FIXTURE).await;
-        let connection = replica.connect().await.expect("replica connection");
+        let connection = crate::database::corrupt::Watched::new(
+            replica.connect().await.expect("replica connection"),
+            Default::default(),
+        );
 
         for query in both_engines_statements() {
             let sql = query.sql.clone();
@@ -695,7 +700,10 @@ mod tests {
             &["create table t (id integer primary key)"],
         )
         .await;
-        let connection = replica.connect().await.expect("replica connection");
+        let connection = crate::database::corrupt::Watched::new(
+            replica.connect().await.expect("replica connection"),
+            Default::default(),
+        );
 
         let inserting = |ids: &[i64]| {
             ids.iter()
@@ -706,7 +714,7 @@ mod tests {
                 .collect::<Vec<_>>()
         };
 
-        let count = async |connection: &turso::Connection| {
+        let count = async |connection: &crate::database::corrupt::Watched| {
             workspace_execute_single_sql(
                 connection,
                 SQLQuery {

@@ -220,6 +220,15 @@ pub trait TursoPlatform {
         name: &str,
     ) -> impl Future<Output = Result<WorkspaceDatabase, PlatformError>> + Send;
 
+    /// Copy `source` into a new database `name` in the same group, seeded from it, with delete
+    /// protection on: the copy taken before a database changes shape (`backup.rs`). A copy that
+    /// could not be protected is removed again and reported as not made, as a create is.
+    fn copy_database(
+        &self,
+        source: &str,
+        name: &str,
+    ) -> impl Future<Output = Result<(), PlatformError>> + Send;
+
     /// A token for one database at `access`, expiring after `expiration` in Turso's own duration
     /// spelling, `3d` and the like, or `never`.
     fn mint_token(
@@ -284,6 +293,10 @@ pub trait TursoPlatform {
 impl<T: TursoPlatform + Sync + Send> TursoPlatform for std::sync::Arc<T> {
     async fn create_database(&self, name: &str) -> Result<WorkspaceDatabase, PlatformError> {
         (**self).create_database(name).await
+    }
+
+    async fn copy_database(&self, source: &str, name: &str) -> Result<(), PlatformError> {
+        (**self).copy_database(source, name).await
     }
 
     async fn mint_token(
@@ -477,6 +490,46 @@ impl TursoPlatform for PlatformApi {
             name: name.to_string(),
             hostname,
         })
+    }
+
+    /// **The create, with a seed.** Turso makes a database from another in the same group when the
+    /// create names it as `seed: {type: "database", name}`, and the protection follows in the same
+    /// second request a create makes, for the same reason.
+    async fn copy_database(&self, source: &str, name: &str) -> Result<(), PlatformError> {
+        let what = "copy the database";
+        let client = client()?;
+        let platform_token = authority()?;
+
+        call(
+            what,
+            client
+                .post(format!("{}/databases", self.organization_url()))
+                .bearer_auth(&platform_token)
+                .json(&json!({
+                    "name": name,
+                    "group": self.organization.group,
+                    "seed": { "type": "database", "name": source },
+                })),
+        )
+        .await?;
+
+        if let Err(error) = self
+            .set_delete_protection(
+                &client,
+                &platform_token,
+                name,
+                true,
+                "protect the copy of the database",
+            )
+            .await
+        {
+            self.remove_unprotected(&client, &platform_token, name)
+                .await;
+
+            return Err(error);
+        }
+
+        Ok(())
     }
 
     async fn mint_token(
@@ -867,6 +920,8 @@ struct InMemoryState {
     deleted: Vec<(String, DeletionIntent)>,
     /// every rotation, by database, in order.
     rotated: Vec<String>,
+    /// every copy, as `(source, copy)`, in order.
+    copies: Vec<(String, String)>,
     refuse_next: Option<PlatformError>,
     /// how many operations have been asked, so a refusal can be placed on the nth.
     asked: usize,
@@ -941,6 +996,11 @@ impl InMemoryPlatform {
         self.locked().rotated.clone()
     }
 
+    /// every copy, as `(source, copy)`, in order.
+    pub(crate) fn copies(&self) -> Vec<(String, String)> {
+        self.locked().copies.clone()
+    }
+
     fn locked(&self) -> std::sync::MutexGuard<'_, InMemoryState> {
         self.state
             .lock()
@@ -986,6 +1046,33 @@ impl TursoPlatform for InMemoryPlatform {
             name: name.to_string(),
             hostname: format!("{name}-{}.aws-eu-west-1.turso.io", self.slug),
         })
+    }
+
+    /// A copy is a database like any other here, protected, and recorded with the one it was
+    /// seeded from. Turso refuses a seed that is not on the account, and a name that is taken.
+    async fn copy_database(&self, source: &str, name: &str) -> Result<(), PlatformError> {
+        let mut state = self.locked();
+        Self::take_refusal(&mut state)?;
+
+        if !state
+            .databases
+            .iter()
+            .any(|database| database.name == source)
+            || state.databases.iter().any(|database| database.name == name)
+        {
+            return Err(PlatformError::Refused {
+                what: "copy the database",
+            });
+        }
+
+        state.databases.push(InMemoryDatabase {
+            name: name.to_string(),
+            delete_protection: true,
+            rotations: 0,
+        });
+        state.copies.push((source.to_string(), name.to_string()));
+
+        Ok(())
     }
 
     async fn mint_token(
@@ -1280,6 +1367,79 @@ mod tests {
 
         assert_eq!(remove.method, "DELETE");
         assert_eq!(remove.target, "/v1/organizations/an-org/databases/ws-3");
+    }
+
+    /// A copy is the create with a seed naming the database it copies, in the same group, and the
+    /// same protection after it (effort 838, ticket 27).
+    #[tokio::test]
+    async fn copying_a_database_seeds_it_from_the_source_in_the_group_and_protects_it() {
+        let (platform, server, _turn) = platform_answering(vec![
+            created("org-1-copy-an-org.turso.io"),
+            configured(true),
+        ])
+        .await;
+
+        platform
+            .copy_database("org-1", "org-1-copy")
+            .await
+            .expect("the copy failed");
+
+        let create = server.request(0);
+
+        assert_eq!(create.method, "POST");
+        assert_eq!(create.target, "/v1/organizations/an-org/databases");
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&create.body).expect("a json body"),
+            json!({
+                "name": "org-1-copy",
+                "group": "rentable",
+                "seed": { "type": "database", "name": "org-1" }
+            })
+        );
+
+        let protect = server.request(1);
+
+        assert_eq!(protect.method, "PATCH");
+        assert_eq!(
+            protect.target,
+            "/v1/organizations/an-org/databases/org-1-copy/configuration"
+        );
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&protect.body).expect("a json body"),
+            json!({ "delete_protection": true })
+        );
+        assert_eq!(server.request_count(), 2);
+    }
+
+    /// A copy whose protection could not be turned on is removed again, and the copy fails.
+    #[tokio::test]
+    async fn a_copy_that_cannot_be_protected_is_removed_and_the_copy_fails() {
+        let (platform, server, _turn) = platform_answering(vec![
+            created("org-1-copy-an-org.turso.io"),
+            refusal(400, "configuration is not available"),
+            ScriptedResponse::new(200, json!({ "database": "org-1-copy" }).to_string()),
+        ])
+        .await;
+
+        let error = platform
+            .copy_database("org-1", "org-1-copy")
+            .await
+            .expect_err("an unprotected copy was kept");
+
+        assert_eq!(
+            error,
+            PlatformError::Refused {
+                what: "protect the copy of the database"
+            }
+        );
+
+        let remove = server.request(2);
+
+        assert_eq!(remove.method, "DELETE");
+        assert_eq!(
+            remove.target,
+            "/v1/organizations/an-org/databases/org-1-copy"
+        );
     }
 
     #[tokio::test]

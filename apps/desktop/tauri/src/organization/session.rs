@@ -68,7 +68,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     diagnostics,
     error::{Error, RefusalReason},
-    keyring,
+    keyring, timestamp,
 };
 
 use crate::sync::turso::platform::AccessLevel;
@@ -76,8 +76,8 @@ use crate::sync::turso::platform::AccessLevel;
 use super::{
     HeldOrganization,
     authority::VERIFYING_KEY_BYTES,
-    permission::{self, Administration},
-    store::{MemberRecord, OrganizationStore},
+    permission::{self, Flag},
+    store::{MemberRecord, OrganizationStore, pins_of},
     vault::{
         CONTENT_KEY_BYTES, ContentKey, MemberKey, MemberSecretKey, open_content,
         open_sealed_secret_key, open_vault, open_vault_with_key, unseal_with_secret_key,
@@ -101,6 +101,10 @@ pub type CredentialSlot = Arc<Mutex<Option<String>>>;
 pub struct MemberSession {
     pub organization_id: String,
     pub member_id: String,
+    /// the kind of the role the member holds: `owner`, `manager`, `member` or `custom` (effort
+    /// 838). A display fact, as the vault opened onto it; a gate reads the verified row
+    /// ([`acting_row`]). *It was the word `administrator` for a manager, and `removed`, until
+    /// ticket 15 retired the word.*
     pub role: String,
     pub permissions: i64,
     pub must_change_password: bool,
@@ -212,7 +216,7 @@ pub async fn acting_row(
             )
         })?;
 
-    if member.role == permission::REMOVED {
+    if member.removed_at.is_some() {
         return Err(Error::refused(
             RefusalReason::YouWereRemoved,
             "you were removed from this organization",
@@ -235,8 +239,114 @@ pub async fn permissions_on_row(
     store: &OrganizationStore,
     session: &MemberSession,
 ) -> Result<i64, Error> {
-    Ok(acting_row(store, session).await?.permissions)
+    Ok(acting_row(store, session).await?.effective)
 }
+
+/// Who is acting, as the chain reads them (effort 838): their verified row, which says what they
+/// may do and whether they are the owner, and the rank of the role it names.
+///
+/// **The row and never the session's snapshot.** [`MemberSession::role`] is what the vault opened
+/// onto and outlives a narrowing, a removal and a handover; a gate that asked it would let a
+/// founder's open session go on acting as the owner after they handed the organization on. Every
+/// gate an act on somebody else's account makes reads this instead.
+pub struct Actor {
+    pub row: MemberRecord,
+    /// the rank of the actor's role, off its verified row, or the owner's constant.
+    pub rank: i64,
+}
+
+impl Actor {
+    /// Refuse, with `reason` and `refusal`, unless the verified row is the owner's and carries
+    /// `flag`: the one member the root certificate names, and the one who holds the Turso
+    /// authority's acts (`permission::OWNER_ONLY`). The flag is asked as well as the role, so each
+    /// act is answered by the bit that names it. A row that says it was removed never reaches here
+    /// ([`acting_row`] refuses it first). **The one owner check**: `workspace::require_owner` is
+    /// this, for a caller that has not read the actor yet.
+    pub fn require_owner(
+        &self,
+        flag: permission::Flag,
+        reason: RefusalReason,
+        refusal: &str,
+    ) -> Result<(), Error> {
+        if self.row.role_id == permission::OWNER && permission::permits(self.row.effective, flag) {
+            Ok(())
+        } else {
+            Err(Error::refused(reason, refusal))
+        }
+    }
+
+    /// Refuse unless a role of `rank` ranks strictly below the actor's (requirement 7): a member
+    /// acts on a role, or on a member holding it, only from above.
+    pub fn outranks(&self, rank: i64, refusal: &str) -> Result<(), Error> {
+        if rank < self.rank {
+            Ok(())
+        } else {
+            Err(Error::refused(RefusalReason::RankNotAbove, refusal))
+        }
+    }
+}
+
+/// The acting member and the rank their role holds: [`acting_row`], with its three refusals in
+/// front, and the role's verified row read for its rank.
+pub async fn actor(store: &OrganizationStore, session: &MemberSession) -> Result<Actor, Error> {
+    let row = acting_row(store, session).await?;
+    let (_, rank) = store
+        .role_standing(&session.verifying_key, &row.role_id)
+        .await?;
+
+    Ok(Actor { row, rank })
+}
+
+/// The rank of the role a member's verified row names: what [`Actor::outranks`] is asked about
+/// before an act on their account.
+///
+/// **On a row its certificate no longer covers, the rank they are certified at** (effort 838, the
+/// focused review of ticket 20): the role such a row names is content nobody covering it wrote,
+/// and it may be above them, below them or gone. What stands is the highest of their live
+/// certificates, or the member's rank where they hold none, so the removal that is the one act on
+/// such a row is made by somebody above the member as they stand.
+pub async fn rank_of(
+    store: &OrganizationStore,
+    session: &MemberSession,
+    member: &MemberRecord,
+) -> Result<i64, Error> {
+    if !member.covered {
+        return Ok(store
+            .live_certificates(&session.verifying_key, &member.id)
+            .await?
+            .iter()
+            .map(|certificate| certificate.rank)
+            .max()
+            .unwrap_or(permission::MEMBER_ROLE.rank));
+    }
+
+    Ok(store
+        .role_standing(&session.verifying_key, &member.role_id)
+        .await?
+        .1)
+}
+
+/// Refuse an act on a member whose row its certificate no longer covers, naming what is to be
+/// done instead: the member removed, and made an account again, by somebody ranked above them
+/// (effort 838, the re-check of ticket 20). **An uncovered row is never saved**: it is content
+/// anybody holding the credential may have written, and nothing the directory holds says which of
+/// its fields are genuine, so every act on it would carry a forger's content forward as
+/// authority. A rename or a reset writes the row back as it stands, an assignment would lift a
+/// removal the forger re-signed and certify a signing key the forger put on it, and an override,
+/// a link, a grant or ending sessions builds on it. A removal is the one act asked of it, and it
+/// is not asked here. *An assignment saved such a row until the re-check.*
+pub fn refuse_unsettled(member: &MemberRecord) -> Result<(), Error> {
+    if member.covered {
+        return Ok(());
+    }
+
+    Err(Error::refused(RefusalReason::RoleUnsettled, UNSETTLED))
+}
+
+/// What an act on a member whose row is uncovered meets, and what it says to do instead.
+pub const UNSETTLED: &str = "this member's row was written by somebody who could not write it, so \
+     nothing is done for them but their removal. somebody ranked above them removes them and \
+     makes them an account again. nothing was changed";
 
 /// One workspace as the web layer learns of it: its name opened with the content key, and where
 /// its database is. No credential.
@@ -250,6 +360,17 @@ pub struct WorkspaceFacts {
     pub schema_version: i64,
     /// what this member's grant on it is good for, `full-access` or `read-only`.
     pub access_level: String,
+    /// the record flags pinned for this member in this workspace, whatever they hold across the
+    /// organization (effort 838, requirement 12 as amended a third time, and at review round one).
+    /// Zero where nothing is.
+    pub pinned: i64,
+    /// which of the pinned flags are on; the rest of them are off.
+    pub granted: i64,
+    /// what this member may do in this workspace before the grant is read: their permissions
+    /// across the organization with what is pinned set as it is granted
+    /// (`permission::effective_in_workspace`). What the web layer answers a record procedure by,
+    /// with a read-only grant's writes cleared.
+    pub permissions: i64,
 }
 
 /// What the web layer is told about a signed-in member.
@@ -261,7 +382,23 @@ pub struct SessionFacts {
     pub member_id: String,
     /// the one thing that names this member, opened with the content key.
     pub username: String,
+    /// the kind of the role this member holds: `owner`, `manager`, `member` or `custom` (effort
+    /// 838, requirement 8). *It was the word `owner`, `administrator` or `member` until then.*
     pub role: String,
+    /// the role the member row names, by id.
+    pub role_id: String,
+    /// a custom role's name, opened with the content key; empty on the three built-in roles, whose
+    /// names the interface gives in the reader's language.
+    pub role_name: String,
+    /// how high the role stands.
+    pub rank: i64,
+    /// the flags switched for this member alone. Zero on the owner's row.
+    #[serde(rename = "override")]
+    pub override_mask: i64,
+    /// what the member may do across the organization: their role's mask exclusive-or'd with their
+    /// override, read off the verified row now. What they may do in one workspace is that
+    /// workspace's own `permissions` with a read-only grant's writes cleared, which the web layer
+    /// folds for the workspace it has open; this still answers for administration.
     pub permissions: i64,
     /// the workspaces this member holds a grant on, and only those.
     pub workspaces: Vec<WorkspaceFacts>,
@@ -314,18 +451,31 @@ pub async fn sign_in(
             )
         })?;
 
-    // a removal is a signed row rather than an absence, and it is read before the password is
-    // tried: the vault would still open, and what it opens grants nothing any more.
-    if member.role == super::permission::REMOVED {
-        return Err(Error::refused(
+    let removed = || {
+        Error::refused(
             RefusalReason::YouWereRemoved,
             format!("you were removed from {}", joined.name),
-        ));
+        )
+    };
+
+    // the one place a password can fail, and it says only that the value did not open. A removal
+    // is a signed row rather than an absence, and the vault would still open onto grants that
+    // grant nothing: on a removed row a value that does not open says the removal and not the
+    // password, and one that opens says it too, unless it is the owner's own vault meeting a
+    // removal written from below, which their machine repairs (`owner_row_repaired`).
+    let secret = match open_vault(password, &member.vault) {
+        Ok(secret) => secret,
+        Err(_) if member.removed_at.is_some() => return Err(removed()),
+        Err(refusal) => return Err(refusal),
+    };
+    let repaired = owner_row_repaired(store, &verifying_key, member, &secret).await;
+    let member = repaired.as_ref().unwrap_or(member);
+
+    if member.removed_at.is_some() {
+        return Err(removed());
     }
 
-    // the one place a password can fail, and it says only that the value did not open.
-    let secret = open_vault(password, &member.vault)?;
-    let content_key = content_key_of(member, &secret)?;
+    let content_key = content_key_of(&member.sealed_content_key, &secret)?;
 
     open_session(
         store,
@@ -337,6 +487,56 @@ pub async fn sign_in(
         credential,
     )
     .await
+}
+
+/// The owner's own row read again after their machine repaired it (`role::repair_owner_row`), or
+/// `None` where nothing was written: a sign-in or a resume that has just opened `member`'s vault
+/// asks it before it reads anything off the row, so an owner whose row somebody below them
+/// demoted or removed is signed in as the owner. Anybody else's machine writes nothing here.
+///
+/// **A repair that could not be made is a diagnostic and never a refusal**: the sign-in goes on
+/// with the row as it reads, which is what it did before, and the next heartbeat asks again.
+async fn owner_row_repaired(
+    store: &OrganizationStore,
+    verifying_key: &[u8; VERIFYING_KEY_BYTES],
+    member: &MemberRecord,
+    secret: &MemberSecretKey,
+) -> Option<MemberRecord> {
+    match super::role::repair_owner_row(store, verifying_key, &member.id, secret, timestamp::now())
+        .await
+    {
+        Ok(true) => store.member(verifying_key, &member.id).await.ok().flatten(),
+        Ok(false) => None,
+        Err(refusal) => {
+            diagnostics::warn("organization.owner.rowNotRepaired")
+                .with("reason", refusal.to_string())
+                .write();
+
+            None
+        }
+    }
+}
+
+/// The heartbeat's repair of the owner's own row (`role::repair_owner_row`), on the session this
+/// machine holds open, taking what the row says once it is written. On every machine but the
+/// owner's it writes nothing. **Nothing comes back**, since the heartbeat has nothing to do with
+/// the answer and this module answers no question with a yes or a no.
+pub(crate) async fn repair_own_row(store: &OrganizationStore, session: &mut MemberSession) {
+    let Some(row) = store
+        .member(&session.verifying_key, &session.member_id)
+        .await
+        .ok()
+        .flatten()
+    else {
+        return;
+    };
+
+    if let Some(repaired) =
+        owner_row_repaired(store, &session.verifying_key, &row, &session.secret).await
+    {
+        session.role = permission::OWNER.to_string();
+        session.permissions = repaired.effective;
+    }
 }
 
 /// Write this machine into the organization's registry, naming whoever is signed in on it
@@ -421,14 +621,14 @@ pub async fn sign_in_by_username(
     // is somebody else's. Two members who chose the same password each open under it, since a
     // vault is its own salt, and the one that opens first is whoever joined first: stopping
     // there would refuse the later of the two at the wall for as long as they share it.
-    for member in members
-        .iter()
-        .filter(|member| member.role != super::permission::REMOVED)
-    {
+    //
+    // a removed row is asked too, and passed over unless it is the owner's own meeting a removal
+    // written from below, which their machine repairs here (`owner_row_repaired`).
+    for member in &members {
         let Ok((secret, member_key)) = open_vault_with_key(password, &member.vault) else {
             continue;
         };
-        let content_key = content_key_of(member, &secret)?;
+        let content_key = content_key_of(&member.sealed_content_key, &secret)?;
         let carried = opened(
             &content_key,
             "member.username_sealed",
@@ -436,6 +636,14 @@ pub async fn sign_in_by_username(
         )?;
 
         if carried.trim().to_lowercase() == wanted {
+            let member = owner_row_repaired(store, &verifying_key, member, &secret)
+                .await
+                .unwrap_or_else(|| member.clone());
+
+            if member.removed_at.is_some() {
+                continue;
+            }
+
             found = Some((member, secret, member_key, content_key));
             break;
         }
@@ -457,7 +665,7 @@ pub async fn sign_in_by_username(
         store,
         held,
         verifying_key,
-        member,
+        &member,
         secret,
         content_key,
         credential,
@@ -592,14 +800,7 @@ async fn resumed(
     member_id: &str,
     credential: &CredentialSlot,
 ) -> Result<Resumption, Error> {
-    let filed =
-        keyring::read(MEMBER_KEY_SERVICE, &account_of(&held.id, member_id))?.ok_or_else(|| {
-            Error::refused(
-                RefusalReason::SignInAgain,
-                "this machine remembers no key for the member it holds",
-            )
-        })?;
-    let (filed_epoch, member_key) = read_entry(&filed)?;
+    let (filed_epoch, member_key) = remembered(&held.id, member_id)?;
     let verifying_key = verifying_key_of(held)?;
     let members = store.members(&verifying_key).await?;
     let member = members
@@ -612,14 +813,12 @@ async fn resumed(
             )
         })?;
 
-    // as `sign_in` reads it: a removal is a signed row rather than an absence, and the vault
-    // would still open onto grants that grant nothing.
-    if member.role == super::permission::REMOVED {
-        return Err(Error::refused(
+    let removed = || {
+        Error::refused(
             RefusalReason::YouWereRemoved,
             format!("you were removed from {}", held.name),
-        ));
-    }
+        )
+    };
 
     // before the key is spent: the rows this machine already holds may say the sessions ended,
     // which is every machine whose heartbeat saw the bump before it was closed.
@@ -627,8 +826,22 @@ async fn resumed(
         return Ok(Resumption::SignedOutElsewhere);
     }
 
-    let secret = open_sealed_secret_key(&member_key, &member.vault)?;
-    let content_key = content_key_of(member, &secret)?;
+    // as `sign_in` reads it: a removal is a signed row rather than an absence, and the vault
+    // would still open onto grants that grant nothing, unless it is the owner's own vault meeting
+    // a removal written from below, which their machine repairs (`owner_row_repaired`).
+    let secret = match open_sealed_secret_key(&member_key, &member.vault) {
+        Ok(secret) => secret,
+        Err(_) if member.removed_at.is_some() => return Err(removed()),
+        Err(refusal) => return Err(refusal),
+    };
+    let repaired = owner_row_repaired(store, &verifying_key, member, &secret).await;
+    let member = repaired.as_ref().unwrap_or(member);
+
+    if member.removed_at.is_some() {
+        return Err(removed());
+    }
+
+    let content_key = content_key_of(&member.sealed_content_key, &secret)?;
     let session = open_session(
         store,
         held,
@@ -648,8 +861,8 @@ async fn resumed(
 ///
 /// **The role and the permissions are re-read rather than carried**, because a handover is the
 /// one act that changes them under a session that is open somewhere else: the founder who handed
-/// over is an administrator now, and a session that kept `owner` would pass every gate that
-/// reads the word and sign a certificate under a key that certifies nothing. The row is read
+/// over is a manager now, and a session that kept `owner` would pass every gate that
+/// reads it and sign a certificate under a key that certifies nothing. The row is read
 /// before anything on the session moves, so a row the new key does not find leaves the session as
 /// it was and the caller says so; the other snapshot fields stay, since the epoch is compared
 /// against the row on every act and the password standing is the vault's.
@@ -668,9 +881,11 @@ pub(crate) async fn repin(
             )
         })?;
 
+    let role = super::role::kind_of(&store.roles(&key).await?, &member.role_id);
+
     session.verifying_key = key;
-    session.role = member.role;
-    session.permissions = member.permissions;
+    session.role = role;
+    session.permissions = member.effective;
 
     Ok(())
 }
@@ -766,8 +981,11 @@ pub async fn end_elsewhere(
 /// that are already open, which is why this is `resetPassword`'s and not a bit of its own.
 ///
 /// Two rows are refused. The caller's own, because ending your own sessions and keeping this one
-/// is [`end_elsewhere`] and does something different; and the owner's, for anybody but the owner,
-/// which is the line `role::change_role` draws in the same words.
+/// is [`end_elsewhere`] and does something different; and the owner's, which is the line
+/// `role::assign_role` and `role::set_override` draw too. **Any other row is ended only from above**
+/// (effort 838, requirement 7): a member whose role does not rank below the actor's is refused by
+/// rank, the way a reset of them is, and the gate reads the actor's verified row rather than the
+/// session's snapshot of it ([`Actor`]).
 ///
 /// **The register follows the act**, because the standing the members directory draws is read off
 /// it: an account nobody is signed in on is an account a link is offered for (requirement 20), and
@@ -784,10 +1002,10 @@ pub async fn end_member_sessions(
     now: i64,
 ) -> Result<bool, Error> {
     session.settled()?;
-    permission::require(
-        permissions_on_row(store, session).await?,
-        Administration::ResetPassword,
-    )?;
+
+    let actor = actor(store, session).await?;
+
+    permission::require(actor.row.effective, Flag::ResetPassword)?;
 
     if member_id == session.member_id {
         return Err(Error::refused(
@@ -808,12 +1026,22 @@ pub async fn end_member_sessions(
             )
         })?;
 
-    if member.role == permission::OWNER {
+    if member.role_id == permission::OWNER {
         return Err(Error::refused(
             RefusalReason::OwnerProtected,
             "an owner's sessions are not ended by anybody else. the organization is theirs",
         ));
     }
+
+    refuse_unsettled(member)?;
+
+    // from above only: whoever may hand an account a fresh way in may end the ways in it has, and
+    // both are held to the member's role ranking below the actor's (effort 838, requirement 7).
+    actor.outranks(
+        rank_of(store, session, member).await?,
+        "that member's role is not below yours, so their sessions are ended by somebody who ranks \
+         above them",
+    )?;
 
     store
         .set_session_epoch(member_id, member.session_epoch + 1, now)
@@ -894,6 +1122,25 @@ pub(crate) fn read_entry(filed: &str) -> Result<(i64, MemberKey), Error> {
     ))
 }
 
+/// The key this machine filed for a member at their last sign-in, and the epoch it was filed
+/// under: what a resume opens the vault with. Refused where nothing is filed or what is filed is
+/// not an entry this build wrote. Read by the resume, and by the owner's upgrade of an older
+/// organization on the way to it (`upgrade.rs`, effort 838, ticket 22), which reads the same key.
+pub(crate) fn remembered(
+    organization_id: &str,
+    member_id: &str,
+) -> Result<(i64, MemberKey), Error> {
+    let filed = keyring::read(MEMBER_KEY_SERVICE, &account_of(organization_id, member_id))?
+        .ok_or_else(|| {
+            Error::refused(
+                RefusalReason::SignInAgain,
+                "this machine remembers no key for the member it holds",
+            )
+        })?;
+
+    read_entry(&filed)
+}
+
 /// What one member's entry is filed under: the organization, and their row in it.
 ///
 /// Both halves, because a machine that forgets one organization and connects to another must not
@@ -938,11 +1185,13 @@ pub(crate) async fn open_session(
         }
     }
 
+    let role = super::role::kind_of(&store.roles(&verifying_key).await?, &member.role_id);
+
     Ok(MemberSession {
         organization_id: held.id.clone(),
         member_id: member.id.clone(),
-        role: member.role.clone(),
-        permissions: member.permissions,
+        role,
+        permissions: member.effective,
         must_change_password: member.must_change_password,
         session_epoch: member.session_epoch,
         verifying_key,
@@ -1028,6 +1277,8 @@ pub async fn facts_of(
         })?;
     let grants = store.grants(key).await?;
     let workspaces = store.workspaces(key).await?;
+    let workspace_overrides = store.workspace_overrides(key).await?;
+    let role = super::role::held_role(session, &store.roles(key).await?, &member.role_id)?;
 
     // what this member holds a grant on, with the names opened for the screen. The grant on the
     // organization database is not a workspace and is not listed.
@@ -1043,6 +1294,8 @@ pub async fn facts_of(
                 .map(|workspace| (grant, workspace))
         })
         .map(|(grant, workspace)| {
+            let (pinned, granted) = pins_of(&workspace_overrides, &member.id, &workspace.id);
+
             Ok(WorkspaceFacts {
                 id: workspace.id.clone(),
                 name: opened(
@@ -1054,6 +1307,13 @@ pub async fn facts_of(
                 database_hostname: workspace.database_hostname.clone(),
                 schema_version: workspace.schema_version,
                 access_level: grant.access_level.clone(),
+                pinned,
+                granted,
+                permissions: super::permission::effective_in_workspace(
+                    member.effective,
+                    pinned,
+                    granted,
+                ),
             })
         })
         .collect::<Result<Vec<_>, Error>>()?;
@@ -1069,7 +1329,7 @@ pub async fn facts_of(
 
     let owner_username = match members
         .iter()
-        .find(|candidate| candidate.role == super::permission::OWNER)
+        .find(|candidate| candidate.role_id == super::permission::OWNER)
     {
         Some(owner) => opened(
             &session.content_key,
@@ -1089,8 +1349,12 @@ pub async fn facts_of(
             "member.username_sealed",
             &member.username_sealed,
         )?,
-        role: member.role.clone(),
-        permissions: member.permissions,
+        role: role.kind,
+        role_id: member.role_id.clone(),
+        role_name: role.name,
+        rank: role.rank,
+        override_mask: member.override_mask,
+        permissions: member.effective,
         workspaces: workspace_facts,
         ownership_offered: super::role::standing_offer(store, key)
             .await?
@@ -1113,13 +1377,14 @@ pub fn verifying_key_of(joined: &HeldOrganization) -> Result<[u8; VERIFYING_KEY_
     })
 }
 
-/// The organization content key, unsealed from `member`'s row with the secret their vault
-/// yielded: what makes any name legible.
+/// The organization content key, unsealed from the `sealed_content_key` a member's row carries
+/// with the secret their vault yielded: what makes any name legible. The row is either format's,
+/// so the upgrade of an older organization opens it the same way (`upgrade.rs`).
 pub(crate) fn content_key_of(
-    member: &MemberRecord,
+    sealed_content_key: &[u8],
     secret: &MemberSecretKey,
 ) -> Result<ContentKey, Error> {
-    let bytes = unseal_with_secret_key(secret, &member.sealed_content_key)?;
+    let bytes = unseal_with_secret_key(secret, sealed_content_key)?;
 
     Ok(ContentKey::from_bytes(
         <[u8; CONTENT_KEY_BYTES]>::try_from(bytes.as_slice()).map_err(|_| Error::Integrity {
@@ -1129,7 +1394,7 @@ pub(crate) fn content_key_of(
 }
 
 /// A sealed column as text, or empty where it was sealed empty.
-fn opened(key: &ContentKey, column: &str, sealed: &[u8]) -> Result<String, Error> {
+pub(crate) fn opened(key: &ContentKey, column: &str, sealed: &[u8]) -> Result<String, Error> {
     let bytes = open_content(key, column, sealed)?;
 
     String::from_utf8(bytes).map_err(|_| Error::Integrity {
@@ -1153,10 +1418,13 @@ mod tests {
         keyring::{self, refuse_the_next_store, take_the_credential_store},
         organization::{
             HeldOrganization,
-            authority::{AdministratorKey, OrganizationKey, issue_certificate},
+            authority::{AdministratorKey, OrganizationKey, issue_root_certificate},
             permission,
             setup::{ADMINISTRATOR_KEY_PURPOSE, CreateOrganization, Remote, create_organization},
-            store::{GrantRecord, MemberRecord, OrganizationRecord, OrganizationStore, Signer},
+            store::{
+                GrantRecord, MemberRecord, OrganizationRecord, OrganizationStore, RoleRecord,
+                Signer,
+            },
             vault::{
                 KdfParams, MEMBER_KEY_BYTES, MemberKey, create_vault_with_secret,
                 generate_content_key, open_sealed_secret_key, open_vault, reseal_vault,
@@ -1450,7 +1718,7 @@ mod tests {
         // the second organization, made elsewhere: its owner's chain, and this person as a member.
         let organization_key = OrganizationKey::generate().expect("a key");
         let administrator_key = AdministratorKey::generate().expect("a key");
-        let certificate = issue_certificate(
+        let certificate = issue_root_certificate(
             &organization_key,
             "cert-their-owner",
             "their-owner",
@@ -1489,6 +1757,22 @@ mod tests {
             certificate: &certificate,
         };
 
+        for built_in in [permission::MANAGER_ROLE, permission::MEMBER_ROLE] {
+            store_b
+                .write_role(
+                    &signer,
+                    &RoleRecord {
+                        id: built_in.id.to_string(),
+                        kind: built_in.id.to_string(),
+                        name_sealed: Vec::new(),
+                        mask: built_in.mask,
+                        rank: built_in.rank,
+                    },
+                )
+                .await
+                .expect("a role");
+        }
+
         store_b
             .write_member(
                 &signer,
@@ -1512,8 +1796,11 @@ mod tests {
                             .expect("the signing seed"),
                     )
                     .verifying_key(),
-                    role: "member".to_string(),
-                    permissions: 0,
+                    role_id: permission::MEMBER.to_string(),
+                    override_mask: 0,
+                    removed_at: None,
+                    effective: 0,
+                    covered: true,
                     must_change_password: true,
                     created_at: 1_757_000_000_000,
                     updated_at: 1_757_000_000_000,
@@ -1550,6 +1837,7 @@ mod tests {
             member_id: Some("me-there".to_string()),
             role: Some("member".to_string()),
             joined_at: 1_757_000_000_001,
+            format: None,
         };
 
         // each opens with its own password and its own role.
@@ -1819,8 +2107,11 @@ mod tests {
                             .expect("the signing seed"),
                     )
                     .verifying_key(),
-                    role: role.to_string(),
-                    permissions: permission::mask_of_role(role),
+                    role_id: role.to_string(),
+                    override_mask: 0,
+                    removed_at: None,
+                    effective: 0,
+                    covered: true,
                     must_change_password: false,
                     created_at: 1_757_000_000_000,
                     updated_at: 1_757_000_000_000,
@@ -1838,7 +2129,8 @@ mod tests {
             .find(|member| member.id == id)
             .expect("the row just written");
         let secret = open_vault(password, &member.vault).expect("their password did not open");
-        let content_key = super::content_key_of(member, &secret).expect("the content key");
+        let content_key =
+            super::content_key_of(&member.sealed_content_key, &secret).expect("the content key");
 
         super::open_session(
             store,
@@ -2019,7 +2311,8 @@ mod tests {
 
     /// **Criterion 22, somebody else's row.** `resetPassword` is the act, the caller's own row is
     /// refused because that is `end_elsewhere`, and the owner's row is nobody else's to end. A
-    /// plain member holds none of it.
+    /// plain member holds none of it, and a manager ends nobody whose role is not below theirs
+    /// (effort 838, requirement 7).
     #[tokio::test]
     async fn ending_a_members_sessions_is_reset_passwords_and_never_the_owners_row() {
         let _turn = take_the_credential_store().await;
@@ -2029,13 +2322,13 @@ mod tests {
         let owner = sign_in(&store, &joined, PASSWORD, &slot())
             .await
             .expect("the owner did not sign in");
-        let administrator = a_member(
+        let manager = a_member(
             &store,
             &owner,
             &joined,
             "member-ada",
-            "ada.admin",
-            permission::ADMINISTRATOR,
+            "ada.manager",
+            permission::MANAGER,
             "a password ada chose",
         )
         .await;
@@ -2065,12 +2358,12 @@ mod tests {
         store
             .machine_seen("machine-ada", Some("member-ada"), at)
             .await
-            .expect("the administrator's machine did not register");
+            .expect("the manager's machine did not register");
 
         // the act, on somebody else's row: the epoch moves and nothing else does.
-        end_member_sessions(&store, &administrator, "member-sami", 1_757_000_000_200)
+        end_member_sessions(&store, &manager, "member-sami", 1_757_000_000_200)
             .await
-            .expect("an administrator could not end a member's sessions");
+            .expect("a manager could not end a member's sessions");
 
         assert_eq!(epoch_of(&store, &joined, "member-sami").await, 1);
         assert_eq!(epoch_of(&store, &joined, "member-ada").await, 0);
@@ -2103,9 +2396,9 @@ mod tests {
         );
 
         // their own row is the other act's.
-        let own = end_member_sessions(&store, &administrator, "member-ada", 1_757_000_000_300)
+        let own = end_member_sessions(&store, &manager, "member-ada", 1_757_000_000_300)
             .await
-            .expect_err("an administrator ended their own sessions from a row");
+            .expect_err("a manager ended their own sessions from a row");
 
         assert!(
             matches!(
@@ -2120,9 +2413,9 @@ mod tests {
         assert!(own.to_string().contains("your own sessions"), "{own}");
 
         // and the owner's row is nobody else's.
-        let theirs = end_member_sessions(&store, &administrator, &owner_id, 1_757_000_000_400)
+        let theirs = end_member_sessions(&store, &manager, &owner_id, 1_757_000_000_400)
             .await
-            .expect_err("an administrator ended the owner's sessions");
+            .expect_err("a manager ended the owner's sessions");
 
         assert!(
             matches!(
@@ -2164,6 +2457,34 @@ mod tests {
             .expect_err("a plain member ended somebody's sessions");
 
         assert!(refusal.to_string().contains("resetPassword"), "{refusal}");
+        assert_eq!(epoch_of(&store, &joined, "member-ada").await, 0);
+
+        // and a manager's sessions are not another manager's to end: the rank is read off the
+        // verified rows, and it is the same rank.
+        let bea = a_member(
+            &store,
+            &owner,
+            &joined,
+            "member-bea",
+            "bea.manager",
+            permission::MANAGER,
+            "a password bea chose",
+        )
+        .await;
+        let refusal = end_member_sessions(&store, &bea, "member-ada", 1_757_000_000_700)
+            .await
+            .expect_err("a manager ended another manager's sessions");
+
+        assert!(
+            matches!(
+                refusal,
+                crate::error::Error::Refused {
+                    reason: crate::error::RefusalReason::RankNotAbove,
+                    ..
+                }
+            ),
+            "{refusal:?}"
+        );
         assert_eq!(epoch_of(&store, &joined, "member-ada").await, 0);
     }
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { inverseStack } from '$lib/design/inverse';
 	import { undoable } from '$lib/design/inverse.svelte';
 	import { applyRedo, applyUndo } from '$lib/design/mutation';
 	import { shortcuts } from '$lib/design/shortcut-registry.svelte';
@@ -17,7 +18,9 @@
 				},
 				// read through the mirror rather than the stack, so a surface offering these by name
 				// re-reads when a change lands rather than answering once, when it was mounted.
-				(intent) => (intent === 'undo' ? undoable.canUndo : undoable.canRedo)
+				(intent) => (intent === 'undo' ? undoable.canUndo : undoable.canRedo),
+				// what the reader may not move says so on the key's row, as a record's act does.
+				(intent, translations) => inverseStack.refusal(intent, translations)
 			)
 		)
 	);
