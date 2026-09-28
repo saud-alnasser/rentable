@@ -44,7 +44,7 @@ async function seedEveryConcept(api: Api, label: string) {
 
 	await api.contract.units.set({ contractId: contract.id, unitIds: [unit.id] });
 
-	const payment = await api.contract.payments.create({
+	const payment = await api.payment.create({
 		contractId: contract.id,
 		date: monthsFromNow(0),
 		amount: 1000

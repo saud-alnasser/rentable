@@ -45,7 +45,7 @@ vi.mock('$lib/api/caller', () => ({
 	default: {
 		contract: { schedule: reads.schedule, units: { getMany: reads.units } },
 		tenant: { get: reads.tenant },
-		app: { organization: { mark: { get: reads.mark } } }
+		organization: { mark: { get: reads.mark } }
 	}
 }));
 

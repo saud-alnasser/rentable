@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [21]
 ---
 # refactor(desktop): every router mounts at the root
@@ -14,10 +14,10 @@ The spec is [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]]; the 
 
 Traces requirement 3 of [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]], and criterion 3.
 
-- [ ] No router mounts another feature's router; `appRouter._def.record`'s keys are the feature names (criterion 3).
-- [ ] `api/tests/flags.test.ts` walks the new paths and passes.
-- [ ] Before moving, a grep of diagnostics and `tauri/src/` for a recorded procedure path finds none, and the commit says so.
-- [ ] The integration gate passes on this commit; no test assertion changes except where it names a moved path (criterion 19).
+- [x] No router mounts another feature's router; `appRouter._def.record`'s keys are the feature names (criterion 3). Verified: the child's search for a `$lib/*/router` import outside tests found only `app/caller.ts -> ./router`; `appRouter._def.record` keys printed `tenant complex contract payment dashboard history workspace organization settings sync update startup` (113 procedures, as before); `app/tests/router.test.ts` asserts each procedure sits one level under its own feature.
+- [x] `api/tests/flags.test.ts` walks the new paths and passes. Verified: `api/tests/flags.test.ts` walks `payment.*`, `dashboard.get`, `contract.reconcile` and passes; `contract.reconcile` joins `OPEN_TO_EVERY_MEMBER`, still asserted `procedure.member`.
+- [x] Before moving, a grep of diagnostics and `tauri/src/` for a recorded procedure path finds none, and the commit says so. Verified: before moving, the child searched `platform/diagnostics.ts`, every `recordDiagnostic*` call and `tauri/src` including capabilities for a recorded procedure path and found none; the commit says so.
+- [x] The integration gate passes on this commit; no test assertion changes except where it names a moved path (criterion 19). Verified: in the run's tree, after integrating over ticket 27 (one context paragraph merged; five cycle lines added: `app -> dashboard`, `app -> startup`, `app -> update`, `startup -> api`, `update -> api`, the existing cycles through the new homes): check 0, eslint 0, `pnpm test` 3 of 3 tasks, build:web 0, validate 0.
 
 ## Relevant areas
 

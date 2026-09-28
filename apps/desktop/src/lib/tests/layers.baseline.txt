@@ -15,14 +15,16 @@ api/trpc.ts -> sync/event.ts : upward
 app -> api : cycle
 app -> complex : cycle
 app -> contract : cycle
+app -> dashboard : cycle
 app -> history : cycle
 app -> organization : cycle
 app -> payment : cycle
 app -> settings : cycle
+app -> startup : cycle
 app -> sync : cycle
 app -> tenant : cycle
+app -> update : cycle
 app -> workspace : cycle
-app/app.ts -> contract/reconcile.ts : deep
 complex -> act : cycle
 complex -> api : cycle
 complex -> contract : cycle
@@ -60,7 +62,6 @@ contract -> act : cycle
 contract -> api : cycle
 contract -> complex : cycle
 contract -> create : cycle
-contract -> dashboard : cycle
 contract -> date : cycle
 contract -> design : cycle
 contract -> error : cycle
@@ -95,9 +96,7 @@ contract/component/host.svelte -> unit : literal
 contract/component/unit-pane.svelte -> complex/unit/host.svelte.ts : deep
 contract/contract.ts -> payment/payment.ts : deep
 contract/reconcile.ts -> payment/payment.ts : deep
-contract/router.ts -> dashboard/router.ts : deep
 contract/router.ts -> payment/payment.ts : deep
-contract/router.ts -> payment/router.ts : deep
 create -> shortcut : cycle
 dashboard -> api : cycle
 dashboard -> contract : cycle
@@ -344,6 +343,7 @@ settings/query.ts -> dashboard/query.ts : deep
 settings/query.ts -> sync/event.ts : deep
 settings/query.ts -> sync/workspace.ts : deep
 shortcut -> platform : cycle
+startup -> api : cycle
 sync -> api : cycle
 sync -> error : cycle
 sync -> i18n : cycle
@@ -382,6 +382,7 @@ tenant/router.ts -> contract/contract.ts : deep
 undo -> i18n : cycle
 undo -> notification : cycle
 undo -> shortcut : cycle
+update -> api : cycle
 workspace -> api : cycle
 workspace -> contract : cycle
 workspace -> date : cycle

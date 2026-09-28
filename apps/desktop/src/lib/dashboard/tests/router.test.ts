@@ -24,7 +24,7 @@ import { DASHBOARD_ENTRIES_PER_RANK } from '../dashboard.ts';
 
 /** What `contract.create` takes, and one line of the queue — both read off the procedures. */
 type ContractInput = Parameters<Api['contract']['create']>[0];
-type QueueEntry = Awaited<ReturnType<Api['contract']['dashboard']>>['queue'][number];
+type QueueEntry = Awaited<ReturnType<Api['dashboard']['get']>>['queue'][number];
 
 // A portfolio covering every rank and every reason to be in none. Statuses follow the code
 // as implemented — see the caveat in contract.test.mjs; do not "fix" these expectations here.
@@ -80,7 +80,7 @@ async function seedPortfolio(api: Api) {
 
 	// payments after unit assignment — units lock once payments exist.
 	const pay = (contractId: string, amount: number, dateMonths: number) =>
-		api.contract.payments.create({ contractId, amount, date: monthsFromNow(dateMonths) });
+		api.payment.create({ contractId, amount, date: monthsFromNow(dateMonths) });
 
 	// past payments sit two months back: one month back can overflow into the current
 	// month on days 29-31 (Date.UTC normalizes, e.g. Jun 31 -> Jul 1), two never can.
@@ -100,7 +100,7 @@ test('the queue is read overdue first, then owing, then ending soon', async () =
 	const api = await createApi();
 	await seedPortfolio(api);
 
-	const { queue } = await api.contract.dashboard();
+	const { queue } = await api.dashboard.get();
 
 	assert.deepEqual(
 		queue.map(({ govId, rank, outstandingAmount }) => ({ govId, rank, outstandingAmount })),
@@ -121,7 +121,7 @@ test('a contract behind by cycles that fell due in earlier months is in the queu
 	const api = await createApi();
 	await seedPortfolio(api);
 
-	const { queue } = await api.contract.dashboard();
+	const { queue } = await api.dashboard.get();
 	const quarterly = queueEntry(queue, 'GOV-J');
 
 	assert.ok(quarterly, 'GOV-J is in the queue');
@@ -142,7 +142,7 @@ test('a contract that owes money and ends inside the notice window is under the 
 	const api = await createApi();
 	await seedPortfolio(api);
 
-	const { queue } = await api.contract.dashboard();
+	const { queue } = await api.dashboard.get();
 	const endingAndOwing = queueEntry(queue, 'GOV-H');
 
 	assert.ok(endingAndOwing, 'GOV-H is in the queue');
@@ -156,7 +156,7 @@ test('a contract appears in exactly one rank', async () => {
 	const api = await createApi();
 	await seedPortfolio(api);
 
-	const { queue } = await api.contract.dashboard();
+	const { queue } = await api.dashboard.get();
 
 	assert.equal(new Set(queue.map(({ id }) => id)).size, queue.length);
 });
@@ -166,7 +166,7 @@ test('a terminated contract is in no rank, whatever it owes', async () => {
 	const api = await createApi();
 	await seedPortfolio(api);
 
-	const { queue } = await api.contract.dashboard();
+	const { queue } = await api.dashboard.get();
 
 	assert.equal(queueEntry(queue, 'GOV-G'), undefined);
 });
@@ -175,7 +175,7 @@ test('each rank states its contract count and its money total', async () => {
 	const api = await createApi();
 	await seedPortfolio(api);
 
-	const { ranks } = await api.contract.dashboard();
+	const { ranks } = await api.dashboard.get();
 
 	assert.deepEqual(ranks, [
 		{ rank: 'overdue', contractCount: 1, totalAmount: 4000 },
@@ -209,7 +209,7 @@ test('a contract with a cycle falling due this week is under due soon, stating t
 	await seedPortfolio(api);
 	await seedStartingIn(api, 'GOV-K', 3, 1200);
 
-	const { queue } = await api.contract.dashboard();
+	const { queue } = await api.dashboard.get();
 	const dueSoon = queueEntry(queue, 'GOV-K');
 
 	assert.ok(dueSoon, 'GOV-K is in the queue');
@@ -233,7 +233,7 @@ test('the due-soon rank is read soonest due first', async () => {
 	await seedStartingIn(api, 'GOV-TWO', 2, 1000);
 	await seedStartingIn(api, 'GOV-EIGHT', 8, 1000);
 
-	const { queue } = await api.contract.dashboard();
+	const { queue } = await api.dashboard.get();
 
 	assert.deepEqual(
 		queue.map(({ govId }) => govId),
@@ -246,10 +246,10 @@ test('the due-soon rank is read soonest due first', async () => {
 test('a contract coming due leaves the money ranks as they were', async () => {
 	const api = await createApi();
 	await seedPortfolio(api);
-	const before = (await api.contract.dashboard()).ranks;
+	const before = (await api.dashboard.get()).ranks;
 
 	await seedStartingIn(api, 'GOV-K', 3, 1200);
-	const { ranks } = await api.contract.dashboard();
+	const { ranks } = await api.dashboard.get();
 
 	assert.deepEqual(
 		ranks.filter(({ rank }) => rank !== 'due-soon'),
@@ -272,13 +272,13 @@ test('with nothing outstanding and nothing ending, the queue is empty rather tha
 		interval: '12m',
 		tenantId: tenant.id
 	});
-	await api.contract.payments.create({
+	await api.payment.create({
 		contractId: contract.id,
 		amount: 1000,
 		date: monthsFromNow(-2)
 	});
 
-	const { queue, ranks } = await api.contract.dashboard();
+	const { queue, ranks } = await api.dashboard.get();
 
 	assert.deepEqual(queue, []);
 	assert.deepEqual(ranks, []);
@@ -302,7 +302,7 @@ test('a rank returns at most the entries the screen shows, however many contract
 		});
 	}
 
-	const { queue, ranks } = await api.contract.dashboard();
+	const { queue, ranks } = await api.dashboard.get();
 
 	assert.equal(queue.length, DASHBOARD_ENTRIES_PER_RANK);
 	assert.deepEqual(
@@ -322,7 +322,7 @@ test('the strip carries exactly two figures and no timestamp', async () => {
 	const api = await createApi();
 	await seedPortfolio(api);
 
-	const dashboard = await api.contract.dashboard();
+	const dashboard = await api.dashboard.get();
 
 	assert.deepEqual(Object.keys(dashboard.summary).sort(), ['money', 'occupancy']);
 	assert.deepEqual(Object.keys(dashboard.summary.money).sort(), ['collected', 'due']);
@@ -337,7 +337,7 @@ test('the two strip figures are pinned', async () => {
 	const api = await createApi();
 	await seedPortfolio(api);
 
-	const { summary } = await api.contract.dashboard();
+	const { summary } = await api.dashboard.get();
 
 	// due: only A has a cycle falling due this month (its start). collected: every payment
 	// dated inside the month, which is the three dated today (250 + 500 + 0).
@@ -352,7 +352,7 @@ test('the notice window comes from the host, not the desktop shell', async () =>
 	});
 	await seedPortfolio(api);
 
-	const dashboard = await api.contract.dashboard();
+	const dashboard = await api.dashboard.get();
 
 	assert.equal(dashboard.endingSoonNoticeDays, 7);
 	// a seven-day window catches nothing in the fixture, so the renewals rank empties and
@@ -365,8 +365,8 @@ test('the aggregation is identical across repeated calls', async () => {
 	const api = await createApi();
 	await seedPortfolio(api);
 
-	const first = await api.contract.dashboard();
-	const second = await api.contract.dashboard();
+	const first = await api.dashboard.get();
+	const second = await api.dashboard.get();
 
 	assert.deepEqual(second, first);
 });
@@ -410,11 +410,11 @@ test('the money figures can be asked about a period other than the current month
 	const api = await createApi();
 	const contract = await seedPayableContract(api);
 
-	await api.contract.payments.create({ contractId: contract.id, date: dayOf(-1, 2), amount: 300 });
-	await api.contract.payments.create({ contractId: contract.id, date: dayOf(0, 2), amount: 500 });
+	await api.payment.create({ contractId: contract.id, date: dayOf(-1, 2), amount: 300 });
+	await api.payment.create({ contractId: contract.id, date: dayOf(0, 2), amount: 500 });
 
-	const thisMonth = await api.contract.dashboard({ period: 'this-month' });
-	const lastMonth = await api.contract.dashboard({ period: 'last-month' });
+	const thisMonth = await api.dashboard.get({ period: 'this-month' });
+	const lastMonth = await api.dashboard.get({ period: 'last-month' });
 
 	assert.equal(thisMonth.summary.money.collected, 500);
 	assert.equal(lastMonth.summary.money.collected, 300);
@@ -424,11 +424,11 @@ test('asking for nothing is asking about the current month, as it always was', a
 	const api = await createApi();
 	const contract = await seedPayableContract(api);
 
-	await api.contract.payments.create({ contractId: contract.id, date: dayOf(-1, 3), amount: 300 });
-	await api.contract.payments.create({ contractId: contract.id, date: dayOf(0, 3), amount: 500 });
+	await api.payment.create({ contractId: contract.id, date: dayOf(-1, 3), amount: 300 });
+	await api.payment.create({ contractId: contract.id, date: dayOf(0, 3), amount: 500 });
 
-	const unasked = await api.contract.dashboard();
-	const asked = await api.contract.dashboard({ period: 'this-month' });
+	const unasked = await api.dashboard.get();
+	const asked = await api.dashboard.get({ period: 'this-month' });
 
 	assert.deepEqual(unasked.summary.money, asked.summary.money);
 });
@@ -442,13 +442,13 @@ test('the landing figure and the ledger report the same money over one period', 
 
 	// two inside last month and one outside it, so agreeing on a total is not agreeing on
 	// everything that exists.
-	await api.contract.payments.create({ contractId: contract.id, date: dayOf(-1, 4), amount: 120 });
-	await api.contract.payments.create({ contractId: contract.id, date: dayOf(-1, 19), amount: 380 });
-	await api.contract.payments.create({ contractId: contract.id, date: dayOf(0, 4), amount: 999 });
+	await api.payment.create({ contractId: contract.id, date: dayOf(-1, 4), amount: 120 });
+	await api.payment.create({ contractId: contract.id, date: dayOf(-1, 19), amount: 380 });
+	await api.payment.create({ contractId: contract.id, date: dayOf(0, 4), amount: 999 });
 
 	for (const period of ['this-month', 'last-month', 'this-year', 'last-year'] as const) {
-		const { summary } = await api.contract.dashboard({ period });
-		const ledger = await api.contract.payments.getMany({ contractId: contract.id, period });
+		const { summary } = await api.dashboard.get({ period });
+		const ledger = await api.payment.getMany({ contractId: contract.id, period });
 		const ledgerTotal = ledger.reduce((sum, payment) => sum + payment.amount, 0);
 
 		assert.equal(summary.money.collected, ledgerTotal, `the two surfaces disagree about ${period}`);
@@ -463,10 +463,10 @@ test('and they agree about a payment made during the last day of the period', as
 	const contract = await seedPayableContract(api);
 
 	const lastInstant = dayOf(0, 0) + 17 * 60 * 60 * 1000;
-	await api.contract.payments.create({ contractId: contract.id, date: lastInstant, amount: 640 });
+	await api.payment.create({ contractId: contract.id, date: lastInstant, amount: 640 });
 
-	const { summary } = await api.contract.dashboard({ period: 'last-month' });
-	const ledger = await api.contract.payments.getMany({
+	const { summary } = await api.dashboard.get({ period: 'last-month' });
+	const ledger = await api.payment.getMany({
 		contractId: contract.id,
 		period: 'last-month'
 	});
@@ -496,8 +496,8 @@ async function portfolioReadWithout(flag: Flag) {
 	});
 
 	return {
-		everything: await (await createApi({ db })).contract.dashboard(),
-		lacking: await lacking.contract.dashboard()
+		everything: await (await createApi({ db })).dashboard.get(),
+		lacking: await lacking.dashboard.get()
 	};
 }
 

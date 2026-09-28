@@ -35,7 +35,7 @@
 	import type { DashboardSection } from '$lib/dashboard/dashboard';
 	import { LL } from '$lib/i18n/i18n-svelte';
 
-	type QueueEntry = Awaited<ReturnType<typeof api.contract.dashboard>>['queue'][number];
+	type QueueEntry = Awaited<ReturnType<typeof api.dashboard.get>>['queue'][number];
 
 	/**
 	 * One rank of contracts, as a card: what the rank is, how many it holds, what they owe, a few

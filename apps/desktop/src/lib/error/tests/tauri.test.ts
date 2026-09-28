@@ -114,7 +114,7 @@ test('a rejection from the host survives a procedure, and its code is read off t
 		await context({ db: createMemoryDatabase(), clock: { now: () => 0 }, host, identity: null })
 	);
 
-	const failure = await api.app.organization
+	const failure = await api.organization
 		.connectExisting({ username: 'owner', password: 'x'.repeat(PASSWORD_FLOOR) })
 		.then(
 			() => assert.fail('the procedure should have been refused'),

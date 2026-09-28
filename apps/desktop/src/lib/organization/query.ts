@@ -98,7 +98,7 @@ export function useBeginConsent(
 	}
 ) {
 	return createMutation(() => ({
-		mutationFn: () => api.app.organization.consent.begin(),
+		mutationFn: () => api.organization.consent.begin(),
 		onSuccess: () => onMutationSuccess(opts),
 		onError: (e) => onMutationError(opts, e)
 	}));
@@ -115,7 +115,7 @@ export function useConsentResult(sessionId: () => string | null) {
 	return createQuery(() => ({
 		queryKey: keys.consent(sessionId() ?? ''),
 		queryFn: async () => {
-			const result = await api.app.organization.consent.result({ sessionId: sessionId() ?? '' });
+			const result = await api.organization.consent.result({ sessionId: sessionId() ?? '' });
 
 			// a consent seen granted changes where the machine stands, and the state key is what the
 			// walk reads for it: refreshed here, a person who connects, returns to the wall and comes
@@ -178,7 +178,7 @@ export function useDisconnect(
 	const client = useQueryClient();
 
 	return createMutation(() => ({
-		mutationFn: () => api.app.organization.consent.disconnect(),
+		mutationFn: () => api.organization.consent.disconnect(),
 		onSuccess: async () => {
 			await client.invalidateQueries({ queryKey: keys.state });
 			onMutationSuccess(opts);
@@ -207,7 +207,7 @@ export function useDisconnectOrganization(
 	}
 ) {
 	return createMutation(() => ({
-		mutationFn: () => api.app.organization.disconnect(),
+		mutationFn: () => api.organization.disconnect(),
 		onSuccess: () => onMutationSuccess(opts),
 		onError: (e) => onMutationError(opts, e)
 	}));
@@ -233,7 +233,7 @@ export function useDeleteOrganization(
 	}
 ) {
 	return createMutation(() => ({
-		mutationFn: (input: { password: string }) => api.app.organization.delete(input),
+		mutationFn: (input: { password: string }) => api.organization.delete(input),
 		onSuccess: () => onMutationSuccess(opts),
 		onError: (e) => onMutationError(opts, e)
 	}));
@@ -271,7 +271,7 @@ export function useCreateOrganization(
 		}) =>
 			// the router's input takes the group as optional rather than nullable, so a walk that
 			// was asked for none leaves the key out altogether.
-			api.app.organization.create({ name, username, password, group: group ?? undefined }),
+			api.organization.create({ name, username, password, group: group ?? undefined }),
 		// creating the organization signs its owner in, and the held context was built while
 		// nobody was: the walk's next call, the first workspace, needs an actor, so the context
 		// is forgotten here the way the wall and a sign-out forget it (`api/caller`).
@@ -295,7 +295,7 @@ export function useInspectGroup(
 	}
 ) {
 	return createMutation(() => ({
-		mutationFn: () => api.app.organization.groupInspect(),
+		mutationFn: () => api.organization.groupInspect(),
 		onSuccess: () => onMutationSuccess(opts),
 		onError: (e) => onMutationError(opts, e)
 	}));
@@ -316,7 +316,7 @@ export function useConnectExisting(
 
 	return createMutation(() => ({
 		mutationFn: ({ username, password }: { username: string; password: string }) =>
-			api.app.organization.connectExisting({ username, password }),
+			api.organization.connectExisting({ username, password }),
 		// the connect signs the owner in, and the held context was built while nobody was: it is
 		// forgotten here the way a create forgets it, so the next call has an actor.
 		onSuccess: async () => {
@@ -355,7 +355,7 @@ export function useCreateWorkspace(
 
 	return createMutation(
 		() => ({
-			mutationFn: ({ name }: { name: string }) => api.app.organization.workspace.create({ name }),
+			mutationFn: ({ name }: { name: string }) => api.organization.workspace.create({ name }),
 			onSuccess: async () => {
 				await client.invalidateQueries({ queryKey: keys.state });
 				onMutationSuccess(opts);
@@ -391,7 +391,7 @@ export function useDeleteWorkspace(
 
 	return createMutation(() => ({
 		mutationFn: ({ workspaceId }: { workspaceId: string }) =>
-			api.app.organization.workspace.remove({ workspaceId }),
+			api.organization.workspace.remove({ workspaceId }),
 		onSuccess: async () => {
 			await client.invalidateQueries({ queryKey: keys.state });
 			onMutationSuccess(opts);
@@ -403,7 +403,7 @@ export function useDeleteWorkspace(
 export function useFetchMembers(enabled: () => boolean = () => true) {
 	return createQuery(() => ({
 		queryKey: keys.members,
-		queryFn: () => api.app.organization.member.list(),
+		queryFn: () => api.organization.member.list(),
 		enabled: enabled()
 	}));
 }
@@ -421,7 +421,7 @@ export function useFetchMembers(enabled: () => boolean = () => true) {
 export function useFetchMemberStandings(enabled: () => boolean = () => true) {
 	return createQuery(() => ({
 		queryKey: keys.memberStandings,
-		queryFn: () => api.app.organization.member.standings(),
+		queryFn: () => api.organization.member.standings(),
 		enabled: enabled()
 	}));
 }
@@ -459,7 +459,7 @@ export function useReadOrganizationName() {
 export function useFetchOrganizationMark() {
 	return createQuery(() => ({
 		queryKey: keys.mark,
-		queryFn: () => api.app.organization.mark.get()
+		queryFn: () => api.organization.mark.get()
 	}));
 }
 
@@ -468,7 +468,7 @@ export function useReadOrganizationMark() {
 	const client = useQueryClient();
 
 	return () =>
-		client.fetchQuery({ queryKey: keys.mark, queryFn: () => api.app.organization.mark.get() });
+		client.fetchQuery({ queryKey: keys.mark, queryFn: () => api.organization.mark.get() });
 }
 
 /**
@@ -487,7 +487,7 @@ export function useSetOrganizationMark(
 	const client = useQueryClient();
 
 	return createMutation(() => ({
-		mutationFn: (path: string) => api.app.organization.mark.set({ path }),
+		mutationFn: (path: string) => api.organization.mark.set({ path }),
 		onSuccess: async (mark) => {
 			client.setQueryData(keys.mark, mark);
 			onMutationSuccess(opts);
@@ -509,7 +509,7 @@ export function useClearOrganizationMark(
 	const client = useQueryClient();
 
 	return createMutation(() => ({
-		mutationFn: () => api.app.organization.mark.clear(),
+		mutationFn: () => api.organization.mark.clear(),
 		onSuccess: async () => {
 			client.setQueryData(keys.mark, null);
 			onMutationSuccess(opts);
@@ -540,7 +540,7 @@ export function useCreateAccount(
 			roleId: string;
 			override: number;
 			workspaces: { id: string; access: 'full-access' | 'read-only' }[];
-		}) => api.app.organization.member.create({ username, roleId, override, workspaces }),
+		}) => api.organization.member.create({ username, roleId, override, workspaces }),
 		onSuccess: async () => {
 			// a role's count of holders moves with an account made in it.
 			await client.invalidateQueries({ queryKey: keys.members });
@@ -567,7 +567,7 @@ export function useRemoveMember(
 
 	return createMutation(() => ({
 		mutationFn: ({ memberId, lockOut }: { memberId: string; lockOut: boolean }) =>
-			api.app.organization.member.remove({ memberId, lockOut }),
+			api.organization.member.remove({ memberId, lockOut }),
 		onSuccess: async (result) => {
 			await client.invalidateQueries({ queryKey: keys.members });
 			onMutationSuccess(announcing(opts, removedSentence(result)));
@@ -594,7 +594,7 @@ export function useRenameMember(
 
 	return createMutation(() => ({
 		mutationFn: ({ memberId, username }: { memberId: string; username: string }) =>
-			api.app.organization.member.rename({ memberId, username }),
+			api.organization.member.rename({ memberId, username }),
 		onSuccess: async () => {
 			await client.invalidateQueries({ queryKey: keys.members });
 			onMutationSuccess(opts);
@@ -607,7 +607,7 @@ export function useRenameMember(
 export function useLockOutCost(memberId: () => string | null) {
 	return createQuery(() => ({
 		queryKey: [...keys.members, 'lockOutCost', memberId()],
-		queryFn: () => api.app.organization.member.lockOutCost({ memberId: memberId() ?? '' }),
+		queryFn: () => api.organization.member.lockOutCost({ memberId: memberId() ?? '' }),
 		enabled: memberId() !== null
 	}));
 }
@@ -627,7 +627,7 @@ export function useChangePassword(
 ) {
 	return createMutation(() => ({
 		mutationFn: ({ current, next }: { current: string; next: string }) =>
-			api.app.organization.password.change({ current, next }),
+			api.organization.password.change({ current, next }),
 		onSuccess: () => onMutationSuccess(opts),
 		onError: (e) => onMutationError(opts, e)
 	}));
@@ -654,7 +654,7 @@ export function useEndOtherSessions(
 	const client = useQueryClient();
 
 	return createMutation(() => ({
-		mutationFn: () => api.app.organization.session.endElsewhere(),
+		mutationFn: () => api.organization.session.endElsewhere(),
 		onSuccess: async (result) => {
 			await client.invalidateQueries({ queryKey: keys.state });
 			onMutationSuccess(announcing(opts, endedSentence(result)));
@@ -682,7 +682,7 @@ export function useEndMemberSessions(
 
 	return createMutation(() => ({
 		mutationFn: ({ memberId }: { memberId: string }) =>
-			api.app.organization.member.endSessions({ memberId }),
+			api.organization.member.endSessions({ memberId }),
 		onSuccess: async (result) => {
 			await client.invalidateQueries({ queryKey: keys.members });
 			onMutationSuccess(announcing(opts, memberSessionsEndedSentence(result)));
@@ -739,7 +739,7 @@ export function useAssignRole(
 			memberId: string;
 			roleId: string;
 			override?: number;
-		}) => api.app.organization.member.assignRole({ memberId, roleId, override }),
+		}) => api.organization.member.assignRole({ memberId, roleId, override }),
 		onSuccess: async () => {
 			await rolesAndMembersChanged(client);
 			onMutationSuccess(opts);
@@ -762,7 +762,7 @@ export function useSetOverride(
 
 	return createMutation(() => ({
 		mutationFn: ({ memberId, override }: { memberId: string; override: number }) =>
-			api.app.organization.member.setOverride({ memberId, override }),
+			api.organization.member.setOverride({ memberId, override }),
 		onSuccess: async () => {
 			await rolesAndMembersChanged(client);
 			onMutationSuccess(opts);
@@ -800,7 +800,7 @@ export function useSetWorkspaceOverride(
 			pinned: number;
 			granted: number;
 		}) =>
-			api.app.organization.member.setWorkspaceOverride({
+			api.organization.member.setWorkspaceOverride({
 				memberId,
 				workspaceId,
 				pinned,
@@ -821,7 +821,7 @@ export function useSetWorkspaceOverride(
 export function useFetchRoles(enabled: () => boolean = () => true) {
 	return createQuery(() => ({
 		queryKey: keys.roles,
-		queryFn: () => api.app.organization.role.list(),
+		queryFn: () => api.organization.role.list(),
 		enabled: enabled()
 	}));
 }
@@ -837,7 +837,7 @@ export function useCreateRole(opts = roleWrite(() => get(LL).organization.roleLi
 
 	return createMutation(() => ({
 		mutationFn: (input: { name: string; mask: number; afterRoleId: string }) =>
-			api.app.organization.role.create(input),
+			api.organization.role.create(input),
 		onSuccess: async () => {
 			await rolesAndMembersChanged(client);
 			onMutationSuccess(opts);
@@ -851,8 +851,7 @@ export function useRenameRole(opts = roleWrite(() => get(LL).organization.roleLi
 	const client = useQueryClient();
 
 	return createMutation(() => ({
-		mutationFn: (input: { roleId: string; name: string }) =>
-			api.app.organization.role.rename(input),
+		mutationFn: (input: { roleId: string; name: string }) => api.organization.role.rename(input),
 		onSuccess: async () => {
 			await rolesAndMembersChanged(client);
 			onMutationSuccess(opts);
@@ -866,8 +865,7 @@ export function useSetRoleMask(opts = roleWrite(() => get(LL).organization.roleL
 	const client = useQueryClient();
 
 	return createMutation(() => ({
-		mutationFn: (input: { roleId: string; mask: number }) =>
-			api.app.organization.role.setMask(input),
+		mutationFn: (input: { roleId: string; mask: number }) => api.organization.role.setMask(input),
 		onSuccess: async () => {
 			await rolesAndMembersChanged(client);
 			onMutationSuccess(opts);
@@ -882,7 +880,7 @@ export function useMoveRole(opts = roleWrite(() => get(LL).organization.roleList
 
 	return createMutation(() => ({
 		mutationFn: (input: { roleId: string; afterRoleId: string }) =>
-			api.app.organization.role.move(input),
+			api.organization.role.move(input),
 		onSuccess: async () => {
 			await rolesAndMembersChanged(client);
 			onMutationSuccess(opts);
@@ -896,7 +894,7 @@ export function useDeleteRole(opts = roleWrite(() => get(LL).organization.roleLi
 	const client = useQueryClient();
 
 	return createMutation(() => ({
-		mutationFn: (input: { roleId: string }) => api.app.organization.role.delete(input),
+		mutationFn: (input: { roleId: string }) => api.organization.role.delete(input),
 		onSuccess: async () => {
 			await rolesAndMembersChanged(client);
 			onMutationSuccess(opts);
@@ -930,7 +928,7 @@ export function useOfferOwnership(
 
 	return createMutation(() => ({
 		mutationFn: ({ memberId, password }: { memberId: string; password: string }) =>
-			api.app.organization.member.offerOwnership({ memberId, password }),
+			api.organization.member.offerOwnership({ memberId, password }),
 		onSuccess: async () => {
 			await client.invalidateQueries({ queryKey: keys.members });
 			onMutationSuccess(opts);
@@ -952,7 +950,7 @@ export function useWithdrawOffer(
 	const client = useQueryClient();
 
 	return createMutation(() => ({
-		mutationFn: () => api.app.organization.member.withdrawOffer(),
+		mutationFn: () => api.organization.member.withdrawOffer(),
 		onSuccess: async () => {
 			await client.invalidateQueries({ queryKey: keys.members });
 			onMutationSuccess(opts);
@@ -985,7 +983,7 @@ export function useAcceptOwnership(
 
 	return createMutation(() => ({
 		mutationFn: ({ password }: { password: string }) =>
-			api.app.organization.ownershipAccept({ password }),
+			api.organization.ownershipAccept({ password }),
 		onSuccess: async () => {
 			await client.invalidateQueries({ queryKey: keys.members });
 			await client.invalidateQueries({ queryKey: keys.state });
@@ -1038,12 +1036,12 @@ export function useChangeAccess(
 		mutationFn: async ({ changes }: { changes: AccessChange[] }) => {
 			for (const change of changes) {
 				if (change.access === 'none') {
-					await api.app.organization.workspace.withdraw({
+					await api.organization.workspace.withdraw({
 						workspaceId: change.workspaceId,
 						memberId: change.memberId
 					});
 				} else {
-					await api.app.organization.workspace.grant({
+					await api.organization.workspace.grant({
 						workspaceId: change.workspaceId,
 						memberId: change.memberId,
 						access: change.access
@@ -1079,7 +1077,7 @@ export function useMakeMemberLink(
 
 	return createMutation(() => ({
 		mutationFn: ({ memberId }: { memberId: string }) =>
-			api.app.organization.member.linkMake({ memberId }),
+			api.organization.member.linkMake({ memberId }),
 		onSuccess: async (made) => {
 			await client.invalidateQueries({ queryKey: keys.members });
 
@@ -1121,7 +1119,7 @@ export function useUnsetMemberPassword(
 
 	return createMutation(() => ({
 		mutationFn: ({ memberId }: { memberId: string }) =>
-			api.app.organization.member.unsetPassword({ memberId }),
+			api.organization.member.unsetPassword({ memberId }),
 		onSuccess: async (unreachable) => {
 			await client.invalidateQueries({ queryKey: keys.members });
 			onMutationSuccess(announcing(opts, unsetSentence(unreachable)));

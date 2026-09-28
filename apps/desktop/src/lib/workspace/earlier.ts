@@ -69,7 +69,7 @@ export function useEarlierRecords(queryClient?: QueryClient) {
 	const settings = createQuery(
 		() => ({
 			queryKey: settingsKeys.settings,
-			queryFn: () => api.app.settings.get()
+			queryFn: () => api.settings.get()
 		}),
 		() => client
 	);

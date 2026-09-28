@@ -99,8 +99,7 @@ async function refuseEffectiveWriteWithoutView(
 /**
  * ORGANIZATION ROUTER
  *
- * an organization on a Turso account the customer owns, mounted by the app router at
- * `app.organization`.
+ * an organization on a Turso account the customer owns, mounted at the root at `organization`.
  *
  * **The consent and the first run are `public`**, for the same reason the sync router's state read
  * is: they are how a person comes to have an identity in an organization at all, so a procedure

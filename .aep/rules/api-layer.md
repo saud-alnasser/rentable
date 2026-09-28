@@ -74,10 +74,10 @@ use-when: "adding or changing a router, a domain module, a database client or tr
   `public: true`. `api/tests/flags.test.ts` walks `appRouter._def.procedures`, which holds one
   entry per procedure under its dotted path, and fails on a procedure that names no flag and is
   neither `member` nor `public`, on a record procedure that names no flag other than the two open
-  reads below, and on a record procedure whose flag is not the one the plan maps it to. A
-  procedure declared any other way records nothing, so the walk names it.
+  reads below and `contract.reconcile`, and on a record procedure whose flag is not the one the
+  plan maps it to. A procedure declared any other way records nothing, so the walk names it.
 - **A flag where there is one, and `member` only where there is none.** Every record procedure
-  names its flag but two reads open to every member, `contract.dashboard` and `workspace.held`,
+  names its flag but two reads open to every member, `dashboard.get` and `workspace.held`,
   whose answers leave out a kind the member may not view. What else is `member` is one of two
   things. A member's own act: their password, their other sessions, accepting an ownership offer
   made to them, opening a workspace they hold a grant on, and this machine's bootstrap and

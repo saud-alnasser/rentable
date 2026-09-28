@@ -59,8 +59,8 @@ export function browserStartupPorts(queryClient: QueryClient): StartupPorts {
 			renewDue: () => tauri.organization.renewDue()
 		},
 		workspace: {
-			bootstrap: () => api.app.bootstrap(),
-			reconcile: () => api.app.state.reconcile(),
+			bootstrap: () => api.startup.bootstrap(),
+			reconcile: () => api.contract.reconcile(),
 			syncNow: (state) => syncWorkspaceNow(state),
 			syncBeforeExit: (state) => syncWorkspaceBeforeExit(state),
 			announceReceived: () => announceReceivedRows(queryClient)

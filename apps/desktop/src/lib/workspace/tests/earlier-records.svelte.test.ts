@@ -47,11 +47,9 @@ vi.mock('$lib/platform/tauri', () => ({
 
 vi.mock('$lib/api/caller', () => ({
 	default: {
-		app: {
-			settings: {
-				get: async () => hooks.settings.current,
-				set: hooks.set
-			}
+		settings: {
+			get: async () => hooks.settings.current,
+			set: hooks.set
 		},
 		workspace: { held: hooks.held, importWhole: hooks.importWhole }
 	}

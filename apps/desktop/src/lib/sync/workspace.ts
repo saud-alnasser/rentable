@@ -74,7 +74,7 @@ export type WorkspaceSyncResult = {
  * day's reconcile should not run a second one.
  */
 export async function announceReceivedRows(client: QueryClient): Promise<number> {
-	const { reconciledAt } = await api.app.state.reconcile();
+	const { reconciledAt } = await api.contract.reconcile();
 
 	await invalidateRoot(client);
 

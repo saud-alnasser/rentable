@@ -34,13 +34,11 @@ vi.mock('$lib/platform/tauri', () => ({
 // the mark goes through the router's procedures gated on `manageMark`, which hand it to the host.
 vi.mock('$lib/api/caller', () => ({
 	default: {
-		app: {
-			organization: {
-				mark: {
-					get: () => host.markGet(),
-					set: ({ path }: { path: string }) => host.markSet(path),
-					clear: () => host.markClear()
-				}
+		organization: {
+			mark: {
+				get: () => host.markGet(),
+				set: ({ path }: { path: string }) => host.markSet(path),
+				clear: () => host.markClear()
 			}
 		}
 	}

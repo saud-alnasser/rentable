@@ -101,7 +101,7 @@
 		setLocale(next);
 
 		try {
-			await api.app.settings.set({ locale: next });
+			await api.settings.set({ locale: next });
 			await settingsQuery.refetch();
 		} catch (error) {
 			setLocale(previousLocale);

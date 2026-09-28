@@ -44,13 +44,11 @@ import {
 } from '$lib/contract/rank';
 import { getReminderFigures, isReminderRank, type ContractReminder } from '$lib/contract/reminder';
 import { ensureRenewalFollowsPredecessor } from '$lib/contract/renewal';
-import { reconcileTouched } from '$lib/contract/reconcile';
+import { reconcile, reconcileTouched } from '$lib/contract/reconcile';
 import { scheduleContract } from '$lib/contract/schedule';
 import { serializeContract, type SerializedContract } from '$lib/contract/serialize';
-import dashboard from '$lib/dashboard/router';
 import { permits } from '@rentable/workspace-permission';
 import { groupPaymentsByContractId } from '$lib/payment/payment';
-import payment from '$lib/payment/router';
 import {
 	and,
 	asc,
@@ -1634,7 +1632,15 @@ export default router({
 			})
 	},
 
-	payments: payment,
+	/**
+	 * Recompute every contract's and unit's status and the payment aggregates, for the triggers
+	 * that have no touch-set: startup, a UTC-day crossing while the app runs, and a remote-sync
+	 * pull. *It was `app.state.reconcile` until effort 840 flattened the router tree.*
+	 */
+	reconcile: procedure.member.mutation(async ({ ctx }) => {
+		const reconciledAt = ctx.clock.now();
+		await reconcile(ctx.db, reconciledAt);
 
-	dashboard
+		return { reconciledAt };
+	})
 });

@@ -3,7 +3,7 @@
 	import type { OrganizationMark } from '$lib/platform/tauri';
 
 	/**
-	 * Everything a printed receipt carries: what `contract.payments.receipt` answered, and who
+	 * Everything a printed receipt carries: what `payment.receipt` answered, and who
 	 * issued it.
 	 */
 	export type PrintedReceiptValue = PaymentReceipt & {

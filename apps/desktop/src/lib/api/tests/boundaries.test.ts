@@ -27,8 +27,8 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 const LIB_ROOT = fileURLToPath(new URL('../..', import.meta.url));
-// `api/` is the wiring, and `app/` holds the root router, the `app.*` procedures and the caller
-// that moved out of it once the router was built from the list of features.
+// `api/` is the wiring, and `app/` holds the root router and the caller that moved out of it once
+// the router was built from the list of features.
 const LAYER_HOMES = ['api', 'app'];
 const REQUEST_TIME_MODULES = ['router.ts', 'reconcile.ts'];
 

@@ -55,7 +55,7 @@ A one-page statement that a payment was received (سند قبض), in Arabic or i
 the print preview, printed or saved as a PDF from there. It names the payment by a _receipt number_ taken from the
 payment's identity, never by a sequence, and states the cycles the payment covers by the
 _allocation_ and what remains of the _total cost_ after it. Read on demand from the payment as it
-stands (`contract.payments.receipt`) and never stored. It is not a tax invoice.
+stands (`payment.receipt`) and never stored. It is not a tax invoice.
 _Avoid_: invoice (فاتورة), which it is not
 
 **Reminder**:

@@ -53,15 +53,13 @@ const asked: string[] = [];
 mock.module('$lib/api/caller', {
 	exports: {
 		default: {
-			app: {
-				organization: {
-					workspace: {
-						grant: async (input: { workspaceId: string; memberId: string; access: string }) => {
-							asked.push(`grant:${input.workspaceId}:${input.memberId}:${input.access}`);
-						},
-						withdraw: async (input: { workspaceId: string; memberId: string }) => {
-							asked.push(`withdraw:${input.workspaceId}:${input.memberId}`);
-						}
+			organization: {
+				workspace: {
+					grant: async (input: { workspaceId: string; memberId: string; access: string }) => {
+						asked.push(`grant:${input.workspaceId}:${input.memberId}:${input.access}`);
+					},
+					withdraw: async (input: { workspaceId: string; memberId: string }) => {
+						asked.push(`withdraw:${input.workspaceId}:${input.memberId}`);
 					}
 				}
 			}

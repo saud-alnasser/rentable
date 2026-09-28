@@ -39,7 +39,7 @@ vi.mock('$lib/platform/tauri', () => ({
 }));
 
 vi.mock('$lib/api/caller', () => ({
-	default: { contract: { payments: { receipt: hooks.receipt } } }
+	default: { payment: { receipt: hooks.receipt } }
 }));
 
 vi.mock('$lib/notification', async (original) => ({

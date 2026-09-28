@@ -405,7 +405,7 @@ export type WorkspaceAct = RecordAct<WorkspaceActRecord> & { id: WorkspaceActId 
 export function declareWorkspaceActs(host: WorkspaceHostRequests): WorkspaceAct[] {
 	return [
 		{
-			// the open workspace's alone: `remoteSync.rename` renames this machine's workspace, and
+			// the open workspace's alone: `sync.rename` renames this machine's workspace, and
 			// no command renames one from a distance.
 			id: 'workspace.edit',
 			label: (t) => t.common.actions.edit(),

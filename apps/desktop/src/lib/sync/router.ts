@@ -6,8 +6,8 @@ import z from 'zod';
 /**
  * SYNC ROUTER
  *
- * getting a workspace off this machine and back onto it, mounted by the app router at
- * `app.remoteSync`.
+ * getting a workspace off this machine and back onto it, mounted at the root at `sync` (it was
+ * `app.remoteSync` until effort 840 flattened the router tree).
  *
  * *It carried a `backup` router beside this one, because backup and sync produced the same
  * snapshots. The backup surface retired with #569 and Turso holds the record, so there are no

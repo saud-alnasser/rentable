@@ -307,7 +307,7 @@ test('a contract carrying a payment is still refused deletion, and keeps its uni
 	const { unit } = await seedComplexWithUnit(api, 'Delete-Paid');
 	const created = await seedContract(api, { unitIds: [unit.id] });
 
-	await api.contract.payments.create({
+	await api.payment.create({
 		contractId: created.id,
 		date: monthsFromNow(0),
 		amount: 100
@@ -946,7 +946,7 @@ test('a unit cannot be assigned once the contract has payments', async () => {
 	const contract = await seedContract(api);
 	const { unit } = await seedComplexWithUnit(api, 'C');
 
-	await api.contract.payments.create({
+	await api.payment.create({
 		contractId: contract.id,
 		date: monthsFromNow(0),
 		amount: 100
@@ -971,7 +971,7 @@ test('a unit cannot be removed once the contract has payments', async () => {
 		contractId: contract.id,
 		unitIds: [unit.id]
 	});
-	await api.contract.payments.create({
+	await api.payment.create({
 		contractId: contract.id,
 		date: monthsFromNow(0),
 		amount: 100
@@ -1012,7 +1012,7 @@ test('derived status is fulfilled within the period once fully paid', async () =
 	const api = await createApi();
 	const contract = await seedContract(api);
 
-	await api.contract.payments.create({
+	await api.payment.create({
 		contractId: contract.id,
 		date: monthsFromNow(0),
 		amount: 1_000_000
@@ -1034,7 +1034,7 @@ test('derived status is expired after the period once fully paid', async () => {
 	const api = await createApi();
 	const contract = await seedContract(api, { start: monthsFromNow(-14), end: monthsFromNow(-2) });
 
-	await api.contract.payments.create({
+	await api.payment.create({
 		contractId: contract.id,
 		date: monthsFromNow(-8),
 		amount: 1_000_000
@@ -1069,12 +1069,12 @@ test('stored unit occupancy follows assignment and removal', async () => {
 		unitIds: [unit.id]
 	});
 
-	const afterAssign = await api.contract.dashboard();
+	const afterAssign = await api.dashboard.get();
 	assert.equal(afterAssign.summary.occupancy?.occupiedUnits, 1);
 
 	await api.contract.units.set({ contractId: contract.id, unitIds: [] });
 
-	const afterRemoval = await api.contract.dashboard();
+	const afterRemoval = await api.dashboard.get();
 	assert.equal(afterRemoval.summary.occupancy?.occupiedUnits, 0);
 });
 
@@ -1093,7 +1093,7 @@ test('a mutation on one contract keeps a shared unit occupied by the other', asy
 		unitIds: [unit.id]
 	});
 
-	await api.contract.payments.create({
+	await api.payment.create({
 		contractId: past.id,
 		date: monthsFromNow(-8),
 		amount: 1_000_000
@@ -1103,7 +1103,7 @@ test('a mutation on one contract keeps a shared unit occupied by the other', asy
 	assert.ok(reloadedPast);
 	assert.equal(reloadedPast.status, 'expired');
 
-	const dashboard = await api.contract.dashboard();
+	const dashboard = await api.dashboard.get();
 	assert.equal(dashboard.summary.occupancy?.occupiedUnits, 1);
 });
 
@@ -1121,7 +1121,7 @@ test('the contract list carries the payment aggregates after a payment', async (
 	const api = await createApi();
 	const contract = await seedContract(api);
 
-	await api.contract.payments.create({
+	await api.payment.create({
 		contractId: contract.id,
 		date: monthsFromNow(0),
 		amount: 400
@@ -1140,8 +1140,8 @@ test('the contract list carries how many payments are recorded against each cont
 	const paid = await seedContract(api);
 	const untouched = await seedContract(api);
 
-	await api.contract.payments.create({ contractId: paid.id, date: monthsFromNow(0), amount: 100 });
-	await api.contract.payments.create({ contractId: paid.id, date: monthsFromNow(0), amount: 200 });
+	await api.payment.create({ contractId: paid.id, date: monthsFromNow(0), amount: 100 });
+	await api.payment.create({ contractId: paid.id, date: monthsFromNow(0), amount: 200 });
 
 	const contracts = await api.contract.getMany({});
 	const listed = (id: string) => contracts.find((candidate) => candidate.id === id);
@@ -1289,13 +1289,13 @@ test('a contract holding units in two complexes appears once in each', async () 
 test('the payment count follows a deleted payment back down', async () => {
 	const api = await createApi();
 	const contract = await seedContract(api);
-	const payment = await api.contract.payments.create({
+	const payment = await api.payment.create({
 		contractId: contract.id,
 		date: monthsFromNow(0),
 		amount: 100
 	});
 
-	await api.contract.payments.delete({ id: payment.id });
+	await api.payment.delete({ id: payment.id });
 
 	const listed = (await api.contract.getMany({})).find((candidate) => candidate.id === contract.id);
 
@@ -1373,12 +1373,12 @@ test('the schedule allocates every payment oldest first: with today inside the s
 
 	// recorded newest first, so the order the schedule takes them in is its own and not the
 	// order they happened to be written.
-	await api.contract.payments.create({
+	await api.payment.create({
 		contractId: contract.id,
 		date: firstOfMonthFromNow(-2),
 		amount: 1000
 	});
-	await api.contract.payments.create({
+	await api.payment.create({
 		contractId: contract.id,
 		date: contract.start,
 		amount: 3000
@@ -1456,7 +1456,7 @@ test('an owing contract’s reminder states what its late and due cycles lack, s
 
 	// covers the first cycle and half the second, so the four cycles due by now lack 2,500 and
 	// the rent has been owed since the second.
-	await api.contract.payments.create({
+	await api.payment.create({
 		contractId: contract.id,
 		date: firstOfMonthFromNow(-3),
 		amount: 1500
@@ -1568,7 +1568,7 @@ async function seedOneContractPerStatus(api: Api) {
 		end: monthsFromNow(-2)
 	});
 
-	await api.contract.payments.create({
+	await api.payment.create({
 		contractId: expired.id,
 		date: monthsFromNow(-8),
 		amount: 1_000_000
@@ -1581,7 +1581,7 @@ async function seedOneContractPerStatus(api: Api) {
 	const active = await seedContract(api, { govId: 'GOV-ACTIVE' });
 	const fulfilled = await seedContract(api, { govId: 'GOV-FULFILLED' });
 
-	await api.contract.payments.create({
+	await api.payment.create({
 		contractId: fulfilled.id,
 		date: monthsFromNow(0),
 		amount: 1_000_000
@@ -1855,13 +1855,13 @@ test('a contract with no reference is found under the tenant holding it', async 
 test('a payment is found by its amount, across every contract', async () => {
 	const api = await createApi();
 	const contract = await seedContract(api, { govId: 'GOV-7' });
-	const payment = await api.contract.payments.create({
+	const payment = await api.payment.create({
 		contractId: contract.id,
 		date: monthsFromNow(0),
 		amount: 1234
 	});
 
-	const found = await api.contract.payments.search({ term: '1234' });
+	const found = await api.payment.search({ term: '1234' });
 
 	assert.deepEqual(
 		found.map((match) => match.id),
@@ -1892,7 +1892,7 @@ async function seedRankedPortfolio(api: Api) {
 
 	// paid in full and ending inside the notice window: owes nothing, so it ranks as a renewal.
 	const ending = await contract('RANK-ENDING', 100, -11, 1);
-	await api.contract.payments.create({
+	await api.payment.create({
 		contractId: ending.id,
 		amount: 100,
 		date: monthsFromNow(-2)
@@ -2106,7 +2106,7 @@ async function seedWorkspaceWithFewOverdue(api: Api) {
 	for (let index = 0; index < 500; index += 1) {
 		const settled = await contract(undefined, -13, -1);
 
-		await api.contract.payments.create({
+		await api.payment.create({
 			contractId: settled.id,
 			amount: 1000,
 			date: monthsFromNow(-12)
@@ -2322,7 +2322,7 @@ async function seedContractHoldingAUnit(api: Api, label: string) {
 async function seedContractCarryingAPayment(api: Api) {
 	const contract = await seedContract(api);
 
-	await api.contract.payments.create({
+	await api.payment.create({
 		contractId: contract.id,
 		date: monthsFromNow(0),
 		amount: 100
@@ -2845,7 +2845,7 @@ test('without viewing payments, a contract row counts no payments', async () => 
 	const api = await createApi({ db });
 	const contract = await seedContract(api);
 
-	await api.contract.payments.create({ contractId: contract.id, date: NOW, amount: 100 });
+	await api.payment.create({ contractId: contract.id, date: NOW, amount: 100 });
 
 	const [everything] = await api.contract.getMany({});
 	const [lacking] = await (

@@ -22,7 +22,7 @@ export const keys = {
 export function useFetchSettings() {
 	return createQuery(() => ({
 		queryKey: keys.settings,
-		queryFn: () => api.app.settings.get()
+		queryFn: () => api.settings.get()
 	}));
 }
 
@@ -35,7 +35,7 @@ export function useFetchSettings() {
 export function useFetchRemoteSyncState(enabled: () => boolean = () => true) {
 	return createQuery(() => ({
 		queryKey: keys.remoteSync,
-		queryFn: () => api.app.remoteSync.getState(),
+		queryFn: () => api.sync.getState(),
 		enabled: enabled()
 	}));
 }
@@ -65,7 +65,7 @@ export function useRenameWorkspace(
 	const client = useQueryClient();
 
 	return createMutation(() => ({
-		mutationFn: ({ name }: { name: string }) => api.app.remoteSync.rename({ name }),
+		mutationFn: ({ name }: { name: string }) => api.sync.rename({ name }),
 		onSuccess: async (state) => {
 			// written before the invalidation as well as after it: the three surfaces drawing the
 			// name are on screen while this resolves, and the refetch is a round trip they would
@@ -91,8 +91,7 @@ export function useSetEndingSoonNoticeDays(
 	const client = useQueryClient();
 
 	return createMutation(() => ({
-		mutationFn: ({ days }: { days: number }) =>
-			api.app.settings.set({ endingSoonNoticeDays: days }),
+		mutationFn: ({ days }: { days: number }) => api.settings.set({ endingSoonNoticeDays: days }),
 		onSuccess: async (settings) => {
 			client.setQueryData(keys.settings, settings);
 
@@ -127,7 +126,7 @@ export function useSetAppearance(
 
 	return createMutation(() => ({
 		mutationFn: ({ appearance }: { appearance: AppearanceSetting }) =>
-			api.app.settings.set({ appearance }),
+			api.settings.set({ appearance }),
 		onMutate: ({ appearance }) => {
 			const previous = browserAppearance().setting;
 
@@ -167,7 +166,7 @@ export function useSettleEarlierRecords(
 	const client = useQueryClient();
 
 	return createMutation(() => ({
-		mutationFn: () => api.app.settings.set({ earlierRecordsSettled: true }),
+		mutationFn: () => api.settings.set({ earlierRecordsSettled: true }),
 		onSuccess: async (settings) => {
 			client.setQueryData(keys.settings, settings);
 			await client.invalidateQueries({ queryKey: keys.settings });
@@ -191,7 +190,7 @@ export function useCheckForUpdate(opts: MutationOptions = {}) {
 export function usePrepareUpdate(opts: MutationOptions = {}) {
 	return createMutation(() => ({
 		mutationFn: ({ targetVersion }: { targetVersion: string }) =>
-			api.app.update.prepare({ targetVersion }),
+			api.update.prepare({ targetVersion }),
 		onSuccess: () => onMutationSuccess(opts),
 		onError: (e: Error) => onMutationError(opts, e)
 	}));

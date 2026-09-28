@@ -62,7 +62,7 @@ async function seedWorkspace(api: Api) {
 
 	await api.contract.units.set({ contractId: contract.id, unitIds: [unit.id] });
 
-	await api.contract.payments.create({
+	await api.payment.create({
 		contractId: contract.id,
 		date: monthsFromNow(0),
 		amount: 1500
@@ -410,7 +410,7 @@ test('a file cannot put money on a contract that has been terminated', async () 
 	// the same refusal the ledger gives, in the same words
 	await assert.rejects(write(), refusedWith('contract.terminatedLocked'));
 	await assert.rejects(
-		api.contract.payments.create({
+		api.payment.create({
 			contractId: contract.id,
 			date: monthsFromNow(0),
 			amount: 500

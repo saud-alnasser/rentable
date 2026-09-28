@@ -42,7 +42,7 @@ export const keys = {
 
 /** Why a payment in a selection would be turned away, read off the procedure rather than restated. */
 export type PaymentRefusalReason = Awaited<
-	ReturnType<typeof api.contract.payments.planMany>
+	ReturnType<typeof api.payment.planMany>
 >['refused'][number]['reason'];
 
 const toPaymentIds = (payments: readonly { id: string }[]) => payments.map((payment) => payment.id);
@@ -78,7 +78,7 @@ export function useSearchPayments(term: () => string, limit: number) {
 			queryKey: keys.search(trimmed),
 			enabled: trimmed.length > 0,
 			queryFn: async () => {
-				const matches = await api.contract.payments.search({ term: trimmed, limit });
+				const matches = await api.payment.search({ term: trimmed, limit });
 
 				return matches.map((match) => ({
 					...match,
@@ -97,7 +97,7 @@ export function useFetchPayment(id: () => string) {
 
 		return {
 			queryKey: keys.get(freshId),
-			queryFn: () => api.contract.payments.get({ id: freshId }),
+			queryFn: () => api.payment.get({ id: freshId }),
 			enabled: isRecordId(freshId)
 		};
 	});
@@ -114,7 +114,7 @@ export function useReadPayment() {
 	return (id: string) =>
 		client.fetchQuery({
 			queryKey: keys.get(id),
-			queryFn: () => api.contract.payments.get({ id })
+			queryFn: () => api.payment.get({ id })
 		});
 }
 
@@ -129,12 +129,12 @@ export function useReadPaymentReceipt() {
 	return (id: string) =>
 		client.fetchQuery({
 			queryKey: keys.receipt(id),
-			queryFn: () => api.contract.payments.receipt({ id })
+			queryFn: () => api.payment.receipt({ id })
 		});
 }
 
-/** What a payment's receipt states, as `contract.payments.receipt` answers. */
-export type PaymentReceipt = Awaited<ReturnType<typeof api.contract.payments.receipt>>;
+/** What a payment's receipt states, as `payment.receipt` answers. */
+export type PaymentReceipt = Awaited<ReturnType<typeof api.payment.receipt>>;
 
 export function useFetchContractPayments(
 	contractId: () => string,
@@ -146,7 +146,7 @@ export function useFetchContractPayments(
 		return {
 			queryKey: keys.getMany(id),
 			enabled: enabled(),
-			queryFn: () => api.contract.payments.getMany({ contractId: id })
+			queryFn: () => api.payment.getMany({ contractId: id })
 		};
 	});
 }
@@ -172,7 +172,7 @@ export function useListContractPayments(
 		return {
 			queryKey: keys.list(contractId, trimmedSearch, period, sort),
 			queryFn: () =>
-				api.contract.payments.getMany({
+				api.payment.getMany({
 					contractId,
 					search: trimmedSearch || undefined,
 					period,
@@ -200,20 +200,19 @@ export function usePlanManyPayments(ids: () => readonly string[]) {
 		return {
 			queryKey: keys.plan(named),
 			enabled: named.length > 0,
-			queryFn: () => api.contract.payments.planMany({ ids: named })
+			queryFn: () => api.payment.planMany({ ids: named })
 		};
 	});
 }
 
 export const useCreatePayment = declareMutation({
-	mutate: (data: Parameters<typeof api.contract.payments.create>[0]) =>
-		api.contract.payments.create(data),
+	mutate: (data: Parameters<typeof api.payment.create>[0]) => api.payment.create(data),
 	touches: ['payments', 'contracts', 'units'],
 	inverse: ({ result }) => ({
 		describe: (t) => t.common.undo.created({ record: t.common.labels.payment() }),
 		flags: { undo: ['deletePayment'], redo: ['createPayment'] },
-		undo: () => api.contract.payments.delete({ id: result.id }),
-		redo: () => api.contract.payments.create(result),
+		undo: () => api.payment.delete({ id: result.id }),
+		redo: () => api.payment.create(result),
 		records: (direction) =>
 			toPaymentHistoryEntry(result, direction === 'undo' ? 'deleted' : 'created')
 	}),
@@ -226,16 +225,15 @@ export const useCreatePayment = declareMutation({
 });
 
 export const useUpdatePayment = declareMutation({
-	mutate: (data: Parameters<typeof api.contract.payments.update>[0]) =>
-		api.contract.payments.update(data),
+	mutate: (data: Parameters<typeof api.payment.update>[0]) => api.payment.update(data),
 	touches: ['payments', 'contracts', 'units'],
-	capture: (variables) => api.contract.payments.get({ id: variables.id }),
+	capture: (variables) => api.payment.get({ id: variables.id }),
 	inverse: ({ variables, captured }) =>
 		captured && {
 			describe: (t) => t.common.undo.edited({ record: t.common.labels.payment() }),
 			flags: { undo: ['editPayment'], redo: ['editPayment'] },
-			undo: () => api.contract.payments.update(captured),
-			redo: () => api.contract.payments.update(variables),
+			undo: () => api.payment.update(captured),
+			redo: () => api.payment.update(variables),
 			// both directions are an edit, as a contract's are. The amount named is the one the
 			// payment holds once that direction has run, since the amount is what names a payment
 			// and an edit is often a change to exactly that.
@@ -263,7 +261,7 @@ export const useUpdatePayment = declareMutation({
  * putting it back as itself, by the identity it had (ADR 0026).
  */
 export const useDeleteManyPayments = declareMutation({
-	mutate: ({ ids }: SelectionCall) => api.contract.payments.deleteMany({ ids }),
+	mutate: ({ ids }: SelectionCall) => api.payment.deleteMany({ ids }),
 	touches: ['payments', 'contracts', 'units'],
 	inverse: ({ result }) =>
 		// nothing changed, so there is nothing to offer taking back. An undo entry for a no-op is a
@@ -273,8 +271,8 @@ export const useDeleteManyPayments = declareMutation({
 			: {
 					describe: (t) => t.common.undo.deletedMany({ count: result.deleted.length }),
 					flags: { undo: ['createPayment'], redo: ['deletePayment'] },
-					undo: () => api.contract.payments.createMany({ payments: result.deleted }),
-					redo: () => api.contract.payments.deleteMany({ ids: toPaymentIds(result.deleted) }),
+					undo: () => api.payment.createMany({ payments: result.deleted }),
+					redo: () => api.payment.deleteMany({ ids: toPaymentIds(result.deleted) }),
 					records: (direction) =>
 						result.deleted.map((payment) =>
 							toPaymentHistoryEntry(payment, direction === 'undo' ? 'created' : 'deleted')
@@ -307,14 +305,14 @@ export const useDeleteManyPayments = declareMutation({
 });
 
 export const useDeletePayment = declareMutation({
-	mutate: (id: string) => api.contract.payments.delete({ id }),
+	mutate: (id: string) => api.payment.delete({ id }),
 	touches: ['payments', 'contracts', 'units'],
 	inverse: ({ result }) =>
 		result && {
 			describe: (t) => t.common.undo.deleted({ record: t.common.labels.payment() }),
 			flags: { undo: ['createPayment'], redo: ['deletePayment'] },
-			undo: () => api.contract.payments.create(result),
-			redo: () => api.contract.payments.delete({ id: result.id }),
+			undo: () => api.payment.create(result),
+			redo: () => api.payment.delete({ id: result.id }),
 			records: (direction) =>
 				toPaymentHistoryEntry(result, direction === 'undo' ? 'created' : 'deleted')
 		},

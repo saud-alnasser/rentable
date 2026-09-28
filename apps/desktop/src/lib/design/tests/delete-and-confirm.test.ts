@@ -188,10 +188,10 @@ describe('an ordinary delete runs at once and offers undo', () => {
 		});
 
 		await run(useDeletePayment, payment.id);
-		assert.equal(await caller.contract.payments.get({ id: payment.id }), undefined);
+		assert.equal(await caller.payment.get({ id: payment.id }), undefined);
 
 		await pressUndo(deleteAnnouncement());
-		assert.equal((await caller.contract.payments.get({ id: payment.id }))?.amount, 1000);
+		assert.equal((await caller.payment.get({ id: payment.id }))?.amount, 1000);
 	});
 
 	it('puts back a contract with no payments', async () => {

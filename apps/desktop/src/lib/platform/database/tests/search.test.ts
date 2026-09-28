@@ -103,16 +103,15 @@ test('a number is found as either locale renders it', async () => {
 test('a payment is found by an amount written in Arabic-Indic digits', async () => {
 	const api = await createApi();
 	const contract = await seedContract(api, { cost: 1500, govId: 'P-1' });
-	const payment = await api.contract.payments.create({
+	const payment = await api.payment.create({
 		contractId: contract.id,
 		date: NOW,
 		amount: 1500
 	});
 
-	assert.deepEqual(
-		ids(await api.contract.payments.getMany({ contractId: contract.id, search: '١٥٠٠' })),
-		[payment.id]
-	);
+	assert.deepEqual(ids(await api.payment.getMany({ contractId: contract.id, search: '١٥٠٠' })), [
+		payment.id
+	]);
 });
 
 test('a tenant is found by an identity written in Arabic-Indic digits', async () => {
@@ -275,21 +274,20 @@ test('a wildcard is still escaped by the contract and payment searches', async (
 
 	assert.deepEqual(ids(await api.contract.getMany({ search: '50%' })), [contract.id]);
 
-	const payment = await api.contract.payments.create({
+	const payment = await api.payment.create({
 		contractId: contract.id,
 		date: NOW,
 		amount: 1500
 	});
 
 	assert.deepEqual(
-		ids(await api.contract.payments.getMany({ contractId: contract.id, search: '%' })),
+		ids(await api.payment.getMany({ contractId: contract.id, search: '%' })),
 		[],
 		'a bare percent matched every payment instead of the text it stands for'
 	);
-	assert.deepEqual(
-		ids(await api.contract.payments.getMany({ contractId: contract.id, search: '1500' })),
-		[payment.id]
-	);
+	assert.deepEqual(ids(await api.payment.getMany({ contractId: contract.id, search: '1500' })), [
+		payment.id
+	]);
 });
 
 test('a search ignores case in both directions', async () => {
@@ -313,17 +311,17 @@ test('a ledger search stays inside the contract it is reading', async () => {
 	const read = await seedContract(api, { cost: 1500, govId: 'READ' });
 	const other = await seedContract(api, { cost: 2500, govId: 'OTHER' });
 
-	const mine = await api.contract.payments.create({
+	const mine = await api.payment.create({
 		contractId: read.id,
 		date: NOW,
 		amount: 1500
 	});
-	await api.contract.payments.create({ contractId: other.id, date: NOW, amount: 2500 });
+	await api.payment.create({ contractId: other.id, date: NOW, amount: 2500 });
 
 	const month = new Date(NOW).toISOString().slice(0, 7);
 
 	assert.deepEqual(
-		ids(await api.contract.payments.getMany({ contractId: read.id, search: month })),
+		ids(await api.payment.getMany({ contractId: read.id, search: month })),
 		[mine.id],
 		'the search reached payments belonging to another contract'
 	);

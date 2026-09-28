@@ -94,9 +94,9 @@ test('the consent is opened, polled and given up through the host, and nobody ha
 	const asked: string[] = [];
 	const api = await signedOutApi(hostRecording(asked));
 
-	const started = await api.app.organization.consent.begin();
-	const result = await api.app.organization.consent.result({ sessionId: started.sessionId });
-	await api.app.organization.consent.disconnect();
+	const started = await api.organization.consent.begin();
+	const result = await api.organization.consent.result({ sessionId: started.sessionId });
+	await api.organization.consent.disconnect();
 
 	assert.equal(started.authorizationUrl, 'https://app.turso.tech/oauth');
 	assert.equal(result.status, 'granted');
@@ -111,7 +111,7 @@ test('disconnecting reaches the host signed out, and answers with the state', as
 	const asked: string[] = [];
 	const api = await signedOutApi(hostRecording(asked));
 
-	const forgotten = await api.app.organization.disconnect();
+	const forgotten = await api.organization.disconnect();
 
 	assert.deepEqual(asked, ['disconnect']);
 	assert.equal(forgotten.organization, null);
@@ -125,7 +125,7 @@ test('creating hands the trimmed name, the trimmed username and the password to 
 	const asked: string[] = [];
 	const api = await signedOutApi(hostRecording(asked));
 
-	const created = await api.app.organization.create({
+	const created = await api.organization.create({
 		name: '  Acme Rentals ',
 		username: ' Olivia.Owner ',
 		password: 'a long enough password'
@@ -133,7 +133,7 @@ test('creating hands the trimmed name, the trimmed username and the password to 
 
 	assert.equal(created.organizationId, 'org-1');
 
-	await api.app.organization.create({
+	await api.organization.create({
 		name: '  Acme Rentals ',
 		username: ' Olivia.Owner ',
 		password: 'a long enough password',
@@ -155,23 +155,20 @@ test('an empty name, a username outside the rules, a password under the floor or
 	const api = await signedOutApi(hostRecording(asked));
 	const password = 'a long enough password';
 
-	await assert.rejects(api.app.organization.create({ name: '   ', username: 'olivia', password }));
+	await assert.rejects(api.organization.create({ name: '   ', username: 'olivia', password }));
 	await assert.rejects(
-		api.app.organization.create({
+		api.organization.create({
 			name: 'Acme',
 			username: 'olivia',
 			password: 'x'.repeat(PASSWORD_FLOOR - 1)
 		})
 	);
 	await assert.rejects(
-		api.app.organization.create({ name: 'Acme', username: 'olivia', password, group: '   ' })
+		api.organization.create({ name: 'Acme', username: 'olivia', password, group: '   ' })
 	);
 
 	for (const username of ['ol', 'o'.repeat(33), 'olivia owner', 'olivia@acme.example', '']) {
-		await assert.rejects(
-			api.app.organization.create({ name: 'Acme', username, password }),
-			username
-		);
+		await assert.rejects(api.organization.create({ name: 'Acme', username, password }), username);
 	}
 
 	assert.deepEqual(asked, []);
@@ -217,15 +214,15 @@ test('assigning a role, setting an override and withdrawing a grant each need th
 	const overriding = await permittedApi(host, 'overrideMember');
 	const granting = await permittedApi(host, 'grantWorkspace');
 
-	await assigning.app.organization.member.assignRole({ memberId: 'member-2', roleId: 'role-7' });
+	await assigning.organization.member.assignRole({ memberId: 'member-2', roleId: 'role-7' });
 	// and an override riding with the role reaches the host with it, as one act.
-	await assigning.app.organization.member.assignRole({
+	await assigning.organization.member.assignRole({
 		memberId: 'member-2',
 		roleId: 'role-7',
 		override: 8
 	});
-	await overriding.app.organization.member.setOverride({ memberId: 'member-2', override: 8 });
-	await granting.app.organization.workspace.withdraw({
+	await overriding.organization.member.setOverride({ memberId: 'member-2', override: 8 });
+	await granting.organization.workspace.withdraw({
 		workspaceId: 'workspace-1',
 		memberId: 'member-2'
 	});
@@ -241,13 +238,13 @@ test('assigning a role, setting an override and withdrawing a grant each need th
 
 	// and no flag stands in for another.
 	await assert.rejects(
-		overriding.app.organization.member.assignRole({ memberId: 'member-2', roleId: 'role-7' })
+		overriding.organization.member.assignRole({ memberId: 'member-2', roleId: 'role-7' })
 	);
 	await assert.rejects(
-		assigning.app.organization.member.setOverride({ memberId: 'member-2', override: 8 })
+		assigning.organization.member.setOverride({ memberId: 'member-2', override: 8 })
 	);
 	await assert.rejects(
-		assigning.app.organization.workspace.withdraw({
+		assigning.organization.workspace.withdraw({
 			workspaceId: 'workspace-1',
 			memberId: 'member-2'
 		})
@@ -285,19 +282,19 @@ test('tailoring a member in a workspace needs overrideMember, and asks for recor
 	const readOnly = maskOf('createPayment', 'editPayment');
 	const deleting = maskOf('deletePayment');
 
-	await overriding.app.organization.member.setWorkspaceOverride({
+	await overriding.organization.member.setWorkspaceOverride({
 		memberId: 'member-2',
 		workspaceId: 'workspace-1',
 		pinned: readOnly,
 		granted: 0
 	});
-	await overriding.app.organization.member.setWorkspaceOverride({
+	await overriding.organization.member.setWorkspaceOverride({
 		memberId: 'member-2',
 		workspaceId: 'workspace-1',
 		pinned: deleting,
 		granted: deleting
 	});
-	await overriding.app.organization.member.setWorkspaceOverride({
+	await overriding.organization.member.setWorkspaceOverride({
 		memberId: 'member-2',
 		workspaceId: 'workspace-1',
 		pinned: 0,
@@ -307,7 +304,7 @@ test('tailoring a member in a workspace needs overrideMember, and asks for recor
 	// payments out of sight there: the member's role still adds them, which the reading drops.
 	const unseen = maskOf('viewPayment');
 
-	await overriding.app.organization.member.setWorkspaceOverride({
+	await overriding.organization.member.setWorkspaceOverride({
 		memberId: 'member-2',
 		workspaceId: 'workspace-1',
 		pinned: unseen,
@@ -333,7 +330,7 @@ test('tailoring a member in a workspace needs overrideMember, and asks for recor
 
 	// no other flag stands in for it.
 	await assert.rejects(
-		granting.app.organization.member.setWorkspaceOverride({
+		granting.organization.member.setWorkspaceOverride({
 			memberId: 'member-2',
 			workspaceId: 'workspace-1',
 			pinned: readOnly,
@@ -342,7 +339,7 @@ test('tailoring a member in a workspace needs overrideMember, and asks for recor
 	);
 	// the organization's own flags are not a workspace's to pin.
 	await refusedAs(
-		overriding.app.organization.member.setWorkspaceOverride({
+		overriding.organization.member.setWorkspaceOverride({
 			memberId: 'member-2',
 			workspaceId: 'workspace-1',
 			pinned: maskOf('inviteMember'),
@@ -352,7 +349,7 @@ test('tailoring a member in a workspace needs overrideMember, and asks for recor
 	);
 	// nothing is granted there that is not pinned.
 	await refusedAs(
-		overriding.app.organization.member.setWorkspaceOverride({
+		overriding.organization.member.setWorkspaceOverride({
 			memberId: 'member-2',
 			workspaceId: 'workspace-1',
 			pinned: deleting,
@@ -362,7 +359,7 @@ test('tailoring a member in a workspace needs overrideMember, and asks for recor
 	);
 	// deleting payments turned on there, with their view pinned off beside it.
 	await refusedAs(
-		overriding.app.organization.member.setWorkspaceOverride({
+		overriding.organization.member.setWorkspaceOverride({
 			memberId: 'member-2',
 			workspaceId: 'workspace-1',
 			pinned: maskOf('viewPayment', 'deletePayment'),
@@ -420,27 +417,27 @@ test('the roles are listed to anybody signed in, and every write to one needs ma
 
 	const nobody = await permittedApi(host);
 
-	assert.deepEqual(await nobody.app.organization.role.list(), [role]);
-	await assert.rejects(nobody.app.organization.role.delete({ roleId: 'role-7' }));
+	assert.deepEqual(await nobody.organization.role.list(), [role]);
+	await assert.rejects(nobody.organization.role.delete({ roleId: 'role-7' }));
 	await assert.rejects(
-		nobody.app.organization.role.create({ name: 'collector', mask: 0, afterRoleId: 'manager' })
+		nobody.organization.role.create({ name: 'collector', mask: 0, afterRoleId: 'manager' })
 	);
 
 	const managing = await permittedApi(host, 'manageRoles');
 
-	await managing.app.organization.role.create({
+	await managing.organization.role.create({
 		name: ' collector ',
 		mask: 0,
 		afterRoleId: 'manager'
 	});
-	await managing.app.organization.role.rename({ roleId: 'role-7', name: 'collector' });
-	await managing.app.organization.role.setMask({ roleId: 'role-7', mask: 8 });
-	await managing.app.organization.role.move({ roleId: 'role-7', afterRoleId: 'manager' });
-	await managing.app.organization.role.delete({ roleId: 'role-7' });
+	await managing.organization.role.rename({ roleId: 'role-7', name: 'collector' });
+	await managing.organization.role.setMask({ roleId: 'role-7', mask: 8 });
+	await managing.organization.role.move({ roleId: 'role-7', afterRoleId: 'manager' });
+	await managing.organization.role.delete({ roleId: 'role-7' });
 
 	// a blank name is refused before the round trip.
 	await assert.rejects(
-		managing.app.organization.role.create({ name: '  ', mask: 0, afterRoleId: 'manager' })
+		managing.organization.role.create({ name: '  ', mask: 0, afterRoleId: 'manager' })
 	);
 
 	assert.deepEqual(asked, [
@@ -528,7 +525,7 @@ test('opening an invitation link reaches the host signed out, and a short passwo
 	});
 	const api = await signedOutApi(host);
 
-	const admitted = await api.app.organization.invitation.accept({
+	const admitted = await api.organization.invitation.accept({
 		link: ' rentable://join/abc ',
 		code: '7K4M9Q',
 		password: 'a password sami chose'
@@ -538,14 +535,14 @@ test('opening an invitation link reaches the host signed out, and a short passwo
 	assert.deepEqual(asked, ['accept:rentable://join/abc:7K4M9Q:21']);
 
 	await assert.rejects(
-		api.app.organization.invitation.accept({
+		api.organization.invitation.accept({
 			link: 'rentable://join/abc',
 			code: '7K4M9Q',
 			password: 'x'.repeat(PASSWORD_FLOOR - 1)
 		})
 	);
 	await assert.rejects(
-		api.app.organization.invitation.accept({
+		api.organization.invitation.accept({
 			link: '  ',
 			code: '7K4M9Q',
 			password: 'a password sami chose'
@@ -554,7 +551,7 @@ test('opening an invitation link reaches the host signed out, and a short passwo
 
 	for (const code of ['', '7K4M9', '7K4M9QQ']) {
 		await assert.rejects(
-			api.app.organization.invitation.accept({
+			api.organization.invitation.accept({
 				link: 'rentable://join/abc',
 				code,
 				password: 'a password sami chose'
@@ -591,7 +588,7 @@ test('where each account stands is answered for every member, to any signed-in m
 	// a plain member: a session with no administration act on it, which is what `permittedApi`
 	// builds when it is named none.
 	const member = await permittedApi(host);
-	const standings = await member.app.organization.member.standings();
+	const standings = await member.organization.member.standings();
 
 	assert.deepEqual(standings, [
 		{ memberId: 'member-1', passwordSet: true, machineSignedIn: true },
@@ -601,7 +598,7 @@ test('where each account stands is answered for every member, to any signed-in m
 
 	const signedOut = await signedOutApi(host);
 
-	await assert.rejects(signedOut.app.organization.member.standings());
+	await assert.rejects(signedOut.organization.member.standings());
 	assert.equal(asked, 1);
 });
 
@@ -645,7 +642,7 @@ test('making a link is held to inviteMember or resetPassword, and connecting wit
 	const signedOut = await signedOutApi(host);
 
 	await assert.rejects(
-		signedOut.app.organization.member.linkMake({ memberId: 'member-2' }),
+		signedOut.organization.member.linkMake({ memberId: 'member-2' }),
 		'a link was made by nobody'
 	);
 	assert.deepEqual(asked, []);
@@ -653,11 +650,11 @@ test('making a link is held to inviteMember or resetPassword, and connecting wit
 	// a member with no act of their own is refused before the host is reached.
 	const member = await permittedApi(host);
 
-	await assert.rejects(member.app.organization.member.linkMake({ memberId: 'member-2' }));
+	await assert.rejects(member.organization.member.linkMake({ memberId: 'member-2' }));
 	assert.deepEqual(asked, []);
 
 	const inviting = await permittedApi(host, 'inviteMember');
-	const made = await inviting.app.organization.member.linkMake({ memberId: 'member-2' });
+	const made = await inviting.organization.member.linkMake({ memberId: 'member-2' });
 
 	assert.equal(made.code, '7K4M9Q');
 	assert.equal(made.link, 'rentable://join/abc');
@@ -667,12 +664,12 @@ test('making a link is held to inviteMember or resetPassword, and connecting wit
 	const resetting = await permittedApi(host, 'resetPassword');
 
 	assert.equal(
-		(await resetting.app.organization.member.linkMake({ memberId: 'member-3' })).code,
+		(await resetting.organization.member.linkMake({ memberId: 'member-3' })).code,
 		'7K4M9Q'
 	);
 	assert.deepEqual(asked, ['linkMake:member-2', 'linkMake:member-3']);
 
-	const connected = await signedOut.app.organization.machine.connect({
+	const connected = await signedOut.organization.machine.connect({
 		link: ' rentable://join/abc ',
 		code: '7K4M9Q'
 	});
@@ -687,11 +684,11 @@ test('making a link is held to inviteMember or resetPassword, and connecting wit
 
 	for (const code of ['', '7K4M9', '7K4M9QQ']) {
 		await assert.rejects(
-			signedOut.app.organization.machine.connect({ link: 'rentable://join/abc', code })
+			signedOut.organization.machine.connect({ link: 'rentable://join/abc', code })
 		);
 	}
 
-	await assert.rejects(signedOut.app.organization.machine.connect({ link: '  ', code: '7K4M9Q' }));
+	await assert.rejects(signedOut.organization.machine.connect({ link: '  ', code: '7K4M9Q' }));
 	assert.deepEqual(asked, [
 		'linkMake:member-2',
 		'linkMake:member-3',
@@ -738,7 +735,7 @@ test('making an account is inviteMember and unsetting a password is resetPasswor
 	});
 	// each writes the account's grant on the organization database, which is grantWorkspace's row.
 	await assert.rejects(
-		(await permittedApi(host, 'inviteMember')).app.organization.member.create({
+		(await permittedApi(host, 'inviteMember')).organization.member.create({
 			username: 'sami.staff',
 			roleId: 'member',
 			override: 0,
@@ -747,7 +744,7 @@ test('making an account is inviteMember and unsetting a password is resetPasswor
 		/grantWorkspace/
 	);
 	const inviting = await permittedApi(host, 'inviteMember', 'grantWorkspace');
-	const account = await inviting.app.organization.member.create({
+	const account = await inviting.organization.member.create({
 		username: '  sami.staff  ',
 		roleId: 'member',
 		override: 0,
@@ -758,23 +755,22 @@ test('making an account is inviteMember and unsetting a password is resetPasswor
 	assert.deepEqual(asked, ['create:sami.staff:member:0:1']);
 
 	// unsetting is a different bit, so the caller who makes accounts is refused it.
-	await assert.rejects(inviting.app.organization.member.unsetPassword({ memberId: 'member-2' }));
+	await assert.rejects(inviting.organization.member.unsetPassword({ memberId: 'member-2' }));
 
 	await assert.rejects(
-		(await permittedApi(host, 'resetPassword')).app.organization.member.unsetPassword({
+		(await permittedApi(host, 'resetPassword')).organization.member.unsetPassword({
 			memberId: 'member-2'
 		}),
 		/grantWorkspace/
 	);
 	const resetting = await permittedApi(host, 'resetPassword', 'grantWorkspace');
 
-	assert.deepEqual(
-		await resetting.app.organization.member.unsetPassword({ memberId: 'member-2' }),
-		[{ id: 'workspace-9', name: 'South' }]
-	);
+	assert.deepEqual(await resetting.organization.member.unsetPassword({ memberId: 'member-2' }), [
+		{ id: 'workspace-9', name: 'South' }
+	]);
 	// and making an account is refused to the caller who only resets.
 	await assert.rejects(
-		resetting.app.organization.member.create({
+		resetting.organization.member.create({
 			username: 'sami.staff',
 			roleId: 'member',
 			override: 0,
@@ -827,26 +823,26 @@ test('ending sessions reaches the host behind reset password, and ending your ow
 
 	const resetting = await permittedApi(host, 'resetPassword');
 
-	assert.deepEqual(await resetting.app.organization.member.endSessions({ memberId: 'member-2' }), {
+	assert.deepEqual(await resetting.organization.member.endSessions({ memberId: 'member-2' }), {
 		sent: true
 	});
-	assert.deepEqual(await resetting.app.organization.session.endElsewhere(), { sent: false });
+	assert.deepEqual(await resetting.organization.session.endElsewhere(), { sent: false });
 
 	assert.deepEqual(asked, ['endSessions:member-2', 'endElsewhere']);
 
 	// a member holding no act ends their own sessions and nobody else's.
 	const without = await permittedApi(host);
 
-	await without.app.organization.session.endElsewhere();
-	await assert.rejects(without.app.organization.member.endSessions({ memberId: 'member-2' }));
+	await without.organization.session.endElsewhere();
+	await assert.rejects(without.organization.member.endSessions({ memberId: 'member-2' }));
 
 	assert.deepEqual(asked, ['endSessions:member-2', 'endElsewhere', 'endElsewhere']);
 
 	// and nobody at all ends anything.
 	const signedOut = await signedOutApi(host);
 
-	await assert.rejects(signedOut.app.organization.session.endElsewhere());
-	await assert.rejects(signedOut.app.organization.member.endSessions({ memberId: 'member-2' }));
+	await assert.rejects(signedOut.organization.session.endElsewhere());
+	await assert.rejects(signedOut.organization.member.endSessions({ memberId: 'member-2' }));
 	assert.deepEqual(asked, ['endSessions:member-2', 'endElsewhere', 'endElsewhere']);
 });
 
@@ -869,20 +865,20 @@ test('deleting the organization needs deleteOrganization and a password, and rea
 	});
 
 	const owner = await permittedApi(host, 'deleteOrganization');
-	const deleted = await owner.app.organization.delete({ password: 'the owners password' });
+	const deleted = await owner.organization.delete({ password: 'the owners password' });
 
 	assert.equal(deleted.organization, null);
 	assert.deepEqual(asked, ['delete:the owners password']);
 
-	await assert.rejects(owner.app.organization.delete({ password: '' }));
+	await assert.rejects(owner.organization.delete({ password: '' }));
 
 	const member = await permittedApi(host);
 
-	await assert.rejects(member.app.organization.delete({ password: 'the owners password' }));
+	await assert.rejects(member.organization.delete({ password: 'the owners password' }));
 
 	const signedOut = await signedOutApi(host);
 
-	await assert.rejects(signedOut.app.organization.delete({ password: 'the owners password' }));
+	await assert.rejects(signedOut.organization.delete({ password: 'the owners password' }));
 	assert.deepEqual(asked, ['delete:the owners password']);
 });
 
@@ -923,16 +919,16 @@ test('the three acts of a handover need a session, the offer and its withdrawal 
 
 	const owner = await permittedApi(host, 'transferOwnership');
 	const member = await permittedApi(host);
-	const offered = await owner.app.organization.member.offerOwnership({
+	const offered = await owner.organization.member.offerOwnership({
 		memberId: 'member-2',
 		password: 'the owners password'
 	});
 
 	assert.equal(offered.offeredOwnership, true);
 
-	await owner.app.organization.member.withdrawOffer();
+	await owner.organization.member.withdrawOffer();
 	// accepting asks for no flag: the member accepts an offer made to them.
-	await member.app.organization.ownershipAccept({ password: 'their own password' });
+	await member.organization.ownershipAccept({ password: 'their own password' });
 
 	assert.deepEqual(asked, [
 		'offer:member-2:the owners password',
@@ -941,35 +937,33 @@ test('the three acts of a handover need a session, the offer and its withdrawal 
 	]);
 
 	await assert.rejects(
-		owner.app.organization.member.offerOwnership({ memberId: 'member-2', password: '' })
+		owner.organization.member.offerOwnership({ memberId: 'member-2', password: '' })
 	);
 	await assert.rejects(
-		owner.app.organization.member.offerOwnership({
+		owner.organization.member.offerOwnership({
 			memberId: ' ',
 			password: 'the owners password'
 		})
 	);
-	await assert.rejects(member.app.organization.ownershipAccept({ password: '' }));
+	await assert.rejects(member.organization.ownershipAccept({ password: '' }));
 	await assert.rejects(
-		member.app.organization.member.offerOwnership({
+		member.organization.member.offerOwnership({
 			memberId: 'member-2',
 			password: 'the owners password'
 		})
 	);
-	await assert.rejects(member.app.organization.member.withdrawOffer());
+	await assert.rejects(member.organization.member.withdrawOffer());
 
 	const signedOut = await signedOutApi(host);
 
 	await assert.rejects(
-		signedOut.app.organization.member.offerOwnership({
+		signedOut.organization.member.offerOwnership({
 			memberId: 'member-2',
 			password: 'the owners password'
 		})
 	);
-	await assert.rejects(signedOut.app.organization.member.withdrawOffer());
-	await assert.rejects(
-		signedOut.app.organization.ownershipAccept({ password: 'their own password' })
-	);
+	await assert.rejects(signedOut.organization.member.withdrawOffer());
+	await assert.rejects(signedOut.organization.ownershipAccept({ password: 'their own password' }));
 	assert.deepEqual(asked, [
 		'offer:member-2:the owners password',
 		'withdraw',
@@ -997,7 +991,7 @@ test('a rename hands the trimmed username on, refuses one outside the rules firs
 	});
 	const api = await permittedApi(host, 'renameMember');
 
-	const renamed = await api.app.organization.member.rename({
+	const renamed = await api.organization.member.rename({
 		memberId: 'member-2',
 		username: ' Sami.Staff '
 	});
@@ -1007,7 +1001,7 @@ test('a rename hands the trimmed username on, refuses one outside the rules firs
 
 	for (const username of ['sa', 's'.repeat(33), 'sami staff', 'sami@acme.example', '']) {
 		await assert.rejects(
-			api.app.organization.member.rename({ memberId: 'member-2', username }),
+			api.organization.member.rename({ memberId: 'member-2', username }),
 			username
 		);
 	}
@@ -1015,7 +1009,7 @@ test('a rename hands the trimmed username on, refuses one outside the rules firs
 	const without = await permittedApi(host);
 
 	await assert.rejects(
-		without.app.organization.member.rename({ memberId: 'member-2', username: 'sami' })
+		without.organization.member.rename({ memberId: 'member-2', username: 'sami' })
 	);
 	assert.deepEqual(asked, ['rename:member-2:Sami.Staff']);
 });
@@ -1028,8 +1022,8 @@ test('inspecting the group and connecting to what it holds reach the host signed
 	const asked: string[] = [];
 	const api = await signedOutApi(hostRecording(asked));
 
-	const group = await api.app.organization.groupInspect();
-	const connected = await api.app.organization.connectExisting({
+	const group = await api.organization.groupInspect();
+	const connected = await api.organization.connectExisting({
 		username: ' Olivia.Owner ',
 		password: 'the owners password'
 	});
@@ -1046,7 +1040,7 @@ test('a username outside the rules or a password under the floor never reaches t
 	const api = await signedOutApi(hostRecording(asked));
 
 	await assert.rejects(
-		api.app.organization.connectExisting({
+		api.organization.connectExisting({
 			username: 'olivia',
 			password: 'x'.repeat(PASSWORD_FLOOR - 1)
 		})
@@ -1054,7 +1048,7 @@ test('a username outside the rules or a password under the floor never reaches t
 
 	for (const username of ['ol', 'o'.repeat(33), 'olivia owner', '']) {
 		await assert.rejects(
-			api.app.organization.connectExisting({
+			api.organization.connectExisting({
 				username,
 				password: 'a long enough password'
 			}),
@@ -1278,7 +1272,7 @@ function organizationRecording(asked: string[]): Host {
 function organizationAt(api: Awaited<ReturnType<typeof permittedApi>>, path: string) {
 	const call = path
 		.split('.')
-		.reduce<unknown>((node, key) => (node as Record<string, unknown>)[key], api.app.organization);
+		.reduce<unknown>((node, key) => (node as Record<string, unknown>)[key], api.organization);
 
 	return call as (input?: unknown) => Promise<unknown>;
 }
@@ -1317,10 +1311,8 @@ test('an owner act or a change of the mark is refused, by name, to a caller lack
 	const asked: string[] = [];
 	const remover = await permittedApi(organizationRecording(asked), 'removeMember');
 
-	await remover.app.organization.member.remove({ memberId: 'member-2' });
-	await assert.rejects(
-		remover.app.organization.member.remove({ memberId: 'member-2', lockOut: true })
-	);
+	await remover.organization.member.remove({ memberId: 'member-2' });
+	await assert.rejects(remover.organization.member.remove({ memberId: 'member-2', lockOut: true }));
 	assert.deepEqual(asked, ['member.remove']);
 });
 
@@ -1389,7 +1381,7 @@ test('a role or an override that writes a kind of record without viewing it is r
 	};
 
 	await refusedAs(
-		api.app.organization.role.create({
+		api.organization.role.create({
 			name: 'collector',
 			mask: maskOf('editContract'),
 			afterRoleId: 'manager'
@@ -1397,7 +1389,7 @@ test('a role or an override that writes a kind of record without viewing it is r
 		'host.contractNeedsViewing'
 	);
 	await refusedAs(
-		api.app.organization.role.setMask({
+		api.organization.role.setMask({
 			roleId: 'role-7',
 			mask: maskOf('viewUnit', 'createTenant')
 		}),
@@ -1406,14 +1398,14 @@ test('a role or an override that writes a kind of record without viewing it is r
 	// the member's role views payments; an override switching that view off leaves them writing
 	// payments they cannot see.
 	await refusedAs(
-		api.app.organization.member.setOverride({
+		api.organization.member.setOverride({
 			memberId: 'member-2',
 			override: maskOf('viewPayment')
 		}),
 		'host.paymentNeedsViewing'
 	);
 	await refusedAs(
-		api.app.organization.member.assignRole({
+		api.organization.member.assignRole({
 			memberId: 'member-2',
 			roleId: 'role-7',
 			override: maskOf('deleteComplex')
@@ -1421,7 +1413,7 @@ test('a role or an override that writes a kind of record without viewing it is r
 		'host.complexNeedsViewing'
 	);
 	await refusedAs(
-		api.app.organization.member.create({
+		api.organization.member.create({
 			username: 'sami.staff',
 			roleId: 'member',
 			override: maskOf('viewUnit'),
@@ -1432,16 +1424,16 @@ test('a role or an override that writes a kind of record without viewing it is r
 	assert.deepEqual(asked, [], 'the host was asked to write a mask the router refuses');
 
 	// and the same acts go through where every kind written is viewed.
-	await api.app.organization.role.create({
+	await api.organization.role.create({
 		name: 'collector',
 		mask: maskOf('viewContract', 'editContract'),
 		afterRoleId: 'manager'
 	});
-	await api.app.organization.member.setOverride({
+	await api.organization.member.setOverride({
 		memberId: 'member-2',
 		override: maskOf('viewPayment', 'createPayment', 'editPayment')
 	});
-	await api.app.organization.member.assignRole({ memberId: 'member-2', roleId: 'role-7' });
+	await api.organization.member.assignRole({ memberId: 'member-2', roleId: 'role-7' });
 
 	assert.deepEqual(asked, [
 		`create:${maskOf('viewContract', 'editContract')}`,

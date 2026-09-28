@@ -1,7 +1,7 @@
 import * as s from '$lib/platform/database/schema';
 import { type Contract } from '$lib/platform/database/schema';
 import { FILTER_PERIODS, isWithinPeriod, toPeriodRange } from '$lib/date';
-import { procedure } from '$lib/api/trpc';
+import { procedure, router } from '$lib/api/trpc';
 import { getExpectedAmountBy, getExpectedAmountInRange } from '$lib/contract/contract';
 import { serializeContract } from '$lib/contract/serialize';
 import {
@@ -24,9 +24,9 @@ import z from 'zod';
 /**
  * DASHBOARD ROUTER
  *
- * the landing screen's read, mounted by the contract router at `contract.dashboard` — it
- * answers entirely about contracts, and moving the path would have made a relocation into
- * an interface change.
+ * the landing screen's read, `dashboard.get`, mounted at the root like every feature's router.
+ * *It was mounted by the contract router at `contract.dashboard`, because it answers entirely
+ * about contracts, until effort 840 flattened the router tree.*
  *
  * It never loads payment rows. What a contract owes today is everything expected by now
  * minus the materialized `paid_amount`, and the one figure that needs payments is a scalar
@@ -108,7 +108,7 @@ const DashboardInputSchema = z
  * occupancy; and one without `viewTenant` with a queue that names nobody. What is left out is not
  * returned.
  */
-export default procedure.member
+const get = procedure.member
 	.input(DashboardInputSchema)
 	.query(async ({ input, ctx }): Promise<DashboardData> => {
 		const now = ctx.clock.now();
@@ -246,3 +246,5 @@ export default procedure.member
 			}
 		};
 	});
+
+export default router({ get });

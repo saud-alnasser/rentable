@@ -7,7 +7,7 @@
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { useSetEndingSoonNoticeDays } from '$lib/settings/query';
 
-	type AppSettings = Awaited<ReturnType<typeof api.app.settings.get>>;
+	type AppSettings = Awaited<ReturnType<typeof api.settings.get>>;
 
 	let { settings }: { settings: AppSettings } = $props();
 

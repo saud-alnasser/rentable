@@ -34,7 +34,7 @@ export function useFetchContractWorkQueue(period: () => FilterPeriod) {
 
 		return {
 			queryKey: keys.get(chosen),
-			queryFn: () => api.contract.dashboard({ period: chosen }),
+			queryFn: () => api.dashboard.get({ period: chosen }),
 			placeholderData: <T>(previous: T) => previous
 		};
 	});

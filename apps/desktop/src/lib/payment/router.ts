@@ -31,8 +31,9 @@ import z from 'zod';
 /**
  * PAYMENT ROUTER
  *
- * the payment procedures, mounted by the contract router at `contract.payments` — a
- * payment is only ever reached through the contract it was made against.
+ * the payment procedures, mounted at the root at `payment`. A payment is only ever made against a
+ * contract, and *the router was mounted by the contract router, at `contract.payments`, until
+ * effort 840 flattened the router tree.*
  */
 
 function serializePayment(record: typeof s.payment.$inferSelect): Payment {

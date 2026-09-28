@@ -47,7 +47,7 @@
 	import CrownIcon from '@lucide/svelte/icons/crown';
 	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
 
-	type AppSettings = Awaited<ReturnType<typeof api.app.settings.get>>;
+	type AppSettings = Awaited<ReturnType<typeof api.settings.get>>;
 
 	/**
 	 * The settings area: one surface, a rail of sections, and the chosen section's blocks.

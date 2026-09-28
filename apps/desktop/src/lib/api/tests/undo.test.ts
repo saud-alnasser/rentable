@@ -259,7 +259,7 @@ describe('undoing a record change', () => {
 
 		await run(useDeletePayment, payment.id);
 		await inverseStack.undo();
-		assert.equal((await caller.contract.payments.get({ id: payment.id }))?.amount, 1000);
+		assert.equal((await caller.payment.get({ id: payment.id }))?.amount, 1000);
 
 		await run(useUpdateUnit, { id: unit.id, complexId: complex.id, name: 'A2' });
 		await inverseStack.undo();

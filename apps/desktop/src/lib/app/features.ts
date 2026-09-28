@@ -1,10 +1,15 @@
 import complex from '$lib/complex/feature';
 import contract from '$lib/contract/feature';
-import { defineFeature } from '$lib/feature/feature';
+import dashboard from '$lib/dashboard/feature';
 import history from '$lib/history/feature';
+import organization from '$lib/organization/feature';
+import payment from '$lib/payment/feature';
+import settings from '$lib/settings/feature';
+import startup from '$lib/startup/feature';
+import sync from '$lib/sync/feature';
 import tenant from '$lib/tenant/feature';
+import update from '$lib/update/feature';
 import workspace from '$lib/workspace/feature';
-import app from './app';
 
 /**
  * THE FEATURES
@@ -12,15 +17,20 @@ import app from './app';
  * every feature and capability the root router mounts, each under its declared name. This is the
  * one place that names them all: adding one is a line here, and removing one is taking it out.
  *
- * **It holds what the root mounts, and nothing mounted deeper.** Payment and the dashboard are
- * mounted by the contract router, and settings, sync and the organization by the app router, so
- * their paths stay `contract.payment.*` and `app.settings.*` until each is mounted here.
+ * **Every router is mounted here, and at one depth.** No feature's router mounts another's, so a
+ * procedure's path is always its feature's name and then the procedure (effort 840, criterion 3).
  */
 export const features = [
-	defineFeature({ name: 'app', router: app }),
 	tenant,
 	complex,
 	contract,
+	payment,
+	dashboard,
 	history,
-	workspace
+	workspace,
+	organization,
+	settings,
+	sync,
+	update,
+	startup
 ] as const;

@@ -48,15 +48,17 @@ test('every procedure names a flag, or says it is a member procedure or public',
 });
 
 /** The record routers, whose every procedure is a record act. */
-const RECORD_ROUTERS = ['complex.', 'tenant.', 'contract.', 'history.', 'workspace.'];
+const RECORD_ROUTERS = ['complex.', 'tenant.', 'contract.', 'payment.', 'history.', 'workspace.'];
 
 /**
- * The two reads under them open to every member, each answering with nothing of a kind the member
- * may not view rather than refusing: the landing screen, and what an import compares a file with.
+ * The two reads open to every member, each answering with nothing of a kind the member may not
+ * view rather than refusing: the landing screen, and what an import compares a file with. And this
+ * machine's reconcile, a member's own act that moved under the contract router with the flat tree
+ * (effort 840) and is no record act.
  */
-const OPEN_TO_EVERY_MEMBER = ['contract.dashboard', 'workspace.held'];
+const OPEN_TO_EVERY_MEMBER = ['dashboard.get', 'workspace.held', 'contract.reconcile'];
 
-test('every record procedure names its flag, the two open reads aside', () => {
+test('every record procedure names its flag, the open reads and the reconcile aside', () => {
 	const unnamed = procedures
 		.filter(({ path }) => RECORD_ROUTERS.some((prefix) => path.startsWith(prefix)))
 		.filter(({ path, meta }) => !namesAFlag(meta) && !OPEN_TO_EVERY_MEMBER.includes(path))
@@ -130,16 +132,16 @@ const PLANNED: Record<string, readonly Flag[]> = {
 	'contract.units.getAssignableMany': ['viewUnit'],
 	'contract.units.getAssignableForTerm': ['viewUnit'],
 	'contract.units.set': ['editContract'],
-	'contract.payments.get': ['viewPayment'],
-	'contract.payments.search': ['viewPayment'],
-	'contract.payments.getMany': ['viewPayment'],
-	'contract.payments.receipt': ['viewPayment'],
-	'contract.payments.create': ['createPayment'],
-	'contract.payments.createMany': ['createPayment'],
-	'contract.payments.planMany': ['viewPayment'],
-	'contract.payments.update': ['editPayment'],
-	'contract.payments.delete': ['deletePayment'],
-	'contract.payments.deleteMany': ['deletePayment'],
+	'payment.get': ['viewPayment'],
+	'payment.search': ['viewPayment'],
+	'payment.getMany': ['viewPayment'],
+	'payment.receipt': ['viewPayment'],
+	'payment.create': ['createPayment'],
+	'payment.createMany': ['createPayment'],
+	'payment.planMany': ['viewPayment'],
+	'payment.update': ['editPayment'],
+	'payment.delete': ['deletePayment'],
+	'payment.deleteMany': ['deletePayment'],
 	'workspace.get': VIEW,
 	'workspace.importWhole': CREATE
 };

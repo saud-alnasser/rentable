@@ -92,7 +92,7 @@ test('reading is refused as firmly as writing', async () => {
 test('the bootstrap is behind the same refusal', async () => {
 	const api = await signedOutApi();
 
-	const refusal = await refusalFrom(api.app.bootstrap());
+	const refusal = await refusalFrom(api.startup.bootstrap());
 
 	assert.equal(refusal?.code, 'UNAUTHORIZED');
 });
@@ -102,11 +102,11 @@ test('the bootstrap is behind the same refusal', async () => {
 test('this machine reads and writes its own settings with nobody signed in', async () => {
 	const api = await signedOutApi();
 
-	const settings = await api.app.settings.get();
+	const settings = await api.settings.get();
 
 	assert.ok(settings, 'the settings page could not read its settings');
 
-	const changed = await api.app.settings.set({ endingSoonNoticeDays: 45 });
+	const changed = await api.settings.set({ endingSoonNoticeDays: 45 });
 
 	assert.ok(changed, 'the settings page could not write its settings');
 });
@@ -116,16 +116,14 @@ test('this machine reads and writes its own settings with nobody signed in', asy
 test('the appearance is written through settings, and nothing but its three settings is taken', async () => {
 	const api = await signedOutApi();
 
-	assert.equal((await api.app.settings.get()).appearance, 'system');
+	assert.equal((await api.settings.get()).appearance, 'system');
 
-	const changed = await api.app.settings.set({ appearance: 'dark' });
+	const changed = await api.settings.set({ appearance: 'dark' });
 
 	assert.equal(changed.appearance, 'dark');
 	assert.equal(changed.locale, 'en', 'a changeset naming the appearance leaves the locale alone');
 
-	const refusal = await refusalFrom(
-		api.app.settings.set({ appearance: 'sepia' as unknown as 'dark' })
-	);
+	const refusal = await refusalFrom(api.settings.set({ appearance: 'sepia' as unknown as 'dark' }));
 
 	assert.equal(refusal?.code, 'BAD_REQUEST');
 });
@@ -135,7 +133,7 @@ test('the appearance is written through settings, and nothing but its three sett
 test('the updater answers a machine nobody has signed in on', async () => {
 	const api = await signedOutApi();
 
-	await api.app.update.check();
+	await api.update.check();
 });
 
 // The one public procedure that is not on the settings page. It reads the shell's own record of
@@ -144,7 +142,7 @@ test('the updater answers a machine nobody has signed in on', async () => {
 test('what the shell knows about syncing is readable either way', async () => {
 	const api = await signedOutApi();
 
-	await api.app.remoteSync.getState();
+	await api.sync.getState();
 });
 
 // **And the one beside it that is not.** Reading what this machine has synced is a fact about the
@@ -155,7 +153,7 @@ test('what the shell knows about syncing is readable either way', async () => {
 test('renaming the workspace is not, however small the write looks', async () => {
 	const api = await signedOutApi();
 
-	const refusal = await refusalFrom(api.app.remoteSync.rename({ name: 'somewhere else' }));
+	const refusal = await refusalFrom(api.sync.rename({ name: 'somewhere else' }));
 
 	assert.equal(refusal?.code, 'UNAUTHORIZED');
 });

@@ -23,7 +23,7 @@ import QueryProviders from '#tests/query-providers.svelte';
  * (`dashboard/tests/router.test.ts` holds the read itself).
  */
 
-type Dashboard = Awaited<ReturnType<typeof api.contract.dashboard>>;
+type Dashboard = Awaited<ReturnType<typeof api.dashboard.get>>;
 type QueueEntry = Dashboard['queue'][number];
 
 const DUE = Date.UTC(2026, 0, 18);
