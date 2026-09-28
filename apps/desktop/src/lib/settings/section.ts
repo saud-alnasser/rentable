@@ -1,5 +1,5 @@
 import type { Pathname } from '$app/types';
-import type { OrganizationSession } from '$lib/platform/host';
+import type { OrganizationSession } from '$lib/organization/host';
 import { permits, type Flag } from '@rentable/workspace-permission';
 
 /**

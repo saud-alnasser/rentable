@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { tauri } from '$lib/platform/tauri';
+	import { host } from '$lib/app/host';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { toErrorMessage } from '$lib/error/message';
 	import { THE_WAY_IN } from '$lib/layout/shell-surface';
@@ -122,7 +122,7 @@
 		let shape;
 
 		try {
-			shape = await tauri.organization.linkRead(link);
+			shape = await host.organization.linkRead(link);
 		} catch (error) {
 			if (stillWaiting(mine, link)) {
 				step = inspectionFailed(link, code, error, describe);
@@ -135,7 +135,7 @@
 			// the kind of link that connects the machine itself: one a member made for this machine,
 			// which carries the credential sealed and the code is the half that opens it.
 			if (shape.kind === 'machine') {
-				await tauri.organization.machineConnect(link, code);
+				await host.organization.machineConnect(link, code);
 			}
 		} catch (error) {
 			if (stillWaiting(mine, link)) {
@@ -177,7 +177,7 @@
 		step = joinBegun(taking);
 
 		try {
-			await tauri.organization.invitation.accept(link, code, password);
+			await host.organization.invitation.accept(link, code, password);
 		} catch (error) {
 			step = joinFailed(step, error, describe);
 

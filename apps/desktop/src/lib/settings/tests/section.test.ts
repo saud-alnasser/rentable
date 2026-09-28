@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { fakeOrganizationSession } from '$lib/platform/tests/testing.ts';
+import { fakeOrganizationSession } from '$lib/organization/tests/testing.ts';
 import { maskOf } from '@rentable/workspace-permission';
 
 import {

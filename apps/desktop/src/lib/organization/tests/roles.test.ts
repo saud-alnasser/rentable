@@ -26,29 +26,22 @@ mock.module('@tauri-apps/api/core', {
 	}
 });
 mock.module('@tauri-apps/api/event', { exports: { listen: async () => () => {} } });
-mock.module('@tauri-apps/plugin-dialog', {
-	exports: { open: async () => null, save: async () => null }
-});
-mock.module('@tauri-apps/plugin-opener', {
-	exports: { openUrl: async () => {}, revealItemInDir: async () => {} }
-});
-mock.module('@tauri-apps/plugin-updater', { exports: { check: async () => null } });
 
-const { tauri } = await import('$lib/platform/tauri');
+const { tauri } = await import('$lib/organization/tauri');
 
 test('each role write reaches its own command, with the arguments Rust names', async () => {
 	asked.length = 0;
 
-	await tauri.organization.roles();
-	await tauri.organization.role.create('collector', 8, 'manager');
-	await tauri.organization.role.rename('role-7', 'supervisor');
-	await tauri.organization.role.setMask('role-7', 16);
-	await tauri.organization.role.move('role-7', 'role-3');
-	await tauri.organization.role.remove('role-7');
-	await tauri.organization.member.assignRole('member-2', 'role-7');
-	await tauri.organization.member.assignRole('member-2', 'role-7', 0);
-	await tauri.organization.member.setOverride('member-2', 32);
-	await tauri.organization.member.create('sami', 'role-7', 64, []);
+	await tauri.roles();
+	await tauri.role.create('collector', 8, 'manager');
+	await tauri.role.rename('role-7', 'supervisor');
+	await tauri.role.setMask('role-7', 16);
+	await tauri.role.move('role-7', 'role-3');
+	await tauri.role.remove('role-7');
+	await tauri.member.assignRole('member-2', 'role-7');
+	await tauri.member.assignRole('member-2', 'role-7', 0);
+	await tauri.member.setOverride('member-2', 32);
+	await tauri.member.create('sami', 'role-7', 64, []);
 
 	assert.deepEqual(asked, [
 		{ command: 'organization_roles', args: undefined },

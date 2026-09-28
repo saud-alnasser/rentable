@@ -7,7 +7,7 @@ import type {
 	OrganizationRole,
 	OrganizationSession,
 	OrganizationWorkspace
-} from '$lib/platform/host';
+} from '$lib/organization/host';
 import { effective, permits, type Flag } from '@rentable/workspace-permission';
 import ArrowDownIcon from '@lucide/svelte/icons/arrow-down';
 import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';

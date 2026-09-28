@@ -18,8 +18,8 @@ import {
 } from '$lib/platform/database/memory.ts';
 import { newId } from '$lib/platform/database/identity.ts';
 import type { Database, Identity } from '$lib/api/context.ts';
-import type { Host } from '$lib/platform/host.ts';
-import { fakeHost } from '$lib/platform/tests/testing.ts';
+import type { Host } from '$lib/app/host.ts';
+import { fakeHost } from '$lib/app/tests/host.ts';
 import { appRouter } from '../router.ts';
 import { caller, context } from '$lib/api/trpc.ts';
 

@@ -1,6 +1,6 @@
 import { toErrorDetail } from '$lib/error/message';
 import { toTauriErrorCode, toTauriRefusalReason, type TauriRefusalReason } from '$lib/error/tauri';
-import type { LinkShape } from '$lib/platform/host';
+import type { LinkShape } from '$lib/organization/host';
 
 /**
  * CONNECTING BY A LINK

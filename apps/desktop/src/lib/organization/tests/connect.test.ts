@@ -16,7 +16,7 @@ import {
 	THE_WALL
 } from '$lib/organization/connect.ts';
 import type { JoinStep } from '$lib/organization/connect.ts';
-import type { LinkShape } from '$lib/platform/host.ts';
+import type { LinkShape } from '$lib/organization/host.ts';
 
 /**
  * THE CONNECT SCREEN, DRIVEN

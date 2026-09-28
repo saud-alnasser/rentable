@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { OrganizationSession } from '$lib/platform/host';
+	import type { OrganizationSession } from '$lib/organization/host';
 	import * as Avatar from '@rentable/design/primitive/avatar/index.js';
 	import { Badge } from '@rentable/design/primitive/badge/index.js';
 	import { Button } from '@rentable/design/primitive/button/index.js';

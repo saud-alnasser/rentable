@@ -10,7 +10,7 @@ import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import StartupNoWorkspace from '$lib/layout/component/startup-no-workspace.svelte';
 import StartupSignIn from '$lib/layout/component/startup-sign-in.svelte';
-import { fakeHeldOrganization } from '$lib/platform/tests/testing.ts';
+import { fakeHeldOrganization } from '$lib/organization/tests/testing.ts';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 
 /**

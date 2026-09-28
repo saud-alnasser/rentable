@@ -10,9 +10,9 @@ import WorkspaceMenu from '$lib/layout/component/workspace-menu.svelte';
 import RailProviders from '$lib/layout/tests/rail-providers.svelte';
 import {
 	fakeOrganizationSession,
-	fakeOrganizationWorkspace,
-	fakeWorkspace
-} from '$lib/platform/tests/testing.ts';
+	fakeOrganizationWorkspace
+} from '$lib/organization/tests/testing.ts';
+import { fakeWorkspace } from '$lib/platform/tests/testing.ts';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 
 import ListHarness from './list-harness.svelte';

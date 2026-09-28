@@ -2,7 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import type { OrganizationMember, OrganizationWorkspace } from '$lib/platform/host';
+	import type { OrganizationMember, OrganizationWorkspace } from '$lib/organization/host';
 	import Empty from '@rentable/design/block/empty.svelte';
 	import RecordCard from '@rentable/design/block/record-card.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';

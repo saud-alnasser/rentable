@@ -44,7 +44,7 @@
 		type WorkspaceTailoring as Tailoring
 	} from '$lib/organization/role';
 	import { usernameSchema } from '$lib/organization/username-form';
-	import type { OrganizationRole } from '$lib/platform/host';
+	import type { OrganizationRole } from '$lib/organization/host';
 	import { effective } from '@rentable/workspace-permission';
 	import { untrack } from 'svelte';
 	import SaveIcon from '@lucide/svelte/icons/save';

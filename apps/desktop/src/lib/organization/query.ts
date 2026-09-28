@@ -2,12 +2,12 @@ import { isTheGroupNeeded } from './setup';
 import api, { forgetContext } from '$lib/api/caller';
 import { onMutationError, onMutationSuccess, type MutationOptions } from '$lib/mutation';
 import { LL } from '$lib/i18n/i18n-svelte';
-import {
-	tauri,
-	type MemberRemoved,
-	type OrganizationConsentResult,
-	type SessionsEnded
-} from '$lib/platform/tauri';
+import { tauri } from '$lib/organization/tauri';
+import type {
+	MemberRemoved,
+	OrganizationConsentResult,
+	SessionsEnded
+} from '$lib/organization/host';
 import {
 	createMutation,
 	createQuery,
@@ -152,7 +152,7 @@ export function useReconnectAuthority(
 	const client = useQueryClient();
 
 	return createMutation(() => ({
-		mutationFn: () => tauri.organization.reconnectAuthority(),
+		mutationFn: () => tauri.reconnectAuthority(),
 		onSuccess: async () => {
 			await client.invalidateQueries({ queryKey: keys.state });
 			onMutationSuccess(opts);
@@ -430,7 +430,7 @@ export function useFetchMemberStandings(enabled: () => boolean = () => true) {
 export function useFetchOrganizationState() {
 	return createQuery(() => ({
 		queryKey: keys.state,
-		queryFn: () => tauri.organization.getState()
+		queryFn: () => tauri.getState()
 	}));
 }
 
@@ -445,7 +445,7 @@ export function useReadOrganizationName() {
 	return async () => {
 		const state = await client.fetchQuery({
 			queryKey: keys.state,
-			queryFn: () => tauri.organization.getState()
+			queryFn: () => tauri.getState()
 		});
 
 		return state.session?.organizationName?.trim() ?? '';
@@ -698,7 +698,7 @@ export function useEndMemberSessions(
 export function useAccountRefusalDetail(refused: () => boolean) {
 	return createQuery(() => ({
 		queryKey: [...keys.state, 'accountRefusal'],
-		queryFn: () => tauri.organization.accountRefusalDetail(),
+		queryFn: () => tauri.accountRefusalDetail(),
 		enabled: refused()
 	}));
 }

@@ -1,17 +1,17 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import type { Host, OrganizationSession } from '$lib/platform/host.ts';
+import type { Host } from '$lib/app/host.ts';
+import type { OrganizationSession } from '$lib/organization/host.ts';
 import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
 import { fakeIdentity } from '$lib/app/tests/testing.ts';
+import { fakeHost } from '$lib/app/tests/host.ts';
 import {
-	fakeHost,
 	fakeOrganizationSession,
 	fakeOrganizationState,
-	fakeOrganizationWorkspace,
-	fakeSyncState,
-	fakeWorkspace
-} from '$lib/platform/tests/testing.ts';
+	fakeOrganizationWorkspace
+} from '$lib/organization/tests/testing.ts';
+import { fakeSyncState, fakeWorkspace } from '$lib/platform/tests/testing.ts';
 import {
 	BUILT_IN,
 	WRITE_FLAGS,

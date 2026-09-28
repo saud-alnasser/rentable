@@ -5,7 +5,7 @@
 	import { cn } from '@rentable/design/tailwind.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { byRank, roleNameOf, roleWhoOf } from '$lib/organization/role';
-	import type { OrganizationRole } from '$lib/platform/host';
+	import type { OrganizationRole } from '$lib/organization/host';
 
 	/**
 	 * A member's role, in the tray a member's sheet opens with: the one choice about the whole

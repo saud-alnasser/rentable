@@ -45,7 +45,7 @@
 		useUnsetMemberPassword,
 		useWithdrawOffer
 	} from '$lib/organization/query';
-	import type { OrganizationMember } from '$lib/platform/host';
+	import type { OrganizationMember } from '$lib/organization/host';
 	import WorkspaceRenameForm from '$lib/workspace/component/rename-form.svelte';
 	import { onDestroy, untrack } from 'svelte';
 

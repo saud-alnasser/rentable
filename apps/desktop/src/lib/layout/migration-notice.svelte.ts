@@ -1,4 +1,4 @@
-import type { MigrationNotice } from '$lib/platform/host';
+import type { MigrationNotice } from '$lib/organization/host';
 
 /**
  * Where a workspace upgrade is, for the loading screen to say.

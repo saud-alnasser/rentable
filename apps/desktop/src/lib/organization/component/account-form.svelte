@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { OrganizationWorkspace, WorkspaceGrant } from '$lib/platform/tauri';
+	import type { OrganizationWorkspace, WorkspaceGrant } from '$lib/organization/host';
 	import { usernameSchema } from '$lib/organization/username-form';
 	import FieldError from '@rentable/design/block/field-error.svelte';
 	import FormSurface, { insetControl } from '@rentable/design/block/form-surface.svelte';
@@ -16,7 +16,7 @@
 		type MemberWorkspaceRow
 	} from '$lib/organization/component/member-workspaces.svelte';
 	import { roleNameOf } from '$lib/organization/role';
-	import type { OrganizationRole } from '$lib/platform/host';
+	import type { OrganizationRole } from '$lib/organization/host';
 	import { BUILT_IN, permits } from '@rentable/workspace-permission';
 	import { lacking } from '$lib/organization/acts';
 	import UserIcon from '@lucide/svelte/icons/user';

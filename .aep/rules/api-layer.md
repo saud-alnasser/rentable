@@ -5,8 +5,8 @@ paths:
   - apps/desktop/src/lib/feature/**
   - apps/desktop/src/lib/*/router.ts
   - apps/desktop/src/lib/*/reconcile.ts
-  - apps/desktop/src/lib/platform/host.ts
-  - apps/desktop/src/lib/platform/tauri.ts
+  - apps/desktop/src/lib/*/host.ts
+  - apps/desktop/src/lib/*/tauri.ts
   - apps/desktop/src/lib/platform/database/**
 use-when: "adding or changing a router, a domain module, a database client or transport, or anything crossing the Tauri IPC boundary"
 ---
@@ -19,10 +19,10 @@ use-when: "adding or changing a router, a domain module, a database client or tr
 
   The layer is no longer one directory. A concept that has relocated (#123-#126)
   keeps its router under its own name, so the globs follow it there; without them
-  the router rules below stop loading for exactly the routers they govern. The two
-  `platform` globs are there for the same reason in the other direction: the facade
-  and the database transport left the layer, and the `invoke` rule below is the one
-  that governs them.
+  the router rules below stop loading for exactly the routers they govern. The
+  `host.ts`, `tauri.ts` and `platform/database` globs are there for the same reason in
+  the other direction: the ports, their Tauri adapters and the database transport left
+  the layer, and the `invoke` rule below is the one that governs them.
 
   *One database client type* was merged in here on 2026-08-17, from its own file.
   It was ADR 0001, it governs the same boundary these globs already cover, and
@@ -40,8 +40,14 @@ use-when: "adding or changing a router, a domain module, a database client or tr
   is deliberate — recorded originally as ADR 0002.
 - **Input shapes derive from the schema**, by narrowing it. Do not restate fields a router
   is about to persist.
-- **Every `invoke` belongs in the Tauri facade**, with the two hot database commands as the
-  only exception. A component or router calling `invoke` directly is a defect.
+- **Every `invoke` belongs in its concept's `tauri.ts` adapter**, with the two hot database
+  commands as the only exception. A component or router calling `invoke` directly is a defect.
+  A concept that crosses to Rust declares its port in its own `host.ts` and satisfies it in its
+  `tauri.ts` (the organization's are `organization/host.ts` and `organization/tauri.ts`); what
+  is no feature's is `platform/host.ts` and `platform/tauri.ts`. `app/host.ts` composes the
+  `Host` the request context carries from the platform's part and each feature's port, and
+  `app/caller.ts` binds it into the caller with the root router. *It read "belongs in the Tauri facade" until ticket 23
+  of effort 840 gave the organization its own port.*
 - **Ambient capabilities only in the request context** — the things that cross the process
   boundary or are nondeterministic. Business configuration is not one of them and does not
   belong there.

@@ -1,4 +1,4 @@
-import type { MadeLink } from '$lib/platform/host';
+import type { MadeLink } from '$lib/organization/host';
 
 /**
  * THE ORGANIZATION SURFACES, ASKED FOR IN ONE PLACE AND DRAWN IN ANOTHER

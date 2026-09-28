@@ -61,9 +61,11 @@ cleared them and took the exclusion back out of `apps/desktop/tsconfig.json` (20
 **So write a new test as though the compiler reads it, because it does** — annotations rather
 than `any`, and a fixture in the shape production actually produces.
 
-**A fixture for a declared interface is shared, not written out per file.** Five scaffolding
-modules hold them: `platform/tests/testing.ts` builds a whole `Host` and the remote-sync
-payloads it speaks in, `app/tests/testing.ts` the router caller, `design/tests/testing.ts` the
+**A fixture for a declared interface is shared, not written out per file.** Seven scaffolding
+modules hold them: `app/tests/host.ts` composes a whole `Host` from each port's fake,
+`platform/tests/testing.ts` builds the platform's part and the remote-sync payloads it speaks in,
+`organization/tests/testing.ts` the organization's port and its payloads, `app/tests/testing.ts`
+the router caller, `design/tests/testing.ts` the
 binding a declared mutation hands the query library, `design/tests/strings.ts` the string
 contract a packaged block reads from its provider, and `workspace/tests/file.ts` the file a
 workspace transfer crosses as. **A hand-written partial of any of them is a shape nothing

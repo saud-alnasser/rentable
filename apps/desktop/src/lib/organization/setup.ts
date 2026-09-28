@@ -16,7 +16,7 @@
  * the route is what wires them to the shell.
  */
 
-import type { GroupState, OrganizationSession } from '$lib/platform/host';
+import type { GroupState, OrganizationSession } from '$lib/organization/host';
 import { toErrorDetail } from '$lib/error/message';
 import { toTauriRefusalReason, type TauriRefusalReason } from '$lib/error/tauri';
 

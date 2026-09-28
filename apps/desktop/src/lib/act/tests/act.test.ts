@@ -4,7 +4,7 @@ import { mock, test } from 'node:test';
 import { i18nObject } from '$lib/i18n/i18n-util.ts';
 import { loadLocale } from '$lib/i18n/i18n-util.sync.ts';
 import { ContractSchema } from '$lib/platform/database/schema.ts';
-import { fakeOrganizationMember, fakeOrganizationRoles } from '$lib/platform/tests/testing.ts';
+import { fakeOrganizationMember, fakeOrganizationRoles } from '$lib/organization/tests/testing.ts';
 
 /**
  * Requirement 8 of effort 832, criterion 8: a record's acts are declared once, and the card's menu
@@ -577,8 +577,8 @@ type MemberActRecord = import('$lib/organization/acts').MemberActRecord;
 type MemberActContext = import('$lib/organization/acts').MemberActContext;
 type WorkspaceActRecord = import('$lib/organization/acts').WorkspaceActRecord;
 type WorkspaceActContext = import('$lib/organization/acts').WorkspaceActContext;
-type OrganizationMember = import('$lib/platform/host').OrganizationMember;
-type OrganizationWorkspace = import('$lib/platform/host').OrganizationWorkspace;
+type OrganizationMember = import('$lib/organization/host').OrganizationMember;
+type OrganizationWorkspace = import('$lib/organization/host').OrganizationWorkspace;
 
 /** A host that records what each member or workspace act asked of it. */
 function recordingOrganizationHost() {

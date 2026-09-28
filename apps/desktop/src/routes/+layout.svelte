@@ -46,7 +46,7 @@
 	import { toRefusalText } from '$lib/error/refusal';
 	import { QueryClient, QueryClientProvider } from '@tanstack/svelte-query';
 	import { getCurrentWindow } from '@tauri-apps/api/window';
-	import { tauri } from '$lib/platform/tauri';
+	import { host } from '$lib/app/host';
 	import { onMount } from 'svelte';
 	import '../app.css';
 
@@ -67,7 +67,7 @@
 	 * What is left here is the route's own work: mirroring what that unit reports into something
 	 * this file can render from, deciding how much of the shell each state draws, and drawing it.
 	 */
-	const startup = createStartup(browserStartupPorts(queryClient));
+	const startup = createStartup(browserStartupPorts(queryClient, host.organization));
 
 	provideStartup(startup);
 
@@ -232,12 +232,12 @@
 				void startup.closeWindow(startup.closesWithoutSyncing);
 			});
 
-			unlistenLink = await tauri.organization.onLink(openConnectScreen);
-			unlistenMigration = await tauri.organization.onMigration(noteMigration);
+			unlistenLink = await host.organization.onLink(openConnectScreen);
+			unlistenMigration = await host.organization.onMigration(noteMigration);
 
 			await startup.start();
 
-			const waiting = await tauri.organization.linkTake();
+			const waiting = await host.organization.linkTake();
 
 			if (waiting) {
 				openConnectScreen(waiting);

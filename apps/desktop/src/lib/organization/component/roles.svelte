@@ -15,7 +15,7 @@
 	import { toRoleDirectory } from '$lib/organization/directory';
 	import { roleActs, roleHost, rolePending } from '$lib/organization/host.svelte';
 	import { roleLine, roleNameOf } from '$lib/organization/role';
-	import type { OrganizationMember, OrganizationRole } from '$lib/platform/host';
+	import type { OrganizationMember, OrganizationRole } from '$lib/organization/host';
 	import { getIntlLocale } from '$lib/platform/locale';
 	import { recordOf, ROLE_PARAM, withSection } from '$lib/settings/section';
 	import XIcon from '@lucide/svelte/icons/x';

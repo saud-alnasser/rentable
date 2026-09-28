@@ -1,5 +1,6 @@
 <script lang="ts">
-	import type { OrganizationWorkspace, RemoteSyncWorkspace } from '$lib/platform/host';
+	import type { RemoteSyncWorkspace } from '$lib/platform/host';
+	import type { OrganizationWorkspace } from '$lib/organization/host';
 	import { resolve } from '$app/paths';
 	import * as DropdownMenu from '@rentable/design/primitive/dropdown-menu/index.js';
 	import * as Sidebar from '@rentable/design/primitive/sidebar/index.js';

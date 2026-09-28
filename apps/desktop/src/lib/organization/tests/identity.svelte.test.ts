@@ -5,7 +5,7 @@ import { expect, test } from 'vitest';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import Identity from '$lib/organization/component/identity.svelte';
-import { fakeOrganizationSession } from '$lib/platform/tests/testing.ts';
+import { fakeOrganizationSession } from '$lib/organization/tests/testing.ts';
 import en from '$lib/i18n/en';
 import ar from '$lib/i18n/ar';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';

@@ -10,8 +10,8 @@ import {
 	fakeOrganizationRole,
 	fakeOrganizationRoles,
 	fakeOrganizationSession
-} from '$lib/platform/tests/testing';
-import type { OrganizationMember, OrganizationRole } from '$lib/platform/host';
+} from '$lib/organization/tests/testing';
+import type { OrganizationMember, OrganizationRole } from '$lib/organization/host';
 import en from '$lib/i18n/en';
 import ar from '$lib/i18n/ar';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';

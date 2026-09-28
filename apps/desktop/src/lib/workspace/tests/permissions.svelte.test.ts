@@ -5,13 +5,12 @@ import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import en from '$lib/i18n/en';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
-import type { OrganizationSession } from '$lib/platform/host';
+import type { OrganizationSession } from '$lib/organization/host';
 import {
 	fakeOrganizationSession,
-	fakeOrganizationWorkspace,
-	fakeSyncState,
-	fakeWorkspace
-} from '$lib/platform/tests/testing';
+	fakeOrganizationWorkspace
+} from '$lib/organization/tests/testing';
+import { fakeSyncState, fakeWorkspace } from '$lib/platform/tests/testing';
 import DirectoryImportDialog from '$lib/workspace/component/directory-import-dialog.svelte';
 import WorkspaceImportDialog from '$lib/workspace/component/import-dialog.svelte';
 import WorkspacePermissions from '$lib/workspace/component/permissions.svelte';

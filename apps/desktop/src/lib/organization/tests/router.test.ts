@@ -6,16 +6,16 @@ import { caller, context, type Meta } from '$lib/api/trpc.ts';
 import organization from '$lib/organization/router.ts';
 import { PASSWORD_FLOOR } from '$lib/organization/setup.ts';
 import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
+import { fakeHost } from '$lib/app/tests/host.ts';
 import {
 	fakeHeldOrganization,
-	fakeHost,
 	fakeOrganizationMember,
 	fakeOrganizationState
-} from '$lib/platform/tests/testing.ts';
+} from '$lib/organization/tests/testing.ts';
 import { fakeIdentity } from '$lib/app/tests/testing.ts';
 import { BUILT_IN, EVERY_FLAG, maskOf, type Flag } from '@rentable/workspace-permission';
 import { readRefusal } from '$lib/api/refusal.ts';
-import type { Host } from '$lib/platform/host.ts';
+import type { Host } from '$lib/app/host.ts';
 import type { AnyProcedure } from '@trpc/server';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -1066,7 +1066,7 @@ test('a username outside the rules or a password under the floor never reaches t
  * the router's flag is the refusal in front of it, so the two name the same flag. The Rust side is
  * read as text, off the `GATES` table its own test holds every organization command to, the way
  * `permission.rs` reads the permission package. Which command each procedure calls is written out
- * here, off `platform/tauri.ts`, because the router reaches the command through the host and
+ * here, off `organization/tauri.ts`, because the router reaches the command through the host and
  * nothing on this side can follow the call.
  */
 const COMMAND_SOURCE = readFileSync(

@@ -4,15 +4,14 @@ import test from 'node:test';
 import type { Context } from '$lib/api/context.ts';
 import { caller, context, procedure, router } from '$lib/api/trpc.ts';
 import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
+import { fakeHost } from '$lib/app/tests/host.ts';
 import {
 	fakeHeldOrganization,
-	fakeHost,
 	fakeOrganizationSession,
 	fakeOrganizationState,
-	fakeOrganizationWorkspace,
-	fakeSyncState,
-	fakeWorkspace
-} from '$lib/platform/tests/testing.ts';
+	fakeOrganizationWorkspace
+} from '$lib/organization/tests/testing.ts';
+import { fakeSyncState, fakeWorkspace } from '$lib/platform/tests/testing.ts';
 import { maskOf } from '@rentable/workspace-permission';
 
 import {

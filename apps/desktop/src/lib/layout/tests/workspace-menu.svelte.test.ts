@@ -5,7 +5,8 @@ import en from '$lib/i18n/en';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import WorkspaceMenu from '$lib/layout/component/workspace-menu.svelte';
-import { fakeOrganizationWorkspace, fakeWorkspace } from '$lib/platform/tests/testing.ts';
+import { fakeOrganizationWorkspace } from '$lib/organization/tests/testing.ts';
+import { fakeWorkspace } from '$lib/platform/tests/testing.ts';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 
 import RailProviders from './rail-providers.svelte';

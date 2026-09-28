@@ -12,7 +12,7 @@ import {
 	fakeOrganizationSession,
 	fakeOrganizationState,
 	fakeOrganizationWorkspace
-} from '$lib/platform/tests/testing';
+} from '$lib/organization/tests/testing';
 import Page from '../+page.svelte';
 
 /**

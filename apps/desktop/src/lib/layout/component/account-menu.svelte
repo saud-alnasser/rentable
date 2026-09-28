@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { OrganizationSession } from '$lib/platform/host';
+	import type { OrganizationSession } from '$lib/organization/host';
 	import { resolve } from '$app/paths';
 	import * as Avatar from '@rentable/design/primitive/avatar/index.js';
 	import * as DropdownMenu from '@rentable/design/primitive/dropdown-menu/index.js';

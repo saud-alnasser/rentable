@@ -1,6 +1,6 @@
 <script lang="ts" module>
 	import type { PaymentReceipt } from '$lib/payment/query';
-	import type { OrganizationMark } from '$lib/platform/tauri';
+	import type { OrganizationMark } from '$lib/organization/host';
 
 	/**
 	 * Everything a printed receipt carries: what `payment.receipt` answered, and who

@@ -30,11 +30,14 @@ const reads = vi.hoisted(() => ({
 	mark: vi.fn()
 }));
 
+vi.mock('$lib/organization/tauri', () => ({
+	tauri: {
+		getState: async () => ({ session: { organizationName: 'Al Nakheel Estates' } })
+	}
+}));
+
 vi.mock('$lib/platform/tauri', () => ({
 	tauri: {
-		organization: {
-			getState: async () => ({ session: { organizationName: 'Al Nakheel Estates' } })
-		},
 		print: { page: vi.fn() },
 		dialog: { saveFile: vi.fn() },
 		opener: { openUrl: vi.fn() }

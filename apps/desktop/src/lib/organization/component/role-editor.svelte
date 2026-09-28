@@ -13,7 +13,7 @@
 	import MemberSectionHead from '$lib/organization/component/member-section-head.svelte';
 	import PermissionSwitches from '$lib/organization/component/permission-switches.svelte';
 	import { holdersWritingBlind, newRoleMask, roleNameOf } from '$lib/organization/role';
-	import type { OrganizationMember, OrganizationRole } from '$lib/platform/host';
+	import type { OrganizationMember, OrganizationRole } from '$lib/organization/host';
 	import { getIntlLocale } from '$lib/platform/locale';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import SaveIcon from '@lucide/svelte/icons/save';

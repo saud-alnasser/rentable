@@ -21,7 +21,10 @@ import {
 	stepFor,
 	stepsOf
 } from '$lib/organization/setup.ts';
-import { fakeOrganizationSession, fakeOrganizationWorkspace } from '$lib/platform/tests/testing.ts';
+import {
+	fakeOrganizationSession,
+	fakeOrganizationWorkspace
+} from '$lib/organization/tests/testing.ts';
 import { USERNAME_MAX, USERNAME_MIN, usernameSchema } from '$lib/organization/username-form.ts';
 import { workspaceFormSchema } from '$lib/organization/workspace-form.ts';
 import { WORKSPACE_NAME_LIMIT } from '$lib/workspace/workspace.ts';

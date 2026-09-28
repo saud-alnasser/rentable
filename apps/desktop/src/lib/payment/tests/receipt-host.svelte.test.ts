@@ -28,11 +28,14 @@ const hooks = vi.hoisted(() => ({
 	sentences: [] as string[]
 }));
 
+vi.mock('$lib/organization/tauri', () => ({
+	tauri: {
+		getState: async () => ({ session: { organizationName: 'Al Nakheel Estates' } })
+	}
+}));
+
 vi.mock('$lib/platform/tauri', () => ({
 	tauri: {
-		organization: {
-			getState: async () => ({ session: { organizationName: 'Al Nakheel Estates' } })
-		},
 		print: { page: hooks.page },
 		dialog: { saveFile: vi.fn() }
 	}

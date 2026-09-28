@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { MadeLink } from '$lib/platform/host';
+	import type { MadeLink } from '$lib/organization/host';
 	import FormSurface from '@rentable/design/block/form-surface.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import CheckIcon from '@lucide/svelte/icons/check';

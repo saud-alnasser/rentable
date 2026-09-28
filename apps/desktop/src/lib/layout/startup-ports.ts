@@ -16,6 +16,7 @@ import {
 	syncWorkspaceBeforeExit,
 	syncWorkspaceNow
 } from '$lib/sync/workspace';
+import type { OrganizationHost } from '$lib/organization/host';
 import type { QueryClient } from '@tanstack/svelte-query';
 import { get } from 'svelte/store';
 
@@ -31,8 +32,14 @@ import type { StartupPorts } from './startup';
  *
  * Everything here is a one-line forward. Anything with a decision in it belongs in the unit, where
  * a test can reach it.
+ *
+ * **The organization's port is handed in** by the root layout, off the host the composition root
+ * composes (`$lib/app/host`), since it is a feature's and the shell reaches no feature's adapter.
  */
-export function browserStartupPorts(queryClient: QueryClient): StartupPorts {
+export function browserStartupPorts(
+	queryClient: QueryClient,
+	organization: OrganizationHost
+): StartupPorts {
 	return {
 		window: {
 			show: () => tauri.window.show(),
@@ -51,12 +58,12 @@ export function browserStartupPorts(queryClient: QueryClient): StartupPorts {
 			getState: () => tauri.remoteSync.getState()
 		},
 		organization: {
-			getState: () => tauri.organization.getState(),
-			signIn: (username, password) => tauri.organization.signIn(username, password),
-			signOut: () => tauri.organization.signOut(),
-			disconnect: () => tauri.organization.disconnect(),
-			openWorkspace: (workspaceId) => tauri.organization.workspace.open(workspaceId),
-			renewDue: () => tauri.organization.renewDue()
+			getState: () => organization.getState(),
+			signIn: (username, password) => organization.signIn(username, password),
+			signOut: () => organization.signOut(),
+			disconnect: () => organization.disconnect(),
+			openWorkspace: (workspaceId) => organization.workspace.open(workspaceId),
+			renewDue: () => organization.renewDue()
 		},
 		workspace: {
 			bootstrap: () => api.startup.bootstrap(),

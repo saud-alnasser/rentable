@@ -4,7 +4,7 @@ import test from 'node:test';
 import { appRouter } from '$lib/app/router.ts';
 import { caller, context } from '$lib/api/trpc.ts';
 import { fakeIdentity, refusedWith } from '$lib/app/tests/testing.ts';
-import { fakeHost } from '$lib/platform/tests/testing.ts';
+import { fakeHost } from '$lib/app/tests/host.ts';
 import { isRecordId, newId } from '../identity.ts';
 import { createMemoryDatabase } from '../memory.ts';
 import { mapRows } from '../client.ts';

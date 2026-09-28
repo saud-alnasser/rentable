@@ -6,7 +6,7 @@ import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import ConnectScreen from '$lib/organization/component/connect-screen.svelte';
 import { afterRead, pasting, THE_WALL, type JoinStep } from '$lib/organization/connect';
 import { PASSWORD_FLOOR } from '$lib/organization/setup';
-import type { LinkShape } from '$lib/platform/host';
+import type { LinkShape } from '$lib/organization/host';
 import en from '$lib/i18n/en';
 import ar from '$lib/i18n/ar';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';

@@ -2,7 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import type { MemberStanding, OrganizationMember } from '$lib/platform/tauri';
+	import type { MemberStanding, OrganizationMember } from '$lib/organization/host';
 	import Empty from '@rentable/design/block/empty.svelte';
 	import RecordCard from '@rentable/design/block/record-card.svelte';
 	import * as Avatar from '@rentable/design/primitive/avatar/index.js';

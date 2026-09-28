@@ -10,14 +10,17 @@ import {
 	resetOrganizationHost,
 	workspaceHost
 } from '$lib/organization/host.svelte';
-import type { MemberStanding, OrganizationMember, OrganizationSession } from '$lib/platform/host';
+import type {
+	MemberStanding,
+	OrganizationMember,
+	OrganizationSession
+} from '$lib/organization/host';
 import {
 	fakeOrganizationMember,
 	fakeOrganizationSession,
-	fakeOrganizationWorkspace,
-	fakeSyncState,
-	fakeWorkspace
-} from '$lib/platform/tests/testing';
+	fakeOrganizationWorkspace
+} from '$lib/organization/tests/testing';
+import { fakeSyncState, fakeWorkspace } from '$lib/platform/tests/testing';
 import { usesAppleKeyboard } from '@rentable/design/shortcut.js';
 import { maskOf } from '@rentable/workspace-permission';
 

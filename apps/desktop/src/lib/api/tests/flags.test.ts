@@ -6,15 +6,14 @@ import { BUILT_IN, FAMILIES, WRITE_FLAGS, maskOf, type Flag } from '@rentable/wo
 import type { AnyProcedure } from '@trpc/server';
 
 import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
-import type { Host } from '$lib/platform/host.ts';
+import type { Host } from '$lib/app/host.ts';
+import { fakeHost } from '$lib/app/tests/host.ts';
 import {
-	fakeHost,
 	fakeOrganizationSession,
 	fakeOrganizationState,
-	fakeOrganizationWorkspace,
-	fakeSyncState,
-	fakeWorkspace
-} from '$lib/platform/tests/testing.ts';
+	fakeOrganizationWorkspace
+} from '$lib/organization/tests/testing.ts';
+import { fakeSyncState, fakeWorkspace } from '$lib/platform/tests/testing.ts';
 import { appRouter } from '$lib/app/router.ts';
 import { caller, context, type Meta } from '../trpc.ts';
 import { createApi, fakeIdentity, NOW, unusedId } from '$lib/app/tests/testing.ts';

@@ -10,7 +10,7 @@ import {
 	startupProgressWithin,
 	type StartupStage
 } from '../startup-stage.ts';
-import { fakeOrganizationSession, fakeOrganizationState } from '$lib/platform/tests/testing.ts';
+import { fakeOrganizationSession, fakeOrganizationState } from '$lib/organization/tests/testing.ts';
 import { harness, locked, nowhereToGo } from './testing.ts';
 
 /**

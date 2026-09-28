@@ -6,8 +6,8 @@ import {
 	fakeOrganizationMember,
 	fakeOrganizationRoles,
 	fakeOrganizationWorkspace
-} from '../../platform/tests/testing.ts';
-import type { OrganizationMember, OrganizationRole } from '../../platform/host.ts';
+} from '$lib/organization/tests/testing.ts';
+import type { OrganizationMember, OrganizationRole } from '$lib/organization/host.ts';
 
 /**
  * THE SETTINGS DIRECTORIES, SEARCHED AND ORDERED

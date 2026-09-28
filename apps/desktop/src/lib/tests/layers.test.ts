@@ -19,7 +19,8 @@
 // has a second one, `ui.ts`, which re-exports by name the components other concepts render; its
 // `component/` stays private, so reaching into it from outside is `deep`. A feature shares no
 // component, so a feature's `ui.ts` is no entry. `app/` may also read a feature's `feature.ts`
-// and `surface.ts`, which is how it lists them. `import type` is erased at runtime and is not
+// and `surface.ts`, which is how it lists them, and its `tauri.ts`, which is how `app/host.ts`
+// binds the feature's host port to its adapter. `import type` is erased at runtime and is not
 // counted by any kind.
 //
 // A locale is the other place that reads every concept: `i18n/<locale>/index.ts` composes each
@@ -99,8 +100,9 @@ const KIND_OWNER: Record<string, string> = { unit: 'complex' };
 
 const COMPOSITION_ROOT = 'app';
 
-// What the composition root reads from a feature besides its entry (plan, *Components*).
-const DECLARATIONS = ['feature.ts', 'surface.ts'];
+// What the composition root reads from a feature besides its entry (plan, *Components*): its two
+// declarations, and the Tauri adapter `app/host.ts` binds its host port to.
+const DECLARATIONS = ['feature.ts', 'surface.ts', 'tauri.ts'];
 
 // A concept's strings for one locale, and the locale index that composes them.
 const LOCALE_PIECE = /^(?!i18n\/)(?:[^/]+\/)+i18n\/([a-z]+)\.ts$/;

@@ -1,5 +1,6 @@
 <script lang="ts">
-	import type { OrganizationSession, RemoteSyncState } from '$lib/platform/host';
+	import type { RemoteSyncState } from '$lib/platform/host';
+	import type { OrganizationSession } from '$lib/organization/host';
 	import { tauri } from '$lib/platform/tauri';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Callout } from '@rentable/design/primitive/callout/index.js';

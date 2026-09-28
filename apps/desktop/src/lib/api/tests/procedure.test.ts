@@ -4,13 +4,11 @@ import test from 'node:test';
 import { BUILT_IN, maskOf } from '@rentable/workspace-permission';
 
 import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
-import type { Host, OrganizationSession } from '$lib/platform/host.ts';
-import {
-	fakeHost,
-	fakeOrganizationSession,
-	fakeOrganizationState,
-	fakeSyncState
-} from '$lib/platform/tests/testing.ts';
+import type { Host } from '$lib/app/host.ts';
+import type { OrganizationSession } from '$lib/organization/host.ts';
+import { fakeHost } from '$lib/app/tests/host.ts';
+import { fakeOrganizationSession, fakeOrganizationState } from '$lib/organization/tests/testing.ts';
+import { fakeSyncState } from '$lib/platform/tests/testing.ts';
 import { appRouter } from '$lib/app/router.ts';
 import { caller, context, middleware, procedure, router } from '../trpc.ts';
 import { fakeIdentity, NOW } from '$lib/app/tests/testing.ts';

@@ -5,11 +5,8 @@ import { searchField } from '$lib/list/tests/search';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
-import {
-	fakeOrganizationSession,
-	fakeSettings,
-	fakeSyncState
-} from '$lib/platform/tests/testing.ts';
+import { fakeOrganizationSession } from '$lib/organization/tests/testing.ts';
+import { fakeSettings, fakeSyncState } from '$lib/platform/tests/testing.ts';
 import SettingsArea from '$lib/settings/component/area.svelte';
 import TenantDetails from '$lib/tenant/component/details.svelte';
 import { usesAppleKeyboard } from '@rentable/design/shortcut.js';

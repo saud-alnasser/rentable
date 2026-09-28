@@ -1,4 +1,8 @@
-import type { OrganizationMember, OrganizationRole, OrganizationSession } from '$lib/platform/host';
+import type {
+	OrganizationMember,
+	OrganizationRole,
+	OrganizationSession
+} from '$lib/organization/host';
 
 /**
  * THE ORGANIZATION HOST'S HOOKS, STOOD IN FOR

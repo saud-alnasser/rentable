@@ -11,7 +11,10 @@ import {
 import { accessIn } from '$lib/api/context';
 import { i18nObject } from '$lib/i18n/i18n-util.ts';
 import { loadLocale } from '$lib/i18n/i18n-util.sync.ts';
-import { fakeOrganizationSession, fakeOrganizationWorkspace } from '$lib/platform/tests/testing.ts';
+import {
+	fakeOrganizationSession,
+	fakeOrganizationWorkspace
+} from '$lib/organization/tests/testing.ts';
 import {
 	IMPORT_FLAGS,
 	memberPermissions,

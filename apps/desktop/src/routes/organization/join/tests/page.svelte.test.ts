@@ -11,7 +11,7 @@ import {
 	fakeOrganizationSession,
 	fakeOrganizationState,
 	fakeOrganizationWorkspace
-} from '$lib/platform/tests/testing';
+} from '$lib/organization/tests/testing';
 import Page from '../+page.svelte';
 
 /**
@@ -53,8 +53,8 @@ vi.mock('$lib/layout/startup-context', () => ({
 	useStartup: () => hooks.startup
 }));
 
-vi.mock('$lib/platform/tauri', () => ({
-	tauri: {
+vi.mock('$lib/app/host', () => ({
+	host: {
 		organization: {
 			linkRead: hooks.linkRead,
 			machineConnect: vi.fn(),

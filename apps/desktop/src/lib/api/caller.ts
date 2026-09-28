@@ -1,3 +1,4 @@
+import type { Host } from '$lib/app/host';
 import type { AppRouter } from '$lib/app/router';
 import type { Context } from './context';
 import { caller, context } from './trpc';
@@ -30,12 +31,13 @@ import { caller, context } from './trpc';
 let held: Promise<Context> | null = null;
 
 /**
- * the context this process is running under, built the first time something asks for it.
+ * the context this process is running under, built over `host` the first time something asks for
+ * it.
  *
  * The promise is held rather than the value, so two calls racing the first build share it instead
  * of each starting one.
  */
-const heldContext = () => (held ??= context());
+const heldContext = (host: Host) => (held ??= context({ host }));
 
 /**
  * Forget the context, so the next call builds one under whoever is signed in now.
@@ -65,9 +67,13 @@ type CallerFactory = (context: () => Promise<Context>) => Api;
  */
 let bound: Api | null = null;
 
-/** Bind the root router's caller. Called once, by `$lib/app/caller`. */
-export function bindCaller(factory: CallerFactory) {
-	bound = factory(heldContext);
+/**
+ * Bind the root router's caller, and the host its context is built over. Called once, by
+ * `$lib/app/caller`. The host is composed from the features' ports, so it is bound in for the
+ * reason the router is, and known here by its type alone.
+ */
+export function bindCaller(factory: CallerFactory, host: Host) {
+	bound = factory(() => heldContext(host));
 }
 
 function boundCaller(): Api {

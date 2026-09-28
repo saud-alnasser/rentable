@@ -11,8 +11,12 @@ import {
 	fakeOrganizationMember,
 	fakeOrganizationRoles,
 	fakeOrganizationSession
-} from '$lib/platform/tests/testing';
-import type { MemberStanding, OrganizationMember, OrganizationWorkspace } from '$lib/platform/host';
+} from '$lib/organization/tests/testing';
+import type {
+	MemberStanding,
+	OrganizationMember,
+	OrganizationWorkspace
+} from '$lib/organization/host';
 import en from '$lib/i18n/en';
 import { toTitleCase } from '@rentable/design/title-case.js';
 import ar from '$lib/i18n/ar';

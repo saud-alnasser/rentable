@@ -5,7 +5,7 @@ import type {
 	OrganizationMember,
 	OrganizationRole,
 	OrganizationWorkspace
-} from '$lib/platform/host';
+} from '$lib/organization/host';
 
 /**
  * THE SETTINGS DIRECTORIES, SEARCHED AND ORDERED

@@ -1,7 +1,9 @@
 import { createStartup, type StartupPorts, type StartupSnapshot } from '$lib/layout/startup.ts';
 import type { StartupStage } from '$lib/layout/startup-stage.ts';
-import { fakeOrganizationState, fakeSyncState } from '$lib/platform/tests/testing.ts';
-import type { OrganizationState, Recovery, RemoteSyncState } from '$lib/platform/host.ts';
+import { fakeOrganizationState } from '$lib/organization/tests/testing.ts';
+import { fakeSyncState } from '$lib/platform/tests/testing.ts';
+import type { Recovery, RemoteSyncState } from '$lib/platform/host.ts';
+import type { OrganizationState } from '$lib/organization/host.ts';
 
 /**
  * Shared harness for driving startup with no window.

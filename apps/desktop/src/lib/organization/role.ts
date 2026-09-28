@@ -1,5 +1,5 @@
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
-import type { OrganizationMember, OrganizationRole } from '$lib/platform/host';
+import type { OrganizationMember, OrganizationRole } from '$lib/organization/host';
 import {
 	BUILT_IN,
 	EVERY_FLAG,

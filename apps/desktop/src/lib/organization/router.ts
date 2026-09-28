@@ -7,15 +7,15 @@ import type {
 	OrganizationConsentResult,
 	OrganizationConsentStart,
 	OrganizationCreated,
-	OrganizationMember,
+	OrganizationHost,
 	OrganizationMark,
+	OrganizationMember,
 	OrganizationRole,
 	OrganizationState,
 	OrganizationWorkspace,
 	SessionsEnded,
 	UnreachableWorkspace
-} from '$lib/platform/tauri';
-import type { Host } from '$lib/platform/host';
+} from '$lib/organization/host';
 import { refuse } from '$lib/api/refusal';
 import { procedure, router } from '$lib/api/trpc';
 import {
@@ -68,6 +68,9 @@ function refuseWriteWithoutView(mask: number): void {
 		throw refuse(`host.${kind}NeedsViewing`);
 	}
 }
+
+/** the part of the host the helpers below reach: the organization's own port. */
+type Host = { organization: OrganizationHost };
 
 /**
  * The mask of a role by id, or `null` where the organization holds none by that id, which Rust

@@ -1,13 +1,13 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import type api from '$lib/api/caller';
+	import type { RemoteSyncState } from '$lib/platform/host';
 	import type {
 		MemberStanding,
 		OrganizationMember,
 		OrganizationRole,
-		OrganizationSession,
-		RemoteSyncState
-	} from '$lib/platform/host';
+		OrganizationSession
+	} from '$lib/organization/host';
 	import type { Locales } from '$lib/i18n/i18n-types';
 	import PageFrame from '@rentable/design/block/page-frame.svelte';
 	import SectionSwitch from '@rentable/design/block/section-switch.svelte';

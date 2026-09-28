@@ -19,6 +19,7 @@ app -> dashboard : cycle
 app -> history : cycle
 app -> organization : cycle
 app -> payment : cycle
+app -> platform : cycle
 app -> settings : cycle
 app -> startup : cycle
 app -> sync : cycle

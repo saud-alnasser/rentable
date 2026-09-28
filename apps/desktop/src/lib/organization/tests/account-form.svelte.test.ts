@@ -11,7 +11,7 @@ import { toTitleCase } from '@rentable/design/title-case.js';
 import ar from '$lib/i18n/ar';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import { chooseOption, openSelect } from '$lib/design/tests/select';
-import { fakeOrganizationRoles } from '$lib/platform/tests/testing';
+import { fakeOrganizationRoles } from '$lib/organization/tests/testing';
 import { BUILT_IN, maskOf } from '@rentable/workspace-permission';
 
 import Providers from './providers.svelte';

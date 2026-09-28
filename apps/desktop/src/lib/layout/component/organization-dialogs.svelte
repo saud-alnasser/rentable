@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { WorkspaceGrant } from '$lib/platform/tauri';
+	import type { WorkspaceGrant } from '$lib/organization/host';
 	import OrganizationAccountForm from '$lib/organization/component/account-form.svelte';
 	import OrganizationMadeLink from '$lib/organization/component/made-link.svelte';
 	import OrganizationWorkspaceDialog from '$lib/organization/component/workspace-dialog.svelte';

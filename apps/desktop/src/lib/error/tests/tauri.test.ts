@@ -14,7 +14,7 @@ import { appRouter } from '$lib/app/router.ts';
 import { caller, context } from '$lib/api/trpc.ts';
 import { PASSWORD_FLOOR, refusalAfterFailedConnect } from '$lib/organization/setup.ts';
 import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
-import { fakeHost } from '$lib/platform/tests/testing.ts';
+import { fakeHost } from '$lib/app/tests/host.ts';
 import { TRPCError } from '@trpc/server';
 
 test('a rejected command payload is recognised by its code and message', () => {

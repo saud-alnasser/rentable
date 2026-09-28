@@ -6,7 +6,7 @@ import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import AccountMenu from '$lib/layout/component/account-menu.svelte';
 import AccountSignedOut from '$lib/layout/component/account-signed-out.svelte';
-import { fakeOrganizationSession } from '$lib/platform/tests/testing.ts';
+import { fakeOrganizationSession } from '$lib/organization/tests/testing.ts';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 
 import RailProviders from './rail-providers.svelte';

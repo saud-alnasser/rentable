@@ -168,7 +168,10 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
   feature's router mounts at the root under its name and none mounts another's, so a procedure's
   path is its feature and then the procedure: `payment.get`, `sync.getState`, `startup.bootstrap`.
   It lists what the window draws the same way, each feature's `surface.ts` in `app/surfaces.ts`,
-  and the frame mounts the hosts those declare. The clock is the one capability `platform`
+  and the frame mounts the hosts those declare. What `platform` holds of the desktop shell is only
+  what is no feature's: a feature that crosses to Rust declares its own port and Tauri adapter
+  (`host.ts`, `tauri.ts`, the organization's first), and `app/host.ts` composes them with the
+  platform's part into the host the caller is bound with. The clock is the one capability `platform`
   does not hold, because it is read nowhere but the context that supplies it. The
   application shell is neither primitive nor concept, so it is its own home, `layout`.
   `src/routes/` stays layer-first, as the framework requires. **The tree is this shape
