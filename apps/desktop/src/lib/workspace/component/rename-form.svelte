@@ -8,7 +8,7 @@
 	import { useRenameWorkspace } from '$lib/settings/query';
 	import { WORKSPACE_NAME_LIMIT } from '$lib/workspace/workspace';
 	import SaveIcon from '@lucide/svelte/icons/save';
-	import { surfaceForm } from '$lib/design/form';
+	import { surfaceForm } from '$lib/form';
 	import { defaults, superForm } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';
 	import z from 'zod';

@@ -15,7 +15,7 @@ import QueryProviders from '#tests/query-providers.svelte';
  * field, so the reader lands on what to fix instead of hunting for the mark.
  *
  * The submit is a real one. Every form on the shared surface submits through superforms with
- * `applyAction` off (`design/form.ts`, `surfaceForm`), so a refused submit settles in the form
+ * `applyAction` off (`form/form.ts`, `surfaceForm`), so a refused submit settles in the form
  * itself and never reaches SvelteKit's router, which this runner has none of.
  */
 

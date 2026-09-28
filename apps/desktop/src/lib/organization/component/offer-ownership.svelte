@@ -5,7 +5,7 @@
 	import * as InputGroup from '@rentable/design/primitive/input-group/index.js';
 	import * as Select from '@rentable/design/primitive/select/index.js';
 	import { cn } from '@rentable/design/tailwind.js';
-	import { onSubmit } from '$lib/design/form';
+	import { onSubmit } from '$lib/form';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import CrownIcon from '@lucide/svelte/icons/crown';
 	import KeyRoundIcon from '@lucide/svelte/icons/key-round';

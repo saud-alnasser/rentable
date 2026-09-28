@@ -31,7 +31,7 @@
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import SaveIcon from '@lucide/svelte/icons/save';
 	import { TRPCError } from '@trpc/server';
-	import { surfaceForm } from '$lib/design/form';
+	import { surfaceForm } from '$lib/form';
 	import { untrack } from 'svelte';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';

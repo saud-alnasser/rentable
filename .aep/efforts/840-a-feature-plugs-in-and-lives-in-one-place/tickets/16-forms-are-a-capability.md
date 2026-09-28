@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [01]
 ---
 # refactor(desktop): forms are a capability
@@ -14,8 +14,8 @@ The spec is [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]]; the 
 
 Traces requirement 20 of [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]], and criterion 20.
 
-- [ ] Its importers import `$lib/form` (criterion 20).
-- [ ] The integration gate passes on this commit; no test assertion changes except where it names a moved path (criterion 19).
+- [x] Its importers import `$lib/form` (criterion 20). Verified: `grep -rn design/form apps/desktop/src` prints nothing; 15 source files import from `'$lib/form'`, whose `index.ts` exports `onSubmit` and `surfaceForm`.
+- [x] The integration gate passes on this commit; no test assertion changes except where it names a moved path (criterion 19). Verified: in the run's tree: check 0, eslint 0, `pnpm test` 3 of 3 tasks, build:web 0; no assertion line changed in any test (one comment names the new path).
 
 ## Relevant areas
 

@@ -414,7 +414,7 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/13-mutation-is-a-capability]] refactor(desktop): mutation and the query cache are a capability | 840-a-feature-plugs-in-and-lives-in-one-place | open | 10 |
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/14-undo-is-a-capability]] refactor(desktop): undo and redo are one capability | 840-a-feature-plugs-in-and-lives-in-one-place | open | 12, 13 |
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/15-record-acts-are-a-capability]] refactor(desktop): record acts are a capability | 840-a-feature-plugs-in-and-lives-in-one-place | open | 08 |
-| [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/16-forms-are-a-capability]] refactor(desktop): forms are a capability | 840-a-feature-plugs-in-and-lives-in-one-place | open | 01 |
+| [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/16-forms-are-a-capability]] refactor(desktop): forms are a capability | 840-a-feature-plugs-in-and-lives-in-one-place | resolved | 01 |
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/17-the-list-is-a-capability]] refactor(desktop): the list is a capability | 840-a-feature-plugs-in-and-lives-in-one-place | open | 12 |
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/18-create-is-a-capability]] refactor(desktop): create is a capability | 840-a-feature-plugs-in-and-lives-in-one-place | open | 12 |
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/19-platform-imports-no-feature]] refactor(desktop): the platform imports no feature | 840-a-feature-plugs-in-and-lives-in-one-place | open | 08 |

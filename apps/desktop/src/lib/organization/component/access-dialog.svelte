@@ -19,7 +19,7 @@
 	import FormSurface from '@rentable/design/block/form-surface.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
-	import { onSubmit } from '$lib/design/form';
+	import { onSubmit } from '$lib/form';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import AccessSwitches from '$lib/organization/component/access-switches.svelte';
 	import { MEMBER_GLYPH } from '$lib/organization/glyph';

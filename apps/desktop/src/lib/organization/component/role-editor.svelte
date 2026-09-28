@@ -8,7 +8,7 @@
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import * as InputGroup from '@rentable/design/primitive/input-group/index.js';
-	import { onSubmit } from '$lib/design/form';
+	import { onSubmit } from '$lib/form';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import MemberSectionHead from '$lib/organization/component/member-section-head.svelte';
 	import PermissionSwitches from '$lib/organization/component/permission-switches.svelte';

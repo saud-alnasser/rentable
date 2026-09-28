@@ -718,7 +718,7 @@ carried theirs.
 
 **A refused submit moves focus to the first invalid field**, in the order the reader meets them,
 and scrolls it into view inside the surface's own body. Enter submits. Every schema form spreads
-`surfaceForm` from `apps/desktop/src/lib/design/form.ts` into its `superForm` call, which is where
+`surfaceForm` from `apps/desktop/src/lib/form/form.ts` into its `superForm` call, which is where
 both are set; `tenant/tests/form.svelte.test.ts` holds the focus.
 
 Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 10: complex
