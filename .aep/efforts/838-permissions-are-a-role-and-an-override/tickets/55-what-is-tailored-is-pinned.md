@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [54]
 ---
 
@@ -22,23 +22,23 @@ the first: what is tailored in a workspace is pinned.
 
 Traces requirement 12, and requirement 7, of [[efforts/838-permissions-are-a-role-and-an-override/spec]].
 
-- [ ] `workspace_override` holds `pinned` and `granted`; the workspace's permissions are
+- [x] `workspace_override` holds `pinned` and `granted`; the workspace's permissions are
       `(effective & !pinned) | granted` with a write dropped where its kind's view is not held,
       in Rust and the package; the shared table's workspace cases cover a layer beneath moving
       (read only staying read only when a write is taken away across the organization, and when
       the role gains one).
-- [ ] The act, the authority and the store take the two masks; a flag pinned is one the signer
+- [x] The act, the authority and the store take the two masks; a flag pinned is one the signer
       holds; refusals as before; tests updated.
-- [ ] The card pins a switch turned, pins every write off for *read only*, unpins all for *reset*,
+- [x] The card pins a switch turned, pins every write off for *read only*, unpins all for *reset*,
       and marks what is pinned; saving sends the two masks.
-- [ ] After a partly refused save, a role or reset that went through shows every workspace's
+- [x] After a partly refused save, a role or reset that went through shows every workspace's
       tailoring cleared; a test.
-- [ ] A role pick or a reset whose clearing would move a pinned flag the reader does not hold is
+- [x] A role pick or a reset whose clearing would move a pinned flag the reader does not hold is
       refused at the control, saying why; a test.
-- [ ] `grant_workspace` and `withdraw_grant` no longer ask the owner for a grant minted read-only,
+- [x] `grant_workspace` and `withdraw_grant` no longer ask the owner for a grant minted read-only,
       and the interface drops `ownerMadeReadOnly`; tests.
-- [ ] Docs name the workspace layer where record permissions are folded (`rules/interface`,
+- [x] Docs name the workspace layer where record permissions are folded (`rules/interface`,
       `rules/api-layer`, `contexts/desktop/organization`), the garbled sentence in
       `rules/interface` is rewritten, and the long comment in `workspace/component/permissions.svelte`
       is wrapped; the plan's lock section notes it is superseded.
-- [ ] `cargo test`, `pnpm check`, `pnpm test` and `pnpm lint` pass.
+- [x] `cargo test`, `pnpm check`, `pnpm test` and `pnpm lint` pass.
