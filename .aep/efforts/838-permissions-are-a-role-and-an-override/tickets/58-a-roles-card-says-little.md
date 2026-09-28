@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [56]
 ---
 
@@ -15,9 +15,9 @@ of what it can do. The detail is the role editor's.
 Traces requirement 12 of [[efforts/838-permissions-are-a-role-and-an-override/spec]] as amended a
 fourth time.
 
-- [ ] A card shows the role's name, its holder count and one line summarising what it can do, in
+- [x] A card shows the role's name, its holder count and one line summarising what it can do, in
       plain words, in English and Arabic; no per-kind rows of glyphs and levels.
-- [ ] The order, the search, the sort, opening a role and every refusal on the card keep their
+- [x] The order, the search, the sort, opening a role and every refusal on the card keep their
       behaviour.
-- [ ] Unused strings and helpers retired; component tests updated; `pnpm check`, `pnpm test`,
+- [x] Unused strings and helpers retired; component tests updated; `pnpm check`, `pnpm test`,
       `pnpm lint` pass.
