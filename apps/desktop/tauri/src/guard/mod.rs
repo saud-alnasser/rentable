@@ -3,4 +3,5 @@
 //! anything new and on any line that no longer occurs, so a baseline can only shrink. Nothing
 //! here ships.
 
+mod cycle;
 mod naming;

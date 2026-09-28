@@ -1,0 +1,45 @@
+# What the crate's top-level modules break today, read by the test at the foot of lib.rs
+# (`the_crate_modules_form_no_new_cycle_and_break_no_rule`). It only shrinks: a change that
+# removes a violation takes its line out in the same commit, and the test fails until it does.
+# A change that adds one fails, and is not answered by adding a line here.
+#
+# `cycle a -> b`       a names b, and b reaches a back: the edge lies on a cycle.
+# `forbidden a -> b`   a breaks one of the test's `RULES`, cycle or not.
+#
+# Kept sorted, one line each.
+#
+# Written 2026-09-28 (effort 840, ticket 02). The cycles are one tangle of nine modules: backup,
+# bootstrap, database, organization, schema, settings, state, sync and update. The survey's four
+# are all in it (organization and sync, state and every feature, database and sync, organization
+# through bootstrap to sync), and one more it did not name: organization through backup, and
+# through schema to backup, back round by sync.
+
+cycle backup -> sync
+cycle bootstrap -> database
+cycle bootstrap -> state
+cycle bootstrap -> sync
+cycle bootstrap -> update
+cycle database -> settings
+cycle database -> state
+cycle database -> sync
+cycle organization -> backup
+cycle organization -> bootstrap
+cycle organization -> database
+cycle organization -> schema
+cycle organization -> state
+cycle organization -> sync
+cycle schema -> backup
+cycle settings -> state
+cycle state -> database
+cycle state -> organization
+cycle state -> settings
+cycle state -> sync
+cycle state -> update
+cycle sync -> database
+cycle sync -> organization
+cycle sync -> settings
+cycle sync -> state
+cycle update -> settings
+cycle update -> state
+forbidden organization -> sync::turso
+forbidden sync -> organization
